@@ -270,7 +270,7 @@ class RefineFieldsTests(StaticTestBase):
             # Write to the temp.
             self.assertInBytecode(mod.C.f, "STORE_FAST")
             # Load from the temp directly in the second read.
-            self.assertInBytecode(mod.C.f, "LOAD_FAST")
+            self.assertLoadFastInBytecode(mod.C.f)
             self.assertEqual(mod.C(21).f(), 21)
 
     def test_refined_field_assert_optimized(self) -> None:
@@ -287,7 +287,7 @@ class RefineFieldsTests(StaticTestBase):
             # Write to the temp.
             self.assertInBytecode(mod.C.f, "STORE_FAST")
             # Load from the temp directly in the second read.
-            self.assertInBytecode(mod.C.f, "LOAD_FAST")
+            self.assertLoadFastInBytecode(mod.C.f)
             self.assertInBytecode(mod.C.f, "CAST")
             self.assertEqual(mod.C(21).f(), 21)
 
@@ -367,7 +367,7 @@ class RefineFieldsTests(StaticTestBase):
                     refined_write_count += 1
             # Ensure that we have a refined write in both branches.
             self.assertEqual(refined_write_count, 2)
-            self.assertInBytecode(mod.C.f, "LOAD_FAST", tmp_name)
+            self.assertLoadFastInBytecode(mod.C.f, tmp_name)
 
     def test_refined_field_if_merge_branch_to_orelse_codegen(self) -> None:
         codestr = """
@@ -390,7 +390,7 @@ class RefineFieldsTests(StaticTestBase):
                     refined_write_count += 1
             # Ensure that we have a refined write in both branches.
             self.assertEqual(refined_write_count, 2)
-            self.assertInBytecode(mod.C.f, "LOAD_FAST", tmp_name)
+            self.assertLoadFastInBytecode(mod.C.f, tmp_name)
 
     def test_refined_field_if_merge_branch_to_orelse_no_refinement(self) -> None:
         codestr = """
@@ -484,4 +484,4 @@ class RefineFieldsTests(StaticTestBase):
             self.assertEqual(c.f(), 42)
             # Ensure that we don't emit a store for the refined field since there's no use.
             self.assertInBytecode(mod.C.f, "STORE_FAST")
-            self.assertInBytecode(mod.C.f, "LOAD_FAST")
+            self.assertLoadFastInBytecode(mod.C.f)

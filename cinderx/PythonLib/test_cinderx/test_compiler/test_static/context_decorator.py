@@ -231,7 +231,7 @@ class ContextDecoratorTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             C = mod.C
             self.assertEqual(C().f(C()), 42)
-            self.assertInBytecode(C.__dict__["f"].__func__, "LOAD_FAST", "x")
+            self.assertLoadFastInBytecode(C.__dict__["f"].__func__, "x")
             self.assertInBytecode(
                 C.__dict__["f"].__func__,
                 "INVOKE_FUNCTION",

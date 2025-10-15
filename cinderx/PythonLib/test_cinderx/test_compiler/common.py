@@ -136,6 +136,14 @@ class CompilerTest(TestCase):
             msg = f"({opname},{argval}) not found in bytecode{loc_msg}:\n{disassembly}"
         self.fail(msg)
 
+    def assertLoadFastInBytecode(
+        self, x: Disassembleable, argval: object = _UNSPECIFIED
+    ) -> None:
+        try:
+            self.assertInBytecode(x, "LOAD_FAST", argval)
+        except AssertionError:
+            self.assertInBytecode(x, "LOAD_FAST_BORROW", argval)
+
     def assertLoadConstInBytecode(self, x: Disassembleable, const: object) -> None:
         if (
             isinstance(const, int)
