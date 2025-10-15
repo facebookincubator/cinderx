@@ -24,6 +24,7 @@ from cinderx.compiler.pycodegen import (
     CinderCodeGenerator310,
     CodeGenerator,
     CodeGenerator312,
+    CodeGenerator314,
     make_compiler,
 )
 
@@ -218,7 +219,9 @@ class CompilerTest(TestCase):
 
     @property
     def cinder_codegen(self) -> type[CodeGenerator]:
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 14):
+            return CodeGenerator314
+        elif sys.version_info >= (3, 12):
             return CodeGenerator312
 
         return CinderCodeGenerator310
