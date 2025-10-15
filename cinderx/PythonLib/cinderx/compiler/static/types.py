@@ -86,6 +86,8 @@ import ast
 import builtins
 import dataclasses
 
+import opcode
+
 import sys
 
 from ast import (
@@ -162,7 +164,9 @@ except ImportError:
 CACHED_PROPERTY_IMPL_PREFIX = "_pystatic_cprop."
 ASYNC_CACHED_PROPERTY_IMPL_PREFIX = "_pystatic_async_cprop."
 EAGER_IMPORT_NAME: str = (
-    "EAGER_IMPORT_NAME" if sys.version_info >= (3, 12) else "IMPORT_NAME"
+    "EAGER_IMPORT_NAME"
+    if (sys.version_info >= (3, 12) and "EAGER_IMPORT_NAME" in opcode.opmap)
+    else "IMPORT_NAME"
 )
 
 
