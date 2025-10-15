@@ -10,7 +10,12 @@ import unittest
 try:
     from cinderx.opcode import shadowop
 except ImportError:
-    shadowop = set()
+    if sys.version_info >= (3, 14):
+        import opcode
+
+        shadowop = set(opcode._specialized_opmap)
+    else:
+        shadowop = set()
 
 
 def compile_and_get(code_str, funcname):
@@ -176,8 +181,11 @@ class CinderX_DisTests(unittest.TestCase):
                     "JUMP_IF_NONZERO_OR_POP",
                     "JUMP_IF_NOT_EXC_MATCH",
                     "JUMP_BACKWARD_NO_INTERRUPT",
+                    "ANNOTATIONS_PLACEHOLDER",
+                    "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
                 )
                 or opcode in shadowop
+                or opname in shadowop
                 or opname.startswith("INSTRUMENTED")
             ):
                 continue
