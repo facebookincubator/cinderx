@@ -732,6 +732,21 @@ dummy_func(
                 ERROR_IF(err != 0);
             } else if (extop == REFINE_TYPE) {
                 DEAD(args);
+            } else if (extop == LOAD_CLASS) {
+                PyObject* type_descr = GETITEM(FRAME_CO_CONSTS, extoparg);
+                int optional;
+                int exact;
+                PyObject *type =
+                    (PyObject *)_PyClassLoader_ResolveType(type_descr, &optional, &exact);
+                DECREF_INPUTS();
+                ERROR_IF(type == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(type); 
+            } else if (extop == LOAD_TYPE) {
+                PyObject *instance = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *type = (PyObject *)Py_TYPE(instance);
+                Py_INCREF(type);
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(type);
             } else if (extop == BUILD_CHECKED_LIST) {
                 PyObject *list;
                 PyObject* list_info = GETITEM(FRAME_CO_CONSTS, extoparg);

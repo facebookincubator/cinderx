@@ -6134,6 +6134,39 @@
                     JUMP_TO_LABEL(error);
                 }
             } else if (extop == REFINE_TYPE) {
+            } else if (extop == LOAD_CLASS) {
+                PyObject* type_descr = GETITEM(FRAME_CO_CONSTS, extoparg);
+                int optional;
+                int exact;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *type =
+                (PyObject *)_PyClassLoader_ResolveType(type_descr, &optional, &exact);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (type == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(type);
+            } else if (extop == LOAD_TYPE) {
+                PyObject *instance = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *type = (PyObject *)Py_TYPE(instance);
+                Py_INCREF(type);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(type);
             } else if (extop == BUILD_CHECKED_LIST) {
                 PyObject *list;
                 PyObject* list_info = GETITEM(FRAME_CO_CONSTS, extoparg);
