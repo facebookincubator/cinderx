@@ -377,7 +377,7 @@ class StaticCompilationTests(StaticTestBase):
             def f() -> str:
                 return ", ".join(['1','2','3'])
         """
-        f = self.find_code(self.compile(codestr))
+        f = self.find_code(self.compile(codestr), "f")
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertInBytecode(
@@ -391,7 +391,7 @@ class StaticCompilationTests(StaticTestBase):
                 l = [1, 2, 3] * 2
                 return len(l)
         """
-        f = self.find_code(self.compile(codestr))
+        f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(f, "FAST_LEN", FAST_LEN_LIST)
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 6)
@@ -402,7 +402,7 @@ class StaticCompilationTests(StaticTestBase):
                 l = 2 * [1, 2, 3]
                 return len(l)
         """
-        f = self.find_code(self.compile(codestr))
+        f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(f, "FAST_LEN", FAST_LEN_LIST)
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 6)
@@ -2139,7 +2139,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         module = self.compile(codestr)
         self.assertInBytecode(module, "INVOKE_FUNCTION")
-        x = self.find_code(module)
+        x = self.find_code(module, "x")
         self.assertEqual(self.get_arg_check_types(x), ())
 
     def test_dict_invoke(self) -> None:
@@ -2182,7 +2182,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         module = self.compile(codestr)
         self.assertInBytecode(module, "INVOKE_FUNCTION")
-        x = self.find_code(module)
+        x = self.find_code(module, "x")
         self.assertEqual(self.get_arg_check_types(x), ())
 
     def test_verify_kwdefaults_too_many(self) -> None:
@@ -2554,7 +2554,7 @@ class StaticCompilationTests(StaticTestBase):
             async def x(a) -> int:
                 return a
         """
-        f = self.find_code(self.compile(codestr, modname="foo"))
+        f = self.find_code(self.compile(codestr, modname="foo"), "x")
         self.assertInBytecode(f, "CAST")
 
     def test_async_func_arg_types(self) -> None:
@@ -2562,7 +2562,7 @@ class StaticCompilationTests(StaticTestBase):
             async def f(x: int):
                 pass
         """
-        f = self.find_code(self.compile(codestr))
+        f = self.find_code(self.compile(codestr), "f")
         self.assertEqual(self.get_arg_check_types(f), (0, ("builtins", "int")))
 
     def test_field_refcount(self) -> None:

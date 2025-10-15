@@ -251,7 +251,7 @@ class MatchTests(StaticTestBase):
                     case [l, 2, 3]:
                         pass
         """
-        f = self.find_code(self.compile(codestr, modname="foo"))
+        f = self.find_code(self.compile(codestr, modname="foo"), "f")
         self.assertInBytecode(f, "CAST", ("builtins", "list"))
 
     # TODO: We can narrow the type of `rest` to `Exact[list]` here with further analysis.
@@ -380,7 +380,7 @@ class MatchTests(StaticTestBase):
                     case { 1: _, 2: d }:
                         pass
         """
-        f = self.find_code(self.compile(codestr, modname="foo"))
+        f = self.find_code(self.compile(codestr, modname="foo"), "f")
         self.assertInBytecode(f, "CAST", ("builtins", "dict"))
 
     # TODO: We can narrow the type of `q` to `int64` here with further analysis.
@@ -519,7 +519,7 @@ class MatchTests(StaticTestBase):
                         print(s)
         """
         # This should cast `13` to a string, but will result in a runtime error.
-        f = self.find_code(self.compile(codestr, modname="foo"))
+        f = self.find_code(self.compile(codestr, modname="foo"), "f")
         self.assertInBytecode(f, "CAST", ("builtins", "str"))
 
     # TODO: We can narrow `t` to `str | None`
