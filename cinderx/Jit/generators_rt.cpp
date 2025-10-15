@@ -55,7 +55,8 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
       return 0;
     }
     size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
-    const DeoptMetadata& meta = Runtime::get()->getDeoptMetadata(deopt_idx);
+    const DeoptMetadata& meta =
+        gen_footer->code_rt->getDeoptMetadata(deopt_idx);
     for (const LiveValue& value : meta.live_values) {
       if (value.ref_kind != hir::RefKind::kOwned) {
         continue;
@@ -668,8 +669,8 @@ bool deopt_jit_gen(PyObject* obj) {
     // missing deopt logging here. Although if we used the existing stuff
     // for this it might be misleading as the "cause" will not be an
     // executed instruction.
-    const DeoptMetadata& deopt_meta =
-        Runtime::get()->getDeoptMetadata(gen_footer->yieldPoint->deoptIdx());
+    const DeoptMetadata& deopt_meta = gen_footer->code_rt->getDeoptMetadata(
+        gen_footer->yieldPoint->deoptIdx());
     JIT_CHECK(
         deopt_meta.inline_depth() == 0,
         "inline functions not supported for generators");

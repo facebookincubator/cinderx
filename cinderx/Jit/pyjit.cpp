@@ -1995,60 +1995,74 @@ int check(int ret) {
 }
 
 Ref<> make_deopt_stats() {
-  Runtime* runtime = Runtime::get();
+  auto runtime = Runtime::get();
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
-  for (auto& pair : runtime->deoptStats()) {
-    const DeoptMetadata& meta = runtime->getDeoptMetadata(pair.first);
-    const DeoptStat& stat = pair.second;
-    const DeoptFrameMetadata& frame_meta = meta.innermostFrame();
-    BorrowedRef<PyCodeObject> code = frame_meta.code;
+  for (auto& pair : jitCtx()->compiledCodes()) {
+    const CompiledFunction& compiled_func = *pair.second;
+    const CodeRuntime* code_runtime = compiled_func.runtime();
 
-    auto func_qualname = code->co_qualname;
-    BCOffset line_offset = frame_meta.cause_instr_idx;
-    int lineno_raw = code->co_linetable != nullptr
-        ? PyCode_Addr2Line(code, line_offset.value())
-        : -1;
-    auto lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
-    auto reason =
-        Ref<>::steal(check(PyUnicode_FromString(deoptReasonName(meta.reason))));
-    auto description = Ref<>::steal(check(PyUnicode_FromString(meta.descr)));
+    auto const& deopt_metadatas = code_runtime->deoptMetadatas();
+    for (size_t deopt_idx = 0; deopt_idx < deopt_metadatas.size();
+         ++deopt_idx) {
+      const DeoptMetadata& meta = deopt_metadatas[deopt_idx];
 
-    // Helper to create an event dict with a given count value.
-    auto append_event = [&](size_t count_raw, const char* type_name) {
-      auto event = Ref<>::steal(check(PyDict_New()));
-      auto normals = Ref<>::steal(check(PyDict_New()));
-      auto ints = Ref<>::steal(check(PyDict_New()));
-
-      check(PyDict_SetItem(event, s_str_normal, normals));
-      check(PyDict_SetItem(event, s_str_int, ints));
-      check(PyDict_SetItem(normals, s_str_func_qualname, func_qualname));
-      check(PyDict_SetItem(normals, s_str_filename, code->co_filename));
-      check(PyDict_SetItem(ints, s_str_lineno, lineno));
-      check(PyDict_SetItem(normals, s_str_reason, reason));
-      check(PyDict_SetItem(normals, s_str_description, description));
-
-      auto count = Ref<>::steal(check(PyLong_FromSize_t(count_raw)));
-      check(PyDict_SetItem(ints, s_str_count, count));
-      auto type_str =
-          Ref<>::steal(check(PyUnicode_InternFromString(type_name)));
-      check(PyDict_SetItem(normals, s_str_guilty_type, type_str) < 0);
-      check(PyList_Append(stats, event));
-    };
-
-    // For deopts with type profiles, add a copy of the dict with counts for
-    // each type, including "other".
-    if (!stat.types.empty()) {
-      for (size_t i = 0; i < stat.types.size && stat.types.types[i] != nullptr;
-           ++i) {
-        append_event(
-            stat.types.counts[i], typeFullname(stat.types.types[i]).c_str());
+      auto stat_ptr = runtime->deoptStat(code_runtime, deopt_idx);
+      if (stat_ptr == nullptr) {
+        continue;
       }
-      if (stat.types.other > 0) {
-        append_event(stat.types.other, "<other>");
+      const DeoptStat& stat = *stat_ptr;
+
+      const DeoptFrameMetadata& frame_meta = meta.innermostFrame();
+      BorrowedRef<PyCodeObject> code = frame_meta.code;
+
+      auto func_qualname = code->co_qualname;
+      BCOffset line_offset = frame_meta.cause_instr_idx;
+      int lineno_raw = code->co_linetable != nullptr
+          ? PyCode_Addr2Line(code, line_offset.value())
+          : -1;
+      auto lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
+      auto reason = Ref<>::steal(
+          check(PyUnicode_FromString(deoptReasonName(meta.reason))));
+      auto description = Ref<>::steal(check(PyUnicode_FromString(meta.descr)));
+
+      // Helper to create an event dict with a given count value.
+      auto append_event = [&](size_t count_raw, const char* type_name) {
+        auto event = Ref<>::steal(check(PyDict_New()));
+        auto normals = Ref<>::steal(check(PyDict_New()));
+        auto ints = Ref<>::steal(check(PyDict_New()));
+
+        check(PyDict_SetItem(event, s_str_normal, normals));
+        check(PyDict_SetItem(event, s_str_int, ints));
+        check(PyDict_SetItem(normals, s_str_func_qualname, func_qualname));
+        check(PyDict_SetItem(normals, s_str_filename, code->co_filename));
+        check(PyDict_SetItem(ints, s_str_lineno, lineno));
+        check(PyDict_SetItem(normals, s_str_reason, reason));
+        check(PyDict_SetItem(normals, s_str_description, description));
+
+        auto count = Ref<>::steal(check(PyLong_FromSize_t(count_raw)));
+        check(PyDict_SetItem(ints, s_str_count, count));
+        auto type_str =
+            Ref<>::steal(check(PyUnicode_InternFromString(type_name)));
+        check(PyDict_SetItem(normals, s_str_guilty_type, type_str) < 0);
+        check(PyList_Append(stats, event));
+      };
+
+      // For deopts with type profiles, add a copy of the dict with counts for
+      // each type, including "other".
+      if (!stat.types.empty()) {
+        for (size_t i = 0;
+             i < stat.types.size && stat.types.types[i] != nullptr;
+             ++i) {
+          append_event(
+              stat.types.counts[i], typeFullname(stat.types.types[i]).c_str());
+        }
+        if (stat.types.other > 0) {
+          append_event(stat.types.other, "<other>");
+        }
+      } else {
+        append_event(stat.count, "<none>");
       }
-    } else {
-      append_event(stat.count, "<none>");
     }
   }
 
@@ -2295,7 +2309,7 @@ int deopt_gen_impl(PyGenObject* gen) {
       footer->yieldPoint != nullptr,
       "Suspended JIT generator has nullptr yieldPoint");
   const DeoptMetadata& deopt_meta =
-      Runtime::get()->getDeoptMetadata(footer->yieldPoint->deoptIdx());
+      footer->code_rt->getDeoptMetadata(footer->yieldPoint->deoptIdx());
   JIT_CHECK(
       deopt_meta.frame_meta.size() == 1,
       "Generators with inlined calls are not supported (T109706798)");
@@ -2878,7 +2892,9 @@ int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg) {
   const GenYieldPoint* yield_point = gen_footer->yieldPoint;
   if (gen_footer->state != Ci_JITGenState_Completed && yield_point) {
     size_t deopt_idx = yield_point->deoptIdx();
-    return Runtime::get()->forEachOwnedRef(gen, deopt_idx, [&](PyObject* v) {
+    const DeoptMetadata& deopt_meta =
+        gen_footer->code_rt->getDeoptMetadata(deopt_idx);
+    return Runtime::get()->forEachOwnedRef(gen, deopt_meta, [&](PyObject* v) {
       Py_VISIT(v);
       return 0;
     });
@@ -2892,7 +2908,9 @@ void _PyJIT_GenDealloc(PyGenObject* gen) {
   const GenYieldPoint* yield_point = gen_footer->yieldPoint;
   if (gen_footer->state != Ci_JITGenState_Completed && yield_point) {
     size_t deopt_idx = yield_point->deoptIdx();
-    Runtime::get()->forEachOwnedRef(gen, deopt_idx, [](PyObject* v) {
+    const DeoptMetadata& deopt_meta =
+        gen_footer->code_rt->getDeoptMetadata(deopt_idx);
+    Runtime::get()->forEachOwnedRef(gen, deopt_meta, [](PyObject* v) {
       Py_DECREF(v);
       return 0;
     });

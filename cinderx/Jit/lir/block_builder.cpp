@@ -41,7 +41,7 @@ std::size_t BasicBlockBuilder::makeDeoptMetadata() {
 
   if (!cur_deopt_metadata_.has_value()) {
     cur_deopt_metadata_ =
-        env_->rt->addDeoptMetadata(DeoptMetadata::fromInstr(*deopt_base));
+        env_->code_rt->addDeoptMetadata(DeoptMetadata::fromInstr(*deopt_base));
   }
   return cur_deopt_metadata_.value();
 }

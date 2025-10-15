@@ -498,8 +498,11 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 
   jit::codegen::Environ env;
   jit::Runtime rt;
+  jit::CodeRuntime code_runtime{
+      irfunc->code, irfunc->builtins, irfunc->globals};
 
   env.rt = &rt;
+  env.code_rt = &code_runtime;
 
   LIRGenerator lir_gen(irfunc.get(), &env);
 

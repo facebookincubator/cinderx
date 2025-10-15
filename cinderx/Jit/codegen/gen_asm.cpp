@@ -158,11 +158,10 @@ _PyInterpreterFrame* reifyLightweightFrames(
 
 CiPyFrameObjType* prepareForDeopt(
     const uint64_t* regs,
-    [[maybe_unused]] CodeRuntime* code_runtime,
+    CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
-  auto runtime = Runtime::get();
-  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
 #if PY_VERSION_HEX < 0x030C0000
   Ref<PyFrameObject> f = materializePyFrameForDeopt(tstate);
@@ -205,7 +204,8 @@ CiPyFrameObjType* prepareForDeopt(
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
   Ref<> deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
-  runtime->recordDeopt(deopt_idx, deopt_obj);
+  auto runtime = Runtime::get();
+  runtime->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
 #if PY_VERSION_HEX >= 0x030C0000
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
@@ -259,8 +259,7 @@ PyObject* resumeInInterpreter(
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
-  auto runtime = Runtime::get();
-  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   int inline_depth = deopt_meta.inline_depth();
   int err_occurred =
       (deopt_meta.reason != DeoptReason::kGuardFailure &&
@@ -311,10 +310,11 @@ PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
     CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
+  JIT_CHECK(code_runtime != nullptr, "CodeRuntime cannot be a nullptr");
+
   PyThreadState* tstate = PyThreadState_Get();
 
-  auto runtime = Runtime::get();
-  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   int err_occurred =
       (deopt_meta.reason != DeoptReason::kGuardFailure &&
        deopt_meta.reason != DeoptReason::kRaise);
@@ -456,7 +456,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
   //
   // 1. Runtime code in the JIT that is used to update PyFrameObjects can find
   //    the saved rip at the expected location immediately following the end of
-  //    the JIT's fixed frame.
+  //    the JIT's fixed frame.  See getIP().
+  //
   // 2. The JIT-compiled function shows up in C stack straces when it is
   //    deopting. Only the deopt trampoline will appear in the trace if
   //    we don't open a frame.

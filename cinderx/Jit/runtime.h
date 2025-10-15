@@ -79,8 +79,12 @@ struct DeoptStat {
   FixedTypeProfiler<4> types;
 };
 
-// Map from DeoptMetadata index to stats about that deopt point.
-using DeoptStats = jit::UnorderedMap<std::size_t, DeoptStat>;
+// Map from CodeRuntime to stats about each deopt point.
+//
+// Uses an unordered map to store the deopt stats for each code object as it's
+// meant to be sparse.  We expect most deopt points to be unused.
+using DeoptStats = jit::
+    UnorderedMap<const CodeRuntime*, jit::UnorderedMap<std::size_t, DeoptStat>>;
 
 using InlineCacheStats = std::vector<CacheStats>;
 
@@ -134,22 +138,20 @@ class Runtime : public IRuntime {
   // is typed to.  Typed object references are explicitly excluded.
   _PyTypedArgsInfo* findFunctionPrimitiveArgInfo(PyFunctionObject* function);
 
-  // Add metadata used during deopt. Returns a handle that can be used to
-  // fetch the metadata from generated code.
-  std::size_t addDeoptMetadata(DeoptMetadata&& deopt_meta);
-
-  // Get a reference to the DeoptMetadata with the given id. If this function is
-  // called from a context where a threaded compile may be active, the caller is
-  // responsible for holding the threaded compile lock for the lifetime of the
-  // returned reference.
-  DeoptMetadata& getDeoptMetadata(std::size_t id);
-
   // Record that a deopt of the given index happened at runtime, with an
   // optional guilty value.
-  void recordDeopt(std::size_t idx, BorrowedRef<> guilty_value);
+  void recordDeopt(
+      CodeRuntime* code_runtime,
+      std::size_t idx,
+      BorrowedRef<> guilty_value);
 
-  // Get and/or clear runtime deopt stats.
-  const DeoptStats& deoptStats() const;
+  // Get the stat object for a given deopt.  It will not exist if the deopt has
+  // never been hit.
+  const DeoptStat* deoptStat(
+      const CodeRuntime* code_runtime,
+      std::size_t deopt_idx) const;
+
+  // Clear all deopt stats.
   void clearDeoptStats();
 
   // Get and clear inline cache stats.
@@ -243,8 +245,7 @@ class Runtime : public IRuntime {
   // In 3.12+ the equivalent of this is in generators_rt.cpp.
   template <typename F>
     requires std::is_invocable_r_v<int, F, PyObject*>
-  int forEachOwnedRef(PyGenObject* gen, std::size_t deopt_idx, F func) {
-    const DeoptMetadata& meta = getDeoptMetadata(deopt_idx);
+  int forEachOwnedRef(PyGenObject* gen, const DeoptMetadata& meta, F func) {
     auto base = reinterpret_cast<char*>(genDataFooter(gen));
     for (const LiveValue& value : meta.live_values) {
       if (value.ref_kind != hir::RefKind::kOwned) {

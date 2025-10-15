@@ -180,30 +180,29 @@ _PyTypedArgsInfo* Runtime::findFunctionPrimitiveArgInfo(
   return cache->second.arg_info.get();
 }
 
-std::size_t Runtime::addDeoptMetadata(DeoptMetadata&& deopt_meta) {
-  // Serialize as the deopt data is shared across compile threads.
-  ThreadedCompileSerialize guard;
-  deopt_metadata_.emplace_back(std::move(deopt_meta));
-  return deopt_metadata_.size() - 1;
-}
-
-DeoptMetadata& Runtime::getDeoptMetadata(std::size_t id) {
-  JIT_CHECK(
-      getThreadedCompileContext().canAccessSharedData(),
-      "getDeoptMetadata() called in unsafe context");
-  return deopt_metadata_[id];
-}
-
-void Runtime::recordDeopt(std::size_t idx, BorrowedRef<> guilty_value) {
-  DeoptStat& stat = deopt_stats_[idx];
+void Runtime::recordDeopt(
+    CodeRuntime* code_runtime,
+    std::size_t idx,
+    BorrowedRef<> guilty_value) {
+  DeoptStat& stat = deopt_stats_[code_runtime][idx];
   stat.count++;
   if (guilty_value != nullptr) {
     stat.types.recordType(Py_TYPE(guilty_value));
   }
 }
 
-const DeoptStats& Runtime::deoptStats() const {
-  return deopt_stats_;
+const DeoptStat* Runtime::deoptStat(
+    const CodeRuntime* code_runtime,
+    std::size_t deopt_idx) const {
+  auto map_it = deopt_stats_.find(code_runtime);
+  if (map_it == deopt_stats_.end()) {
+    return nullptr;
+  }
+  auto stat_it = map_it->second.find(deopt_idx);
+  if (stat_it == map_it->second.end()) {
+    return nullptr;
+  }
+  return &stat_it->second;
 }
 
 void Runtime::clearDeoptStats() {

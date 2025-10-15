@@ -141,6 +141,13 @@ class Context : public IJitContext {
   CodeRuntime* lookupCodeRuntime(BorrowedRef<PyFunctionObject> func);
 
   /*
+   * Get the map of all compiled code objects, keyed by their address and also
+   * their builtins and globals objects.
+   */
+  const UnorderedMap<CompilationKey, std::unique_ptr<CompiledFunction>>&
+  compiledCodes() const;
+
+  /*
    * Get a range over all function objects that have been compiled.
    */
   const UnorderedSet<BorrowedRef<PyFunctionObject>>& compiledFuncs();

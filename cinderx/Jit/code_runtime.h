@@ -10,6 +10,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/debug_info.h"
+#include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <deque>
@@ -115,6 +116,17 @@ class alignas(16) CodeRuntime {
   // Store meta-data about generator yield point.
   GenYieldPoint* addGenYieldPoint(GenYieldPoint&& gen_yield_point);
 
+  // Add metadata used during a deopt.  Return an ID that can be used to fetch
+  // the metadata from generated code.
+  std::size_t addDeoptMetadata(DeoptMetadata&& deopt_meta);
+
+  // Get a reference to the DeoptMetadata with the given ID.
+  DeoptMetadata& getDeoptMetadata(std::size_t id);
+  const DeoptMetadata& getDeoptMetadata(std::size_t id) const;
+
+  // Get all deopt metadatas for the given CodeRuntime.
+  const std::vector<DeoptMetadata>& deoptMetadatas() const;
+
   // Get the top-level runtime frame state for this CodeRuntime's PyCodeObject.
   const RuntimeFrameState* frameState() const;
 
@@ -133,6 +145,10 @@ class alignas(16) CodeRuntime {
 
   // Metadata about yield points. Deque so we can have raw pointers to content.
   std::deque<GenYieldPoint> gen_yield_points_;
+
+  // Metadata about deopt points.  Safe to use a vector as these are always
+  // accessed by index.
+  std::vector<DeoptMetadata> deopt_metadatas_;
 
   int frame_size_{-1};
   DebugInfo debug_info_;

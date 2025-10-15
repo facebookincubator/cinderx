@@ -32,6 +32,11 @@ CodeRuntime* Context::lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) {
   return compiled->runtime();
 }
 
+const UnorderedMap<CompilationKey, std::unique_ptr<CompiledFunction>>&
+Context::compiledCodes() const {
+  return compiled_codes_;
+}
+
 const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::compiledFuncs() {
   return compiled_funcs_;
 }
