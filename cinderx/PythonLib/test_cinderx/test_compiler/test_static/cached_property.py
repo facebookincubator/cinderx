@@ -581,7 +581,7 @@ class CachedPropertyTests(StaticTestBase):
             async def x(self) -> int:
                 return 4
 
-        def async_get_x(c: C) -> int:
+        async def async_get_x(c: C) -> int:
             return await c.x
         """
         with self.in_strict_module(codestr) as mod:

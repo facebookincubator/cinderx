@@ -2051,7 +2051,10 @@ class StaticPatchTests(StaticTestBase):
             setattr(mod.C, "x", "42")  # noqa: B010
 
             with self.assertRaisesRegex(
-                TypeError, "object str can't be used in 'await' expression"
+                TypeError,
+                "'str' object can't be awaited"
+                if sys.version_info >= (3, 14)
+                else "object str can't be used in 'await' expression",
             ):
                 asyncio.run(mod.f(mod.C()))
 

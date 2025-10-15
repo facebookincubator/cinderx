@@ -208,7 +208,9 @@ class CompilerTest(TestCase):
             self.assertInBytecode(x, binop)
 
     def assertKwCallInBytecode(self, x: Disassembleable) -> None:
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 14):
+            self.assertInBytecode(x, "CALL_KW")
+        elif sys.version_info >= (3, 12):
             self.assertInBytecode(x, "KW_NAMES")
             self.assertInBytecode(x, "CALL")
         else:

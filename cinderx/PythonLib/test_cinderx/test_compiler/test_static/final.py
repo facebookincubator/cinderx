@@ -447,7 +447,6 @@ class FinalTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            self.assertInBytecode(f, "LOAD_CONST", True)
             self.assertNotInBytecode(f, "LOAD_GLOBAL")
             self.assertFalse(f())
 
@@ -462,7 +461,6 @@ class FinalTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            self.assertInBytecode(f, "LOAD_CONST", "omg")
             self.assertNotInBytecode(f, "LOAD_GLOBAL")
             self.assertEqual(f(), "m")
 

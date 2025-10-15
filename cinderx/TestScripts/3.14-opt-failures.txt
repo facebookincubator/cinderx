@@ -3,10 +3,6 @@ test_cinderx.test_compiler.test_cinder
 test_cinderx.test_compiler.test_code_sbs
 test_cinderx.test_compiler.test_linepos
 test_cinderx.test_compiler.test_optimizer
-test_cinderx.test_compiler.test_static.cached_property
-test_cinderx.test_compiler.test_static.compile
-test_cinderx.test_compiler.test_static.final
-test_cinderx.test_compiler.test_static.patch
 test_cinderx.test_compiler.test_strict
 test_cinderx.test_compiler.test_unparse
 test_cinderx.test_compiler.test_visitor
