@@ -684,6 +684,11 @@ class PyFlowGraph(FlowGraph):
     def emit_prologue(self) -> None:
         raise NotImplementedError()
 
+    def emit_format_value(self, format: int = -1) -> None:
+        if format == -1:
+            format = FVC_NONE
+        self.emit("FORMAT_VALUE", format)
+
     def setFlag(self, flag: int) -> None:
         self.flags |= flag
 
@@ -2343,6 +2348,11 @@ class PyFlowGraph314(PyFlowGraph312):
     }
 
     END_SEND_OFFSET = 5
+
+    def emit_format_value(self, format: int = -1) -> None:
+        if format != -1:
+            self.emit("CONVERT_VALUE", format)
+        self.emit("FORMAT_SIMPLE")
 
     def get_stack_effects(self, opname: str, oparg: object, jump: bool) -> int:
         res = self.opcode.stack_effect_raw(opname, oparg, jump)

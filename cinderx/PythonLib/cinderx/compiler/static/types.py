@@ -5995,7 +5995,7 @@ class Dataclass(Class):
         graph.emit_load_method("_FrozenInstanceError")
         graph.emit("LOAD_CONST", msg)
         graph.emit("LOAD_FAST", "name")
-        graph.emit("FORMAT_VALUE", FVC_REPR)
+        graph.emit_format_value(FVC_REPR)
         graph.emit("BUILD_STRING", 2)
         graph.emit_call_method(1)
         graph.emit("RAISE_VARARGS", 1)
@@ -6169,7 +6169,7 @@ class Dataclass(Class):
                 )
                 graph.emit("LOAD_FAST", "self")
                 graph.emit("LOAD_FIELD", field.type_descr)
-                graph.emit("FORMAT_VALUE", FVC_REPR)
+                graph.emit_format_value(FVC_REPR)
                 num_repr_fields += 1
 
         graph.emit("LOAD_CONST", ")" if num_repr_fields else "()")
@@ -7637,7 +7637,7 @@ def common_literal_emit_type_check(
     code_gen.emit_rotate_stack(2)
     code_gen.emit("LOAD_CONST", f"expected {literal_value}, got ")
     code_gen.emit_rotate_stack(2)
-    code_gen.emit("FORMAT_VALUE")
+    code_gen.graph.emit_format_value()
     code_gen.emit("BUILD_STRING", 2)
     code_gen.emit_call_one_arg()
     code_gen.emit("RAISE_VARARGS", 1)
