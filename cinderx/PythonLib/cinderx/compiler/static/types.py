@@ -6178,13 +6178,16 @@ class Dataclass(Class):
 
         # Wrap the simple __repr__ function with reprlib.recursive_repr
         # to prevent infinite loops if any field contains a cycle
-        code_gen.emit_prepare_call()
+        if sys.version_info < (3, 14):
+            code_gen.emit_prepare_call()
         code_gen.emit("LOAD_CONST", 0)
         code_gen.emit("LOAD_CONST", ("recursive_repr",))
         code_gen.emit(EAGER_IMPORT_NAME, "reprlib")
         code_gen.emit("IMPORT_FROM", "recursive_repr")
         code_gen.emit_rotate_stack(2)
         code_gen.emit("POP_TOP")
+        if sys.version_info >= (3, 14):
+            code_gen.emit("PUSH_NULL")
         code_gen.emit_call(0)
         code_gen.emit_make_function(graph, f"{self.type_name.qualname}.{graph.name}", 0)
         code_gen.emit_call_one_arg()
@@ -6218,8 +6221,13 @@ class Dataclass(Class):
 
         # set __dataclass_fields__
         for name, field in self.fields.items():
-            code_gen.emit_prepare_call()
+            if sys.version_info >= (3, 14):
+                code_gen.emit("LOAD_CONST", name)
+            else:
+                code_gen.emit_prepare_call()
             code_gen.emit("LOAD_NAME", "_field")
+            if sys.version_info >= (3, 14):
+                code_gen.emit("PUSH_NULL")
             field_args = []
 
             # <class>.<field> contains the default or default_factory, if one exists
@@ -6276,13 +6284,21 @@ class Dataclass(Class):
             code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "_field_type")
 
-        code_gen.emit("LOAD_CONST", tuple(self.fields))
-        code_gen.emit("BUILD_CONST_KEY_MAP", len(self.fields))
+        if sys.version_info >= (3, 14):
+            code_gen.emit("BUILD_MAP", len(self.fields))
+        else:
+            code_gen.emit("LOAD_CONST", tuple(self.fields))
+            code_gen.emit("BUILD_CONST_KEY_MAP", len(self.fields))
         code_gen.emit("STORE_NAME", "__dataclass_fields__")
 
         # set __dataclass_params__ with the arguments to @dataclass()
-        code_gen.emit_prepare_call()
-        code_gen.emit("LOAD_NAME", "_DataclassParams")
+        if sys.version_info > (3, 14):
+            code_gen.emit("LOAD_NAME", "_DataclassParams")
+            code_gen.emit("PUSH_NULL")
+        else:
+            code_gen.emit_prepare_call()
+            code_gen.emit("LOAD_NAME", "_DataclassParams")
+
         code_gen.emit("LOAD_CONST", self.init)
         code_gen.emit("LOAD_CONST", self.repr)
         code_gen.emit("LOAD_CONST", self.eq)

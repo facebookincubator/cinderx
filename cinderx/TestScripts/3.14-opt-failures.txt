@@ -6,7 +6,6 @@ test_cinderx.test_compiler.test_optimizer
 test_cinderx.test_compiler.test_static.cached_property
 test_cinderx.test_compiler.test_static.compile
 test_cinderx.test_compiler.test_static.context_decorator
-test_cinderx.test_compiler.test_static.dataclass
 test_cinderx.test_compiler.test_static.final
 test_cinderx.test_compiler.test_static.match
 test_cinderx.test_compiler.test_static.non_static_inheritance

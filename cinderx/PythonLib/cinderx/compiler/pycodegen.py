@@ -6226,6 +6226,13 @@ class CodeGenerator314(CodeGenerator312):
         else:
             self.emit("CALL", argcnt + len(args) + len(kwargs))
 
+    def emit_call_kw(self, nargs: int, kwargs: tuple[str, ...]) -> None:
+        if kwargs:
+            self.emit("LOAD_CONST", kwargs)
+            self.graph.emit("CALL_KW", nargs + len(kwargs))
+        else:
+            self.emit("CALL", nargs)
+
     def compiler_subkwargs(
         self, kwargs: list[ast.keyword], begin: int, end: int
     ) -> None:
