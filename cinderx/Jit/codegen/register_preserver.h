@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <asmjit/asmjit.h>
+#include "cinderx/Jit/codegen/arch.h"
 
 #include <vector>
 
@@ -14,9 +14,8 @@ namespace jit::codegen {
 class RegisterPreserver {
  public:
   RegisterPreserver(
-      asmjit::x86::Builder* as,
-      const std::vector<
-          std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
+      arch::Builder* as,
+      const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>&
           save_regs);
 
   // Save all registers in the save_regs_ list to the stack
@@ -29,9 +28,8 @@ class RegisterPreserver {
   void remap();
 
  private:
-  asmjit::x86::Builder* as_;
-  const std::vector<
-      std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>& save_regs_;
+  arch::Builder* as_;
+  const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>& save_regs_;
   bool align_stack_;
 };
 

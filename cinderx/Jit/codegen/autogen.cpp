@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_patcher.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/frame.h"
@@ -11,8 +12,6 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/printer.h"
-
-#include <asmjit/x86/x86operand.h>
 
 #include <type_traits>
 #include <vector>
@@ -178,6 +177,7 @@ void fillLiveValueLocations(
 
 // Translate GUARD instruction
 void TranslateGuard(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
   auto as = env->as;
 
   // the first four operands of the guard instruction are:
@@ -188,13 +188,14 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
 
   auto deopt_label = as->newLabel();
   auto kind = instr->getInput(0)->getConstant();
-  x86::Gp reg = x86::rax;
+
+  arch::Gp reg = x86::rax;
   bool is_double = false;
   if (kind != kAlwaysFail) {
     if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
       assert(kind == kNotZero);
-      auto xmm_reg = AutoTranslator::getXmm(instr->getInput(2));
-      as->ptest(xmm_reg, xmm_reg);
+      auto vecd_reg = AutoTranslator::getVecD(instr->getInput(2));
+      as->ptest(vecd_reg, vecd_reg);
       as->jz(deopt_label);
       is_double = true;
     } else {
@@ -255,9 +256,13 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   // kind, deopt_meta id, guard var, and target.
   fillLiveValueLocations(env->code_rt, index, instr, 4, instr->getNumInputs());
   env->deopt_exits.emplace_back(index, deopt_label, instr);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
   auto as = env->as;
 
   auto patcher =
@@ -283,18 +288,23 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   // once code generation has completed.
   env->pending_deopt_patchers.emplace_back(
       patcher, patchpoint_label, deopt_label);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void TranslateCompare(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
   auto as = env->as;
   const OperandBase* inp0 = instr->getInput(0);
   const OperandBase* inp1 = instr->getInput(1);
+
   if (inp1->isImm() || inp1->isMem()) {
     as->cmp(AutoTranslator::getGp(inp0), inp1->getConstantOrAddress());
   } else if (!inp1->isXmm()) {
     as->cmp(AutoTranslator::getGp(inp0), AutoTranslator::getGp(inp1));
   } else {
-    as->comisd(AutoTranslator::getXmm(inp0), AutoTranslator::getXmm(inp1));
+    as->comisd(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
   auto output = AutoTranslator::getGp(instr->output());
   switch (instr->opcode()) {
@@ -336,18 +346,21 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
         AutoTranslator::getGp(instr->output()),
         asmjit::x86::gpb(instr->output()->getPhyRegister().loc));
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 // Store meta-data about this yield in a generator suspend data pointed to by
 // suspend_data_r. Data includes things like the address to resume execution at,
 // and owned entries in the suspended spill data needed for GC operations etc.
 void emitStoreGenYieldPoint(
-    x86::Builder* as,
+    arch::Builder* as,
     Environ* env,
     const Instruction* yield,
     asmjit::Label resume_label,
-    x86::Gp suspend_data_r,
-    x86::Gp scratch_r) {
+    arch::Gp suspend_data_r,
+    arch::Gp scratch_r) {
   bool is_yield_from = yield->isYieldFrom() ||
       yield->isYieldFromSkipInitialSend() ||
       yield->isYieldFromHandleStopAsyncIteration();
@@ -379,16 +392,21 @@ void emitStoreGenYieldPoint(
     env->pending_debug_locs.emplace_back(resume_label, yield->origin());
   }
 
+#if defined(CINDER_X86_64)
   as->mov(scratch_r, reinterpret_cast<uint64_t>(gen_yield_point));
   auto yieldPointOffset = offsetof(GenDataFooter, yieldPoint);
   as->mov(x86::qword_ptr(suspend_data_r, yieldPointOffset), scratch_r);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void emitLoadResumedYieldInputs(
-    asmjit::x86::Builder* as,
+    arch::Builder* as,
     const Instruction* instr,
     PhyLocation sent_in_source_loc,
-    x86::Gp tstate_reg) {
+    arch::Gp tstate_reg) {
+#if defined(CINDER_X86_64)
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
   as->mov(x86::ptr(x86::rbp, tstate.loc), tstate_reg);
 
@@ -413,11 +431,15 @@ void emitLoadResumedYieldInputs(
       target->isNone(),
       "Have an output that isn't a register or a stack slot, {}",
       target->type());
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void translateYieldInitial(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
 #if PY_VERSION_HEX < 0x030C0000
-  asmjit::x86::Builder* as = env->as;
+  arch::Builder* as = env->as;
 
   // Load tstate into RDI for call to JITRT_MakeGenObject*.
 
@@ -483,10 +505,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
-}
-
 #else
-  asmjit::x86::Builder* as = env->as;
+  arch::Builder* as = env->as;
 
   // Load tstate into RDI for call to
   // JITRT_UnlinkGenFrameAndReturnGenDataFooter.
@@ -518,12 +538,15 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+#endif
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
-#endif
-
 void translateYieldValue(Environ* env, const Instruction* instr) {
-  asmjit::x86::Builder* as = env->as;
+#if defined(CINDER_X86_64)
+  arch::Builder* as = env->as;
 
   // Make sure tstate is in RDI for use in epilogue.
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
@@ -550,10 +573,14 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void translateYieldFrom(Environ* env, const Instruction* instr) {
-  asmjit::x86::Builder* as = env->as;
+#if defined(CINDER_X86_64)
+  arch::Builder* as = env->as;
   bool skip_initial_send = instr->isYieldFromSkipInitialSend();
 
   // Make sure tstate is in RDI for use in epilogue and here.
@@ -627,6 +654,9 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
 
   as->bind(done_label);
   emitLoadResumedYieldInputs(as, instr, yf_result_phys_reg, tstate_phys_reg);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 // ***********************************************************************
@@ -699,12 +729,13 @@ struct ImmOperandInvert {
 
 template <int N, int Size = -1>
 struct RegOperand {
-  using asmjit_type = const asmjit::x86::Gp&;
-  static asmjit::x86::Gp GetAsmOperand(Environ*, const Instruction* instr) {
+  using asmjit_type = const arch::Gp&;
+  static arch::Gp GetAsmOperand(Environ*, const Instruction* instr) {
     static_assert(
         Size == -1 || Size == 8 || Size == 16 || Size == 32 || Size == 64,
         "Invalid Size");
 
+#if defined(CINDER_X86_64)
     int size = Size == -1 ? LIROperandSizeMapper<N>(instr) : Size;
 
     PhyLocation reg = LIROperandMapper<N>(instr)->getPhyRegister();
@@ -718,16 +749,25 @@ struct RegOperand {
       case 64:
         return asmjit::x86::gpq(reg.loc);
     }
+#else
+    CINDER_UNSUPPORTED
+#endif
+
     JIT_ABORT("Incorrect operand size.");
   }
 };
 
 template <int N>
 struct XmmOperand {
-  using asmjit_type = const asmjit::x86::Xmm&;
-  static asmjit::x86::Xmm GetAsmOperand(Environ*, const Instruction* instr) {
+  using asmjit_type = const arch::VecD&;
+  static arch::VecD GetAsmOperand(Environ*, const Instruction* instr) {
+#if defined(CINDER_X86_64)
     return asmjit::x86::xmm(
         LIROperandMapper<N>(instr)->getPhyRegister().loc - XMM_REG_BASE);
+#else
+    CINDER_UNSUPPORTED
+    return arch::VecD();
+#endif
   }
 };
 
@@ -742,9 +782,10 @@ struct XmmOperand {
 
 #define REG_OP(v, size) RegOperand<v, size>
 
-asmjit::x86::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
+arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
   JIT_DCHECK(operand->isInd(), "operand should be an indirect reference");
 
+#if defined(CINDER_X86_64)
   auto indirect = operand->getMemoryIndirect();
 
   OperandBase* base = indirect->getBaseRegOperand();
@@ -760,14 +801,20 @@ asmjit::x86::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
         indirect->getMultipiler(),
         indirect->getOffset());
   }
+#else
+  CINDER_UNSUPPORTED
+  return arch::Mem();
+#endif
 }
 
 template <int N>
 struct MemOperand {
-  using asmjit_type = const asmjit::x86::Mem&;
-  static asmjit::x86::Mem GetAsmOperand(Environ*, const Instruction* instr) {
+  using asmjit_type = const arch::Mem&;
+  static arch::Mem GetAsmOperand(Environ*, const Instruction* instr) {
+#if defined(CINDER_X86_64)
     const OperandBase* operand = LIROperandMapper<N>(instr);
     auto size = LIROperandSizeMapper<N>(instr) / 8;
+
     asmjit::x86::Mem memptr;
     if (operand->isStack()) {
       memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
@@ -782,6 +829,10 @@ struct MemOperand {
 
     memptr.setSize(size);
     return memptr;
+#else
+    CINDER_UNSUPPORTED
+    return arch::Mem();
+#endif
   }
 };
 
@@ -815,9 +866,8 @@ struct AsmAction<FuncType, func, OperandList<OpndTypes...>> {
 
 template <typename... Args>
 struct AsminstructionType {
-  using type =
-      asmjit::Error (asmjit::x86::EmitterExplicitT<asmjit::x86::Builder>::*)(
-          typename Args::asmjit_type...);
+  using type = asmjit::Error (arch::EmitterExplicitT<arch::Builder>::*)(
+      typename Args::asmjit_type...);
 };
 
 template <void (*func)(Environ*, const Instruction*)>
@@ -858,7 +908,7 @@ struct AddDebugEntryAction {
 #define ASM(instr, args...)                    \
   AsmAction<                                   \
       typename AsminstructionType<args>::type, \
-      &asmjit::x86::Builder::instr,            \
+      &arch::Builder::instr,                   \
       OperandList<args>>
 
 // Can't be named CALL as that conflicts with the opcode.
@@ -934,6 +984,7 @@ struct AddDebugEntryAction {
 // the memory operand is set to the size of the output of the LIR instruction.
 // ***********************************************************************
 
+#if defined(CINDER_X86_64)
 // clang-format off
 BEGIN_RULE_TABLE
 
@@ -1259,5 +1310,8 @@ END_RULES
 
 END_RULE_TABLE
 // clang-format on
+#else
+CINDER_UNSUPPORTED
+#endif
 
 } // namespace jit::codegen::autogen

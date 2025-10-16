@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 
 #include <memory>
@@ -31,9 +32,8 @@ class AutoTranslator {
 
   void translateInstr(Environ* env, const jit::lir::Instruction* instr) const;
 
-  static asmjit::x86::Gp getGp(
-      const jit::lir::OperandBase* op,
-      unsigned int reg) {
+  static arch::Gp getGp(const lir::OperandBase* op, unsigned int reg) {
+#if defined(CINDER_X86_64)
     auto data_type = op->dataType();
     switch (data_type) {
       case jit::lir::OperandBase::k8bit:
@@ -48,10 +48,14 @@ class AutoTranslator {
       case jit::lir::OperandBase::kDouble:
         JIT_ABORT("incorrect register type.");
     }
+#else
+    CINDER_UNSUPPORTED
+#endif
     Py_UNREACHABLE();
   }
 
-  static asmjit::x86::Xmm getXmm(const jit::lir::OperandBase* op) {
+  static arch::VecD getVecD(const jit::lir::OperandBase* op) {
+#if defined(CINDER_X86_64)
     auto data_type = op->dataType();
     switch (data_type) {
       case jit::lir::OperandBase::kDouble:
@@ -59,9 +63,13 @@ class AutoTranslator {
       default:
         JIT_ABORT("incorrect register type.");
     }
+#else
+    CINDER_UNSUPPORTED
+#endif
+    Py_UNREACHABLE();
   }
 
-  static asmjit::x86::Gp getGp(const jit::lir::OperandBase* op) {
+  static arch::Gp getGp(const jit::lir::OperandBase* op) {
     return getGp(op, op->getPhyRegister().loc);
   }
 

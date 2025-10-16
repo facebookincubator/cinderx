@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 
 namespace jit::codegen {
@@ -21,13 +22,21 @@ void emitCall(
     Environ& env,
     asmjit::Label label,
     const jit::lir::Instruction* instr) {
+#if defined(CINDER_X86_64)
   env.as->call(label);
   recordDebugEntry(env, instr);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void emitCall(Environ& env, uint64_t func, const jit::lir::Instruction* instr) {
+#if defined(CINDER_X86_64)
   env.as->call(func);
   recordDebugEntry(env, instr);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 } // namespace jit::codegen

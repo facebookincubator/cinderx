@@ -3,7 +3,7 @@
 #pragma once
 
 #include "cinderx/Jit/codegen/annotations.h"
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/runtime.h"
@@ -17,7 +17,7 @@ struct Environ {
   Annotations annotations;
 
   // Assembler builder.
-  asmjit::x86::Builder* as{nullptr};
+  arch::Builder* as{nullptr};
 
   // Modified registers. Set by VariableManager and read by generatePrologue()
   // and generateEpilogue().

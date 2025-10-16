@@ -8,6 +8,7 @@
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/type.h"
@@ -29,18 +30,23 @@ namespace jit::codegen {
 namespace shadow_frame {
 // Shadow stack frames appear at the beginning of native frames for jitted
 // functions
-constexpr x86::Mem kFramePtr = x86::ptr(x86::rbp, -kJITShadowFrameSize);
-constexpr x86::Mem kInFramePrevPtr =
+
+#if defined(CINDER_X86_64)
+constexpr arch::Mem kFramePtr = x86::ptr(x86::rbp, -kJITShadowFrameSize);
+constexpr arch::Mem kInFramePrevPtr =
     x86::ptr(x86::rbp, -kJITShadowFrameSize + SHADOW_FRAME_FIELD_OFF(prev));
-constexpr x86::Mem kInFrameDataPtr =
+constexpr arch::Mem kInFrameDataPtr =
     x86::ptr(x86::rbp, -kJITShadowFrameSize + SHADOW_FRAME_FIELD_OFF(data));
-constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
+constexpr arch::Mem kInFrameOrigDataPtr = x86::ptr(
     x86::rbp,
     -kJITShadowFrameSize + JIT_SHADOW_FRAME_FIELD_OFF(orig_data));
 
-constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
+constexpr arch::Mem getStackTopPtr(arch::Gp tstate_reg) {
   return x86::ptr(tstate_reg, offsetof(PyThreadState, shadow_frame));
 }
+#else
+CINDER_UNSUPPORTED
+#endif
 
 } // namespace shadow_frame
 
@@ -55,11 +61,14 @@ void initThreadStateOffset() {
   if (tstate_offset_inited) {
     return;
   }
+
+#if defined(CINDER_X86_64)
   // PyThreadState_GetCurrent just accesses the thread local value, and
   // we want to figure out what the offset from the fs register it's
   // stored at. So verify that we recognize what it's doing and pull
   // out that offset.
   uint8_t* ts_func = reinterpret_cast<uint8_t*>(&_PyThreadState_GetCurrent);
+
   // 0x4 8b 48 64 e5 89 48 55
   if (ts_func[0] == 0x55 && // push rbp
       ts_func[1] == 0x48 && ts_func[2] == 0x89 &&
@@ -73,29 +82,39 @@ void initThreadStateOffset() {
     assert(false);
 #endif
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
+
   tstate_offset_inited = true;
 }
 
 void FrameAsm::loadTState(
-    const x86::Gp& dst_reg,
+    const arch::Gp& dst_reg,
     [[maybe_unused]] RegisterPreserver& preserver) {
+#if defined(CINDER_X86_64)
   if (tstate_offset != -1) {
     asmjit::x86::Mem tls(tstate_offset);
     tls.setSegment(x86::fs);
     as_->mov(dst_reg, tls);
   } else {
     as_->call(_PyThreadState_GetCurrent);
-    as_->mov(dst_reg, x86::rax);
+    as_->mov(dst_reg, arch::reg_general_return_64);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void FrameAsm::linkNormalGeneratorFrame(
     RegisterPreserver& preserver,
-    const asmjit::x86::Gp&,
-    const asmjit::x86::Gp& tstate_reg) {
+    const arch::Gp&,
+    const arch::Gp& tstate_reg) {
   preserver.preserve();
 
+#if defined(CINDER_X86_64)
   uint64_t full_words = env_.shadow_frames_and_spill_size / kPointerSize;
+
   as_->mov(x86::rsi, full_words);
   as_->mov(x86::rdx, reinterpret_cast<intptr_t>(codeRuntime()));
   as_->lea(x86::rcx, x86::ptr(env_.gen_resume_entry_label));
@@ -108,27 +127,34 @@ void FrameAsm::linkNormalGeneratorFrame(
   // shouldn't have been any other data stored in the spilled area so far
   // so no need to copy things over.
   as_->mov(x86::rbp, x86::rdx);
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   preserver.restore();
 }
 
-void FrameAsm::emitIncTotalRefCount(const asmjit::x86::Gp& scratch_reg) {
+void FrameAsm::emitIncTotalRefCount(const arch::Gp& scratch_reg) {
 #ifdef Py_REF_DEBUG
+#if defined(CINDER_X86_64)
   PyInterpreterState* interp;
   if (jit::getThreadedCompileContext().compileRunning()) {
     interp = jit::getThreadedCompileContext().interpreter();
   } else {
     interp = PyInterpreterState_Get();
   }
+
   Py_ssize_t* ref_total = &interp->object_state.reftotal;
   as_->mov(scratch_reg, ref_total);
   as_->inc(x86::ptr(scratch_reg.r64(), 0, sizeof(void*)));
+#else
+  CINDER_UNSUPPORTED
+#endif
 #endif
 }
 
-void FrameAsm::incRef(
-    const asmjit::x86::Gp& reg,
-    const asmjit::x86::Gp& scratch_reg) {
+void FrameAsm::incRef(const arch::Gp& reg, const arch::Gp& scratch_reg) {
+#if defined(CINDER_X86_64)
   as_->mov(scratch_reg, x86::ptr(reg, offsetof(PyObject, ob_refcnt)));
   as_->inc(scratch_reg);
   Label immortal = as_->newLabel();
@@ -137,13 +163,17 @@ void FrameAsm::incRef(
   as_->mov(x86::ptr(reg, offsetof(PyObject, ob_refcnt)), scratch_reg);
   emitIncTotalRefCount(scratch_reg.r64());
   as_->bind(immortal);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 bool FrameAsm::storeConst(
-    const asmjit::x86::Gp& reg,
+    const arch::Gp& reg,
     int32_t offset,
     void* val,
-    const asmjit::x86::Gp& scratch) {
+    const arch::Gp& scratch) {
+#if defined(CINDER_X86_64)
   auto dest = x86::ptr(reg, offset, sizeof(void*));
   int64_t value = reinterpret_cast<int64_t>(val);
   if (fitsInt32(value)) {
@@ -154,6 +184,9 @@ bool FrameAsm::storeConst(
   }
   as_->mov(scratch, value);
   as_->mov(dest, scratch);
+#else
+  CINDER_UNSUPPORTED
+#endif
   return false;
 }
 
@@ -161,8 +194,9 @@ bool FrameAsm::storeConst(
 
 void FrameAsm::linkLightWeightFunctionFrame(
     RegisterPreserver& preserver,
-    const asmjit::x86::Gp& func_reg,
-    const asmjit::x86::Gp& tstate_reg) {
+    const arch::Gp& func_reg,
+    const arch::Gp& tstate_reg) {
+#if defined(CINDER_X86_64)
   // Light weight function headers are allocated on the stack as:
   //  PyFunctionObject* func_obj
   //  _PyInterpererFrame
@@ -250,13 +284,13 @@ void FrameAsm::linkLightWeightFunctionFrame(
   asmjit::BaseNode* get_tos_cursor = as_->cursor();
 #if PY_VERSION_HEX >= 0x030D0000
   // 3.14+ - current_frame is stored in PyThreadState.current_frame
-  const asmjit::x86::Gp& frame_holder = tstate_reg;
+  const arch::Gp& frame_holder = tstate_reg;
   // cur_frame->previous = PyThreadState.current_frame
   as_->mov(
       scratch, x86::ptr(tstate_reg, offsetof(PyThreadState, current_frame)));
 #else
   // 3.12 - current_frame is stored in PyThreadState.cframe
-  const asmjit::x86::Gp& frame_holder =
+  const arch::Gp& frame_holder =
       x86::rax; // return value, we can freely use this as scratch
   as_->mov(frame_holder, x86::ptr(tstate_reg, offsetof(PyThreadState, cframe)));
   as_->mov(scratch, x86::ptr(frame_holder, offsetof(_PyCFrame, current_frame)));
@@ -281,14 +315,19 @@ void FrameAsm::linkLightWeightFunctionFrame(
   } else {
     preserver.remap();
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 #endif
 
 void FrameAsm::linkNormalFunctionFrame(
     RegisterPreserver& preserver,
-    const asmjit::x86::Gp&,
-    const asmjit::x86::Gp& tstate_reg) {
+    const arch::Gp&,
+    const arch::Gp& tstate_reg) {
   preserver.preserve();
+
+#if defined(CINDER_X86_64)
   if (kPyDebug) {
     as_->mov(x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
     as_->call(reinterpret_cast<uint64_t>(
@@ -297,15 +336,25 @@ void FrameAsm::linkNormalFunctionFrame(
     as_->call(reinterpret_cast<uint64_t>(
         JITRT_AllocateAndLinkInterpreterFrame_Release));
   }
-  as_->mov(tstate_reg, x86::rax);
+
+  as_->mov(tstate_reg, arch::reg_general_return_64);
+#else
+  CINDER_UNSUPPORTED
+#endif
+
   preserver.restore();
 }
 
 void FrameAsm::linkNormalFrame(
     RegisterPreserver& preserver,
-    const asmjit::x86::Gp& func_reg,
-    const asmjit::x86::Gp& tstate_reg) {
+    const arch::Gp& func_reg,
+    const arch::Gp& tstate_reg) {
+#if defined(CINDER_X86_64)
   JIT_DCHECK(func_reg == x86::rdi, "func_reg must be rdi");
+#else
+  CINDER_UNSUPPORTED
+#endif
+
   if (isGen()) {
     linkNormalGeneratorFrame(preserver, func_reg, tstate_reg);
   } else {
@@ -322,9 +371,11 @@ void FrameAsm::linkNormalFrame(
 // Links a normal frame and initializes tstate variable.
 void FrameAsm::linkNormalFrame(
     RegisterPreserver& preserver,
-    const asmjit::x86::Gp& func_reg,
-    const asmjit::x86::Gp& tstate_reg) {
+    const arch::Gp& func_reg,
+    const arch::Gp& tstate_reg) {
   preserver.preserve();
+
+#if defined(CINDER_X86_64)
   as_->mov(
       x86::rdi,
       reinterpret_cast<intptr_t>(codeRuntime()->frameState()->code().get()));
@@ -338,6 +389,10 @@ void FrameAsm::linkNormalFrame(
 
   as_->call(reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkFrame));
   as_->mov(tstate_reg, x86::rax);
+#else
+  CINDER_UNSUPPORTED
+#endif
+
   preserver.restore();
 }
 
@@ -345,23 +400,27 @@ void FrameAsm::linkNormalFrame(
 
 #if PY_VERSION_HEX < 0x030C0000
 void FrameAsm::loadTState(
-    const x86::Gp& dst_reg,
+    const arch::Gp& dst_reg,
     RegisterPreserver& preserver) {
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
+
+#if defined(CINDER_X86_64)
   if (fitsInt32(tstate)) {
     as_->mov(dst_reg, x86::ptr(tstate));
   } else {
     as_->mov(dst_reg, tstate);
     as_->mov(dst_reg, x86::ptr(dst_reg));
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void FrameAsm::generateLinkFrame(
-    const asmjit::x86::Gp& func_reg,
-    const asmjit::x86::Gp& tstate_reg,
-    const std::vector<
-        std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
+    const arch::Gp& func_reg,
+    const arch::Gp& tstate_reg,
+    const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>&
         save_regs) {
   RegisterPreserver preserver(as_, save_regs);
 
@@ -388,9 +447,10 @@ void FrameAsm::generateLinkFrame(
 }
 #else
 void FrameAsm::generateLinkFrame(
-    const x86::Gp& func_reg,
-    const x86::Gp& tstate_reg,
-    const std::vector<std::pair<const x86::Reg&, const x86::Reg&>>& save_regs) {
+    const arch::Gp& func_reg,
+    const arch::Gp& tstate_reg,
+    const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>&
+        save_regs) {
   JIT_CHECK(
       GetFunction()->frameMode == FrameMode::kNormal,
       "3.12 only has normal frames");
@@ -402,6 +462,7 @@ void FrameAsm::generateLinkFrame(
 #endif
 
 void FrameAsm::generateUnlinkFrame([[maybe_unused]] bool is_generator) {
+#if defined(CINDER_X86_64)
 #ifdef ENABLE_SHADOW_FRAMES
   // Unlink shadow frame? The send implementation handles unlinking these for
   // generators.
@@ -423,12 +484,16 @@ void FrameAsm::generateUnlinkFrame([[maybe_unused]] bool is_generator) {
   } else {
     as_->mov(x86::rax, saved_rax_ptr);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 #ifdef ENABLE_SHADOW_FRAMES
 void FrameAsm::linkOnStackShadowFrame(
-    const x86::Gp& tstate_reg,
-    const x86::Gp& scratch_reg) {
+    const arch::Gp& tstate_reg,
+    const arch::Gp& scratch_reg) {
+#if defined(CINDER_X86_64)
   const hir::Function* func = GetFunction();
   FrameMode frame_mode = func->frameMode;
   using namespace shadow_frame;
@@ -460,16 +525,23 @@ void FrameAsm::linkOnStackShadowFrame(
   // Set our shadow frame as top of shadow stack
   as_->lea(scratch_reg, kFramePtr);
   as_->mov(shadow_stack_top_ptr, scratch_reg);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void FrameAsm::initializeFrameHeader(
-    asmjit::x86::Gp tstate_reg,
-    asmjit::x86::Gp scratch_reg) {
+    arch::Gp tstate_reg,
+    arch::Gp scratch_reg) {
+#if defined(CINDER_X86_64)
   if (!isGen()) {
     as_->push(scratch_reg);
     linkOnStackShadowFrame(tstate_reg, scratch_reg);
     as_->pop(scratch_reg);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 #endif
 

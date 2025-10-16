@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/config.h"
 
 #include <asmjit/asmjit.h>
@@ -46,7 +47,7 @@ class CodeSectionOverride {
   CodeSectionOverride& operator=(CodeSectionOverride&&) = delete;
 
   CodeSectionOverride(
-      asmjit::x86::Builder* as,
+      arch::Builder* as,
       const asmjit::CodeHolder* code,
       CodeHolderMetadata* metadata,
       CodeSection section)
@@ -72,7 +73,7 @@ class CodeSectionOverride {
   }
 
  private:
-  asmjit::x86::Builder* as_;
+  arch::Builder* as_;
   const asmjit::CodeHolder* code_;
   CodeSection previous_section_;
   CodeHolderMetadata* metadata_;

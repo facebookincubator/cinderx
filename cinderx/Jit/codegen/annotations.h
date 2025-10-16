@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/lir/instruction.h"
 
@@ -42,7 +43,7 @@ class Annotations {
   // ending at the current position with the given LIR instruction or text
   // description.
   template <typename T>
-  void add(T&& item, asmjit::x86::Builder* as, asmjit::BaseNode* start_cursor) {
+  void add(T&& item, arch::Builder* as, asmjit::BaseNode* start_cursor) {
     if (!getConfig().log.dump_asm) {
       return;
     }

@@ -6,16 +6,18 @@
 
 namespace jit::codegen {
 
+#if defined(CINDER_X86_64)
 // Stack alignment requirement for x86-64
 constexpr size_t kConstStackAlignmentRequirement = 16;
+#endif
 
 RegisterPreserver::RegisterPreserver(
-    asmjit::x86::Builder* as,
-    const std::vector<
-        std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>& save_regs)
+    arch::Builder* as,
+    const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>& save_regs)
     : as_(as), save_regs_(save_regs), align_stack_(false) {}
 
 void RegisterPreserver::preserve() {
+#if defined(CINDER_X86_64)
   size_t rsp_offset = 0;
   for (const auto& pair : save_regs_) {
     if (pair.first.isGpq()) {
@@ -34,9 +36,13 @@ void RegisterPreserver::preserve() {
   if (align_stack_) {
     as_->push(asmjit::x86::rax);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void RegisterPreserver::remap() {
+#if defined(CINDER_X86_64)
   for (const auto& pair : save_regs_) {
     if (pair.first != pair.second) {
       if (pair.first.isGpq()) {
@@ -52,9 +58,13 @@ void RegisterPreserver::remap() {
       }
     }
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void RegisterPreserver::restore() {
+#if defined(CINDER_X86_64)
   if (align_stack_) {
     as_->add(asmjit::x86::rsp, 8);
   }
@@ -70,6 +80,9 @@ void RegisterPreserver::restore() {
       JIT_ABORT("unsupported saved register type");
     }
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 } // namespace jit::codegen

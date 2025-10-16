@@ -7,10 +7,10 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bitvector.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/frame_asm.h"
 #include "cinderx/Jit/codegen/register_preserver.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/function.h"
 
@@ -24,6 +24,12 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#if defined(CINDER_X86_64)
+#include "cinderx/Jit/codegen/x86_64.h"
+#else
+CINDER_UNSUPPORTED
+#endif
 
 namespace jit::codegen {
 
@@ -83,7 +89,7 @@ class NativeGenerator {
   const hir::Function* func_;
   void* code_start_{nullptr};
   void* vectorcall_entry_{nullptr};
-  asmjit::x86::Builder* as_{nullptr};
+  arch::Builder* as_{nullptr};
   CodeHolderMetadata metadata_{CodeSection::kHot};
   void* deopt_trampoline_{nullptr};
   void* deopt_trampoline_generators_{nullptr};
@@ -114,11 +120,9 @@ class NativeGenerator {
   FrameInfo computeFrameInfo();
   void setupFrameAndSaveCallerRegisters(
       const FrameInfo& frame_info,
-      asmjit::x86::Gp tstate_reg);
+      arch::Gp tstate_reg);
   int allocateHeaderAndSpillSpace(const FrameInfo& frame_info);
-  void saveCallerRegisters(
-      const FrameInfo& frame_info,
-      asmjit::x86::Gp tstate_reg);
+  void saveCallerRegisters(const FrameInfo& frame_info, arch::Gp tstate_reg);
 
   int maxInlineStackSize();
   void generatePrologue(

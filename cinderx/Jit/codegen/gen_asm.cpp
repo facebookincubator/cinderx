@@ -17,6 +17,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
@@ -80,15 +81,16 @@ namespace {
   }
 
 // Scratch register used by the various deopt trampolines.
-//
-// NB: This MUST be r15. If you change the register you'll also need to change
-// the deopt trampoline code that saves all registers.
-const auto deopt_scratch_reg = x86::r15;
+[[maybe_unused]] const auto deopt_scratch_reg = arch::reg_scratch_deopt;
 
 // Set RBP to "original RBP" value when called in the context of a generator.
-void RestoreOriginalGeneratorRBP(x86::Emitter* as) {
+void RestoreOriginalGeneratorRBP(arch::Emitter* as) {
+#if defined(CINDER_X86_64)
   size_t original_rbp_offset = offsetof(GenDataFooter, originalRbp);
   as->mov(x86::rbp, x86::ptr(x86::rbp, original_rbp_offset));
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void raiseUnboundLocalError(BorrowedRef<> name) {
@@ -368,7 +370,7 @@ PyObject* resumeInInterpreter(
 
 #endif
 
-void* finalizeCode(asmjit::x86::Builder& builder, std::string_view name) {
+void* finalizeCode(arch::Builder& builder, std::string_view name) {
   if (auto err = builder.finalize(); err != kErrorOk) {
     throw std::runtime_error{fmt::format(
         "Failed to finalize asmjit builder for {}, got error code {}",
@@ -397,9 +399,10 @@ void* generateDeoptTrampoline(bool generator_mode) {
   CodeHolder code;
   ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
   ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
-  x86::Builder a(&code);
+  arch::Builder a(&code);
   Annotations annot;
 
+#if defined(CINDER_X86_64)
   auto annot_cursor = a.cursor();
   // When we get here the stack has the following layout. The space on the
   // stack for the call arg buffer / LOAD_METHOD scratch space is always safe
@@ -606,15 +609,20 @@ void* generateDeoptTrampoline(bool generator_mode) {
   code_sections.emplace_back(result, code_size);
   perf::registerFunction(code_sections, name);
   return result;
+#else
+  CINDER_UNSUPPORTED;
+  return nullptr;
+#endif
 }
 
 void* generateFailedDeferredCompileTrampoline() {
   CodeHolder code;
   ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
   code.init(code_allocator->asmJitEnvironment());
-  x86::Builder a(&code);
+  arch::Builder a(&code);
   Annotations annot;
 
+#if defined(CINDER_X86_64)
   auto annot_cursor = a.cursor();
 
   a.push(x86::rbp);
@@ -636,6 +644,9 @@ void* generateFailedDeferredCompileTrampoline() {
   a.call(reinterpret_cast<uint64_t>(JITRT_FailedDeferredCompileShim));
   a.leave();
   a.ret();
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   const char* name = "failedDeferredCompileTrampoline";
   void* result = finalizeCode(a, name);
@@ -748,7 +759,7 @@ void* NativeGenerator::getVectorcallEntry() {
     return vectorcall_entry_;
   }
 
-  JIT_CHECK(as_ == nullptr, "x86::Builder should not have been initialized.");
+  JIT_CHECK(as_ == nullptr, "Builder should not have been initialized.");
 
   CodeHolder code;
   ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
@@ -766,7 +777,7 @@ void* NativeGenerator::getVectorcallEntry() {
         code.textSection()->alignment()));
   }
 
-  as_ = new x86::Builder(&code);
+  as_ = new arch::Builder(&code);
   frame_asm_.setAssembler(as_);
 
   env_.as = as_;
@@ -946,8 +957,12 @@ int NativeGenerator::GetCompiledFunctionSpillStackSize() const {
 }
 
 void NativeGenerator::generateFunctionEntry() {
+#if defined(CINDER_X86_64)
   as_->push(x86::rbp);
   as_->mov(x86::rbp, x86::rsp);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 NativeGenerator::FrameInfo NativeGenerator::computeFrameInfo() {
@@ -996,14 +1011,20 @@ NativeGenerator::FrameInfo NativeGenerator::computeFrameInfo() {
 }
 
 int NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
+#if defined(CINDER_X86_64)
   int padding = frame_info.header_and_spill_size % kStackAlign;
   as_->sub(x86::rsp, frame_info.header_and_spill_size + padding);
   return padding;
+#else
+  CINDER_UNSUPPORTED
+  return 0;
+#endif
 }
 
 void NativeGenerator::saveCallerRegisters(
     const FrameInfo& frame_info,
-    [[maybe_unused]] x86::Gp tstate_reg) {
+    [[maybe_unused]] arch::Gp tstate_reg) {
+#if defined(CINDER_X86_64)
 #ifdef ENABLE_SHADOW_FRAMES
   frame_asm_.initializeFrameHeader(tstate_reg, x86::rax);
 #endif
@@ -1017,21 +1038,32 @@ void NativeGenerator::saveCallerRegisters(
   if (frame_info.arg_buffer_size > 0) {
     as_->sub(x86::rsp, frame_info.arg_buffer_size);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void NativeGenerator::setupFrameAndSaveCallerRegisters(
     const FrameInfo& frame_info,
-    x86::Gp tstate_reg) {
+    arch::Gp tstate_reg) {
+#if defined(CINDER_X86_64)
   as_->sub(x86::rsp, frame_info.header_and_spill_size);
+#else
+  CINDER_UNSUPPORTED
+#endif
   saveCallerRegisters(frame_info, tstate_reg);
 }
 
-x86::Gp get_arg_location(int arg) {
+arch::Gp get_arg_location(int arg) {
+#if defined(CINDER_X86_64)
   auto phyloc = get_arg_location_phy_location(arg);
 
   if (phyloc.is_register()) {
     return x86::gpq(phyloc.loc);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   JIT_ABORT("should only be used with first six args");
 }
@@ -1053,6 +1085,7 @@ void NativeGenerator::generatePrologue(
     const FrameInfo& frame_info,
     Label correct_arg_count,
     Label finish_frame_setup) {
+#if defined(CINDER_X86_64)
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
 
@@ -1092,7 +1125,8 @@ void NativeGenerator::generatePrologue(
 
   asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
-  std::vector<std::pair<const x86::Reg&, const x86::Reg&>> save_regs;
+  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
+
   save_regs.emplace_back(x86::rsi, kArgsReg);
   if (GetFunction()->uses_runtime_func) {
     save_regs.emplace_back(x86::rdi, kFuncPtrReg);
@@ -1146,11 +1180,16 @@ void NativeGenerator::generatePrologue(
   saveCallerRegisters(frame_info, x86::r11);
 
   env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 static void
-emitCompare(x86::Builder* as, x86::Gp lhs, void* rhs, x86::Gp scratch) {
+emitCompare(arch::Builder* as, arch::Gp lhs, void* rhs, arch::Gp scratch) {
+#if defined(CINDER_X86_64)
   uint64_t rhsi = reinterpret_cast<uint64_t>(rhs);
+
   if (!fitsInt32(rhsi)) {
     // in shared mode type can be in a high address
     as->mov(scratch, rhsi);
@@ -1158,6 +1197,9 @@ emitCompare(x86::Builder* as, x86::Gp lhs, void* rhs, x86::Gp scratch) {
   } else {
     as->cmp(lhs, rhsi);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void NativeGenerator::generateStaticMethodTypeChecks(Label setup_frame) {
@@ -1175,6 +1217,8 @@ void NativeGenerator::generateStaticMethodTypeChecks(Label setup_frame) {
   if (!checks.size()) {
     return;
   }
+
+#if defined(CINDER_X86_64)
   // We build a vector of labels corresponding to [first_check, second_check,
   // ..., setup_frame] which will have |checks| + 1 elements, and the
   // first_check label will precede the first check.
@@ -1269,6 +1313,9 @@ void NativeGenerator::generateStaticMethodTypeChecks(Label setup_frame) {
     env_.addAnnotation(
         fmt::format("StaticTypeCheck[{}]", arg.pytype->tp_name), check_cursor);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
@@ -1277,6 +1324,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
   // now we can use all the caller save registers except for RAX
   as_->bind(env_.exit_label);
 
+#if defined(CINDER_X86_64)
   bool is_gen = GetFunction()->code->co_flags & kCoFlagsAnyGenerator;
   if (is_gen) {
 #if PY_VERSION_HEX < 0x030C0000
@@ -1373,9 +1421,13 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
     }
     env_.addAnnotation("JitHelpers", jit_helpers);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void NativeGenerator::generateDeoptExits(const asmjit::CodeHolder& code) {
+#if defined(CINDER_X86_64)
   if (env_.deopt_exits.empty()) {
     return;
   }
@@ -1459,7 +1511,11 @@ void NativeGenerator::generateDeoptExits(const asmjit::CodeHolder& code) {
       : deopt_trampoline_;
   as_->mov(deopt_scratch_reg, reinterpret_cast<uint64_t>(trampoline));
   as_->jmp(deopt_scratch_reg);
+
   env_.addAnnotation("Deoptimization exits", deopt_cursor);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
@@ -1486,6 +1542,7 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
 }
 
 void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
+#if defined(CINDER_X86_64)
   // Arbitrary scratch register for use throughout this function. Can be changed
   // to pretty much anything which doesn't conflict with arg registers.
   const auto scratch_r = x86::r8;
@@ -1543,12 +1600,16 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   as_->jmp(x86::ptr(scratch_r, resume_target_offset));
 
   env_.addAnnotation("Resume entry point", cursor);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 void NativeGenerator::generateStaticEntryPoint(
     const FrameInfo& frame_info,
     Label finish_frame_setup,
     Label static_jmp_location) {
+#if defined(CINDER_X86_64)
   // Static entry point is the first thing in the method, we'll
   // jump back to hit it so that we have a fixed offset to jump from
   auto static_link_cursor = as_->cursor();
@@ -1561,7 +1622,7 @@ void NativeGenerator::generateStaticEntryPoint(
   size_t total_args = (size_t)GetFunction()->numArgs();
 
   const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
-  std::vector<std::pair<const x86::Reg&, const x86::Reg&>> save_regs;
+  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
 
   if (linkFrameNeedsSpill()) {
     save_regs.emplace_back(x86::rdi, x86::rdi);
@@ -1673,6 +1734,9 @@ void NativeGenerator::generateStaticEntryPoint(
   // a consistent offset for the static entry point from the normal entry point.
   as_->long_().jmp(static_entry_point);
   env_.addAnnotation("StaticEntryPoint", static_entry_point_cursor);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 bool NativeGenerator::hasStaticEntry() const {
@@ -1681,6 +1745,7 @@ bool NativeGenerator::hasStaticEntry() const {
 }
 
 void NativeGenerator::generateCode(CodeHolder& codeholder) {
+#if defined(CINDER_X86_64)
   // The body must be generated before the prologue to determine how much spill
   // space to allocate.
   auto prologue_cursor = as_->cursor();
@@ -1822,6 +1887,9 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   std::vector<std::pair<void*, std::size_t>> code_sections;
   populateCodeSections(code_sections, codeholder, code_start_);
   perf::registerFunction(code_sections, func->fullname, prefix);
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 #ifdef __ASM_DEBUG
@@ -1856,6 +1924,7 @@ void NativeGenerator::generatePrimitiveArgsPrologue() {
       hasStaticEntry(),
       "Functions with primitive arguments must have been statically compiled");
 
+#if defined(CINDER_X86_64)
   // If we've been invoked statically we can skip all of the argument checking
   // because we know our args have been provided correctly.  But if we have
   // primitives we need to unbox them.  We usually get to avoid this by doing
@@ -1869,6 +1938,9 @@ void NativeGenerator::generatePrimitiveArgsPrologue() {
   as_->call(helper);
   as_->leave();
   as_->ret();
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 std::pair<asmjit::BaseNode*, asmjit::BaseNode*>
@@ -1879,6 +1951,7 @@ NativeGenerator::generateBoxedReturnWrapper() {
     return {entry_cursor, nullptr};
   }
 
+#if defined(CINDER_X86_64)
   Label generic_entry = as_->newLabel();
   Label box_done = as_->newLabel();
   Label error = as_->newLabel();
@@ -1946,12 +2019,16 @@ NativeGenerator::generateBoxedReturnWrapper() {
   }
 
   as_->bind(generic_entry);
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   // New generic entry is after the boxed wrapper.
   return {as_->cursor(), entry_cursor};
 }
 
 void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
+#if defined(CINDER_X86_64)
   BorrowedRef<PyCodeObject> code = GetFunction()->code;
 
   Label arg_check = as_->newLabel();
@@ -2000,6 +2077,9 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
     env_.addAnnotation(
         "Check if called with correct argcount", arg_check_cursor);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid
