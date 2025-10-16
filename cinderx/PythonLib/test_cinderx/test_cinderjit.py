@@ -2049,14 +2049,17 @@ class StoreSubscrTests(unittest.TestCase):
             self.doit(obj, 1, 2)
 
 
+FORMAT_OP = "FORMAT_VALUE" if sys.version_info < (3, 14) else "FORMAT_SIMPLE"
+
+
 class FormatValueTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("BUILD_STRING", "FORMAT_VALUE")
+    @failUnlessHasOpcodes("BUILD_STRING", FORMAT_OP)
     def doit(self, obj):
         return f"hello{obj}world"
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("BUILD_STRING", "FORMAT_VALUE")
+    @failUnlessHasOpcodes("BUILD_STRING", FORMAT_OP)
     def doit_repr(self, obj):
         return f"hello{obj!r}world"
 
