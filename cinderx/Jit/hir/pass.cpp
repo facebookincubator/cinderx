@@ -407,10 +407,7 @@ Type outputType(
       return TCInt64;
     }
 
-    // 1 if comparison is true, 0 if not, -1 on error
-    case Opcode::kIsInstance: {
-      return TCInt32;
-    }
+    case Opcode::kIsInstance:
     case Opcode::kCompareBool:
     case Opcode::kCIntToCBool:
     case Opcode::kIsTruthy: {

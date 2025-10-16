@@ -275,29 +275,26 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 0) {
-    v23:Bool = PrimitiveBoxBool v22
     Branch<6>
   }
 
   bb 5 (preds 0) {
-    v24:CInt32 = IsInstance v3 v17 {
+    v23:CBool = IsInstance v3 v17 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v3
       }
     }
-    v25:CInt32[1] = LoadConst<CInt32[1]>
-    v26:CBool = PrimitiveCompare<Equal> v24 v25
-    v27:Bool = PrimitiveBoxBool v26
     Branch<6>
   }
 
   bb 6 (preds 4, 5) {
-    v28:Bool = Phi<4, 5> v23 v27
+    v24:CBool = Phi<4, 5> v22 v23
+    v25:Bool = PrimitiveBoxBool v24
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v28
+    Return v25
   }
 }
 --- Expected 3.12 ---
@@ -363,29 +360,26 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 4) {
-    v36:Bool = PrimitiveBoxBool v35
     Branch<10>
   }
 
   bb 9 (preds 4) {
-    v37:CInt32 = IsInstance v6 v29 {
+    v36:CBool = IsInstance v6 v29 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v6
       }
     }
-    v38:CInt32[1] = LoadConst<CInt32[1]>
-    v39:CBool = PrimitiveCompare<Equal> v37 v38
-    v40:Bool = PrimitiveBoxBool v39
     Branch<10>
   }
 
   bb 10 (preds 8, 9) {
-    v41:Bool = Phi<8, 9> v36 v40
+    v37:CBool = Phi<8, 9> v35 v36
+    v38:Bool = PrimitiveBoxBool v37
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v41
+    Return v38
   }
 }
 --- End ---

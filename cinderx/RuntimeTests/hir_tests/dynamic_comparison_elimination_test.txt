@@ -167,19 +167,17 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 0) {
-    v19:CInt32 = IsInstance v7 v12 {
+    v19:CBool = IsInstance v7 v12 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v7
       }
     }
-    v20:CInt32[1] = LoadConst<CInt32[1]>
-    v21:CBool = PrimitiveCompare<Equal> v19 v20
     Branch<4>
   }
 
   bb 4 (preds 0, 3) {
-    v14:CBool = Phi<0, 3> v18 v21
+    v14:CBool = Phi<0, 3> v18 v19
     Snapshot
     CondBranch<1, 2> v14
   }
@@ -236,19 +234,17 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3) {
-    v30:CInt32 = IsInstance v11 v20 {
+    v30:CBool = IsInstance v11 v20 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v11
       }
     }
-    v31:CInt32[1] = LoadConst<CInt32[1]>
-    v32:CBool = PrimitiveCompare<Equal> v30 v31
     Branch<6>
   }
 
   bb 6 (preds 3, 5) {
-    v22:CBool = Phi<3, 5> v29 v32
+    v22:CBool = Phi<3, 5> v29 v30
     Snapshot
     CondBranch<1, 2> v22
   }

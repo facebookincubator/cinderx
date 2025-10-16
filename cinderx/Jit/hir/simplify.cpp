@@ -1635,11 +1635,7 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
             return env.emitInstr<CondBranch>(compare_type, nullptr, slow_path);
           },
           [&] {
-            auto isinstance_call =
-                env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
-            auto true_output = env.emit<LoadConst>(Type::fromCInt(1, TCInt32));
-            return env.emit<PrimitiveCompare>(
-                PrimitiveCompareOp::kEqual, isinstance_call, true_output);
+            return env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
           });
 
       // The output of the VectorCall instruction was previously a TBool, but we
@@ -1652,21 +1648,17 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
       return result;
     }
 
-    return env.emitCond(
+    Register* cbool_res = env.emitCond(
         [&](BasicBlock* fast_path, BasicBlock* slow_path) {
           env.emit<CondBranch>(compare_type, fast_path, slow_path);
         },
         [&] { // Fast path
-          return env.emit<PrimitiveBoxBool>(compare_type);
+          return compare_type;
         },
         [&] { // Slow path
-          auto isinstance_call =
-              env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
-          auto true_output = env.emit<LoadConst>(Type::fromCInt(1, TCInt32));
-          auto compare_output = env.emit<PrimitiveCompare>(
-              PrimitiveCompareOp::kEqual, isinstance_call, true_output);
-          return env.emit<PrimitiveBoxBool>(compare_output);
+          return env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
         });
+    return env.emit<PrimitiveBoxBool>(cbool_res);
   }
   if (target_type.hasValueSpec(TFunc)) {
     BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};

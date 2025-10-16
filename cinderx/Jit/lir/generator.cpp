@@ -1581,11 +1581,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kIsInstance: {
         auto instr = static_cast<const IsInstance*>(&i);
-        bbb.appendCallInstruction(
+        Instruction* call_instr = bbb.appendCallInstruction(
             instr->output(),
             PyObject_IsInstance,
             instr->GetOperand(0),
             instr->GetOperand(1));
+        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, call_instr);
         break;
       }
       case Opcode::kCompare: {
@@ -3351,6 +3352,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         case Opcode::kGuardIs:
         case Opcode::kGuardType:
         case Opcode::kInvokeStaticFunction:
+        case Opcode::kIsInstance:
         case Opcode::kIsTruthy:
         case Opcode::kRaiseAwaitableError:
         case Opcode::kRaise:
