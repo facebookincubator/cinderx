@@ -27,6 +27,10 @@
 
 #include "cinderx/ParallelGC/parallel_gc.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#define _PyStaticType_GetState Cix_PyStaticType_GetState
+#endif
+
 #include "internal/pycore_gc.h"
 #include "internal/pycore_object.h"
 #include "internal/pycore_pyerrors.h"
@@ -40,6 +44,14 @@
 
 #if PY_VERSION_HEX < 0x030C0000
 #include <cinder/exports.h>
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+// Renamed to private export prefix in Meta Python 3.14.
+#define Ci_PyGCImpl _Ci_PyGCImpl
+#define Ci_PyGC_SetImpl _Ci_PyGC_SetImpl
+#define Ci_PyGC_GetImpl _Ci_PyGC_GetImpl
+#define Ci_PyGC_ClearFreeLists _Ci_PyGC_ClearFreeLists
 #endif
 
 #if defined(__x86_64__) || defined(__amd64)
@@ -83,7 +95,7 @@ typedef struct _gc_runtime_state GCState;
 // move_legacy_finalizers() removes this flag instead.
 // Between them, unreachable list is not normal list and we can not use
 // most gc_list_* functions for it.
-#define NEXT_MASK_UNREACHABLE (1)
+#define NEXT_MASK_UNREACHABLE (2)
 
 /* Get an object's GC head */
 #define AS_GC(o) ((PyGC_Head*)(o) - 1)
@@ -97,6 +109,10 @@ static inline int gc_is_collecting(PyGC_Head* g) {
 
 static inline void gc_clear_collecting(PyGC_Head* g) {
   g->_gc_prev &= ~PREV_MASK_COLLECTING;
+}
+
+static inline void gc_clear_unreachable(PyGC_Head* g) {
+  g->_gc_next &= ~NEXT_MASK_UNREACHABLE;
 }
 
 static inline Py_ssize_t gc_get_refs(PyGC_Head* g) {
@@ -126,7 +142,27 @@ static inline void gc_decref(PyGC_Head* g) {
 #define DEBUG_SAVEALL (1 << 5) /* save all garbage in gc.garbage */
 #define DEBUG_LEAK DEBUG_COLLECTABLE | DEBUG_UNCOLLECTABLE | DEBUG_SAVEALL
 
+#if PY_VERSION_HEX >= 0x030E0000
+static struct gc_generation* get_generation(GCState* state, int n) {
+  switch (n) {
+    case 0:
+      return &state->young;
+    case 1:
+      return &state->old[0];
+    case 2:
+      return &state->old[1];
+  }
+  return NULL;
+}
+#define GEN_HEAD(gcstate, n) (&get_generation(gcstate, n)->head)
+
+#else
+static struct gc_generation* get_generation(GCState* state, int n) {
+  return &state->generations[n];
+}
+
 #define GEN_HEAD(gcstate, n) (&(gcstate)->generations[n].head)
+#endif
 
 static GCState* get_gc_state(void) {
   PyInterpreterState* interp = _PyInterpreterState_GET();
@@ -266,6 +302,15 @@ static inline void gc_list_clear_collecting(PyGC_Head* collectable) {
   }
 }
 
+#if PY_VERSION_HEX >= 0x030E0000
+static inline void gc_list_clear_oldspace(PyGC_Head* collectable) {
+  PyGC_Head* gc;
+  for (gc = GC_NEXT(collectable); gc != collectable; gc = GC_NEXT(gc)) {
+    gc->_gc_next &= ~_PyGC_NEXT_MASK_OLD_SPACE_1;
+  }
+}
+#endif
+
 // Constants for validate_list's flags argument.
 enum flagstates {
   collecting_clear_unreachable_clear,
@@ -308,7 +353,11 @@ static void validate_list(PyGC_Head* head, enum flagstates flags) {
   PyGC_Head* gc = GC_NEXT(head);
   while (gc != head) {
     PyGC_Head* trueprev = GC_PREV(gc);
+#if PY_VERSION_HEX >= 0x030E0000
+    PyGC_Head* truenext = GC_NEXT(gc);
+#else
     PyGC_Head* truenext = (PyGC_Head*)(gc->_gc_next & ~NEXT_MASK_UNREACHABLE);
+#endif
     assert(truenext != NULL);
     assert(trueprev == prev);
     assert((gc->_gc_prev & PREV_MASK_COLLECTING) == prev_value);
@@ -464,6 +513,7 @@ static int visit_reachable(PyObject* op, PyGC_Head* reachable) {
     _PyObject_ASSERT(FROM_GC(prev), prev->_gc_next & NEXT_MASK_UNREACHABLE);
     _PyObject_ASSERT(FROM_GC(next), next->_gc_next & NEXT_MASK_UNREACHABLE);
     prev->_gc_next = gc->_gc_next; // copy NEXT_MASK_UNREACHABLE
+    gc->_gc_next &= ~NEXT_MASK_UNREACHABLE;
     _PyGCHead_SET_PREV(next, prev);
 
     gc_list_append(gc, reachable);
@@ -559,7 +609,7 @@ static void move_unreachable(PyGC_Head* young, PyGC_Head* unreachable) {
       gc->_gc_next = (NEXT_MASK_UNREACHABLE | (uintptr_t)unreachable);
       unreachable->_gc_prev = (uintptr_t)gc;
     }
-    gc = (PyGC_Head*)prev->_gc_next;
+    gc = _PyGCHead_NEXT(prev);
   }
   // young->_gc_prev must be last element remained in the list.
   young->_gc_prev = (uintptr_t)prev;
@@ -568,6 +618,7 @@ static void move_unreachable(PyGC_Head* young, PyGC_Head* unreachable) {
 }
 
 static void untrack_tuples(PyGC_Head* head) {
+#if PY_VERSION_HEX < 0x030E0000
   PyGC_Head *next, *gc = GC_NEXT(head);
   while (gc != head) {
     PyObject* op = FROM_GC(gc);
@@ -577,10 +628,12 @@ static void untrack_tuples(PyGC_Head* head) {
     }
     gc = next;
   }
+#endif
 }
 
 /* Try to untrack all currently tracked dictionaries */
 static void untrack_dicts(PyGC_Head* head) {
+#if PY_VERSION_HEX < 0x030E0000
   PyGC_Head *next, *gc = GC_NEXT(head);
   while (gc != head) {
     PyObject* op = FROM_GC(gc);
@@ -590,6 +643,7 @@ static void untrack_dicts(PyGC_Head* head) {
     }
     gc = next;
   }
+#endif
 }
 
 /* Return true if object has a pre-PEP 442 finalization method. */
@@ -933,7 +987,11 @@ static void delete_garbage(
         Py_INCREF(op);
         (void)clear(op);
         if (_PyErr_Occurred(tstate)) {
+#if PY_VERSION_HEX >= 0x030E0000
+          PyErr_FormatUnraisable("in tp_clear of %R", (PyObject*)Py_TYPE(op));
+#else
           _PyErr_WriteUnraisableMsg("in tp_clear of", (PyObject*)Py_TYPE(op));
+#endif
         }
         Py_DECREF(op);
       }
@@ -1090,13 +1148,22 @@ static int Ci_should_use_par_gc(Ci_ParGCState* par_gc, int gen);
 
 /* This is the main function.  Read this to understand how the
  * collection process works. */
-static Py_ssize_t gc_collect_main(
-    Ci_PyGCImpl* gc_impl,
+#if PY_VERSION_HEX < 0x030E0000
+static Py_ssize_t
+#else
+static void
+#endif
+gc_collect_main(
+    struct Ci_PyGCImpl* gc_impl,
     PyThreadState* tstate,
     int generation,
+#if PY_VERSION_HEX >= 0x030E0000
+    struct gc_collection_stats* stats) {
+#else
     Py_ssize_t* n_collected,
     Py_ssize_t* n_uncollectable,
     int nofail) {
+#endif
   int i;
   Py_ssize_t m = 0; /* # objects collected */
   Py_ssize_t n = 0; /* # unreachable objects that couldn't be collected */
@@ -1133,10 +1200,10 @@ static Py_ssize_t gc_collect_main(
 
   /* update collection and allocation counters */
   if (generation + 1 < NUM_GENERATIONS) {
-    gcstate->generations[generation + 1].count += 1;
+    get_generation(gcstate, generation + 1)->count += 1;
   }
   for (i = 0; i <= generation; i++) {
-    gcstate->generations[i].count = 0;
+    get_generation(gcstate, i)->count = 0;
   }
 
   /* merge younger generations with one we are currently collecting */
@@ -1163,16 +1230,20 @@ static Py_ssize_t gc_collect_main(
   untrack_tuples(young);
   /* Move reachable objects to next generation. */
   if (young != old) {
+#if PY_VERSION_HEX < 0x030E0000
     if (generation == NUM_GENERATIONS - 2) {
       gcstate->long_lived_pending += gc_list_size(young);
     }
+#endif
     gc_list_merge(young, old);
   } else {
     /* We only un-track dicts in full collections, to avoid quadratic
        dict build-up. See issue #14775. */
+#if PY_VERSION_HEX < 0x030E0000
     untrack_dicts(young);
     gcstate->long_lived_pending = 0;
     gcstate->long_lived_total = gc_list_size(young);
+#endif
   }
 
   /* All objects in unreachable are trash, but objects reachable from
@@ -1254,6 +1325,7 @@ static Py_ssize_t gc_collect_main(
     Ci_PyGC_ClearFreeLists(tstate->interp);
   }
 
+#if PY_VERSION_HEX < 0x030E0000
   if (_PyErr_Occurred(tstate)) {
     if (nofail) {
       _PyErr_Clear(tstate);
@@ -1261,7 +1333,9 @@ static Py_ssize_t gc_collect_main(
       _PyErr_WriteUnraisableMsg("in garbage collection", NULL);
     }
   }
+#endif
 
+#if PY_VERSION_HEX < 0x030E0000
   /* Update stats */
   if (n_collected) {
     *n_collected = m;
@@ -1269,14 +1343,24 @@ static Py_ssize_t gc_collect_main(
   if (n_uncollectable) {
     *n_uncollectable = n;
   }
-
-  struct gc_generation_stats* stats = &gcstate->generation_stats[generation];
-  stats->collections++;
+#else
   stats->collected += m;
   stats->uncollectable += n;
+#endif
+
+  struct gc_generation_stats* genstats = &gcstate->generation_stats[generation];
+  genstats->collections++;
+  genstats->collected += m;
+  genstats->uncollectable += n;
+
+  for (int i = 0; i < 3; i++) {
+    validate_list(GEN_HEAD(gcstate, i), collecting_clear_unreachable_clear);
+  }
 
   assert(!_PyErr_Occurred(tstate));
+#if PY_VERSION_HEX < 0x030E0000
   return n + m;
+#endif
 }
 
 #define MUTEX_INIT(mut)                             \
@@ -1500,6 +1584,9 @@ struct Ci_ParGCState {
   // Tracks the number of workers actively running. When this reaches zero
   // it is safe to destroy shared state.
   atomic_int num_workers_active;
+
+  // The thread state that kicked off the GC
+  PyThreadState* tstate;
 
   size_t num_workers;
   Ci_ParGCWorker workers[];
@@ -1827,6 +1914,9 @@ static void Ci_ParGCWorker_MarkReachable(Ci_ParGCWorker* worker) {
 
 static void Ci_ParGCWorker_Run(Ci_ParGCWorker* worker) {
   Ci_ParGCState* par_gc = worker->par_gc;
+#if PY_VERSION_HEX >= 0x030E0000
+  Ci_SetTStateForGC(par_gc->tstate);
+#endif
 
   atomic_fetch_add(&par_gc->num_workers_active, 1);
   CI_DLOG("Worker started");
@@ -1935,6 +2025,8 @@ static Ci_ParGCState* Ci_ParGCState_New(size_t min_gen, size_t num_threads) {
     Ci_ParGCWorker_Init(&par_gc->workers[i], par_gc, i);
   }
 
+  par_gc->tstate = PyThreadState_GET();
+
   CI_DLOG("Enabling parallel gc with %zu threads", num_threads);
 
   return par_gc;
@@ -1965,6 +2057,15 @@ static void Ci_ParGCState_Destroy(Ci_ParGCState* par_gc) {
   while (atomic_load(&par_gc->num_workers_active)) {
     Ci_cpu_pause();
   }
+
+#if PY_VERSION_HEX >= 0x030E0000
+  PyThreadState* tstate = _PyThreadState_GET();
+  struct _gc_runtime_state* gc_state = &tstate->interp->gc;
+  // we should have flipped this when GC began
+  assert(gc_state->visited_space == 0);
+  // old[0] has a 0, merge everything there.
+  gc_list_merge(GEN_HEAD(gc_state, 2), GEN_HEAD(gc_state, 1));
+#endif
 
   Ci_PyGCImpl* old_impl = par_gc->old_impl;
   if (old_impl != NULL) {
@@ -2218,11 +2319,18 @@ static int Ci_is_par_gc(Ci_PyGCImpl* impl) {
       impl->finalize == (Ci_gc_finalize_t)Ci_ParGCState_Destroy;
 }
 
+int Cinder_IsParallelGCEnabled() {
+  PyInterpreterState* interp = PyInterpreterState_Get();
+  GCState* gc_state = &interp->gc;
+  return Ci_is_par_gc(Ci_PyGC_GetImpl(gc_state));
+}
+
 int Cinder_EnableParallelGC(size_t min_gen, size_t num_threads) {
   PyThreadState* tstate = _PyThreadState_GET();
 #ifdef HAVE_WS_DEQUE
   GCState* gc_state = &tstate->interp->gc;
   Ci_PyGCImpl* impl = Ci_PyGC_GetImpl(gc_state);
+  // We need to clear the _PyGC_NEXT_MASK_OLD_SPACE_1 flag on all objects
   if (Ci_is_par_gc(impl)) {
     return 0;
   }
@@ -2241,6 +2349,19 @@ int Cinder_EnableParallelGC(size_t min_gen, size_t num_threads) {
 
   par_gc->old_impl = old_impl;
 
+#if PY_VERSION_HEX >= 0x030E0000
+  // Transition from the incremental GC into non-incremental parallel mode. We
+  // merge the two old generations that the incrementatal flips between and keep
+  // the young generator. We also re-init the low space bit on the young
+  // generation when we are marking those as 1 and in the 2nd older generation
+  // which has the bits set.
+  if (gc_state->visited_space != 0) {
+    gc_list_clear_oldspace(GEN_HEAD(gc_state, 0));
+  }
+  gc_list_clear_oldspace(GEN_HEAD(gc_state, 2));
+  gc_list_merge(GEN_HEAD(gc_state, 1), GEN_HEAD(gc_state, 2));
+  gc_state->visited_space = 0;
+#endif
   return 0;
 #else
   _PyErr_SetString(

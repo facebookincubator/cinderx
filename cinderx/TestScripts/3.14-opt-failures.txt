@@ -1,1 +1,0 @@
-test_cinderx.test_parallel_gc

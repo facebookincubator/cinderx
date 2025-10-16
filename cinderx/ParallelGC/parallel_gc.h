@@ -32,6 +32,11 @@ PyObject* Cinder_GetParallelGCSettings(void);
  */
 void Cinder_DisableParallelGC(void);
 
+/*
+ * Checks if parallel GC is enabled. Returns 1 if it is or 0 if it is disabled.
+ */
+int Cinder_IsParallelGCEnabled();
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

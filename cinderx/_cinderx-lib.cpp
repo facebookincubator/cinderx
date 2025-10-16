@@ -260,6 +260,26 @@ PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
 #endif
 }
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
+PyDoc_STRVAR(
+    cinder_get_threshold_doc,
+    "get_threshold($module, /)\n"
+    "--\n"
+    "\n"
+    "Return the current collection thresholds.");
+PyObject* cinder_get_threshold(PyObject* mod, PyObject*) {
+  PyInterpreterState* interp = PyInterpreterState_Get();
+  struct _gc_runtime_state* gcstate = &interp->gc;
+  // 3.14 always returns 0 for the oldest generation, but allows setting
+  // it. Return the real value when parallel GC is enabled.
+  return Py_BuildValue(
+      "(iii)",
+      gcstate->young.threshold,
+      gcstate->old[0].threshold,
+      Cinder_IsParallelGCEnabled() ? gcstate->old[1].threshold : 0);
+}
+#endif
+
 PyDoc_STRVAR(
     cinder_immortalize_heap_doc,
     "immortalize_heap($module, /)\n"
@@ -1243,6 +1263,12 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      cinder_get_adaptive_delay_doc},
 #endif
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
+    {"get_threshold",
+     cinder_get_threshold,
+     METH_NOARGS,
+     cinder_get_threshold_doc},
+#endif
     {nullptr, nullptr, 0, nullptr}};
 
 static int _cinderx_exec(PyObject* m) {
@@ -1353,6 +1379,22 @@ static int _cinderx_exec(PyObject* m) {
   state->setCoroType(&PyCoro_Type);
   state->setGenType(&PyGen_Type);
 
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
+  Ref<> gc_mod = Ref<>::steal(PyImport_ImportModule("gc"));
+  if (gc_mod == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+
+  auto get_threshold_func =
+      Ref<>::steal(PyObject_GetAttrString(m, "get_threshold"));
+  if (get_threshold_func == nullptr ||
+      PyObject_SetAttrString(gc_mod, "get_threshold", get_threshold_func) < 0) {
+    state->shutdown();
+    return -1;
+  }
 #endif
 
   auto runtime = new (std::nothrow) jit::Runtime();
