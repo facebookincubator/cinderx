@@ -139,7 +139,7 @@ fun jittestmodule:test {
     v10:Object = LoadArg<1; "use_comma">
     v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:CInt32 = IsTruthy v10 {
+    v13:CBool = IsTruthy v10 {
       FrameState {
         CurInstrOffset 2
         Locals<3> v9 v10 v11
@@ -202,7 +202,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v21:CInt32 = IsTruthy v13 {
+    v21:CBool = IsTruthy v13 {
       FrameState {
         CurInstrOffset 4
         Locals<3> v12 v13 v15

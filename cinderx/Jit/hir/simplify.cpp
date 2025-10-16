@@ -469,8 +469,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
       // Since we no longer use instr->GetOperand(0), we need to make sure that
       // we don't lose any associated type checks
       env.emit<UseType>(instr->GetOperand(0), ty);
-      Type output_type = instr->output()->type();
-      return env.emit<LoadConst>(Type::fromCInt(res, output_type));
+      return env.emit<LoadConst>(Type::fromCBool(res));
     }
   }
   if (ty <= TBool) {
@@ -479,20 +478,16 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
     Register* right = env.emit<LoadConst>(Type::fromObject(Py_True));
     Register* result =
         env.emit<PrimitiveCompare>(PrimitiveCompareOp::kEqual, left, right);
-    return env.emit<IntConvert>(result, TCInt32);
+    return result;
   }
   if (Register* size = emitGetLengthInt64(env, instr->GetOperand(0))) {
-    return env.emit<IntConvert>(size, TCInt32);
+    return env.emit<CIntToCBool>(size);
   }
   if (ty <= TLongExact) {
-    Register* left = instr->GetOperand(0);
-    env.emit<UseType>(left, ty);
-    // Zero is canonical as a "small int" in CPython.
-    auto zero = cinderx::getModuleState()->runtime()->zero();
-    Register* right = env.emit<LoadConst>(Type::fromObject(zero));
-    Register* result =
-        env.emit<PrimitiveCompare>(PrimitiveCompareOp::kNotEqual, left, right);
-    return env.emit<IntConvert>(result, TCInt32);
+    Register* i = instr->GetOperand(0);
+    env.emit<UseType>(i, ty);
+    Register* cint_i = env.emit<PrimitiveUnbox>(i, TCInt64);
+    return env.emit<CIntToCBool>(cint_i);
   }
   return nullptr;
 }

@@ -351,6 +351,22 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
 #endif
 }
 
+void translateIntToBool(Environ* env, const Instruction* instr) {
+  x86::Builder* as = env->as;
+  const OperandBase* input = instr->getInput(0);
+  x86::Gp output = AutoTranslator::getGp(instr->output());
+  JIT_CHECK(
+      instr->output()->dataType() == OperandBase::k8bit,
+      "Output should be 8bits, not {}",
+      instr->output()->dataType());
+  if (input->isImm()) {
+    as->mov(output, input->getConstant() ? 1 : 0);
+  } else {
+    as->test(AutoTranslator::getGp(input), AutoTranslator::getGp(input));
+    as->setne(output);
+  }
+}
+
 // Store meta-data about this yield in a generator suspend data pointed to by
 // suspend_data_r. Data includes things like the address to resume execution at,
 // and owned entries in the suspended spill data needed for GC operations etc.
@@ -1306,6 +1322,11 @@ BEGIN_RULES(Instruction::kSelect)
   GEN("Rrri", ASM(mov, OP(0), OP(3)),
               ASM(test, OP(1), OP(1)),
               ASM(cmovnz, OP(0), OP(2)))
+END_RULES
+
+BEGIN_RULES(Instruction::kIntToBool)
+  GEN("Rr", CALL_C(translateIntToBool))
+  GEN("Ri", CALL_C(translateIntToBool))
 END_RULES
 
 END_RULE_TABLE

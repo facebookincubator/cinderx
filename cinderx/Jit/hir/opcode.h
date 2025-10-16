@@ -34,6 +34,7 @@ namespace jit::hir {
   V(CheckVar)                          \
   V(CheckFreevar)                      \
   V(CheckField)                        \
+  V(CIntToCBool)                       \
   V(Compare)                           \
   V(CompareBool)                       \
   V(ConvertValue)                      \

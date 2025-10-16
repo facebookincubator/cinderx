@@ -1161,7 +1161,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v14:CInt32 = IsTruthy v13 {
+    v14:CBool = IsTruthy v13 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v10
@@ -1209,7 +1209,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v39:CInt32 = IsTruthy v38 {
+    v39:CBool = IsTruthy v38 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v21
@@ -1303,7 +1303,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v21:CInt32 = IsTruthy v20 {
+    v21:CBool = IsTruthy v20 {
       FrameState {
         CurInstrOffset 10
         Locals<1> v14
@@ -1369,7 +1369,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v52:CInt32 = IsTruthy v51 {
+    v52:CBool = IsTruthy v51 {
       FrameState {
         CurInstrOffset 10
         Locals<1> v28

@@ -1367,7 +1367,7 @@ fun jittestmodule:test {
     v5:Object = LoadArg<0; "pred">
     v6:Object = LoadArg<1; "val">
     v7:Nullptr = LoadConst<Nullptr>
-    v9:CInt32 = IsTruthy v5 {
+    v9:CBool = IsTruthy v5 {
       LiveValues<3> b:v5 b:v6 unc:v7
       FrameState {
         CurInstrOffset 2
@@ -1409,7 +1409,7 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 0, 4) {
-    v17:CInt32 = IsTruthy v8 {
+    v17:CBool = IsTruthy v8 {
       LiveValues<3> b:v8 b:v9 unc:v11
       FrameState {
         CurInstrOffset 4
@@ -1640,7 +1640,7 @@ fun jittestmodule:test {
   bb 0 {
     v12:Object = LoadArg<0; "timings">
     v13:Nullptr = LoadConst<Nullptr>
-    v15:CInt32 = IsTruthy v12 {
+    v15:CBool = IsTruthy v12 {
       LiveValues<2> b:v12 unc:v13
       FrameState {
         CurInstrOffset 2
@@ -1661,7 +1661,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1, 7) {
     v19:OptImmortalLongExact = Phi<1, 7> v16 v13
-    v21:CInt32 = IsTruthy v12 {
+    v21:CBool = IsTruthy v12 {
       LiveValues<2> b:v12 unc:v19
       FrameState {
         CurInstrOffset 10
@@ -1696,7 +1696,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 3, 8) {
     v27:OptLongExact = Phi<3, 8> v36 v19
-    v29:CInt32 = IsTruthy v12 {
+    v29:CBool = IsTruthy v12 {
       LiveValues<2> b:v12 o:v27
       FrameState {
         CurInstrOffset 22
@@ -1766,7 +1766,7 @@ fun jittestmodule:test {
   }
 
   bb 7 (preds 0, 8) {
-    v23:CInt32 = IsTruthy v16 {
+    v23:CBool = IsTruthy v16 {
       LiveValues<2> b:v16 unc:v18
       FrameState {
         CurInstrOffset 4
@@ -1787,7 +1787,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1, 11) {
     v27:OptImmortalLongExact = Phi<1, 11> v24 v18
-    v28:CInt32 = IsTruthy v16 {
+    v28:CBool = IsTruthy v16 {
       LiveValues<2> b:v16 unc:v27
       FrameState {
         CurInstrOffset 12
@@ -1822,7 +1822,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 3, 10) {
     v34:OptLongExact = Phi<3, 10> v45 v27
-    v35:CInt32 = IsTruthy v16 {
+    v35:CBool = IsTruthy v16 {
       LiveValues<2> b:v16 o:v34
       FrameState {
         CurInstrOffset 26
@@ -1907,7 +1907,7 @@ fun jittestmodule:test {
         Locals<4> v15 v16 v17 v18
       }
     }
-    v24:CInt32 = IsTruthy v16 {
+    v24:CBool = IsTruthy v16 {
       LiveValues<4> b:v15 b:v16 b:v17 o:v21
       FrameState {
         CurInstrOffset 8
@@ -1944,7 +1944,7 @@ fun jittestmodule:test {
       }
     }
     Decref v34
-    v36:CInt32 = IsTruthy v17 {
+    v36:CBool = IsTruthy v17 {
       LiveValues<4> b:v16 b:v17 o:v21 b:v27
       FrameState {
         CurInstrOffset 24
@@ -2034,7 +2034,7 @@ fun jittestmodule:test {
         Locals<4> v21 v22 v23 v25
       }
     }
-    v37:CInt32 = IsTruthy v22 {
+    v37:CBool = IsTruthy v22 {
       LiveValues<4> b:v21 b:v22 b:v23 o:v65
       FrameState {
         CurInstrOffset 24
@@ -2071,7 +2071,7 @@ fun jittestmodule:test {
       }
     }
     Decref v63
-    v47:CInt32 = IsTruthy v23 {
+    v47:CBool = IsTruthy v23 {
       LiveValues<4> b:v22 b:v23 b:v39 o:v65
       FrameState {
         CurInstrOffset 54

@@ -986,6 +986,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kCheckNeg:
     case Opcode::kCheckFreevar:
     case Opcode::kCheckField:
+    case Opcode::kCIntToCBool:
     case Opcode::kCompareBool:
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kCondBranchIterNotDone:

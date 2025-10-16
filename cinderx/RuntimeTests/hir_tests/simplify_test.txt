@@ -266,7 +266,7 @@ fun jittestmodule:test {
     v4:Object = LoadArg<0; "x">
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v7:CInt32 = IsTruthy v4 {
+    v7:CBool = IsTruthy v4 {
       FrameState {
         CurInstrOffset 2
         Locals<2> v4 v5
@@ -317,7 +317,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v14:CInt32 = IsTruthy v7 {
+    v14:CBool = IsTruthy v7 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v7 v9
@@ -359,7 +359,7 @@ fun jittestmodule:test {
     v5:Object = LoadArg<0; "x">
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v8:CInt32 = IsTruthy v5 {
+    v8:CBool = IsTruthy v5 {
       FrameState {
         CurInstrOffset 2
         Locals<2> v5 v6
@@ -404,7 +404,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v15:CInt32 = IsTruthy v8 {
+    v15:CBool = IsTruthy v8 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v8 v10
@@ -440,7 +440,7 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0; "x">
     v7:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v9:CInt32 = IsTruthy v6 {
+    v9:CBool = IsTruthy v6 {
       FrameState {
         CurInstrOffset 2
         Locals<2> v6 v7
@@ -452,7 +452,7 @@ fun jittestmodule:test {
   bb 1 (preds 0) {
     Snapshot
     v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v13:CInt32 = IsTruthy v6 {
+    v13:CBool = IsTruthy v6 {
       FrameState {
         CurInstrOffset 10
         Locals<2> v6 v10
@@ -503,7 +503,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v16:CInt32 = IsTruthy v9 {
+    v16:CBool = IsTruthy v9 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v9 v11
@@ -515,7 +515,7 @@ fun jittestmodule:test {
   bb 1 (preds 4) {
     Snapshot
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v19:CInt32 = IsTruthy v9 {
+    v19:CBool = IsTruthy v9 {
       FrameState {
         CurInstrOffset 12
         Locals<2> v9 v17
@@ -992,7 +992,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v17:CInt32 = IsTruthy v41 {
+    v17:CBool = IsTruthy v41 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v13 v13
@@ -1028,7 +1028,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v29:CInt32 = IsTruthy v42 {
+    v29:CBool = IsTruthy v42 {
       FrameState {
         CurInstrOffset 18
         Locals<2> v22 v13
@@ -1112,7 +1112,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v25:CInt32 = IsTruthy v52 {
+    v25:CBool = IsTruthy v52 {
       FrameState {
         CurInstrOffset 32
         Locals<2> v17 v17
@@ -1148,7 +1148,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v37:CInt32 = IsTruthy v47 {
+    v37:CBool = IsTruthy v47 {
       FrameState {
         CurInstrOffset 72
         Locals<2> v30 v17
@@ -1223,7 +1223,7 @@ fun test {
     v0:Object = LoadArg<0>
     v1:NoneType = RefineType<NoneType> v0
     UseType<NoneType> v1
-    v3:CInt32[0] = LoadConst<CInt32[0]>
+    v3:CBool[false] = LoadConst<CBool[false]>
     Return v1
   }
 }
@@ -1233,7 +1233,7 @@ fun test {
     v0:Object = LoadArg<0>
     v1:NoneType = RefineType<NoneType> v0
     UseType<NoneType> v1
-    v3:CInt32[0] = LoadConst<CInt32[0]>
+    v3:CBool[false] = LoadConst<CBool[false]>
     Return v1
   }
 }
@@ -1256,7 +1256,7 @@ fun jittestmodule:test {
     v8:NoneType = LoadConst<NoneType>
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<NoneType> v8
-    v20:CInt32[0] = LoadConst<CInt32[0]>
+    v20:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v17:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Return v17
@@ -1288,7 +1288,7 @@ fun jittestmodule:test {
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalNoneType> v16
-    v25:CInt32[0] = LoadConst<CInt32[0]>
+    v25:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Return v23
@@ -1313,7 +1313,7 @@ fun jittestmodule:test {
     v8:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v8
-    v20:CInt32[1] = LoadConst<CInt32[1]>
+    v20:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     v14:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return v14
@@ -1345,7 +1345,7 @@ fun jittestmodule:test {
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v16
-    v25:CInt32[1] = LoadConst<CInt32[1]>
+    v25:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return v21
@@ -1368,7 +1368,7 @@ fun jittestmodule:test {
     v7:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalLongExact[0]> v7
-    v18:CInt32[0] = LoadConst<CInt32[0]>
+    v18:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v13:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
@@ -1401,7 +1401,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalLongExact[0]> v15
-    v24:CInt32[0] = LoadConst<CInt32[0]>
+    v24:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v20:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
@@ -1425,7 +1425,7 @@ fun jittestmodule:test {
     v7:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalLongExact[1]> v7
-    v18:CInt32[1] = LoadConst<CInt32[1]>
+    v18:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     Return v9
   }
@@ -1456,7 +1456,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalLongExact[1]> v15
-    v24:CInt32[1] = LoadConst<CInt32[1]>
+    v24:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     Return v17
   }
@@ -1478,7 +1478,7 @@ fun jittestmodule:test {
     v7:MortalUnicodeExact[""] = LoadConst<MortalUnicodeExact[""]>
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<MortalUnicodeExact[""]> v7
-    v18:CInt32[0] = LoadConst<CInt32[0]>
+    v18:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v13:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
@@ -1511,7 +1511,7 @@ fun jittestmodule:test {
     v15:ImmortalUnicodeExact[""] = LoadConst<ImmortalUnicodeExact[""]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalUnicodeExact[""]> v15
-    v24:CInt32[0] = LoadConst<CInt32[0]>
+    v24:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v20:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
@@ -1535,7 +1535,7 @@ fun jittestmodule:test {
     v7:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<MortalUnicodeExact["hello"]> v7
-    v18:CInt32[1] = LoadConst<CInt32[1]>
+    v18:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     Return v9
   }
@@ -1566,7 +1566,7 @@ fun jittestmodule:test {
     v15:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<MortalUnicodeExact["hello"]> v15
-    v24:CInt32[1] = LoadConst<CInt32[1]>
+    v24:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     Return v17
   }
@@ -1886,7 +1886,7 @@ fun test {
     UseType<NoneType> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
-    v10:CInt32[1] = LoadConst<CInt32[1]>
+    v10:CBool[true] = LoadConst<CBool[true]>
     Return v1
   }
 }
@@ -1901,7 +1901,7 @@ fun test {
     UseType<NoneType> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
-    v10:CInt32[1] = LoadConst<CInt32[1]>
+    v10:CBool[true] = LoadConst<CBool[true]>
     Return v1
   }
 }
@@ -1926,7 +1926,7 @@ fun jittestmodule:test {
     UseType<CBool[false]> v18
     v19:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     UseType<ImmortalBool[False]> v19
-    v20:CInt32[0] = LoadConst<CInt32[0]>
+    v20:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v17:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Return v17
@@ -1987,7 +1987,7 @@ fun jittestmodule:test {
     UseType<CBool[false]> v21
     v22:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     UseType<ImmortalBool[False]> v22
-    v23:CInt32[0] = LoadConst<CInt32[0]>
+    v23:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v20:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Return v20
@@ -2024,7 +2024,7 @@ fun jittestmodule:test {
     UseType<CBool[false]> v29
     v30:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     UseType<ImmortalBool[False]> v30
-    v31:CInt32[0] = LoadConst<CInt32[0]>
+    v31:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v27:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Return<ImmortalBool[False]> v27
@@ -2079,7 +2079,6 @@ fun test {
     UseType<Bool> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:CBool = PrimitiveCompare<Equal> v8 v9
-    v11:CInt32 = IntConvert<CInt32> v10
     CondBranch<2, 1> v10
   }
 
@@ -2112,7 +2111,6 @@ fun test {
     UseType<Bool> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:CBool = PrimitiveCompare<Equal> v8 v9
-    v11:CInt32 = IntConvert<CInt32> v10
     CondBranch<2, 1> v10
   }
 
@@ -2175,7 +2173,6 @@ fun test {
     UseType<Bool> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:CBool = PrimitiveCompare<Equal> v8 v9
-    v11:CInt32 = IntConvert<CInt32> v10
     CondBranch<2, 1> v10
   }
 
@@ -2208,7 +2205,6 @@ fun test {
     UseType<Bool> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:CBool = PrimitiveCompare<Equal> v8 v9
-    v11:CInt32 = IntConvert<CInt32> v10
     CondBranch<2, 1> v10
   }
 
@@ -2271,7 +2267,6 @@ fun test {
     UseType<Bool> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:CBool = PrimitiveCompare<Equal> v8 v9
-    v11:CInt32 = IntConvert<CInt32> v10
     CondBranch<2, 1> v10
   }
 
@@ -2304,7 +2299,6 @@ fun test {
     UseType<Bool> v8
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v10:CBool = PrimitiveCompare<Equal> v8 v9
-    v11:CInt32 = IntConvert<CInt32> v10
     CondBranch<2, 1> v10
   }
 
@@ -2463,7 +2457,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = Assign v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2472,16 +2466,12 @@ fun test {
   bb 0 {
     v1:Object = LoadArg<0>
     v2:Object = Assign v1
-    v3:CInt32 = IsTruthy v2 {
+    v3:CBool = IsTruthy v2 {
       FrameState {
         CurInstrOffset -2
       }
     }
-    v4:LongExact = PrimitiveBox<CInt32> v3 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v4:Bool = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2490,16 +2480,12 @@ fun test {
   bb 0 {
     v1:Object = LoadArg<0>
     v2:Object = Assign v1
-    v3:CInt32 = IsTruthy v2 {
+    v3:CBool = IsTruthy v2 {
       FrameState {
         CurInstrOffset -2
       }
     }
-    v4:LongExact = PrimitiveBox<CInt32> v3 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v4:Bool = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2512,7 +2498,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<Bool> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2524,12 +2510,7 @@ fun test {
     UseType<Bool> v2
     v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v6:CBool = PrimitiveCompare<Equal> v2 v5
-    v7:CInt32 = IntConvert<CInt32> v6
-    v4:LongExact = PrimitiveBox<CInt32> v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2541,12 +2522,7 @@ fun test {
     UseType<Bool> v2
     v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v6:CBool = PrimitiveCompare<Equal> v2 v5
-    v7:CInt32 = IntConvert<CInt32> v6
-    v4:LongExact = PrimitiveBox<CInt32> v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2559,7 +2535,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<ListExact> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2570,12 +2546,8 @@ fun test {
     v2:ListExact = RefineType<ListExact> v1
     UseType<ListExact> v2
     v5:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2586,12 +2558,8 @@ fun test {
     v2:ListExact = RefineType<ListExact> v1
     UseType<ListExact> v2
     v5:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2614,7 +2582,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<MortalListExact> v5
     v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v5
-    v10:CInt32 = IntConvert<CInt32> v9
+    v10:CBool = CIntToCBool v9
     CondBranch<1, 2> v10
   }
 
@@ -2658,7 +2626,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<MortalListExact> v11
     v17:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v11
-    v18:CInt32 = IntConvert<CInt32> v17
+    v18:CBool = CIntToCBool v17
     CondBranch<1, 2> v18
   }
 
@@ -2683,7 +2651,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<TupleExact> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2694,12 +2662,8 @@ fun test {
     v2:TupleExact = RefineType<TupleExact> v1
     UseType<TupleExact> v2
     v5:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2710,12 +2674,8 @@ fun test {
     v2:TupleExact = RefineType<TupleExact> v1
     UseType<TupleExact> v2
     v5:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2728,7 +2688,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<Array> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2739,12 +2699,8 @@ fun test {
     v2:Array = RefineType<Array> v1
     UseType<Array> v2
     v5:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2755,12 +2711,8 @@ fun test {
     v2:Array = RefineType<Array> v1
     UseType<Array> v2
     v5:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2773,7 +2725,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<DictExact> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2784,12 +2736,8 @@ fun test {
     v2:DictExact = RefineType<DictExact> v1
     UseType<DictExact> v2
     v5:CInt64 = LoadField<ma_used@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2800,12 +2748,8 @@ fun test {
     v2:DictExact = RefineType<DictExact> v1
     UseType<DictExact> v2
     v5:CInt64 = LoadField<ma_used@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2818,7 +2762,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<SetExact> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2829,12 +2773,8 @@ fun test {
     v2:SetExact = RefineType<SetExact> v1
     UseType<SetExact> v2
     v5:CInt64 = LoadField<used@24, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2845,12 +2785,8 @@ fun test {
     v2:SetExact = RefineType<SetExact> v1
     UseType<SetExact> v2
     v5:CInt64 = LoadField<used@24, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2863,7 +2799,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<UnicodeExact> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2874,12 +2810,8 @@ fun test {
     v2:UnicodeExact = RefineType<UnicodeExact> v1
     UseType<UnicodeExact> v2
     v5:CInt64 = LoadField<length@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2890,17 +2822,13 @@ fun test {
     v2:UnicodeExact = RefineType<UnicodeExact> v1
     UseType<UnicodeExact> v2
     v5:CInt64 = LoadField<length@16, CInt64, borrowed> v2
-    v6:CInt32 = IntConvert<CInt32> v5
-    v4:LongExact = PrimitiveBox<CInt32> v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
 --- Test Name ---
-IsTruthyWithLongExactRewritesToPrimitiveCompare
+IsTruthyWithLongExactRewritesToCIntToCBool
 --- Input ---
 # HIR
 fun test {
@@ -2908,7 +2836,7 @@ fun test {
     v1 = LoadArg<0>
     v2 = RefineType<LongExact> v1
     v3 = IsTruthy v2
-    v4 = PrimitiveBox<CInt32> v3
+    v4 = PrimitiveBoxBool v3
     Return v4
   }
 }
@@ -2918,14 +2846,9 @@ fun test {
     v1:Object = LoadArg<0>
     v2:LongExact = RefineType<LongExact> v1
     UseType<LongExact> v2
-    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
-    v6:CBool = PrimitiveCompare<NotEqual> v2 v5
-    v7:CInt32 = IntConvert<CInt32> v6
-    v4:LongExact = PrimitiveBox<CInt32> v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v5:CInt64 = PrimitiveUnbox<CInt64> v2
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }
@@ -2935,14 +2858,9 @@ fun test {
     v1:Object = LoadArg<0>
     v2:LongExact = RefineType<LongExact> v1
     UseType<LongExact> v2
-    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
-    v6:CBool = PrimitiveCompare<NotEqual> v2 v5
-    v7:CInt32 = IntConvert<CInt32> v6
-    v4:LongExact = PrimitiveBox<CInt32> v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
+    v5:CInt64 = PrimitiveUnbox<CInt64> v2
+    v6:CBool = CIntToCBool v5
+    v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
 }

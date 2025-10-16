@@ -328,7 +328,7 @@ fun test {
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
-    v2:CInt32 = IsTruthy v0 {
+    v2:CBool = IsTruthy v0 {
       FrameState {
         CurInstrOffset -2
       }
@@ -354,7 +354,7 @@ fun test {
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
-    v2:CInt32 = IsTruthy v0 {
+    v2:CBool = IsTruthy v0 {
       FrameState {
         CurInstrOffset -2
       }

@@ -30,7 +30,7 @@ fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
-    v3:CInt32 = CompareBool<Equal> v0 v1 {
+    v3:CBool = CompareBool<Equal> v0 v1 {
       FrameState {
         CurInstrOffset -2
       }
@@ -53,7 +53,7 @@ fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
-    v3:CInt32 = CompareBool<Equal> v0 v1 {
+    v3:CBool = CompareBool<Equal> v0 v1 {
       FrameState {
         CurInstrOffset -2
       }
@@ -99,7 +99,7 @@ fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
-    v3:CInt32 = CompareBool<NotEqual> v0 v1 {
+    v3:CBool = CompareBool<NotEqual> v0 v1 {
       FrameState {
         CurInstrOffset -2
       }
@@ -122,7 +122,7 @@ fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
-    v3:CInt32 = CompareBool<NotEqual> v0 v1 {
+    v3:CBool = CompareBool<NotEqual> v0 v1 {
       FrameState {
         CurInstrOffset -2
       }

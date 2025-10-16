@@ -1682,23 +1682,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCompareBool: {
         auto instr = static_cast<const CompareBool*>(&i);
-
+        Instruction* call_instr;
         if (instr->op() == CompareOp::kIn) {
           if (instr->right()->type() <= TUnicodeExact) {
-            bbb.appendCallInstruction(
+            call_instr = bbb.appendCallInstruction(
                 instr->output(),
                 PyUnicode_Contains,
                 instr->right(),
                 instr->left());
           } else {
-            bbb.appendCallInstruction(
+            call_instr = bbb.appendCallInstruction(
                 instr->output(),
                 PySequence_Contains,
                 instr->right(),
                 instr->left());
           }
         } else if (instr->op() == CompareOp::kNotIn) {
-          bbb.appendCallInstruction(
+          call_instr = bbb.appendCallInstruction(
               instr->output(),
               JITRT_NotContainsBool,
               instr->right(),
@@ -1708,7 +1708,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
              instr->op() == CompareOp::kNotEqual) &&
             (instr->left()->type() <= TUnicodeExact ||
              instr->right()->type() <= TUnicodeExact)) {
-          bbb.appendCallInstruction(
+          call_instr = bbb.appendCallInstruction(
               instr->output(),
               JITRT_UnicodeEquals,
               instr->left(),
@@ -1719,20 +1719,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
              instr->op() == CompareOp::kNotEqual) &&
             (isTypeWithReasonablePointerEq(instr->left()->type()) ||
              isTypeWithReasonablePointerEq(instr->right()->type()))) {
-          bbb.appendCallInstruction(
+          call_instr = bbb.appendCallInstruction(
               instr->output(),
               PyObject_RichCompareBool,
               instr->left(),
               instr->right(),
               static_cast<int>(instr->op()));
         } else {
-          bbb.appendCallInstruction(
+          call_instr = bbb.appendCallInstruction(
               instr->output(),
               JITRT_RichCompareBool,
               instr->left(),
               instr->right(),
               static_cast<int>(instr->op()));
         }
+        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, call_instr);
         break;
       }
       case Opcode::kCopyDictWithoutKeys: {
@@ -3014,7 +3015,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kIsTruthy: {
-        bbb.appendCallInstruction(i.output(), PyObject_IsTrue, i.GetOperand(0));
+        auto is_truthy = static_cast<const IsTruthy*>(&i);
+        Instruction* call_instr = bbb.appendCallInstruction(
+            i.output(), PyObject_IsTrue, i.GetOperand(0));
+        appendGuard(bbb, InstrGuardKind::kNotNegative, *is_truthy, call_instr);
         break;
       }
       case Opcode::kImportFrom: {
@@ -3323,16 +3327,22 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #endif
         break;
       }
+      case Opcode::kCIntToCBool: {
+        bbb.appendInstr(i.output(), Instruction::kIntToBool, i.GetOperand(0));
+        break;
+      }
     }
 
     if (auto db = i.asDeoptBase()) {
       switch (db->opcode()) {
+        // These opcodes handle their own guards.
         case Opcode::kCallInd:
         case Opcode::kCheckErrOccurred:
         case Opcode::kCheckExc:
         case Opcode::kCheckField:
         case Opcode::kCheckNeg:
         case Opcode::kCheckVar:
+        case Opcode::kCompareBool:
         case Opcode::kDeleteAttr:
         case Opcode::kDeleteSubscr:
         case Opcode::kDeopt:
@@ -3341,16 +3351,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         case Opcode::kGuardIs:
         case Opcode::kGuardType:
         case Opcode::kInvokeStaticFunction:
+        case Opcode::kIsTruthy:
         case Opcode::kRaiseAwaitableError:
         case Opcode::kRaise:
         case Opcode::kRaiseStatic:
         case Opcode::kStoreAttr:
         case Opcode::kStoreAttrCached:
         case Opcode::kStoreSubscr: {
-          break;
-        }
-        case Opcode::kCompare: {
-          emitExceptionCheck(*db, bbb);
           break;
         }
         case Opcode::kPrimitiveBox: {

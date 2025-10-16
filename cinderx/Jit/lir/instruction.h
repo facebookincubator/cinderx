@@ -164,6 +164,7 @@ enum OperandSizeType {
   X(MovZX)                                                                    \
   X(MovSX)                                                                    \
   X(MovSXD)                                                                   \
+  X(IntToBool, false, FlagEffects::kSet, kDefault, 1, {1})                    \
   X(YieldInitial, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)        \
   X(YieldFrom, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)           \
   X(YieldFromSkipInitialSend,                                                 \

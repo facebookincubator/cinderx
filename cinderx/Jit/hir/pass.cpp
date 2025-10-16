@@ -408,11 +408,13 @@ Type outputType(
     }
 
     // 1 if comparison is true, 0 if not, -1 on error
-    case Opcode::kCompareBool:
-    case Opcode::kIsInstance:
-    // 1, 0 if the value is truthy, not truthy
-    case Opcode::kIsTruthy: {
+    case Opcode::kIsInstance: {
       return TCInt32;
+    }
+    case Opcode::kCompareBool:
+    case Opcode::kCIntToCBool:
+    case Opcode::kIsTruthy: {
+      return TCBool;
     }
 
     case Opcode::kLoadFunctionIndirect: {

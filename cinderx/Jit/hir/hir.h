@@ -3957,6 +3957,8 @@ class INSTR_CLASS(LoadSpecial, (TObject), HasOutput, Operands<1>, DeoptBase) {
   int special_idx_;
 };
 
+DEFINE_SIMPLE_INSTR(CIntToCBool, (TCInt64), HasOutput, Operands<1>);
+
 // Return true if the given instruction returns an exact copy of its input "at
 // runtime" (most passthrough instructions will be copy-propagated away in
 // LIR). The output differs only in some HIR-level property that is erased in

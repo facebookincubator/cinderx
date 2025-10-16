@@ -2690,12 +2690,10 @@ void HIRBuilder::emitCompareOp(
 void HIRBuilder::emitToBool(TranslationContext& tc) {
   Register* operand = tc.frame.stack.pop();
   Register* truthy_result = temps_.AllocateStack();
-  Register* truthy_result_bool = temps_.AllocateNonStack();
   tc.emit<IsTruthy>(truthy_result, operand, tc.frame);
-  tc.emit<IntConvert>(truthy_result_bool, truthy_result, TCBool);
 
   Register* coerced_result = temps_.AllocateStack();
-  tc.emit<PrimitiveBoxBool>(coerced_result, truthy_result_bool);
+  tc.emit<PrimitiveBoxBool>(coerced_result, truthy_result);
   tc.frame.stack.push(coerced_result);
 }
 
