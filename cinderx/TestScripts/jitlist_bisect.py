@@ -44,7 +44,7 @@ def run_with_jitlist(command, jitlist):
     return proc.returncode == 0
 
 
-COMPILED_FUNC_RE = re.compile(r" -- (Compiling|Inlining) ([^ ]+)$")
+COMPILED_FUNC_RE = re.compile(r" -- (Compiling|Inlining function) ([^ ]+)($| into)")
 
 
 def get_compiled_funcs(command):

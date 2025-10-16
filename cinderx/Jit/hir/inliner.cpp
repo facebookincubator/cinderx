@@ -238,7 +238,12 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
     return;
   }
 
-  LOG_INLINER("Inlining function {} into {}", callee_name, caller.fullname);
+  // This logging is parsed by jitlist_bisect.py to find inlined functions.
+  JIT_LOGIF(
+      getConfig().log.debug_inliner || getConfig().log.debug,
+      "Inlining function {} into {}",
+      callee_name,
+      caller.fullname);
 
   BorrowedRef<PyCodeObject> callee_code{callee->func_code};
   BasicBlock* head = call_instr->instr->block();
