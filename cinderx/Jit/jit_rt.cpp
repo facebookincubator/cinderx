@@ -613,10 +613,6 @@ static void init_and_link_interpreter_frame(
       owner,
       currentFrame(tstate));
 
-  // For some reason this is not bumped in _PyFrame_Initialize but it is
-  // released in _PyFrame_ClearExceptCode.
-  Py_INCREF(func);
-
   // Re-use the existing cframe to avoid having to manage a new one. There
   // should always be one due to the existence of a the per-thread root
   // cframe. The cframe idea seems to have only transiently been needed

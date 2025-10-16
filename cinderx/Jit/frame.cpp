@@ -1110,10 +1110,14 @@ void jitFrameInit(
   frame->f_code = (PyCodeObject*)Py_NewRef(code);
   frame->f_funcobj = Py_NewRef(cinderx::getModuleState()->frameReifier());
   frame->prev_instr = _PyCode_CODE(code) - 1;
-  jitFrameSetFunction(frame, func);
+  jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
 #else
   _PyFrame_Initialize(
-      frame, (PyFunctionObject*)func, nullptr, code, null_locals_from);
+      frame,
+      (PyFunctionObject*)Py_NewRef(func),
+      nullptr,
+      code,
+      null_locals_from);
   // We must set `frame->owner` after calling `_PyFrame_Initialize`;
   // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
   // potentially overriding any value we set earlier.

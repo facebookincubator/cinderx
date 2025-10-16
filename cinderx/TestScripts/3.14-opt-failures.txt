@@ -1,2 +1,1 @@
-test_cinderx.test_cinderjit
 test_cinderx.test_parallel_gc
