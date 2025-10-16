@@ -835,7 +835,10 @@ JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
         "name '%.200s' is not defined",
         name);
   }
+  // PyDict_LoadGlobal returns a new reference on 3.14+
+#if PY_VERSION_HEX < 0x030E0000
   Py_XINCREF(result);
+#endif
   return result;
 }
 
