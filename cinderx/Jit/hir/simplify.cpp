@@ -1706,6 +1706,14 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
   return nullptr;
 }
 
+Register* simplifyCIntToCBool(Env& env, const CIntToCBool* instr) {
+  Type input_type = instr->GetOperand(0)->type();
+  if (input_type.hasIntSpec()) {
+    return env.emit<LoadConst>(Type::fromCBool(input_type.intSpec()));
+  }
+  return nullptr;
+}
+
 Register* simplifyInstr(Env& env, const Instr* instr) {
   switch (instr->opcode()) {
     case Opcode::kCheckVar:
@@ -1793,6 +1801,9 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kStoreSubscr:
       return simplifyStoreSubscr(env, static_cast<const StoreSubscr*>(instr));
+
+    case Opcode::kCIntToCBool:
+      return simplifyCIntToCBool(env, static_cast<const CIntToCBool*>(instr));
 
     default:
       return nullptr;
