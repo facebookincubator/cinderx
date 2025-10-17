@@ -207,7 +207,8 @@ CiPyFrameObjType* prepareForDeopt(
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
   Ref<> deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
-  code_runtime->recordDeopt(deopt_idx, deopt_obj);
+  auto runtime = Runtime::get();
+  runtime->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
 #if PY_VERSION_HEX >= 0x030C0000
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
@@ -221,7 +222,7 @@ CiPyFrameObjType* prepareForDeopt(
     auto reason = deopt_meta.reason;
     switch (reason) {
       case DeoptReason::kGuardFailure: {
-        Runtime::get()->guardFailed(deopt_meta);
+        runtime->guardFailed(deopt_meta);
         break;
       }
       case DeoptReason::kRaise:

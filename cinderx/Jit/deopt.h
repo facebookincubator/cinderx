@@ -5,7 +5,6 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Jit/codegen/x86_64.h"
-#include "cinderx/Jit/fixed_type_profiler.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <fmt/format.h>
@@ -197,19 +196,6 @@ struct DeoptMetadata {
   // Construct a `DeoptMetadata` instance from the information in `instr`.
   static DeoptMetadata fromInstr(const jit::hir::DeoptBase& instr);
 };
-
-// Information about the runtime behavior of a single deopt point: how often
-// it's been hit, and the frequency of guilty types, if applicable.
-struct DeoptStat {
-  std::size_t count{0};
-  FixedTypeProfiler<4> types;
-
-  void recordDeopt(BorrowedRef<> guilty_value);
-};
-
-// Collection of deopt stats for a compiled code object.  Stored as a map as
-// deopts are meant to be unlikely so we want the structure to be sparse.
-using DeoptStatMap = jit::UnorderedMap<std::size_t, DeoptStat>;
 
 #if PY_VERSION_HEX < 0x030C0000
 using CiPyFrameObjType = PyFrameObject;

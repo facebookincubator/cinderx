@@ -59,8 +59,7 @@ CodeRuntime::CodeRuntime(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals)
-    : frame_state_{code, builtins, globals},
-      deopt_stats_{std::make_unique<DeoptStatMap>()} {
+    : frame_state_{code, builtins, globals} {
   // Ensure code, globals, and builtins objects live as long as their compiled
   // functions.
   addReference(code);
@@ -100,20 +99,6 @@ const DeoptMetadata& CodeRuntime::getDeoptMetadata(std::size_t id) const {
 
 const std::vector<DeoptMetadata>& CodeRuntime::deoptMetadatas() const {
   return deopt_metadatas_;
-}
-
-void CodeRuntime::recordDeopt(std::size_t idx, BorrowedRef<> guilty_value) {
-  DeoptStat& stat = (*deopt_stats_)[idx];
-  stat.recordDeopt(guilty_value);
-}
-
-const DeoptStat* CodeRuntime::deoptStat(std::size_t idx) const {
-  auto iter = deopt_stats_->find(idx);
-  return iter != deopt_stats_->end() ? &iter->second : nullptr;
-}
-
-void CodeRuntime::clearDeoptStats() {
-  deopt_stats_->clear();
 }
 
 const RuntimeFrameState* CodeRuntime::frameState() const {

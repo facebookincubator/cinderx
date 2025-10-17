@@ -78,13 +78,6 @@ const char* deoptReasonName(DeoptReason reason) {
   JIT_ABORT("Invalid DeoptReason {}", static_cast<int>(reason));
 }
 
-void DeoptStat::recordDeopt(BorrowedRef<> guilty_value) {
-  count++;
-  if (guilty_value != nullptr) {
-    types.recordType(Py_TYPE(guilty_value));
-  }
-}
-
 BorrowedRef<> MemoryView::readBorrowed(const LiveValue& value) const {
   JIT_CHECK(
       value.value_kind == jit::hir::ValueKind::kObject,

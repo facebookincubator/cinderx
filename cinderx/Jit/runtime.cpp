@@ -180,6 +180,35 @@ _PyTypedArgsInfo* Runtime::findFunctionPrimitiveArgInfo(
   return cache->second.arg_info.get();
 }
 
+void Runtime::recordDeopt(
+    CodeRuntime* code_runtime,
+    std::size_t idx,
+    BorrowedRef<> guilty_value) {
+  DeoptStat& stat = deopt_stats_[code_runtime][idx];
+  stat.count++;
+  if (guilty_value != nullptr) {
+    stat.types.recordType(Py_TYPE(guilty_value));
+  }
+}
+
+const DeoptStat* Runtime::deoptStat(
+    const CodeRuntime* code_runtime,
+    std::size_t deopt_idx) const {
+  auto map_it = deopt_stats_.find(code_runtime);
+  if (map_it == deopt_stats_.end()) {
+    return nullptr;
+  }
+  auto stat_it = map_it->second.find(deopt_idx);
+  if (stat_it == map_it->second.end()) {
+    return nullptr;
+  }
+  return &stat_it->second;
+}
+
+void Runtime::clearDeoptStats() {
+  deopt_stats_.clear();
+}
+
 InlineCacheStats Runtime::getAndClearLoadMethodCacheStats() {
   InlineCacheStats stats;
   for (auto& cache : load_method_caches_) {
