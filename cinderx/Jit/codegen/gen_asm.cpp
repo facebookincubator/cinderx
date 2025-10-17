@@ -17,6 +17,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
@@ -345,7 +346,7 @@ PyObject* resumeInInterpreter(
     JIT_CHECK(
         _Py_Instrument(frameCode(frame), tstate->interp) == 0,
         "Failed to instrument code on deopt");
-    result = _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
+    result = Ci_EvalFrame(tstate, frame, err_occurred);
 
     frame = prev_frame;
 
