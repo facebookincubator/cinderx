@@ -1,0 +1,32 @@
+name: CinderX
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout CinderX
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: 3.14
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+
+    - name: Create venv
+      run: uv venv --python 3.14
+
+    - name: Build CinderX
+      run: uv build --wheel --python 3.14
+
+    - name: Install CinderX
+      run: uv pip install dist/*.whl
+
+    - name: Import CinderX
+      run: |
+        uv run python -c 'import cinderx ; assert cinderx.is_initialized()'
