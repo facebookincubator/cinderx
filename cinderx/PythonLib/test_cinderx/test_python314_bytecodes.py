@@ -5,6 +5,8 @@ import sys
 import types
 import unittest
 
+from typing import Callable
+
 import cinderx.test_support as cinder_support
 
 
@@ -48,6 +50,61 @@ def _reassemble_for_jit(ops, shell_function):
     f = cinder_support.failUnlessJITCompiled(shell_function)
     f = cinder_support.fail_if_deopt(f)
     return f
+
+
+# Myself and LLMs tried really hard but we couldn't figure out a way to
+# write a function in pure Python that has LOAD_FAST_LOAD_FAST. It
+# still might be possible to generate though so here's a bytecode-level
+# test.
+def x(a, b):
+    pass
+
+
+x_prime: Callable[[object, object], object] = lambda x, y: None
+interpolation: Callable[[], object] = lambda: None
+exception_group: Callable[[], object] = lambda: None
+build_template: Callable[[], object] = lambda: None
+
+if sys.version_info >= (3, 14):
+    x_prime: Callable[[object, object], object] = _reassemble_for_jit(
+        [
+            ("RESUME", 0),
+            ("LOAD_FAST_LOAD_FAST", 1),  # pushes a (arg 0) then b (arg 1)
+            ("BUILD_TUPLE", 2),
+            ("RETURN_VALUE", 0),
+        ],
+        x,
+    )
+
+    # Wrap this in an exec() to avoid breaking tests for earlier versions
+    # of Python which don't support the new syntax.
+    exec(
+        """
+@cinder_support.fail_if_deopt
+@cinder_support.failUnlessJITCompiled
+def interpolation():
+    return t"The value is {42} {42!r} {42.:.2f}"
+
+@cinder_support.failUnlessJITCompiled
+def exception_group():
+    try:
+        raise ExceptionGroup(
+            "test", [ValueError("error1"), TypeError("error2")]
+        )
+    except* ValueError:
+        pass
+    except* TypeError:
+        pass
+
+@cinder_support.fail_if_deopt
+@cinder_support.failUnlessJITCompiled
+def build_template():
+    return t"foo"
+
+""",
+        globals(),
+        globals(),
+    )
 
 
 @unittest.skipUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
@@ -102,22 +159,6 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         self.assertBytecodeContains(x, "STORE_FAST_STORE_FAST")
 
     def test_LOAD_FAST_LOAD_FAST(self):
-        # Myself and LLMs tried really hard but we couldn't figure out a way to
-        # write a function in pure Python that has LOAD_FAST_LOAD_FAST. It
-        # still might be possible to generate though so here's a bytecode-level
-        # test.
-        def x(a, b):
-            pass
-
-        x_prime = _reassemble_for_jit(
-            [
-                ("RESUME", 0),
-                ("LOAD_FAST_LOAD_FAST", 1),  # pushes a (arg 0) then b (arg 1)
-                ("BUILD_TUPLE", 2),
-                ("RETURN_VALUE", 0),
-            ],
-            x,
-        )
         self.assertEqual(x_prime(1, 2), (1, 2))
         self.assertBytecodeContains(x, "LOAD_FAST_LOAD_FAST")
 
@@ -253,33 +294,11 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         # generic type args and in handling exceptions, neither of which we do
         # in the JIT.
 
-        # Wrap this in an exec() to avoid breaking tests for earlier versions
-        # of Python which don't support the new syntax.
-        locals = {}
-        exec(
-            """
-@cinder_support.failUnlessJITCompiled
-def x():
-    try:
-        raise ExceptionGroup(
-            "test", [ValueError("error1"), TypeError("error2")]
-        )
-    except* ValueError:
-        pass
-    except* TypeError:
-        pass
-
-        """,
-            globals(),
-            locals,
-        )
-        x = locals["x"]
-
         try:
-            x()
+            exception_group()
         except ExceptionGroup:
             pass
-        self.assertBytecodeContains(x, "CALL_INTRINSIC_2")
+        self.assertBytecodeContains(exception_group, "CALL_INTRINSIC_2")
 
     def test_COMPARE_OP(self):
         # This is just a very quick test to verify we're now basically using
@@ -338,23 +357,10 @@ def x():
     def test_BUILD_TEMPLATE(self):
         # Wrap this in an exec() to avoid breaking tests for earlier versions
         # of Python which don't support the new syntax.
-        locals = {}
-        exec(
-            """
-@cinder_support.fail_if_deopt
-@cinder_support.failUnlessJITCompiled
-def x():
-    return t"foo"
-""",
-            globals(),
-            locals,
-        )
-        x = locals["x"]
-
-        t = x()
+        t = build_template()
         self.assertEqual(t.strings, ("foo",))
         self.assertEqual(t.interpolations, ())
-        self.assertBytecodeContains(x, "BUILD_TEMPLATE")
+        self.assertBytecodeContains(build_template, "BUILD_TEMPLATE")
 
     def test_FORMAT_WITH_SPEC(self):
         @cinder_support.fail_if_deopt
@@ -376,31 +382,21 @@ def x():
         self.assertBytecodeContains(x, "FORMAT_SIMPLE")
 
     def test_BUILD_INTERPOLATION(self):
-        # Wrap this in an exec() to avoid breaking tests for earlier versions
-        # of Python which don't support the new syntax.
-        locals = {"self": self}
-        exec(
-            """
-from string.templatelib import Interpolation
+        # pyre-ignore[21]: Could not find a module corresponding to import `string.templatelib`.
+        from string.templatelib import Interpolation
 
-@cinder_support.fail_if_deopt
-@cinder_support.failUnlessJITCompiled
-def x():
-    return t"The value is {42} {42!r} {42.:.2f}"
-
-
-t = x()
-self.assertEqual(t.strings, ("The value is ", " ", " ", ""))
-match t.interpolations:
-    case (Interpolation(42, '42', None, ''), Interpolation(42, '42', 'r', ''), Interpolation(42.0, '42.', None, '.2f')):
-        pass
-    case _:
-        self.fail(f"interpolations mismatch: {t.interpolations}")
-self.assertBytecodeContains(x, "BUILD_INTERPOLATION")
-""",
-            globals(),
-            locals,
-        )
+        t = interpolation()
+        self.assertEqual(t.strings, ("The value is ", " ", " ", ""))
+        match t.interpolations:
+            case (
+                Interpolation(42, "42", None, ""),
+                Interpolation(42, "42", "r", ""),
+                Interpolation(42.0, "42.", None, ".2f"),
+            ):
+                pass
+            case _:
+                self.fail(f"interpolations mismatch: {t.interpolations}")
+        self.assertBytecodeContains(interpolation, "BUILD_INTERPOLATION")
 
     def test_LOAD_COMMON_CONSTANT(self):
         @cinder_support.fail_if_deopt
