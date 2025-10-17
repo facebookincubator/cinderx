@@ -106,8 +106,7 @@ class BuildExt(build_ext):
         cc = self._find_binary("clang")
         cxx = self._find_binary("clang++")
 
-        # pyre-ignore[16]: No pyre types for build_ext.
-        build_type = "Debug" if self.debug else "Release"
+        build_type = os.environ.get("CMAKE_BUILD_TYPE", "RelWithDebInfo")
         cmake_args = [
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={os.path.dirname(extension_dir)}",
