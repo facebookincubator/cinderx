@@ -213,7 +213,7 @@ def main() -> None:
         packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
         package_dir={"": PYTHON_LIB_DIR},
         package_data={"cinderx": [".dev_build"]},
-        python_requires="==3.12",
+        python_requires=">=3.14,<3.15",
     )
 
 
