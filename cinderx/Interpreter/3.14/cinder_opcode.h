@@ -20,6 +20,10 @@
 #define EXTENDED_OPCODE 126
 #endif
 
+#ifndef EAGER_IMPORT_NAME
+#define EAGER_IMPORT_NAME 121
+#endif
+
 #include "cinderx/Interpreter/cinder_opcode_ids.h"
 
 #endif
