@@ -719,15 +719,20 @@ dummy_func(
                     Py_ssize_t res = PyObject_Size(collection);
                     length = res >= 0 ? PyLong_FromSsize_t(res) : NULL;
                 } else if (extoparg == FAST_LEN_DICT) {
-                    assert(PyDict_Check(collection));
-                    length = PyLong_FromLong(((PyDictObject*)collection)->ma_used);
+                    if (Ci_CheckedDict_Check(collection)) {
+                        length = PyLong_FromLong(PyObject_Size(collection));
+                    } else {
+                        assert(PyDict_Check(collection));
+                        length = PyLong_FromLong(((PyDictObject*)collection)->ma_used);
+                    } 
                 } else if (extoparg == FAST_LEN_SET) {
-                    assert(PyDict_Check(collection));
+                    assert(PyAnySet_Check(collection));
                     length = PyLong_FromLong(((PySetObject*)collection)->used);
                 } else {
                     // lists, tuples, arrays are all PyVarObject and use ob_size
                     assert(PyTuple_Check(collection) || PyList_Check(collection) || 
-                           PyStaticArray_CheckExact(collection) || PyUnicode_Check(collection));
+                           PyStaticArray_CheckExact(collection) || PyUnicode_Check(collection) ||
+                           Ci_CheckedList_Check(collection));
                     length = PyLong_FromLong(Py_SIZE(collection));
                 }
                 DECREF_INPUTS();

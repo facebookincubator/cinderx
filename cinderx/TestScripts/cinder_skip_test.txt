@@ -107,3 +107,8 @@ test.test_code.CodeTest.test_stateless
 
 # These tests use ctypes and can get crashy at shutdown due to the freefunc being freed.
 test.test_code.CoExtra.*
+
+# We report the wrong abi version on debug builds due to our build system
+test.test_sysconfig.TestSysConfig.test_sysconfigdata_json
+test.test_sysconfig.TestSysConfig.test_EXT_SUFFIX_in_vars
+test.test_sysconfig.TestSysConfig.test_soabi
