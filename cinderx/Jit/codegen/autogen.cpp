@@ -352,6 +352,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
 }
 
 void translateIntToBool(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
   x86::Builder* as = env->as;
   const OperandBase* input = instr->getInput(0);
   x86::Gp output = AutoTranslator::getGp(instr->output());
@@ -365,6 +366,9 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
     as->test(AutoTranslator::getGp(input), AutoTranslator::getGp(input));
     as->setne(output);
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 }
 
 // Store meta-data about this yield in a generator suspend data pointed to by
