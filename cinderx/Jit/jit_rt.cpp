@@ -2152,6 +2152,7 @@ LoadMethodResult JITRT_LoadSpecial(
   PyObject* name = _Py_SpecialMethods[special_idx].name;
   int err = _PyObject_LookupSpecialMethod(name, method_and_self);
   if (err <= 0) {
+    PyStackRef_CLOSE(method_and_self[1]);
     if (err == 0) {
       PyObject* owner = PyStackRef_AsPyObjectBorrow(method_and_self[1]);
       const char* errfmt = _PyEval_SpecialMethodCanSuggest(owner, special_idx)
