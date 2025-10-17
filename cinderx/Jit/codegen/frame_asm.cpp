@@ -406,10 +406,10 @@ void FrameAsm::linkNormalFrame(
 void FrameAsm::loadTState(
     const arch::Gp& dst_reg,
     RegisterPreserver& preserver) {
+#if defined(CINDER_X86_64)
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
 
-#if defined(CINDER_X86_64)
   if (fitsInt32(tstate)) {
     as_->mov(dst_reg, x86::ptr(tstate));
   } else {
