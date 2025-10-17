@@ -486,7 +486,11 @@ void LIRGenerator::MakeIncref(
         Instruction::kMove,
         Ind{instr, kRefcountOffset, DataType::k32bit});
     bbb.appendInstr(Instruction::kInc, r1);
+#if PY_VERSION_HEX >= 0x030E0000
+    bbb.appendBranch(Instruction::kBranchS, end_incref);
+#else
     bbb.appendBranch(Instruction::kBranchE, end_incref);
+#endif
     bbb.appendBlock(mortal);
     bbb.appendInstr(
         OutInd{instr, kRefcountOffset, DataType::k32bit},

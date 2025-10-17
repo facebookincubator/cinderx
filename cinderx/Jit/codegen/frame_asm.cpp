@@ -158,7 +158,11 @@ void FrameAsm::incRef(const arch::Gp& reg, const arch::Gp& scratch_reg) {
   as_->mov(scratch_reg, x86::ptr(reg, offsetof(PyObject, ob_refcnt)));
   as_->inc(scratch_reg);
   Label immortal = as_->newLabel();
+#if PY_VERSION_HEX >= 0x030E0000
+  as_->js(immortal);
+#else
   as_->je(immortal);
+#endif
   // mortal
   as_->mov(x86::ptr(reg, offsetof(PyObject, ob_refcnt)), scratch_reg);
   emitIncTotalRefCount(scratch_reg.r64());
