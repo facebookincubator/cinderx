@@ -2167,7 +2167,9 @@ LoadMethodResult JITRT_LoadSpecial(
   }
   LoadMethodResult result;
   result.callable = PyStackRef_AsPyObjectSteal(method_and_self[0]);
-  result.self_or_null = PyStackRef_AsPyObjectSteal(method_and_self[1]);
+  result.self_or_null = PyStackRef_IsNull(method_and_self[1])
+      ? nullptr
+      : PyStackRef_AsPyObjectSteal(method_and_self[1]);
   return result;
 #endif
   JIT_ABORT("JITRT_LoadSpecial not valid with this version of Python");
