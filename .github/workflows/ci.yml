@@ -3,7 +3,7 @@ name: CinderX
 on: [push]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,6 +27,14 @@ jobs:
     - name: Install CinderX
       run: uv pip install dist/*.whl
 
-    - name: Import CinderX
+    - name: Check CinderX Imports
       run: |
-        uv run python -c 'import cinderx ; assert cinderx.is_initialized()'
+        uv run python -c 'import cinderx ; print(cinderx.get_import_error()) ; assert cinderx.is_initialized()'
+
+    - name: Install Pytest
+      run: |
+        uv pip install pytest
+
+    - name: Run Basic JIT Tests
+      run: |
+        uv run pytest cinderx/PythonLib/test_cinderx/test_jit_{async_generators,count_calls,disable,exception,frame,generators,global_cache,perf_map,specialization,type_annotations}.py
