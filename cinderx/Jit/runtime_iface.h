@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/ref.h"
 
 namespace jit {

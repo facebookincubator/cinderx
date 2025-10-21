@@ -13,22 +13,14 @@
 
 namespace jit {
 
-Runtime::Runtime()
-    : zero_(Ref<>::create(PyLong_FromLong(0))),
-#if PY_VERSION_HEX >= 0x030C0000
-      str_build_class_(Ref<>::create(&_Py_ID(__build_class__)))
-#else
-      str_build_class_(
-          Ref<>::create(PyUnicode_InternFromString("__build_class__")))
-#endif
-{
-#if PY_VERSION_HEX >= 0x030E0000
-  PyObject** common_consts = PyThreadState_GET()->interp->common_consts;
-  for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
-    common_constant_types_.emplace_back(
-        hir::Type::fromObject(common_consts[i]));
-  }
-#endif
+PyObject* yieldFromValue(
+    GenDataFooter* gen_footer,
+    const GenYieldPoint* yield_point) {
+  return yield_point->isYieldFrom()
+      ? reinterpret_cast<PyObject*>(
+            *(reinterpret_cast<uint64_t*>(gen_footer) +
+              yield_point->yieldFromOffset()))
+      : nullptr;
 }
 
 void Builtins::init() {
@@ -87,6 +79,10 @@ void Builtins::init() {
   is_initialized_ = true;
 }
 
+bool Builtins::isInitialized() const {
+  return is_initialized_;
+}
+
 std::optional<std::string> Builtins::find(PyMethodDef* meth) const {
   auto result = cfunc_to_name_.find(meth);
   if (result == cfunc_to_name_.end()) {
@@ -101,6 +97,35 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
     return std::nullopt;
   }
   return result->second;
+}
+
+Runtime* Runtime::get() {
+  return static_cast<Runtime*>(cinderx::getModuleState()->runtime());
+}
+
+Runtime* Runtime::getUnchecked() {
+  if (auto moduleState = cinderx::getModuleState()) {
+    return static_cast<Runtime*>(moduleState->runtime());
+  }
+  return nullptr;
+}
+
+Runtime::Runtime()
+    : zero_(Ref<>::create(PyLong_FromLong(0))),
+#if PY_VERSION_HEX >= 0x030C0000
+      str_build_class_(Ref<>::create(&_Py_ID(__build_class__)))
+#else
+      str_build_class_(
+          Ref<>::create(PyUnicode_InternFromString("__build_class__")))
+#endif
+{
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject** common_consts = PyThreadState_GET()->interp->common_consts;
+  for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
+    common_constant_types_.emplace_back(
+        hir::Type::fromObject(common_consts[i]));
+  }
+#endif
 }
 
 void Runtime::mlockProfilerDependencies() {
@@ -265,6 +290,43 @@ void Runtime::releaseReferences() {
   type_deopt_patchers_.clear();
 }
 
+LoadAttrCache* Runtime::allocateLoadAttrCache() {
+  return load_attr_caches_.allocate();
+}
+
+LoadTypeAttrCache* Runtime::allocateLoadTypeAttrCache() {
+  return load_type_attr_caches_.allocate();
+}
+
+LoadMethodCache* Runtime::allocateLoadMethodCache() {
+  return load_method_caches_.allocate();
+}
+
+LoadModuleAttrCache* Runtime::allocateLoadModuleAttrCache() {
+  return load_module_attr_caches_.allocate();
+}
+
+LoadModuleMethodCache* Runtime::allocateLoadModuleMethodCache() {
+  return load_module_method_caches_.allocate();
+}
+
+LoadTypeMethodCache* Runtime::allocateLoadTypeMethodCache() {
+  return load_type_method_caches_.allocate();
+}
+
+StoreAttrCache* Runtime::allocateStoreAttrCache() {
+  return store_attr_caches_.allocate();
+}
+
+const Builtins& Runtime::builtins() {
+  // Lock-free fast path followed by single-lock slow path during
+  // initialization.
+  if (!builtins_.isInitialized()) {
+    builtins_.init();
+  }
+  return builtins_;
+}
+
 void Runtime::watchType(
     BorrowedRef<PyTypeObject> type,
     TypeDeoptPatcher* patcher) {
@@ -282,6 +344,14 @@ void Runtime::watchType(
       cinderx::getModuleState()->watcherState().watchType(type) == 0,
       "Failed to watch type {}",
       type->tp_name);
+}
+
+BorrowedRef<> Runtime::zero() {
+  return zero_.get();
+}
+
+BorrowedRef<> Runtime::strBuildClass() {
+  return str_build_class_.get();
 }
 
 void Runtime::watchPendingTypes() {
@@ -318,6 +388,13 @@ void Runtime::notifyTypeModified(
   } else {
     it->second = std::move(remaining_patchers);
   }
+}
+
+const hir::Type& Runtime::typeForCommonConstant([[maybe_unused]] int i) const {
+#if PY_VERSION_HEX >= 0x030E0000
+  return common_constant_types_.at(i);
+#endif
+  JIT_ABORT("Common constants are a feature of 3.14+");
 }
 
 #if PY_VERSION_HEX < 0x030C0000

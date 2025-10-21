@@ -12,7 +12,6 @@
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/fixed_type_profiler.h"
 #include "cinderx/Jit/gen_data_footer.h"
@@ -20,10 +19,8 @@
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
-#include "cinderx/module_state.h"
 
 #include <optional>
-#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -60,17 +57,12 @@ static_assert(
 static_assert(
     offsetof(GenDataFooter, yieldPoint) == Ci_GEN_JIT_DATA_OFFSET_YIELD_POINT,
     "Byte offset for yieldPoint shifted");
+
 #endif
 
-inline PyObject* yieldFromValue(
+PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
-    const GenYieldPoint* yield_point) {
-  return yield_point->isYieldFrom()
-      ? reinterpret_cast<PyObject*>(
-            *(reinterpret_cast<uint64_t*>(gen_footer) +
-              yield_point->yieldFromOffset()))
-      : nullptr;
-}
+    const GenYieldPoint* yield_point);
 
 // Information about the runtime behavior of a single deopt point: how often
 // it's been hit, and the frequency of guilty types, if applicable.
@@ -91,9 +83,7 @@ using InlineCacheStats = std::vector<CacheStats>;
 class Builtins {
  public:
   void init();
-  bool isInitialized() const {
-    return is_initialized_;
-  }
+  bool isInitialized() const;
   std::optional<std::string> find(PyMethodDef* meth) const;
   std::optional<PyMethodDef*> find(const std::string& name) const;
 
@@ -106,20 +96,13 @@ class Builtins {
 // Runtime owns all metadata created by the JIT.
 class Runtime : public IRuntime {
  public:
-  Runtime();
-
   // Return the singleton Runtime, creating it first if necessary.
-  static Runtime* get() {
-    return static_cast<Runtime*>(cinderx::getModuleState()->runtime());
-  }
+  static Runtime* get();
 
   // Return the singleton Runtime, if it exists.
-  static Runtime* getUnchecked() {
-    if (auto moduleState = cinderx::getModuleState()) {
-      return static_cast<Runtime*>(moduleState->runtime());
-    }
-    return nullptr;
-  }
+  static Runtime* getUnchecked();
+
+  Runtime();
 
   template <typename... Args>
   CodeRuntime* allocateCodeRuntime(Args&&... args) {
@@ -174,42 +157,16 @@ class Runtime : public IRuntime {
   // Release any references this Runtime holds to Python objects.
   void releaseReferences();
 
-  LoadAttrCache* allocateLoadAttrCache() {
-    return load_attr_caches_.allocate();
-  }
+  // Allocate a new attribute cache.
+  LoadAttrCache* allocateLoadAttrCache();
+  LoadTypeAttrCache* allocateLoadTypeAttrCache();
+  LoadMethodCache* allocateLoadMethodCache();
+  LoadModuleAttrCache* allocateLoadModuleAttrCache();
+  LoadModuleMethodCache* allocateLoadModuleMethodCache();
+  LoadTypeMethodCache* allocateLoadTypeMethodCache();
+  StoreAttrCache* allocateStoreAttrCache();
 
-  LoadTypeAttrCache* allocateLoadTypeAttrCache() {
-    return load_type_attr_caches_.allocate();
-  }
-
-  LoadMethodCache* allocateLoadMethodCache() {
-    return load_method_caches_.allocate();
-  }
-
-  LoadModuleAttrCache* allocateLoadModuleAttrCache() {
-    return load_module_attr_caches_.allocate();
-  }
-
-  LoadModuleMethodCache* allocateLoadModuleMethodCache() {
-    return load_module_method_caches_.allocate();
-  }
-
-  LoadTypeMethodCache* allocateLoadTypeMethodCache() {
-    return load_type_method_caches_.allocate();
-  }
-
-  StoreAttrCache* allocateStoreAttrCache() {
-    return store_attr_caches_.allocate();
-  }
-
-  const Builtins& builtins() {
-    // Lock-free fast path followed by single-lock slow path during
-    // initialization.
-    if (!builtins_.isInitialized()) {
-      builtins_.init();
-    }
-    return builtins_;
-  }
+  const Builtins& builtins();
 
   // Some profilers need to walk the code_rt->code->qualname chain for jitted
   // functions on the call stack. The JIT rarely touches this memory and, as a
@@ -264,23 +221,13 @@ class Runtime : public IRuntime {
   }
 #endif
 
-  BorrowedRef<> zero() override {
-    return zero_.get();
-  }
-
-  BorrowedRef<> strBuildClass() {
-    return str_build_class_.get();
-  }
+  BorrowedRef<> zero() override;
+  BorrowedRef<> strBuildClass();
 
   void watchPendingTypes();
   void fixupFunctionEntryCachePostMultiThreadedCompile();
 
-  const hir::Type& typeForCommonConstant([[maybe_unused]] int i) const {
-#if PY_VERSION_HEX >= 0x030E0000
-    return common_constant_types_.at(i);
-#endif
-    JIT_ABORT("Common constants are a feature of 3.14+");
-  }
+  const hir::Type& typeForCommonConstant(int i) const;
 
   // Allocate all CodeRuntimes together so they can be mlocked() without
   // including any other data that happened to be on the same page.
