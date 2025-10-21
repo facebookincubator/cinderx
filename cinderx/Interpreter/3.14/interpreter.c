@@ -187,20 +187,6 @@ static void store_field(int field_type, void* addr, PyObject* value) {
 
 #define FIELD_OFFSET(self, offset) (PyObject**)(((char*)self) + offset)
 
-#define CAST_COERCE_OR_ERROR(val, type, exact)                                     \
-    if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {          \
-        long lval = PyLong_AsLong(val);                                            \
-        val = PyFloat_FromDouble(lval);                                            \
-    } else {                                                                       \
-        PyErr_Format(                                                              \
-            PyExc_TypeError,                                                       \
-            exact ? "expected exactly '%s', got '%s'" : "expected '%s', got '%s'", \
-            type->tp_name,                                                         \
-            Py_TYPE(val)->tp_name);                                                \
-        Py_DECREF(type);                                                           \
-        JUMP_TO_LABEL(error);                                                      \
-    }
-
 static int ci_build_dict(_PyStackRef *map_items, Py_ssize_t map_size, PyObject *map)
 {
     for (Py_ssize_t i = 0; i < map_size; i++) {

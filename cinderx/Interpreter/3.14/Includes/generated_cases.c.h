@@ -6576,13 +6576,64 @@
                     stack_pointer = _PyFrame_GetStackPointer(frame);
                 }
                 #endif
+                _PyStackRef res;
                 if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
-                    CAST_COERCE_OR_ERROR(val, type, exact);
+                    if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        double dval = PyLong_AsDouble(val);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        if (dval == -1.0 && PyErr_Occurred()) {
+                            stack_pointer += -(oparg>>2) + (oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            for (int _i = oparg>>2; --_i >= 0;) {
+                                PyStackRef_CLOSE(args[_i]);
+                            }
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                            stack_pointer += -(oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            JUMP_TO_LABEL(error);
+                        }
+                        PyObject *fval = PyFloat_FromDouble(dval);
+                        if (fval == NULL) {
+                            stack_pointer += -(oparg>>2) + (oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            for (int _i = oparg>>2; --_i >= 0;) {
+                                PyStackRef_CLOSE(args[_i]);
+                            }
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                            stack_pointer += -(oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            JUMP_TO_LABEL(error);
+                        }
+                        res = PyStackRef_FromPyObjectSteal(fval);
+                    } else {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        PyErr_Format(
+                                     PyExc_TypeError,
+                                     exact ? "expected exactly '%s', got '%s'" : "expected '%s', got '%s'",
+                            type->tp_name,
+                            Py_TYPE(val)->tp_name);
+                        Py_DECREF(type);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                } else {
+                    res = PyStackRef_FromPyObjectNew(val);
                 }
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 Py_DECREF(type);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
-                _PyStackRef res = PyStackRef_FromPyObjectNew(val);
                 stack_pointer += -(oparg>>2) + (oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 _PyFrame_SetStackPointer(frame, stack_pointer);

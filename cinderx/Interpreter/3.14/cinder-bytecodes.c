@@ -997,13 +997,35 @@ dummy_func(
                     specialize_with_value(next_instr, (PyObject *)type, CAST_CACHED, 2, (exact << 1) | optional); 
                 }
 #endif
+                _PyStackRef res;
                 if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
-                    CAST_COERCE_OR_ERROR(val, type, exact);
+                    if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {
+                        double dval = PyLong_AsDouble(val);
+                        if (dval == -1.0 && PyErr_Occurred()) {
+                            DECREF_INPUTS();
+                            ERROR_IF(true);
+                        }
+                        PyObject *fval = PyFloat_FromDouble(dval);
+                        if (fval == NULL) {
+                            DECREF_INPUTS();
+                            ERROR_IF(true);
+                        }
+                        res = PyStackRef_FromPyObjectSteal(fval);
+                    } else {
+                        PyErr_Format(
+                            PyExc_TypeError,
+                            exact ? "expected exactly '%s', got '%s'" : "expected '%s', got '%s'",
+                            type->tp_name,
+                            Py_TYPE(val)->tp_name);
+                        Py_DECREF(type);
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                } else {
+                    res = PyStackRef_FromPyObjectNew(val);
                 }
 
                 Py_DECREF(type);
-
-                _PyStackRef res = PyStackRef_FromPyObjectNew(val);
                 DECREF_INPUTS();
                 top[0] = res;
             } else if (extop == PRIMITIVE_UNARY_OP) {
