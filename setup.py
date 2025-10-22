@@ -68,6 +68,7 @@ class BuildPy(build_py):
         # Copy opcodes/${PY_VERSION}/opcode.py to cinderx/opcode.py.
         py_version = compute_py_version()
         out_path = self.get_module_outfile(self.build_lib, ["cinderx"], "opcode")
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
         self.copy_file(
             os.path.join(PYTHON_LIB_DIR, f"opcodes/{py_version}/opcode.py"),
             out_path,
