@@ -6,6 +6,7 @@
 #include "internal/pycore_modsupport.h"
 #endif
 
+#include "cinderx/Common/import.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 
@@ -534,8 +535,14 @@ static struct PyModuleDef xxclassloadermodule = {
     NULL,
     NULL};
 
-PyMODINIT_FUNC PyInit_xxclassloader(void) {
-  return PyModuleDef_Init(&xxclassloadermodule);
+int _Ci_CreateXXClassLoaderModule(void) {
+  PyObject* mod =
+      _Ci_CreateBuiltinModule(&xxclassloadermodule, "xxclassloader");
+  if (mod == NULL) {
+    return -1;
+  }
+  Py_DECREF(mod);
+  return 0;
 }
 
 // These are used in native calling tests, ensure the compiler

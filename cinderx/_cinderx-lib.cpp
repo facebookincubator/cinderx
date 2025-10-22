@@ -37,6 +37,10 @@
 #include "cinderx/ParallelGC/parallel_gc.h"
 #endif
 
+#ifdef ENABLE_XXCLASSLOADER
+#include "cinderx/StaticPython/xxclassloader.h"
+#endif
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
@@ -989,6 +993,12 @@ int cinder_init() {
 
 #endif
 
+#if ENABLE_XXCLASSLOADER
+  if (_Ci_CreateXXClassLoaderModule() < 0) {
+    return -1;
+  }
+#endif
+
   // Create _static module
   return _Ci_CreateStaticModule();
 }
@@ -1539,14 +1549,5 @@ struct PyModuleDef _cinderx_module = {
 } // namespace
 
 PyObject* _cinderx_lib_init() {
-  int dlopenflags =
-      CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), dlopenflags);
-  if ((dlopenflags & RTLD_GLOBAL) == 0) {
-    PyErr_SetString(
-        PyExc_ImportError,
-        "Do not import _cinderx directly. Use cinderx instead.");
-    return nullptr;
-  }
-
   return PyModuleDef_Init(&_cinderx_module);
 }
