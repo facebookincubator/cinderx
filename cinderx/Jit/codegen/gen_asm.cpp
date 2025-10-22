@@ -347,7 +347,11 @@ PyObject* resumeInInterpreter(
     JIT_CHECK(
         _Py_Instrument(frameCode(frame), tstate->interp) == 0,
         "Failed to instrument code on deopt");
+#ifdef ENABLE_INTERPRETER_LOOP
     result = Ci_EvalFrame(tstate, frame, err_occurred);
+#else
+    result = _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
+#endif
 
     frame = prev_frame;
 

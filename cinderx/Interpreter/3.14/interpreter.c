@@ -26,7 +26,9 @@
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/static_array.h"
 
+#ifdef ENABLE_JIT_GENERATORS
 #include "cinderx/Jit/generators_rt.h"
+#endif
 
 
 #ifdef ENABLE_INTERPRETER_LOOP
@@ -46,6 +48,10 @@ bool is_adaptive_enabled(CodeExtra *extra) {
 
 // These are used to truncate primitives/check signed bits when converting
 // between them
+
+
+#ifdef ENABLE_INTERPRETER_LOOP
+
 static uint64_t trunc_masks[] = {0xFF, 0xFFFF, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF};
 static uint64_t signed_bits[] = {0x80, 0x8000, 0x80000000, 0x8000000000000000};
 static uint64_t signex_masks[] = {
@@ -53,8 +59,6 @@ static uint64_t signex_masks[] = {
     0xFFFFFFFFFFFF0000,
     0xFFFFFFFF00000000,
     0x0};
-
-#ifdef ENABLE_INTERPRETER_LOOP
 
 static int8_t unbox_primitive_bool(PyObject* x) {
     assert(PyBool_Check(x));
