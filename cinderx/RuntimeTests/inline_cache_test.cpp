@@ -57,22 +57,22 @@ regular_meth = RequestContext.regular_meth
 
   for (auto& meth : {"static_meth", "regular_meth"}) {
     auto name = Ref<>::steal(PyUnicode_FromString(meth));
-    jit::LoadTypeMethodCache cache;
-    auto res = cache.lookup(klass, name);
+    jit::LoadTypeMethodCache methCache;
+    auto methRes = methCache.lookup(klass, name);
     PyObject* py_meth = PyDict_GetItemString(locals, meth);
 #if PY_VERSION_HEX < 0x030E0000
-    ASSERT_EQ(res.callable, Py_None)
+    ASSERT_EQ(methRes.callable, Py_None)
         << "Expected first part of cache result to be Py_None";
-    ASSERT_EQ(PyObject_RichCompareBool(res.self_or_null, py_meth, Py_EQ), 1)
+    ASSERT_EQ(PyObject_RichCompareBool(methRes.self_or_null, py_meth, Py_EQ), 1)
         << "Expected method " << meth << " to be equal from cache lookup";
-    ASSERT_EQ(cache.value(), res.self_or_null)
+    ASSERT_EQ(methCache.value(), methRes.self_or_null)
         << "Expected method " << meth << " to be cached";
 #else
-    ASSERT_EQ(res.self_or_null, nullptr)
+    ASSERT_EQ(methRes.self_or_null, nullptr)
         << "Expected first part of cache result to be nullptr";
-    ASSERT_EQ(PyObject_RichCompareBool(res.callable, py_meth, Py_EQ), 1)
+    ASSERT_EQ(PyObject_RichCompareBool(methRes.callable, py_meth, Py_EQ), 1)
         << "Expected method " << meth << " to be equal from cache lookup";
-    ASSERT_EQ(cache.value(), res.callable)
+    ASSERT_EQ(methCache.value(), methRes.callable)
         << "Expected method " << meth << " to be cached";
 #endif
   }
