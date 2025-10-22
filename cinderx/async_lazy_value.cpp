@@ -36,10 +36,15 @@ extern "C" PyAsyncMethods _async_lazy_value_compute_type_as_async;
 #define Ci_TPFLAGS_HAVE_AM_EXTRA 0
 #endif
 
+extern "C" {
+
 static cinderx::AsyncLazyValueState* get_state();
+
 static void populate_method_table(
     PyMethodTableRef* tableref,
     PyTypeObject* type);
+
+} // extern "C"
 
 namespace cinderx {
 

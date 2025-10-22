@@ -1961,7 +1961,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kCallCFunc: {
-        constexpr auto kFuncPtrMap = std::to_array({
+        const auto kFuncPtrMap = std::to_array({
 #define FUNC_PTR(name, ...) (void*)name,
             CallCFunc_FUNCS(FUNC_PTR)
 #undef FUNC_PTR

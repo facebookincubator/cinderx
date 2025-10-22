@@ -23,13 +23,15 @@
 #include <tuple>
 
 #ifdef __x86_64__
+
+// Needed for __rdtsc on GCC.
+#include <x86intrin.h>
+
 // Use the cheaper rdtsc by default. If you disable this for some reason, or
 // run on a non-x86_64 architecture, you need to add '-k1' to your 'perf
 // record' command.
 #define PERF_USE_RDTSC
-#endif
 
-#ifdef PERF_USE_RDTSC
 #endif
 
 // From elf.h, intentionally not included here to avoid having it as a

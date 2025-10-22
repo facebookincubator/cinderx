@@ -45,6 +45,14 @@ class RefBase {
     return ptr_;
   }
 
+  bool operator==(const RefBase<T>& rhs) const {
+    return ptr_ == rhs.ptr_;
+  }
+
+  bool operator==(T* rhs) const {
+    return ptr_ == rhs;
+  }
+
   bool operator==(std::nullptr_t) const {
     return ptr_ == nullptr;
   }
@@ -98,6 +106,11 @@ class BorrowedRef : public RefBase<T> {
 
   BorrowedRef& operator=(const RefBase<T>& other) {
     ptr_ = other.get();
+    return *this;
+  }
+
+  BorrowedRef& operator=(std::nullptr_t) {
+    ptr_ = nullptr;
     return *this;
   }
 

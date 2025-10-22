@@ -14,10 +14,6 @@ project(_cinderx)
 
 set(PROJECT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/cinderx)
 
-if (NOT ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang" AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
-  message(FATAL_ERROR "This build requires using clang for C and C++ compilation, please switch to that")
-endif()
-
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
 else()
@@ -31,7 +27,7 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-sign-compare -Wno-unused-function -Wno-unused-parameter")
+set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
 
 macro(set_flag VAR)
   if (DEFINED ${VAR} AND ${${VAR}})
