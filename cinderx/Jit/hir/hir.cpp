@@ -9,6 +9,13 @@
 
 namespace jit::hir {
 
+// Be intentional about HIR structure sizes.  There's no hard limit on what
+// these sizes have to be, but we should be aware when we change them.
+static_assert(sizeof(Function) == 48 * kPointerSize);
+static_assert(sizeof(CFG) == 6 * kPointerSize);
+static_assert(sizeof(BasicBlock) == 21 * kPointerSize);
+static_assert(sizeof(Instr) == 7 * kPointerSize);
+
 void DeoptBase::sortLiveRegs() {
   std::sort(
       live_regs_.begin(),
