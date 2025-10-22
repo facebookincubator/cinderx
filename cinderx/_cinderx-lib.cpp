@@ -1512,14 +1512,20 @@ static int _cinderx_exec(PyObject* m) {
 
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     // Get the existing cache clear function so we can forward to it.
-    BorrowedRef<> clear_type_cache = PySys_GetObject("_clear_type_cache");
+    const char* clear_name;
+    if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+      clear_name = "_clear_internal_caches";
+    } else {
+      clear_name = "_clear_type_cache";
+    }
+    BorrowedRef<> clear_type_cache = PySys_GetObject(clear_name);
     state->setSysClearCaches(clear_type_cache);
 
     // Replace sys._clear_type_cache with our clearing function
     Ref<> clear_caches =
         Ref<>::steal(PyObject_GetAttrString(m, "clear_caches"));
     if (clear_caches == nullptr ||
-        PySys_SetObject("_clear_type_cache", clear_caches) < 0) {
+        PySys_SetObject(clear_name, clear_caches) < 0) {
       return -1;
     }
   }
