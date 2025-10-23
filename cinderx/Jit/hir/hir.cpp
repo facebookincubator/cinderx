@@ -14,7 +14,7 @@ namespace jit::hir {
 static_assert(sizeof(Function) == 48 * kPointerSize);
 static_assert(sizeof(CFG) == 6 * kPointerSize);
 static_assert(sizeof(BasicBlock) == 21 * kPointerSize);
-static_assert(sizeof(Instr) == 7 * kPointerSize);
+static_assert(sizeof(Instr) == 6 * kPointerSize);
 
 void DeoptBase::sortLiveRegs() {
   std::sort(

@@ -365,8 +365,8 @@ class Instr {
   explicit Instr(Opcode opcode) : opcode_(opcode) {}
   Instr(const Instr& other)
       : opcode_(other.opcode()),
-        output_{other.output()},
-        bytecode_offset_{other.bytecodeOffset()} {}
+        bytecode_offset_{other.bytecodeOffset()},
+        output_{other.output()} {}
 
   void* operator new(std::size_t count, void* ptr) {
     return ::operator new(count, ptr);
@@ -417,11 +417,11 @@ class Instr {
   void set_block(BasicBlock* block);
 
   Opcode opcode_;
+  BCOffset bytecode_offset_{-1};
+
   Register* output_{nullptr};
 
   BasicBlock* block_{nullptr};
-
-  BCOffset bytecode_offset_{-1};
 };
 
 using InstrPredicate = std::function<bool(const Instr&)>;
