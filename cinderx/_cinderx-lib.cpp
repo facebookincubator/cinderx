@@ -64,7 +64,6 @@ namespace {
 
 PyObject* clear_caches(PyObject* mod, PyObject*) {
   auto state = (cinderx::ModuleState*)PyModule_GetState(mod);
-  state->cacheManager()->clear();
   _PyCheckedDict_ClearCaches();
   _PyCheckedList_ClearCaches();
   _PyClassLoader_ClearValueCache();
