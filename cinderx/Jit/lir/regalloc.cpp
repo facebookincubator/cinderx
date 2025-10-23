@@ -607,18 +607,18 @@ void LinearScanAllocator::reserveRegisters(
     int instr_id,
     PhyRegisterSet phy_regs) {
   static const UnorderedStablePointerMap<PhyLocation, Operand> vregs = []() {
-    UnorderedStablePointerMap<PhyLocation, Operand> vregs;
+    UnorderedStablePointerMap<PhyLocation, Operand> result;
     PhyRegisterSet phy_regs = ALL_REGISTERS;
     while (!phy_regs.Empty()) {
       PhyLocation phy_reg = phy_regs.GetFirst();
       phy_regs.RemoveFirst();
 
-      auto& inserted_operand = vregs.emplace(phy_reg, nullptr).first->second;
+      auto& inserted_operand = result.emplace(phy_reg, nullptr).first->second;
       inserted_operand.setPhyRegister(phy_reg);
       inserted_operand.setDataType(
           phy_reg.is_fp_register() ? DataType::kDouble : DataType::k64bit);
     }
-    return vregs;
+    return result;
   }();
 
   while (!phy_regs.Empty()) {
