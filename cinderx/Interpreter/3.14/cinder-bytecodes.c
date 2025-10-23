@@ -1163,20 +1163,22 @@ dummy_func(
                 PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
                 int is_nonzero = PyObject_IsTrue(cond);
                 DECREF_INPUTS();
+                SKIP_OVER(2); // skip cache + EXTENDED_OPCODE
                 if (!is_nonzero) {
                     JUMPBY(extoparg);
                     DISPATCH();
                 }
-                SKIP_OVER(1); // skip cache (for same format w/ POP_JUMP_IF_FALSE)
+                DISPATCH();
             } else if (extop == POP_JUMP_IF_NONZERO) {
                 PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
                 int is_nonzero = PyObject_IsTrue(cond);
                 DECREF_INPUTS();
+                SKIP_OVER(2); // skip cache and EXTENDED_OPCODE
                 if (is_nonzero) {
                     JUMPBY(extoparg);
                     DISPATCH();
                 }
-                SKIP_OVER(1); // skip cache (for same format w/ POP_JUMP_IF_TRUE)
+                DISPATCH();
             } else if (extop == CONVERT_PRIMITIVE) {
                 PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
                 Py_ssize_t from_type = extoparg & 0xFF;

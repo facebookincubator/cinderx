@@ -10,10 +10,4 @@ test.test_setcomps
 test.test_traceback
 test.test_type_cache
 test.test_types
-test_cinderx.test_compiler.test_static.array
-test_cinderx.test_compiler.test_static.checked_list
 test_cinderx.test_compiler.test_static.compile
-test_cinderx.test_compiler.test_static.crange
-test_cinderx.test_compiler.test_static.double
-test_cinderx.test_compiler.test_static.primitives
-test_cinderx.test_compiler.test_static.runtime

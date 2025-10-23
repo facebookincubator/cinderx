@@ -2367,9 +2367,6 @@ class PyFlowGraph314(PyFlowGraph312):
             # sys.monitoring needs to be able to find the matching END_SEND
             # but the target is the SEND, so we adjust it here.
             res -= self.END_SEND_OFFSET
-        elif inst.opname in STATIC_OPCODES:
-            # Account for EXTENDED_OPCODE
-            res += 2
 
         return res
 

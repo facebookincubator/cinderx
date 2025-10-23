@@ -6883,11 +6883,12 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+                SKIP_OVER(2);
                 if (!is_nonzero) {
                     JUMPBY(extoparg);
                     DISPATCH();
                 }
-                SKIP_OVER(1);
+                DISPATCH();
             } else if (extop == POP_JUMP_IF_NONZERO) {
                 PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
@@ -6900,11 +6901,12 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+                SKIP_OVER(2);
                 if (is_nonzero) {
                     JUMPBY(extoparg);
                     DISPATCH();
                 }
-                SKIP_OVER(1);
+                DISPATCH();
             } else if (extop == CONVERT_PRIMITIVE) {
                 PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
                 Py_ssize_t from_type = extoparg & 0xFF;
