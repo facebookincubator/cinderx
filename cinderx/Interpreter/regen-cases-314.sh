@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
+set -e
+
 # Copied from cpython Makefile
 # Point srcdir to the internal copy of cpython 3.12 so we can use the cases_generator
 srcdir='../../../third-party/python/3.14/patched'
