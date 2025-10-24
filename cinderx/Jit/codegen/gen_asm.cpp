@@ -318,9 +318,7 @@ PyObject* resumeInInterpreter(
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
-  int err_occurred =
-      (deopt_meta.reason != DeoptReason::kGuardFailure &&
-       deopt_meta.reason != DeoptReason::kRaise);
+  int err_occurred = shouldResumeInterpreterInErrorHandler(deopt_meta.reason);
 
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller

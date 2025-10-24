@@ -1472,7 +1472,8 @@ void HIRBuilder::translate(
         }
         case RETURN_GENERATOR: {
           auto out = temps_.AllocateStack();
-          if constexpr (PY_VERSION_HEX < 0x030C0000) {
+          if constexpr (
+              PY_VERSION_HEX < 0x030C0000 || PY_VERSION_HEX >= 0x030E0000) {
             advancePastYieldInstr(tc);
           }
           tc.emit<InitialYield>(out, tc.frame);
@@ -4431,6 +4432,7 @@ void HIRBuilder::emitYieldValue(
       tc.emit<YieldValue>(out, in, tc.frame);
     }
   } else {
+    advancePastYieldInstr(tc);
     if (bc_instr.oparg() == 1) {
       tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
     } else {

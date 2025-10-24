@@ -210,6 +210,7 @@ Ref<> profileDeopt(
   return live_val == nullptr ? nullptr : mem.readOwned(*live_val);
 }
 
+#if PY_VERSION_HEX < 0x030E0000
 // This function handles all computation of the index to resume at for a given
 // deopt.
 //
@@ -240,6 +241,7 @@ static BCIndex getDeoptResumeIndex(
   return BytecodeInstruction(frame.code, frame.cause_instr_idx)
       .nextInstrOffset();
 }
+#endif
 
 #if PY_VERSION_HEX < 0x030C0000
 
@@ -291,21 +293,46 @@ static void reifyFrameImpl(
 
 #else // PY_VERSION_HEX < 0x030C0000
 
+bool shouldResumeInterpreterInErrorHandler(DeoptReason reason) {
+  switch (reason) {
+    case DeoptReason::kGuardFailure:
+    case DeoptReason::kRaise:
+      return false;
+    case jit::DeoptReason::kYieldFrom:
+    case jit::DeoptReason::kUnhandledException:
+    case jit::DeoptReason::kUnhandledUnboundLocal:
+    case jit::DeoptReason::kUnhandledUnboundFreevar:
+    case jit::DeoptReason::kUnhandledNullField:
+    case jit::DeoptReason::kRaiseStatic:
+      return true;
+  }
+}
+
 static void reifyFrameImpl(
     _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     bool forced_deopt,
     const uint64_t* regs) {
+#if PY_VERSION_HEX >= 0x030E0000
+  BorrowedRef<PyCodeObject> code_obj = frameCode(frame);
+  int cause_instr_idx = frame_meta.cause_instr_idx.value();
+  // Resume with instr_ptr pointing to the cause instruction if we are entering
+  // the interpreter to re-run a failed instruction, or implement an instruction
+  // we don't JIT. Otherwise, have instr_ptr point to the next instruction
+  // (minus one _Py_CODEUNIT for some reason).
+  frame->instr_ptr = _PyCode_CODE(code_obj) + cause_instr_idx;
+  if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
+    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
+  }
+#else
   // Note frame->prev_instr doesn't point to the previous instruction, it
   // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
   // the next instruction to execute. This means it might point to inline-
   // cache data or a negative location.
-  int idx = (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
-#if PY_VERSION_HEX >= 0x030E0000
-  frame->instr_ptr = _PyCode_CODE(_PyFrame_GetCode(frame)) + idx + 1;
-#else
-  frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + idx;
+  int prev_idx =
+      (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
+  frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx;
 #endif
 
   MemoryView mem{regs};

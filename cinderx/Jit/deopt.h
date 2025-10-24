@@ -86,6 +86,8 @@ enum class DeoptReason : char {
 #undef REASON
 };
 
+bool shouldResumeInterpreterInErrorHandler(DeoptReason reason);
+
 const char* deoptReasonName(DeoptReason reason);
 
 // Deopt metadata that is specific to a particular (shadow) frame whose code
