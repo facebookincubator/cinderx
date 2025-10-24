@@ -330,11 +330,16 @@ def test(x, y):
         reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
 #if PY_VERSION_HEX <= 0x030C0000
     const int jump_index = 18;
-#else
+    const int pop_instr_offset = 4;
+#elif PY_VERSION_HEX < 0x030E0000
     const int jump_index = 32;
+    const int pop_instr_offset = 4;
+#else
+    const int jump_index = 42;
+    const int pop_instr_offset = 2;
 #endif
     ASSERT_EQ(
-        PyBytes_AS_STRING(PyCode_GetCode(code))[jump_index + 4],
+        PyBytes_AS_STRING(PyCode_GetCode(code))[jump_index + pop_instr_offset],
         (char)POP_JUMP_IF_ZERO);
 
     DeoptMetadata dm;
