@@ -185,3 +185,6 @@ test.test_generators.ModifyUnderlyingIterableTest.test_modify_f_locals
 # to exec(). However, we keep all "globals" objects alive via the JIT's
 # PreloaderManager.
 test.test_generators.FinalizationTest.test_generator_resurrect
+
+# The JIT generator type is not the same object as the interpreter's
+test.test_types.TypesTests.test_names
