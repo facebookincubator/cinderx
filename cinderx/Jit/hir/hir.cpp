@@ -1044,6 +1044,7 @@ static const char* gFunctionFields[] = {
     "func_annotations",
     "func_kwdefaults",
     "func_defaults",
+    "func_annotate",
 };
 
 const char* functionFieldName(FunctionAttr field) {
