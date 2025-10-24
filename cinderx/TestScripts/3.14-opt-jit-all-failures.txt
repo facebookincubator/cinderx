@@ -1,9 +1,7 @@
 test.test_capi
-test.test_dis
 test.test_doctest
 test.test_frame
 test.test_opcache
 test.test_traceback
-test.test_type_cache
 test.test_types
 test_cinderx.test_compiler.test_static.compile
