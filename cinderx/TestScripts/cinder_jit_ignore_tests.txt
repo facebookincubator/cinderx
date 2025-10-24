@@ -78,8 +78,17 @@ test.test_importlib.test_abc.Frozen_SourceLoaderBytecodeTests.test_code_bad_time
 test.test_importlib.test_abc.Source_SourceLoaderBytecodeTests.test_code_bad_timestamp
 
 # TASK(T128365005): Need up-to-date locals in frames returned by sys._getframe()
-test.test_traceback.TestStack.test_format_locals
 test.test_frame.TestCAPI.test_getvar
+test.test_frame.TestFrameCApi.test_basic
+test.test_frame.TestFrameLocals.test_as_dict
+test.test_frame.TestFrameLocals.test_constructor
+test.test_frame.TestFrameLocals.test_copy
+test.test_frame.TestFrameLocals.test_is_mapping
+test.test_frame.TestFrameLocals.test_local_objects
+test.test_frame.TestFrameLocals.test_proxy_key_stringlikes_ftrst_write
+test.test_frame.TestFrameLocals.test_proxy_key_stringlikes_overwrite
+test.test_frame.TestFrameLocals.test_write_with_hidden
+test.test_traceback.TestStack.test_format_locals
 
 # TASK(T128782227): exc.tb_frame->f_back not correct in except blocks
 test.test_sys.SysModuleTest.test_current_exceptions

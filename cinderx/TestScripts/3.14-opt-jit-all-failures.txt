@@ -1,6 +1,5 @@
 test.test_capi
 test.test_doctest
-test.test_frame
 test.test_opcache
 test.test_traceback
 test.test_types
