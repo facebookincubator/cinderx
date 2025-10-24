@@ -2030,7 +2030,15 @@ Py_ssize_t JITRT_CheckSequenceBounds(PyObject* s, Py_ssize_t i) {
   JIT_DCHECK(!PyErr_Occurred(), "called with error set");
   i = i < 0 ? i + Py_SIZE(s) : i;
   if (i < 0 || i >= Py_SIZE(s)) {
-    PyErr_SetString(PyExc_IndexError, "index out of range");
+    // If the access is out of bounds then call the runtime lookup function just
+    // to make sure we get a consistent exceptions between interpreter + JIT.
+    Ref<> i_obj = Ref<>::steal(PyLong_FromSsize_t(i));
+    if (i_obj == nullptr) {
+      return -1;
+    }
+    JIT_CHECK(
+        PyObject_GetItem(s, i_obj) == nullptr,
+        "JIT found bound error, but runtime did not");
     return -1;
   }
   return i;
