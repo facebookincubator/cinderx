@@ -260,6 +260,9 @@ dummy_func(
             tstate->py_recursion_remaining--;
             LOAD_SP();
             LOAD_IP(0);
+
+            CI_UPDATE_CALL_COUNT
+
             LLTRACE_RESUME_FRAME();
         }
 
@@ -482,7 +485,7 @@ dummy_func(
         override inst(MAP_ADD, (dict_st, unused[oparg - 1], key, value -- dict_st, unused[oparg - 1])) {
             PyObject *dict = PyStackRef_AsPyObjectBorrow(dict_st);
             /* dict[key] = value */
-            int err = Ci_DictOrChecked_SetItem(dict, 
+            int err = Ci_DictOrChecked_SetItem(dict,
                 PyStackRef_AsPyObjectBorrow(key),
                 PyStackRef_AsPyObjectBorrow(value));
             PyStackRef_CLOSE(value);
@@ -724,13 +727,13 @@ dummy_func(
                     } else {
                         assert(PyDict_Check(collection));
                         length = PyLong_FromLong(((PyDictObject*)collection)->ma_used);
-                    } 
+                    }
                 } else if (extoparg == FAST_LEN_SET) {
                     assert(PyAnySet_Check(collection));
                     length = PyLong_FromLong(((PySetObject*)collection)->used);
                 } else {
                     // lists, tuples, arrays are all PyVarObject and use ob_size
-                    assert(PyTuple_Check(collection) || PyList_Check(collection) || 
+                    assert(PyTuple_Check(collection) || PyList_Check(collection) ||
                            PyStaticArray_CheckExact(collection) || PyUnicode_Check(collection) ||
                            Ci_CheckedList_Check(collection));
                     length = PyLong_FromLong(Py_SIZE(collection));
@@ -763,7 +766,7 @@ dummy_func(
                     (PyObject *)_PyClassLoader_ResolveType(type_descr, &optional, &exact);
                 DECREF_INPUTS();
                 ERROR_IF(type == NULL);
-                top[0] = PyStackRef_FromPyObjectSteal(type); 
+                top[0] = PyStackRef_FromPyObjectSteal(type);
             } else if (extop == LOAD_TYPE) {
                 PyObject *instance = PyStackRef_AsPyObjectBorrow(args[0]);
                 PyObject *type = (PyObject *)Py_TYPE(instance);
@@ -896,7 +899,7 @@ dummy_func(
                 }
                 PyObject *res = PyObject_Vectorcall(target, args_o, nargs, NULL);
                 STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
-                DECREF_INPUTS();                
+                DECREF_INPUTS();
                 ERROR_IF(res == NULL);
                 top[0] = PyStackRef_FromPyObjectSteal(res);
             } else if (extop == INVOKE_FUNCTION) {
@@ -936,7 +939,7 @@ dummy_func(
                 Py_DECREF(func);
                 Py_DECREF(container);
                 DECREF_INPUTS();
-                ERROR_IF(res == NULL);                
+                ERROR_IF(res == NULL);
                 top[0] = PyStackRef_FromPyObjectSteal(res);
             } else if (extop == INVOKE_NATIVE) {
                 PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);
@@ -994,7 +997,7 @@ dummy_func(
                 }
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
                 if (adaptive_enabled) {
-                    specialize_with_value(next_instr, (PyObject *)type, CAST_CACHED, 2, (exact << 1) | optional); 
+                    specialize_with_value(next_instr, (PyObject *)type, CAST_CACHED, 2, (exact << 1) | optional);
                 }
 #endif
                 _PyStackRef res;
@@ -1372,22 +1375,7 @@ dummy_func(
         }
 
         spilled label(start_frame) {
-            // Update call count.
-            {
-                PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable);
-                if (PyCode_Check(executable)) {
-                    PyCodeObject* code = (PyCodeObject*)executable;
-                    if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {
-                        CodeExtra *extra = codeExtra(code);
-                        if (extra == NULL) {
-                            adaptive_enabled = false;
-                        } else {
-                            extra->calls += 1;
-                            adaptive_enabled = is_adaptive_enabled(extra);
-                        }
-                    }
-                }
-            }
+            CI_UPDATE_CALL_COUNT
 
             int too_deep = _Py_EnterRecursivePy(tstate);
             if (too_deep) {

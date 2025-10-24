@@ -442,3 +442,20 @@ do { \
             } \
         } \
     } while (0);
+
+#define CI_UPDATE_CALL_COUNT \
+    do { \
+        PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable); \
+        if (PyCode_Check(executable)) { \
+            PyCodeObject* code = (PyCodeObject*)executable; \
+            if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) { \
+                CodeExtra *extra = codeExtra(code); \
+                if (extra == NULL) { \
+                    adaptive_enabled = false; \
+                } else { \
+                    extra->calls += 1; \
+                    adaptive_enabled = is_adaptive_enabled(extra); \
+                } \
+            } \
+        } \
+    } while (0);

@@ -669,6 +669,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -1809,6 +1810,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -1951,6 +1953,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -2079,6 +2082,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -3143,6 +3147,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -3388,6 +3393,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -4237,6 +4243,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -4337,6 +4344,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -7315,6 +7323,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -10291,6 +10300,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -12355,6 +12365,7 @@
                 tstate->py_recursion_remaining--;
                 LOAD_SP();
                 LOAD_IP(0);
+                CI_UPDATE_CALL_COUNT
                 LLTRACE_RESUME_FRAME();
             }
             DISPATCH();
@@ -14048,21 +14059,7 @@ JUMP_TO_LABEL(error);
 
         LABEL(start_frame)
         {
-            {
-                PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable);
-                if (PyCode_Check(executable)) {
-                    PyCodeObject* code = (PyCodeObject*)executable;
-                    if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {
-                        CodeExtra *extra = codeExtra(code);
-                        if (extra == NULL) {
-                            adaptive_enabled = false;
-                        } else {
-                            extra->calls += 1;
-                            adaptive_enabled = is_adaptive_enabled(extra);
-                        }
-                    }
-                }
-            }
+            CI_UPDATE_CALL_COUNT
             int too_deep = _Py_EnterRecursivePy(tstate);
             if (too_deep) {
                 JUMP_TO_LABEL(exit_unwind);
