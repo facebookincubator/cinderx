@@ -467,17 +467,16 @@ def test(x, y):
         Stack<1> v0
       }
     }
-    v6 = IntConvert<CBool> v5
-    v7 = PrimitiveBoxBool v6
+    v6 = PrimitiveBoxBool v5
     Snapshot {
       CurInstrOffset 14
       Locals<2> v0 v1
-      Stack<2> v0 v7
+      Stack<2> v0 v6
     }
-    v9 = LoadConst<ImmortalBool[True]>
-    v8 = PrimitiveCompare<Equal> v7 v9
+    v8 = LoadConst<ImmortalBool[True]>
+    v7 = PrimitiveCompare<Equal> v6 v8
     v3 = Assign v0
-    CondBranch<1, 2> v8
+    CondBranch<1, 2> v7
   }
 
   bb 1 (preds 3) {
@@ -669,17 +668,16 @@ def test(x, y):
         Stack<1> v0
       }
     }
-    v6 = IntConvert<CBool> v5
-    v7 = PrimitiveBoxBool v6
+    v6 = PrimitiveBoxBool v5
     Snapshot {
       CurInstrOffset 14
       Locals<2> v0 v1
-      Stack<2> v0 v7
+      Stack<2> v0 v6
     }
-    v9 = LoadConst<ImmortalBool[True]>
-    v8 = PrimitiveCompare<Equal> v7 v9
+    v8 = LoadConst<ImmortalBool[True]>
+    v7 = PrimitiveCompare<Equal> v6 v8
     v3 = Assign v0
-    CondBranch<2, 1> v8
+    CondBranch<2, 1> v7
   }
 
   bb 1 (preds 3) {
@@ -1536,22 +1534,21 @@ def test(x):
         Locals<1> v0
       }
     }
-    v5 = IntConvert<CBool> v4
-    v6 = PrimitiveBoxBool v5
+    v5 = PrimitiveBoxBool v4
     Snapshot {
       CurInstrOffset 12
       Locals<1> v0
-      Stack<1> v6
+      Stack<1> v5
     }
-    v8 = LoadConst<ImmortalBool[False]>
-    v7 = PrimitiveCompare<Equal> v8 v6
-    v9 = PrimitiveBoxBool v7
+    v7 = LoadConst<ImmortalBool[False]>
+    v6 = PrimitiveCompare<Equal> v7 v5
+    v8 = PrimitiveBoxBool v6
     Snapshot {
       CurInstrOffset 14
       Locals<1> v0
-      Stack<1> v9
+      Stack<1> v8
     }
-    Return v9
+    Return v8
   }
 }
 )";
