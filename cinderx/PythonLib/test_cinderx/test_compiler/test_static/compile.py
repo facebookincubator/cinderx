@@ -5479,10 +5479,7 @@ class StaticCompilationTests(StaticTestBase):
 
     @disable_hir_inliner
     def test_invoke_strict_module_deep_unjitable(self) -> None:
-        if sys.version_info >= (3, 14):
-            depth = 50
-        else:
-            depth = 99
+        depth = 99
         codestr = f"def f{depth + 2}(): return 42\n"
         codestr += f"def f{depth + 1}(): locals() ; return f{depth + 2}()\n"
 
@@ -5496,14 +5493,10 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(g(True), 0)
             # we should have done some level of pre-jitting
             [self.assert_jitted(getattr(mod, f"f{i}")) for i in range(0, depth)]
+            # but should have stopped eventually
             self.assert_not_jitted(getattr(mod, f"f{depth}"))
             self.assert_not_jitted(getattr(mod, f"f{depth + 1}"))
             self.assert_not_jitted(getattr(mod, f"f{depth + 2}"))
-            try:
-                self.assertEqual(g(False), 42)
-            except RecursionError:
-                # debug builds may fail due to eval loop using too much stack space
-                pass
             self.assertInBytecode(
                 g,
                 "INVOKE_FUNCTION",

@@ -1,2 +1,1 @@
 test.test_capi
-test_cinderx.test_compiler.test_static.compile
