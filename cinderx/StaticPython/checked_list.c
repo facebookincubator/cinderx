@@ -9,7 +9,7 @@
 
 #include "internal/pycore_abstract.h" // _PyIndex_Check()
 #include "internal/pycore_interp.h" // PyInterpreterState.list
-#include "internal/pycore_object.h" // _PyObject_GC_TRACK()
+#include "internal/pycore_object.h" // PyObject_GC_Track()
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
@@ -2739,7 +2739,7 @@ static PyObject* list_iter(PyObject* seq) {
   it->it_index = 0;
   Py_INCREF(seq);
   it->it_seq = (PyListObject*)seq;
-  _PyObject_GC_TRACK(it);
+  PyObject_GC_Track(it);
   return (PyObject*)it;
 }
 
@@ -3353,7 +3353,7 @@ static PyObject* chklist_alloc(PyTypeObject* type, Py_ssize_t nitems) {
   op->ob_item = NULL;
   Py_SET_SIZE(op, 0);
   op->allocated = 0;
-  _PyObject_GC_TRACK(op);
+  PyObject_GC_Track(op);
   return (PyObject*)op;
 }
 

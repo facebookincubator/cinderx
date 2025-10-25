@@ -729,8 +729,6 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
     gen->gi_origin_or_finalizer = nullptr;
   }
 
-  _PyObject_GC_TRACK(gen);
-
   _PyInterpreterFrame* frame = generatorFrame(gen);
   auto footer =
       reinterpret_cast<jit::GenDataFooter*>( // NOLINT performance-no-int-to-ptr
@@ -752,6 +750,8 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
       *(reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr
             original_rbp) +
         1);
+
+  PyObject_GC_Track(gen);
 
   return {tstate, footer};
 }

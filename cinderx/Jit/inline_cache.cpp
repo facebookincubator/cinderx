@@ -236,7 +236,7 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 #endif
     if (!_PyObject_GC_IS_TRACKED(dict.getObj())) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
-        _PyObject_GC_TRACK(dict.getObj());
+        PyObject_GC_Track(dict.getObj());
       }
     }
 

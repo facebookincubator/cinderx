@@ -10,7 +10,7 @@
 
 #include "internal/pycore_bitutils.h" // _Py_bit_length
 #include "internal/pycore_gc.h" // _PyObject_GC_IS_TRACKED()
-#include "internal/pycore_object.h" // _PyObject_GC_TRACK()
+#include "internal/pycore_object.h" // PyObject_GC_Track()
 #include "internal/pycore_pystate.h" // _Py_InterpreterState_GET
 
 #include "cinderx/Common/string.h"
@@ -979,7 +979,7 @@ static Py_ssize_t _Py_HOT_FUNCTION lookdict_split(
     if (!_PyObject_GC_IS_TRACKED(mp)) {         \
       if (_PyObject_GC_MAY_BE_TRACKED(key) ||   \
           _PyObject_GC_MAY_BE_TRACKED(value)) { \
-        _PyObject_GC_TRACK(mp);                 \
+        PyObject_GC_Track(mp);                  \
       }                                         \
     }                                           \
   } while (0)
@@ -1659,7 +1659,7 @@ static int dict_merge(PyObject* a, PyObject* b, int override) {
 
         if (_PyObject_GC_IS_TRACKED(other) && !_PyObject_GC_IS_TRACKED(mp)) {
           /* Maintain tracking. */
-          _PyObject_GC_TRACK(mp);
+          PyObject_GC_Track(mp);
         }
 
         return 0;
@@ -3081,7 +3081,7 @@ static PyObject* dictiter_new(CiChkDictObject* dict, PyTypeObject* itertype) {
   } else {
     di->di_result = NULL;
   }
-  _PyObject_GC_TRACK(di);
+  PyObject_GC_Track(di);
   return (PyObject*)di;
 }
 
@@ -3380,7 +3380,7 @@ static PyObject* dictiter_iternextitem(dictiterobject* di) {
     // bpo-42536: The GC may have untracked this result tuple. Since we're
     // recycling it, make sure it's tracked again:
     if (!_PyObject_GC_IS_TRACKED(result)) {
-      _PyObject_GC_TRACK(result);
+      PyObject_GC_Track(result);
     }
   } else {
     result = PyTuple_New(2);
@@ -3498,7 +3498,7 @@ static PyObject* dictreviter_iternext(dictiterobject* di) {
       // bpo-42536: The GC may have untracked this result tuple. Since
       // we're recycling it, make sure it's tracked again:
       if (!_PyObject_GC_IS_TRACKED(result)) {
-        _PyObject_GC_TRACK(result);
+        PyObject_GC_Track(result);
       }
     } else {
       result = PyTuple_New(2);
@@ -3624,7 +3624,7 @@ static PyObject* Ci_CheckedDictView_New(PyObject* dict, PyTypeObject* type) {
   if (type == &Ci_CheckedDictItems_Type || type == &Ci_CheckedDictValues_Type) {
   }
   dv->dv_dict = d;
-  _PyObject_GC_TRACK(dv);
+  PyObject_GC_Track(dv);
   return (PyObject*)dv;
 }
 

@@ -14,6 +14,9 @@
 
 #include "cinderx/Jit/generators_core.h"
 
+#undef _PyObject_GC_TRACK
+#define _PyObject_GC_TRACK PyObject_GC_Track
+
 // @Borrow CPP directives noinclude from Objects/iterobject.c
 // @Borrow function anextawaitable_dealloc from Objects/iterobject.c
 void Ci_anextawaitable_dealloc(anextawaitableobject* obj) {

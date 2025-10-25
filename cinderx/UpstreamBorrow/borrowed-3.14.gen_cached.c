@@ -30,6 +30,9 @@
 #define _PyOpcode_Deopt _CiOpcode_Deopt
 #define _Py_type_getattro PyType_Type.tp_getattro
 
+#undef _PyObject_GC_TRACK
+#define _PyObject_GC_TRACK PyObject_GC_Track
+
 getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;
 
 // _Py_slot_tp_getattr_hook is used when __getattr__ is defined
@@ -4368,6 +4371,7 @@ _PyDict_LookupIndex(PyDictObject *mp, PyObject *key)
     return _Py_dict_lookup(mp, key, hash, &value);
 }
 
+#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
 #ifdef Py_STATS
 #if PYSTATS_MAX_UOP_ID < MAX_UOP_ID
 #endif
@@ -4519,6 +4523,7 @@ do { \
 #define SPEC_FAIL_CALL_INIT_NOT_PYTHON 21
 #define SPEC_FAIL_CALL_PEP_523 22
 #define SPEC_FAIL_CALL_BOUND_METHOD 23
+#define SPEC_FAIL_CALL_VECTORCALL 24
 #define SPEC_FAIL_CALL_CLASS_MUTABLE 26
 #define SPEC_FAIL_CALL_METHOD_WRAPPER 28
 #define SPEC_FAIL_CALL_OPERATOR_WRAPPER 29
@@ -5775,6 +5780,10 @@ specialize_py_call(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
         return -1;
     }
+    if (func->vectorcall != _PyFunction_Vectorcall) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_VECTORCALL);
+        return -1;
+    }
     int argcount = -1;
     if (kind == SPEC_FAIL_CODE_NOT_OPTIMIZED) {
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CODE_NOT_OPTIMIZED);
@@ -5973,6 +5982,10 @@ specialize_py_call_kw(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
     /* Don't specialize if PEP 523 is active */
     if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
+        return -1;
+    }
+    if (func->vectorcall != _PyFunction_Vectorcall) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_VECTORCALL);
         return -1;
     }
     if (kind == SPEC_FAIL_CODE_NOT_OPTIMIZED) {

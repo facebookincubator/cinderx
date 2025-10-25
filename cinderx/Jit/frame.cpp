@@ -161,7 +161,7 @@ Ref<PyFrameObject> createPyFrame(
   py_frame_ctor.fc_code = rtfs.code();
   Ref<PyFrameObject> py_frame = Ref<PyFrameObject>::steal(
       _PyFrame_New_NoTrack(tstate, &py_frame_ctor, nullptr));
-  _PyObject_GC_TRACK(py_frame);
+  PyObject_GC_Track(py_frame);
   // _PyFrame_New_NoTrack links the frame into the thread stack.
   Py_CLEAR(py_frame->f_back);
   return py_frame;

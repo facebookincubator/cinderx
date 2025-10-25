@@ -27,6 +27,9 @@
 #define _PyOpcode_Deopt _CiOpcode_Deopt
 #define _Py_type_getattro PyType_Type.tp_getattro
 
+#undef _PyObject_GC_TRACK
+#define _PyObject_GC_TRACK PyObject_GC_Track
+
 getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;
 
 // _Py_slot_tp_getattr_hook is used when __getattr__ is defined
