@@ -677,9 +677,8 @@ _PyClassLoader_StaticCallReturn _PyVTable_thunk_native(
 }
 
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
-__attribute__((naked)) PyObject* _PyVTable_native_entry(
-    PyObject* state,
-    void** args) {
+__attribute__((naked))
+PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
   __asm__(
       "push %rbp\n"
       "mov %rsp, %rbp\n"

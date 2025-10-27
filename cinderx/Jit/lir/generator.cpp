@@ -2823,8 +2823,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* caller_frame = bbb.appendInstr(
             OutVReg{},
             Instruction::kLea,
-            Stk{PhyLocation(static_cast<int32_t>(
-                frameOffsetBefore(instr) + sizeof(FrameHeader)))});
+            Stk{PhyLocation(
+                static_cast<int32_t>(
+                    frameOffsetBefore(instr) + sizeof(FrameHeader)))});
 
         // There is already an interpreter frame for the caller function.
         Instruction* callee_frame = getInlinedFrame(bbb, instr);
@@ -2989,9 +2990,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* caller_frame = bbb.appendInstr(
             OutVReg{},
             Instruction::kLea,
-            Stk{PhyLocation(static_cast<int32_t>(
-                frameOffsetBefore(instr.matchingBegin()) +
-                sizeof(FrameHeader)))});
+            Stk{PhyLocation(
+                static_cast<int32_t>(
+                    frameOffsetBefore(instr.matchingBegin()) +
+                    sizeof(FrameHeader)))});
 #if PY_VERSION_HEX >= 0x030D0000
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},

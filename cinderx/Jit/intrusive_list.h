@@ -101,10 +101,10 @@ class IntrusiveListNode {
   IntrusiveListNode* next_;
 };
 
-template <class T, IntrusiveListNode T::*node_member, bool is_const>
+template <class T, IntrusiveListNode T::* node_member, bool is_const>
 class IntrusiveListIterator;
 
-template <class T, IntrusiveListNode T::*node_member>
+template <class T, IntrusiveListNode T::* node_member>
 class IntrusiveList {
  public:
   // Iterator typedefs
@@ -299,7 +299,7 @@ class IntrusiveList {
   std::size_t node_member_offset_;
 };
 
-template <class T, IntrusiveListNode T::*node_member, bool is_const>
+template <class T, IntrusiveListNode T::* node_member, bool is_const>
 class IntrusiveListIterator {
  public:
   using difference_type = std::ptrdiff_t;

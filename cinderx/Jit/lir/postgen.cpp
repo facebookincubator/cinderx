@@ -237,11 +237,12 @@ RewriteResult rewriteBatchDecrefInstrs(instr_iter_t instr_iter) {
   // we translate BatchDecref by converting it to a Call instruction
   instr->setOpcode(Instruction::kCall);
 
-  instr->prependInput(std::make_unique<Operand>(
-      nullptr,
-      Operand::k64bit,
-      Operand::kImm,
-      reinterpret_cast<uint64_t>(FUNC_MARKER_BATCHDECREF)));
+  instr->prependInput(
+      std::make_unique<Operand>(
+          nullptr,
+          Operand::k64bit,
+          Operand::kImm,
+          reinterpret_cast<uint64_t>(FUNC_MARKER_BATCHDECREF)));
   return kChanged;
 }
 

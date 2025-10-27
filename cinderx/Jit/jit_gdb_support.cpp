@@ -582,24 +582,25 @@ static void elf_init_debugline(ELFObjectContext* ctx) {
 
   DWRF_SECTION(
       line, DWRF_U16(2); /* DWARF version. */
-      DWRF_SECTION(header, DWRF_U8(1); /* Minimum instruction length. */
-                   DWRF_U8(1); /* is_stmt. */
-                   DWRF_I8(0); /* Line base for special opcodes. */
-                   DWRF_U8(2); /* Line range for special opcodes. */
-                   DWRF_U8(3 + 1); /* Opcode base at DWRF_LNS_advance_line+1. */
-                   DWRF_U8(0);
-                   DWRF_U8(1);
-                   DWRF_U8(1); /* Standard opcode lengths. */
-                   /* Directory table. */
-                   DWRF_U8(0);
-                   /* File name table. */
-                   DWRF_STR(
-                       ctx->filename == nullptr ? "<unknown>"
-                                                : ss_get_string(ctx->filename));
-                   DWRF_UV(0);
-                   DWRF_UV(0);
-                   DWRF_UV(0);
-                   DWRF_U8(0);)
+      DWRF_SECTION(
+          header, DWRF_U8(1); /* Minimum instruction length. */
+          DWRF_U8(1); /* is_stmt. */
+          DWRF_I8(0); /* Line base for special opcodes. */
+          DWRF_U8(2); /* Line range for special opcodes. */
+          DWRF_U8(3 + 1); /* Opcode base at DWRF_LNS_advance_line+1. */
+          DWRF_U8(0);
+          DWRF_U8(1);
+          DWRF_U8(1); /* Standard opcode lengths. */
+          /* Directory table. */
+          DWRF_U8(0);
+          /* File name table. */
+          DWRF_STR(
+              ctx->filename == nullptr ? "<unknown>"
+                                       : ss_get_string(ctx->filename));
+          DWRF_UV(0);
+          DWRF_UV(0);
+          DWRF_UV(0);
+          DWRF_U8(0);)
 
           DWRF_LINE(DWRF_LNE_set_address, sizeof(uintptr_t));
       DWRF_ADDR(ctx->code_addr);

@@ -3053,8 +3053,9 @@ void HIRBuilder::emitLoadSmallInt(
       bc_instr.oparg() < _PY_NSMALLPOSINTS, "LOAD_SMALL_INT out of range");
   tc.emit<LoadConst>(
       tmp,
-      Type::fromObject(reinterpret_cast<PyObject*>(
-          &_PyLong_SMALL_INTS[_PY_NSMALLNEGINTS + bc_instr.oparg()])));
+      Type::fromObject(
+          reinterpret_cast<PyObject*>(
+              &_PyLong_SMALL_INTS[_PY_NSMALLNEGINTS + bc_instr.oparg()])));
   tc.frame.stack.push(tmp);
 #else
   JIT_ABORT("LOAD_SMALL_INT not supported on this Python version");

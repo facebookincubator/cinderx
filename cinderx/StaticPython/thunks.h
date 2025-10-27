@@ -14,10 +14,12 @@ extern PyTypeObject _PyType_PropertyThunk;
 extern PyTypeObject _PyType_TypedDescriptorThunk;
 extern PyTypeObject _PyClassLoader_VTableInitThunk_Type;
 
-#define THUNK_SIG(arg_count)                                             \
-  {                                                                      \
-    .ta_argcount = arg_count, .ta_has_primitives = 0, .ta_allocated = 0, \
-    .ta_rettype = TYPED_OBJECT,                                          \
+#define THUNK_SIG(arg_count)      \
+  {                               \
+      .ta_argcount = arg_count,   \
+      .ta_has_primitives = 0,     \
+      .ta_allocated = 0,          \
+      .ta_rettype = TYPED_OBJECT, \
   }
 
 typedef struct {

@@ -1229,8 +1229,9 @@ PyMethodDef _cinderx_methods[] = {
     {"_is_compile_perf_trampoline_pre_fork_enabled",
      is_compile_perf_trampoline_pre_fork_enabled,
      METH_NOARGS,
-     PyDoc_STR("Return whether compile perf-trampoline entries before fork is "
-               "enabled or not.")},
+     PyDoc_STR(
+         "Return whether compile perf-trampoline entries before fork is "
+         "enabled or not.")},
 #if PY_VERSION_HEX < 0x030C0000
     {"_get_entire_call_stack_as_qualnames_with_lineno",
      get_entire_call_stack_as_qualnames_with_lineno,
@@ -1240,8 +1241,9 @@ PyMethodDef _cinderx_methods[] = {
     {"_get_entire_call_stack_as_qualnames_with_lineno_and_frame",
      get_entire_call_stack_as_qualnames_with_lineno_and_frame,
      METH_NOARGS,
-     PyDoc_STR("Return the current stack as a list of tuples (qualname, "
-               "lineno, PyFrame | None).")},
+     PyDoc_STR(
+         "Return the current stack as a list of tuples (qualname, "
+         "lineno, PyFrame | None).")},
 #endif
     {"immortalize_heap",
      cinder_immortalize_heap,

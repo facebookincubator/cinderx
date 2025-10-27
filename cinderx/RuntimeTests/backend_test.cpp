@@ -730,7 +730,7 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
   ASSERT_EQ(bb_nullptr, nullptr);
   bb3->splitBefore(r4); // test split in middle of block
 
-  auto func = (uint64_t(*)(int64_t))SimpleCompile(lirfunc.get());
+  auto func = (uint64_t (*)(int64_t))SimpleCompile(lirfunc.get());
 
   ASSERT_EQ(func(0), 16);
   ASSERT_EQ(func(1), 9);

@@ -185,8 +185,9 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
             instr_->setId(token.data);
             expect(pair.second, cur, "Duplicated output virtual register.");
           } else if (type == kPhyReg) {
-            output->setPhyRegister(jit::codegen::PhyLocation::parse(
-                std::string(cur, token.length)));
+            output->setPhyRegister(
+                jit::codegen::PhyLocation::parse(
+                    std::string(cur, token.length)));
           } else if (type == kStack) {
             output->setStackSlot(token.data);
           } else if (type == kAddress) {
@@ -523,8 +524,9 @@ void Parser::fixOperands() {
     auto operand = pair.first;
     int block_index = pair.second;
 
-    operand->setBasicBlock(map_get_throw<ParserException>(
-        block_index_map_, block_index, "Block id {}", block_index));
+    operand->setBasicBlock(
+        map_get_throw<ParserException>(
+            block_index_map_, block_index, "Block id {}", block_index));
   }
 
   for (auto& pair : instr_refs_) {
@@ -543,8 +545,9 @@ void Parser::connectBasicBlocks() {
   for (auto& succ_pair : basic_block_succs_) {
     BasicBlock* source_block = succ_pair.first;
     int dest_block_id = succ_pair.second;
-    source_block->addSuccessor(map_get_throw<ParserException>(
-        block_index_map_, dest_block_id, "Block id {}", dest_block_id));
+    source_block->addSuccessor(
+        map_get_throw<ParserException>(
+            block_index_map_, dest_block_id, "Block id {}", dest_block_id));
   }
 }
 

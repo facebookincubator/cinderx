@@ -278,9 +278,7 @@ static inline int Ci_WSDeque_GetNumResizes(Ci_WSDeque* deque) {
   Ci_unimpl()
 }
 
-static inline size_t Ci_WSDeque_Size(Ci_WSDeque* deque) {
-  Ci_unimpl()
-}
+static inline size_t Ci_WSDeque_Size(Ci_WSDeque* deque){Ci_unimpl()}
 
 #define HAVE_WS_DEQUE 0
 

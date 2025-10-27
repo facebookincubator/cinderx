@@ -334,11 +334,13 @@ void FrameAsm::linkNormalFunctionFrame(
 #if defined(CINDER_X86_64)
   if (kPyDebug) {
     as_->mov(x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
-    as_->call(reinterpret_cast<uint64_t>(
-        JITRT_AllocateAndLinkInterpreterFrame_Debug));
+    as_->call(
+        reinterpret_cast<uint64_t>(
+            JITRT_AllocateAndLinkInterpreterFrame_Debug));
   } else {
-    as_->call(reinterpret_cast<uint64_t>(
-        JITRT_AllocateAndLinkInterpreterFrame_Release));
+    as_->call(
+        reinterpret_cast<uint64_t>(
+            JITRT_AllocateAndLinkInterpreterFrame_Release));
   }
 
   as_->mov(tstate_reg, arch::reg_general_return_64);

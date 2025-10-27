@@ -1800,11 +1800,13 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
     as_->bind(env_.static_arg_typecheck_failed_label);
     if (GetFunction()->returnsPrimitive()) {
       if (GetFunction()->returnsPrimitiveDouble()) {
-        as_->call(reinterpret_cast<uint64_t>(
-            JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn));
+        as_->call(
+            reinterpret_cast<uint64_t>(
+                JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn));
       } else {
-        as_->call(reinterpret_cast<uint64_t>(
-            JITRT_ReportStaticArgTypecheckErrorsWithPrimitiveReturn));
+        as_->call(
+            reinterpret_cast<uint64_t>(
+                JITRT_ReportStaticArgTypecheckErrorsWithPrimitiveReturn));
       }
     } else {
       as_->call(

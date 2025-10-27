@@ -2368,23 +2368,27 @@ PyMethodDef jit_methods[] = {
     {"disable",
      reinterpret_cast<PyCFunction>(disable_jit),
      METH_VARARGS | METH_KEYWORDS,
-     PyDoc_STR("Compile all functions that are pending compilation and then "
-               "disable the JIT.")},
+     PyDoc_STR(
+         "Compile all functions that are pending compilation and then "
+         "disable the JIT.")},
     {"enable",
      enable_jit,
      METH_NOARGS,
-     PyDoc_STR("Re-enable the JIT and re-attach compiled onto previously "
-               "JIT-compiled functions.")},
+     PyDoc_STR(
+         "Re-enable the JIT and re-attach compiled onto previously "
+         "JIT-compiled functions.")},
     {"auto",
      auto_jit,
      METH_NOARGS,
-     PyDoc_STR("Configure the JIT to automatically compile functions, using "
-               "default settings")},
+     PyDoc_STR(
+         "Configure the JIT to automatically compile functions, using "
+         "default settings")},
     {"compile_after_n_calls",
      compile_after_n_calls,
      METH_O,
-     PyDoc_STR("Configure the JIT to automatically compile functions after "
-               "they are called a set number of times.")},
+     PyDoc_STR(
+         "Configure the JIT to automatically compile functions after "
+         "they are called a set number of times.")},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions."},
     {"dump_elf",
      dump_elf,
@@ -2396,15 +2400,17 @@ PyMethodDef jit_methods[] = {
     {"load_aot_bundle",
      load_aot_bundle,
      METH_O,
-     PyDoc_STR("Load a bundle of ahead-of-time generated code from an ELF "
-               "file, whose filepath is passed as the first argument. Note: "
-               "This does not actually work yet, it's being used for debugging "
-               "purposes.")},
+     PyDoc_STR(
+         "Load a bundle of ahead-of-time generated code from an ELF "
+         "file, whose filepath is passed as the first argument. Note: "
+         "This does not actually work yet, it's being used for debugging "
+         "purposes.")},
     {"get_compile_after_n_calls",
      get_compile_after_n_calls,
      METH_NOARGS,
-     PyDoc_STR("Get the current number of calls needed before a function is "
-               "automatically compiled.")},
+     PyDoc_STR(
+         "Get the current number of calls needed before a function is "
+         "automatically compiled.")},
     {"is_enabled",
      is_enabled,
      METH_NOARGS,
@@ -2412,8 +2418,9 @@ PyMethodDef jit_methods[] = {
     {"count_interpreted_calls",
      count_interpreted_calls,
      METH_O,
-     PyDoc_STR("Get the number of times a function has been executed in the "
-               "interpreter since cinderx has been initialized")},
+     PyDoc_STR(
+         "Get the number of times a function has been executed in the "
+         "interpreter since cinderx has been initialized")},
     {"is_jit_compiled",
      is_jit_compiled,
      METH_O,
@@ -2421,10 +2428,11 @@ PyMethodDef jit_methods[] = {
     {"precompile_all",
      reinterpret_cast<PyCFunction>(precompile_all),
      METH_VARARGS | METH_KEYWORDS,
-     PyDoc_STR("If the JIT is enabled, compile all functions registered for "
-               "future compilation and return True, otherwise return False. "
-               "This is not meant for general use, it has the potential to "
-               "compile many unneeded functions. Use wisely.")},
+     PyDoc_STR(
+         "If the JIT is enabled, compile all functions registered for "
+         "future compilation and return True, otherwise return False. "
+         "This is not meant for general use, it has the potential to "
+         "compile many unneeded functions. Use wisely.")},
     {"force_compile",
      force_compile,
      METH_O,
@@ -2440,8 +2448,9 @@ PyMethodDef jit_methods[] = {
     {"jit_frame_mode",
      jit_frame_mode,
      METH_NOARGS,
-     PyDoc_STR("Get JIT frame mode (0 = normal frames, 1 = no frames, 2 = "
-               "shadow frames).")},
+     PyDoc_STR(
+         "Get JIT frame mode (0 = normal frames, 1 = no frames, 2 = "
+         "shadow frames).")},
     {"get_jit_list",
      get_jit_list,
      METH_NOARGS,
@@ -2465,23 +2474,27 @@ PyMethodDef jit_methods[] = {
     {"get_compilation_time",
      get_compilation_time,
      METH_NOARGS,
-     PyDoc_STR("Return the total time used for JIT compiling functions in "
-               "milliseconds.")},
+     PyDoc_STR(
+         "Return the total time used for JIT compiling functions in "
+         "milliseconds.")},
     {"get_function_compilation_time",
      get_function_compilation_time,
      METH_O,
-     PyDoc_STR("Return the time used for JIT compiling a given function in "
-               "milliseconds.")},
+     PyDoc_STR(
+         "Return the time used for JIT compiling a given function in "
+         "milliseconds.")},
     {"get_and_clear_runtime_stats",
      get_and_clear_runtime_stats,
      METH_NOARGS,
-     PyDoc_STR("Returns information about the runtime behavior of JIT-compiled "
-               "code.")},
+     PyDoc_STR(
+         "Returns information about the runtime behavior of JIT-compiled "
+         "code.")},
     {"clear_runtime_stats",
      clear_runtime_stats,
      METH_NOARGS,
-     PyDoc_STR("Clears runtime stats about JIT-compiled code without returning "
-               "a value.")},
+     PyDoc_STR(
+         "Clears runtime stats about JIT-compiled code without returning "
+         "a value.")},
     {"get_and_clear_inline_cache_stats",
      get_and_clear_inline_cache_stats,
      METH_NOARGS,
@@ -2492,8 +2505,9 @@ PyMethodDef jit_methods[] = {
     {"is_inline_cache_stats_collection_enabled",
      is_inline_cache_stats_collection_enabled,
      METH_NOARGS,
-     PyDoc_STR("Return True if jit-enable-inline-cache-stats-collection is on "
-               "and False otherwise.")},
+     PyDoc_STR(
+         "Return True if jit-enable-inline-cache-stats-collection is on "
+         "and False otherwise.")},
     {"get_compiled_size",
      get_compiled_size,
      METH_O,
@@ -2505,8 +2519,9 @@ PyMethodDef jit_methods[] = {
     {"get_compiled_spill_stack_size",
      get_compiled_spill_stack_size,
      METH_O,
-     PyDoc_STR("Return stack size in bytes used for register spills for a "
-               "JIT-compiled function.")},
+     PyDoc_STR(
+         "Return stack size in bytes used for register spills for a "
+         "JIT-compiled function.")},
     {"jit_suppress",
      jit_suppress,
      METH_O,
@@ -2518,8 +2533,9 @@ PyMethodDef jit_methods[] = {
     {"multithreaded_compile_test",
      multithreaded_compile_test,
      METH_NOARGS,
-     PyDoc_STR("Force multi-threaded recompile of still existing JIT functions "
-               "for testing.")},
+     PyDoc_STR(
+         "Force multi-threaded recompile of still existing JIT functions "
+         "for testing.")},
     {"is_multithreaded_compile_test_enabled",
      is_multithreaded_compile_test_enabled,
      METH_NOARGS,
@@ -2527,8 +2543,9 @@ PyMethodDef jit_methods[] = {
     {"get_batch_compilation_time_ms",
      get_batch_compilation_time_ms,
      METH_NOARGS,
-     PyDoc_STR("Return the number of milliseconds spent in batch compilation "
-               "the last time precompile_all() was called.")},
+     PyDoc_STR(
+         "Return the number of milliseconds spent in batch compilation "
+         "the last time precompile_all() was called.")},
     {"get_allocator_stats",
      get_allocator_stats,
      METH_NOARGS,
@@ -2566,10 +2583,11 @@ PyMethodDef jit_methods[] = {
     {"get_inlined_functions_stats",
      get_inlined_functions_stats,
      METH_O,
-     PyDoc_STR("Return a dict containing function inlining stats with the the "
-               "following structure: {'num_inlined_functions' => int, "
-               "'failure_stats' => { "
-               "failure_reason => set of function names}} ).")},
+     PyDoc_STR(
+         "Return a dict containing function inlining stats with the the "
+         "following structure: {'num_inlined_functions' => int, "
+         "'failure_stats' => { "
+         "failure_reason => set of function names}} ).")},
     {"get_num_inlined_functions",
      get_num_inlined_functions,
      METH_O,
@@ -2614,8 +2632,9 @@ PyModuleDef_Slot jit_slots[] = {
 PyModuleDef jit_module = {
     PyModuleDef_HEAD_INIT,
     "cinderjit", /* m_name */
-    PyDoc_STR("Control the Cinder JIT compiler. Only available when the JIT "
-              "has been enabled."),
+    PyDoc_STR(
+        "Control the Cinder JIT compiler. Only available when the JIT "
+        "has been enabled."),
     0, /* m_size */
     jit_methods, /* m_methods */
     jit_slots, /* m_slots */

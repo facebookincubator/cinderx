@@ -243,11 +243,12 @@ std::string FlagProcessor::jitXOptionHelpMessage() {
           : fmt::format(
                 "; also {}", option->getFormatted_environment_variable());
       ret += indent1;
-      ret += multi_line_split_(fmt::format(
-                 "-X {}: {}{}\n",
-                 option->getFormatted_cmdline_flag(),
-                 option->flag_description,
-                 fmt_env_var)) +
+      ret += multi_line_split_(
+                 fmt::format(
+                     "-X {}: {}{}\n",
+                     option->getFormatted_cmdline_flag(),
+                     option->flag_description,
+                     fmt_env_var)) +
           "\n";
     }
   }

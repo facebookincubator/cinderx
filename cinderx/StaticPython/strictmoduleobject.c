@@ -538,8 +538,9 @@ static PyMethodDef strictmodule_methods[] = {
     {"patch_delete",
      strictmodule_patch_delete,
      METH_VARARGS,
-     PyDoc_STR("Patch by deleting a field from strict module. Only enabled for "
-               "testing")},
+     PyDoc_STR(
+         "Patch by deleting a field from strict module. Only enabled for "
+         "testing")},
     {0}};
 
 static PyGetSetDef strict_module_getset[] = {

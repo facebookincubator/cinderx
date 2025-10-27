@@ -118,7 +118,7 @@ struct LoadMethodResult {
 //  Returns result of computation which is a "yielded" value unless the state of
 //  the generator is _PyJITGenState_Completed, in which case it is a "return"
 //  value. If the return is NULL, an exception has been raised.
-using GenResumeFunc = PyObject* (*)(PyObject* gen,
+using GenResumeFunc = PyObject* (*)(PyObject * gen,
                                     PyObject* send_value,
                                     uint64_t finish_yield_from,
                                     PyThreadState* tstate);
