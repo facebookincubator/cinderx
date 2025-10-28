@@ -42,13 +42,6 @@
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/module_state.h"
 
-#ifdef ENABLE_DISASSEMBLER
-#include "i386-dis/dis-asm.h"
-#else
-void set_att_syntax() {}
-void set_intel_syntax() {}
-#endif
-
 #include <dlfcn.h>
 #include <fmt/std.h>
 
@@ -301,9 +294,9 @@ void setJitLogFile(const std::string& log_filename) {
 
 void setASMSyntax(const std::string& asm_syntax) {
   if (asm_syntax.compare("intel") == 0) {
-    set_intel_syntax();
+    getMutableConfig().asm_syntax = AsmSyntax::Intel;
   } else if (asm_syntax.compare("att") == 0) {
-    set_att_syntax();
+    getMutableConfig().asm_syntax = AsmSyntax::ATT;
   } else {
     JIT_ABORT("Unknown asm syntax '{}'", asm_syntax);
   }

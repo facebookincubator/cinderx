@@ -111,6 +111,11 @@ struct LogOptions {
   FILE* output_file{stderr};
 };
 
+enum class AsmSyntax : uint8_t {
+  ATT,
+  Intel,
+};
+
 // Collection of configuration values for the JIT.
 //
 // Note: It's fine to store non-trivially destructible objects like std::string
@@ -177,6 +182,9 @@ struct Config {
   JitListOptions jit_list;
   LogOptions log;
   bool compile_perf_trampoline_prefork{false};
+
+  // The ASM syntax the JIT should use when disassembling.
+  AsmSyntax asm_syntax{AsmSyntax::ATT};
 };
 
 // Get the JIT's current config object.

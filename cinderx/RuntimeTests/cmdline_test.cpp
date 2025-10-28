@@ -7,7 +7,6 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
-#include "i386-dis/dis-asm.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -282,7 +281,9 @@ TEST_F(CmdLineTest, JITEnable) {
           []() {
             ASSERT_TRUE(isJitUsable());
             ASSERT_EQ(getConfig().compile_after_n_calls, 0);
-            ASSERT_EQ(is_intel_syntax(), 0); // default to AT&T syntax
+            ASSERT_EQ(
+                getConfig().asm_syntax,
+                AsmSyntax::ATT); // default to AT&T syntax
           }),
       0);
 }
@@ -356,16 +357,16 @@ TEST_F(CmdLineTest, ASMSyntax) {
       try_flag_and_envvar_effect(
           L"jit-asm-syntax=intel",
           "PYTHONJITASMSYNTAX=intel",
-          []() { set_att_syntax(); },
-          []() { ASSERT_EQ(is_intel_syntax(), 1); }),
+          []() { getMutableConfig().asm_syntax = AsmSyntax::ATT; },
+          []() { ASSERT_EQ(getConfig().asm_syntax, AsmSyntax::Intel); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-asm-syntax=att",
           "PYTHONJITASMSYNTAX=att",
-          []() { set_att_syntax(); },
-          []() { ASSERT_EQ(is_intel_syntax(), 0); }),
+          []() { getMutableConfig().asm_syntax = AsmSyntax::ATT; },
+          []() { ASSERT_EQ(getConfig().asm_syntax, AsmSyntax::ATT); }),
       0);
 }
 
@@ -388,7 +389,7 @@ TEST_F(CmdLineTest, JITList) {
       try_flag_and_envvar_effect(
           xarg,
           const_cast<char*>(("PYTHONJITLISTFILE=" + list_file).c_str()),
-          []() { set_att_syntax(); },
+          []() { getMutableConfig().asm_syntax = AsmSyntax::ATT; },
           []() { ASSERT_TRUE(isJitUsable()); }),
       0);
 
