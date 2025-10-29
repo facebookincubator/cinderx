@@ -1,2 +1,5 @@
 # Test is wrong for 3.14, but fixed in main.
 test.test_capi.test_object.IsUniquelyReferencedTest.test_is_uniquely_referenced
+
+# T243234000 - failing on 3.14.1
+test.test_tuple.TupleTest.test_track_literals
