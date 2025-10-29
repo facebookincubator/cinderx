@@ -1739,7 +1739,7 @@ class CinderJitModuleTests(StaticTestBase):
             codepath.write_text(code)
 
             def run_proc(size: str | None = None) -> str:
-                args = [sys.executable, "-X", "jit"]
+                args = [sys.executable]
                 if size:
                     args.extend(["-X", f"jit-max-code-size={size}"])
                 args.append("mod.py")
@@ -1767,8 +1767,6 @@ class CinderJitModuleTests(StaticTestBase):
             def run_proc(size: str) -> str:
                 args = [
                     sys.executable,
-                    "-X",
-                    "jit",
                     "-X",
                     f"jit-max-code-size={size}",
                     "mod.py",
