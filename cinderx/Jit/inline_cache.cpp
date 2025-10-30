@@ -623,10 +623,15 @@ void AttributeCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
     BorrowedRef<> descr) {
-  if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
+  if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
+    return;
+  }
+
+  // Not working yet.
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
     return;
   }
 
@@ -860,7 +865,7 @@ void LoadTypeAttrCache::typeChanged(
 void LoadTypeAttrCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> value) {
-  if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
+  if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
@@ -1067,7 +1072,7 @@ void LoadMethodCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> value,
     BorrowedRef<> name) {
-  if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
+  if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
@@ -1281,7 +1286,7 @@ void LoadTypeMethodCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> value,
     bool is_unbound_meth) {
-  if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
+  if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.

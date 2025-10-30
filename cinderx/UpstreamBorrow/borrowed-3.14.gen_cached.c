@@ -61,7 +61,7 @@ PyObject *
 _PyType_LookupRefAndVersion(PyTypeObject *type, PyObject *name, unsigned int *version) {
   // This is a bit much to borrow as the dependency tree goes deep... but the version
   // is the version at the start before the MRO
-  bool has_version = PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG);
+  bool has_version = type->tp_version_tag != 0;
   if (!has_version && PyUnstable_Type_AssignVersionTag(type)) {
     has_version = true;
   }

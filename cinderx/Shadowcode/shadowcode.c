@@ -20,6 +20,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/func.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_c_state.h"
@@ -1263,7 +1264,7 @@ static PyObject* _PyShadow_LoadCacheInfo(
   }
 
   /* Cache miss, need to perform MRO walk */
-  if (!PyType_HasFeature(tp, Py_TPFLAGS_VALID_VERSION_TAG)) {
+  if (!Ci_Type_HasValidVersionTag(tp)) {
     /* Obj's type doesn't use PyObject_GenericGetAttr.
        and it's not a module. Mark this call site as uncacheable.
     */

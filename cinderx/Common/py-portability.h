@@ -188,3 +188,10 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
 #define MAKE_FUNCTION_ANNOTATIONS 0x04
 #define MAKE_FUNCTION_CLOSURE 0x08
 #endif
+
+#if PY_VERSION_HEX < 0x030E0000
+#define Ci_Type_HasValidVersionTag(type) \
+  PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)
+#else
+#define Ci_Type_HasValidVersionTag(type) ((type)->tp_version_tag != 0)
+#endif

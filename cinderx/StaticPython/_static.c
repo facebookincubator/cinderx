@@ -13,6 +13,7 @@
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/import.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -439,7 +440,11 @@ static PyObject* ctxmgrwrp_enter(
       return NULL;
     }
 
-    self->recreate_cache_version = Py_TYPE(self->ctxdec)->tp_version_tag;
+    if (Ci_Type_HasValidVersionTag(Py_TYPE(self->ctxdec))) {
+      self->recreate_cache_version = Py_TYPE(self->ctxdec)->tp_version_tag;
+    } else {
+      self->recreate_cache_version = -1;
+    }
   }
 
   PyObject* ctx_mgr = call_with_self(tstate, self->recreate_cm, self->ctxdec);
@@ -461,7 +466,11 @@ static PyObject* ctxmgrwrp_enter(
       return NULL;
     }
 
-    self->cache_version = Py_TYPE(ctx_mgr)->tp_version_tag;
+    if (Ci_Type_HasValidVersionTag(Py_TYPE(ctx_mgr))) {
+      self->cache_version = Py_TYPE(ctx_mgr)->tp_version_tag;
+    } else {
+      self->cache_version = -1;
+    }
   }
 
   PyObject* enter = self->enter;

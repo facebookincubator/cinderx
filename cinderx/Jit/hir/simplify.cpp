@@ -5,6 +5,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
@@ -960,6 +961,12 @@ Register* simplifyLoadAttrSplitDict(
   if (!PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
     return nullptr;
   }
+#if PY_VERSION_HEX >= 0x030E0000
+  if (PyType_HasFeature(type, Py_TPFLAGS_INLINE_VALUES)) {
+    // TASK(T229234686) Support inline values
+    return nullptr;
+  }
+#endif
 #else
   if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE) ||
       type->tp_dictoffset < 0) {
@@ -1173,7 +1180,7 @@ Register* simplifyLoadAttrInstanceReceiver(
   if (getThreadedCompileContext().compileRunning()) {
     // Calling ensureVersionTag() in 3.12+ doesn't work during multi-threaded
     // compile as it wants to access tstate.
-    if (!PyType_HasFeature(py_type, Py_TPFLAGS_VALID_VERSION_TAG)) {
+    if (!Ci_Type_HasValidVersionTag(py_type)) {
       return nullptr;
     }
   } else if (!ensureVersionTag(py_type)) {
