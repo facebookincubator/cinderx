@@ -1141,6 +1141,11 @@ void HIRBuilder::translate(
           break;
         }
         case POP_ITER:
+          if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+            tc.frame.stack.pop();
+          }
+          tc.frame.stack.pop();
+          break;
         case POP_TOP: {
           tc.frame.stack.pop();
           break;
@@ -3952,12 +3957,21 @@ void HIRBuilder::emitGetIter(TranslationContext& tc) {
   Register* result = temps_.AllocateStack();
   tc.emit<GetIter>(result, iterable, tc.frame);
   tc.frame.stack.push(result);
+  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+    // TASK(T243355471): We should support virtual indexing
+    emitPushNull(tc);
+  }
 }
 
 void HIRBuilder::emitForIter(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  Register* iterator = tc.frame.stack.top();
+  Register* iterator;
+  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+    iterator = tc.frame.stack.top(1);
+  } else {
+    iterator = tc.frame.stack.top();
+  }
   Register* next_val = temps_.AllocateStack();
   tc.emit<InvokeIterNext>(next_val, iterator, tc.frame);
   tc.frame.stack.push(next_val);
