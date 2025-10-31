@@ -441,7 +441,6 @@ TRetType JITRT_CallStaticallyWithPrimitiveSignatureTemplate(
   if ((kwnames || nargs != co->co_argcount ||
        co->co_flags & (CO_VARARGS | CO_VARKEYWORDS))) {
     // we need to fixup kwnames, defaults, etc...
-    PyCodeObject* co = (PyCodeObject*)func->func_code;
     const Py_ssize_t total_args = co->co_argcount + co->co_kwonlyargcount +
         ((co->co_flags & CO_VARKEYWORDS) ? 1 : 0) +
         ((co->co_flags & CO_VARARGS) ? 1 : 0);
@@ -1792,8 +1791,8 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
             arg_val, arg_info->tai_args[i].tai_primitive_type);
 
         if (new_val == nullptr) {
-          for (int i = 0; i < allocated_count; i++) {
-            Py_DECREF(allocated_args[i]);
+          for (int j = 0; j < allocated_count; j++) {
+            Py_DECREF(allocated_args[j]);
           }
           return JITRT_StaticCallReturn{nullptr, nullptr};
         }
@@ -1810,8 +1809,8 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
   PyObject* res =
       _PyObject_Vectorcall((PyObject*)func, dest_args, total_args, nullptr);
 
-  for (int i = 0; i < allocated_count; i++) {
-    Py_DECREF(allocated_args[i]);
+  for (int j = 0; j < allocated_count; j++) {
+    Py_DECREF(allocated_args[j]);
   }
 
   // If there was an error, don't try to unbox null
