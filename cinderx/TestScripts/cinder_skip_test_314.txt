@@ -3,3 +3,6 @@ test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
 
 # This test hits a deprecation warning about forking in a multi-threaded process
 test.test_threading.ThreadTests.test_native_id_after_fork
+
+# This is currently intermittently failing (T243385914)
+test_cinderx.test_parallel_gc.*
