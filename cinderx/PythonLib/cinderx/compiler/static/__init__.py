@@ -38,12 +38,14 @@ from ..pyassem import (
     PyFlowGraph,
     PyFlowGraph312,
     PyFlowGraph314,
+    PyFlowGraph315,
     PyFlowGraphCinder310,
 )
 from ..pycodegen import (
     CinderCodeGenerator310,
     CinderCodeGenerator312,
     CinderCodeGenerator314,
+    CinderCodeGenerator315,
     CodeGenerator,
     CodeGenTree,
     compile_code,
@@ -1387,7 +1389,13 @@ class Static314CodeGenerator(Static312CodeGenerator, CinderCodeGenerator314):
         )
 
 
-if sys.version_info >= (3, 14):
+class Static315CodeGenerator(Static314CodeGenerator, CinderCodeGenerator315):
+    pass
+
+
+if sys.version_info >= (3, 15):
+    StaticCodeGenerator = Static315CodeGenerator
+elif sys.version_info >= (3, 14):
     StaticCodeGenerator = Static314CodeGenerator
 elif sys.version_info >= (3, 12):
     StaticCodeGenerator = Static312CodeGenerator

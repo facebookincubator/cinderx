@@ -64,6 +64,7 @@ try:
         PyFlowGraph310,
         PyFlowGraph312,
         PyFlowGraph314,
+        PyFlowGraph315,
         PyFlowGraphCinder310,
         PyFlowGraphCinder312,
         ResumeOparg,
@@ -82,6 +83,7 @@ try:
         SymbolVisitor310,
         SymbolVisitor312,
         SymbolVisitor314,
+        SymbolVisitor315,
         TypeParams,
         TypeParamScope,
         TypeVarDefault,
@@ -7194,6 +7196,10 @@ class CodeGenerator314(CodeGenerator312):
         self.emit("BUILD_INTERPOLATION", oparg)
 
 
+class CodeGenerator315(CodeGenerator314):
+    flow_graph = PyFlowGraph315
+
+
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
     flow_graph = PyFlowGraphCinder310
     _SymbolVisitor = CinderSymbolVisitor
@@ -7298,7 +7304,13 @@ class CinderCodeGenerator314(CinderCodeGenerator312, CodeGenerator314):
     flow_graph = PyFlowGraph314
 
 
+class CinderCodeGenerator315(CinderCodeGenerator312, CodeGenerator315):
+    flow_graph = PyFlowGraph315
+
+
 def get_default_cinder_generator() -> type[CodeGenerator]:
+    if sys.version_info >= (3, 15):
+        return CinderCodeGenerator315
     if sys.version_info >= (3, 14):
         return CinderCodeGenerator314
     elif sys.version_info >= (3, 12):
@@ -7308,6 +7320,8 @@ def get_default_cinder_generator() -> type[CodeGenerator]:
 
 
 def get_default_cpython_generator() -> type[CodeGenerator]:
+    if sys.version_info >= (3, 15):
+        return CodeGenerator315
     if sys.version_info >= (3, 14):
         return CodeGenerator314
     elif sys.version_info >= (3, 12):

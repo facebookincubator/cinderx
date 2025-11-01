@@ -3256,6 +3256,10 @@ class PyFlowGraph314(PyFlowGraph312):
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
 
 
+class PyFlowGraph315(PyFlowGraph314):
+    pass
+
+
 # Constants for reference tracking flags
 SUPPORT_KILLED = (
     1  # The loaded reference is still on the stack when the local is killed

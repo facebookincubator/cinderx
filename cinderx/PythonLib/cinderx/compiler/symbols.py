@@ -1746,3 +1746,7 @@ class SymbolVisitor314(SymbolVisitor312):
         self.visit_list(node.body, scope)
 
         parent.add_child(scope)
+
+
+class SymbolVisitor315(SymbolVisitor314):
+    pass

@@ -796,6 +796,16 @@ if sys.version_info >= (3, 14):
         LOAD_TYPE=1,
         LOAD_METHOD_STATIC=2,
     )
+
+    if sys.version_info >= (3, 15):
+        opcode.popped.update(
+            FOR_ITER=2,
+            POP_ITER=2,
+        )
+        opcode.pushed.update(
+            FOR_ITER=3,
+            GET_ITER=2,
+        )
     for opname, popped in opcode.popped.items():
         pushed = opcode.pushed[opname]
         if isinstance(popped, int) and isinstance(pushed, int):
