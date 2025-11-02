@@ -630,11 +630,6 @@ void AttributeCache::fill(
     return;
   }
 
-  // Not working yet.
-  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-    return;
-  }
-
   AttributeMutator* mut = findEmptyEntry();
   if (mut == nullptr) {
     return;
@@ -662,6 +657,11 @@ void AttributeCache::fill(
       mut->set_descr_or_classvar(type, descr, keys_version);
     }
     ac_watcher.watch(type, this);
+    return;
+  }
+
+  // Not working yet.
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
     return;
   }
 

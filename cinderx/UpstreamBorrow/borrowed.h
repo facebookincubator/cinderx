@@ -91,6 +91,12 @@
 
 #define _PyTraceBack_FromFrame _CiTraceBack_FromFrame
 #define _Py_CalculateSuggestions _Ci_CalculateSuggestions
+
+#define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
+#define _PyDict_CheckConsistency _CiDict_CheckConsistency
+#define _Py_dict_lookup_keep_lazy _Ci_dict_lookup_keep_lazy
+#define _PyDict_SetItem_LockHeld _CiDict_SetItem_LockHeld
+#define _PyInterpreterState_GetConfig _CiInterpreterState_GetConfig
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -246,6 +252,8 @@ void Cix_gen_dealloc_with_custom_free(PyObject* obj);
 uint32_t _CiDict_GetKeysVersionForCurrentState(
     PyInterpreterState* interp,
     PyDictObject* dict);
+
+extern PyDictKeysObject* ci_dict_empty_keys;
 #endif
 
 #ifdef ENABLE_PEP523_HOOK

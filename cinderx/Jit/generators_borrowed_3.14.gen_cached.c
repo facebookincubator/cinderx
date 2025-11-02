@@ -17,6 +17,9 @@
 
 #include "cinderx/Jit/generators_core.h"
 
+#undef _PyObject_GC_TRACK
+#define _PyObject_GC_TRACK PyObject_GC_Track
+
 #define anextawaitableobject_CAST(op)   ((anextawaitableobject *)(op))
 static void
 anextawaitable_dealloc(PyObject *op)

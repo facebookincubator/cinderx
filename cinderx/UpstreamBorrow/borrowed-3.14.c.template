@@ -91,24 +91,88 @@ PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_f
 }
 
 // @Borrow function _PyFunction_GetVersionForCurrentState from Objects/funcobject.c
+// @Borrow function _PyInterpreterState_GetConfig from Python/pystate.c
+
 
 // @Borrow CPP directives noinclude from Objects/dictobject.c
-// @Borrow function values_size_from_count from Objects/dictobject.c
-// @Borrow function free_keys_object from Objects/dictobject.c
-// @Borrow function new_values from Objects/dictobject.c
-// @Borrow function dictkeys_incref from Objects/dictobject.c
-// @Borrow function dictkeys_decref from Objects/dictobject.c
-// @Borrow function free_values from Objects/dictobject.c
-// @Borrow function new_dict from Objects/dictobject.c
-// @Borrow function new_dict_with_shared_keys from Objects/dictobject.c
-// @Borrow function ensure_nonmanaged_dict from Objects/dictobject.c
-int
-Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject *obj, PyObject **dictptr,
-                      PyObject *key, PyObject *value)
-{
-  return PyDict_SetItem(*dictptr, key, value);
-}
+// Several functions in dictobject.c check for exact pointer equality on Py_EMPTY_KEYS
+// but the global it points to is only locally visible. Fortunately, we can extract
+// it by making a new empty dictionary and extracting the keys. We do this on CinderX
+// module initialization.
+#undef Py_EMPTY_KEYS
+PyDictKeysObject* ci_dict_empty_keys;
+#define Py_EMPTY_KEYS ci_dict_empty_keys
 
+// This was mostly generated with:
+//   buck run fbcode//cinderx/UpstreamBorrow:callgraph -- --py_version 3.14 <(echo '{"Objects/dictobject.c": ["_PyObjectDict_SetItem", "_PyDict_LookupIndex", "_Py_dict_lookup",  "_PyDictKeys_StringLookup", "_PyDictKeys_StringLookupSplit", "_PyDictKeys_GetVersionForCurrentState", "_PyDictKeys_StringLookupAndVersion", "_PyDict_GetKeysVersionForCurrentState"]}')
+// except compare_unicode_unicode, compare_unicode_generic, compare_generic.
+// These are referred to by value rather than call expression and :callgraph
+// does not handle this.
+// We also had to explicitly remove PyDict_New() because we need the original
+// version to initialize ci_dict_empty_keys.
+//
+// @Borrow function values_size_from_count from Objects/dictobject.c [3.14]
+// @Borrow function new_values from Objects/dictobject.c [3.14]
+// @Borrow function dictkeys_incref from Objects/dictobject.c [3.14]
+// @Borrow function free_keys_object from Objects/dictobject.c [3.14]
+// @Borrow function dictkeys_decref from Objects/dictobject.c [3.14]
+// @Borrow function free_values from Objects/dictobject.c [3.14]
+// @Borrow function dictkeys_get_index from Objects/dictobject.c [3.14]
+// @Borrow function unicode_get_hash from Objects/dictobject.c [3.14]
+// @Borrow function compare_unicode_unicode from Objects/dictobject.c [3.14]
+// @Borrow function compare_unicode_generic from Objects/dictobject.c [3.14]
+// @Borrow function compare_generic from Objects/dictobject.c [3.14]
+// @Borrow function get_index_from_order from Objects/dictobject.c [3.14]
+// @Borrow function _PyDict_CheckConsistency from Objects/dictobject.c [3.14]
+// @Borrow function new_dict from Objects/dictobject.c [3.14]
+// @Borrow function new_dict_with_shared_keys from Objects/dictobject.c [3.14]
+// @Borrow function ensure_nonmanaged_dict from Objects/dictobject.c [3.14]
+// @Borrow function dict_unhashable_type from Objects/dictobject.c [3.14]
+// @Borrow function do_lookup from Objects/dictobject.c [3.14]
+// @Borrow function unicodekeys_lookup_unicode from Objects/dictobject.c [3.14]
+// @Borrow function unicodekeys_lookup_generic from Objects/dictobject.c [3.14]
+// @Borrow function dictkeys_generic_lookup from Objects/dictobject.c [3.14]
+// @Borrow function _Py_dict_lookup_keep_lazy from Objects/dictobject.c [3.14]
+// @Borrow function lookdict_index from Objects/dictobject.c [3.14]
+// @Borrow function delete_index_from_values from Objects/dictobject.c [3.14]
+// @Borrow function dictkeys_set_index from Objects/dictobject.c [3.14]
+// @Borrow function delitem_common from Objects/dictobject.c [3.14]
+// @Borrow function delitem_knownhash_lock_held from Objects/dictobject.c [3.14]
+// @Borrow function new_keys_object from Objects/dictobject.c [3.14]
+// @Borrow function lazy_import_verbose from Objects/dictobject.c [3.14]
+// @Borrow function insert_to_emptydict from Objects/dictobject.c [3.14]
+// @Borrow function ensure_shared_on_resize from Objects/dictobject.c [3.14]
+// @Borrow function build_indices_generic from Objects/dictobject.c [3.14]
+// @Borrow function build_indices_unicode from Objects/dictobject.c [3.14]
+// @Borrow function set_keys from Objects/dictobject.c [3.14]
+// @Borrow function set_values from Objects/dictobject.c [3.14]
+// @Borrow function invalidate_and_clear_inline_values from Objects/dictobject.c [3.14]
+// @Borrow function dictresize from Objects/dictobject.c [3.14]
+// @Borrow function calculate_log2_keysize from Objects/dictobject.c [3.14]
+// @Borrow function insertion_resize from Objects/dictobject.c [3.14]
+// @Borrow function is_unusable_slot from Objects/dictobject.c [3.14]
+// @Borrow function find_empty_slot from Objects/dictobject.c [3.14]
+// @Borrow function split_keys_entry_added from Objects/dictobject.c [3.14]
+// @Borrow function insert_split_key from Objects/dictobject.c [3.14]
+// @Borrow function insert_split_value from Objects/dictobject.c [3.14]
+// @Borrow function insert_combined_dict from Objects/dictobject.c [3.14]
+// @Borrow function insertdict from Objects/dictobject.c [3.14]
+// @Borrow function setitem_take2_lock_held from Objects/dictobject.c [3.14]
+// @Borrow function setitem_lock_held from Objects/dictobject.c [3.14]
+// @Borrow function _PyDict_SetItem_LockHeld from Objects/dictobject.c [3.14]
+// @Borrow function _PyObjectDict_SetItem from Objects/dictobject.c [3.14]
+// @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.14]
+// @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.14]
+// @Borrow function check_keys_unicode from Objects/dictobject.c [3.14]
+// @Borrow function hash_unicode_key from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_StringLookup from Objects/dictobject.c [3.14]
+// @Borrow function unicodekeys_lookup_split from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_StringLookupSplit from Objects/dictobject.c [3.14]
+// @Borrow function get_next_dict_keys_version from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_GetVersionForCurrentState from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_StringLookupAndVersion from Objects/dictobject.c [3.14]
+// @Borrow function ensure_shared_on_keys_version_assignment from Objects/dictobject.c [3.14]
+// @Borrow function _PyDict_GetKeysVersionForCurrentState from Objects/dictobject.c [3.14]
 
 #define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
 // @Borrow function _PyObject_SetAttributeErrorContext from Objects/object.c
@@ -219,6 +283,7 @@ int init_upstream_borrow(void) {
     "    def __getattribute__(self, name): pass\n";
 
   PyObject *code = NULL, *globals = NULL, *inst = NULL;
+  PyDictObject* empty_dict = NULL;
   int result = -1;
   code = Py_CompileString(code_str, "cinderx_getattr_init.py", Py_file_input);
   if (code == NULL) {
@@ -263,12 +328,19 @@ int init_upstream_borrow(void) {
                     "failed to initialize GetAttr and GetAttribute: got NULL values");
     goto error;
   }
+
+  // Extract the empty keys object which several borrowed functions from
+  // dictobject.c user in pointer equality tests.
+  empty_dict = (PyDictObject*)PyDict_New();
+  ci_dict_empty_keys = empty_dict->ma_keys;
+
   result = 0;
 
 error:
   Py_XDECREF(code);
   Py_XDECREF(globals);
   Py_XDECREF(inst);
+  Py_XDECREF(empty_dict);
   return result;
 }
 
@@ -397,31 +469,6 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 // @Borrow function force_instrument_lock_held from Python/instrumentation.c [3.14]
 // @Borrow function instrument_lock_held from Python/instrumentation.c [3.14]
 // @Borrow function _Py_Instrument from Python/instrumentation.c [3.14]
-
-// @Borrow function ensure_shared_on_keys_version_assignment from Objects/dictobject.c [3.14]
-// @Borrow function get_next_dict_keys_version from Objects/dictobject.c [3.14]
-// @Borrow function _PyDictKeys_GetVersionForCurrentState from Objects/dictobject.c [3.14]
-// @Borrow function _PyDict_GetKeysVersionForCurrentState from Objects/dictobject.c [3.14]
-
-// @Borrow function unicode_get_hash from Objects/dictobject.c [3.14]
-
-// @Borrow function dictkeys_get_index from Objects/dictobject.c [3.14]
-// @Borrow function compare_unicode_unicode from Objects/dictobject.c [3.14]
-// @Borrow function compare_unicode_generic from Objects/dictobject.c [3.14]
-// @Borrow function compare_generic from Objects/dictobject.c [3.14]
-// @Borrow function do_lookup from Objects/dictobject.c [3.14]
-// @Borrow function dictkeys_generic_lookup from Objects/dictobject.c [3.14]
-// @Borrow function unicodekeys_lookup_generic from Objects/dictobject.c [3.14]
-// @Borrow function unicodekeys_lookup_unicode from Objects/dictobject.c [3.14]
-// @Borrow function dict_unhashable_type from Objects/dictobject.c [3.14]
-// @Borrow function check_keys_unicode from Objects/dictobject.c [3.14]
-// @Borrow function hash_unicode_key from Objects/dictobject.c [3.14]
-// @Borrow function unicodekeys_lookup_split from Objects/dictobject.c [3.14]
-// @Borrow function _PyDictKeys_StringLookup from Objects/dictobject.c [3.14]
-// @Borrow function _PyDictKeys_StringLookupAndVersion from Objects/dictobject.c [3.14]
-// @Borrow function _PyDictKeys_StringLookupSplit from Objects/dictobject.c [3.14]
-// @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.14]
-// @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.14]
 
 #define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
 // @Borrow CPP directives noinclude from Python/specialize.c

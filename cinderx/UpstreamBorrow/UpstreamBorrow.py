@@ -194,6 +194,10 @@ class TemplateFileProcessor:
             parsed_file = self.file_parser.parse(source_file)
             # We only need to look for symbols at top level.
             for cursor in parsed_file.translation_unit.cursor.get_children():
+                # Skip definitions in #includes from the source_file
+                if not cursor.extent.start.file.name.endswith(source_file):
+                    continue
+
                 name = cursor.spelling
                 if name in needed_decls.get(cursor.kind, ()):
                     if extent := cursor.extent:
