@@ -149,6 +149,15 @@ void maybeCollectCacheStats(
 
 } // namespace
 
+void AttributeMutator::changeKindFromSplitInline(
+    SplitMutator* split,
+    Kind new_kind) {
+  AttributeMutator* mutator = reinterpret_cast<AttributeMutator*>(
+      reinterpret_cast<uintptr_t>(split) - offsetof(AttributeMutator, split_));
+  mutator->type_ = reinterpret_cast<uintptr_t>(mutator->type()) |
+      static_cast<uintptr_t>(new_kind);
+}
+
 PyDictKeysObject* getSplitKeys(BorrowedRef<PyTypeObject> type) {
   assert(PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE));
   PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(type.get());
@@ -195,8 +204,19 @@ PyObject* SplitMutator::getAttrInline(PyObject* obj, PyObject* name) {
   if (!ensureValueOffset(name)) {
     return PyObject_GetAttr(obj, name);
   }
+  AttributeMutator::changeKindFromSplitInline(
+      this, AttributeMutator::Kind::kSplitInlineKnownOffset);
+  return getAttrInlineKnownOffset(obj, name);
+}
+
+PyObject* SplitMutator::getAttrInlineKnownOffset(
+    PyObject* obj,
+    PyObject* name) {
   PyDictValues* values = _PyObject_InlineValues(obj);
   if (!values->valid) {
+    // Downgrade to the slightly slower path in future
+    AttributeMutator::changeKindFromSplitInline(
+        this, AttributeMutator::Kind::kSplitKnownOffset);
     return getAttr(obj, name);
   }
   PyObject* result = values->values[val_offset];
@@ -204,6 +224,24 @@ PyObject* SplitMutator::getAttrInline(PyObject* obj, PyObject* name) {
     return raise_attribute_error(obj, name);
   }
   return Py_NewRef(result);
+}
+
+PyObject* SplitMutator::getAttrSlowPath(
+    PyObject* obj,
+    PyObject* name,
+    BorrowedRef<PyDictObject> dict) {
+  PyObject* attr_o;
+  int res = [&] {
+    auto strong_ref = Ref<>::create(dict);
+    return PyDict_GetItemRef(dict, name, &attr_o);
+  }();
+  if (res == 0) {
+    return raise_attribute_error(obj, name);
+  }
+  if (res == -1) {
+    return nullptr;
+  }
+  return attr_o;
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -215,20 +253,25 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   if (dict == nullptr) {
     return PyObject_GetAttr(obj, name);
   }
-  if (!ensureValueOffset(name) || dict->ma_keys != keys) {
-    // Slow path
-    PyObject* attr_o;
-    int res = [&] {
-      auto strong_ref = Ref<>::create(dict);
-      return PyDict_GetItemRef(dict, name, &attr_o);
-    }();
-    if (res == 0) {
-      return raise_attribute_error(obj, name);
-    }
-    if (res == -1) {
-      return nullptr;
-    }
-    return attr_o;
+  if (!ensureValueOffset(name)) {
+    return getAttrSlowPath(obj, name, dict);
+  }
+  AttributeMutator::changeKindFromSplitInline(
+      this, AttributeMutator::Kind::kSplitKnownOffset);
+  return getAttrKnownOffset(obj, name);
+}
+
+PyObject* SplitMutator::getAttrKnownOffset(PyObject* obj, PyObject* name) {
+  BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
+
+  JIT_DCHECK(
+      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
+
+  if (dict == nullptr) {
+    return PyObject_GetAttr(obj, name);
+  }
+  if (dict->ma_keys != keys) {
+    return getAttrSlowPath(obj, name, dict);
   }
   JIT_DCHECK(
       DK_IS_UNICODE(keys) && val_offset < keys->dk_nentries,
@@ -247,9 +290,21 @@ int SplitMutator::setAttrInline(
   if (!ensureValueOffset(name)) {
     return PyObject_SetAttr(obj, name, value);
   }
+  AttributeMutator::changeKindFromSplitInline(
+      this, AttributeMutator::Kind::kSplitInlineKnownOffset);
+  return setAttrInlineKnownOffset(obj, name, value);
+}
+
+int SplitMutator::setAttrInlineKnownOffset(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value) {
   PyDictValues* values = _PyObject_InlineValues(obj);
   PyDictObject* dict = _PyObject_GetManagedDict(obj);
   if (!values->valid || dict) {
+    // Downgrade to the slightly slower path in future
+    AttributeMutator::changeKindFromSplitInline(
+        this, AttributeMutator::Kind::kSplitKnownOffset);
     return setAttr(obj, name, value);
   }
   auto old_value = Ref<>::steal(values->values[val_offset]);
@@ -264,6 +319,15 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   if (!ensureValueOffset(name)) {
     return PyObject_SetAttr(obj, name, value);
   }
+  AttributeMutator::changeKindFromSplitInline(
+      this, AttributeMutator::Kind::kSplitKnownOffset);
+  return setAttrKnownOffset(obj, name, value);
+}
+
+int SplitMutator::setAttrKnownOffset(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value) {
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
   if (dict == nullptr) {
     return PyObject_SetAttr(obj, name, value);
@@ -522,11 +586,11 @@ PyTypeObject* AttributeMutator::type() const {
 }
 
 void AttributeMutator::reset() {
-  set_type(nullptr, Kind::kEmpty);
+  type_ = 0;
 }
 
 bool AttributeMutator::isEmpty() const {
-  return get_kind() == Kind::kEmpty;
+  return type_ == 0;
 }
 
 void AttributeMutator::set_combined(PyTypeObject* type) {
@@ -576,13 +640,22 @@ void AttributeMutator::set_split(
 
 inline int
 AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+  JIT_CHECK(
+      !isEmpty(),
+      "Empty attribute mutator setting field {} on object of type {}",
+      repr(name),
+      Py_TYPE(obj)->tp_name);
   AttributeMutator::Kind kind = get_kind();
   switch (kind) {
     case AttributeMutator::Kind::kSplit:
       return split_.setAttr(obj, name, value);
 #if PY_VERSION_HEX >= 0x030E0000
+    case AttributeMutator::Kind::kSplitKnownOffset:
+      return split_.setAttrKnownOffset(obj, name, value);
     case AttributeMutator::Kind::kSplitInline:
       return split_.setAttrInline(obj, name, value);
+    case AttributeMutator::Kind::kSplitInlineKnownOffset:
+      return split_.setAttrInlineKnownOffset(obj, name, value);
 #endif
     case AttributeMutator::Kind::kCombined:
       return combined_.setAttr(obj, name, value);
@@ -599,13 +672,22 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 }
 
 inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
+  JIT_CHECK(
+      !isEmpty(),
+      "Empty attribute mutator getting field {} on object of type {}",
+      repr(name),
+      Py_TYPE(obj)->tp_name);
   AttributeMutator::Kind kind = get_kind();
   switch (kind) {
     case AttributeMutator::Kind::kSplit:
       return split_.getAttr(obj, name);
 #if PY_VERSION_HEX >= 0x030E0000
+    case AttributeMutator::Kind::kSplitKnownOffset:
+      return split_.getAttrKnownOffset(obj, name);
     case AttributeMutator::Kind::kSplitInline:
       return split_.getAttrInline(obj, name);
+    case AttributeMutator::Kind::kSplitInlineKnownOffset:
+      return split_.getAttrInlineKnownOffset(obj, name);
 #endif
     case AttributeMutator::Kind::kCombined:
       return combined_.getAttr(obj, name);

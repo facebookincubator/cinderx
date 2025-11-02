@@ -23,8 +23,16 @@ struct SplitMutator {
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);
 #if PY_VERSION_HEX >= 0x030E0000
+  PyObject* getAttrKnownOffset(PyObject* obj, PyObject* name);
+  int setAttrKnownOffset(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttrInline(PyObject* obj, PyObject* name);
+  PyObject* getAttrSlowPath(
+      PyObject* obj,
+      PyObject* name,
+      BorrowedRef<PyDictObject> dict);
   int setAttrInline(PyObject* obj, PyObject* name, PyObject* value);
+  PyObject* getAttrInlineKnownOffset(PyObject* obj, PyObject* name);
+  int setAttrInlineKnownOffset(PyObject* obj, PyObject* name, PyObject* value);
 #endif
   bool canInsertToSplitDict(BorrowedRef<PyDictObject> dict, BorrowedRef<> name);
   bool ensureValueOffset(BorrowedRef<> name);
@@ -78,9 +86,10 @@ class AttributeMutator {
   // Kind enum is designed to fit within 3 bits and it's value is embedded into
   // the type_ pointer
   enum class Kind : uint8_t {
-    kEmpty,
     kSplit,
+    kSplitKnownOffset,
     kSplitInline,
+    kSplitInlineKnownOffset,
     kCombined,
     kDataDescr,
     kMemberDescr,
@@ -108,6 +117,8 @@ class AttributeMutator {
 
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
+  static void changeKindFromSplitInline(SplitMutator* split, Kind new_kind);
 
  private:
   void set_type(PyTypeObject* type, Kind kind);
