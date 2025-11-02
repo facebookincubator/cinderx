@@ -124,6 +124,8 @@ extern PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
 int _Ci_Instrument(PyCodeObject* co, PyInterpreterState* interp);
 
 Py_ssize_t _PyDict_LookupIndex(PyDictObject*, PyObject*);
+
+Py_ssize_t _PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject* key);
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -178,6 +180,13 @@ void Cix_PyDict_SendEvent(
     PyObject* value);
 
 int Cix_set_attribute_error_context(PyObject* v, PyObject* name);
+
+void Cix_dict_insert_split_value(
+    PyInterpreterState* interp,
+    PyDictObject* mp,
+    PyObject* key,
+    PyObject* value,
+    Py_ssize_t ix);
 
 // TODO: Get rid of this
 #include "internal/pycore_tuple.h"

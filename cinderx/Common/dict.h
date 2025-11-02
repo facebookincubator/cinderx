@@ -61,6 +61,9 @@ static inline bool hasOnlyUnicodeKeys(PyObject* dict) {
 static inline Py_ssize_t getDictKeysIndex(
     PyDictKeysObject* keys,
     PyObject* name) {
+#if PY_VERSION_HEX >= 0x030E0000
+  return _PyDictKeys_StringLookupSplit(keys, name);
+#endif
 #if PY_VERSION_HEX >= 0x030C0000
   for (Py_ssize_t i = 0; i < keys->dk_nentries; i++) {
     PyDictUnicodeEntry* ep = &DK_UNICODE_ENTRIES(keys)[i];

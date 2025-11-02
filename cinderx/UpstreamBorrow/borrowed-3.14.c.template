@@ -174,6 +174,20 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function ensure_shared_on_keys_version_assignment from Objects/dictobject.c [3.14]
 // @Borrow function _PyDict_GetKeysVersionForCurrentState from Objects/dictobject.c [3.14]
 
+void Cix_dict_insert_split_value(
+    PyInterpreterState *interp,
+    PyDictObject *mp,
+    PyObject *key,
+    PyObject *value,
+    Py_ssize_t ix) {
+#if defined(__clang__)
+  [[clang::always_inline]]
+#elif defined(__GNUC__)
+  [[gnu::always_inline]]
+#endif
+  insert_split_value(interp, mp, key, value, ix);
+}
+
 #define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
 // @Borrow function _PyObject_SetAttributeErrorContext from Objects/object.c
 

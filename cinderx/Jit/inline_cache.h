@@ -22,11 +22,19 @@ namespace jit {
 struct SplitMutator {
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject* getAttrInline(PyObject* obj, PyObject* name);
+  int setAttrInline(PyObject* obj, PyObject* name, PyObject* value);
+#endif
   bool canInsertToSplitDict(BorrowedRef<PyDictObject> dict, BorrowedRef<> name);
   bool ensureValueOffset(BorrowedRef<> name);
 
+#if PY_VERSION_HEX < 0x030C0000
   uint32_t dict_offset;
-  uint32_t val_offset;
+  int32_t val_offset;
+#else
+  Py_ssize_t val_offset;
+#endif
   PyDictKeysObject* keys; // Borrowed
 };
 
@@ -72,6 +80,7 @@ class AttributeMutator {
   enum class Kind : uint8_t {
     kEmpty,
     kSplit,
+    kSplitInline,
     kCombined,
     kDataDescr,
     kMemberDescr,
@@ -91,8 +100,11 @@ class AttributeMutator {
   void set_member_descr(PyTypeObject* type, PyObject* descr);
   void
   set_descr_or_classvar(PyTypeObject* type, PyObject* descr, uint keys_version);
-  void
-  set_split(PyTypeObject* type, Py_ssize_t val_offset, PyDictKeysObject* keys);
+  void set_split(
+      PyTypeObject* type,
+      Py_ssize_t val_offset,
+      PyDictKeysObject* keys,
+      bool values_inline);
 
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);

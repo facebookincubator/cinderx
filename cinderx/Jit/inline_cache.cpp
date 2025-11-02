@@ -182,13 +182,105 @@ bool SplitMutator::ensureValueOffset(BorrowedRef<> name) {
     }
   }
 #else
-  assert(val_offset != -1);
+  JIT_DCHECK(
+      val_offset != -1,
+      "Value offset not set for {} on split dict instance",
+      repr(name));
 #endif
   return true;
 }
 
+#if PY_VERSION_HEX >= 0x030E0000
+PyObject* SplitMutator::getAttrInline(PyObject* obj, PyObject* name) {
+  if (!ensureValueOffset(name)) {
+    return PyObject_GetAttr(obj, name);
+  }
+  PyDictValues* values = _PyObject_InlineValues(obj);
+  if (!values->valid) {
+    return getAttr(obj, name);
+  }
+  PyObject* result = values->values[val_offset];
+  if (result == nullptr) {
+    return raise_attribute_error(obj, name);
+  }
+  return Py_NewRef(result);
+}
+
+PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
+  BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
+
+  JIT_DCHECK(
+      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
+
+  if (dict == nullptr) {
+    return PyObject_GetAttr(obj, name);
+  }
+  if (!ensureValueOffset(name) || dict->ma_keys != keys) {
+    // Slow path
+    PyObject* attr_o;
+    int res = [&] {
+      auto strong_ref = Ref<>::create(dict);
+      return PyDict_GetItemRef(dict, name, &attr_o);
+    }();
+    if (res == 0) {
+      return raise_attribute_error(obj, name);
+    }
+    if (res == -1) {
+      return nullptr;
+    }
+    return attr_o;
+  }
+  JIT_DCHECK(
+      DK_IS_UNICODE(keys) && val_offset < keys->dk_nentries,
+      "Expected dictionary keys object to change");
+  PyObject* attr_o = dict->ma_values->values[val_offset];
+  if (attr_o == nullptr) {
+    return raise_attribute_error(obj, name);
+  }
+  return Py_NewRef(attr_o);
+}
+
+int SplitMutator::setAttrInline(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value) {
+  if (!ensureValueOffset(name)) {
+    return PyObject_SetAttr(obj, name, value);
+  }
+  PyDictValues* values = _PyObject_InlineValues(obj);
+  PyDictObject* dict = _PyObject_GetManagedDict(obj);
+  if (!values->valid || dict) {
+    return setAttr(obj, name, value);
+  }
+  auto old_value = Ref<>::steal(values->values[val_offset]);
+  values->values[val_offset] = Py_NewRef(value);
+  if (!old_value) {
+    _PyDictValues_AddToInsertionOrder(values, val_offset);
+  }
+  return 0;
+}
+
 int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
+  if (!ensureValueOffset(name)) {
+    return PyObject_SetAttr(obj, name, value);
+  }
+  BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
+  if (dict == nullptr) {
+    return PyObject_SetAttr(obj, name, value);
+  }
+  if (keys != dict->ma_keys) {
+    // Slow path
+    auto strong_ref = Ref<>::create(dict);
+    return PyDict_SetItem(dict, name, value);
+  }
+  Cix_dict_insert_split_value(
+      _PyInterpreterState_GET(), dict, name, value, val_offset);
+  return 0;
+}
+
+#else
+
+int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 #if PY_VERSION_HEX >= 0x030C0000
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
@@ -212,7 +304,8 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   // Dictionary has been materialized but may still be using shared keys.
   BorrowedRef<PyDictObject> dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
   if (dict == nullptr) {
-    dict = (PyDictObject*)PyObject_GenericGetDict(obj, nullptr);
+    dict =
+        reinterpret_cast<PyDictObject*>(PyObject_GenericGetDict(obj, nullptr));
     if (dict == nullptr) {
       return -1;
     }
@@ -255,16 +348,11 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 
     return 0;
   }
-
   auto strong_ref = Ref<>::create(dict);
   return PyDict_SetItem(dict, name, value);
-#else
-  return 0;
-#endif
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
-#if PY_VERSION_HEX < 0x030E0000
 #if PY_VERSION_HEX >= 0x030C0000
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
@@ -306,10 +394,8 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
   Py_INCREF(result);
   return result;
-#else
-  return nullptr;
-#endif
 }
+#endif // PY_VERSION_HEX < 0x030E0000
 
 int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
@@ -470,17 +556,22 @@ void AttributeMutator::set_descr_or_classvar(
 void AttributeMutator::set_split(
     PyTypeObject* type,
     Py_ssize_t val_offset,
-    PyDictKeysObject* keys) {
-  set_type(type, Kind::kSplit);
+    [[maybe_unused]] PyDictKeysObject* keys,
+    bool inline_values) {
+  set_type(type, inline_values ? Kind::kSplitInline : Kind::kSplit);
+#if PY_VERSION_HEX >= 0x030C0000
+  split_.val_offset = val_offset;
+  split_.keys = keys;
+#else
   JIT_CHECK(
       type->tp_dictoffset <= std::numeric_limits<uint32_t>::max(),
       "Dict offset does not fit into a 32-bit int");
-  JIT_CHECK(
-      val_offset <= std::numeric_limits<uint32_t>::max(),
-      "Val offset does not fit into a 32-bit int");
   split_.dict_offset = static_cast<uint32_t>(type->tp_dictoffset);
-  split_.val_offset = static_cast<uint32_t>(val_offset);
-  split_.keys = keys;
+  JIT_CHECK(
+      val_offset <= std::numeric_limits<int32_t>::max(),
+      "Val offset does not fit into a 32-bit int");
+  split_.val_offset = static_cast<int32_t>(val_offset);
+#endif
 }
 
 inline int
@@ -489,6 +580,10 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   switch (kind) {
     case AttributeMutator::Kind::kSplit:
       return split_.setAttr(obj, name, value);
+#if PY_VERSION_HEX >= 0x030E0000
+    case AttributeMutator::Kind::kSplitInline:
+      return split_.setAttrInline(obj, name, value);
+#endif
     case AttributeMutator::Kind::kCombined:
       return combined_.setAttr(obj, name, value);
     case AttributeMutator::Kind::kDataDescr:
@@ -508,6 +603,10 @@ inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
   switch (kind) {
     case AttributeMutator::Kind::kSplit:
       return split_.getAttr(obj, name);
+#if PY_VERSION_HEX >= 0x030E0000
+    case AttributeMutator::Kind::kSplitInline:
+      return split_.getAttrInline(obj, name);
+#endif
     case AttributeMutator::Kind::kCombined:
       return combined_.getAttr(obj, name);
     case AttributeMutator::Kind::kDataDescr:
@@ -636,6 +735,10 @@ void AttributeCache::fill(
   }
 
   if (descr != nullptr) {
+    // Not yet working.
+    if (PY_VERSION_HEX >= 0x030E0000) {
+      return;
+    }
     BorrowedRef<PyTypeObject> descr_type(Py_TYPE(descr));
     if (descr_type->tp_descr_get != nullptr &&
         descr_type->tp_descr_set != nullptr) {
@@ -671,20 +774,21 @@ void AttributeCache::fill(
 
   // Instance attribute with no shadowing. Specialize the lookup based on
   // whether or not the type is using split dictionaries.
-#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
   PyDictKeysObject* keys = getSplitKeys(type);
 #if PY_VERSION_HEX >= 0x030C0000
   if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
-    assert(keys != nullptr);
-    mut->set_split(type, getDictKeysIndex(keys, name), keys);
+    JIT_DCHECK(keys != nullptr, "Managed dict should have a split dict");
+    bool inline_values = false;
+#if PY_VERSION_HEX >= 0x030E0000
+    inline_values = type->tp_flags & Py_TPFLAGS_INLINE_VALUES;
+#endif
+    mut->set_split(type, getDictKeysIndex(keys, name), keys, inline_values);
 #else
   Py_ssize_t val_offset;
   if (keys != nullptr && (val_offset = getDictKeysIndex(keys, name)) != -1) {
-    mut->set_split(type, val_offset, keys);
+    mut->set_split(type, val_offset, keys, false);
 #endif
-  } else
-#endif
-  {
+  } else {
     mut->set_combined(type);
   }
   ac_watcher.watch(type, this);
