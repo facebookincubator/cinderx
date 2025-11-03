@@ -3262,7 +3262,42 @@ class PyFlowGraph314(PyFlowGraph312):
 
 
 class PyFlowGraph315(PyFlowGraph314):
-    pass
+    def maybe_propagate_location(
+        self, instr: Instruction, loc: AST | SrcLocation
+    ) -> None:
+        if instr.lineno == NO_LOCATION.lineno:
+            instr.loc = loc
+
+    def propagate_line_numbers(self) -> None:
+        """Propagate line numbers to instructions without."""
+        self.duplicate_exits_without_lineno()
+        for block in self.ordered_blocks:
+            if not block.insts:
+                continue
+            prev_loc = NO_LOCATION
+            for instr in block.insts:
+                self.maybe_propagate_location(instr, prev_loc)
+                prev_loc = instr.loc
+            if block.has_fallthrough:
+                next = block.next
+                assert next
+                if next.num_predecessors == 1 and next.insts:
+                    self.maybe_propagate_location(next.insts[0], prev_loc)
+            last_instr = block.insts[-1]
+            if (
+                last_instr.is_jump(self.opcode)
+                and last_instr.opname not in SETUP_OPCODES
+            ):
+                # Only actual jumps, not exception handlers
+                target = last_instr.target
+                assert target
+                while not target.insts and target.num_predecessors == 1:
+                    target = target.next
+                    assert target
+                # CPython doesn't check target.insts and instead can write
+                # to random memory...
+                if target.num_predecessors == 1 and target.insts:
+                    self.maybe_propagate_location(target.insts[0], prev_loc)
 
 
 # Constants for reference tracking flags
