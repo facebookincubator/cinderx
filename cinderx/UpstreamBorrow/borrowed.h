@@ -33,7 +33,6 @@
 #define _PyExc_CreateExceptionGroup _CiExc_CreateExceptionGroup
 // PyObject* _PyExc_CreateExceptionGroup(const char* msg_str, PyObject* excs);
 
-#define _PyFloat_ExactDealloc _CiFloat_ExactDealloc
 #define _PyFloat_FromDouble_ConsumeInputs _CiFloat_FromDouble_ConsumeInputs
 #define _PyDict_GetKeysVersionForCurrentState \
   _CiDict_GetKeysVersionForCurrentState
@@ -97,6 +96,17 @@
 #define _Py_dict_lookup_keep_lazy _Ci_dict_lookup_keep_lazy
 #define _PyDict_SetItem_LockHeld _CiDict_SetItem_LockHeld
 #define _PyInterpreterState_GetConfig _CiInterpreterState_GetConfig
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+PyObject* _PyNumber_InPlacePowerNoMod(PyObject* lhs, PyObject* rhs);
+int _Py_CheckRecursiveCallPy(PyThreadState* tstate);
+PyObject* _PyNumber_PowerNoMod(PyObject* lhs, PyObject* rhs);
+#ifdef __cplusplus
+}
+#endif
+
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000

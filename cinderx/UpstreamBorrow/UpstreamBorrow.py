@@ -216,11 +216,10 @@ class TemplateFileProcessor:
         for line in self.input_lines:
             match line:
                 case Decl(kind, name, source_file, _, transform):
-                    lines = self.decls[source_file][name]
-                    if not lines:
-                        raise RuntimeError(
-                            f"Could not find {kind} for '{name}' in {source_file}"
-                        )
+                    lines = self.decls[source_file].get(name)
+                    if lines is None:
+                        print(f"Could not find {kind} for '{name}' in {source_file}")
+                        continue
                     # Apply custom transformation if one exists for this function
                     if transform in TRANSFORMS:
                         lines = TRANSFORMS[transform](lines)

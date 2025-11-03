@@ -11,6 +11,7 @@
 #include "cinderx/module_c_state.h"
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_bitutils.h"
+#include "internal/pycore_floatobject.h"
 #include "internal/pycore_unicodeobject.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "internal/pycore_function.h"
@@ -593,7 +594,6 @@ LONG_FLOAT_ACTION(compactlong_float_true_div, /)
 // @Borrow function tb_create_raw from Python/traceback.c [3.14]
 // @Borrow function _PyTraceBack_FromFrame from Python/traceback.c [3.14]
 
-// @Borrow function _PyFloat_ExactDealloc from Objects/floatobject.c [3.14]
 // @Borrow function _PyFloat_FromDouble_ConsumeInputs from Objects/floatobject.c [3.14]
 
 // Internal dependencies for gen_dealloc.

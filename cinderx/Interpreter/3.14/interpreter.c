@@ -379,7 +379,7 @@ primitive_compare_op(PyObject *l, PyObject *r, int oparg)
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
 
-#include "cinderx/Interpreter/3.14/Includes/ceval.c"
+#include "cinderx/Interpreter/3.14/ceval.h"
 
 #endif
 
