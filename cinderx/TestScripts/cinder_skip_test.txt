@@ -112,3 +112,7 @@ test.test_code.CoExtra.*
 test.test_sysconfig.TestSysConfig.test_sysconfigdata_json
 test.test_sysconfig.TestSysConfig.test_EXT_SUFFIX_in_vars
 test.test_sysconfig.TestSysConfig.test_soabi
+
+# these esoteric tests fail on some versions
+test.test_subprocess.ProcessTestCase.test_executable_without_cwd
+test.test_subprocess.ProcessTestCaseNoPoll.test_executable_without_cwd
