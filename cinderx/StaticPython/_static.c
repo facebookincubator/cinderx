@@ -1601,6 +1601,7 @@ static PyObject* _static___build_cinder_class__(
     if (has_class_cell) {
       slot_count++;
     }
+#if PY_VERSION_HEX < 0x030F0000
     PyTypeObject* tp = (PyTypeObject*)type;
     if (tp->tp_weaklistoffset && !tp->tp_base->tp_weaklistoffset) {
       slot_count++;
@@ -1608,6 +1609,7 @@ static PyObject* _static___build_cinder_class__(
     if (tp->tp_dictoffset && !tp->tp_base->tp_dictoffset) {
       slot_count++;
     }
+#endif
     // Type by default has 2 references, the one which we'll return, and one
     // which is a circular reference between the type and its MRO
     if (Py_REFCNT(type) != 2 + slot_count) {
