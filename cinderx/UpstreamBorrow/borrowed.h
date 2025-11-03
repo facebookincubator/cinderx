@@ -189,8 +189,12 @@ void Cix_dict_insert_split_value(
     Py_ssize_t ix);
 
 // TODO: Get rid of this
+#if PY_VERSION_HEX < 0x030F0000
 #include "internal/pycore_tuple.h"
 #define Cix_PyTuple_FromArray _PyTuple_FromArray
+#else
+#define Cix_PyTuple_FromArray PyTuple_FromArray
+#endif
 
 #if PY_VERSION_HEX >= 0x030C0000
 
