@@ -2667,9 +2667,14 @@ class CompileTimeTests(unittest.TestCase):
 
     def test_compile_time(self) -> None:
         # This function is known to have a lengthy compile time.
-        #
-        # pyre-ignore[21]: Pyre doesn't know about this function.
-        from sre_compile import _compile
+        try:
+            # pyre-ignore[21]: Pyre doesn't know about this function.
+            from sre_compile import _compile
+        except ImportError:
+            # sre_compile was removed in 3.15, re._compiler is the same func
+            # as it was before.
+            # pyre-ignore[21]: Pyre doesn't know about this function.
+            from re._compiler import _compile
 
         # It's probably already compiled as part of regular startup, but just in case
         # let's make sure.
