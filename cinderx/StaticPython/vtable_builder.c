@@ -502,21 +502,26 @@ int _PyClassLoader_InitSubclassVtables(PyTypeObject* target_type) {
     Py_ssize_t i = 0;
     while (PyDict_Next(subclasses, &i, NULL, &ref)) {
       assert(PyWeakref_CheckRef(ref));
-      ref = PyWeakref_GET_OBJECT(ref);
-      if (ref == Py_None) {
+      int res = PyWeakref_GetRef(ref, &ref);
+      if (res < 0) {
+        return -1;
+      } else if (!res) {
         continue;
       }
 
       PyTypeObject* subtype = (PyTypeObject*)ref;
       if (subtype->tp_cache != NULL) {
         /* already inited */
+        Py_DECREF(ref);
         continue;
       }
 
       _PyType_VTable* vtable = _PyClassLoader_EnsureVtable(subtype, 1);
       if (vtable == NULL) {
+        Py_DECREF(ref);
         return -1;
       }
+      Py_DECREF(ref);
     }
   }
   return 0;
@@ -535,8 +540,11 @@ static void _PyClassLoader_UpdateDerivedSlot(
     Py_ssize_t i = 0;
     while (PyDict_Next(subclasses, &i, NULL, &ref)) {
       assert(PyWeakref_CheckRef(ref));
-      ref = PyWeakref_GET_OBJECT(ref);
-      if (ref == Py_None) {
+      int err = PyWeakref_GetRef(ref, &ref);
+      if (err < 0) {
+        PyErr_Clear();
+        continue;
+      } else if (!err) {
         continue;
       }
 
@@ -544,6 +552,7 @@ static void _PyClassLoader_UpdateDerivedSlot(
       PyObject* override = PyDict_GetItem(_PyType_GetDict(subtype), name);
       if (override != NULL) {
         /* subtype overrides the value */
+        Py_DECREF(ref);
         continue;
       }
 
@@ -555,6 +564,7 @@ static void _PyClassLoader_UpdateDerivedSlot(
       Py_INCREF(state);
 
       _PyClassLoader_UpdateDerivedSlot(subtype, name, index, state, loadfunc);
+      Py_DECREF(ref);
     }
   }
 }
@@ -1320,7 +1330,11 @@ PyTypeObject* get_tracked_type(PyObject* track_map, PyDictObject* dict) {
       _PyDict_GetItem_KnownHash(track_map, (PyObject*)dict, (Py_hash_t)dict);
   if (type_ref != NULL) {
     assert(PyWeakref_CheckRef(type_ref));
-    return (PyTypeObject*)PyWeakref_GetObject(type_ref);
+    PyObject* res;
+    if (PyWeakref_GetRef(type_ref, &res) < 0) {
+      return NULL;
+    }
+    return (PyTypeObject*)res;
   }
   return NULL;
 }
@@ -1398,10 +1412,18 @@ int _PyClassLoader_CheckSubclassChange(
         // address of the subclass and the value is a weakref to the type.
         PyTypeObject* base = get_tracked_type(subclass_map, dict);
         if (base != NULL) {
-          PyObject* subclass = PyWeakref_GetObject(value);
-          if (_PyClassLoader_AddSubclass(base, (PyTypeObject*)subclass) < 0) {
+          PyObject* subclass;
+          if (PyWeakref_GetRef(value, &subclass) < 0) {
+            Py_DECREF(base);
             return -1;
           }
+          if (subclass != NULL &&
+              _PyClassLoader_AddSubclass(base, (PyTypeObject*)subclass) < 0) {
+            Py_DECREF(base);
+            return -1;
+          }
+          Py_XDECREF(subclass);
+          Py_DECREF(base);
         }
       }
     }
@@ -1413,9 +1435,12 @@ int _PyClassLoader_CheckSubclassChange(
         if (type != NULL) {
           if ((type->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) &&
               _PyClassLoader_InitTypeForPatching(type) < 0) {
+            Py_DECREF(type);
             return -1;
           }
-          return _PyClassLoader_UpdateSlot(type, key, value);
+          int res = _PyClassLoader_UpdateSlot(type, key, value);
+          Py_DECREF(type);
+          return res;
         }
       }
       break;

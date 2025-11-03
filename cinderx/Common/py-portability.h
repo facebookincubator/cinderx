@@ -195,3 +195,18 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
 #else
 #define Ci_Type_HasValidVersionTag(type) ((type)->tp_version_tag != 0)
 #endif
+
+#if PY_VERSION_HEX < 0x030D0000
+static inline int PyWeakref_GetRef(PyObject* ref, PyObject** pobj) {
+  if (ref == NULL || !PyWeakref_Check(ref)) {
+    return -1;
+  }
+  *pobj = PyWeakref_GET_OBJECT(ref);
+  if (*pobj == Py_None) {
+    *pobj = NULL;
+    return 0;
+  }
+  Py_INCREF(*pobj);
+  return 1;
+}
+#endif

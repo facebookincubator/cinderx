@@ -7,6 +7,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/modulethunks.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
@@ -140,15 +141,19 @@ static int clear_vtables_recurse(PyTypeObject* type) {
     Py_ssize_t i = 0;
     while (PyDict_Next(subclasses, &i, NULL, &ref)) {
       assert(PyWeakref_CheckRef(ref));
-      ref = PyWeakref_GET_OBJECT(ref);
-      if (ref == Py_None) {
+      int err = PyWeakref_GetRef(ref, &ref);
+      if (err < 0) {
+        return -1;
+      } else if (!err) {
         continue;
       }
 
       assert(PyType_Check(ref));
       if (clear_vtables_recurse((PyTypeObject*)ref)) {
+        Py_DECREF(ref);
         return -1;
       }
+      Py_DECREF(ref);
     }
   }
   return 0;
