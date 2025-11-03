@@ -265,10 +265,11 @@ void GlobalCacheManager::initCache(GlobalCache cache) {
     // The dict getitem could have triggered a lazy import with side effects
     // that unwatched the dict.
 #ifdef ENABLE_LAZY_IMPORTS
-    if (cache.valuePtr()) {
+    if (cache.valuePtr())
+#endif
+    {
       *cache.valuePtr() = globals_value;
     }
-#endif
     return;
   }
 
