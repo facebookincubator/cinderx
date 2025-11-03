@@ -437,7 +437,10 @@ class CallExTests(unittest.TestCase):
         return _simpleFunc(*args, **kwargs)
 
     def test_invalid_kw_type(self) -> None:
-        err = r"_simpleFunc\(\) argument after \*\* must be a mapping, not int"
+        if sys.version_info >= (3, 15):
+            err = r"Value after \*\* must be a mapping, not int"
+        else:
+            err = r"_simpleFunc\(\) argument after \*\* must be a mapping, not int"
         with self.assertRaisesRegex(TypeError, err):
             self._doCall([], 1)
 
