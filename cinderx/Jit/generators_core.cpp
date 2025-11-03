@@ -64,14 +64,31 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
           jit::jitgen_is_coroutine(res)) {
         /* __await__ must return an *iterator*, not
            a coroutine or another awaitable (see PEP 492) */
-        PyErr_SetString(PyExc_TypeError, "__await__() returned a coroutine");
+        if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+          PyErr_Format(
+              PyExc_TypeError,
+              "%T.__await__() must return an iterator, "
+              "not coroutine",
+              o);
+        } else {
+          PyErr_SetString(PyExc_TypeError, "__await__() returned a coroutine");
+        }
         Py_CLEAR(res);
       } else if (!PyIter_Check(res)) {
-        PyErr_Format(
-            PyExc_TypeError,
-            "__await__() returned non-iterator "
-            "of type '%.100s'",
-            Py_TYPE(res)->tp_name);
+        if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+          PyErr_Format(
+              PyExc_TypeError,
+              "%T.__await__() must return an iterator, "
+              "not %T",
+              o,
+              res);
+        } else {
+          PyErr_Format(
+              PyExc_TypeError,
+              "__await__() returned non-iterator "
+              "of type '%.100s'",
+              Py_TYPE(res)->tp_name);
+        }
         Py_CLEAR(res);
       }
     }
