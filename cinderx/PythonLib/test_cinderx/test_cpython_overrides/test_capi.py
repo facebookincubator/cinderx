@@ -27,7 +27,7 @@ class CinderX_CAPITest(unittest.TestCase):
         )
         rc, out, err = assert_python_failure("-c", code)
         err = decode_stderr(err)
-        if "SystemError: " not in err:
+        if "SystemError" not in err:
             self.assertRegex(
                 err,
                 r"Fatal Python error: _Py_CheckSlotResult: "
