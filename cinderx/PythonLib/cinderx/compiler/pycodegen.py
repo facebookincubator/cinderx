@@ -127,6 +127,7 @@ EXCEPTION_HANDLER = 10
 EXCEPTION_GROUP_HANDLER = 11
 ASYNC_COMPREHENSION_GENERATOR = 12
 STOP_ITERATION = 13
+ASYNC_FOR_LOOP = 14
 
 _ZERO: bytes = (0).to_bytes(4, "little")
 
@@ -2385,7 +2386,7 @@ class CodeGenerator(ASTVisitor):
             return None
 
         top = self.setups[-1]
-        if stop_on_loop and top.kind in (WHILE_LOOP, FOR_LOOP):
+        if stop_on_loop and top.kind in (WHILE_LOOP, FOR_LOOP, ASYNC_FOR_LOOP):
             return top
 
         copy = self.pop_fblock()
@@ -3635,7 +3636,7 @@ class CodeGenerator310(CodeGenerator):
         ):
             return
 
-        elif e.kind == FOR_LOOP:
+        elif e.kind == FOR_LOOP or e.kind == ASYNC_FOR_LOOP:
             if preserve_tos:
                 self.emit_rotate_stack(2)
             self.emit("POP_TOP")
@@ -5513,7 +5514,7 @@ class CodeGenerator312(CodeGenerator):
         ):
             return
 
-        elif e.kind == FOR_LOOP:
+        elif e.kind == FOR_LOOP or e.kind == ASYNC_FOR_LOOP:
             if preserve_tos:
                 self.emit_rotate_stack(2)
             self.emit("POP_TOP")
@@ -6294,10 +6295,9 @@ class CodeGenerator314(CodeGenerator312):
         loop = self.newBlock("loop")
         cleanup = self.newBlock("cleanup")
 
-        self.nextBlock(loop)
-        self.emit("FOR_ITER", cleanup)
+        self.prepare_opt_function_loop(loop, cleanup)
         if const is tuple:
-            self.emit("LIST_APPEND", 2)
+            self.emit_opt_function_loop_append()
             self.emit("JUMP", loop)
         else:
             self.emit("TO_BOOL")
@@ -6324,6 +6324,13 @@ class CodeGenerator314(CodeGenerator312):
         self._call_helper(0, node, node.args, node.keywords)
         self.nextBlock(end)
         return True
+
+    def prepare_opt_function_loop(self, loop: Block, cleanup: Block) -> None:
+        self.nextBlock(loop)
+        self.emit("FOR_ITER", cleanup)
+
+    def emit_opt_function_loop_append(self) -> None:
+        self.emit("LIST_APPEND", 2)
 
     def visitCall(self, node: ast.Call) -> None:
         if not self.maybe_optimize_function_call(node):
@@ -6420,7 +6427,7 @@ class CodeGenerator314(CodeGenerator312):
 
             self.nextBlock(start)
 
-            self.push_loop(FOR_LOOP, start, end)
+            self.push_async_for_loop(start, end)
             self.emit("SETUP_FINALLY", except_)
             self.emit("GET_ANEXT")
             self.emit("LOAD_CONST", None)
@@ -6432,7 +6439,7 @@ class CodeGenerator314(CodeGenerator312):
             self.visitStatements(node.body)
             self.set_no_pos()
             self.emitJump(start)
-            self.pop_fblock(FOR_LOOP)
+            self.pop_async_for_loop()
 
             self.nextBlock(except_)
             self.set_pos(node.iter)
@@ -6440,6 +6447,12 @@ class CodeGenerator314(CodeGenerator312):
             if node.orelse:
                 self.visitStatements(node.orelse)
             self.nextBlock(end)
+
+    def push_async_for_loop(self, start: Block, end: Block) -> None:
+        self.push_loop(FOR_LOOP, start, end)
+
+    def pop_async_for_loop(self) -> None:
+        self.pop_fblock(FOR_LOOP)
 
     def push_inlined_comprehension_state(
         self, scope: Scope
@@ -7198,6 +7211,205 @@ class CodeGenerator314(CodeGenerator312):
 
 class CodeGenerator315(CodeGenerator314):
     flow_graph = PyFlowGraph315
+
+    def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
+        if e.kind == FOR_LOOP:
+            if preserve_tos:
+                self.emit("SWAP", 3)
+            self.emit("POP_TOP")
+            self.emit("POP_TOP")
+            return
+        elif e.kind == ASYNC_FOR_LOOP:
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+            return
+
+        return super().unwind_setup_entry(e, preserve_tos)
+
+    def _compile_async_comprehension(
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        iter_on_stack: bool,
+    ) -> None:
+        start = self.newBlock("start")
+        except_ = self.newBlock("except")
+        if_cleanup = self.newBlock("if_cleanup")
+        send = self.newBlock("send")
+
+        gen = comp.generators[gen_index]
+        if not iter_on_stack:
+            if gen_index == 0:
+                self.loadName(".0")
+            else:
+                self.visit(gen.iter)
+                self.set_pos(comp)
+
+        self.graph.emit_with_loc("GET_AITER", 0, gen.iter)
+        self.nextBlock(start)
+        self.emit("SETUP_FINALLY", except_)
+        self.emit("GET_ANEXT")
+        self.emit("LOAD_CONST", None)
+        self.nextBlock(send)
+        self.emit_yield_from(await_=True)
+        self.emit("POP_BLOCK")
+        self.visit(gen.target)
+
+        for if_ in gen.ifs:
+            self.compileJumpIf(if_, if_cleanup, False)
+            self.newBlock()
+
+        depth += 1
+        gen_index += 1
+        elt_loc = elt
+        if gen_index < len(comp.generators):
+            self.compile_comprehension_generator(
+                comp, gen_index, depth, elt, val, type, False
+            )
+        elif type is ast.GeneratorExp:
+            self.visit(elt)
+            self.set_pos(elt)
+            self.emit_yield(self.scopes[comp])
+            self.emit("POP_TOP")
+        elif type is ast.ListComp:
+            self.visit(elt)
+            self.set_pos(elt)
+            self.emit("LIST_APPEND", depth + 1)
+        elif type is ast.SetComp:
+            self.visit(elt)
+            self.set_pos(elt)
+            self.emit("SET_ADD", depth + 1)
+        elif type is ast.DictComp:
+            assert val is not None
+            self.compile_dictcomp_element(elt, val)
+            elt_loc = SrcLocation(
+                elt.lineno,
+                val.end_lineno or 0,
+                elt.col_offset,
+                val.end_col_offset or 0,
+            )
+            self.set_pos(elt_loc)
+            self.emit("MAP_ADD", depth + 1)
+        else:
+            raise NotImplementedError("unknown comprehension type")
+
+        self.nextBlock(if_cleanup)
+        self.set_pos(elt_loc)
+        self.emitJump(start)
+
+        self.nextBlock(except_)
+        self.set_pos(comp)
+        self.emit("END_ASYNC_FOR", send)
+
+    def _compile_sync_comprehension(
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        iter_on_stack: bool,
+    ) -> None:
+        start = self.newBlock("start")
+        skip = self.newBlock("skip")
+        if_cleanup = self.newBlock("if_cleanup")
+        anchor = self.newBlock("anchor")
+
+        gen = comp.generators[gen_index]
+        if not iter_on_stack:
+            if gen_index == 0:
+                self.loadName(".0")
+            else:
+                if isinstance(gen.iter, (ast.Tuple, ast.List)):
+                    elts = gen.iter.elts
+                    if len(elts) == 1 and not isinstance(elts[0], ast.Starred):
+                        self.visit(elts[0])
+                        start = None
+                if start:
+                    self.set_pos(comp)
+                    self.compile_comprehension_iter(gen)
+
+        if start:
+            depth += 2
+            self.graph.emit_with_loc("GET_ITER", 0, gen.iter)
+            self.nextBlock(start)
+            if IS_3_12_8:
+                self.graph.set_pos(gen.iter)
+                self.graph.emit_with_loc("FOR_ITER", anchor, gen.iter)
+            else:
+                self.emit("FOR_ITER", anchor)
+            self.nextBlock()
+        self.visit(gen.target)
+
+        for if_ in gen.ifs:
+            self.compileJumpIf(if_, if_cleanup, False)
+            self.newBlock()
+
+        gen_index += 1
+        elt_loc = elt
+        if gen_index < len(comp.generators):
+            self.compile_comprehension_generator(
+                comp, gen_index, depth, elt, val, type, False
+            )
+        else:
+            if type is ast.GeneratorExp:
+                self.set_pos(elt)
+                self.visit(elt)
+                self.emit_yield(self.scopes[comp])
+                self.emit("POP_TOP")
+            elif type is ast.ListComp:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit("LIST_APPEND", depth + 1)
+            elif type is ast.SetComp:
+                self.set_pos(elt)
+                self.visit(elt)
+                self.emit("SET_ADD", depth + 1)
+            elif type is ast.DictComp:
+                assert elt is not None and val is not None
+                self.compile_dictcomp_element(elt, val)
+                elt_loc = SrcLocation(
+                    elt.lineno,
+                    val.end_lineno or 0,
+                    elt.col_offset,
+                    val.end_col_offset or 0,
+                )
+                self.set_pos(elt_loc)
+                self.emit("MAP_ADD", depth + 1)
+            else:
+                raise NotImplementedError("unknown comprehension type")
+
+            self.nextBlock(skip)
+        self.nextBlock(if_cleanup)
+        if start:
+            self.set_pos(elt_loc)
+            self.emitJump(start)
+            self.nextBlock(anchor)
+            self.set_pos(comp)
+            self.emit_end_for()
+
+    def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
+        self.visit(gen.iter)
+
+    def push_async_for_loop(self, start: Block, end: Block) -> None:
+        self.push_loop(ASYNC_FOR_LOOP, start, end)
+
+    def pop_async_for_loop(self) -> None:
+        self.pop_fblock(ASYNC_FOR_LOOP)
+
+    def prepare_opt_function_loop(self, loop: Block, cleanup: Block) -> None:
+        self.emit("PUSH_NULL")  # Push NULL index for loop
+        self.nextBlock(loop)
+        self.emit("FOR_ITER", cleanup)
+
+    def emit_opt_function_loop_append(self) -> None:
+        self.emit("LIST_APPEND", 3)
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):

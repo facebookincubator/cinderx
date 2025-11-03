@@ -138,7 +138,7 @@ from ..consts import CI_CO_STATICALLY_COMPILED
 from ..errors import TypedSyntaxError
 from ..optimizer import AstOptimizer
 from ..pyassem import Block, FVC_REPR
-from ..pycodegen import CodeGenerator, FOR_LOOP
+from ..pycodegen import ASYNC_FOR_LOOP, CodeGenerator, FOR_LOOP
 from ..symbols import FunctionScope
 from ..unparse import to_expr
 from ..visitor import ASTRewriter, TAst
@@ -6906,7 +6906,8 @@ class CRangeIterator(Object[Class]):
         descr = ("__static__", "int64", "#")
 
         code_gen.set_pos(node)
-        code_gen.push_loop(FOR_LOOP, start, after)
+        # We use ASYNC_FOR_LOOP as we don't push the extra index value on 3.15+
+        code_gen.push_loop(ASYNC_FOR_LOOP, start, after)
 
         # Put the iteration limit and start value on the stack (a primitive)
         code_gen.visit(node.iter)
@@ -7601,7 +7602,8 @@ def common_sequence_emit_forloop(
     after = code_gen.newBlock("seq_forloop_after")
     with code_gen.new_loopidx() as loop_idx:
         code_gen.set_pos(node)
-        code_gen.push_loop(FOR_LOOP, start, after)
+        # We use ASYNC_FOR_LOOP as we don't push the extra index value on 3.15+
+        code_gen.push_loop(ASYNC_FOR_LOOP, start, after)
         code_gen.visit(node.iter)
 
         code_gen.emit("PRIMITIVE_LOAD_CONST", (0, TYPED_INT64))

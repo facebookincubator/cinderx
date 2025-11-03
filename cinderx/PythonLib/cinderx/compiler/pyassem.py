@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from ast import AST
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stdout
@@ -87,6 +89,19 @@ FVC_ASCII = 0x3
 FVS_MASK = 0x4
 FVS_HAVE_SPEC = 0x4
 
+NO_INPUT_INSTRS = {
+    "FORMAT_SIMPLE",
+    "GET_ANEXT",
+    "GET_LEN",
+    "GET_YIELD_FROM_ITER",
+    "IMPORT_FROM",
+    "MATCH_KEYS",
+    "MATCH_MAPPING",
+    "MATCH_SEQUENCE",
+    "WITH_EXCEPT_START",
+}
+if sys.version_info >= (3, 15):
+    NO_INPUT_INSTRS.add("GET_ITER")
 
 UNCONDITIONAL_JUMP_OPCODES = (
     "JUMP_ABSOLUTE",
@@ -2952,17 +2967,7 @@ class PyFlowGraph314(PyFlowGraph312):
                 # how many inputs should be left on the stack.
 
                 # Opcodes that consume no inputs
-                elif opcode in (
-                    "FORMAT_SIMPLE",
-                    "GET_ANEXT",
-                    "GET_LEN",
-                    "GET_YIELD_FROM_ITER",
-                    "IMPORT_FROM",
-                    "MATCH_KEYS",
-                    "MATCH_MAPPING",
-                    "MATCH_SEQUENCE",
-                    "WITH_EXCEPT_START",
-                ):
+                elif opcode in NO_INPUT_INSTRS:
                     delta = self.opcode.stack_effect_raw(opcode, oparg, False)
                     assert delta >= 0
                     for _ in range(delta):
