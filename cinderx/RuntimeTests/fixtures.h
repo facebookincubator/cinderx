@@ -219,7 +219,7 @@ class RuntimeTest : public ::testing::Test {
             Ref<>::steal(PyUnicode_FromString(JIT_TEST_MOD_NAME)))) {
       return Ref<>(nullptr);
     }
-    auto args = Ref<>::steal(PyTuple_New(2));
+    auto args = Ref<>::steal(PyTuple_New(1));
     if (args == nullptr) {
       return args;
     }

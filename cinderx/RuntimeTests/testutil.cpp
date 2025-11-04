@@ -138,6 +138,7 @@ std::unique_ptr<HIRTestSuite> initTestSuite(Reader& reader) {
 enum class ScanStatus {
   End,
   Skip,
+  NextTest,
   Ok,
 };
 
@@ -159,6 +160,9 @@ ScanStatus scanUntilExpected(Reader& reader, std::string_view delim) {
       return ScanStatus::End;
     }
     if (line == "--- Test Name ---") {
+      return ScanStatus::NextTest;
+    }
+    if (line == "--- Skip ---") {
       return ScanStatus::Skip;
     }
     if (line.starts_with(expected_prefix)) {
@@ -223,6 +227,7 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
     }
 
     bool is_skip = false;
+    bool missing = false;
 
     // Scan until the correct expected block.
     switch (scanUntilExpected(reader, expected_delimiter)) {
@@ -231,40 +236,50 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
       case ScanStatus::Skip:
         is_skip = true;
         break;
+      case ScanStatus::NextTest:
+        missing = true;
+        break;
       case ScanStatus::Ok:
         break;
     }
 
-    std::string hir = !is_skip ? reader.readUntilDelim() : "";
+    std::string hir = missing || is_skip ? "" : reader.readUntilDelim();
 
-    HIRTestCase& test_case = suite->test_cases.emplace_back();
-    test_case.name = std::string{name};
-    test_case.src = src;
-    test_case.expected = std::string{hir};
-    test_case.src_is_hir = src_is_hir;
-    test_case.is_skip = is_skip;
+    if (!is_skip) {
+      HIRTestCase& test_case = suite->test_cases.emplace_back();
+      test_case.name = std::string{name};
+      test_case.src = src;
+      test_case.expected = std::string{hir};
+      test_case.src_is_hir = src_is_hir;
+      // A disabled test will be flagged by the test system as
+      // skipped (rather than excluded from view which is what our "-- Skip --"
+      // does).
+      test_case.is_skip = test_case.name.starts_with(kDisabledPrefix);
+    }
 
-    if (is_skip) {
+    if (missing) {
       continue;
     }
 
     // Now have to scan past any other expected outputs afterwards until we hit
     // the next test or the end.
-    switch (scanUntilExpected(reader, expected_delimiter)) {
-      case ScanStatus::End:
-        return suite;
-      case ScanStatus::Skip:
-        break;
-      case ScanStatus::Ok:
-        reader.err(
-            "Test '{}.{}' has two '{}' sections",
-            suite->name,
-            name,
-            expected_delimiter);
-    }
-
-    if (test_case.name.starts_with(kDisabledPrefix)) {
-      test_case.is_skip = true;
+    while (true) {
+      switch (scanUntilExpected(reader, expected_delimiter)) {
+        case ScanStatus::End:
+          return suite;
+        case ScanStatus::Skip:
+          // Need to keep scanning to find the next test/eof.
+          continue;
+        case ScanStatus::NextTest:
+          break;
+        case ScanStatus::Ok:
+          reader.err(
+              "Test '{}.{}' has two '{}' sections",
+              suite->name,
+              name,
+              expected_delimiter);
+      }
+      break;
     }
   }
 

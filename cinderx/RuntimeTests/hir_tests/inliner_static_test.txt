@@ -75,6 +75,55 @@ fun jittestmodule:test {
     Return v16
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    Snapshot
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v7:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 2
+    }
+    Snapshot
+    v14:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v14
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v15:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v16:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v16
+  }
+}
 --- Test Name ---
 InvokeStaticFunctionWithArgs
 --- Input ---
@@ -164,6 +213,65 @@ fun jittestmodule:test {
     Return v32
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    Snapshot
+    v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 6
+    }
+    Snapshot
+    v23:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v23
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v24:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v10 v11
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    UseType<LongExact> v10
+    UseType<LongExact> v11
+    UseType<ImmortalLongExact[1]> v10
+    UseType<ImmortalLongExact[2]> v11
+    v32:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v32
+  }
+}
 --- Test Name ---
 InvokeStaticFunctionReturningCType
 --- Input ---
@@ -217,6 +325,54 @@ fun jittestmodule:test {
     }
     Snapshot
     v14:CInt32 = LoadEvalBreaker
+    CondBranch<5, 4> v14
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v15:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v16:CInt8[4] = LoadConst<CInt8[4]>
+    EndInlinedFunction
+    Snapshot
+    Return<CInt8> v16
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    Snapshot
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v7:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 2
+    }
+    Snapshot
+    v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 

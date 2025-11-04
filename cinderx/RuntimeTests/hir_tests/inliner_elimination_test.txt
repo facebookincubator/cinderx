@@ -86,6 +86,42 @@ fun jittestmodule:test {
     Return v20
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v8:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:OptObject = LoadGlobalCached<0; "foo">
+    v10:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: foo'
+    }
+    v11:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v12:Object = CallMethod<2> v10 v11 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v12
+  }
+}
 --- Test Name ---
 InlineMultipleFunctions
 --- Input ---
@@ -223,6 +259,61 @@ fun jittestmodule:test {
     v47:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
     Return v47
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    Snapshot
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "foo">
+    v14:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: foo'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v16:Object = CallMethod<2> v14 v15 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v17:OptObject = LoadGlobalCached<1; "bar">
+    v18:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v17 {
+      Descr 'LOAD_GLOBAL: bar'
+    }
+    v19:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v20:Object = CallMethod<2> v18 v19 {
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v16
+      }
+    }
+    Snapshot
+    v21:Object = BinaryOp<Add> v16 v20 {
+      FrameState {
+        CurInstrOffset 38
+      }
+    }
+    Snapshot
+    Return v21
   }
 }
 --- Test Name ---

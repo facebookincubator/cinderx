@@ -88,6 +88,53 @@ fun jittestmodule:test {
     Return<CInt64> v9
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "a", Array>
+    v1 = LoadCurrentFunc
+    Snapshot
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v4 = LoadConst<ImmortalLongExact[2]>
+    Snapshot
+    v4 = RefineType<LongExact> v4
+    v5 = PrimitiveUnbox<CInt64> v4
+    v6 = IsNegativeAndErrOccurred v5 {
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v0
+        Stack<1> v0
+      }
+    }
+    v7 = CheckSequenceBounds v0 v5 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v0
+      }
+    }
+    v10 = LoadConst<CInt64[24]>
+    v8 = LoadFieldAddress v0 v10
+    v9 = LoadArrayItem v8 v7 v0
+    Snapshot
+    Return<CInt64> v9
+  }
+}
 --- Test Name ---
 ArrayAssignEmitsStoreArrayItem
 --- Input ---
