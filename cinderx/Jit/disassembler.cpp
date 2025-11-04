@@ -124,7 +124,8 @@ void Disassembler::disassemble(std::ostream& os, size_t handle) {
       cs_malloc(handle), insn_deleter);
 
   if (!cs_disasm_iter(handle, &code, &size, &address, insn.get())) {
-    throw std::runtime_error{"Failed to disassemble instruction"};
+    fmt::print(os, "RAW: 0x{:02x}", static_cast<unsigned char>(buf_[start_++]));
+    return;
   }
 
   fmt::print(os, "{} {}", insn->mnemonic, insn->op_str);
