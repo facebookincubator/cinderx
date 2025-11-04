@@ -16,6 +16,8 @@ import cinderx.jit
 
 from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
 
+SKIP_315: bool = sys.version_info >= (3, 15)
+
 
 class PreloadTests(unittest.TestCase):
     SCRIPT_FILE: str = os.path.join(
@@ -23,6 +25,7 @@ class PreloadTests(unittest.TestCase):
     )
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
+    @unittest.skipIf(SKIP_315, "no lazy imports on 3.15 T243514540")
     def test_func_destroyed_during_preload(self) -> None:
         proc = subprocess.run(
             [
@@ -63,6 +66,10 @@ hello from b_func!
             [True, False] if cinderx.jit.is_enabled() else [False],
             [True, False],
         ):
+            if sys.version_info >= (3, 15) and lazyimports:
+                # T243514540: lazy imports isn't available on 3.15
+                continue
+
             root = os.path.join(
                 os.path.dirname(__file__),
                 "data/preload_error_recursive" if recursive else "data/preload_error",
@@ -106,6 +113,10 @@ hello from b_func!
             [True, False],
             [True, False] if cinderx.jit.is_enabled() else [False],
         ):
+            if sys.version_info >= (3, 15) and lazy_imports:
+                # T243514540: lazy imports isn't available on 3.15
+                continue
+
             with self.subTest(lazy_imports=lazy_imports, jit=jit):
                 cmd = [sys.executable]
                 if jit:
