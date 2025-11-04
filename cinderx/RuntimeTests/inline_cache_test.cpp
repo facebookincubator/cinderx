@@ -1,11 +1,14 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include <gtest/gtest.h>
-#if PY_VERSION_HEX < 0x030C0000
-#endif
+
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+
+#if PY_VERSION_HEX > 0x030E0000
+#include <pycore_unicodeobject.h>
+#endif
 
 #include <cstring>
 
@@ -98,7 +101,12 @@ module_meth = functools._unwrap_partial
   PyObject* module_meth = PyDict_GetItemString(locals, "module_meth");
   ASSERT_NE(module_meth, nullptr) << "Couldn't get PyObject module_meth";
 
-  auto name = Ref<>::steal(PyUnicode_FromString("_unwrap_partial"));
+  PyObject* name_obj = PyUnicode_FromString("_unwrap_partial");
+  ASSERT_NE(name_obj, nullptr) << "Couldn't create name object";
+#if PY_VERSION_HEX >= 0x030E0000
+  _PyUnicode_InternImmortal(PyInterpreterState_Get(), &name_obj);
+#endif
+  auto name = Ref<>::steal(name_obj);
 
   jit::LoadModuleMethodCache cache;
   auto res = cache.lookup(functools_mod, name);
