@@ -1,0 +1,7 @@
+# Profile tests don't pass w/ the JIT
+test.test_profiling.test_tracing_profiler.CProfileTest.test_cprofile
+test.test_profiling.test_sampling_profiler.TestSampleProfilerErrorHandling.test_script_error_treatment
+test.test_profiling.test_tracing_profiler.CProfileTest.test_evil_external_timer
+test.test_profiling.test_tracing_profiler.CProfileTest.test_bad_counter_during_dealloc
+test.test_profiling.test_sampling_profiler.TestSampleProfilerIntegration.test_sample_target_script
+test.test_profiling.test_sampling_profiler.TestSampleProfilerIntegration.test_sample_target_module
