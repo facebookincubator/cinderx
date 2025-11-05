@@ -83,19 +83,34 @@ class BuildPy(build_py):
 
 
 class CMakeExtension(Extension):
-    def __init__(self, name: str) -> None:
-        # Stop the base class from building any sources.
-        super().__init__(name, sources=[])
+    """
+    Subclass to indicate to BuildExt that this should be handled specially.
+    """
+
+    pass
 
 
 class BuildExt(build_ext):
     def run(self) -> None:
+        # Partition into CMake extensions and everything else.
+        cmake_extensions = []
+        other_extensions = []
         # pyre-ignore[16]: No pyre types for build_ext.
         for extension in self.extensions:
+            if isinstance(extension, CMakeExtension):
+                cmake_extensions.append(extension)
+            else:
+                other_extensions.append(extension)
+
+        # Handle CMake specially, leave everything else to super().
+        for extension in cmake_extensions:
             self._run_cmake(extension)
+
+        # pyre-ignore[16]: No pyre types for build_ext.
+        self.extensions = other_extensions
         super().run()
 
-    def _run_cmake(self, extension: Extension) -> None:
+    def _run_cmake(self, extension: CMakeExtension) -> None:
         # pyre-ignore[16]: No pyre types for build_ext.
         build_dir = self.build_temp
         os.makedirs(build_dir, exist_ok=True)
