@@ -262,7 +262,6 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
 }
 
 void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
-#if defined(CINDER_X86_64)
   auto as = env->as;
 
   auto patcher =
@@ -273,9 +272,9 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   // we can prove that the following bytes are not the target of a jump.
   auto patchpoint_label = as->newLabel();
   as->bind(patchpoint_label);
-  for (uint8_t byte : patcher->storedBytes()) {
-    as->db(byte);
-  }
+
+  auto stored_bytes = patcher->storedBytes();
+  as->embed(stored_bytes.data(), stored_bytes.size());
 
   // Fill in deopt metadata
   auto index = instr->getInput(1)->getConstant();
@@ -288,9 +287,6 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   // once code generation has completed.
   env->pending_deopt_patchers.emplace_back(
       patcher, patchpoint_label, deopt_label);
-#else
-  CINDER_UNSUPPORTED
-#endif
 }
 
 void TranslateCompare(Environ* env, const Instruction* instr) {
