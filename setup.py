@@ -218,7 +218,12 @@ def main() -> None:
             "Intended Audience :: Developers",
             "License :: OSI Approved :: MIT License",
         ],
-        ext_modules=[CMakeExtension(".")],
+        ext_modules=[
+            CMakeExtension(
+                name="_cinderx",
+                sources=native_sources,
+            ),
+        ],
         sources=sources,
         cmdclass={
             "build": BuildCommand,
