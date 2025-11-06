@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/lir/parser.h"
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/symbol_mapping.h"
@@ -33,10 +34,16 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"BB %(\\d+)( - .*)?\n", kBasicBlockStart},
       {"\n", kNewLine},
       {"%(\\d+)", kVReg},
+#if defined(CINDER_X86_64)
       {"R[A-DS][IPX]", kPhyReg},
       {"R[0-9]+[BWD]?", kPhyReg},
       {"E[A-DS][IPX]", kPhyReg},
       {"[A-DS][IPX]L?", kPhyReg},
+#elif defined(CINDER_AARCH64)
+      {"[XWD][0-9]+", kPhyReg},
+#else
+      {"[RD][0-9]+", kPhyReg},
+#endif
       {"XMM[0-9]+", kPhyReg},
       {R"(\[RBP[ ]?-[ ]?(\d+)\])", kStack},
       {"\\[(0x[0-9a-fA-F]+)\\]", kAddress},
@@ -466,7 +473,7 @@ void Parser::parseIndirect(
 
   // parse base register
   std::regex base_reg = std::regex("\\[%(\\d+):[0-9a-zA-Z]+");
-  std::regex base_phys = std::regex("\\[(R[0-9A-Z]+):Object");
+  std::regex base_phys = std::regex("\\[([RX][0-9A-Z]+):Object");
   if (std::regex_search(token.begin(), token.end(), m, base_reg)) {
     auto base_id = std::stoll(m.str(1).c_str(), nullptr, 0);
     base = map_get_throw<ParserException>(
@@ -481,7 +488,8 @@ void Parser::parseIndirect(
 
   // parse index and multiplier
   std::regex index_reg = std::regex(R"(\+ %(\d+):[0-9a-zA-Z]+( \* (\d+))?)");
-  std::regex index_phys = std::regex(R"(\+ (R[0-9A-Z]+):Object( \* (\d+))?)");
+  std::regex index_phys =
+      std::regex(R"(\+ ([RX][0-9A-Z]+):Object( \* (\d+))?)");
   bool index_re_success = false;
   if (std::regex_search(token.begin(), token.end(), m, index_reg)) {
     auto index_id = std::stoll(m.str(1).c_str(), nullptr, 0);
