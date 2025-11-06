@@ -36,7 +36,7 @@ bool OperandBase::isFp() const {
   return dataType() == kDouble;
 }
 
-bool OperandBase::isXmm() const {
+bool OperandBase::isVecD() const {
   return getPhyRegister().is_fp_register();
 }
 

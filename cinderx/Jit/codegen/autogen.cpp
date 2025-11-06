@@ -112,7 +112,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
 
     switch (operand->type()) {
       case OperandBase::kReg:
-        pattern += (operand->isXmm() ? "X" : "R");
+        pattern += (operand->isVecD() ? "X" : "R");
         break;
       case OperandBase::kStack:
       case OperandBase::kMem:
@@ -127,7 +127,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
   instr->foreachInputOperand([&](const OperandBase* operand) {
     switch (operand->type()) {
       case OperandBase::kReg:
-        pattern += (operand->isXmm() ? "x" : "r");
+        pattern += (operand->isVecD() ? "x" : "r");
         break;
       case OperandBase::kStack:
       case OperandBase::kMem:
@@ -296,7 +296,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
 
   if (inp1->isImm() || inp1->isMem()) {
     as->cmp(AutoTranslator::getGp(inp0), inp1->getConstantOrAddress());
-  } else if (!inp1->isXmm()) {
+  } else if (!inp1->isVecD()) {
     as->cmp(AutoTranslator::getGp(inp0), AutoTranslator::getGp(inp1));
   } else {
     as->comisd(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
@@ -773,7 +773,7 @@ struct RegOperand {
 };
 
 template <int N>
-struct XmmOperand {
+struct VecDOperand {
   using asmjit_type = const arch::VecD&;
   static arch::VecD GetAsmOperand(Environ*, const Instruction* instr) {
 #if defined(CINDER_X86_64)
@@ -792,7 +792,7 @@ struct XmmOperand {
       ImmOperand<v>,                                \
       std::conditional_t<                           \
           (pattern[v] == 'x' || pattern[v] == 'X'), \
-          XmmOperand<v>,                            \
+          VecDOperand<v>,                           \
           RegOperand<v>>>
 
 #define REG_OP(v, size) RegOperand<v, size>
@@ -968,8 +968,8 @@ struct AddDebugEntryAction {
 // of the following:
 //   * 'R' - general purpose register operand output
 //   * 'r' - general purpose register operand input
-//   * 'X' - XMM floating-point register operand output
-//   * 'x' - XMM floating-point register operand input
+//   * 'X' - floating-point register operand output
+//   * 'x' - floating-point register operand input
 //   * 'i' - immediate operand input
 //   * 'M' - memory stack operand output
 //   * 'm' - memory stack operand input

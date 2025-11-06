@@ -56,7 +56,7 @@ class OperandBase {
   void releaseFromInstr();
 
   bool isFp() const;
-  bool isXmm() const;
+  bool isVecD() const;
 
   bool isLastUse() const;
   void setLastUse();

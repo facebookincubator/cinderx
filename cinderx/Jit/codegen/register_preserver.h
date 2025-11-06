@@ -9,7 +9,7 @@
 namespace jit::codegen {
 
 // RegisterPreserver helps with preserving and restoring registers during code
-// generation. It handles both general-purpose and XMM registers, and ensures
+// generation. It handles both general-purpose and vector registers, and ensures
 // proper stack alignment.
 class RegisterPreserver {
  public:
