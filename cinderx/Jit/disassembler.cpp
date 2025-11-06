@@ -39,6 +39,10 @@ void Disassembler::disassemble(std::ostream& os, size_t handle) {}
 #include "capstone/capstone.h"
 #pragma GCC diagnostic pop
 
+#if defined(__aarch64__)
+#include "capstone/arm64.h"
+#endif
+
 namespace jit {
 
 Disassembler::Disassembler(const char* buf, size_t size)
@@ -117,7 +121,7 @@ void Disassembler::disassemble(std::ostream& os, size_t handle) {
 
   auto code = reinterpret_cast<const uint8_t*>(cursor());
   size_t size = size_ - start_;
-  uint64_t address = reinterpret_cast<uint64_t>(cursor());
+  uint64_t address = reinterpret_cast<uint64_t>(code);
 
   auto insn_deleter = [](cs_insn* insn) { cs_free(insn, 1); };
   auto insn = std::unique_ptr<cs_insn, decltype(insn_deleter)>(
@@ -152,6 +156,64 @@ void Disassembler::disassemble(std::ostream& os, size_t handle) {
         break;
       default:
         break;
+    }
+  }
+#elif defined(__aarch64__)
+  // In case we have a BR or BLR instruction, we are branching to a value stored
+  // in a register. If it is a known symbol, we would have loaded the pointer
+  // into the register with mov/movz/movk instructions. In that case, we will
+  // try to walk backward, disassemble each, and build the pointer ourselves.
+  switch (insn->id) {
+    case ARM64_INS_BR:
+    case ARM64_INS_BLR: {
+      arm64_reg reg = insn->detail->arm64.operands[0].reg;
+      uintptr_t symbol_value = 0;
+      bool matched = false;
+
+      for (size_t backward = 4; !matched && backward <= start_; backward += 4) {
+        auto mcode = reinterpret_cast<const uint8_t*>(buf_ + start_ - backward);
+        size_t msize = size_ - (start_ - backward);
+        uint64_t maddress = reinterpret_cast<uint64_t>(mcode);
+
+        auto minsn_deleter = [](cs_insn* insn) { cs_free(insn, 1); };
+        auto minsn = std::unique_ptr<cs_insn, decltype(minsn_deleter)>(
+            cs_malloc(handle), minsn_deleter);
+
+        if (!cs_disasm_iter(handle, &mcode, &msize, &maddress, minsn.get())) {
+          symbol_value = 0;
+          break;
+        }
+
+        cs_arm64_op* mopnds = minsn->detail->arm64.operands;
+
+        switch (minsn->id) {
+          case ARM64_INS_MOV:
+          case ARM64_INS_MOVZ:
+            if (mopnds[0].type == ARM64_OP_REG && mopnds[0].reg == reg &&
+                mopnds[1].type == ARM64_OP_IMM) {
+              symbol_value |= mopnds[1].imm;
+              matched = true;
+            }
+            break;
+          case ARM64_INS_MOVK:
+            if (mopnds[0].type == ARM64_OP_REG && mopnds[0].reg == reg &&
+                mopnds[1].type == ARM64_OP_IMM) {
+              symbol_value |= (mopnds[1].imm << mopnds[1].shift.value);
+            }
+            break;
+          default:
+            symbol_value = 0;
+            break;
+        }
+
+        if (!symbol_value) {
+          break;
+        }
+      }
+
+      if (matched) {
+        symbol = reinterpret_cast<const void*>(symbol_value);
+      }
     }
   }
 #endif
