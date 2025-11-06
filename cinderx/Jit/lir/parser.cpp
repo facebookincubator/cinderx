@@ -38,6 +38,7 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"R[A-DS][IPX]", kPhyReg},
       {"R[0-9]+[BWD]?", kPhyReg},
       {"E[A-DS][IPX]", kPhyReg},
+      {"[A-D]L", kPhyReg},
       {"[A-DS][IPX]L?", kPhyReg},
 #elif defined(CINDER_AARCH64)
       {"[XWD][0-9]+", kPhyReg},

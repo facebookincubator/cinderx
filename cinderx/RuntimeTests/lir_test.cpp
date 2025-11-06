@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/code_runtime.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -279,12 +280,13 @@ BB %20 - preds: %12 %16
 }
 
 TEST_F(LIRGeneratorTest, ParserDataTypeTest) {
-  std::string lir_str = R"(Function:
+  std::string lir_str = fmt::format(
+      R"(Function:
 BB %0 - succs: %7 %10
-         %1:8bit = Bind DIL:8bit
-        %2:32bit = Bind ESI:32bit
-        %3:16bit = Bind R9W:16bit
-        %4:64bit = Bind R10:64bit
+         %1:8bit = Bind {}:8bit
+        %2:32bit = Bind {}:32bit
+        %3:16bit = Bind {}:16bit
+        %4:64bit = Bind {}:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
 
@@ -294,7 +296,11 @@ BB %7 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %7
 
-)";
+)",
+      PhyLocation{0, 8},
+      PhyLocation{6, 32},
+      PhyLocation{9, 16},
+      PhyLocation{10, 64});
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
@@ -309,15 +315,20 @@ BB %10 - preds: %0 %7
 }
 
 TEST_F(LIRGeneratorTest, ParserMemIndTest) {
-  auto lir_str = fmt::format(R"(Function:
+  auto lir_str = fmt::format(
+      R"(Function:
 BB %0
-        %1:64bit = Bind RDI:Object
-        %2:64bit = Move [RDI:Object + RSI:Object * 8 + 0x8]:Object
+        %1:64bit = Bind {}:Object
+        %2:64bit = Move [{}:Object + {}:Object * 8 + 0x8]:Object
         %3:64bit = Move [%2:64bit + 0x3]:Object
         %4:64bit = Move [%2:64bit + %3:64bit * 16]:Object
-[%4:64bit - 0x16]:Object = Move [RAX:Object + %4:64bit]:Object
+[%4:64bit - 0x16]:Object = Move [{}:Object + %4:64bit]:Object
 
-)");
+)",
+      PhyLocation{5, 64},
+      PhyLocation{5, 64},
+      PhyLocation{4, 64},
+      PhyLocation{0, 64});
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
@@ -352,21 +363,14 @@ def func(x):
   ASSERT_EQ(lir_str, removeCommentsAndWhitespace(ss.str()));
 }
 
-template <typename... Args>
-bool MemoryIndirectTestCase(std::string_view expected, Args&&... args) {
-  jit::lir::MemoryIndirect im(nullptr);
-  im.setMemoryIndirect(std::forward<Args>(args)...);
-  auto output = fmt::format("{}", im);
-  return output == expected;
-}
-
 TEST_F(LIRGeneratorTest, ParserSectionTest) {
-  std::string lir_str = R"(Function:
+  std::string lir_str = fmt::format(
+      R"(Function:
 BB %0 - section: hot
-         %1:8bit = Bind DIL:8bit
-        %2:32bit = Bind ESI:32bit
-        %3:16bit = Bind R9W:16bit
-        %4:64bit = Bind R10:64bit
+         %1:8bit = Bind {}:8bit
+        %2:32bit = Bind {}:32bit
+        %3:16bit = Bind {}:16bit
+        %4:64bit = Bind {}:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
 
@@ -376,7 +380,11 @@ BB %7 - preds: %0 - succs: %10 - section: .coldtext
 
 BB %10 - preds: %0 %7 - section: hot
 
-)";
+)",
+      PhyLocation{0, 8},
+      PhyLocation{6, 32},
+      PhyLocation{9, 16},
+      PhyLocation{10, 64});
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
@@ -389,26 +397,33 @@ BB %10 - preds: %0 %7 - section: hot
       parsed_func->basicblocks()[2]->section(), codegen::CodeSection::kHot);
 }
 
+template <typename... Args>
+std::string formatMemoryIndirect(Args&&... args) {
+  jit::lir::MemoryIndirect im(nullptr);
+  im.setMemoryIndirect(std::forward<Args>(args)...);
+  return fmt::format("{}", im);
+}
+
 TEST(LIRTest, MemoryIndirectTests) {
-  ASSERT_TRUE(MemoryIndirectTestCase("[RCX:Object]", PhyLocation::RCX));
-  ASSERT_TRUE(MemoryIndirectTestCase(
-      "[RCX:Object + 0x7fff]", PhyLocation::RCX, 0x7fff));
-  ASSERT_TRUE(MemoryIndirectTestCase(
-      "[RCX:Object + RDX:Object]", PhyLocation::RCX, PhyLocation::RDX, 0));
-  ASSERT_TRUE(MemoryIndirectTestCase(
-      "[RCX:Object + RDX:Object * 4]", PhyLocation::RCX, PhyLocation::RDX, 2));
-  ASSERT_TRUE(MemoryIndirectTestCase(
-      "[RCX:Object + RDX:Object + 0x100]",
-      PhyLocation::RCX,
-      PhyLocation::RDX,
-      0,
-      0x100));
-  ASSERT_TRUE(MemoryIndirectTestCase(
-      "[RCX:Object + RDX:Object * 2 + 0x1000]",
-      PhyLocation::RCX,
-      PhyLocation::RDX,
-      1,
-      0x1000));
+  auto base = codegen::ARGUMENT_REGS[3];
+  auto index = codegen::ARGUMENT_REGS[2];
+
+  ASSERT_EQ(fmt::format("[{}:Object]", base), formatMemoryIndirect(base.loc));
+  ASSERT_EQ(
+      fmt::format("[{}:Object + 0x7fff]", base),
+      formatMemoryIndirect(base.loc, 0x7fff));
+  ASSERT_EQ(
+      fmt::format("[{}:Object + {}:Object]", base, index),
+      formatMemoryIndirect(base.loc, index.loc, 0));
+  ASSERT_EQ(
+      fmt::format("[{}:Object + {}:Object * 4]", base, index),
+      formatMemoryIndirect(base.loc, index.loc, 2));
+  ASSERT_EQ(
+      fmt::format("[{}:Object + {}:Object + 0x100]", base, index),
+      formatMemoryIndirect(base.loc, index.loc, 0, 0x100));
+  ASSERT_EQ(
+      fmt::format("[{}:Object + {}:Object * 2 + 0x1000]", base, index),
+      formatMemoryIndirect(base.loc, index.loc, 1, 0x1000));
 }
 
 extern "C" uint64_t __Invoke_PyTuple_Check(PyObject* obj);
@@ -513,11 +528,12 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   lir_func->sortBasicBlocks();
   ss << *lir_func << '\n';
 #if PY_VERSION_HEX >= 0x030E0000
-  const char* lir_expected = R"(Function:
+  auto lir_expected = fmt::format(
+      R"(Function:
 BB %0 - succs: %5
-       %1:Object = Bind R10:Object
-       %2:Object = Bind R11:Object
-       %3:Object = Bind RDI:Object
+       %1:Object = Bind {}:Object
+       %2:Object = Bind {}:Object
+       %3:Object = Bind {}:Object
        %4:Object = Move [%2:Object + 0x48]:Object
 
 BB %5 - preds: %0
@@ -525,26 +541,30 @@ BB %5 - preds: %0
 # v9:Nullptr = LoadConst<Nullptr>
        %6:Object = Move 0(0x0):Object
 
-# v10:Bottom = CheckVar<"a"> v9 {
+# v10:Bottom = CheckVar<"a"> v9 {{
 #   LiveValues<1> unc:v9
-#   FrameState {
+#   FrameState {{
 #     CurInstrOffset 2
 #     Locals<1> v9
-#   }
-# }
+#   }}
+# }}
                    Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
 
 # Unreachable
                    Unreachable
 
 
-)";
+)",
+      PhyLocation{10, 64},
+      PhyLocation{11, 64},
+      PhyLocation{7, 64});
 #elif PY_VERSION_HEX >= 0x030C0000
-  const char* lir_expected = R"(Function:
+  auto lir_expected = fmt::format(
+      R"(Function:
 BB %0 - succs: %6
-       %1:Object = Bind R10:Object
-       %2:Object = Bind R11:Object
-       %3:Object = Bind RDI:Object
+       %1:Object = Bind {}:Object
+       %2:Object = Bind {}:Object
+       %3:Object = Bind {}:Object
        %4:Object = Move [%2:Object + 0x38]:Object
        %5:Object = Move [%4:Object]:Object
 
@@ -553,47 +573,53 @@ BB %6 - preds: %0
 # v9:Nullptr = LoadConst<Nullptr>
        %7:Object = Move 0(0x0):Object
 
-# v10:Bottom = CheckVar<"a"> v9 {
+# v10:Bottom = CheckVar<"a"> v9 {{
 #   LiveValues<1> unc:v9
-#   FrameState {
+#   FrameState {{
 #     CurInstrOffset 2
 #     Locals<1> v9
-#   }
-# }
+#   }}
+# }}
                    Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
 
 # Unreachable
                    Unreachable
 
 
-)";
+)",
+      PhyLocation{10, 64},
+      PhyLocation{11, 64},
+      PhyLocation{7, 64});
 #else
-  const char* lir_expected = R"(Function:
+  auto lir_expected = fmt::format(
+      R"(Function:
 BB %0 - succs: %3
-       %1:Object = Bind R10:Object
-       %2:Object = Bind R11:Object
+       %1:Object = Bind {}:Object
+       %2:Object = Bind {}:Object
 
 BB %3 - preds: %0
 
 # v9:Nullptr = LoadConst<Nullptr>
        %4:Object = Move 0(0x0):Object
 
-# v10:Bottom = CheckVar<"a"> v9 {
+# v10:Bottom = CheckVar<"a"> v9 {{
 #   LiveValues<1> unc:v9
-#   FrameState {
+#   FrameState {{
 #     CurInstrOffset 2
 #     Locals<1> v9
-#   }
-# }
+#   }}
+# }}
                    Guard 4(0x4):64bit, 0(0x0):64bit, %4:Object, 0(0x0):64bit, %4:Object
 
 # Unreachable
                    Unreachable
 
 
-)";
+)",
+      PhyLocation{10, 64},
+      PhyLocation{11, 64});
 #endif
-  ASSERT_EQ(ss.str(), lir_expected);
+  ASSERT_EQ(ss.str(), lir_expected.c_str());
 }
 
 TEST_F(LIRGeneratorTest, UnstableGlobals) {

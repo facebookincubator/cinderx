@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/parser.h"
@@ -26,15 +27,17 @@ BB %0
   Return %11
 )";
 
-  const char* expected_lir_str = R"(Function:
+  std::string expected_lir_str = fmt::format(
+      R"(Function:
 BB %0
       %10:Object = Call 0(0x0):64bit
-       %11:16bit = Move DX:16bit
+       %11:16bit = Move {}:16bit
                    Return %11:16bit
 
-)";
+)",
+      PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 16});
 
-  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str);
+  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
 }
 
 TEST_F(LIRPostGenerationRewriteTest, DoesNotAllowMultipleLSCRPerCall) {
@@ -90,14 +93,15 @@ BB %6
   Branch BB%5
 )";
 
-  const char* expected_lir_str = R"(Function:
+  std::string expected_lir_str = fmt::format(
+      R"(Function:
 BB %0
       %10:Object = Call 0(0x0):64bit
                    CondBranch %10:Object, BB%1, BB%2
 
 BB %1
       %11:Object = Call 0(0x0):64bit
-      %139:32bit = Move EDX:32bit
+      %139:32bit = Move {}:32bit
                    CondBranch %11:Object, BB%3, BB%4
 
 BB %2
@@ -106,12 +110,12 @@ BB %2
 
 BB %20
      %120:Object = Call 0(0x0):64bit
-      %137:32bit = Move EDX:32bit
+      %137:32bit = Move {}:32bit
                    Branch BB%22
 
 BB %21
      %121:Object = Call 0(0x0):64bit
-      %138:32bit = Move EDX:32bit
+      %138:32bit = Move {}:32bit
                    Branch BB%22
 
 BB %22
@@ -136,9 +140,12 @@ BB %6
                    Call 0(0x0):64bit
                    Branch BB%5
 
-)";
+)",
+      PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32},
+      PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32},
+      PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32});
 
-  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str);
+  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
 }
 
 } // namespace jit::lir

@@ -11,12 +11,13 @@ namespace jit::lir {
 class LIRDeadCodeEliminationTest : public RuntimeTest {};
 
 TEST_F(LIRDeadCodeEliminationTest, TestEliminateMov) {
-  auto lir_input_str = fmt::format(R"(Function:
+  auto lir_input_str = fmt::format(
+      R"(Function:
 BB %0 - succs: %7 %10
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
-        %4:64bit = Bind R10:64bit
+         %1:8bit = Bind {}:8bit
+        %2:32bit = Bind {}:32bit
+        %3:16bit = Bind {}:16bit
+        %4:64bit = Bind {}:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
        %6:Object = Move 0(0x0):Object
@@ -27,7 +28,11 @@ BB %7 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %7
 
-)");
+)",
+      PhyLocation{7, 8},
+      PhyLocation{6, 32},
+      PhyLocation{9, 16},
+      PhyLocation{10, 64});
   auto lir_expected_str = fmt::format(R"(Function:
 BB %0 - succs: %7 %10
        %5:Object = Move 0(0x0):Object
@@ -54,12 +59,13 @@ BB %10 - preds: %0 %7
 }
 
 TEST_F(LIRDeadCodeEliminationTest, TestLocalBaseForIndirectNotEliminated) {
-  auto lir_input_str = fmt::format(R"(Function:
+  auto lir_input_str = fmt::format(
+      R"(Function:
 BB %0 - succs: %8 %10
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
-        %4:64bit = Bind R10:64bit
+         %1:8bit = Bind {}:8bit
+        %2:32bit = Bind {}:32bit
+        %3:16bit = Bind {}:16bit
+        %4:64bit = Bind {}:64bit
        %5:Object = Move 0(0x0):Object
        %6:Object = Move 0(0x0):Object
        %7:Object = Move [%5:Object + 0x18]:Object
@@ -71,7 +77,11 @@ BB %8 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %8
 
-)");
+)",
+      PhyLocation{7, 8},
+      PhyLocation{6, 32},
+      PhyLocation{9, 16},
+      PhyLocation{10, 64});
   auto lir_expected_str = fmt::format(R"(Function:
 BB %0 - succs: %8 %10
        %5:Object = Move 0(0x0):Object
@@ -99,15 +109,16 @@ BB %10 - preds: %0 %8
 }
 
 TEST_F(LIRDeadCodeEliminationTest, TestLocalIndexForIndirectNotEliminated) {
-  auto lir_input_str = fmt::format(R"(Function:
+  auto lir_input_str = fmt::format(
+      R"(Function:
 BB %0 - succs: %8 %10
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
-        %4:64bit = Bind R10:64bit
+         %1:8bit = Bind {}:8bit
+        %2:32bit = Bind {}:32bit
+        %3:16bit = Bind {}:16bit
+        %4:64bit = Bind {}:64bit
        %5:Object = Move 0(0x0):Object
        %6:Object = Move 0(0x0):Object
-       %7:Object = Move [RDI:Object + %6:Object]:Object
+       %7:Object = Move [{}:Object + %6:Object]:Object
                    CondBranch %7:Object, BB%8, BB%10
 
 BB %8 - preds: %0 - succs: %10
@@ -116,11 +127,17 @@ BB %8 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %8
 
-)");
-  auto lir_expected_str = fmt::format(R"(Function:
+)",
+      PhyLocation{7, 8},
+      PhyLocation{6, 32},
+      PhyLocation{9, 16},
+      PhyLocation{10, 64},
+      PhyLocation{7, 64});
+  auto lir_expected_str = fmt::format(
+      R"(Function:
 BB %0 - succs: %8 %10
        %6:Object = Move 0(0x0):Object
-       %7:Object = Move [RDI:Object + %6:Object]:Object
+       %7:Object = Move [{}:Object + %6:Object]:Object
                    CondBranch %7:Object, BB%8, BB%10
 
 BB %8 - preds: %0 - succs: %10
@@ -129,7 +146,8 @@ BB %8 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %8
 
-)");
+)",
+      PhyLocation{7, 64});
 
   Parser parser;
   auto parsed_func = parser.parse(lir_input_str);
@@ -146,24 +164,31 @@ BB %10 - preds: %0 %8
 TEST_F(
     LIRDeadCodeEliminationTest,
     TestLocalBaseForIndirectNotEliminatedInOutput) {
-  auto lir_input_str = fmt::format(R"(Function:
+  auto lir_input_str = fmt::format(
+      R"(Function:
 BB %0
-         %1:8bit = Bind RDI:8bit
-         %2:32bit = Bind RSI:32bit
-         %3:16bit = Bind R9:16bit
-         %4:64bit = Bind R10:64bit
+         %1:8bit = Bind {}:8bit
+         %2:32bit = Bind {}:32bit
+         %3:16bit = Bind {}:16bit
+         %4:64bit = Bind {}:64bit
          %5:Object = Move 0(0x0):Object
          %6:Object = Move 0(0x0):Object
          [%5:Object + 0x18]:Object = Move %4:64bit
 
-)");
-  auto lir_expected_str = fmt::format(R"(Function:
+)",
+      PhyLocation{7, 8},
+      PhyLocation{6, 32},
+      PhyLocation{9, 16},
+      PhyLocation{10, 64});
+  auto lir_expected_str = fmt::format(
+      R"(Function:
 BB %0
-        %4:64bit = Bind R10:64bit
+        %4:64bit = Bind {}:64bit
        %5:Object = Move 0(0x0):Object
 [%5:Object + 0x18]:Object = Move %4:64bit
 
-)");
+)",
+      PhyLocation{10, 64});
 
   Parser parser;
   auto parsed_func = parser.parse(lir_input_str);

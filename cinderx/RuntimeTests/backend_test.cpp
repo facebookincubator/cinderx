@@ -54,12 +54,16 @@ class BackendTest : public RuntimeTest {
     ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
     code.init(code_allocator->asmJitEnvironment());
 
-    asmjit::x86::Builder as(&code);
+    arch::Builder as(&code);
 
     environ.as = &as;
 
+#if defined(CINDER_X86_64)
     as.push(asmjit::x86::rbp);
     as.mov(asmjit::x86::rbp, asmjit::x86::rsp);
+#else
+    CINDER_UNSUPPORTED
+#endif
 
     auto saved_regs = environ.changed_regs & CALLEE_SAVE_REGS;
     int saved_regs_size = saved_regs.count() * 8;
@@ -69,6 +73,7 @@ class BackendTest : public RuntimeTest {
       allocate_stack += 8;
     }
 
+#if defined(CINDER_X86_64)
     // Allocate stack space and save the size of the function's stack.
     as.sub(asmjit::x86::rsp, allocate_stack);
 
@@ -101,6 +106,10 @@ class BackendTest : public RuntimeTest {
 
     as.leave();
     as.ret();
+#else
+    NativeGenerator gen(nullptr);
+    CINDER_UNSUPPORTED
+#endif
 
     as.finalize();
 
@@ -507,11 +516,17 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   auto bb = lirfunc->allocateBasicBlock();
 
   bb->allocateInstr(
-      Instruction::kMove, nullptr, OutStk(-16), PhyReg(PhyLocation::RAX));
+      Instruction::kMove,
+      nullptr,
+      OutStk(-16),
+      PhyReg(arch::reg_general_return_loc));
   bb->allocateInstr(
-      Instruction::kMove, nullptr, OutStk(-24), PhyReg(PhyLocation::RSI));
+      Instruction::kMove, nullptr, OutStk(-24), PhyReg(ARGUMENT_REGS[1].loc));
   bb->allocateInstr(
-      lir::Instruction::kMove, nullptr, OutStk(-32), PhyReg(PhyLocation::RCX));
+      lir::Instruction::kMove,
+      nullptr,
+      OutStk(-32),
+      PhyReg(ARGUMENT_REGS[3].loc));
 
   auto call = bb->allocateInstr(
       Instruction::kCall,
@@ -552,13 +567,16 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   auto bb = lirfunc->allocateBasicBlock();
 
   bb->allocateInstr(
-      Instruction::kMove, nullptr, OutStk(-16), PhyReg(PhyLocation::RAX));
+      Instruction::kMove,
+      nullptr,
+      OutStk(-16),
+      PhyReg(arch::reg_general_return_loc));
 
   bb->allocateInstr(
       Instruction::kAdd,
       nullptr,
-      OutPhyReg(PhyLocation::RAX),
-      PhyReg(PhyLocation::RSI),
+      OutPhyReg(arch::reg_general_return_loc),
+      PhyReg(ARGUMENT_REGS[1].loc),
       lir::Stk(-16));
 
   Environ env;

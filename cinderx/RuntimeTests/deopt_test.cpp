@@ -96,18 +96,18 @@ def test(a, b):
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
-  regs[PhyLocation::RDI] = reinterpret_cast<uint64_t>(a.get());
+  regs[ARGUMENT_REGS[0].loc] = reinterpret_cast<uint64_t>(a.get());
   LiveValue a_val{
-      PhyLocation{PhyLocation::RDI},
+      PhyLocation{ARGUMENT_REGS[0].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
   auto b = Ref<>::steal(PyLong_FromLong(20));
   ASSERT_NE(b, nullptr);
-  regs[PhyLocation::RSI] = reinterpret_cast<uint64_t>(b.get());
+  regs[ARGUMENT_REGS[1].loc] = reinterpret_cast<uint64_t>(b.get());
   LiveValue b_val{
-      PhyLocation{PhyLocation::RSI},
+      PhyLocation{ARGUMENT_REGS[1].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
@@ -139,18 +139,18 @@ def test(a, b):
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
-  regs[PhyLocation::RDI] = reinterpret_cast<uint64_t>(a.get());
+  regs[ARGUMENT_REGS[0].loc] = reinterpret_cast<uint64_t>(a.get());
   LiveValue a_val{
-      PhyLocation{PhyLocation::RDI},
+      PhyLocation{ARGUMENT_REGS[0].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
   auto b = Ref<>::steal(PyLong_FromLong(20));
   ASSERT_NE(b, nullptr);
-  regs[PhyLocation::RSI] = reinterpret_cast<uint64_t>(b.get());
+  regs[ARGUMENT_REGS[1].loc] = reinterpret_cast<uint64_t>(b.get());
   LiveValue b_val{
-      PhyLocation{PhyLocation::RSI},
+      PhyLocation{ARGUMENT_REGS[1].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
@@ -191,7 +191,8 @@ def test(a, b):
 
   uint64_t mem[2];
   uint64_t regs[NUM_GP_REGS];
-  regs[PhyLocation::RBP] = reinterpret_cast<uint64_t>(mem) + sizeof(mem);
+  regs[arch::reg_frame_pointer_loc.loc] =
+      reinterpret_cast<uint64_t>(mem) + sizeof(mem);
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
@@ -252,27 +253,27 @@ def test(num):
   uint64_t regs[NUM_GP_REGS];
   auto num = Ref<>::steal(PyLong_FromLong(3));
   ASSERT_NE(num, nullptr);
-  regs[PhyLocation::RDI] = reinterpret_cast<uint64_t>(num.get());
+  regs[ARGUMENT_REGS[0].loc] = reinterpret_cast<uint64_t>(num.get());
   LiveValue num_val{
-      PhyLocation{PhyLocation::RDI},
+      PhyLocation{ARGUMENT_REGS[0].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
   auto fact = Ref<>::steal(PyLong_FromLong(20));
   ASSERT_NE(fact, nullptr);
-  regs[PhyLocation::RSI] = reinterpret_cast<uint64_t>(fact.get());
+  regs[ARGUMENT_REGS[1].loc] = reinterpret_cast<uint64_t>(fact.get());
   LiveValue fact_val{
-      PhyLocation{PhyLocation::RSI},
+      PhyLocation{ARGUMENT_REGS[1].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
   auto tmp = Ref<>::steal(PyLong_FromLong(1));
   ASSERT_NE(tmp, nullptr);
-  regs[PhyLocation::RDX] = reinterpret_cast<uint64_t>(tmp.get());
+  regs[ARGUMENT_REGS[2].loc] = reinterpret_cast<uint64_t>(tmp.get());
   LiveValue tmp_val{
-      PhyLocation{PhyLocation::RDX},
+      PhyLocation{ARGUMENT_REGS[2].loc},
       RefKind::kOwned,
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
@@ -319,9 +320,9 @@ def test(x, y):
   uint64_t regs[NUM_GP_REGS];
 
   for (int i = 0; i < 2; i++) {
-    regs[PhyLocation::RDI] = i;
+    regs[ARGUMENT_REGS[0].loc] = i;
     LiveValue a_val{
-        PhyLocation{PhyLocation::RDI},
+        PhyLocation{ARGUMENT_REGS[0].loc},
         RefKind::kUncounted,
         ValueKind::kBool,
         LiveValue::Source::kUnknown};
