@@ -3,10 +3,10 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/instruction.h"

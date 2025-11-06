@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/copy_graph.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/block.h"
 

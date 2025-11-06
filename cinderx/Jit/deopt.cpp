@@ -356,7 +356,8 @@ void reifyGeneratorFrame(
     const DeoptFrameMetadata& frame_meta,
     const void* base) {
   uint64_t regs[codegen::NUM_GP_REGS]{};
-  regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
+  regs[codegen::arch::reg_frame_pointer_loc.loc] =
+      reinterpret_cast<uint64_t>(base);
   constexpr bool force_deopt = PY_VERSION_HEX >= 0x030C0000 ? false : true;
   reifyFrameImpl(frame, meta, frame_meta, force_deopt, regs);
 }
@@ -379,7 +380,8 @@ void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {
 
 void releaseRefs(const DeoptMetadata& meta, const void* base) {
   uint64_t regs[codegen::NUM_GP_REGS]{};
-  regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
+  regs[codegen::arch::reg_frame_pointer_loc.loc] =
+      reinterpret_cast<uint64_t>(base);
   releaseRefs(meta, MemoryView{regs});
 }
 

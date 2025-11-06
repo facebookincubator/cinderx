@@ -26,7 +26,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/iter_helpers.h"
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
@@ -2007,10 +2007,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               bbb,
               kind,
               hir_instr,
-              PhyReg{codegen::XMM1, OperandBase::kDouble});
+              PhyReg{
+                  codegen::arch::reg_double_auxilary_return_loc,
+                  DataType::kDouble});
         } else if (ret_type <= TPrimitive) {
           appendGuard(
-              bbb, kind, hir_instr, PhyReg{codegen::EDX, OperandBase::k32bit});
+              bbb,
+              kind,
+              hir_instr,
+              PhyReg{
+                  codegen::arch::reg_general_auxilary_return_loc,
+                  DataType::k32bit});
         } else {
           appendGuard(bbb, kind, hir_instr, hir_instr.output());
         }
@@ -2152,10 +2159,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Type ret_type = instr->ret_type();
         if (ret_type <= TCDouble) {
           appendGuard(
-              bbb, kind, *instr, PhyReg{codegen::XMM1, OperandBase::kDouble});
+              bbb,
+              kind,
+              *instr,
+              PhyReg{
+                  codegen::arch::reg_double_auxilary_return_loc,
+                  OperandBase::kDouble});
         } else if (ret_type <= TPrimitive) {
           appendGuard(
-              bbb, kind, *instr, PhyReg{codegen::EDX, OperandBase::k32bit});
+              bbb,
+              kind,
+              *instr,
+              PhyReg{
+                  codegen::arch::reg_general_auxilary_return_loc,
+                  OperandBase::k32bit});
         } else {
           appendGuard(bbb, kind, *instr, instr->output());
         }

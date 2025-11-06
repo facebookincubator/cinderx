@@ -25,12 +25,6 @@
 #include <unordered_set>
 #include <vector>
 
-#if defined(CINDER_X86_64)
-#include "cinderx/Jit/codegen/x86_64.h"
-#else
-CINDER_UNSUPPORTED
-#endif
-
 namespace jit::codegen {
 
 class NativeGenerator {

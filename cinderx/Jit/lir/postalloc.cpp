@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/lir/postalloc.h"
 
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/function.h"
@@ -38,12 +38,16 @@ void insertMoveToMemoryLocation(
     PhyLocation base,
     int index,
     const OperandBase* operand,
-    PhyLocation temp = RAX) {
+    PhyLocation temp = arch::reg_general_return_loc) {
   auto data_type = operand->dataType();
 
   if (operand->isImm()) {
     auto constant = operand->getConstant();
-    if (!fitsInt32(constant) || operand->isFp()) {
+    if (
+#if defined(CINDER_X86_64)
+        !fitsInt32(constant) ||
+#endif
+        operand->isFp()) {
       block->allocateInstrBefore(
           instr_iter,
           Instruction::kMove,
@@ -103,7 +107,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
           block->allocateInstrBefore(
               instr_iter,
               Instruction::kMove,
-              OutPhyReg(RAX),
+              OutPhyReg(arch::reg_general_return_loc),
               Imm(operand->getConstant()));
         }
         auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
@@ -111,13 +115,17 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
         move->output()->setDataType(OperandBase::kDouble);
 
         if (operand_imm) {
-          move->allocatePhyRegisterInput(RAX);
+          move->allocatePhyRegisterInput(arch::reg_general_return_loc);
         } else {
           move->appendInput(instr->releaseInput(i));
         }
       } else {
         insertMoveToMemoryLocation(
-            block, instr_iter, PhyLocation::RSP, stack_arg_size, operand);
+            block,
+            instr_iter,
+            arch::reg_stack_pointer_loc,
+            stack_arg_size,
+            operand);
         stack_arg_size += sizeof(void*);
       }
       continue;
@@ -130,7 +138,11 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
       move->appendInput(instr->releaseInput(i));
     } else {
       insertMoveToMemoryLocation(
-          block, instr_iter, PhyLocation::RSP, stack_arg_size, operand);
+          block,
+          instr_iter,
+          arch::reg_stack_pointer_loc,
+          stack_arg_size,
+          operand);
       stack_arg_size += sizeof(void*);
     }
   }
@@ -158,28 +170,28 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
 
   auto block = instr->basicblock();
 
-  // // lea rsi, [rsp + kVectorcallArgsOffset * PTR_SIZE]
-  const PhyLocation kArgBaseReg = PhyLocation::RSI;
+  // lea arg1, [sp + kVectorcallArgsOffset * PTR_SIZE]
+  const PhyLocation kArgBaseReg = ARGUMENT_REGS[1];
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kLea,
       OutPhyReg(kArgBaseReg),
-      Ind(PhyLocation::RSP, kVectorcallArgsOffset * PTR_SIZE));
+      Ind(arch::reg_stack_pointer_loc, kVectorcallArgsOffset * PTR_SIZE));
 
-  // mov rdx, num_args
+  // mov arg2, num_args
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutPhyReg(PhyLocation::RDX),
+      OutPhyReg(ARGUMENT_REGS[2]),
       Imm(num_args | flag | PY_VECTORCALL_ARGUMENTS_OFFSET));
 
-  // first argument - set rdi
+  // first argument
   auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
-  move->output()->setPhyRegister(PhyLocation::RDI);
+  move->output()->setPhyRegister(ARGUMENT_REGS[0]);
   move->output()->setDataType(instr->getInput(2)->dataType());
   move->appendInput(instr->releaseInput(2)); // self
 
-  constexpr PhyLocation TMP_REG = RAX;
+  constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
   for (size_t i = kFirstArg; i < kFirstArg + num_args; i++) {
     auto arg = instr->getInput(i);
     int arg_offset = (i - kFirstArg) * PTR_SIZE;
@@ -194,25 +206,25 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kXor,
-        PhyReg(PhyLocation::RCX),
-        PhyReg(PhyLocation::RCX));
+        PhyReg(ARGUMENT_REGS[3]),
+        PhyReg(ARGUMENT_REGS[3]));
   } else {
     auto move_2 = block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(PhyLocation::RCX));
+        instr_iter, Instruction::kMove, OutPhyReg(ARGUMENT_REGS[3]));
     move_2->appendInput(std::move(last_input));
 
-    // Subtract the length of kwnames (always a tuple) from nargsf (rdx)
+    // Subtract the length of kwnames (always a tuple) from nargsf (arg2)
     size_t ob_size_offs = offsetof(PyVarObject, ob_size);
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
         OutPhyReg(TMP_REG),
-        Ind(PhyLocation::RCX, ob_size_offs));
+        Ind(ARGUMENT_REGS[3], (int32_t)ob_size_offs));
 
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kSub,
-        PhyReg(PhyLocation::RDX),
+        PhyReg(ARGUMENT_REGS[2]),
         PhyReg(TMP_REG));
   }
 
@@ -224,7 +236,7 @@ int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
   auto block = instr->basicblock();
   constexpr int kArgStart = 1;
   constexpr int kCallMethodSpSlot = 1;
-  constexpr PhyLocation kArgBaseReg = PhyLocation::RDI;
+  constexpr PhyLocation kArgBaseReg = ARGUMENT_REGS[0];
   const int num_arguments =
       instr->getNumInputs() - kArgStart + kCallMethodSpSlot;
   const int rsp_sub =
@@ -238,9 +250,9 @@ int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
       instr_iter,
       Instruction::kLea,
       OutPhyReg(kArgBaseReg),
-      Ind(PhyLocation::RSP, sizeof(void*) * kCallMethodSpSlot));
+      Ind(arch::reg_stack_pointer_loc, sizeof(void*) * kCallMethodSpSlot));
 
-  constexpr PhyLocation TMP_REG = RAX;
+  constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
   for (size_t i = kArgStart; i < instr->getNumInputs(); i++) {
     auto arg = instr->getInput(i);
     auto arg_offset = (i - kArgStart) * sizeof(PyObject*);
@@ -251,7 +263,7 @@ int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutPhyReg(PhyLocation::RSI, lir::OperandBase::k32bit),
+      OutPhyReg(ARGUMENT_REGS[1], lir::OperandBase::k32bit),
       Imm(instr->getNumInputs() - kArgStart, lir::OperandBase::k32bit));
 
   return rsp_sub;
@@ -299,7 +311,9 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     return kChanged;
   }
 
-  const PhyLocation kReturnRegister = output->isFp() ? XMM0 : RAX;
+  const PhyLocation kReturnRegister = output->isFp()
+      ? arch::reg_double_return_loc
+      : arch::reg_general_return_loc;
 
   if (!output->isReg() || output->getPhyRegister() != kReturnRegister) {
     if (output->isReg()) {
@@ -473,7 +487,6 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   return kUnchanged;
 }
 
-// Rewrite > 32-bit immediate addressing load.
 RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
@@ -484,15 +497,20 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
 
   auto out = instr->output();
   JIT_DCHECK(out->isReg(), "Unable to load to a non-register location.");
-  if (out->getPhyRegister() == RAX) {
+  if (out->getPhyRegister() == arch::reg_general_return_loc) {
     return kUnchanged;
   }
 
   auto in = instr->getInput(0);
   auto mem_addr = reinterpret_cast<intptr_t>(in->getMemoryAddress());
+
+#if defined(CINDER_X86_64)
   if (fitsInt32(mem_addr)) {
     return kUnchanged;
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   auto block = instr->basicblock();
   block->allocateInstrBefore(
@@ -662,6 +680,7 @@ RewriteResult rewriteBinaryOpInstrs(instr_iter_t instr_iter) {
   return kUnchanged;
 }
 
+#if defined(CINDER_X86_64)
 // Rewrite 8-bit multiply to use single-operand imul.
 RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
@@ -705,6 +724,7 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   }
   return kChanged;
 }
+#endif
 
 bool insertMoveToRegister(
     BasicBlock* block,
@@ -736,6 +756,7 @@ bool insertMoveToRegister(
   return true;
 }
 
+#if defined(CINDER_X86_64)
 // Rewrite division instructions to use correct registers.
 RewriteResult rewriteDivide(instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
@@ -851,6 +872,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
 
   return changed ? kChanged : kUnchanged;
 }
+#endif
 
 // record register-to-memory moves and map between them.
 class RegisterToMemoryMoves {
@@ -1019,11 +1041,17 @@ void PostRegAllocRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteCondBranch);
   registerOneRewriteFunction(rewriteBinaryOpInstrs);
   registerOneRewriteFunction(removePhiInstructions);
+
+#if defined(CINDER_X86_64)
   registerOneRewriteFunction(rewriteByteMultiply);
+#endif
 
   registerOneRewriteFunction(optimizeMoveSequence, 1);
   registerOneRewriteFunction(optimizeMoveInstrs, 1);
+
+#if defined(CINDER_X86_64)
   registerOneRewriteFunction(rewriteDivide);
+#endif
 }
 
 } // namespace jit::lir

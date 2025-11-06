@@ -99,7 +99,7 @@ void FrameAsm::loadTState(
     as_->mov(dst_reg, tls);
   } else {
     as_->call(_PyThreadState_GetCurrent);
-    as_->mov(dst_reg, arch::reg_general_return_64);
+    as_->mov(dst_reg, x86::rax);
   }
 #else
   CINDER_UNSUPPORTED
@@ -343,7 +343,7 @@ void FrameAsm::linkNormalFunctionFrame(
             JITRT_AllocateAndLinkInterpreterFrame_Release));
   }
 
-  as_->mov(tstate_reg, arch::reg_general_return_64);
+  as_->mov(tstate_reg, x86::rax);
 #else
   CINDER_UNSUPPORTED
 #endif

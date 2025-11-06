@@ -2,8 +2,8 @@
 
 #include "cinderx/Jit/lir/operand.h"
 
+#include "cinderx/Jit/lir/arch.h"
 #include "cinderx/Jit/lir/instruction.h"
-#include "cinderx/Jit/lir/x86_64.h"
 
 namespace jit::lir {
 

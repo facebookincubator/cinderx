@@ -4,7 +4,7 @@
 
 #include "cinderx/python.h"
 
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <fmt/format.h>
@@ -249,9 +249,9 @@ struct MemoryView {
     if (loc.is_register()) {
       return regs[loc.loc];
     } else {
-      uint64_t rbp = regs[jit::codegen::RBP.loc];
+      uint64_t frame_pointer = regs[codegen::arch::reg_frame_pointer_loc.loc];
       // loc.loc is relative offset from RBP (i.e. negative as stack grows down)
-      return *(reinterpret_cast<uint64_t*>(rbp + loc.loc));
+      return *(reinterpret_cast<uint64_t*>(frame_pointer + loc.loc));
     }
   }
 };

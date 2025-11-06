@@ -6,7 +6,6 @@
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/jit_rt.h"
@@ -779,7 +778,7 @@ struct XmmOperand {
   static arch::VecD GetAsmOperand(Environ*, const Instruction* instr) {
 #if defined(CINDER_X86_64)
     return asmjit::x86::xmm(
-        LIROperandMapper<N>(instr)->getPhyRegister().loc - XMM_REG_BASE);
+        LIROperandMapper<N>(instr)->getPhyRegister().loc - VECD_REG_BASE);
 #else
     CINDER_UNSUPPORTED
     return arch::VecD();

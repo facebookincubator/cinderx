@@ -4,8 +4,8 @@
 
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/Jit/lir/arch.h"
 #include "cinderx/Jit/lir/operand.h"
-#include "cinderx/Jit/lir/x86_64.h"
 
 #include <fmt/ostream.h>
 

@@ -10,7 +10,7 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_runtime.h"
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/fixed_type_profiler.h"

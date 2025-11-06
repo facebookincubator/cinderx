@@ -28,9 +28,10 @@ class RegisterPreserver {
   void remap();
 
  private:
-  arch::Builder* as_;
-  const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>& save_regs_;
-  bool align_stack_;
+  [[maybe_unused]] arch::Builder* as_;
+  [[maybe_unused]] const std::vector<
+      std::pair<const arch::Reg&, const arch::Reg&>>& save_regs_;
+  [[maybe_unused]] bool align_stack_;
 };
 
 } // namespace jit::codegen

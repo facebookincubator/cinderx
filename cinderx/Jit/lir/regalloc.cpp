@@ -499,6 +499,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
         reserveCallerSaveRegisters(instr_id);
       }
 
+#if defined(CINDER_X86_64)
       if ((instr_opcode == Instruction::kMul) &&
           (instr->getInput(0)->dataType() == OperandBase::k8bit)) {
         // see rewriteByteMultiply
@@ -514,6 +515,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
         reserveRegisters(instr_id, reserved);
       }
+#endif
 
       if (instr->isAnyYield()) {
         spillRegistersForYield(instr_id);
@@ -801,8 +803,8 @@ bool LinearScanAllocator::tryAllocateFreeReg(
 
   // if not preallocated interval or cannot honor the preallocated register
   if (regFreeUntil == START_LOCATION) {
-    auto start = std::next(freeUntilPos.begin(), is_fp ? XMM_REG_BASE : 0);
-    auto end = std::prev(freeUntilPos.end(), is_fp ? 0 : NUM_XMM_REGS);
+    auto start = std::next(freeUntilPos.begin(), is_fp ? VECD_REG_BASE : 0);
+    auto end = std::prev(freeUntilPos.end(), is_fp ? 0 : NUM_VECD_REGS);
 
     auto max_iter = std::max_element(start, end);
     if (*max_iter == START_LOCATION) {
@@ -861,8 +863,8 @@ void LinearScanAllocator::allocateBlockedReg(
 
   markDisallowedRegisters(nextUsePos);
 
-  auto start = std::next(nextUsePos.begin(), is_fp ? XMM_REG_BASE : 0);
-  auto end = std::prev(nextUsePos.end(), is_fp ? 0 : XMM_REG_BASE);
+  auto start = std::next(nextUsePos.begin(), is_fp ? VECD_REG_BASE : 0);
+  auto end = std::prev(nextUsePos.end(), is_fp ? 0 : VECD_REG_BASE);
 
   auto reg_iter = std::max_element(start, end);
   PhyLocation reg(
@@ -1345,12 +1347,14 @@ void LinearScanAllocator::resolveEdges() {
 
       bool is_return = last_instr_opcode == Instruction::kReturn;
       if (is_return) {
-        // check if the operand is RAX/XMM0
+        // check if the operand is the return register
         auto ret_opnd = last_instr->getInput(0);
         if (ret_opnd->isReg() || ret_opnd->isStack()) {
           auto reg = ret_opnd->getPhyRegOrStackSlot();
 
-          auto target = ret_opnd->isFp() ? XMM0 : RAX;
+          auto target = ret_opnd->isFp() ? arch::reg_double_return_loc
+                                         : arch::reg_general_return_loc;
+
           target.bitSize = reg.bitSize;
 
           if (reg != target) {
@@ -1362,7 +1366,7 @@ void LinearScanAllocator::resolveEdges() {
               std::prev(instrs.end()), Instruction::kMove);
           JIT_CHECK(!ret_opnd->isFp(), "only integer should be present");
           instr->allocateImmediateInput(ret_opnd->getConstant());
-          instr->output()->setPhyRegister(RAX);
+          instr->output()->setPhyRegister(arch::reg_general_return_loc);
           instr->output()->setDataType(ret_opnd->dataType());
         }
       }

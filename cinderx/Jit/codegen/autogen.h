@@ -59,7 +59,7 @@ class AutoTranslator {
     auto data_type = op->dataType();
     switch (data_type) {
       case jit::lir::OperandBase::kDouble:
-        return asmjit::x86::xmm(op->getPhyRegister().loc - XMM_REG_BASE);
+        return asmjit::x86::xmm(op->getPhyRegister().loc - VECD_REG_BASE);
       default:
         JIT_ABORT("incorrect register type.");
     }

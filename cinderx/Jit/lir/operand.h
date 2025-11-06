@@ -3,8 +3,8 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/lir/arch.h"
 #include "cinderx/Jit/lir/type.h"
-#include "cinderx/Jit/lir/x86_64.h"
 
 #include <cstdint>
 #include <memory>

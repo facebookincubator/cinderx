@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch.h"
 
 namespace jit::lir {
 

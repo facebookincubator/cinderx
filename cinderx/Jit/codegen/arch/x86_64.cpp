@@ -1,6 +1,10 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/codegen/arch/x86_64.h"
+
+#include "cinderx/Jit/codegen/arch/detection.h"
+
+#ifdef CINDER_X86_64
 
 namespace jit::codegen {
 
@@ -19,15 +23,15 @@ PhyLocation PhyLocation::parse(std::string_view name) {
     return PhyLocation{RegId::V64, 8};  \
   }
 
-#define FIND_XMM_REG(V)                \
+#define FIND_VECD_REG(V)               \
   if (name == #V) {                    \
     return PhyLocation{RegId::V, 128}; \
   }
 
   FOREACH_GP(FIND_GP_REG)
-  FOREACH_XMM(FIND_XMM_REG)
+  FOREACH_VECD(FIND_VECD_REG)
 #undef FIND_GP_REG
-#undef FIND_XMM_REG
+#undef FIND_VECD_REG
   JIT_ABORT("Unrecognized register {}", name);
 }
 
@@ -44,8 +48,6 @@ std::string PhyLocation::toString() const {
   return std::string{name(static_cast<RegId>(loc))};
 }
 
-std::ostream& operator<<(std::ostream& os, const PhyLocation& loc) {
-  return os << loc.toString();
-}
-
 } // namespace jit::codegen
+
+#endif

@@ -4,12 +4,10 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "fmt/ostream.h"
 
 #include <fmt/format.h>
 
 #include <array>
-#include <iosfwd>
 #include <string>
 #include <string_view>
 
@@ -33,27 +31,27 @@ namespace jit::codegen {
   X(R14, R14D, R14W, R14B) \
   X(R15, R15D, R15W, R15B)
 
-#define FOREACH_XMM(X) \
-  X(XMM0)              \
-  X(XMM1)              \
-  X(XMM2)              \
-  X(XMM3)              \
-  X(XMM4)              \
-  X(XMM5)              \
-  X(XMM6)              \
-  X(XMM7)              \
-  X(XMM8)              \
-  X(XMM9)              \
-  X(XMM10)             \
-  X(XMM11)             \
-  X(XMM12)             \
-  X(XMM13)             \
-  X(XMM14)             \
+#define FOREACH_VECD(X) \
+  X(XMM0)               \
+  X(XMM1)               \
+  X(XMM2)               \
+  X(XMM3)               \
+  X(XMM4)               \
+  X(XMM5)               \
+  X(XMM6)               \
+  X(XMM7)               \
+  X(XMM8)               \
+  X(XMM9)               \
+  X(XMM10)              \
+  X(XMM11)              \
+  X(XMM12)              \
+  X(XMM13)              \
+  X(XMM14)              \
   X(XMM15)
 
 enum class RegId : uint32_t {
 #define DEFINE_REG(V, ...) V,
-  FOREACH_GP(DEFINE_REG) FOREACH_XMM(DEFINE_REG)
+  FOREACH_GP(DEFINE_REG) FOREACH_VECD(DEFINE_REG)
 #undef DEFINE_REG
 };
 
@@ -63,9 +61,9 @@ constexpr uint32_t raw(RegId id) {
 
 #define COUNT_REGS(...) +1
 constexpr int NUM_GP_REGS = FOREACH_GP(COUNT_REGS);
-constexpr int XMM_REG_BASE = raw(RegId::XMM0);
-constexpr int NUM_XMM_REGS = FOREACH_XMM(COUNT_REGS);
-constexpr int NUM_REGS = NUM_GP_REGS + NUM_XMM_REGS;
+constexpr int VECD_REG_BASE = raw(RegId::XMM0);
+constexpr int NUM_VECD_REGS = FOREACH_VECD(COUNT_REGS);
+constexpr int NUM_REGS = NUM_GP_REGS + NUM_VECD_REGS;
 #undef COUNT_REGS
 
 constexpr std::string_view name(RegId id) {
@@ -75,7 +73,7 @@ constexpr std::string_view name(RegId id) {
     return #V;
 
     FOREACH_GP(STRING_REG)
-    FOREACH_XMM(STRING_REG)
+    FOREACH_VECD(STRING_REG)
 #undef STRING_REG
     default:
       JIT_ABORT("Unrecognized register ID {}", raw(id));
@@ -128,7 +126,7 @@ struct PhyLocation {
 
 #define DEFINE_REG(V, ...) static constexpr int V = raw(RegId::V);
   FOREACH_GP(DEFINE_REG)
-  FOREACH_XMM(DEFINE_REG)
+  FOREACH_VECD(DEFINE_REG)
 #undef DEFINE_REG
 
   // Parse a register name and return the corresponding physical register.
@@ -162,11 +160,11 @@ struct PhyLocation {
   }
 
   bool is_gp_register() const {
-    return is_register() && loc < XMM_REG_BASE;
+    return is_register() && loc < VECD_REG_BASE;
   }
 
   bool is_fp_register() const {
-    return is_register() && loc >= XMM_REG_BASE;
+    return is_register() && loc >= VECD_REG_BASE;
   }
 
   std::string toString() const;
@@ -192,13 +190,13 @@ struct PhyLocation {
   constexpr PhyLocation V16{RegId::V64, 16}; \
   constexpr PhyLocation V8{RegId::V64, 8};
 
-#define DEFINE_PHY_XMM_REG(V) constexpr PhyLocation V{RegId::V, 128};
+#define DEFINE_PHY_VECD_REG(V) constexpr PhyLocation V{RegId::V, 128};
 
 FOREACH_GP(DEFINE_PHY_GP_REG)
-FOREACH_XMM(DEFINE_PHY_XMM_REG)
+FOREACH_VECD(DEFINE_PHY_VECD_REG)
 
 #undef DEFINE_PHY_GP_REG
-#undef DEFINE_PHY_XMM_REG
+#undef DEFINE_PHY_VECD_REG
 
 class PhyRegisterSet {
  public:
@@ -274,22 +272,16 @@ class PhyRegisterSet {
     return rs_ & (1 << reg.loc);
   }
 
-  constexpr int GetMask() const {
-    return rs_;
-  }
-
  private:
   unsigned rs_;
 };
 
-std::ostream& operator<<(std::ostream& out, const PhyLocation& loc);
-
 #define ADD_REG(v, ...) | PhyLocation::v
 constexpr PhyRegisterSet ALL_GP_REGISTERS =
     PhyRegisterSet() FOREACH_GP(ADD_REG);
-constexpr PhyRegisterSet ALL_XMM_REGISTERS =
-    PhyRegisterSet() FOREACH_XMM(ADD_REG);
-constexpr PhyRegisterSet ALL_REGISTERS = ALL_GP_REGISTERS | ALL_XMM_REGISTERS;
+constexpr PhyRegisterSet ALL_VECD_REGISTERS =
+    PhyRegisterSet() FOREACH_VECD(ADD_REG);
+constexpr PhyRegisterSet ALL_REGISTERS = ALL_GP_REGISTERS | ALL_VECD_REGISTERS;
 #undef ADD_REG
 
 constexpr PhyRegisterSet STACK_REGISTERS = PhyRegisterSet(RSP) | RBP;
@@ -297,7 +289,7 @@ constexpr PhyRegisterSet STACK_REGISTERS = PhyRegisterSet(RSP) | RBP;
 constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - STACK_REGISTERS;
 
 constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
-    RSI | RDI | R8 | R9 | R10 | R11 | ALL_XMM_REGISTERS;
+    RSI | RDI | R8 | R9 | R10 | R11 | ALL_VECD_REGISTERS;
 
 constexpr PhyRegisterSet CALLEE_SAVE_REGS = INIT_REGISTERS - CALLER_SAVE_REGS;
 
@@ -318,21 +310,3 @@ constexpr PhyLocation INITIAL_INTERPRETER_FRAME_REG = R12;
 constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
 
 } // namespace jit::codegen
-
-inline auto format_as(jit::codegen::RegId reg) {
-  return fmt::underlying(reg);
-}
-
-namespace std {
-
-template <>
-struct hash<jit::codegen::PhyLocation> {
-  std::size_t operator()(jit::codegen::PhyLocation const& s) const noexcept {
-    return s.loc;
-  }
-};
-
-} // namespace std
-
-template <>
-struct fmt::formatter<jit::codegen::PhyLocation> : fmt::ostream_formatter {};
