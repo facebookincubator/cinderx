@@ -276,10 +276,7 @@ class JitListTest(unittest.TestCase):
                 env={"PYTHONPATH": CINDERX_PATH},
             )
 
-        # Python 3.14 raises and logs the exception, but doesn't exit with a non-zero
-        # error code.
-        if sys.version_info[:2] < (3, 14):
-            self.assertNotEqual(proc.returncode, 0, proc)
+        self.assertNotEqual(proc.returncode, 0, proc)
 
         self.assertIn("Error while parsing line", proc.stderr)
         self.assertIn("in JIT list file", proc.stderr)
