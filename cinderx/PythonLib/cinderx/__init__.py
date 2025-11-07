@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import gc
+import platform
 import sys
 
 from os import environ
@@ -35,6 +36,9 @@ def is_supported_runtime() -> bool:
     if sys.platform != "linux":
         return False
 
+    if platform.machine() == "aarch64":
+        return False
+
     version = (sys.version_info.major, sys.version_info.minor)
     if version == (3, 14):
         # Can't load the native extension if the GIL is forcibly being disabled.  The
@@ -51,9 +55,11 @@ try:
     # Currently if we try to import _cinderx on runtimes without our internal patches
     # the import will crash.  This is meant to go away in the future.
     if not is_supported_runtime():
-        raise ImportError(
-            f"The _cinderx native extension is not supported for Python version '{sys.version}' on platform '{sys.platform}'"
+        error_msg = (
+            f"The _cinderx native extension is not supported for Python version '{sys.version}' "
+            f"on platform '{sys.platform}_{platform.machine()}'."
         )
+        raise ImportError(error_msg)
 
     # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
     from _cinderx import (  # noqa: F401
