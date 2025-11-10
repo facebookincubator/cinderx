@@ -18,6 +18,8 @@ from cinderx.test_support import CINDERX_PATH, ENCODING
 class TestEnablingParallelGc(unittest.TestCase):
     def test_gc_settings(self) -> None:
         codestr = textwrap.dedent("""
+            import cinderx
+
             import gc
             def g():
                 return gc.get_threshold()

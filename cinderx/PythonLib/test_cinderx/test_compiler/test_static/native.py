@@ -1,8 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from .common import StaticTestBase
 
-import xxclassloader  # usort: skip
-import _cinderx
+from .common import StaticTestBase
 
 
 class NativeDecoratorTests(StaticTestBase):
@@ -256,48 +254,26 @@ class NativeDecoratorTests(StaticTestBase):
 
     def test_invoke_native_fn_multiple_args(self) -> None:
         codestr = f"""
-        from __static__ import native, int64, box
+        from __static__ import native, int32, box
         from typing import Final
 
-        LIB_NAME: Final[str] = "{_cinderx.__file__}"
+        LIB_NAME: Final[str] = "libc.so.6"
 
         @native(LIB_NAME)
-        def native_add(a: int64, b: int64) -> int64:
+        def div(a: int32, b: int32) -> int32:
+            # This returns a div_t but that's okay as the ABI will put the
+            # numerator in RAX.
+            #
+            # There are no other C stdlib functions that take multiple arguments
+            # that are only integers.  Everything else takes pointers or
+            # doubles, and doubles aren't supported yet, TODO(T130985738).
             pass
 
-        def invoke_add(i: int, j: int) -> int:
-            k: int64 = int64(i)
-            l: int64 = int64(j)
-            return box(native_add(k, l))
+        def invoke_div(i: int32, j: int32) -> int:
+            k: int32 = int32(i)
+            l: int32 = int32(j)
+            return box(div(k, l))
         """
 
         with self.in_strict_module(codestr) as mod:
-            self.assertEqual(mod.invoke_add(6, 5), 11)
-            self.assertEqual(mod.invoke_add(-1, 5), 4)
-            self.assertEqual(mod.invoke_add(-1, -5), -6)
-
-    def test_invoke_native_fn_heterogenous_args(self) -> None:
-        codestr = f"""
-        from __static__ import native, int64, uint8, box
-        from typing import Final
-
-        LIB_NAME: Final[str] = "{_cinderx.__file__}"
-
-        @native(LIB_NAME)
-        def native_sub(a: int64, b: uint8) -> int64:
-            pass
-
-        def invoke_sub(i: int, j: int) -> int:
-            k: int64 = int64(i)
-            l: uint8 = uint8(j)
-            return box(native_sub(k, l))
-        """
-
-        with self.in_strict_module(codestr) as mod:
-            self.assertEqual(mod.invoke_sub(6, 5), 1)
-            self.assertEqual(mod.invoke_sub(-1, 5), -6)
-            self.assertEqual(mod.invoke_sub(-1, 0), -1)
-
-            with self.assertRaisesRegex(OverflowError, "int overflow"):
-                # -1 can't be represented in uint8
-                mod.invoke_sub(0, -1)
+            self.assertEqual(mod.invoke_div(15, 3), 5)

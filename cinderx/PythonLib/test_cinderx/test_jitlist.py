@@ -253,7 +253,9 @@ class JitListTest(unittest.TestCase):
             cinderx.jit.precompile_all(workers=200000)
 
     def test_fail_on_parse_error_startup(self) -> None:
-        code = 'print("Hello world!")'
+        code = """if 1:
+        import cinderx.jit
+        print("Hello world!")"""
         jitlist = "OH NO"
         with tempfile.TemporaryDirectory() as tmp:
             dirpath = Path(tmp)

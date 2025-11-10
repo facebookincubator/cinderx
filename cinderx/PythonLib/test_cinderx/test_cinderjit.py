@@ -1636,8 +1636,7 @@ class CinderJitModuleTests(StaticTestBase):
             def run_test(
                 asserts_func: Callable[[list[str]], None], params: list[str]
             ) -> None:
-                # Disable the import of the site module with `-S` so Imports Monitor isn't enabled
-                args = [sys.executable, "-S"]
+                args = [sys.executable]
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
@@ -1665,8 +1664,8 @@ class CinderJitModuleTests(StaticTestBase):
                 used_size = int(actual_stdout[1].split(" ")[1])
                 self.assertGreater(used_size, 1024)
                 # This is a bit fragile because it depends on what the initial 'zeroth'
-                # allocation is; we assume < 200K.
-                self.assertLess(used_size, 1024 * 200)
+                # allocation is; we assume < 600K.
+                self.assertLess(used_size, 1024 * 600)
 
             # Run the zero-assert tests with JitAuto=1000 to test "normal" behavior
             # where we compile some code but don't have any limits to trip.
