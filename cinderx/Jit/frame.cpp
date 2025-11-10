@@ -879,9 +879,9 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
     JIT_LOG("No debug info for addr {:x}", ip);
     logUnitFrames();
     JIT_DABORT("No debug info for addr {:x}", ip);
-    for (_PyInterpreterFrame* frame : unit_frames) {
+    for (_PyInterpreterFrame* unit_frame : unit_frames) {
       unit_state.emplace_back(
-          frame, CodeObjLoc{_PyFrame_GetCode(frame), BCOffset{-1}});
+          unit_frame, CodeObjLoc{_PyFrame_GetCode(unit_frame), BCOffset{-1}});
     }
   }
 
