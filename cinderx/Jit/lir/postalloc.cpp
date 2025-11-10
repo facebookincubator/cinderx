@@ -150,6 +150,46 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
   return stack_arg_size;
 }
 
+int prepareArgsArray(
+    instr_iter_t instr_iter,
+    size_t num_args,
+    size_t flags,
+    size_t first_arg,
+    PhyLocation dest,
+    PhyLocation size_dest) {
+  auto instr = instr_iter->get();
+  auto block = instr->basicblock();
+  constexpr size_t PTR_SIZE = sizeof(void*);
+
+  // offset on the stack where arg reservation starts...
+  const int kVectorcallArgsOffset = 1;
+  auto num_allocs = num_args + kVectorcallArgsOffset;
+  int rsp_sub = ((num_allocs % 2) ? num_allocs + 1 : num_allocs) * PTR_SIZE;
+
+  // lea dest, [sp + kVectorcallArgsOffset * PTR_SIZE]
+  block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kLea,
+      OutPhyReg(dest),
+      Ind(arch::reg_stack_pointer_loc, kVectorcallArgsOffset * PTR_SIZE));
+
+  // mov arg2, num_args
+  block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kMove,
+      OutPhyReg(size_dest, lir::OperandBase::k64bit),
+      Imm(num_args | flags, lir::OperandBase::k64bit));
+
+  constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
+  for (size_t i = first_arg; i < first_arg + num_args; i++) {
+    auto arg = instr->getInput(i);
+    int arg_offset = (i - first_arg) * PTR_SIZE;
+    insertMoveToMemoryLocation(
+        block, instr_iter, dest, arg_offset, arg, TMP_REG);
+  }
+  return rsp_sub;
+}
+
 int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
@@ -159,45 +199,25 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   // * #2   - callable
   // * #n-1 - kwnames
   constexpr int kFirstArg = 3;
-  const int kVectorcallArgsOffset = 1;
 
   auto flag = instr->getInput(1)->getConstant();
   auto num_args = instr->getNumInputs() - kFirstArg - 1;
-  auto num_allocs = num_args + kVectorcallArgsOffset;
-
-  constexpr size_t PTR_SIZE = sizeof(void*);
-  int rsp_sub = ((num_allocs % 2) ? num_allocs + 1 : num_allocs) * PTR_SIZE;
-
-  auto block = instr->basicblock();
-
-  // lea arg1, [sp + kVectorcallArgsOffset * PTR_SIZE]
-  const PhyLocation kArgBaseReg = ARGUMENT_REGS[1];
-  block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kLea,
-      OutPhyReg(kArgBaseReg),
-      Ind(arch::reg_stack_pointer_loc, kVectorcallArgsOffset * PTR_SIZE));
-
-  // mov arg2, num_args
-  block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kMove,
-      OutPhyReg(ARGUMENT_REGS[2]),
-      Imm(num_args | flag | PY_VECTORCALL_ARGUMENTS_OFFSET));
 
   // first argument
+  auto block = instr->basicblock();
   auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
   move->output()->setPhyRegister(ARGUMENT_REGS[0]);
   move->output()->setDataType(instr->getInput(2)->dataType());
-  move->appendInput(instr->releaseInput(2)); // self
+  move->appendInput(instr->releaseInput(2)); // callable
 
   constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
-  for (size_t i = kFirstArg; i < kFirstArg + num_args; i++) {
-    auto arg = instr->getInput(i);
-    int arg_offset = (i - kFirstArg) * PTR_SIZE;
-    insertMoveToMemoryLocation(
-        block, instr_iter, kArgBaseReg, arg_offset, arg, TMP_REG);
-  }
+  int rsp_sub = prepareArgsArray(
+      instr_iter,
+      num_args,
+      flag | PY_VECTORCALL_ARGUMENTS_OFFSET,
+      kFirstArg,
+      ARGUMENT_REGS[1],
+      ARGUMENT_REGS[2]);
 
   // check if kwnames is provided
   auto last_input = instr->releaseInput(instr->getNumInputs() - 1);
@@ -233,40 +253,17 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
 
 int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
-  constexpr int kArgStart = 1;
-  constexpr int kCallMethodSpSlot = 1;
-  constexpr PhyLocation kArgBaseReg = ARGUMENT_REGS[0];
-  const int num_arguments =
-      instr->getNumInputs() - kArgStart + kCallMethodSpSlot;
-  const int rsp_sub =
-      ((num_arguments % 2) ? num_arguments + 1 : num_arguments) *
-      sizeof(PyObject*);
-
   static_cast<Operand*>(instr->getInput(0))
       ->setConstant(
           reinterpret_cast<uint64_t>(JITRT_BatchDecref), Operand::k64bit);
-  block->allocateInstrBefore(
+
+  return prepareArgsArray(
       instr_iter,
-      Instruction::kLea,
-      OutPhyReg(kArgBaseReg),
-      Ind(arch::reg_stack_pointer_loc, sizeof(void*) * kCallMethodSpSlot));
-
-  constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
-  for (size_t i = kArgStart; i < instr->getNumInputs(); i++) {
-    auto arg = instr->getInput(i);
-    auto arg_offset = (i - kArgStart) * sizeof(PyObject*);
-    insertMoveToMemoryLocation(
-        block, instr_iter, kArgBaseReg, arg_offset, arg, TMP_REG);
-  }
-
-  block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kMove,
-      OutPhyReg(ARGUMENT_REGS[1], lir::OperandBase::k32bit),
-      Imm(instr->getNumInputs() - kArgStart, lir::OperandBase::k32bit));
-
-  return rsp_sub;
+      instr->getNumInputs() - 1, // func is 1st argument
+      0,
+      1,
+      ARGUMENT_REGS[0],
+      ARGUMENT_REGS[1]);
 }
 
 // rewrite call instructions:
