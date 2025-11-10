@@ -251,19 +251,18 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   return rsp_sub;
 }
 
-int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
+int rewriteVarArgCall(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  static_cast<Operand*>(instr->getInput(0))
-      ->setConstant(
-          reinterpret_cast<uint64_t>(JITRT_BatchDecref), Operand::k64bit);
-
-  return prepareArgsArray(
+  instr->setOpcode(Instruction::kCall);
+  auto res = prepareArgsArray(
       instr_iter,
       instr->getNumInputs() - 1, // func is 1st argument
       0,
       1,
       ARGUMENT_REGS[0],
       ARGUMENT_REGS[1]);
+  instr->setNumInputs(1);
+  return res;
 }
 
 // rewrite call instructions:
@@ -272,7 +271,11 @@ int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
 //   JITRT_(Call|Get)Method, etc.
 RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isVectorCall()) {
+  if (instr->isVarArgCall()) {
+    int rsp_sub = rewriteVarArgCall(instr_iter);
+    env->max_arg_buffer_size = std::max<int>(env->max_arg_buffer_size, rsp_sub);
+    return kChanged;
+  } else if (!instr->isCall() && !instr->isVectorCall()) {
     return kUnchanged;
   }
 
@@ -286,13 +289,6 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
 
   if (instr->isVectorCall()) {
     rsp_sub = rewriteVectorCallFunctions(instr_iter);
-  } else if (instr->getInput(0)->isImm()) {
-    void* func = reinterpret_cast<void*>(instr->getInput(0)->getConstant());
-    if (func == FUNC_MARKER_BATCHDECREF) {
-      rsp_sub = rewriteBatchDecrefFunction(instr_iter);
-    } else {
-      rsp_sub = rewriteRegularFunction(instr_iter);
-    }
   } else {
     rsp_sub = rewriteRegularFunction(instr_iter);
   }

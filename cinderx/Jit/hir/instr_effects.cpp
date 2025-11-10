@@ -205,15 +205,14 @@ MemoryEffects memoryEffects(const Instr& inst) {
       return commonEffects(inst, AOther);
 
     case Opcode::kMakeCheckedList:
-    case Opcode::kMakeList:
-    case Opcode::kMakeTuple: {
+    case Opcode::kMakeList: {
       // Steal all inputs.
       util::BitVector inputs{inst.NumOperands()};
       inputs.fill(true);
-      auto may_store =
-          inst.opcode() == Opcode::kMakeTuple ? ATupleItem : AListItem;
-      return {false, AEmpty, std::move(inputs), may_store};
+      return {false, AEmpty, std::move(inputs), AListItem};
     }
+    case Opcode::kMakeTuple:
+      return commonEffects(inst, ATupleItem);
 
     case Opcode::kStoreField:
       JIT_DCHECK(inst.NumOperands() == 3, "Unexpected number of operands");

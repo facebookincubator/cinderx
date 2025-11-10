@@ -228,24 +228,6 @@ RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
   return kChanged;
 }
 
-RewriteResult rewriteBatchDecrefInstrs(instr_iter_t instr_iter) {
-  auto instr = instr_iter->get();
-  if (!instr->isBatchDecref()) {
-    return kUnchanged;
-  }
-
-  // we translate BatchDecref by converting it to a Call instruction
-  instr->setOpcode(Instruction::kCall);
-
-  instr->prependInput(
-      std::make_unique<Operand>(
-          nullptr,
-          Operand::k64bit,
-          Operand::kImm,
-          reinterpret_cast<uint64_t>(FUNC_MARKER_BATCHDECREF)));
-  return kChanged;
-}
-
 void populateLoadSecondCallResultPhi(
     OperandBase::DataType data_type,
     Instruction* phi1,
@@ -363,7 +345,6 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 void PostGenerationRewrite::registerRewrites() {
   // rewriteInlineHelper should occur before other rewrites.
   registerOneRewriteFunction(rewriteInlineHelper, 0);
-  registerOneRewriteFunction(rewriteBatchDecrefInstrs, 0);
 
   registerOneRewriteFunction(rewriteBinaryOpConstantPosition, 1);
   registerOneRewriteFunction(rewriteBinaryOpLargeConstant, 1);

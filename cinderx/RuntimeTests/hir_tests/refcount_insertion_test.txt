@@ -1937,9 +1937,6 @@ def test(a):
 fun jittestmodule:test {
   bb 0 {
     v2:Object = LoadArg<0; "a">
-    Incref v2
-    Incref v2
-    Incref v2
     v6:MortalTupleExact = MakeTuple<3> v2 v2 v2 {
       LiveValues<1> b:v2
       FrameState {
@@ -1971,9 +1968,6 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    Incref v5
-    Incref v5
-    Incref v5
     v10:MortalTupleExact = MakeTuple<3> v5 v5 v5 {
       LiveValues<1> b:v5
       FrameState {
@@ -2005,9 +1999,6 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    Incref v5
-    Incref v5
-    Incref v5
     v10:MortalTupleExact = MakeTuple<3> v5 v5 v5 {
       LiveValues<1> b:v5
       FrameState {
@@ -2253,7 +2244,6 @@ fun jittestmodule:test {
     XDecref v18
     Decref v19
     Decref v26
-    Incref v14
     v20:MortalTupleExact = MakeTuple<1> v14 {
       LiveValues<2> unc:v13 o:v14
       FrameState {
@@ -2335,7 +2325,6 @@ fun jittestmodule:test {
     XDecref v26
     Decref v27
     Decref v33
-    Incref v17
     v28:MortalTupleExact = MakeTuple<1> v17 {
       LiveValues<2> unc:v16 o:v17
       FrameState {
@@ -2415,7 +2404,6 @@ fun jittestmodule:test {
     XDecref v26
     Decref v27
     Decref v33
-    Incref v17
     v28:MortalTupleExact = MakeTuple<1> v17 {
       LiveValues<2> unc:v16 o:v17
       FrameState {

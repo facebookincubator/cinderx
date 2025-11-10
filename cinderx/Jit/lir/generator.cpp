@@ -1769,7 +1769,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kBatchDecref: {
         auto instr = static_cast<const BatchDecref*>(&i);
 
-        Instruction* lir = bbb.appendInstr(Instruction::kBatchDecref);
+        Instruction* lir = bbb.appendInstr(Instruction::kVarArgCall);
+        lir->addOperands(Imm{reinterpret_cast<uint64_t>(JITRT_BatchDecref)});
         for (hir::Register* arg : instr->GetOperands()) {
           lir->addOperands(VReg{bbb.getDefInstr(arg)});
         }
@@ -2264,22 +2265,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMakeTuple: {
         auto instr = static_cast<const MakeTuple*>(&i);
-        Instruction* tuple = bbb.appendCallInstruction(
-            instr->output(),
-            PyTuple_New,
-            static_cast<Py_ssize_t>(instr->nvalues()));
-        // TODO(T174544781): need to check for 0 before initializing, currently
-        // that check only happens after assigning these values.
-        const size_t ob_item_offset = offsetof(PyTupleObject, ob_item);
-        for (size_t operandIdx = 0; operandIdx < instr->NumOperands();
-             operandIdx++) {
-          bbb.appendInstr(
-              OutInd{
-                  tuple,
-                  static_cast<int32_t>(
-                      ob_item_offset + operandIdx * kPointerSize)},
-              Instruction::kMove,
-              instr->GetOperand(operandIdx));
+        Instruction* tuple =
+            bbb.appendInstr(instr->output(), Instruction::kVarArgCall);
+        tuple->addOperands(
+            Imm{reinterpret_cast<uint64_t>(
+#if PY_VERSION_HEX >= 0x030F0000
+                PyTuple_FromArray
+#else
+                _PyTuple_FromArray
+#endif
+                )});
+        for (size_t ix = 0; ix < instr->NumOperands(); ix++) {
+          tuple->addOperands(VReg{bbb.getDefInstr(instr->GetOperand(ix))});
         }
         break;
       }
