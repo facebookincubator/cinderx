@@ -307,4 +307,67 @@ fun jittestmodule:test {
     Return<ImmortalNoneType> v25
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v14:Object = LoadArg<0; "x">
+    v15:Func = LoadCurrentFunc
+    Snapshot
+    v16:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v16
+  }
+
+  bb 4 (preds 0) {
+    Snapshot
+    v17:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v14
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v19:OptObject = LoadGlobalCached<0; "isinstance">
+    v20:MortalObjectUser[builtin_function_or_method:isinstance:0xdeadbeef] = GuardIs<0xdeadbeef> v19 {
+      Descr 'LOAD_GLOBAL: isinstance'
+    }
+    v21:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:OptObject = LoadGlobalCached<1; "str">
+    v23:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v22 {
+      Descr 'LOAD_GLOBAL: str'
+    }
+    Snapshot
+    v24:Bool = CallMethod<4> v20 v21 v14 v23 {
+      FrameState {
+        CurInstrOffset 24
+        Locals<1> v14
+      }
+    }
+    Snapshot
+    UseType<Bool> v24
+    v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v32:CBool = PrimitiveCompare<Equal> v24 v31
+    v26:Bool = PrimitiveBoxBool v32
+    Snapshot
+    v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<1, 2> v32
+  }
+
+  bb 1 (preds 3) {
+    Snapshot
+    v29:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    Return v29
+  }
+
+  bb 2 (preds 3) {
+    Snapshot
+    v30:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v30
+  }
+}
 --- End ---

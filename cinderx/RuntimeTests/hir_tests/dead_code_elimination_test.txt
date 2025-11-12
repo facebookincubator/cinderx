@@ -434,4 +434,11 @@ fun test {
     Return<CInt32> v0
   }
 }
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt32 = LoadArg<0, CInt32>
+    Return<CInt32> v0
+  }
+}
 --- End ---

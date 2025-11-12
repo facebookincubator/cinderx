@@ -229,4 +229,54 @@ fun jittestmodule:test {
     Return<ImmortalNoneType> v11
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "a", Array>
+    v1 = LoadCurrentFunc
+    Snapshot
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v4 = LoadConst<CInt64[3]>
+    v5 = LoadConst<ImmortalLongExact[2]>
+    Snapshot
+    v5 = RefineType<LongExact> v5
+    v6 = PrimitiveUnbox<CInt64> v5
+    v7 = IsNegativeAndErrOccurred v6 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v0
+        Stack<2> v4 v0
+      }
+    }
+    v8 = CheckSequenceBounds v0 v6 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v0
+      }
+    }
+    v10 = LoadConst<CInt64[24]>
+    v9 = LoadFieldAddress v0 v10
+    StoreArrayItem v9 v8 v4 v0
+    Snapshot
+    v11 = LoadConst<ImmortalNoneType>
+    v11 = RefineType<NoneType> v11
+    Return<NoneType> v11
+  }
+}
 --- End ---

@@ -10143,4 +10143,29 @@ fun jittestmodule:test {
     Return<ImmortalBool[True]> v7
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v4:Func = LoadCurrentFunc
+    Snapshot
+    v5:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v5
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v6:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v7
+  }
+}
 --- End ---

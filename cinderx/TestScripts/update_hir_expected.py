@@ -196,7 +196,9 @@ def update_text_test(  # noqa: C901
     def expect(exp: str, actual: str | None = None) -> None:
         line = actual or next_line()
         if line != exp:
-            raise RuntimeError(f"Expected '{exp}', got '{line}'")
+            raise RuntimeError(
+                f"Expected '{exp}', got '{line}' on line {line_index + 1}"
+            )
         new_lines.append(line)
 
     expect("--- Test Suite Name ---")
@@ -210,7 +212,7 @@ def update_text_test(  # noqa: C901
     try:
         while True:
             line = next_line()
-            if line == "--- End ---":
+            if line in "--- End ---":
                 new_lines.append(line)
                 break
             expect("--- Test Name ---", line)
@@ -226,16 +228,18 @@ def update_text_test(  # noqa: C901
 
             # Find the right expected block for the given Python version.
             expected_version = f"--- Expected {py_version} ---"
-            skip = False
+            no_existing_expected_output = False
             while True:
                 line = peek_line()
-                if line.startswith("--- Test Name ---"):
-                    # This test is set to be skipped on this version
-                    skip = True
+                if line in ("--- Test Name ---", "--- End ---"):
+                    no_existing_expected_output = True
                     break
 
                 line = next_line()
                 new_lines.append(line)
+                if line == "--- Skip ---":
+                    no_existing_expected_output = True
+                    break
                 if not line.startswith("---"):
                     continue
                 if line == expected_version:
@@ -245,25 +249,28 @@ def update_text_test(  # noqa: C901
                         f"Test '{suite_name}.{test_case}' hit {line!r} before seeing expected HIR output for version {py_version!r}"
                     )
 
-            if skip:
-                if test_case in failed_tests:
-                    raise RuntimeError(
-                        f"Test {test_case} set to skip but have failed output, add --- Expected line and re-run"
-                    )
+            if no_existing_expected_output and test_case not in failed_tests:
                 continue
-            # Figure out what the expected HIR output is supposed to be.
+
+            # Add new expected output
             hir_lines = []
-            while not peek_line().startswith("---"):
-                hir_lines.append(next_line())
             if test_case in failed_tests:
+                if no_existing_expected_output:
+                    new_lines.append(expected_version)
                 # For text HIR tests, there should only be one element in the
                 # failed test dict.
                 hir_lines = next(iter(failed_tests[test_case].values()))
-
-            new_lines += hir_lines
+                new_lines += hir_lines
+                while not peek_line().startswith("---"):
+                    next_line()
+            else:
+                while not peek_line().startswith("---"):
+                    new_lines.append(next_line())
 
             # Process any other expected HIR blocks that come after.
-            if peek_line().startswith("--- Expected"):
+            while peek_line().startswith("--- Expected") or peek_line().startswith(
+                "--- Skip"
+            ):
                 new_lines.append(next_line())
                 while not peek_line().startswith("---"):
                     new_lines.append(next_line())
@@ -554,6 +561,7 @@ def main() -> None:
                 failed_cpp_tests.add((suite_name, test_name))
             continue
 
+        print(f"Scanning {suite_file}")
         new_lines = update_text_test(suite_name, old_lines, failed_tests, py_version)
         write_if_changed(suite_file, old_lines, new_lines)
 

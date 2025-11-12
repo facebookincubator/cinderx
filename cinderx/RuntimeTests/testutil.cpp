@@ -228,14 +228,16 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
 
     bool is_skip = false;
     bool missing = false;
+    bool is_end = false;
 
     // Scan until the correct expected block.
     switch (scanUntilExpected(reader, expected_delimiter)) {
-      case ScanStatus::End:
-        return suite;
       case ScanStatus::Skip:
         is_skip = true;
         break;
+      case ScanStatus::End:
+        is_end = true;
+        [[fallthrough]];
       case ScanStatus::NextTest:
         missing = true;
         break;
@@ -255,6 +257,10 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
       // skipped (rather than excluded from view which is what our "-- Skip --"
       // does).
       test_case.is_skip = test_case.name.starts_with(kDisabledPrefix);
+    }
+
+    if (is_end) {
+      return suite;
     }
 
     if (missing) {

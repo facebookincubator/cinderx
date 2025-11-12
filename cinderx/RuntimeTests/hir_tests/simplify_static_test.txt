@@ -1177,4 +1177,44 @@ fun jittestmodule:test {
     Return<CInt8> v17
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:CInt64 = LoadArg<0; "x", CInt64>
+    v9:Func = LoadCurrentFunc
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v8 v10
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v15:LongExact = PrimitiveBox<CInt64> v8 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<2> v8 v10
+      }
+    }
+    v17:CInt8 = PrimitiveUnbox<CInt8> v15
+    v18:CInt64 = IsNegativeAndErrOccurred v17 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<2> v8 v10
+      }
+    }
+    Return<CInt8> v17
+  }
+}
 --- End ---

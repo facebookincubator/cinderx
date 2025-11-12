@@ -186,4 +186,17 @@ fun test {
     Return v4
   }
 }
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v7:ImmortalNoneType = GuardIs<0xdeadbeef> v0 {
+    }
+    UseType<ImmortalNoneType> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+}
 --- End ---

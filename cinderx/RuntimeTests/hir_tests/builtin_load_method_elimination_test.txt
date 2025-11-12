@@ -1387,4 +1387,41 @@ fun jittestmodule:test {
     Return v15
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Func = LoadCurrentFunc
+    Snapshot
+    v9:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v11:MortalUnicodeExact["%s"] = LoadConst<MortalUnicodeExact["%s"]>
+    UseType<MortalUnicodeExact> v11
+    v16:MortalObjectUser[wrapper_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
+    v13:MortalUnicodeExact["%s"] = Assign v11
+    Snapshot
+    v14:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v15:Object = VectorCall<2, static> v16 v11 v14 {
+      FrameState {
+        CurInstrOffset 26
+      }
+    }
+    Snapshot
+    Return v15
+  }
+}
 --- End ---

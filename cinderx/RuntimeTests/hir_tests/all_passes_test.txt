@@ -1422,4 +1422,39 @@ fun jittestmodule:test {
     Return v22
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Nullptr = LoadConst<Nullptr>
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    UpdatePrevInstr<idx:0 line_no:1: no parent>
+    v12:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v10
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v10
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v14:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v18:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
+    UpdatePrevInstr<idx:15 line_no:3: no parent>
+    v21:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v14 v18
+    v22:Object = CheckExc v21 {
+      LiveValues<2> unc:v14 o:v21
+      FrameState {
+        CurInstrOffset 30
+        Locals<1> v14
+      }
+    }
+    Return v22
+  }
+}
 --- End ---

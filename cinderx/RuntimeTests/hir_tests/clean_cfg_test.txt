@@ -784,4 +784,17 @@ fun test {
     Return v1
   }
 }
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v3:{Array|BaseException|Bytes|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle} = RefineType<{Array|BaseException|Bytes|CBool|CDouble|CInt|CPtr|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|Nullptr|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle}> v0
+    v1:Object = BinaryOp<Add> v3 v3 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v1
+  }
+}
 --- End ---

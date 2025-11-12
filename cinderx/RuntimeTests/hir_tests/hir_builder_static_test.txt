@@ -2307,4 +2307,39 @@ fun jittestmodule:test {
     Return v6
   }
 }
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v1 = LoadCurrentFunc
+    Snapshot
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v4 = CallStatic<rand@0xdeadbeef, 0>
+    Snapshot
+    v5 = IntConvert<CInt64> v4
+    v0 = Assign v5
+    v6 = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v0
+      }
+    }
+    Return v6
+  }
+}
 --- End ---
