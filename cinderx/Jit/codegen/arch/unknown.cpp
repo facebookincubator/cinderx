@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/codegen/arch/unknown.h"
 
+#include "cinderx/Jit/codegen/arch/detection.h"
+
 #ifdef CINDER_UNKNOWN
 
 namespace jit::codegen {
