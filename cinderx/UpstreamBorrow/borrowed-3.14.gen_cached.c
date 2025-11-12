@@ -14,6 +14,7 @@
 #include "cinderx/module_c_state.h"
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_bitutils.h"
+#include "internal/pycore_floatobject.h"
 #include "internal/pycore_unicodeobject.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "internal/pycore_function.h"
@@ -262,8 +263,6 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #else
 #endif
 #define GROWTH_RATE(d) ((d)->ma_used*3)
-#ifdef ENABLE_LAZY_IMPORTS
-#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #define Py_EMPTY_KEYS &empty_keys_struct
@@ -336,6 +335,30 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #else   // Py_GIL_DISABLED
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
@@ -353,6 +376,14 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #else
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
 #endif
@@ -361,9 +392,9 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef ENABLE_LAZY_IMPORTS
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
-#else
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
+#else
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
 #else
@@ -499,11 +530,11 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
 #ifdef Py_GIL_DISABLED
 #else
-#ifdef ENABLE_LAZY_IMPORTS
-#else
 #endif
+#else
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -631,7 +662,7 @@ free_keys_object(PyDictKeysObject *keys, bool use_qsbr)
         return;
     }
 #endif
-    if (DK_LOG_SIZE(keys) == PyDict_LOG_MINSIZE && keys->dk_kind == DICT_KEYS_UNICODE) {
+    if (DK_LOG_SIZE(keys) == PyDict_LOG_MINSIZE && DK_KIND(keys) == DICT_KEYS_UNICODE) {
         _Py_FREELIST_FREE(dictkeys, keys, PyMem_Free);
     }
     else {
@@ -814,11 +845,11 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
 
     if (!splitted) {
         /* combined table */
-        CHECK(keys->dk_kind != DICT_KEYS_SPLIT);
+        CHECK(DK_KIND(keys) != DICT_KEYS_SPLIT);
         CHECK(keys->dk_refcnt == 1 || keys == Py_EMPTY_KEYS);
     }
     else {
-        CHECK(keys->dk_kind == DICT_KEYS_SPLIT);
+        CHECK(DK_KIND(keys) == DICT_KEYS_SPLIT);
         CHECK(mp->ma_used <= SHARED_KEYS_MAX_SIZE);
         if (mp->ma_values->embedded) {
             CHECK(mp->ma_values->embedded == 1);
@@ -827,13 +858,13 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
     }
 
     if (check_content) {
-        LOCK_KEYS_IF_SPLIT(keys, keys->dk_kind);
+        LOCK_KEYS_IF_SPLIT(keys, DK_KIND(keys));
         for (Py_ssize_t i=0; i < DK_SIZE(keys); i++) {
             Py_ssize_t ix = dictkeys_get_index(keys, i);
             CHECK(DKIX_DUMMY <= ix && ix <= usable);
         }
 
-        if (keys->dk_kind == DICT_KEYS_GENERAL) {
+        if (DK_KIND(keys) == DICT_KEYS_GENERAL) {
             PyDictKeyEntry *entries = DK_ENTRIES(keys);
             for (Py_ssize_t i=0; i < usable; i++) {
                 PyDictKeyEntry *entry = &entries[i];
@@ -844,7 +875,7 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
                     CHECK(entry->me_hash != -1);
                     CHECK(entry->me_value != NULL);
 #ifdef ENABLE_LAZY_IMPORTS
-                    CHECK(keys->dk_lazy_imports || !PyLazyImport_CheckExact(entry->me_value));
+                    CHECK(DK_LAZY_IMPORTS(keys) || !PyLazyImport_CheckExact(entry->me_value));
 #endif
 
                     if (PyUnicode_CheckExact(key)) {
@@ -867,7 +898,7 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
                     if (!splitted) {
                         CHECK(entry->me_value != NULL);
 #ifdef ENABLE_LAZY_IMPORTS
-                        CHECK(keys->dk_lazy_imports || !PyLazyImport_CheckExact(entry->me_value));
+                        CHECK(DK_LAZY_IMPORTS(keys) || !PyLazyImport_CheckExact(entry->me_value));
 #endif
                     }
                 }
@@ -888,11 +919,11 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
                 duplicate_check |= (1<<index);
                 CHECK(mp->ma_values->values[index] != NULL);
 #ifdef ENABLE_LAZY_IMPORTS
-                CHECK(keys->dk_lazy_imports || !PyLazyImport_CheckExact(mp->ma_values->values[index]));
+                CHECK(DK_LAZY_IMPORTS(keys) || !PyLazyImport_CheckExact(mp->ma_values->values[index]));
 #endif
             }
         }
-        UNLOCK_KEYS_IF_SPLIT(keys, keys->dk_kind);
+        UNLOCK_KEYS_IF_SPLIT(keys, DK_KIND(keys));
     }
     return 1;
 
@@ -1052,7 +1083,7 @@ _Py_dict_lookup_keep_lazy(PyDictObject *mp, PyObject *key, Py_hash_t hash, PyObj
     _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(mp);
 start:
     dk = mp->ma_keys;
-    kind = dk->dk_kind;
+    kind = DK_KIND(dk);
 
     if (kind != DICT_KEYS_GENERAL) {
         if (PyUnicode_CheckExact(key)) {
@@ -1296,7 +1327,9 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
     dk->dk_log2_index_bytes = log2_bytes;
     dk->dk_kind = unicode ? DICT_KEYS_UNICODE : DICT_KEYS_GENERAL;
 #ifdef ENABLE_LAZY_IMPORTS
-    dk->dk_lazy_imports = lazy_imports;
+    if (lazy_imports) {
+        dk->dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+    }
 #endif
 #ifdef Py_GIL_DISABLED
     dk->dk_mutex = (PyMutex){0};
@@ -1309,40 +1342,52 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
     return dk;
 }
 static void
+lazy_import_verbose_lock_held(PyThreadState *tstate, PyObject *value)
+{
+#ifdef Py_GIL_DISABLED
+    assert(PyMutex_IsLocked(&tstate->interp->lazy_imports_mutex));
+#endif
+    PyObject *lazy_import_verbose_seen = tstate->interp->lazy_import_verbose_seen;
+    if (lazy_import_verbose_seen == NULL) {
+        lazy_import_verbose_seen = PySet_New(NULL);
+        if (lazy_import_verbose_seen == NULL) {
+            return;
+        }
+        tstate->interp->lazy_import_verbose_seen = lazy_import_verbose_seen;
+    }
+    PyObject *name = _PyLazyImport_GetName(value);
+    if (name == NULL) {
+        return;
+    }
+    int has_it = PySet_Contains(lazy_import_verbose_seen, name);
+    if (has_it < 0) {
+        Py_DECREF(name);
+        return;
+    }
+    if (!has_it) {
+        fprintf(stderr, "# lazy import '%s'\n", PyUnicode_AsUTF8(name));
+        if (PySet_Add(lazy_import_verbose_seen, name) < 0) {
+            Py_DECREF(name);
+            return;
+        }
+    }
+    Py_DECREF(name);
+}
+static void
 lazy_import_verbose(PyObject *value)
 {
     PyThreadState *tstate = _PyThreadState_GET();
+
     int verbose = _PyInterpreterState_GetConfig(tstate->interp)->verbose;
     if (verbose) {
-        PyObject *lazy_import_verbose_seen = tstate->interp->lazy_import_verbose_seen;
-        if (lazy_import_verbose_seen == NULL) {
-            lazy_import_verbose_seen = PySet_New(NULL);
-            if (lazy_import_verbose_seen == NULL) {
-                PyErr_Clear();
-                return;
-            }
-            tstate->interp->lazy_import_verbose_seen = lazy_import_verbose_seen;
-        }
-        PyObject *name = _PyLazyImport_GetName(value);
-        if (name == NULL) {
-            PyErr_Clear();
-            return;
-        }
-        int has_it = PySet_Contains(lazy_import_verbose_seen, name);
-        if (has_it < 0) {
-            Py_DECREF(name);
-            PyErr_Clear();
-            return;
-        }
-        if (!has_it) {
-            fprintf(stderr, "# lazy import '%s'\n", PyUnicode_AsUTF8(name));
-            if (PySet_Add(lazy_import_verbose_seen, name) < 0) {
-                Py_DECREF(name);
-                PyErr_Clear();
-                return;
-            }
-        }
-        Py_DECREF(name);
+#ifdef Py_GIL_DISABLED
+        PyMutex_Lock(&tstate->interp->lazy_imports_mutex);
+#endif
+        lazy_import_verbose_lock_held(tstate, value);
+#ifdef Py_GIL_DISABLED
+        PyMutex_Unlock(&tstate->interp->lazy_imports_mutex);
+#endif
+        PyErr_Clear();
     }
 }
 static int
@@ -1498,7 +1543,7 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
     }
 
 #ifdef ENABLE_LAZY_IMPORTS
-    if (oldkeys->dk_lazy_imports) {
+    if (DK_LAZY_IMPORTS(oldkeys)) {
         lazy_imports = 1;
     }
 #endif
@@ -1529,7 +1574,7 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
         /* Convert split table into new combined table.
          * We must incref keys; we can transfer values.
          */
-        if (newkeys->dk_kind == DICT_KEYS_GENERAL) {
+        if (DK_KIND(newkeys) == DICT_KEYS_GENERAL) {
             // split -> generic
             PyDictKeyEntry *newentries = DK_ENTRIES(newkeys);
 
@@ -1569,9 +1614,9 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
         }
     }
     else {  // oldkeys is combined.
-        if (oldkeys->dk_kind == DICT_KEYS_GENERAL) {
+        if (DK_KIND(oldkeys) == DICT_KEYS_GENERAL) {
             // generic -> generic
-            assert(newkeys->dk_kind == DICT_KEYS_GENERAL);
+            assert(DK_KIND(newkeys) == DICT_KEYS_GENERAL);
             PyDictKeyEntry *oldentries = DK_ENTRIES(oldkeys);
             PyDictKeyEntry *newentries = DK_ENTRIES(newkeys);
             if (oldkeys->dk_nentries == numentries) {
@@ -1591,7 +1636,7 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
             PyDictUnicodeEntry *oldentries = DK_UNICODE_ENTRIES(oldkeys);
             if (unicode) { // combined unicode -> combined unicode
                 PyDictUnicodeEntry *newentries = DK_UNICODE_ENTRIES(newkeys);
-                if (oldkeys->dk_nentries == numentries && mp->ma_keys->dk_kind == DICT_KEYS_UNICODE) {
+                if (oldkeys->dk_nentries == numentries && DK_KIND(mp->ma_keys) == DICT_KEYS_UNICODE) {
                     memcpy(newentries, oldentries, numentries * sizeof(PyDictUnicodeEntry));
                 }
                 else {
@@ -1625,7 +1670,7 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
 #ifdef Py_REF_DEBUG
             _Py_DecRefTotal(_PyThreadState_GET());
 #endif
-            assert(oldkeys->dk_kind != DICT_KEYS_SPLIT);
+            assert(DK_KIND(oldkeys) != DICT_KEYS_SPLIT);
             assert(oldkeys->dk_refcnt == 1);
             free_keys_object(oldkeys, IS_DICT_SHARED(mp));
         }
@@ -1733,23 +1778,33 @@ insert_split_value(PyInterpreterState *interp, PyDictObject *mp, PyObject *key, 
     PyObject *old_value = mp->ma_values->values[ix];
     if (old_value == NULL) {
         _PyDict_NotifyEvent(interp, PyDict_EVENT_ADDED, mp, key, value);
+#ifdef ENABLE_LAZY_IMPORTS
+        if (PyLazyImport_CheckExact(value)) {
+            uint8_t dk_kind = DK_KIND(mp->ma_keys);
+            dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+            STORE_SHARED_UCHAR(mp->ma_keys->dk_kind, dk_kind);
+            lazy_import_verbose(value);
+        }
+#endif
         STORE_SPLIT_VALUE(mp, ix, Py_NewRef(value));
         _PyDictValues_AddToInsertionOrder(mp->ma_values, ix);
         STORE_USED(mp, mp->ma_used + 1);
     }
     else {
         _PyDict_NotifyEvent(interp, PyDict_EVENT_MODIFIED, mp, key, value);
+#ifdef ENABLE_LAZY_IMPORTS
+        if (PyLazyImport_CheckExact(value)) {
+            uint8_t dk_kind = DK_KIND(mp->ma_keys);
+            dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+            STORE_SHARED_UCHAR(mp->ma_keys->dk_kind, dk_kind);
+            lazy_import_verbose(value);
+        }
+#endif
         STORE_SPLIT_VALUE(mp, ix, Py_NewRef(value));
         // old_value should be DECREFed after GC track checking is done, if not, it could raise a segmentation fault,
         // when dict only holds the strong reference to value in ep->me_value.
         Py_DECREF(old_value);
     }
-#ifdef ENABLE_LAZY_IMPORTS
-    if (PyLazyImport_CheckExact(value)) {
-        mp->ma_keys->dk_lazy_imports = 1;
-        lazy_import_verbose(value);
-    }
-#endif
     ASSERT_CONSISTENT(mp);
 }
 static inline int
@@ -1773,21 +1828,31 @@ insert_combined_dict(PyInterpreterState *interp, PyDictObject *mp,
         PyDictUnicodeEntry *ep;
         ep = &DK_UNICODE_ENTRIES(mp->ma_keys)[mp->ma_keys->dk_nentries];
         STORE_KEY(ep, key);
+#ifdef ENABLE_LAZY_IMPORTS
+    if (PyLazyImport_CheckExact(value)) {
+        uint8_t dk_kind = DK_KIND(mp->ma_keys);
+        dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+        STORE_SHARED_UCHAR(mp->ma_keys->dk_kind, dk_kind);
+        lazy_import_verbose(value);
+    }
+#endif
         STORE_VALUE(ep, value);
     }
     else {
         PyDictKeyEntry *ep;
         ep = &DK_ENTRIES(mp->ma_keys)[mp->ma_keys->dk_nentries];
         STORE_KEY(ep, key);
-        STORE_VALUE(ep, value);
-        STORE_HASH(ep, hash);
-    }
 #ifdef ENABLE_LAZY_IMPORTS
     if (PyLazyImport_CheckExact(value)) {
-        mp->ma_keys->dk_lazy_imports = 1;
+        uint8_t dk_kind = DK_KIND(mp->ma_keys);
+        dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+        STORE_SHARED_UCHAR(mp->ma_keys->dk_kind, dk_kind);
         lazy_import_verbose(value);
     }
 #endif
+        STORE_VALUE(ep, value);
+        STORE_HASH(ep, hash);
+    }
     STORE_KEYS_USABLE(mp->ma_keys, mp->ma_keys->dk_usable - 1);
     STORE_KEYS_NENTRIES(mp->ma_keys, mp->ma_keys->dk_nentries + 1);
     assert(mp->ma_keys->dk_usable >= 0);
@@ -1804,7 +1869,7 @@ insertdict(PyInterpreterState *interp, PyDictObject *mp,
     if (DK_IS_UNICODE(mp->ma_keys) && !PyUnicode_CheckExact(key)) {
         if (insertion_resize(interp, mp, 0) < 0)
             goto Fail;
-        assert(mp->ma_keys->dk_kind == DICT_KEYS_GENERAL);
+        assert(DK_KIND(mp->ma_keys) == DICT_KEYS_GENERAL);
     }
 
     if (_PyDict_HasSplitTable(mp)) {
@@ -1848,18 +1913,28 @@ insertdict(PyInterpreterState *interp, PyDictObject *mp,
         assert(!_PyDict_HasSplitTable(mp));
         if (DK_IS_UNICODE(mp->ma_keys)) {
             PyDictUnicodeEntry *ep = &DK_UNICODE_ENTRIES(mp->ma_keys)[ix];
+    #ifdef ENABLE_LAZY_IMPORTS
+            if (PyLazyImport_CheckExact(value)) {
+                uint8_t dk_kind = DK_KIND(mp->ma_keys);
+                dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+                STORE_SHARED_UCHAR(mp->ma_keys->dk_kind, dk_kind);
+                lazy_import_verbose(value);
+            }
+    #endif
             STORE_VALUE(ep, value);
         }
         else {
             PyDictKeyEntry *ep = &DK_ENTRIES(mp->ma_keys)[ix];
+    #ifdef ENABLE_LAZY_IMPORTS
+            if (PyLazyImport_CheckExact(value)) {
+                uint8_t dk_kind = DK_KIND(mp->ma_keys);
+                dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
+                STORE_SHARED_UCHAR(mp->ma_keys->dk_kind, dk_kind);
+                lazy_import_verbose(value);
+            }
+    #endif
             STORE_VALUE(ep, value);
         }
-#ifdef ENABLE_LAZY_IMPORTS
-        if (PyLazyImport_CheckExact(value)) {
-            mp->ma_keys->dk_lazy_imports = 1;
-            lazy_import_verbose(value);
-        }
-#endif
     }
     Py_XDECREF(old_value); /* which **CAN** re-enter (see issue #22653) */
     ASSERT_CONSISTENT(mp);
@@ -1951,7 +2026,7 @@ _Py_dict_lookup(PyDictObject *mp, PyObject *key, Py_hash_t hash, PyObject **valu
     _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(mp);
 start:
     dk = mp->ma_keys;
-    kind = dk->dk_kind;
+    kind = DK_KIND(dk);
 
     if (kind != DICT_KEYS_GENERAL) {
         if (PyUnicode_CheckExact(key)) {
@@ -2033,7 +2108,7 @@ start:
     value = *value_ptr;
 
     if (value && PyLazyImport_CheckExact(value)) {
-        assert(dk->dk_lazy_imports);
+        assert(DK_LAZY_IMPORTS(dk));
         PyObject *resolved_value = _PyImport_LoadLazyImport(value, 0);
         if (resolved_value == NULL) {
             *value_addr = NULL;
@@ -2044,7 +2119,7 @@ start:
         }
         /* If the dict hasn't mutated, update resolved_value, otherwise
          * retry the lookup */
-        if (dk != mp->ma_keys || kind != dk->dk_kind) {
+        if (dk != mp->ma_keys || kind != DK_KIND(dk)) {
             Py_DECREF(resolved_value);
             goto start;
         }
@@ -2089,7 +2164,7 @@ _PyDict_LookupIndex(PyDictObject *mp, PyObject *key)
 static bool
 check_keys_unicode(PyDictKeysObject *dk, PyObject *key)
 {
-    return PyUnicode_CheckExact(key) && (dk->dk_kind != DICT_KEYS_GENERAL);
+    return PyUnicode_CheckExact(key) && (DK_KIND(dk) != DICT_KEYS_GENERAL);
 }
 static Py_ssize_t
 hash_unicode_key(PyObject *key)
@@ -2115,7 +2190,7 @@ static Py_ssize_t
 unicodekeys_lookup_split(PyDictKeysObject* dk, PyObject *key, Py_hash_t hash)
 {
     Py_ssize_t ix;
-    assert(dk->dk_kind == DICT_KEYS_SPLIT);
+    assert(DK_KIND(dk) == DICT_KEYS_SPLIT);
     assert(PyUnicode_CheckExact(key));
 
 #ifdef Py_GIL_DISABLED
@@ -2136,7 +2211,7 @@ unicodekeys_lookup_split(PyDictKeysObject* dk, PyObject *key, Py_hash_t hash)
 Py_ssize_t
 _PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject *key)
 {
-    assert(dk->dk_kind == DICT_KEYS_SPLIT);
+    assert(DK_KIND(dk) == DICT_KEYS_SPLIT);
     assert(PyUnicode_CheckExact(key));
     Py_hash_t hash = unicode_get_hash(key);
     if (hash == -1) {
@@ -2217,6 +2292,20 @@ _PyDict_GetKeysVersionForCurrentState(PyInterpreterState *interp,
         _PyDictKeys_GetVersionForCurrentState(interp, dict->ma_keys);
     ensure_shared_on_keys_version_assignment(dict);
     return dk_version;
+}
+
+void Cix_dict_insert_split_value(
+    PyInterpreterState *interp,
+    PyDictObject *mp,
+    PyObject *key,
+    PyObject *value,
+    Py_ssize_t ix) {
+#if defined(__clang__)
+  [[clang::always_inline]]
+#elif defined(__GNUC__)
+  [[gnu::always_inline]]
+#endif
+  insert_split_value(interp, mp, key, value, ix);
 }
 
 #define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
@@ -3310,6 +3399,7 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
         &(runtime)->allocators.mutex, \
         &(runtime)->_main_interpreter.types.mutex, \
         &(runtime)->_main_interpreter.code_state.mutex, \
+        &(runtime)->_main_interpreter.lazy_imports_mutex, \
     }
 #ifdef Py_REF_DEBUG
 #endif
@@ -5777,7 +5867,7 @@ static int
 specialize_module_load_attr_lock_held(PyDictObject *dict, _Py_CODEUNIT *instr, PyObject *name)
 {
     _PyAttrCache *cache = (_PyAttrCache *)(instr + 1);
-    if (dict->ma_keys->dk_kind != DICT_KEYS_UNICODE) {
+    if (DK_KIND(dict->ma_keys) != DICT_KEYS_UNICODE) {
         SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_NON_STRING);
         return -1;
     }
@@ -7759,12 +7849,6 @@ _PyTraceBack_FromFrame(PyObject *tb_next, PyFrameObject *frame)
     return tb_create_raw((PyTracebackObject *)tb_next, frame, addr, -1);
 }
 
-void
-_PyFloat_ExactDealloc(PyObject *obj)
-{
-    assert(PyFloat_CheckExact(obj));
-    _Py_FREELIST_FREE(floats, obj, PyObject_Free);
-}
 _PyStackRef _PyFloat_FromDouble_ConsumeInputs(_PyStackRef left, _PyStackRef right, double value)
 {
     PyStackRef_CLOSE_SPECIALIZED(left, _PyFloat_ExactDealloc);

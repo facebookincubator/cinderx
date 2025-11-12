@@ -141,6 +141,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function delitem_knownhash_lock_held from Objects/dictobject.c [3.14]
 // @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.14]
 // @Borrow function new_keys_object from Objects/dictobject.c [3.14]
+// @Borrow function lazy_import_verbose_lock_held from Objects/dictobject.c [3.14]
 // @Borrow function lazy_import_verbose from Objects/dictobject.c [3.14]
 // @Borrow function insert_to_emptydict from Objects/dictobject.c [3.14]
 // @Borrow function ensure_shared_on_resize from Objects/dictobject.c [3.14]
