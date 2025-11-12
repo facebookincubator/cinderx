@@ -942,6 +942,69 @@ Register* simplifyUnbox(Env& env, const Instr* instr) {
   return nullptr;
 }
 
+#if PY_VERSION_HEX >= 0x030E0000
+
+Register* simplifyLoadAttrSplitDict(
+    Env& env,
+    const LoadAttr* load_attr,
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<PyUnicodeObject> name) {
+  if (!PyType_HasFeature(
+          type, Py_TPFLAGS_MANAGED_DICT | Py_TPFLAGS_INLINE_VALUES)) {
+    return nullptr;
+  }
+  BorrowedRef<PyHeapTypeObject> heap_type{type};
+  if (heap_type->ht_cached_keys == nullptr) {
+    return nullptr;
+  }
+  PyDictKeysObject* keys = heap_type->ht_cached_keys;
+  Py_ssize_t attr_idx = getDictKeysIndex(keys, name);
+  if (attr_idx == -1) {
+    return nullptr;
+  }
+  // T244151823: For now we deopt on the type keys changing and in that case,
+  // de-opt the whole function. Ideally we'd just skip to the slow-path in this
+  // case.
+  Register* receiver = load_attr->GetOperand(0);
+  auto patchpoint = env.emitInstr<DeoptPatchpoint>(
+      env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
+  patchpoint->setGuiltyReg(receiver);
+  patchpoint->setDescr("SplitDictDeoptPatcher");
+  env.emit<UseType>(receiver, receiver->type());
+
+  Register* inline_values_valid = env.emit<LoadField>(
+      receiver,
+      "inline_values.valid",
+      type->tp_basicsize + offsetof(PyDictValues, valid),
+      TCUInt8);
+
+  return env.emitCond(
+      [&](BasicBlock* bb1, BasicBlock* bb2) {
+        env.emit<CondBranch>(inline_values_valid, bb1, bb2);
+      },
+      [&] { // Inline values are valid.
+        Register* maybe_attr = env.emit<LoadField>(
+            receiver,
+            repr(name),
+            attr_idx * sizeof(PyObject*) + type->tp_basicsize +
+                offsetof(PyDictValues, values),
+            TOptObject);
+        Register* attr =
+            env.emit<CheckField>(maybe_attr, name, *load_attr->frameState());
+        static_cast<CheckField*>(attr->instr())->setGuiltyReg(receiver);
+        return attr;
+      },
+      [&] { // Not valid - slow-path, call getattr.
+        return env.emit<LoadAttr>(
+            receiver,
+            load_attr->name_idx(),
+            *load_attr->frameState(),
+            /* already_optimized= */ true);
+      });
+}
+
+#else
+
 // Attempt to simplify the given LoadAttr to a split dict load. Assumes various
 // sanity checks have already passed:
 // - The receiver has a known, exact type.
@@ -952,21 +1015,11 @@ Register* simplifyLoadAttrSplitDict(
     const LoadAttr* load_attr,
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> name) {
-  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-    // TODO(T229234686): Support new 3.14 inline values
-    return nullptr;
-  }
 
 #if PY_VERSION_HEX >= 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
     return nullptr;
   }
-#if PY_VERSION_HEX >= 0x030E0000
-  if (PyType_HasFeature(type, Py_TPFLAGS_INLINE_VALUES)) {
-    // TASK(T229234686) Support inline values
-    return nullptr;
-  }
-#endif
 #else
   if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE) ||
       type->tp_dictoffset < 0) {
@@ -1035,6 +1088,7 @@ Register* simplifyLoadAttrSplitDict(
 
   return checked_attr;
 }
+#endif
 
 // For LoadAttr instructions that resolve to a descriptor, DescrInfo holds
 // unpacked state that's used by a number of different simplification cases.
@@ -1238,6 +1292,10 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
 }
 
 Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
+  if (load_attr->alreadyOptimized()) {
+    return nullptr;
+  }
+
   if (Register* reg = simplifyLoadAttrInstanceReceiver(env, load_attr)) {
     return reg;
   }

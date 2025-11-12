@@ -2530,13 +2530,32 @@ class DeoptBaseWithNameIdx : public DeoptBase {
   int name_idx_;
 };
 
-// Load an attribute from an object.
-DEFINE_SIMPLE_INSTR(
+// Load an attribute from an object. The already_optimized option is for use
+// when this instruction is used as part of the slow-path in optimization for an
+// initial LoadAttr.
+class INSTR_CLASS(
     LoadAttr,
     (TObject),
     HasOutput,
     Operands<1>,
-    DeoptBaseWithNameIdx);
+    DeoptBaseWithNameIdx) {
+ public:
+  LoadAttr(
+      Register* dst,
+      Register* receiver,
+      int name_idx,
+      const FrameState& frame,
+      bool already_optimized = false)
+      : InstrT(dst, receiver, name_idx, frame),
+        already_optimized_(already_optimized) {}
+
+  bool alreadyOptimized() const {
+    return already_optimized_;
+  }
+
+ private:
+  bool already_optimized_;
+};
 
 // Variant of LoadAttr that uses an inline cache.
 DEFINE_SIMPLE_INSTR(
