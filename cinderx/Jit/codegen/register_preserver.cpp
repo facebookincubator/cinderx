@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/codegen/register_preserver.h"
 
+#include "cinderx/Common/util.h"
+
 namespace jit::codegen {
 
 #if defined(CINDER_X86_64)
