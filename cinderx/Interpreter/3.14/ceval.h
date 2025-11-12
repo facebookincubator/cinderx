@@ -3,6 +3,7 @@
 
 
 #include "cinderx/Interpreter/3.14/Includes/ceval_macros.h"
+#include "cinderx/Jit/generators_core.h"
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_unicodeobject.h"
