@@ -26,10 +26,11 @@ from ast import (
     Try,
 )
 from collections import deque
+from collections.abc import Callable, Mapping, MutableMapping
 from contextlib import nullcontext
 from dataclasses import dataclass
 from symtable import Class, SymbolTable
-from typing import Callable, Dict, final, Generic, Mapping, MutableMapping, TypeVar
+from typing import final, Generic, TypeVar
 
 from .runtime import freeze_type, mutable
 
@@ -65,7 +66,7 @@ FIXED_MODULES: Mapping[str, Mapping[str, object]] = make_fixed_modules()
 TVar = TypeVar("TScope")
 TScopeData = TypeVar("TData", covariant=True)
 
-SymbolMap = Dict[AST, SymbolTable]
+SymbolMap = dict[AST, SymbolTable]
 
 
 @dataclass
@@ -106,7 +107,7 @@ class SymbolMapBuilder(ast.NodeVisitor):
         self.symbol_stack: deque[SymbolTable] = deque([symbols])
         children = self.symbol_stack.popleft().get_children()
         self.symbol_stack.extendleft(
-            (x for x in reversed(children) if not is_annotation(x))
+            x for x in reversed(children) if not is_annotation(x)
         )
         self.mapping: SymbolMap = {}
 
@@ -114,7 +115,7 @@ class SymbolMapBuilder(ast.NodeVisitor):
         current_symbol = self.mapping[node] = self.symbol_stack.popleft()
         children = current_symbol.get_children()
         self.symbol_stack.extendleft(
-            (x for x in reversed(children) if not is_annotation(x))
+            x for x in reversed(children) if not is_annotation(x)
         )
 
     def visit_ClassDef(self, node: ClassDef) -> None:

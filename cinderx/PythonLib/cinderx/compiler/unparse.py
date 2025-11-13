@@ -4,7 +4,8 @@
 import ast
 import sys
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Type
+from collections.abc import Callable
+from typing import Optional
 
 
 PR_TUPLE = 0
@@ -277,7 +278,7 @@ def _format_set(node: ast.Set, level: int) -> str:
     return "{" + ", ".join(to_expr(elt, PR_TEST) for elt in node.elts) + "}"
 
 
-def _format_comprehensions(nodes: List[ast.comprehension]) -> str:
+def _format_comprehensions(nodes: list[ast.comprehension]) -> str:
     return "".join(_format_comprehension(n) for n in nodes)
 
 
@@ -304,7 +305,7 @@ def _format_gen_exp(node: ast.GeneratorExp, level: int) -> str:
     return "(" + to_expr(node.elt) + _format_comprehensions(node.generators) + ")"
 
 
-def format_fstring_elt(res: List[str], elt: ast.expr, is_format_spec: bool) -> None:
+def format_fstring_elt(res: list[str], elt: ast.expr, is_format_spec: bool) -> None:
     if isinstance(elt, ast.Constant):
         res.append(elt.value)
     elif isinstance(elt, ast.JoinedStr):
