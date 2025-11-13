@@ -59,7 +59,7 @@ class FrameAsm {
       void* val,
       const arch::Gp& scratch);
 
-  void loadTState(const arch::Gp& dst_reg, RegisterPreserver& preserver);
+  void loadTState(const arch::Gp& dst_reg);
   void linkNormalGeneratorFrame(
       RegisterPreserver& preserver,
       const arch::Gp& func_reg,

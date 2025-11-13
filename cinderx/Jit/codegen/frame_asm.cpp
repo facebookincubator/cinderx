@@ -89,9 +89,7 @@ void initThreadStateOffset() {
   tstate_offset_inited = true;
 }
 
-void FrameAsm::loadTState(
-    const arch::Gp& dst_reg,
-    [[maybe_unused]] RegisterPreserver& preserver) {
+void FrameAsm::loadTState(const arch::Gp& dst_reg) {
 #if defined(CINDER_X86_64)
   if (tstate_offset != -1) {
     asmjit::x86::Mem tls(tstate_offset);
@@ -224,7 +222,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   if (tstate_offset == -1) {
     preserver.preserve();
   }
-  loadTState(tstate_reg, preserver);
+  loadTState(tstate_reg);
 
   if (tstate_offset == -1) {
     preserver.restore();
@@ -405,9 +403,7 @@ void FrameAsm::linkNormalFrame(
 #endif
 
 #if PY_VERSION_HEX < 0x030C0000
-void FrameAsm::loadTState(
-    const arch::Gp& dst_reg,
-    RegisterPreserver& preserver) {
+void FrameAsm::loadTState(const arch::Gp& dst_reg) {
 #if defined(CINDER_X86_64)
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
@@ -431,7 +427,7 @@ void FrameAsm::generateLinkFrame(
   RegisterPreserver preserver(as_, save_regs);
 
   auto load_tstate_and_move = [&]() {
-    loadTState(tstate_reg, preserver);
+    loadTState(tstate_reg);
     preserver.remap();
   };
 
