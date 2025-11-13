@@ -3,7 +3,6 @@
 
 
 #include "cinderx/Interpreter/3.14/Includes/ceval_macros.h"
-#include "cinderx/Jit/generators_core.h"
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_unicodeobject.h"
@@ -938,40 +937,6 @@ fail_post_positional:
 fail_post_args:
     return -1;
 }
-const binaryfunc _PyEval_BinaryOps[] = {
-    [NB_ADD] = PyNumber_Add,
-    [NB_AND] = PyNumber_And,
-    [NB_FLOOR_DIVIDE] = PyNumber_FloorDivide,
-    [NB_LSHIFT] = PyNumber_Lshift,
-    [NB_MATRIX_MULTIPLY] = PyNumber_MatrixMultiply,
-    [NB_MULTIPLY] = PyNumber_Multiply,
-    [NB_REMAINDER] = PyNumber_Remainder,
-    [NB_OR] = PyNumber_Or,
-    [NB_POWER] = _PyNumber_PowerNoMod,
-    [NB_RSHIFT] = PyNumber_Rshift,
-    [NB_SUBTRACT] = PyNumber_Subtract,
-    [NB_TRUE_DIVIDE] = PyNumber_TrueDivide,
-    [NB_XOR] = PyNumber_Xor,
-    [NB_INPLACE_ADD] = PyNumber_InPlaceAdd,
-    [NB_INPLACE_AND] = PyNumber_InPlaceAnd,
-    [NB_INPLACE_FLOOR_DIVIDE] = PyNumber_InPlaceFloorDivide,
-    [NB_INPLACE_LSHIFT] = PyNumber_InPlaceLshift,
-    [NB_INPLACE_MATRIX_MULTIPLY] = PyNumber_InPlaceMatrixMultiply,
-    [NB_INPLACE_MULTIPLY] = PyNumber_InPlaceMultiply,
-    [NB_INPLACE_REMAINDER] = PyNumber_InPlaceRemainder,
-    [NB_INPLACE_OR] = PyNumber_InPlaceOr,
-    [NB_INPLACE_POWER] = _PyNumber_InPlacePowerNoMod,
-    [NB_INPLACE_RSHIFT] = PyNumber_InPlaceRshift,
-    [NB_INPLACE_SUBTRACT] = PyNumber_InPlaceSubtract,
-    [NB_INPLACE_TRUE_DIVIDE] = PyNumber_InPlaceTrueDivide,
-    [NB_INPLACE_XOR] = PyNumber_InPlaceXor,
-    [NB_SUBSCR] = PyObject_GetItem,
-};
-const conversion_func _PyEval_ConversionFuncs[4] = {
-    [FVC_STR] = PyObject_Str,
-    [FVC_REPR] = PyObject_Repr,
-    [FVC_ASCII] = PyObject_ASCII
-};
 static void
 clear_thread_frame(PyThreadState *tstate, _PyInterpreterFrame * frame)
 {
@@ -1105,6 +1070,8 @@ error:
     return NULL;
 }
 
+#ifdef ENABLE_JIT_GENERATORS
+
 // Cinder specific adapted functions
 static PyObject *
 Ci_PyEval_GetANext(PyObject *aiter)
@@ -1170,6 +1137,13 @@ Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
     }
     return iter;
 }
+
+#else
+
+#define Ci_PyEval_GetANext _PyEval_GetANext
+#define Ci_PyEval_GetAwaitable _PyEval_GetAwaitable
+
+#endif
 
 #if Py_TAIL_CALL_INTERP
 #include "cinderx/Interpreter/cinderx_opcode_targets.h"
