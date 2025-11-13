@@ -5,7 +5,8 @@ import asyncio
 import dis
 import sys
 import unittest
-from typing import Any, AsyncGenerator, Awaitable, Iterator, List
+from collections.abc import AsyncGenerator, Awaitable, Iterator
+from typing import Any
 
 import cinderx
 import cinderx.test_support as cinder_support
@@ -58,8 +59,8 @@ class AsyncGeneratorsTest(unittest.TestCase):
             async_itt3.send(None)
 
     @cinder_support.failUnlessJITCompiled
-    async def _f2(self, asyncgen: AsyncGenerator[int, None]) -> List[int]:
-        res: List[int] = []
+    async def _f2(self, asyncgen: AsyncGenerator[int, None]) -> list[int]:
+        res: list[int] = []
         async for x in asyncgen:
             res.append(x)
         return res
@@ -97,7 +98,7 @@ class AsyncGeneratorsTest(unittest.TestCase):
             self.fail("Expected ValueError to be raised")
 
     @cinder_support.failUnlessJITCompiled
-    async def _f3(self, asyncgen: AsyncGenerator[int, None]) -> List[int]:
+    async def _f3(self, asyncgen: AsyncGenerator[int, None]) -> list[int]:
         return [x async for x in asyncgen]
 
     def test_comprehension(self) -> None:

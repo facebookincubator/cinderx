@@ -14,6 +14,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from collections.abc import Callable, Generator, Sequence
 
 from contextlib import contextmanager
 from importlib.abc import Loader
@@ -22,16 +23,7 @@ from importlib.util import cache_from_source
 from os import path
 from py_compile import PycInvalidationMode
 from types import ModuleType
-from typing import (
-    Callable,
-    cast,
-    final,
-    Generator,
-    List,
-    Sequence,
-    TYPE_CHECKING,
-    TypeVar,
-)
+from typing import cast, final, List, TYPE_CHECKING, TypeVar
 from unittest.mock import patch
 
 from cinderx.compiler.strict.loader import (
@@ -2112,7 +2104,7 @@ class StrictLoaderTest(StrictTestBase):
             """,
         )
         with self.sbx.in_strict_module("a") as mod:
-            self.assertIs(mod.List, List)
+            self.assertIs(mod.List, list)
 
     def test_static_python_final_globals_patch(self) -> None:
         self.sbx.write_file(
