@@ -16,15 +16,15 @@ compileFile(filename)
 
 import ast
 from types import CodeType
-from typing import Any, Dict
+from typing import Any
 
 from .pycodegen import CinderCodeGenerator, compile, compile_code, compileFile
 
 
 def exec_cinder(
     source: str | bytes | ast.Module | ast.Expression | ast.Interactive | CodeType,
-    locals: Dict[str, Any],
-    globals: Dict[str, Any],
+    locals: dict[str, Any],
+    globals: dict[str, Any],
     modname: str = "<module>",
 ) -> None:
     if isinstance(source, CodeType):

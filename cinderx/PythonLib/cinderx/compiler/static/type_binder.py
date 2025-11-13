@@ -58,9 +58,10 @@ from ast import (
     Yield,
     YieldFrom,
 )
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import Generator, Optional, Sequence, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from ..consts import SC_CELL, SC_FREE, SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT, SC_LOCAL
 from ..errors import CollectingErrorSink, TypedSyntaxError

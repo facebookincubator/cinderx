@@ -14,9 +14,11 @@
 import dis as _dis
 import re
 import sys
+from collections.abc import Generator, Iterable
 from pprint import pformat
+from re import Pattern
 from types import CodeType
-from typing import Dict, Generator, Iterable, Optional, Pattern, TextIO, Tuple
+from typing import Optional, TextIO
 
 
 def _make_stable(
@@ -60,15 +62,15 @@ def _disassemble_bytes(
     co: CodeType,
     code: bytes,
     lasti: int = -1,
-    varnames: Optional[Tuple[str]] = None,
-    names: Optional[Tuple[str]] = None,
-    constants: Optional[Tuple[object]] = None,
-    cells: Optional[Tuple[object]] = None,
-    linestarts: Optional[Dict[int, int]] = None,
+    varnames: Optional[tuple[str]] = None,
+    names: Optional[tuple[str]] = None,
+    constants: Optional[tuple[object]] = None,
+    cells: Optional[tuple[object]] = None,
+    linestarts: Optional[dict[int, int]] = None,
     *,
     file: Optional[TextIO] = None,
     line_offset: int = 0,
-    localsplusnames: Optional[Tuple[str]] = None,
+    localsplusnames: Optional[tuple[str]] = None,
 ) -> None:
     # Omit the line number column entirely if we have no line number info
     show_lineno = linestarts is not None
@@ -168,7 +170,7 @@ def disassemble(
 
 class Disassembler:
     def __init__(self) -> None:
-        self.id_map: Dict[int, int] = {}
+        self.id_map: dict[int, int] = {}
         self.id_cnt: int = 0
 
     def get_co_id(self, co: CodeType) -> int:

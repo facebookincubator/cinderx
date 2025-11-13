@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import ast
-from typing import Dict, Sequence, Set, Tuple, TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .types import Value
 
-    RefinedFields = Dict[str, Tuple[Value, int, Set[ast.AST]]]
+    RefinedFields = dict[str, tuple[Value, int, set[ast.AST]]]
 
 
 # A refined field consists of a refined type in addition to the node that

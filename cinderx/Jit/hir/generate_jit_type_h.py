@@ -7,7 +7,7 @@ import operator
 import sys
 from enum import Enum
 from functools import reduce
-from typing import Dict, List, NamedTuple, Set, TextIO, Tuple
+from typing import NamedTuple, TextIO
 
 # This file is used to generate Jit/hir/type_generated.h. Jit/type.md is
 # recommended reading before trying to understand or change anything in here.
@@ -22,7 +22,7 @@ class Lifetime(Enum):
 
 class UnionSpec(NamedTuple):
     name: str
-    components: List[str]
+    components: list[str]
     lifetime: Lifetime = Lifetime.Bottom
 
 
@@ -41,7 +41,7 @@ class TypeFlag(Enum):
 # bitset.
 
 # Basic types that can't be subtyped by users.
-BASIC_FINAL_TYPES: List[str] = [
+BASIC_FINAL_TYPES: list[str] = [
     "Array",
     "Bool",
     "Cell",
@@ -56,7 +56,7 @@ BASIC_FINAL_TYPES: List[str] = [
 
 # Basic types that can be subtyped by users. These will be expanded into *User
 # and *Exact variants.
-BASIC_BASE_TYPES: List[str] = [
+BASIC_BASE_TYPES: list[str] = [
     "BaseException",
     "Bytes",
     "Dict",
@@ -71,35 +71,35 @@ BASIC_BASE_TYPES: List[str] = [
 ]
 
 # Type names that should map directly to a PyTypeObject*.
-BUILTIN_PYTYPES: Set[str] = {
+BUILTIN_PYTYPES: set[str] = {
     "Long",
     "Object",
     *BASIC_FINAL_TYPES,
     *BASIC_BASE_TYPES,
 }
 
-BASIC_EXACT_TYPES: List[str] = [
+BASIC_EXACT_TYPES: list[str] = [
     "LongExact",
     "ObjectExact",
     *[ty + "Exact" for ty in BASIC_BASE_TYPES],
 ]
 
-BASIC_USER_TYPES: List[str] = [
+BASIC_USER_TYPES: list[str] = [
     "LongUser",
     "ObjectUser",
     *[ty + "User" for ty in BASIC_BASE_TYPES],
 ]
 
-BASIC_PYTYPES: List[str] = BASIC_FINAL_TYPES + BASIC_EXACT_TYPES + BASIC_USER_TYPES
+BASIC_PYTYPES: list[str] = BASIC_FINAL_TYPES + BASIC_EXACT_TYPES + BASIC_USER_TYPES
 
-BASIC_INT_TYPES: List[str] = [
+BASIC_INT_TYPES: list[str] = [
     "CInt8",
     "CInt16",
     "CInt32",
     "CInt64",
 ]
 
-BASIC_UINT_TYPES: List[str] = [
+BASIC_UINT_TYPES: list[str] = [
     "CUInt8",
     "CUInt16",
     "CUInt32",
@@ -108,7 +108,7 @@ BASIC_UINT_TYPES: List[str] = [
 
 # Basic types that are either runtime-internal or only used in Static
 # Python. None can be subtyped by user code.
-BASIC_PRIMITIVE_TYPES: List[str] = [
+BASIC_PRIMITIVE_TYPES: list[str] = [
     "CBool",
     *BASIC_INT_TYPES,
     *BASIC_UINT_TYPES,
@@ -117,12 +117,12 @@ BASIC_PRIMITIVE_TYPES: List[str] = [
     "Nullptr",
 ]
 
-BASIC_TYPES: List[str] = BASIC_PYTYPES + BASIC_PRIMITIVE_TYPES
+BASIC_TYPES: list[str] = BASIC_PYTYPES + BASIC_PRIMITIVE_TYPES
 
 
 # Predefined unions that are exclusively Python types, and will have optional
 # and immortal/mortal variants created.
-PYTYPE_UNIONS: List[UnionSpec] = [
+PYTYPE_UNIONS: list[UnionSpec] = [
     UnionSpec("BuiltinExact", BASIC_FINAL_TYPES + BASIC_EXACT_TYPES),
     *[UnionSpec(ty, [ty + "User", ty + "Exact"]) for ty in BASIC_BASE_TYPES],
     UnionSpec("Long", ["LongExact", "LongUser", "Bool"]),
@@ -132,7 +132,7 @@ PYTYPE_UNIONS: List[UnionSpec] = [
 
 # Predefined unions that are not exclusively Python types, and have no
 # optional/mortal variants created.
-OTHER_UNIONS: List[UnionSpec] = [
+OTHER_UNIONS: list[UnionSpec] = [
     UnionSpec("Top", BASIC_TYPES, Lifetime.Top),
     UnionSpec("Bottom", [], Lifetime.Bottom),
     UnionSpec("Primitive", BASIC_PRIMITIVE_TYPES, Lifetime.Bottom),
@@ -164,7 +164,7 @@ FOOTER = """
 """
 
 
-def assign_bits() -> Tuple[Dict[str, int], int]:
+def assign_bits() -> tuple[dict[str, int], int]:
     """Create the bit patterns for all predefined types: basic types are given
     one bit each, then union types are constructed from the basic types.
     """
@@ -180,11 +180,11 @@ def assign_bits() -> Tuple[Dict[str, int], int]:
     return bits, bit_idx
 
 
-def generate_types() -> Tuple[List[Type], int]:
+def generate_types() -> tuple[list[Type], int]:
     """Compute a list of all predefined Types and the number of bits in the main
     bitset.
     """
-    types: List[Type] = []
+    types: list[Type] = []
     bits, num_bits = assign_bits()
     nullptr_bit: int = bits["Nullptr"]
 

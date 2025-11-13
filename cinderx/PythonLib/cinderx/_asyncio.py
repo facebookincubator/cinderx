@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 from asyncio import AbstractEventLoop, CancelledError, Future, get_event_loop
-from typing import Awaitable, Callable, Generator, NoReturn, Optional, TypeVar
+from collections.abc import Awaitable, Callable, Generator
+from typing import NoReturn, Optional, TypeVar
 
 
 try:

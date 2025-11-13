@@ -26,9 +26,10 @@ from ast import (
     Name,
     UnaryOp,
 )
+from collections.abc import Callable as typingCallable, Generator
 from contextlib import contextmanager
 from types import CodeType
-from typing import Any, Callable as typingCallable, cast, Generator, Optional, Type
+from typing import Any, cast
 
 from .. import consts, opcode_static
 from ..opcodebase import Opcode
@@ -165,7 +166,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
     pattern_context = StaticPatternContext
     # Defined in subclasses; this is an explicit receiver class for
     # self.defaultCall() and self.make_child_codegen to dispatch to
-    parent_impl: Type[CodeGenerator] = CodeGenerator
+    parent_impl: type[CodeGenerator] = CodeGenerator
 
     def __init__(
         self,
