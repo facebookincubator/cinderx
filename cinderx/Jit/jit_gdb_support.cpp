@@ -38,14 +38,26 @@ typedef struct {
 
 /* This sets up the hook that GDB uses to register new symbols. GDB will set a
  * breakpoint inside of it to grab new symbol information when it's called.
- * Need to make sure it's not optimized away. */
-void __attribute__((noinline)) __jit_debug_register_code() {
+ * Need to make sure it's not optimized away.
+ *
+ * Has to be a weak symbol in case another library also uses the GDB JIT
+ * interface (e.g. LLVM ORC).
+ */
+[[gnu::weak]] [[gnu::noinline]] void __jit_debug_register_code() {
   __asm("");
 }
 
 /* We will add new code entries to the link list rooted here. If the JIT ever
- * becomes multithreaded this will need to be protected by a mutex. */
-JITDescriptor __jit_debug_descriptor = {1, JIT_NOACTION, nullptr, nullptr};
+ * becomes multithreaded this will need to be protected by a mutex.
+ *
+ * Has to be a weak symbol in case another library also uses the GDB JIT
+ * interface (e.g. LLVM ORC).
+ */
+[[gnu::weak]] JITDescriptor __jit_debug_descriptor = {
+    1,
+    JIT_NOACTION,
+    nullptr,
+    nullptr};
 
 /* End GDB hook */
 
