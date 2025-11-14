@@ -105,7 +105,6 @@ SEQ_SUBSCR_UNCHECKED = 0
 SEQ_TUPLE = 0
 
 try:  # noqa: C901
-    from cinderx import static
     from cinderx.static import (  # noqa: F401
         __build_cinder_class__,
         chkdict,
@@ -120,6 +119,7 @@ try:  # noqa: C901
         is_static_callable,
         is_static_module,
         is_type_static,
+        make_context_decorator_wrapper,
         make_recreate_cm,
         posix_clock_gettime_ns,
         PRIM_OP_ADD_DBL,
@@ -200,6 +200,9 @@ except ImportError:
             return self
 
         return _recreate_cm
+
+    def make_context_decorator_wrapper(decorator, wrapper_func, wrapped_func):
+        return wrapper_func
 
     def posix_clock_gettime_ns():
         return time.clock_gettime_ns(time.CLOCK_MONOTONIC)
@@ -597,7 +600,7 @@ class ExcContextDecorator:
         # This will replace the vector call entry point with a C implementation.
         # We still want to return a function object because various things check
         # for functions or if an object is a co-routine.
-        return static.make_context_decorator_wrapper(self, _no_profile_inner, func)
+        return make_context_decorator_wrapper(self, _no_profile_inner, func)
 
 
 # pyre-ignore[16]: `Type` has no attribute `_recreate_cm`.
