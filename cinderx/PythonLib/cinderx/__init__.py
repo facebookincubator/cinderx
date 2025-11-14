@@ -7,7 +7,6 @@ from __future__ import annotations
 import gc
 import platform
 import sys
-
 from os import environ
 
 # ============================================================================
@@ -127,21 +126,19 @@ except ImportError as e:
     def _is_compile_perf_trampoline_pre_fork_enabled() -> bool:
         return False
 
-    class async_cached_classproperty:
-        pass
-
-    class async_cached_property:
-        pass
-
-    class cached_classproperty:
-        pass
-
+    from asyncio import AbstractEventLoop, Future
     from typing import (
+        Awaitable,
         Callable,
+        Dict,
         final,
+        Generator,
         Generic,
+        List,
+        NoReturn,
         Optional,
         overload,
+        Tuple,
         Type,
         TYPE_CHECKING,
         TypeVar,
@@ -150,23 +147,11 @@ except ImportError as e:
     _TClass = TypeVar("_TClass")
     _TReturnType = TypeVar("_TReturnType")
 
-    if TYPE_CHECKING:
-        from abc import ABC
+    @final
+    class NoValueSet:
+        pass
 
-        @final
-        class Descriptor(ABC, Generic[_TReturnType]):
-            __name__: str
-            __objclass__: Type[object]
-
-            def __get__(
-                self, inst: object, ctx: Optional[Type[object]] = None
-            ) -> _TReturnType: ...
-
-            def __set__(self, inst: object, value: _TReturnType) -> None:
-                pass
-
-            def __delete__(self, inst: object) -> None:
-                pass
+    NO_VALUE_SET = NoValueSet()
 
     class _BaseCachedProperty(Generic[_TClass, _TReturnType]):
         fget: Callable[[_TClass], _TReturnType]
@@ -207,6 +192,244 @@ except ImportError as e:
             result = self.fget(obj)
             obj.__dict__[self.__name__] = result
             return result
+
+    class _AsyncLazyValueState:
+        NotStarted = 0
+        Running = 1
+        Done = 2
+
+    _T = TypeVar("_T", covariant=True)
+    _TParams = TypeVar("_TParams")
+
+    # noqa: F401
+    import asyncio
+
+    class _AsyncLazyValue(Awaitable[_T]):
+        """
+        This is a low-level class used mainly for two things:
+        * It helps to avoid calling a coroutine multiple times, by caching the
+        result of a previous call
+        * It ensures that the coroutine is called only once
+
+        _AsyncLazyValue has well defined cancellation behavior in these cases:
+
+        1. When we have a single task stack (call stack for you JS folks), which is
+        awaiting on the AsyncLazyValue
+        -> In this case, we mimic the behavior of a normal await. i.e: If the
+            task stack gets cancelled, we cancel the coroutine (by raising a
+            CancelledError in the underlying future)
+
+        2. When we have multiple task stacks awaiting on the future.
+        We have two sub cases here.
+
+        2.1. The initial task stack (which resulted in an await of the coroutine)
+                gets cancelled.
+                -> In this case, we cancel the coroutine, and all the tasks depending
+                on it. If we don't do that, we'd have to implement retry logic,
+                which is a bad idea in such low level code. Even if we do implement
+                retries, there's no guarantee that they would succeed, so it's better
+                to just fail here.
+
+                Also, the number of times this happens is very small (I don't have
+                data to prove it, but qualitative arguments suggest this is the
+                case).
+
+        2.2. One of the many task stacks gets cancelled (but not the one which ended
+            up awaiting the coroutine)
+            -> In this case, we just allow the task stack to be cancelled, but
+                the rest of them are processed without being affected.
+        """
+
+        def __init__(
+            self,
+            # pyre-fixme[31]: Expression `typing.Callable[(_TParams,
+            #  typing.Awaitable[_T])]` is not a valid type.
+            coro_func: Callable[_TParams, Awaitable[_T]],
+            # pyre-fixme[11]: Annotation `args` is not defined as a type.
+            *args: _TParams.args,
+            # pyre-fixme[11]: Annotation `kwargs` is not defined as a type.
+            **kwargs: _TParams.kwargs,
+        ) -> None:
+            global asyncio
+            # pyre-fixme[31]: Expression `typing.Optional[typing.Callable[(_TParams,
+            #  typing.Awaitable[_T])]]` is not a valid type.
+            self.coro_func: Optional[Callable[_TParams, Awaitable[_T]]] = coro_func
+            self.args: Tuple[object, ...] = args
+            self.kwargs: Dict[str, object] = kwargs
+            self.state: int = _AsyncLazyValueState.NotStarted
+            self.res: Optional[_T] = None
+            self._futures: List[Future] = []
+            self._awaiting_tasks = 0
+
+        async def _async_compute(self) -> _T:
+            futures = self._futures
+            try:
+                coro_func = self.coro_func
+                # lint-fixme: NoAssertsRule
+                assert coro_func is not None
+                self.res = res = await coro_func(*self.args, **self.kwargs)
+
+                self.state = _AsyncLazyValueState.Done
+
+                # pyre-fixme[1001]: Awaitable assigned to `value` is never awaited.
+                for value in futures:
+                    if not value.done():
+                        value.set_result(self.res)
+
+                self.args = ()
+                self.kwargs.clear()
+                del self._futures[:]
+                self.coro_func = None
+
+                return res
+
+            except (Exception, asyncio.CancelledError) as e:
+                # pyre-fixme[1001]: Awaitable assigned to `value` is never awaited.
+                for value in futures:
+                    if not value.done():
+                        value.set_exception(e)
+                self._futures = []
+                self.state = _AsyncLazyValueState.NotStarted
+                raise
+
+        def _get_future(self, loop: Optional[AbstractEventLoop]) -> Future:
+            if loop is None:
+                loop = asyncio.get_event_loop()
+            f = asyncio.Future(loop=loop)
+            self._futures.append(f)
+            self._awaiting_tasks += 1
+            return f
+
+        def __iter__(self) -> _AsyncLazyValue[_T]:
+            return self
+
+        def __next__(self) -> NoReturn:
+            raise StopIteration(self.res)
+
+        def __await__(self) -> Generator[None, None, _T]:
+            if self.state == _AsyncLazyValueState.Done:
+                # pyre-ignore[7]: Expected `Generator[None, None, Variable[_T](covariant)]`
+                # but got `_AsyncLazyValue[Variable[_T](covariant)]`.
+                return self
+            elif self.state == _AsyncLazyValueState.Running:
+                c = self._get_future(None)
+                return c.__await__()
+            else:
+                self.state = _AsyncLazyValueState.Running
+                c = self._async_compute()
+                return c.__await__()
+
+        def as_future(self, loop: AbstractEventLoop) -> Future:
+            if self.state == _AsyncLazyValueState.Done:
+                f = asyncio.Future(loop=loop)
+                f.set_result(self.res)
+                return f
+            elif self.state == _AsyncLazyValueState.Running:
+                return self._get_future(loop)
+            else:
+                if loop is None:
+                    loop = asyncio.get_event_loop()
+                t = loop.create_task(self._async_compute())
+                self.state = _AsyncLazyValueState.Running
+                # pyre-ignore[16]: Undefined attribute `asyncio.tasks.Task`
+                # has no attribute `_source_traceback`.
+                if t._source_traceback:
+                    del t._source_traceback[-1]
+                # pyre-fixme[7]: Expected `Future[Any]` but got `Task[_T]`.
+                return t
+
+    _TAwaitableReturnType = TypeVar("_TAwaitableReturnType")
+
+    class async_cached_property(
+        Generic[_TAwaitableReturnType, _TClass],
+        _BaseCachedProperty[_TClass, Awaitable[_TAwaitableReturnType]],
+    ):
+        def __init__(
+            self,
+            f: Callable[[_TClass], _TReturnType],
+            slot: Optional[Descriptor[_TReturnType]] = None,
+        ) -> None:
+            super().__init__(f, slot)
+
+        def __get__(
+            self, obj: Optional[_TClass], cls: Type[_TClass]
+        ) -> (
+            _BaseCachedProperty[_TClass, Awaitable[_TAwaitableReturnType]]
+            | Awaitable[_TAwaitableReturnType]
+        ):
+            if obj is None:
+                return self
+
+            slot = self.slot
+            if slot is not None:
+                try:
+                    res = slot.__get__(obj, cls)
+                except AttributeError:
+                    res = _AsyncLazyValue(self.fget, obj)
+                    slot.__set__(obj, res)
+                return res
+
+            lazy_value = _AsyncLazyValue(self.fget, obj)
+            setattr(obj, self.__name__, lazy_value)
+            return lazy_value
+
+    class async_cached_classproperty(
+        Generic[_TAwaitableReturnType, _TClass],
+        _BaseCachedProperty[Type[_TClass], Awaitable[_TAwaitableReturnType]],
+    ):
+        def __init__(
+            self,
+            f: Callable[[_TClass], Awaitable[_TAwaitableReturnType]],
+            slot: Optional[Descriptor[Awaitable[_TAwaitableReturnType]]] = None,
+        ) -> None:
+            super().__init__(f, slot)
+            self._value: NoValueSet | Awaitable[_TAwaitableReturnType] = NO_VALUE_SET
+
+        def __get__(
+            self, obj: Optional[_TClass], cls: Type[_TClass]
+        ) -> Awaitable[_TAwaitableReturnType]:
+            lazy_value = self._value
+            if not isinstance(lazy_value, NoValueSet):
+                return lazy_value
+            self._value = lazy_value = _AsyncLazyValue(self.fget, cls)
+            return lazy_value
+
+    class cached_classproperty(_BaseCachedProperty[Type[_TClass], _TReturnType]):
+        def __init__(
+            self,
+            f: Callable[[_TClass], _TReturnType],
+            slot: Optional[Descriptor[_TReturnType]] = None,
+        ) -> None:
+            super().__init__(f, slot)
+            self._value: NoValueSet | _TReturnType = NO_VALUE_SET
+
+        def __get__(self, obj: Optional[_TClass], cls: Type[_TClass]) -> _TReturnType:
+            result = self._value
+            if not isinstance(result, NoValueSet):
+                return result
+            self._value = result = self.fget(cls)
+            return result
+
+    _TClass = TypeVar("_TClass")
+    _TReturnType = TypeVar("_TReturnType")
+
+    if TYPE_CHECKING:
+        from abc import ABC
+
+        @final
+        class Descriptor(ABC, Generic[_TReturnType]):
+            __name__: str
+            __objclass__: Type[object]
+
+            def __get__(
+                self, inst: object, ctx: Optional[Type[object]] = None
+            ) -> _TReturnType: ...
+
+            def __set__(self, inst: object, value: _TReturnType) -> None:
+                pass
+
+            def __delete__(self, inst: object) -> None:
+                pass
 
     class cached_property(_BaseCachedProperty[_TClass, _TReturnType]):
         def __init__(
