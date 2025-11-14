@@ -167,7 +167,6 @@ raise_error:
     Py_XDECREF(cause);
     return 0;
 }
-#ifdef Py_DEBUG
 static void
 dump_item(_PyStackRef item)
 {
@@ -219,7 +218,6 @@ dump_stack(_PyInterpreterFrame *frame, _PyStackRef *stack_pointer)
     PyErr_SetRaisedException(exc);
     _PyFrame_GetStackPointer(frame);
 }
-#endif
 static void
 lltrace_instruction(_PyInterpreterFrame *frame,
                     _PyStackRef *stack_pointer,

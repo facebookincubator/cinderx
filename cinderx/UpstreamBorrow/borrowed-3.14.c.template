@@ -94,6 +94,9 @@ PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_f
 // @Borrow function _PyFunction_GetVersionForCurrentState from Objects/funcobject.c
 // @Borrow function _PyInterpreterState_GetConfig from Python/pystate.c
 
+#if !defined(ENABLE_LAZY_IMPORTS) && !defined(DK_KIND)
+#define DK_KIND(dk) (dk->dk_kind)
+#endif
 
 // @Borrow CPP directives noinclude from Objects/dictobject.c
 // Several functions in dictobject.c check for exact pointer equality on Py_EMPTY_KEYS
@@ -141,8 +144,10 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function delitem_knownhash_lock_held from Objects/dictobject.c [3.14]
 // @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.14]
 // @Borrow function new_keys_object from Objects/dictobject.c [3.14]
+#ifdef ENABLE_LAZY_IMPORTS
 // @Borrow function lazy_import_verbose_lock_held from Objects/dictobject.c [3.14]
 // @Borrow function lazy_import_verbose from Objects/dictobject.c [3.14]
+#endif
 // @Borrow function insert_to_emptydict from Objects/dictobject.c [3.14]
 // @Borrow function ensure_shared_on_resize from Objects/dictobject.c [3.14]
 // @Borrow function build_indices_generic from Objects/dictobject.c [3.14]

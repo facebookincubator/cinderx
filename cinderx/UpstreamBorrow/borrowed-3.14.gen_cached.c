@@ -172,6 +172,9 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
     return &interp->config;
 }
 
+#if !defined(ENABLE_LAZY_IMPORTS) && !defined(DK_KIND)
+#define DK_KIND(dk) (dk->dk_kind)
+#endif
 
 #define PyDict_LOG_MINSIZE 3
 #define PyDict_MINSIZE 8
@@ -1341,6 +1344,7 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
     memset(&dk->dk_indices[(size_t)1 << log2_bytes], 0, entry_size * usable);
     return dk;
 }
+#ifdef ENABLE_LAZY_IMPORTS
 static void
 lazy_import_verbose_lock_held(PyThreadState *tstate, PyObject *value)
 {
@@ -1390,6 +1394,7 @@ lazy_import_verbose(PyObject *value)
         PyErr_Clear();
     }
 }
+#endif
 static int
 insert_to_emptydict(PyInterpreterState *interp, PyDictObject *mp,
                     PyObject *key, Py_hash_t hash, PyObject *value)
