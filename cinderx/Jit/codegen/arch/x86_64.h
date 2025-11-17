@@ -254,8 +254,16 @@ class PhyRegisterSet {
     return __builtin_ctz(rs_);
   }
 
+  PhyLocation GetLast() const {
+    return GetLastBit();
+  }
+
   constexpr void RemoveFirst() {
     rs_ &= (rs_ - 1);
+  }
+
+  constexpr void RemoveLast() {
+    rs_ &= ~(1U << GetLastBit());
   }
 
   void Set(PhyLocation reg) {
@@ -274,6 +282,10 @@ class PhyRegisterSet {
 
  private:
   unsigned rs_;
+
+  int GetLastBit() const {
+    return (sizeof(rs_) * CHAR_BIT - 1) - __builtin_clz(rs_);
+  }
 };
 
 #define ADD_REG(v, ...) | PhyLocation::v

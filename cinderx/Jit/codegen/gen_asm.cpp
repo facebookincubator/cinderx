@@ -1396,14 +1396,9 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
         "offset to callee saved regs not initialized");
     as_->lea(x86::rsp, x86::ptr(x86::rbp, -env_.last_callee_saved_reg_off));
 
-    std::vector<int> pop_regs;
     while (!saved_regs.Empty()) {
-      int reg = saved_regs.GetFirst().loc;
-      pop_regs.push_back(reg);
-      saved_regs.RemoveFirst();
-    }
-    for (auto riter = pop_regs.rbegin(); riter != pop_regs.rend(); ++riter) {
-      as_->pop(x86::gpq(*riter));
+      as_->pop(x86::gpq(saved_regs.GetLast().loc));
+      saved_regs.RemoveLast();
     }
   }
 
