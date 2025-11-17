@@ -26,9 +26,7 @@
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/static_array.h"
 
-#ifdef ENABLE_JIT_GENERATORS
 #include "cinderx/Jit/generators_rt.h"
-#endif
 
 #if !defined(ENABLE_LAZY_IMPORTS) && !defined(DK_KIND)
 #define DK_KIND(dk) (dk->dk_kind)

@@ -1068,8 +1068,6 @@ error:
     return NULL;
 }
 
-#ifdef ENABLE_JIT_GENERATORS
-
 // Cinder specific adapted functions
 static PyObject *
 Ci_PyEval_GetANext(PyObject *aiter)
@@ -1135,13 +1133,6 @@ Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
     }
     return iter;
 }
-
-#else
-
-#define Ci_PyEval_GetANext _PyEval_GetANext
-#define Ci_PyEval_GetAwaitable _PyEval_GetAwaitable
-
-#endif
 
 #if Py_TAIL_CALL_INTERP
 #include "cinderx/Interpreter/cinderx_opcode_targets.h"
