@@ -35,10 +35,10 @@ struct LiveRangeCompare {
 };
 
 void markDisallowedRegisters(std::vector<LIRLocation>& locs) {
-  auto stack_registers = STACK_REGISTERS;
-  while (!stack_registers.Empty()) {
-    auto reg = stack_registers.GetFirst();
-    stack_registers.RemoveFirst();
+  auto disallowed_registers = DISALLOWED_REGISTERS;
+  while (!disallowed_registers.Empty()) {
+    auto reg = disallowed_registers.GetFirst();
+    disallowed_registers.RemoveFirst();
 
     locs[reg.loc] = START_LOCATION;
   }

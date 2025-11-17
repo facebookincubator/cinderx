@@ -296,9 +296,9 @@ constexpr PhyRegisterSet ALL_VECD_REGISTERS =
 constexpr PhyRegisterSet ALL_REGISTERS = ALL_GP_REGISTERS | ALL_VECD_REGISTERS;
 #undef ADD_REG
 
-constexpr PhyRegisterSet STACK_REGISTERS = PhyRegisterSet(RSP) | RBP;
+constexpr PhyRegisterSet DISALLOWED_REGISTERS = PhyRegisterSet(RSP) | RBP;
 
-constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - STACK_REGISTERS;
+constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - DISALLOWED_REGISTERS;
 
 constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
     RSI | RDI | R8 | R9 | R10 | R11 | ALL_VECD_REGISTERS;

@@ -227,8 +227,8 @@ constexpr PhyRegisterSet ALL_VECD_REGISTERS =
 constexpr PhyRegisterSet ALL_REGISTERS = ALL_GP_REGISTERS | ALL_VECD_REGISTERS;
 #undef ADD_REG
 
-constexpr PhyRegisterSet STACK_REGISTERS = PhyRegisterSet();
-constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - STACK_REGISTERS;
+constexpr PhyRegisterSet DISALLOWED_REGISTERS = PhyRegisterSet();
+constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - DISALLOWED_REGISTERS;
 constexpr PhyRegisterSet CALLEE_SAVE_REGS = PhyRegisterSet();
 constexpr PhyRegisterSet CALLER_SAVE_REGS = INIT_REGISTERS - CALLEE_SAVE_REGS;
 
