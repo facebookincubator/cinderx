@@ -1,0 +1,147 @@
+
+#include "internal/pycore_ceval.h"
+#include "internal/pycore_stackref.h"
+#include "internal/pycore_unicodeobject.h"
+#include "internal/pycore_list.h"
+#include "internal/pycore_long.h"
+#include "internal/pycore_sliceobject.h"
+#include "internal/pycore_stackref.h"
+#include "internal/pycore_interpolation.h"
+#include "internal/pycore_emscripten_signal.h"
+#include "internal/pycore_template.h"
+#include "internal/pycore_setobject.h"
+#include "internal/pycore_intrinsics.h"
+#include "internal/pycore_cell.h"
+#include "internal/pycore_import.h"
+#include "internal/pycore_range.h"
+#include "internal/pycore_genobject.h"
+#include "internal/pycore_function.h"
+#include "internal/pycore_call.h"
+#include "internal/pycore_floatobject.h"
+#include "internal/pycore_tuple.h"
+#include "cinderx/Interpreter/3.15/Includes/ceval_macros.h"
+
+#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
+
+/* TBD - what about other compilers? */
+#if defined(__GNUC__) || defined(__clang__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wunused-label"
+#elif defined(_MSC_VER) /* MS_WINDOWS */
+#  pragma warning(push)
+#  pragma warning(disable:4102)
+#endif
+
+// @Borrow typedef _PyEntryFrame from Python/ceval.c
+
+// @Borrow function _Py_CheckRecursiveCallPy from Python/ceval.c
+// @Borrow var _Py_INTERPRETER_TRAMPOLINE_INSTRUCTIONS from Python/ceval.c
+
+// @Borrow function do_raise from Python/ceval.c
+#ifdef Py_DEBUG
+// @Borrow function dump_item from Python/ceval.c
+// @Borrow function dump_stack from Python/ceval.c
+#endif
+// @Borrow function lltrace_instruction from Python/ceval.c
+// @Borrow function lltrace_resume_frame from Python/ceval.c
+
+// @Borrow function maybe_lltrace_resume_frame from Python/ceval.c
+// @Borrow function do_monitor_exc from Python/ceval.c
+// @Borrow function no_tools_for_global_event from Python/ceval.c
+// @Borrow function no_tools_for_local_event from Python/ceval.c
+// @Borrow function _PyEval_MonitorRaise from Python/ceval.c
+// @Borrow function monitor_reraise from Python/ceval.c
+// @Borrow function monitor_stop_iteration from Python/ceval.c
+// @Borrow function monitor_unwind from Python/ceval.c
+// @Borrow function monitor_handled from Python/ceval.c
+// @Borrow function monitor_throw from Python/ceval.c
+// @Borrow function format_missing from Python/ceval.c
+// @Borrow function missing_arguments from Python/ceval.c
+// @Borrow function too_many_positional from Python/ceval.c
+// @Borrow function positional_only_passed_as_keyword from Python/ceval.c
+// @Borrow function scan_back_to_entry_start from Python/ceval.c
+// @Borrow function skip_to_next_entry from Python/ceval.c
+
+#define MAX_LINEAR_SEARCH 40
+
+
+// @Borrow function get_exception_handler from Python/ceval.c
+// @Borrow function initialize_locals from Python/ceval.c
+// @Borrow var _PyEval_BinaryOps from Python/ceval.c
+// @Borrow var _PyEval_ConversionFuncs from Python/ceval.c
+// @Borrow function clear_thread_frame from Python/ceval.c
+// @Borrow function clear_gen_frame from Python/ceval.c
+// @Borrow function _PyEval_FrameClearAndPop from Python/ceval.c
+// @Borrow function _PyEvalFramePushAndInit from Python/ceval.c
+// @Borrow function _PyEvalFramePushAndInit_Ex from Python/ceval.c
+
+// Cinder specific adapted functions
+static PyObject *
+Ci_PyEval_GetANext(PyObject *aiter)
+{
+    unaryfunc getter = NULL;
+    PyObject *next_iter = NULL;
+    PyTypeObject *type = Py_TYPE(aiter);
+    if (PyAsyncGen_CheckExact(aiter)) {
+        return type->tp_as_async->am_anext(aiter);
+    }
+    if (type->tp_as_async != NULL){
+        getter = type->tp_as_async->am_anext;
+    }
+
+    if (getter != NULL) {
+        next_iter = (*getter)(aiter);
+        if (next_iter == NULL) {
+            return NULL;
+        }
+    }
+    else {
+        PyErr_Format(PyExc_TypeError,
+                        "'async for' requires an iterator with "
+                        "__anext__ method, got %.100s",
+                        type->tp_name);
+        return NULL;
+    }
+
+    // CX: Changed from _PyCoro_GetAwaitableIter
+    PyObject *awaitable = JitCoro_GetAwaitableIter(next_iter);
+    if (awaitable == NULL) {
+        _PyErr_FormatFromCause(
+            PyExc_TypeError,
+            "'async for' received an invalid object "
+            "from __anext__: %.100s",
+            Py_TYPE(next_iter)->tp_name);
+    }
+    Py_DECREF(next_iter);
+    return awaitable;
+}
+
+static PyObject *
+Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
+{
+    // CX: Changed from _PyCoro_GetAwaitableIter
+    PyObject *iter = JitCoro_GetAwaitableIter(iterable);
+
+    if (iter == NULL) {
+        _PyEval_FormatAwaitableError(PyThreadState_GET(),
+            Py_TYPE(iterable), oparg);
+    }
+    else if (PyCoro_CheckExact(iter)) {
+        PyObject *yf = _PyGen_yf((PyGenObject*)iter);
+        if (yf != NULL) {
+            /* `iter` is a coroutine object that is being
+                awaited, `yf` is a pointer to the current awaitable
+                being awaited on. */
+            Py_DECREF(yf);
+            Py_CLEAR(iter);
+            _PyErr_SetString(PyThreadState_GET(), PyExc_RuntimeError,
+                                "coroutine is being awaited already");
+        }
+    }
+    return iter;
+}
+
+#if Py_TAIL_CALL_INTERP
+#include "cinderx/Interpreter/cinderx_opcode_targets.h"
+#include "cinderx/Interpreter/3.14/Includes/generated_cases.c.h"
+#endif
