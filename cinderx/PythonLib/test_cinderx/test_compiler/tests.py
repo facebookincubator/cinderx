@@ -17,7 +17,6 @@ from .test_optimizer import AstOptimizerTests
 
 # pyre-ignore[21]: test_peephole not found (not included in buck test build)
 from .test_peephole import PeepHoleTests
-from .test_py37 import Python37Tests
 from .test_symbols import SymbolVisitorTests
 from .test_unparse import UnparseTests
 from .test_visitor import VisitorTests

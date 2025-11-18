@@ -11,8 +11,6 @@ from .test_graph import GraphTests
 from .test_linepos import LinePositionTests
 from .test_optimizer import AstOptimizerTests
 from .test_py310 import Python310Tests
-from .test_py37 import Python37Tests
-from .test_py38 import Python38Tests
 from .test_pysourceloader import PySourceLoaderTest
 from .test_symbols import SymbolVisitorTests
 from .test_unparse import UnparseTests
