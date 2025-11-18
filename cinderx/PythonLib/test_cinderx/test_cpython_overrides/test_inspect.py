@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import inspect
+import sys
 import types
 import unittest
 import unittest.mock
@@ -60,7 +61,13 @@ class CinderX_TestSignatureBind(unittest.TestCase):
         def make_gen():
             return (z * z for z in range(5))
 
-        gencomp_code = make_gen.__code__.co_consts[1]
+        gencomp_code = (
+            # pyre-ignore[16]: no attribute __code__
+            make_gen.__code__.co_consts[0]
+            if sys.version_info >= (3, 14)
+            # pyre-ignore[16]: no attribute __code__
+            else make_gen.__code__.co_consts[1]
+        )
         gencomp_func = types.FunctionType(gencomp_code, {})
 
         iterator = iter(range(5))

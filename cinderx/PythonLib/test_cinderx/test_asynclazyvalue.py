@@ -3,6 +3,7 @@
 
 import asyncio
 import inspect
+import sys
 import unittest
 
 try:
@@ -163,6 +164,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             self.assertTrue(type(e.__context__) is Exc)
 
     @unittest.skipUnless(cinder_support.hasCinderX(), "Tests CinderX features")
+    @unittest.skipIf(sys.version_info >= (3, 14), "no awaiter support")
     @async_test
     async def test_get_awaiter(self) -> None:
         async def g(f):
@@ -193,6 +195,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         self.assertIs(await_stack[1], h_coro)
 
     @unittest.skipUnless(cinder_support.hasCinderX(), "Tests CinderX features")
+    @unittest.skipIf(sys.version_info >= (3, 14), "no awaiter support")
     @async_test
     async def test_get_awaiter_from_gathered(self) -> None:
         async def g(f):

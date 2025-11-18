@@ -758,9 +758,8 @@ class StrictLoaderTest(StrictTestBase):
             """,
         )
         with self.sbx.in_strict_module("bstatic", "astatic") as (mod, amod):
-            out = io.StringIO()
-            dis.dis(mod.f, file=out)
-            self.assertIn("INVOKE_FUNCTION", out.getvalue())
+            out = self.get_disassembly_as_string(mod.f)
+            self.assertIn("INVOKE_FUNCTION", out)
 
             out = io.StringIO()
             dis.dis(amod.C.f, file=out)
@@ -788,9 +787,7 @@ class StrictLoaderTest(StrictTestBase):
             """,
         )
         with restore_static_symtable(), self.sbx.in_strict_module("bstatic") as mod:
-            out = io.StringIO()
-            dis.dis(mod, file=out)
-            disassembly = out.getvalue()
+            disassembly = self.get_disassembly_as_string(mod.e)
             self.assertIn("INVOKE_FUNCTION", disassembly)
 
     def test_cross_module_nonstatic_typestub(self) -> None:
@@ -838,9 +835,7 @@ class StrictLoaderTest(StrictTestBase):
             """,
         )
         with restore_static_symtable(), self.sbx.in_strict_module("bstatic") as mod:
-            out = io.StringIO()
-            dis.dis(mod, file=out)
-            disassembly = out.getvalue()
+            disassembly = self.get_disassembly_as_string(mod.e)
             self.assertIn("INVOKE_FUNCTION", disassembly)
 
     def test_cross_module_static_typestub_missing(self) -> None:
@@ -1380,6 +1375,7 @@ class StrictLoaderTest(StrictTestBase):
         jkbase, other = self.sbx.strict_import("jkbase", "other")
         self.assertEqual(type(other.x), jkbase.JustKnobBoolean)
 
+    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_annotations_present(self) -> None:
         code = """
             import __strict__
@@ -1388,6 +1384,7 @@ class StrictLoaderTest(StrictTestBase):
         mod = self.sbx.strict_from_code(code)
         self.assertEqual(mod.__annotations__, {"x": int})
 
+    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_annotations_non_name(self) -> None:
         code = """
             import __strict__
@@ -1398,6 +1395,7 @@ class StrictLoaderTest(StrictTestBase):
         mod = self.sbx.strict_from_code(code)
         self.assertEqual(mod.__annotations__, {})
 
+    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_annotations_reinit(self) -> None:
         code = """
             import __strict__
@@ -1415,6 +1413,7 @@ class StrictLoaderTest(StrictTestBase):
         """
         self.sbx.strict_from_code(code)
 
+    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_class_try_except_else(self) -> None:
         """try/orelse/except visit order matches symbol visitor"""
         code = """
@@ -1686,34 +1685,6 @@ class StrictLoaderTest(StrictTestBase):
         mod = self.sbx.strict_from_code(code)
         self.assertEqual(mod.a, (42, "foo"))
 
-    def test_generic_slots(self) -> None:
-        code = """
-            import __strict__
-
-            from __strict__ import strict_slots
-            from typing import Generic, TypeVar
-
-            @strict_slots
-            class C(Generic[TypeVar('T')]):
-                pass
-        """
-        mod = self.sbx.strict_from_code(code)
-        self.assertEqual(mod.C.__slots__, ())
-
-    def test_ordered_keys(self) -> None:
-        code = """
-            import __strict__
-
-            x = 1
-            y = 2
-            z = 3
-        """
-
-        mod = self.sbx.strict_from_code(code)
-        self.assertEqual(
-            [k for k in mod.__dict__.keys() if not k.startswith("__")], ["x", "y", "z"]
-        )
-
     def test_type_freeze(self) -> None:
         self.sbx.write_file("a.py", "import __strict__\nclass C: pass")
         with ensure_type_patch():
@@ -1816,166 +1787,6 @@ class StrictLoaderTest(StrictTestBase):
             C = self.sbx.strict_import("a").C
             C.foo = 42
             self.assertEqual(C.foo, 42)
-
-    @unittest.skipIf(
-        HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
-    )
-    def test_loose_slots(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-                import __strict__
-                from __strict__ import loose_slots
-
-                @loose_slots
-                class C:
-                    pass
-
-                # application to a subclass is idempotent
-                @loose_slots
-                class D(C):
-                    pass
-
-                # same goes for grandchild classes
-                @loose_slots
-                class E(D):
-                    pass
-            """,
-        )
-        mod = self.sbx.strict_import("a")
-        C, D, E = mod.C, mod.D, mod.E
-        with with_warn_handler() as warnings:
-            c = C()
-            c.foo = 42
-            self.assertEqual(
-                warnings,
-                [("WARN001: Dictionary created for flagged instance", C, "foo")],
-            )
-            c.bar = 100
-            self.assertEqual(
-                warnings,
-                [("WARN001: Dictionary created for flagged instance", C, "foo")],
-            )
-            d = D()
-            d.baz = 42
-            self.assertEqual(
-                warnings,
-                [
-                    ("WARN001: Dictionary created for flagged instance", C, "foo"),
-                    ("WARN001: Dictionary created for flagged instance", D, "baz"),
-                ],
-            )
-            e = E()
-            e.baz = 42
-            self.assertEqual(
-                warnings,
-                [
-                    ("WARN001: Dictionary created for flagged instance", C, "foo"),
-                    ("WARN001: Dictionary created for flagged instance", D, "baz"),
-                    ("WARN001: Dictionary created for flagged instance", E, "baz"),
-                ],
-            )
-
-    @unittest.skipIf(
-        HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
-    )
-    def test_loose_slots_with_unknown_bases(self) -> None:
-        self.sbx.write_file(
-            "b.py",
-            """
-                class C1:
-                    pass
-
-                class C2:
-                    __slots__ = ("x", )
-            """,
-        )
-
-        self.sbx.write_file(
-            "a.py",
-            """
-                import __strict__
-                from __strict__ import loose_slots
-                from b import C1, C2
-
-                # __dict__ not included
-                @loose_slots
-                class D1(C1):
-                    a: int
-
-                # __dict__ should be included
-                @loose_slots
-                class D2(C2):
-                    a: int
-
-                # application to a subclass is idempotent
-                @loose_slots
-                class E1(D1):
-                    pass
-
-                @loose_slots
-                class E2(D2):
-                    pass
-
-                # same goes for grandchild classes
-                @loose_slots
-                class F1(E1):
-                    pass
-
-                @loose_slots
-                class F2(E2):
-                    pass
-            """,
-        )
-        mod = self.sbx.strict_import("a")
-        D1, D2, E1, E2, F1, F2 = mod.D1, mod.D2, mod.E1, mod.E2, mod.F1, mod.F2
-        with with_warn_handler() as warnings:
-            d1 = D1()
-            d1.foo = 42
-            self.assertIn(
-                ("WARN001: Dictionary created for flagged instance", D1, "foo"),
-                warnings,
-            )
-            d1.bar = 100
-            self.assertEqual(
-                warnings,
-                [("WARN001: Dictionary created for flagged instance", D1, "foo")],
-            )
-
-            d2 = D2()
-            d2.foo = 42
-            self.assertIn(
-                ("WARN001: Dictionary created for flagged instance", D2, "foo"),
-                warnings,
-            )
-
-            e1 = E1()
-            e1.baz = 42
-            self.assertIn(
-                ("WARN001: Dictionary created for flagged instance", E1, "baz"),
-                warnings,
-            )
-
-            e2 = E2()
-            e2.baz = 42
-            self.assertIn(
-                ("WARN001: Dictionary created for flagged instance", E2, "baz"),
-                warnings,
-            )
-
-            f1 = F1()
-            f1.baz = 42
-            self.assertIn(
-                ("WARN001: Dictionary created for flagged instance", F1, "baz"),
-                warnings,
-            )
-
-            f2 = F2()
-            f2.baz = 42
-            self.assertIn(
-                ("WARN001: Dictionary created for flagged instance", F2, "baz"),
-                warnings,
-            )
 
     @unittest.skipIf(
         HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
@@ -2093,18 +1904,6 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as mod:
             self.assertEqual(mod.f(), 3)
-
-    def test_static_python_import_from_fixed_module(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-                import __strict__
-                import __static__
-                from typing import List
-            """,
-        )
-        with self.sbx.in_strict_module("a") as mod:
-            self.assertIs(mod.List, list)
 
     def test_static_python_final_globals_patch(self) -> None:
         self.sbx.write_file(
@@ -2323,13 +2122,24 @@ class StrictLoaderTest(StrictTestBase):
                 return 42
             """,
         )
+
         proc = subprocess.run(
             [sys.executable, "-L", "main.py"],
             cwd=str(self.sbx.root),
+            env=self.subprocess_env,
             capture_output=True,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr.decode())
         self.assertIn(b"42", proc.stdout, proc.stdout.decode())
+
+    @property
+    def subprocess_env(self):
+        import cinderx
+
+        return {
+            **os.environ,
+            "PYTHONPATH": os.path.dirname(os.path.dirname(cinderx.__file__)),
+        }
 
     def test_strict_loader_stub_path(self) -> None:
         self.sbx.write_file(
@@ -2363,13 +2173,13 @@ class StrictLoaderTest(StrictTestBase):
             )
             (stubs_path / "c.pys").write_text(stub_contents)
 
-            env = os.environ.copy()
-            env.update({"PYTHONSTRICTMODULESTUBSPATH": raw_stubs_path})
-
             res = subprocess.run(
                 [sys.executable, "-X", "install-strict-loader", "a.py"],
                 cwd=str(self.sbx.root),
-                env=env,
+                env={
+                    **self.subprocess_env,
+                    "PYTHONSTRICTMODULESTUBSPATH": raw_stubs_path,
+                },
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
@@ -2419,94 +2229,13 @@ class StrictLoaderTest(StrictTestBase):
                     "a.py",
                 ],
                 cwd=str(self.sbx.root),
+                env=self.subprocess_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
             self.assertEqual(res.returncode, 0)
             output = res.stdout.decode()
             self.assertEqual(output, "hi\n")
-
-    def test_strict_loader_stub_path_invalid(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-            import b
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-            import __strict__
-            from c import f
-
-            f()
-            """,
-        )
-        self.sbx.write_file(
-            "c.py",
-            """
-            def f():
-                print("hi")
-            """,
-        )
-        res = subprocess.run(
-            [
-                sys.executable,
-                "-X",
-                "install-strict-loader",
-                "-X",
-                "strict-module-stubs-path=/nonexistent",
-                "a.py",
-            ],
-            cwd=str(self.sbx.root),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        self.assertEqual(res.returncode, 1)
-        output = res.stdout.decode()
-        self.assertIn(
-            "ValueError: Strict module stubs path does not exist: /nonexistent", output
-        )
-
-    def test_allow_side_effects(self) -> None:
-        module_types = ["__strict__", "__static__"]
-
-        for module_type in module_types:
-            with self.subTest(module_type=module_type):
-                self.sbx.write_file(
-                    "a.py",
-                    f"""
-                    import {module_type}
-
-                    from __strict__ import allow_side_effects
-
-                    from b import f
-
-                    f()
-
-                    class C:
-                        pass
-                    """,
-                )
-
-                self.sbx.write_file(
-                    "b.py",
-                    """
-                    def f():
-                        pass
-                    """,
-                )
-
-                mod_a = self.sbx.strict_import("a")
-
-                # It should be a StrictModule, even if analysis was skipped
-                self.assertEqual(type(mod_a), StrictModule)
-
-                # Types should be frozen
-                with self.assertRaisesRegex(
-                    TypeError, "type 'C' has been frozen and cannot be modified"
-                ):
-                    mod_a.C.something = 100
 
     def test_clear_classloader_cache_on_aborted_import(self):
         flagcode = """

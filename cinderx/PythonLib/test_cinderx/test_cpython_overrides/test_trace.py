@@ -4,6 +4,8 @@ import sys
 import unittest
 from trace import Trace
 
+from cinderx.test_support import skip_if_jit
+
 # ------------------------------- Utilities -----------------------------------#
 
 
@@ -51,6 +53,7 @@ class CinderX_TestLineCounts(unittest.TestCase):
         self.tracer = Trace(count=1, trace=0, countfuncs=0, countcallers=0)
         self.my_py_filename = fix_ext_py(__file__)
 
+    @skip_if_jit("tracing not supported with JIT")
     def test_trace_list_comprehension(self) -> None:
         # cinder modified for comprehension inlining
         self.tracer.runfunc(traced_caller_list_comprehension)

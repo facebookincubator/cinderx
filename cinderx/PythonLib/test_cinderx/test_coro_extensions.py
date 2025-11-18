@@ -4,6 +4,7 @@ import types
 import unittest
 
 from cinderx import test_support as cinder_support
+from cinderx.test_support import skip_if_jit
 
 # pyre-ignore[21]: can't find test.support
 from test.support import import_helper, maybe_get_event_loop_policy
@@ -54,6 +55,7 @@ class CoroutineAwaiterTest(unittest.TestCase):
         def __await__(self):
             return iter(["future"])
 
+    @skip_if_jit("no eager await with JIT")
     def test_eager_await(self) -> None:
         async def awaitee():
             nonlocal awaitee_frame
