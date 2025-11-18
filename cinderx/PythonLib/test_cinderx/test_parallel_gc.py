@@ -91,7 +91,11 @@ def setUpModule() -> None:
 
     global OLD_PAR_GC_SETTINGS
     OLD_PAR_GC_SETTINGS = cinderx.get_parallel_gc_settings()
-    cinderx.enable_parallel_gc(0, 8)
+    try:
+        cinderx.enable_parallel_gc(0, 8)
+    except RuntimeError:
+        # Parallel GC isn't available on this build
+        pass
 
 
 def tearDownModule() -> None:

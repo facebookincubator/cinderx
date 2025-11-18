@@ -1,0 +1,4 @@
+test_cinderx.test_parallel_gc.*
+test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
+test.test_threading.ThreadTests.test_native_id_after_fork
+
