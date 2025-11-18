@@ -8,13 +8,6 @@ from cinderx import test_support as cinder_support
 # pyre-ignore[21]: can't find test.support
 from test.support import import_helper, maybe_get_event_loop_policy
 
-if sys.version_info >= (3, 12):
-    # in 3.12, awaiter tests are in GetAsyncStackTests in
-    # Lib/test/test_asyncio/test_tasks.py
-    # And eager execution is an entirely different implementation:
-    # https://docs.python.org/3.12/library/asyncio-task.html#eager-task-factory
-    raise unittest.SkipTest("not supported on 3.12+")
-
 
 if cinder_support.hasCinderX():
     import cinder
@@ -34,6 +27,11 @@ def run_async(coro):
     return buffer, result
 
 
+# in 3.12, awaiter tests are in GetAsyncStackTests in
+# Lib/test/test_asyncio/test_tasks.py
+# And eager execution is an entirely different implementation:
+# https://docs.python.org/3.12/library/asyncio-task.html#eager-task-factory
+@unittest.skipIf(sys.version_info >= (3, 12), "not supported on 3.12+")
 class CoroutineAwaiterTest(unittest.TestCase):
     def test_basic_await(self) -> None:
         async def coro():

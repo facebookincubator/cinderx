@@ -15,8 +15,8 @@ from test.support.script_helper import assert_python_ok, make_script
 try:
     # pyre-ignore[21]: can't find _is_compile_perf_trampoline_pre_fork_enabled
     from cinder import _is_compile_perf_trampoline_pre_fork_enabled
-except:  # noqa: B001
-    raise unittest.SkipTest("pre-fork perf-trampoline compilation is not enabled")
+except ImportError:  # noqa: B001
+    _is_compile_perf_trampoline_pre_fork_enabled = None
 
 
 def supports_trampoline_profiling():
@@ -26,13 +26,12 @@ def supports_trampoline_profiling():
     return int(perf_trampoline) == 1
 
 
-if not supports_trampoline_profiling():
-    raise unittest.SkipTest("perf trampoline profiling not supported")
-
-if not _is_compile_perf_trampoline_pre_fork_enabled():
-    raise unittest.SkipTest("pre-fork perf-trampoline compilation is not enabled")
-
-
+@unittest.skipIf(
+    _is_compile_perf_trampoline_pre_fork_enabled is None
+    or not supports_trampoline_profiling()
+    or not _is_compile_perf_trampoline_pre_fork_enabled(),
+    "pre-fork perf-trampoline compilation is not enabled",
+)
 class TestPerfTrampolinePreCompile(unittest.TestCase):
     def setUp(self):
         super().setUp()
