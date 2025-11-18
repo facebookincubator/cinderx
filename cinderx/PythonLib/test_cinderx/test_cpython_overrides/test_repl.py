@@ -2,9 +2,13 @@
 import unittest
 from textwrap import dedent
 
+# pyre-ignore[21]: can't find test.support
 from test.support import SuppressCrashReport
+
+# pyre-ignore[21]: can't find test.support
 from test.support.script_helper import kill_python
 
+# pyre-ignore[21]: can't find test.test_repl
 from test.test_repl import spawn_repl
 
 

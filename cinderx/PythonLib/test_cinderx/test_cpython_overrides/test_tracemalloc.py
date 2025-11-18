@@ -4,6 +4,7 @@ import tracemalloc
 import unittest
 
 try:
+    # pyre-ignore[21]: can't find _testcapi
     import _testcapi
 except ImportError:
     _testcapi = None

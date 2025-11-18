@@ -407,7 +407,9 @@ class StaticTestBase(CompilerTest):
         if offset is not None:
             self.assertEqual(exc.offset, offset)
 
+    # pyre-ignore[34]: missing type variable
     def revealed_type_ctx(self, code: str, type: str) -> ContextManager[None]:
+        # pyre-ignore[7]: bad return type
         return self.type_error_ctx(
             code, rf"reveal_type\(.+\): '{re.escape(type)}'", at="reveal_type("
         )

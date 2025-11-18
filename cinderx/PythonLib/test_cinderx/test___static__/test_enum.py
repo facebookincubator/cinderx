@@ -91,4 +91,5 @@ class TestEnum(unittest.TestCase):
         )
 
     def test_iteration(self) -> None:
+        # pyre-ignore[6]: Incompatible parameter type
         self.assertEqual(set(Shape), {Shape.SQUARE, Shape.CIRCLE})

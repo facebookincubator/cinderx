@@ -2,6 +2,7 @@
 import unittest
 
 try:
+    # pyre-ignore[21]: can't find _testcapi
     import _testcapi
 except ImportError:
     _testcapi = None
@@ -33,6 +34,7 @@ class CinderX_GeneratorTest(unittest.TestCase):
 
         # modify names of the function creating the generator
         func.__qualname__ = "func_qualname"
+        # pyre-ignore[16]: no attribute __name__
         func.__name__ = "func_name"
         gen = func()
 
@@ -47,7 +49,10 @@ class CinderX_GeneratorTest(unittest.TestCase):
 
         # unnamed generator
         gen = (x for x in range(10))
+        # pyre-ignore[16]: no attribute __name__
         self.assertEqual(gen.__name__, "<genexpr>")
         self.assertEqual(
-            gen.__qualname__, "CinderX_GeneratorTest.test_name.<locals>.<genexpr>"
+            # pyre-ignore[16]: no attribute __qualname__
+            gen.__qualname__,
+            "CinderX_GeneratorTest.test_name.<locals>.<genexpr>",
         )

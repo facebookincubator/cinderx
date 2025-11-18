@@ -40,4 +40,5 @@ text = open_with_coding(sys.argv[1]).read()
 
 codeobj = py_compile(text, sys.argv[1], "exec")
 
+# pyre-ignore[6]: maybe not CodeType
 dis_stable.Disassembler().dump_code(codeobj, file=sys.stdout)

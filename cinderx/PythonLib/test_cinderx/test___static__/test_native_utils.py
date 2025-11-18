@@ -31,8 +31,11 @@ class TestNativeInvoke(unittest.TestCase):
         target = "libc.so.6"
         symbol = "labs"
 
+        # pyre-ignore[16]: unknown attribute
         handle = _ctypes.dlopen(target)
+        # pyre-ignore[16]: unknown attribute
         ctypes_result = _ctypes.dlsym(handle, symbol)
+        # pyre-ignore[16]: unknown attribute
         _ctypes.dlclose(handle)
 
         result = lookup_native_symbol(target, symbol)

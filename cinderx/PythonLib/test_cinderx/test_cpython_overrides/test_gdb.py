@@ -12,6 +12,7 @@ import sys
 import sysconfig
 import unittest
 
+# pyre-ignore[21]: can't find test.support
 from test import support
 
 

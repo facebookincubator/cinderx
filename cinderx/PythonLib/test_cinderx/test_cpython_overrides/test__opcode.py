@@ -3,9 +3,12 @@ import dis
 import unittest
 
 import cinderx.opcode as opcode
+
+# pyre-ignore[21]: can't find test.support
 from test.support.import_helper import import_module
 
 _opcode = import_module("_opcode")
+# pyre-ignore[21]: can't find _opcode
 from _opcode import stack_effect
 
 

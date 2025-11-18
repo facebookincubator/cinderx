@@ -4,6 +4,7 @@ import os
 import sys
 import unittest
 
+# pyre-ignore[21]: can't find _testinternalcapi
 from _testinternalcapi import perf_map_state_teardown, write_perf_map_entry
 
 if sys.platform != "linux":

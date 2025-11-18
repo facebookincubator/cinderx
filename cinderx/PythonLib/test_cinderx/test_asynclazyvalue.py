@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# pyre-ignore-all-errors
 
 import asyncio
 import inspect

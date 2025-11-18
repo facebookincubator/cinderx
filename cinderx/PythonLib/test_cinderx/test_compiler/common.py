@@ -29,6 +29,7 @@ from cinderx.compiler.pycodegen import (
 )
 
 if sys.version_info >= (3, 14):
+    # pyre-ignore[21]: unknown imports
     from dis import (
         _get_code_object,
         _make_labels_map,
@@ -85,6 +86,7 @@ class CompilerTest(TestCase):
             return s.getvalue()
 
         # pyre-ignore[10]: Formatter defined for 3.14+
+        # pyre-ignore[16]: dis has no Formatter
         formatter = Formatter(file=s, offset_width=3)
         # pyre-ignore[10]: Formatter defined for 3.14+
         bc = Bytecode(co)
@@ -109,6 +111,7 @@ class CompilerTest(TestCase):
                 instr[1],
                 instr.arg,
                 # pyre-ignore[10]: Formatter defined for 3.14+
+                # pyre-ignore[16]: dis has no _get_code_object
                 _get_code_object(co).co_consts[instr.arg],
                 *instr[4:],
             )
@@ -196,8 +199,10 @@ class CompilerTest(TestCase):
     def assertBinOpInBytecode(self, x: Disassembleable, binop: str) -> None:
         if sys.version_info >= (3, 12):
             binop = "NB_" + binop.removeprefix("BINARY_")
+            # pyre-ignore[21]: unknown _nb_ops
             from opcode import _nb_ops
 
+            # pyre-ignore[16]: unknown _nb_ops
             for i, (name, _sign) in enumerate(_nb_ops):
                 if name == binop:
                     self.assertInBytecode(x, "BINARY_OP", i)

@@ -269,6 +269,7 @@ z = y
 
     def get_annotations(self, mod: object) -> dict[str, type]:
         if sys.version_info >= (3, 14):
+            # pyre-ignore[21]: Couldn't find annotationlib
             import annotationlib
 
             return annotationlib.get_annotations(mod)

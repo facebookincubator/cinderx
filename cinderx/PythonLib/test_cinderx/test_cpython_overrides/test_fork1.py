@@ -9,8 +9,10 @@ import threading
 import time
 import unittest
 
+# pyre-ignore[21]: can't find test.support
 from test import support
 
+# pyre-ignore[21]: can't find test.fork_wait
 from test.fork_wait import ForkWait
 
 
@@ -18,6 +20,7 @@ from test.fork_wait import ForkWait
 support.get_attribute(os, "fork")
 
 
+# pyre-ignore[11]: Invalid type ForkWait
 class CinderX_ForkTest(ForkWait):
     def test_threaded_import_lock_fork(self) -> None:
         """Check fork() in main thread works while a subthread is doing an import"""
@@ -59,6 +62,7 @@ class CinderX_ForkTest(ForkWait):
                 # Exitcode 1 means the child got a partial module (bad.) No
                 # exitcode (but a hang, which manifests as 'got pid 0')
                 # means the child deadlocked (also bad.)
+                # pyre-ignore[16]: no attribute wait_impl
                 self.wait_impl(pid, exitcode=exitcode)
         finally:
             try:

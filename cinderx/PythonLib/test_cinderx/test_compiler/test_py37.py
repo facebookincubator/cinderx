@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# pyre-ignore-all-errors
+
 import __future__
 
 import sys

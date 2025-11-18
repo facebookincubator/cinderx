@@ -1,8 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import unittest
 
+# pyre-ignore[21]: can't find test.support
 from test.support import gc_collect
 
+# pyre-ignore[21]: can't find test.support
 from test.support.import_helper import import_module
 
 asyncio = import_module("asyncio")

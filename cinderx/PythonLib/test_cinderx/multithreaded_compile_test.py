@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# pyre-ignore-all-errors
 
 # This script exercises multi-threaded JIT compilation by importing a bunch of
 # things and then calling a magic function on the cinderjit module to do a

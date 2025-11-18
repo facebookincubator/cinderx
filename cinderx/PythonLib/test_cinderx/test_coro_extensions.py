@@ -4,8 +4,9 @@ import types
 import unittest
 
 from cinderx import test_support as cinder_support
-from test.support import import_helper, maybe_get_event_loop_policy
 
+# pyre-ignore[21]: can't find test.support
+from test.support import import_helper, maybe_get_event_loop_policy
 
 if sys.version_info >= (3, 12):
     # in 3.12, awaiter tests are in GetAsyncStackTests in
@@ -84,9 +85,11 @@ class CoroutineAwaiterTest(unittest.TestCase):
         self.assertEqual(v1, "future")
         self.assertIsInstance(awaitee_frame, types.FrameType)
         self.assertIsInstance(awaiter_frame, types.FrameType)
+        # pyre-ignore[16]: no attribute _get_frame_gen
         self.assertIs(cinder._get_frame_gen(awaiter_frame), awaiter_obj)
         self.assertIsNone(cinder._get_coro_awaiter(awaiter_obj))
 
+        # pyre-ignore[16]: no attribute _get_frame_gen
         awaitee_obj = cinder._get_frame_gen(awaitee_frame)
         self.assertIsInstance(awaitee_obj, types.CoroutineType)
         self.assertIs(cinder._get_coro_awaiter(awaitee_obj), awaiter_obj)
@@ -108,7 +111,9 @@ class CoroutineAwaiterTest(unittest.TestCase):
 
         self.assertIsInstance(awaitee_frame, types.FrameType)
         self.assertIsInstance(awaiter_frame, types.FrameType)
+        # pyre-ignore[16]: no attribute _get_frame_gen
         awaitee_obj = cinder._get_frame_gen(awaitee_frame)
+        # pyre-ignore[16]: no attribute _get_frame_gen
         awaiter_obj = cinder._get_frame_gen(awaiter_frame)
         self.assertIsInstance(awaitee_obj, types.CoroutineType)
         self.assertIsInstance(awaiter_obj, types.CoroutineType)

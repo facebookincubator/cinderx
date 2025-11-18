@@ -10,11 +10,14 @@ try:
 except ImportError:
     ThreadPoolExecutor = None
 
+# pyre-ignore[21]: can't find test.support
 from test.support import cpython_only
 
 try:
+    # pyre-ignore[21]: can't find test
     from test import inspect_fodder as mod
 except ImportError:
+    # pyre-ignore[21]: can't find test.test_inspect
     from test.test_inspect import inspect_fodder as mod
 
 # Functions tested in this suite:

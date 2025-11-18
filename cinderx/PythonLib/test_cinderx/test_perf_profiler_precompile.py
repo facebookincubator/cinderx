@@ -6,10 +6,14 @@ import sys
 import sysconfig
 import unittest
 
+# pyre-ignore[21]: can't find test.support
 from test.support.os_helper import temp_dir
+
+# pyre-ignore[21]: can't find test.support
 from test.support.script_helper import assert_python_ok, make_script
 
 try:
+    # pyre-ignore[21]: can't find _is_compile_perf_trampoline_pre_fork_enabled
     from cinder import _is_compile_perf_trampoline_pre_fork_enabled
 except:  # noqa: B001
     raise unittest.SkipTest("pre-fork perf-trampoline compilation is not enabled")

@@ -4,7 +4,10 @@
 
 import unittest
 
+# pyre-ignore[21]: can't find test
 from test import support
+
+# pyre-ignore[21]: can't find test.support
 from test.support import import_helper
 
 

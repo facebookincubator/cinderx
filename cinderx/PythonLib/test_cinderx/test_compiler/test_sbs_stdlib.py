@@ -58,11 +58,12 @@ def add_test(modname, fname):
                 encoding, _lines = detect_encoding(inp.readline)
             except SyntaxError:
                 return
-            code = b"".join(_lines + inp.readlines()).decode(encoding)
+            code = b"".join(list(_lines) + inp.readlines()).decode(encoding)
             try:
                 node = ast.parse(code, modname, "exec")
             except SyntaxError:
                 return
+            # pyre-ignore[16]: module doesn't have filename
             node.filename = modname
 
             try:
@@ -74,6 +75,7 @@ def add_test(modname, fname):
 
             codeobj = py_compile(node, modname, "exec")
             newdump = StringIO()
+            # pyre-ignore[6]: maybe not CodeType
             Disassembler().dump_code(codeobj, newdump)
 
             try:
