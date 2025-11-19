@@ -2,6 +2,7 @@
 
 #pragma once
 
+// NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Jit/codegen/arch/detection.h"
 #include "fmt/ostream.h"
 

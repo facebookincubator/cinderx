@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/codegen/arch/x86_64.h"
 
+// NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Jit/codegen/arch/detection.h"
 
 #ifdef CINDER_X86_64
