@@ -11,6 +11,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/threaded_compile.h"

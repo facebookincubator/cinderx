@@ -7,8 +7,13 @@
 #include "cinderx/Common/ref.h"
 
 namespace jit {
+
+int frameHeaderSize(BorrowedRef<PyCodeObject> code);
+
 #if PY_VERSION_HEX < 0x030C0000
+
 #include "internal/pycore_shadow_frame_struct.h"
+
 // FrameHeader lives at the beginning of the stack frame for JIT-compiled
 // functions. Note these will be garbage in generator objects.
 struct FrameHeader {
@@ -20,8 +25,6 @@ void assertShadowCallStackConsistent(PyThreadState* tstate);
 const char* shadowFrameKind(_PyShadowFrame* sf);
 
 #else
-
-int frameHeaderSize(BorrowedRef<PyCodeObject> code);
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
 
