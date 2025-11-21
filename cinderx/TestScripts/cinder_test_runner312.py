@@ -329,6 +329,40 @@ def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
     return skip_modules, skip_patterns
 
 
+def _select_tests(exclude: Set[str]) -> List[str]:
+    # Initial set of tests are the core Python ones.
+    tests = libregrtest_findtests.findtests(
+        exclude=exclude,
+        base_mod="test",
+        split_test_dirs={"test." + d for d in libregrtest_findtests.SPLITTESTDIRS},
+    )
+
+    # Add CinderX tests
+    cinderx_tests = libregrtest_findtests.findtests(
+        testdir=get_test_cinderx_dir(),
+        exclude=exclude,
+        split_test_dirs=CINDERX_SPLIT_TEST_DIRS,
+        base_mod="test_cinderx",
+    )
+    tests.extend(cinderx_tests)
+
+    # findtests won't discover the static tests that don't start with test_, so manually
+    # add those (it would find just test_static if we didn't split on that, but we want
+    # to parallelize all of the static tests)
+    testdir = libregrtest_findtests.findtestdir(
+        get_test_cinderx_dir() / Path("test_compiler/test_static")
+    )
+    tests.extend(get_cinderx_static_tests(testdir))
+
+    return tests
+
+
+def list_tests(hunterleaks, use_rr):
+    skip_modules, skip_patterns = _computeSkipTests(hunterleaks, use_rr)
+
+    return _select_tests(skip_modules)
+
+
 class MultiWorkerCinderRegrtest:
     def __init__(
         self,
@@ -375,7 +409,7 @@ class MultiWorkerCinderRegrtest:
         skip_modules, skip_patterns = _computeSkipTests(self._huntrleaks, self._use_rr)
 
         if tests is None:
-            tests = self._selectTests(skip_modules)
+            tests = _select_tests(skip_modules)
 
         extra_opts = {}
         if sys.version_info >= (3, 14):
@@ -622,6 +656,8 @@ class MultiWorkerCinderRegrtest:
             # True, True => fail_env_changed, fail_rerun
             if self._results.bad:
                 self.write_new_failures(starting_bad, missing_failures)
+            if self._results.no_tests_run():
+                sys.exit(0)
             sys.exit(self._results.get_exitcode(False, False))
         sys.exit(0)
 
@@ -654,8 +690,12 @@ class MultiWorkerCinderRegrtest:
         starting_bad = list(self._results.bad)
         starting_bad.sort()
         missing_failures = []
+        executed = self._results.get_executed()
         for expected_failure in self._expected_failures:
-            if expected_failure not in self._results.bad:
+            if (
+                expected_failure not in self._results.bad
+                and expected_failure in executed
+            ):
                 missing_failures.append(expected_failure)
             else:
                 # Failure was expected, move to the skipped list
@@ -665,33 +705,6 @@ class MultiWorkerCinderRegrtest:
                     self._results.rerun.remove(expected_failure)
 
         return starting_bad, missing_failures
-
-    def _selectTests(self, exclude: Set[str]) -> List[str]:
-        # Initial set of tests are the core Python ones.
-        tests = libregrtest_findtests.findtests(
-            exclude=exclude,
-            base_mod="test",
-            split_test_dirs={"test." + d for d in libregrtest_findtests.SPLITTESTDIRS},
-        )
-
-        # Add CinderX tests
-        cinderx_tests = libregrtest_findtests.findtests(
-            testdir=get_test_cinderx_dir(),
-            exclude=exclude,
-            split_test_dirs=CINDERX_SPLIT_TEST_DIRS,
-            base_mod="test_cinderx",
-        )
-        tests.extend(cinderx_tests)
-
-        # findtests won't discover the static tests that don't start with test_, so manually
-        # add those (it would find just test_static if we didn't split on that, but we want
-        # to parallelize all of the static tests)
-        testdir = libregrtest_findtests.findtestdir(
-            get_test_cinderx_dir() / Path("test_compiler/test_static")
-        )
-        tests.extend(get_cinderx_static_tests(testdir))
-
-        return tests
 
 
 # TASK(T184566736) Remove this work around for a bug in Buck2 which causes
@@ -856,6 +869,12 @@ def worker_main(args):
 
 
 def dispatcher_main(args):
+    if args.list:
+        tests = list_tests(args.huntrleaks, args.use_rr)
+        tests.sort()
+        print(json.dumps(tests, indent=0))
+        sys.exit(0)
+
     sys.path.insert(0, str(get_cinderx_dir() / "PythonLib"))
     libregrtest_setup.setup_process()
     pathlib.Path(CINDER_RUNNER_LOG_DIR).mkdir(parents=True, exist_ok=True)
@@ -924,7 +943,7 @@ def main():
         default=mem_limit_default,
     )
 
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(required=False)
 
     worker_parser = subparsers.add_parser("worker")
     worker_parser.add_argument(
@@ -986,6 +1005,13 @@ def main():
         "--test",
         action="append",
         help="The name of a test to run (e.g. `test_math`). Can be supplied multiple times.",
+    )
+    dispatcher_parser.add_argument(
+        "-l",
+        "--list",
+        action="store_true",
+        default=False,
+        help="List tests and exit.",
     )
     dispatcher_parser.add_argument(
         "--replay",

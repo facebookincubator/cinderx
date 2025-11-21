@@ -31,8 +31,8 @@ import time
 import types
 import unittest
 
+from importlib.util import find_spec
 from pathlib import Path
-
 from typing import Dict, IO, Iterable, List, Optional, Set, Tuple
 
 from cinderx.test_support import get_cinderjit_xargs, is_asan_build
@@ -62,7 +62,9 @@ from common import (
 from test import support
 from test.libregrtest.cmdline import Namespace
 from test.libregrtest.main import Regrtest
+
 from test.libregrtest.runtest import (
+    _runtest_inner2,
     ChildError,
     findtestdir,
     findtests,
@@ -156,6 +158,10 @@ class WorkReceiver:
         t.set_temp_dir()
         test_cwd = t.create_temp_dir()
         setup_tests(t.ns)
+        import test.libregrtest.runtest as rt
+
+        rt._runtest_inner2 = _patched_runtest_inner2
+        rt.get_abs_module = lambda ns, name: name
         # Run the tests in a context manager that temporarily changes the CWD to a
         # temporary and writable directory.  If it's not possible to create or
         # change the CWD, the original CWD will be used.  The original CWD is
@@ -321,6 +327,45 @@ def _setupCinderIgnoredTests(ns: Namespace, use_rr: bool) -> Tuple[List[str], Se
     return list(stdtest_set), nottests
 
 
+@staticmethod
+def list_tests(ns: Namespace, use_rr: bool) -> None:
+    cinderx_dir = get_cinderx_dir()
+    test_cinderx_dir = get_test_cinderx_dir(cinderx_dir)
+
+    # Added to sys.path for test modules.  `test_cinderx_dir.parent` is just
+    # `cinderx_dir` in the Git repository, but it can be different for
+    # internal builds.
+    ns.testdir = str(test_cinderx_dir.parent)
+
+    setup_tests(ns)
+    test_filters = _setupCinderIgnoredTests(ns, use_rr)
+
+    cinderx_dir = get_cinderx_dir()
+    test_cinderx_dir = get_test_cinderx_dir(cinderx_dir)
+
+    stdtest, nottests = test_filters
+
+    # Initial set of tests are the core Python/Cinder ones.
+    tests = ["test." + t for t in findtests(None, stdtest, nottests)]
+
+    # Add CinderX tests
+    cinderx_tests = findtests(str(test_cinderx_dir), [], nottests)
+    tests.extend("test_cinderx." + t for t in cinderx_tests if not t == "test_compiler")
+
+    # Split the compiler tests into their subtests so they run faster
+    compiler_tests = findtests(str(test_cinderx_dir) + "/test_compiler", [], nottests)
+    tests.extend(
+        "test_cinderx.test_compiler." + t for t in compiler_tests if t != "test_static"
+    )
+
+    # Also split the static Python tests, they don't start with "test_" so we
+    # need to manually discover them, and exclude
+    testdir = findtestdir(str(test_cinderx_dir) + "/test_compiler/test_static")
+    tests.extend(get_cinderx_static_tests(testdir))
+
+    return tests
+
+
 class MultiWorkerCinderRegrtest(Regrtest):
     def __init__(
         self,
@@ -476,21 +521,10 @@ class MultiWorkerCinderRegrtest(Regrtest):
     def _main(self, tests, kwargs):
         self.ns.fail_env_changed = True
 
-        cinderx_dir = get_cinderx_dir()
-        test_cinderx_dir = get_test_cinderx_dir(cinderx_dir)
-
-        # Added to sys.path for test modules.  `test_cinderx_dir.parent` is just
-        # `cinderx_dir` in the Git repository, but it can be different for
-        # internal builds.
-        self.ns.testdir = str(test_cinderx_dir.parent)
-
-        setup_tests(self.ns)
-
-        test_filters = _setupCinderIgnoredTests(self.ns, self._use_rr)
-
         if tests is None:
-            self._selectDefaultCinderTests(test_filters, test_cinderx_dir)
+            self.tests = list_tests(self.ns, self._use_rr)
         else:
+            _setupCinderIgnoredTests(self.ns, self._use_rr)
             self.find_tests(tests)
 
         replay_infos = self.run_tests()
@@ -518,37 +552,6 @@ class MultiWorkerCinderRegrtest(Regrtest):
             if self.ns.fail_env_changed and self.environment_changed:
                 sys.exit(3)
         sys.exit(0)
-
-    def _selectDefaultCinderTests(
-        self, test_filters: Tuple[List[str], Set[str]], test_cinderx_dir: Path
-    ) -> None:
-        stdtest, nottests = test_filters
-
-        # Initial set of tests are the core Python/Cinder ones.
-        tests = ["test." + t for t in findtests(None, stdtest, nottests)]
-
-        # Add CinderX tests
-        cinderx_tests = findtests(str(test_cinderx_dir), [], nottests)
-        tests.extend(
-            "test_cinderx." + t for t in cinderx_tests if not t == "test_compiler"
-        )
-
-        # Spilt the compiler tests into their subtests so they run faster
-        compiler_tests = findtests(
-            str(test_cinderx_dir) + "/test_compiler", [], nottests
-        )
-        tests.extend(
-            "test_cinderx.test_compiler." + t
-            for t in compiler_tests
-            if t != "test_static"
-        )
-
-        # Also split the static Python tests, they don't start with "test_" so we
-        # need to manually discover them, and exclude
-        testdir = findtestdir(str(test_cinderx_dir) + "/test_compiler/test_static")
-        tests.extend(get_cinderx_static_tests(testdir))
-
-        self.selected = tests
 
     def _writeResultsToScuba(self) -> None:
         template = {
@@ -593,8 +596,15 @@ class MultiWorkerCinderRegrtest(Regrtest):
 def _patched_runtest_inner2(ns: Namespace, tests_name: str) -> bool:
     import test.libregrtest.runtest as runtest
 
+    if find_spec(tests_name) is not None:
+        # if we have a module fallback to the existing _runtest_inner2, it
+        # does some additioanl setup like calling test_main that we can't
+        # handle for non-module tests.
+        return _runtest_inner2(ns, tests_name)
+
     loader = unittest.TestLoader()
     tests = loader.loadTestsFromName(tests_name, None)
+
     for error in loader.errors:
         print(error, file=sys.stderr)
     if loader.errors:
@@ -687,6 +697,7 @@ class UserSelectedCinderRegrtest(Regrtest):
 
 
 def worker_main(args):
+    sys.path.insert(0, str(get_cinderx_dir() / "PythonLib"))
     ns_dict = json.loads(args.ns)
     ns = types.SimpleNamespace(**ns_dict)
     with MessagePipe(args.cmd_fd, args.result_fd) as pipe:
@@ -752,7 +763,6 @@ def dispatcher_main(args):
         with tempfile.NamedTemporaryFile(
             delete=False, mode="w+t", dir=CINDER_RUNNER_LOG_DIR
         ) as logfile:
-            print(f"Using scheduling log file {logfile.name}")
             test_runner = MultiWorkerCinderRegrtest(
                 logfile,
                 args.log_to_scuba,
@@ -763,6 +773,15 @@ def dispatcher_main(args):
                 args.recording_metadata_path,
                 args.no_retry_on_test_errors,
             )
+            if args.list:
+                sys.argv[1:] = args.rest[1:]
+                test_runner.parse_args({})
+                tests = list_tests(test_runner.ns, args.use_rr)
+                tests.sort()
+                print(json.dumps(tests, indent=0))
+                sys.exit(0)
+
+            print(f"Using scheduling log file {logfile.name}")
             test_runner.num_workers = args.num_workers
             print(f"Spawning {test_runner.num_workers} workers")
             # Put any args we didn't care about into sys.argv for
@@ -873,6 +892,12 @@ if __name__ == "__main__":
         "--test",
         action="append",
         help="The name of a test to run (e.g. `test_math`). Can be supplied multiple times.",
+    )
+    dispatcher_parser.add_argument(
+        "-l",
+        "--list",
+        action="store_true",
+        help="List tests and exit.",
     )
     dispatcher_parser.add_argument(
         "-R",
