@@ -751,7 +751,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-max-code-size",
-      "",
+      "PYTHONJITMAXCODESIZE",
       [](const std::string& val) {
         getMutableConfig().max_code_size = parse_sized_argument(val);
       },
@@ -761,7 +761,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-emit-type-annotation-guards",
-      "",
+      "PYTHONJITTYPEANNOTATIONGUARDS",
       getMutableConfig().emit_type_annotation_guards,
       "Generate runtime checks that validate type annotations to specialize "
       "generated code.");
