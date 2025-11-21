@@ -7,12 +7,12 @@ from __static__ import chkdict, chklist
 import sys
 
 from re import escape
-from unittest import skipIf
 
 from cinderx import freeze_type
 
 from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
+from cinderx.test_support import passIf
 
 from .common import bad_ret_type, StaticTestBase
 
@@ -481,7 +481,7 @@ class StaticObjCreationTests(StaticTestBase):
             f = mod.C.__init__
             self.assertNotInBytecode(f, "INVOKE_METHOD")
 
-    @skipIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
+    @passIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
     def test_super_init_no_load_attr_super(self) -> None:
         codestr = """
             x = super
@@ -531,7 +531,7 @@ class StaticObjCreationTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_FUNCTION")
             self.assertTrue(isinstance(f(), C))
 
-    @skipIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
+    @passIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
     def test_super_redefined_uses_opt(self) -> None:
         codestr = """
             super = super

@@ -8,6 +8,8 @@ from textwrap import dedent
 
 from cinderx.compiler.pycodegen import compile as py_compile
 
+from cinderx.test_support import passIf
+
 from ..test_cpython_overrides import test_dis
 
 
@@ -18,9 +20,7 @@ class DualCompilerDisTests(test_dis.CinderX_DisTests):
         return self.compiler(dedent(code_str), "<string>", "exec")
 
 
-@unittest.skipIf(
-    sys.version_info >= (3, 12), "3.12 has different load super w/ CPython tests"
-)
+@passIf(sys.version_info >= (3, 12), "3.12 has different load super w/ CPython tests")
 class LoadSuperTests(DualCompilerDisTests):
     def test_super_zero_args(self) -> None:
         src = """
@@ -310,9 +310,7 @@ class LoadSuperPyCompilerTests(LoadSuperTests):
     compiler = staticmethod(py_compile)
 
 
-@unittest.skipIf(
-    sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
-)
+@passIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
 class ComprehensionInlinerTests(DualCompilerDisTests):
     def __init__(self, *args):
         super().__init__(*args)
@@ -655,7 +653,7 @@ def f(self, name, data, files=(), dirs=()):
         self.do_disassembly_test(g["f"], expected)
 
 
-@unittest.skipIf(
+@passIf(
     sys.version_info >= (3, 12),
     "3.12 has different inline comprehensions w/ CPython tests",
 )

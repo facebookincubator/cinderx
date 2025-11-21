@@ -3,7 +3,6 @@
 # pyre-unsafe
 import asyncio
 import sys
-from unittest import skipIf
 
 from cinderx import async_cached_property, cached_property
 

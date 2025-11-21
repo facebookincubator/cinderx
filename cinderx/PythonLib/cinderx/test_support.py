@@ -4,11 +4,13 @@
 import abc
 import ctypes
 import dis
+import functools
 import importlib
 import multiprocessing
 import os.path
 import sys
 import tempfile
+import types
 import unittest
 
 from contextlib import contextmanager
@@ -91,20 +93,78 @@ def compiles_after_one_call() -> bool:
     return cinderx.jit.get_compile_after_n_calls() == 0
 
 
+_FT = TypeVar("_FT", bound=Callable[..., object])
+
+
+# pyre-ignore[34]: Type variable isn't present in parameters
+def passAlways(reason: str) -> Callable[[_FT], _FT]:
+    """
+    Force a test to always pass.
+    Useful when `skip` is not desired
+    (e.g. intentionally skipping tests that shouldn't be deleted)
+    """
+
+    def decorator(test_item: object) -> object:
+        if isinstance(test_item, type):
+            # apply this decorator to all "test_" methods of the test case
+            for attr_name in dir(test_item):
+                if attr_name.startswith("test_"):
+                    attr = getattr(test_item, attr_name)
+                    setattr(test_item, attr_name, passAlways(attr))
+
+        else:
+
+            @functools.wraps(test_item)
+            def pass_wrapper(*args: object, **kwargs: object) -> None:
+                return
+
+            test_item = pass_wrapper
+
+        test_item.__unittest_skip_why__ = reason
+        return test_item
+
+    if isinstance(reason, types.FunctionType):
+        test_item = reason
+        reason = ""
+        return decorator(test_item)
+    # pyre-ignore[7]: bad return type
+    return decorator
+
+
+# pyre-ignore[34]: Type variable isn't present in parameters
+def passIf(condition: object, reason: str) -> Callable[[_FT], _FT]:
+    """
+    Force a test to pass if the condition is true.
+    """
+    if condition:
+        return passAlways(reason)
+    return lambda obj: obj
+
+
+# pyre-ignore[34]: Type variable isn't present in parameters
+def passUnless(condition: object, reason: str) -> Callable[[_FT], _FT]:
+    """
+    Force a test to pass unless the condition is true.
+    """
+    if not condition:
+        return passAlways(reason)
+    return lambda obj: obj
+
+
 def skip_if_jit(reason: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    return unittest.skipIf(cinderx.jit.is_enabled(), reason)
+    return passIf(cinderx.jit.is_enabled(), reason)
 
 
 def skip_unless_jit(
     reason: str,
 ) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    return unittest.skipUnless(cinderx.jit.is_enabled(), reason)
+    return passUnless(cinderx.jit.is_enabled(), reason)
 
 
 def skip_unless_lazy_imports(
     reason: str = "Depends on Lazy Imports being enabled",
 ) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    return unittest.skipUnless(hasattr(importlib, "set_lazy_imports"), reason)
+    return passUnless(hasattr(importlib, "set_lazy_imports"), reason)
 
 
 TRet = TypeVar("TRet")

@@ -2,10 +2,10 @@
 import io
 import sys
 from textwrap import dedent
-from unittest import skipIf
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import PythonCodeGenerator
+from cinderx.test_support import passIf
 
 from .common import CompilerTest
 
@@ -17,7 +17,7 @@ def dump_code(code):
     return text
 
 
-@skipIf(sys.version_info[:2] != (3, 10), "3.10 tests")
+@passIf(sys.version_info[:2] != (3, 10), "3.10 tests")
 class Python310Tests(CompilerTest):
     maxDiff = None
 

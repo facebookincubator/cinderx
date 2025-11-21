@@ -10,10 +10,11 @@ cinderx.init()
 
 import cinderx.jit
 from cinderx.jit import count_interpreted_calls
+from cinderx.test_support import passIf, passUnless
 
 
 class CountCallsTest(unittest.TestCase):
-    @unittest.skipIf(cinderx.is_initialized(), "Testing the no-init case")
+    @passIf(cinderx.is_initialized(), "Testing the no-init case")
     def test_no_init(self) -> None:
         def func():
             return 13
@@ -24,7 +25,7 @@ class CountCallsTest(unittest.TestCase):
         func()
         self.assertEqual(count_interpreted_calls(func), 0)
 
-    @unittest.skipUnless(cinderx.jit.is_enabled(), "Stubs don't check argument types")
+    @passUnless(cinderx.jit.is_enabled(), "Stubs don't check argument types")
     def test_bad_args(self) -> None:
         with self.assertRaises(TypeError):
             # pyre-ignore[6]: Intentionally checking runtime behavior.
@@ -38,7 +39,7 @@ class CountCallsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             count_interpreted_calls(count_interpreted_calls)
 
-    @unittest.skipUnless(
+    @passUnless(
         cinderx.jit.is_enabled()
         and cinderx.jit.get_compile_after_n_calls() is not None,
         "Testing JitAuto functionality",
@@ -57,7 +58,7 @@ class CountCallsTest(unittest.TestCase):
             self.assertEqual(count_interpreted_calls(func), expected)
             func()
 
-    @unittest.skipUnless(
+    @passUnless(
         cinderx.jit.is_enabled() and cinderx.jit.get_compile_after_n_calls() == 0,
         "Testing JitAll functionality",
     )

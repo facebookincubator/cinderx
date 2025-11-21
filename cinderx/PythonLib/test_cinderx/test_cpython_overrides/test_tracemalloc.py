@@ -3,6 +3,8 @@ import sys
 import tracemalloc
 import unittest
 
+from cinderx.test_support import passIf
+
 try:
     # pyre-ignore[21]: can't find _testcapi
     import _testcapi
@@ -92,7 +94,7 @@ class CinderX_TestTracemallocEnabled(unittest.TestCase):
     def tearDown(self):
         tracemalloc.stop()
 
-    @unittest.skipIf(
+    @passIf(
         cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "#TASK(T150421262): Traced memory does not work well with JIT's inline cache stats collection.",
     )

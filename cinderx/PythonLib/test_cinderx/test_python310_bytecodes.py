@@ -4,9 +4,10 @@ import sys
 import unittest
 
 import cinderx.test_support as cinder_support
+from cinderx.test_support import passUnless
 
 
-@unittest.skipUnless(
+@passUnless(
     sys.version_info >= (3, 10) and sys.version_info < (3, 11), "Python 3.10 only"
 )
 class Python310Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):

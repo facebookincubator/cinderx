@@ -9,7 +9,8 @@ import sys
 import time
 from collections import UserDict
 from typing import Optional, TypeVar
-from unittest import skipIf
+
+from cinderx.test_support import passIf
 
 try:
     from cinder import _get_qualname
@@ -172,35 +173,35 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertIs(ref(), None)
             self.assertEqual(C.__slots__, ("__weakref__",))
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_def_no_create(self):
         from xxclassloader import spamobj
 
         with self.assertRaises(TypeError):
             spamobj()
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_def_bad_args(self):
         from xxclassloader import spamobj
 
         with self.assertRaises(TypeError):
             spamobj[str, int]
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_def_non_type(self):
         from xxclassloader import spamobj
 
         with self.assertRaises(TypeError):
             spamobj[42]
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_okay(self):
         from xxclassloader import spamobj
 
         o = spamobj[str]()
         o.setstate("abc")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_optional_okay(self):
         from xxclassloader import spamobj
 
@@ -208,7 +209,7 @@ class StaticRuntimeTests(StaticTestBase):
         o.setstate("abc")
         o.setstate(None)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_non_optional_error(self):
         from xxclassloader import spamobj
 
@@ -216,7 +217,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstate(None)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_bad_type(self):
         from xxclassloader import spamobj
 
@@ -224,19 +225,19 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstate(42)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_name(self):
         from xxclassloader import spamobj
 
         self.assertEqual(spamobj[str].__name__, "spamobj[str]")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_name_optional(self):
         from xxclassloader import spamobj
 
         self.assertEqual(spamobj[Optional[str]].__name__, "spamobj[Optional[str]]")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_okay_func(self):
         from xxclassloader import spamobj
 
@@ -244,7 +245,7 @@ class StaticRuntimeTests(StaticTestBase):
         f = o.setstate
         f("abc")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_optional_okay_func(self):
         from xxclassloader import spamobj
 
@@ -253,7 +254,7 @@ class StaticRuntimeTests(StaticTestBase):
         f("abc")
         f(None)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_non_optional_error_func(self):
         from xxclassloader import spamobj
 
@@ -262,7 +263,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             f(None)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_bad_type_func(self):
         from xxclassloader import spamobj
 
@@ -271,7 +272,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             f(42)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_int_funcs(self):
         from xxclassloader import spamobj
 
@@ -281,7 +282,7 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(o.getint16(), 42)
         self.assertEqual(o.getint32(), 42)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_uint_funcs(self):
         from xxclassloader import spamobj
 
@@ -292,7 +293,7 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(o.getuint32(), 42)
         self.assertEqual(o.getuint64(), 42)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_int_funcs_overflow(self):
         from xxclassloader import spamobj
 
@@ -304,7 +305,7 @@ class StaticRuntimeTests(StaticTestBase):
             with self.assertRaises(OverflowError):
                 f(1 << ((8 << i) - 1))
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_uint_funcs_overflow(self):
         from xxclassloader import spamobj
 
@@ -317,7 +318,7 @@ class StaticRuntimeTests(StaticTestBase):
             with self.assertRaises(OverflowError):
                 f((1 << (8 << i)) + 1)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_int_func(self):
         from xxclassloader import spamobj
 
@@ -327,7 +328,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setint("abc")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_str_func(self):
         from xxclassloader import spamobj
 
@@ -337,7 +338,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstr(42)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_bad_arg_cnt_setstr(self):
         from xxclassloader import spamobj
 
@@ -347,7 +348,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstr("abc", "abc")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_bad_arg_cnt(self):
         from xxclassloader import spamobj
 
@@ -675,7 +676,7 @@ class StaticRuntimeTests(StaticTestBase):
             y = mod.y
             self.assertEqual(y(), 421)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_posix_clock_gettime_ns(self):
         codestr = """
         from __static__ import box, posix_clock_gettime_ns
@@ -1907,7 +1908,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertNotInBytecode(f, "FOR_ITER")
             self.assertInBytecode(f, "REFINE_TYPE", ("builtins", "list", "!"))
 
-    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
+    @passIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_min(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -1920,7 +1921,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertEqual(f(1, 3), 1)
             self.assertEqual(f(3, 1), 1)
 
-    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
+    @passIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_min_stability(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -1938,7 +1939,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertEqual(id(f(p, q)), id(p))
             self.assertEqual(id(f(q, p)), id(q))
 
-    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
+    @passIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_max(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -1951,7 +1952,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertEqual(f(1, 3), 3)
             self.assertEqual(f(3, 1), 3)
 
-    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
+    @passIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_max_stability(self):
         codestr = """
             def f(a: int, b: int) -> int:

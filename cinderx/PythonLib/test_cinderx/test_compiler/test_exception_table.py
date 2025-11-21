@@ -5,9 +5,10 @@ import sys
 
 from dataclasses import dataclass
 from typing import cast
-from unittest import skipIf, TestCase
+from unittest import TestCase
 
 from cinderx.compiler.pyassem import Block, ExceptionTable
+from cinderx.test_support import passIf
 
 from .common import ExceptionTableEntry as Entry, ParsedExceptionTable
 
@@ -20,7 +21,7 @@ class ExceptionHandlerInfo:
     startdepth: int = -1
 
 
-@skipIf(sys.version_info < (3, 12), "no exception table support")
+@passIf(sys.version_info < (3, 12), "no exception table support")
 class EncodingTests(TestCase):
     """Test the exception table packed encoding."""
 

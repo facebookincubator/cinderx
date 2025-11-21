@@ -12,6 +12,8 @@ import sys
 import sysconfig
 import unittest
 
+from cinderx.test_support import passIf
+
 # pyre-ignore[21]: can't find test.support
 from test import support
 
@@ -140,7 +142,6 @@ BREAKPOINT_FN = "builtin_id"
 
 
 # CinderX: This is unchanged, kept as the parent class of CinderX_PrettyPrintTests
-@unittest.skipIf(support.PGO or should_skip(), should_skip() or "not useful for PGO")
 class CinderX_DebuggerTests(unittest.TestCase):
     """Test that the debugger can debug Python."""
 
@@ -259,6 +260,7 @@ class CinderX_DebuggerTests(unittest.TestCase):
         return out
 
 
+@passIf(support.PGO or should_skip(), should_skip() or "not useful for PGO")
 class CinderX_PrettyPrintTests(CinderX_DebuggerTests):
     def test_frames(self) -> None:
         gdb_output = self.get_stack_trace(

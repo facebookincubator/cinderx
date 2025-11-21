@@ -9,6 +9,7 @@ from test.support.import_helper import import_module
 
 asyncio = import_module("asyncio")
 import cinderx.jit
+from cinderx.test_support import passIf
 
 _no_default = object()
 
@@ -27,7 +28,7 @@ class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
         self.loop = None
         asyncio.set_event_loop_policy(None)
 
-    @unittest.skipIf(cinderx.jit.is_enabled(), "fails under Cinder JIT")
+    @passIf(cinderx.jit.is_enabled(), "fails under Cinder JIT")
     def test_async_gen_asyncio_gc_aclose_09(self) -> None:
         DONE = 0
 

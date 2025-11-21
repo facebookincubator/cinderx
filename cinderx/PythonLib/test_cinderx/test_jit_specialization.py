@@ -10,6 +10,7 @@ from typing import Callable, TypeVar
 
 import cinderx
 import cinderx.jit
+from cinderx.test_support import passIf
 
 
 TCallableRet = TypeVar("TCallableRet")
@@ -50,8 +51,8 @@ def specialize(
     cinderx.jit.force_compile(func)
 
 
-@unittest.skipIf(not cinderx.jit.is_enabled(), "Tests functionality on the JIT")
-@unittest.skipIf(sys.version_info < (3, 12), "Requires the specializing interpreter")
+@passIf(not cinderx.jit.is_enabled(), "Tests functionality on the JIT")
+@passIf(sys.version_info < (3, 12), "Requires the specializing interpreter")
 class SpecializationTests(unittest.TestCase):
     def setUp(self) -> None:
         cinderx.jit.enable_specialized_opcodes()

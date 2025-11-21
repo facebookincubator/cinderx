@@ -6,6 +6,8 @@ import sys
 import sysconfig
 import unittest
 
+from cinderx.test_support import passIf
+
 # pyre-ignore[21]: can't find test.support
 from test.support.os_helper import temp_dir
 
@@ -26,7 +28,7 @@ def supports_trampoline_profiling():
     return int(perf_trampoline) == 1
 
 
-@unittest.skipIf(
+@passIf(
     _is_compile_perf_trampoline_pre_fork_enabled is None
     or not supports_trampoline_profiling()
     or not _is_compile_perf_trampoline_pre_fork_enabled(),

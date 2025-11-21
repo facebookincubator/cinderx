@@ -17,9 +17,9 @@ import opcode
 import weakref
 from cinder import cached_property, strict_module_patch, StrictModule
 from types import CodeType, FunctionType
-from unittest import skipIf, skipUnless
 
 import cinderx.jit
+from cinderx.test_support import passIf, passUnless
 from test.support.script_helper import assert_python_ok, run_python_until_end
 
 # Sets the number of repetitions required in order to hit caching
@@ -2119,7 +2119,7 @@ def f(x):
         f(x, 100)
         self.assertEqual(x.value, 100)
 
-    @skipIf(cached_property is None, "no cached_property")
+    @passIf(cached_property is None, "no cached_property")
     def test_cached_property(self) -> None:
         class C:
             def __init__(self, value=42):
@@ -2153,7 +2153,7 @@ def f(x):
         f(x)
         self.assertEqual(x.calls, 1)
 
-    @skipIf(cached_property is None, "no cached_property")
+    @passIf(cached_property is None, "no cached_property")
     def test_cached_property_raises(self) -> None:
         class C:
             def __init__(self, raises=False):
@@ -2176,7 +2176,7 @@ def f(x):
         with self.assertRaises(ShadowError):
             f(inst)
 
-    @skipIf(cached_property is None, "no cached_property")
+    @passIf(cached_property is None, "no cached_property")
     def test_cached_property_slots(self) -> None:
         class C:
             __slots__ = ("f", "value", "calls")
@@ -2206,7 +2206,7 @@ def f(x):
         f(x)
         self.assertEqual(x.calls, 1)
 
-    @skipIf(cached_property is None, "no cached_property")
+    @passIf(cached_property is None, "no cached_property")
     def test_cached_property_slots_raises(self) -> None:
         class C:
             __slots__ = ("raises", "f")
@@ -2872,7 +2872,7 @@ def f(x):
         with self.assertRaises(AttributeError):
             f(range(5))
 
-    @skipIf(StrictModule is None, "no StrictModule")
+    @passIf(StrictModule is None, "no StrictModule")
     def test_strictmodule(self) -> None:
         mod = type(sys)("foo")
         mod.x = 100
@@ -2889,7 +2889,7 @@ def f(x):
         for _i in range(REPETITION):
             self.assertEqual(f(), 200)
 
-    @skipIf(StrictModule is None, "no StrictModule")
+    @passIf(StrictModule is None, "no StrictModule")
     def test_strictmodule_descr_conflict(self) -> None:
         mod = type(sys)("foo")
         d = mod.__dict__
@@ -2905,7 +2905,7 @@ def f(x):
         d["__dir__"] = 100
         self.assertEqual(f(m), 100)
 
-    @skipIf(StrictModule is None, "no StrictModule")
+    @passIf(StrictModule is None, "no StrictModule")
     def test_strictmodule_descr_conflict_with_patch(self) -> None:
         mod = type(sys)("foo")
         d = mod.__dict__
@@ -2920,7 +2920,7 @@ def f(x):
         strict_module_patch(m, "__dir__", 100)
         self.assertEqual(f(m), 100)
 
-    @skipIf(StrictModule is None, "no StrictModule")
+    @passIf(StrictModule is None, "no StrictModule")
     def test_strictmodule_method(self) -> None:
         mod = type(sys)("foo")
 
@@ -2937,7 +2937,7 @@ def f(x):
         for _i in range(REPETITION):
             self.assertEqual(f(m), 42)
 
-    @skipIf(StrictModule is None, "no StrictModule")
+    @passIf(StrictModule is None, "no StrictModule")
     def test_strcitmodule_method_invalidate(self) -> None:
         mod = type(sys)("foo")
 
@@ -2958,7 +2958,7 @@ def f(x):
             d["mod_meth"] = lambda: _i  # noqa: B023
             self.assertEqual(f(m), _i)
 
-    @skipIf(StrictModule is None, "no StrictModule")
+    @passIf(StrictModule is None, "no StrictModule")
     def test_strictmodule_method_miss(self) -> None:
         mod = type(sys)("foo")
 
@@ -3071,7 +3071,7 @@ def f(x):
         obj2.__class__ = Foo
         self.assertEqual(f(obj2), 200)
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_classmethod(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3094,7 +3094,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"100")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_staticmethod(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3117,7 +3117,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"100")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_wrapper_descr(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3139,7 +3139,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"'hello'")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_function(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3161,7 +3161,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_method_descriptor(self) -> None:
         code = f"""if 1:
             import gc
@@ -3180,7 +3180,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_builtin_function(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3201,7 +3201,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"True")
 
-    @skipIf(not hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passIf(not hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_unshadowed_immortal_method_split_dict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3226,7 +3226,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_shadowed_immortal_method_split_dict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3255,7 +3255,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_unshadowed_immortal_method_combineddict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3285,7 +3285,7 @@ def f(x):
         rc, out, err = assert_python_ok("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_shadowed_immortal_method_combineddict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3319,7 +3319,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
+    @passUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_unshadowed_immortal_method_no_dict(self) -> None:
         code = f"""if 1:
             import gc

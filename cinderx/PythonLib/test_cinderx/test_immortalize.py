@@ -4,10 +4,10 @@
 import unittest
 
 import cinderx
-from cinderx.test_support import run_in_subprocess
+from cinderx.test_support import passUnless, run_in_subprocess
 
 
-@unittest.skipUnless(cinderx.is_initialized(), "Tests immortalization APIs in CinderX")
+@passUnless(cinderx.is_initialized(), "Tests immortalization APIs in CinderX")
 class ImmortalizeTests(unittest.TestCase):
     def test_default_not_immortal(self) -> None:
         obj = []

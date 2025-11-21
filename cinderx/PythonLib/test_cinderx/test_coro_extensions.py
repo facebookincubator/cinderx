@@ -4,7 +4,7 @@ import types
 import unittest
 
 from cinderx import test_support as cinder_support
-from cinderx.test_support import skip_if_jit
+from cinderx.test_support import passIf, skip_if_jit
 
 # pyre-ignore[21]: can't find test.support
 from test.support import import_helper, maybe_get_event_loop_policy
@@ -32,7 +32,7 @@ def run_async(coro):
 # Lib/test/test_asyncio/test_tasks.py
 # And eager execution is an entirely different implementation:
 # https://docs.python.org/3.12/library/asyncio-task.html#eager-task-factory
-@unittest.skipIf(sys.version_info >= (3, 12), "not supported on 3.12+")
+@passIf(sys.version_info >= (3, 12), "not supported on 3.12+")
 class CoroutineAwaiterTest(unittest.TestCase):
     def test_basic_await(self) -> None:
         async def coro():

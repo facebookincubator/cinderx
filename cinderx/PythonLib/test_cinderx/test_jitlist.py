@@ -14,11 +14,11 @@ from pathlib import Path
 
 import cinderx.jit
 
-from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
+from cinderx.test_support import CINDERX_PATH, ENCODING, passUnless, skip_unless_jit
 
 
 @skip_unless_jit("Tests JIT list behavior")
-@unittest.skipUnless(
+@passUnless(
     cinderx.jit.get_compile_after_n_calls() is None
     or cinderx.jit.get_compile_after_n_calls() == 0,
     "Expecting functions to compile on first call",
@@ -133,7 +133,8 @@ class JitListTest(unittest.TestCase):
         # This should be a skipIf decorator, but that makes pyre unhappy for some
         # unknown reason.
         if cinderx.jit.get_compile_after_n_calls() == 0:
-            self.skipTest("Test doesn't support functions being compiled ASAP")
+            # Test doesn't support functions being compiled ASAP
+            return
 
         def inner_func() -> int:
             return 24

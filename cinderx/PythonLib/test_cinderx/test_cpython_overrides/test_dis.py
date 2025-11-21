@@ -7,6 +7,8 @@ import re
 import sys
 import unittest
 
+from cinderx.test_support import passIf
+
 try:
     from cinderx.opcode import shadowop
 except ImportError:
@@ -204,9 +206,7 @@ class CinderX_DisTests(unittest.TestCase):
                         width += 1 + dis._OPARG_WIDTH
                 self.assertLessEqual(len(opname), width)
 
-    @unittest.skipIf(
-        sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
-    )
+    @passIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
     def test_bug_1333982(self) -> None:
         # This one is checking bytecodes generated for an `assert` statement,
         # so fails if the tests are run with -O.  Skip this test then.
@@ -221,9 +221,7 @@ class CinderX_DisTests(unittest.TestCase):
         else:
             self.do_disassembly_test(bug1333982, dis_bug1333982)
 
-    @unittest.skipIf(
-        sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
-    )
+    @passIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
     def test_disassemble_recursive(self) -> None:
         def check(expected, **kwargs):
             dis = self.get_disassembly(_h, **kwargs)

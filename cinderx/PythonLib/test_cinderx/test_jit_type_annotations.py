@@ -7,9 +7,10 @@ from typing import Any, Generator
 
 import cinderx
 import cinderx.jit
+from cinderx.test_support import passUnless
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "JIT required")
+@passUnless(cinderx.jit.is_enabled(), "JIT required")
 class TypeAnnotationTests(unittest.TestCase):
     class Box:
         def __init__(self, value):

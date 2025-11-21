@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 from types import ModuleType
 from typing import Callable, cast
-from unittest import skip, skipIf, skipUnless
+from unittest import skip
 from unittest.mock import patch
 
 import cinderx.jit
@@ -38,7 +38,7 @@ from cinderx.compiler.static.types import (
     Value,
 )
 
-from cinderx.test_support import skip_unless_jit
+from cinderx.test_support import passIf, passUnless, skip_unless_jit
 
 from .common import (
     add_fixed_module,
@@ -341,7 +341,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    @skipUnless(cinderx.jit.is_enabled(), "not jitting")
+    @passUnless(cinderx.jit.is_enabled(), "not jitting")
     def test_deep_attr_chain(self) -> None:
         """this shouldn't explode exponentially"""
         codestr = """
@@ -1888,7 +1888,7 @@ class StaticCompilationTests(StaticTestBase):
             C = mod.C
             self.assertEqual(C().g(), 42)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_builtin_func(self) -> None:
         codestr = """
         from xxclassloader import foo
@@ -1905,7 +1905,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(f(), 42)
             self.assert_jitted(f)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_builtin_func_ret_neg(self) -> None:
         # setup xxclassloader as a built-in function for this test, so we can
         # do a direct invoke
@@ -1928,7 +1928,7 @@ class StaticCompilationTests(StaticTestBase):
         finally:
             sys.modules["xxclassloader"] = xxclassloader
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_builtin_func_arg(self) -> None:
         codestr = """
         from xxclassloader import bar
@@ -1945,7 +1945,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(f(), 42)
             self.assert_jitted(f)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_func_unexistent_module(self) -> None:
         codestr = """
         from xxclassloader import bar
@@ -1970,7 +1970,7 @@ class StaticCompilationTests(StaticTestBase):
             finally:
                 sys.modules["xxclassloader"] = xxclassloader
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_meth_o(self) -> None:
         codestr = """
         from xxclassloader import spamobj
@@ -4333,7 +4333,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(f, "LOAD_ATTR", "abc")
             self.assertNotInBytecode(f, "LOAD_FIELD")
 
-    @skipIf(not path.exists(RICHARDS_PATH), "richards not found")
+    @passIf(not path.exists(RICHARDS_PATH), "richards not found")
     def test_richards(self) -> None:
         with open(RICHARDS_PATH) as f:
             codestr = f.read()
@@ -4766,7 +4766,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_spamobj_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4780,7 +4780,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "no way!"):
                 f()
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_spamobj_no_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4793,7 +4793,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), None)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_box_box(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4808,7 +4808,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4840,7 +4840,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), ("abc", 42))
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_ret_void(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4871,7 +4871,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), None)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_check_override_typed_builtin_method(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4973,7 +4973,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr):
             pass
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -5011,7 +5011,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_optional_type_param_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj

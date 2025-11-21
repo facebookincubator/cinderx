@@ -5,7 +5,6 @@ import __future__
 
 import sys
 import unittest
-from unittest import skipIf
 
 from cinderx.compiler import consts
 from cinderx.compiler.consts import (
@@ -16,6 +15,8 @@ from cinderx.compiler.consts import (
     CO_NOFREE,
     CO_OPTIMIZED,
 )
+
+from cinderx.test_support import passIf
 
 from .common import CompilerTest
 
@@ -130,22 +131,22 @@ class FlagTests(CompilerTest):
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
 
-    @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
+    @passIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
     def test_gen_exp(self) -> None:
         f = self.compile("x = (x for x in (1, 2, 3))")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
 
-    @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
+    @passIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
     def test_list_comp(self) -> None:
         f = self.compile("x = [x for x in (1, 2, 3)]")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS)
 
-    @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
+    @passIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
     def test_dict_comp(self) -> None:
         f = self.compile("x = {x:x for x in (1, 2, 3)}")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS)
 
-    @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
+    @passIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
     def test_set_comp(self) -> None:
         f = self.compile("x = {x for x in (1, 2, 3)}")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS)

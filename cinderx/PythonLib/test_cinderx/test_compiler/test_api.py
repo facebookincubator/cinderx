@@ -8,9 +8,9 @@ import inspect
 import re
 import sys
 import unittest
-from unittest import skipIf
 
 from cinderx.compiler import compile, compile_code
+from cinderx.test_support import passIf
 
 from .common import CompilerTest
 
@@ -88,7 +88,7 @@ class ApiTests(CompilerTest):
         self.assertNotIn("hi", consts["f"].co_consts)
 
 
-@skipIf(POST_312, "Python 3.10- only")
+@passIf(POST_312, "Python 3.10- only")
 class ApiTests310(CompilerTest):
     def test_compile_single(self) -> None:
         code = compile_code("300", "foo", "single")
@@ -126,7 +126,7 @@ except:
         self.assertInBytecode(code, "SETUP_ANNOTATIONS")
 
 
-@skipIf(PRE_312, "Python 3.12+ only")
+@passIf(PRE_312, "Python 3.12+ only")
 class ApiTests312(CompilerTest):
     def test_compile_single(self) -> None:
         code = compile_code("256", "foo", "single")

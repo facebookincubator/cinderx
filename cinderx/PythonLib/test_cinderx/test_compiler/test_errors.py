@@ -6,6 +6,7 @@ import sys
 import unittest
 
 import cinderx.jit
+from cinderx.test_support import passIf, passUnless
 
 from .common import CompilerTest
 
@@ -172,10 +173,8 @@ class ErrorTests(CompilerTest):
         ):
             self.compile(", ".join(("x",) * 256) + ", *x, = range(256)")
 
-    @unittest.skipIf(cinderx.jit.is_enabled(), "JIT doesn't support recursion checks")
-    @unittest.skipUnless(
-        sys.version_info < (3, 12), "Interpreter can elide recursion check"
-    )
+    @passIf(cinderx.jit.is_enabled(), "JIT doesn't support recursion checks")
+    @passUnless(sys.version_info < (3, 12), "Interpreter can elide recursion check")
     def test_recursion_error_when_expression_too_deep(self) -> None:
         fail_depth = sys.getrecursionlimit() * 3
 

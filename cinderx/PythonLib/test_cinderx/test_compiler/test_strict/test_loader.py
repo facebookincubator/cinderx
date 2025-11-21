@@ -38,6 +38,8 @@ from cinderx.compiler.strict.loader import (
 )
 from cinderx.compiler.strict.runtime import set_freeze_enabled
 
+from cinderx.test_support import passIf
+
 from . import sandbox as base_sandbox
 from .common import init_cached_properties, StrictTestBase
 from .sandbox import (
@@ -1375,7 +1377,7 @@ class StrictLoaderTest(StrictTestBase):
         jkbase, other = self.sbx.strict_import("jkbase", "other")
         self.assertEqual(type(other.x), jkbase.JustKnobBoolean)
 
-    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
+    @passIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_annotations_present(self) -> None:
         code = """
             import __strict__
@@ -1384,7 +1386,7 @@ class StrictLoaderTest(StrictTestBase):
         mod = self.sbx.strict_from_code(code)
         self.assertEqual(mod.__annotations__, {"x": int})
 
-    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
+    @passIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_annotations_non_name(self) -> None:
         code = """
             import __strict__
@@ -1395,7 +1397,7 @@ class StrictLoaderTest(StrictTestBase):
         mod = self.sbx.strict_from_code(code)
         self.assertEqual(mod.__annotations__, {})
 
-    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
+    @passIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_annotations_reinit(self) -> None:
         code = """
             import __strict__
@@ -1413,7 +1415,7 @@ class StrictLoaderTest(StrictTestBase):
         """
         self.sbx.strict_from_code(code)
 
-    @unittest.skipIf(sys.version_info >= (3, 14), "not supported on 3.14")
+    @passIf(sys.version_info >= (3, 14), "not supported on 3.14")
     def test_class_try_except_else(self) -> None:
         """try/orelse/except visit order matches symbol visitor"""
         code = """
@@ -1788,7 +1790,7 @@ class StrictLoaderTest(StrictTestBase):
             C.foo = 42
             self.assertEqual(C.foo, 42)
 
-    @unittest.skipIf(
+    @passIf(
         HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
     )
     def test_class_explicit_dict_no_warning(self) -> None:

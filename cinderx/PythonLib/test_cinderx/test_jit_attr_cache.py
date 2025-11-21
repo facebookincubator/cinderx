@@ -10,6 +10,7 @@ from textwrap import dedent
 import cinderx
 import cinderx.jit
 import cinderx.test_support as cinder_support
+from cinderx.test_support import passIf, passUnless
 
 from .common import failUnlessHasOpcodes
 
@@ -202,7 +203,7 @@ class LoadMethodCacheTests(unittest.TestCase):
         self.assertEqual(self._index_long(), 6)
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
+@passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 class LoadModuleMethodCacheTests(unittest.TestCase):
     def test_load_method_from_module(self):
         with cinder_support.temp_sys_path() as tmp:
@@ -249,7 +250,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 tmp_b.test()
 
-    @unittest.skipUnless(
+    @passUnless(
         cinderx.is_initialized(),
         "Strict Module test code doesn't exist outside of CinderX",
     )
@@ -416,7 +417,7 @@ class LoadAttrCacheTests(unittest.TestCase):
         C.__dict__["foo"].__class__ = Descr
         self.assertEqual(get_attr(c), "get")
 
-    @unittest.skipIf(
+    @passIf(
         cinderx.jit.is_enabled() and AT_LEAST_312,
         "T214641462: Not clear why this is failing, but it is",
     )

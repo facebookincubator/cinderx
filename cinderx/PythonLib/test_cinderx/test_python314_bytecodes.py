@@ -8,6 +8,7 @@ import unittest
 from typing import Callable
 
 import cinderx.test_support as cinder_support
+from cinderx.test_support import passUnless
 
 
 def one():
@@ -107,7 +108,7 @@ def build_template():
     )
 
 
-@unittest.skipUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
+@passUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
 class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):
     def test_LOAD_SMALL_INT(self):
         @cinder_support.fail_if_deopt

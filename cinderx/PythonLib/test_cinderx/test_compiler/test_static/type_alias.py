@@ -5,18 +5,18 @@
 import sys
 import unittest
 
-from unittest import skipIf, skipUnless
-
 from cinderx.compiler.static.module_table import ENABLE_IMPLICIT_TYPE_ALIASES
 
 from cinderx.compiler.static.types import TypedSyntaxError
 
+from cinderx.test_support import passIf, passUnless
+
 from .common import StaticTestBase
 
 
-@skipIf(sys.version_info < (3, 12), "New in 3.12")
+@passIf(sys.version_info < (3, 12), "New in 3.12")
 class TypeAliasTests(StaticTestBase):
-    @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
+    @passUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_assign(self) -> None:
         codestr = """
             class B: pass
@@ -43,7 +43,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
+    @passUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_optional_assign(self) -> None:
         codestr = """
             A = int | None
@@ -84,7 +84,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
+    @passUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_transitive_assign(self) -> None:
         codestr = """
             A = int | None
@@ -99,7 +99,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
+    @passUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_transitive_alias_and_assign(self) -> None:
         codestr = """
             A = int | None
@@ -114,7 +114,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
+    @passUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_transitive_alias_in_optional(self) -> None:
         codestr = """
             A = int

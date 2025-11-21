@@ -12,7 +12,12 @@ import unittest
 import cinderx
 import cinderx.test_support as cinder_support
 
-from cinderx.test_support import compiles_after_one_call, skip_unless_jit
+from cinderx.test_support import (
+    compiles_after_one_call,
+    passIf,
+    passUnless,
+    skip_unless_jit,
+)
 
 # Allow this file to run without CinderX.
 if cinderx.is_initialized():
@@ -58,7 +63,7 @@ class CoroutinesTest(unittest.TestCase):
     def test_works_with_asyncio(self):
         asyncio.run(self._f2(asyncio.sleep(0.1)))
 
-    @unittest.skipIf(POST_311, "asyncio.coroutine removed in 3.11")
+    @passIf(POST_311, "asyncio.coroutine removed in 3.11")
     def test_pre_async_coroutine(self):
         @asyncio.coroutine
         def _f3():
@@ -212,7 +217,7 @@ class CoroutinesTest(unittest.TestCase):
         self.assertTrue(executed_finally_block)
 
 
-@unittest.skipUnless(
+@passUnless(
     cinderx.is_initialized() and hasattr(_testcapi, "TestAwaitedCall"),
     "Tests CinderX eager coroutine dispatch and needs extra support in _testcapi",
 )

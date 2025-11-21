@@ -8,10 +8,10 @@ from dis import get_instructions
 from textwrap import dedent
 from types import CodeType
 from typing import Sequence
-from unittest import skipIf
 
 from cinderx.compiler.pyassem import LinePositionTable, SrcLocation
 from cinderx.compiler.pycodegen import CodeGenerator312, CodeGenerator314
+from cinderx.test_support import passIf
 
 from .common import CompilerTest
 
@@ -155,7 +155,7 @@ class LinePositionTests(CompilerTest):
                 table = bytes(postab.getTable())
                 self.assertEqual(table, expected)
 
-    @skipIf(
+    @passIf(
         not hasattr(test_scenarios.__code__, "co_positions"), "requires 312 or later"
     )
     def test_scenarios_312(self):
@@ -238,7 +238,7 @@ class LinePositionTests(CompilerTest):
             return "RETURN_VALUE"
         return "RETURN_CONST"
 
-    @skipIf(
+    @passIf(
         not hasattr(test_scenarios.__code__, "co_positions"), "requires 312 or later"
     )
     def test_actual_positions(self):

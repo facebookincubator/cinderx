@@ -11,10 +11,10 @@ from pathlib import Path
 
 import cinderx
 
-from cinderx.test_support import CINDERX_PATH, ENCODING
+from cinderx.test_support import CINDERX_PATH, ENCODING, passUnless
 
 
-@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing Parallel GC Enablement")
+@passUnless(cinderx.has_parallel_gc(), "Testing Parallel GC Enablement")
 class TestEnablingParallelGc(unittest.TestCase):
     def test_gc_settings(self) -> None:
         codestr = textwrap.dedent("""

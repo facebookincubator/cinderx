@@ -8,9 +8,8 @@ import asyncio
 import inspect
 import sys
 from collections.abc import Coroutine
-from unittest import skipIf
 
-from cinderx.test_support import get_await_stack
+from cinderx.test_support import get_await_stack, passIf
 
 from .common import StaticTestBase
 
@@ -1010,7 +1009,7 @@ class ContextDecoratorTests(StaticTestBase):
         finally:
             loop.close()
 
-    @skipIf(AT_LEAST_312, "No working get_await_stack T201015581")
+    @passIf(AT_LEAST_312, "No working get_await_stack T201015581")
     def test_stack_trace(self) -> None:
         coro: Coroutine | None = None
         await_stack = []
@@ -1035,7 +1034,7 @@ class ContextDecoratorTests(StaticTestBase):
         asyncio.run(g_coro)
         self.assertEqual(await_stack, [g_coro])
 
-    @skipIf(AT_LEAST_312, "No working get_await_stack T201015581")
+    @passIf(AT_LEAST_312, "No working get_await_stack T201015581")
     def test_stack_trace_non_eager(self) -> None:
         coro: Coroutine | None = None
         await_stack = []

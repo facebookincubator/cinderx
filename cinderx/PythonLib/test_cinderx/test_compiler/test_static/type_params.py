@@ -4,12 +4,12 @@
 import sys
 import unittest
 
-from unittest import skipIf
+from cinderx.test_support import passIf
 
 from .common import StaticTestBase
 
 
-@skipIf(sys.version_info < (3, 12), "New in 3.12")
+@passIf(sys.version_info < (3, 12), "New in 3.12")
 class TypeParameterTests(StaticTestBase):
     def test_function(self):
         codestr = """

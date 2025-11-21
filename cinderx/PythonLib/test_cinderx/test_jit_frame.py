@@ -11,7 +11,7 @@ import unittest
 import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
-from cinderx.test_support import skip_unless_jit
+from cinderx.test_support import passIf, skip_unless_jit
 
 POST_312 = sys.version_info >= (3, 12)
 
@@ -71,7 +71,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assert_code_and_lineno(frame, g, 4)
         self.assertEqual(next(gen), 3)
 
-    @unittest.skipIf(POST_312, "T194022335: gi_frame has lineno=None")
+    @passIf(POST_312, "T194022335: gi_frame has lineno=None")
     def test_line_numbers_for_suspended_generators(self) -> None:
         """Verify that line numbers are correct for suspended generator functions"""
 
@@ -270,7 +270,7 @@ class GetFrameTests(unittest.TestCase):
         except:  # noqa: B001
             return ref[0]
 
-    @unittest.skipIf(
+    @passIf(
         POST_312,
         "T194022335: This test can't decide whether to include `do_raise` or not in the stacktrace when run between ctr3.12-jit-all and `buck test`",
     )

@@ -8,16 +8,14 @@ import unittest
 from collections.abc import AsyncGenerator, Awaitable, Iterator
 from typing import Any
 
-import cinderx
 import cinderx.test_support as cinder_support
+from cinderx.test_support import passIf
 
 
 AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
-@unittest.skipIf(
-    AT_LEAST_312, "T194022335: Async generators not supported in 3.12 JIT yet"
-)
+@passIf(AT_LEAST_312, "T194022335: Async generators not supported in 3.12 JIT yet")
 class AsyncGeneratorsTest(unittest.TestCase):
     def tearDown(self) -> None:
         # This is needed to avoid an "environment changed" error

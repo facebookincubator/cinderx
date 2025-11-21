@@ -22,10 +22,10 @@ from cinderx.jit import (
     lazy_compile,
     pause as pause_jit,
 )
-from cinderx.test_support import CINDERX_PATH
+from cinderx.test_support import CINDERX_PATH, passUnless
 
 
-@unittest.skipUnless(is_jit_enabled(), "Tests functionality on the JIT")
+@passUnless(is_jit_enabled(), "Tests functionality on the JIT")
 class DisableEnableTests(unittest.TestCase):
     """
     These tests are finicky as they will disable the JIT for the entire

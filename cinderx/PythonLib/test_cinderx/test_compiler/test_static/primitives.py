@@ -10,8 +10,6 @@ import sys
 import warnings
 import weakref
 
-from unittest import skipIf
-
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.types import (
     FAST_LEN_INEXACT,
@@ -26,6 +24,8 @@ from cinderx.compiler.static.types import (
 )
 
 from cinderx.static import TYPED_INT16, TYPED_INT32
+
+from cinderx.test_support import passIf
 
 from .common import bad_ret_type, PRIM_NAME_TO_TYPE, StaticTestBase, type_mismatch
 
@@ -499,7 +499,7 @@ class PrimitivesTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), 44)
 
-    @skipIf(True, "this isn't implemented yet")
+    @passIf(True, "this isn't implemented yet")
     def test_unwind(self):
         codestr = """
             from __static__ import int32
@@ -3681,7 +3681,7 @@ class PrimitivesTests(StaticTestBase):
                         else:
                             self.assertEqual(f(val), val)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
+    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_emits_convert_primitive_while_boxing(self):
         codestr = """
         import __static__

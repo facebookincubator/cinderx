@@ -9,6 +9,7 @@ import cinderx.jit
 
 # pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
 import test.test_gc
+from cinderx.test_support import passIf, passUnless
 
 
 def _restore_parallel_gc(settings: dict[str, int] | None) -> None:
@@ -20,7 +21,7 @@ def _restore_parallel_gc(settings: dict[str, int] | None) -> None:
         )
 
 
-@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+@passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
 class ParallelGCAPITests(unittest.TestCase):
     def setUp(self) -> None:
         self.old_par_gc_settings = cinderx.get_parallel_gc_settings()
@@ -53,31 +54,29 @@ class ParallelGCAPITests(unittest.TestCase):
 # Run all the GC tests with parallel GC enabled
 
 
-@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+@passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
 # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
 class ParallelGCTests(test.test_gc.GCTests):
-    @unittest.skipIf(
-        cinderx.jit.is_enabled(), "Implementation detail of the interpreter"
-    )
+    @passIf(cinderx.jit.is_enabled(), "Implementation detail of the interpreter")
     def test_frame(self) -> None:
         pass
 
-    @unittest.skipIf(
-        cinderx.jit.is_enabled(), "Implementation detail of the interpreter"
-    )
+    @passIf(cinderx.jit.is_enabled(), "Implementation detail of the interpreter")
     def test_get_objects_arguments(self) -> None:
         pass
 
 
-@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+@passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
 # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
 class ParallelGCCallbackTests(test.test_gc.GCCallbackTests):
-    @unittest.skip("Tests implementation details of serial collector")
+    # Tests implementation details of serial collector
     def test_refcount_errors(self) -> None:
-        pass
+        # necessary for tearDown to succeed
+        # pyre-ignore[16]: ParallelGCCallbackTests` has no attribute `visit`
+        self.visit = None
 
 
-@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+@passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
 # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
 class ParallelGCFinalizationTests(test.test_gc.PythonFinalizationTests):
     pass

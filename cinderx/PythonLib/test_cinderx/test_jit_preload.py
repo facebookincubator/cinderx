@@ -14,7 +14,7 @@ cinderx.init()
 
 import cinderx.jit
 
-from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
+from cinderx.test_support import CINDERX_PATH, ENCODING, passIf, skip_unless_jit
 
 SKIP_315: bool = sys.version_info >= (3, 15)
 
@@ -25,7 +25,7 @@ class PreloadTests(unittest.TestCase):
     )
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    @unittest.skipIf(SKIP_315, "no lazy imports on 3.15 T243514540")
+    @passIf(SKIP_315, "no lazy imports on 3.15 T243514540")
     def test_func_destroyed_during_preload(self) -> None:
         proc = subprocess.run(
             [

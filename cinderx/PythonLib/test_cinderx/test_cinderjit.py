@@ -35,10 +35,13 @@ from cinderx.jit import (
     jit_suppress,
     jit_unsuppress,
 )
+
 from cinderx.test_support import (
     CINDERX_PATH,
     compiles_after_one_call,
     ENCODING,
+    passIf,
+    passUnless,
     run_in_subprocess,
     skip_unless_jit,
 )
@@ -138,7 +141,7 @@ def func_that_change_defaults():
 
 class InlinedFunctionTests(unittest.TestCase):
     @jit_suppress
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
@@ -151,7 +154,7 @@ class InlinedFunctionTests(unittest.TestCase):
 
 class InlineCacheStatsTests(unittest.TestCase):
     @jit_suppress
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "meaningless without inline cache stats collection enabled",
     )
@@ -217,7 +220,7 @@ class InlineCacheStatsTests(unittest.TestCase):
 
 class InlinedFunctionLineNumberTests(unittest.TestCase):
     @jit_suppress
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
@@ -235,7 +238,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         self.assertEqual(stacks[1][-2].lineno, firstlineno(get_stack_siblings) + 2)
 
     @jit_suppress
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
@@ -251,7 +254,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         self.assertEqual(stacks[1][-2].lineno, firstlineno(call_get_stack_multi) + 3)
 
     @jit_suppress
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
@@ -271,7 +274,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         )
 
     @jit_suppress
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
@@ -1573,7 +1576,7 @@ class CinderJitModuleTests(StaticTestBase):
             if compiles_after_one_call():
                 self.assertTrue(is_jit_compiled(g))
 
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
@@ -1603,9 +1606,8 @@ class CinderJitModuleTests(StaticTestBase):
         # TODO(T240152676): Improve stability of this test
         call_limit = cinderx.jit.get_compile_after_n_calls()
         if call_limit is None or call_limit > 10000:
-            raise unittest.SkipTest(
-                "Expecting the JIT to be compiling a bunch of code automatically"
-            )
+            # Expecting the JIT to be compiling a bunch of code automatically
+            return
 
         code = textwrap.dedent(
             """
@@ -1827,14 +1829,14 @@ class DeleteAttrTests(unittest.TestCase):
 
 
 class OtherTests(unittest.TestCase):
-    @unittest.skipIf(
+    @passIf(
         not cinderx.jit.is_enabled(),
         "meaningless without JIT enabled",
     )
     def test_mlock_profiler_dependencies(self) -> None:
         cinderx.jit.mlock_profiler_dependencies()
 
-    @unittest.skipUnless(cinderx.jit.is_enabled(), "not jitting")
+    @passUnless(cinderx.jit.is_enabled(), "not jitting")
     def test_page_in_profiler_dependencies(self) -> None:
         qualnames = cinderx.jit.page_in_profiler_dependencies()
         self.assertTrue(len(qualnames) > 0)
@@ -2419,7 +2421,7 @@ def builtins_getter():
     return _testcindercapi._pyeval_get_builtins()
 
 
-@unittest.skipIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
+@passIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
 class GetBuiltinsTests(unittest.TestCase):
     def test_get_builtins(self) -> None:
         new_builtins = {}
@@ -2444,7 +2446,7 @@ class GetGlobalsTests(unittest.TestCase):
         self.assertIs(func(), new_globals)
 
 
-@unittest.skipIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
+@passIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
 class MergeCompilerFlagTests(unittest.TestCase):
     def make_func(self, src, compile_flags=0):
         code = compile(src, "<string>", "exec", compile_flags)
@@ -2515,9 +2517,7 @@ class LoadMethodEliminationTests(unittest.TestCase):
             self.assertTrue(is_jit_compiled(LoadMethodEliminationTests.lme_test_func))
 
 
-@unittest.skipUnless(
-    cinderx.jit.is_enabled(), "Tests functionality on cinderjit module"
-)
+@passUnless(cinderx.jit.is_enabled(), "Tests functionality on cinderjit module")
 class HIROpcodeCountTests(unittest.TestCase):
     def test_hir_opcode_count(self) -> None:
         def f1():
@@ -2538,7 +2538,7 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertGreaterEqual(decref, 2)
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class ForceUncompileTests(unittest.TestCase):
     def test_basic(self) -> None:
         def f(x: int) -> int:
@@ -2553,7 +2553,7 @@ class ForceUncompileTests(unittest.TestCase):
         self.assertFalse(is_jit_compiled(f))
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LazyCompileTests(unittest.TestCase):
     def test_basic(self) -> None:
         def foo(a, b):
@@ -2565,7 +2565,7 @@ class LazyCompileTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class JITSuppressTests(unittest.TestCase):
     def test_basic(self) -> None:
         def f(x: int) -> int:
@@ -2586,7 +2586,7 @@ class JITSuppressTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(f))
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
     def test_compile_after_n_calls(self) -> None:
         with self.assertRaises(TypeError):
@@ -2661,7 +2661,7 @@ class BadArgumentTests(unittest.TestCase):
             jit_unsuppress(is_jit_compiled)
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class CompileTimeTests(unittest.TestCase):
     """
     Test the Cinder APIs that report time spent compiling.
@@ -2691,7 +2691,7 @@ class CompileTimeTests(unittest.TestCase):
         self.assertGreater(cinderx.jit.get_function_compilation_time(_compile), 0)
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LocalsBuiltinTests(unittest.TestCase):
     def test_locals_not_compiled(self) -> None:
         def foo():
