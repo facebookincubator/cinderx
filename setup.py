@@ -119,8 +119,10 @@ class BuildExt(build_ext):
         extension_dir = os.path.abspath(self.get_ext_fullpath(extension.name))
         os.makedirs(extension_dir, exist_ok=True)
 
-        cc = self._find_binary("clang")
-        cxx = self._find_binary("clang++")
+        # Prefer Clang because that's what we develop against but some systems
+        # including the manylinux build environment only have GCC.
+        cc = shutil.which("clang") or shutil.which("gcc")
+        cxx = shutil.which("clang++") or shutil.which("g++")
 
         build_type = os.environ.get("CMAKE_BUILD_TYPE", "RelWithDebInfo")
         cmake_args = [
@@ -183,12 +185,6 @@ class BuildExt(build_ext):
         # pyre-ignore[16]: No pyre types for build_ext.
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
         self.spawn(["cmake", "--build", build_dir] + build_args)
-
-    def _find_binary(self, name: str) -> str:
-        result = shutil.which(name)
-        if result is None:
-            raise RuntimeError(f"Cannot find `{name}` binary")
-        return result
 
     def _find_python(self) -> str:
         # Normally this would use "data", but that goes to a temporary build directory
