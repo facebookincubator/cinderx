@@ -1,5 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "cinderx/Jit/perf_jitdump.h"
 
 #include "cinderx/python.h"
@@ -61,16 +64,14 @@ const size_t kJitdumpMmapSize = 1;
 // C++-friendly wrapper around strerror_r().
 std::string string_error(int errnum) {
   char buf[1024];
-  // This template trick detects the return type of strerror_r at compile time.
-  // If it returns char*, we're using GNU version. If it returns int, POSIX.
-  if constexpr (std::is_same_v<decltype(strerror_r(0, buf, 0)), char*>) {
-    // GNU version: returns char* (possibly pointing to a static string)
-    return strerror_r(errnum, buf, sizeof(buf));
-  } else {
-    // POSIX version: returns int, writes to buffer
-    strerror_r(errnum, buf, sizeof(buf));
-    return std::string{buf};
-  }
+  // There's two forms of strerror_r(), one that returns a string and one that
+  // returns an int.
+#if __APPLE__
+  strerror_r(errnum, buf, sizeof(buf));
+  return std::string{buf};
+#else
+  return strerror_r(errnum, buf, sizeof(buf));
+#endif
 }
 
 class FileLock {
