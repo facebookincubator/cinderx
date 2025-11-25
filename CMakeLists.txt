@@ -64,7 +64,7 @@ include(FetchContent)
 ########################################
 # python
 
-find_package(Python ${PY_VERSION} EXACT REQUIRED COMPONENTS Development)
+find_package(Python ${PY_VERSION} EXACT COMPONENTS Interpreter Development.Module REQUIRED)
 
 # Some of our files are partially generated from CPython source, and they
 # expect to be able to include files relative to Include/internal.

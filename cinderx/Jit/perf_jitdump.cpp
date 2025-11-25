@@ -63,11 +63,11 @@ std::string string_error(int errnum) {
   char buf[1024];
   // There's two forms of strerror_r(), one that returns a string and one that
   // returns an int.
-#if __APPLE__
+#if defined(__GLIBC__) && defined(_GNU_SOURCE)
+  return strerror_r(errnum, buf, sizeof(buf));
+#else
   strerror_r(errnum, buf, sizeof(buf));
   return std::string{buf};
-#else
-  return strerror_r(errnum, buf, sizeof(buf));
 #endif
 }
 
