@@ -84,9 +84,7 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
   std::unordered_map<BeginInlinedFunction*, BeginInlinedFunction*> parents;
 
   worklist.emplace(func.cfg.entry_block, nullptr);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  bool inited_once = false;
-#endif
+  [[maybe_unused]] bool inited_once = false;
   while (!worklist.empty()) {
     auto cur = worklist.top();
     auto block = cur.block;
@@ -141,36 +139,34 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
         }
         parents[begin] = parent;
         parent = begin;
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-        inited_once = false;
-#endif
+        if (getConfig().frame_mode == FrameMode::kLightweight) {
+          inited_once = false;
+        }
       } else if (instr.IsEndInlinedFunction()) {
         parent =
             parents[static_cast<EndInlinedFunction&>(instr).matchingBegin()];
       }
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-      // The first LoadEvalBreaker is emitted for the RESUME instruction which
-      // indicates when we should update the line number from the instruction
-      // - 1 to the first instruction to indicate that the frame is now
-      // complete.
-      if (!inited_once && instr.IsLoadEvalBreaker()) {
-        auto target_code = parent == nullptr ? func.code : parent->code();
-        auto& cur_bc_idx_to_line = code_bc_idx_map.at(target_code);
-        int line_no = cur_bc_idx_to_line.lineNoFor(
-            BCIndex(target_code->_co_firsttraceable));
-        Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
-        update_instr->setBytecodeOffset(
-            BCIndex(target_code->_co_firsttraceable));
-        update_instr->InsertBefore(instr);
+      if (getConfig().frame_mode == FrameMode::kLightweight) {
+        // The first LoadEvalBreaker is emitted for the RESUME instruction which
+        // indicates when we should update the line number from the instruction
+        // - 1 to the first instruction to indicate that the frame is now
+        // complete.
+        if (!inited_once && instr.IsLoadEvalBreaker()) {
+          auto target_code = parent == nullptr ? func.code : parent->code();
+          auto& cur_bc_idx_to_line = code_bc_idx_map.at(target_code);
+          int line_no = cur_bc_idx_to_line.lineNoFor(
+              BCIndex(target_code->_co_firsttraceable));
+          Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
+          update_instr->setBytecodeOffset(
+              BCIndex(target_code->_co_firsttraceable));
+          update_instr->InsertBefore(instr);
 
-        inited_once = true;
-      }
-#else
-      if (hasArbitraryExecution(instr)) {
+          inited_once = true;
+        }
+      } else if (hasArbitraryExecution(instr)) {
         update_one();
       }
-#endif
     }
 
     // Add the successors to be processed

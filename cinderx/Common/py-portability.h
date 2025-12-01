@@ -149,13 +149,18 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
 
 // Stack ref compatibility helpers between for 3.14+
 #if PY_VERSION_HEX < 0x030E0000
+
 #define Ci_STACK_TYPE PyObject*
 #define Ci_STACK_NULL NULL
 #define Ci_STACK_STEAL(VAL) VAL
 #define Ci_STACK_CLEAR(VAL) Py_CLEAR(VAL)
 #define Ci_STACK_XSETREF(DST, VAL) Py_XSETREF(DST, VAL);
 #define Ci_STACK_NEWREF(VAL) Py_NewRef(VAL)
+#define Ci_STACK_CLOSE(VAL) Py_DECREF(VAL)
+#define Ci_STACK_XCLOSE(VAL) Py_XDECREF(VAL)
+
 #else
+
 #define Ci_STACK_TYPE _PyStackRef
 #define Ci_STACK_NULL PyStackRef_NULL
 #define Ci_STACK_STEAL(VAL)                                      \
@@ -173,6 +178,9 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
     PyStackRef_XCLOSE(_tmp_old_dst);                   \
   } while (0)
 #define Ci_STACK_NEWREF(VAL) _PyStackRef_FromPyObjectNew(VAL)
+#define Ci_STACK_CLOSE(VAL) PyStackRef_CLOSE(VAL)
+#define Ci_STACK_XCLOSE(VAL) PyStackRef_XCLOSE(VAL)
+
 #endif
 
 #if PY_VERSION_HEX >= 0x030E0000

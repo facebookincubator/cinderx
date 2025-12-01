@@ -2970,7 +2970,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
-#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#else
+        JIT_CHECK(
+            getConfig().frame_mode == FrameMode::kLightweight,
+            "Can only generate LIR for inlined functions in 3.12+ when "
+            "lightweight frames are enabled");
+
         auto instr = static_cast<const EndInlinedFunction&>(i);
 
         // Test to see if RTFS is still in place

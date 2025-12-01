@@ -60,10 +60,10 @@ static inline Ref<> runInInterpreterViaReify(
       Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(code));
   jit::jitFrameInit(
       tstate, interp_frame, func, code, 0, FRAME_OWNED_BY_THREAD, nullptr);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  jit::jitFramePopulateFrame(interp_frame);
-  jit::jitFrameInitFunctionObject(interp_frame);
-#endif
+  if (getConfig().frame_mode == FrameMode::kLightweight) {
+    jit::jitFramePopulateFrame(interp_frame);
+    jit::jitFrameInitFunctionObject(interp_frame);
+  }
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
 #if PY_VERSION_HEX >= 0x030E0000

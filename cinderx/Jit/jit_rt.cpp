@@ -815,9 +815,11 @@ void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
   // data to a PyFrameObject if one has escaped the function.
   jit::jitFrameClearExceptCode(frame);
   Py_DECREF(_PyFrame_GetCode(frame));
-#ifndef ENABLE_LIGHTWEIGHT_FRAMES
-  Cix_PyThreadState_PopFrame(tstate, frame);
-#endif
+
+  if (jit::getConfig().frame_mode != jit::FrameMode::kLightweight) {
+    Cix_PyThreadState_PopFrame(tstate, frame);
+  }
+
   // JIT frames are stack allocated so there's nothing to pop.
 #endif
 }

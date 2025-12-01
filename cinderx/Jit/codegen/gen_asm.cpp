@@ -126,7 +126,8 @@ void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
       name);
 }
 
-#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if PY_VERSION_HEX >= 0x030C0000
+
 // Helper to recursively reify the lightweight frames. We need to reify the
 // outermost lightweight frame first and work inwards to have the frames
 // allocated correctly on the slab. We then need to update the inner functions
@@ -157,6 +158,7 @@ _PyInterpreterFrame* reifyLightweightFrames(
   }
   return cur_frame;
 }
+
 #endif
 
 CiPyFrameObjType* prepareForDeopt(
@@ -184,14 +186,16 @@ CiPyFrameObjType* prepareForDeopt(
   }
 #else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  frame = reifyLightweightFrames(
-      tstate, deopt_meta, deopt_meta.inline_depth(), frame);
-  if (frame == nullptr) {
-    Py_FatalError("Cannot recover from OOM");
+
+  if (getConfig().frame_mode == FrameMode::kLightweight) {
+    frame = reifyLightweightFrames(
+        tstate, deopt_meta, deopt_meta.inline_depth(), frame);
+    if (frame == nullptr) {
+      Py_FatalError("Cannot recover from OOM");
+    }
+    setCurrentFrame(tstate, frame);
   }
-  setCurrentFrame(tstate, frame);
-#endif
+
   _PyInterpreterFrame* frame_iter = frame;
 
   // Iterate one past the inline depth because that is the caller frame.
@@ -1877,6 +1881,8 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   std::string_view prefix = [&] {
     switch (func->frameMode) {
       case FrameMode::kNormal:
+        [[fallthrough]];
+      case FrameMode::kLightweight:
         return perf::kFuncSymbolPrefix;
       case FrameMode::kShadow:
         return perf::kShadowFrameSymbolPrefix;

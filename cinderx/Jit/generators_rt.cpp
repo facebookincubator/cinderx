@@ -647,10 +647,10 @@ void deopt_jit_gen_object_only(JitGenObject* gen) {
       : &PyCoro_Type;
   Py_DECREF(old_type);
   Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), type);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  auto frame = generatorFrame(gen);
-  jitFrameInitFunctionObject(frame);
-#endif
+  if (getConfig().frame_mode == FrameMode::kLightweight) {
+    auto frame = generatorFrame(gen);
+    jitFrameInitFunctionObject(frame);
+  }
 }
 
 bool deopt_jit_gen(PyObject* obj) {
@@ -675,9 +675,9 @@ bool deopt_jit_gen(PyObject* obj) {
         deopt_meta.inline_depth() == 0,
         "inline functions not supported for generators");
     auto frame = generatorFrame(jit_gen);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-    jitFramePopulateFrame(frame);
-#endif
+    if (getConfig().frame_mode == FrameMode::kLightweight) {
+      jitFramePopulateFrame(frame);
+    }
     reifyGeneratorFrame(
         frame, deopt_meta, deopt_meta.innermostFrame(), gen_footer);
     // Ownership of references has been transferred from JIT to interpreter.

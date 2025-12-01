@@ -193,16 +193,14 @@ bool FrameAsm::storeConst(
   return false;
 }
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-
 void FrameAsm::linkLightWeightFunctionFrame(
     RegisterPreserver& preserver,
     const arch::Gp& func_reg,
     const arch::Gp& tstate_reg) {
-#if defined(CINDER_X86_64)
+#if defined(CINDER_X86_64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   // Light weight function headers are allocated on the stack as:
   //  PyFunctionObject* func_obj
-  //  _PyInterpererFrame
+  //  _PyInterpreterFrame
   //
   // We need to initialize the f_code, f_funcobj fields of
   // the frame along w/ the previous pointer.
@@ -319,10 +317,10 @@ void FrameAsm::linkLightWeightFunctionFrame(
     preserver.remap();
   }
 #else
-  CINDER_UNSUPPORTED
+  throw std::runtime_error{
+      "linkLightWeightFunctionFrame: Lightweight frames are not supported"};
 #endif
 }
-#endif
 
 void FrameAsm::linkNormalFunctionFrame(
     RegisterPreserver& preserver,
@@ -362,12 +360,10 @@ void FrameAsm::linkNormalFrame(
 
   if (isGen()) {
     linkNormalGeneratorFrame(preserver, func_reg, tstate_reg);
-  } else {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  } else if (getConfig().frame_mode == FrameMode::kLightweight) {
     linkLightWeightFunctionFrame(preserver, func_reg, tstate_reg);
-#else
+  } else {
     linkNormalFunctionFrame(preserver, func_reg, tstate_reg);
-#endif
   }
 }
 
@@ -442,21 +438,25 @@ void FrameAsm::generateLinkFrame(
     case FrameMode::kShadow:
       load_tstate_and_move();
       break;
-    case FrameMode::kNormal: {
+    case FrameMode::kNormal:
       linkNormalFrame(preserver, func_reg, tstate_reg);
       break;
-    }
+    case FrameMode::kLightweight:
+      JIT_ABORT("Lightweight frames are not supported in 3.10");
+      break;
   }
 }
+
 #else
+
 void FrameAsm::generateLinkFrame(
     const arch::Gp& func_reg,
     const arch::Gp& tstate_reg,
     const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>&
         save_regs) {
   JIT_CHECK(
-      GetFunction()->frameMode == FrameMode::kNormal,
-      "3.12 only has normal frames");
+      GetFunction()->frameMode != FrameMode::kShadow,
+      "3.12 doesn't have shadow frames");
 
   RegisterPreserver preserver(as_, save_regs);
 

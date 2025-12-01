@@ -558,6 +558,21 @@ FlagProcessor initFlagProcessor() {
       "enable shadow frame mode");
 
   flag_processor.addOption(
+      "jit-lightweight-frame",
+      "PYTHONJITLIGHTWEIGHTFRAME",
+      [](int val) {
+        if constexpr (PY_VERSION_HEX < 0x030C0000) {
+          JIT_DLOG(
+              "Lightweight frames are not supported in Python versions earlier "
+              "than 3.12");
+          return;
+        }
+        getMutableConfig().frame_mode =
+            val ? FrameMode::kLightweight : FrameMode::kNormal;
+      },
+      "Enable/disable JIT lightweight frames");
+
+  flag_processor.addOption(
       "jit-stable-frame",
       "PYTHONJITSTABLEFRAME",
       getMutableConfig().stable_frame,
@@ -780,13 +795,13 @@ FlagProcessor initFlagProcessor() {
   // is functional and make assumptions based on that.  This is only available
   // when we have lightweight frames enabled as we need cooperation w/ the
   // runtime to let us reify the frame.
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    // Inlining is only compatible w/ lightweight frames because we
-    // need our reifier to cooperate with restoring the frame object
-    // into something usable when CPython wants it.
-#ifndef ENABLE_LIGHTWEIGHT_FRAMES
+  //
+  // Inlining is only compatible w/ lightweight frames because we need our
+  // reifier to cooperate with restoring the frame object into something usable
+  // when CPython wants it.
+  if (PY_VERSION_HEX >= 0x030C0000 &&
+      getConfig().frame_mode != FrameMode::kLightweight) {
     getMutableConfig().hir_opts.inliner = false;
-#endif
   }
 
   return flag_processor;

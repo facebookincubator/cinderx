@@ -8,12 +8,15 @@
 
 #include <cinderx/Common/code.h>
 #include <cinderx/Common/util.h>
+#include <cinderx/Jit/config.h>
 
 #include <unordered_set>
 #include <vector>
 
 namespace jit {
+
 #if PY_VERSION_HEX < 0x030C0000
+
 int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
   if (code->co_flags & kCoFlagsAnyGenerator) {
     return 0;
@@ -93,17 +96,19 @@ const char* shadowFrameKind(_PyShadowFrame* sf) {
 }
 
 #else
+
 int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
   if (code->co_flags & kCoFlagsAnyGenerator) {
     return 0;
   }
 
-#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  return sizeof(FrameHeader) + sizeof(PyObject*) * code->co_framesize;
-#else
+  if (getConfig().frame_mode == FrameMode::kLightweight) {
+    return sizeof(FrameHeader) + sizeof(PyObject*) * code->co_framesize;
+  }
+
   return 0;
-#endif
 }
+
 #endif
 
 } // namespace jit

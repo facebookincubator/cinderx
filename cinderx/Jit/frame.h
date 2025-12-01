@@ -14,7 +14,6 @@
 #include "internal/pycore_interpframe_structs.h"
 #endif
 
-#include "cinderx/Common/code.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/frame_header.h"
@@ -23,8 +22,6 @@
 namespace jit {
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate);
-
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
 
 // A singleton reifier object that was set _PyInterpreterFrame's f_funcobj
 // to. The Python runtime will call this object when it needs a complete
@@ -72,8 +69,6 @@ RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame);
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
 void jitFrameInitFunctionObject(_PyInterpreterFrame* frame);
-
-#endif
 
 // Like _PyFrame_ClearExceptCode but will handle partially initialized
 // JIT frames and only clean up the necessary state.
