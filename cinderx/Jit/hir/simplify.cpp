@@ -1475,16 +1475,32 @@ static Register* resolveArgs(
 Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
   // If this is statically known to be trying to call a function, update to
   // using a VectorCall directly.
-  if (instr->func()->type() <= TNullptr) {
-    auto call = env.emitRawInstr<VectorCall>(
-        instr->NumOperands() - 1,
-        env.func.env.AllocateRegister(),
-        instr->flags(),
-        *instr->frameState());
-    for (size_t i = 1; i < instr->NumOperands(); ++i) {
-      call->SetOperand(i - 1, instr->GetOperand(i));
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    if (instr->self()->type() <= TNullptr) {
+      auto call = env.emitRawInstr<VectorCall>(
+          instr->NumOperands() - 1,
+          env.func.env.AllocateRegister(),
+          instr->flags(),
+          *instr->frameState());
+      call->SetOperand(0, instr->GetOperand(0));
+      for (size_t i = 2; i < instr->NumOperands(); ++i) {
+        call->SetOperand(i - 1, instr->GetOperand(i));
+      }
+      call->output()->set_type(instr->output()->type());
+      return call->output();
     }
-    return call->output();
+  } else {
+    if (instr->func()->type() <= TNullptr) {
+      auto call = env.emitRawInstr<VectorCall>(
+          instr->NumOperands() - 1,
+          env.func.env.AllocateRegister(),
+          instr->flags(),
+          *instr->frameState());
+      for (size_t i = 1; i < instr->NumOperands(); ++i) {
+        call->SetOperand(i - 1, instr->GetOperand(i));
+      }
+      return call->output();
+    }
   }
 
   return nullptr;
