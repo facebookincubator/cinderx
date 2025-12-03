@@ -60,6 +60,7 @@ try:
         page_in_profiler_dependencies,
         precompile_all,
         read_jit_list,
+        set_max_code_size,
     )
 
     INSTALLED = True
@@ -201,6 +202,9 @@ except ImportError:
         return False
 
     def read_jit_list(path: str) -> None:
+        return None
+
+    def set_max_code_size(max_code_size: int) -> None:
         return None
 
 

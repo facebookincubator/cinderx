@@ -2640,6 +2640,30 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             cinderx.jit.lazy_compile(is_jit_compiled)
 
+    def test_set_max_code_size(self) -> None:
+        # Test with valid positive value
+        cinderx.jit.set_max_code_size(100_000_000)
+
+        # Test with zero (unlimited)
+        cinderx.jit.set_max_code_size(0)
+
+        # Test invalid types
+        with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
+            cinderx.jit.set_max_code_size(None)
+        with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
+            cinderx.jit.set_max_code_size("100M")
+        with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
+            cinderx.jit.set_max_code_size(100.5)
+
+        # Test negative value
+        with self.assertRaises(ValueError):
+            cinderx.jit.set_max_code_size(-1)
+        with self.assertRaises(ValueError):
+            cinderx.jit.set_max_code_size(-100)
+
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):
             # pyre-ignore[6]: Intentional type error.

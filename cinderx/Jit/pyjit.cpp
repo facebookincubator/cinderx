@@ -1641,6 +1641,20 @@ PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
   return func != nullptr ? PyBool_FromLong(isJitCompiled(func)) : nullptr;
 }
 
+PyObject* set_max_code_size(PyObject* /* self */, PyObject* arg) {
+  Py_ssize_t new_size;
+  if (!PyArg_Parse(arg, "n:set_max_code_size", &new_size)) {
+    return nullptr;
+  }
+  if (new_size < 0) {
+    PyErr_Format(
+        PyExc_ValueError, "max_code_size cannot be negative: %zd", new_size);
+    return nullptr;
+  }
+  getMutableConfig().max_code_size = static_cast<size_t>(new_size);
+  Py_RETURN_NONE;
+}
+
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
   if (jitCtx() == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
@@ -2433,6 +2447,12 @@ PyMethodDef jit_methods[] = {
      is_jit_compiled,
      METH_O,
      PyDoc_STR("Check if a function is jit compiled.")},
+    {"set_max_code_size",
+     set_max_code_size,
+     METH_O,
+     PyDoc_STR(
+         "Set the maximum amount of memory (in bytes) the JIT is allowed to "
+         "write")},
     {"precompile_all",
      reinterpret_cast<PyCFunction>(precompile_all),
      METH_VARARGS | METH_KEYWORDS,
