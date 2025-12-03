@@ -57,7 +57,7 @@ TEST(BasicBlockTest, SplitAfterSplitsBlockAfterInstruction) {
   head->append<LoadConst>(v0, TNoneType);
   Instr* load_const = head->GetTerminator();
   head->append<Return>(v0);
-  BasicBlock* tail = head->splitAfter(*load_const);
+  BasicBlock* tail = cfg.splitAfter(*load_const);
   ASSERT_NE(nullptr, head->GetTerminator());
   EXPECT_TRUE(head->GetTerminator()->IsLoadConst());
   ASSERT_NE(nullptr, tail->GetTerminator());

@@ -246,8 +246,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
       caller.fullname);
 
   BorrowedRef<PyCodeObject> callee_code{callee->func_code};
-  BasicBlock* head = call_instr->instr->block();
-  BasicBlock* tail = head->splitAfter(*call_instr->instr);
+  BasicBlock* tail = caller.cfg.splitAfter(*call_instr->instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
       callee, std::move(caller_frame_state), callee_name);
   auto callee_branch = Branch::create(result.entry);

@@ -658,22 +658,6 @@ bool BasicBlock::IsTrampoline() {
   return false;
 }
 
-BasicBlock* BasicBlock::splitAfter(Instr& instr) {
-  JIT_CHECK(cfg != nullptr, "cannot split unlinked block");
-  auto tail = cfg->AllocateBlock();
-  for (auto it = std::next(instrs_.iterator_to(instr)); it != instrs_.end();) {
-    auto& instr_2 = *it;
-    ++it;
-    instr_2.unlink();
-    tail->Append(&instr_2);
-  }
-
-  for (auto edge : tail->out_edges()) {
-    edge->to()->fixupPhis(this, tail);
-  }
-  return tail;
-}
-
 void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
   // This won't work correctly if this block has two incoming edges from the
   // same block, but we already can't handle that correctly with our current Phi
@@ -763,6 +747,22 @@ void CFG::RemoveBlock(BasicBlock* block) {
   JIT_DCHECK(block->cfg == this, "block doesn't belong to us");
   block->cfg_node.Unlink();
   block->cfg = nullptr;
+}
+
+BasicBlock* CFG::splitAfter(Instr& target) {
+  auto block = target.block();
+  auto tail = AllocateBlock();
+  for (auto it = std::next(block->iterator_to(target)); it != block->end();) {
+    auto& instr = *it;
+    ++it;
+    instr.unlink();
+    tail->Append(&instr);
+  }
+
+  for (auto edge : tail->out_edges()) {
+    edge->to()->fixupPhis(block, tail);
+  }
+  return tail;
 }
 
 void CFG::splitCriticalEdges() {

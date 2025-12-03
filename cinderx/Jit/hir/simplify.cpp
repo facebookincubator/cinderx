@@ -167,7 +167,7 @@ struct Env {
     JIT_CHECK(
         cursor != block->begin(),
         "block should not be empty after calling do_branch()");
-    BasicBlock* tail = block->splitAfter(*std::prev(cursor));
+    BasicBlock* tail = func.cfg.splitAfter(*std::prev(cursor));
 
     block = bb1;
     cursor = bb1->end();
@@ -212,7 +212,7 @@ struct Env {
     BasicBlock* slow_path = func.cfg.AllocateBlock();
 
     auto branch = do_branch(slow_path);
-    BasicBlock* fast_path = block->splitAfter(*branch);
+    BasicBlock* fast_path = func.cfg.splitAfter(*branch);
     branch->set_true_bb(fast_path);
 
     block = slow_path;

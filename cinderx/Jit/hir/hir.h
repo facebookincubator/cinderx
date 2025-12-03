@@ -4000,11 +4000,6 @@ class BasicBlock {
   explicit BasicBlock(int id_) : id(id_), cfg(nullptr) {}
   ~BasicBlock();
 
-  // Split this block after instr. Once split, this block will contain all
-  // instructions up to and including instr. A newly allocated block is returned
-  // that contains all instructions following instr.
-  BasicBlock* splitAfter(Instr& instr);
-
   // Replace any references to old_pred in this block's Phis with new_pred.
   void fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred);
   // Adds a new predecessor to the phi that follows from the old predecessor
@@ -4202,6 +4197,11 @@ class CFG {
 
   // Remove block from the CFG
   void RemoveBlock(BasicBlock* block);
+
+  // Split a block after instr. Once split, the block will contain all
+  // instructions up to and including instr. A newly allocated block is returned
+  // that contains all instructions following instr.
+  BasicBlock* splitAfter(Instr& target);
 
   // Split any critical edges by inserting trampoline blocks.
   void splitCriticalEdges();
