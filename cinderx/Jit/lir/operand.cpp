@@ -302,15 +302,16 @@ bool Operand::isLinked() const {
 uint64_t Operand::rawValue() const {
   if (const auto ptr = std::get_if<uint64_t>(&value_)) {
     return *ptr;
-  } else if (const auto ptr = std::get_if<void*>(&value_)) {
-    return reinterpret_cast<uint64_t>(*ptr);
-  } else if (const auto ptr = std::get_if<BasicBlock*>(&value_)) {
-    return reinterpret_cast<uint64_t>(*ptr);
+  } else if (const auto void_ptr = std::get_if<void*>(&value_)) {
+    return reinterpret_cast<uint64_t>(*void_ptr);
+  } else if (const auto bb_ptr = std::get_if<BasicBlock*>(&value_)) {
+    return reinterpret_cast<uint64_t>(*bb_ptr);
   } else if (
-      const auto ptr = std::get_if<std::unique_ptr<MemoryIndirect>>(&value_)) {
-    return reinterpret_cast<uint64_t>(ptr->get());
-  } else if (const auto ptr = std::get_if<PhyLocation>(&value_)) {
-    return static_cast<uint64_t>(ptr->loc);
+      const auto mem_ptr =
+          std::get_if<std::unique_ptr<MemoryIndirect>>(&value_)) {
+    return reinterpret_cast<uint64_t>(mem_ptr->get());
+  } else if (const auto phy_ptr = std::get_if<PhyLocation>(&value_)) {
+    return static_cast<uint64_t>(phy_ptr->loc);
   }
 
   JIT_ABORT("Unknown operand value type, has index {}", value_.index());
