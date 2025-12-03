@@ -557,9 +557,6 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
 #ifdef ENABLE_LAZY_IMPORTS
 #endif
 #ifdef ENABLE_LAZY_IMPORTS
@@ -1246,8 +1243,8 @@ delitem_common(PyDictObject *mp, Py_hash_t hash, Py_ssize_t ix,
 
     ASSERT_CONSISTENT(mp);
 }
-static int
-delitem_knownhash_lock_held(PyObject *op, PyObject *key, Py_hash_t hash)
+int
+_PyDict_DelItem_KnownHash_LockHeld(PyObject *op, PyObject *key, Py_hash_t hash)
 {
     Py_ssize_t ix;
     PyDictObject *mp;
@@ -1816,6 +1813,14 @@ static inline int
 insert_combined_dict(PyInterpreterState *interp, PyDictObject *mp,
                      Py_hash_t hash, PyObject *key, PyObject *value)
 {
+    // gh-140551: If dict was cleared in _Py_dict_lookup,
+    // we have to resize one more time to force general key kind.
+    if (DK_IS_UNICODE(mp->ma_keys) && !PyUnicode_CheckExact(key)) {
+        if (insertion_resize(interp, mp, 0) < 0)
+            return -1;
+        assert(DK_KIND(mp->ma_keys) == DICT_KEYS_GENERAL);
+    }
+
     if (mp->ma_keys->dk_usable <= 0) {
         /* Need to resize. */
         if (insertion_resize(interp, mp, 1) < 0) {
@@ -1868,42 +1873,35 @@ insertdict(PyInterpreterState *interp, PyDictObject *mp,
            PyObject *key, Py_hash_t hash, PyObject *value)
 {
     PyObject *old_value;
+    Py_ssize_t ix;
 
     ASSERT_DICT_LOCKED(mp);
 
-    if (DK_IS_UNICODE(mp->ma_keys) && !PyUnicode_CheckExact(key)) {
-        if (insertion_resize(interp, mp, 0) < 0)
-            goto Fail;
-        assert(DK_KIND(mp->ma_keys) == DICT_KEYS_GENERAL);
-    }
-
-    if (_PyDict_HasSplitTable(mp)) {
-        Py_ssize_t ix = insert_split_key(mp->ma_keys, key, hash);
+    if (_PyDict_HasSplitTable(mp) && PyUnicode_CheckExact(key)) {
+        ix = insert_split_key(mp->ma_keys, key, hash);
         if (ix != DKIX_EMPTY) {
             insert_split_value(interp, mp, key, value, ix);
             Py_DECREF(key);
             Py_DECREF(value);
             return 0;
         }
-
-        /* No space in shared keys. Resize and continue below. */
-        if (insertion_resize(interp, mp, 1) < 0) {
+        // No space in shared keys. Go to insert_combined_dict() below.
+    }
+    else {
+#ifdef ENABLE_LAZY_IMPORTS
+        ix = _Py_dict_lookup_keep_lazy(mp, key, hash, &old_value);
+#else
+        ix = _Py_dict_lookup(mp, key, hash, &old_value);
+#endif
+        if (ix == DKIX_ERROR)
             goto Fail;
-        }
     }
 
-#ifdef ENABLE_LAZY_IMPORTS
-    Py_ssize_t ix = _Py_dict_lookup_keep_lazy(mp, key, hash, &old_value);
-#else
-    Py_ssize_t ix = _Py_dict_lookup(mp, key, hash, &old_value);
-#endif
-    if (ix == DKIX_ERROR)
-        goto Fail;
-
     if (ix == DKIX_EMPTY) {
-        assert(!_PyDict_HasSplitTable(mp));
-        /* Insert into new slot. */
-        assert(old_value == NULL);
+        // insert_combined_dict() will convert from non DICT_KEYS_GENERAL table
+        // into DICT_KEYS_GENERAL table if key is not Unicode.
+        // We don't convert it before _Py_dict_lookup because non-Unicode key
+        // may change generic table into Unicode table.
         if (insert_combined_dict(interp, mp, hash, key, value) < 0) {
             goto Fail;
         }
@@ -1992,7 +1990,7 @@ _PyDict_SetItem_LockHeld(PyDictObject *dict, PyObject *name, PyObject *value)
             dict_unhashable_type(name);
             return -1;
         }
-        return delitem_knownhash_lock_held((PyObject *)dict, name, hash);
+        return _PyDict_DelItem_KnownHash_LockHeld((PyObject *)dict, name, hash);
     } else {
         return setitem_lock_held(dict, name, value);
     }
@@ -2753,6 +2751,8 @@ error:
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
+#ifdef Py_GIL_DISABLED
+#endif
 #ifndef NDEBUG
 #else
 #endif
@@ -2850,6 +2850,10 @@ FUNCNAME(PyObject *self, PyObject *other) \
 #define SLOT1BIN(FUNCNAME, SLOTNAME, DUNDER, RDUNDER) \
     SLOT1BINFULL(FUNCNAME, FUNCNAME, SLOTNAME, DUNDER, RDUNDER)
 #define slot_mp_length slot_sq_length
+#ifndef Py_GIL_DISABLED
+#endif
+#ifndef Py_GIL_DISABLED
+#endif
 #define PyBufferWrapper_CAST(op)    ((PyBufferWrapper *)(op))
 #undef TPSLOT
 #undef FLSLOT
@@ -3398,7 +3402,6 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
         &(runtime)->unicode_state.ids.mutex, \
         &(runtime)->imports.extensions.mutex, \
         &(runtime)->ceval.pending_mainthread.mutex, \
-        &(runtime)->ceval.sys_trace_profile_mutex, \
         &(runtime)->atexit.mutex, \
         &(runtime)->audit_hooks.mutex, \
         &(runtime)->allocators.mutex, \
@@ -3445,10 +3448,6 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
 #if LLONG_MAX > INT64_MAX
 #endif
 #ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -5989,8 +5988,7 @@ analyze_descriptor_load(PyTypeObject *type, PyObject *name, PyObject **descr, un
         PyObject *getattr = _PyType_Lookup(type, &_Py_ID(__getattr__));
         has_getattr = getattr != NULL;
         if (has_custom_getattribute) {
-            if (getattro_slot == _Py_slot_tp_getattro &&
-                !has_getattr &&
+            if (!has_getattr &&
                 Py_IS_TYPE(getattribute, &PyFunction_Type)) {
                 *descr = getattribute;
                 *tp_version = ga_version;
@@ -6483,12 +6481,6 @@ do_specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject*
             return -1;
         case GETATTRIBUTE_IS_PYTHON_FUNCTION:
         {
-            #ifndef Py_GIL_DISABLED
-            // In free-threaded builds it's possible for tp_getattro to change
-            // after the call to analyze_descriptor. That is fine: the version
-            // guard will fail.
-            assert(type->tp_getattro == _Py_slot_tp_getattro);
-            #endif
             assert(Py_IS_TYPE(descr, &PyFunction_Type));
             _PyLoadMethodCache *lm_cache = (_PyLoadMethodCache *)(instr + 1);
             if (!function_check_args(descr, 2, LOAD_ATTR)) {
