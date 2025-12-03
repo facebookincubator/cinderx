@@ -9,6 +9,8 @@ import shlex
 import subprocess
 import sys
 
+from generic_bisect import BisectRunner, config_logger, logger
+
 JITLIST_FILENAME = "jitlist.txt"
 
 
@@ -23,27 +25,6 @@ def read_jitlist(jit_list_file):
         return [line.strip() for line in file.readlines()]
 
 
-def run_with_jitlist(command, jitlist):
-    write_jitlist(jitlist)
-
-    environ = dict(os.environ)
-    environ.update({"PYTHONJITLISTFILE": JITLIST_FILENAME, "IS_BISECTING_JITLIST": "1"})
-
-    logging.debug(
-        f"Running '{shlex.join(command)}' with jitlist of size {len(jitlist)}"
-    )
-    proc = subprocess.run(
-        command,
-        env=environ,
-        capture_output=True,
-        encoding=sys.stdout.encoding,
-    )
-    logging.debug(
-        f"Finished with exit status {proc.returncode}\n\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
-    )
-    return proc.returncode == 0
-
-
 COMPILED_FUNC_RE = re.compile(r" -- (Compiling|Inlining function) ([^ ]+)($| into)")
 
 
@@ -51,7 +32,7 @@ def get_compiled_funcs(command):
     environ = dict(os.environ)
     environ.update({"PYTHONJITDEBUG": "1"})
 
-    logging.info("Generating initial jit-list")
+    logger.info("Generating initial jit-list")
     proc = subprocess.run(
         command,
         env=environ,
@@ -75,41 +56,10 @@ def get_compiled_funcs(command):
     return sorted(funcs)
 
 
-# Return two halves of the given list. For odd-length lists, the second half
-# will be larger.
-def split_list(items):
-    half = len(items) // 2
-    return items[0:half], items[half:]
-
-
-# Attempt to reduce the `jitlist` argument as much as possible, returning the
-# shorter version. `fixed` will always be used as part of the jitlist when
-# running `command`.
-def bisect_impl(command, fixed, jitlist, indent=""):
-    logging.info(f"{indent}step fixed[{len(fixed)}] and jitlist[{len(jitlist)}]")
-
-    while len(jitlist) > 1:
-        logging.info(f"{indent}{len(fixed) + len(jitlist)} candidates")
-
-        left, right = split_list(jitlist)
-        if not run_with_jitlist(command, fixed + left):
-            jitlist = left
-            continue
-        if not run_with_jitlist(command, fixed + right):
-            jitlist = right
-            continue
-
-        # We need something from both halves to trigger the failure. Try
-        # holding each half fixed and bisecting the other half to reduce the
-        # candidates.
-        new_right = bisect_impl(command, fixed + left, right, indent + "< ")
-        new_left = bisect_impl(command, fixed + new_right, left, indent + "> ")
-        return new_left + new_right
-
-    return jitlist
-
-
 def run_bisect(command, jit_list_file):
+    if len(command) == 0:
+        sys.exit("No command specified")
+
     prev_arg = ""
     for arg in command:
         if arg.startswith("-Xjit-log-file") or (
@@ -126,16 +76,28 @@ def run_bisect(command, jit_list_file):
     else:
         jitlist = read_jitlist(jit_list_file)
 
-    logging.info("Verifying jit-list")
-    if run_with_jitlist(command, jitlist):
-        sys.exit("Command succeeded with full jit-list")
-    if not run_with_jitlist(command, []):
-        sys.exit("Command failed with empty jit-list")
+    # Build shell command that sets environment variables and runs the original command
+    # The $BISECT_FILE will be used as PYTHONJITLISTFILE
+    escaped_command = " ".join(shlex.quote(arg) for arg in command)
+    shell_command = (
+        f'PYTHONJITLISTFILE="$BISECT_FILE" IS_BISECTING_JITLIST=1 {escaped_command}'
+    )
 
-    jitlist = bisect_impl(command, [], jitlist)
-    write_jitlist(jitlist)
+    logger.info("Verifying jit-list")
 
-    print(f"Bisect finished with {len(jitlist)} functions in {JITLIST_FILENAME}")
+    # Create BisectRunner
+    runner = BisectRunner(command=shell_command, items=jitlist)
+
+    # find_minimal_failing_set does the verification and bisection
+    minimal_jitlist = runner.find_minimal_failing_set()
+
+    if minimal_jitlist is None:
+        sys.exit("Bisection failed - see error messages above")
+
+    write_jitlist(minimal_jitlist)
+    logger.info(
+        f"Bisect finished with {len(minimal_jitlist)} functions in {JITLIST_FILENAME}"
+    )
 
 
 def parse_args():
@@ -157,8 +119,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(level=log_level)
+    config_logger(args.verbose)
     run_bisect(args.command, args.initial_jit_list_file)
 
 
