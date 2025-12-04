@@ -178,7 +178,7 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 
 #define PyDict_LOG_MINSIZE 3
 #define PyDict_MINSIZE 8
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifdef Py_GIL_DISABLED
 #define ASSERT_DICT_LOCKED(op) ASSERT_DICT_LOCKED(_Py_CAST(PyObject*, op))
@@ -243,10 +243,10 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #define STORE_KEYS_NENTRIES(keys, nentries) FT_ATOMIC_STORE_SSIZE_RELAXED(keys->dk_nentries, nentries)
 #define STORE_USED(mp, used) FT_ATOMIC_STORE_SSIZE_RELAXED(mp->ma_used, used)
 #define PERTURB_SHIFT 5
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifndef NDEBUG
 #endif
@@ -278,21 +278,21 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #endif
 #define CHECK(expr) \
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #undef CHECK
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #if SIZEOF_VOID_P > 4
 #endif
 #ifdef Py_REF_DEBUG
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -311,63 +311,63 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #else   // Py_GIL_DISABLED
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_GIL_DISABLED
@@ -375,10 +375,10 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
@@ -386,46 +386,46 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #endif
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_REF_DEBUG
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_DEBUG
@@ -436,25 +436,25 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #ifdef Py_GIL_DISABLED
 #else
 #endif
@@ -462,78 +462,78 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #else
 #endif
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #ifdef Py_GIL_DISABLED
 #else
 #endif
@@ -557,11 +557,11 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_GIL_DISABLED
@@ -874,7 +874,7 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
                     /* test_dict fails if PyObject_Hash() is called again */
                     CHECK(entry->me_hash != -1);
                     CHECK(entry->me_value != NULL);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
                     CHECK(DK_LAZY_IMPORTS(keys) || !PyLazyImport_CheckExact(entry->me_value));
 #endif
 
@@ -897,7 +897,7 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
                     CHECK(hash != -1);
                     if (!splitted) {
                         CHECK(entry->me_value != NULL);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
                         CHECK(DK_LAZY_IMPORTS(keys) || !PyLazyImport_CheckExact(entry->me_value));
 #endif
                     }
@@ -918,7 +918,7 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
                 CHECK((duplicate_check & (1<<index)) == 0);
                 duplicate_check |= (1<<index);
                 CHECK(mp->ma_values->values[index] != NULL);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
                 CHECK(DK_LAZY_IMPORTS(keys) || !PyLazyImport_CheckExact(mp->ma_values->values[index]));
 #endif
             }
@@ -1260,7 +1260,7 @@ _PyDict_DelItem_KnownHash_LockHeld(PyObject *op, PyObject *key, Py_hash_t hash)
     assert(key);
     assert(hash != -1);
     mp = (PyDictObject *)op;
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     ix = _Py_dict_lookup_keep_lazy(mp, key, hash, &old_value);
 #else
     ix = _Py_dict_lookup(mp, key, hash, &old_value);
@@ -1278,7 +1278,7 @@ _PyDict_DelItem_KnownHash_LockHeld(PyObject *op, PyObject *key, Py_hash_t hash)
     return 0;
 }
 static PyDictKeysObject*
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode, bool lazy_imports)
 #else
 new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
@@ -1326,7 +1326,7 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
     dk->dk_log2_size = log2_size;
     dk->dk_log2_index_bytes = log2_bytes;
     dk->dk_kind = unicode ? DICT_KEYS_UNICODE : DICT_KEYS_GENERAL;
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     if (lazy_imports) {
         dk->dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
     }
@@ -1400,7 +1400,7 @@ insert_to_emptydict(PyInterpreterState *interp, PyDictObject *mp,
     ASSERT_DICT_LOCKED(mp);
 
     int unicode = PyUnicode_CheckExact(key);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     int lazy_imports = PyLazyImport_CheckExact(value);
     PyDictKeysObject *newkeys = new_keys_object(
             interp, PyDict_LOG_MINSIZE, unicode, lazy_imports);
@@ -1432,7 +1432,7 @@ insert_to_emptydict(PyInterpreterState *interp, PyDictObject *mp,
         STORE_VALUE(ep, value);
     }
     STORE_USED(mp, mp->ma_used + 1);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     if (lazy_imports) {
         lazy_import_verbose(value);
     }
@@ -1445,7 +1445,7 @@ insert_to_emptydict(PyInterpreterState *interp, PyDictObject *mp,
     // set_keys here because the transition from empty to non-empty is safe
     // as the empty keys will never be freed.
     FT_ATOMIC_STORE_PTR_RELEASE(mp->ma_keys, newkeys);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     ASSERT_CONSISTENT(mp);
 #endif
     return 0;
@@ -1518,7 +1518,7 @@ invalidate_and_clear_inline_values(PyDictValues *values)
     }
 }
 static int
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 dictresize(PyInterpreterState *interp, PyDictObject *mp,
            uint8_t log2_newsize, int unicode, int lazy_imports)
 #else
@@ -1544,7 +1544,7 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
         unicode = 0;
     }
 
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     if (DK_LAZY_IMPORTS(oldkeys)) {
         lazy_imports = 1;
     }
@@ -1557,7 +1557,7 @@ dictresize(PyInterpreterState *interp, PyDictObject *mp,
      */
 
     /* Allocate a new table. */
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     newkeys = new_keys_object(interp, log2_newsize, unicode, lazy_imports);
 #else
     newkeys = new_keys_object(interp, log2_newsize, unicode);
@@ -1707,7 +1707,7 @@ calculate_log2_keysize(Py_ssize_t minsize)
 static int
 insertion_resize(PyInterpreterState *interp, PyDictObject *mp, int unicode)
 {
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     return dictresize(interp, mp, calculate_log2_keysize(GROWTH_RATE(mp)), unicode, 0);
 #else
     return dictresize(interp, mp, calculate_log2_keysize(GROWTH_RATE(mp)), unicode);
@@ -1780,7 +1780,7 @@ insert_split_value(PyInterpreterState *interp, PyDictObject *mp, PyObject *key, 
     PyObject *old_value = mp->ma_values->values[ix];
     if (old_value == NULL) {
         _PyDict_NotifyEvent(interp, PyDict_EVENT_ADDED, mp, key, value);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
         if (PyLazyImport_CheckExact(value)) {
             uint8_t dk_kind = DK_KIND(mp->ma_keys);
             dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -1794,7 +1794,7 @@ insert_split_value(PyInterpreterState *interp, PyDictObject *mp, PyObject *key, 
     }
     else {
         _PyDict_NotifyEvent(interp, PyDict_EVENT_MODIFIED, mp, key, value);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
         if (PyLazyImport_CheckExact(value)) {
             uint8_t dk_kind = DK_KIND(mp->ma_keys);
             dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -1838,7 +1838,7 @@ insert_combined_dict(PyInterpreterState *interp, PyDictObject *mp,
         PyDictUnicodeEntry *ep;
         ep = &DK_UNICODE_ENTRIES(mp->ma_keys)[mp->ma_keys->dk_nentries];
         STORE_KEY(ep, key);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     if (PyLazyImport_CheckExact(value)) {
         uint8_t dk_kind = DK_KIND(mp->ma_keys);
         dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -1852,7 +1852,7 @@ insert_combined_dict(PyInterpreterState *interp, PyDictObject *mp,
         PyDictKeyEntry *ep;
         ep = &DK_ENTRIES(mp->ma_keys)[mp->ma_keys->dk_nentries];
         STORE_KEY(ep, key);
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     if (PyLazyImport_CheckExact(value)) {
         uint8_t dk_kind = DK_KIND(mp->ma_keys);
         dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -1888,7 +1888,7 @@ insertdict(PyInterpreterState *interp, PyDictObject *mp,
         // No space in shared keys. Go to insert_combined_dict() below.
     }
     else {
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
         ix = _Py_dict_lookup_keep_lazy(mp, key, hash, &old_value);
 #else
         ix = _Py_dict_lookup(mp, key, hash, &old_value);
@@ -1916,7 +1916,7 @@ insertdict(PyInterpreterState *interp, PyDictObject *mp,
         assert(!_PyDict_HasSplitTable(mp));
         if (DK_IS_UNICODE(mp->ma_keys)) {
             PyDictUnicodeEntry *ep = &DK_UNICODE_ENTRIES(mp->ma_keys)[ix];
-    #ifdef ENABLE_LAZY_IMPORTS
+    #ifdef META_PYTHON
             if (PyLazyImport_CheckExact(value)) {
                 uint8_t dk_kind = DK_KIND(mp->ma_keys);
                 dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -1928,7 +1928,7 @@ insertdict(PyInterpreterState *interp, PyDictObject *mp,
         }
         else {
             PyDictKeyEntry *ep = &DK_ENTRIES(mp->ma_keys)[ix];
-    #ifdef ENABLE_LAZY_IMPORTS
+    #ifdef META_PYTHON
             if (PyLazyImport_CheckExact(value)) {
                 uint8_t dk_kind = DK_KIND(mp->ma_keys);
                 dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -2020,7 +2020,7 @@ _Py_dict_lookup(PyDictObject *mp, PyObject *key, Py_hash_t hash, PyObject **valu
     PyDictKeysObject *dk;
     DictKeysKind kind;
     Py_ssize_t ix;
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     PyObject *startkey;
     PyObject **value_ptr;
     PyObject *value;
@@ -2058,12 +2058,12 @@ start:
         }
 
         if (ix >= 0) {
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
             PyDictUnicodeEntry *ep = &DK_UNICODE_ENTRIES(dk)[ix];
             startkey = ep->me_key;
 #endif
             if (kind == DICT_KEYS_SPLIT) {
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
                 assert(mp->ma_values != NULL);
                 value_ptr = &mp->ma_values->values[ix];
 #else
@@ -2071,7 +2071,7 @@ start:
 #endif
             }
             else {
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
                 value_ptr = &ep->me_value;
 #else
                 *value_addr = DK_UNICODE_ENTRIES(dk)[ix].me_value;
@@ -2080,7 +2080,7 @@ start:
         }
         else {
             *value_addr = NULL;
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
             return ix;
 #endif
         }
@@ -2091,7 +2091,7 @@ start:
             goto start;
         }
         if (ix >= 0) {
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
             PyDictKeyEntry *ep = &DK_ENTRIES(dk)[ix];
             startkey = ep->me_key;
             value_ptr = &ep->me_value;
@@ -2101,13 +2101,13 @@ start:
         }
         else {
             *value_addr = NULL;
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
             return ix;
 #endif
         }
     }
 
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
     value = *value_ptr;
 
     if (value && PyLazyImport_CheckExact(value)) {
@@ -2726,10 +2726,10 @@ error:
 #endif
 #ifdef Py_DEBUG
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #else
 #endif
 #ifdef Py_GIL_DISABLED
@@ -3419,7 +3419,7 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
 #  ifdef Py_STACKREF_CLOSE_DEBUG
@@ -3429,7 +3429,7 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 #endif
 #ifdef HAVE_FORK
 #endif
