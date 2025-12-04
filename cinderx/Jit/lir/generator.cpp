@@ -283,7 +283,7 @@ void LIRGenerator::AnalyzeCopies() {
 std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   AnalyzeCopies();
 
-  auto function = std::make_unique<jit::lir::Function>();
+  auto function = std::make_unique<jit::lir::Function>(func_);
   lir_func_ = function.get();
 
   // generate entry block and exit block

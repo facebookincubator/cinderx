@@ -169,6 +169,8 @@ void deepCopyBasicBlocks(
 
 } // namespace
 
+Function::Function(const hir::Function* hir_func) : hir_func_{hir_func} {}
+
 int Function::allocateId() {
   return next_id_++;
 }
@@ -252,6 +254,10 @@ size_t Function::getNumBasicBlocks() const {
 void Function::sortBasicBlocks() {
   BasicBlockSorter sorter(basic_blocks_);
   basic_blocks_ = sorter.getSortedBlocks();
+}
+
+const hir::Function* Function::hirFunc() const {
+  return hir_func_;
 }
 
 } // namespace jit::lir

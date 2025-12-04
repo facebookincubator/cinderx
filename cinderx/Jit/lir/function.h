@@ -7,6 +7,10 @@
 #include <deque>
 #include <vector>
 
+namespace jit::hir {
+class Function;
+}
+
 namespace jit::lir {
 
 class Function {
@@ -15,6 +19,8 @@ class Function {
     int begin_bb;
     int end_bb;
   };
+
+  explicit Function(const hir::Function* hir_func = nullptr);
 
   // Allocate a new ID for a basic block or an instruction.
   int allocateId();
@@ -54,7 +60,11 @@ class Function {
 
   void sortBasicBlocks();
 
+  const hir::Function* hirFunc() const;
+
  private:
+  const hir::Function* hir_func_;
+
   // The containers below hold all the basic blocks for the Function. The deque
   // holds the actual data for blocks and the vector holds their (eventually)
   // sorted order.

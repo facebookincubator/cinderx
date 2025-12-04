@@ -359,11 +359,10 @@ void LIRInliner::resolveReturnValue() {
 }
 
 std::string_view LIRInliner::callerName() {
-  const hir::Instr* hir_call = call_instr_->origin();
-  if (hir_call == nullptr) {
-    return "<unnamed LIR function>";
+  if (auto hir_func = caller_->hirFunc()) {
+    return hir_func->fullname;
   }
-  return hir_call->block()->cfg->func->fullname;
+  return "<unnamed LIR function>";
 }
 
 } // namespace jit::lir
