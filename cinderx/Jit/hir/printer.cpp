@@ -54,6 +54,9 @@ void HIRPrinter::Dedent() {
 }
 
 void HIRPrinter::Print(std::ostream& os, const Function& func) {
+  func_ = &func;
+  SCOPE_EXIT(func_ = nullptr);
+
   fmt::print(
       os, "fun {} {{\n", func.fullname.empty() ? "<unknown>" : func.fullname);
   Indent();
@@ -198,8 +201,9 @@ static std::string format_name_impl(int idx, PyObject* names) {
       "{}; {}", idx, escape_unicode(PyTuple_GET_ITEM(names, idx)));
 }
 
-static std::string format_name(const Instr& instr, int idx) {
-  auto code = instr.code();
+static std::string
+format_name(const Function* func, const Instr& instr, int idx) {
+  auto code = func != nullptr ? func->codeFor(instr) : nullptr;
   if (idx < 0 || code == nullptr) {
     return fmt::format("{}", idx);
   }
@@ -207,8 +211,10 @@ static std::string format_name(const Instr& instr, int idx) {
   return format_name_impl(idx, code->co_names);
 }
 
-static std::string format_load_super(const LoadSuperBase& load) {
-  auto code = load.code();
+static std::string format_load_super(
+    const Function* func,
+    const LoadSuperBase& load) {
+  auto code = func != nullptr ? func->codeFor(load) : nullptr;
   if (code == nullptr) {
     return fmt::format("{} {}", load.name_idx(), load.no_args_in_super_call());
   }
@@ -218,8 +224,9 @@ static std::string format_load_super(const LoadSuperBase& load) {
       load.no_args_in_super_call());
 }
 
-static std::string format_varname(const Instr& instr, int idx) {
-  auto code = instr.code();
+static std::string
+format_varname(const Function* func, const Instr& instr, int idx) {
+  auto code = func != nullptr ? func->codeFor(instr) : nullptr;
   if (idx < 0 || code == nullptr) {
     return fmt::format("{}", idx);
   }
@@ -228,7 +235,7 @@ static std::string format_varname(const Instr& instr, int idx) {
   return format_name_impl(idx, names);
 }
 
-static std::string format_immediates(const Instr& instr) {
+static std::string format_immediates(const Function* func, const Instr& instr) {
   switch (instr.opcode()) {
     case Opcode::kAssign:
     case Opcode::kBatchDecref:
@@ -507,7 +514,7 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kLoadArg: {
       const auto& load = static_cast<const LoadArg&>(instr);
-      auto varname = format_varname(load, load.arg_idx());
+      auto varname = format_varname(func, load, load.arg_idx());
       if (load.type() == TObject) {
         return varname;
       }
@@ -526,13 +533,13 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kLoadMethodCached:
     case Opcode::kLoadModuleMethodCached: {
       const auto& load = static_cast<const LoadMethodBase&>(instr);
-      return format_name(load, load.name_idx());
+      return format_name(func, load, load.name_idx());
     }
     case Opcode::kLoadMethodSuper: {
-      return format_load_super(static_cast<const LoadSuperBase&>(instr));
+      return format_load_super(func, static_cast<const LoadSuperBase&>(instr));
     }
     case Opcode::kLoadAttrSuper: {
-      return format_load_super(static_cast<const LoadSuperBase&>(instr));
+      return format_load_super(func, static_cast<const LoadSuperBase&>(instr));
     }
     case Opcode::kLoadConst: {
       const auto& load = static_cast<const LoadConst&>(instr);
@@ -572,11 +579,11 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kLoadGlobalCached: {
       const auto& load = static_cast<const LoadGlobalCached&>(instr);
-      return format_name(load, load.name_idx());
+      return format_name(func, load, load.name_idx());
     }
     case Opcode::kLoadGlobal: {
       const auto& load = static_cast<const LoadGlobal&>(instr);
-      return format_name(load, load.name_idx());
+      return format_name(func, load, load.name_idx());
     }
     case Opcode::kMakeList: {
       const auto& make = static_cast<const MakeList&>(instr);
@@ -628,7 +635,7 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kStoreAttr:
     case Opcode::kStoreAttrCached: {
       const auto& named = static_cast<const DeoptBaseWithNameIdx&>(instr);
-      return format_name(named, named.name_idx());
+      return format_name(func, named, named.name_idx());
     }
     case Opcode::kInPlaceOp: {
       const auto& inplace_op = static_cast<const InPlaceOp&>(instr);
@@ -717,16 +724,16 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kImportFrom: {
       const auto& import_from = static_cast<const ImportFrom&>(instr);
-      return format_name(import_from, import_from.name_idx());
+      return format_name(func, import_from, import_from.name_idx());
     }
     case Opcode::kImportName: {
       const auto& import_name = static_cast<const ImportName&>(instr);
-      return format_name(import_name, import_name.name_idx());
+      return format_name(func, import_name, import_name.name_idx());
     }
     case Opcode::kEagerImportName: {
       const auto& eager_import_name =
           static_cast<const EagerImportName&>(instr);
-      return format_name(eager_import_name, eager_import_name.name_idx());
+      return format_name(func, eager_import_name, eager_import_name.name_idx());
     }
     case Opcode::kRefineType: {
       const auto& rt = static_cast<const RefineType&>(instr);
@@ -801,7 +808,7 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
   }
   os << instr.opname();
 
-  auto immed = format_immediates(instr);
+  auto immed = format_immediates(func_, instr);
   if (!immed.empty()) {
     os << "<" << immed << ">";
   }

@@ -28,9 +28,7 @@ class HIRPrinter {
   void Print(std::ostream& os, const Function& func);
   void Print(std::ostream& os, const BasicBlock& block);
   void Print(std::ostream& os, const Instr& instr);
-
   void Print(std::ostream& os, const CFG& cfg);
-
   void Print(std::ostream& os, const FrameState& state);
 
   template <class T>
@@ -48,6 +46,7 @@ class HIRPrinter {
   void Dedent();
   std::ostream& Indented(std::ostream& os);
 
+  const Function* func_{nullptr};
   std::string line_prefix_;
   int indent_level_{0};
   bool full_snapshots_{false};

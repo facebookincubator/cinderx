@@ -246,13 +246,6 @@ class Instr {
   // Inherit the same bytecode offset as another instruction.
   void copyBytecodeOffset(const Instr& instr);
 
-  virtual int lineNumber() const;
-
-  // This assumes that inlined functions have a dominating FrameState from
-  // BeginInlinedFunction to use. If we start optimizing that out for inlined
-  // functions that cannot deopt, we will have to do something different.
-  virtual BorrowedRef<PyCodeObject> code() const;
-
   // Downcast the Instr to a DeoptBase, returning nullptr if it isn't one.
   virtual DeoptBase* asDeoptBase();
   virtual const DeoptBase* asDeoptBase() const;
@@ -322,7 +315,6 @@ class DeoptBase : public Instr {
   FrameState* frameState() const;
   std::unique_ptr<FrameState> takeFrameState();
 
-  BorrowedRef<PyCodeObject> code() const override;
   bool visitUses(const std::function<bool(Register*&)>& func) override;
 
   DeoptBase* asDeoptBase() override;
@@ -1576,16 +1568,8 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     return func_;
   }
 
-  BorrowedRef<PyCodeObject> code() const override {
+  BorrowedRef<PyCodeObject> code() const {
     return func_->func_code;
-  }
-
-  // we have the bytecode offset from the caller, so we need to use the caller
-  // code object to find the line number
-  int lineNumber() const override {
-    PyCodeObject* code = caller_state_->code;
-    return code == nullptr ? -1
-                           : PyCode_Addr2Line(code, bytecodeOffset().value());
   }
 
   std::string fullname() const {
@@ -2763,7 +2747,7 @@ class INSTR_CLASS(LoadGlobalCached, (), HasOutput, Operands<0>) {
         globals_(globals),
         name_idx_(name_idx) {}
 
-  BorrowedRef<PyCodeObject> code() const override {
+  BorrowedRef<PyCodeObject> code() const {
     return code_;
   }
 
@@ -4232,6 +4216,14 @@ class Function {
         std::make_unique<T>(std::forward<Args>(args)...));
     return static_cast<T*>(code_patchers.back().get());
   }
+
+  // Get the code object for the given instruction.  Handles inlined functions
+  // but assumes that inlined functions have a dominating FrameState from
+  // BeginInlinedFunction to use.  If we start optimizing that out for inlined
+  // functions that cannot deopt, we will have to do something different.
+  //
+  // The instruction must be part of this function.
+  BorrowedRef<PyCodeObject> codeFor(const Instr& instr) const;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Function);

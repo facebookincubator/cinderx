@@ -54,14 +54,6 @@ const DeoptBase* DeoptBase::asDeoptBase() const {
   return this;
 }
 
-BorrowedRef<PyCodeObject> DeoptBase::code() const {
-  FrameState* state = frameState();
-  if (state == nullptr) {
-    return nullptr;
-  }
-  return state->code;
-}
-
 bool DeoptBase::visitUses(const std::function<bool(Register*&)>& func) {
   if (!Instr::visitUses(func)) {
     return false;
@@ -589,14 +581,6 @@ void Instr::ExpandInto(const std::vector<Instr*>& expansion) {
   unlink();
 }
 
-int Instr::lineNumber() const {
-  PyCodeObject* code = this->code();
-  if (code == nullptr) {
-    return -1;
-  }
-  return PyCode_Addr2Line(code, bytecodeOffset().value());
-}
-
 void Instr::link(BasicBlock* block) {
   JIT_CHECK(block_ == nullptr, "Instr is already linked");
   set_block(block);
@@ -640,11 +624,6 @@ const FrameState* Instr::getDominatingFrameState() const {
     }
   }
   return nullptr;
-}
-
-BorrowedRef<PyCodeObject> Instr::code() const {
-  const FrameState* fs = getDominatingFrameState();
-  return fs == nullptr ? block()->cfg->func->code : fs->code;
 }
 
 DeoptBase* Instr::asDeoptBase() {
@@ -1551,6 +1530,23 @@ bool Function::canDeopt() const {
     }
   }
   return false;
+}
+
+BorrowedRef<PyCodeObject> Function::codeFor(const Instr& instr) const {
+  if (instr.IsBeginInlinedFunction()) {
+    auto bif = static_cast<const BeginInlinedFunction*>(&instr);
+    return bif->func()->func_code;
+  }
+  if (instr.IsLoadGlobalCached()) {
+    auto load_global = static_cast<const LoadGlobalCached*>(&instr);
+    return load_global->code();
+  }
+  if (auto deopt_base = instr.asDeoptBase()) {
+    auto fs = deopt_base->frameState();
+    return fs != nullptr ? fs->code : nullptr;
+  }
+  const FrameState* fs = instr.getDominatingFrameState();
+  return fs == nullptr ? code : fs->code;
 }
 
 const char* const kFailureTypeMsgs[] = {

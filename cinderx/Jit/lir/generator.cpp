@@ -3260,7 +3260,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
 #if PY_VERSION_HEX >= 0x030C0000
         _Py_CODEUNIT* prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
-            reinterpret_cast<_Py_CODEUNIT*>(i.code()->co_code_adaptive);
+            reinterpret_cast<_Py_CODEUNIT*>(
+                                           func_->codeFor(i)->co_code_adaptive);
         // We are directly referencing co_code_adaptive here rather than using
         // codeUnit() as we need to refer to the code the interpreter would
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
@@ -3273,7 +3274,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           frame = getInlinedFrame(bbb, prev_instr.parent());
         } else {
           prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
-              reinterpret_cast<_Py_CODEUNIT*>(i.code()->co_code_adaptive);
+              reinterpret_cast<_Py_CODEUNIT*>(
+                               func_->codeFor(i)->co_code_adaptive);
           frame = env_->asm_interpreter_frame;
         }
 
