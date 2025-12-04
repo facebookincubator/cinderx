@@ -204,11 +204,14 @@ class Instr {
   bool IsTerminator() const;
 
   // If this is a control instruction, return the number of outgoing edges
-  virtual std::size_t numEdges() const;
+  std::size_t numEdges() const;
 
   // If this is a control instruction, return the i-th edge
-  virtual Edge* edge(std::size_t i);
+  Edge* edge(std::size_t i);
   const Edge* edge(std::size_t i) const;
+
+  // Get a list of all outgoing edges from this instruction.
+  virtual std::span<const Edge> edges() const;
 
   virtual Instr* clone() const = 0;
 
@@ -762,14 +765,7 @@ class INSTR_CLASS(Branch, (), Operands<0>) {
     edge_.set_to(target);
   }
 
-  std::size_t numEdges() const override {
-    return 1;
-  }
-
-  Edge* edge(std::size_t i) override {
-    JIT_CHECK(i == 0, "only have 1 edge");
-    return &edge_;
-  }
+  std::span<const Edge> edges() const override;
 
  private:
   Edge edge_;
@@ -2240,14 +2236,7 @@ class CondBranchBase : public Instr {
     false_edge_.set_to(block);
   }
 
-  std::size_t numEdges() const override {
-    return 2;
-  }
-
-  Edge* edge(std::size_t i) override {
-    JIT_DCHECK(i < 2, "only have 2 edges");
-    return i == 0 ? &true_edge_ : &false_edge_;
-  }
+  std::span<const Edge> edges() const override;
 
  private:
   Edge true_edge_;

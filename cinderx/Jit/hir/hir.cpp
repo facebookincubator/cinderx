@@ -349,16 +349,26 @@ bool Instr::IsTerminator() const {
 }
 
 std::size_t Instr::numEdges() const {
-  return 0;
+  return edges().size();
 }
 
-Edge* Instr::edge(std::size_t /* i */) {
-  JIT_DABORT("Not a control instruction");
-  return nullptr;
+Edge* Instr::edge(std::size_t i) {
+  return const_cast<Edge*>(const_cast<const Instr*>(this)->edge(i));
 }
 
 const Edge* Instr::edge(std::size_t i) const {
-  return const_cast<Instr*>(this)->edge(i);
+  auto es = edges();
+  JIT_CHECK(
+      i < es.size(),
+      "Trying to access edge {} of {} but it only has {}",
+      i,
+      opname(),
+      es.size());
+  return &es[i];
+}
+
+std::span<const Edge> Instr::edges() const {
+  return {};
 }
 
 BasicBlock* Instr::successor(std::size_t i) const {
@@ -665,6 +675,16 @@ Register*& Instr::operandAt(std::size_t i) {
       i,
       NumOperands() - 1);
   return operands()[i];
+}
+
+std::span<const Edge> Branch::edges() const {
+  return std::span{&edge_, 1};
+}
+
+std::span<const Edge> CondBranchBase::edges() const {
+  // Depends on the struct layout.  We expect false_edge_ to follow immediately
+  // after true_edge_.
+  return std::span{&true_edge_, 2};
 }
 
 bool isLoadMethodBase(const Instr& instr) {
