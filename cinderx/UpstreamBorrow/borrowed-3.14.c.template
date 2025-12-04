@@ -141,7 +141,6 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function delete_index_from_values from Objects/dictobject.c [3.14]
 // @Borrow function dictkeys_set_index from Objects/dictobject.c [3.14]
 // @Borrow function delitem_common from Objects/dictobject.c [3.14]
-// @Borrow function delitem_knownhash_lock_held from Objects/dictobject.c [3.14]
 // @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.14]
 // @Borrow function new_keys_object from Objects/dictobject.c [3.14]
 #ifdef ENABLE_LAZY_IMPORTS

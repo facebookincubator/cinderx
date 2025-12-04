@@ -95,6 +95,7 @@
 #define _PyDict_CheckConsistency _CiDict_CheckConsistency
 #define _Py_dict_lookup_keep_lazy _Ci_dict_lookup_keep_lazy
 #define _PyDict_SetItem_LockHeld _CiDict_SetItem_LockHeld
+#define _PyDict_DelItem_KnownHash_LockHeld _CiDict_DelItem_KnownHash_LockHeld
 #define _PyInterpreterState_GetConfig _CiInterpreterState_GetConfig
 
 #ifdef __cplusplus
