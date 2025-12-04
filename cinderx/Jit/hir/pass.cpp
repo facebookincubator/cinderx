@@ -669,7 +669,14 @@ bool removeUnreachableInstructions(CFG* cfg) {
   std::vector<BasicBlock*> blocks = cfg->GetPostOrderTraversal();
   DominatorAnalysis dom(*cfg->func);
   RegUses reg_uses = collectDirectRegUses(*cfg->func);
-
+  auto remove_reg_uses = [&reg_uses](Instr* instr) {
+    for (auto op : instr->GetOperands()) {
+      auto instrs = reg_uses.find(op);
+      if (instrs != reg_uses.end()) {
+        instrs->second.erase(instr);
+      }
+    }
+  };
   for (BasicBlock* block : blocks) {
     auto it = block->begin();
     while (it != block->end()) {
@@ -714,6 +721,13 @@ bool removeUnreachableInstructions(CFG* cfg) {
       // Clean up dangling phi references
       if (Instr* old_term = block->GetTerminator()) {
         for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
+          auto bb = old_term->successor(i);
+          for (auto& potential_phi : *bb) {
+            if (potential_phi.IsPhi()) {
+              remove_reg_uses(&potential_phi);
+            }
+          }
+
           old_term->successor(i)->removePhiPredecessor(block);
         }
       }
@@ -722,6 +736,7 @@ bool removeUnreachableInstructions(CFG* cfg) {
         Instr& instrToDelete = *it;
         ++it;
         instrToDelete.unlink();
+        remove_reg_uses(&instrToDelete);
         delete &instrToDelete;
       }
     }
@@ -779,6 +794,7 @@ bool removeUnreachableInstructions(CFG* cfg) {
         } else {
           JIT_ABORT("Unexpected branch instruction {}", *branch);
         }
+        remove_reg_uses(branch);
         delete branch;
       }
     }
