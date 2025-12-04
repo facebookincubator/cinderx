@@ -21,6 +21,69 @@ static_assert(sizeof(BasicBlock) == 21 * kPointerSize);
 static_assert(sizeof(Instr) == 6 * kPointerSize);
 #endif
 
+DeoptBase::DeoptBase(Opcode op) : Instr(op) {}
+
+DeoptBase::DeoptBase(Opcode op, const FrameState& frame) : Instr(op) {
+  setFrameState(frame);
+}
+
+DeoptBase::DeoptBase(const DeoptBase& other)
+    : Instr(other),
+      live_regs_{other.live_regs()},
+      guilty_reg_{other.guiltyReg()},
+      nonce_{other.nonce()},
+      descr_{other.descr()} {
+  if (FrameState* copy_fs = other.frameState()) {
+    setFrameState(std::make_unique<FrameState>(*copy_fs));
+  }
+}
+
+const std::vector<RegState>& DeoptBase::live_regs() const {
+  return live_regs_;
+}
+
+std::vector<RegState>& DeoptBase::live_regs() {
+  return live_regs_;
+}
+
+DeoptBase* DeoptBase::asDeoptBase() {
+  return this;
+}
+
+const DeoptBase* DeoptBase::asDeoptBase() const {
+  return this;
+}
+
+BorrowedRef<PyCodeObject> DeoptBase::code() const {
+  FrameState* state = frameState();
+  if (state == nullptr) {
+    return nullptr;
+  }
+  return state->code;
+}
+
+bool DeoptBase::visitUses(const std::function<bool(Register*&)>& func) {
+  if (!Instr::visitUses(func)) {
+    return false;
+  }
+  if (auto fs = frameState()) {
+    if (!fs->visitUses(func)) {
+      return false;
+    }
+  }
+  for (auto& reg_state : live_regs_) {
+    if (!func(reg_state.reg)) {
+      return false;
+    }
+  }
+  if (guilty_reg_ != nullptr) {
+    if (!func(guilty_reg_)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void DeoptBase::sortLiveRegs() {
   std::sort(
       live_regs_.begin(),
@@ -39,6 +102,46 @@ void DeoptBase::sortLiveRegs() {
         [](const RegState& a, const RegState& b) { return a.reg == b.reg; });
     JIT_DCHECK(it == live_regs_.end(), "Register {} is live twice", *it->reg);
   }
+}
+
+void DeoptBase::setFrameState(std::unique_ptr<FrameState> state) {
+  frame_state_ = std::move(state);
+}
+
+void DeoptBase::setFrameState(const FrameState& state) {
+  frame_state_ = std::make_unique<FrameState>(state);
+}
+
+FrameState* DeoptBase::frameState() const {
+  return frame_state_.get();
+}
+
+std::unique_ptr<FrameState> DeoptBase::takeFrameState() {
+  return std::move(frame_state_);
+}
+
+int DeoptBase::nonce() const {
+  return nonce_;
+}
+
+void DeoptBase::set_nonce(int nonce) {
+  nonce_ = nonce;
+}
+
+const std::string& DeoptBase::descr() const {
+  return descr_;
+}
+
+void DeoptBase::setDescr(std::string r) {
+  descr_ = std::move(r);
+}
+
+Register* DeoptBase::guiltyReg() const {
+  return guilty_reg_;
+}
+
+void DeoptBase::setGuiltyReg(Register* reg) {
+  guilty_reg_ = reg;
 }
 
 std::string_view CallCFunc::funcName() const {
@@ -97,9 +200,22 @@ OpcodeCounts count_opcodes(const Function& func) {
   return counts;
 }
 
+Edge::Edge(const Edge& other) {
+  set_from(other.from_);
+  set_to(other.to_);
+}
+
 Edge::~Edge() {
   set_from(nullptr);
   set_to(nullptr);
+}
+
+BasicBlock* Edge::from() const {
+  return from_;
+}
+
+BasicBlock* Edge::to() const {
+  return to_;
 }
 
 void Edge::set_from(BasicBlock* new_from) {
@@ -122,7 +238,97 @@ void Edge::set_to(BasicBlock* new_to) {
   to_ = new_to;
 }
 
-Instr::~Instr() {}
+void* Instr::allocate(std::size_t fixed_size, std::size_t num_operands) {
+  auto variable_size = num_operands * kPointerSize;
+  char* ptr = static_cast<char*>(
+      calloc(variable_size + fixed_size + sizeof(std::size_t), 1));
+  ptr += variable_size;
+  *reinterpret_cast<size_t*>(ptr) = num_operands;
+  ptr += sizeof(std::size_t);
+  return ptr;
+}
+
+void* Instr::operator new(std::size_t count, void* ptr) {
+  return ::operator new(count, ptr);
+}
+
+void Instr::operator delete(void* ptr) {
+  auto instr = static_cast<Instr*>(ptr);
+  free(instr->base());
+}
+
+Instr::Instr(Opcode opcode) : opcode_{opcode} {}
+
+Instr::Instr(const Instr& other)
+    : opcode_(other.opcode()),
+      bytecode_offset_{other.bytecodeOffset()},
+      output_{other.output()} {}
+
+std::size_t Instr::NumOperands() const {
+  return *(reinterpret_cast<const std::size_t*>(this) - 1);
+}
+
+Register* Instr::GetOperand(std::size_t i) const {
+  return const_cast<Instr*>(this)->operandAt(i);
+}
+
+std::span<Register* const> Instr::GetOperands() const {
+  return {operands(), NumOperands()};
+}
+
+void Instr::SetOperand(std::size_t i, Register* reg) {
+  operandAt(i) = reg;
+}
+
+bool Instr::visitUses(const std::function<bool(Register*&)>& func) {
+  auto num_uses = NumOperands();
+  for (std::size_t i = 0; i < num_uses; i++) {
+    if (!func(operandAt(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Instr::visitUses(const std::function<bool(Register*)>& func) const {
+  return const_cast<Instr*>(this)->visitUses(
+      [&func](Register*& reg) { return func(reg); });
+}
+
+bool Instr::Uses(Register* needle) const {
+  bool found = false;
+  visitUses([&](const Register* reg) {
+    if (reg == needle) {
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found;
+}
+
+void Instr::ReplaceUsesOf(Register* orig, Register* replacement) {
+  visitUses([&](Register*& reg) {
+    if (reg == orig) {
+      reg = replacement;
+    }
+    return true;
+  });
+}
+
+Register* Instr::output() const {
+  return output_;
+}
+
+void Instr::setOutput(Register* dst) {
+  if (output_ != nullptr) {
+    output_->set_instr(nullptr);
+  }
+  if (dst != nullptr) {
+    dst->set_instr(this);
+  }
+  output_ = dst;
+}
 
 bool Instr::IsTerminator() const {
   switch (opcode()) {
@@ -140,6 +346,27 @@ bool Instr::IsTerminator() const {
     default:
       return false;
   }
+}
+
+std::size_t Instr::numEdges() const {
+  return 0;
+}
+
+Edge* Instr::edge(std::size_t /* i */) {
+  JIT_DABORT("Not a control instruction");
+  return nullptr;
+}
+
+const Edge* Instr::edge(std::size_t i) const {
+  return const_cast<Instr*>(this)->edge(i);
+}
+
+BasicBlock* Instr::successor(std::size_t i) const {
+  return edge(i)->to();
+}
+
+void Instr::set_successor(std::size_t i, BasicBlock* to) {
+  edge(i)->set_to(to);
 }
 
 bool Instr::isReplayable() const {
@@ -326,6 +553,40 @@ void Instr::set_block(BasicBlock* block) {
   }
 }
 
+void Instr::InsertBefore(Instr& instr) {
+  block_node_.InsertBefore(&instr.block_node_);
+  link(instr.block());
+}
+
+void Instr::InsertAfter(Instr& instr) {
+  block_node_.InsertAfter(&instr.block_node_);
+  link(instr.block());
+}
+
+void Instr::ReplaceWith(Instr& instr) {
+  instr.InsertBefore(*this);
+  instr.setBytecodeOffset(bytecodeOffset());
+  unlink();
+}
+
+void Instr::ExpandInto(const std::vector<Instr*>& expansion) {
+  Instr* last = this;
+  for (Instr* instr : expansion) {
+    instr->InsertAfter(*last);
+    instr->setBytecodeOffset(bytecodeOffset());
+    last = instr;
+  }
+  unlink();
+}
+
+int Instr::lineNumber() const {
+  PyCodeObject* code = this->code();
+  if (code == nullptr) {
+    return -1;
+  }
+  return PyCode_Addr2Line(code, bytecodeOffset().value());
+}
+
 void Instr::link(BasicBlock* block) {
   JIT_CHECK(block_ == nullptr, "Instr is already linked");
   set_block(block);
@@ -335,6 +596,22 @@ void Instr::unlink() {
   JIT_CHECK(block_ != nullptr, "Instr isn't linked");
   block_node_.Unlink();
   set_block(nullptr);
+}
+
+BasicBlock* Instr::block() const {
+  return block_;
+}
+
+BCOffset Instr::bytecodeOffset() const {
+  return bytecode_offset_;
+}
+
+void Instr::setBytecodeOffset(BCOffset off) {
+  bytecode_offset_ = off;
+}
+
+void Instr::copyBytecodeOffset(const Instr& instr) {
+  setBytecodeOffset(instr.bytecodeOffset());
 }
 
 const FrameState* Instr::getDominatingFrameState() const {
@@ -358,6 +635,36 @@ const FrameState* Instr::getDominatingFrameState() const {
 BorrowedRef<PyCodeObject> Instr::code() const {
   const FrameState* fs = getDominatingFrameState();
   return fs == nullptr ? block()->cfg->func->code : fs->code;
+}
+
+DeoptBase* Instr::asDeoptBase() {
+  return nullptr;
+}
+
+const DeoptBase* Instr::asDeoptBase() const {
+  return nullptr;
+}
+
+void* Instr::base() {
+  return reinterpret_cast<char*>(this) - (NumOperands() * kPointerSize) -
+      sizeof(size_t);
+}
+
+Register** Instr::operands() {
+  return static_cast<Register**>(base());
+}
+
+Register* const* Instr::operands() const {
+  return const_cast<Instr*>(this)->operands();
+}
+
+Register*& Instr::operandAt(std::size_t i) {
+  JIT_DCHECK(
+      i < NumOperands(),
+      "operand {} out of range (max is {})",
+      i,
+      NumOperands() - 1);
+  return operands()[i];
 }
 
 bool isLoadMethodBase(const Instr& instr) {
@@ -575,6 +882,15 @@ Instr* BasicBlock::Append(Instr* instr) {
   instrs_.PushBack(*instr);
   instr->link(this);
   return instr;
+}
+
+void BasicBlock::retargetPreds(BasicBlock* target) {
+  JIT_CHECK(target != this, "Can't retarget to self");
+  for (auto it = in_edges_.begin(); it != in_edges_.end();) {
+    auto edge = *it;
+    ++it;
+    const_cast<Edge*>(edge)->set_to(target);
+  }
 }
 
 void BasicBlock::push_front(Instr* instr) {
@@ -1051,6 +1367,48 @@ const char* functionFieldName(FunctionAttr field) {
   return gFunctionFields[static_cast<int>(field)];
 }
 
+TypedArgument::TypedArgument(
+    long locals_idx,
+    BorrowedRef<PyTypeObject> pytype,
+    int optional,
+    int exact,
+    Type jit_type)
+    : locals_idx(locals_idx),
+      optional(optional),
+      exact(exact),
+      jit_type(jit_type) {
+  ThreadedCompileSerialize guard;
+  this->pytype = Ref<PyTypeObject>::create(pytype);
+  thread_safe_flags = pytype->tp_flags & kThreadSafeFlagsMask;
+}
+
+TypedArgument::~TypedArgument() {
+  ThreadedCompileSerialize guard;
+  pytype.release();
+}
+
+TypedArgument::TypedArgument(const TypedArgument& other)
+    : locals_idx(other.locals_idx),
+      optional(other.optional),
+      exact(other.exact),
+      jit_type(other.jit_type),
+      thread_safe_flags(other.thread_safe_flags) {
+  ThreadedCompileSerialize guard;
+  pytype = Ref<PyTypeObject>::create(other.pytype);
+}
+
+TypedArgument& TypedArgument::operator=(const TypedArgument& other) {
+  new (this) TypedArgument{other};
+  return *this;
+}
+
+unsigned long TypedArgument::threadSafeTpFlags() const {
+  JIT_DCHECK(
+      thread_safe_flags == (pytype->tp_flags & kThreadSafeFlagsMask),
+      "thread safe flags changed");
+  return thread_safe_flags;
+}
+
 Environment::~Environment() {
   // Serialize as we modify the ref-count of objects which may be widely
   // accessible.
@@ -1135,6 +1493,19 @@ std::size_t Function::CountInstrs(InstrPredicate pred) const {
     }
   }
   return result;
+}
+
+bool Function::returnsPrimitive() const {
+  return return_type <= TPrimitive;
+}
+
+bool Function::returnsPrimitiveDouble() const {
+  return return_type <= TCDouble;
+}
+
+void Function::setCompilationPhaseTimer(
+    std::unique_ptr<CompilationPhaseTimer> cpt) {
+  compilation_phase_timer = std::move(cpt);
 }
 
 int Function::numArgs() const {

@@ -64,20 +64,13 @@ class BasicBlock;
 class Edge {
  public:
   Edge() = default;
-  Edge(const Edge& other) {
-    set_from(other.from_);
-    set_to(other.to_);
-  }
+  Edge(const Edge& other);
   ~Edge();
 
   Edge& operator=(const Edge&) = delete;
 
-  BasicBlock* from() const {
-    return from_;
-  }
-  BasicBlock* to() const {
-    return to_;
-  }
+  BasicBlock* from() const;
+  BasicBlock* to() const;
 
   void set_from(BasicBlock* from);
   void set_to(BasicBlock* to);
@@ -140,7 +133,7 @@ class DeoptBase;
 // Don't do that.
 class Instr {
   // Instructions are part of a doubly linked list in the basic block they
-  // belong to
+  // belong to.
   IntrusiveListNode block_node_;
 
  public:
@@ -148,12 +141,9 @@ class Instr {
 
   static constexpr bool has_output = false;
 
-  virtual ~Instr();
+  static void operator delete(void* ptr);
 
-  static void operator delete(void* ptr) {
-    auto instr = static_cast<Instr*>(ptr);
-    free(instr->base());
-  }
+  virtual ~Instr() = default;
 
   // This defines a predicate per opcode that can be used to determine
   // if an instance of an instruction is a particular subclass
@@ -174,24 +164,16 @@ class Instr {
   }
 
   // Return the number of operands that the instruction takes
-  std::size_t NumOperands() const {
-    return *(reinterpret_cast<const std::size_t*>(this) - 1);
-  }
+  std::size_t NumOperands() const;
 
   // Return the i-th operand
-  Register* GetOperand(std::size_t i) const {
-    return const_cast<Instr*>(this)->operandAt(i);
-  }
+  Register* GetOperand(std::size_t i) const;
 
   // Update the i-th operand
-  void SetOperand(std::size_t i, Register* reg) {
-    operandAt(i) = reg;
-  }
+  void SetOperand(std::size_t i, Register* reg);
 
   // Get all operands for this instruction.
-  std::span<Register* const> GetOperands() const {
-    return {operands(), NumOperands()};
-  }
+  std::span<Register* const> GetOperands() const;
 
   // Return the i-th operand type
   virtual OperandType GetOperandType(std::size_t /* i */) const = 0;
@@ -199,123 +181,52 @@ class Instr {
   // Visit all Registers used by the instruction, whether they're normal
   // operands or other data. Iteration can be stopped early by returning false
   // from the callback.
-  virtual bool visitUses(const std::function<bool(Register*&)>& func) {
-    auto num_uses = NumOperands();
-    for (std::size_t i = 0; i < num_uses; i++) {
-      if (!func(operandAt(i))) {
-        return false;
-      }
-    }
-    return true;
-  }
+  virtual bool visitUses(const std::function<bool(Register*&)>& func);
 
   // Visit all Registers used by the instruction, without allowing mutation of
   // the uses.
-  bool visitUses(const std::function<bool(Register*)>& func) const {
-    return const_cast<Instr*>(this)->visitUses(
-        [&func](Register*& reg) { return func(reg); });
-  }
+  bool visitUses(const std::function<bool(Register*)>& func) const;
 
   // Return whether or not the instruction uses the supplied register as an
   // input
-  bool Uses(Register* needle) const {
-    bool found = false;
-    visitUses([&](const Register* reg) {
-      if (reg == needle) {
-        found = true;
-        return false;
-      }
-      return true;
-    });
-    return found;
-  }
+  bool Uses(Register* needle) const;
 
   // Replace uses of orig with replacement.
-  void ReplaceUsesOf(Register* orig, Register* replacement) {
-    visitUses([&](Register*& reg) {
-      if (reg == orig) {
-        reg = replacement;
-      }
-      return true;
-    });
-  }
+  void ReplaceUsesOf(Register* orig, Register* replacement);
 
   // If this instruction produces a value, return where it will be stored
-  Register* output() const {
-    return output_;
-  }
+  Register* output() const;
 
   // Set where the output from this instruction will be stored
-  void setOutput(Register* dst) {
-    if (output_ != nullptr) {
-      output_->set_instr(nullptr);
-    }
-    if (dst != nullptr) {
-      dst->set_instr(this);
-    }
-    output_ = dst;
-  }
+  void setOutput(Register* dst);
 
   // Basic blocks must be terminated with control flow ops
   bool IsTerminator() const;
 
   // If this is a control instruction, return the number of outgoing edges
-  virtual std::size_t numEdges() const {
-    return 0;
-  }
+  virtual std::size_t numEdges() const;
 
   // If this is a control instruction, return the i-th edge
-  virtual Edge* edge(std::size_t /* i */) {
-    JIT_DABORT("Not a control instruction");
-    return nullptr;
-  }
-
-  const Edge* edge(std::size_t i) const {
-    return const_cast<Instr*>(this)->edge(i);
-  }
+  virtual Edge* edge(std::size_t i);
+  const Edge* edge(std::size_t i) const;
 
   virtual Instr* clone() const = 0;
 
   // Get or set the i-th successor.
-  BasicBlock* successor(std::size_t i) const {
-    return edge(i)->to();
-  }
-  void set_successor(std::size_t i, BasicBlock* to) {
-    edge(i)->set_to(to);
-  }
+  BasicBlock* successor(std::size_t i) const;
+  void set_successor(std::size_t i, BasicBlock* to);
 
-  void InsertBefore(Instr& instr) {
-    block_node_.InsertBefore(&instr.block_node_);
-    link(instr.block());
-  }
-
-  void InsertAfter(Instr& instr) {
-    block_node_.InsertAfter(&instr.block_node_);
-    link(instr.block());
-  }
+  void InsertBefore(Instr& instr);
+  void InsertAfter(Instr& instr);
 
   // Unlink this Instr from its block.
   void unlink();
 
-  BasicBlock* block() const {
-    return block_;
-  }
+  // Get the basic block that this instruction is part of.
+  BasicBlock* block() const;
 
-  void ReplaceWith(Instr& instr) {
-    instr.InsertBefore(*this);
-    instr.setBytecodeOffset(bytecodeOffset());
-    unlink();
-  }
-
-  void ExpandInto(const std::vector<Instr*>& expansion) {
-    Instr* last = this;
-    for (Instr* instr : expansion) {
-      instr->InsertAfter(*last);
-      instr->setBytecodeOffset(bytecodeOffset());
-      last = instr;
-    }
-    unlink();
-  }
+  void ReplaceWith(Instr& instr);
+  void ExpandInto(const std::vector<Instr*>& expansion);
 
   // Returns the `FrameState` that dominates this instruction, if one exists
   // and there are no non-replayable instructions between it and the
@@ -326,86 +237,45 @@ class Instr {
   bool isReplayable() const;
 
   // Set/get the bytecode offset that this instruction is associated with
-  void setBytecodeOffset(BCOffset off) {
-    bytecode_offset_ = off;
-  }
+  BCOffset bytecodeOffset() const;
+  void setBytecodeOffset(BCOffset off);
 
-  BCOffset bytecodeOffset() const {
-    return bytecode_offset_;
-  }
+  // Inherit the same bytecode offset as another instruction.
+  void copyBytecodeOffset(const Instr& instr);
 
-  void copyBytecodeOffset(const Instr& instr) {
-    setBytecodeOffset(instr.bytecodeOffset());
-  }
-
-  virtual int lineNumber() const {
-    PyCodeObject* code = this->code();
-    if (code == nullptr) {
-      return -1;
-    }
-    return PyCode_Addr2Line(code, bytecodeOffset().value());
-  }
+  virtual int lineNumber() const;
 
   // This assumes that inlined functions have a dominating FrameState from
   // BeginInlinedFunction to use. If we start optimizing that out for inlined
   // functions that cannot deopt, we will have to do something different.
   virtual BorrowedRef<PyCodeObject> code() const;
 
-  virtual DeoptBase* asDeoptBase() {
-    return nullptr;
-  }
-
-  virtual const DeoptBase* asDeoptBase() const {
-    return nullptr;
-  }
+  // Downcast the Instr to a DeoptBase, returning nullptr if it isn't one.
+  virtual DeoptBase* asDeoptBase();
+  virtual const DeoptBase* asDeoptBase() const;
 
  protected:
-  Instr& operator=(const Instr&) = delete;
-
-  explicit Instr(Opcode opcode) : opcode_(opcode) {}
-  Instr(const Instr& other)
-      : opcode_(other.opcode()),
-        bytecode_offset_{other.bytecodeOffset()},
-        output_{other.output()} {}
-
-  void* operator new(std::size_t count, void* ptr) {
-    return ::operator new(count, ptr);
-  }
-
   // Allocate a block of memory suitable to house an `Instr`. This function is
   // intended to be used by the various `create` functions that are defined on
   // concrete `Instr` subclasses.
-  static void* allocate(std::size_t fixed_size, std::size_t num_operands) {
-    auto variable_size = num_operands * kPointerSize;
-    char* ptr = static_cast<char*>(
-        calloc(variable_size + fixed_size + sizeof(std::size_t), 1));
-    ptr += variable_size;
-    *reinterpret_cast<size_t*>(ptr) = num_operands;
-    ptr += sizeof(std::size_t);
-    return ptr;
-  }
+  static void* allocate(std::size_t fixed_size, std::size_t num_operands);
 
-  void* base() {
-    return reinterpret_cast<char*>(this) - (NumOperands() * kPointerSize) -
-        sizeof(size_t);
-  }
+  explicit Instr(Opcode opcode);
+  Instr(const Instr& other);
 
-  Register** operands() {
-    return static_cast<Register**>(base());
-  }
+  Instr& operator=(const Instr&) = delete;
 
-  Register* const* operands() const {
-    return const_cast<Instr*>(this)->operands();
-  }
+  void* operator new(std::size_t count, void* ptr);
 
-  Register*& operandAt(std::size_t i) {
-    JIT_DCHECK(
-        i < NumOperands(),
-        "operand {} out of range (max is {})",
-        i,
-        NumOperands() - 1);
-    return operands()[i];
-  }
+  // Get the base allocated address of this structure.  This is a smaller
+  // address than `this` because of the variable length array of operands that's
+  // allocated inline with the Instr object.
+  void* base();
+
+  Register** operands();
+  Register* const* operands() const;
+
+  Register*& operandAt(std::size_t i);
 
   friend class BasicBlock;
 
@@ -416,132 +286,57 @@ class Instr {
   // Set this Instr's block, updating any edges as appropriate.
   void set_block(BasicBlock* block);
 
+ protected:
   Opcode opcode_;
   BCOffset bytecode_offset_{-1};
-
   Register* output_{nullptr};
-
   BasicBlock* block_{nullptr};
 };
 
 using InstrPredicate = std::function<bool(const Instr&)>;
 
+// Subclass of Instr that is able to deopt back to the interpreter.
 class DeoptBase : public Instr {
  public:
-  explicit DeoptBase(Opcode op) : Instr(op) {}
-  DeoptBase(Opcode op, const FrameState& frame) : Instr(op) {
-    setFrameState(frame);
-  }
-
-  DeoptBase(const DeoptBase& other)
-      : Instr(other),
-        live_regs_{other.live_regs()},
-        guilty_reg_{other.guiltyReg()},
-        nonce_{other.nonce()},
-        descr_{other.descr()} {
-    if (FrameState* copy_fs = other.frameState()) {
-      setFrameState(std::make_unique<FrameState>(*copy_fs));
-    }
-  }
-
-  DeoptBase* asDeoptBase() override {
-    return this;
-  }
-
-  const DeoptBase* asDeoptBase() const override {
-    return this;
-  }
+  explicit DeoptBase(Opcode op);
+  DeoptBase(Opcode op, const FrameState& frame);
+  DeoptBase(const DeoptBase& other);
 
   template <typename... Args>
   void emplaceLiveReg(Args&&... args) {
     live_regs_.emplace_back(std::forward<Args>(args)...);
   }
 
-  const std::vector<RegState>& live_regs() const {
-    return live_regs_;
-  }
-
-  std::vector<RegState>& live_regs() {
-    return live_regs_;
-  }
+  const std::vector<RegState>& live_regs() const;
+  std::vector<RegState>& live_regs();
 
   void sortLiveRegs();
 
   // Set/get the metadata needed to reconstruct the state of the interpreter
   // after this instruction executes.
-  void setFrameState(std::unique_ptr<FrameState> state) {
-    frame_state_ = std::move(state);
-  }
+  void setFrameState(std::unique_ptr<FrameState> state);
+  void setFrameState(const FrameState& state);
+  FrameState* frameState() const;
+  std::unique_ptr<FrameState> takeFrameState();
 
-  void setFrameState(const FrameState& state) {
-    frame_state_ = std::make_unique<FrameState>(state);
-  }
+  BorrowedRef<PyCodeObject> code() const override;
+  bool visitUses(const std::function<bool(Register*&)>& func) override;
 
-  FrameState* frameState() const {
-    return frame_state_.get();
-  }
+  DeoptBase* asDeoptBase() override;
+  const DeoptBase* asDeoptBase() const override;
 
-  std::unique_ptr<FrameState> takeFrameState() {
-    return std::move(frame_state_);
-  }
-
-  BorrowedRef<PyCodeObject> code() const override {
-    FrameState* state = frameState();
-    if (state == nullptr) {
-      return nullptr;
-    }
-    return state->code;
-  }
-
-  bool visitUses(const std::function<bool(Register*&)>& func) override {
-    if (!Instr::visitUses(func)) {
-      return false;
-    }
-    if (auto fs = frameState()) {
-      if (!fs->visitUses(func)) {
-        return false;
-      }
-    }
-    for (auto& reg_state : live_regs_) {
-      if (!func(reg_state.reg)) {
-        return false;
-      }
-    }
-    if (guilty_reg_ != nullptr) {
-      if (!func(guilty_reg_)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  int nonce() const {
-    return nonce_;
-  }
-
-  void set_nonce(int nonce) {
-    nonce_ = nonce;
-  }
+  int nonce() const;
+  void set_nonce(int nonce);
 
   // Get or set the human-readable description of why this instruction might
   // deopt.
-  const std::string& descr() const {
-    return descr_;
-  }
-
-  void setDescr(std::string r) {
-    descr_ = std::move(r);
-  }
+  const std::string& descr() const;
+  void setDescr(std::string r);
 
   // Get or set the optional value that is responsible for this deopt
   // event. Its exact meaning depends on the opcode of this instruction.
-  Register* guiltyReg() const {
-    return guilty_reg_;
-  }
-
-  void setGuiltyReg(Register* reg) {
-    guilty_reg_ = reg;
-  }
+  Register* guiltyReg() const;
+  void setGuiltyReg(Register* reg);
 
  private:
   std::vector<RegState> live_regs_;
@@ -4047,14 +3842,7 @@ class BasicBlock {
     return instr;
   }
 
-  void retargetPreds(BasicBlock* target) {
-    JIT_CHECK(target != this, "Can't retarget to self");
-    for (auto it = in_edges_.begin(); it != in_edges_.end();) {
-      auto edge = *it;
-      ++it;
-      const_cast<Edge*>(edge)->set_to(target);
-    }
-  }
+  void retargetPreds(BasicBlock* target);
 
   BasicBlock* successor(std::size_t i) const {
     return GetTerminator()->successor(i);
@@ -4304,56 +4092,22 @@ class Environment {
 };
 
 constexpr unsigned long kThreadSafeFlagsMask = Py_TPFLAGS_BASETYPE;
+
 struct TypedArgument {
   TypedArgument(
       long locals_idx,
       BorrowedRef<PyTypeObject> pytype,
       int optional,
       int exact,
-      Type jit_type)
-      : locals_idx(locals_idx),
-        optional(optional),
-        exact(exact),
-        jit_type(jit_type) {
-    ThreadedCompileSerialize guard;
-    this->pytype = Ref<PyTypeObject>::create(pytype);
-    thread_safe_flags = pytype->tp_flags & kThreadSafeFlagsMask;
-  }
+      Type jit_type);
+  ~TypedArgument();
 
-  TypedArgument(const TypedArgument& other)
-      : locals_idx(other.locals_idx),
-        optional(other.optional),
-        exact(other.exact),
-        jit_type(other.jit_type),
-        thread_safe_flags(other.thread_safe_flags) {
-    ThreadedCompileSerialize guard;
-    pytype = Ref<PyTypeObject>::create(other.pytype);
-  }
+  TypedArgument(const TypedArgument& other);
+  TypedArgument& operator=(const TypedArgument& other);
 
-  TypedArgument& operator=(const TypedArgument& other) {
-    locals_idx = other.locals_idx;
-    optional = other.optional;
-    exact = other.exact;
-    jit_type = other.jit_type;
-    thread_safe_flags = other.thread_safe_flags;
-    ThreadedCompileSerialize guard;
-    pytype = Ref<PyTypeObject>::create(other.pytype);
-    return *this;
-  }
-
-  ~TypedArgument() {
-    ThreadedCompileSerialize guard;
-    pytype.release();
-  }
-
-  // Returns type flags which should not change between concurrent
-  // compilation threads.
-  unsigned long threadSafeTpFlags() const {
-    JIT_DCHECK(
-        thread_safe_flags == (pytype->tp_flags & kThreadSafeFlagsMask),
-        "thread safe flags changed");
-    return thread_safe_flags;
-  }
+  // Returns type flags which should not change between concurrent compilation
+  // threads.
+  unsigned long threadSafeTpFlags() const;
 
   long locals_idx;
   Ref<PyTypeObject> pytype;
@@ -4474,18 +4228,12 @@ class Function {
   std::size_t CountInstrs(InstrPredicate pred) const;
 
   // Does this function return a primitive type?
-  bool returnsPrimitive() const {
-    return return_type <= TPrimitive;
-  }
+  bool returnsPrimitive() const;
 
   // Does this function return a primitive double?
-  bool returnsPrimitiveDouble() const {
-    return return_type <= TCDouble;
-  }
+  bool returnsPrimitiveDouble() const;
 
-  void setCompilationPhaseTimer(std::unique_ptr<CompilationPhaseTimer> cpt) {
-    compilation_phase_timer = std::move(cpt);
-  }
+  void setCompilationPhaseTimer(std::unique_ptr<CompilationPhaseTimer> cpt);
 
   bool canDeopt() const;
 
