@@ -10,6 +10,11 @@
 #include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030E0000
+#ifdef __THROW
+// mi_decl_throw is defined to be __THROW and breaks in C++ files.
+#undef __THROW
+#define __THROW
+#endif
 #include "internal/pycore_mimalloc.h"
 #endif
 
