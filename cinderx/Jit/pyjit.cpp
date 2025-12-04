@@ -232,6 +232,7 @@ PyObject* forcedJitVectorcall(
     case PYJIT_NOT_INITIALIZED:
     case PYJIT_RESULT_NO_PRELOADER:
     case PYJIT_RESULT_UNKNOWN_ERROR:
+    case PYJIT_OVER_MAX_CODE_SIZE:
       return func->vectorcall(func_obj, stack, nargsf, kwnames);
     case PYJIT_RESULT_PYTHON_EXCEPTION:
       return nullptr;
@@ -863,9 +864,19 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
   return false;
 }
 
+// Check if we have exceeded the max code size limit.
+bool isOverMaxCodeSize() {
+  auto max_code_size = getConfig().max_code_size;
+  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  return max_code_size && code_allocator->usedBytes() >= max_code_size;
+}
+
 Context::CompilationResult compilePreloader(
     BorrowedRef<PyFunctionObject> func,
     const hir::Preloader& preloader) {
+  if (isOverMaxCodeSize()) {
+    return {nullptr, PYJIT_OVER_MAX_CODE_SIZE};
+  }
   jit::Context::CompilationResult result =
       compilePreloaderImpl(jitCtx(), preloader);
   if (result.compiled == nullptr) {
@@ -1205,9 +1216,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  auto max_code_size = getConfig().max_code_size;
-  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
-  if (max_code_size && code_allocator->usedBytes() >= max_code_size) {
+  if (isOverMaxCodeSize()) {
     return false;
   }
 
@@ -1481,6 +1490,9 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
       return nullptr;
     case PYJIT_RESULT_NO_PRELOADER:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_NO_PRELOADER");
+      return nullptr;
+    case PYJIT_OVER_MAX_CODE_SIZE:
+      PyErr_SetString(PyExc_RuntimeError, "PYJIT_OVER_MAX_CODE_SIZE");
       return nullptr;
     case PYJIT_RESULT_PYTHON_EXCEPTION:
       return nullptr;
@@ -2722,6 +2734,11 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
         "Cannot find a preloader for function {}, despite it just being "
         "preloaded",
         funcFullname(target));
+
+    // If we hit the max code size limit, stop compiling further functions
+    if (result == PYJIT_OVER_MAX_CODE_SIZE) {
+      break;
+    }
   }
 
   // This is the common case, where the original function is compiled last.

@@ -37,6 +37,9 @@ typedef enum {
 
   PYJIT_RESULT_UNKNOWN_ERROR,
 
+  /* We are over the maximum amount of code we are allowed to generate. */
+  PYJIT_OVER_MAX_CODE_SIZE,
+
   /* The JIT raised a Python exception, like a deferred object failing to be
      resolved during preloading. */
   PYJIT_RESULT_PYTHON_EXCEPTION = -1

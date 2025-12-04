@@ -2664,6 +2664,41 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cinderx.jit.set_max_code_size(-100)
 
+    def test_max_code_size_prevents_compilation(self) -> None:
+        # Setup: Get current allocator stats and set a very small limit
+        stats = cinderx.jit.get_allocator_stats()
+        if stats is None:
+            self.skipTest("Allocator stats not available")
+
+        # Save original limit to restore later
+        original_limit = cinderx.jit.get_allocator_stats()["max_bytes"]
+
+        try:
+            # Make the limit infinite
+            cinderx.jit.set_max_code_size(0)
+
+            # Create a function that should compile successfully
+            def small_func1():
+                return 42
+
+            force_compile(small_func1)
+            self.assertTrue(is_jit_compiled(small_func1))
+
+            # Set a very small limit to prevent further compilations
+            cinderx.jit.set_max_code_size(5)
+
+            # Create another function that should NOT compile due to limit
+            def small_func2():
+                return 43
+
+            with self.assertRaisesRegex(RuntimeError, "PYJIT_OVER_MAX_CODE_SIZE"):
+                force_compile(small_func2)
+
+            self.assertFalse(is_jit_compiled(small_func2))
+
+        finally:
+            cinderx.jit.set_max_code_size(original_limit)
+
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):
             # pyre-ignore[6]: Intentional type error.
