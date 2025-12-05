@@ -7,11 +7,14 @@
 # pyre-unsafe
 # @noautodeps
 
+import glob
 import os
 import os.path
 import shutil
+import subprocess
 import sys
 import sysconfig
+from enum import Enum
 
 from typing import Callable
 
@@ -19,10 +22,17 @@ from setuptools import Extension, find_packages, setup
 from setuptools.command.build import build as build
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
+from setuptools.dist import Distribution
 
 CHECKOUT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
 PYTHON_LIB_DIR = os.path.join(SOURCE_DIR, "PythonLib")
+
+
+class PgoStage(Enum):
+    DISABLED = 0
+    GENERATE = 1
+    USE = 3
 
 
 def find_files(path: str, pred: Callable[[str], bool]) -> list[str]:
@@ -54,6 +64,156 @@ class BuildCommand(build):
     def initialize_options(self):
         build.initialize_options(self)
         self.build_base = os.path.join(CHECKOUT_ROOT_DIR, "scratch")
+
+    def run(self) -> None:
+        enable_pgo = os.environ.get("CINDERX_ENABLE_PGO", None) is not None
+
+        if enable_pgo:
+            self._run_with_pgo()
+        else:
+            super().run()
+
+    def _run_with_pgo(self) -> None:
+        def print_section(title: str) -> None:
+            separator = "=" * 70
+            print(f"\n{separator}")
+            print(title)
+            print(separator)
+
+        cc = self._find_binary(["clang", "gcc"])
+        is_clang = "clang" in cc
+
+        print_section("PGO STAGE 1/3: Building with profile generation instrumentation")
+
+        stage1_build_ext_cmd = self.get_finalized_command("build_ext")
+        stage1_build_ext_cmd.cinderx_pgo_stage = PgoStage.GENERATE
+
+        # Run normal build process (BuildPy + BuildExt)
+        super().run()
+
+        print_section("PGO STAGE 2/3: Running profiling workload")
+
+        workload_env = os.environ.copy()
+
+        if is_clang:
+            clang_pgo_dir = os.path.join(self.build_temp, "pgo_data")
+            os.makedirs(clang_pgo_dir, exist_ok=True)
+            raw_profile_pattern = os.path.join(clang_pgo_dir, "code-%p.profraw")
+            clang_merged_profile = os.path.join(clang_pgo_dir, "code.profdata")
+            workload_env["LLVM_PROFILE_FILE"] = raw_profile_pattern
+
+        # Add build output to PYTHONPATH so workload can import cinderx
+        if "PYTHONPATH" in workload_env:
+            workload_env["PYTHONPATH"] = (
+                f"{self.build_lib}:{workload_env['PYTHONPATH']}"
+            )
+        else:
+            workload_env["PYTHONPATH"] = self.build_lib
+
+        # Uses the same default workload as CPython's PGO
+        workload_cmd = [
+            sys.executable,
+            "-c",
+            """
+import cinderx
+
+import sys
+sys.argv.append("--pgo")
+
+def main():
+    # This import must not be in the module body as it will start the tests
+    # running, and those using multiprocessing will fail because the initial
+    # doesn't have "freeze support".
+    import test.__main__
+
+if __name__ == "__main__":
+    main()
+            """,
+        ]
+
+        print(f"Running workload with PYTHONPATH={workload_env['PYTHONPATH']}")
+        workload_args = {
+            "env": workload_env,
+            "check": True,
+        }
+        if is_clang:
+            workload_args["cwd"] = clang_pgo_dir
+        subprocess.run(workload_cmd, **workload_args)
+
+        if is_clang:
+            print_section("PGO STAGE 2b: Merging profile data")
+
+            llvm_profdata = self._find_binary(["llvm-profdata"])
+            profraw_files = glob.glob(os.path.join(clang_pgo_dir, "*.profraw"))
+
+            if not profraw_files:
+                raise RuntimeError(
+                    "No profile data generated! Check that workload ran successfully."
+                )
+
+            print(f"Found {len(profraw_files)} profile files to merge")
+            merge_cmd = [
+                llvm_profdata,
+                "merge",
+                "-output=" + clang_merged_profile,
+            ] + profraw_files
+            subprocess.run(merge_cmd, check=True)
+            print(f"Merged profile written to {clang_merged_profile}")
+
+        print_section("PGO STAGE 3/3: Rebuilding with profile-guided optimizations")
+
+        print("Cleaning build artifacts (keep profile data + python libs)...")
+
+        # IMPORTANT: We need to preserve CMakeCache.txt to avoid re-running
+        # compiler feature detection. For some reason asmjit seems to
+        # consistently change its mind on the need for -fmerge-all-constants
+        # after the instrumentation build, and this invalidates some profiling
+        # data. However, we DO need to force CMake to reconfigure to pick up
+        # the new PGO_STAGE=USE environment variable. We do this by removing
+        # the CMakeFiles directory but keeping CMakeCache.txt.
+
+        # Remove CMakeFiles to force reconfiguration while keeping cached results
+        cmake_files = os.path.join(self.build_temp, "CMakeFiles")
+        if os.path.exists(cmake_files):
+            print(f"  Removing {cmake_files} to force reconfiguration")
+            shutil.rmtree(cmake_files)
+
+        # Remove all object files and libraries to force rebuild
+        for rm_root in (self.build_temp, self.build_lib):
+            if os.path.exists(rm_root):
+                for root, _dirs, files in os.walk(rm_root):
+                    # Skip the pgo_data directory
+                    if "pgo_data" in root:
+                        continue
+                    for f in files:
+                        if f.endswith((".o", ".so", ".a")):
+                            file_path = os.path.join(root, f)
+                            print(f"  Removing {file_path}")
+                            os.remove(file_path)
+
+        print("Running rebuild with PGO optimizations...")
+
+        # Create a new build_ext command instance with extensions list. The old
+        # one from Stage 1 consumed its inputs and cannot be reused.
+        stage3_build_ext_cmd = BuildExt(self.distribution)
+        stage3_build_ext_cmd.build_lib = self.build_lib
+        stage3_build_ext_cmd.build_temp = self.build_temp
+        stage3_build_ext_cmd.inplace = False
+        stage3_build_ext_cmd.force = True
+        stage3_build_ext_cmd.cinderx_pgo_stage = PgoStage.USE
+        if is_clang:
+            stage3_build_ext_cmd.cinderx_pgo_profile_path = clang_merged_profile
+        stage3_build_ext_cmd.finalize_options()
+        stage3_build_ext_cmd.run()
+
+        print_section("PGO BUILD COMPLETE!")
+
+    def _find_binary(self, name_options: list[str]) -> str:
+        for name in name_options:
+            result = shutil.which(name)
+            if result is not None:
+                return result
+        raise RuntimeError(f"Cannot find any binaries out of {name_options}")
 
 
 class BuildPy(build_py):
@@ -91,6 +251,11 @@ class CMakeExtension(Extension):
 
 
 class BuildExt(build_ext):
+    def __init__(self, distribution: Distribution) -> None:
+        super().__init__(distribution)
+        self.cinderx_pgo_stage = PgoStage.DISABLED
+        self.cinderx_pgo_profile_path: str | None = None
+
     def run(self) -> None:
         # Partition into CMake extensions and everything else.
         cmake_extensions = []
@@ -125,12 +290,23 @@ class BuildExt(build_ext):
         cxx = self._find_binary(["clang++", "g++"])
 
         build_type = os.environ.get("CMAKE_BUILD_TYPE", "RelWithDebInfo")
+        verbose_makefile = os.environ.get("CMAKE_VERBOSE_MAKEFILE", "OFF")
         cmake_args = [
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={os.path.dirname(extension_dir)}",
             f"-DCMAKE_C_COMPILER={cc}",
             f"-DCMAKE_CXX_COMPILER={cxx}",
+            f"-DCMAKE_VERBOSE_MAKEFILE:BOOL={verbose_makefile}",
         ]
+
+        if self.cinderx_pgo_stage == PgoStage.GENERATE:
+            cmake_args.append("-DENABLE_PGO_GENERATE=ON")
+            cmake_args.append("-DENABLE_PGO_USE=OFF")
+        elif self.cinderx_pgo_stage == PgoStage.USE:
+            cmake_args.append("-DENABLE_PGO_GENERATE=OFF")
+            cmake_args.append("-DENABLE_PGO_USE=ON")
+            if self.cinderx_pgo_profile_path:
+                cmake_args.append(f"-DPGO_PROFILE_FILE={self.cinderx_pgo_profile_path}")
 
         options: dict[str, str] = {}
 

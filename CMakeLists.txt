@@ -14,6 +14,13 @@ project(_cinderx)
 
 set(PROJECT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/cinderx)
 
+##############################################################################
+# PGO (Profile-Guided Optimization) configuration
+
+option(ENABLE_PGO_GENERATE "Build with PGO profile generation" OFF)
+option(ENABLE_PGO_USE "Build with PGO profile use" OFF)
+set(PGO_PROFILE_FILE "" CACHE STRING "Path to PGO profile data")
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
 else()
@@ -52,6 +59,45 @@ set_flag(ENABLE_USDT)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SHARED_FLAGS}")
+
+##############################################################################
+# Apply PGO flags if enabled
+
+if(ENABLE_PGO_GENERATE)
+  message(STATUS "PGO: Building with profile generation instrumentation")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-generate")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-instr-generate")
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-generate")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-generate")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-generate")
+  else()
+    message(WARNING "PGO profile generation is not supported with compiler: ${CMAKE_CXX_COMPILER_ID}")
+  endif()
+endif()
+
+if(ENABLE_PGO_USE)
+  message(STATUS "PGO: Building with profile-guided optimizations")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    if(NOT PGO_PROFILE_FILE)
+      message(FATAL_ERROR "PGO_PROFILE_FILE must be set when ENABLE_PGO_USE=ON")
+    endif()
+    if(NOT EXISTS "${PGO_PROFILE_FILE}")
+      message(FATAL_ERROR "PGO profile file does not exist: ${PGO_PROFILE_FILE}")
+    endif()
+    message(STATUS "PGO: Using profile data from ${PGO_PROFILE_FILE}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-use=${PGO_PROFILE_FILE}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-use=${PGO_PROFILE_FILE}")
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    message(STATUS "PGO: Using GCC profile data from build directory")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-use -fprofile-correction")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-use -fprofile-correction")
+  else()
+    message(WARNING "PGO profile use is not supported with compiler: ${CMAKE_CXX_COMPILER_ID}")
+  endif()
+endif()
 
 set(GENERATED_HEADER_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${GENERATED_HEADER_DIR})

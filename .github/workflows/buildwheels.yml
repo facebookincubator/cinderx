@@ -24,6 +24,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp314-manylinux_x86_64 cp314-musllinux_x86_64
+          CIBW_ENVIRONMENT: CINDERX_ENABLE_PGO=1
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v4
