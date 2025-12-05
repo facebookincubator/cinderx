@@ -308,6 +308,14 @@ class BuildExt(build_ext):
             if self.cinderx_pgo_profile_path:
                 cmake_args.append(f"-DPGO_PROFILE_FILE={self.cinderx_pgo_profile_path}")
 
+        # LTO configuration
+        enable_lto = os.environ.get("CINDERX_ENABLE_LTO", None)
+        if enable_lto is not None:
+            cmake_args.append("-DENABLE_LTO=ON")
+            print("Building with LTO enabled (full LTO)")
+        else:
+            cmake_args.append("-DENABLE_LTO=OFF")
+
         options: dict[str, str] = {}
 
         def set_option(var: str, default: object) -> None:
