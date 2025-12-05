@@ -10,11 +10,13 @@
 import glob
 import os
 import os.path
+import re
 import shutil
 import subprocess
 import sys
 import sysconfig
 from enum import Enum
+from functools import lru_cache
 
 from typing import Callable
 
@@ -27,6 +29,57 @@ from setuptools.dist import Distribution
 CHECKOUT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
 PYTHON_LIB_DIR = os.path.join(SOURCE_DIR, "PythonLib")
+
+
+@lru_cache(maxsize=1)
+def get_compiler() -> tuple[str, str]:
+    """
+    Prefers GCC if a new enough version is installed as this is what the
+    cibuildwheel environment uses.
+
+    Returns:
+        A tuple of (c_compiler, cxx_compiler) paths.
+    """
+    gcc_path = shutil.which("gcc")
+    gxx_path = shutil.which("g++")
+
+    if gcc_path and gxx_path:
+        try:
+            result = subprocess.run(
+                [gcc_path, "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
+            )
+            version_output = result.stdout
+
+            # Parse GCC version from output like "gcc (GCC) 14.1.0"
+            # The version is typically in the first line
+            match = re.search(
+                r"gcc.*?(\d+)\.(\d+)(?:\.(\d+))?", version_output, re.IGNORECASE
+            )
+            if match:
+                major_version = int(match.group(1))
+                print(f"Found GCC version {major_version}.{match.group(2)}")
+
+                if major_version >= 14:
+                    print(f"Using GCC: {gcc_path}, {gxx_path}")
+                    return (gcc_path, gxx_path)
+                else:
+                    print(f"GCC version {major_version} < 14, checking for Clang")
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
+            print(f"Failed to determine GCC version: {e}, checking for Clang")
+
+    # Fall back to Clang
+    clang_path = shutil.which("clang")
+    clangxx_path = shutil.which("clang++")
+
+    if clang_path and clangxx_path:
+        print(f"Using Clang: {clang_path}, {clangxx_path}")
+        return (clang_path, clangxx_path)
+
+    raise RuntimeError("Cannot find suitable C/C++ compiler (tried gcc and clang)")
 
 
 class PgoStage(Enum):
@@ -80,7 +133,7 @@ class BuildCommand(build):
             print(title)
             print(separator)
 
-        cc = self._find_binary(["clang", "gcc"])
+        cc, _ = get_compiler()
         is_clang = "clang" in cc
 
         print_section("PGO STAGE 1/3: Building with profile generation instrumentation")
@@ -143,7 +196,9 @@ if __name__ == "__main__":
         if is_clang:
             print_section("PGO STAGE 2b: Merging profile data")
 
-            llvm_profdata = self._find_binary(["llvm-profdata"])
+            llvm_profdata = shutil.which("llvm-profdata")
+            if not llvm_profdata:
+                raise RuntimeError("Cannot find llvm-profdata")
             profraw_files = glob.glob(os.path.join(clang_pgo_dir, "*.profraw"))
 
             if not profraw_files:
@@ -207,13 +262,6 @@ if __name__ == "__main__":
         stage3_build_ext_cmd.run()
 
         print_section("PGO BUILD COMPLETE!")
-
-    def _find_binary(self, name_options: list[str]) -> str:
-        for name in name_options:
-            result = shutil.which(name)
-            if result is not None:
-                return result
-        raise RuntimeError(f"Cannot find any binaries out of {name_options}")
 
 
 class BuildPy(build_py):
@@ -284,10 +332,7 @@ class BuildExt(build_ext):
         extension_dir = os.path.abspath(self.get_ext_fullpath(extension.name))
         os.makedirs(extension_dir, exist_ok=True)
 
-        # Prefer Clang because that's what we develop against but some systems
-        # including the manylinux build environment only have GCC.
-        cc = self._find_binary(["clang", "gcc"])
-        cxx = self._find_binary(["clang++", "g++"])
+        cc, cxx = get_compiler()
 
         build_type = os.environ.get("CMAKE_BUILD_TYPE", "RelWithDebInfo")
         verbose_makefile = os.environ.get("CMAKE_VERBOSE_MAKEFILE", "OFF")
@@ -369,13 +414,6 @@ class BuildExt(build_ext):
         # pyre-ignore[16]: No pyre types for build_ext.
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
         self.spawn(["cmake", "--build", build_dir] + build_args)
-
-    def _find_binary(self, name_options: list[str]) -> str:
-        for name in name_options:
-            result = shutil.which(name)
-            if result is not None:
-                return result
-        raise RuntimeError(f"Cannot find any binaries out of {name_options}")
 
     def _find_python(self) -> str:
         # Normally this would use "data", but that goes to a temporary build directory
