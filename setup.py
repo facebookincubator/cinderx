@@ -226,12 +226,28 @@ if __name__ == "__main__":
         # data. However, we DO need to force CMake to reconfigure to pick up
         # the new PGO_STAGE=USE environment variable. We do this by removing
         # the CMakeFiles directory but keeping CMakeCache.txt.
+        #
+        # For GCC PGO, we must preserve .gcda files (profile data generated
+        # during the workload run) as they are stored alongside object files
+        # in CMakeFiles/. We selectively remove only what we need to force
+        # reconfiguration.
 
-        # Remove CMakeFiles to force reconfiguration while keeping cached results
         cmake_files = os.path.join(self.build_temp, "CMakeFiles")
         if os.path.exists(cmake_files):
-            print(f"  Removing {cmake_files} to force reconfiguration")
-            shutil.rmtree(cmake_files)
+            print(f"  Cleaning {cmake_files} (preserving .gcda/.gcno for GCC PGO)")
+            for root, _dirs, files in os.walk(cmake_files, topdown=False):
+                for f in files:
+                    file_path = os.path.join(root, f)
+                    # Preserve GCC PGO profiling files
+                    if f.endswith((".gcda", ".gcno")):
+                        continue
+                    os.remove(file_path)
+                # Remove empty directories, but only if they don't contain
+                # preserved files (the topdown=False walk handles this)
+                try:
+                    os.rmdir(root)  # Only removes if empty
+                except OSError:
+                    pass  # Directory not empty, contains .gcda/.gcno files
 
         # Remove all object files and libraries to force rebuild
         for rm_root in (self.build_temp, self.build_lib):
