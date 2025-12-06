@@ -63,11 +63,11 @@ def get_compiler() -> tuple[str, str]:
                 major_version = int(match.group(1))
                 print(f"Found GCC version {major_version}.{match.group(2)}")
 
-                if major_version >= 14:
+                if major_version >= 13:
                     print(f"Using GCC: {gcc_path}, {gxx_path}")
                     return (gcc_path, gxx_path)
                 else:
-                    print(f"GCC version {major_version} < 14, checking for Clang")
+                    print(f"GCC version {major_version} < 13, checking for Clang")
         except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
             print(f"Failed to determine GCC version: {e}, checking for Clang")
 
