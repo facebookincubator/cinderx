@@ -21,7 +21,8 @@
 #include "internal/pycore_descrobject.h"
 #include "internal/pycore_long.h"
 #include "internal/pycore_optimizer.h"     // _PyExecutorObject
-#ifdef ENABLE_LAZY_IMPORTS
+
+#ifdef META_PYTHON
 #include "pycore_import.h"        // _PyImport_LoadLazyImport()
 #include "pycore_lazyimport.h"    // _PyLazyImport_New(), _PyLazyImport_GetName()
 #endif
@@ -172,7 +173,7 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
     return &interp->config;
 }
 
-#if !defined(ENABLE_LAZY_IMPORTS) && !defined(DK_KIND)
+#if !defined(META_PYTHON) && !defined(DK_KIND)
 #define DK_KIND(dk) (dk->dk_kind)
 #endif
 
@@ -1347,7 +1348,7 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
     memset(&dk->dk_indices[(size_t)1 << log2_bytes], 0, entry_size * usable);
     return dk;
 }
-#ifdef ENABLE_LAZY_IMPORTS
+#ifdef META_PYTHON
 static void
 lazy_import_verbose_lock_held(PyThreadState *tstate, PyObject *value)
 {
