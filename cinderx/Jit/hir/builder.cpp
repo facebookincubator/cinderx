@@ -736,7 +736,7 @@ InlineResult HIRBuilder::inlineHIR(
 
   // The caller function has already been converted to SSA form and all HIR
   // passes require input to be in SSA form. SSAify the inlined function.
-  SSAify{}.Run(entry_block, &caller->env);
+  SSAify{}.Run(*caller, entry_block);
 
   // Re-link the CFG.
   for (auto& [fs, parent] : framestate_parent) {

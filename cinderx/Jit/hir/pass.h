@@ -56,7 +56,7 @@ Type outputType(
 // SSAify and any optimizations that could refine the output type of an
 // instruction.
 void reflowTypes(Function& func);
-void reflowTypes(Environment* env, BasicBlock* start);
+void reflowTypes(Function& func, BasicBlock* start);
 
 // Remove any blocks that consist of a single jump to another block.
 bool removeTrampolineBlocks(CFG* cfg);

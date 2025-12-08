@@ -63,7 +63,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
     auto block = queue.front();
     queue.pop();
 
-    if (block->cfg != &func.cfg) {
+    if (!block->cfg_node.isLinked()) {
       fmt::print(err, "ERROR: Reachable bb {} isn't part of CFG\n", block->id);
       return false;
     }
@@ -274,15 +274,15 @@ bool checkFunc(const Function& func, std::ostream& err) {
 }
 
 void SSAify::Run(Function& irfunc) {
-  Run(irfunc.cfg.entry_block, &irfunc.env);
+  Run(irfunc, irfunc.cfg.entry_block);
   PhiElimination{}.Run(irfunc);
 }
 
 // This implements the algorithm outlined in "Simple and Efficient Construction
 // of Static Single Assignment Form"
 // https://pp.info.uni-karlsruhe.de/uploads/publikationen/braun13cc.pdf
-void SSAify::Run(BasicBlock* start, Environment* env) {
-  env_ = env;
+void SSAify::Run(Function& irfunc, BasicBlock* start) {
+  env_ = &irfunc.env;
 
   auto blocks = CFG::GetRPOTraversal(start);
   auto ssa_basic_blocks = initSSABasicBlocks(blocks);
@@ -340,7 +340,7 @@ void SSAify::Run(BasicBlock* start, Environment* env) {
     delete ssablock;
   }
 
-  reflowTypes(env, start);
+  reflowTypes(irfunc, start);
 }
 
 Register* SSAify::getDefine(SSABasicBlock* ssablock, Register* reg) {

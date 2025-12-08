@@ -3765,7 +3765,7 @@ class CFG;
 class BasicBlock {
  public:
   BasicBlock() : BasicBlock(0) {}
-  explicit BasicBlock(int id_) : id(id_), cfg(nullptr) {}
+  explicit BasicBlock(int id_) : id(id_) {}
   ~BasicBlock();
 
   // Replace any references to old_pred in this block's Phis with new_pred.
@@ -3909,9 +3909,6 @@ class BasicBlock {
   }
 
   int id;
-
-  // CFG that this block belongs to; may be NULL
-  CFG* cfg;
 
   // Basic blocks belong to a list of all blocks in their CFG
   IntrusiveListNode cfg_node;

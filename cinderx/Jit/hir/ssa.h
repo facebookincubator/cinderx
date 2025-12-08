@@ -40,7 +40,7 @@ class SSAify : public Pass {
   SSAify() : Pass("SSAify"), env_(nullptr) {}
 
   void Run(Function& irfunc) override;
-  void Run(BasicBlock* block, Environment* env);
+  void Run(Function& irfunc, BasicBlock* block);
 
   static std::unique_ptr<SSAify> Factory() {
     return std::make_unique<SSAify>();

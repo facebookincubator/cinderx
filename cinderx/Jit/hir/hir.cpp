@@ -17,7 +17,7 @@ namespace jit::hir {
 #ifndef _LIBCPP_VERSION
 static_assert(sizeof(Function) == 48 * kPointerSize);
 static_assert(sizeof(CFG) == 6 * kPointerSize);
-static_assert(sizeof(BasicBlock) == 21 * kPointerSize);
+static_assert(sizeof(BasicBlock) == 20 * kPointerSize);
 static_assert(sizeof(Instr) == 6 * kPointerSize);
 #endif
 
@@ -1041,7 +1041,6 @@ void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
 
 BasicBlock* CFG::AllocateBlock() {
   auto block = AllocateUnlinkedBlock();
-  block->cfg = this;
   blocks.PushBack(*block);
   return block;
 }
@@ -1054,14 +1053,11 @@ BasicBlock* CFG::AllocateUnlinkedBlock() {
 }
 
 void CFG::InsertBlock(BasicBlock* block) {
-  block->cfg = this;
   blocks.PushBack(*block);
 }
 
 void CFG::RemoveBlock(BasicBlock* block) {
-  JIT_DCHECK(block->cfg == this, "block doesn't belong to us");
   block->cfg_node.Unlink();
-  block->cfg = nullptr;
 }
 
 BasicBlock* CFG::splitAfter(Instr& target) {

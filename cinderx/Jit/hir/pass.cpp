@@ -542,10 +542,14 @@ Type outputType(const Instr& instr) {
       instr, [&](std::size_t ind) { return instr.GetOperand(ind)->type(); });
 }
 
-void reflowTypes(Environment* env, BasicBlock* start) {
+void reflowTypes(Function& func) {
+  reflowTypes(func, func.cfg.entry_block);
+}
+
+void reflowTypes(Function& func, BasicBlock* start) {
   // First, reset all types to Bottom so Phi inputs from back edges don't
   // contribute to the output type of the Phi until they've been processed.
-  for (auto& pair : env->GetRegisters()) {
+  for (auto& pair : func.env.GetRegisters()) {
     pair.second->set_type(TBottom);
   }
 
@@ -564,7 +568,7 @@ void reflowTypes(Environment* env, BasicBlock* start) {
               type,
               instr,
               value->type(),
-              *start->cfg);
+              func.cfg);
         }
 
         auto dst = instr.output();
@@ -582,10 +586,6 @@ void reflowTypes(Environment* env, BasicBlock* start) {
       }
     }
   }
-}
-
-void reflowTypes(Function& func) {
-  reflowTypes(&func.env, func.cfg.entry_block);
 }
 
 bool removeTrampolineBlocks(CFG* cfg) {

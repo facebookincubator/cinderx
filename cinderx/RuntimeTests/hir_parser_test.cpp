@@ -63,7 +63,6 @@ TEST_F(HIRParserTest, ParsesHIR) {
   auto block = func->cfg.entry_block;
   ASSERT_NE(block, nullptr);
   ASSERT_EQ(block->id, 0);
-  ASSERT_EQ(block->cfg, &func->cfg);
 
   auto blocks_it = func->cfg.blocks.begin();
   auto blocks_end = func->cfg.blocks.end();
