@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Jit/hir/cfg.h"
 #include "cinderx/Jit/hir/hir.h"
 
 namespace jit::hir {
