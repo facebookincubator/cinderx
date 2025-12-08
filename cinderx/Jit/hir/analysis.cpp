@@ -3,6 +3,7 @@
 #include "cinderx/Jit/hir/analysis.h"
 
 #include "cinderx/Jit/dataflow.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/StaticPython/checked_dict.h"

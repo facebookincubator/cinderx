@@ -4,6 +4,7 @@
 
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/dataflow.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <iosfwd>
@@ -13,7 +14,6 @@
 namespace jit::hir {
 
 class BasicBlock;
-class Function;
 class Register;
 
 using RegisterSet = std::unordered_set<Register*>;

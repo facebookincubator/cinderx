@@ -56,6 +56,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <chrono>

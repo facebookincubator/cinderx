@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <iterator>
