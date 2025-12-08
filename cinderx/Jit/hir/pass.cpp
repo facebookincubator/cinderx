@@ -619,7 +619,9 @@ bool removeTrampolineBlocks(CFG* cfg) {
   return trampolines.size() > 0;
 }
 
-bool removeUnreachableBlocks(CFG* cfg) {
+bool removeUnreachableBlocks(Function& func) {
+  auto cfg = &func.cfg;
+
   std::unordered_set<BasicBlock*> visited;
   std::vector<BasicBlock*> stack;
   stack.emplace_back(cfg->entry_block);
@@ -664,11 +666,13 @@ bool removeUnreachableBlocks(CFG* cfg) {
   return unreachable.size() > 0;
 }
 
-bool removeUnreachableInstructions(CFG* cfg) {
+bool removeUnreachableInstructions(Function& func) {
+  auto cfg = &func.cfg;
+
   bool modified = false;
   std::vector<BasicBlock*> blocks = cfg->GetPostOrderTraversal();
-  DominatorAnalysis dom(*cfg->func);
-  RegUses reg_uses = collectDirectRegUses(*cfg->func);
+  DominatorAnalysis dom(func);
+  RegUses reg_uses = collectDirectRegUses(func);
   auto remove_reg_uses = [&reg_uses](Instr* instr) {
     for (auto op : instr->GetOperands()) {
       auto instrs = reg_uses.find(op);
@@ -768,7 +772,7 @@ bool removeUnreachableInstructions(CFG* cfg) {
             // reachable block, insert a RefineType to preserve the type
             // information implied by following that path.
             auto check_type_branch = static_cast<CondBranchCheckType*>(branch);
-            Register* refined_value = cfg->func->env.AllocateRegister();
+            Register* refined_value = func.env.AllocateRegister();
             Type check_type = check_type_branch->type();
             if (target == cond_branch->false_bb()) {
               check_type = TTop - check_type_branch->type();
@@ -800,8 +804,8 @@ bool removeUnreachableInstructions(CFG* cfg) {
     }
   }
   if (modified) {
-    removeUnreachableBlocks(cfg);
-    reflowTypes(*cfg->func);
+    removeUnreachableBlocks(func);
+    reflowTypes(func);
   }
   return modified;
 }

@@ -10,15 +10,13 @@ namespace jit::hir {
 // Ignore it for libc++ for now though, too tricky to track multiple
 // implementations.
 #ifndef _LIBCPP_VERSION
-static_assert(sizeof(Function) == 48 * kPointerSize);
-static_assert(sizeof(CFG) == 6 * kPointerSize);
+static_assert(sizeof(Function) == 47 * kPointerSize);
+static_assert(sizeof(CFG) == 5 * kPointerSize);
 static_assert(sizeof(BasicBlock) == 20 * kPointerSize);
 static_assert(sizeof(Instr) == 6 * kPointerSize);
 #endif
 
-Function::Function() {
-  cfg.func = this;
-}
+Function::Function() {}
 
 Function::~Function() {
   // Serialize as we alter ref-counts on potentially global objects.

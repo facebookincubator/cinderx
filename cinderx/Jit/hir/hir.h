@@ -3934,8 +3934,6 @@ class BasicBlock {
   std::unordered_set<const Edge*> in_edges_;
 };
 
-class Function;
-
 class Environment {
  public:
   using RegisterMap = std::unordered_map<int, std::unique_ptr<Register>>;

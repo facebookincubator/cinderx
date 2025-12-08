@@ -50,7 +50,7 @@ void CleanCFG::Run(Function& irfunc) {
   bool changed = false;
 
   do {
-    removeUnreachableInstructions(&irfunc.cfg);
+    removeUnreachableInstructions(irfunc);
     // Remove any trivial Phis; absorbDstBlock cannot handle them.
     PhiElimination{}.Run(irfunc);
     std::vector<BasicBlock*> blocks = irfunc.cfg.GetRPOTraversal();
@@ -67,7 +67,7 @@ void CleanCFG::Run(Function& irfunc) {
         break;
       }
     }
-  } while (removeUnreachableBlocks(&irfunc.cfg));
+  } while (removeUnreachableBlocks(irfunc));
 
   if (changed) {
     reflowTypes(irfunc);

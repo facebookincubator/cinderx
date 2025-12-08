@@ -64,11 +64,11 @@ bool removeTrampolineBlocks(CFG* cfg);
 
 // Remove blocks that aren't reachable from the entry, whether or not they're
 // empty. Return true if it changed the graph and false otherwise.
-bool removeUnreachableBlocks(CFG* cfg);
+bool removeUnreachableBlocks(Function& func);
 
 // Remove instructions that aren't reachable from the entry. Return true if it
 // changed the graph and false otherwise.
-bool removeUnreachableInstructions(CFG* cfg);
+bool removeUnreachableInstructions(Function& func);
 
 // Replace cond branches where both sides go to the same block with a direct
 // branch.

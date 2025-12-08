@@ -60,9 +60,6 @@ class CFG {
   // List of all blocks in the CFG
   IntrusiveList<BasicBlock, &BasicBlock::cfg_node> blocks;
 
-  // The Function this CFG belongs to. May be null in tests.
-  Function* func{nullptr};
-
  private:
   DISALLOW_COPY_AND_ASSIGN(CFG);
 

@@ -558,7 +558,7 @@ std::unique_ptr<Function> HIRBuilder::buildHIR() {
   // Use removeTrampolineBlocks and removeUnreachableBlocks directly instead of
   // Run because the rest of CleanCFG requires SSA.
   removeTrampolineBlocks(&irfunc->cfg);
-  removeUnreachableBlocks(&irfunc->cfg);
+  removeUnreachableBlocks(*irfunc);
   return irfunc;
 }
 

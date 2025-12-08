@@ -440,7 +440,7 @@ fun foo {
   std::unique_ptr<Function> func = HIRParser{}.ParseHIR(hir);
   ASSERT_NE(func, nullptr);
 
-  removeUnreachableBlocks(&func->cfg);
+  removeUnreachableBlocks(*func);
 
   const char* expected = R"(fun foo {
   bb 0 {
@@ -484,7 +484,7 @@ fun foo {
   std::unique_ptr<Function> func = HIRParser{}.ParseHIR(hir);
   ASSERT_NE(func, nullptr);
 
-  removeUnreachableBlocks(&func->cfg);
+  removeUnreachableBlocks(*func);
 
   const char* expected = R"(fun foo {
   bb 0 {
