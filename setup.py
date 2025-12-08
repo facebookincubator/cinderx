@@ -30,6 +30,8 @@ CHECKOUT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
 PYTHON_LIB_DIR = os.path.join(SOURCE_DIR, "PythonLib")
 
+MIN_GCC_VERSION = 13
+
 
 @lru_cache(maxsize=1)
 def get_compiler() -> tuple[str, str]:
@@ -63,11 +65,13 @@ def get_compiler() -> tuple[str, str]:
                 major_version = int(match.group(1))
                 print(f"Found GCC version {major_version}.{match.group(2)}")
 
-                if major_version >= 14:
+                if major_version >= MIN_GCC_VERSION:
                     print(f"Using GCC: {gcc_path}, {gxx_path}")
                     return (gcc_path, gxx_path)
                 else:
-                    print(f"GCC version {major_version} < 14, checking for Clang")
+                    print(
+                        f"GCC version {major_version} < {MIN_GCC_VERSION}, checking for Clang"
+                    )
         except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
             print(f"Failed to determine GCC version: {e}, checking for Clang")
 
