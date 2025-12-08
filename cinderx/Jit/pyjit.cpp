@@ -17,6 +17,7 @@
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/string.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/code_allocator.h"
@@ -101,30 +102,6 @@ UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 // object from.
 std::unordered_map<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
     jit_code_outer_funcs;
-
-// Frequently-used strings that we intern at JIT startup and hold references to.
-#define INTERNED_STRINGS(X) \
-  X(bc_offset)              \
-  X(code_hash)              \
-  X(count)                  \
-  X(description)            \
-  X(filename)               \
-  X(firstlineno)            \
-  X(func_qualname)          \
-  X(guilty_type)            \
-  X(int)                    \
-  X(lineno)                 \
-  X(normal)                 \
-  X(normvector)             \
-  X(opname)                 \
-  X(reason)                 \
-  X(split_dict_keys)        \
-  X(type_name)              \
-  X(types)
-
-#define DECLARE_STR(s) static PyObject* s_str_##s{nullptr};
-INTERNED_STRINGS(DECLARE_STR)
-#undef DECLARE_STR
 
 std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 
@@ -2029,6 +2006,16 @@ int check(int ret) {
 }
 
 Ref<> make_deopt_stats() {
+  DEFINE_STATIC_STRING(count);
+  DEFINE_STATIC_STRING(description);
+  DEFINE_STATIC_STRING(filename);
+  DEFINE_STATIC_STRING(func_qualname);
+  DEFINE_STATIC_STRING(guilty_type);
+  DEFINE_STATIC_STRING(lineno);
+  DEFINE_STATIC_STRING(normal);
+  DEFINE_STATIC_STRING(int);
+  DEFINE_STATIC_STRING(reason);
+
   auto runtime = Runtime::get();
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
@@ -2066,19 +2053,19 @@ Ref<> make_deopt_stats() {
         auto normals = Ref<>::steal(check(PyDict_New()));
         auto ints = Ref<>::steal(check(PyDict_New()));
 
-        check(PyDict_SetItem(event, s_str_normal, normals));
-        check(PyDict_SetItem(event, s_str_int, ints));
-        check(PyDict_SetItem(normals, s_str_func_qualname, func_qualname));
-        check(PyDict_SetItem(normals, s_str_filename, code->co_filename));
-        check(PyDict_SetItem(ints, s_str_lineno, lineno));
-        check(PyDict_SetItem(normals, s_str_reason, reason));
-        check(PyDict_SetItem(normals, s_str_description, description));
+        check(PyDict_SetItem(event, s_normal, normals));
+        check(PyDict_SetItem(event, s_int, ints));
+        check(PyDict_SetItem(normals, s_func_qualname, func_qualname));
+        check(PyDict_SetItem(normals, s_filename, code->co_filename));
+        check(PyDict_SetItem(ints, s_lineno, lineno));
+        check(PyDict_SetItem(normals, s_reason, reason));
+        check(PyDict_SetItem(normals, s_description, description));
 
         auto count = Ref<>::steal(check(PyLong_FromSize_t(count_raw)));
-        check(PyDict_SetItem(ints, s_str_count, count));
+        check(PyDict_SetItem(ints, s_count, count));
         auto type_str =
             Ref<>::steal(check(PyUnicode_InternFromString(type_name)));
-        check(PyDict_SetItem(normals, s_str_guilty_type, type_str) < 0);
+        check(PyDict_SetItem(normals, s_guilty_type, type_str) < 0);
         check(PyList_Append(stats, event));
       };
 
@@ -2792,13 +2779,6 @@ int register_fork_callback(BorrowedRef<> cinderjit_module) {
 
 // Initialize some interned strings that can be used even when the JIT is off.
 int initializeInternedStrings() {
-#define INTERN_STR(s)                                            \
-  if ((s_str_##s = PyUnicode_InternFromString(#s)) == nullptr) { \
-    return -1;                                                   \
-  }
-  INTERNED_STRINGS(INTERN_STR)
-#undef INTERN_STR
-
 #define HIR_OP(opname)                                                 \
   if ((s_hir_opnames.at(static_cast<size_t>(hir::Opcode::k##opname)) = \
            PyUnicode_InternFromString(#opname)) == nullptr) {          \
@@ -2859,10 +2839,6 @@ void dump_jit_stats() {
 }
 
 void finalizeInternedStrings() {
-#define CLEAR_STR(s) Py_CLEAR(s_str_##s);
-  INTERNED_STRINGS(CLEAR_STR)
-#undef CLEAR_STR
-
   for (PyObject*& opname : s_hir_opnames) {
     Py_CLEAR(opname);
   }
