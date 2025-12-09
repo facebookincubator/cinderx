@@ -26,19 +26,13 @@ class BytecodeInstruction {
 
   // Return the position of the first EXTENDED_ARG (if any) making up the full
   // instruction.
-  BCOffset baseOffset() const {
-    return baseOffset_;
-  }
-  BCIndex baseIndex() const {
-    return baseOffset();
-  }
+  BCOffset baseOffset() const;
+  BCIndex baseIndex() const;
 
   // Return the position of the opcode, skipping over any EXTENDED_ARGs if
   // present.
   BCOffset opcodeOffset() const;
-  BCIndex opcodeIndex() const {
-    return opcodeOffset();
-  }
+  BCIndex opcodeIndex() const;
 
   // Get the instruction's opcode or oparg.
   //
@@ -90,6 +84,7 @@ class BytecodeInstruction {
   BCOffset baseOffset_;
   mutable BCIndex opcodeIndex_{std::numeric_limits<int>::min()};
   mutable int extendedOparg_{0};
+  mutable bool extendedOpcode_{false};
 };
 
 // A half open block of bytecode [start, end) viewed as a sequence of

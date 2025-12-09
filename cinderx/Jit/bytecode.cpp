@@ -4,57 +4,69 @@
 
 namespace jit {
 
+BCOffset BytecodeInstruction::baseOffset() const {
+  return baseOffset_;
+}
+
+BCIndex BytecodeInstruction::baseIndex() const {
+  return baseOffset();
+}
+
 BCOffset BytecodeInstruction::opcodeOffset() const {
   calcOpcodeOffsetAndOparg();
   return opcodeIndex_;
 }
 
+BCIndex BytecodeInstruction::opcodeIndex() const {
+  return opcodeOffset();
+}
+
 int BytecodeInstruction::opcode() const {
-  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-    calcOpcodeOffsetAndOparg();
-    _Py_CODEUNIT* cu = codeUnit(code_) + baseIndex().value();
-    while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
-      cu++;
-    }
-    if (_Py_OPCODE(*cu) == EXTENDED_OPCODE) {
-      return EXTENDED_OPCODE_FLAG | _Py_OPCODE(word());
-    }
+  int op = _Py_OPCODE(word());
+  if (extendedOpcode_) {
+    return EXTENDED_OPCODE_FLAG | op;
   }
-  return _Py_OPCODE(word());
+  return op;
 }
 
 void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
   if (opcodeIndex_.value() != std::numeric_limits<int>::min()) {
     return;
   }
+
   opcodeIndex_ = baseOffset_;
-  if (opcodeIndex_.value() >= countIndices(code_)) {
+  BCIndex end_idx{countIndices(code_)};
+  if (opcodeIndex_.value() >= end_idx) {
     return;
   }
+
   _Py_CODEUNIT* cu = codeUnit(code_) + opcodeIndex_.value();
-  while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
-    JIT_DCHECK(
-        opcodeIndex_.value() < countIndices(code_),
-        "EXTENDED_ARG at end of bytecode");
-    extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
-    cu++;
-    opcodeIndex_++;
-  }
-  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-    if (_Py_OPCODE(*cu) == EXTENDED_OPCODE) {
+
+  // Consume all EXTENDED_ARG opcodes until we get to something else.
+  auto consume_extended_args = [&] {
+    while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
+      JIT_DCHECK(
+          opcodeIndex_.value() < end_idx, "EXTENDED_ARG at end of bytecode");
+      extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
       cu++;
       opcodeIndex_++;
-      extendedOparg_ = 0;
-      while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
-        JIT_DCHECK(
-            opcodeIndex_.value() < countIndices(code_),
-            "EXTENDED_ARG at end of bytecode");
-        extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
-        cu++;
-        opcodeIndex_++;
-      }
     }
+  };
+
+  consume_extended_args();
+
+  // Check for EXTENDED_OPCODE, bump forward one opcode if so.
+  if (PY_VERSION_HEX >= 0x030E0000 && _Py_OPCODE(*cu) == EXTENDED_OPCODE) {
+    cu++;
+    opcodeIndex_++;
+    extendedOparg_ = 0;
+    extendedOpcode_ = true;
   }
+
+  // If we had an EXTENDED_OPCODE, then it might also be followed by more
+  // EXTENDED_ARGS.
+  consume_extended_args();
+
   extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
 }
 
