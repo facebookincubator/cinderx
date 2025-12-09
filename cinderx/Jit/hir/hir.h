@@ -2,20 +2,14 @@
 
 #pragma once
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/ref.h"
-#include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/code_patcher.h"
-#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/hir/frame_state.h"
 #include "cinderx/Jit/hir/opcode.h"
 #include "cinderx/Jit/hir/register.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/intrusive_list.h"
-#include "cinderx/Jit/jit_time_log.h"
-#include "cinderx/StaticPython/typed-args-info.h"
 
 #include <array>
 #include <functional>
