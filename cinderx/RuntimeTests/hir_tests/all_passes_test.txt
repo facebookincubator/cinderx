@@ -240,26 +240,38 @@ fun jittestmodule:test {
         Stack<2> v20 v21
       }
     }
+    v34:Type = LoadField<ob_type@8, Type, borrowed> v14
+    v35:CBool = PrimitiveCompare<Equal> v34 v23
+    CondBranch<5, 6> v35
+  }
+
+  bb 5 (preds 3) {
+    Branch<7>
+  }
+
+  bb 6 (preds 3) {
     UpdatePrevInstr<idx:12 line_no:2: no parent>
-    v24:Bool = CallMethod<4> v20 v21 v14 v23 {
-      LiveValues<4> b:v14 b:v20 unc:v21 unc:v23
+    v36:CBool = IsInstance v14 v23 {
+      LiveValues<2> b:v14 unc:v23
       FrameState {
         CurInstrOffset 24
         Locals<1> v14
       }
     }
-    v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v32:CBool = PrimitiveCompare<Equal> v24 v31
-    Decref v24
-    CondBranch<1, 2> v32
+    Branch<7>
   }
 
-  bb 1 (preds 3) {
+  bb 7 (preds 5, 6) {
+    v37:CBool = Phi<5, 6> v35 v36
+    CondBranch<1, 2> v37
+  }
+
+  bb 1 (preds 7) {
     v29:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return v29
   }
 
-  bb 2 (preds 3) {
+  bb 2 (preds 7) {
     v30:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Return v30
   }
@@ -382,14 +394,14 @@ fun jittestmodule:test {
         Stack<2> v11 v12
       }
     }
-    UpdatePrevInstr<idx:11 line_no:3: no parent>
-    v15:LongExact = CallMethod<3> v11 v12 v14 {
-      LiveValues<3> b:v11 unc:v12 b:v14
+    v18:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v19:LongExact = PrimitiveBox<CInt64> v18 {
+      LiveValues<1> s:v18
       FrameState {
         CurInstrOffset 22
       }
     }
-    Return v15
+    Return v19
   }
 }
 --- Test Name ---
@@ -492,17 +504,16 @@ fun jittestmodule:test {
         Locals<1> v8
       }
     }
-    v15:Nullptr = LoadConst<Nullptr>
     v16:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
     UpdatePrevInstr<idx:8 line_no:2: no parent>
-    v17:Bool = CallMethod<4> v14 v15 v8 v16 {
-      LiveValues<4> b:v8 b:v14 unc:v15 b:v16
+    v18:Bool = VectorCall<2> v14 v8 v16 {
+      LiveValues<3> b:v8 b:v14 b:v16
       FrameState {
         CurInstrOffset 16
         Locals<1> v8
       }
     }
-    Return v17
+    Return v18
   }
 }
 --- Test Name ---

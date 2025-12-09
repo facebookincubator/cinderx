@@ -255,14 +255,14 @@ fun jittestmodule:test {
     }
     v17:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v18:Object = CallMethod<3> v16 v17 v13 {
+    v19:Object = VectorCall<1> v16 v13 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v13
       }
     }
     Snapshot
-    Return v18
+    Return v19
   }
 }
 --- Test Name ---
@@ -4404,14 +4404,10 @@ fun jittestmodule:test {
     }
     v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v15:Object = CallMethod<3> v13 v14 v7 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<1> v7
-      }
-    }
+    UseType<ImmortalTypeExact[type:obj]> v13
+    v17:Type = LoadField<ob_type@8, Type, borrowed> v7
     Snapshot
-    Return v15
+    Return v17
   }
 }
 --- Test Name ---
@@ -7727,13 +7723,13 @@ fun jittestmodule:test {
     Snapshot
     v17:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    v18:Object = CallMethod<5> v13 v14 v15 v16 v17 {
+    v19:Object = VectorCall<3> v13 v15 v16 v17 {
       FrameState {
         CurInstrOffset 18
       }
     }
     Snapshot
-    Return v18
+    Return v19
   }
 }
 --- Test Name ---
@@ -7833,13 +7829,13 @@ fun jittestmodule:test {
     Snapshot
     v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v16:Object = CallMethod<4> v12 v13 v14 v15 {
+    v17:Object = VectorCall<2> v12 v14 v15 {
       FrameState {
         CurInstrOffset 16
       }
     }
     Snapshot
-    Return v16
+    Return v17
   }
 }
 --- Test Name ---
@@ -7949,13 +7945,18 @@ fun jittestmodule:test {
     Snapshot
     v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v16:Object = CallMethod<4> v12 v13 v14 v15 {
+    v18:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v19:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v20:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v12
+    v21:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v20 {
+    }
+    v22:Object = VectorCall<4> v12 v14 v15 v18 v19 {
       FrameState {
         CurInstrOffset 16
       }
     }
     Snapshot
-    Return v16
+    Return v22
   }
 }
 --- Test Name ---
@@ -8771,13 +8772,13 @@ fun jittestmodule:test {
     }
     Snapshot
     v13:Nullptr = LoadConst<Nullptr>
-    v14:Object = CallMethod<2> v15 v13 {
+    v16:Object = VectorCall<0> v15 {
       FrameState {
         CurInstrOffset 34
       }
     }
     Snapshot
-    Return v14
+    Return v16
   }
 }
 --- Test Name ---
@@ -8896,20 +8897,20 @@ fun jittestmodule:test {
     }
     v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v15:Object = CallMethod<2> v13 v14 {
+    v19:Object = VectorCall<0> v13 {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    v19:Object = LoadMethodCached<1; "hello"> v15 {
+    v20:Object = LoadMethodCached<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 20
       }
     }
-    v17:OptObject = GetSecondOutput<OptObject> v19
+    v17:OptObject = GetSecondOutput<OptObject> v20
     Snapshot
-    v18:Object = CallMethod<2> v19 v17 {
+    v18:Object = CallMethod<2> v20 v17 {
       FrameState {
         CurInstrOffset 40
       }
@@ -9524,7 +9525,7 @@ fun jittestmodule:test {
     }
     v51:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v52:Bool = CallMethod<3> v50 v51 v44 {
+    v102:Bool = VectorCall<1> v50 v44 {
       FrameState {
         CurInstrOffset 14
         Locals<1> v44
@@ -9537,11 +9538,11 @@ fun jittestmodule:test {
     }
     v55:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v56:BytesExact = CallMethod<3> v54 v55 v44 {
+    v103:BytesExact = VectorCall<1> v54 v44 {
       FrameState {
         CurInstrOffset 34
         Locals<1> v44
-        Stack<1> v52
+        Stack<1> v102
       }
     }
     Snapshot
@@ -9551,11 +9552,11 @@ fun jittestmodule:test {
     }
     v59:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v60:DictExact = CallMethod<3> v58 v59 v44 {
+    v104:DictExact = VectorCall<1> v58 v44 {
       FrameState {
         CurInstrOffset 54
         Locals<1> v44
-        Stack<2> v52 v56
+        Stack<2> v102 v103
       }
     }
     Snapshot
@@ -9565,11 +9566,11 @@ fun jittestmodule:test {
     }
     v63:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v64:FloatExact = CallMethod<3> v62 v63 v44 {
+    v105:FloatExact = VectorCall<1> v62 v44 {
       FrameState {
         CurInstrOffset 74
         Locals<1> v44
-        Stack<3> v52 v56 v60
+        Stack<3> v102 v103 v104
       }
     }
     Snapshot
@@ -9579,11 +9580,11 @@ fun jittestmodule:test {
     }
     v67:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v68:ListExact = CallMethod<3> v66 v67 v44 {
+    v106:ListExact = VectorCall<1> v66 v44 {
       FrameState {
         CurInstrOffset 94
         Locals<1> v44
-        Stack<4> v52 v56 v60 v64
+        Stack<4> v102 v103 v104 v105
       }
     }
     Snapshot
@@ -9593,11 +9594,11 @@ fun jittestmodule:test {
     }
     v71:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v72:SetExact = CallMethod<3> v70 v71 v44 {
+    v107:SetExact = VectorCall<1> v70 v44 {
       FrameState {
         CurInstrOffset 114
         Locals<1> v44
-        Stack<5> v52 v56 v60 v64 v68
+        Stack<5> v102 v103 v104 v105 v106
       }
     }
     Snapshot
@@ -9607,11 +9608,11 @@ fun jittestmodule:test {
     }
     v75:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v76:TupleExact = CallMethod<3> v74 v75 v44 {
+    v108:TupleExact = VectorCall<1> v74 v44 {
       FrameState {
         CurInstrOffset 134
         Locals<1> v44
-        Stack<6> v52 v56 v60 v64 v68 v72
+        Stack<6> v102 v103 v104 v105 v106 v107
       }
     }
     Snapshot
@@ -9621,13 +9622,8 @@ fun jittestmodule:test {
     }
     v79:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v80:Object = CallMethod<3> v78 v79 v44 {
-      FrameState {
-        CurInstrOffset 154
-        Locals<1> v44
-        Stack<7> v52 v56 v60 v64 v68 v72 v76
-      }
-    }
+    UseType<ImmortalTypeExact[type:obj]> v78
+    v115:Type = LoadField<ob_type@8, Type, borrowed> v44
     Snapshot
     v81:OptObject = LoadGlobalCached<8; "str">
     v82:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v81 {
@@ -9635,11 +9631,11 @@ fun jittestmodule:test {
     }
     v83:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v84:UnicodeExact = CallMethod<3> v82 v83 v44 {
+    v110:UnicodeExact = VectorCall<1> v82 v44 {
       FrameState {
         CurInstrOffset 174
         Locals<1> v44
-        Stack<8> v52 v56 v60 v64 v68 v72 v76 v80
+        Stack<8> v102 v103 v104 v105 v106 v107 v108 v115
       }
     }
     Snapshot
@@ -9649,11 +9645,11 @@ fun jittestmodule:test {
     }
     v87:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v88:LongExact = CallMethod<3> v86 v87 v44 {
+    v111:LongExact = VectorCall<1> v86 v44 {
       FrameState {
         CurInstrOffset 194
         Locals<1> v44
-        Stack<9> v52 v56 v60 v64 v68 v72 v76 v80 v84
+        Stack<9> v102 v103 v104 v105 v106 v107 v108 v115 v110
       }
     }
     Snapshot
@@ -9663,11 +9659,11 @@ fun jittestmodule:test {
     }
     v91:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v92:ObjectExact = CallMethod<3> v90 v91 v44 {
+    v112:ObjectExact = VectorCall<1> v90 v44 {
       FrameState {
         CurInstrOffset 214
         Locals<1> v44
-        Stack<10> v52 v56 v60 v64 v68 v72 v76 v80 v84 v88
+        Stack<10> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111
       }
     }
     Snapshot
@@ -9677,11 +9673,11 @@ fun jittestmodule:test {
     }
     v95:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v96:Object = CallMethod<3> v94 v95 v44 {
+    v113:Object = VectorCall<1> v94 v44 {
       FrameState {
         CurInstrOffset 234
         Locals<1> v44
-        Stack<11> v52 v56 v60 v64 v68 v72 v76 v80 v84 v88 v92
+        Stack<11> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112
       }
     }
     Snapshot
@@ -9691,19 +9687,19 @@ fun jittestmodule:test {
     }
     v99:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v100:Object = CallMethod<3> v98 v99 v44 {
+    v114:Object = VectorCall<1> v98 v44 {
       FrameState {
         CurInstrOffset 254
         Locals<1> v44
-        Stack<12> v52 v56 v60 v64 v68 v72 v76 v80 v84 v88 v92 v96
+        Stack<12> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113
       }
     }
     Snapshot
-    v101:MortalTupleExact = MakeTuple<13> v52 v56 v60 v64 v68 v72 v76 v80 v84 v88 v92 v96 v100 {
+    v101:MortalTupleExact = MakeTuple<13> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113 v114 {
       FrameState {
         CurInstrOffset 262
         Locals<1> v44
-        Stack<13> v52 v56 v60 v64 v68 v72 v76 v80 v84 v88 v92 v96 v100
+        Stack<13> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113 v114
       }
     }
     Snapshot
@@ -10034,14 +10030,14 @@ fun jittestmodule:test {
     Snapshot
     v27:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     Snapshot
-    v28:Object = CallMethod<3> v25 v26 v27 {
+    v46:Object = VectorCall<1> v25 v27 {
       FrameState {
         CurInstrOffset 18
         Locals<2> v22 v17
       }
     }
     Snapshot
-    v29:Object = GetIter v28 {
+    v29:Object = GetIter v46 {
       FrameState {
         CurInstrOffset 26
         Locals<2> v22 v17

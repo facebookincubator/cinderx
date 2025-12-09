@@ -277,18 +277,17 @@ fun jittestmodule:test {
       }
     }
     Incref v57
-    UpdatePrevInstr<idx:36 line_no:3: no parent>
+    UpdatePrevInstr<idx:42 line_no:3: no parent>
     XDecref v34
-    v51:Nullptr = LoadConst<Nullptr>
-    v52:Object = CallMethod<3> v50 v51 v57 {
-      LiveValues<5> b:v19 s:v46 b:v50 unc:v51 o:v57
+    v58:Object = VectorCall<1> v50 v57 {
+      LiveValues<4> b:v19 s:v46 b:v50 o:v57
       FrameState {
         CurInstrOffset 84
         Locals<3> v19 v46 v57
         Stack<1> v19
       }
     }
-    Decref v52
+    Decref v58
     Branch<6>
   }
 

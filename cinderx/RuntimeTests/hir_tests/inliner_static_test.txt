@@ -595,16 +595,32 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: bool'
     }
     Snapshot
-    v30:Bool = CallMethod<4> v26 v27 v6 v29 {
+    v34:Type = LoadField<ob_type@8, Type, borrowed> v6
+    v35:CBool = PrimitiveCompare<Equal> v34 v29
+    CondBranch<8, 9> v35
+  }
+
+  bb 8 (preds 4) {
+    Branch<10>
+  }
+
+  bb 9 (preds 4) {
+    v36:CBool = IsInstance v6 v29 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v6
       }
     }
+    Branch<10>
+  }
+
+  bb 10 (preds 8, 9) {
+    v37:CBool = Phi<8, 9> v35 v36
+    v38:Bool = PrimitiveBoxBool v37
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v30
+    Return v38
   }
 }
 --- End ---

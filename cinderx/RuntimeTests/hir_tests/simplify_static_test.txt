@@ -1090,7 +1090,7 @@ fun jittestmodule:test {
     }
     v51:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v52:Object = CallMethod<3> v50 v51 v57 {
+    v58:Object = VectorCall<1> v50 v57 {
       FrameState {
         CurInstrOffset 84
         Locals<3> v19 v46 v57
