@@ -1019,8 +1019,10 @@ int cinder_fini() {
       tstate->shadow_frame != nullptr;
 #elif PY_VERSION_HEX < 0x030D0000
       tstate->cframe != &tstate->root_cframe;
-#else
+#elif PY_VERSION_HEX < 0x030F0000
       tstate->current_frame != nullptr;
+#else
+      tstate->current_frame != tstate->base_frame;
 #endif
   if (code_running) {
     // If any Python code is running we can't tell if JIT code is in use. Even
