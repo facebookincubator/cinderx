@@ -103,8 +103,6 @@ UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 std::unordered_map<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
     jit_code_outer_funcs;
 
-std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
-
 std::atomic<int> g_compile_workers_attempted;
 std::atomic<int> g_compile_workers_retries;
 
@@ -1954,19 +1952,22 @@ PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
   if (dict == nullptr) {
     return nullptr;
   }
-#define HIR_OP(opname)                                               \
-  {                                                                  \
-    const size_t idx = static_cast<size_t>(hir::Opcode::k##opname);  \
-    int count = counts.at(idx);                                      \
-    if (count != 0) {                                                \
-      Ref<> count_obj = Ref<>::steal(PyLong_FromLong(count));        \
-      if (count_obj == nullptr) {                                    \
-        return nullptr;                                              \
-      }                                                              \
-      if (PyDict_SetItem(dict, s_hir_opnames[idx], count_obj) < 0) { \
-        return nullptr;                                              \
-      }                                                              \
-    }                                                                \
+#define HIR_OP(OPNAME)                                                 \
+  {                                                                    \
+    const size_t idx = static_cast<size_t>(hir::Opcode::k##OPNAME);    \
+    if (int count = counts.at(idx); count != 0) {                      \
+      Ref<> count_obj = Ref<>::steal(PyLong_FromLong(count));          \
+      if (count_obj == nullptr) {                                      \
+        return nullptr;                                                \
+      }                                                                \
+      auto opname = Ref<>::steal(PyUnicode_InternFromString(#OPNAME)); \
+      if (opname == nullptr) {                                         \
+        return nullptr;                                                \
+      }                                                                \
+      if (PyDict_SetItem(dict, opname, count_obj) < 0) {               \
+        return nullptr;                                                \
+      }                                                                \
+    }                                                                  \
   }
   FOREACH_OPCODE(HIR_OP)
 #undef HIR_OP
@@ -2777,19 +2778,6 @@ int register_fork_callback(BorrowedRef<> cinderjit_module) {
   return 0;
 }
 
-// Initialize some interned strings that can be used even when the JIT is off.
-int initializeInternedStrings() {
-#define HIR_OP(opname)                                                 \
-  if ((s_hir_opnames.at(static_cast<size_t>(hir::Opcode::k##opname)) = \
-           PyUnicode_InternFromString(#opname)) == nullptr) {          \
-    return -1;                                                         \
-  }
-  FOREACH_OPCODE(HIR_OP)
-#undef HIR_OP
-
-  return 0;
-}
-
 // Informs the JIT that an instance has had an assignment to its __class__
 // field.
 void instanceTypeAssigned(PyTypeObject* old_ty, PyTypeObject* new_ty) {
@@ -2836,12 +2824,6 @@ void dump_jit_stats() {
   }
 
   JIT_LOG("JIT runtime stats:\n{}", PyUnicode_AsUTF8(stats_str.get()));
-}
-
-void finalizeInternedStrings() {
-  for (PyObject*& opname : s_hir_opnames) {
-    Py_CLEAR(opname);
-  }
 }
 
 constexpr std::string_view getCpuArchName() {
@@ -3015,10 +2997,6 @@ int initialize() {
     return 0;
   }
 
-  if (initializeInternedStrings() == -1) {
-    return -1;
-  }
-
   // Save the force_init field as it might have be set by test code before
   // jit::initialize() is called.
   auto force_init = getConfig().force_init;
@@ -3141,8 +3119,6 @@ void finalize() {
 
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->setCodeAllocator(nullptr);
-
-  finalizeInternedStrings();
 
   g_aot_ctx.destroy();
 
