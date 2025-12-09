@@ -40,15 +40,12 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
     return;
   }
 
-  _Py_CODEUNIT* cu = codeUnit(code_) + opcodeIndex_.value();
-
   // Consume all EXTENDED_ARG opcodes until we get to something else.
   auto consume_extended_args = [&] {
-    while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
+    while (_Py_OPCODE(word()) == EXTENDED_ARG) {
       JIT_DCHECK(
           opcodeIndex_.value() < end_idx, "EXTENDED_ARG at end of bytecode");
-      extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
-      cu++;
+      extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(word());
       opcodeIndex_++;
     }
   };
@@ -56,8 +53,7 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
   consume_extended_args();
 
   // Check for EXTENDED_OPCODE, bump forward one opcode if so.
-  if (PY_VERSION_HEX >= 0x030E0000 && _Py_OPCODE(*cu) == EXTENDED_OPCODE) {
-    cu++;
+  if (PY_VERSION_HEX >= 0x030E0000 && _Py_OPCODE(word()) == EXTENDED_OPCODE) {
     opcodeIndex_++;
     extendedOparg_ = 0;
     extendedOpcode_ = true;
@@ -67,7 +63,7 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
   // EXTENDED_ARGS.
   consume_extended_args();
 
-  extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
+  extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(word());
 }
 
 int BytecodeInstruction::uninstrumentedOpcode() const {
