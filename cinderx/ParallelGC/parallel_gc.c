@@ -613,8 +613,9 @@ static void move_unreachable(PyGC_Head* young, PyGC_Head* unreachable) {
   }
   // young->_gc_prev must be last element remained in the list.
   young->_gc_prev = (uintptr_t)prev;
+  young->_gc_next &= _PyGC_PREV_MASK;
   // don't let the pollution of the list head's next pointer leak
-  unreachable->_gc_next &= ~NEXT_MASK_UNREACHABLE;
+  unreachable->_gc_next &= _PyGC_PREV_MASK;
 }
 
 static void untrack_tuples(PyGC_Head* head) {
