@@ -100,11 +100,6 @@ class FileLock {
   int fd_;
 };
 
-class SharedFileLock : public FileLock {
- public:
-  explicit SharedFileLock(std::FILE* file) : FileLock{file, false} {}
-};
-
 class ExclusiveFileLock : public FileLock {
  public:
   explicit ExclusiveFileLock(std::FILE* file) : FileLock{file, true} {}
