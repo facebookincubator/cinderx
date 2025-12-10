@@ -99,4 +99,13 @@ WatcherState& ModuleState::watcherState() {
   return watcher_state_;
 }
 
+jit::UnorderedSet<BorrowedRef<>>& ModuleState::registeredCompilationUnits() {
+  return registered_compilation_units;
+}
+
+jit::UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>&
+ModuleState::codeOuterFunctions() {
+  return code_outer_funcs;
+}
+
 } // namespace cinderx

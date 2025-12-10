@@ -89,19 +89,10 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
-// Function and code objects ("units") registered for compilation.
-std::unordered_set<BorrowedRef<>> jit_reg_units;
-
 // Only set during preloading. Used to keep track of functions that were
 // deleted as a side effect of preloading.
 using UnitDeletedCallback = std::function<void(PyObject*)>;
 UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
-
-// Every unit that is a code object has corresponding entry in
-// jit_code_outer_funcs which is the function where we found the nested code
-// object from.
-std::unordered_map<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
-    jit_code_outer_funcs;
 
 std::atomic<int> g_compile_workers_attempted;
 std::atomic<int> g_compile_workers_retries;
@@ -890,6 +881,7 @@ std::string unitFullname(BorrowedRef<> unit) {
   if (func != nullptr) {
     return funcFullname(func);
   }
+  auto& jit_code_outer_funcs = cinderx::getModuleState()->codeOuterFunctions();
   auto iter = jit_code_outer_funcs.find(code);
   if (iter == jit_code_outer_funcs.end()) {
     return fmt::format(
@@ -915,6 +907,8 @@ hir::Preloader* preload(BorrowedRef<> unit) {
   if (func != nullptr) {
     preloader = hir::Preloader::makePreloader(func);
   } else {
+    auto& jit_code_outer_funcs =
+        cinderx::getModuleState()->codeOuterFunctions();
     auto it = jit_code_outer_funcs.find(code);
     if (it == jit_code_outer_funcs.end()) {
       PyErr_Format(
@@ -1081,6 +1075,7 @@ bool compile_all(size_t workers = 0) {
     handle_unit_deleted_during_preload = nullptr;
   };
 
+  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   JIT_DLOG(
       "Starting compile_all with {} workers for {} registered units",
       workers,
@@ -1132,6 +1127,7 @@ bool compile_all(size_t workers = 0) {
   g_batch_compilation_time =
       std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
+  auto& jit_code_outer_funcs = cinderx::getModuleState()->codeOuterFunctions();
   jit_code_outer_funcs.clear();
 
   return true;
@@ -1198,6 +1194,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(
       !getThreadedCompileContext().compileRunning(),
       "Not intended for using during threaded compilation");
+  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   jit_reg_units.emplace(func.getObj());
 
   // If we have an active jit-list, scan this function's code object for any
@@ -1208,6 +1205,8 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
     BorrowedRef<> top_consts{top_code->co_consts};
     for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
       jit_reg_units.emplace(code.getObj());
+      auto& jit_code_outer_funcs =
+          cinderx::getModuleState()->codeOuterFunctions();
       jit_code_outer_funcs.emplace(code, func);
     }
   }
@@ -1223,6 +1222,7 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   }
   g_compile_workers_attempted = 0;
   g_compile_workers_retries = 0;
+  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
   jitCtx()->clearCache();
   if (!compile_all()) {
@@ -3106,6 +3106,9 @@ void finalize() {
   deleteJitList();
 
   // Clear some global maps that reference Python data.
+  auto mod_state = cinderx::getModuleState();
+  auto& jit_code_outer_funcs = mod_state->codeOuterFunctions();
+  auto& jit_reg_units = mod_state->registeredCompilationUnits();
   jit_code_outer_funcs.clear();
   jit_reg_units.clear();
   JIT_CHECK(
@@ -3115,9 +3118,7 @@ void finalize() {
   for (auto func : jitCtx()->compiledFuncs()) {
     deoptFuncImpl(func);
   }
-  cinderx::getModuleState()->setJitContext(nullptr);
-
-  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  mod_state->setJitContext(nullptr);
   mod_state->setCodeAllocator(nullptr);
 
   g_aot_ctx.destroy();
@@ -3204,6 +3205,7 @@ _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return PYJIT_RESULT_UNKNOWN_ERROR;
   }
 
+  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   jit_reg_units.erase(func);
   return compile_func(func);
 }
@@ -3286,6 +3288,9 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   if (isJitUsable()) {
+    auto mod_state = cinderx::getModuleState();
+    auto& jit_reg_units = mod_state->registeredCompilationUnits();
+    auto& jit_code_outer_funcs = mod_state->codeOuterFunctions();
     jit_reg_units.erase(code.getObj());
     jit_code_outer_funcs.erase(code.getObj());
     if (handle_unit_deleted_during_preload != nullptr) {
@@ -3296,13 +3301,17 @@ void codeDestroyed(BorrowedRef<PyCodeObject> code) {
 
 void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   if (isJitUsable()) {
+    auto mod_state = cinderx::getModuleState();
+
+    auto& jit_reg_units = mod_state->registeredCompilationUnits();
     jit_reg_units.erase(func.getObj());
     if (handle_unit_deleted_during_preload != nullptr) {
       handle_unit_deleted_during_preload(func.getObj());
     }
 
     // erase any child code objects we registered too
-    if (cinderx::getModuleState()->jitList() != nullptr) {
+    if (mod_state->jitList() != nullptr) {
+      auto& jit_code_outer_funcs = mod_state->codeOuterFunctions();
       PyObject* module = func->func_module;
       BorrowedRef<PyCodeObject> top_code{func->func_code};
       BorrowedRef<> top_consts{top_code->co_consts};
