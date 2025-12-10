@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+from __static__ import StaticTypeError
+
 import unittest
 
 import cinderx.jit
@@ -34,7 +36,7 @@ class ElideTypeChecksTests(StaticTestBase):
             self.assertInBytecode(mod.f, "INVOKE_FUNCTION", (((mod.__name__,), "g"), 1))
             # Non-static call should always check arg types
             with self.assertRaisesRegex(
-                TypeError, "g expected 'A' for argument a, got 'B'"
+                StaticTypeError, "g expected 'A' for argument a, got 'B'"
             ):
                 mod.g(mod.B())
 
@@ -77,7 +79,7 @@ class ElideTypeChecksTests(StaticTestBase):
             )
             # Non-static call should always check arg types
             with self.assertRaisesRegex(
-                TypeError, "g expected 'A' for argument a, got 'B'"
+                StaticTypeError, "g expected 'A' for argument a, got 'B'"
             ):
                 mod.C().g(mod.B())
 

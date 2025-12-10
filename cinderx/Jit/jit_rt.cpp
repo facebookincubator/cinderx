@@ -1171,7 +1171,7 @@ PyObject* JITRT_Cast(PyObject* obj, PyTypeObject* type) {
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "expected '%s', got '%s'",
       type->tp_name,
       Py_TYPE(obj)->tp_name);
@@ -1185,7 +1185,7 @@ PyObject* JITRT_CastOptional(PyObject* obj, PyTypeObject* type) {
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "expected '%s', got '%s'",
       type->tp_name,
       Py_TYPE(obj)->tp_name);
@@ -1199,7 +1199,7 @@ PyObject* JITRT_CastExact(PyObject* obj, PyTypeObject* type) {
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "expected exactly '%s', got '%s'",
       type->tp_name,
       Py_TYPE(obj)->tp_name);
@@ -1213,7 +1213,7 @@ PyObject* JITRT_CastOptionalExact(PyObject* obj, PyTypeObject* type) {
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "expected exactly '%s', got '%s'",
       type->tp_name,
       Py_TYPE(obj)->tp_name);
@@ -1236,7 +1236,9 @@ PyObject* JITRT_CastToFloat(PyObject* obj) {
   }
 
   PyErr_Format(
-      PyExc_TypeError, "expected 'float', got '%s'", Py_TYPE(obj)->tp_name);
+      CiExc_StaticTypeError,
+      "expected 'float', got '%s'",
+      Py_TYPE(obj)->tp_name);
 
   return nullptr;
 }
@@ -1255,7 +1257,9 @@ PyObject* JITRT_CastToFloatOptional(PyObject* obj) {
   }
 
   PyErr_Format(
-      PyExc_TypeError, "expected 'float', got '%s'", Py_TYPE(obj)->tp_name);
+      CiExc_StaticTypeError,
+      "expected 'float', got '%s'",
+      Py_TYPE(obj)->tp_name);
 
   return nullptr;
 }
