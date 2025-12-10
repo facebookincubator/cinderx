@@ -1331,7 +1331,10 @@ END_RULES
 END_RULE_TABLE
 // clang-format on
 #else
-CINDER_UNSUPPORTED
+
+BEGIN_RULE_TABLE
+END_RULE_TABLE
+
 #endif
 
 } // namespace jit::codegen::autogen
