@@ -762,8 +762,8 @@ void HIRBuilder::advancePastYieldInstr(TranslationContext& tc) {
 void HIRBuilder::translate(
     Function& irfunc,
     const jit::BytecodeInstructionBlock& bc_instrs,
-    const TranslationContext& tc) {
-  std::deque<TranslationContext> queue = {tc};
+    const TranslationContext& initial_tc) {
+  std::deque<TranslationContext> queue = {initial_tc};
   std::unordered_set<BasicBlock*> processed;
   std::unordered_set<BasicBlock*> loop_headers;
 
@@ -2109,13 +2109,13 @@ void HIRBuilder::emitBinaryOp(
       op_kind = *opt_op_kind;
     } else {
       // BINARY_OP can also contain inplace opargs.
-      auto opt_op_kind = getInPlaceOpKindFromOparg(oparg);
+      auto inplace_opt_op_kind = getInPlaceOpKindFromOparg(oparg);
       JIT_CHECK(
-          opt_op_kind.has_value(),
+          inplace_opt_op_kind.has_value(),
           "Unrecognized oparg for BINARY_OP: {}",
           oparg);
-      InPlaceOpKind op_kind = *opt_op_kind;
-      tc.emit<InPlaceOp>(result, op_kind, left, right, tc.frame);
+      InPlaceOpKind inplace_op_kind = *inplace_opt_op_kind;
+      tc.emit<InPlaceOp>(result, inplace_op_kind, left, right, tc.frame);
       stack.push(result);
       return;
     }
