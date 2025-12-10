@@ -309,6 +309,15 @@ static inline void gc_list_clear_oldspace(PyGC_Head* collectable) {
     gc->_gc_next &= ~_PyGC_NEXT_MASK_OLD_SPACE_1;
   }
 }
+
+static inline void gc_list_set_space(PyGC_Head* list, int space) {
+  assert(space == 0 || space == _PyGC_NEXT_MASK_OLD_SPACE_1);
+  for (PyGC_Head* gc = GC_NEXT(list); gc != list; gc = GC_NEXT(gc)) {
+    gc->_gc_next &= ~_PyGC_NEXT_MASK_OLD_SPACE_1;
+    gc->_gc_next |= space;
+  }
+}
+
 #endif
 
 // Constants for validate_list's flags argument.
@@ -2066,6 +2075,10 @@ static void Ci_ParGCState_Destroy(Ci_ParGCState* par_gc) {
   assert(gc_state->visited_space == 0);
   // old[0] has a 0, merge everything there.
   gc_list_merge(GEN_HEAD(gc_state, 2), GEN_HEAD(gc_state, 1));
+  // Restore space invariants expected by the incremental GC
+  gc_list_set_space(&gc_state->young.head, 0);
+  gc_list_set_space(&gc_state->old[0].head, 0);
+  gc_list_set_space(&gc_state->old[1].head, _PyGC_NEXT_MASK_OLD_SPACE_1);
 #endif
 
   Ci_PyGCImpl* old_impl = par_gc->old_impl;
