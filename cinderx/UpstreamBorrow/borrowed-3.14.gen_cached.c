@@ -7905,3 +7905,25 @@ gen_dealloc(PyObject *self)
 void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
     gen_dealloc(obj);
 }
+
+void
+_PyTuple_MaybeUntrack(PyObject *op)
+{
+    PyTupleObject *t;
+    Py_ssize_t i, n;
+
+    if (!PyTuple_CheckExact(op) || !_PyObject_GC_IS_TRACKED(op))
+        return;
+    t = (PyTupleObject *) op;
+    n = Py_SIZE(t);
+    for (i = 0; i < n; i++) {
+        PyObject *elt = PyTuple_GET_ITEM(t, i);
+        /* Tuple with NULL elements aren't
+           fully constructed, don't untrack
+           them yet. */
+        if (!elt ||
+            _PyObject_GC_MAY_BE_TRACKED(elt))
+            return;
+    }
+    _PyObject_GC_UNTRACK(op);
+}

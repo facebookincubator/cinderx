@@ -27,6 +27,8 @@
 
 #include "cinderx/ParallelGC/parallel_gc.h"
 
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
 #if PY_VERSION_HEX >= 0x030E0000
 #define _PyStaticType_GetState Cix_PyStaticType_GetState
 #endif
@@ -628,7 +630,6 @@ static void move_unreachable(PyGC_Head* young, PyGC_Head* unreachable) {
 }
 
 static void untrack_tuples(PyGC_Head* head) {
-#if PY_VERSION_HEX < 0x030E0000
   PyGC_Head *next, *gc = GC_NEXT(head);
   while (gc != head) {
     PyObject* op = FROM_GC(gc);
@@ -638,7 +639,6 @@ static void untrack_tuples(PyGC_Head* head) {
     }
     gc = next;
   }
-#endif
 }
 
 /* Try to untrack all currently tracked dictionaries */
