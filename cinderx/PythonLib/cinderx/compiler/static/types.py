@@ -874,6 +874,8 @@ class Value:
         raise StaticTypeError(f"{self.name} not valid here")
 
     def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
+        if isinstance(override, UnknownDecoratedMethod):
+            return True
         return type(self) is type(override)
 
     def resolve_attr(
@@ -3470,6 +3472,9 @@ class Callable(Object[TClass]):
                 f"Cannot assign to a Final attribute of {klass.instance.name}:{self.name}"
             )
 
+        if isinstance(override, UnknownDecoratedMethod):
+            return True
+
         if self.func_name not in NON_VIRTUAL_METHODS:
             if isinstance(override, TransparentDecoratedMethod):
                 func = override.real_function
@@ -3871,7 +3876,7 @@ class Function(Callable[Class], FunctionContainer):
 
     def finish_bind(
         self, module: ModuleTable, klass: Class | None
-    ) -> Function | DecoratedMethod | None:
+    ) -> Function | DecoratedMethod | UnknownDecoratedMethod | None:
         res: Function | DecoratedMethod = self
         for decorator in reversed(self.node.decorator_list):
             decorator_type = (
@@ -3883,8 +3888,8 @@ class Function(Callable[Class], FunctionContainer):
             if new is None:
                 # With an un-analyzable decorator we want to force late binding
                 # to it because we don't know what the decorator does
-                module.types[self.node] = UnknownDecoratedMethod(self)
-                return None
+                r = module.types[self.node] = UnknownDecoratedMethod(self, decorator)
+                return r
             res = new
 
         module.types[self.node] = res
@@ -4151,47 +4156,6 @@ class InitSubclassFunction(Function):
         return gen
 
 
-class UnknownDecoratedMethod(FunctionContainer):
-    """Wrapper around functions where we are unable to analyze the effect
-    of the decorators"""
-
-    def __init__(self, func: Function) -> None:
-        super().__init__(func.klass.type_env.dynamic)
-        self.func = func
-
-    def get_function_body(self) -> list[ast.stmt]:
-        return self.func.get_function_body()
-
-    def bind_function_self(
-        self,
-        node: FunctionDef | AsyncFunctionDef,
-        scope: BindingScope,
-        visitor: TypeBinder,
-    ) -> None:
-        if node.args.args:
-            visitor.set_param(node.args.args[0], visitor.type_env.DYNAMIC, scope)
-
-    def emit_function(
-        self,
-        node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: StaticCodeGenBase,
-    ) -> str:
-        return self.emit_function_with_decorators(self.func, node, code_gen)
-
-    @property
-    def return_type(self) -> TypeRef:
-        if isinstance(self.func.node, AsyncFunctionDef):
-            return AwaitableTypeRef(
-                ResolvedTypeRef(self.klass.type_env.dynamic),
-                self.func.module.compiler,
-            )
-        return ResolvedTypeRef(self.klass.type_env.dynamic)
-
-    @property
-    def is_nominal_type(self) -> bool:
-        return False
-
-
 class MethodType(Object[Class]):
     def __init__(
         self,
@@ -4347,6 +4311,50 @@ class DecoratedMethod(FunctionContainer):
 
     def set_container_type(self, container_type: Class | None) -> None:
         self.function.set_container_type(container_type)
+
+
+class UnknownDecoratedMethod(DecoratedMethod):
+    """Wrapper around functions where we are unable to analyze the effect
+    of the decorators"""
+
+    def __init__(self, func: Function, decorator: expr) -> None:
+        super().__init__(func.klass.type_env.dynamic, func, decorator)
+        self.func = func
+
+    def get_function_body(self) -> list[ast.stmt]:
+        return self.func.get_function_body()
+
+    def bind_function_self(
+        self,
+        node: FunctionDef | AsyncFunctionDef,
+        scope: BindingScope,
+        visitor: TypeBinder,
+    ) -> None:
+        if node.args.args:
+            visitor.set_param(node.args.args[0], visitor.type_env.DYNAMIC, scope)
+
+    def emit_function(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+        code_gen: StaticCodeGenBase,
+    ) -> str:
+        return self.emit_function_with_decorators(self.func, node, code_gen)
+
+    @property
+    def return_type(self) -> TypeRef:
+        if isinstance(self.func.node, AsyncFunctionDef):
+            return AwaitableTypeRef(
+                ResolvedTypeRef(self.klass.type_env.dynamic),
+                self.func.module.compiler,
+            )
+        return ResolvedTypeRef(self.klass.type_env.dynamic)
+
+    @property
+    def is_nominal_type(self) -> bool:
+        return False
+
+    def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
+        return True
 
 
 class TransparentDecoratedMethod(DecoratedMethod):
@@ -6510,7 +6518,9 @@ class BuiltinMethodDescriptor(Callable[Class]):
         self.valid_on_subclasses = valid_on_subclasses
 
     def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
-        if not isinstance(override, (BuiltinMethodDescriptor, Function)):
+        if not isinstance(
+            override, (BuiltinMethodDescriptor, Function, UnknownDecoratedMethod)
+        ):
             raise TypedSyntaxError(f"class cannot hide inherited member: {self!r}")
 
         return super().can_override(override, klass, module)

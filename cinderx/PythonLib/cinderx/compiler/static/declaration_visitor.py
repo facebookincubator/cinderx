@@ -212,7 +212,7 @@ class DeclarationVisitor(GenericVisitor[None]):
             # Since we haven't resolved decorators yet (until finish_bind), we
             # don't know what type we should ultimately set for this node;
             # Function.finish_bind() will likely override this.
-            func_type = UnknownDecoratedMethod(func)
+            func_type = UnknownDecoratedMethod(func, node.decorator_list[0])
 
         self.module.types[node] = func_type
         return func

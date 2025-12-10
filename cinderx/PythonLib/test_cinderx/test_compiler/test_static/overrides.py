@@ -2,7 +2,14 @@
 
 # pyre-strict
 
+import sys
+
+from cinderx.test_support import passIf
+
 from .common import StaticTestBase
+
+
+MISSING_TYPING_OVERRIDE: bool = sys.version_info < (3, 12)
 
 
 class OverridesTests(StaticTestBase):
@@ -76,3 +83,81 @@ class OverridesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(mod.A()), 2)
             self.assertEqual(mod.f(mod.B()), 3)
+
+    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
+    def test_typing_override(self) -> None:
+        codestr = """
+            from typing import override
+            class Base:
+                def run(self) -> str:
+                    return "base"
+
+
+            class Child(Base):
+                @override
+                def run(self) -> str:
+                    return "child"
+
+            def run():
+                return Child().run()
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.run(), "child")
+
+    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
+    def test_typing_override2(self) -> None:
+        codestr = """
+            from typing import override
+            class Base:
+                def run(self) -> str:
+                    return "base"
+
+            class Child(Base):
+                @override
+                def run(self) -> str:
+                    return "child"
+
+            class Grandchild(Child):
+                def run(self) -> str:
+                    return "grandchild"
+                
+            def run():
+                return Grandchild().run()
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.run(), "grandchild")
+
+    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
+    def test_abc_override_init(self) -> None:
+        codestr = """
+            from typing import override
+            
+            class Base:
+                @override
+                def __init__(self):
+                    pass
+        """
+        with self.in_module(codestr) as mod:
+            pass
+
+    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
+    def test_typing_override_property(self) -> None:
+        codestr = """
+            from typing import override
+            class Base:
+                @property
+                def run(self) -> str:
+                    return "base"
+
+
+            class Child(Base):
+                @property
+                @override
+                def run(self) -> str:
+                    return "child"
+
+            def run():
+                return Child().run
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.run(), "child")
