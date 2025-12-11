@@ -2847,7 +2847,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* code_reg =
             bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
         bbb.appendInstr(
-            OutInd{callee_frame, FRAME_EXECUTABLE_OFFSET},
+            OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_code)},
             Instruction::kMove,
             code_reg);
 
@@ -2878,34 +2878,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove,
             caller_frame);
 
-#if PY_VERSION_HEX >= 0x030E0000
-        Instruction* localsplus = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kLea,
-            Stk{PhyLocation(
-                static_cast<int32_t>(
-                    frameOffsetOf(instr) +
-                    offsetof(_PyInterpreterFrame, localsplus)))});
-
-        bbb.appendInstr(
-            OutInd{callee_frame, offsetof(_PyInterpreterFrame, stackpointer)},
-            Instruction::kMove,
-            localsplus);
-
-        bbb.appendInstr(
-            OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_locals)},
-            Instruction::kMove,
-            Imm{0});
-#endif
-
         // Store prev_instr
-
-        _Py_CODEUNIT* frame_code = _PyCode_CODE(code.get());
+        _Py_CODEUNIT* code_prev = _PyCode_CODE(code.get()) - 1;
         Instruction* codeunit_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_code);
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, code_prev);
 
         bbb.appendInstr(
-            OutInd{callee_frame, FRAME_INSTR_OFFSET},
+            OutInd{callee_frame, offsetof(_PyInterpreterFrame, prev_instr)},
             Instruction::kMove,
             codeunit_reg);
 
@@ -2927,7 +2906,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
             Instruction::kMove,
-            callee_frame);
+            callee_shadow_frame);
 #else
         Instruction* cframe_reg = bbb.appendInstr(
             OutVReg{},
@@ -3280,7 +3259,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // codeUnit() as we need to refer to the code the interpreter would
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
 #if PY_VERSION_HEX >= 0x030C0000
-        _Py_CODEUNIT* prev_instr_ptr;
+        _Py_CODEUNIT* prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
+            reinterpret_cast<_Py_CODEUNIT*>(
+                                           func_->codeFor(i)->co_code_adaptive);
         // We are directly referencing co_code_adaptive here rather than using
         // codeUnit() as we need to refer to the code the interpreter would
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
@@ -3300,7 +3281,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
 #if PY_VERSION_HEX >= 0x030E0000
         bbb.appendInstr(
-            OutInd{frame, offsetof(_PyInterpreterFrame, instr_ptr)},
+            OutInd{
+                env_->asm_interpreter_frame,
+                offsetof(_PyInterpreterFrame, instr_ptr)},
             Instruction::kMove,
             prev_instr_ptr);
 #elif PY_VERSION_HEX >= 0x030C0000

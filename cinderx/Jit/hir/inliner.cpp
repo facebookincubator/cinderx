@@ -166,9 +166,11 @@ bool canInline(Function& caller, AbstractCall* call_instr) {
 
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     // This requires access to the frame so we can't inline it.
-    for (auto& bci : BytecodeInstructionBlock{code}) {
-      if (bci.opcode() == EAGER_IMPORT_NAME) {
-        return fail(InlineFailureType::kHasEagerImportName);
+    for (BasicBlock& block : caller.cfg.blocks) {
+      for (Instr& instr : block) {
+        if (instr.IsEagerImportName()) {
+          return fail(InlineFailureType::kHasEagerImportName);
+        }
       }
     }
   }

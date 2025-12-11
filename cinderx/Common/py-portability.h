@@ -106,36 +106,6 @@ inline void setCurrentFrame(PyThreadState* tstate, _PyInterpreterFrame* frame) {
 #endif
 }
 
-inline PyObject* frameFunction(_PyInterpreterFrame* frame) {
-#if PY_VERSION_HEX >= 0x030E0000
-  return PyStackRef_AsPyObjectBorrow(frame->f_funcobj);
-#else
-  return frame->f_funcobj;
-#endif
-}
-
-static inline void setFrameFunction(
-    _PyInterpreterFrame* frame,
-    PyObject* func) {
-#if PY_VERSION_HEX >= 0x030E0000
-  if (func != NULL) {
-    frame->f_funcobj = PyStackRef_FromPyObjectSteal(func);
-  } else {
-    frame->f_funcobj = PyStackRef_NULL;
-  }
-#else
-  frame->f_funcobj = (PyObject*)func;
-#endif
-}
-
-inline void setFrameInstruction(_PyInterpreterFrame* frame, _Py_CODEUNIT* loc) {
-#if PY_VERSION_HEX >= 0x030E0000
-  frame->instr_ptr = loc;
-#else
-  frame->prev_instr = loc;
-#endif
-}
-
 #endif // PY_VERSION_HEX >= 0x030C0000
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -157,28 +127,12 @@ inline void setFrameInstruction(_PyInterpreterFrame* frame, _Py_CODEUNIT* loc) {
 #endif
 
 #if PY_VERSION_HEX >= 0x030E0000
-#define FRAME_EXECUTABLE f_executable
-#define FRAME_EXECUTABLE_OFFSET offsetof(_PyInterpreterFrame, f_executable)
-#define FRAME_INSTR instr_ptr
-#define FRAME_INSTR_OFFSET offsetof(_PyInterpreterFrame, instr_ptr)
-
 inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
   return (PyCodeObject*)PyStackRef_AsPyObjectBorrow(frame->f_executable);
 }
-inline void setFrameCode(_PyInterpreterFrame* frame, PyCodeObject* code) {
-  frame->f_executable = PyStackRef_FromPyObjectNew((PyObject*)code);
-}
 #elif PY_VERSION_HEX >= 0x30C0000
-#define FRAME_EXECUTABLE f_code
-#define FRAME_EXECUTABLE_OFFSET offsetof(_PyInterpreterFrame, f_code)
-#define FRAME_INSTR prev_instr
-#define FRAME_INSTR_OFFSET offsetof(_PyInterpreterFrame, prev_instr)
-
 inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
   return frame->f_code;
-}
-inline void setFrameCode(_PyInterpreterFrame* frame, PyCodeObject* code) {
-  frame->f_code = (PyCodeObject*)Py_NewRef(code);
 }
 #else
 inline PyCodeObject* frameCode(PyFrameObject* frame) {
