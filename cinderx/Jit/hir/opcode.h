@@ -185,7 +185,7 @@ enum class Opcode {
 constexpr size_t kNumOpcodes = FOREACH_OPCODE(COUNT_OP);
 #undef COUNT_OP
 
-constexpr std::string_view opcodeName(Opcode op) {
+constexpr std::string_view hirOpcodeName(Opcode op) {
   switch (op) {
 #define NAME_OP(OP)   \
   case Opcode::k##OP: \

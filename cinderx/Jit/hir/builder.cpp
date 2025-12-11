@@ -10,6 +10,7 @@
 #include "internal/pycore_runtime.h"
 #endif
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
@@ -463,7 +464,9 @@ static bool should_snapshot(
     case RERAISE:
     case WITH_EXCEPT_START: {
       JIT_ABORT(
-          "Should not be compiling except blocks (opcode {})\n", bci.opcode());
+          "Should not be compiling except blocks (opcode {}, {})\n",
+          bci.opcode(),
+          opcodeName(bci.opcode()));
     }
     // Take a snapshot after translating all other bytecode instructions. This
     // may generate unnecessary deoptimization metadata but will always be
@@ -817,7 +820,8 @@ void HIRBuilder::translate(
       prev_bc_instr = bc_instr;
 
       // Translate instruction
-      switch (bc_instr.opcode()) {
+      auto opcode = bc_instr.opcode();
+      switch (opcode) {
         case NOP:
         case NOT_TAKEN: {
           break;
@@ -1095,8 +1099,7 @@ void HIRBuilder::translate(
         case JUMP_BACKWARD: {
           BCOffset target_off = bc_instr.getJumpTarget();
           BasicBlock* target = getBlockAtOff(target_off);
-          if (target_off <= bc_instr.baseOffset() ||
-              bc_instr.opcode() != JUMP_ABSOLUTE) {
+          if (target_off <= bc_instr.baseOffset() || opcode != JUMP_ABSOLUTE) {
             loop_headers.emplace(target);
           }
           tc.emit<Branch>(target);
@@ -1534,10 +1537,11 @@ void HIRBuilder::translate(
         case CLEANUP_THROW:
         case PUSH_EXC_INFO:
           JIT_ABORT(
-              "Opcode {} should only appear in exception handlers",
-              bc_instr.opcode());
+              "Opcode {} ({}) should only appear in exception handlers",
+              opcode,
+              opcodeName(opcode));
         default: {
-          JIT_ABORT("Unhandled opcode: {}", bc_instr.opcode());
+          JIT_ABORT("Unhandled opcode {} ({})", opcode, opcodeName(opcode));
         }
       }
     }
@@ -1892,13 +1896,15 @@ void HIRBuilder::emitAnyCall(
   }
   auto flags = is_awaited ? CallFlags::Awaited : CallFlags::None;
   bool call_used_is_awaited = true;
-  switch (bc_instr.opcode()) {
+
+  auto opcode = bc_instr.opcode();
+  switch (opcode) {
     case CALL_FUNCTION:
     case CALL_FUNCTION_KW: {
       // Operands include the function arguments plus the function itself.
       auto num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 1;
       // Add one more operand for the kwnames tuple at the end.
-      if (bc_instr.opcode() == CALL_FUNCTION_KW) {
+      if (opcode == CALL_FUNCTION_KW) {
         num_operands++;
         flags |= CallFlags::KwArgs;
       }
@@ -1914,7 +1920,7 @@ void HIRBuilder::emitAnyCall(
     case CALL_METHOD: {
       auto num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
       auto num_stack_inputs = num_operands;
-      bool is_call_kw = bc_instr.opcode() == CALL_KW;
+      bool is_call_kw = opcode == CALL_KW;
       if (kwnames_ != nullptr || is_call_kw) {
         if (is_call_kw) {
           num_stack_inputs++;
@@ -1956,9 +1962,8 @@ void HIRBuilder::emitAnyCall(
       call_used_is_awaited = emitInvokeMethod(tc, bc_instr, is_awaited);
       break;
     }
-    default: {
-      JIT_ABORT("Unhandled call opcode");
-    }
+    default:
+      JIT_ABORT("Unhandled call opcode {} ({})", opcode, opcodeName(opcode));
   }
   if (is_awaited && call_used_is_awaited) {
     Register* out = temps_.AllocateStack();
@@ -2123,8 +2128,9 @@ void HIRBuilder::emitBinaryOp(
     auto opt_op_kind = getBinaryOpKindFromOpcode(opcode);
     JIT_CHECK(
         opt_op_kind.has_value(),
-        "Unrecognized opcode for binary operation opcode {}",
-        opcode);
+        "Unrecognized opcode {} ({}) for binary operation",
+        opcode,
+        opcodeName(opcode));
     op_kind = *opt_op_kind;
   }
 
@@ -2143,8 +2149,9 @@ void HIRBuilder::emitInPlaceOp(
   auto opt_op_kind = getInPlaceOpKindFromOpcode(opcode);
   JIT_CHECK(
       opt_op_kind.has_value(),
-      "Unrecognized inplace operation opcode {}",
-      opcode);
+      "Unrecognized opcode {} ({}) for inplace operation",
+      opcode,
+      opcodeName(opcode));
   InPlaceOpKind op_kind = *opt_op_kind;
   tc.emit<InPlaceOp>(result, op_kind, left, right, tc.frame);
   stack.push(result);
@@ -2152,7 +2159,8 @@ void HIRBuilder::emitInPlaceOp(
 
 static inline UnaryOpKind get_unary_op_kind(
     const jit::BytecodeInstruction& bc_instr) {
-  switch (bc_instr.opcode()) {
+  auto opcode = bc_instr.opcode();
+  switch (opcode) {
     case UNARY_NOT:
       return UnaryOpKind::kNot;
 
@@ -2166,9 +2174,9 @@ static inline UnaryOpKind get_unary_op_kind(
       return UnaryOpKind::kInvert;
 
     default:
-      JIT_ABORT("Unhandled unary op {}", bc_instr.opcode());
-      // NOTREACHED
+      break;
   }
+  JIT_ABORT("Unhandled unary op {} ({})", opcode, opcodeName(opcode));
 }
 
 void HIRBuilder::emitUnaryNot(TranslationContext& tc) {
@@ -2728,7 +2736,8 @@ void HIRBuilder::emitJumpIf(
 
   BCOffset true_offset, false_offset;
   bool check_truthy = true;
-  switch (bc_instr.opcode()) {
+  auto opcode = bc_instr.opcode();
+  switch (opcode) {
     case JUMP_IF_NONZERO_OR_POP:
       check_truthy = false;
       [[fallthrough]];
@@ -2748,7 +2757,9 @@ void HIRBuilder::emitJumpIf(
     default: {
       // NOTREACHED
       JIT_ABORT(
-          "Trying to translate non-jump-if bytecode: {}", bc_instr.opcode());
+          "Trying to translate non-jump-if bytecode {} ({})",
+          opcode,
+          opcodeName(opcode));
     }
   }
 
@@ -3773,7 +3784,8 @@ void HIRBuilder::emitPopJumpIf(
     const jit::BytecodeInstruction& bc_instr) {
   Register* var = tc.frame.stack.pop();
   BCOffset true_offset, false_offset;
-  switch (bc_instr.opcode()) {
+  auto opcode = bc_instr.opcode();
+  switch (opcode) {
     case POP_JUMP_IF_ZERO:
     case POP_JUMP_IF_FALSE: {
       true_offset = bc_instr.nextInstrOffset();
@@ -3789,7 +3801,9 @@ void HIRBuilder::emitPopJumpIf(
     default: {
       // NOTREACHED
       JIT_ABORT(
-          "Trying to translate non pop-jump bytecode: {}", bc_instr.opcode());
+          "Trying to translate non pop-jump bytecode {} ({})",
+          opcode,
+          opcodeName(opcode));
     }
   }
 
@@ -5081,9 +5095,11 @@ void HIRBuilder::checkTranslate() {
     int oparg = bci.oparg();
     if (!isSupportedOpcode(opcode)) {
       throw std::runtime_error{fmt::format(
-          "Cannot compile {} to HIR because it contains unsupported opcode {}",
+          "Cannot compile {} to HIR because it contains unsupported opcode {} "
+          "({})",
           preloader_.fullname(),
-          opcode)};
+          opcode,
+          opcodeName(opcode))};
     } else if (opcode == LOAD_GLOBAL) {
       if constexpr (PY_VERSION_HEX >= 0x030B0000) {
         if ((oparg & 0x01) && name_at(oparg >> 1) == "super") {

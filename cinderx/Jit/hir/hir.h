@@ -153,9 +153,8 @@ class Instr {
     return opcode_;
   }
 
-  constexpr std::string_view opname() const {
-    return opcodeName(opcode());
-  }
+  // Get the name of the instruction's HIR opcode.
+  std::string_view opname() const;
 
   // Return the number of operands that the instruction takes
   std::size_t NumOperands() const;

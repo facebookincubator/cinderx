@@ -1,13 +1,16 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+// For opcodeName().
+#define NEED_OPCODE_NAMES
+
 #include "cinderx/Common/code.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #if PY_VERSION_HEX >= 0x030C0000
 
-#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cpython/code.h"
 
 #endif
@@ -81,6 +84,16 @@ int uninstrument(PyCodeObject* code, int index) {
 #endif
 
   return opcode;
+}
+
+const char* opcodeName(int opcode) {
+  constexpr size_t num_opcodes =
+      sizeof(_CiOpcode_OpName) / sizeof(_CiOpcode_OpName[0]);
+  if (opcode < 0 || opcode >= num_opcodes) {
+    return "<unrecognized opcode>";
+  }
+  const char* name = _CiOpcode_OpName[opcode];
+  return name != nullptr ? name : "<unknown opcode>";
 }
 
 Py_ssize_t inlineCacheSize(

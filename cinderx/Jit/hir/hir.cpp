@@ -234,6 +234,10 @@ Instr::Instr(const Instr& other)
       bytecode_offset_{other.bytecodeOffset()},
       output_{other.output()} {}
 
+std::string_view Instr::opname() const {
+  return hirOpcodeName(opcode());
+}
+
 std::size_t Instr::NumOperands() const {
   return *(reinterpret_cast<const std::size_t*>(this) - 1);
 }
