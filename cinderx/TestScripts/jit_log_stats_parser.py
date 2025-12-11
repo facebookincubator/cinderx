@@ -248,7 +248,7 @@ def compare_summaries(
     summary2: Dict[str, Any],
     name1: str = "Log 1",
     name2: str = "Log 2",
-) -> None:
+) -> bool:
     """
     Compare two summaries and print the differences.
 
@@ -258,6 +258,8 @@ def compare_summaries(
         name1: Name of the first summary
         name2: Name of the second summary
     """
+    any_diff = False
+
     print(f"Comparison: {name1} vs {name2}")
 
     # Compare basic metrics
@@ -276,6 +278,7 @@ def compare_summaries(
         diff = val2 - val1
         if diff == 0:
             continue
+        any_diff = True
         rel_diff = f"{(diff / val1 * 100):+.2f}%" if val1 != 0 else "N/A"
         sign = "+" if diff > 0 else ""
         print(f"{val1:<12} | {val2:<12} | {sign}{diff:<12} | {rel_diff:<10} | {label}")
@@ -308,6 +311,7 @@ def compare_summaries(
         diff = count2 - count1
         if diff == 0:
             continue
+        any_diff = True
         rel_diff = f"{(diff / count1 * 100):+.2f}%" if count1 != 0 else "N/A"
         sign = "+" if diff > 0 else ""
         print(
@@ -339,11 +343,14 @@ def compare_summaries(
         diff = count2 - count1
         if diff == 0:
             continue
+        any_diff = True
         rel_diff = f"{(diff / count1 * 100):+.2f}%" if count1 != 0 else "N/A"
         sign = "+" if diff > 0 else ""
         print(
             f"{count1:<12} | {count2:<12} | {sign}{diff:<12} | {rel_diff:<10} | {format_type_name(type_name)}"
         )
+
+    return any_diff
 
 
 def compare_function_code_sizes(
@@ -351,7 +358,7 @@ def compare_function_code_sizes(
     function_data2: Dict[str, FunctionData],
     name1: str = "Log 1",
     name2: str = "Log 2",
-) -> None:
+) -> bool:
     """
     Compare code sizes between functions and print differences.
 
@@ -385,7 +392,7 @@ def compare_function_code_sizes(
 
     if not differences:
         print("\nNo per-function code size differences found.")
-        return
+        return False
 
     # Sort by absolute difference (largest first)
     differences.sort(key=lambda x: abs(x[3]), reverse=True)
@@ -401,13 +408,15 @@ def compare_function_code_sizes(
             f"{size1:<12} | {size2:<12} | {sign}{diff:<12} | {rel_diff:<10} | {func_name}"
         )
 
+    return True
+
 
 def compare_function_instructions_by_type(
     function_data1: Dict[str, FunctionData],
     function_data2: Dict[str, FunctionData],
     name1: str = "Log 1",
     name2: str = "Log 2",
-) -> None:
+) -> bool:
     """
     For each instruction type with a global difference, list which functions
     contribute to that difference.
@@ -455,7 +464,7 @@ def compare_function_instructions_by_type(
 
     if not instruction_to_func_diffs:
         print("\nNo per-instruction function differences found.")
-        return
+        return False
 
     # Sort instruction types by total absolute difference
     sorted_instructions = sorted(
@@ -476,13 +485,15 @@ def compare_function_instructions_by_type(
             sign = "+" if diff > 0 else ""
             print(f"    {count1:<10} | {count2:<10} | {sign}{diff:<10} | {func_name}")
 
+    return True
+
 
 def compare_function_types_by_type(
     function_data1: Dict[str, FunctionData],
     function_data2: Dict[str, FunctionData],
     name1: str = "Log 1",
     name2: str = "Log 2",
-) -> None:
+) -> bool:
     """
     For each type with a global difference, list which functions
     contribute to that difference.
@@ -530,7 +541,7 @@ def compare_function_types_by_type(
 
     if not type_to_func_diffs:
         print("\nNo per-type function differences found.")
-        return
+        return False
 
     # Sort types by total absolute difference
     sorted_types = sorted(
@@ -550,6 +561,8 @@ def compare_function_types_by_type(
         for func_name, count1, count2, diff in func_diffs:
             sign = "+" if diff > 0 else ""
             print(f"    {count1:<10} | {count2:<10} | {sign}{diff:<10} | {func_name}")
+
+    return True
 
 
 def find_functions_missing_type(
@@ -655,6 +668,11 @@ def main():
         action="store_true",
         help="Show code-size changes (these are little non-deterministic)",
     )
+    compare_parser.add_argument(
+        "--error-on-diff",
+        action="store_true",
+        help="Exit with an error code if any differences are found",
+    )
 
     # Find functions missing a specific type
     missing_type_parser = subparsers.add_parser(
@@ -692,18 +710,29 @@ def main():
             summary1 = extract_summary_data(function_data1)
             summary2 = extract_summary_data(function_data2)
 
-            compare_summaries(summary1, summary2, args.name1, args.name2)
+            any_diff = compare_summaries(summary1, summary2, args.name1, args.name2)
             if args.per_function_details:
                 if args.code_size:
-                    compare_function_code_sizes(
+                    any_diff |= compare_function_code_sizes(
                         function_data1, function_data2, args.name1, args.name2
                     )
-                compare_function_instructions_by_type(
+                any_diff |= compare_function_instructions_by_type(
                     function_data1, function_data2, args.name1, args.name2
                 )
-                compare_function_types_by_type(
+                any_diff |= compare_function_types_by_type(
                     function_data1, function_data2, args.name1, args.name2
                 )
+
+            if args.error_on_diff:
+                if any_diff:
+                    print(
+                        "\nFound differences between the logs. Exiting with error code 1."
+                    )
+                    sys.exit(1)
+                else:
+                    print("\nNo differences found between the logs.")
+                    sys.exit(0)
+
         elif args.command == "find_missing_type":
             function_data1 = parse_jit_log(args.log_file1)
             function_data2 = parse_jit_log(args.log_file2)
