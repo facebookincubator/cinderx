@@ -420,6 +420,13 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
 #  pragma warning(disable:4102)
 #endif
 
+#ifdef Py_DEBUG
+#define ASSERT_WITHIN_STACK_BOUNDS(F, L) _Py_assert_within_stack_bounds(frame, stack_pointer, (F), (L))
+#else
+#define ASSERT_WITHIN_STACK_BOUNDS(F, L) (void)0
+#endif
+
+
 #ifdef ENABLE_INTERPRETER_LOOP
 
 PyObject* _Py_HOT_FUNCTION
