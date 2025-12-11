@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/dynamic_comparison_elimination.h"
 #include "cinderx/Jit/hir/guard_removal.h"
+#include "cinderx/Jit/hir/hir_stats.h"
 #include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/insert_update_prev_instr.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
@@ -107,6 +108,12 @@ void Compiler::runPasses(
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
 
   runPass(jit::hir::RefcountInsertion{}, irfunc, callback);
+
+  if (getConfig().dump_hir_stats) {
+    jit::hir::HIRStats stats;
+    runPass(stats, irfunc, callback);
+    stats.dump(irfunc.fullname);
+  }
 
   runPassIf(
       jit::hir::InsertUpdatePrevInstr{}, PassConfig::kInsertUpdatePrevInstr);

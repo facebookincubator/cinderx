@@ -347,6 +347,33 @@ std::string Type::toString() const {
   return hasSpec() ? fmt::format("{}[{}]", base, specString()) : base;
 }
 
+std::string Type::toStringSafe() const {
+  switch (spec_kind_) {
+    case kSpecTop:
+      return "Top";
+    case kSpecType:
+      return std::string("Type(") + (pytype_ ? pytype_->tp_name : "nullptr") +
+          ")";
+    case kSpecTypeExact:
+      return std::string("TypeExact(") +
+          (pytype_ ? pytype_->tp_name : "nullptr") + ")";
+    case kSpecObject:
+      return std::string("Object(") +
+          (pyobject_ ? (pyobject_->ob_type ? pyobject_->ob_type->tp_name
+                                           : "unknown_type")
+                     : "nullptr") +
+          ")";
+    case kSpecInt:
+      return "Int";
+    case kSpecDouble:
+      return "Double";
+    case kSpecBottom:
+      return "Bottom";
+    default:
+      return "Unknown";
+  }
+}
+
 Type Type::fromTypeImpl(PyTypeObject* type, bool exact) {
   auto& type_map = exact ? pyTypeToTypeForExact() : pyTypeToType();
 

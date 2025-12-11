@@ -47,6 +47,11 @@ class Type {
   std::size_t hash() const;
   std::string toString() const;
 
+  // If we're using multithreaded compilation on 3.12+, toString() may call
+  // functions that need the interpreter state. This abbreviated string function
+  // may be good enough for basic logging.
+  std::string toStringSafe() const;
+
   // Create a Type from a PyTypeObject, optionally flagged as not allowing
   // subtypes. The resulting Type is not guaranteed to be specialized (for
   // example, fromType(&PyLong_Type) == TLong).

@@ -320,6 +320,12 @@ FlagProcessor initFlagProcessor() {
   // Flags are inspected in order of definition below.
 
   flag_processor.addOption(
+      "jit-dump-hir-stats",
+      "PYTHONJITDUMPHIRSTATS",
+      getMutableConfig().dump_hir_stats,
+      "Dump counts of instructions and types per function");
+
+  flag_processor.addOption(
       "jit-all",
       "PYTHONJITALL",
       [](uint32_t val) { getMutableConfig().compile_after_n_calls = 0; },

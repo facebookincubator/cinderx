@@ -189,6 +189,7 @@ struct Config {
   JitListOptions jit_list;
   LogOptions log;
   bool compile_perf_trampoline_prefork{false};
+  bool dump_hir_stats{false};
 
   // The ASM syntax the JIT should use when disassembling.
   AsmSyntax asm_syntax{AsmSyntax::ATT};
