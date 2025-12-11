@@ -1587,7 +1587,8 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
       (!(frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)))) {
     return;
   }
-  auto awaiter = reinterpret_cast<PyObject*>(_PyFrame_GetGenerator(frame));
+  auto awaiter =
+      reinterpret_cast<PyObject*>(_PyGen_GetGeneratorFromFrame(frame));
 #endif
 
   Ci_PyAwaitable_SetAwaiter(awaitable, awaiter);
