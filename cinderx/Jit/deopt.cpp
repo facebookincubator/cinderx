@@ -319,10 +319,15 @@ static void reifyFrameImpl(
   int cause_instr_idx = frame_meta.cause_instr_idx.value();
   // Resume with instr_ptr pointing to the cause instruction if we are entering
   // the interpreter to re-run a failed instruction, or implement an instruction
-  // we don't JIT. Otherwise, have instr_ptr point to the next instruction
-  // (minus one _Py_CODEUNIT for some reason).
+  // we don't JIT.
   frame->instr_ptr = _PyCode_CODE(code_obj) + cause_instr_idx;
-  if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
+  if (&frame_meta != &meta.innermostFrame()) {
+    // If we're not the inner most frame then we're always deopting
+    // after the instruction that executed
+    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx) + 1;
+  } else if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
+    // Otherwise, have instr_ptr point to the next instruction
+    // (minus one _Py_CODEUNIT for some reason).
     frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
   }
 #else
