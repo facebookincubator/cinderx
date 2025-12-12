@@ -42,7 +42,7 @@ CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
 
 bool isJitFrame(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  return frameFunction(frame) == cinderx::getModuleState()->frameReifier();
+  return frame->f_funcobj == cinderx::getModuleState()->frameReifier();
 #else
   throw std::runtime_error{"isJitFrame: Lightweight frames are not supported"};
 #endif
@@ -75,7 +75,7 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
   JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
   uintptr_t frame_base;
   if (isGeneratorFrame(frame)) {
-    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
+    PyGenObject* gen = _PyFrame_GetGenerator(frame);
     auto footer = jitGenDataFooter(gen);
     if (footer->yieldPoint == nullptr) {
       // The generator is running.
@@ -104,7 +104,7 @@ std::vector<_PyInterpreterFrame*> getUnitFrames(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   std::vector<_PyInterpreterFrame*> frames;
   while (frame != nullptr) {
-    if (!isJitFrame(frame)) {
+    if (frame->f_funcobj != cinderx::getModuleState()->frameReifier()) {
       // We've reached an interpreter frame before finding the non-inlined
       // frame.
       JIT_ABORT("couldn't find non-inlined frame");
@@ -208,7 +208,7 @@ void updatePrevInstr(_PyInterpreterFrame* frame) {
         new_loc < (_Py_CODEUNIT*)(_PyCode_CODE(_PyFrame_GetCode(cur_frame)) +
                                   Py_SIZE(_PyFrame_GetCode(cur_frame))),
         "code prev instr overflow");
-    setFrameInstruction(cur_frame, new_loc);
+    cur_frame->prev_instr = new_loc;
   }
 #else
   throw std::runtime_error{
@@ -292,23 +292,16 @@ void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
   frame->f_builtins = func->func_builtins;
   frame->f_globals = func->func_globals;
   frame->f_locals = nullptr;
-#if PY_VERSION_HEX >= 0x030E0000
-  frame->stackpointer = frame->localsplus + code->co_nlocalsplus;
-#ifdef Py_DEBUG
-  frame->lltrace = 0;
-#endif
-#else
   frame->stacktop = code->co_nlocalsplus;
-#endif
   frame->frame_obj = nullptr;
   frame->return_offset = 0;
   if (!(code->co_flags & kCoFlagsAnyGenerator)) {
     frame->owner = FRAME_OWNED_BY_THREAD;
   }
   int free_offset = code->co_nlocalsplus - numFreevars(code);
-  Ci_STACK_TYPE* localsplus = &frame->localsplus[0];
+  PyObject** localsplus = &frame->localsplus[0];
   for (std::size_t i = 0; i < free_offset; i++) {
-    *localsplus = Ci_STACK_NULL;
+    *localsplus = nullptr;
     localsplus++;
   }
 
@@ -325,12 +318,12 @@ void jitFrameInitFunctionObject(_PyInterpreterFrame* frame) {
   // interpreter.
   if (!hasRtfsFunction(frame)) {
     // ownership is transferred
-    setFrameFunction(frame, jitFrameGetFunction(frame));
+    frame->f_funcobj = &jitFrameGetFunction(frame)->ob_base;
   } else {
     RuntimeFrameState* rtfs = jitFrameGetRtfs(frame);
     auto func = rtfs->func();
     JIT_DCHECK(func != nullptr, "should have a func for inlined functions");
-    setFrameFunction(frame, Py_NewRef(func));
+    frame->f_funcobj = Py_NewRef(func);
   }
 #else
   throw std::runtime_error{
@@ -362,7 +355,7 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
-    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
+    PyGenObject* gen = _PyFrame_GetGenerator(frame);
     auto footer = jitGenDataFooter(gen);
     return (FrameHeader*)&footer->frame_header;
   }
@@ -393,45 +386,8 @@ bool hasRtfsFunction(_PyInterpreterFrame* frame) {
   return jitFrameGetHeader(frame)->rtfs & JIT_FRAME_RTFS;
 }
 
-void jitFrameInitLightweight(
-    [[maybe_unused]] PyThreadState* tstate,
-    _PyInterpreterFrame* frame,
-    PyFunctionObject* func,
-    PyCodeObject* code,
-    _frameowner owner,
-    _PyInterpreterFrame* previous) {
-  // We must set `frame->owner` before calling `jitFrameSetFunction()`,
-  // otherwise assertions in callees will fail if the code object has
-  // generator-like flags but the frame's owner is not
-  // `FRAME_OWNED_BY_GENERATOR`.
-  frame->owner = owner;
-  if (code->co_flags & kCoFlagsAnyGenerator) {
-    // We set these for generators to help enable reuse of existing CPython
-    // generator management. Particularly, having a more fully configured
-    // frame allows us to use gen_traverse().
-#if PY_VERSION_HEX >= 0x030E0000
-    frame->stackpointer = frame->localsplus;
-#else
-    frame->stacktop = 0;
-#endif
-    frame->f_locals = nullptr;
-    frame->frame_obj = nullptr;
-  }
-  setFrameCode(frame, code);
-  JIT_DCHECK(
-      _Py_IsImmortal(cinderx::getModuleState()->frameReifier()),
-      "frame helper must be immortal");
-  setFrameFunction(frame, cinderx::getModuleState()->frameReifier());
-#if PY_VERSION_HEX >= 0x030E0000
-  setFrameInstruction(frame, _PyCode_CODE(code));
-#else
-  setFrameInstruction(frame, _PyCode_CODE(code) - 1);
-#endif
-  jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
-  frame->previous = previous;
-}
-
-void jitFrameInitNormal(
+// Initialize a _PyInterpreterFrame.
+void jitFrameInit(
     [[maybe_unused]] PyThreadState* tstate,
     _PyInterpreterFrame* frame,
     PyFunctionObject* func,
@@ -448,36 +404,45 @@ void jitFrameInitNormal(
       code,
       null_locals_from,
       previous);
-#else
-  _PyFrame_Initialize(
-      frame,
-      (PyFunctionObject*)Py_NewRef(func),
-      nullptr,
-      code,
-      null_locals_from);
-  frame->previous = previous;
-#endif
   // We must set `frame->owner` after calling `_PyFrame_Initialize`;
   // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
   // potentially overriding any value we set earlier.
   frame->owner = owner;
-}
+#else
 
-void jitFrameInit(
-    [[maybe_unused]] PyThreadState* tstate,
-    _PyInterpreterFrame* frame,
-    PyFunctionObject* func,
-    PyCodeObject* code,
-    int null_locals_from,
-    _frameowner owner,
-    _PyInterpreterFrame* previous) {
   if (getConfig().frame_mode == FrameMode::kLightweight) {
-    jitFrameInitLightweight(tstate, frame, func, code, owner, previous);
-    return;
+    // We must set `frame->owner` before calling `jitFrameSetFunction()`,
+    // otherwise assertions in callees will fail if the code object has
+    // generator-like flags but the frame's owner is not
+    // `FRAME_OWNED_BY_GENERATOR`.
+    frame->owner = owner;
+    if (code->co_flags & kCoFlagsAnyGenerator) {
+      // We set these for generators to help enable reuse of existing CPython
+      // generator management. Particularly, having a more fully configured
+      // frame allows us to use gen_traverse().
+      frame->stacktop = 0;
+      frame->f_locals = nullptr;
+      frame->frame_obj = nullptr;
+    }
+    frame->f_code = reinterpret_cast<PyCodeObject*>(Py_NewRef(code));
+    frame->f_funcobj = Py_NewRef(cinderx::getModuleState()->frameReifier());
+    frame->prev_instr = _PyCode_CODE(code) - 1;
+    jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
+  } else {
+    _PyFrame_Initialize(
+        frame,
+        (PyFunctionObject*)Py_NewRef(func),
+        nullptr,
+        code,
+        null_locals_from);
+    // We must set `frame->owner` after calling `_PyFrame_Initialize`;
+    // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
+    // potentially overriding any value we set earlier.
+    frame->owner = owner;
   }
+  frame->previous = previous;
 
-  jitFrameInitNormal(
-      tstate, frame, func, code, null_locals_from, owner, previous);
+#endif // PY_VERSION_HEX >= 0x030E0000
 }
 
 size_t jitFrameGetSize(PyCodeObject* code) {
@@ -513,12 +478,11 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   BorrowedRef<PyCodeObject> code = frameCode(frame);
   int free_offset = code->co_nlocalsplus - numFreevars(code);
   for (int i = free_offset; i < code->co_nlocalsplus; i++) {
-    Ci_STACK_CLEAR(frame->localsplus[i]);
+    Ci_STACK_XCLOSE(frame->localsplus[i]);
   }
   Ci_STACK_CLOSE(frame->f_funcobj);
   if (!hasRtfsFunction(frame)) {
     Py_DECREF(jitFrameGetFunction(frame));
-    jitFrameSetFunction(frame, nullptr);
   }
 }
 
