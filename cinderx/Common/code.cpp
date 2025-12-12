@@ -6,8 +6,11 @@
 #include "cinderx/Common/code.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+
+#include <zlib.h>
 
 #if PY_VERSION_HEX >= 0x030C0000
 
@@ -21,6 +24,79 @@ namespace {
 Py_ssize_t code_extra_index = -1;
 
 } // namespace
+
+namespace jit {
+static std::string fullnameImpl(PyObject* module, PyObject* qualname) {
+  auto safe_str = [](BorrowedRef<> str) {
+    if (str == nullptr || !PyUnicode_Check(str)) {
+      return "<invalid>";
+    }
+    return PyUnicode_AsUTF8(str);
+  };
+  return fmt::format("{}:{}", safe_str(module), safe_str(qualname));
+}
+
+std::string codeFullname(
+    BorrowedRef<PyObject> module,
+    BorrowedRef<PyCodeObject> code) {
+  return fullnameImpl(module, code->co_qualname);
+}
+
+std::string funcFullname(BorrowedRef<PyFunctionObject> func) {
+  return fullnameImpl(func->func_module, func->func_qualname);
+}
+
+PyObject* getVarnameTuple(BorrowedRef<PyCodeObject> code, int* idx) {
+  if (*idx < code->co_nlocals) {
+    return PyCode_GetVarnames(code);
+  }
+
+  *idx -= code->co_nlocals;
+  auto ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
+  if (*idx < ncellvars) {
+    return PyCode_GetCellvars(code);
+  }
+
+  *idx -= ncellvars;
+  return PyCode_GetFreevars(code);
+}
+
+PyObject* getVarname(BorrowedRef<PyCodeObject> code, int idx) {
+#if PY_VERSION_HEX >= 0x030C0000
+  return PyTuple_GET_ITEM(code->co_localsplusnames, idx);
+#else
+  PyObject* tuple = getVarnameTuple(code, &idx);
+  return PyTuple_GET_ITEM(tuple, idx);
+#endif
+}
+
+uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
+  uint32_t crc = crc32(0, nullptr, 0);
+  PyObject* bc = PyCode_GetCode(code);
+  if (!PyBytes_Check(bc)) {
+    return crc;
+  }
+
+  char* buffer;
+  Py_ssize_t len;
+  if (PyBytes_AsStringAndSize(bc, &buffer, &len) < 0) {
+    return crc;
+  }
+
+  return crc32(crc, reinterpret_cast<unsigned char*>(buffer), len);
+}
+
+std::string codeQualname(BorrowedRef<PyCodeObject> code) {
+  if (code->co_qualname != nullptr) {
+    return unicodeAsString(code->co_qualname);
+  }
+  if (code->co_name != nullptr) {
+    return unicodeAsString(code->co_name);
+  }
+  return "<unknown>";
+}
+
+} // namespace jit
 
 extern "C" {
 

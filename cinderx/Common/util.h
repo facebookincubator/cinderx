@@ -197,9 +197,6 @@ std::optional<T> parseNumber(std::string_view s) {
   return std::nullopt;
 }
 
-std::string codeFullname(PyObject* module, PyCodeObject* code);
-std::string funcFullname(PyFunctionObject* func);
-
 // When possible, return the fully qualified name of the given type (including
 // its module). Falls back to the type's bare name.
 std::string typeFullname(PyTypeObject* type);
@@ -210,15 +207,6 @@ std::string unicodeAsString(PyObject* str);
 // Convert a C++ string into a Python unicode object.  Will return nullptr on
 // error.
 Ref<> stringAsUnicode(std::string_view str);
-
-// Given a code object and an index into f_localsplus, compute which of
-// code->co_varnames, code->cellvars, or code->freevars contains the name of
-// the variable. Return that tuple and adjust idx as needed.
-PyObject* getVarnameTuple(PyCodeObject* code, int* idx);
-
-// Similar to getVarnameTuple, but return the name itself rather than the
-// containing tuple.
-PyObject* getVarname(PyCodeObject* code, int idx);
 
 inline int popcount(unsigned i) {
   return __builtin_popcount(i);
@@ -356,12 +344,6 @@ BorrowedRef<> typeLookupSafe(
 bool ensureVersionTag(BorrowedRef<PyTypeObject> type);
 
 // Return a crc32 checksum of the bytecode for the given code object.
-uint32_t hashBytecode(BorrowedRef<PyCodeObject> code);
-
-// Return the qualname of the given code object, falling back to its name or
-// "<unknown>" if not set.
-std::string codeQualname(BorrowedRef<PyCodeObject> code);
-
 // A frozen list is effectively a vector that is dynamically allocated at
 // runtime, but then can no longer be resized.
 template <typename T>

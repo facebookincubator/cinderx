@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/elf/writer.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 

@@ -154,4 +154,33 @@ static inline uint8_t Cix_GetOriginalOpcode(
 
 #ifdef __cplusplus
 } // extern "C"
+
+#include "cinderx/Common/ref.h"
+
+#include <string>
+
+namespace jit {
+
+std::string codeFullname(
+    BorrowedRef<PyObject> module,
+    BorrowedRef<PyCodeObject> code);
+std::string funcFullname(BorrowedRef<PyFunctionObject> func);
+
+// Given a code object and an index into f_localsplus, compute which of
+// code->co_varnames, code->cellvars, or code->freevars contains the name of
+// the variable. Return that tuple and adjust idx as needed.
+PyObject* getVarnameTuple(BorrowedRef<PyCodeObject> code, int* idx);
+
+// Similar to getVarnameTuple, but return the name itself rather than the
+// containing tuple.
+PyObject* getVarname(BorrowedRef<PyCodeObject> code, int idx);
+
+uint32_t hashBytecode(BorrowedRef<PyCodeObject> code);
+
+// Return the qualname of the given code object, falling back to its name or
+// "<unknown>" if not set.
+std::string codeQualname(BorrowedRef<PyCodeObject> code);
+
+} // namespace jit
+
 #endif
