@@ -40,6 +40,8 @@ class BisectRunner:
         self,
         command: str,
         items: list[str],
+        flaky_retry: int = 1,
+        no_empty_check: bool = False,
     ):
         """
         Initialize the bisect runner.
@@ -47,9 +49,13 @@ class BisectRunner:
         Args:
             command: Shell command to execute. The temp file path is available as $BISECT_FILE.
             items: List of items to bisect
+            flaky_retry: Number of times to retry the command to confirm failure (default: 1)
+            no_empty_check: Skip the check that tests if command fails with no items (default: False)
         """
         self.command = command
         self.all_items = items
+        self.flaky_retry = flaky_retry
+        self.no_empty_check = no_empty_check
         self.test_count = 0
 
     def test_items(self, items: list[str]) -> bool:
@@ -60,7 +66,7 @@ class BisectRunner:
             items: List of items to test
 
         Returns:
-            True if command fails (non-zero exit), False if succeeds
+            True if command fails (non-zero exit) on any attempt, False if all succeed
         """
         self.test_count += 1
 
@@ -80,19 +86,29 @@ class BisectRunner:
             logger.debug(f"  Command: {self.command}")
             logger.debug(f"  Items: {items}")
 
-            result = subprocess.run(
-                self.command,
-                shell=True,
-                capture_output=True,
-                env=env,
-                check=False,
-            )
+            for attempt in range(self.flaky_retry):
+                if self.flaky_retry > 1:
+                    logger.debug(f"  Attempt {attempt + 1}/{self.flaky_retry}")
 
-            fails = result.returncode != 0
-            logger.debug(
-                f"  Result: {'FAIL' if fails else 'PASS'} (exit code: {result.returncode})"
-            )
-            return fails
+                result = subprocess.run(
+                    self.command,
+                    shell=True,
+                    capture_output=True,
+                    env=env,
+                    check=False,
+                )
+
+                if result.returncode != 0:
+                    logger.debug(f"  Result: FAIL (exit code: {result.returncode})")
+                    return True
+
+                if attempt < self.flaky_retry - 1:
+                    logger.debug(
+                        f"  Attempt {attempt + 1} passed, retrying to check for flaky failure..."
+                    )
+
+            logger.debug(f"  Result: PASS (all {self.flaky_retry} attempts succeeded)")
+            return False
         finally:
             # Clean up temp file
             try:
@@ -184,10 +200,11 @@ class BisectRunner:
             logger.info("Command succeeds with all items - nothing to bisect!")
             return None
 
-        logger.info("Testing with no items...")
-        if self.test_items([]):
-            logger.info("Command fails with no items - nothing to bisect!")
-            return None
+        if not self.no_empty_check:
+            logger.info("Testing with no items...")
+            if self.test_items([]):
+                logger.info("Command fails with no items - nothing to bisect!")
+                return None
 
         logger.info("Starting bisection...")
         logger.info("=" * 60)
@@ -251,6 +268,21 @@ Examples:
         help="Enable verbose output",
     )
 
+    parser.add_argument(
+        "--flaky-retry",
+        type=int,
+        default=1,
+        metavar="N",
+        choices=range(1, sys.maxsize),
+        help="Retry command up to N times to confirm failure (default: 1)",
+    )
+
+    parser.add_argument(
+        "--no-empty-check",
+        action="store_true",
+        help="Skip the check that tests if command fails with no items",
+    )
+
     args = parser.parse_args()
 
     config_logger(args.verbose)
@@ -266,6 +298,8 @@ Examples:
     runner = BisectRunner(
         command=args.command,
         items=items,
+        flaky_retry=args.flaky_retry,
+        no_empty_check=args.no_empty_check,
     )
 
     minimal_items = runner.find_minimal_failing_set()
