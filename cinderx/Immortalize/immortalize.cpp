@@ -40,6 +40,7 @@ bool immortalize(PyObject* obj) {
 
   if (PyCode_Check(obj)) {
     BorrowedRef<PyCodeObject> code{obj};
+    codeExtra(code);
 #if PY_VERSION_HEX < 0x030B0000
     // In 3.11 these changed to have the bytes embedded in the code object and
     // the names in a unified tuple
