@@ -7,8 +7,8 @@
 #ifdef __cplusplus
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/slab_arena.h"
 #include "cinderx/Jit/global_cache_iface.h"
-#include "cinderx/Jit/slab_arena.h"
 
 #include <set>
 #include <unordered_map>

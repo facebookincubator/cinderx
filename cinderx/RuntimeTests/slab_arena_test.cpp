@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include "cinderx/Jit/slab_arena.h"
+#include "cinderx/Common/slab_arena.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <cstring>

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/slab.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/slab.h"
 
 #include <cstddef>
 #include <cstdlib>

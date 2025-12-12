@@ -8,6 +8,7 @@
 #include "cinder/genobject_jit.h"
 #endif
 
+#include "cinderx/Common/slab_arena.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/codegen/arch.h"
@@ -17,7 +18,6 @@
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/runtime_iface.h"
-#include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 
 #include <optional>
