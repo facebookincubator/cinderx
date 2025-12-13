@@ -1328,7 +1328,7 @@ int init_static_type(PyObject* obj, int leaked_type) {
       return -1;
     }
 
-    Py_SETREF(((PyHeapTypeObject*)type)->ht_slots, tuple);
+    Py_XSETREF(((PyHeapTypeObject*)type)->ht_slots, tuple);
 
     if (type_new_descriptors(tuple, type, leaked_type)) {
       return -1;
