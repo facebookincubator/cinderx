@@ -59,12 +59,15 @@ class RuntimeTest : public ::testing::Test {
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
 
+    auto mod_state = cinderx::getModuleState();
+    ASSERT_NE(mod_state, nullptr) << "Could not load the CinderX module state, "
+                                     "CinderX has not initialized properly";
+
     // Generally the first failure we see when the JIT is incorrectly
     // initialized is trying to use the code allocator and crashing, so check
     // that here.
     if (jit) {
-      jit::ICodeAllocator* code_allocator =
-          cinderx::getModuleState()->codeAllocator();
+      auto code_allocator = mod_state->codeAllocator();
       ASSERT_NE(code_allocator, nullptr)
           << "Configured to use the JIT but it wasn't initialized";
     }
