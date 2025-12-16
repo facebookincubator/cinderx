@@ -1,3 +1,7 @@
+#define _Py_CheckRecursiveCallPy _Cix_CheckResursiveCallPy
+
+// forward declaration for ceval_macros
+int _Py_CheckRecursiveCallPy(PyThreadState* tstate);
 
 #include "cinderx/Interpreter/3.14/Includes/ceval_macros.h"
 #include "internal/pycore_ceval.h"

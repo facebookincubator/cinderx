@@ -82,7 +82,6 @@
 #define _Py_Specialize_LoadAttr _Ci_Specialize_LoadAttr
 #define _Py_Specialize_LoadSuperAttr _Ci_Specialize_LoadSuperAttr
 #define _Py_Instrument _Ci_Instrument
-#define _Py_CheckRecursiveCallPy _Ci_CheckRecursiveCallPy
 #define _PyEval_MonitorRaise _CiEval_MonitorRaise
 #define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
@@ -102,7 +101,6 @@
 extern "C" {
 #endif
 PyObject* _PyNumber_InPlacePowerNoMod(PyObject* lhs, PyObject* rhs);
-int _Py_CheckRecursiveCallPy(PyThreadState* tstate);
 PyObject* _PyNumber_PowerNoMod(PyObject* lhs, PyObject* rhs);
 #ifdef __cplusplus
 }
