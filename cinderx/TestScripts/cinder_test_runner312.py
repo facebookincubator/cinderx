@@ -697,7 +697,7 @@ class MultiWorkerCinderRegrtest:
                 and expected_failure in executed
             ):
                 missing_failures.append(expected_failure)
-            else:
+            elif expected_failure in self._results.bad:
                 # Failure was expected, move to the skipped list
                 self._results.bad.remove(expected_failure)
                 self._results.skipped.append(expected_failure)
