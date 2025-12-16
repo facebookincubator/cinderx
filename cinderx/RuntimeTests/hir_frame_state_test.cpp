@@ -102,7 +102,121 @@ def test(fs):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030F0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "fs">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<6, 5> v3
+  }
+
+  bb 6 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = LoadGlobal<0; "xs"> {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 12
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    v6 = GetIter v5 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<2> v0 v1
+      }
+    }
+    v7 = LoadConst<Nullptr>
+    v3 = Assign v6
+    v4 = Assign v7
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v10 = LoadEvalBreaker
+    CondBranch<8, 1> v10
+  }
+
+  bb 8 (preds 7) {
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<2> v3 v4
+    }
+    v11 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 14
+        Locals<2> v0 v1
+        Stack<2> v3 v4
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<2> v3 v4
+    }
+    v8 = InvokeIterNext v3 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<2> v0 v1
+        Stack<2> v3 v4
+      }
+    }
+    v5 = Assign v8
+    CondBranchIterNotDone<2, 4> v5
+  }
+
+  bb 2 (preds 1) {
+    Snapshot {
+      CurInstrOffset 18
+      Locals<2> v0 v1
+      Stack<3> v3 v4 v5
+    }
+    v1 = Assign v5
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Snapshot {
+      CurInstrOffset 26
+      Locals<2> v0 v1
+      Stack<2> v3 v4
+    }
+    v9 = LoadConst<ImmortalNoneType>
+    Return v9
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030E0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "fs">

@@ -298,4 +298,108 @@ fun jittestmodule:test {
     Return v53
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v19:TupleExact = LoadArg<0; "x", TupleExact>
+    v21:Nullptr = LoadConst<Nullptr>
+    v22:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v22
+  }
+
+  bb 5 (preds 0) {
+    UpdatePrevInstr<idx:0 line_no:0: no parent>
+    v23:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v19 unc:v21
+      FrameState {
+        CurInstrOffset 0
+        Locals<3> v19 v21 v21
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    v27:CInt64[0] = LoadConst<CInt64[0]>
+    Branch<6>
+  }
+
+  bb 6 (preds 2, 4) {
+    v33:CInt64 = Phi<2, 4> v46 v27
+    v34:OptObject = Phi<2, 4> v57 v21
+    v30:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v30
+  }
+
+  bb 7 (preds 6) {
+    UpdatePrevInstr<idx:6 line_no:2: no parent>
+    v35:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v19 s:v33 o:v34
+      FrameState {
+        CurInstrOffset 12
+        Locals<3> v19 v33 v34
+        Stack<1> v19
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 6, 7) {
+    v40:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v41:CBool = PrimitiveCompare<GreaterThan> v40 v33
+    CondBranch<2, 3> v41
+  }
+
+  bb 2 (preds 1) {
+    v55:CInt64 = IsNegativeAndErrOccurred v33 {
+      LiveValues<3> b:v19 s:v33 o:v34
+      FrameState {
+        CurInstrOffset 42
+        Locals<3> v19 v33 v34
+        Stack<1> v19
+      }
+    }
+    v56:CInt64 = CheckSequenceBounds v19 v33 {
+      LiveValues<3> b:v19 s:v33 o:v34
+      FrameState {
+        CurInstrOffset 42
+        Locals<3> v19 v33 v34
+        Stack<1> v19
+      }
+    }
+    v57:Object = LoadArrayItem<Offset[32]> v19 v56 v19
+    v45:CInt64[1] = LoadConst<CInt64[1]>
+    v46:CInt64 = IntBinaryOp<Add> v33 v45
+    v49:OptObject = LoadGlobalCached<0; "print">
+    v50:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v49 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<6> b:v19 s:v33 o:v34 s:v46 b:v49 b:v57
+      FrameState {
+        CurInstrOffset 66
+        Locals<3> v19 v33 v34
+        Stack<3> v19 v57 v46
+      }
+    }
+    Incref v57
+    UpdatePrevInstr<idx:42 line_no:3: no parent>
+    XDecref v34
+    v58:Object = VectorCall<1> v50 v57 {
+      LiveValues<4> b:v19 s:v46 b:v50 o:v57
+      FrameState {
+        CurInstrOffset 84
+        Locals<3> v19 v46 v57
+        Stack<1> v19
+      }
+    }
+    Decref v58
+    Branch<6>
+  }
+
+  bb 3 (preds 1) {
+    UpdatePrevInstr<idx:51 line_no:-1: no parent>
+    XDecref v34
+    v53:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v53
+  }
+}
 --- End ---

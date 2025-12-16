@@ -120,6 +120,55 @@ fun jittestmodule:test {
     Return v16
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    Snapshot
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v7:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 2
+    }
+    Snapshot
+    v14:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v14
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v15:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v16:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v16
+  }
+}
 --- Test Name ---
 InlineMultipleFunctions
 --- Input ---
@@ -230,6 +279,87 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Func = LoadCurrentFunc
+    Snapshot
+    v9:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 2
+    }
+    Snapshot
+    v20:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v20
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v21:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v22:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:bar> {
+      CurInstrOffset 6
+      Stack<1> v22
+    }
+    Snapshot
+    v28:CInt64 = LoadEvalBreaker
+    CondBranch<10, 9> v28
+  }
+
+  bb 10 (preds 4) {
+    Snapshot
+    v29:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<9>
+  }
+
+  bb 9 (preds 4, 10) {
+    Snapshot
+    v30:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    UseType<LongExact> v22
+    UseType<LongExact> v30
+    UseType<ImmortalLongExact[3]> v22
+    UseType<ImmortalLongExact[4]> v30
+    v33:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    Snapshot
+    Return v33
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
@@ -456,6 +586,64 @@ fun jittestmodule:test {
     Return v26
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v10:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    v11:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
+    v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:add> {
+      CurInstrOffset 6
+    }
+    Snapshot
+    v22:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v22
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v23:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v10 v11
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v26:Object = BinaryOp<Add> v10 v11 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v10 v11
+      }
+    }
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v26
+  }
+}
 --- Test Name ---
 InlinedStoreFieldLoadFieldIsEliminated
 --- Input ---
@@ -581,6 +769,93 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Func = LoadCurrentFunc
+    Snapshot
+    v9:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v11:ObjectUser[C:Exact] = TpAlloc<C> {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Snapshot
+    v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:C.__init__> {
+      CurInstrOffset 8
+      Stack<1> v11
+    }
+    Snapshot
+    v25:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v25
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v26:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v28:CInt8[4] = LoadConst<CInt8[4]>
+    v29:Nullptr = LoadConst<Nullptr>
+    UseType<CInt8> v28
+    StoreField<foo@16> v11 v28 v29
+    Snapshot
+    v31:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    EndInlinedFunction
+    Snapshot
+    v14:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    BeginInlinedFunction<jittestmodule:C.getfoo> {
+      CurInstrOffset 14
+    }
+    Snapshot
+    v39:CInt64 = LoadEvalBreaker
+    CondBranch<10, 9> v39
+  }
+
+  bb 10 (preds 4) {
+    Snapshot
+    v40:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<9>
+  }
+
+  bb 9 (preds 4, 10) {
+    Snapshot
+    v42:CInt8 = LoadField<foo@16, CInt8, borrowed> v11
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return<CInt8> v42
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc

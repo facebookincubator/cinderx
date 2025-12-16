@@ -56,6 +56,18 @@ fun test {
     Return v1
   }
 }
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:NoneType = LoadConst<NoneType>
+    v1:NoneType = LoadConst<NoneType>
+    Branch<2>
+  }
+
+  bb 2 (preds 0) {
+    Return v1
+  }
+}
 --- Test Name ---
 EliminatesTrivialPhisWithSelfInput
 --- Input ---
@@ -122,6 +134,21 @@ fun test {
     Return v0
   }
 }
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:NoneType = LoadConst<NoneType>
+    CondBranch<2, 3> v0
+  }
+
+  bb 2 (preds 0, 2) {
+    CondBranch<2, 3> v0
+  }
+
+  bb 3 (preds 0, 2) {
+    Return v0
+  }
+}
 --- Test Name ---
 EliminatesCascadingTrivialPhis
 --- Input ---
@@ -169,6 +196,17 @@ fun test {
   }
 }
 --- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:NoneType = LoadConst<NoneType>
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 1) {
+    Branch<1>
+  }
+}
+--- Expected 3.15 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -246,6 +284,28 @@ fun test {
   }
 }
 --- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:NoneType = LoadConst<NoneType>
+    CondBranch<1, 3> v0
+  }
+
+  bb 1 (preds 0, 2) {
+    v1:NoneType = Phi<0, 2> v0 v2
+    Branch<2>
+  }
+
+  bb 2 (preds 1) {
+    v2:NoneType = LoadConst<NoneType>
+    CondBranch<1, 3> v1
+  }
+
+  bb 3 (preds 0, 2) {
+    v3:NoneType = Phi<0, 2> v0 v1
+    Return v3
+  }
+}
+--- Expected 3.15 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>

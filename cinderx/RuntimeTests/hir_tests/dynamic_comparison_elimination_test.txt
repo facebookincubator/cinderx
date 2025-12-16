@@ -94,6 +94,29 @@ fun test {
     Return v5
   }
 }
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v3:CBool = CompareBool<Equal> v0 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v3
+  }
+
+  bb 1 (preds 0) {
+    v4:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
 --- Test Name ---
 NotEqualBecomesCompareBool
 --- Input ---
@@ -164,6 +187,29 @@ fun test {
   }
 }
 --- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v3:CBool = CompareBool<NotEqual> v0 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v3
+  }
+
+  bb 1 (preds 0) {
+    v4:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.15 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -308,6 +354,84 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v14:Object = LoadArg<0; "x">
+    v15:Func = LoadCurrentFunc
+    Snapshot
+    v16:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v16
+  }
+
+  bb 4 (preds 0) {
+    Snapshot
+    v17:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v14
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v19:OptObject = LoadGlobalCached<0; "isinstance">
+    v20:MortalObjectUser[builtin_function_or_method:isinstance:0xdeadbeef] = GuardIs<0xdeadbeef> v19 {
+      Descr 'LOAD_GLOBAL: isinstance'
+    }
+    v21:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:OptObject = LoadGlobalCached<1; "str">
+    v23:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v22 {
+      Descr 'LOAD_GLOBAL: str'
+    }
+    Snapshot
+    v34:Type = LoadField<ob_type@8, Type, borrowed> v14
+    v35:CBool = PrimitiveCompare<Equal> v34 v23
+    CondBranch<5, 6> v35
+  }
+
+  bb 5 (preds 3) {
+    Branch<7>
+  }
+
+  bb 6 (preds 3) {
+    v36:CBool = IsInstance v14 v23 {
+      FrameState {
+        CurInstrOffset 24
+        Locals<1> v14
+      }
+    }
+    Branch<7>
+  }
+
+  bb 7 (preds 5, 6) {
+    v37:CBool = Phi<5, 6> v35 v36
+    v38:Bool = PrimitiveBoxBool v37
+    Snapshot
+    UseType<Bool> v38
+    v32:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v26:Bool = PrimitiveBoxBool v37
+    Snapshot
+    v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<1, 2> v37
+  }
+
+  bb 1 (preds 7) {
+    Snapshot
+    v29:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    Return v29
+  }
+
+  bb 2 (preds 7) {
+    Snapshot
+    v30:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v30
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "x">

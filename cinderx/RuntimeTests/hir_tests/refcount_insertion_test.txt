@@ -63,6 +63,30 @@ fun jittestmodule:test {
     Return v4
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v4:Object = LoadArg<0; "x">
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    v7:CInt32 = RunPeriodicTasks {
+      LiveValues<1> b:v4
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v4
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Incref v4
+    Return v4
+  }
+}
 --- Test Name ---
 CopiesDieAcrossEdge
 --- Input ---
@@ -200,6 +224,62 @@ fun test {
   }
 }
 --- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:MortalDictExact = MakeDict<0> {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v1:MortalDictExact = CheckExc v0 {
+      LiveValues<1> o:v0
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:MortalDictExact = MakeDict<0> {
+      LiveValues<1> o:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:MortalDictExact = CheckExc v2 {
+      LiveValues<2> o:v1 o:v2
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 3> v2
+  }
+
+  bb 1 (preds 0) {
+    v7:Object = BinaryOp<Add> v1 v1 {
+      LiveValues<2> o:v1 o:v3
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Decref v1
+    v8:Object = CheckExc v7 {
+      LiveValues<2> o:v3 o:v7
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Decref v8
+    Branch<2>
+  }
+
+  bb 3 (preds 0) {
+    Decref v1
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 3) {
+    Return v3
+  }
+}
+--- Expected 3.15 ---
 fun test {
   bb 0 {
     v0:MortalDictExact = MakeDict<0> {
@@ -409,6 +489,48 @@ fun test {
     Return v2
   }
 }
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:MortalDictExact = MakeDict<0> {
+      LiveValues<1> b:v0
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:MortalDictExact = CheckExc v1 {
+      LiveValues<2> b:v0 o:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v3:Object = Phi<1, 2> v0 v2
+    CondBranch<4, 5> v2
+  }
+
+  bb 4 (preds 3) {
+    Incref v3
+    Decref v2
+    Return v3
+  }
+
+  bb 5 (preds 3) {
+    Return v2
+  }
+}
 --- Test Name ---
 OwnedValueDyingAcrossEdgeDoesntPromoteValueBorrowedFromOther
 --- Input ---
@@ -574,6 +696,72 @@ fun test {
   }
 }
 --- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:MortalDictExact = MakeDict<0> {
+      LiveValues<1> b:v0
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:MortalDictExact = CheckExc v1 {
+      LiveValues<2> b:v0 o:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:MortalDictExact = MakeDict<0> {
+      LiveValues<2> b:v0 o:v2
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:MortalDictExact = CheckExc v3 {
+      LiveValues<3> b:v0 o:v2 o:v3
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:Object = Phi<1, 2> v0 v2
+    CondBranch<4, 5> v2
+  }
+
+  bb 4 (preds 3) {
+    Decref v4
+    v6:Object = VectorCall<0> v5 {
+      LiveValues<2> o:v2 b:v5
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v7:Object = CheckExc v6 {
+      LiveValues<2> o:v2 o:v6
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Decref v7
+    Return v2
+  }
+
+  bb 5 (preds 3) {
+    Return v4
+  }
+}
+--- Expected 3.15 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -966,6 +1154,118 @@ fun jittestmodule:test {
     Decref v61
     v59:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return v59
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v20:Object = LoadArg<0; "a">
+    v21:Object = LoadArg<1; "b">
+    v22:Object = LoadArg<2; "l">
+    v24:Nullptr = LoadConst<Nullptr>
+    v25:CInt64 = LoadEvalBreaker
+    CondBranch<6, 5> v25
+  }
+
+  bb 6 (preds 0) {
+    v26:CInt32 = RunPeriodicTasks {
+      LiveValues<4> b:v20 b:v21 b:v22 unc:v24
+      FrameState {
+        CurInstrOffset 0
+        Locals<5> v20 v21 v22 v24 v24
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    v33:Object = GetIter v22 {
+      LiveValues<4> b:v20 b:v21 b:v22 unc:v24
+      FrameState {
+        CurInstrOffset 8
+        Locals<5> v20 v21 v22 v20 v24
+      }
+    }
+    v34:Nullptr = LoadConst<Nullptr>
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v43:Object = Phi<2, 5> v21 v20
+    v44:OptObject = Phi<2, 5> v53 v24
+    v37:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v37
+  }
+
+  bb 8 (preds 7) {
+    v45:CInt32 = RunPeriodicTasks {
+      LiveValues<7> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v44
+      FrameState {
+        CurInstrOffset 10
+        Locals<5> v20 v21 v22 v43 v44
+        Stack<2> v33 v34
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    v53:Object = InvokeIterNext v33 {
+      LiveValues<7> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v44
+      FrameState {
+        CurInstrOffset 10
+        Locals<5> v20 v21 v22 v43 v44
+        Stack<2> v33 v34
+      }
+    }
+    CondBranchIterNotDone<2, 4> v53
+  }
+
+  bb 2 (preds 1) {
+    v56:OptObject = LoadGlobalCached<0; "print">
+    v57:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v56 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<9> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v44 o:v53 b:v56
+      FrameState {
+        CurInstrOffset 14
+        Locals<5> v20 v21 v22 v43 v44
+        Stack<3> v33 v34 v53
+      }
+    }
+    XDecref v44
+    v65:Object = VectorCall<1> v57 v43 {
+      LiveValues<8> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v53 b:v57
+      FrameState {
+        CurInstrOffset 28
+        Locals<5> v20 v21 v22 v43 v53
+        Stack<2> v33 v34
+      }
+    }
+    Decref v65
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Decref v33
+    v61:Object = LoadGlobal<1; "use"> {
+      LiveValues<5> b:v20 b:v21 b:v22 b:v43 o:v44
+      FrameState {
+        CurInstrOffset 50
+        Locals<5> v20 v21 v22 v43 v44
+      }
+    }
+    v66:Object = VectorCall<2> v61 v20 v21 {
+      LiveValues<6> b:v20 b:v21 b:v22 b:v43 o:v44 o:v61
+      FrameState {
+        CurInstrOffset 62
+        Locals<5> v20 v21 v22 v43 v44
+      }
+    }
+    XDecref v44
+    Decref v61
+    Decref v66
+    v64:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v64
   }
 }
 --- Test Name ---
@@ -1387,6 +1687,145 @@ fun jittestmodule:test {
     Return v71
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v26:Object = LoadArg<0; "l">
+    v28:Nullptr = LoadConst<Nullptr>
+    v29:CInt64 = LoadEvalBreaker
+    CondBranch<6, 5> v29
+  }
+
+  bb 6 (preds 0) {
+    v30:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v26 unc:v28
+      FrameState {
+        CurInstrOffset 0
+        Locals<5> v26 v28 v28 v28 v28
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    v36:Object = LoadGlobal<0; "something"> {
+      LiveValues<2> b:v26 unc:v28
+      FrameState {
+        CurInstrOffset 2
+        Locals<5> v26 v28 v28 v28 v28
+      }
+    }
+    v79:Object = VectorCall<0> v36 {
+      LiveValues<3> b:v26 unc:v28 o:v36
+      FrameState {
+        CurInstrOffset 12
+        Locals<5> v26 v28 v28 v28 v28
+      }
+    }
+    Decref v36
+    v40:Object = LoadGlobal<1; "something_else"> {
+      LiveValues<3> b:v26 unc:v28 o:v79
+      FrameState {
+        CurInstrOffset 22
+        Locals<5> v26 v79 v28 v28 v28
+      }
+    }
+    v80:Object = VectorCall<0> v40 {
+      LiveValues<4> b:v26 unc:v28 o:v40 o:v79
+      FrameState {
+        CurInstrOffset 32
+        Locals<5> v26 v79 v28 v28 v28
+      }
+    }
+    Decref v40
+    v45:Object = GetIter v26 {
+      LiveValues<4> b:v26 unc:v28 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 48
+        Locals<5> v26 v79 v80 v79 v28
+      }
+    }
+    v46:Nullptr = LoadConst<Nullptr>
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v55:Object = Phi<2, 5> v80 v79
+    v56:OptObject = Phi<2, 5> v65 v28
+    v49:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v49
+  }
+
+  bb 8 (preds 7) {
+    v57:CInt32 = RunPeriodicTasks {
+      LiveValues<7> b:v26 o:v45 unc:v46 b:v55 o:v56 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 50
+        Locals<5> v26 v79 v80 v55 v56
+        Stack<2> v45 v46
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    v65:Object = InvokeIterNext v45 {
+      LiveValues<7> b:v26 o:v45 unc:v46 b:v55 o:v56 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 50
+        Locals<5> v26 v79 v80 v55 v56
+        Stack<2> v45 v46
+      }
+    }
+    CondBranchIterNotDone<2, 4> v65
+  }
+
+  bb 2 (preds 1) {
+    v68:OptObject = LoadGlobalCached<2; "print">
+    v69:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v68 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<9> b:v26 o:v45 unc:v46 b:v55 o:v56 o:v65 b:v68 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 54
+        Locals<5> v26 v79 v80 v55 v56
+        Stack<3> v45 v46 v65
+      }
+    }
+    XDecref v56
+    v77:Object = VectorCall<1> v69 v55 {
+      LiveValues<8> b:v26 o:v45 unc:v46 b:v55 o:v65 b:v69 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 68
+        Locals<5> v26 v79 v80 v55 v65
+        Stack<2> v45 v46
+      }
+    }
+    Decref v77
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Decref v45
+    v73:Object = LoadGlobal<3; "use"> {
+      LiveValues<5> b:v26 b:v55 o:v56 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 90
+        Locals<5> v26 v79 v80 v55 v56
+      }
+    }
+    v78:Object = VectorCall<2> v73 v79 v80 {
+      LiveValues<6> b:v26 b:v55 o:v56 o:v73 o:v79 o:v80
+      FrameState {
+        CurInstrOffset 102
+        Locals<5> v26 v79 v80 v55 v56
+      }
+    }
+    XDecref v56
+    BatchDecref v73 v78 v79 v80
+    v76:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v76
+  }
+}
 --- Test Name ---
 LoopUsingTransientValues
 --- Input ---
@@ -1764,6 +2203,134 @@ fun jittestmodule:test {
     Return v55
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v21:Object = LoadArg<0; "l">
+    v23:Nullptr = LoadConst<Nullptr>
+    v24:CInt64 = LoadEvalBreaker
+    CondBranch<6, 5> v24
+  }
+
+  bb 6 (preds 0) {
+    v25:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v21 unc:v23
+      FrameState {
+        CurInstrOffset 0
+        Locals<3> v21 v23 v23
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    v29:Object = LoadGlobal<0; "something"> {
+      LiveValues<2> b:v21 unc:v23
+      FrameState {
+        CurInstrOffset 2
+        Locals<3> v21 v23 v23
+      }
+    }
+    v63:Object = VectorCall<0> v29 {
+      LiveValues<3> b:v21 unc:v23 o:v29
+      FrameState {
+        CurInstrOffset 12
+        Locals<3> v21 v23 v23
+      }
+    }
+    Decref v29
+    v33:Object = GetIter v21 {
+      LiveValues<3> b:v21 unc:v23 o:v63
+      FrameState {
+        CurInstrOffset 24
+        Locals<3> v21 v63 v23
+      }
+    }
+    v34:Nullptr = LoadConst<Nullptr>
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v41:Object = Phi<2, 5> v62 v63
+    v42:OptObject = Phi<2, 5> v49 v23
+    v37:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v37
+  }
+
+  bb 8 (preds 7) {
+    v43:CInt32 = RunPeriodicTasks {
+      LiveValues<5> b:v21 o:v33 unc:v34 o:v41 o:v42
+      FrameState {
+        CurInstrOffset 26
+        Locals<3> v21 v41 v42
+        Stack<2> v33 v34
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    v49:Object = InvokeIterNext v33 {
+      LiveValues<5> b:v21 o:v33 unc:v34 o:v41 o:v42
+      FrameState {
+        CurInstrOffset 26
+        Locals<3> v21 v41 v42
+        Stack<2> v33 v34
+      }
+    }
+    CondBranchIterNotDone<2, 4> v49
+  }
+
+  bb 2 (preds 1) {
+    v52:OptObject = LoadGlobalCached<1; "print">
+    v53:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v52 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<7> b:v21 o:v33 unc:v34 o:v41 o:v42 o:v49 b:v52
+      FrameState {
+        CurInstrOffset 30
+        Locals<3> v21 v41 v42
+        Stack<3> v33 v34 v49
+      }
+    }
+    XDecref v42
+    v61:Object = VectorCall<1> v53 v41 {
+      LiveValues<6> b:v21 o:v33 unc:v34 o:v41 o:v49 b:v53
+      FrameState {
+        CurInstrOffset 44
+        Locals<3> v21 v41 v49
+        Stack<2> v33 v34
+      }
+    }
+    Decref v61
+    v56:Object = LoadGlobal<2; "something_else"> {
+      LiveValues<5> b:v21 o:v33 unc:v34 o:v41 o:v49
+      FrameState {
+        CurInstrOffset 54
+        Locals<3> v21 v41 v49
+        Stack<2> v33 v34
+      }
+    }
+    v62:Object = VectorCall<0> v56 {
+      LiveValues<6> b:v21 o:v33 unc:v34 o:v41 o:v49 o:v56
+      FrameState {
+        CurInstrOffset 64
+        Locals<3> v21 v41 v49
+        Stack<2> v33 v34
+      }
+    }
+    Decref v41
+    Decref v56
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Decref v33
+    Decref v41
+    XDecref v42
+    v60:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v60
+  }
+}
 --- Test Name ---
 HandlesStoreAttr
 --- Input ---
@@ -1819,6 +2386,38 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Object = LoadArg<0; "x">
+    v7:Object = LoadArg<1; "val">
+    v9:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    v10:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v6 b:v7
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v6 v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    StoreAttrCached<0; "foo"> v6 v7 {
+      LiveValues<2> b:v6 b:v7
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v6 v7
+      }
+    }
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v13
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -1916,6 +2515,31 @@ fun jittestmodule:test {
     Return v7
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v7:Object = LoadGlobal<0; "a_global"> {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Return v7
+  }
+}
 --- Test Name ---
 InitListTuple
 --- Input ---
@@ -1968,6 +2592,37 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Object = LoadArg<0; "a">
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    v8:CInt32 = RunPeriodicTasks {
+      LiveValues<1> b:v5
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v5
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v10:MortalTupleExact = MakeTuple<3> v5 v5 v5 {
+      LiveValues<1> b:v5
+      FrameState {
+        CurInstrOffset 6
+        Locals<1> v5
+        Stack<3> v5 v5 v5
+      }
+    }
+    Return v10
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "a">
@@ -2117,6 +2772,48 @@ fun jittestmodule:test {
     Return v25
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Object = LoadArg<0; "pred">
+    v12:Object = LoadArg<1; "val">
+    v14:Nullptr = LoadConst<Nullptr>
+    v15:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v15
+  }
+
+  bb 4 (preds 0) {
+    v16:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v11 b:v12 unc:v14
+      FrameState {
+        CurInstrOffset 0
+        Locals<3> v11 v12 v14
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    v20:CBool = IsTruthy v11 {
+      LiveValues<3> b:v11 b:v12 unc:v14
+      FrameState {
+        CurInstrOffset 4
+        Locals<3> v11 v12 v14
+      }
+    }
+    CondBranch<1, 2> v20
+  }
+
+  bb 1 (preds 3) {
+    Incref v12
+    Return v12
+  }
+
+  bb 2 (preds 3) {
+    v25:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v25
+  }
+}
 --- Test Name ---
 ReassignArgToConst
 --- Input ---
@@ -2156,6 +2853,31 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Object = LoadArg<0; "val">
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    v10:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v6 unc:v8
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v6 v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v13
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "val">
@@ -2337,6 +3059,85 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v14:Object = LoadArg<0; "a">
+    v16:Nullptr = LoadConst<Nullptr>
+    v17:MortalCell = MakeCell v14 {
+      LiveValues<2> b:v14 unc:v16
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v14 v16
+      }
+    }
+    v19:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v19
+  }
+
+  bb 2 (preds 0) {
+    v20:CInt32 = RunPeriodicTasks {
+      LiveValues<2> unc:v16 o:v17
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v17 v16
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v23:OptObject = LoadCellItem v17
+    v24:Object = CheckVar<"a"> v23 {
+      LiveValues<3> unc:v16 o:v17 b:v23
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v17 v16
+      }
+    }
+    Incref v24
+    v33:Object = LoadMethodCached<0; "foo"> v24 {
+      LiveValues<3> unc:v16 o:v17 o:v24
+      FrameState {
+        CurInstrOffset 6
+        Locals<2> v17 v16
+      }
+    }
+    Decref v24
+    v26:OptObject = GetSecondOutput<OptObject> v33
+    v27:Object = CallMethod<2> v33 v26 {
+      LiveValues<4> unc:v16 o:v17 o:v26 o:v33
+      FrameState {
+        CurInstrOffset 26
+        Locals<2> v17 v16
+      }
+    }
+    XDecref v26
+    Decref v27
+    Decref v33
+    v28:MortalTupleExact = MakeTuple<1> v17 {
+      LiveValues<2> unc:v16 o:v17
+      FrameState {
+        CurInstrOffset 38
+        Locals<2> v17 v16
+        Stack<1> v17
+      }
+    }
+    v29:MortalCode["g"] = LoadConst<MortalCode["g"]>
+    v30:Nullptr = LoadConst<Nullptr>
+    v31:MortalFunc = MakeFunction v29 v30 {
+      LiveValues<5> unc:v16 o:v17 o:v28 b:v29 unc:v30
+      FrameState {
+        CurInstrOffset 42
+        Locals<2> v17 v16
+        Stack<1> v28
+      }
+    }
+    Decref v17
+    SetFunctionAttr<func_closure> v28 v31
+    Return v31
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "a">
@@ -2661,6 +3462,131 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v25:Object = LoadArg<0; "timings">
+    v27:Nullptr = LoadConst<Nullptr>
+    v28:CInt64 = LoadEvalBreaker
+    CondBranch<8, 7> v28
+  }
+
+  bb 8 (preds 0) {
+    v29:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v25 unc:v27
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v25 v27
+      }
+    }
+    Branch<7>
+  }
+
+  bb 7 (preds 0, 8) {
+    v32:CBool = IsTruthy v25 {
+      LiveValues<2> b:v25 unc:v27
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v25 v27
+      }
+    }
+    CondBranch<1, 11> v32
+  }
+
+  bb 1 (preds 7) {
+    v36:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    Branch<2>
+  }
+
+  bb 11 (preds 7) {
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 11) {
+    v39:OptImmortalLongExact = Phi<1, 11> v36 v27
+    v40:CBool = IsTruthy v25 {
+      LiveValues<2> b:v25 unc:v39
+      FrameState {
+        CurInstrOffset 24
+        Locals<2> v25 v39
+      }
+    }
+    CondBranch<3, 10> v40
+  }
+
+  bb 3 (preds 2) {
+    v44:ImmortalLongExact = CheckVar<"total_time"> v39 {
+      LiveValues<2> b:v25 unc:v39
+      FrameState {
+        CurInstrOffset 38
+        Locals<2> v25 v39
+      }
+    }
+    v45:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v61:LongExact = LongBinaryOp<Add> v44 v45 {
+      LiveValues<3> b:v25 unc:v44 unc:v45
+      FrameState {
+        CurInstrOffset 42
+        Locals<2> v25 v44
+      }
+    }
+    Branch<4>
+  }
+
+  bb 10 (preds 2) {
+    Branch<4>
+  }
+
+  bb 4 (preds 3, 10) {
+    v49:OptLongExact = Phi<3, 10> v61 v39
+    v50:CBool = IsTruthy v25 {
+      LiveValues<2> b:v25 o:v49
+      FrameState {
+        CurInstrOffset 58
+        Locals<2> v25 v49
+      }
+    }
+    CondBranch<5, 6> v50
+  }
+
+  bb 5 (preds 4) {
+    v54:OptObject = LoadGlobalCached<0; "print">
+    v55:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v54 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<3> b:v25 o:v49 b:v54
+      FrameState {
+        CurInstrOffset 72
+        Locals<2> v25 v49
+      }
+    }
+    v56:Nullptr = LoadConst<Nullptr>
+    v57:LongExact = CheckVar<"total_time"> v49 {
+      LiveValues<4> b:v25 o:v49 b:v55 unc:v56
+      FrameState {
+        CurInstrOffset 82
+        Locals<2> v25 v49
+        Stack<2> v55 v56
+      }
+    }
+    v62:Object = VectorCall<1> v55 v57 {
+      LiveValues<3> b:v25 b:v55 o:v57
+      FrameState {
+        CurInstrOffset 84
+        Locals<2> v25 v57
+      }
+    }
+    Decref v57
+    Decref v62
+    v59:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v59
+  }
+
+  bb 6 (preds 4) {
+    XDecref v49
+    v60:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v60
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v25:Object = LoadArg<0; "timings">
@@ -3160,6 +4086,131 @@ fun jittestmodule:test {
     Return v73
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v27:Object = LoadArg<0; "a">
+    v28:Object = LoadArg<1; "b">
+    v29:Object = LoadArg<2; "c">
+    v31:Nullptr = LoadConst<Nullptr>
+    v32:CInt64 = LoadEvalBreaker
+    CondBranch<6, 5> v32
+  }
+
+  bb 6 (preds 0) {
+    v33:CInt32 = RunPeriodicTasks {
+      LiveValues<4> b:v27 b:v28 b:v29 unc:v31
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v27 v28 v29 v31
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    v38:OptObject = LoadGlobalCached<0; "dict">
+    v39:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v38 {
+      Descr 'LOAD_GLOBAL: dict'
+      LiveValues<5> b:v27 b:v28 b:v29 unc:v31 b:v38
+      FrameState {
+        CurInstrOffset 2
+        Locals<4> v27 v28 v29 v31
+      }
+    }
+    v76:DictExact = VectorCall<0> v39 {
+      LiveValues<5> b:v27 b:v28 b:v29 unc:v31 unc:v39
+      FrameState {
+        CurInstrOffset 12
+        Locals<4> v27 v28 v29 v31
+      }
+    }
+    v43:CBool = IsTruthy v28 {
+      LiveValues<4> b:v27 b:v28 b:v29 o:v76
+      FrameState {
+        CurInstrOffset 24
+        Locals<4> v27 v28 v29 v76
+      }
+    }
+    CondBranch<1, 9> v43
+  }
+
+  bb 1 (preds 5) {
+    Branch<2>
+  }
+
+  bb 9 (preds 5) {
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 9) {
+    v48:Object = Phi<1, 9> v76 v27
+    v52:OptObject = LoadGlobalCached<1; "print">
+    v53:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v52 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<5> b:v28 b:v29 b:v48 b:v52 o:v76
+      FrameState {
+        CurInstrOffset 42
+        Locals<4> v48 v28 v29 v76
+      }
+    }
+    v74:Object = VectorCall<1> v53 v76 {
+      LiveValues<5> b:v28 b:v29 b:v48 b:v53 o:v76
+      FrameState {
+        CurInstrOffset 54
+        Locals<4> v48 v28 v29 v76
+      }
+    }
+    Decref v74
+    v56:CBool = IsTruthy v29 {
+      LiveValues<4> b:v28 b:v29 b:v48 o:v76
+      FrameState {
+        CurInstrOffset 66
+        Locals<4> v48 v28 v29 v76
+      }
+    }
+    CondBranch<3, 8> v56
+  }
+
+  bb 3 (preds 2) {
+    v61:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Branch<4>
+  }
+
+  bb 8 (preds 2) {
+    Incref v28
+    Branch<4>
+  }
+
+  bb 4 (preds 3, 8) {
+    v64:Object = Phi<3, 8> v76 v28
+    v66:{DictExact|NoneType} = Phi<3, 8> v61 v76
+    v67:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v69:OptObject = LoadGlobalCached<1; "print">
+    v70:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v69 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<6> b:v29 b:v48 o:v64 o:v66 unc:v67 b:v69
+      FrameState {
+        CurInstrOffset 88
+        Locals<4> v48 v64 v29 v66
+      }
+    }
+    Incref v48
+    Decref v64
+    v75:Object = VectorCall<1> v70 v48 {
+      LiveValues<5> b:v29 o:v48 o:v66 unc:v67 b:v70
+      FrameState {
+        CurInstrOffset 104
+        Locals<4> v48 v67 v29 v66
+      }
+    }
+    Decref v48
+    Decref v66
+    Decref v75
+    v73:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v73
+  }
+}
 --- Test Name ---
 MustNotBeImmortal
 --- Input ---
@@ -3225,6 +4276,28 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Object = LoadArg<0>
+    v7:Object = LoadArg<1>
+    v8:Nullptr = LoadConst<Nullptr>
+    Incref v6
+    Incref v7
+    v11:MortalListExact = MakeList<2> v6 v7 {
+      LiveValues<3> b:v6 b:v7 unc:v8
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v6 v7 v8
+        Stack<2> v6 v7
+      }
+    }
+    Decref v11
+    v14:NoneType = LoadConst<NoneType>
+    Incref v14
+    Return v14
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0>
@@ -3494,6 +4567,90 @@ fun jittestmodule:test {
     Return v69
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v29:Nullptr = LoadConst<Nullptr>
+    v30:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v30
+  }
+
+  bb 2 (preds 0) {
+    v31:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v29
+      FrameState {
+        CurInstrOffset 0
+        Locals<7> v29 v29 v29 v29 v29 v29 v29
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v39:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
+    v40:Nullptr = LoadConst<Nullptr>
+    v41:MortalFunc = MakeFunction v39 v40 {
+      LiveValues<3> unc:v29 b:v39 unc:v40
+      FrameState {
+        CurInstrOffset 4
+        Locals<7> v29 v29 v29 v29 v29 v29 v29
+      }
+    }
+    v43:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
+    v44:Nullptr = LoadConst<Nullptr>
+    v45:MortalFunc = MakeFunction v43 v44 {
+      LiveValues<4> unc:v29 o:v41 b:v43 unc:v44
+      FrameState {
+        CurInstrOffset 10
+        Locals<7> v41 v29 v29 v29 v29 v29 v29
+      }
+    }
+    v64:Object = VectorCall<0> v41 {
+      LiveValues<3> unc:v29 o:v41 o:v45
+      FrameState {
+        CurInstrOffset 18
+        Locals<7> v41 v45 v29 v29 v29 v29 v29
+      }
+    }
+    v65:Object = VectorCall<0> v41 {
+      LiveValues<4> unc:v29 o:v41 o:v45 o:v64
+      FrameState {
+        CurInstrOffset 32
+        Locals<7> v41 v45 v64 v29 v29 v29 v29
+      }
+    }
+    v66:Object = VectorCall<0> v41 {
+      LiveValues<5> unc:v29 o:v41 o:v45 o:v64 o:v65
+      FrameState {
+        CurInstrOffset 46
+        Locals<7> v41 v45 v64 v65 v29 v29 v29
+      }
+    }
+    v67:Object = VectorCall<0> v41 {
+      LiveValues<6> unc:v29 o:v41 o:v45 o:v64 o:v65 o:v66
+      FrameState {
+        CurInstrOffset 60
+        Locals<7> v41 v45 v64 v65 v66 v29 v29
+      }
+    }
+    v68:Object = VectorCall<0> v41 {
+      LiveValues<7> unc:v29 o:v41 o:v45 o:v64 o:v65 o:v66 o:v67
+      FrameState {
+        CurInstrOffset 74
+        Locals<7> v41 v45 v64 v65 v66 v67 v29
+      }
+    }
+    v69:Object = VectorCall<5> v45 v64 v65 v66 v67 v68 {
+      LiveValues<7> o:v41 o:v45 o:v64 o:v65 o:v66 o:v67 o:v68
+      FrameState {
+        CurInstrOffset 94
+        Locals<7> v41 v45 v64 v65 v66 v67 v68
+      }
+    }
+    BatchDecref v41 v45 v64 v65 v66 v67 v68
+    Return v69
+  }
+}
 --- Test Name ---
 DeadCopiesNotInheritedFromPredecessor
 --- Input ---
@@ -3586,6 +4743,41 @@ fun test {
   }
 }
 --- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    CondBranch<1, 3> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      LiveValues<1> b:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Branch<2>
+  }
+
+  bb 3 (preds 0) {
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 3) {
+    v4:Object = Phi<1, 3> v3 v1
+    v5:Object = VectorCall<0> v4 {
+      LiveValues<2> b:v1 b:v4
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Decref v5
+    Incref v1
+    Return v1
+  }
+}
+--- Expected 3.15 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>

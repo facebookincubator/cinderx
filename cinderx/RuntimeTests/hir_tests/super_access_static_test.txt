@@ -234,6 +234,71 @@ fun jittestmodule:A.f {
     }
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:A.f {
+  bb 0 {
+    v0 = LoadArg<0; "self", User[A]>
+    v2 = LoadCurrentFunc
+    Snapshot
+    v3 = LoadField<func_closure@72, Tuple, borrowed> v2
+    v1 = LoadTupleItem<0> v3
+    InitFrameCellVars<1> v2
+    Snapshot
+    v4 = LoadEvalBreaker
+    CondBranch<2, 1> v4
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v5 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v6 = LoadGlobalCached<0; "super">
+    v6 = GuardIs<0xdeadbeef> v6 {
+      Descr 'LOAD_GLOBAL: super'
+    }
+    Snapshot
+    v7 = LoadCellItem v1
+    v7 = CheckFreevar<"__class__"> v7 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v0
+        Cells<1> v1
+        Stack<1> v6
+      }
+    }
+    Snapshot
+    CondBranchCheckType<4, 3, Type> v7
+  }
+
+  bb 4 (preds 1) {
+    v7 = RefineType<Type> v7
+    v8 = LoadAttrSuper<1; "f", true> v6 v7 v0 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    Snapshot
+    Return v8
+  }
+
+  bb 3 (preds 1) {
+    Snapshot
+    Deopt {
+    }
+  }
+}
 --- Test Name ---
 MethodCallWithSuperLoadAttr
 --- Input ---
@@ -461,6 +526,84 @@ fun jittestmodule:A.f {
     }
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:A.f {
+  bb 0 {
+    v0 = LoadArg<0; "self", User[A]>
+    v2 = LoadCurrentFunc
+    Snapshot
+    v3 = LoadField<func_closure@72, Tuple, borrowed> v2
+    v1 = LoadTupleItem<0> v3
+    InitFrameCellVars<1> v2
+    Snapshot
+    v4 = LoadEvalBreaker
+    CondBranch<2, 1> v4
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v5 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v6 = LoadGlobalCached<0; "super">
+    v6 = GuardIs<0xdeadbeef> v6 {
+      Descr 'LOAD_GLOBAL: super'
+    }
+    Snapshot
+    v7 = LoadCellItem v1
+    v7 = CheckFreevar<"__class__"> v7 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v0
+        Cells<1> v1
+        Stack<1> v6
+      }
+    }
+    Snapshot
+    CondBranchCheckType<4, 3, Type> v7
+  }
+
+  bb 4 (preds 1) {
+    v7 = RefineType<Type> v7
+    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    v9 = GetSecondOutput<OptObject> v8
+    Snapshot
+    v10 = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v11 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    v12 = CallMethod<4> v8 v9 v10 v11 {
+      FrameState {
+        CurInstrOffset 26
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    Snapshot
+    v13 = LoadConst<ImmortalNoneType>
+    Return v13
+  }
+
+  bb 3 (preds 1) {
+    Snapshot
+    Deopt {
+    }
+  }
+}
 --- Test Name ---
 MethodCallWithSuper
 --- Input ---
@@ -608,6 +751,81 @@ fun jittestmodule:A.f {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:A.f {
+  bb 0 {
+    v0 = LoadArg<0; "self", User[A]>
+    v2 = LoadCurrentFunc
+    Snapshot
+    v3 = LoadField<func_closure@72, Tuple, borrowed> v2
+    v1 = LoadTupleItem<0> v3
+    InitFrameCellVars<1> v2
+    Snapshot
+    v4 = LoadEvalBreaker
+    CondBranch<2, 1> v4
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v5 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v6 = LoadGlobalCached<0; "super">
+    v6 = GuardIs<0xdeadbeef> v6 {
+      Descr 'LOAD_GLOBAL: super'
+    }
+    Snapshot
+    v7 = LoadCellItem v1
+    v7 = CheckFreevar<"__class__"> v7 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v0
+        Cells<1> v1
+        Stack<1> v6
+      }
+    }
+    Snapshot
+    CondBranchCheckType<4, 3, Type> v7
+  }
+
+  bb 4 (preds 1) {
+    v7 = RefineType<Type> v7
+    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    v9 = GetSecondOutput<OptObject> v8
+    Snapshot
+    v10 = CallMethod<2> v8 v9 {
+      FrameState {
+        CurInstrOffset 22
+        Locals<1> v0
+        Cells<1> v1
+      }
+    }
+    Snapshot
+    v11 = LoadConst<ImmortalNoneType>
+    Return v11
+  }
+
+  bb 3 (preds 1) {
+    Snapshot
+    Deopt {
+    }
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>

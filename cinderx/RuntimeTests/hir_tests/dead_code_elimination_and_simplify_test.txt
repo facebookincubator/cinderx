@@ -104,6 +104,43 @@ fun jittestmodule:test {
     Return v24
   }
 }
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v12:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v13
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v12
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    Snapshot
+    v17:CInt64 = IntConvert<CInt64> v16
+    v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
+    v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
+    Snapshot
+    v24:LongExact = PrimitiveBox<CInt64> v22 {
+      FrameState {
+        CurInstrOffset 32
+        Locals<1> v22
+      }
+    }
+    Return v24
+  }
+}
 --- Test Name ---
 UnboxOfFinalDoubleIsEliminated
 --- Input ---
@@ -155,6 +192,34 @@ fun jittestmodule:test {
   }
 }
 --- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v9:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    Snapshot
+    v16:CDouble[1.23] = LoadConst<CDouble[1.23]>
+    Return<CDouble> v16
+  }
+}
+--- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
     v8:Nullptr = LoadConst<Nullptr>
