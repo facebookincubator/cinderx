@@ -34,7 +34,6 @@
 
 // @Borrow typedef _PyEntryFrame from Python/ceval.c
 
-// @Borrow function _Py_CheckRecursiveCallPy from Python/ceval.c
 // @Borrow var _Py_INTERPRETER_TRAMPOLINE_INSTRUCTIONS from Python/ceval.c
 
 // @Borrow function do_raise from Python/ceval.c
@@ -67,8 +66,6 @@
 
 // @Borrow function get_exception_handler from Python/ceval.c
 // @Borrow function initialize_locals from Python/ceval.c
-// @Borrow var _PyEval_BinaryOps from Python/ceval.c
-// @Borrow var _PyEval_ConversionFuncs from Python/ceval.c
 // @Borrow function clear_thread_frame from Python/ceval.c
 // @Borrow function clear_gen_frame from Python/ceval.c
 // @Borrow function _PyEval_FrameClearAndPop from Python/ceval.c
