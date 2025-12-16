@@ -4,6 +4,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/code_extra.h"
+
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_code.h"
 #endif
@@ -115,12 +117,6 @@ int loadGlobalIndex(int oparg);
 
 // Before 3.12, Cinder relies on Shadowcode's call count tracking.
 #define USE_CODE_EXTRA (PY_VERSION_HEX >= 0x030C0000)
-
-// Extra data attached to a code object.
-typedef struct {
-  // Number of times the code object has been called.
-  uint64_t calls;
-} CodeExtra;
 
 // Initialize and finalize the index of the extra data Cinder attaches onto code
 // objects.
