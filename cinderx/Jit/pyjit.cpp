@@ -18,6 +18,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/string.h"
+#include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/code_allocator.h"

@@ -6,6 +6,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/type.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"

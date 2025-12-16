@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/type_deopt_patchers.h"
 
+#include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 
 namespace jit {

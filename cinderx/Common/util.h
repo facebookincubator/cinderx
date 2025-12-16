@@ -197,10 +197,6 @@ std::optional<T> parseNumber(std::string_view s) {
   return std::nullopt;
 }
 
-// When possible, return the fully qualified name of the given type (including
-// its module). Falls back to the type's bare name.
-std::string typeFullname(PyTypeObject* type);
-
 // Return the given PyUnicodeObject as a std::string, or "" if an error occurs.
 std::string unicodeAsString(PyObject* str);
 
@@ -327,21 +323,6 @@ class ScopeExit {
       __VA_ARGS__)
 
 #define SCOPE_EXIT(...) SCOPE_EXIT_INTERNAL1(__COUNTER__, __VA_ARGS__)
-
-// Simulate _PyType_Lookup(), but in a way that should avoid any heap mutations
-// (caches, refcount operations, arbitrary code execution).
-//
-// Since this function is very conservative in the operations it will perform,
-// it may return false negatives; a nullptr return does *not* mean that
-// _PyType_Lookup() will also return nullptr. However, a non-nullptr return
-// value should be the same value _PyType_Lookup() would return.
-BorrowedRef<> typeLookupSafe(
-    BorrowedRef<PyTypeObject> type,
-    BorrowedRef<> name);
-
-// Attempt to ensure that the given type has a valid version tag, returning
-// true if successful.
-bool ensureVersionTag(BorrowedRef<PyTypeObject> type);
 
 // Return a crc32 checksum of the bytecode for the given code object.
 // A frozen list is effectively a vector that is dynamically allocated at

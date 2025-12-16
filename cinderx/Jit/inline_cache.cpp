@@ -8,6 +8,7 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
