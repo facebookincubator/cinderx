@@ -584,35 +584,35 @@ class StrictLoaderTest(StrictTestBase):
 
         # Strict module imported by strict loader should be .strict.pyc
         self.assertTrue(
-            mod1.__cached__.endswith(".strict.pyc"),
-            f"'{mod1.__cached__}' should end with .strict.pyc",
+            mod1.__spec__.cached.endswith(".strict.pyc"),
+            f"'{mod1.__spec__.cached}' should end with .strict.pyc",
         )
-        self.assertEqual(mod1.__cached__, mod1.__spec__.cached)
-        self.assertTrue(os.path.exists(mod1.__cached__))
+        self.assertEqual(mod1.__spec__.cached, mod1.__spec__.cached)
+        self.assertTrue(os.path.exists(mod1.__spec__.cached))
 
         # Non-strict module imported by strict loader should also have .strict!
         self.assertTrue(
-            mod2.__cached__.endswith(".strict.pyc"),
-            f"'{mod2.__cached__}' should end with .strict.pyc",
+            mod2.__spec__.cached.endswith(".strict.pyc"),
+            f"'{mod2.__spec__.cached}' should end with .strict.pyc",
         )
-        self.assertEqual(mod2.__cached__, mod2.__spec__.cached)
-        self.assertTrue(os.path.exists(mod2.__cached__))
+        self.assertEqual(mod2.__spec__.cached, mod2.__spec__.cached)
+        self.assertTrue(os.path.exists(mod2.__spec__.cached))
 
         # Module imported by non-strict loader should not have -strict
         self.assertFalse(
-            mod3.__cached__.endswith(".strict.pyc"),
-            f"{mod3.__cached__} should not contain .strict",
+            mod3.__spec__.cached.endswith(".strict.pyc"),
+            f"{mod3.__spec__.cached} should not contain .strict",
         )
-        self.assertEqual(mod3.__cached__, mod3.__spec__.cached)
-        self.assertTrue(os.path.exists(mod3.__cached__))
+        self.assertEqual(mod3.__spec__.cached, mod3.__spec__.cached)
+        self.assertTrue(os.path.exists(mod3.__spec__.cached))
 
         # Strict module imported by strict loader with patching enabled
         self.assertTrue(
-            mod4.__cached__.endswith(".strict.patch.pyc"),
-            f"'{mod4.__cached__}' should end with .strict.patch.pyc",
+            mod4.__spec__.cached.endswith(".strict.patch.pyc"),
+            f"'{mod4.__spec__.cached}' should end with .strict.patch.pyc",
         )
-        self.assertEqual(mod4.__cached__, mod4.__spec__.cached)
-        self.assertTrue(os.path.exists(mod4.__cached__))
+        self.assertEqual(mod4.__spec__.cached, mod4.__spec__.cached)
+        self.assertTrue(os.path.exists(mod4.__spec__.cached))
 
     def test_builtins_modified(self) -> None:
         self.sbx.write_file(
@@ -634,18 +634,18 @@ class StrictLoaderTest(StrictTestBase):
         self.sbx.write_file("a.py", "import __strict__\nx = 2")
         mod = self.sbx.strict_import("a")
 
-        with open(mod.__cached__, "rb") as fh:
+        with open(mod.__spec__.cached, "rb") as fh:
             self.assertEqual(fh.read(_MAGIC_LEN), _MAGIC_STRICT_OR_STATIC)
 
         BAD_MAGIC = (65535).to_bytes(2, "little") + b"\r\n"
 
-        with open(mod.__cached__, "r+b") as fh:
+        with open(mod.__spec__.cached, "r+b") as fh:
             fh.write(BAD_MAGIC)
 
         # with bad magic number, file can still import and correct pyc is written
         mod2 = self.sbx.strict_import("a")
 
-        with open(mod2.__cached__, "rb") as fh:
+        with open(mod2.__spec__.cached, "rb") as fh:
             self.assertEqual(fh.read(_MAGIC_LEN), _MAGIC_STRICT_OR_STATIC)
 
     def test_magic_number_non_strict(self) -> None:
@@ -653,18 +653,18 @@ class StrictLoaderTest(StrictTestBase):
         self.sbx.write_file("a.py", "x=2")
         mod = self.sbx.strict_import("a")
 
-        with open(mod.__cached__, "rb") as fh:
+        with open(mod.__spec__.cached, "rb") as fh:
             self.assertEqual(fh.read(_MAGIC_LEN), _MAGIC_NEITHER_STRICT_NOR_STATIC)
 
         BAD_MAGIC = (65535).to_bytes(2, "little") + b"\r\n"
 
-        with open(mod.__cached__, "r+b") as fh:
+        with open(mod.__spec__.cached, "r+b") as fh:
             fh.write(BAD_MAGIC)
 
         # with bad magic number, file can still import and correct pyc is written
         mod2 = self.sbx.strict_import("a")
 
-        with open(mod2.__cached__, "rb") as fh:
+        with open(mod2.__spec__.cached, "rb") as fh:
             self.assertEqual(fh.read(_MAGIC_LEN), _MAGIC_NEITHER_STRICT_NOR_STATIC)
 
     def test_strict_loader_toggle(self) -> None:

@@ -599,12 +599,14 @@ class StrictSourceFileLoader(SourceFileLoader):
                 f"Cannot import module {module.__name__}; get_code() returned None"
             )
         # fix up the pyc path
-        cached = getattr(module, "__cached__", None)
+        cached = getattr(module.__spec__, "cached", None)
         if cached:
-            module.__cached__ = cached = add_strict_tag(cached, self.enable_patching)
+            cached = add_strict_tag(cached, self.enable_patching)
+            if module.__spec__ is not None:
+                module.__spec__.cached = cached
+            if sys.version_info < (3, 15):
+                module.__cached__ = cached
         spec: ModuleSpec | None = module.__spec__
-        if cached and spec and spec.cached:
-            spec.cached = cached
 
         if self.strict_or_static:
             if spec is None:
