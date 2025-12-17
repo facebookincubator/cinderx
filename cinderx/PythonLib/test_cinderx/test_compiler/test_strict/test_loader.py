@@ -2106,6 +2106,7 @@ class StrictLoaderTest(StrictTestBase):
         with self.assertRaises(SyntaxError):
             self.sbx.strict_import("b")
 
+    @passIf(sys.version_info >= (3, 15), "no lazy imports on 3.15")
     def test_strict_loader_lazy_imports_cycle(self) -> None:
         self.sbx.write_file(
             "main.py",
@@ -2296,6 +2297,7 @@ class StrictLoaderTest(StrictTestBase):
             # old version of the C class from the failed import
             self.assertIs(other.f(c), c)
 
+    @passIf(sys.version_info >= (3, 15), "no lazy imports on 3.15")
     def test_strict_lazy_import_cycle(self):
         self.sbx.write_file(
             "mod/__init__.py",
