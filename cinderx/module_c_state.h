@@ -11,7 +11,11 @@ extern "C" {
 #endif
 
 // Copy of CPython's vectorcall implementation for PyFunctionObject.
+#if PY_VERSION_HEX >= 0x030F0000
+#define Ci_PyFunction_Vectorcall _PyFunction_Vectorcall
+#else
 extern vectorcallfunc Ci_PyFunction_Vectorcall;
+#endif
 
 // WatcherState.
 

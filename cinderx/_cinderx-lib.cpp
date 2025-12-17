@@ -470,11 +470,13 @@ PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
 #endif
 
 void ensurePyFunctionVectorcall(BorrowedRef<PyFunctionObject> func) {
+#if PY_VERSION_HEX < 0x030F0000
   if (!Ci_PyFunction_Vectorcall) {
     // capture the original vectorcall function on the first function
     // creation
     Ci_PyFunction_Vectorcall = func->vectorcall;
   }
+#endif
 }
 
 // Schedule a function to be JIT-compiled.  If that fails, then also try

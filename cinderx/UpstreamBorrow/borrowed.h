@@ -17,8 +17,6 @@
 #define _PyFrame_ClearLocals _CiFrame_ClearLocals
 
 #define _PyStaticType_GetState Cix_PyStaticType_GetState
-#define _PyCode_InitAddressRange _CiCode_InitAddressRange
-#define _PyLineTable_NextAddressRange _CiLineTable_NextAddressRange
 #define _PyObject_VirtualAlloc _CiVirtualAlloc
 #define _PyThreadState_PushFrame _CiThreadState_PushFrame
 #define _PyErr_GetTopmostException _CiErr_GetTopmostException
@@ -43,9 +41,23 @@
   _CiDictKeys_GetVersionForCurrentState
 #define _PyDictKeys_StringLookupAndVersion _CiDictKeys_StringLookupAndVersion
 #define _PyDictKeys_StringLookup _CiDictKeys_StringLookup
-#define _PyStack_UnpackDict_FreeNoDecRef _CiStack_UnpackDict_FreeNoDecRef
 #define _PyStack_UnpackDict_Free _CiStack_UnpackDict_Free
+#if PY_VERSION_HEX < 0x030F0000
+#define _PyStack_UnpackDict_FreeNoDecRef _CiStack_UnpackDict_FreeNoDecRef
 #define _PyStack_UnpackDict _CiStack_UnpackDict
+#define _PyCode_InitAddressRange _CiCode_InitAddressRange
+#define _PyLineTable_NextAddressRange _CiLineTable_NextAddressRange
+#define _Py_Instrument _Ci_Instrument
+#define _Py_call_instrumentation _Ci_call_instrumentation
+#define _Py_call_instrumentation_arg _Ci_call_instrumentation_arg
+#define _Py_call_instrumentation_2args _Ci_call_instrumentation_2args
+#define _Py_call_instrumentation_jump _Ci_call_instrumentation_jump
+#define _Py_call_instrumentation_instruction \
+  _Ci_call_instrumentation_instruction
+#define _Py_Instrumentation_GetLine _Ci_Instrumentation_GetLine
+#define _Py_call_instrumentation_line _Ci_call_instrumentation_line
+#define _Py_call_instrumentation_exc2 _Ci_call_instrumentation_exc2
+#endif
 #define _PyNumber_InPlacePowerNoMod _CiNumber_InPlacePowerNoMod
 #define _PyNumber_PowerNoMod _CiNumber_PowerNoMod
 
@@ -57,15 +69,6 @@
 #define _PyFrame_MakeAndSetFrameObject _CiFrame_MakeAndSetFrameObject
 #define _PyInstruction_GetLength _CiInstruction_GetLength
 #define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
-#define _Py_call_instrumentation _Ci_call_instrumentation
-#define _Py_call_instrumentation_arg _Ci_call_instrumentation_arg
-#define _Py_call_instrumentation_2args _Ci_call_instrumentation_2args
-#define _Py_call_instrumentation_jump _Ci_call_instrumentation_jump
-#define _Py_call_instrumentation_instruction \
-  _Ci_call_instrumentation_instruction
-#define _Py_Instrumentation_GetLine _Ci_Instrumentation_GetLine
-#define _Py_call_instrumentation_line _Ci_call_instrumentation_line
-#define _Py_call_instrumentation_exc2 _Ci_call_instrumentation_exc2
 
 #define _Py_Specialize_ContainsOp _Ci_Specialize_ContainsOp
 #define _Py_Specialize_ToBool _Ci_Specialize_ToBool
@@ -81,7 +84,6 @@
 #define _Py_Specialize_StoreAttr _Ci_Specialize_StoreAttr
 #define _Py_Specialize_LoadAttr _Ci_Specialize_LoadAttr
 #define _Py_Specialize_LoadSuperAttr _Ci_Specialize_LoadSuperAttr
-#define _Py_Instrument _Ci_Instrument
 #define _PyEval_MonitorRaise _CiEval_MonitorRaise
 #define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
@@ -89,8 +91,12 @@
 
 #define _PyTraceBack_FromFrame _CiTraceBack_FromFrame
 #define _Py_CalculateSuggestions _Ci_CalculateSuggestions
-
+#if PY_VERSION_HEX >= 0x030F0000
+#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
+#else
 #define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
+#endif
+
 #define _PyDict_CheckConsistency _CiDict_CheckConsistency
 #define _Py_dict_lookup_keep_lazy _Ci_dict_lookup_keep_lazy
 #define _PyDict_SetItem_LockHeld _CiDict_SetItem_LockHeld

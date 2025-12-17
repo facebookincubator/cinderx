@@ -11,8 +11,15 @@
 #include "cinderx/module_c_state.h"
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_bitutils.h"
+#include "internal/pycore_call.h"
+#include "internal/pycore_ceval.h"
+#include "internal/pycore_critical_section.h"
 #include "internal/pycore_floatobject.h"
+#include "internal/pycore_genobject.h"
+#include "internal/pycore_interpframe.h"
+#include "internal/pycore_freelist.h"
 #include "internal/pycore_unicodeobject.h"
+#include "internal/pycore_weakref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "internal/pycore_function.h"
 #include "internal/pycore_descrobject.h"
@@ -79,12 +86,12 @@ _PyFrameEvalFunction Ci_EvalFrameFunc;
 // the JIT we could get the value from the thread-state register. This would be
 // slightly more efficient, but quite a bit more work and async-generators are
 // rare. So we just wrap it up here.
-
-// TODO: Find out what exactly we need from the cpp directives here.
-// @Borrow CPP directives from Objects/genobject.c
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
-  return _PyIntrinsics_UnaryFunctions[INTRINSIC_ASYNC_GEN_WRAP].func(PyThreadState_GET(), value);
+  return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
 }
+
+#define _PyGen_CAST(op) \
+    _Py_CAST(PyGenObject*, (op))
 
 // @Borrow function compute_cr_origin from Objects/genobject.c
 PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
@@ -162,7 +169,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function setitem_lock_held from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_SetItem_LockHeld from Objects/dictobject.c [3.15]
-// @Borrow function _PyObjectDict_SetItem from Objects/dictobject.c [3.15]
+
 // @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.15]
 // @Borrow function check_keys_unicode from Objects/dictobject.c [3.15]
@@ -384,19 +391,6 @@ error:
 
 // @Borrow function _PyObject_HasLen from Objects/abstract.c
 
-#define ASSERT_VALID_BOUNDS(bounds)
-#define _PyLineTable_InitAddressRange _CiLineTable_InitAddressRange
-// @Borrow function _PyLineTable_InitAddressRange from Objects/codeobject.c
-// @Borrow function _PyCode_InitAddressRange from Objects/codeobject.c
-// @Borrow function scan_varint from Objects/codeobject.c
-// @Borrow function scan_signed_varint from Objects/codeobject.c
-// @Borrow function get_line_delta from Objects/codeobject.c
-// @Borrow function is_no_line_marker from Objects/codeobject.c
-// @Borrow function next_code_delta from Objects/codeobject.c
-// @Borrow function at_end from Objects/codeobject.c
-// @Borrow function advance from Objects/codeobject.c
-// @Borrow function _PyLineTable_NextAddressRange from Objects/codeobject.c
-
 
 // @Borrow CPP directives noinclude from Python/pystate.c
 // @Borrow CPP directives noinclude from Objects/obmalloc.c
@@ -411,9 +405,7 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 
 #define _PyErr_NoMemory(tstate) PyErr_NoMemory()
 
-// @Borrow function _PyStack_UnpackDict_FreeNoDecRef from Objects/call.c [3.15]
 // @Borrow function _PyStack_UnpackDict_Free from Objects/call.c [3.15]
-// @Borrow function _PyStack_UnpackDict from Objects/call.c [3.15]                                                                                                                                                                                         11:43:24 [55/29540]
 
 // @Borrow function _PyExc_CreateExceptionGroup from Objects/exceptions.c [3.15]
 
@@ -421,72 +413,10 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 // @Borrow function _PyBuildSlice_Consume2 from Objects/sliceobject.c [3.15]
 // @Borrow function _PyBuildSlice_ConsumeRefs from Objects/sliceobject.c [3.15]
 
-#define get_line_delta instrumentation_get_line_delta
-// @Borrow var MOST_SIGNIFICANT_BITS from Python/instrumentation.c [3.15]
-// @Borrow var INSTRUMENTED_OPCODES from Python/instrumentation.c [3.15]
-// @Borrow var EVENT_FOR_OPCODE from Python/instrumentation.c [3.15]
-// @Borrow CPP directives noinclude from Python/instrumentation.c
-// @Borrow function opcode_has_event from Python/instrumentation.c [3.15]
-// @Borrow function is_instrumented from Python/instrumentation.c [3.15]
-// @Borrow function monitors_equals from Python/instrumentation.c [3.15]
-// @Borrow function monitors_sub from Python/instrumentation.c [3.15]
-// @Borrow function monitors_and from Python/instrumentation.c [3.15]
-// @Borrow function local_union from Python/instrumentation.c [3.15]
-// @Borrow function monitors_are_empty from Python/instrumentation.c [3.15]
-// @Borrow function multiple_tools from Python/instrumentation.c [3.15]
-// @Borrow function compute_line_delta from Python/instrumentation.c [3.15]
-// @Borrow function compute_line from Python/instrumentation.c [3.15]
-// @Borrow function _PyInstruction_GetLength from Python/instrumentation.c [3.15]
-// @Borrow function get_original_opcode_ptr from Python/instrumentation.c [3.15]
-// @Borrow function set_original_opcode from Python/instrumentation.c [3.15]
-// @Borrow function get_line_delta from Python/instrumentation.c [3.15]
-// @Borrow function set_line_delta from Python/instrumentation.c [3.15]
-// @Borrow function _Py_GetBaseCodeUnit from Python/instrumentation.c [3.15]
-// @Borrow function de_instrument from Python/instrumentation.c [3.15]
-// @Borrow function de_instrument_line from Python/instrumentation.c [3.15]
-// @Borrow function de_instrument_per_instruction from Python/instrumentation.c [3.15]
-// @Borrow function instrument from Python/instrumentation.c [3.15]
-// @Borrow function instrument_line from Python/instrumentation.c [3.15]
-// @Borrow function instrument_per_instruction from Python/instrumentation.c [3.15]
-// @Borrow function remove_tools from Python/instrumentation.c [3.15]
-// @Borrow function tools_is_subset_for_event from Python/instrumentation.c [3.15]
-// @Borrow function remove_line_tools from Python/instrumentation.c [3.15]
-// @Borrow function add_tools from Python/instrumentation.c [3.15]
-// @Borrow function add_line_tools from Python/instrumentation.c [3.15]
-// @Borrow function add_per_instruction_tools from Python/instrumentation.c [3.15]
-// @Borrow function remove_per_instruction_tools from Python/instrumentation.c [3.15]
-// @Borrow function call_one_instrument from Python/instrumentation.c [3.15]
-// @Borrow function most_significant_bit from Python/instrumentation.c [3.15]
-// @Borrow function global_version from Python/instrumentation.c [3.15]
-// @Borrow function is_version_up_to_date from Python/instrumentation.c [3.15]
-// @Borrow function instrumentation_cross_checks from Python/instrumentation.c [3.15]
-// @Borrow function debug_check_sanity from Python/instrumentation.c [3.15]
-// @Borrow function get_tools_for_instruction from Python/instrumentation.c [3.15]
-// @Borrow var event_names from Python/instrumentation.c [3.15]
-// @Borrow function call_instrumentation_vector from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation_arg from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation_2args from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation_jump from Python/instrumentation.c [3.15]
-// @Borrow function call_instrumentation_vector_protected from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation_exc2 from Python/instrumentation.c [3.15]
-// @Borrow function _Py_Instrumentation_GetLine from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation_line from Python/instrumentation.c [3.15]
-// @Borrow function _Py_call_instrumentation_instruction from Python/instrumentation.c [3.15]
-// @Borrow function initialize_tools from Python/instrumentation.c [3.15]
-// @Borrow function initialize_lines from Python/instrumentation.c [3.15]
-// @Borrow function initialize_line_tools from Python/instrumentation.c [3.15]
-// @Borrow function allocate_instrumentation_data from Python/instrumentation.c [3.15]
-// @Borrow function update_instrumentation_data from Python/instrumentation.c [3.15]
 
 // @Borrow function _PyNumber_PowerNoMod from Objects/abstract.c
 // @Borrow function _PyNumber_InPlacePowerNoMod from Objects/abstract.c
 
-// @Borrow function force_instrument_lock_held from Python/instrumentation.c [3.15]
-// @Borrow function instrument_lock_held from Python/instrumentation.c [3.15]
-// @Borrow function _Py_Instrument from Python/instrumentation.c [3.15]
-
-#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
 // @Borrow CPP directives noinclude from Python/specialize.c
 // @Borrow typedef DescriptorClassification from Python/specialize.c [3.15]
 // @Borrow function set_opcode from Python/specialize.c [3.15]

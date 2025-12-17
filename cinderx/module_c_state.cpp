@@ -7,7 +7,9 @@
 
 extern "C" {
 
+#if PY_VERSION_HEX < 0x030F0000
 vectorcallfunc Ci_PyFunction_Vectorcall;
+#endif
 
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcherState().watchDict(dict);
