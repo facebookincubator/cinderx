@@ -66,14 +66,14 @@ class ParallelGCTests(test.test_gc.GCTests):
         pass
 
 
-@passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
-# pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
-class ParallelGCCallbackTests(test.test_gc.GCCallbackTests):
-    # Tests implementation details of serial collector
-    def test_refcount_errors(self) -> None:
-        # necessary for tearDown to succeed
-        # pyre-ignore[16]: ParallelGCCallbackTests` has no attribute `visit`
-        self.visit = None
+if cinderx.has_parallel_gc():
+    # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
+    class ParallelGCCallbackTests(test.test_gc.GCCallbackTests):
+        # Tests implementation details of serial collector
+        def test_refcount_errors(self) -> None:
+            # necessary for tearDown to succeed
+            # pyre-ignore[16]: ParallelGCCallbackTests` has no attribute `visit`
+            self.visit = None
 
 
 @passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
