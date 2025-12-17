@@ -5,6 +5,7 @@
 import sys
 
 from .test_flag_extractor import FlagExtractorTest
+from .test_loader import StrictLoaderTest
 
 from .test_remove_annotations import AnnotationRemoverTests
 from .test_rewriter import (
@@ -17,6 +18,7 @@ from .test_strict_codegen import (
     StrictCheckedCompilationTests,
     StrictCompilationTests,
 )
+from .test_strict_compile import StrictCompileTest
 
 if not hasattr(sys, "gettotalrefcount"):
     # TASK(T129388950) These tests are only enabled in opt builds for now.
