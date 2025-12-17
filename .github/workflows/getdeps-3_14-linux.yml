@@ -17,7 +17,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - id: paths
       name: Query paths
       run: python3 build/fbcode_builder/getdeps.py query-paths --recursive --src-dir=. cinderx-3_14  >> "$GITHUB_OUTPUT"
@@ -158,7 +158,7 @@ jobs:
       run: python3 build/fbcode_builder/getdeps.py build --src-dir=. cinderx-3_14 --project-install-prefix cinderx-3_14:/usr/local
     - name: Copy artifacts
       run: python3 build/fbcode_builder/getdeps.py fixup-dyn-deps --strip --src-dir=. cinderx-3_14 _artifacts/linux --project-install-prefix cinderx-3_14:/usr/local --final-install-prefix /usr/local
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v6
       with:
         name: cinderx-3_14
         path: _artifacts
