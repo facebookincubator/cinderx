@@ -46,7 +46,7 @@ void jitFramePopulateFrame(_PyInterpreterFrame* frame);
 // Initializes the frame so that it holds directly onto the function object
 // removing the reifier object. This is required before returning execution
 // to the interpreter.
-void jitFrameInitFunctionObject(_PyInterpreterFrame* frame);
+void jitFrameRemoveReifier(_PyInterpreterFrame* frame);
 
 // Turns a stack allocated interpreter frame into a slab allocated one.
 _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
@@ -68,8 +68,6 @@ RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame);
 
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
-void jitFrameInitFunctionObject(_PyInterpreterFrame* frame);
-
 // Like _PyFrame_ClearExceptCode but will handle partially initialized
 // JIT frames and only clean up the necessary state.
 void jitFrameClearExceptCode(_PyInterpreterFrame* frame);
@@ -85,11 +83,14 @@ void jitFrameInit(
     PyCodeObject* code,
     int null_locals_from,
     _frameowner owner,
-    _PyInterpreterFrame* previous);
+    _PyInterpreterFrame* previous,
+    PyObject* reifier);
 
 // Gets the frame size (in number of words) that's required for the JIT
 // to initialize a frame object.
 size_t jitFrameGetSize(PyCodeObject* code);
+
+Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code);
 
 } // namespace jit
 

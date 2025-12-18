@@ -112,6 +112,7 @@ class ModuleState {
     sys_clear_caches_ = Ref<>::create(clear_caches);
   }
 
+#if PY_VERSION_HEX < 0x030E0000
   void setFrameReifier(BorrowedRef<> frame_reifier) {
     frame_reifier_ = Ref<>::create(frame_reifier);
   }
@@ -119,6 +120,7 @@ class ModuleState {
   BorrowedRef<> frameReifier() const {
     return frame_reifier_;
   }
+#endif
 
   // Gets the value of sys._clear_type_caches when CinderX was initialized.
   BorrowedRef<> sysClearCaches() const {
@@ -199,7 +201,9 @@ class ModuleState {
   std::unique_ptr<jit::IJitGenFreeList> jit_gen_free_list_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
   std::unordered_map<PyTypeObject*, Ref<>> builtin_members_;
+#if PY_VERSION_HEX < 0x030E0000
   Ref<> frame_reifier_;
+#endif
   Ref<> sys_clear_caches_, builtin_next_;
 
   WatcherState watcher_state_;

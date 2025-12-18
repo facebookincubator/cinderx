@@ -1342,7 +1342,7 @@ static int _cinderx_exec(PyObject* m) {
   state->setCoroType(coro_type);
   Py_DECREF(coro_type);
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES) && PY_VERSION_HEX < 0x030E0000
   Ref<PyTypeObject> frame_reifier_type = Ref<PyTypeObject>::steal(
       (PyTypeObject*)PyType_FromSpec(&jit::JitFrameReifier_Spec));
   if (frame_reifier_type == nullptr) {

@@ -2844,23 +2844,43 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // There is already an interpreter frame for the caller function.
         Instruction* callee_frame = getInlinedFrame(bbb, instr);
         // Store code
+#if PY_VERSION_HEX >= 0x030E0000
+        // Store frame helper as f_executable
+        Ref<> frame_reifier;
+        auto existing_reifier = inline_code_to_reifier_.find(code);
+        if (existing_reifier == inline_code_to_reifier_.end()) {
+          frame_reifier = makeFrameReifier(code);
+          env_->code_rt->addReference(frame_reifier);
+          inline_code_to_reifier_.emplace(code, frame_reifier.get());
+        } else {
+          frame_reifier = Ref<>::create(existing_reifier->second);
+        }
+        Instruction* code_reg =
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_reifier.get());
+#else
         Instruction* code_reg =
             bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
+#endif
         bbb.appendInstr(
             OutInd{callee_frame, FRAME_EXECUTABLE_OFFSET},
             Instruction::kMove,
             code_reg);
 
+#if PY_VERSION_HEX >= 0x030E0000
+        // Store function
+        PyObject* func_val = func;
+#else
         // Store frame helper as f_funcobj
-        PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
-        Instruction* frame_helper_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_reifier);
+        PyObject* func_val = cinderx::getModuleState()->frameReifier();
+#endif
+        Instruction* func_reg =
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, func_val);
         bbb.appendInstr(
             OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_funcobj)},
             Instruction::kMove,
-            frame_helper_reg);
+            func_reg);
 
-        // Store RTFS in func_obj as a tag
+        // Store RTFS in FrameHeader as a tag
         Instruction* rtfs_reg = bbb.appendInstr(
             OutVReg{},
             Instruction::kMove,
@@ -2920,13 +2940,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove,
             Imm{static_cast<uint8_t>(FRAME_OWNED_BY_THREAD),
                 OperandBase::k8bit});
-
-        if (!_Py_IsImmortal(code.get())) {
+#if PY_VERSION_HEX < 0x030E0000
+        if (!_Py_IsImmortal(code.get()))
+#endif
+        {
           MakeIncref(bbb, code_reg, false);
         }
 
         // Set our frame as top of stack
 #if PY_VERSION_HEX >= 0x030D0000
+        if (!_Py_IsImmortal(func_val)) {
+          MakeIncref(bbb, func_reg, false);
+        }
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
             Instruction::kMove,
@@ -2994,7 +3019,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
-#else
+#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
         JIT_CHECK(
             getConfig().frame_mode == FrameMode::kLightweight,
             "Can only generate LIR for inlined functions in 3.12+ when "
@@ -3053,12 +3078,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             caller_frame);
 #endif
         auto code = instr.matchingBegin()->code();
+#if PY_VERSION_HEX >= 0x030E0000
+        auto reifier = inline_code_to_reifier_.at(code.get());
+        Instruction* reifier_reg =
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, reifier.get());
+        MakeDecref(
+            bbb,
+            reifier_reg,
+            std::optional<destructor>(
+                PyUnstable_JITExecutable_Type.tp_dealloc));
+#else
         if (!_Py_IsImmortal(code.get())) {
           Instruction* code_reg =
               bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
           MakeDecref(
               bbb, code_reg, std::optional<destructor>(PyCode_Type.tp_dealloc));
         }
+#endif
 
         bbb.appendBlock(done_block);
 #endif

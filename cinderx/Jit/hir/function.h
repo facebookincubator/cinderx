@@ -110,6 +110,8 @@ class Function {
   // The instruction must be part of this function.
   BorrowedRef<PyCodeObject> codeFor(const Instr& instr) const;
 
+  ThreadedRef<> reifier;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(Function);
 };

@@ -233,39 +233,57 @@ void FrameAsm::linkLightWeightFunctionFrame(
   env_.addAnnotation("Load tstate", load_tstate_cursor);
 
   int frame_header_size = frameHeaderSizeExcludingSpillSpace();
+#if PY_VERSION_HEX < 0x030E0000
   PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
+#else
+  PyObject* frame_reifier = env_.code_rt->reifier();
+#endif
   const auto ref_cnt = x86::eax;
 
 #define FRAME_OFFSET(NAME) \
   -frame_header_size + offsetof(_PyInterpreterFrame, NAME) + sizeof(FrameHeader)
 
+  asmjit::BaseNode* store_func_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030E0000
+  as_->mov(x86::ptr(x86::rbp, -frame_header_size, sizeof(void*)), 0);
+  env_.addAnnotation("Store rtfs state to 0", store_func_cursor);
+#else
   // Initialize the fields minus previous.
   // Store func before the header
-  asmjit::BaseNode* store_func_cursor = as_->cursor();
   as_->mov(x86::ptr(x86::rbp, -frame_header_size), func_reg);
   incRef(func_reg, ref_cnt);
   env_.addAnnotation("Store func before frame header", store_func_cursor);
+#endif
 
-  // Store f_code
   asmjit::BaseNode* store_f_code_cursor = as_->cursor();
-  bool needs_load = storeConst(
-      x86::rbp, FRAME_OFFSET(FRAME_EXECUTABLE), func_->code.get(), scratch);
-  if (!_Py_IsImmortal(func_->code.get())) {
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject* executable = frame_reifier;
+#else
+  PyObject* executable = (PyObject*)func_->code.get();
+#endif
+  bool needs_load =
+      storeConst(x86::rbp, FRAME_OFFSET(FRAME_EXECUTABLE), executable, scratch);
+  if (!_Py_IsImmortal(executable)) {
     if (needs_load) {
       // if this fit into a 32-bit value we didn't spill it into scratch
-      as_->mov(scratch, reinterpret_cast<uint64_t>(func_->code.get()));
+      as_->mov(scratch, reinterpret_cast<uint64_t>(executable));
     }
     incRef(scratch, ref_cnt);
   }
-  env_.addAnnotation("Set _PyInterpreterFrame::f_code", store_f_code_cursor);
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame::f_executable/f_code", store_f_code_cursor);
 
   // Store f_funcobj as our helper frame reifier object
   asmjit::BaseNode* store_f_funcobj_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030E0000
+  as_->mov(x86::ptr(x86::rbp, FRAME_OFFSET(f_funcobj)), func_reg);
+  incRef(func_reg, ref_cnt);
+#else
   storeConst(x86::rbp, FRAME_OFFSET(f_funcobj), frame_reifier, scratch);
   JIT_DCHECK(_Py_IsImmortal(frame_reifier), "frame helper must be immortal");
+#endif
   env_.addAnnotation(
-      "Set _PyInterpreterFrame::f_funcobj to frame reifier",
-      store_f_funcobj_cursor);
+      "Set _PyInterpreterFrame::f_funcobj", store_f_funcobj_cursor);
 
   // Store prev_instr
   asmjit::BaseNode* store_prev_instr_cursor = as_->cursor();

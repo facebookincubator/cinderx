@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/builtin_load_method_elimination.h"
@@ -132,7 +133,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       !getThreadedCompileContext().compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
-      hir::Preloader::makePreloader(func);
+      hir::Preloader::makePreloader(func, makeFrameReifier(func->func_code));
   return preloader ? Compile(*preloader) : nullptr;
 }
 
@@ -192,6 +193,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
 
   Timer timer;
   std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader));
+  irfunc->reifier = ThreadedRef<>::create(preloader.reifier());
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
   }

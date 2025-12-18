@@ -59,10 +59,17 @@ static inline Ref<> runInInterpreterViaReify(
   _PyInterpreterFrame* interp_frame =
       Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(code));
   jit::jitFrameInit(
-      tstate, interp_frame, func, code, 0, FRAME_OWNED_BY_THREAD, nullptr);
+      tstate,
+      interp_frame,
+      func,
+      code,
+      0,
+      FRAME_OWNED_BY_THREAD,
+      nullptr,
+      makeFrameReifier(code));
   if (getConfig().frame_mode == FrameMode::kLightweight) {
     jit::jitFramePopulateFrame(interp_frame);
-    jit::jitFrameInitFunctionObject(interp_frame);
+    jit::jitFrameRemoveReifier(interp_frame);
   }
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
@@ -371,6 +378,8 @@ class DeoptStressTest : public RuntimeTest {
     Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
     ASSERT_NE(funcobj, nullptr);
     std::unique_ptr<Function> irfunc(buildHIR(funcobj));
+    irfunc->reifier =
+        ThreadedRef<>::create(makeFrameReifier(funcobj->func_code).get());
     auto guards = insertDeopts(*irfunc);
     jit::Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
     auto delete_one_deopt = [&](const DeoptMetadata& deopt_meta) {

@@ -600,7 +600,8 @@ static void init_and_link_interpreter_frame(
     PyCodeObject* co,
     PyThreadState* tstate,
     _frameowner owner,
-    _PyInterpreterFrame* frame) {
+    _PyInterpreterFrame* frame,
+    jit::CodeRuntime* code_rt = nullptr) {
   jit::jitFrameInit(
       tstate,
       frame,
@@ -610,7 +611,8 @@ static void init_and_link_interpreter_frame(
       // safely clear the locals.
       0,
       owner,
-      currentFrame(tstate));
+      currentFrame(tstate),
+      code_rt != nullptr ? code_rt->reifier() : nullptr);
 
   // Re-use the existing cframe to avoid having to manage a new one. There
   // should always be one due to the existence of a the per-thread root
@@ -735,7 +737,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
           sizeof(jit::GenDataFooter));
   *jitGenDataFooterPtr(gen, co) = footer;
   init_and_link_interpreter_frame(
-      func, co, tstate, FRAME_OWNED_BY_GENERATOR, frame);
+      func, co, tstate, FRAME_OWNED_BY_GENERATOR, frame, code_rt);
 
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
@@ -814,7 +816,7 @@ void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
   jit::jitFrameClearExceptCode(frame);
-  Py_DECREF(_PyFrame_GetCode(frame));
+  Py_DECREF(frameExecutable(frame));
 
   if (jit::getConfig().frame_mode != jit::FrameMode::kLightweight) {
     Cix_PyThreadState_PopFrame(tstate, frame);

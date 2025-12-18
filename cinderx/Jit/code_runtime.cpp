@@ -77,6 +77,9 @@ void CodeRuntime::releaseReferences() {
   // Serialize as we modify ref-counts which may be widely accessible.
   ThreadedCompileSerialize guard;
   references_.clear();
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  reifier_.reset(nullptr);
+#endif
 }
 
 GenYieldPoint* CodeRuntime::addGenYieldPoint(GenYieldPoint&& gen_yield_point) {

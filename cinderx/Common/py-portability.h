@@ -163,10 +163,17 @@ inline void setFrameInstruction(_PyInterpreterFrame* frame, _Py_CODEUNIT* loc) {
 #define FRAME_INSTR_OFFSET offsetof(_PyInterpreterFrame, instr_ptr)
 
 inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  PyObject* executable = PyStackRef_AsPyObjectBorrow(frame->f_executable);
+  if (PyUnstable_JITExecutable_Check(executable)) {
+    return ((PyUnstable_PyJitExecutable*)executable)->je_code;
+  }
+#endif
   return (PyCodeObject*)PyStackRef_AsPyObjectBorrow(frame->f_executable);
 }
-inline void setFrameCode(_PyInterpreterFrame* frame, PyCodeObject* code) {
-  frame->f_executable = PyStackRef_FromPyObjectNew((PyObject*)code);
+
+inline void setFrameCode(_PyInterpreterFrame* frame, PyObject* code) {
+  frame->f_executable = PyStackRef_FromPyObjectNew(code);
 }
 #elif PY_VERSION_HEX >= 0x30C0000
 #define FRAME_EXECUTABLE f_code
@@ -177,12 +184,22 @@ inline void setFrameCode(_PyInterpreterFrame* frame, PyCodeObject* code) {
 inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
   return frame->f_code;
 }
-inline void setFrameCode(_PyInterpreterFrame* frame, PyCodeObject* code) {
+inline void setFrameCode(_PyInterpreterFrame* frame, PyObject* code) {
   frame->f_code = (PyCodeObject*)Py_NewRef(code);
 }
 #else
 inline PyCodeObject* frameCode(PyFrameObject* frame) {
   return frame->f_code;
+}
+#endif
+
+#if PY_VERSION_HEX >= 0x030C0000
+inline PyObject* frameExecutable(_PyInterpreterFrame* frame) {
+#if PY_VERSION_HEX >= 0x030E0000
+  return PyStackRef_AsPyObjectBorrow(frame->f_executable);
+#else
+  return (PyObject*)frameCode(frame);
+#endif
 }
 #endif
 

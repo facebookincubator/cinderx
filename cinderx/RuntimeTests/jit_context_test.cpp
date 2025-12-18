@@ -4,6 +4,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
@@ -45,7 +46,8 @@ foo = "hello"
 
   Ref<PyFunctionObject> func(compileAndGet(py_src, "func"));
   std::unique_ptr<jit::hir::Preloader> preloader(
-      jit::hir::Preloader::makePreloader(func));
+      jit::hir::Preloader::makePreloader(
+          func, jit::makeFrameReifier(func->func_code)));
 
   auto comp_result = jit::compilePreloaderImpl(jit_ctx_.get(), *preloader);
   ASSERT_EQ(comp_result.result, PYJIT_RESULT_OK);

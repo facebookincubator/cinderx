@@ -649,7 +649,7 @@ void deopt_jit_gen_object_only(JitGenObject* gen) {
   Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), type);
   if (getConfig().frame_mode == FrameMode::kLightweight) {
     auto frame = generatorFrame(gen);
-    jitFrameInitFunctionObject(frame);
+    jitFrameRemoveReifier(frame);
   }
 }
 

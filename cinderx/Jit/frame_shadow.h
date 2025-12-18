@@ -45,6 +45,11 @@ RuntimeFrameState runtimeFrameStateFromShadowFrame(
 // frames and shadow frames.
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate);
 
+inline Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code) {
+  // Just for reducing ifdef's for 3.14+ support
+  return nullptr;
+}
+
 } // namespace jit
 
 extern "C" {

@@ -912,7 +912,8 @@ hir::Preloader* preload(BorrowedRef<> unit) {
   // assumptions are broken after this.
   std::unique_ptr<hir::Preloader> preloader;
   if (func != nullptr) {
-    preloader = hir::Preloader::makePreloader(func);
+    preloader =
+        hir::Preloader::makePreloader(func, makeFrameReifier(func->func_code));
   } else {
     auto& jit_code_outer_funcs =
         cinderx::getModuleState()->codeOuterFunctions();
@@ -944,7 +945,8 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         outer_func->func_builtins,
         outer_func->func_globals,
         hir::AnnotationIndex::from_function(outer_func),
-        codeFullname(outer_func->func_module, code));
+        codeFullname(outer_func->func_module, code),
+        makeFrameReifier(code));
   }
 
   if (preloader == nullptr) {

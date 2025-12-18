@@ -40,9 +40,29 @@ CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
   return cinderx::getModuleState()->jitContext()->lookupCodeRuntime(func);
 }
 
+#if PY_VERSION_HEX >= 0x030E0000
+
+void updatePrevInstr(_PyInterpreterFrame* frame);
+
+int reifyRunningFrame(_PyInterpreterFrame* frame, PyObject* reifier) {
+  jitFramePopulateFrame(frame);
+  updatePrevInstr(frame);
+  return 0;
+}
+
+#endif
+
 bool isJitFrame(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
+
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject* code = PyStackRef_AsPyObjectBorrow(frame->f_executable);
+  return PyUnstable_JITExecutable_Check(code) &&
+      ((PyUnstable_PyJitExecutable*)code)->je_reifier == &reifyRunningFrame;
+#else
   return frameFunction(frame) == cinderx::getModuleState()->frameReifier();
+#endif
+
 #else
   throw std::runtime_error{"isJitFrame: Lightweight frames are not supported"};
 #endif
@@ -152,6 +172,7 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   unit_state.reserve(unit_frames.size());
   _PyInterpreterFrame* non_inlined_sf = unit_frames[0];
   CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
+  JIT_CHECK(code_rt != nullptr, "failed to find code runtime");
   uintptr_t ip = getIP(non_inlined_sf, code_rt->frameSize());
   std::optional<UnitCallStack> locs =
       code_rt->debugInfo()->getUnitCallStack(ip);
@@ -185,14 +206,6 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   return unit_state;
 }
 
-PyMemberDef framereifier_members[] = {
-    {"__vectorcalloffset__",
-     T_PYSSIZET,
-     offsetof(JitFrameReifier, vectorcall),
-     READONLY},
-    {} /* Sentinel */
-};
-
 void updatePrevInstr(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   auto unit_state = getUnitState(frame);
@@ -216,6 +229,17 @@ void updatePrevInstr(_PyInterpreterFrame* frame) {
 #endif
 }
 
+#if PY_VERSION_HEX < 0x030E0000
+
+const PyMemberDef framereifier_members[] = {
+    {"__vectorcalloffset__",
+     T_PYSSIZET,
+     offsetof(JitFrameReifier, vectorcall),
+     READONLY,
+     nullptr},
+    {} /* Sentinel */
+};
+
 PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
   if (PyTuple_GET_SIZE(args) != 1 ||
       !PyLong_CheckExact(PyTuple_GET_ITEM(args, 0))) {
@@ -235,11 +259,31 @@ PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
 }
 
 PyType_Slot framereifier_type_slots[] = {
-    {Py_tp_members, framereifier_members},
+    {Py_tp_members, (void*)&framereifier_members},
     {Py_tp_call, (void*)&framereifier_tpcall},
     {0, 0}};
 
+#endif
+
 } // namespace
+
+Ref<> makeFrameReifier([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  if (getConfig().frame_mode == FrameMode::kLightweight) {
+    PyObject* reifier =
+        PyUnstable_MakeJITExecutable(reifyRunningFrame, code, nullptr);
+    if (reifier == nullptr) {
+      PyErr_Print();
+      throw std::runtime_error(
+          fmt::format("failed to make reifier {}", codeQualname(code)));
+    }
+    return Ref<>::steal(reifier);
+  }
+#endif
+  return nullptr;
+}
+
+#if PY_VERSION_HEX < 0x030E0000
 
 PyObject* jitFrameReifierVectorcall(
     JitFrameReifier*,
@@ -270,6 +314,8 @@ PyType_Spec JitFrameReifier_Spec = {
         Py_TPFLAGS_HAVE_VECTORCALL,
     .slots = framereifier_type_slots,
 };
+
+#endif
 
 void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
@@ -319,8 +365,22 @@ void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
 #endif
 }
 
-void jitFrameInitFunctionObject(_PyInterpreterFrame* frame) {
+// Uninstalls the frame reifier from the frame, replacing it with the
+// original code object. This is used after the function is no longer
+// executing but the frame is going to still survice - either because
+// we've deopted or the PyFrameObject was materialized and the frame
+// is going to be transferred there.
+void jitFrameRemoveReifier(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject* code = PyStackRef_AsPyObjectBorrow(frame->f_executable);
+  if (PyUnstable_JITExecutable_Check(code)) {
+    _PyStackRef existing = frame->f_executable;
+    frame->f_executable = PyStackRef_FromPyObjectNew(
+        ((PyUnstable_PyJitExecutable*)code)->je_code);
+    PyStackRef_CLOSE(existing);
+  }
+#else
   // We no longer own the frame and need to provide a proper function for the
   // interpreter.
   if (!hasRtfsFunction(frame)) {
@@ -332,9 +392,10 @@ void jitFrameInitFunctionObject(_PyInterpreterFrame* frame) {
     JIT_DCHECK(func != nullptr, "should have a func for inlined functions");
     setFrameFunction(frame, Py_NewRef(func));
   }
+#endif
 #else
   throw std::runtime_error{
-      "jitFrameInitFunctionObject: Lightweight frames are not supported"};
+      "jitFrameRemoveReifier: Lightweight frames are not supported"};
 #endif
 }
 
@@ -349,7 +410,7 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
   }
 
   jitFramePopulateFrame(frame);
-  jitFrameInitFunctionObject(frame);
+  jitFrameRemoveReifier(frame);
 
   memcpy(new_frame, frame, code->co_framesize * sizeof(PyObject*));
 
@@ -378,6 +439,9 @@ void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
 }
 
 BorrowedRef<PyFunctionObject> jitFrameGetFunction(_PyInterpreterFrame* frame) {
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    return frameFunction(frame);
+  }
   return reinterpret_cast<PyFunctionObject*>(
       jitFrameGetHeader(frame)->rtfs & ~JIT_FRAME_MASK);
 }
@@ -399,7 +463,8 @@ void jitFrameInitLightweight(
     PyFunctionObject* func,
     PyCodeObject* code,
     _frameowner owner,
-    _PyInterpreterFrame* previous) {
+    _PyInterpreterFrame* previous,
+    [[maybe_unused]] PyObject* reifier) {
   // We must set `frame->owner` before calling `jitFrameSetFunction()`,
   // otherwise assertions in callees will fail if the code object has
   // generator-like flags but the frame's owner is not
@@ -409,24 +474,26 @@ void jitFrameInitLightweight(
   // fields need to be set these for generators to help enable reuse of existing
   // CPython generator management. Particularly, having a more fully configured
   // frame allows us to use gen_traverse().
-#if PY_VERSION_HEX >= 0x030E0000
-  frame->stackpointer = frame->localsplus;
-#else
-  frame->stacktop = 0;
-#endif
   frame->f_locals = nullptr;
   frame->frame_obj = nullptr;
-  setFrameCode(frame, code);
+#if PY_VERSION_HEX >= 0x030E0000
+  JIT_DCHECK(reifier, "reifier needed for lightweight frames");
+  frame->stackpointer = frame->localsplus;
+  setFrameInstruction(frame, _PyCode_CODE(code));
+  setFrameCode(frame, reifier);
+  setFrameFunction(frame, (PyObject*)Py_NewRef(func));
+  jitFrameGetHeader(frame)->rtfs = 0;
+#else
+  frame->stacktop = 0;
+  setFrameInstruction(frame, _PyCode_CODE(code) - 1);
+  frame->prev_instr = _PyCode_CODE(code) - 1;
+  setFrameCode(frame, (PyObject*)code);
   JIT_DCHECK(
       _Py_IsImmortal(cinderx::getModuleState()->frameReifier()),
       "frame helper must be immortal");
   setFrameFunction(frame, cinderx::getModuleState()->frameReifier());
-#if PY_VERSION_HEX >= 0x030E0000
-  setFrameInstruction(frame, _PyCode_CODE(code));
-#else
-  setFrameInstruction(frame, _PyCode_CODE(code) - 1);
-#endif
   jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
+#endif
   frame->previous = previous;
 }
 
@@ -469,9 +536,11 @@ void jitFrameInit(
     PyCodeObject* code,
     int null_locals_from,
     _frameowner owner,
-    _PyInterpreterFrame* previous) {
+    _PyInterpreterFrame* previous,
+    PyObject* reifier) {
   if (getConfig().frame_mode == FrameMode::kLightweight) {
-    jitFrameInitLightweight(tstate, frame, func, code, owner, previous);
+    jitFrameInitLightweight(
+        tstate, frame, func, code, owner, previous, reifier);
     return;
   }
 
@@ -503,7 +572,7 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   // _PyInterpreterFrame then we just fall back to its implementation to
   // handle the clearing.
   if (jitFrameGetHeader(frame)->rtfs & JIT_FRAME_INITIALIZED) {
-    jitFrameInitFunctionObject(frame);
+    jitFrameRemoveReifier(frame);
     _PyFrame_ClearExceptCode(frame);
     return;
   }
@@ -515,8 +584,10 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
     Ci_STACK_CLEAR(frame->localsplus[i]);
   }
   Ci_STACK_CLOSE(frame->f_funcobj);
-  if (!hasRtfsFunction(frame)) {
-    Py_DECREF(jitFrameGetFunction(frame));
+  if constexpr (PY_VERSION_HEX < 0x030E0000) {
+    if (!hasRtfsFunction(frame)) {
+      Py_DECREF(jitFrameGetFunction(frame));
+    }
   }
 }
 

@@ -90,13 +90,15 @@ class Preloader {
   Preloader() = default;
 
   static std::unique_ptr<Preloader> makePreloader(
-      BorrowedRef<PyFunctionObject> func) {
+      BorrowedRef<PyFunctionObject> func,
+      Ref<> reifier = nullptr) {
     return makePreloader(
         func->func_code,
         func->func_builtins,
         func->func_globals,
         AnnotationIndex::from_function(func),
-        funcFullname(func));
+        funcFullname(func),
+        std::move(reifier));
   }
 
   static std::unique_ptr<Preloader> makePreloader(
@@ -104,9 +106,15 @@ class Preloader {
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
       std::unique_ptr<AnnotationIndex> annotations,
-      const std::string& fullname) {
+      const std::string& fullname,
+      Ref<> reifier = nullptr) {
     auto preloader = std::unique_ptr<Preloader>(new Preloader(
-        code, builtins, globals, std::move(annotations), fullname));
+        code,
+        builtins,
+        globals,
+        std::move(annotations),
+        fullname,
+        std::move(reifier)));
     bool success = preloader->preload();
     JIT_DCHECK(
         success != static_cast<bool>(PyErr_Occurred()),
@@ -186,6 +194,10 @@ class Preloader {
       BorrowedRef<> descr,
       int opcode);
 
+  BorrowedRef<> reifier() const {
+    return reifier_;
+  }
+
  private:
   BorrowedRef<> constArg(BytecodeInstruction& bc_instr) const;
   PyObject** getGlobalCache(BorrowedRef<> name) const;
@@ -203,12 +215,14 @@ class Preloader {
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
       std::unique_ptr<AnnotationIndex> annotations,
-      const std::string& fullname)
+      const std::string& fullname,
+      Ref<> reifier)
       : code_(Ref<>::create(code)),
         builtins_(Ref<>::create(builtins)),
         globals_(Ref<>::create(globals)),
         annotations_(std::move(annotations)),
-        fullname_(fullname) {
+        fullname_(fullname),
+        reifier_(std::move(reifier)) {
     JIT_CHECK(PyCode_Check(code_), "Expected PyCodeObject");
   }
 
@@ -217,6 +231,7 @@ class Preloader {
   Ref<PyDictObject> globals_;
   std::unique_ptr<AnnotationIndex> annotations_;
   const std::string fullname_;
+  Ref<> reifier_;
 
   // keyed by type descr tuple identity (they are interned in code objects)
   std::unordered_map<PyObject*, OwnedType> types_;

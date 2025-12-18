@@ -151,7 +151,7 @@ _PyInterpreterFrame* reifyLightweightFrames(
     }
   } else {
     jitFramePopulateFrame(cur_frame);
-    jitFrameInitFunctionObject(cur_frame);
+    jitFrameRemoveReifier(cur_frame);
   }
   if (prev) {
     cur_frame->previous = prev;
@@ -836,6 +836,9 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.rt = Runtime::get();
   env_.code_rt = env_.rt->allocateCodeRuntime(
       func->code.get(), func->builtins.get(), func->globals.get());
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES) && PY_VERSION_HEX >= 0x030E0000
+  env_.code_rt->setReifier(func->reifier);
+#endif
 
   for (auto& ref : func->env.references()) {
     env_.code_rt->addReference(ref);

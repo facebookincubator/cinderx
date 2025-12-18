@@ -4,6 +4,7 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -129,6 +130,8 @@ def func():
 
   // Insert a patchpoint immediately before the return
   auto patcher = irfunc->allocateCodePatcher<MyDeoptPatcher>(123);
+  irfunc->reifier =
+      jit::ThreadedRef<>::create(jit::makeFrameReifier(pyfunc->func_code));
   EXPECT_EQ(patcher->id(), 123);
   auto patchpoint = jit::hir::DeoptPatchpoint::create(patcher);
   patchpoint->InsertBefore(*term);

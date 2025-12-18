@@ -136,6 +136,19 @@ class alignas(16) CodeRuntime {
 
   DebugInfo* debugInfo();
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  void setReifier(BorrowedRef<> reifier) {
+    ThreadedCompileSerialize guard;
+    reifier_ = ThreadedRef<>::create(reifier);
+  }
+  BorrowedRef<> reifier() {
+    return reifier_;
+  }
+#else
+  BorrowedRef<> reifier() {
+    return nullptr;
+  }
+#endif
  private:
   RuntimeFrameState frame_state_;
   std::vector<std::unique_ptr<RuntimeFrameState>> inlined_frame_states_;
@@ -149,6 +162,10 @@ class alignas(16) CodeRuntime {
   // Metadata about deopt points.  Safe to use a vector as these are always
   // accessed by index.
   std::vector<DeoptMetadata> deopt_metadatas_;
+
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  ThreadedRef<> reifier_;
+#endif
 
   int frame_size_{-1};
   DebugInfo debug_info_;
