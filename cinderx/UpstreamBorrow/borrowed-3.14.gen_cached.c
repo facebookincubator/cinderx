@@ -3123,8 +3123,24 @@ _PyFrame_New_NoTrack(PyCodeObject *code)
 PyFrameObject *
 _PyFrame_MakeAndSetFrameObject(_PyInterpreterFrame *frame)
 {
+#ifndef META_PYTHON
     assert(frame->frame_obj == NULL);
+#endif
     PyObject *exc = PyErr_GetRaisedException();
+
+#ifdef META_PYTHON
+    if (PyUnstable_JITExecutable_Check(PyStackRef_AsPyObjectBorrow(frame->f_executable))) {
+        if (_PyFrame_EnsureFrameFullyInitialized(frame) < 0) {
+            return NULL;
+        }
+
+        PyFrameObject *res =  frame->frame_obj;
+        if (res != NULL) {
+            PyErr_SetRaisedException(exc);
+            return res;
+        }
+    }
+#endif
 
     PyFrameObject *f = _PyFrame_New_NoTrack(_PyFrame_GetCode(frame));
     if (f == NULL) {
