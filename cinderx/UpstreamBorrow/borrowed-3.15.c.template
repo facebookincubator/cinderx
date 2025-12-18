@@ -538,3 +538,5 @@ LONG_FLOAT_ACTION(compactlong_float_true_div, /)
 void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
     gen_dealloc(obj);
 }
+
+// @Borrow function _PyTuple_MaybeUntrack from Objects/tupleobject.c [3.15]

@@ -1358,10 +1358,13 @@ gc_collect_main(
   stats->uncollectable += n;
 #endif
 
+#if PY_VERSION_HEX < 0x030F0000
+  // core GC code accounts for generation stats in 3.15+
   struct gc_generation_stats* genstats = &gcstate->generation_stats[generation];
   genstats->collections++;
   genstats->collected += m;
   genstats->uncollectable += n;
+#endif
 
   for (int i = 0; i < 3; i++) {
     validate_list(GEN_HEAD(gcstate, i), collecting_clear_unreachable_clear);

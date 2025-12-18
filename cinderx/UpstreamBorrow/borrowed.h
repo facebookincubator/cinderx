@@ -117,6 +117,9 @@ PyObject* _PyNumber_PowerNoMod(PyObject* lhs, PyObject* rhs);
 #if PY_VERSION_HEX >= 0x030D0000
 // _PyTuple_MaybeUntrack stopped being exported in 3.13 but is still extern
 #define _PyTuple_MaybeUntrack _CiTuple_MaybeUntrack
+#if PY_VERSION_HEX >= 0x030F0000
+void _PyTuple_MaybeUntrack(PyObject*);
+#endif
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000
