@@ -405,18 +405,17 @@ void jitFrameInitLightweight(
   // generator-like flags but the frame's owner is not
   // `FRAME_OWNED_BY_GENERATOR`.
   frame->owner = owner;
-  if (code->co_flags & kCoFlagsAnyGenerator) {
-    // We set these for generators to help enable reuse of existing CPython
-    // generator management. Particularly, having a more fully configured
-    // frame allows us to use gen_traverse().
+  // Outside of tests this function is only used for generator frames. These
+  // fields need to be set these for generators to help enable reuse of existing
+  // CPython generator management. Particularly, having a more fully configured
+  // frame allows us to use gen_traverse().
 #if PY_VERSION_HEX >= 0x030E0000
-    frame->stackpointer = frame->localsplus;
+  frame->stackpointer = frame->localsplus;
 #else
-    frame->stacktop = 0;
+  frame->stacktop = 0;
 #endif
-    frame->f_locals = nullptr;
-    frame->frame_obj = nullptr;
-  }
+  frame->f_locals = nullptr;
+  frame->frame_obj = nullptr;
   setFrameCode(frame, code);
   JIT_DCHECK(
       _Py_IsImmortal(cinderx::getModuleState()->frameReifier()),
