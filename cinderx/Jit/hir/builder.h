@@ -286,7 +286,6 @@ class HIRBuilder {
       const jit::BytecodeInstruction& bc_instr);
   void emitInvokeMethodVectorCall(
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
       bool is_awaited,
       std::vector<Register*>& arg_regs,
       const InvokeTarget& target);

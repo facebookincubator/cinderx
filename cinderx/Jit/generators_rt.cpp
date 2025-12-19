@@ -315,11 +315,11 @@ PyObject* jitgen_getyieldfrom(PyObject* obj, void*) {
   return yield_from;
 }
 
-PyObject* jitgen_getclass(PyObject* obj, void*) {
+PyObject* jitgen_getclass(PyObject*, void*) {
   return Py_NewRef(&PyGen_Type);
 }
 
-PyObject* jitcoro_getclass(PyObject* obj, void*) {
+PyObject* jitcoro_getclass(PyObject*, void*) {
   return Py_NewRef(&PyCoro_Type);
 }
 

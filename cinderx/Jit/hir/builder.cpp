@@ -369,7 +369,7 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
 //
 // Note: This is only necessary for 3.10.  For 3.12 we have the explicit
 // MAKE_CELL and COPY_FREE_VARS instructions.
-void HIRBuilder::addInitializeCells(TranslationContext& tc) {
+void HIRBuilder::addInitializeCells([[maybe_unused]] TranslationContext& tc) {
 #if PY_VERSION_HEX < 0x030C0000
   int nlocals = tc.frame.nlocals;
   int ncellvars = numCellvars(code_);
@@ -2515,7 +2515,6 @@ bool HIRBuilder::emitInvokeNative(
 
 void HIRBuilder::emitInvokeMethodVectorCall(
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
     bool is_awaited,
     std::vector<Register*>& arg_regs,
     const InvokeTarget& target) {
@@ -2627,7 +2626,7 @@ bool HIRBuilder::emitInvokeMethod(
     invoke->setFrameState(tc.frame);
     tc.frame.stack.push(out);
   } else {
-    emitInvokeMethodVectorCall(tc, bc_instr, is_awaited, arg_regs, target);
+    emitInvokeMethodVectorCall(tc, is_awaited, arg_regs, target);
   }
 
   return true;

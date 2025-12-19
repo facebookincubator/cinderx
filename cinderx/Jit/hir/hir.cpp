@@ -1267,7 +1267,7 @@ const Environment::ReferenceSet& Environment::references() const {
   return references_;
 }
 
-bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
+bool usesRuntimeFunc([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
 #if PY_VERSION_HEX < 0x030C0000
   return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
 #else

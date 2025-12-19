@@ -261,9 +261,6 @@ void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem);
 void releaseRefs(const DeoptMetadata& meta, const void* base);
 
 // Call once per deopt.
-Ref<> profileDeopt(
-    std::size_t deopt_idx,
-    const DeoptMetadata& meta,
-    const MemoryView& mem);
+Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem);
 
 } // namespace jit

@@ -182,10 +182,7 @@ static void reifyStack(
   }
 }
 
-Ref<> profileDeopt(
-    std::size_t deopt_idx,
-    const DeoptMetadata& meta,
-    const MemoryView& mem) {
+Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
   BorrowedRef<PyCodeObject> code = meta.innermostFrame().code;
   BCOffset bc_off = meta.innermostFrame().cause_instr_idx;
 

@@ -210,7 +210,7 @@ CiPyFrameObjType* prepareForDeopt(
 #endif
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
-  Ref<> deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
+  Ref<> deopt_obj = profileDeopt(deopt_meta, mem);
   auto runtime = Runtime::get();
   runtime->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);

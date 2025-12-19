@@ -329,7 +329,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-all",
       "PYTHONJITALL",
-      [](uint32_t val) { getMutableConfig().compile_after_n_calls = 0; },
+      [](uint32_t) { getMutableConfig().compile_after_n_calls = 0; },
       "Enable the JIT and set it to compile all functions as soon as they are "
       "called");
 
@@ -2658,7 +2658,7 @@ PyMethodDef jit_methods[] = {
     {nullptr, nullptr, 0, nullptr},
 };
 
-int jit_exec(PyObject* m) {
+int jit_exec(PyObject*) {
   return 0;
 }
 
