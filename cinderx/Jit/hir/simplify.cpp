@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/hir/simplify.h"
 
+#include "pycore_long.h"
+
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
@@ -486,10 +488,12 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
     return env.emit<CIntToCBool>(size);
   }
   if (ty <= TLongExact) {
-    Register* i = instr->GetOperand(0);
-    env.emit<UseType>(i, ty);
-    Register* cint_i = env.emit<PrimitiveUnbox>(i, TCInt64);
-    return env.emit<CIntToCBool>(cint_i);
+    Register* left = instr->GetOperand(0);
+    env.emit<UseType>(left, ty);
+    Register* right = env.emit<LoadConst>(Type::fromObject(_PyLong_GetZero()));
+    Register* result =
+        env.emit<PrimitiveCompare>(PrimitiveCompareOp::kNotEqual, left, right);
+    return result;
   }
   return nullptr;
 }
