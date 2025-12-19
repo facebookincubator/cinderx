@@ -1,3 +1,4 @@
 test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
 test.test_threading.ThreadTests.test_native_id_after_fork
 test.test_traceback.MiscTest.test_windows_only_module_error
+test.test_generators.test_close_clears_frame # T249123927
