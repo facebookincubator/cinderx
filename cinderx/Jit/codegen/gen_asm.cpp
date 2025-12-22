@@ -682,6 +682,27 @@ void* generateFailedDeferredCompileTrampoline() {
   return result;
 }
 
+class AsmJitException : public std::exception {
+ public:
+  AsmJitException(Error err, std::string expr, std::string message) noexcept
+      : err(err), expr(std::move(expr)), message(std::move(message)) {}
+
+  const char* what() const noexcept override {
+    return message.c_str();
+  }
+
+  Error const err;
+  std::string const expr;
+  std::string const message;
+};
+
+class ThrowableErrorHandler : public ErrorHandler {
+ public:
+  void handleError(Error err, const char* message, BaseEmitter*) override {
+    throw AsmJitException(err, "<unknown>", message);
+  }
+};
+
 } // namespace
 
 NativeGenerator::NativeGenerator(const hir::Function* func)
@@ -704,42 +725,6 @@ NativeGenerator::NativeGenerator(
       inline_stack_size_{calcInlineStackSize(func)} {
   env_.has_inlined_functions = inline_stack_size_ > 0;
 }
-
-// these functions call int returning functions and convert their output from
-// int (32 bits) to uint64_t (64 bits). This is solely because the code
-// generator cannot support an operand size other than 64 bits at this moment. A
-// future diff will make it support different operand sizes so that this
-// function can be removed.
-extern "C" uint64_t
-_Invoke_PyObject_SetAttr(PyObject* v, PyObject* name, PyObject* value) {
-  return PyObject_SetAttr(v, name, value);
-}
-
-extern "C" uint64_t
-_Invoke_PyObject_SetItem(PyObject* container, PyObject* sub, PyObject* value) {
-  return PyObject_SetItem(container, sub, value);
-}
-
-class AsmJitException : public std::exception {
- public:
-  AsmJitException(Error err, std::string expr, std::string message) noexcept
-      : err(err), expr(std::move(expr)), message(std::move(message)) {}
-
-  const char* what() const noexcept override {
-    return message.c_str();
-  }
-
-  Error const err;
-  std::string const expr;
-  std::string const message;
-};
-
-class ThrowableErrorHandler : public ErrorHandler {
- public:
-  void handleError(Error err, const char* message, BaseEmitter*) override {
-    throw AsmJitException(err, "<unknown>", message);
-  }
-};
 
 #ifdef __ASM_DEBUG
 extern "C" void ___debug_helper(const char* name) {
