@@ -5732,8 +5732,8 @@ fun test {
     v1:Object = LoadArg<0>
     v2:LongExact = RefineType<LongExact> v1
     UseType<LongExact> v2
-    v5:CInt64 = PrimitiveUnbox<CInt64> v2
-    v6:CBool = CIntToCBool v5
+    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v6:CBool = PrimitiveCompare<NotEqual> v2 v5
     v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
@@ -5744,8 +5744,8 @@ fun test {
     v1:Object = LoadArg<0>
     v2:LongExact = RefineType<LongExact> v1
     UseType<LongExact> v2
-    v5:CInt64 = PrimitiveUnbox<CInt64> v2
-    v6:CBool = CIntToCBool v5
+    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v6:CBool = PrimitiveCompare<NotEqual> v2 v5
     v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
@@ -5756,8 +5756,8 @@ fun test {
     v1:Object = LoadArg<0>
     v2:LongExact = RefineType<LongExact> v1
     UseType<LongExact> v2
-    v5:CInt64 = PrimitiveUnbox<CInt64> v2
-    v6:CBool = CIntToCBool v5
+    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v6:CBool = PrimitiveCompare<NotEqual> v2 v5
     v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
@@ -5768,8 +5768,8 @@ fun test {
     v1:Object = LoadArg<0>
     v2:LongExact = RefineType<LongExact> v1
     UseType<LongExact> v2
-    v5:CInt64 = PrimitiveUnbox<CInt64> v2
-    v6:CBool = CIntToCBool v5
+    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v6:CBool = PrimitiveCompare<NotEqual> v2 v5
     v4:Bool = PrimitiveBoxBool v6
     Return v4
   }
