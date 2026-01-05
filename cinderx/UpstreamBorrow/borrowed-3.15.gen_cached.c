@@ -2677,7 +2677,7 @@ _PyFrame_ClearExceptCode(_PyInterpreterFrame *frame)
     /* It is the responsibility of the owning generator/coroutine
      * to have cleared the enclosing generator, if any. */
     assert(frame->owner != FRAME_OWNED_BY_GENERATOR ||
-        _PyGen_GetGeneratorFromFrame(frame)->gi_frame_state == FRAME_CLEARED);
+           FT_ATOMIC_LOAD_INT8_RELAXED(_PyGen_GetGeneratorFromFrame(frame)->gi_frame_state) == FRAME_CLEARED);
     // GH-99729: Clearing this frame can expose the stack (via finalizers). It's
     // crucial that this frame has been unlinked, and is no longer visible:
     assert(_PyThreadState_GET()->current_frame != frame);
@@ -4759,10 +4759,8 @@ specialize_method_descriptor(PyMethodDescrObject *descr, PyObject *self_or_null,
             }
             PyInterpreterState *interp = _PyInterpreterState_GET();
             PyObject *list_append = interp->callable_cache.list_append;
-            _Py_CODEUNIT next = instr[INLINE_CACHE_ENTRIES_CALL + 1];
-            bool pop = (next.op.code == POP_TOP);
             int oparg = instr->op.arg;
-            if ((PyObject *)descr == list_append && oparg == 1 && pop) {
+            if ((PyObject *)descr == list_append && oparg == 1) {
                 assert(self_or_null != NULL);
                 if (PyList_CheckExact(self_or_null)) {
                     specialize(instr, CALL_LIST_APPEND);
@@ -5086,9 +5084,14 @@ _Py_Specialize_BinaryOp(_PyStackRef lhs_st, _PyStackRef rhs_st, _Py_CODEUNIT *in
                     specialize(instr, BINARY_OP_SUBSCR_TUPLE_INT);
                     return;
                 }
-                if (PyUnicode_CheckExact(lhs)) {
-                    specialize(instr, BINARY_OP_SUBSCR_STR_INT);
-                    return;
+                if (PyUnicode_CheckExact(lhs) && _PyLong_IsNonNegativeCompact((PyLongObject*)rhs)) {
+                    if (PyUnicode_IS_COMPACT_ASCII(lhs)) {
+                        specialize(instr, BINARY_OP_SUBSCR_STR_INT);
+                        return;
+                    } else {
+                        specialize(instr, BINARY_OP_SUBSCR_USTR_INT);
+                        return;
+                    }
                 }
             }
             if (PyDict_CheckExact(lhs)) {
@@ -5587,10 +5590,7 @@ _PyTraceBack_FromFrame(PyObject *tb_next, PyFrameObject *frame)
 static void
 gen_clear_frame(PyGenObject *gen)
 {
-    if (gen->gi_frame_state == FRAME_CLEARED)
-        return;
-
-    gen->gi_frame_state = FRAME_CLEARED;
+    assert(FT_ATOMIC_LOAD_INT8_RELAXED(gen->gi_frame_state) == FRAME_CLEARED);
     _PyInterpreterFrame *frame = &gen->gi_iframe;
     frame->previous = NULL;
     _PyFrame_ClearExceptCode(frame);
@@ -5624,7 +5624,10 @@ gen_dealloc(PyObject *self)
     if (PyCoro_CheckExact(gen)) {
         Py_CLEAR(((PyCoroObject *)gen)->cr_origin_or_finalizer);
     }
-    gen_clear_frame(gen);
+    if (gen->gi_frame_state != FRAME_CLEARED) {
+        gen->gi_frame_state = FRAME_CLEARED;
+        gen_clear_frame(gen);
+    }
     assert(gen->gi_exc_state.exc_value == NULL);
     PyStackRef_CLEAR(gen->gi_iframe.f_executable);
     Py_CLEAR(gen->gi_name);
