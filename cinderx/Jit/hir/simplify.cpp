@@ -700,7 +700,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
         env.emit<UseType>(lhs, lhs_type);
         env.emit<UseType>(rhs, rhs_type);
         return env.emit<LoadConst>(
-            Type::fromObject(env.func.env.addReference(result)));
+            Type::fromObject(env.func.env.addReference(std::move(result))));
       } else {
         env.emit<UseType>(lhs, TUnicodeExact);
         env.emit<UseType>(rhs, TLongExact);
@@ -842,7 +842,7 @@ Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
   env.emit<UseType>(instr->left(), left_type);
   env.emit<UseType>(instr->right(), right_type);
   return env.emit<LoadConst>(
-      Type::fromObject(env.func.env.addReference(result)));
+      Type::fromObject(env.func.env.addReference(std::move(result))));
 }
 
 Register* simplifyUnaryOp(Env& env, const UnaryOp* instr) {

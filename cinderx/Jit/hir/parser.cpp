@@ -78,7 +78,7 @@ Type HIRParser::parseNumberLiteral(
   }
 
   auto result = Ref<>::steal(parse(*value));
-  return Type::fromObject(env_->addReference(result));
+  return Type::fromObject(env_->addReference(std::move(result)));
 }
 
 Type HIRParser::parseType(std::string_view str) {

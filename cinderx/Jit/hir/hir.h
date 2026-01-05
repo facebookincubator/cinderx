@@ -3947,6 +3947,7 @@ class Environment {
   // alive for use by the compiled code. Make Environment a new owner of the
   // object.
   BorrowedRef<> addReference(BorrowedRef<> obj);
+  BorrowedRef<> addReference(Ref<> obj);
 
   const ReferenceSet& references() const;
 

@@ -1263,6 +1263,12 @@ BorrowedRef<> Environment::addReference(BorrowedRef<> obj) {
   return references_.emplace(ThreadedRef<>::create(obj)).first->get();
 }
 
+BorrowedRef<> Environment::addReference(Ref<> obj) {
+  // ThreadedRef cannot steal from Ref, so have to go through BorrowedRef and
+  // accept the extra increfs and decrefs.
+  return addReference(BorrowedRef<>{obj});
+}
+
 const Environment::ReferenceSet& Environment::references() const {
   return references_;
 }
