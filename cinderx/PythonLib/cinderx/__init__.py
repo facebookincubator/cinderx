@@ -32,7 +32,7 @@ def is_supported_runtime() -> bool:
     native extension.
     """
 
-    if sys.platform != "linux":
+    if sys.platform not in ("darwin", "linux"):
         return False
 
     version = (sys.version_info.major, sys.version_info.minor)
