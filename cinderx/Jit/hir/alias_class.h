@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "cinderx/Jit/hir/type.h"
-
+#include <climits>
 #include <cstdint>
 #include <iosfwd>
+#include <string>
 
 namespace jit::hir {
 

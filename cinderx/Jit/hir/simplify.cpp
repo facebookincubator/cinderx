@@ -13,12 +13,10 @@
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/printer.h"
-#include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
-#include "cinderx/module_state.h"
 
 #include <fmt/ostream.h>
 

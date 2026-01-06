@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/cfg.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_time_log.h"

@@ -3,11 +3,11 @@
 #pragma once
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/config.h"
 
 #include <memory>
 
 namespace jit::hir {
+
 // When building type annotation guards, we have to find the annotations by
 // specific names. For short lists, we can iterate directly through the tuple.
 // However, once it gets big enough, it becomes more efficient to build a
@@ -51,4 +51,5 @@ class AnnotationIndex {
   Ref<> dict_ = nullptr;
   Py_ssize_t size_;
 };
+
 } // namespace jit::hir

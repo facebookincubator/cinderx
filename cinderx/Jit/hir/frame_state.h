@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/hir/register.h"

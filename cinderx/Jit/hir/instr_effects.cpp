@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/hir/instr_effects.h"
 
-#include "cinderx/Jit/hir/alias_class.h"
 #include "cinderx/Jit/hir/hir.h"
 
 namespace jit::hir {

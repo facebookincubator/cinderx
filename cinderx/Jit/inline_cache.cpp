@@ -15,10 +15,6 @@
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#endif
-
 #include <algorithm>
 #include <memory>
 

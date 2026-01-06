@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/hir/annotation_index.h"
 
+#include "cinderx/Jit/config.h"
+
 namespace jit::hir {
 
 std::unique_ptr<AnnotationIndex> AnnotationIndex::from_function(

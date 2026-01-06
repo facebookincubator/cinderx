@@ -2,10 +2,7 @@
 
 #pragma once
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/containers.h"
 
 #include <chrono>
 #include <memory>

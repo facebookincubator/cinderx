@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/hir/alias_class.h"
 
+#include "cinderx/Common/log.h"
+
 #include <ostream>
 #include <unordered_map>
 
