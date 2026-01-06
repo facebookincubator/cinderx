@@ -5652,7 +5652,11 @@ gen_getyieldfrom(PyObject *self, void *Py_UNUSED(ignored))
     return PyStackRef_AsPyObjectNew(_PyFrame_StackPeek(&gen->gi_iframe));
 }
 PyObject * _PyGen_yf(PyGenObject *gen) {
-  return gen_getyieldfrom((PyObject *)gen, NULL);
+  PyObject *res = gen_getyieldfrom((PyObject *)gen, NULL);
+  if (res == Py_None) {
+    return NULL;
+  }
+  return res;
 }
 
 void
