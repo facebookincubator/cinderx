@@ -455,46 +455,48 @@ pop_1_error:
     }
 
     override op(_SEND, (receiver, v-- receiver, retval)) {
-      PyObject* receiver_o = PyStackRef_AsPyObjectBorrow(receiver);
-      PyObject* retval_o;
+      PyObject *receiver_o = PyStackRef_AsPyObjectBorrow(receiver);
+      PyObject *retval_o;
       assert(frame->owner != FRAME_OWNED_BY_INTERPRETER);
       if (!IS_PEP523_HOOKED(tstate) &&
-          (Py_TYPE(receiver_o) == &PyGen_Type ||
-           Py_TYPE(receiver_o) == &PyCoro_Type) &&
-          ((PyGenObject*)receiver_o)->gi_frame_state < FRAME_EXECUTING) {
-        PyGenObject* gen = (PyGenObject*)receiver_o;
-        _PyInterpreterFrame* gen_frame = &gen->gi_iframe;
-        _PyFrame_StackPush(gen_frame, PyStackRef_MakeHeapSafe(v));
-        DEAD(v);
-        SYNC_SP();
-        gen->gi_frame_state = FRAME_EXECUTING;
-        gen->gi_exc_state.previous_item = tstate->exc_info;
-        tstate->exc_info = &gen->gi_exc_state;
-        assert(INSTRUCTION_SIZE + oparg <= UINT16_MAX);
-        frame->return_offset = (uint16_t)(INSTRUCTION_SIZE + oparg);
-        assert(gen_frame->previous == NULL);
-        gen_frame->previous = frame;
-        DISPATCH_INLINED(gen_frame);
+          (Py_TYPE(receiver_o) == &PyGen_Type || Py_TYPE(receiver_o) == &PyCoro_Type) &&
+          gen_try_set_executing((PyGenObject *)receiver_o))
+      {
+          PyGenObject *gen = (PyGenObject *)receiver_o;
+          _PyInterpreterFrame *gen_frame = &gen->gi_iframe;
+          _PyFrame_StackPush(gen_frame, PyStackRef_MakeHeapSafe(v));
+          DEAD(v);
+          SYNC_SP();
+          gen->gi_exc_state.previous_item = tstate->exc_info;
+          tstate->exc_info = &gen->gi_exc_state;
+          assert(INSTRUCTION_SIZE + oparg <= UINT16_MAX);
+          frame->return_offset = (uint16_t)(INSTRUCTION_SIZE + oparg);
+          assert(gen_frame->previous == NULL);
+          gen_frame->previous = frame;
+          DISPATCH_INLINED(gen_frame);
       }
       if (PyStackRef_IsNone(v) && PyIter_Check(receiver_o)) {
-        retval_o = Py_TYPE(receiver_o)->tp_iternext(receiver_o);
-      } else {
-        retval_o = PyObject_CallMethodOneArg(
-            receiver_o, &_Py_ID(send), PyStackRef_AsPyObjectBorrow(v));
+          retval_o = Py_TYPE(receiver_o)->tp_iternext(receiver_o);
+      }
+      else {
+          retval_o = PyObject_CallMethodOneArg(receiver_o,
+                                                &_Py_ID(send),
+                                                PyStackRef_AsPyObjectBorrow(v));
       }
       if (retval_o == NULL) {
-        int matches = _PyErr_ExceptionMatches(tstate, PyExc_StopIteration);
-        if (matches) {
-          _PyEval_MonitorRaise(tstate, frame, this_instr);
-        }
-        int err = _PyGen_FetchStopIterationValue(&retval_o);
-        if (err == 0) {
-          assert(retval_o != NULL);
-          JUMPBY(oparg);
-        } else {
-          PyStackRef_CLOSE(v);
-          ERROR_IF(true);
-        }
+          int matches = _PyErr_ExceptionMatches(tstate, PyExc_StopIteration);
+          if (matches) {
+              _PyEval_MonitorRaise(tstate, frame, this_instr);
+          }
+          int err = _PyGen_FetchStopIterationValue(&retval_o);
+          if (err == 0) {
+              assert(retval_o != NULL);
+              JUMPBY(oparg);
+          }
+          else {
+              PyStackRef_CLOSE(v);
+              ERROR_IF(true);
+          }
       }
       PyStackRef_CLOSE(v);
       retval = PyStackRef_FromPyObjectSteal(retval_o);
@@ -1410,7 +1412,6 @@ pop_1_error:
       PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
       assert(FRAME_SUSPENDED_YIELD_FROM == FRAME_SUSPENDED + 1);
       assert(oparg == 0 || oparg == 1);
-      gen->gi_frame_state = FRAME_SUSPENDED + oparg;
       _PyStackRef temp = retval;
       DEAD(retval);
       SAVE_STACK();
@@ -1424,6 +1425,8 @@ pop_1_error:
       CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
 
       gen_frame->previous = NULL;
+      ((_PyThreadStateImpl *)tstate)->generator_return_kind = GENERATOR_YIELD;
+      FT_ATOMIC_STORE_INT8_RELEASE(gen->gi_frame_state, FRAME_SUSPENDED + oparg);
       /* We don't know which of these is relevant here, so keep them equal */
       assert(INLINE_CACHE_ENTRIES_SEND == INLINE_CACHE_ENTRIES_FOR_ITER);
 #if TIER_ONE

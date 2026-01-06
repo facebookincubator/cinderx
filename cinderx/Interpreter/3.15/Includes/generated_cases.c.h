@@ -9014,7 +9014,6 @@
                 PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
                 assert(FRAME_SUSPENDED_YIELD_FROM == FRAME_SUSPENDED + 1);
                 assert(oparg == 0 || oparg == 1);
-                gen->gi_frame_state = FRAME_SUSPENDED + oparg;
                 _PyStackRef temp = retval;
                 stack_pointer += -1;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
@@ -9026,6 +9025,8 @@
                 frame = tstate->current_frame = frame->previous;
                 CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
                 gen_frame->previous = NULL;
+                ((_PyThreadStateImpl *)tstate)->generator_return_kind = GENERATOR_YIELD;
+                FT_ATOMIC_STORE_INT8_RELEASE(gen->gi_frame_state, FRAME_SUSPENDED + oparg);
                 assert(INLINE_CACHE_ENTRIES_SEND == INLINE_CACHE_ENTRIES_FOR_ITER);
                 #if TIER_ONE
                 assert(
@@ -12031,19 +12032,18 @@
             // _SEND
             {
                 v = stack_pointer[-1];
-                PyObject* receiver_o = PyStackRef_AsPyObjectBorrow(receiver);
-                PyObject* retval_o;
+                PyObject *receiver_o = PyStackRef_AsPyObjectBorrow(receiver);
+                PyObject *retval_o;
                 assert(frame->owner != FRAME_OWNED_BY_INTERPRETER);
                 if (!IS_PEP523_HOOKED(tstate) &&
-                    (Py_TYPE(receiver_o) == &PyGen_Type ||
-                        Py_TYPE(receiver_o) == &PyCoro_Type) &&
-                    ((PyGenObject*)receiver_o)->gi_frame_state < FRAME_EXECUTING) {
-                    PyGenObject* gen = (PyGenObject*)receiver_o;
-                    _PyInterpreterFrame* gen_frame = &gen->gi_iframe;
+                    (Py_TYPE(receiver_o) == &PyGen_Type || Py_TYPE(receiver_o) == &PyCoro_Type) &&
+                    gen_try_set_executing((PyGenObject *)receiver_o))
+                {
+                    PyGenObject *gen = (PyGenObject *)receiver_o;
+                    _PyInterpreterFrame *gen_frame = &gen->gi_iframe;
                     _PyFrame_StackPush(gen_frame, PyStackRef_MakeHeapSafe(v));
                     stack_pointer += -1;
                     ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
-                    gen->gi_frame_state = FRAME_EXECUTING;
                     gen->gi_exc_state.previous_item = tstate->exc_info;
                     tstate->exc_info = &gen->gi_exc_state;
                     assert( 2u + oparg <= UINT16_MAX);
@@ -12056,10 +12056,12 @@
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     retval_o = Py_TYPE(receiver_o)->tp_iternext(receiver_o);
                     stack_pointer = _PyFrame_GetStackPointer(frame);
-                } else {
+                }
+                else {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
-                    retval_o = PyObject_CallMethodOneArg(
-                        receiver_o, &_Py_ID(send), PyStackRef_AsPyObjectBorrow(v));
+                    retval_o = PyObject_CallMethodOneArg(receiver_o,
+                        &_Py_ID(send),
+                        PyStackRef_AsPyObjectBorrow(v));
                     stack_pointer = _PyFrame_GetStackPointer(frame);
                 }
                 if (retval_o == NULL) {
@@ -12077,7 +12079,8 @@
                     if (err == 0) {
                         assert(retval_o != NULL);
                         JUMPBY(oparg);
-                    } else {
+                    }
+                    else {
                         stack_pointer += -1;
                         ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                         _PyFrame_SetStackPointer(frame, stack_pointer);
@@ -13788,7 +13791,6 @@
             PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
             assert(FRAME_SUSPENDED_YIELD_FROM == FRAME_SUSPENDED + 1);
             assert(oparg == 0 || oparg == 1);
-            gen->gi_frame_state = FRAME_SUSPENDED + oparg;
             _PyStackRef temp = retval;
             stack_pointer += -1;
             ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
@@ -13800,6 +13802,8 @@
             frame = tstate->current_frame = frame->previous;
             CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
             gen_frame->previous = NULL;
+            ((_PyThreadStateImpl *)tstate)->generator_return_kind = GENERATOR_YIELD;
+            FT_ATOMIC_STORE_INT8_RELEASE(gen->gi_frame_state, FRAME_SUSPENDED + oparg);
             assert(INLINE_CACHE_ENTRIES_SEND == INLINE_CACHE_ENTRIES_FOR_ITER);
             #if TIER_ONE
             assert(

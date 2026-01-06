@@ -539,4 +539,9 @@ void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
     gen_dealloc(obj);
 }
 
+// @Borrow function gen_getyieldfrom from Objects/genobject.c [3.15]
+PyObject * _PyGen_yf(PyGenObject *gen) {
+  return gen_getyieldfrom((PyObject *)gen, NULL);
+}
+
 // @Borrow function _PyTuple_MaybeUntrack from Objects/tupleobject.c [3.15]

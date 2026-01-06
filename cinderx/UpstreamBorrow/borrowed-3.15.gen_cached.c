@@ -5640,6 +5640,21 @@ void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
     gen_dealloc(obj);
 }
 
+static PyObject *
+gen_getyieldfrom(PyObject *self, void *Py_UNUSED(ignored))
+{
+    PyGenObject *gen = _PyGen_CAST(self);
+    int8_t frame_state = FT_ATOMIC_LOAD_INT8_RELAXED(gen->gi_frame_state);
+    if (frame_state != FRAME_SUSPENDED_YIELD_FROM) {
+        Py_RETURN_NONE;
+    }
+    // TODO: still not thread-safe with free threading
+    return PyStackRef_AsPyObjectNew(_PyFrame_StackPeek(&gen->gi_iframe));
+}
+PyObject * _PyGen_yf(PyGenObject *gen) {
+  return gen_getyieldfrom((PyObject *)gen, NULL);
+}
+
 void
 _PyTuple_MaybeUntrack(PyObject *op)
 {

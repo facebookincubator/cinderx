@@ -1069,8 +1069,12 @@ error:
 }
 
 // Cinder specific adapted functions
-static PyObject *
-Ci_PyEval_GetANext(PyObject *aiter)
+#define _PyCoro_GetAwaitableIter JitCoro_GetAwaitableIter
+#define _PyEval_GetAwaitable Ci_PyEval_GetAwaitable
+#define _PyEval_GetANext Ci_PyEval_GetANext
+
+PyObject *
+_PyEval_GetANext(PyObject *aiter)
 {
     unaryfunc getter = NULL;
     PyObject *next_iter = NULL;
@@ -1096,8 +1100,7 @@ Ci_PyEval_GetANext(PyObject *aiter)
         return NULL;
     }
 
-    // CX: Changed from _PyCoro_GetAwaitableIter
-    PyObject *awaitable = JitCoro_GetAwaitableIter(next_iter);
+    PyObject *awaitable = _PyCoro_GetAwaitableIter(next_iter);
     if (awaitable == NULL) {
         _PyErr_FormatFromCause(
             PyExc_TypeError,
@@ -1108,31 +1111,31 @@ Ci_PyEval_GetANext(PyObject *aiter)
     Py_DECREF(next_iter);
     return awaitable;
 }
-
-static PyObject *
-Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
+PyObject *
+_PyEval_GetAwaitable(PyObject *iterable, int oparg)
 {
-    // CX: Changed from _PyCoro_GetAwaitableIter
-    PyObject *iter = JitCoro_GetAwaitableIter(iterable);
+    PyObject *iter = _PyCoro_GetAwaitableIter(iterable);
 
     if (iter == NULL) {
         _PyEval_FormatAwaitableError(PyThreadState_GET(),
             Py_TYPE(iterable), oparg);
     }
     else if (PyCoro_CheckExact(iter)) {
-        PyObject *yf = _PyGen_yf((PyGenObject*)iter);
-        if (yf != NULL) {
-            /* `iter` is a coroutine object that is being
-                awaited, `yf` is a pointer to the current awaitable
-                being awaited on. */
-            Py_DECREF(yf);
+        PyCoroObject *coro = (PyCoroObject *)iter;
+        int8_t frame_state = FT_ATOMIC_LOAD_INT8_RELAXED(coro->cr_frame_state);
+        if (frame_state == FRAME_SUSPENDED_YIELD_FROM) {
+            /* `iter` is a coroutine object that is being awaited. */
             Py_CLEAR(iter);
             _PyErr_SetString(PyThreadState_GET(), PyExc_RuntimeError,
-                                "coroutine is being awaited already");
+                             "coroutine is being awaited already");
         }
     }
     return iter;
 }
+
+#undef _PyCoro_GetAwaitableIter
+#undef _PyEval_GetAwaitable
+#undef _PyEval_GetANext
 
 #if Py_TAIL_CALL_INTERP
 #include "cinderx/Interpreter/cinderx_opcode_targets.h"
