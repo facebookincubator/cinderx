@@ -2947,8 +2947,8 @@
                         if (new_frame == NULL) {
                             JUMP_TO_LABEL(error);
                         }
-                        assert( 2u == 1);
-                        frame->return_offset = 1;
+                        assert( 2u == 1 + INLINE_CACHE_ENTRIES_CALL_FUNCTION_EX);
+                        frame->return_offset = 2u ;
                         DISPATCH_INLINED(new_frame);
                     }
                     PyObject* callargs = PyStackRef_AsPyObjectBorrow(callargs_st);
@@ -8312,8 +8312,8 @@
                         if (new_frame == NULL) {
                             JUMP_TO_LABEL(error);
                         }
-                        assert( 2u == 1);
-                        frame->return_offset = 1;
+                        assert( 2u == 1 + INLINE_CACHE_ENTRIES_CALL_FUNCTION_EX);
+                        frame->return_offset = 2u ;
                         DISPATCH_INLINED(new_frame);
                     }
                     PyObject* callargs = PyStackRef_AsPyObjectBorrow(callargs_st);

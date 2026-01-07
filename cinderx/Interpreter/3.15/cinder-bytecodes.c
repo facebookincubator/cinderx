@@ -436,8 +436,8 @@ pop_1_error:
           if (new_frame == NULL) {
             ERROR_NO_POP();
           }
-          assert(INSTRUCTION_SIZE == 1);
-          frame->return_offset = 1;
+          assert(INSTRUCTION_SIZE == 1 + INLINE_CACHE_ENTRIES_CALL_FUNCTION_EX);
+          frame->return_offset = INSTRUCTION_SIZE;
           DISPATCH_INLINED(new_frame);
         }
         PyObject* callargs = PyStackRef_AsPyObjectBorrow(callargs_st);
