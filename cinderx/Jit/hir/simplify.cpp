@@ -988,7 +988,7 @@ Register* simplifyLoadAttrSplitDict(
       [&] { // Inline values are valid.
         Register* maybe_attr = env.emit<LoadField>(
             receiver,
-            repr(name),
+            unicodeAsString(name),
             attr_idx * sizeof(PyObject*) + type->tp_basicsize +
                 offsetof(PyDictValues, values),
             TOptObject);
