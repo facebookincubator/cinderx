@@ -319,11 +319,33 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
             ((PyTypeObject*)container_obj)->tp_name,
             attr_name);
       } else {
+        PyErr_Clear();
+        PyObject* dir = PyObject_Dir(container_obj);
+        if (dir != NULL) {
+          PyObject* comma = PyUnicode_FromString(", ");
+          if (comma != NULL) {
+            PyObject* dir_str = PyUnicode_Join(comma, dir);
+            Py_DECREF(comma);
+            Py_DECREF(dir);
+            dir = dir_str;
+          } else {
+            Py_CLEAR(dir);
+          }
+        }
+        if (dir == NULL) {
+          PyErr_Clear();
+          dir = Py_None;
+        }
         PyErr_Format(
             CiExc_StaticTypeError,
-            "%R.%U has been deleted from container",
+            "%R.%U (%s) has been deleted from container, original was %R, "
+            "contents are %R",
             container_obj,
-            attr_name);
+            attr_name,
+            Py_TYPE(container_obj)->tp_name,
+            original,
+            dir);
+        Py_DECREF(dir);
       }
     }
     Py_DECREF(container_obj);

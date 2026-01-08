@@ -6,6 +6,7 @@ from __future__ import annotations
 import _imp
 import dis
 import gc
+import importlib
 import io
 import os
 import pathlib
@@ -15,7 +16,6 @@ import tempfile
 import textwrap
 import unittest
 from collections.abc import Callable, Generator, Sequence
-
 from contextlib import contextmanager
 from importlib.abc import Loader
 from importlib.machinery import SOURCE_SUFFIXES, SourceFileLoader
@@ -37,7 +37,7 @@ from cinderx.compiler.strict.loader import (
     StrictSourceFileLoader,
 )
 from cinderx.compiler.strict.runtime import set_freeze_enabled
-
+from cinderx.static import StaticTypeError
 from cinderx.test_support import passIf
 
 from . import sandbox as base_sandbox
@@ -179,9 +179,11 @@ class Sandbox(base_sandbox.Sandbox):
     def begin_loader(
         self, loader: tuple[Callable[[str, str], Loader], list[str]]
     ) -> Generator[None, None, None]:
-        with callable_file_loader(
-            loader
-        ), restore_sys_modules(), restore_strict_modules():
+        with (
+            callable_file_loader(loader),
+            restore_sys_modules(),
+            restore_strict_modules(),
+        ):
             yield
 
     def strict_import(self, *module_names: str) -> TModule | list[TModule]:
@@ -222,9 +224,11 @@ class Sandbox(base_sandbox.Sandbox):
 
     @contextmanager
     def isolated_strict_loader(self) -> Generator[None, None, None]:
-        with callable_file_loader(
-            STRICT_LOADER
-        ), restore_sys_modules(), restore_strict_modules():
+        with (
+            callable_file_loader(STRICT_LOADER),
+            restore_sys_modules(),
+            restore_strict_modules(),
+        ):
             yield
 
     @contextmanager
@@ -329,6 +333,49 @@ class StrictLoaderTest(StrictTestBase):
             self.assertInBytecode(a.f, "INVOKE_FUNCTION", ((("a",), "g"), 0))
             self.assertEqual(a.f(), 42)
 
+    @passIf(not hasattr(importlib, "set_lazy_imports"), "not supported w/ lazy imports")
+    def test_with_lazy_imports_failed_invoke(self) -> None:
+        # pyre-ignore[16]: no such attribute
+        enabled = importlib.is_lazy_imports_enabled()
+        try:
+            if not enabled:
+                # pyre-ignore[16]: no such attribute
+                importlib.set_lazy_imports(True)
+            self.sbx.write_file(
+                "a.py",
+                """
+                    import __static__
+                    from b import g
+                    def f() -> int:
+                        global g
+                        res = g()
+                        del g
+                        return res
+
+                    def f1() -> int:
+                        return g()
+                """,
+            )
+            self.sbx.write_file(
+                "b.py",
+                """
+                    import __static__
+                    def g() -> int:
+                        return 42
+                """,
+            )
+            with self.sbx.in_strict_module("a") as a:
+                self.assertInBytecode(a.f, "INVOKE_FUNCTION", ((("a",), "g"), 0))
+                self.assertEqual(a.f(), 42)
+                with self.assertRaisesRegex(
+                    StaticTypeError, ".*has been deleted from container, original was.*"
+                ):
+                    self.assertEqual(a.f1(), 42)
+        finally:
+            if not enabled:
+                # pyre-ignore[16]: no such attribute
+                importlib.set_lazy_imports(False)
+
     def test_strict_second_import(self) -> None:
         """Second import of unmodified strict module (from pyc) is still strict."""
         self.sbx.write_file("a.py", "import __strict__\nx = 2")
@@ -364,9 +411,12 @@ class StrictLoaderTest(StrictTestBase):
             self.assertEqual(a1.g(), 42)
             self.assertInBytecode(a1.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
         # ensure pycs exist and we can import from them
-        with patch.object(
-            StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
-        ), self.sbx.in_strict_module("a") as a2:
+        with (
+            patch.object(
+                StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
+            ),
+            self.sbx.in_strict_module("a") as a2,
+        ):
             self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
@@ -405,9 +455,12 @@ class StrictLoaderTest(StrictTestBase):
             self.assertEqual(a1.g(), 42)
             self.assertInBytecode(a1.g, self.CALL, 0)
         # ensure pycs exist and we can import from them
-        with patch.object(
-            StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
-        ), self.sbx.in_strict_module("a") as a2:
+        with (
+            patch.object(
+                StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
+            ),
+            self.sbx.in_strict_module("a") as a2,
+        ):
             self.assertInBytecode(a2.g, self.CALL, 0)
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
@@ -446,9 +499,12 @@ class StrictLoaderTest(StrictTestBase):
             self.assertEqual(a1.g(), 42)
             self.assertInBytecode(a1.g, "INVOKE_FUNCTION", ((("b",), "f"), 0))
         # ensure pycs exist and we can import from them
-        with patch.object(
-            StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
-        ), self.sbx.in_strict_module("a") as a2:
+        with (
+            patch.object(
+                StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
+            ),
+            self.sbx.in_strict_module("a") as a2,
+        ):
             self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("b",), "f"), 0))
             self.assertEqual(a2.g(), 42)
         b_path.unlink()
@@ -504,9 +560,12 @@ class StrictLoaderTest(StrictTestBase):
             invalidation_mode=PycInvalidationMode.CHECKED_HASH,
         )
         # ensure pycs exist and we can import from them
-        with patch.object(
-            StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
-        ), self.sbx.in_strict_module("a") as a2:
+        with (
+            patch.object(
+                StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
+            ),
+            self.sbx.in_strict_module("a") as a2,
+        ):
             self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
@@ -555,9 +614,12 @@ class StrictLoaderTest(StrictTestBase):
             invalidation_mode=PycInvalidationMode.UNCHECKED_HASH,
         )
         # ensure pycs exist and we can import from them
-        with patch.object(
-            StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
-        ), self.sbx.in_strict_module("a") as a2:
+        with (
+            patch.object(
+                StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
+            ),
+            self.sbx.in_strict_module("a") as a2,
+        ):
             self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         self.sbx.write_file(
@@ -1926,14 +1988,20 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.__final_constants__, ("a",))
 
-            with StrictModuleTestingPatchProxy(a) as proxy, self.assertRaisesRegex(
-                AttributeError, "Cannot patch Final attribute `a` of module `a`"
+            with (
+                StrictModuleTestingPatchProxy(a) as proxy,
+                self.assertRaisesRegex(
+                    AttributeError, "Cannot patch Final attribute `a` of module `a`"
+                ),
             ):
                 # pyre-ignore [16]: `proxy` has no attribute `a`
                 proxy.a = 0xDEADBEEF
 
-            with StrictModuleTestingPatchProxy(a) as proxy, self.assertRaisesRegex(
-                AttributeError, "Cannot patch Final attribute `a` of module `a`"
+            with (
+                StrictModuleTestingPatchProxy(a) as proxy,
+                self.assertRaisesRegex(
+                    AttributeError, "Cannot patch Final attribute `a` of module `a`"
+                ),
             ):
                 del proxy.a
 
@@ -2287,7 +2355,10 @@ class StrictLoaderTest(StrictTestBase):
 
             flag.val = False
             # pyre-ignore[21]: Loaded dynamically.
-            import mod, other  # noqa: E401, F811
+            import mod  # noqa: E401, F811
+
+            # pyre-ignore[21]: Loaded dynamically.
+            import other  # noqa: E401, F811
 
             c = mod.C()
 
