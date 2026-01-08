@@ -6251,6 +6251,8 @@ class CodeGenerator314(CodeGenerator312):
         if not big:
             self.emit("BUILD_MAP", nkwargs)
 
+    SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = ("all", "any", "tuple")
+
     def maybe_optimize_function_call(self, node: ast.Call) -> bool:
         end = self.newBlock("end")
         if not (
@@ -6258,7 +6260,7 @@ class CodeGenerator314(CodeGenerator312):
             and len(node.args) == 1
             and not node.keywords
             and isinstance(node.args[0], ast.GeneratorExp)
-            and node.func.id in ("all", "any", "tuple")
+            and node.func.id in self.SUPPORTED_FUNCTION_CALL_OPS
         ):
             return False
 
@@ -6274,8 +6276,13 @@ class CodeGenerator314(CodeGenerator312):
             continue_jump_opcode = "POP_JUMP_IF_FALSE"
             initial_res = False
         else:
-            assert attr.id == "tuple"
-            const = tuple
+            if attr.id == "list":
+                const = list
+            elif attr.id == "set":
+                const = set
+            else:
+                assert attr.id == "tuple"
+                const = tuple
             continue_jump_opcode = None
             initial_res = False
 
@@ -6289,15 +6296,20 @@ class CodeGenerator314(CodeGenerator312):
         self.nextBlock()
         self.emit("POP_TOP")
 
-        if const is tuple:
+        if const is tuple or const is list:
             self.emit("BUILD_LIST", 0)
+        elif const is set:
+            self.emit("BUILD_SET", 0)
         self.visit(node.args[0])
         loop = self.newBlock("loop")
         cleanup = self.newBlock("cleanup")
 
         self.prepare_opt_function_loop(loop, cleanup)
-        if const is tuple:
+        if const is tuple or const is list:
             self.emit_opt_function_loop_append()
+            self.emit("JUMP", loop)
+        elif const is set:
+            self.emit("SET_ADD", 3)
             self.emit("JUMP", loop)
         else:
             self.emit("TO_BOOL")
@@ -6305,7 +6317,7 @@ class CodeGenerator314(CodeGenerator312):
         self.nextBlock()
 
         self.emit_noline("POP_ITER")
-        if const is not tuple:
+        if const not in (tuple, list, set):
             self.emit("LOAD_CONST", not initial_res)
         self.emit("JUMP", end)
 
@@ -6314,6 +6326,9 @@ class CodeGenerator314(CodeGenerator312):
         self.emit("POP_ITER")
         if const is tuple:
             self.emit_call_intrinsic_1("INTRINSIC_LIST_TO_TUPLE")
+        elif const is list or const is set:
+            # already the right type
+            pass
         else:
             self.emit("LOAD_CONST", initial_res)
         self.emit("JUMP", end)
@@ -7211,6 +7226,14 @@ class CodeGenerator314(CodeGenerator312):
 
 class CodeGenerator315(CodeGenerator314):
     flow_graph = PyFlowGraph315
+
+    SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = (
+        "all",
+        "any",
+        "tuple",
+        "list",
+        "set",
+    )
 
     def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
         if e.kind == FOR_LOOP:

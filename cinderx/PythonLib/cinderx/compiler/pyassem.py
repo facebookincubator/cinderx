@@ -2354,6 +2354,8 @@ class PyFlowGraph314(PyFlowGraph312):
         tuple: 2,
         all: 3,
         any: 4,
+        list: 5,
+        set: 6,
     }
     _load_special_idx = {
         "__enter__": 0,
