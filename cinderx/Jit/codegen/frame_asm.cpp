@@ -180,7 +180,7 @@ bool FrameAsm::storeConst(
 #if defined(CINDER_X86_64)
   auto dest = x86::ptr(reg, offset, sizeof(void*));
   int64_t value = reinterpret_cast<int64_t>(val);
-  if (fitsInt32(value)) {
+  if (fitsSignedInt<32>(value)) {
     // the value fits in the register, let the caller know we didn't
     // populate scratch.
     as_->mov(dest, static_cast<uint32_t>(value));
@@ -446,7 +446,7 @@ void FrameAsm::loadTState(const arch::Gp& dst_reg) {
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
 
-  if (fitsInt32(tstate)) {
+  if (fitsSignedInt<32>(tstate)) {
     as_->mov(dst_reg, x86::ptr(tstate));
   } else {
     as_->mov(dst_reg, tstate);

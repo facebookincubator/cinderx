@@ -1186,7 +1186,7 @@ emitCompare(arch::Builder* as, arch::Gp lhs, void* rhs, arch::Gp scratch) {
 #if defined(CINDER_X86_64)
   uint64_t rhsi = reinterpret_cast<uint64_t>(rhs);
 
-  if (!fitsInt32(rhsi)) {
+  if (!fitsSignedInt<32>(rhsi)) {
     // in shared mode type can be in a high address
     as->mov(scratch, rhsi);
     as->cmp(lhs, scratch);

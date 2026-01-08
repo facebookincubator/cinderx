@@ -27,7 +27,7 @@ constexpr auto kJmpNopBytes =
 uint32_t jumpDisplacement(uintptr_t from, uintptr_t to) {
   auto disp = to - (from + kJmpNopBytes.size());
   JIT_CHECK(
-      fitsInt32(disp),
+      fitsSignedInt<32>(disp),
       "Can't encode jump from {:#x} to {:#x} as relative",
       from,
       to);

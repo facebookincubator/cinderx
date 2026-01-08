@@ -119,7 +119,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   }
 
   auto constant = in1->getConstantOrAddress();
-  if (fitsInt32(constant)) {
+  if (fitsSignedInt<32>(constant)) {
     return kUnchanged;
   }
 
@@ -166,7 +166,7 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
   }
 
   auto constant = input->getConstantOrAddress();
-  if (fitsInt32(constant)) {
+  if (fitsSignedInt<32>(constant)) {
     return kUnchanged;
   }
 
@@ -197,7 +197,7 @@ RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
   }
 
   auto target_imm = target_opnd->getConstantOrAddress();
-  if (fitsInt32(target_imm)) {
+  if (fitsSignedInt<32>(target_imm)) {
     return kUnchanged;
   }
 

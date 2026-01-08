@@ -277,16 +277,24 @@ class Worklist {
   std::unordered_set<T> set_;
 };
 
-template <std::integral T>
-bool fitsInt32(T val) {
-  return std::cmp_less_equal(val, std::numeric_limits<int32_t>::max()) &&
-      std::cmp_greater_equal(val, std::numeric_limits<int32_t>::min());
+template <int N, std::integral T>
+bool fitsSignedInt(T val) {
+  static_assert(N > 0 && N <= 64, "N must be between 1 and 64");
+  if constexpr (N == 64) {
+    return std::cmp_less_equal(val, std::numeric_limits<int64_t>::max()) &&
+        std::cmp_greater_equal(val, std::numeric_limits<int64_t>::min());
+  } else {
+    constexpr int64_t max_val = (int64_t{1} << (N - 1)) - 1;
+    constexpr int64_t min_val = -(int64_t{1} << (N - 1));
+    return std::cmp_less_equal(val, max_val) &&
+        std::cmp_greater_equal(val, min_val);
+  }
 }
 
-template <typename T>
+template <int N, typename T>
   requires std::is_pointer_v<T>
-bool fitsInt32(T val) {
-  return fitsInt32(reinterpret_cast<intptr_t>(val));
+bool fitsSignedInt(T val) {
+  return fitsSignedInt<N>(reinterpret_cast<intptr_t>(val));
 }
 
 // std::unique_ptr for objects created with std::malloc() rather than new.

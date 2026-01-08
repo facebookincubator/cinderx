@@ -208,7 +208,7 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
     if (target_opnd->isImm() || target_opnd->isMem()) {
       auto target = target_opnd->getConstantOrAddress();
       JIT_DCHECK(
-          fitsInt32(target),
+          fitsSignedInt<32>(target),
           "Constant operand should fit in a 32-bit register, got {:x}.",
           target);
       as->cmp(reg_arg, target);

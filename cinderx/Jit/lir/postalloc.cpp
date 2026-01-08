@@ -45,7 +45,7 @@ void insertMoveToMemoryLocation(
     auto constant = operand->getConstant();
     if (
 #if defined(CINDER_X86_64)
-        !fitsInt32(constant) ||
+        !fitsSignedInt<32>(constant) ||
 #endif
         operand->isFp()) {
       block->allocateInstrBefore(
@@ -498,7 +498,7 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto mem_addr = reinterpret_cast<intptr_t>(in->getMemoryAddress());
 
 #if defined(CINDER_X86_64)
-  if (fitsInt32(mem_addr)) {
+  if (fitsSignedInt<32>(mem_addr)) {
     return kUnchanged;
   }
 #else

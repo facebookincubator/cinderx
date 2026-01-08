@@ -20,7 +20,8 @@ uint32_t StringTable::insert(std::string_view s) {
   bytes_.resize(bytes_.size() + s.size() + 1);
   std::memcpy(&bytes_[start_off], s.data(), s.size());
   JIT_CHECK(
-      fitsInt32(start_off), "ELF symbol table only deals in 32-bit offsets");
+      fitsSignedInt<32>(start_off),
+      "ELF symbol table only deals in 32-bit offsets");
   return static_cast<uint32_t>(start_off);
 }
 
