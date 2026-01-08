@@ -2846,14 +2846,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // Store code
 #if PY_VERSION_HEX >= 0x030E0000
         // Store frame helper as f_executable
-        Ref<> frame_reifier;
+        BorrowedRef<> frame_reifier;
         auto existing_reifier = inline_code_to_reifier_.find(code);
         if (existing_reifier == inline_code_to_reifier_.end()) {
-          frame_reifier = makeFrameReifier(code);
+          frame_reifier = instr->reifier();
           env_->code_rt->addReference(frame_reifier);
           inline_code_to_reifier_.emplace(code, frame_reifier.get());
         } else {
-          frame_reifier = Ref<>::create(existing_reifier->second);
+          frame_reifier = existing_reifier->second;
         }
         Instruction* code_reg =
             bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_reifier.get());

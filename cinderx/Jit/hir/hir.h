@@ -1541,8 +1541,9 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   BeginInlinedFunction(
       BorrowedRef<PyFunctionObject> func,
       std::unique_ptr<FrameState> caller_state,
-      const std::string& fullname)
-      : InstrT(), func_(func), fullname_(fullname) {
+      const std::string& fullname,
+      BorrowedRef<> reifier)
+      : InstrT(), func_(func), reifier_(reifier), fullname_(fullname) {
     caller_state_ = std::move(caller_state);
   }
 
@@ -1577,6 +1578,10 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     return func_->func_globals;
   }
 
+  BorrowedRef<> reifier() const {
+    return reifier_;
+  }
+
   int inlineDepth() const override {
     return caller_state_->inlineDepth() + 1;
   }
@@ -1587,6 +1592,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   // originally owned by the Call instruction, but that gets destroyed.
   // Used for printing.
   BorrowedRef<PyFunctionObject> func_;
+  BorrowedRef<> reifier_;
   std::unique_ptr<FrameState> caller_state_{nullptr};
   std::string fullname_;
 };

@@ -246,7 +246,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   BorrowedRef<PyCodeObject> callee_code{callee->func_code};
   BasicBlock* tail = caller.cfg.splitAfter(*call_instr->instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
-      callee, std::move(caller_frame_state), callee_name);
+      callee, std::move(caller_frame_state), callee_name, preloader->reifier());
   auto callee_branch = Branch::create(result.entry);
   if (call_instr->target != nullptr) {
     // Not a static call. Check that __code__ has not been swapped out since
