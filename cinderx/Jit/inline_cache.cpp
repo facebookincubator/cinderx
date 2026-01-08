@@ -1549,8 +1549,10 @@ PyObject* __attribute__((noinline)) LoadModuleAttrCache::lookupSlowPath(
 #if PY_VERSION_HEX >= 0x030E0000
     PyObject* dict = getModuleDict(object);
     BorrowedRef<PyUnicodeObject> uname{name};
-    cache_ = cinderx::getModuleState()->cacheManager()->getGlobalCache(
-        dict, dict, uname);
+    if (hasOnlyUnicodeKeys(dict)) {
+      cache_ = cinderx::getModuleState()->cacheManager()->getGlobalCache(
+          dict, dict, uname);
+    }
 #else
     value_ = value;
     version_ = version;
