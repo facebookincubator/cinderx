@@ -10,6 +10,9 @@
 #endif
 
 #include "internal/pycore_pystate.h"
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_interp_structs.h"
+#endif
 
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/code.h"
@@ -761,6 +764,14 @@ FlagProcessor initFlagProcessor() {
       getMutableConfig().specialized_opcodes,
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
+#if PY_VERSION_HEX >= 0x030C0000
+  flag_processor.addOption(
+      "jit-support-monitoring",
+      "PYTHONJITSUPPORTMONITORING",
+      getMutableConfig().support_monitoring,
+      "Support monitoring (e.g. debugging/profiling)");
+#endif
+
   flag_processor.setFlags(PySys_GetXOptions());
 
   // T198250666: Bit of a hack but this makes other things easier.  In 3.12 all
@@ -1294,17 +1305,9 @@ bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
   return false;
 }
 
-PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
-  int deopt_all = 0;
-
-  const char* keywords[] = {"deopt_all", nullptr};
-
-  if (!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "|p", const_cast<char**>(keywords), &deopt_all)) {
-    return nullptr;
-  }
+void disable_jit_impl(bool deopt_all) {
   if (jitCtx() == nullptr) {
-    Py_RETURN_NONE;
+    return;
   }
 
   if (deopt_all) {
@@ -1325,19 +1328,32 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     getMutableConfig().state = State::kPaused;
     JIT_DLOG("Disabled the JIT");
   }
+}
+
+PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
+  int deopt_all = 0;
+
+  const char* keywords[] = {"deopt_all", nullptr};
+
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|p", const_cast<char**>(keywords), &deopt_all)) {
+    return nullptr;
+  }
+
+  disable_jit_impl(deopt_all);
 
   Py_RETURN_NONE;
 }
 
-PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
+bool enable_jit_impl() {
   if (jitCtx() == nullptr) {
     PyErr_SetString(
         PyExc_RuntimeError,
         "Trying to re-enable the JIT but the JIT context is missing");
-    return nullptr;
+    return false;
   }
   if (isJitUsable()) {
-    Py_RETURN_NONE;
+    return true;
   }
 
   size_t count = 0;
@@ -1350,8 +1366,68 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
 
   JIT_DLOG("Re-enabled the JIT and re-optimized {} functions", count);
 
+  return true;
+}
+
+PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
+  if (!enable_jit_impl()) {
+    return nullptr;
+  }
   Py_RETURN_NONE;
 }
+
+#if PY_VERSION_HEX >= 0x030C0000
+
+// Check if sys.monitoring has any active callbacks registered.
+bool hasRegisteredMonitoringCallbacks() {
+  auto is = PyInterpreterState_Get();
+  for (int tool_id = 0; tool_id < PY_MONITORING_TOOL_IDS; ++tool_id) {
+    for (int event_id = 0; event_id < _PY_MONITORING_EVENTS; ++event_id) {
+      BorrowedRef<> entry = is->monitoring_callables[tool_id][event_id];
+      if (entry != nullptr && !Py_IsNone(entry)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Patched version of sys.monitoring.register_callback().
+// Intercepts callback registration/deregistration to disable/enable the JIT
+// This is to handle debuggers/profilers attaching or detaching.
+PyObject* patched_sys_monitoring_register_callback(
+    PyObject* /* self */,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  auto mod_state = cinderx::getModuleState();
+  BorrowedRef<> original =
+      mod_state->getOriginalSysMonitoringRegisterCallback();
+  JIT_CHECK(
+      original != nullptr,
+      "Expecting to have sys.monitoring.register_callback already saved");
+
+  // Run the original function first
+  PyObject* result =
+      PyObject_Vectorcall(original, args, nargs, nullptr /* kwnames */);
+  if (result == nullptr) {
+    return nullptr;
+  }
+
+  // Check if we need to enable or disable the JIT based on whether any
+  // monitoring callbacks are still registered.
+  if (hasRegisteredMonitoringCallbacks()) {
+    disable_jit_impl(true /* deopt_all */);
+  } else {
+    if (!enable_jit_impl()) {
+      Py_DECREF(result);
+      return nullptr;
+    }
+  }
+
+  return result;
+}
+
+#endif // PY_VERSION_HEX >= 0x030C0000
 
 void compile_after_n_calls_impl(uint32_t calls) {
   getMutableConfig().compile_after_n_calls = calls;
@@ -2395,6 +2471,70 @@ PyObject* after_fork_child(PyObject*, PyObject*) {
   Py_RETURN_NONE;
 }
 
+// Patch sys.monitoring.register_callback to intercept debugger/profiler
+// attachment.
+void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
+#if PY_VERSION_HEX >= 0x030C0000
+  BorrowedRef<> monitoring = PySys_GetObject("monitoring");
+  if (monitoring == nullptr) {
+    JIT_DLOG("sys.monitoring not found, skipping JIT monitoring integration");
+    return;
+  }
+
+  Ref<> original =
+      Ref<>::steal(PyObject_GetAttrString(monitoring, "register_callback"));
+  if (original == nullptr) {
+    PyErr_Clear();
+    JIT_DLOG(
+        "sys.monitoring.register_callback not found, skipping JIT monitoring "
+        "integration");
+    return;
+  }
+
+  auto mod_state = cinderx::getModuleState();
+  mod_state->setOriginalSysMonitoringRegisterCallback(original);
+
+  Ref<> patched_func = Ref<>::steal(PyObject_GetAttrString(
+      cinderjit_module, "patched_sys_monitoring_register_callback"));
+  if (patched_func == nullptr) {
+    JIT_LOG(
+        "Failed to get patched_sys_monitoring_register_callback from cinderjit "
+        "module");
+    PyErr_Clear();
+    return;
+  }
+
+  if (PyObject_SetAttrString(monitoring, "register_callback", patched_func) <
+      0) {
+    JIT_LOG("Failed to patch sys.monitoring.register_callback");
+    PyErr_Clear();
+    return;
+  }
+
+  JIT_DLOG("Successfully patched sys.monitoring.register_callback");
+#endif // PY_VERSION_HEX >= 0x030C0000
+}
+
+void restoreSysMonitoringRegisterCallback() {
+#if PY_VERSION_HEX >= 0x030C0000
+  auto mod_state = cinderx::getModuleState();
+  BorrowedRef<> original =
+      mod_state->getOriginalSysMonitoringRegisterCallback();
+  if (original == nullptr) {
+    return;
+  }
+
+  BorrowedRef<> monitoring = PySys_GetObject("monitoring");
+  if (monitoring == nullptr) {
+    return;
+  }
+
+  if (PyObject_SetAttrString(monitoring, "register_callback", original) < 0) {
+    PyErr_Clear();
+  }
+#endif // PY_VERSION_HEX >= 0x030C0000
+}
+
 PyMethodDef jit_methods[] = {
     {"disable",
      reinterpret_cast<PyCFunction>(disable_jit),
@@ -2408,6 +2548,14 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Re-enable the JIT and re-attach compiled onto previously "
          "JIT-compiled functions.")},
+#if PY_VERSION_HEX >= 0x030C0000
+    {"patched_sys_monitoring_register_callback",
+     _PyCFunction_CAST(patched_sys_monitoring_register_callback),
+     METH_FASTCALL,
+     PyDoc_STR(
+         "Patched version of sys.monitoring.register_callback that "
+         "disables/enables the JIT when debuggers/profilers attach/detach.")},
+#endif
     {"auto",
      auto_jit,
      METH_NOARGS,
@@ -3078,6 +3226,12 @@ int initialize() {
     return -1;
   }
 
+#if PY_VERSION_HEX >= 0x030C0000
+  if (getConfig().support_monitoring) {
+    patchSysMonitoringFunctions(mod);
+  }
+#endif
+
   getMutableConfig().state = State::kRunning;
 
   mod_state->setJitList(std::move(jit_list));
@@ -3126,6 +3280,8 @@ void finalize() {
   mod_state->setCodeAllocator(nullptr);
 
   g_aot_ctx.destroy();
+
+  restoreSysMonitoringRegisterCallback();
 
   getMutableConfig().state = State::kNotInitialized;
 }

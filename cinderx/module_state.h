@@ -127,6 +127,14 @@ class ModuleState {
     return sys_clear_caches_;
   }
 
+  BorrowedRef<> getOriginalSysMonitoringRegisterCallback() const {
+    return orig_sys_monitoring_register_callback_;
+  }
+
+  void setOriginalSysMonitoringRegisterCallback(BorrowedRef<> func) {
+    orig_sys_monitoring_register_callback_ = Ref<>::create(func);
+  }
+
   void setAnextAwaitableType(BorrowedRef<PyTypeObject> type) {
     anext_awaitable_type_ = Ref<PyTypeObject>::create(type);
   }
@@ -205,6 +213,7 @@ class ModuleState {
   Ref<> frame_reifier_;
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
+  Ref<> orig_sys_monitoring_register_callback_;
 
   WatcherState watcher_state_;
 
