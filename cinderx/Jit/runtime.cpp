@@ -8,6 +8,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/module_state.h"
+#include "cinderx/python_runtime.h"
 
 #include <sys/mman.h>
 

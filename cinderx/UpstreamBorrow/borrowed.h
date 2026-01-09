@@ -129,6 +129,8 @@ void _PyTuple_MaybeUntrack(PyObject*);
 #include "internal/pycore_dict.h"
 #include "internal/pycore_frame.h"
 #include "internal/pycore_typeobject.h"
+
+#include "cinderx/python_runtime.h"
 #endif
 
 #ifdef __cplusplus

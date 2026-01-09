@@ -19,6 +19,7 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/symbolizer.h"
+#include "cinderx/python_runtime.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/_static.h"
@@ -1287,6 +1288,8 @@ PyMethodDef _cinderx_methods[] = {
     {nullptr, nullptr, 0, nullptr}};
 
 static int _cinderx_exec(PyObject* m) {
+  cinderx::initStaticObjects();
+
   void* state_mem = PyModule_GetState(m);
   auto state = new (state_mem) cinderx::ModuleState();
   auto cache_manager = new (std::nothrow) jit::GlobalCacheManager();
