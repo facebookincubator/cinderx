@@ -88,6 +88,10 @@
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
 #define _PyType_Validate _CiType_Validate
 
+#if PY_VERSION_HEX < 0x030F0000
+#define _Py_Specialize_Call _Ci_Specialize_Call
+#endif
+
 #define _PyTraceBack_FromFrame _CiTraceBack_FromFrame
 #define _Py_CalculateSuggestions _Ci_CalculateSuggestions
 #if PY_VERSION_HEX >= 0x030F0000
