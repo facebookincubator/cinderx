@@ -13,6 +13,11 @@ InheritParentConfig: true
 # * Can't replace memcpy() with more secure forms as that requires internal
 #   libraries that don't exist externally.
 #
+# * The unused header check preprocesses source files first and it is limited
+#   to running with the current default value of PY_VERSION_HEX.  It will report
+#   false positives when it sees #includes that are only used in other Python
+#   versions.
+#
 # * The JIT converts between pointers and integers frequently, there's no way
 #   to avoid this.
 
@@ -23,6 +28,7 @@ Checks: '
 -facebook-hte-RE2ImplicitConversion,
 -facebook-hte-StdRegexIsAwful,
 -facebook-security-vulnerable-memcpy,
+-facebook-unused-include-check,
 -performance-no-int-to-ptr,
 modernize-raw-string-literal,
 '
