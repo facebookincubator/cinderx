@@ -384,6 +384,8 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
 
 #endif
 
+#define _PyEval_GetAwaitable Ci_PyEval_GetAwaitable
+#define _PyEval_GetANext Ci_PyEval_GetANext
 
 void Ci_InitOpcodes() {
 #ifdef ENABLE_ADAPTIVE_STATIC_PYTHON

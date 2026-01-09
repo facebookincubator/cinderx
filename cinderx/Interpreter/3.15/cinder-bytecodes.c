@@ -158,26 +158,6 @@ pop_1_error:
       LLTRACE_RESUME_FRAME();
     }
 
-    override inst(GET_ANEXT, (aiter-- aiter, awaitable)) {
-      // CX: Use modified version of _PyEval_GetANext to handle JIT generators
-      PyObject* awaitable_o =
-          Ci_PyEval_GetANext(PyStackRef_AsPyObjectBorrow(aiter));
-      if (awaitable_o == NULL) {
-        ERROR_NO_POP();
-      }
-      awaitable = PyStackRef_FromPyObjectSteal(awaitable_o);
-    }
-
-    override inst(GET_AWAITABLE, (iterable-- iter)) {
-      // CX: Use modified version of _PyEval_GetAwaitable to handle JIT
-      // generators
-      PyObject* iter_o =
-          Ci_PyEval_GetAwaitable(PyStackRef_AsPyObjectBorrow(iterable), oparg);
-      PyStackRef_CLOSE(iterable);
-      ERROR_IF(iter_o == NULL);
-      iter = PyStackRef_FromPyObjectSteal(iter_o);
-    }
-
     override inst(
         MAP_ADD,
         (dict_st, unused[oparg - 1], key, value-- dict_st, unused[oparg - 1])) {
