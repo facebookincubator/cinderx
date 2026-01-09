@@ -452,7 +452,6 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 // @Borrow function get_init_for_simple_managed_python_class from Python/specialize.c [3.15]
 // @Borrow function specialize_class_call from Python/specialize.c [3.15]
 // @Borrow function specialize_method_descriptor from Python/specialize.c [3.15]
-// @Borrow function _Py_Specialize_Call from Python/specialize.c [3.15]
 // @Borrow function specialize_py_call_kw from Python/specialize.c [3.15] :eval_frame_check
 // @Borrow function _Py_Specialize_CallKw from Python/specialize.c [3.15]
 

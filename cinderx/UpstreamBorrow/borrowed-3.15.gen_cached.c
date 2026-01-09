@@ -4785,47 +4785,6 @@ specialize_method_descriptor(PyMethodDescrObject *descr, PyObject *self_or_null,
     specialize(instr, CALL_NON_PY_GENERAL);
     return 0;
 }
-Py_NO_INLINE void
-_Py_Specialize_Call(_PyStackRef callable_st, _PyStackRef self_or_null_st, _Py_CODEUNIT *instr, int nargs)
-{
-    PyObject *callable = PyStackRef_AsPyObjectBorrow(callable_st);
-
-    assert(ENABLE_SPECIALIZATION_FT);
-    assert(_PyOpcode_Caches[CALL] == INLINE_CACHE_ENTRIES_CALL);
-    assert(_Py_OPCODE(*instr) != INSTRUMENTED_CALL);
-    int fail;
-    if (PyCFunction_CheckExact(callable)) {
-        fail = specialize_c_call(callable, instr, nargs);
-    }
-    else if (PyFunction_Check(callable)) {
-        fail = specialize_py_call((PyFunctionObject *)callable, instr, nargs, false);
-    }
-    else if (PyType_Check(callable)) {
-        fail = specialize_class_call(callable, instr, nargs);
-    }
-    else if (Py_IS_TYPE(callable, &PyMethodDescr_Type)) {
-        PyObject *self_or_null = PyStackRef_AsPyObjectBorrow(self_or_null_st);
-        fail = specialize_method_descriptor((PyMethodDescrObject *)callable,
-                                            self_or_null, instr, nargs);
-    }
-    else if (PyMethod_Check(callable)) {
-        PyObject *func = ((PyMethodObject *)callable)->im_func;
-        if (PyFunction_Check(func)) {
-            fail = specialize_py_call((PyFunctionObject *)func, instr, nargs, true);
-        }
-        else {
-            SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_BOUND_METHOD);
-            fail = -1;
-        }
-    }
-    else {
-        specialize(instr, CALL_NON_PY_GENERAL);
-        fail = 0;
-    }
-    if (fail) {
-        unspecialize(instr);
-    }
-}
 static int
 specialize_py_call_kw(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
                    bool bound_method)

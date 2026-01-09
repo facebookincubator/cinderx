@@ -37,10 +37,8 @@
 // @Borrow var _Py_INTERPRETER_TRAMPOLINE_INSTRUCTIONS from Python/ceval.c
 
 // @Borrow function do_raise from Python/ceval.c
-#ifdef Py_DEBUG
 // @Borrow function dump_item from Python/ceval.c
 // @Borrow function dump_stack from Python/ceval.c
-#endif
 // @Borrow function lltrace_instruction from Python/ceval.c
 // @Borrow function lltrace_resume_frame from Python/ceval.c
 

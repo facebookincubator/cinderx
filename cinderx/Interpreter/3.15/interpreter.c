@@ -202,7 +202,7 @@ static int ci_build_dict(_PyStackRef *map_items, Py_ssize_t map_size, PyObject *
 }
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-static void specialize_with_value(_Py_CODEUNIT next_instr, PyObject *value, int opcode, 
+static void specialize_with_value(_Py_CODEUNIT next_instr, PyObject *value, int opcode,
                                   int shift, int bits)
 {
     int32_t index = _PyClassLoader_CacheValue(value);

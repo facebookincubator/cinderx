@@ -402,7 +402,7 @@ class BuildExt(build_ext):
         meta_python = "+meta" in sys.version
         linux = sys.platform == "linux"
         meta_312 = meta_python and py_version == "3.12"
-        is_314 = py_version == "3.14"
+        is_314plus = py_version == "3.14" or py_version == "3.15"
 
         set_option("META_PYTHON", meta_python)
         set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
@@ -411,11 +411,11 @@ class BuildExt(build_ext):
         set_option("ENABLE_EVAL_HOOK", meta_312)
         set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312)
         set_option("ENABLE_GENERATOR_AWAITER", meta_312)
-        set_option("ENABLE_INTERPRETER_LOOP", meta_312 or is_314)
+        set_option("ENABLE_INTERPRETER_LOOP", meta_312 or is_314plus)
         set_option("ENABLE_LAZY_IMPORTS", meta_312)
         set_option("ENABLE_LIGHTWEIGHT_FRAMES", meta_312)
         set_option("ENABLE_PARALLEL_GC", meta_312)
-        set_option("ENABLE_PEP523_HOOK", meta_312 or is_314)
+        set_option("ENABLE_PEP523_HOOK", meta_312 or is_314plus)
         set_option("ENABLE_PERF_TRAMPOLINE", meta_312)
         set_option("ENABLE_SYMBOLIZER", linux)
         set_option("ENABLE_USDT", linux)
@@ -477,7 +477,7 @@ def main() -> None:
         packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
         package_dir={"": PYTHON_LIB_DIR},
         package_data={"cinderx": [".dev_build"]},
-        python_requires=">=3.14,<3.15",
+        python_requires=">=3.14,<3.16",
     )
 
 
