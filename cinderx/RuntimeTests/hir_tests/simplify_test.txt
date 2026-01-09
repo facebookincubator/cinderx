@@ -13696,7 +13696,7 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v12:OptObject = LoadField<'a1'@24, OptObject, borrowed> v9
+    v12:OptObject = LoadField<a1@24, OptObject, borrowed> v9
     v13:Object = CheckField<"a1"> v12 {
       GuiltyReg v9
       FrameState {
