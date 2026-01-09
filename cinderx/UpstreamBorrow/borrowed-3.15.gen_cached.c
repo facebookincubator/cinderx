@@ -2793,8 +2793,6 @@ _PyObject_HasLen(PyObject *o) {
 #endif
 #if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
 #endif
-#if _Py_TIER2
-#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
@@ -4449,7 +4447,7 @@ specialize_load_global_lock_held(
         goto fail;
     }
     PyDictKeysObject * globals_keys = ((PyDictObject *)globals)->ma_keys;
-    if (!DK_IS_UNICODE(globals_keys)) {
+    if (globals_keys->dk_kind != DICT_KEYS_UNICODE) {
         SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT);
         goto fail;
     }
@@ -4484,7 +4482,7 @@ specialize_load_global_lock_held(
         goto fail;
     }
     PyDictKeysObject * builtin_keys = ((PyDictObject *)builtins)->ma_keys;
-    if (!DK_IS_UNICODE(builtin_keys)) {
+    if (builtin_keys->dk_kind != DICT_KEYS_UNICODE) {
         SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT);
         goto fail;
     }
