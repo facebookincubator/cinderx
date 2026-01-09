@@ -15,7 +15,7 @@ from typing import Any
 
 import cinderx
 
-from cinderx.test_support import CINDERX_PATH, ENCODING, passUnless
+from cinderx.test_support import ENCODING, passUnless, subprocess_env
 
 
 def _run_gc_settings(result_queue: "multiprocessing.Queue[tuple[int, Any]]") -> None:
@@ -108,7 +108,7 @@ class TestEnablingParallelGc(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 encoding=ENCODING,
                 env={
-                    "PYTHONPATH": CINDERX_PATH,
+                    **subprocess_env(),
                     "PARALLEL_GC_ENABLED": "1",
                     "PARALLEL_GC_NUM_THREADS": "4",
                     "PARALLEL_GC_MIN_GENERATION": "10",

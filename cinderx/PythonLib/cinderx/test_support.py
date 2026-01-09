@@ -40,6 +40,10 @@ ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
 CINDERX_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 
 
+def subprocess_env() -> dict[str, str]:
+    return {"PYTHONPATH": os.path.pathsep.join(sys.path)}
+
+
 def get_cinderjit_xargs() -> list[str]:
     args = []
     for k, v in sys._xoptions.items():

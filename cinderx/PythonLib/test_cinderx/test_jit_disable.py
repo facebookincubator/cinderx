@@ -20,7 +20,7 @@ from cinderx.jit import (
     lazy_compile,
     pause as pause_jit,
 )
-from cinderx.test_support import CINDERX_PATH, passUnless
+from cinderx.test_support import passUnless
 
 
 @passUnless(is_jit_enabled(), "Tests functionality on the JIT")

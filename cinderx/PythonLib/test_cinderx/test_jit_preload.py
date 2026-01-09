@@ -14,7 +14,7 @@ cinderx.init()
 
 import cinderx.jit
 
-from cinderx.test_support import CINDERX_PATH, ENCODING, passIf, skip_unless_jit
+from cinderx.test_support import ENCODING, passIf, skip_unless_jit, subprocess_env
 
 SKIP_315: bool = sys.version_info >= (3, 15)
 
@@ -43,7 +43,7 @@ class PreloadTests(unittest.TestCase):
             cwd=os.path.dirname(__file__),
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env={"PYTHONPATH": CINDERX_PATH},
+            env=subprocess_env(),
         )
         self.assertEqual(proc.returncode, 0)
         expected_stdout = """resolving a_func
@@ -100,7 +100,7 @@ hello from b_func!
                     cmd,
                     cwd=root,
                     capture_output=True,
-                    env={"PYTHONPATH": CINDERX_PATH},
+                    env=subprocess_env(),
                 )
                 self.assertEqual(proc.returncode, 1, proc.stderr)
                 self.assertIn(b"RuntimeError: boom\n", proc.stderr)
@@ -132,7 +132,10 @@ hello from b_func!
                     cmd.append("-L")
                 cmd.append(main)
                 proc = subprocess.run(
-                    cmd, cwd=root, capture_output=True, env={"PYTHONPATH": CINDERX_PATH}
+                    cmd,
+                    cwd=root,
+                    capture_output=True,
+                    env=subprocess_env(),
                 )
                 # We expect an exception, but not a crash!
                 self.assertEqual(proc.returncode, 1, proc.stderr)

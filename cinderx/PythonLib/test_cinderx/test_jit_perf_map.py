@@ -12,7 +12,7 @@ import cinderx
 
 cinderx.init()
 
-from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
+from cinderx.test_support import ENCODING, skip_unless_jit, subprocess_env
 
 
 class PerfMapTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class PerfMapTests(unittest.TestCase):
             [sys.executable, "-X", "jit-perfmap", helper_file],
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env={"PYTHONPATH": CINDERX_PATH},
+            env=subprocess_env(),
         )
         self.assertEqual(proc.returncode, 0)
 

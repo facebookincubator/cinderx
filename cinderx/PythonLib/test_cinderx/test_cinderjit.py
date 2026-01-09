@@ -3,15 +3,13 @@
 import asyncio
 import faulthandler
 import gc
-import itertools
-import shutil
+import os
 import subprocess
 import sys
 import tempfile
 import textwrap
 import traceback
 import unittest
-import warnings
 import weakref
 
 from pathlib import Path
@@ -37,13 +35,13 @@ from cinderx.jit import (
 )
 
 from cinderx.test_support import (
-    CINDERX_PATH,
     compiles_after_one_call,
     ENCODING,
     passIf,
     passUnless,
     run_in_subprocess,
     skip_unless_jit,
+    subprocess_env,
 )
 
 from .common import failUnlessHasOpcodes, with_globals
@@ -1646,7 +1644,7 @@ class CinderJitModuleTests(StaticTestBase):
                     cwd=tmp,
                     stdout=subprocess.PIPE,
                     encoding=ENCODING,
-                    env={"PYTHONPATH": CINDERX_PATH},
+                    env=subprocess_env(),
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1753,7 +1751,7 @@ class CinderJitModuleTests(StaticTestBase):
                     cwd=tmp,
                     stdout=subprocess.PIPE,
                     encoding=ENCODING,
-                    env={"PYTHONPATH": CINDERX_PATH},
+                    env=subprocess_env(),
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1780,7 +1778,7 @@ class CinderJitModuleTests(StaticTestBase):
                     cwd=tmp,
                     stderr=subprocess.PIPE,
                     encoding=ENCODING,
-                    env={"PYTHONPATH": CINDERX_PATH},
+                    env=subprocess_env(),
                 )
                 self.assertEqual(proc.returncode, -6, proc)
                 return proc.stderr

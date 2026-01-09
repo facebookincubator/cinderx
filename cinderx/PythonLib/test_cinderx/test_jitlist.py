@@ -14,7 +14,7 @@ from pathlib import Path
 
 import cinderx.jit
 
-from cinderx.test_support import CINDERX_PATH, ENCODING, passUnless, skip_unless_jit
+from cinderx.test_support import ENCODING, passUnless, skip_unless_jit, subprocess_env
 
 
 @skip_unless_jit("Tests JIT list behavior")
@@ -166,7 +166,7 @@ class JitListTest(unittest.TestCase):
             cmd,
             cwd=root,
             capture_output=True,
-            env={"PYTHONPATH": CINDERX_PATH},
+            env=subprocess_env(),
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(b"42\n", proc.stdout, proc.stdout)
@@ -265,7 +265,7 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
-                env={"PYTHONPATH": CINDERX_PATH},
+                env=subprocess_env(),
             )
 
         self.assertNotEqual(proc.returncode, 0, proc)
