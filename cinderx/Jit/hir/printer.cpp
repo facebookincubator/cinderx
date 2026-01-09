@@ -547,12 +547,12 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kLoadFunctionIndirect: {
       const auto& load = static_cast<const LoadFunctionIndirect&>(instr);
-      PyObject* func = *load.funcptr();
+      PyObject* py_func = *load.funcptr();
       const char* name;
-      if (PyFunction_Check(func)) {
-        name = PyUnicode_AsUTF8(((PyFunctionObject*)func)->func_name);
+      if (PyFunction_Check(py_func)) {
+        name = PyUnicode_AsUTF8(((PyFunctionObject*)py_func)->func_name);
       } else {
-        name = Py_TYPE(func)->tp_name;
+        name = Py_TYPE(py_func)->tp_name;
       }
       return fmt::format("{}", name);
     }
