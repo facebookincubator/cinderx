@@ -7601,8 +7601,7 @@
             _PyStackRef awaitable;
             aiter = stack_pointer[-1];
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            PyObject* awaitable_o =
-            Ci_PyEval_GetANext(PyStackRef_AsPyObjectBorrow(aiter));
+            PyObject *awaitable_o = _PyEval_GetANext(PyStackRef_AsPyObjectBorrow(aiter));
             stack_pointer = _PyFrame_GetStackPointer(frame);
             if (awaitable_o == NULL) {
                 JUMP_TO_LABEL(error);
@@ -7626,8 +7625,7 @@
             _PyStackRef iter;
             iterable = stack_pointer[-1];
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            PyObject* iter_o =
-            Ci_PyEval_GetAwaitable(PyStackRef_AsPyObjectBorrow(iterable), oparg);
+            PyObject *iter_o = _PyEval_GetAwaitable(PyStackRef_AsPyObjectBorrow(iterable), oparg);
             stack_pointer = _PyFrame_GetStackPointer(frame);
             stack_pointer += -1;
             ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
@@ -13321,16 +13319,18 @@
                 DISPATCH();
             }
             _PyThreadStateImpl *_tstate = (_PyThreadStateImpl *)tstate;
-            _tstate->jit_tracer_state.prev_state.instr = next_instr;
+            _PyJitTracerState *tracer = _tstate->jit_tracer_state;
+            assert(tracer != NULL);
+            tracer->prev_state.instr = next_instr;
             PyObject *prev_code = PyStackRef_AsPyObjectBorrow(frame->f_executable);
-            if (_tstate->jit_tracer_state.prev_state.instr_code != (PyCodeObject *)prev_code) {
+            if (tracer->prev_state.instr_code != (PyCodeObject *)prev_code) {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                Py_SETREF(_tstate->jit_tracer_state.prev_state.instr_code, (PyCodeObject*)Py_NewRef((prev_code)));
+                Py_SETREF(tracer->prev_state.instr_code, (PyCodeObject*)Py_NewRef((prev_code)));
                 stack_pointer = _PyFrame_GetStackPointer(frame);
             }
-            _tstate->jit_tracer_state.prev_state.instr_frame = frame;
-            _tstate->jit_tracer_state.prev_state.instr_oparg = oparg;
-            _tstate->jit_tracer_state.prev_state.instr_stacklevel = PyStackRef_IsNone(frame->f_executable) ? 2 : STACK_LEVEL();
+            tracer->prev_state.instr_frame = frame;
+            tracer->prev_state.instr_oparg = oparg;
+            tracer->prev_state.instr_stacklevel = PyStackRef_IsNone(frame->f_executable) ? 2 : STACK_LEVEL();
             if (_PyOpcode_Caches[_PyOpcode_Deopt[opcode]]) {
                 (&next_instr[1])->counter = trigger_backoff_counter();
             }

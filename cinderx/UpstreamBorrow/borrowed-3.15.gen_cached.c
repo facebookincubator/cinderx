@@ -2793,6 +2793,8 @@ _PyObject_HasLen(PyObject *o) {
 #endif
 #if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
 #endif
+#if _Py_TIER2
+#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
