@@ -29,11 +29,6 @@ class ModuleState {
   // Implements CPython's clear functionality for dropping GC references
   int clear();
 
-  // CPython owns the lifetime of this object so we don't need to worry
-  // about deleting it, but we do need a way to cleanup any state it
-  // holds onto.
-  void shutdown();
-
   jit::IGlobalCacheManager* cacheManager() const {
     return cache_manager_.get();
   }
@@ -199,6 +194,8 @@ class ModuleState {
   codeOuterFunctions();
 
  private:
+  WatcherState watcher_state_;
+
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
   std::unique_ptr<jit::IRuntime> runtime_;
@@ -214,8 +211,6 @@ class ModuleState {
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
   Ref<> orig_sys_monitoring_register_callback_;
-
-  WatcherState watcher_state_;
 
   // Function and code objects ("units") registered for compilation.
   jit::UnorderedSet<BorrowedRef<>> registered_compilation_units;
@@ -234,7 +229,20 @@ class ModuleState {
   BorrowedRef<> cinderx_module_;
 };
 
-void setModule(PyObject* module);
+// Get the global ModuleState singleton.
 ModuleState* getModuleState();
+
+// Get the ModuleState from the CinderX module object.
+//
+// Prefer this to using the global singleton when possible.
+ModuleState* getModuleState(BorrowedRef<> mod);
+
+// Set the global ModuleState singleton, using the CinderX module object.
+void setModuleState(BorrowedRef<> mod);
+
+// Unset the global ModuleState singleton, but don't destroy it.
+//
+// Destroying the state object is done manually.
+void removeModuleState();
 
 } // namespace cinderx

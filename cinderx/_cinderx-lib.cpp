@@ -64,7 +64,7 @@ namespace {
  */
 
 PyObject* clear_caches(PyObject* mod, PyObject*) {
-  auto state = (cinderx::ModuleState*)PyModule_GetState(mod);
+  auto state = cinderx::getModuleState(mod);
   _PyCheckedDict_ClearCaches();
   _PyCheckedList_ClearCaches();
   _PyClassLoader_ClearValueCache();
@@ -304,7 +304,7 @@ PyObject* cinder_is_immortal(PyObject* /* mod */, PyObject* obj) {
   return PyBool_FromLong(_Py_IsImmortal(obj));
 }
 
-PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
+PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
 #if ENABLE_PERF_TRAMPOLINE || PY_VERSION_HEX >= 0x030D0000
   if (!jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_NONE;
@@ -313,7 +313,7 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
   PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
 
   auto& perf_trampoline_worklist =
-      cinderx::getModuleState()->perfTrampolineWorklist();
+      cinderx::getModuleState(mod)->perfTrampolineWorklist();
 
   for (BorrowedRef<PyFunctionObject> func : perf_trampoline_worklist) {
     BorrowedRef<PyCodeObject> code = func->func_code;
@@ -503,8 +503,7 @@ builtin_anext(PyObject* module, PyObject* const* args, Py_ssize_t nargs) {
     return nullptr;
   }
 
-  cinderx::ModuleState* state =
-      (cinderx::ModuleState*)PyModule_GetState(module);
+  cinderx::ModuleState* state = cinderx::getModuleState(module);
 
   BorrowedRef<> aiterator;
   BorrowedRef<> default_value = nullptr;
@@ -1084,8 +1083,7 @@ int cinder_fini() {
 }
 
 PyObject* init(PyObject* mod, PyObject* /*obj*/) {
-  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
-
+  auto state = cinderx::getModuleState(mod);
   if (state->initialized()) {
     Py_RETURN_FALSE;
   }
@@ -1106,19 +1104,19 @@ PyObject* init(PyObject* mod, PyObject* /*obj*/) {
   Py_RETURN_TRUE;
 }
 
-static int module_traverse(PyObject* mod, visitproc visit, void* arg) {
-  cinderx::ModuleState* state = (cinderx::ModuleState*)PyModule_GetState(mod);
+int module_traverse(PyObject* mod, visitproc visit, void* arg) {
+  cinderx::ModuleState* state = cinderx::getModuleState(mod);
   return state->traverse(visit, arg);
 }
 
-static int module_clear(PyObject* mod) {
-  cinderx::ModuleState* state = (cinderx::ModuleState*)PyModule_GetState(mod);
+int module_clear(PyObject* mod) {
+  cinderx::ModuleState* state = cinderx::getModuleState(mod);
   return state->clear();
 }
 
 void module_free(void* raw_mod) {
   auto mod = reinterpret_cast<PyObject*>(raw_mod);
-  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
+  auto state = cinderx::getModuleState(mod);
 
   if (state->initialized()) {
     state->setInitialized(false);
@@ -1132,7 +1130,10 @@ void module_free(void* raw_mod) {
   jit::shutdown_jit_genobject_type();
 #endif
 
-  state->shutdown();
+  // Running the module state's destructor will access the global singleton, so
+  // reset the singleton afterwards.
+  state->cinderx::ModuleState::~ModuleState();
+  cinderx::removeModuleState();
 }
 
 // Called when the interpreter is shutting down, allows us to do some aggressive
@@ -1287,11 +1288,15 @@ PyMethodDef _cinderx_methods[] = {
 #endif
     {nullptr, nullptr, 0, nullptr}};
 
-static int _cinderx_exec(PyObject* m) {
+int _cinderx_exec(PyObject* m) {
   cinderx::initStaticObjects();
 
+  // The state will be destroyed in module_free(), which gets called even if
+  // this function exits early with an error.
   void* state_mem = PyModule_GetState(m);
   auto state = new (state_mem) cinderx::ModuleState();
+  cinderx::setModuleState(m);
+
   auto cache_manager = new (std::nothrow) jit::GlobalCacheManager();
   if (cache_manager == nullptr) {
     return -1;
@@ -1305,12 +1310,10 @@ static int _cinderx_exec(PyObject* m) {
 
   Ref<> builtins_mod = Ref<>::steal(PyImport_ImportModule("builtins"));
   if (builtins_mod == nullptr) {
-    state->shutdown();
     return -1;
   }
   Ref<> next = Ref<>::steal(PyObject_GetAttrString(builtins_mod, "next"));
   if (next == nullptr) {
-    state->shutdown();
     return -1;
   }
   state->setBuiltinNext(next);
@@ -1319,11 +1322,9 @@ static int _cinderx_exec(PyObject* m) {
 
   auto async_lazy_value = new (std::nothrow) cinderx::AsyncLazyValueState();
   if (async_lazy_value == nullptr) {
-    state->shutdown();
     return -1;
   } else if (!async_lazy_value->init()) {
     delete async_lazy_value;
-    state->shutdown();
     return -1;
   }
 
@@ -1331,7 +1332,6 @@ static int _cinderx_exec(PyObject* m) {
 
   PyTypeObject* gen_type = (PyTypeObject*)PyType_FromSpec(&jit::JitGen_Spec);
   if (gen_type == nullptr) {
-    state->shutdown();
     return -1;
   }
   state->setGenType(gen_type);
@@ -1339,7 +1339,6 @@ static int _cinderx_exec(PyObject* m) {
 
   PyTypeObject* coro_type = (PyTypeObject*)PyType_FromSpec(&jit::JitCoro_Spec);
   if (coro_type == nullptr) {
-    state->shutdown();
     return -1;
   }
   state->setCoroType(coro_type);
@@ -1349,12 +1348,10 @@ static int _cinderx_exec(PyObject* m) {
   Ref<PyTypeObject> frame_reifier_type = Ref<PyTypeObject>::steal(
       (PyTypeObject*)PyType_FromSpec(&jit::JitFrameReifier_Spec));
   if (frame_reifier_type == nullptr) {
-    state->shutdown();
     return -1;
   }
   PyObject* reifier = _PyObject_New(frame_reifier_type);
   if (reifier == nullptr) {
-    state->shutdown();
     return -1;
   }
 
@@ -1374,14 +1371,12 @@ static int _cinderx_exec(PyObject* m) {
   if (builtins == nullptr ||
       PyDict_SetItemString(gen_type->tp_dict, "__module__", builtins) < 0 ||
       PyDict_SetItemString(coro_type->tp_dict, "__module__", builtins) < 0) {
-    state->shutdown();
     return -1;
   }
 
   PyTypeObject* anext_awaitable_type =
       (PyTypeObject*)PyType_FromSpec(&jit::JitAnextAwaitable_Spec);
   if (anext_awaitable_type == nullptr) {
-    state->shutdown();
     return -1;
   }
   state->setAnextAwaitableType(anext_awaitable_type);
@@ -1389,7 +1384,6 @@ static int _cinderx_exec(PyObject* m) {
   auto anext_func = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
   if (anext_func == nullptr ||
       PyObject_SetAttrString(builtins_mod, "anext", anext_func) < 0) {
-    state->shutdown();
     return -1;
   }
 
@@ -1402,7 +1396,6 @@ static int _cinderx_exec(PyObject* m) {
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
   Ref<> gc_mod = Ref<>::steal(PyImport_ImportModule("gc"));
   if (gc_mod == nullptr) {
-    state->shutdown();
     return -1;
   }
 
@@ -1410,21 +1403,18 @@ static int _cinderx_exec(PyObject* m) {
       Ref<>::steal(PyObject_GetAttrString(m, "get_threshold"));
   if (get_threshold_func == nullptr ||
       PyObject_SetAttrString(gc_mod, "get_threshold", get_threshold_func) < 0) {
-    state->shutdown();
     return -1;
   }
 #endif
 
   auto runtime = new (std::nothrow) jit::Runtime();
   if (runtime == nullptr) {
-    state->shutdown();
     return -1;
   }
   state->setRuntime(runtime);
 
   auto symbolizer = new (std::nothrow) jit::Symbolizer();
   if (symbolizer == nullptr) {
-    state->shutdown();
     return -1;
   }
   state->setSymbolizer(symbolizer);
@@ -1440,8 +1430,6 @@ static int _cinderx_exec(PyObject* m) {
   watcher_state.setDictWatcher(cinderx_dict_watcher);
   watcher_state.setFuncWatcher(cinderx_func_watcher);
   watcher_state.setTypeWatcher(cinderx_type_watcher);
-
-  cinderx::setModule(m);
 
   CiExc_StaticTypeError =
       PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);
@@ -1541,14 +1529,14 @@ static int _cinderx_exec(PyObject* m) {
   return 0;
 }
 
-static PyModuleDef_Slot _cinderx_slots[] = {
+PyModuleDef_Slot _cinderx_slots[] = {
     {Py_mod_exec, reinterpret_cast<void*>(_cinderx_exec)},
 #if PY_VERSION_HEX >= 0x030C0000
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
 #endif
     {0, nullptr}};
 
-struct PyModuleDef _cinderx_module = {
+PyModuleDef _cinderx_module = {
     PyModuleDef_HEAD_INIT,
     "_cinderx",
     PyDoc_STR("The internal CinderX extension module."),

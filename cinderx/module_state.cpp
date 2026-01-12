@@ -6,6 +6,12 @@
 
 namespace cinderx {
 
+namespace {
+
+ModuleState* s_cinderx_state;
+
+} // namespace
+
 int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(builtin_next_);
   return 0;
@@ -17,30 +23,22 @@ int ModuleState::clear() {
   return 0;
 }
 
-static ModuleState* s_cinderx_state;
-
-void ModuleState::shutdown() {
-  jit_gen_free_list_.reset();
-  cache_manager_.reset();
-  runtime_.reset();
-  symbolizer_.reset();
-  JIT_DCHECK(
-      this == s_cinderx_state,
-      "Global module state pointer inconsistent with this module state {} != "
-      "{}",
-      reinterpret_cast<void*>(this),
-      reinterpret_cast<void*>(s_cinderx_state));
-  s_cinderx_state = nullptr;
-}
-
-void setModule(PyObject* m) {
-  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(m));
+void setModuleState(BorrowedRef<> mod) {
+  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
   s_cinderx_state = state;
-  state->setModule(m);
+  state->setModule(mod);
 }
 
 ModuleState* getModuleState() {
   return s_cinderx_state;
+}
+
+ModuleState* getModuleState(BorrowedRef<> mod) {
+  return reinterpret_cast<ModuleState*>(PyModule_GetState(mod));
+}
+
+void removeModuleState() {
+  s_cinderx_state = nullptr;
 }
 
 bool ModuleState::initBuiltinMembers() {
