@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import sys
-
 import unittest
 
 from .common import StrictTestBase, StrictTestWithCheckerBase
@@ -549,9 +548,10 @@ class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
         class C:
             x = 1
         """
-        with self.with_freeze_type_setting(True), self.in_checked_module(
-            codestr
-        ) as mod:
+        with (
+            self.with_freeze_type_setting(True),
+            self.in_checked_module(codestr) as mod,
+        ):
             C = mod.C
             self.assertEqual(C.x, 1)
             with self.assertRaises(TypeError):
@@ -573,9 +573,10 @@ class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
             "STORE_GLOBAL",
             "mutable",
         )
-        with self.with_freeze_type_setting(True), self.in_checked_module(
-            codestr
-        ) as mod:
+        with (
+            self.with_freeze_type_setting(True),
+            self.in_checked_module(codestr) as mod,
+        ):
             C = mod.C
             self.assertEqual(C.x, 1)
             C.x = 2
@@ -615,9 +616,10 @@ class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
             def f(self):
                 return 1
         """
-        with self.with_freeze_type_setting(True), self.in_checked_module(
-            codestr
-        ) as mod:
+        with (
+            self.with_freeze_type_setting(True),
+            self.in_checked_module(codestr) as mod,
+        ):
             C = mod.C
             c = C()
             self.assertEqual(c.f, 1)

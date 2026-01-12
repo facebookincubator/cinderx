@@ -3,7 +3,6 @@
 # pyre-strict
 
 import asyncio
-
 from collections.abc import Sequence
 
 from cinderx import cached_property

@@ -762,9 +762,9 @@ class CodeGenerator(ASTVisitor):
         self.setups.append(entry)
 
     def pop_fblock(self, kind: int | None = None) -> Entry:
-        assert (
-            kind is None or self.setups[-1].kind == kind
-        ), f"{self.setups[-1].kind} vs {kind} expected"
+        assert kind is None or self.setups[-1].kind == kind, (
+            f"{self.setups[-1].kind} vs {kind} expected"
+        )
         return self.setups.pop()
 
     def push_loop(self, kind: int, start: Block, end: Block) -> None:
@@ -5217,9 +5217,9 @@ class CodeGenerator312(CodeGenerator):
         final_body: Callable[[], None] | None = None,
         star: bool = False,
     ) -> None:
-        assert (
-            try_body is not None and final_body is not None
-        ) or node is not None, "should be called with nodes or body"
+        assert (try_body is not None and final_body is not None) or node is not None, (
+            "should be called with nodes or body"
+        )
         body = self.make_try_body_block()
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")

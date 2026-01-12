@@ -2,7 +2,6 @@
 # pyre-strict
 
 import sys
-
 from dataclasses import dataclass
 from typing import cast
 from unittest import TestCase

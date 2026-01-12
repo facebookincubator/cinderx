@@ -30,13 +30,11 @@ import threading
 import time
 import types
 import unittest
-
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Dict, IO, Iterable, List, Optional, Set, Tuple
 
 from cinderx.test_support import get_cinderjit_xargs, is_asan_build
-
 from common import (
     ActiveTest,
     ASANLogManipulator,
@@ -58,11 +56,9 @@ from common import (
     WorkerDone,
     WorkSender,
 )
-
 from test import support
 from test.libregrtest.cmdline import Namespace
 from test.libregrtest.main import Regrtest
-
 from test.libregrtest.runtest import (
     _runtest_inner2,
     ChildError,
@@ -446,8 +442,7 @@ class MultiWorkerCinderRegrtest(Regrtest):
                         msg.worker_pid, time.time(), msg.test_log, msg.rr_trace_dir
                     )
                     print(
-                        f"Running test '{msg.test_name}' on worker "
-                        f"{msg.worker_pid}",
+                        f"Running test '{msg.test_name}' on worker {msg.worker_pid}",
                         file=self._cinder_regr_runner_logfile,
                     )
                     self._cinder_regr_runner_logfile.flush()
@@ -631,7 +626,7 @@ def _patched_runtest_inner2(ns: Namespace, tests_name: str) -> bool:
     if gc.garbage:
         support.environment_altered = True
         runtest.print_warning(
-            f"{tests_name} created {len(gc.garbage)} " f"uncollectable object(s)."
+            f"{tests_name} created {len(gc.garbage)} uncollectable object(s)."
         )
 
         # move the uncollectable objects somewhere,

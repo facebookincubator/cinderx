@@ -483,9 +483,9 @@ class AstRewriter(NodeVisitor):
                     setattr(ret_node, field, new_values)
             elif isinstance(old_value, AST):
                 new_node = self.visit(old_value)
-                assert (
-                    new_node is not None
-                ), "can't remove AST nodes that aren't part of a list"
+                assert new_node is not None, (
+                    "can't remove AST nodes that aren't part of a list"
+                )
                 if new_node is not old_value:
                     if ret_node is node:
                         ret_node = self.clone_node(node)

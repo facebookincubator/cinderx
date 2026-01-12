@@ -7,7 +7,6 @@ import sys
 from typing import final
 
 from cinderx.compileall import compile_dir, compile_file
-
 from cinderx.compiler.strict.loader import strict_compile
 
 from .common import StrictTestBase

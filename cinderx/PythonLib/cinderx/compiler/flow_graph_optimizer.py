@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import operator
-
 from typing import cast
 
 from .opcodes import find_op_idx, INTRINSIC_1

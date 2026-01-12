@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import sys
-
 from contextlib import contextmanager
 from importlib.abc import Loader
 from importlib.machinery import FileFinder

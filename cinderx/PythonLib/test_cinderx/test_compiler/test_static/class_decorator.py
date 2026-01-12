@@ -3,7 +3,6 @@
 # pyre-strict
 
 import unittest
-
 from re import escape
 
 from .common import StaticTestBase

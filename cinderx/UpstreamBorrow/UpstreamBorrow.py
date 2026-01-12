@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Callable
 
 import click
-
 from clang.cindex import CursorKind
 
 from .clang_parser import FileParser, ParsedFile

@@ -612,10 +612,13 @@ class SlotsWithDefaultTests(StaticTestBase):
             return c.x
         """
         with self.in_module(codestr, enable_patching=True) as mod:
-            with self.assertWarnsRegex(
-                RuntimeWarning,
-                "Overriding property C.x with MagicMock when expected to be a int.",
-            ), patch(f"{mod.__name__}.C.x", return_value=1):
+            with (
+                self.assertWarnsRegex(
+                    RuntimeWarning,
+                    "Overriding property C.x with MagicMock when expected to be a int.",
+                ),
+                patch(f"{mod.__name__}.C.x", return_value=1),
+            ):
                 mod.C()
 
     def test_instance_patching_allowed(self) -> None:

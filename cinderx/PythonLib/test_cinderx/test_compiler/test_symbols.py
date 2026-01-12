@@ -4,7 +4,6 @@
 import ast
 import sys
 import unittest
-
 from ast import FunctionDef
 from textwrap import dedent
 

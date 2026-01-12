@@ -4,7 +4,6 @@
 
 import sys
 import unittest
-
 from textwrap import dedent
 
 import cinderx

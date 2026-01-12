@@ -15,7 +15,6 @@ from typing import Any, Callable, Generator, Mapping
 
 import cinderx
 from cinderx import cached_property
-
 from cinderx.compiler.pycodegen import CodeGenerator
 from cinderx.compiler.strict import strict_compile, StrictCodeGenerator
 from cinderx.compiler.strict.common import FIXED_MODULES

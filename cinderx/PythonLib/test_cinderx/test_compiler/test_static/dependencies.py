@@ -30,16 +30,16 @@ class DependencyTrackingTests(StaticTestBase):
             with self.subTest(alias=alias, from_import=from_import):
                 if from_import:
                     acode = f"""
-                        from b import B{' as B1' if alias else ''}
+                        from b import B{" as B1" if alias else ""}
 
-                        class C(B{'1' if alias else ''}):
+                        class C(B{"1" if alias else ""}):
                             pass
                     """
                 else:
                     acode = f"""
-                        import b{' as b1' if alias else ''}
+                        import b{" as b1" if alias else ""}
 
-                        class C(b{'1' if alias else ''}.B):
+                        class C(b{"1" if alias else ""}.B):
                             pass
                     """
                 bcode = """
@@ -64,17 +64,17 @@ class DependencyTrackingTests(StaticTestBase):
             with self.subTest(alias=alias, from_import=from_import):
                 if from_import:
                     acode = f"""
-                        from b import x{' as x1' if alias else ''}
+                        from b import x{" as x1" if alias else ""}
 
                         def f() -> int:
-                            return x{'1' if alias else ''}
+                            return x{"1" if alias else ""}
                     """
                 else:
                     acode = f"""
-                        import b{' as b1' if alias else ''}
+                        import b{" as b1" if alias else ""}
 
                         def f() -> int:
-                            return b{'1' if alias else ''}.x
+                            return b{"1" if alias else ""}.x
                     """
                 bcode = """
                     x: int = 42
@@ -97,7 +97,7 @@ class DependencyTrackingTests(StaticTestBase):
         for alias in [True, False]:
             with self.subTest(alias=alias):
                 acode = f"""
-                    from b import B{' as B1' if alias else ''}
+                    from b import B{" as B1" if alias else ""}
                 """
                 bcode = """
                     class B:
@@ -121,8 +121,8 @@ class DependencyTrackingTests(StaticTestBase):
             with self.subTest(alias=alias):
                 acode = f"""
                     def f() -> int:
-                        from b import x{' as x1' if alias else ''}
-                        return x{'1' if alias else ''}
+                        from b import x{" as x1" if alias else ""}
+                        return x{"1" if alias else ""}
                 """
                 bcode = """
                     x: int = 42
@@ -358,9 +358,9 @@ class DependencyTrackingTests(StaticTestBase):
             with self.subTest(alias=alias):
                 acode = f"""
                     from typing import Any, Final
-                    from b import x{' as x1' if alias else ''}
+                    from b import x{" as x1" if alias else ""}
 
-                    y: Final[Any] = x{'1' if alias else ''}
+                    y: Final[Any] = x{"1" if alias else ""}
                 """
                 bcode = """
                     x: int = 42

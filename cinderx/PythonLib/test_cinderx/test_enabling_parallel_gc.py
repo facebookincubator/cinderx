@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 import cinderx
-
 from cinderx.test_support import ENCODING, passUnless, subprocess_env
 
 

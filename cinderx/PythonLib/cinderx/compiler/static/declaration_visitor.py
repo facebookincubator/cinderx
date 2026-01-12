@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import ast
-
 from ast import (
     AnnAssign,
     Assign,

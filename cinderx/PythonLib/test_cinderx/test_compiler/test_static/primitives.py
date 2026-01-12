@@ -22,9 +22,7 @@ from cinderx.compiler.static.types import (
     TypedSyntaxError,
     TypeEnvironment,
 )
-
 from cinderx.static import TYPED_INT16, TYPED_INT32
-
 from cinderx.test_support import passIf
 
 from .common import bad_ret_type, PRIM_NAME_TO_TYPE, StaticTestBase, type_mismatch
@@ -3511,7 +3509,7 @@ class PrimitivesTests(StaticTestBase):
                         {incrs}
                     {assigns}
                     {reads}
-                    return {' + '.join(varnames)}
+                    return {" + ".join(varnames)}
             """
             with self.subTest(size=size):
                 with self.in_module(codestr) as mod:

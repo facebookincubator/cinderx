@@ -4,7 +4,6 @@ import opcode
 import sys
 import types
 import unittest
-
 from typing import Callable
 
 import cinderx.test_support as cinder_support

@@ -7,7 +7,6 @@ import sys
 from importlib import resources
 
 import click
-
 from clang.cindex import CursorKind
 
 from .clang_parser import FileParser, ParsedFile

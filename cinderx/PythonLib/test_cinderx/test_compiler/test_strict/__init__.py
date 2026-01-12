@@ -6,7 +6,6 @@ import sys
 
 from .test_flag_extractor import FlagExtractorTest
 from .test_loader import StrictLoaderTest
-
 from .test_remove_annotations import AnnotationRemoverTests
 from .test_rewriter import (
     ImmutableModuleTestCase,

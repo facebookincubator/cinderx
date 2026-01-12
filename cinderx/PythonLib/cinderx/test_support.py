@@ -12,10 +12,8 @@ import sys
 import tempfile
 import types
 import unittest
-
 from contextlib import contextmanager
 from pathlib import Path
-
 from typing import Callable, Coroutine, Generator, Sequence, TypeVar
 
 import cinderx

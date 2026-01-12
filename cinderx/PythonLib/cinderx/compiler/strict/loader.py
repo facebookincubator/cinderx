@@ -7,12 +7,10 @@ from __future__ import annotations
 try:  # ensure all imports in this module are eager, to avoid cycles
     import _imp
     import builtins
-
     import importlib
     import marshal
     import os
     import sys
-
     from enum import Enum
 
     # pyre-ignore[21]: typeshed doesn't know about this
@@ -36,7 +34,6 @@ try:  # ensure all imports in this module are eager, to avoid cycles
         SourceFileLoader,
         SourcelessFileLoader,
     )
-
     from importlib.util import cache_from_source, MAGIC_NUMBER
     from io import BytesIO
     from os import getenv, makedirs
@@ -50,7 +47,6 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     from typing import Callable, cast, Collection, final, Iterable, Mapping
 
     from _cinderx import StrictModule, watch_sys_modules
-
     from cinderx.static import install_sp_audit_hook
 
     from ..consts import CI_CO_STATICALLY_COMPILED

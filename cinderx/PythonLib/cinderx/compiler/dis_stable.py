@@ -241,7 +241,7 @@ class Disassembler:
         if sys.version_info >= (3, 12):
             print("co_positions:", file=file)
             for i, position in enumerate(co.co_positions()):
-                print(f"Offset {i*2}: {position}", file=file)
+                print(f"Offset {i * 2}: {position}", file=file)
             print("co_exceptiontable:", co.co_exceptiontable, file=file)
             print("exception table: ", file=file)
             print(

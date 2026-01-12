@@ -11,7 +11,6 @@ from cinderx.compiler.static.types import (
     SEQ_ARRAY_INT64,
     TypedSyntaxError,
 )
-
 from cinderx.static import SEQ_SUBSCR_UNCHECKED, TYPED_INT64
 from cinderx.test_support import is_asan_build
 

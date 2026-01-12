@@ -22,7 +22,6 @@ from unittest import skip
 from unittest.mock import patch
 
 import cinderx.jit
-
 import xxclassloader
 from cinderx import StrictModule
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
@@ -37,7 +36,6 @@ from cinderx.compiler.static.types import (
     TypeEnvironment,
     Value,
 )
-
 from cinderx.test_support import passIf, passUnless, skip_unless_jit
 
 from .common import (
@@ -5484,7 +5482,7 @@ class StaticCompilationTests(StaticTestBase):
         codestr += f"def f{depth + 1}(): locals() ; return f{depth + 2}()\n"
 
         for i in range(depth, -1, -1):
-            codestr += f"def f{i}(): return f{i+1}()\n"
+            codestr += f"def f{i}(): return f{i + 1}()\n"
 
         codestr += "def g(x): return 0 if x else f0()\n"
 

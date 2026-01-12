@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import ast
-
 from ast import Import, Module
 from dataclasses import dataclass
 from typing import Any, Sequence
@@ -57,9 +56,9 @@ class FlagExtractor(SymbolVisitor):
     def _handle_module(self, node: Module) -> None:
         for child in node.body:
             match child:
-                case ast.Expr(ast.Constant(value)) if isinstance(
-                    value, str
-                ) and not self.seen_docstring:
+                case ast.Expr(ast.Constant(value)) if (
+                    isinstance(value, str) and not self.seen_docstring
+                ):
                     self.seen_docstring = True
                 case ast.ImportFrom(module) if module == "__future__":
                     pass

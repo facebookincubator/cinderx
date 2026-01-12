@@ -364,9 +364,10 @@ class NonStaticInheritanceTests(StaticTestBase):
             return D.f()
         """
 
-        with self.in_module(
-            bases, name="bases", code_gen=self.cinder_codegen
-        ), self.in_module(codestr) as mod:
+        with (
+            self.in_module(bases, name="bases", code_gen=self.cinder_codegen),
+            self.in_module(codestr) as mod,
+        ):
             f = mod.f
             self.assertEqual(f(), 42)
 
@@ -387,8 +388,9 @@ class NonStaticInheritanceTests(StaticTestBase):
             class C(B):
                 pass
         """
-        with self.in_module(base, name="base"), self.in_module(
-            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
+        with (
+            self.in_module(base, name="base"),
+            self.in_module(nonstatic, name="nonstatic", code_gen=self.cinder_codegen),
         ):
             with self.assertRaisesRegex(
                 TypeError,
@@ -425,9 +427,10 @@ class NonStaticInheritanceTests(StaticTestBase):
                 d = D()
                 return d.f()
         """
-        with self.in_module(
-            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ), self.in_module(static) as mod:
+        with (
+            self.in_module(nonstatic, name="nonstatic", code_gen=self.cinder_codegen),
+            self.in_module(static) as mod,
+        ):
             # Ensure that the decorator results in a non-static function.
             self.assertEqual(mod.D.f.__code__.co_flags & CI_CO_STATICALLY_COMPILED, 0)
             self.assertEqual(mod.invoke_f(mod.C()), 1)
@@ -463,9 +466,12 @@ class NonStaticInheritanceTests(StaticTestBase):
                     self.x = value
 
         """
-        with self.in_module(static, name="static") as mod, self.in_module(
-            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ) as nonstatic_mod:
+        with (
+            self.in_module(static, name="static") as mod,
+            self.in_module(
+                nonstatic, name="nonstatic", code_gen=self.cinder_codegen
+            ) as nonstatic_mod,
+        ):
             self.assertInBytecode(mod.B.get_x, "INVOKE_METHOD")
             self.assertInBytecode(mod.B.set_x, "INVOKE_METHOD")
             d = nonstatic_mod.D()
@@ -495,9 +501,12 @@ class NonStaticInheritanceTests(StaticTestBase):
                     self.x = value
 
         """
-        with self.in_module(static, name="static") as mod, self.in_module(
-            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ) as nonstatic_mod:
+        with (
+            self.in_module(static, name="static") as mod,
+            self.in_module(
+                nonstatic, name="nonstatic", code_gen=self.cinder_codegen
+            ) as nonstatic_mod,
+        ):
             self.assertInBytecode(mod.B.get_x, "INVOKE_METHOD")
             self.assertInBytecode(mod.B.set_x, "INVOKE_METHOD")
             d = nonstatic_mod.D()
@@ -519,9 +528,10 @@ class NonStaticInheritanceTests(StaticTestBase):
                 pass
 
         """
-        with self.in_module(
-            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ), self.in_module(static) as mod:
+        with (
+            self.in_module(nonstatic, name="nonstatic", code_gen=self.cinder_codegen),
+            self.in_module(static) as mod,
+        ):
             self.assertEqual(mod.D.foo, 42)
 
     def test_nonstatic_call_base_init_other_super(self) -> None:
@@ -539,9 +549,10 @@ class NonStaticInheritanceTests(StaticTestBase):
 
 
         """
-        with self.in_module(
-            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ), self.in_module(static) as mod:
+        with (
+            self.in_module(nonstatic, name="nonstatic", code_gen=self.cinder_codegen),
+            self.in_module(static) as mod,
+        ):
             self.assertEqual(mod.D.foo, 42)
 
 

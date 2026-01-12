@@ -3,11 +3,9 @@ import dis
 import os
 import sys
 import unittest
-
 from textwrap import dedent
 
 from cinderx.compiler.pycodegen import compile as py_compile
-
 from cinderx.test_support import passIf
 
 from ..test_cpython_overrides import test_dis

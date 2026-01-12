@@ -15,7 +15,6 @@ from cinderx.compiler.consts import (
     CO_NOFREE,
     CO_OPTIMIZED,
 )
-
 from cinderx.test_support import passIf
 
 from .common import CompilerTest

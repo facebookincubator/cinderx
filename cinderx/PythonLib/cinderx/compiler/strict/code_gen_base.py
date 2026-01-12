@@ -22,7 +22,6 @@ from ast import (
 from typing import Any, cast, final, Mapping
 
 from ..consts import CO_FUTURE_ANNOTATIONS
-
 from ..pyassem import PyFlowGraph
 from ..pycodegen import CinderCodeGenBase, CodeGenerator, find_futures, FOR_LOOP
 from ..symbols import BaseSymbolVisitor, FunctionScope

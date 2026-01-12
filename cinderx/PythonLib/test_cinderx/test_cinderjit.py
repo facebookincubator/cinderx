@@ -11,7 +11,6 @@ import textwrap
 import traceback
 import unittest
 import weakref
-
 from pathlib import Path
 from typing import Callable
 
@@ -22,7 +21,6 @@ if not AT_LEAST_312:
     import _testcindercapi
 
 import cinderx.jit
-
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from cinderx.jit import (
@@ -33,7 +31,6 @@ from cinderx.jit import (
     jit_suppress,
     jit_unsuppress,
 )
-
 from cinderx.test_support import (
     compiles_after_one_call,
     ENCODING,

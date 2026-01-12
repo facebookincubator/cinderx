@@ -9,7 +9,6 @@ import os
 import re
 import subprocess
 import sys
-
 from enum import Enum
 from typing import Generator, Iterator, Sequence
 
@@ -431,14 +430,14 @@ def update_cpp_tests(  # noqa: C901
             detected_version = parse_version_from_line(line)
             if detected_version is not None:
                 if line.startswith("#if"):
-                    assert (
-                        in_version_block is None
-                    ), f"Nested version blocks @ line {lineno}"
+                    assert in_version_block is None, (
+                        f"Nested version blocks @ line {lineno}"
+                    )
                     in_version_block = detected_version
                 elif line.startswith("#elif"):
-                    assert (
-                        in_version_block is not None
-                    ), f"Unexpected elif at line {lineno}, not in version block"
+                    assert in_version_block is not None, (
+                        f"Unexpected elif at line {lineno}, not in version block"
+                    )
                     in_version_block = detected_version
                 new_lines.append(line)
                 continue

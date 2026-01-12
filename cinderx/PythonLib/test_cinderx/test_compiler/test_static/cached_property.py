@@ -5,7 +5,6 @@ import asyncio
 import sys
 
 from cinderx import async_cached_property, cached_property
-
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import (

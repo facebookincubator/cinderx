@@ -85,11 +85,8 @@ from __static__ import (  # noqa: F401
 import ast
 import builtins
 import dataclasses
-
 import opcode
-
 import sys
-
 from ast import (
     AnnAssign,
     Assign,

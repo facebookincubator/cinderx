@@ -4,7 +4,6 @@ from __future__ import annotations
 from __static__.native_utils import invoke_native
 
 import _ctypes
-
 import unittest
 from typing import final
 

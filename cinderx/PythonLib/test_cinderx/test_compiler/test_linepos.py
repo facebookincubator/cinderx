@@ -3,7 +3,6 @@
 # pyre-unsafe
 
 import sys
-
 from dis import get_instructions
 from textwrap import dedent
 from types import CodeType

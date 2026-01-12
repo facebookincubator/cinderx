@@ -11,7 +11,6 @@ import unittest
 
 import cinderx
 import cinderx.test_support as cinder_support
-
 from cinderx.test_support import (
     compiles_after_one_call,
     passIf,

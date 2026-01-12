@@ -14,7 +14,6 @@ from cinderx.compiler.optimizer import (
 )
 from cinderx.compiler.pycodegen import CodeGenerator
 from cinderx.compiler.unparse import to_expr
-
 from cinderx.test_support import passIf
 
 from .common import CompilerTest

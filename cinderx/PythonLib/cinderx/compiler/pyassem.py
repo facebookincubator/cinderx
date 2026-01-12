@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import sys
-
 from ast import AST
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stdout
@@ -775,9 +774,9 @@ class PyFlowGraph(FlowGraph):
             dump_graph(self, stack_effect)
 
     def push_block(self, worklist: list[Block], block: Block, depth: int) -> None:
-        assert (
-            block.startdepth < 0 or block.startdepth >= depth
-        ), f"{block!r}: {block.startdepth} vs {depth}"
+        assert block.startdepth < 0 or block.startdepth >= depth, (
+            f"{block!r}: {block.startdepth} vs {depth}"
+        )
         if block.startdepth < depth:
             block.startdepth = depth
             worklist.append(block)
@@ -2016,9 +2015,9 @@ class PyFlowGraph312(PyFlowGraph):
                 ):
                     oldoffset = instr.ioparg
                     assert oldoffset >= 0
-                    assert (
-                        oldoffset < noffsets
-                    ), f"{instr.opname} {self.name} {self.firstline} {instr.oparg}"
+                    assert oldoffset < noffsets, (
+                        f"{instr.opname} {self.name} {self.firstline} {instr.oparg}"
+                    )
                     assert fixed_map[oldoffset] >= 0
                     if isinstance(instr.oparg, int):
                         # Only update oparg here if it's already in the int-form
@@ -2872,9 +2871,9 @@ class PyFlowGraph314(PyFlowGraph312):
         self, stack: list[Block], target: Block, start_depth: int, visited: set[Block]
     ) -> None:
         """Add a block to the worklist for processing."""
-        assert (
-            target.startdepth >= 0 and target.startdepth == start_depth
-        ), f"{target.startdepth} {start_depth} {self.firstline}"
+        assert target.startdepth >= 0 and target.startdepth == start_depth, (
+            f"{target.startdepth} {start_depth} {self.firstline}"
+        )
         if target not in visited:
             visited.add(target)
             stack.append(target)

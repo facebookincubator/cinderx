@@ -5,11 +5,9 @@
 from __static__ import chkdict, chklist
 
 import sys
-
 from re import escape
 
 from cinderx import freeze_type
-
 from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.test_support import passIf

@@ -8,7 +8,6 @@ from __future__ import annotations
 import ast
 import os
 import sys
-
 from contextlib import contextmanager
 from typing import Generator, Iterable
 

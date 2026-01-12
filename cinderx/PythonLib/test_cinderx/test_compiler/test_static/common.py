@@ -17,10 +17,8 @@ from types import CodeType, FunctionType, ModuleType
 from typing import Any, Awaitable, Callable, ContextManager, final, Generator, Mapping
 
 import cinderx
-
 import cinderx.jit
 from cinderx import StrictModule
-
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.errors import (
     CollectingErrorSink,
@@ -38,7 +36,6 @@ from cinderx.compiler.strict.compiler import Compiler as StrictCompiler
 from cinderx.compiler.strict.flag_extractor import Flags
 from cinderx.compiler.strict.loader import init_static_python
 from cinderx.compiler.strict.runtime import set_freeze_enabled
-
 from cinderx.static import (
     __build_cinder_class__,
     TYPED_BOOL,

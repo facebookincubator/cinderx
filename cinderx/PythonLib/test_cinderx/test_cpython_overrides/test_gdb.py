@@ -116,7 +116,7 @@ def should_skip() -> str | None:
         return "test_gdb only works on source builds at the moment."
 
     if "Clang" in platform.python_compiler() and sys.platform == "darwin":
-        return "test_gdb doesn't work correctly when python is" " built with LLVM clang"
+        return "test_gdb doesn't work correctly when python is built with LLVM clang"
 
     if (sysconfig.get_config_var("PGO_PROF_USE_FLAG") or "xxx") in (
         sysconfig.get_config_var("PY_CORE_CFLAGS") or ""

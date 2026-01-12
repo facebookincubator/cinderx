@@ -32,27 +32,18 @@ import unittest
 
 # CPython always imports this on startup, but cinder's dev environment doesn't
 from importlib import util
-
 from pathlib import Path
-
 from typing import Dict, IO, Iterable, List, Optional, Set, Tuple
 
 import test.libregrtest.findtests as libregrtest_findtests
-
 import test.libregrtest.logger as libregrtest_logger
 import test.libregrtest.result as libregrtest_result
-
 import test.libregrtest.results as libregrtest_results
-
 import test.libregrtest.runtests as libregrtest_runtests
-
 import test.libregrtest.setup as libregrtest_setup
-
 import test.libregrtest.single as libregrtest_single
 import test.libregrtest.utils as libregrtest_utils
-
 from cinderx.test_support import get_cinderjit_xargs, is_asan_build
-
 from common import (
     ActiveTest,
     ASANLogManipulator,
@@ -74,10 +65,8 @@ from common import (
     WorkerDone,
     WorkSender,
 )
-
 from test import support
 from test.libregrtest.cmdline import _parse_args as libregrtest_parse_args
-
 from test.libregrtest.main import main as libregrtest_main
 from test.support import os_helper
 
@@ -492,8 +481,7 @@ class MultiWorkerCinderRegrtest:
                         msg.worker_pid, time.time(), msg.test_log, msg.rr_trace_dir
                     )
                     print(
-                        f"Running test '{msg.test_name}' on worker "
-                        f"{msg.worker_pid}",
+                        f"Running test '{msg.test_name}' on worker {msg.worker_pid}",
                         file=self._cinder_regr_runner_logfile,
                     )
                     self._cinder_regr_runner_logfile.flush()
@@ -626,7 +614,7 @@ class MultiWorkerCinderRegrtest:
 
             if self._results.bad:
                 print(
-                    f"{libregrtest_utils.count(len(self._results.bad), "test")} failed again:"
+                    f"{libregrtest_utils.count(len(self._results.bad), 'test')} failed again:"
                 )
                 libregrtest_utils.printlist(self._results.bad)
 
@@ -791,7 +779,7 @@ def patch_libregrtest_to_use_loadTestsFromName():
         if gc.garbage:
             support.environment_altered = True
             libregrtest_single.print_warning(
-                f"{test_name} created {len(gc.garbage)} " f"uncollectable object(s)"
+                f"{test_name} created {len(gc.garbage)} uncollectable object(s)"
             )
 
             # move the uncollectable objects somewhere,

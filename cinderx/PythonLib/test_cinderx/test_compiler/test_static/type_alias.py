@@ -6,9 +6,7 @@ import sys
 import unittest
 
 from cinderx.compiler.static.module_table import ENABLE_IMPLICIT_TYPE_ALIASES
-
 from cinderx.compiler.static.types import TypedSyntaxError
-
 from cinderx.test_support import passIf, passUnless
 
 from .common import StaticTestBase

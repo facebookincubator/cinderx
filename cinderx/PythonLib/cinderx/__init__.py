@@ -113,9 +113,9 @@ except ImportError as e:
     def _get_entire_call_stack_as_qualnames_with_lineno() -> list[tuple[str, int]]:
         return []
 
-    def _get_entire_call_stack_as_qualnames_with_lineno_and_frame() -> (
-        list[tuple[str, int, object]]
-    ):
+    def _get_entire_call_stack_as_qualnames_with_lineno_and_frame() -> list[
+        tuple[str, int, object]
+    ]:
         return []
 
     def _is_compile_perf_trampoline_pre_fork_enabled() -> bool:

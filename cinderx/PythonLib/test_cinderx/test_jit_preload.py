@@ -13,7 +13,6 @@ import cinderx
 cinderx.init()
 
 import cinderx.jit
-
 from cinderx.test_support import ENCODING, passIf, skip_unless_jit, subprocess_env
 
 SKIP_315: bool = sys.version_info >= (3, 15)

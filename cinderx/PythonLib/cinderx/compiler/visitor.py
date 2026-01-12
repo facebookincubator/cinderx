@@ -110,9 +110,9 @@ class ASTRewriter(ASTVisitor):
             else:
                 continue
 
-            assert (
-                new_value is not None
-            ), f"can't remove AST nodes that aren't part of a list {old_value!r}"
+            assert new_value is not None, (
+                f"can't remove AST nodes that aren't part of a list {old_value!r}"
+            )
             if new_value is not old_value:
                 if ret_node is node:
                     ret_node = self.clone_node(node)

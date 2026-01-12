@@ -26,7 +26,6 @@ from typing import final, MutableMapping
 
 from ..consts import CO_FUTURE_ANNOTATIONS
 from ..pycodegen import find_futures
-
 from .common import (
     get_symbol_map,
     imported_name,

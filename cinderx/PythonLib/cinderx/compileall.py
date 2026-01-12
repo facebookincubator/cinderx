@@ -578,7 +578,7 @@ def main() -> bool:
         "--strict-compile",
         action="store_true",
         dest="strict_compile",
-        help=("use the bytecode compiler bundled with " "the strict-module loader"),
+        help=("use the bytecode compiler bundled with the strict-module loader"),
     )
 
     args = parser.parse_args()

@@ -3,7 +3,6 @@
 # pyre-strict
 
 import sys
-
 from opcode import (
     hascompare,
     hasconst,

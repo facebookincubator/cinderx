@@ -13,7 +13,6 @@ import unittest
 from pathlib import Path
 
 import cinderx.jit
-
 from cinderx.test_support import ENCODING, passUnless, skip_unless_jit, subprocess_env
 
 
