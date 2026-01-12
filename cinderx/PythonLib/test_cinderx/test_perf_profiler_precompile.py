@@ -45,7 +45,10 @@ class TestPerfTrampolinePreCompile(unittest.TestCase):
             set(pathlib.Path("/tmp/").glob("perf-*.map")) - self.perf_files
         )
         for file in files_to_delete:
-            file.unlink()
+            # Even after subtracting perf_files out there can be races, because
+            # constructing perf_files races with other test processes.  Ignore files
+            # that are missing.
+            file.unlink(missing_ok=True)
 
     def test_trampoline_works(self) -> None:
         code = """if 1:
