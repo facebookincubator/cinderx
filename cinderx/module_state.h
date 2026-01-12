@@ -150,14 +150,6 @@ class ModuleState {
     return perf_trampoline_worklist_;
   }
 
-  bool initialized() const {
-    return initialized_;
-  }
-
-  void setInitialized(bool init) {
-    initialized_ = init;
-  }
-
   void setModule(BorrowedRef<> module) {
     cinderx_module_ = module;
   }
@@ -225,7 +217,6 @@ class ModuleState {
   // Function objects registered for pre-fork perf-trampoline compilation.
   jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist_;
 
-  bool initialized_{false};
   BorrowedRef<> cinderx_module_;
 };
 

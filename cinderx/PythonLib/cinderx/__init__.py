@@ -72,7 +72,6 @@ try:
         get_parallel_gc_settings,
         has_parallel_gc,
         immortalize_heap,
-        init as cinderx_init,
         is_immortal,
         strict_module_patch,
         strict_module_patch_delete,
@@ -104,8 +103,6 @@ except ImportError as e:
                 "Please ensure that the cinderx kernel is being used."
             ) from e
     _import_error = e
-
-    cinderx_init = None
 
     def _compile_perf_trampoline_pre_fork() -> None:
         pass
@@ -564,14 +561,13 @@ def init() -> None:
     global _is_init
 
     # Failed to import _cinderx, nothing to initialize.
-    if cinderx_init is None:
+    if _import_error is not None:
         return
 
     # Already initialized.
     if _is_init:
         return
 
-    cinderx_init()
     strictify_static()
     maybe_enable_parallel_gc()
 

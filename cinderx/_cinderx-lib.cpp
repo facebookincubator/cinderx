@@ -936,74 +936,6 @@ void finiFrameEvalFunc() {
 #endif
 }
 
-int cinder_init() {
-  if (init_upstream_borrow() < 0) {
-    return -1;
-  }
-
-  // Initialize the code object extra data index early, before we hook into the
-  // interpreter and try to use it.
-  initCodeExtraIndex();
-
-  initCinderHooks();
-
-  if (initFrameEvalFunc() < 0) {
-    return -1;
-  }
-
-#if PY_VERSION_HEX < 0x030C0000
-  JIT_CHECK(
-      __strobe_CodeRuntime_py_code == jit::CodeRuntime::codeOffset(),
-      "Invalid PyCodeOffset for Strobelight");
-  JIT_CHECK(
-      __strobe_RuntimeFrameState_py_code ==
-          jit::RuntimeFrameState::codeOffset(),
-      "Invalid codeOffset for Strobelight");
-#endif
-
-  init_already_existing_types();
-
-  auto& watcher_state = cinderx::getModuleState()->watcherState();
-  if (watcher_state.init() < 0) {
-    return -1;
-  }
-
-  int jit_init_ret = jit::initialize();
-  if (jit_init_ret) {
-    // Exit here rather than in jit::initialize() so the tests for printing
-    // argument help works.
-    if (jit_init_ret == -2) {
-      exit(1);
-    }
-    return -1;
-  }
-
-  init_existing_objects();
-
-#if PY_VERSION_HEX < 0x030C0000
-  Ci_cinderx_initialized = 1;
-#endif
-
-#if PY_VERSION_HEX >= 0x030C0000
-  char* patching = getenv("PYTHONENABLEPATCHING");
-  enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
-
-#ifdef ENABLE_INTERPRETER_LOOP
-  Ci_InitOpcodes();
-#endif
-
-#endif
-
-#if ENABLE_XXCLASSLOADER
-  if (_Ci_CreateXXClassLoaderModule() < 0) {
-    return -1;
-  }
-#endif
-
-  // Create _static module
-  return _Ci_CreateStaticModule();
-}
-
 // Attempts to shutdown CinderX. This is very much a best-effort with the
 // primary goals being to ensure Python shuts down without crashing, and
 // tests which do some kind of re-initialization continue to work. A secondary
@@ -1082,28 +1014,6 @@ int cinder_fini() {
   return 0;
 }
 
-PyObject* init(PyObject* mod, PyObject* /*obj*/) {
-  auto state = cinderx::getModuleState(mod);
-  if (state->initialized()) {
-    Py_RETURN_FALSE;
-  }
-
-  if (cinder_init()) {
-    if (!PyErr_Occurred()) {
-      PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
-    }
-    // cinder_init can fail and leave things partially initialized. The main
-    // item we want to restore is the interpreter loop function, otherwise
-    // Ci_EvalFrame will still try to access CinderX data.
-    finiFrameEvalFunc();
-    return nullptr;
-  }
-
-  state->setInitialized(true);
-
-  Py_RETURN_TRUE;
-}
-
 int module_traverse(PyObject* mod, visitproc visit, void* arg) {
   cinderx::ModuleState* state = cinderx::getModuleState(mod);
   return state->traverse(visit, arg);
@@ -1118,10 +1028,7 @@ void module_free(void* raw_mod) {
   auto mod = reinterpret_cast<PyObject*>(raw_mod);
   auto state = cinderx::getModuleState(mod);
 
-  if (state->initialized()) {
-    state->setInitialized(false);
-    JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
-  }
+  JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
 
 #if PY_VERSION_HEX >= 0x030C0000
   // This must be done at the point the module is free'd as the free-list uses
@@ -1168,11 +1075,6 @@ static PyObject* clear_strict_modules(PyObject*, PyObject*) {
 }
 
 PyMethodDef _cinderx_methods[] = {
-    {"init",
-     init,
-     METH_NOARGS,
-     PyDoc_STR(
-         "This must be called early. Preferably before any user code is run.")},
     {"clear_caches",
      clear_caches,
      METH_NOARGS,
@@ -1288,7 +1190,7 @@ PyMethodDef _cinderx_methods[] = {
 #endif
     {nullptr, nullptr, 0, nullptr}};
 
-int _cinderx_exec(PyObject* m) {
+int _cinderx_exec_impl(PyObject* m) {
   cinderx::initStaticObjects();
 
   // The state will be destroyed in module_free(), which gets called even if
@@ -1526,7 +1428,76 @@ int _cinderx_exec(PyObject* m) {
     }
   }
 
+  if (init_upstream_borrow() < 0) {
+    return -1;
+  }
+
+  // Initialize the code object extra data index early, before we hook into the
+  // interpreter and try to use it.
+  initCodeExtraIndex();
+
+  initCinderHooks();
+
+  if (initFrameEvalFunc() < 0) {
+    return -1;
+  }
+
+  init_already_existing_types();
+
+  if (watcher_state.init() < 0) {
+    return -1;
+  }
+
+  int jit_init_ret = jit::initialize();
+  if (jit_init_ret) {
+    // Exit here rather than in jit::initialize() so the tests for printing
+    // argument help works.
+    if (jit_init_ret == -2) {
+      exit(1);
+    }
+    return -1;
+  }
+
+  init_existing_objects();
+
+#if PY_VERSION_HEX < 0x030C0000
+  Ci_cinderx_initialized = 1;
+#endif
+
+#if PY_VERSION_HEX >= 0x030C0000
+  char* patching = getenv("PYTHONENABLEPATCHING");
+  enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
+
+#ifdef ENABLE_INTERPRETER_LOOP
+  Ci_InitOpcodes();
+#endif
+
+#endif
+
+#ifdef ENABLE_XXCLASSLOADER
+  if (_Ci_CreateXXClassLoaderModule() < 0) {
+    return -1;
+  }
+#endif
+
+  if (_Ci_CreateStaticModule() < 0) {
+    return -1;
+  }
+
   return 0;
+}
+
+int _cinderx_exec(PyObject* m) {
+  int result = _cinderx_exec_impl(m);
+  // Initialization can fail and leave things partially initialized. The main
+  // item we want to restore immediately is the interpreter loop function,
+  // otherwise Ci_EvalFrame will still try to access CinderX data.
+  //
+  // Everything else will be handled by module_free() when there's an error.
+  if (result < 0) {
+    finiFrameEvalFunc();
+  }
+  return result;
 }
 
 PyModuleDef_Slot _cinderx_slots[] = {
