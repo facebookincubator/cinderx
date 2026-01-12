@@ -86,6 +86,7 @@
 #define _PyEval_MonitorRaise _CiEval_MonitorRaise
 #define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
+#define _PyEvalFramePushAndInit_Ex _CiEvalFramePushAndInit_Ex
 #define _PyType_Validate _CiType_Validate
 
 #if PY_VERSION_HEX < 0x030F0000
