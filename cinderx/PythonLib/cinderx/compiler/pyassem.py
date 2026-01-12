@@ -1535,9 +1535,15 @@ class PyFlowGraph310(PyFlowGraph):
             tuple(self.varnames),
             self.filename,
             self.name,
+            # pyre-fixme[6]: For 13th argument expected `str` but got `int`.
             firstline,
+            # pyre-fixme[6]: For 14th argument expected `int` but got `bytes`.
             lnotab,
+            # pyre-fixme[6]: For 15th argument expected `bytes` but got `tuple[str,
+            #  ...]`.
             tuple(self.freevars),
+            # pyre-fixme[6]: For 16th argument expected `bytes` but got `tuple[str,
+            #  ...]`.
             tuple(self.cellvars),
         )
 

@@ -22,6 +22,9 @@ STATIC_OPNAMES: list[str] = [f"<{i}>" for i in range(256)]
 STATIC_CONST_OPCODES: list[int] = []
 
 if sys.version_info >= (3, 12):
+    # pyre-fixme[21]: Could not find name `_cache_format` in `opcode` (stubbed).
+    # pyre-fixme[21]: Could not find name `_inline_cache_entries` in `opcode` (stubbed).
+    # pyre-fixme[21]: Could not find name `_specializations` in `opcode` (stubbed).
     from opcode import _cache_format, _inline_cache_entries, _specializations, hasarg
 
     from cinderx import opcode as cinderx_opcode
@@ -34,8 +37,11 @@ if sys.version_info >= (3, 12):
         hasjabs,
         STATIC_CONST_OPCODES if sys.version_info >= (3, 14) else hasconst,
         hasarg,
+        # pyre-fixme[16]: Module `opcode` has no attribute `_cache_format`.
         _cache_format,
+        # pyre-fixme[16]: Module `opcode` has no attribute `_specializations`.
         _specializations,
+        # pyre-fixme[16]: Module `opcode` has no attribute `_inline_cache_entries`.
         _inline_cache_entries,
     )
     if sys.version_info >= (3, 14):
@@ -52,7 +58,10 @@ if sys.version_info >= (3, 12):
         dis._all_opname = list(opname)
         dis._all_opmap = dict(opmap)
         dis._empty_slot = [
-            slot for slot, name in enumerate(dis._all_opname) if name.startswith("<")
+            slot
+            # pyre-fixme[16]: Module `dis` has no attribute `_all_opname`.
+            for slot, name in enumerate(dis._all_opname)
+            if name.startswith("<")
         ]
 
 
@@ -228,6 +237,9 @@ opcode.stack_effects.update(
 )
 
 if sys.version_info >= (3, 12):
+    # pyre-fixme[21]: Could not find name `_intrinsic_1_descs` in `opcode` (stubbed).
+    # pyre-fixme[21]: Could not find name `_intrinsic_2_descs` in `opcode` (stubbed).
+    # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
     from opcode import (
         _intrinsic_1_descs as INTRINSIC_1,
         _intrinsic_2_descs as INTRINSIC_2,
@@ -934,6 +946,7 @@ elif sys.version_info >= (3, 12):
 
 
 def find_op_idx(opname: str) -> int:
+    # pyre-fixme[16]: Module `opcode` has no attribute `_nb_ops`.
     for i, (name, _symbol) in enumerate(NB_OPS):
         if name == opname:
             return i

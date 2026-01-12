@@ -64,6 +64,7 @@ class CinderX_OpcodeTests(unittest.TestCase):
         # All defined opcodes
         for name, code in dis.opmap.items():
             # TASK(T74641077) - Figure out how to deal with static python opcodes
+            # pyre-fixme[16]: Module `opcode` has no attribute `shadowop`.
             if name in MISSING_STACK_EFFECT or code in opcode.shadowop:
                 continue
 
@@ -97,6 +98,7 @@ class CinderX_OpcodeTests(unittest.TestCase):
         has_jump = dis.hasjabs + dis.hasjrel
         for name, code in dis.opmap.items():
             # TASK(T74641077) - Figure out how to deal with static python opcodes
+            # pyre-fixme[16]: Module `opcode` has no attribute `shadowop`.
             if name in MISSING_STACK_EFFECT or code in opcode.shadowop:
                 continue
 

@@ -48,6 +48,9 @@ try:
     )
     from .future import find_futures as future_find_futures
     from .misc import mangle
+
+    # pyre-fixme[21]: Could not find name `INTRINSIC_1` in `cinderx.compiler.opcodes`.
+    # pyre-fixme[21]: Could not find name `INTRINSIC_2` in `cinderx.compiler.opcodes`.
     from .opcodes import find_op_idx, INTRINSIC_1, INTRINSIC_2
     from .optimizer import AstOptimizer, AstOptimizer312, AstOptimizer314
     from .pyassem import (
@@ -3872,6 +3875,8 @@ class CodeGenerator310(CodeGenerator):
 class CodeGenerator312(CodeGenerator):
     flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor = SymbolVisitor312
+    # pyre-fixme[8]: Attribute has type `Tuple[Type[AST]]`; used as
+    #  `Tuple[Type[ClassDef], Type[TypeVar]]`.
     unqualified_asts: tuple[type[ast.AST]] = (
         ast.ClassDef,
         # pyre-ignore[16]: No such attribute
@@ -4259,9 +4264,11 @@ class CodeGenerator312(CodeGenerator):
             assert 0
 
     def emit_call_intrinsic_1(self, oparg: str) -> None:
+        # pyre-fixme[16]: Module `opcodes` has no attribute `INTRINSIC_1`.
         self.emit("CALL_INTRINSIC_1", INTRINSIC_1.index(oparg))
 
     def emit_call_intrinsic_2(self, oparg: str) -> None:
+        # pyre-fixme[16]: Module `opcodes` has no attribute `INTRINSIC_2`.
         self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
 
     def emit_import_star(self) -> None:
@@ -4736,6 +4743,10 @@ class CodeGenerator312(CodeGenerator):
             posonlyargs=0,
             suppress_default_const=True,
         )
+        # pyre-fixme[6]: For 1st argument expected `Union[Annotations, ClassDef,
+        #  TypeParams, AsyncFunctionDef, DictComp, FunctionDef, GeneratorExp, Lambda,
+        #  ListComp, SetComp, TypeAlias, arguments]` but got `Union[TypeVarDefault,
+        #  ParamSpec, TypeVar, TypeVarTuple]`.
         outer_gen = self.make_child_codegen(key, graph, name=graph.name)
         outer_gen.class_name = self.class_name
         outer_gen.optimized = 1
@@ -4968,6 +4979,8 @@ class CodeGenerator312(CodeGenerator):
             )
             outer_gen.class_name = node.name
             outer_gen.optimized = 1
+            # pyre-fixme[6]: For 1st argument expected `List[Union[ParamSpec,
+            #  TypeVar, TypeVarTuple]]` but got `List[type_param]`.
             outer_gen.compile_type_params(node.type_params)
 
             outer_gen.set_pos(node)
@@ -5035,6 +5048,8 @@ class CodeGenerator312(CodeGenerator):
             outer_gen.optimized = 1
             outer_gen.set_pos(node)
             outer_gen.emit("LOAD_CONST", node.name.id)
+            # pyre-fixme[6]: For 1st argument expected `List[Union[ParamSpec,
+            #  TypeVar, TypeVarTuple]]` but got `List[type_param]`.
             outer_gen.compile_type_params(node.type_params)
         else:
             outer_gen.emit("LOAD_CONST", node.name.id)
@@ -5201,6 +5216,8 @@ class CodeGenerator312(CodeGenerator):
     # pyre-ignore[11]: Annotation `ast.TryStar` is not defined as a type.
     def visitTryStar(self, node: ast.TryStar) -> None:
         if node.finalbody:
+            # pyre-fixme[6]: For 1st argument expected `Optional[Try]` but got
+            #  `TryStar`.
             self.emit_try_finally(node, star=True)
         else:
             self.emit_try_star_except(node)
@@ -5242,6 +5259,7 @@ class CodeGenerator312(CodeGenerator):
             try_body()
         elif node.handlers:
             if star:
+                # pyre-fixme[6]: For 1st argument expected `TryStar` but got `Try`.
                 self.emit_try_star_except(node)
             else:
                 self.emit_try_except(node)
@@ -5432,7 +5450,11 @@ class CodeGenerator312(CodeGenerator):
             self.emit("POP_BLOCK")
             if handler.name:
                 self.emit("LOAD_CONST", None)
+                # pyre-fixme[6]: For 1st argument expected `str` but got
+                #  `Optional[str]`.
                 self.storeName(handler.name)
+                # pyre-fixme[6]: For 1st argument expected `str` but got
+                #  `Optional[str]`.
                 self.delName(handler.name)
             self.emit_jump_forward(except_)
 
@@ -5440,7 +5462,11 @@ class CodeGenerator312(CodeGenerator):
             self.nextBlock(cleanup_end)
             if handler.name:
                 self.emit("LOAD_CONST", None)
+                # pyre-fixme[6]: For 1st argument expected `str` but got
+                #  `Optional[str]`.
                 self.storeName(handler.name)
+                # pyre-fixme[6]: For 1st argument expected `str` but got
+                #  `Optional[str]`.
                 self.delName(handler.name)
 
             # add exception raised to the res list
@@ -6177,6 +6203,8 @@ class CodeGenerator314(CodeGenerator312):
             self.emit("PUSH_NULL")
             self.emit("CALL", 0)
 
+    # pyre-fixme[14]: `compile_type_param_bound_or_default` overrides method defined
+    #  in `CodeGenerator312` inconsistently.
     def compile_type_param_bound_or_default(
         self, bound: ast.expr, name: str, key: ast.expr, allow_starred: bool
     ) -> None:
@@ -6205,6 +6233,8 @@ class CodeGenerator314(CodeGenerator312):
         symbols = self.symbols
 
         scope = symbols.scopes[node]
+        # pyre-fixme[6]: For 2nd argument expected `Union[Annotations, arguments]`
+        #  but got `TypeAlias`.
         res = self.setup_annotations(node, node, scope)
         res.class_name = self.class_name
         return res
@@ -6669,8 +6699,11 @@ class CodeGenerator314(CodeGenerator312):
         with self.conditional_block():
             super().visitTry(node)
 
+    # pyre-fixme[14]: `visitTryStar` overrides method defined in `CodeGenerator312`
+    #  inconsistently.
     def visitTryStar(self, node: ast.Try) -> None:
         with self.conditional_block():
+            # pyre-fixme[6]: For 1st argument expected `TryStar` but got `Try`.
             super().visitTryStar(node)
 
     def visitWith(self, node: ast.With) -> None:

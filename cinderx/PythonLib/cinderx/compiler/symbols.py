@@ -458,6 +458,7 @@ class BaseSymbolVisitor(ASTVisitor):
         node: ast.ClassDef | ast.FunctionDef | ast.TypeAlias | ast.AsyncFunctionDef,
         parent: Scope,
     ) -> TypeParamScope:
+        # pyre-fixme[6]: For 1st argument expected `str` but got `Union[Name, str]`.
         scope = TypeParamScope(node.name, self.module, self.klass, lineno=node.lineno)
         if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
             scope.nested = True
@@ -503,6 +504,7 @@ class BaseSymbolVisitor(ASTVisitor):
         parent.add_def(node.name)
         parent.add_type_param(node.name)
 
+        # pyre-fixme[6]: For 1st argument expected `expr` but got `Optional[expr]`.
         self.visit_type_param_bound_or_default(node.bound, node.name, node, parent)
         if default_value := getattr(node, "default_value", None):
             self.visit_type_param_bound_or_default(
@@ -1372,6 +1374,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
 
     # pyre-ignore[11]: TryStar added in 3.11, pyre still running in 3.10 mode.
     def visitTryStar(self, node: ast.TryStar, scope: Scope) -> None:
+        # pyre-fixme[6]: For 1st argument expected `Try` but got `TryStar`.
         return self.visitTry(node, scope)
 
     def analyze_block(
