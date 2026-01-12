@@ -401,11 +401,17 @@ void* finalizeCode(arch::Builder& builder, std::string_view name) {
 // Generate the final stage trampoline that is responsible for finishing
 // execution in the interpreter and then returning the result to the caller.
 void* generateDeoptTrampoline(bool generator_mode) {
+  auto mod_state = cinderx::getModuleState();
+  if (mod_state == nullptr) {
+    throw std::runtime_error{
+        "CinderX not initialized, cannot generate deopt trampolines"};
+  }
+
   auto name =
       generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
 
   CodeHolder code;
-  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  ICodeAllocator* code_allocator = mod_state->codeAllocator();
   ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
   arch::Builder a(&code);
   Annotations annot;
@@ -624,8 +630,13 @@ void* generateDeoptTrampoline(bool generator_mode) {
 }
 
 void* generateFailedDeferredCompileTrampoline() {
+  auto mod_state = cinderx::getModuleState();
+  if (mod_state == nullptr) {
+    throw std::runtime_error{
+        "CinderX not initialized, cannot generate deopt trampolines"};
+  }
   CodeHolder code;
-  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  ICodeAllocator* code_allocator = mod_state->codeAllocator();
   code.init(code_allocator->asmJitEnvironment());
   arch::Builder a(&code);
   Annotations annot;
