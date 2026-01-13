@@ -33,6 +33,9 @@ using EmitterExplicitT = asmjit::x86::EmitterExplicitT<T>;
 // If you change this register you'll also need to change the deopt
 // trampoline code that saves all registers.
 constexpr auto reg_scratch_deopt = asmjit::x86::r15;
+
+constexpr auto reg_scratch_0_loc = RAX;
+
 constexpr auto reg_general_return_loc = RAX;
 constexpr auto reg_general_auxilary_return_loc = RDX;
 constexpr auto reg_double_return_loc = XMM0;
@@ -67,6 +70,9 @@ template <typename T>
 struct EmitterExplicitT {};
 
 constexpr auto reg_scratch_deopt = asmjit::BaseReg();
+
+constexpr auto reg_scratch_0_loc = R3;
+
 constexpr auto reg_general_return_loc = R0;
 constexpr auto reg_general_auxilary_return_loc = R1;
 constexpr auto reg_double_return_loc = D0;

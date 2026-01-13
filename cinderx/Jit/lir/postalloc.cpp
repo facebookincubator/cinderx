@@ -38,7 +38,7 @@ void insertMoveToMemoryLocation(
     PhyLocation base,
     int index,
     const OperandBase* operand,
-    PhyLocation temp = arch::reg_general_return_loc) {
+    PhyLocation temp = arch::reg_scratch_0_loc) {
   auto data_type = operand->dataType();
 
   if (operand->isImm()) {
@@ -107,7 +107,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
           block->allocateInstrBefore(
               instr_iter,
               Instruction::kMove,
-              OutPhyReg(arch::reg_general_return_loc),
+              OutPhyReg(arch::reg_scratch_0_loc),
               Imm(operand->getConstant()));
         }
         auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
@@ -115,7 +115,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
         move->output()->setDataType(OperandBase::kDouble);
 
         if (operand_imm) {
-          move->allocatePhyRegisterInput(arch::reg_general_return_loc);
+          move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
         } else {
           move->appendInput(instr->releaseInput(i));
         }
@@ -180,12 +180,10 @@ int prepareArgsArray(
       OutPhyReg(size_dest, lir::OperandBase::k64bit),
       Imm(num_args | flags, lir::OperandBase::k64bit));
 
-  constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
   for (size_t i = first_arg; i < first_arg + num_args; i++) {
     auto arg = instr->getInput(i);
     int arg_offset = (i - first_arg) * PTR_SIZE;
-    insertMoveToMemoryLocation(
-        block, instr_iter, dest, arg_offset, arg, TMP_REG);
+    insertMoveToMemoryLocation(block, instr_iter, dest, arg_offset, arg);
   }
   return rsp_sub;
 }
@@ -210,7 +208,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   move->output()->setDataType(instr->getInput(2)->dataType());
   move->appendInput(instr->releaseInput(2)); // callable
 
-  constexpr PhyLocation TMP_REG = arch::reg_general_return_loc;
+  constexpr PhyLocation TMP_REG = arch::reg_scratch_0_loc;
   int rsp_sub = prepareArgsArray(
       instr_iter,
       num_args,
@@ -490,17 +488,28 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
 
   auto out = instr->output();
   JIT_DCHECK(out->isReg(), "Unable to load to a non-register location.");
-  if (out->getPhyRegister() == arch::reg_general_return_loc) {
+
+#if defined(CINDER_X86_64)
+  // On x86-64, you can load a 64-bit address directly into a register only if
+  // that register is RAX. We check here for that case and return an unchanged
+  // instruction if possible.
+  if (out->getPhyRegister() == RAX) {
     return kUnchanged;
   }
+#endif
 
   auto in = instr->getInput(0);
   auto mem_addr = reinterpret_cast<intptr_t>(in->getMemoryAddress());
 
 #if defined(CINDER_X86_64)
+  // On x86-64, you can load a 32-bit address directly into any register, so
+  // check for bounds here and return an unchanged instruction if possible.
   if (fitsSignedInt<32>(mem_addr)) {
     return kUnchanged;
   }
+#elif defined(CINDER_AARCH64)
+  // aarch64 does not support absolute addressing, so we will always need to
+  // rewrite the instruction.
 #else
   CINDER_UNSUPPORTED
 #endif
