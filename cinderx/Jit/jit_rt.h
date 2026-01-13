@@ -57,7 +57,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
     uint64_t spill_words,
     jit::CodeRuntime* code_rt,
     GenResumeFunc resume_entry,
-    uint64_t original_rbp);
+    uint64_t original_frame_pointer);
 
 void JITRT_InitFrameCellVars(
     PyFunctionObject* func,

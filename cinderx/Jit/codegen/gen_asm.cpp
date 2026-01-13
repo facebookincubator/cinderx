@@ -84,11 +84,13 @@ namespace {
 // Scratch register used by the various deopt trampolines.
 [[maybe_unused]] const auto deopt_scratch_reg = arch::reg_scratch_deopt;
 
-// Set RBP to "original RBP" value when called in the context of a generator.
-void RestoreOriginalGeneratorRBP(arch::Emitter* as) {
+// Set the frame pointer to "original frame pointer" value when called in the
+// context of a generator.
+void RestoreOriginalGeneratorFramePointer(arch::Builder* as) {
 #if defined(CINDER_X86_64)
-  size_t original_rbp_offset = offsetof(GenDataFooter, originalRbp);
-  as->mov(x86::rbp, x86::ptr(x86::rbp, original_rbp_offset));
+  size_t original_frame_pointer_offset =
+      offsetof(GenDataFooter, originalFramePointer);
+  as->mov(x86::rbp, x86::ptr(x86::rbp, original_frame_pointer_offset));
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -462,8 +464,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
   a.push(x86::rax);
 
   if (generator_mode) {
-    // Restore original RBP for use in epilogue.
-    RestoreOriginalGeneratorRBP(a.as<x86::Emitter>());
+    // Restore the original frame pointer for use in epilogue.
+    RestoreOriginalGeneratorFramePointer(&a);
   }
 
   annot.add("Save registers", &a, annot_cursor);
@@ -1354,7 +1356,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
         FRAME_COMPLETED);
 #endif
     as_->bind(env_.exit_for_yield_label);
-    RestoreOriginalGeneratorRBP(as_->as<x86::Emitter>());
+    RestoreOriginalGeneratorFramePointer(as_);
   }
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -1587,8 +1589,9 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   as_->mov(x86::ptr(jit_data_r, return_address_offset), scratch_r);
 
   // Store "original" RBP
-  size_t original_rbp_offset = offsetof(GenDataFooter, originalRbp);
-  as_->mov(x86::ptr(jit_data_r, original_rbp_offset), x86::rbp);
+  size_t original_frame_pointer_offset =
+      offsetof(GenDataFooter, originalFramePointer);
+  as_->mov(x86::ptr(jit_data_r, original_frame_pointer_offset), x86::rbp);
 
   // RBP = gen->gi_jit_data
   as_->mov(x86::rbp, jit_data_r);

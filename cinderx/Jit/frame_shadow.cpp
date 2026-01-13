@@ -122,7 +122,7 @@ uintptr_t getIP(_PyShadowFrame* shadow_frame, int frame_size) {
     auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
     if (footer->yieldPoint == nullptr) {
       // The generator is running.
-      frame_base = footer->originalRbp;
+      frame_base = footer->originalFramePointer;
     } else {
       // The generator is suspended.
       return footer->yieldPoint->resumeTarget();

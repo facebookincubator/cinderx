@@ -99,7 +99,7 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
     auto footer = jitGenDataFooter(gen);
     if (footer->yieldPoint == nullptr) {
       // The generator is running.
-      frame_base = footer->originalRbp;
+      frame_base = footer->originalFramePointer;
     } else {
       // The generator is suspended.
       return footer->yieldPoint->resumeTarget();

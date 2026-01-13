@@ -682,7 +682,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
     uint64_t spill_words,
     jit::CodeRuntime* code_rt,
     GenResumeFunc resume_func,
-    uint64_t original_rbp) {
+    uint64_t original_frame_pointer) {
   JIT_DCHECK(
       PyCode_Check(func->func_code),
       "Non-code object for JIT function: {}",
@@ -743,13 +743,13 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   footer->yieldPoint = nullptr;
   footer->gen = static_cast<PyGenObject*>(gen);
   footer->code_rt = code_rt;
-  footer->originalRbp = original_rbp;
+  footer->originalFramePointer = original_frame_pointer;
   footer->linkAddress =
       *reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr
-          original_rbp);
+          original_frame_pointer);
   footer->returnAddress =
       *(reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr
-            original_rbp) +
+            original_frame_pointer) +
         1);
 
   PyObject_GC_Track(gen);

@@ -14,20 +14,21 @@
 
 namespace jit {
 
-// In a regular JIT function spill-data is stored at negative offsets from RBP
-// and RBP points into the system stack. In JIT generators spilled data is still
-// stored backwards from RBP, but RBP points to a heap allocated block and this
-// persists when the generator is suspended.
+// In a regular JIT function spill-data is stored at negative offsets from the
+// frame pointer and the frame pointer points into the system stack. In JIT
+// generators spilled data is still stored backwards from the frame pointer, but
+// the frame pointer points to a heap allocated block and this persists when the
+// generator is suspended.
 //
 // While the content of spill data is arbitrary depending on the function, we
 // also have a few items of data about the current generator we want to access
-// quickly. We can do this via positive offsets from RBP into the
+// quickly. We can do this via positive offsets from the frame pointer into the
 // GenDataFooter struct defined below.
 //
 // Together the spill data and GenDataFooter make up the complete JIT-specific
 // data needed for a generator. PyGenObject::gi_jit_data points above the _top_
 // of the spill data (i.e. at the start of the footer). This allows us to
-// easily set RBP to the pointer value on generator resume.
+// easily set the frame pointer to the pointer value on generator resume.
 //
 // The base address of the complete heap allocated suspend data is:
 //   PyGenObject::gi_jit_data - GenDataFooter::spillWords
@@ -36,12 +37,12 @@ namespace jit {
 // allocated for a generator rather than having it in a separate heap object.
 struct GenDataFooter {
   // Tools which examine/walk the stack expect the following two values to be
-  // ahead of RBP.
+  // ahead of the frame pointer.
   uint64_t linkAddress{};
   uint64_t returnAddress{};
 
-  // RBP that was swapped out to point to this spill-data.
-  uint64_t originalRbp{};
+  // The frame pointer that was swapped out to point to this spill-data.
+  uint64_t originalFramePointer{};
 
   // Static data specific to the current yield point. Only non-null when we are
   // suspended.
