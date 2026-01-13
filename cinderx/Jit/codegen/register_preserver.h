@@ -28,6 +28,14 @@ class RegisterPreserver {
   void remap();
 
  private:
+#if defined(CINDER_AARCH64)
+  enum class RegisterGroup : uint8_t { kGp, kVecD, kGpPair, kVecDPair };
+
+  // Computes register groupings for stp/ldp pairing. Returns a vector of
+  // (index, length) where length is 1 or 2.
+  std::vector<std::pair<size_t, RegisterGroup>> registerGroups() const;
+#endif
+
   [[maybe_unused]] arch::Builder* as_;
   [[maybe_unused]] const std::vector<
       std::pair<const arch::Reg&, const arch::Reg&>>& save_regs_;
