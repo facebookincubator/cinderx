@@ -509,20 +509,6 @@ except ImportError as e:
         pass
 
 
-def strictify_static() -> None:
-    """Turn _static into a StrictModule so we can do direct invokes against it."""
-
-    # pyre-ignore[21]: _static is magically created by _cinderx.
-    import _static
-
-    # if it has a __file__ attribute, libregrtest will try to write to it
-    if hasattr(_static, "__file__"):
-        del _static.__file__
-        # pyre-ignore[6]: Can't type this as ModuleType because this file can't import
-        # `types`, see the big comment at the top.
-        sys.modules["_static"] = StrictModule(_static.__dict__, False)
-
-
 def maybe_enable_parallel_gc() -> None:
     """Conditionally enable parallel GC based on environment variables."""
     is_parallel_gc_enabled = environ.get("PARALLEL_GC_ENABLED", "0") == "1"
@@ -568,7 +554,6 @@ def init() -> None:
     if _is_init:
         return
 
-    strictify_static()
     maybe_enable_parallel_gc()
 
     _is_init = True
