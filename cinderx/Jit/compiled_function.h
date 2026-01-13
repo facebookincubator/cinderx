@@ -12,7 +12,19 @@ extern "C" {
 
 // Specifies the offset from a JITed function entry point where the re-entry
 // point for calling with the correct bound args lives.
+#if defined(__x86_64__)
+// push rbp
+// mov rbp, rsp
+// jmp correct-bound-args
 #define JITRT_CALL_REENTRY_OFFSET (-6)
+#elif defined(__aarch64__)
+// stp fp, lr, [sp, #-16]!
+// mov fp, sp
+// b correct-bound-args
+#define JITRT_CALL_REENTRY_OFFSET (-12)
+#else
+#define JITRT_CALL_REENTRY_OFFSET (0)
+#endif
 
 // Fixes the JITed function entry point up to be the re-entry point after
 // binding the args.
