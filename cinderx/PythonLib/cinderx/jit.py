@@ -7,8 +7,6 @@ from typing import Any, AsyncGenerator, Callable, Coroutine, Generator, TypeVar
 from warnings import catch_warnings, simplefilter, warn
 
 
-INSTALLED: bool = False
-
 # The JIT compiles arbitrary Python functions.  Ideally this type would exclude native
 # functions, but that doesn't seem possible yet.
 #
@@ -62,8 +60,6 @@ try:
         read_jit_list,
         set_max_code_size,
     )
-
-    INSTALLED = True
 
 except ImportError:
     TDeoptGenYield = TypeVar("TDeoptGenYield")

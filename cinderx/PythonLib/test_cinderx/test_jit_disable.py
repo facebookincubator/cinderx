@@ -12,7 +12,6 @@ from cinderx.jit import (
     enable as enable_jit,
     force_compile,
     force_uncompile,
-    INSTALLED,
     is_enabled as is_jit_enabled,
     is_jit_compiled,
     jit_suppress,
