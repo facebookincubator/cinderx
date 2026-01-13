@@ -7,6 +7,7 @@
 # pyre-unsafe
 # @noautodeps
 
+import datetime
 import glob
 import os
 import os.path
@@ -30,6 +31,25 @@ SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
 PYTHON_LIB_DIR = "cinderx/PythonLib"
 
 MIN_GCC_VERSION = 13
+
+
+def compute_package_version() -> str:
+    """
+    Compute a date-based version string.  Uses the UTC timezone for consistency.
+
+    The returned format is YYYY.MM.DD.PP, where PP is a patch number.
+    setuptools is going to normalize this anyway, so the two-character segments
+    are going to get cut down if they have a leading zero.
+
+    The patch number defaults to "00" but can be overridden with the
+    CINDERX_VERSION_PATCH environment variable to allow multiple releases
+    on the same day.
+    """
+
+    utc_now = datetime.datetime.now(datetime.timezone.utc)
+    date_part = utc_now.strftime("%Y.%m.%d")
+    patch = int(os.environ.get("CINDERX_VERSION_PATCH", "0"))
+    return f"{date_part}.{patch:02}"
 
 
 @lru_cache(maxsize=1)
@@ -445,7 +465,7 @@ def main() -> None:
         name="cinderx",
         description="High-performance Python runtime extension",
         url="https://www.github.com/facebookincubator/cinderx",
-        version="0.1",
+        version=compute_package_version(),
         classifiers=[
             "Development Status :: 3 - Alpha",
             "Intended Audience :: Developers",
