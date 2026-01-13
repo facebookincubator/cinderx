@@ -27,7 +27,7 @@ from setuptools.dist import Distribution
 
 CHECKOUT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
-PYTHON_LIB_DIR = os.path.join(SOURCE_DIR, "PythonLib")
+PYTHON_LIB_DIR = "cinderx/PythonLib"
 
 MIN_GCC_VERSION = 13
 
@@ -106,10 +106,6 @@ def find_native_sources(path: str) -> list[str]:
     return find_files(path, lambda f: f.endswith(".cpp") or f.endswith(".c"))
 
 
-def find_python_sources(path: str) -> list[str]:
-    return find_files(path, lambda f: f.endswith(".py"))
-
-
 def compute_py_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -119,7 +115,7 @@ class BuildCommand(build):
     # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
     def initialize_options(self):
         build.initialize_options(self)
-        self.build_base = os.path.join(CHECKOUT_ROOT_DIR, "scratch")
+        self.build_base = "scratch"
 
     def run(self) -> None:
         enable_pgo = os.environ.get("CINDERX_ENABLE_PGO", None) is not None
@@ -445,18 +441,12 @@ def main() -> None:
     # Native sources.
     native_sources = find_native_sources(SOURCE_DIR)
 
-    # Python sources.
-    python_sources = find_python_sources(PYTHON_LIB_DIR)
-    python_sources = [f for f in python_sources if "test_cinderx" not in f]
-
-    sources = native_sources + python_sources
-
     setup(
         name="cinderx",
         description="High-performance Python runtime extension",
         url="https://www.github.com/facebookincubator/cinderx",
         version="0.1",
-        classifers=[
+        classifiers=[
             "Development Status :: 3 - Alpha",
             "Intended Audience :: Developers",
             "License :: OSI Approved :: MIT License",
@@ -467,7 +457,6 @@ def main() -> None:
                 sources=native_sources,
             ),
         ],
-        sources=sources,
         cmdclass={
             "build": BuildCommand,
             "build_py": BuildPy,
