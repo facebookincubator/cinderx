@@ -114,14 +114,37 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
       "constant");
 
   auto in1 = instr->getInput(1);
-  if (!in1->isImm() || in1->sizeInBits() < 64) {
+  if (!in1->isImm()) {
     return kUnchanged;
   }
 
   auto constant = in1->getConstantOrAddress();
-  if (fitsSignedInt<32>(constant)) {
+#if defined(CINDER_X86_64)
+  // All of these instructions support a register operand and a 32-bit immediate
+  // operand. None of them support a 64-bit immediate.
+  if ((in1->sizeInBits() < 64) || fitsSignedInt<32>(constant)) {
     return kUnchanged;
   }
+#elif defined(CINDER_AARCH64)
+  if (instr->isAdd() || instr->isSub() || instr->isCompare()) {
+    // add, sub, and cmp (which is a pseudo-instruction aliased to subs) all
+    // support a 12-bit immediate optionally shifted by 20 bits.
+    if (asmjit::arm::Utils::isAddSubImm(constant)) {
+      return kUnchanged;
+    }
+  } else if (instr->isAnd() || instr->isOr() || instr->isXor()) {
+    // and, or, and xor use a logical immediate, which is a 13-bit-encoded
+    // operand that represents repeated 1 patterns.
+    size_t bits = instr->output()->sizeInBits();
+    if (asmjit::arm::Utils::isLogicalImm(constant, bits < 32 ? 32 : bits)) {
+      return kUnchanged;
+    }
+  } else {
+    // mul has to use registers and does not support immediates.
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   auto block = instr->basicblock();
   auto move = block->allocateInstrBefore(
@@ -130,11 +153,12 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
       OutVReg{},
       Imm{constant, in1->dataType()});
 
-  // If the first operand is less than 64 bits, replace it with a
-  // sign-extension.
-  if (instr->getInput(0)->sizeInBits() < 64) {
+  // If the first operand is smaller in size than the second operand, replace
+  // the first operand with a sign-extended version that matches the size of the
+  // second operand.
+  if (instr->getInput(0)->sizeInBits() < in1->sizeInBits()) {
     auto movsx = block->allocateInstrBefore(
-        instr_iter, Instruction::kMovSX, OutVReg{OperandBase::k64bit});
+        instr_iter, Instruction::kMovSX, OutVReg{in1->dataType()});
     movsx->appendInput(instr->releaseInput(0));
     instr->setInput(0, std::make_unique<LinkedOperand>(movsx));
   }
@@ -145,7 +169,9 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   return kChanged;
 }
 
-// Rewrite storing a large immediate to a memory location
+#if defined(CINDER_X86_64)
+// Rewrite storing a large immediate to a memory location in x86-64. Other
+// architectures handle this explicitly in the autogen layer.
 RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
   // rewrite
   //     [Vreg0 + offset] = Imm64
@@ -182,8 +208,11 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
 
   return kChanged;
 }
+#endif
 
-// Rewrite Guard instructions with > 32-bit constant.
+// Most guards involve comparing against a constant immediate. This rewrite
+// ensures those immediates fit into comparison instructions (and if they do
+// not it splits them).
 RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isGuard()) {
@@ -197,9 +226,18 @@ RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
   }
 
   auto target_imm = target_opnd->getConstantOrAddress();
+
+#if defined(CINDER_X86_64)
   if (fitsSignedInt<32>(target_imm)) {
     return kUnchanged;
   }
+#elif defined(CINDER_AARCH64)
+  if (asmjit::arm::Utils::isAddSubImm(target_imm)) {
+    return kUnchanged;
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   auto block = instr->basicblock();
   auto move = block->allocateInstrBefore(
@@ -350,7 +388,11 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteBinaryOpLargeConstant, 1);
   registerOneRewriteFunction(rewriteGuardLargeConstant, 1);
   registerOneRewriteFunction(rewriteLoadArg, 1);
+
+#if defined(CINDER_X86_64)
   registerOneRewriteFunction(rewriteMoveToMemoryLargeConstant, 1);
+#endif
+
   registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);
 }
 
