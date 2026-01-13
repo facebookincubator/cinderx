@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch/detection.h"
 
 #include <array>
 #include <cstring>
@@ -16,16 +17,28 @@ static_assert(
     sizeof(CodePatcher) == 24,
     "CodePatcher should be kept small as there could be many per function");
 
+#if defined(CINDER_X86_64)
 // 5-byte nop - https://www.felixcloutier.com/x86/nop
 //
 // Asmjit supports multi-byte nops but for whatever reason we can't get it to
 // emit the 5-byte version.
 constexpr auto kJmpNopBytes =
     std::to_array<uint8_t>({0x0f, 0x1f, 0x44, 0x00, 0x00});
+#elif defined(CINDER_AARCH64)
+constexpr auto kJmpNopBytes = std::to_array<uint8_t>({0x1f, 0x20, 0x03, 0xd5});
+#else
+CINDER_UNSUPPORTED
+constexpr auto kJmpNopBytes = std::to_array<uint8_t>({0x00});
+#endif
 
-// Compute an x86-64 jump displacement operand.
+// Compute an unsigned 32-bit jump displacement.
 uint32_t jumpDisplacement(uintptr_t from, uintptr_t to) {
-  auto disp = to - (from + kJmpNopBytes.size());
+  auto disp = to - from;
+
+#if defined(CINDER_X86_64)
+  disp -= kJmpNopBytes.size();
+#endif
+
   JIT_CHECK(
       fitsSignedInt<32>(disp),
       "Can't encode jump from {:#x} to {:#x} as relative",
@@ -37,7 +50,13 @@ uint32_t jumpDisplacement(uintptr_t from, uintptr_t to) {
 // Given the starting address and displacement operand of a jump instruction,
 // resolve it to a target address.
 uintptr_t resolveDisplacement(uintptr_t from, uint32_t displacement) {
-  return from + displacement + kJmpNopBytes.size();
+  auto disp = from + displacement;
+
+#if defined(CINDER_X86_64)
+  disp += kJmpNopBytes.size();
+#endif
+
+  return disp;
 }
 
 } // namespace
@@ -111,11 +130,22 @@ JumpPatcher::JumpPatcher() {
 
 void JumpPatcher::linkJump(uintptr_t patchpoint, uintptr_t jump_target) {
   auto disp = jumpDisplacement(patchpoint, jump_target);
-
-  // 32 bit relative jump - https://www.felixcloutier.com/x86/jmp
   std::array<uint8_t, kJmpNopBytes.size()> buf{};
+
+#if defined(CINDER_X86_64)
+  // 32 bit relative jump - https://www.felixcloutier.com/x86/jmp
   buf[0] = 0xe9;
   std::memcpy(buf.data() + 1, &disp, sizeof(uint32_t));
+#elif defined(CINDER_AARCH64)
+  disp /= 4;
+  JIT_CHECK(fitsSignedInt<26>(disp), "Not enough bits to encode relative jump");
+
+  uint32_t insn = 0x14000000 | disp;
+  std::memcpy(buf.data(), &insn, sizeof(uint32_t));
+#else
+  (void)disp;
+  CINDER_UNSUPPORTED
+#endif
 
   link(patchpoint, buf);
 }
@@ -126,11 +156,24 @@ uint8_t* JumpPatcher::jumpTarget() const {
 
   std::span<const uint8_t> bytes = storedBytes();
   JIT_CHECK(
-      bytes.size() == 5,
-      "Must have linked a 5-byte 'jmp $DISP' instruction into a JumpPatcher");
+      bytes.size() == kJmpNopBytes.size(),
+      "Must have linked a {}-byte jump instruction into a JumpPatcher",
+      kJmpNopBytes.size());
 
   uint32_t disp = 0;
+
+#if defined(CINDER_X86_64)
   std::memcpy(&disp, bytes.data() + 1, bytes.size() - 1);
+#elif defined(CINDER_AARCH64)
+  std::memcpy(&disp, bytes.data(), bytes.size());
+  disp &= 0x03ffffff; // extract out 26-bit immediate
+  if (disp & 0x02000000) {
+    disp |= 0xfc000000; // sign-extend 26-bit immediate to 32-bit displacement
+  }
+  disp *= 4;
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   return reinterpret_cast<uint8_t*>(
       resolveDisplacement(reinterpret_cast<uintptr_t>(patchpoint_), disp));
