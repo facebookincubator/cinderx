@@ -651,7 +651,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
 
             k = j
             lineno = block.insts[j].lineno
-            for i in range(swap.ioparg - 1, 0, -1):
+            for _i in range(swap.ioparg - 1, 0, -1):
                 k = self.next_swappable_instruction(k, block, lineno)
                 if k < 0:
                     return
