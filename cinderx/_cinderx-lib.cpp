@@ -936,36 +936,41 @@ void finiFrameEvalFunc() {
 #endif
 }
 
-// Attempts to shutdown CinderX. This is very much a best-effort with the
-// primary goals being to ensure Python shuts down without crashing, and
-// tests which do some kind of re-initialization continue to work. A secondary
-// goal is to one day make it possible to arbitrarily load/relaod CinderX at
-// runtime. However, for now the only thing we truly support is loading
-// CinderX once ASAP on start-up, and then never unloading it until complete
-// process shutdown.
-int cinder_fini() {
+// Check if Python code is still being executed.
+bool isCodeRunning() {
+  PyThreadState* tstate = PyThreadState_Get();
+#if PY_VERSION_HEX < 0x030C0000
+  return tstate->shadow_frame != nullptr;
+#elif PY_VERSION_HEX < 0x030D0000
+  return tstate->cframe != &tstate->root_cframe;
+#elif PY_VERSION_HEX < 0x030F0000
+  return tstate->current_frame != nullptr;
+#else
+  return tstate->current_frame != tstate->base_frame;
+#endif
+}
+
+int module_traverse(PyObject* mod, visitproc visit, void* arg) {
+  cinderx::ModuleState* state = cinderx::getModuleState(mod);
+  return state->traverse(visit, arg);
+}
+
+int module_clear(PyObject* mod) {
+  cinderx::ModuleState* state = cinderx::getModuleState(mod);
+  return state->clear();
+}
+
+void module_free(void* raw_mod) {
+  auto mod = reinterpret_cast<PyObject*>(raw_mod);
+  auto state = cinderx::getModuleState(mod);
+
   _PyClassLoader_ClearCache();
   _PyClassLoader_ClearValueCache();
 
-  PyThreadState* tstate = PyThreadState_Get();
-  bool code_running =
-#if PY_VERSION_HEX < 0x030C0000
-      tstate->shadow_frame != nullptr;
-#elif PY_VERSION_HEX < 0x030D0000
-      tstate->cframe != &tstate->root_cframe;
-#elif PY_VERSION_HEX < 0x030F0000
-      tstate->current_frame != nullptr;
-#else
-      tstate->current_frame != tstate->base_frame;
-#endif
-  if (code_running) {
-    // If any Python code is running we can't tell if JIT code is in use. Even
-    // if every frame in the callstack is interpreter-owned, some of them could
-    // be the result of deopt and JIT code may still be on the native stack.
-    JIT_DABORT("Python code still running on CinderX unload");
-    JIT_LOG("Python code is executing, cannot cleanly shutdown CinderX.");
-    return -1;
-  }
+  // If any Python code is running we can't tell if JIT code is in use. Even if
+  // every frame in the callstack is interpreter-owned, some of them could be
+  // the result of deopt and JIT code may still be on the native stack.
+  JIT_CHECK(!isCodeRunning(), "Python code still running on CinderX unload");
 
   finiFrameEvalFunc();
 
@@ -974,9 +979,9 @@ int cinder_fini() {
   finiCodeExtraIndex();
 
 #if PY_VERSION_HEX < 0x030C0000
-  if (Ci_cinderx_initialized && Ci_hook__PyShadow_FreeAll()) {
-    return -1;
-  }
+  JIT_CHECK(
+      !Ci_cinderx_initialized || !Ci_hook__PyShadow_FreeAll(),
+      "Failed to free shadowcode data");
 
   Ci_hook_type_destroyed = nullptr;
   Ci_hook_type_name_modified = nullptr;
@@ -1010,25 +1015,6 @@ int cinder_fini() {
 
   Ci_cinderx_initialized = 0;
 #endif
-
-  return 0;
-}
-
-int module_traverse(PyObject* mod, visitproc visit, void* arg) {
-  cinderx::ModuleState* state = cinderx::getModuleState(mod);
-  return state->traverse(visit, arg);
-}
-
-int module_clear(PyObject* mod) {
-  cinderx::ModuleState* state = cinderx::getModuleState(mod);
-  return state->clear();
-}
-
-void module_free(void* raw_mod) {
-  auto mod = reinterpret_cast<PyObject*>(raw_mod);
-  auto state = cinderx::getModuleState(mod);
-
-  JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
 
 #if PY_VERSION_HEX >= 0x030C0000
   // This must be done at the point the module is free'd as the free-list uses
