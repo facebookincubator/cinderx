@@ -32,9 +32,9 @@ class SymbolTable {
  public:
   SymbolTable();
 
-  template <class T>
-  void insert(T&& sym) {
-    syms_.emplace_back(std::forward<T&&>(sym));
+  template <class... Args>
+  void insert(Args&&... args) {
+    syms_.emplace_back(std::forward<Args>(args)...);
   }
 
   const Symbol& operator[](size_t idx) const;
