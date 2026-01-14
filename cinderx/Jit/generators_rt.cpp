@@ -475,6 +475,14 @@ PyObject* jitcoro_await(PyCoroObject* coro) {
   return reinterpret_cast<PyObject*>(cw);
 }
 
+// Unfortunately we need to fork this because it uses _PyCoroObject_CAST which
+// includes an assert on the exact type of coroutine.
+PyObject* jitcoro_repr(PyObject* self) {
+  PyCoroObject* coro = reinterpret_cast<PyCoroObject*>(self);
+  return PyUnicode_FromFormat(
+      "<coroutine object %S at %p>", coro->cr_qualname, coro);
+}
+
 static PyMethodDef jitgen_methods[] = {
     {"send", reinterpret_cast<PyCFunction>(jitgen_send), METH_O, nullptr},
     {"throw",
@@ -624,6 +632,7 @@ PyType_Slot coro_slots[] = {
     {Py_tp_getset, jitcoro_getsetlist},
     {Py_am_await, reinterpret_cast<void*>(jitcoro_await)},
     {Py_am_send, reinterpret_cast<void*>(jitgen_am_send)},
+    {Py_tp_repr, reinterpret_cast<void*>(jitcoro_repr)},
     {0, nullptr},
 };
 
@@ -700,7 +709,6 @@ void init_jit_genobject_type() {
   BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coroType();
 
   gen_type->tp_repr = PyGen_Type.tp_repr;
-  coro_type->tp_repr = PyCoro_Type.tp_repr;
 
   // Fields that can't be set via PyType_Spec
   gen_type->tp_dictoffset = 0;
