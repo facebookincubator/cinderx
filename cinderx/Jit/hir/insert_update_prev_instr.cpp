@@ -43,13 +43,14 @@ class BytecodeIndexToLine {
     if (index.value() < 0) {
       return -1;
     }
-    JIT_DCHECK(
-        index.value() < indexToLine_.size(),
-        "Index out of range {} < {}, {}",
-        index.value(),
-        indexToLine_.size(),
-        PyUnicode_AsUTF8(code_->co_qualname));
-    return indexToLine_[index.value()];
+    if (index.value() >= indexToLine_.size()) {
+      // test.test_exceptions.PEP626Tests.test_missing_lineno_shows_as_none
+      // specifically checks that things work when there isn't enough line
+      // number information.
+      return -1;
+    } else {
+      return indexToLine_[index.value()];
+    }
   }
 
   PyCodeObject* code_;
