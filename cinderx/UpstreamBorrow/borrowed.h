@@ -78,6 +78,7 @@
 #define _Py_Specialize_CompareOp _Ci_Specialize_CompareOp
 #define _Py_Specialize_BinaryOp _Ci_Specialize_BinaryOp
 #define _Py_Specialize_CallKw _Ci_Specialize_CallKw
+#define _Py_Specialize_CallFunctionEx _Ci_Specialize_CallFunctionEx
 #define _Py_Specialize_StoreSubscr _Ci_Specialize_StoreSubscr
 #define _Py_Specialize_LoadGlobal _Ci_Specialize_LoadGlobal
 #define _Py_Specialize_StoreAttr _Ci_Specialize_StoreAttr

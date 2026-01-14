@@ -4847,6 +4847,27 @@ _Py_Specialize_CallKw(_PyStackRef callable_st, _Py_CODEUNIT *instr, int nargs)
         unspecialize(instr);
     }
 }
+Py_NO_INLINE void
+_Py_Specialize_CallFunctionEx(_PyStackRef func_st, _Py_CODEUNIT *instr)
+{
+    PyObject *func = PyStackRef_AsPyObjectBorrow(func_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[CALL_FUNCTION_EX] == INLINE_CACHE_ENTRIES_CALL_FUNCTION_EX);
+
+    if (Py_TYPE(func) == &PyFunction_Type &&
+        ((PyFunctionObject *)func)->vectorcall == _PyFunction_Vectorcall) {
+        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
+            goto failure;
+        }
+        specialize(instr, CALL_EX_PY);
+        return;
+    }
+    specialize(instr, CALL_EX_NON_PY_GENERAL);
+    return;
+failure:
+    unspecialize(instr);
+}
 
 static inline int
 is_compactlong(PyObject *v)
