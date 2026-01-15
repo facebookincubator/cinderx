@@ -39,7 +39,13 @@ CINDERX_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 
 
 def subprocess_env() -> dict[str, str]:
-    return {"PYTHONPATH": os.path.pathsep.join(sys.path)}
+    # We have CINDERX_PATH here over the rest of sys.path because our cinderx/opcode.py
+    # library is generated on a per-version basis and ends up being thrown into cinderx
+    # at build time. When we run tests with sys.path we can end up with PythonLib on the
+    # path first and we can pick up the version which doesn't have it injected.
+    return {
+        "PYTHONPATH": CINDERX_PATH + os.path.pathsep + os.path.pathsep.join(sys.path)
+    }
 
 
 def get_cinderjit_xargs() -> list[str]:
