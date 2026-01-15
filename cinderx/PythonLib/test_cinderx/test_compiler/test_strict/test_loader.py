@@ -38,7 +38,7 @@ from cinderx.compiler.strict.loader import (
 )
 from cinderx.compiler.strict.runtime import set_freeze_enabled
 from cinderx.static import StaticTypeError
-from cinderx.test_support import passIf
+from cinderx.test_support import passIf, subprocess_env
 
 from . import sandbox as base_sandbox
 from .common import init_cached_properties, StrictTestBase
@@ -2205,12 +2205,7 @@ class StrictLoaderTest(StrictTestBase):
 
     @property
     def subprocess_env(self):
-        import cinderx
-
-        return {
-            **os.environ,
-            "PYTHONPATH": os.path.dirname(os.path.dirname(cinderx.__file__)),
-        }
+        return {**os.environ, **subprocess_env()}
 
     def test_strict_loader_stub_path(self) -> None:
         self.sbx.write_file(
