@@ -119,6 +119,30 @@
 #  define LABEL(name) name:
 #endif
 
+#if (_Py_TAIL_CALL_INTERP || USE_COMPUTED_GOTOS) && _Py_TIER2
+#  define IS_JIT_TRACING() (DISPATCH_TABLE_VAR == TRACING_DISPATCH_TABLE)
+#  define ENTER_TRACING() \
+    DISPATCH_TABLE_VAR = TRACING_DISPATCH_TABLE;
+#  define LEAVE_TRACING() \
+    DISPATCH_TABLE_VAR = DISPATCH_TABLE;
+#else
+#  define IS_JIT_TRACING() (tracing_mode != 0)
+#  define ENTER_TRACING() tracing_mode = 255
+#  define LEAVE_TRACING() tracing_mode = 0
+#endif
+
+#if _Py_TIER2
+#define STOP_TRACING() \
+    do { \
+        if (IS_JIT_TRACING()) { \
+            LEAVE_TRACING(); \
+            _PyJit_FinalizeTracing(tstate, 0); \
+        } \
+    } while (0);
+#else
+#define STOP_TRACING() ((void)(0));
+#endif
+
 /* PRE_DISPATCH_GOTO() does lltrace if enabled. Normally a no-op */
 #ifdef Py_DEBUG
 #define PRE_DISPATCH_GOTO() if (frame->lltrace >= 5) { \
