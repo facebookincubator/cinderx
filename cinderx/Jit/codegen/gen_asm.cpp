@@ -9,7 +9,7 @@
 #include "internal/pycore_shadow_frame.h"
 #endif
 
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_ceval.h"
 #endif
 
@@ -351,11 +351,7 @@ PyObject* resumeInInterpreter(
     JIT_CHECK(
         _Py_Instrument(frameCode(frame), tstate->interp) == 0,
         "Failed to instrument code on deopt");
-#ifdef ENABLE_INTERPRETER_LOOP
-    result = Ci_EvalFrame(tstate, frame, err_occurred);
-#else
-    result = _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
-#endif
+    result = _PyEval_EvalFrame(tstate, frame, err_occurred);
 
     frame = prev_frame;
 
