@@ -189,7 +189,7 @@ Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
   // Bytecode offset will be negative if the interpreter wants to resume
   // executing at the start of the function.  Report a negative/invalid opcode
   // for that case.
-  int opcode = -1;
+  [[maybe_unused]] int opcode = -1;
   if (bc_off.value() >= 0) {
     BytecodeInstruction bc_instr{code, bc_off};
     opcode = bc_instr.opcode();

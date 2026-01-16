@@ -3324,7 +3324,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // codeUnit() as we need to refer to the code the interpreter would
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
         auto prev_instr = static_cast<const UpdatePrevInstr&>(i);
-        Instruction* frame;
+        [[maybe_unused]] Instruction* frame;
         if (prev_instr.parent() != nullptr) {
           prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
               reinterpret_cast<_Py_CODEUNIT*>(
