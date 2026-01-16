@@ -44,7 +44,19 @@ def compute_package_version() -> str:
     The patch number defaults to "00" but can be overridden with the
     CINDERX_VERSION_PATCH environment variable to allow multiple releases
     on the same day.
+
+    When building from an extracted source distribution (sdist), the version
+    is read from PKG-INFO to ensure consistency with the original release.
     """
+
+    pkg_info_path = os.path.join(CHECKOUT_ROOT_DIR, "PKG-INFO")
+    if os.path.exists(pkg_info_path):
+        with open(pkg_info_path, "r") as f:
+            for line in f:
+                if line.startswith("Version:"):
+                    version = line.split(":", 1)[1].strip()
+                    print(f"Using version from PKG-INFO: {version}")
+                    return version
 
     utc_now = datetime.datetime.now(datetime.timezone.utc)
     date_part = utc_now.strftime("%Y.%m.%d")
