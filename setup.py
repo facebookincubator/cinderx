@@ -455,7 +455,7 @@ class BuildExt(build_ext):
             build_type,
             "--",
             "-j",
-            "8",
+            str(os.cpu_count() or 1),
         ]
 
         # pyre-ignore[16]: No pyre types for build_ext.
