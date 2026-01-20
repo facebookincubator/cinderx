@@ -267,7 +267,7 @@ RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
 }
 
 void populateLoadSecondCallResultPhi(
-    OperandBase::DataType data_type,
+    DataType data_type,
     Instruction* phi1,
     Instruction* phi2,
     UnorderedMap<Operand*, Instruction*>& seen_srcs);
@@ -281,7 +281,7 @@ void populateLoadSecondCallResultPhi(
 // seen_srcs is used to ensure only one Move is inserted for each root Call
 // instruction in the presence of loops or repeated Phi uses of the same vreg.
 Instruction* getSecondCallResult(
-    OperandBase::DataType data_type,
+    DataType data_type,
     Operand* src,
     Instruction* instr,
     UnorderedMap<Operand*, Instruction*>& seen_srcs) {
@@ -348,7 +348,7 @@ Instruction* getSecondCallResult(
 // ultimately join the outputs of Calls), populate a second, parallel Phi to
 // join the second result of all original Calls.
 void populateLoadSecondCallResultPhi(
-    OperandBase::DataType data_type,
+    DataType data_type,
     Instruction* phi1,
     Instruction* phi2,
     UnorderedMap<Operand*, Instruction*>& seen_srcs) {

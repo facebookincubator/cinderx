@@ -81,9 +81,7 @@ const OperandBase* Instruction::getInput(size_t i) const {
   return inputs_.at(i).get();
 }
 
-Operand* Instruction::allocateImmediateInput(
-    uint64_t n,
-    OperandBase::DataType data_type) {
+Operand* Instruction::allocateImmediateInput(uint64_t n, DataType data_type) {
   auto operand =
       std::make_unique<Operand>(this, data_type, OperandBase::kImm, n);
   auto opnd = operand.get();

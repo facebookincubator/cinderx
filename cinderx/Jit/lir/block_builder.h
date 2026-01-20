@@ -21,7 +21,7 @@
 namespace jit::lir {
 
 // Convert an HIR type into an LIR type.
-Operand::DataType hirTypeToDataType(hir::Type tp);
+DataType hirTypeToDataType(hir::Type tp);
 
 class BasicBlockBuilder {
  public:
@@ -290,7 +290,7 @@ class BasicBlockBuilder {
     if constexpr (std::is_same_v<CurArgType, hir::Register*>) {
       if (val == nullptr) {
         instr->allocateImmediateInput(
-            static_cast<uint64_t>(0), Operand::DataType::k64bit);
+            static_cast<uint64_t>(0), DataType::k64bit);
       } else {
         auto tp = val->type();
         auto dat = hirTypeToDataType(tp);
@@ -303,8 +303,7 @@ class BasicBlockBuilder {
         } else if (tp.hasObjectSpec()) {
           env_->code_rt->addReference(tp.objectSpec());
           instr->allocateImmediateInput(
-              reinterpret_cast<uint64_t>(tp.objectSpec()),
-              Operand::DataType::kObject);
+              reinterpret_cast<uint64_t>(tp.objectSpec()), DataType::kObject);
         } else {
           createInstrInput(instr, val);
         }
@@ -314,28 +313,27 @@ class BasicBlockBuilder {
     } else if constexpr (
         std::is_pointer_v<CurArgType> || std::is_function_v<CurArgType>) {
       instr->allocateImmediateInput(
-          reinterpret_cast<uint64_t>(val), Operand::DataType::kObject);
+          reinterpret_cast<uint64_t>(val), DataType::kObject);
     } else if constexpr (std::is_same_v<CurArgType, std::nullptr_t>) {
       instr->allocateImmediateInput(
-          static_cast<uint64_t>(0), Operand::DataType::kObject);
+          static_cast<uint64_t>(0), DataType::kObject);
     } else if constexpr (std::is_same_v<CurArgType, bool>) {
-      instr->allocateImmediateInput(val ? 1 : 0, Operand::DataType::k8bit);
+      instr->allocateImmediateInput(val ? 1 : 0, DataType::k8bit);
     } else if constexpr (std::is_floating_point_v<CurArgType>) {
-      instr->allocateImmediateInput(
-          bit_cast<uint64_t>(val), Operand::DataType::kDouble);
+      instr->allocateImmediateInput(bit_cast<uint64_t>(val), DataType::kDouble);
     } else if constexpr (std::is_integral_v<CurArgType>) {
       if constexpr (sizeof(CurArgType) == 1) {
         instr->allocateImmediateInput(
-            static_cast<uint64_t>(val), Operand::DataType::k8bit);
+            static_cast<uint64_t>(val), DataType::k8bit);
       } else if constexpr (sizeof(CurArgType) == 2) {
         instr->allocateImmediateInput(
-            static_cast<uint64_t>(val), Operand::DataType::k16bit);
+            static_cast<uint64_t>(val), DataType::k16bit);
       } else if constexpr (sizeof(CurArgType) == 4) {
         instr->allocateImmediateInput(
-            static_cast<uint64_t>(val), Operand::DataType::k32bit);
+            static_cast<uint64_t>(val), DataType::k32bit);
       } else if constexpr (sizeof(CurArgType) == 8) {
         instr->allocateImmediateInput(
-            static_cast<uint64_t>(val), Operand::DataType::k64bit);
+            static_cast<uint64_t>(val), DataType::k64bit);
       } else {
         static_assert(!std::is_same_v<T, T>, "Unknown integral size!");
       }

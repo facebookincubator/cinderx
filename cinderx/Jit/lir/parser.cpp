@@ -368,9 +368,8 @@ void Parser::setSuccessorBlocks(const std::string& bbdef, BasicBlock* bb) {
   }
 }
 
-OperandBase::DataType Parser::getOperandDataType(
-    const std::string& name) const {
-  static const std::unordered_map<std::string, OperandBase::DataType>
+DataType Parser::getOperandDataType(const std::string& name) const {
+  static const std::unordered_map<std::string, DataType>
       type_name_to_data_type = {
 #define TYPE_NAME_TO_DATA_TYPE(v, ...) {":" #v, OperandBase::k##v},
           FOREACH_OPERAND_DATA_TYPE(TYPE_NAME_TO_DATA_TYPE)
