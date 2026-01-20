@@ -1,5 +1,7 @@
 # CinderX
 
+![PyPI - Version](https://img.shields.io/pypi/v/cinderx)
+
 High-performance Python runtime extensions
 
 Note: currently the only way to use Cinder is as an [alternative CPython runtime](https://github.com/facebookincubator/cinder),
