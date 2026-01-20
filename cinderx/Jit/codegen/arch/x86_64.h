@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include <array>
+#include <bit>
 #include <string>
 #include <string_view>
 
@@ -200,8 +201,8 @@ FOREACH_VECD(DEFINE_PHY_VECD_REG)
 
 class PhyRegisterSet {
  public:
-  constexpr PhyRegisterSet() : rs_(0) {}
-  explicit constexpr PhyRegisterSet(PhyLocation r) : rs_(0) {
+  constexpr PhyRegisterSet() = default;
+  explicit constexpr PhyRegisterSet(PhyLocation r) {
     rs_ |= (1 << r.loc);
   }
 
@@ -246,15 +247,15 @@ class PhyRegisterSet {
     return rs_ == 0;
   }
 
-  int count() const {
-    return popcount(rs_);
+  constexpr int count() const {
+    return std::popcount(rs_);
   }
 
-  PhyLocation GetFirst() const {
-    return __builtin_ctz(rs_);
+  constexpr PhyLocation GetFirst() const {
+    return std::countr_zero(rs_);
   }
 
-  PhyLocation GetLast() const {
+  constexpr PhyLocation GetLast() const {
     return GetLastBit();
   }
 
@@ -266,25 +267,27 @@ class PhyRegisterSet {
     rs_ &= ~(1U << GetLastBit());
   }
 
-  void Set(PhyLocation reg) {
+  constexpr void Set(PhyLocation reg) {
     rs_ |= (1 << reg.loc);
   }
-  void Reset(PhyLocation reg) {
+
+  constexpr void Reset(PhyLocation reg) {
     rs_ &= ~(1 << reg.loc);
   }
-  void ResetAll() {
+
+  constexpr void ResetAll() {
     rs_ = 0;
   }
 
-  bool Has(PhyLocation reg) const {
+  constexpr bool Has(PhyLocation reg) const {
     return rs_ & (1 << reg.loc);
   }
 
  private:
-  unsigned rs_;
+  unsigned rs_{0};
 
-  int GetLastBit() const {
-    return (sizeof(rs_) * CHAR_BIT - 1) - __builtin_clz(rs_);
+  constexpr int GetLastBit() const {
+    return (sizeof(rs_) * CHAR_BIT - 1) - std::countl_zero(rs_);
   }
 };
 
