@@ -1593,18 +1593,8 @@ start:
 Py_ssize_t
 _PyDict_LookupIndex(PyDictObject *mp, PyObject *key)
 {
-    // TODO: Thread safety
-    PyObject *value;
-    assert(PyDict_CheckExact((PyObject*)mp));
-    assert(PyUnicode_CheckExact(key));
-
-    Py_hash_t hash = _PyObject_HashFast(key);
-    if (hash == -1) {
-        dict_unhashable_type(key);
-        return -1;
-    }
-
-    return _Py_dict_lookup(mp, key, hash, &value);
+    PyObject *value; // discarded
+    return _PyDict_LookupIndexAndValue(mp, key, &value);
 }
 static bool
 check_keys_unicode(PyDictKeysObject *dk, PyObject *key)
@@ -3443,9 +3433,18 @@ do { \
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
 #ifdef Py_STATS
 #endif   // Py_STATS
 #ifdef Py_STATS
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_STATS
 #endif
@@ -3606,7 +3605,8 @@ specialize_module_load_attr_lock_held(PyDictObject *dict, _Py_CODEUNIT *instr, P
         SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_NON_STRING);
         return -1;
     }
-    Py_ssize_t index = _PyDict_LookupIndex(dict, name);
+    PyObject *value;
+    Py_ssize_t index = _PyDict_LookupIndexAndValue(dict, name, &value);
     assert(index != DKIX_ERROR);
     if (index != (uint16_t)index) {
         SPECIALIZATION_FAIL(LOAD_ATTR,
@@ -3621,6 +3621,9 @@ specialize_module_load_attr_lock_held(PyDictObject *dict, _Py_CODEUNIT *instr, P
         SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
         return -1;
     }
+#ifdef Py_GIL_DISABLED
+    maybe_enable_deferred_ref_count(value);
+#endif
     write_u32(cache->version, keys_version);
     cache->index = (uint16_t)index;
     specialize(instr, LOAD_ATTR_MODULE);
@@ -4456,7 +4459,12 @@ specialize_load_global_lock_held(
         SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT);
         goto fail;
     }
+#ifdef Py_GIL_DISABLED
+    PyObject *value;
+    Py_ssize_t index = _PyDict_LookupIndexAndValue((PyDictObject *)globals, name, &value);
+#else
     Py_ssize_t index = _PyDictKeys_StringLookup(globals_keys, name);
+#endif
     if (index == DKIX_ERROR) {
         SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_EXPECTED_ERROR);
         goto fail;
@@ -4477,6 +4485,9 @@ specialize_load_global_lock_held(
             SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_RANGE);
             goto fail;
         }
+#ifdef Py_GIL_DISABLED
+        maybe_enable_deferred_ref_count(value);
+#endif
         cache->index = (uint16_t)index;
         cache->module_keys_version = (uint16_t)keys_version;
         specialize(instr, LOAD_GLOBAL_MODULE);
