@@ -3142,6 +3142,8 @@ class PyFlowGraph314(PyFlowGraph312):
                         if last_yield_except_depth == 1:
                             instr.ioparg |= ResumeOparg.Depth1Mask
                         last_yield_except_depth = -1
+                elif instr.opname == "RETURN_GENERATOR":
+                    instr.exc_handler = None
                 else:
                     instr.exc_handler = handler
 
@@ -3274,6 +3276,9 @@ class PyFlowGraph315(PyFlowGraph314):
     ) -> None:
         if instr.lineno == NO_LOCATION.lineno:
             instr.loc = loc
+
+    def get_generator_prefix(self) -> list[Instruction]:
+        return []
 
     def propagate_line_numbers(self) -> None:
         """Propagate line numbers to instructions without."""

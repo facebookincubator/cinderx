@@ -177,6 +177,12 @@ class AwaitableKind(IntEnum):
     AsyncExit = 2
 
 
+class IterStackState(IntEnum):
+    IterableInLocal = 0
+    IterableOnStack = 1
+    IteratorOnStack = 2
+
+
 def make_header(mtime: int, size: int) -> bytes:
     return _ZERO + mtime.to_bytes(4, "little") + size.to_bytes(4, "little")
 
@@ -3903,6 +3909,9 @@ class CodeGenerator312(CodeGenerator):
         self.inlined_comp_depth = 0
         if parent is None:
             self.set_pos(SrcLocation(0, 1, 0, 0))
+        self.emit_prologue()
+
+    def emit_prologue(self) -> None:
         self.emit_resume(ResumeOparg.ScopeEntry)
 
     def check_name(self, name: str) -> int:
@@ -4565,7 +4574,12 @@ class CodeGenerator312(CodeGenerator):
         # through several layers of containers.
         # TODO: handler.bid is unassigned at this point.
         setup = Instruction("SETUP_CLEANUP", handler, target=handler)
-        self.graph.entry.insts.insert(0, setup)
+        for i, inst in enumerate(self.graph.entry.insts):
+            if inst.opname == "RESUME":
+                self.graph.entry.insts.insert(i, setup)
+                break
+        else:
+            self.graph.entry.insts.insert(0, setup)
 
         self.emit_noline("LOAD_CONST", None)
         self.emit_noline("RETURN_VALUE")
@@ -5641,7 +5655,15 @@ class CodeGenerator312(CodeGenerator):
 
         assert isinstance(gen, CodeGenerator312)
         gen.compile_comprehension_generator(
-            node, 0, 0, elt, val, type(node), scope.inlined
+            node,
+            0,
+            0,
+            elt,
+            val,
+            type(node),
+            IterStackState.IterableOnStack
+            if scope.inlined
+            else IterStackState.IterableInLocal,
         )
         if inlined_state is not None:
             self.pop_fblock(STOP_ITERATION)
@@ -5664,7 +5686,7 @@ class CodeGenerator312(CodeGenerator):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        iter_on_stack: bool,
+        iter_on_stack: IterStackState,
     ) -> None:
         if comp.generators[gen_index].is_async:
             self._compile_async_comprehension(
@@ -5683,14 +5705,14 @@ class CodeGenerator312(CodeGenerator):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        iter_on_stack: bool,
+        iter_on_stack: IterStackState,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
         if_cleanup = self.newBlock("if_cleanup")
 
         gen = comp.generators[gen_index]
-        if not iter_on_stack:
+        if iter_on_stack == IterStackState.IterableInLocal:
             if gen_index == 0:
                 self.loadName(".0")
             else:
@@ -5718,7 +5740,7 @@ class CodeGenerator312(CodeGenerator):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
             )
         elif type is ast.GeneratorExp:
             self.visit(elt)
@@ -5763,7 +5785,7 @@ class CodeGenerator312(CodeGenerator):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        iter_on_stack: bool,
+        iter_on_stack: IterStackState,
     ) -> None:
         start = self.newBlock("start")
         skip = self.newBlock("skip")
@@ -5803,7 +5825,7 @@ class CodeGenerator312(CodeGenerator):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
             )
         else:
             if type is ast.GeneratorExp:
@@ -6570,7 +6592,7 @@ class CodeGenerator314(CodeGenerator312):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        iter_on_stack: bool,
+        iter_on_stack: IterStackState,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
@@ -6607,7 +6629,7 @@ class CodeGenerator314(CodeGenerator312):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
             )
         elif type is ast.GeneratorExp:
             self.visit(elt)
@@ -7260,6 +7282,13 @@ class CodeGenerator314(CodeGenerator312):
 class CodeGenerator315(CodeGenerator314):
     flow_graph = PyFlowGraph315
 
+    def emit_prologue(self) -> None:
+        if self.scope.coroutine or self.scope.generator:
+            with self.temp_lineno(self.graph.firstline):
+                self.emit("RETURN_GENERATOR", 0)
+                self.emit("POP_TOP", 0)
+        super().emit_prologue()
+
     SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = (
         "all",
         "any",
@@ -7283,6 +7312,72 @@ class CodeGenerator315(CodeGenerator314):
 
         return super().unwind_setup_entry(e, preserve_tos)
 
+    def compile_comprehension(
+        self,
+        node: CompNode,
+        name: str,
+        elt: ast.expr,
+        val: ast.expr | None,
+        opcode: str | None,
+        oparg: object = 0,
+    ) -> None:
+        self.check_async_comprehension(node)
+
+        # fetch the scope that corresponds to comprehension
+        scope = self.scopes[node]
+        assert isinstance(scope, GenExprScope)
+
+        outermost = node.generators[0]
+        inlined_state: InlinedComprehensionState | None = None
+        iter_state: IterStackState
+        if scope.inlined:
+            # for inlined comprehension process with current generator
+            gen = self
+            gen.compile_comprehension_iter(outermost)
+            inlined_state = self.push_inlined_comprehension_state(scope)
+            iter_state = IterStackState.IterableOnStack
+        else:
+            gen = cast(CodeGenerator312, self.make_comprehension_codegen(node, name))
+            if isinstance(node, ast.GeneratorExp):
+                # Insert GET_ITER before RETURN_GENERATOR.
+                # https://docs.python.org/3/reference/expressions.html#generator-expressions
+                gen.graph.entry.insts[0:0] = [
+                    Instruction("LOAD_FAST", 0, 0, outermost.iter),
+                    Instruction(
+                        "GET_AITER" if outermost.is_async else "GET_ITER",
+                        0,
+                        0,
+                        outermost.iter,
+                    ),
+                ]
+                iter_state = IterStackState.IteratorOnStack
+            else:
+                iter_state = IterStackState.IterableInLocal
+        gen.set_pos(node)
+        start = gen.newBlock("start")
+        gen.setups.append(Entry(STOP_ITERATION, start, None, None))
+        if opcode:
+            gen.emit(opcode, oparg)
+            if scope.inlined:
+                gen.emit("SWAP", 2)
+
+        assert isinstance(gen, CodeGenerator312)
+        gen.compile_comprehension_generator(
+            node, 0, 0, elt, val, type(node), iter_state
+        )
+        if inlined_state is not None:
+            self.pop_fblock(STOP_ITERATION)
+            self.pop_inlined_comprehension_state(scope, inlined_state)
+            return
+
+        if not isinstance(node, ast.GeneratorExp):
+            gen.emit("RETURN_VALUE")
+
+        gen.wrap_in_stopiteration_handler()
+        gen.pop_fblock(STOP_ITERATION)
+
+        self.finish_comprehension(gen, node)
+
     def _compile_async_comprehension(
         self,
         comp: CompNode,
@@ -7291,7 +7386,7 @@ class CodeGenerator315(CodeGenerator314):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        iter_on_stack: bool,
+        iter_on_stack: IterStackState,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
@@ -7299,14 +7394,15 @@ class CodeGenerator315(CodeGenerator314):
         send = self.newBlock("send")
 
         gen = comp.generators[gen_index]
-        if not iter_on_stack:
+        if iter_on_stack == IterStackState.IterableInLocal:
             if gen_index == 0:
                 self.loadName(".0")
             else:
                 self.visit(gen.iter)
                 self.set_pos(comp)
+        if iter_on_stack != IterStackState.IteratorOnStack:
+            self.graph.emit_with_loc("GET_AITER", 0, gen.iter)
 
-        self.graph.emit_with_loc("GET_AITER", 0, gen.iter)
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
         self.emit("GET_ANEXT")
@@ -7325,7 +7421,7 @@ class CodeGenerator315(CodeGenerator314):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
             )
         elif type is ast.GeneratorExp:
             self.visit(elt)
@@ -7370,7 +7466,7 @@ class CodeGenerator315(CodeGenerator314):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        iter_on_stack: bool,
+        iter_on_stack: IterStackState,
     ) -> None:
         start = self.newBlock("start")
         skip = self.newBlock("skip")
@@ -7378,7 +7474,7 @@ class CodeGenerator315(CodeGenerator314):
         anchor = self.newBlock("anchor")
 
         gen = comp.generators[gen_index]
-        if not iter_on_stack:
+        if iter_on_stack == IterStackState.IterableInLocal:
             if gen_index == 0:
                 self.loadName(".0")
             else:
@@ -7392,9 +7488,11 @@ class CodeGenerator315(CodeGenerator314):
                     self.compile_comprehension_iter(gen)
 
         if start:
-            depth += 2
-            self.graph.emit_with_loc("GET_ITER", 0, gen.iter)
+            if iter_on_stack != IterStackState.IteratorOnStack:
+                self.graph.emit_with_loc("GET_ITER", 0, gen.iter)
+                depth += 1
             self.nextBlock(start)
+            depth += 1
             if IS_3_12_8:
                 self.graph.set_pos(gen.iter)
                 self.graph.emit_with_loc("FOR_ITER", anchor, gen.iter)
@@ -7411,7 +7509,7 @@ class CodeGenerator315(CodeGenerator314):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
             )
         else:
             if type is ast.GeneratorExp:
