@@ -542,6 +542,27 @@ class GeneratorsTest(unittest.TestCase):
     # TASK(T125856469): Once we support eager execution of coroutines, add
     # tests that deopt while suspended at YieldAndYieldFrom.
 
+    def test_yield_local_and_deopt(self):
+        """The JIT must keep a strong reference to a local variable it yields
+        and does not use, even though it could just let ownership be transfered
+        to the yield receiver. This is because the interpreter would keep a
+        strong reference and we may transfer control to the interpreter if we
+        deopt the suspended generator."""
+
+        @cinder_support.failUnlessJITCompiled
+        def gen_yield_local(obj):
+            yield obj
+
+        obj = object()
+        g = gen_yield_local(obj)
+        del obj
+        gc.collect()
+        next(g)
+        _deopt_gen(g)
+        # If things are broken we'll get a use-after-free error from ASAN here.
+        with self.assertRaises(StopIteration):
+            next(g)
+
 
 class GeneratorFrameTest(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled

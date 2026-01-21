@@ -7,6 +7,7 @@
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
+#include "cinderx/Jit/hir/frame_state.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -965,6 +966,23 @@ void fillDeoptLiveRegs(const StateMap& live_regs, Instr& instr) {
   deopt->sortLiveRegs();
 }
 
+bool isInFrameState(const FrameState* fs, Register* reg) {
+  while (fs != nullptr) {
+    for (Register* r : fs->localsplus) {
+      if (r == reg) {
+        return true;
+      }
+    }
+    for (Register* r : fs->stack) {
+      if (r == reg) {
+        return true;
+      }
+    }
+    fs = fs->parent;
+  }
+  return false;
+}
+
 // Process any operands stolen by the given instruction.
 void stealInputs(
     Env& env,
@@ -983,8 +1001,39 @@ void stealInputs(
     auto reg = instr.GetOperand(i);
     auto& rstate = map_get(env.live_regs, reg);
     if (rstate.isOwned() && dying_regs.count(reg)) {
-      // This instruction is the last use of reg and we own a reference to it,
-      // so forward the reference to the instruction. Mark the value as
+      // This instruction is the last use of reg and we own a reference to it.
+      // Normally we let ownership for the input pass to the instruction's
+      // reciever.
+      //
+      // However, for yield instructions, if the register is also in the
+      // FrameState (localsplus/stack), we need to keep a strong reference even
+      // if it's about to die. This is because the interpreter is not yet smart
+      // enough to perform the same optimization (skipping the decref to free
+      // ownership due to the steal) and we may deopt while a generator is
+      // suspended.
+
+      // Note we will only compute this once even though we are in a loop as
+      // yield only has one operand.
+      // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+      switch (instr.opcode()) {
+        case Opcode::kYieldValue:
+        case Opcode::kYieldFrom:
+        case Opcode::kYieldAndYieldFrom:
+        case Opcode::kYieldFromHandleStopAsyncIteration:
+        case Opcode::kInitialYield: {
+          if (isInFrameState(instr.asDeoptBase()->frameState(), reg)) {
+            if (env.mutate) {
+              insertIncref(env, reg, instr);
+              continue;
+            }
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+      // Forward the reference to the instruction. Mark the value as
       // borrowed to avoid forwarding this reference more than once in this
       // loop, and it will be killed later in processInstr().
       rstate.setBorrowed(env.num_support_bits);
