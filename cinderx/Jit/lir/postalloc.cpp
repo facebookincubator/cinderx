@@ -924,10 +924,6 @@ class RegisterToMemoryMoves {
     mem_to_reg_.clear();
   }
 
-  bool isEmpty() {
-    return reg_to_mem_.empty();
-  }
-
  private:
   UnorderedMap<PhyLocation, PhyLocation> reg_to_mem_;
   UnorderedMap<PhyLocation, std::pair<PhyLocation, instr_iter_t>> mem_to_reg_;
