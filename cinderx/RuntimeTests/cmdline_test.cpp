@@ -18,8 +18,6 @@
 // on the JIT config
 
 using namespace jit;
-using namespace std;
-
 using namespace jit::lir;
 
 class CmdLineTest : public RuntimeTest {
@@ -30,9 +28,8 @@ class CmdLineTest : public RuntimeTest {
 int try_flag_and_envvar_effect(
     const wchar_t* flag,
     const char* env_name,
-    function<void(void)> reset_vars,
-    function<void(void)> conditions_to_check,
-    bool enable_JIT = false,
+    std::function<void(void)> reset_vars,
+    std::function<void(void)> conditions_to_check,
     bool capture_stderr = false,
     bool capture_stdout = false) {
   // Shutdown the JIT so we can start it up again under different conditions.
@@ -46,12 +43,6 @@ int try_flag_and_envvar_effect(
   // between flag and cmd line param runs
 
   int init_status = 0;
-
-  PyObject* jit_xarg_key = nullptr;
-
-  if (enable_JIT) {
-    jit_xarg_key = addToXargsDict(L"jit");
-  }
 
   // as env var
   if (nullptr != env_name) {
@@ -85,11 +76,6 @@ int try_flag_and_envvar_effect(
   conditions_to_check();
   PyDict_DelItem(PySys_GetXOptions(), to_remove);
   Py_DECREF(to_remove);
-
-  if (nullptr != jit_xarg_key) {
-    PyDict_DelItem(PySys_GetXOptions(), jit_xarg_key);
-    Py_DECREF(jit_xarg_key);
-  }
 
   jit::finalize();
   reset_vars();
@@ -301,8 +287,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
             if constexpr (PY_VERSION_HEX < 0x030C0000) {
               ASSERT_EQ(getConfig().frame_mode, FrameMode::kShadow);
             }
-          },
-          true /* enable_jit */),
+          }),
       0);
 
   // Explicitly disable it.
@@ -311,8 +296,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
           L"jit-shadow-frame=0",
           "PYTHONJITSHADOWFRAME=0",
           []() {},
-          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); },
-          true /* enable_jit */),
+          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); }),
       0);
 }
 
@@ -322,8 +306,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_MultithreadCompile) {
           L"jit-multithreaded-compile-test",
           "PYTHONJITMULTITHREADEDCOMPILETEST",
           []() {},
-          []() { ASSERT_TRUE(getConfig().multithreaded_compile_test); },
-          true),
+          []() { ASSERT_TRUE(getConfig().multithreaded_compile_test); }),
       0);
 }
 
@@ -333,8 +316,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_MatchLineNumbers) {
           L"jit-list-match-line-numbers",
           "PYTHONJITLISTMATCHLINENUMBERS",
           []() { getMutableConfig().jit_list.match_line_numbers = false; },
-          []() { ASSERT_TRUE(getConfig().jit_list.match_line_numbers); },
-          true),
+          []() { ASSERT_TRUE(getConfig().jit_list.match_line_numbers); }),
       0);
 }
 
@@ -347,8 +329,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_BatchCompileWorkers) {
           L"jit-batch-compile-workers=21",
           "PYTHONJITBATCHCOMPILEWORKERS=21",
           []() {},
-          []() { ASSERT_EQ(getConfig().batch_compile_workers, 21); },
-          true),
+          []() { ASSERT_EQ(getConfig().batch_compile_workers, 21); }),
       0);
 }
 
@@ -381,7 +362,7 @@ const wchar_t* makeWideChar(const char* to_convert) {
 
 TEST_F(CmdLineTest, JITList) {
   std::string list_file = tmpnam(nullptr);
-  ofstream list_file_handle(list_file);
+  std::ofstream list_file_handle(list_file);
   list_file_handle.close();
   const wchar_t* xarg =
       makeWideChar(const_cast<char*>(("jit-list-file=" + list_file).c_str()));
@@ -395,12 +376,12 @@ TEST_F(CmdLineTest, JITList) {
       0);
 
   delete[] xarg;
-  filesystem::remove(list_file);
+  std::filesystem::remove(list_file);
 }
 
 TEST_F(CmdLineTest, JITLogFile) {
   std::string log_file = tmpnam(nullptr);
-  ofstream log_file_handle(log_file);
+  std::ofstream log_file_handle(log_file);
   log_file_handle.close();
   const wchar_t* xarg =
       makeWideChar(const_cast<char*>(("jit-log-file=" + log_file).c_str()));
@@ -414,7 +395,7 @@ TEST_F(CmdLineTest, JITLogFile) {
       0);
 
   delete[] xarg;
-  filesystem::remove(log_file);
+  std::filesystem::remove(log_file);
 }
 
 TEST_F(CmdLineTest, ExplicitJITDisable) {
@@ -423,8 +404,7 @@ TEST_F(CmdLineTest, ExplicitJITDisable) {
           L"jit-disable",
           "PYTHONJITDISABLE",
           []() {},
-          []() { ASSERT_FALSE(isJitUsable()); },
-          true),
+          []() { ASSERT_FALSE(isJitUsable()); }),
       0);
 }
 
@@ -440,8 +420,7 @@ TEST_F(CmdLineTest, DisplayHelpMessage) {
                     "-X opt : set Cinder JIT-specific option.") !=
                 std::string::npos);
           },
-          false,
-          false,
-          true),
+          false /* capture_stderr */,
+          true /* capture_stdout */),
       -2);
 }
