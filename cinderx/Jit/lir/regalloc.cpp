@@ -21,10 +21,6 @@ struct LiveRangeCompare {
   // Support searching by LIRLocation.
   using is_transparent = void;
 
-  bool operator()(const LiveRange& lhs, const LiveRange& rhs) const {
-    return lhs.start < rhs.start;
-  }
-
   bool operator()(const LiveRange& lhs, LIRLocation rhs) const {
     return lhs.start < rhs;
   }
