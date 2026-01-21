@@ -331,7 +331,6 @@ void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
     RuntimeFrameState* rtfs = jitFrameGetRtfs(frame);
     func = rtfs->func();
     JIT_DCHECK(func != nullptr, "should have a func for inlined functions");
-    Py_INCREF(func);
   }
 
   BorrowedRef<PyCodeObject> code = frameCode(frame);

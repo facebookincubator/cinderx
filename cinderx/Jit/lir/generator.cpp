@@ -3087,6 +3087,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             reifier_reg,
             std::optional<destructor>(
                 PyUnstable_JITExecutable_Type.tp_dealloc));
+#if PY_VERSION_HEX < 0x030F0000
+        // On 3.14, we stored the function object in f_funcobj and incref'd it.
+        // Need to decref it here since the frame was not materialized.
+        PyObject* func = instr.matchingBegin()->func();
+        if (!_Py_IsImmortal(func)) {
+          Instruction* func_reg =
+              bbb.appendInstr(OutVReg{}, Instruction::kMove, func);
+          MakeDecref(
+              bbb,
+              func_reg,
+              std::optional<destructor>(PyFunction_Type.tp_dealloc));
+        }
+#endif
 #else
         if (!_Py_IsImmortal(code.get())) {
           Instruction* code_reg =
