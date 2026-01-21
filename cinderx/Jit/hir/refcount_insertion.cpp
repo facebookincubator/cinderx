@@ -67,10 +67,6 @@ class BorrowSupport {
     return bits_ == other.bits_;
   }
 
-  bool operator!=(const BorrowSupport& other) const {
-    return !operator==(other);
-  }
-
   const util::BitVector& bits() const {
     return bits_;
   }
@@ -108,9 +104,6 @@ struct RegState {
   bool operator==(const RegState& other) const {
     return model_ == other.model_ && copies_ == other.copies_ &&
         kind_ == other.kind_ && support_ == other.support_;
-  }
-  bool operator!=(const RegState& other) const {
-    return !operator==(other);
   }
 
   // The model Register, or the original version that may or may not have been
@@ -261,15 +254,6 @@ class StateMap {
     return map_.find(modelReg(reg));
   }
 
-  auto findModel(Register* model) {
-    JIT_DCHECK(model == modelReg(model), "findModel given non-model reg");
-    return map_.find(model);
-  }
-  auto findModel(Register* model) const {
-    JIT_DCHECK(model == modelReg(model), "findModel given non-model reg");
-    return map_.find(model);
-  }
-
   template <typename... Args>
   auto emplace(Args&&... args) {
     return map_.emplace(std::forward<Args>(args)...);
@@ -292,9 +276,6 @@ class StateMap {
   auto eraseModel(Register* model) {
     JIT_DCHECK(model == modelReg(model), "eraseModel given non-model reg");
     return map_.erase(model);
-  }
-  auto erase(map_t::iterator it) {
-    return map_.erase(it);
   }
 
   bool operator==(const StateMap& other) const {
