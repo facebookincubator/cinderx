@@ -492,6 +492,11 @@ void **opcode_targets = opcode_targets_table;
 #endif
 
     bool adaptive_enabled = false;
+
+    // Suppress unused variable warning because it's too hard to improve the
+    // variable's scope to avoid an unused-but-set-variable warning.
+    (void)adaptive_enabled; 
+
     /* support for generator.throw() */
     if (throwflag) {
         if (_Py_EnterRecursivePy(tstate)) {
