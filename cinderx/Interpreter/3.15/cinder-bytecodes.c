@@ -1017,7 +1017,7 @@ pop_1_error:
           (PyFunctionObject*)PyStackRef_AsPyObjectBorrow(frame->f_funcobj);
       PyGenObject* gen = (PyGenObject*)_Py_MakeCoro(func);
       ERROR_IF(gen == NULL);
-      assert(STACK_LEVEL() == 0);
+      assert(STACK_LEVEL() <= 2);
       SAVE_STACK();
       _PyInterpreterFrame* gen_frame = &gen->gi_iframe;
       frame->instr_ptr++;

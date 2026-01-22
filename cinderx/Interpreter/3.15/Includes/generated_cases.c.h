@@ -11914,7 +11914,7 @@
             if (gen == NULL) {
                 JUMP_TO_LABEL(error);
             }
-            assert(STACK_LEVEL() == 0);
+            assert(STACK_LEVEL() <= 2);
             _PyFrame_SetStackPointer(frame, stack_pointer);
             _PyInterpreterFrame* gen_frame = &gen->gi_iframe;
             frame->instr_ptr++;

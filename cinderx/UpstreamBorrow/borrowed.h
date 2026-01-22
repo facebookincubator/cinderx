@@ -84,10 +84,12 @@
 #define _Py_Specialize_StoreAttr _Ci_Specialize_StoreAttr
 #define _Py_Specialize_LoadAttr _Ci_Specialize_LoadAttr
 #define _Py_Specialize_LoadSuperAttr _Ci_Specialize_LoadSuperAttr
+#if PY_VERSION_HEX < 0x030F0000
 #define _PyEval_MonitorRaise _CiEval_MonitorRaise
 #define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
 #define _PyEvalFramePushAndInit_Ex _CiEvalFramePushAndInit_Ex
+#endif
 #define _PyType_Validate _CiType_Validate
 
 #if PY_VERSION_HEX < 0x030F0000

@@ -18,6 +18,7 @@
 #define NEED_OPCODE_TABLES
 #include "cinderx/Interpreter/cinder_opcode.h"
 
+#include "internal/pycore_ceval.h"
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_interpframe.h"
 
@@ -377,6 +378,7 @@ PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
 
 #include "cinderx/Interpreter/3.15/ceval.h"
+#include "Python/ceval.h"
 
 #endif
 
@@ -471,7 +473,7 @@ void **opcode_targets = opcode_targets_table;
     entry.frame.f_builtins = (PyObject*)0xaaa4;
 #endif
     entry.frame.f_executable = PyStackRef_None;
-    entry.frame.instr_ptr = (_Py_CODEUNIT *)_Py_INTERPRETER_TRAMPOLINE_INSTRUCTIONS + 1;
+    entry.frame.instr_ptr = (_Py_CODEUNIT *)_Py_INTERPRETER_TRAMPOLINE_INSTRUCTIONS_PTR + 1;
     entry.frame.stackpointer = entry.stack;
     entry.frame.owner = FRAME_OWNED_BY_INTERPRETER;
     entry.frame.visited = 0;

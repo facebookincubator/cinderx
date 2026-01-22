@@ -171,6 +171,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function _PyDict_SetItem_LockHeld from Objects/dictobject.c [3.15]
 
 // @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.15]
+// @Borrow function _PyDict_LookupIndexAndValue from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.15]
 // @Borrow function check_keys_unicode from Objects/dictobject.c [3.15]
 // @Borrow function hash_unicode_key from Objects/dictobject.c [3.15]

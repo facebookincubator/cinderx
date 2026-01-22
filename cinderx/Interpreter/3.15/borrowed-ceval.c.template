@@ -21,56 +21,6 @@
 #include "internal/pycore_tuple.h"
 #include "cinderx/Interpreter/3.15/Includes/ceval_macros.h"
 
-#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
-
-/* TBD - what about other compilers? */
-#if defined(__GNUC__) || defined(__clang__)
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wunused-label"
-#elif defined(_MSC_VER) /* MS_WINDOWS */
-#  pragma warning(push)
-#  pragma warning(disable:4102)
-#endif
-
-// @Borrow typedef _PyEntryFrame from Python/ceval.c
-
-// @Borrow var _Py_INTERPRETER_TRAMPOLINE_INSTRUCTIONS from Python/ceval.c
-
-// @Borrow function do_raise from Python/ceval.c
-// @Borrow function dump_item from Python/ceval.c
-// @Borrow function dump_stack from Python/ceval.c
-// @Borrow function lltrace_instruction from Python/ceval.c
-// @Borrow function lltrace_resume_frame from Python/ceval.c
-
-// @Borrow function maybe_lltrace_resume_frame from Python/ceval.c
-// @Borrow function do_monitor_exc from Python/ceval.c
-// @Borrow function no_tools_for_global_event from Python/ceval.c
-// @Borrow function no_tools_for_local_event from Python/ceval.c
-// @Borrow function _PyEval_MonitorRaise from Python/ceval.c
-// @Borrow function monitor_reraise from Python/ceval.c
-// @Borrow function monitor_stop_iteration from Python/ceval.c
-// @Borrow function monitor_unwind from Python/ceval.c
-// @Borrow function monitor_handled from Python/ceval.c
-// @Borrow function monitor_throw from Python/ceval.c
-// @Borrow function format_missing from Python/ceval.c
-// @Borrow function missing_arguments from Python/ceval.c
-// @Borrow function too_many_positional from Python/ceval.c
-// @Borrow function positional_only_passed_as_keyword from Python/ceval.c
-// @Borrow function scan_back_to_entry_start from Python/ceval.c
-// @Borrow function skip_to_next_entry from Python/ceval.c
-
-#define MAX_LINEAR_SEARCH 40
-
-
-// @Borrow function get_exception_handler from Python/ceval.c
-// @Borrow function initialize_locals from Python/ceval.c
-// @Borrow function clear_thread_frame from Python/ceval.c
-// @Borrow function clear_gen_frame from Python/ceval.c
-// @Borrow function _PyEval_FrameClearAndPop from Python/ceval.c
-// @Borrow function _PyEvalFramePushAndInit from Python/ceval.c
-// @Borrow function _PyEvalFramePushAndInit_Ex from Python/ceval.c
-
-// Cinder specific adapted functions
 #define _PyCoro_GetAwaitableIter JitCoro_GetAwaitableIter
 #define _PyEval_GetAwaitable Ci_PyEval_GetAwaitable
 #define _PyEval_GetANext Ci_PyEval_GetANext

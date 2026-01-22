@@ -1591,6 +1591,21 @@ start:
     return ix;
 }
 Py_ssize_t
+_PyDict_LookupIndexAndValue(PyDictObject *mp, PyObject *key, PyObject **value)
+{
+    // TODO: Thread safety
+    assert(PyDict_CheckExact((PyObject*)mp));
+    assert(PyUnicode_CheckExact(key));
+
+    Py_hash_t hash = _PyObject_HashFast(key);
+    if (hash == -1) {
+        dict_unhashable_type(key);
+        return -1;
+    }
+
+    return _Py_dict_lookup(mp, key, hash, value);
+}
+Py_ssize_t
 _PyDict_LookupIndex(PyDictObject *mp, PyObject *key)
 {
     PyObject *value; // discarded
