@@ -351,6 +351,24 @@ PyObject* resumeInInterpreter(
     JIT_CHECK(
         _Py_Instrument(frameCode(frame), tstate->interp) == 0,
         "Failed to instrument code on deopt");
+
+    // For generator frames, ensure the exception state is properly linked
+    // before resuming in the interpreter. In Python 3.15+, generator
+    // expressions may raise exceptions before RETURN_GENERATOR (e.g., GET_ITER
+    // on a non-iterable). The interpreter expects tstate->exc_info to point to
+    // the generator's exception state for generator frames.
+    // The interpreter's clear_gen_frame() will handle restoring the previous
+    // exception state, so we don't need to do any cleanup after
+    // _PyEval_EvalFrame. Note: We only set this up if it's not already set
+    // (e.g., jitgen_am_send may have already set it up before we got here).
+    if (frame->owner == FRAME_OWNED_BY_GENERATOR) {
+      PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
+      if (tstate->exc_info != &gen->gi_exc_state) {
+        gen->gi_exc_state.previous_item = tstate->exc_info;
+        tstate->exc_info = &gen->gi_exc_state;
+      }
+    }
+
     result = _PyEval_EvalFrame(tstate, frame, err_occurred);
 
     frame = prev_frame;
