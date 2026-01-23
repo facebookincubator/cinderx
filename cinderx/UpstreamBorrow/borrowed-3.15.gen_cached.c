@@ -5597,7 +5597,6 @@ _PyTraceBack_FromFrame(PyObject *tb_next, PyFrameObject *frame)
     return tb_create_raw((PyTracebackObject *)tb_next, frame, addr, -1);
 }
 
-
 // Internal dependencies for gen_dealloc.
 static void
 gen_clear_frame(PyGenObject *gen)

@@ -172,6 +172,8 @@ raise_error:
     Py_XDECREF(cause);
     return 0;
 }
+
+// These are all optional because they are only present + used in debug builds
 static void
 dump_item(_PyStackRef item)
 {
@@ -279,7 +281,6 @@ lltrace_resume_frame(_PyInterpreterFrame *frame)
     fflush(stdout);
     PyErr_SetRaisedException(exc);
 }
-
 static int
 maybe_lltrace_resume_frame(_PyInterpreterFrame *frame, PyObject *globals)
 {
@@ -306,6 +307,7 @@ maybe_lltrace_resume_frame(_PyInterpreterFrame *frame, PyObject *globals)
     }
     return lltrace;
 }
+
 static int
 do_monitor_exc(PyThreadState *tstate, _PyInterpreterFrame *frame,
                _Py_CODEUNIT *instr, int event)

@@ -140,14 +140,11 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function unicodekeys_lookup_unicode from Objects/dictobject.c [3.15]
 // @Borrow function unicodekeys_lookup_generic from Objects/dictobject.c [3.15]
 // @Borrow function dictkeys_generic_lookup from Objects/dictobject.c [3.15]
-// @Borrow function _Py_dict_lookup_keep_lazy from Objects/dictobject.c [3.15]
 // @Borrow function lookdict_index from Objects/dictobject.c [3.15]
 // @Borrow function delete_index_from_values from Objects/dictobject.c [3.15]
 // @Borrow function dictkeys_set_index from Objects/dictobject.c [3.15]
 // @Borrow function delitem_common from Objects/dictobject.c [3.15]
-// @Borrow function delitem_knownhash_lock_held from Objects/dictobject.c [3.15]
 // @Borrow function new_keys_object from Objects/dictobject.c [3.15]
-// @Borrow function lazy_import_verbose from Objects/dictobject.c [3.15]
 // @Borrow function insert_to_emptydict from Objects/dictobject.c [3.15]
 // @Borrow function ensure_shared_on_resize from Objects/dictobject.c [3.15]
 // @Borrow function build_indices_generic from Objects/dictobject.c [3.15]
@@ -525,8 +522,6 @@ LONG_FLOAT_ACTION(compactlong_float_true_div, /)
 
 // @Borrow function tb_create_raw from Python/traceback.c [3.15]
 // @Borrow function _PyTraceBack_FromFrame from Python/traceback.c [3.15]
-
-// @Borrow function _PyFloat_FromDouble_ConsumeInputs from Objects/floatobject.c [3.15]
 
 // Internal dependencies for gen_dealloc.
 // @Borrow function gen_clear_frame from Objects/genobject.c [3.15]
