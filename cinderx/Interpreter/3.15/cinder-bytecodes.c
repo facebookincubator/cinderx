@@ -41,7 +41,7 @@
 #include "setobject.h"
 
 #define USE_COMPUTED_GOTOS 0
-#include "ceval_macros.h"
+#include "Python/ceval_macros.h"
 
 /* Flow control macros */
 
