@@ -3741,7 +3741,7 @@ Context::CompilationResult compilePreloaderImpl(
   register_pycode_debug_symbol(
       code, preloader.fullname().c_str(), compiled.get());
 
-  jit_ctx->addCompileTime(compiled->compileTime().count());
+  jit_ctx->addCompileTime(compiled->compileTime());
 
   // Register and return the compiled code
   return {

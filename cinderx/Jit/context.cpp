@@ -45,8 +45,9 @@ const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::deoptedFuncs() {
   return deopted_funcs_;
 }
 
-void Context::addCompileTime(size_t ms) {
-  total_compile_time_ms_.fetch_add(ms, std::memory_order_relaxed);
+void Context::addCompileTime(std::chrono::nanoseconds time) {
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(time);
+  total_compile_time_ms_.fetch_add(ms.count(), std::memory_order_relaxed);
 }
 
 std::chrono::milliseconds Context::totalCompileTime() const {

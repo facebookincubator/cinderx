@@ -167,7 +167,7 @@ class Context : public IJitContext {
    * Adds time to the record of how much time has been spent compiling
    * functions.
    */
-  void addCompileTime(size_t ms);
+  void addCompileTime(std::chrono::nanoseconds time);
   /*
    * Set and hold a reference to the cinderjit Python module.
    */
