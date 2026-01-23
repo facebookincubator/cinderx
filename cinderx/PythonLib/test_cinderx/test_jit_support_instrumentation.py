@@ -309,3 +309,280 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         self.assertEqual(compute(100), expected)
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
+
+
+@skip_unless_jit("Tests functionality on the JIT")
+class JitSetProfileIntegrationTest(unittest.TestCase):
+    """
+    Test that the JIT behaves correctly when sys.setprofile is used.
+
+    When a profiler attaches via sys.setprofile, the JIT should:
+    1. Stop compiling new functions
+    2. Deoptimize previously compiled functions
+    3. Re-optimize when the profiler is removed
+    """
+
+    def tearDown(self) -> None:
+        sys.setprofile(None)
+
+    def test_compiled_functions_deoptimized_on_setprofile(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        calls_seen = []
+
+        def profile_func(frame, event, arg):
+            if event == "call" and frame.f_code.co_name == "foo":
+                calls_seen.append(frame.f_code.co_name)
+            return None
+
+        sys.setprofile(profile_func)
+
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "Compiled function should be deoptimized when profiler is set",
+        )
+
+        foo(1, 2)
+        self.assertIn("foo", calls_seen, "Profile callback should have been invoked")
+
+    def test_functions_reoptimized_after_setprofile_cleared(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        calls_seen = []
+
+        def profile_func(frame, event, arg):
+            if event == "call" and frame.f_code.co_name == "foo":
+                calls_seen.append(frame.f_code.co_name)
+            return None
+
+        sys.setprofile(profile_func)
+        self.assertFalse(is_jit_compiled(foo))
+
+        foo(1, 2)
+        self.assertIn("foo", calls_seen, "Profile callback should have been invoked")
+
+        sys.setprofile(None)
+
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "Function should be re-JIT compiled after profiler is cleared",
+        )
+
+        calls_seen.clear()
+        foo(1, 2)
+        self.assertEqual(
+            calls_seen, [], "Profile callback should not be invoked after clearing"
+        )
+
+    def test_new_functions_not_compiled_while_profiler_active(self) -> None:
+        calls_seen = []
+
+        def profile_func(frame, event, arg):
+            if event == "call" and frame.f_code.co_name == "new_function":
+                calls_seen.append(frame.f_code.co_name)
+            return None
+
+        sys.setprofile(profile_func)
+
+        def new_function(a, b):
+            return a + b
+
+        force_compile(new_function)
+
+        self.assertFalse(
+            is_jit_compiled(new_function),
+            "New functions should not be JIT compiled while profiler is active",
+        )
+
+        new_function(1, 2)
+        self.assertIn(
+            "new_function", calls_seen, "Profile callback should have been invoked"
+        )
+
+
+@skip_unless_jit("Tests functionality on the JIT")
+class JitSetTraceIntegrationTest(unittest.TestCase):
+    """
+    Test that the JIT behaves correctly when sys.settrace is used.
+
+    When a debugger attaches via sys.settrace, the JIT should:
+    1. Stop compiling new functions
+    2. Deoptimize previously compiled functions
+    3. Re-optimize when the debugger is removed
+    """
+
+    def tearDown(self) -> None:
+        sys.settrace(None)
+
+    def test_compiled_functions_deoptimized_on_settrace(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        calls_seen = []
+
+        def trace_func(frame, event, arg):
+            if event == "call" and frame.f_code.co_name == "foo":
+                calls_seen.append(frame.f_code.co_name)
+            return trace_func
+
+        sys.settrace(trace_func)
+
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "Compiled function should be deoptimized when tracer is set",
+        )
+
+        foo(1, 2)
+        self.assertIn("foo", calls_seen, "Trace callback should have been invoked")
+
+    def test_functions_reoptimized_after_settrace_cleared(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        calls_seen = []
+
+        def trace_func(frame, event, arg):
+            if event == "call" and frame.f_code.co_name == "foo":
+                calls_seen.append(frame.f_code.co_name)
+            return trace_func
+
+        sys.settrace(trace_func)
+        self.assertFalse(is_jit_compiled(foo))
+
+        foo(1, 2)
+        self.assertIn("foo", calls_seen, "Trace callback should have been invoked")
+
+        sys.settrace(None)
+
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "Function should be re-JIT compiled after tracer is cleared",
+        )
+
+        calls_seen.clear()
+        foo(1, 2)
+        self.assertEqual(
+            calls_seen, [], "Trace callback should not be invoked after clearing"
+        )
+
+    def test_new_functions_not_compiled_while_tracer_active(self) -> None:
+        calls_seen = []
+
+        def trace_func(frame, event, arg):
+            if event == "call" and frame.f_code.co_name == "new_function":
+                calls_seen.append(frame.f_code.co_name)
+            return trace_func
+
+        sys.settrace(trace_func)
+
+        def new_function(a, b):
+            return a + b
+
+        force_compile(new_function)
+
+        self.assertFalse(
+            is_jit_compiled(new_function),
+            "New functions should not be JIT compiled while tracer is active",
+        )
+
+        new_function(1, 2)
+        self.assertIn(
+            "new_function", calls_seen, "Trace callback should have been invoked"
+        )
+
+
+@passUnless(
+    AT_LEAST_312, "Combined instrumentation requires Python 3.12+ for JIT integration"
+)
+@skip_unless_jit("Tests functionality on the JIT")
+class JitCombinedTracingIntegrationTest(unittest.TestCase):
+    """
+    Test that the JIT behaves correctly when multiple instrumentation mechanisms are used.
+
+    The JIT should only re-enable when ALL instrumentation mechanisms are cleared.
+    """
+
+    def test_profiling_and_tracing_callbacks_must_be_cleared_for_reoptimization(
+        self,
+    ) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        def profile_func(frame, event, arg):
+            return None
+
+        def trace_func(frame, event, arg):
+            return trace_func
+
+        sys.setprofile(profile_func)
+        sys.settrace(trace_func)
+
+        self.assertFalse(is_jit_compiled(foo))
+
+        sys.setprofile(None)
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "JIT should remain disabled since trace callback is still active",
+        )
+
+        sys.settrace(None)
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "JIT should re-enable after all callbacks are cleared",
+        )
+
+    def test_monitoring_and_setprofile_combined(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "test_debugger")
+        sys.monitoring.register_callback(
+            sys.monitoring.DEBUGGER_ID,
+            sys.monitoring.events.CALL,
+            dummy_callback,
+        )
+
+        def profile_func(frame, event, arg):
+            return None
+
+        sys.setprofile(profile_func)
+
+        self.assertFalse(is_jit_compiled(foo))
+
+        sys.monitoring.register_callback(
+            sys.monitoring.DEBUGGER_ID,
+            sys.monitoring.events.CALL,
+            None,
+        )
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "JIT should remain disabled while sys.setprofile callback is active",
+        )
+
+        sys.setprofile(None)
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "JIT should re-enable after all callbacks are cleared",
+        )
+
+        sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)

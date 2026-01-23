@@ -766,10 +766,10 @@ FlagProcessor initFlagProcessor() {
 
 #if PY_VERSION_HEX >= 0x030C0000
   flag_processor.addOption(
-      "jit-support-monitoring",
-      "PYTHONJITSUPPORTMONITORING",
-      getMutableConfig().support_monitoring,
-      "Support monitoring (e.g. debugging/profiling)");
+      "jit-support-instrumentation",
+      "PYTHONJITSUPPORTINSTRUMENTATION",
+      getMutableConfig().support_instrumentation,
+      "Support instrumentation (e.g. monitoring/tracing/profiling)");
 #endif
 
   flag_processor.setFlags(PySys_GetXOptions());
@@ -1378,10 +1378,18 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
 
 #if PY_VERSION_HEX >= 0x030C0000
 
-// Check if sys.monitoring has any active callbacks registered.
+// Check if there are any active callback registered through
+// sys.monitoring.register_callback()
 bool hasRegisteredMonitoringCallbacks() {
   auto is = PyInterpreterState_Get();
   for (int tool_id = 0; tool_id < PY_MONITORING_TOOL_IDS; ++tool_id) {
+    // Skip the internal Python tool IDs used by sys.setprofile and
+    // sys.settrace as these are internal (users can't call register_callback()
+    // with these tool IDs) and their registered callbacks are never cleared
+    if (tool_id == PY_MONITORING_SYS_PROFILE_ID ||
+        tool_id == PY_MONITORING_SYS_TRACE_ID) {
+      continue;
+    }
     for (int event_id = 0; event_id < _PY_MONITORING_EVENTS; ++event_id) {
       BorrowedRef<> entry = is->monitoring_callables[tool_id][event_id];
       if (entry != nullptr && !Py_IsNone(entry)) {
@@ -1390,6 +1398,25 @@ bool hasRegisteredMonitoringCallbacks() {
     }
   }
   return false;
+}
+
+// Check if sys.setprofile or sys.settrace have active callbacks registered.
+bool hasActiveLegacyTracing() {
+  auto is = PyInterpreterState_Get();
+  return is->sys_profiling_threads > 0 || is->sys_tracing_threads > 0;
+}
+
+bool isInstrumentationActive() {
+  return hasRegisteredMonitoringCallbacks() || hasActiveLegacyTracing();
+}
+
+// Returns false only if enable_jit_impl() fails (with Python exception set).
+bool toggleJitBasedOnInstrumentationState() {
+  if (isInstrumentationActive()) {
+    disable_jit_impl(true /* deopt_all */);
+    return true;
+  }
+  return enable_jit_impl();
 }
 
 // Patched version of sys.monitoring.register_callback().
@@ -1413,15 +1440,59 @@ PyObject* patched_sys_monitoring_register_callback(
     return nullptr;
   }
 
-  // Check if we need to enable or disable the JIT based on whether any
-  // monitoring callbacks are still registered.
-  if (hasRegisteredMonitoringCallbacks()) {
-    disable_jit_impl(true /* deopt_all */);
-  } else {
-    if (!enable_jit_impl()) {
-      Py_DECREF(result);
-      return nullptr;
-    }
+  if (!toggleJitBasedOnInstrumentationState()) {
+    Py_DECREF(result);
+    return nullptr;
+  }
+
+  return result;
+}
+
+// Patched version of sys.setprofile().
+// Intercepts profiler registration/deregistration to disable/enable the JIT.
+PyObject* patched_sys_setprofile(
+    PyObject* /* self */,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  auto mod_state = cinderx::getModuleState();
+  BorrowedRef<> original = mod_state->getOriginalSysSetProfile();
+  JIT_CHECK(
+      original != nullptr, "Expecting to have sys.setprofile already saved");
+
+  PyObject* result =
+      PyObject_Vectorcall(original, args, nargs, nullptr /* kwnames */);
+  if (result == nullptr) {
+    return nullptr;
+  }
+
+  if (!toggleJitBasedOnInstrumentationState()) {
+    Py_DECREF(result);
+    return nullptr;
+  }
+
+  return result;
+}
+
+// Patched version of sys.settrace().
+// Intercepts tracer registration/deregistration to disable/enable the JIT.
+PyObject* patched_sys_settrace(
+    PyObject* /* self */,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  auto mod_state = cinderx::getModuleState();
+  BorrowedRef<> original = mod_state->getOriginalSysSetTrace();
+  JIT_CHECK(
+      original != nullptr, "Expecting to have sys.settrace already saved");
+
+  PyObject* result =
+      PyObject_Vectorcall(original, args, nargs, nullptr /* kwnames */);
+  if (result == nullptr) {
+    return nullptr;
+  }
+
+  if (!toggleJitBasedOnInstrumentationState()) {
+    Py_DECREF(result);
+    return nullptr;
   }
 
   return result;
@@ -2475,6 +2546,7 @@ PyObject* after_fork_child(PyObject*, PyObject*) {
 // attachment.
 void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
 #if PY_VERSION_HEX >= 0x030C0000
+
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     JIT_DLOG("sys.monitoring not found, skipping JIT monitoring integration");
@@ -2512,11 +2584,64 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
   }
 
   JIT_DLOG("Successfully patched sys.monitoring.register_callback");
+
+#endif // PY_VERSION_HEX >= 0x030C0000
+}
+
+// Patch sys.setprofile and sys.settrace to intercept profiler/debugger
+// attachment.
+void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
+#if PY_VERSION_HEX >= 0x030C0000
+
+  Ref<> sys = Ref<>::steal(PyImport_ImportModule("sys"));
+  if (sys == nullptr) {
+    PyErr_Clear();
+    JIT_DLOG("sys module not found, skipping sys.setprofile/settrace patching");
+    return;
+  }
+
+  auto mod_state = cinderx::getModuleState();
+
+  auto patchSysFunc =
+      [&](const char* attr_name,
+          const char* patched_attr_name,
+          const std::function<void(BorrowedRef<>)>& storeOriginal) {
+        Ref<> original = Ref<>::steal(PyObject_GetAttrString(sys, attr_name));
+        if (original == nullptr) {
+          JIT_DLOG("sys.{} not found, skipping patching", attr_name);
+          PyErr_Clear();
+          return;
+        }
+        storeOriginal(original);
+
+        Ref<> patched = Ref<>::steal(
+            PyObject_GetAttrString(cinderjit_module, patched_attr_name));
+        if (patched == nullptr) {
+          JIT_LOG("Failed to get {} from cinderjit module", patched_attr_name);
+          PyErr_Clear();
+          return;
+        }
+        if (PyObject_SetAttrString(sys, attr_name, patched) < 0) {
+          JIT_LOG("Failed to patch sys.{}", attr_name);
+          PyErr_Clear();
+        } else {
+          JIT_DLOG("Successfully patched sys.{}", attr_name);
+        }
+      };
+
+  patchSysFunc("setprofile", "patched_sys_setprofile", [&](BorrowedRef<> func) {
+    mod_state->setOriginalSysSetProfile(func);
+  });
+  patchSysFunc("settrace", "patched_sys_settrace", [&](BorrowedRef<> func) {
+    mod_state->setOriginalSysSetTrace(func);
+  });
+
 #endif // PY_VERSION_HEX >= 0x030C0000
 }
 
 void restoreSysMonitoringRegisterCallback() {
 #if PY_VERSION_HEX >= 0x030C0000
+
   auto mod_state = cinderx::getModuleState();
   BorrowedRef<> original =
       mod_state->getOriginalSysMonitoringRegisterCallback();
@@ -2532,6 +2657,27 @@ void restoreSysMonitoringRegisterCallback() {
   if (PyObject_SetAttrString(monitoring, "register_callback", original) < 0) {
     PyErr_Clear();
   }
+#endif // PY_VERSION_HEX >= 0x030C0000
+}
+
+void restoreSysSetProfileAndSetTrace() {
+#if PY_VERSION_HEX >= 0x030C0000
+
+  auto mod_state = cinderx::getModuleState();
+
+  if (BorrowedRef<> original_setprofile =
+          mod_state->getOriginalSysSetProfile()) {
+    if (PySys_SetObject("setprofile", original_setprofile) < 0) {
+      PyErr_Clear();
+    }
+  }
+
+  if (BorrowedRef<> original_settrace = mod_state->getOriginalSysSetTrace()) {
+    if (PySys_SetObject("settrace", original_settrace) < 0) {
+      PyErr_Clear();
+    }
+  }
+
 #endif // PY_VERSION_HEX >= 0x030C0000
 }
 
@@ -2554,6 +2700,18 @@ PyMethodDef jit_methods[] = {
      METH_FASTCALL,
      PyDoc_STR(
          "Patched version of sys.monitoring.register_callback that "
+         "disables/enables the JIT when debuggers/profilers attach/detach.")},
+    {"patched_sys_setprofile",
+     _PyCFunction_CAST(patched_sys_setprofile),
+     METH_FASTCALL,
+     PyDoc_STR(
+         "Patched version of sys.setprofile that "
+         "disables/enables the JIT when profilers attach/detach.")},
+    {"patched_sys_settrace",
+     _PyCFunction_CAST(patched_sys_settrace),
+     METH_FASTCALL,
+     PyDoc_STR(
+         "Patched version of sys.settrace that "
          "disables/enables the JIT when debuggers/profilers attach/detach.")},
 #endif
     {"auto",
@@ -3226,11 +3384,10 @@ int initialize() {
     return -1;
   }
 
-#if PY_VERSION_HEX >= 0x030C0000
-  if (getConfig().support_monitoring) {
+  if (getConfig().support_instrumentation) {
     patchSysMonitoringFunctions(mod);
+    patchSysSetProfileAndSetTrace(mod);
   }
-#endif
 
   getMutableConfig().state = State::kRunning;
 
@@ -3282,6 +3439,7 @@ void finalize() {
   g_aot_ctx.destroy();
 
   restoreSysMonitoringRegisterCallback();
+  restoreSysSetProfileAndSetTrace();
 
   getMutableConfig().state = State::kNotInitialized;
 }

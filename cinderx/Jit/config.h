@@ -153,8 +153,9 @@ struct Config {
   // Whether or not to JIT specialized opcodes or to fall back to their generic
   // counterparts.
   bool specialized_opcodes{false};
-  // Support sys.monitoring (by falling back to the interpreter).
-  bool support_monitoring{false};
+  // Support instrumentation (monitoring/tracing/profiling) by falling back to
+  // the interpreter
+  bool support_instrumentation{false};
 
   // Add RefineType instructions for Static Python values before they get
   // typechecked.  Enabled by default as HIR doesn't pass through Static Python

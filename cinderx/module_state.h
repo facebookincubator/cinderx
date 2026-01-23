@@ -130,6 +130,22 @@ class ModuleState {
     orig_sys_monitoring_register_callback_ = Ref<>::create(func);
   }
 
+  BorrowedRef<> getOriginalSysSetProfile() const {
+    return orig_sys_setprofile_;
+  }
+
+  void setOriginalSysSetProfile(BorrowedRef<> func) {
+    orig_sys_setprofile_ = Ref<>::create(func);
+  }
+
+  BorrowedRef<> getOriginalSysSetTrace() const {
+    return orig_sys_settrace_;
+  }
+
+  void setOriginalSysSetTrace(BorrowedRef<> func) {
+    orig_sys_settrace_ = Ref<>::create(func);
+  }
+
   void setAnextAwaitableType(BorrowedRef<PyTypeObject> type) {
     anext_awaitable_type_ = Ref<PyTypeObject>::create(type);
   }
@@ -203,6 +219,8 @@ class ModuleState {
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
   Ref<> orig_sys_monitoring_register_callback_;
+  Ref<> orig_sys_setprofile_;
+  Ref<> orig_sys_settrace_;
 
   // Function and code objects ("units") registered for compilation.
   jit::UnorderedSet<BorrowedRef<>> registered_compilation_units;
