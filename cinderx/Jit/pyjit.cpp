@@ -3409,6 +3409,9 @@ void finalize() {
   // metadata that we will be freeing later in this function.
   PyUnstable_GC_VisitObjects(deopt_gen_visitor, nullptr);
 
+  JIT_DLOG(
+      "CinderX JIT Total Compilation Time: {}", jitCtx()->totalCompileTime());
+
   if (getConfig().log.dump_stats) {
     dump_jit_stats();
   }
