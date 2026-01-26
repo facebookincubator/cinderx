@@ -23,6 +23,18 @@ bool FlagProcessor::hasOptions() {
 Option& FlagProcessor::addOption(
     const std::string& cmdline_flag,
     const std::string& environment_variable,
+    const std::function<void()>& callback,
+    const std::string& flag_description) {
+  return addOption(
+      cmdline_flag,
+      environment_variable,
+      [=](const std::string&) { callback(); },
+      flag_description);
+}
+
+Option& FlagProcessor::addOption(
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
     const std::function<void(int)>& callback,
     const std::string& flag_description) {
   assert(!cmdline_flag.empty());
@@ -126,10 +138,19 @@ Option& FlagProcessor::addOption(
       cmdline_flag, environment_variable, setter, flag_description);
 }
 
-bool FlagProcessor::canHandle(std::string_view provided_option) {
+bool FlagProcessor::canHandle(std::string_view option_name) {
   for (auto const& option : options_) {
-    if (option->cmdline_flag == provided_option) {
+    if (option->cmdline_flag == option_name) {
       return true;
+    }
+  }
+  return false;
+}
+
+bool FlagProcessor::hasHandled(std::string_view option_name) {
+  for (auto const& option : options_) {
+    if (option->cmdline_flag == option_name) {
+      return option->handled;
     }
   }
   return false;
@@ -138,7 +159,9 @@ bool FlagProcessor::canHandle(std::string_view provided_option) {
 void FlagProcessor::setFlags(PyObject* cmdline_args) {
   assert(cmdline_args != nullptr);
 
-  for (auto const& option : options_) {
+  for (auto& option : options_) {
+    option->handled = false;
+
     PyObject* key = PyUnicode_FromString(option->cmdline_flag.c_str());
     assert(key != nullptr);
 
@@ -162,6 +185,7 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
     }
 
     if (!found.empty()) {
+      option->handled = true;
       // use overridden debug message if it's been defined
       JIT_DLOG(
           "{} has been specified - {}",

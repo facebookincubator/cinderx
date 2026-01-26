@@ -101,8 +101,6 @@ UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 std::atomic<int> g_compile_workers_attempted;
 std::atomic<int> g_compile_workers_retries;
 
-int jit_help = 0;
-
 uint64_t countCalls(PyCodeObject* code) {
 #if SHADOWCODE_SUPPORTED
   return code->co_mutable->ncalls;
@@ -317,8 +315,6 @@ size_t parse_sized_argument(const std::string& val) {
 }
 
 FlagProcessor initFlagProcessor() {
-  jit_help = 0;
-
   FlagProcessor flag_processor;
 
   // Flags are inspected in order of definition below.
@@ -733,7 +729,7 @@ FlagProcessor initFlagProcessor() {
       .withFlagParamName("DIRECTORY");
 
   flag_processor.addOption(
-      "jit-help", "", jit_help, "print all available JIT flags and exits");
+      "jit-help", "", [] {}, "print all available JIT flags and exits");
 
   flag_processor.addOption(
       "perf-trampoline-prefork-compilation",
@@ -3316,7 +3312,7 @@ int initialize() {
   }
 
   FlagProcessor flag_processor = initFlagProcessor();
-  if (jit_help) {
+  if (flag_processor.hasHandled("jit-help")) {
     std::cout << flag_processor.jitXOptionHelpMessage() << '\n';
     // Return rather than exit here for arg printing test doesn't end early.
     return -2;

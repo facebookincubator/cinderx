@@ -22,12 +22,12 @@ struct Option {
   // optional
   std::string flag_param_name;
   std::string debug_message;
-  bool hidden_flag = false;
+  bool hidden_flag{false};
 
-  Option() {}
+  // Whether this option was matched and its callback executed.
+  bool handled{false};
 
-  std::string getFormatted_cmdline_flag();
-  std::string getFormatted_environment_variable();
+  Option() = default;
 
   Option(
       const std::string& cmdline_flag,
@@ -61,6 +61,9 @@ struct Option {
     return *this;
   }
 
+  std::string getFormatted_cmdline_flag();
+  std::string getFormatted_environment_variable();
+
  private:
   std::string getFormatted(std::string);
 };
@@ -68,6 +71,11 @@ struct Option {
 struct FlagProcessor {
   // Register a callback to run on an option.
 
+  Option& addOption(
+      const std::string& cmdline_flag,
+      const std::string& environment_variable,
+      const std::function<void()>& callback_on_match,
+      const std::string& flag_description);
   Option& addOption(
       const std::string& cmdline_flag,
       const std::string& environment_variable,
@@ -123,7 +131,10 @@ struct FlagProcessor {
   bool hasOptions();
 
   // Return true if the option has been added and false otherwise.
-  bool canHandle(std::string_view provided_option);
+  bool canHandle(std::string_view option_name);
+
+  // Check if an option was matched and handled.
+  bool hasHandled(std::string_view option_name);
 
  private:
   std::vector<std::unique_ptr<Option>> options_;
