@@ -3647,6 +3647,10 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   if (jitCtx()) {
     jitCtx()->funcDestroyed(func);
   }
+
+  if (auto rt = Runtime::getUnchecked()) {
+    rt->clearFunctionEntryCache(func);
+  }
 }
 
 void funcModified(BorrowedRef<PyFunctionObject> func) {

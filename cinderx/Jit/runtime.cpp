@@ -165,7 +165,6 @@ void** Runtime::findFunctionEntryCache(PyFunctionObject* function) {
       std::piecewise_construct,
       std::forward_as_tuple(function),
       std::forward_as_tuple());
-  addReference(reinterpret_cast<PyObject*>(function));
   if (result.second) {
     result.first->second.ptr = pointer_caches_.allocate();
     // _PyClassLoader_HasPrimitiveArgs doesn't work well in multi-threaded
@@ -179,6 +178,10 @@ void** Runtime::findFunctionEntryCache(PyFunctionObject* function) {
     }
   }
   return result.first->second.ptr;
+}
+
+void Runtime::clearFunctionEntryCache(BorrowedRef<PyFunctionObject> function) {
+  function_entry_caches_.erase(function);
 }
 
 // See comments in findFunctionEntryCache.

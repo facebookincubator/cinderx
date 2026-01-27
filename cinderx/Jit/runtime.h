@@ -114,6 +114,8 @@ class Runtime : public IRuntime {
   // Find a cache for the indirect static entry point for a function.
   void** findFunctionEntryCache(PyFunctionObject* function);
 
+  void clearFunctionEntryCache(BorrowedRef<PyFunctionObject> function);
+
   // Checks to see if we already have an entry for indirect static entry point
   bool hasFunctionEntryCache(PyFunctionObject* function) const;
 
