@@ -45,6 +45,49 @@ constexpr auto reg_stack_pointer_loc = RSP;
 
 } // namespace jit::codegen::arch
 
+#elif defined(CINDER_AARCH64)
+
+#include "cinderx/Jit/codegen/arch/aarch64.h"
+
+#include <asmjit/arm/a64builder.h>
+#include <asmjit/arm/a64emitter.h>
+#include <asmjit/arm/a64operand.h>
+#include <asmjit/arm/armutils.h>
+
+namespace jit::codegen::arch {
+
+using Builder = asmjit::a64::Builder;
+using Emitter = asmjit::a64::Emitter;
+using Gp = asmjit::a64::Gp;
+using Mem = asmjit::a64::Mem;
+using Reg = asmjit::a64::Reg;
+using VecD = asmjit::a64::VecD;
+
+template <typename T>
+using EmitterExplicitT = asmjit::a64::EmitterExplicitT<T>;
+
+// If you change this register you'll also need to change the deopt
+// trampoline code that saves all registers.
+constexpr auto reg_scratch_deopt = asmjit::a64::x28;
+
+constexpr auto reg_scratch_0 = asmjit::a64::x12;
+constexpr auto reg_scratch_1 = asmjit::a64::x13;
+constexpr auto reg_scratch_br = asmjit::a64::x16;
+
+constexpr auto reg_scratch_0_loc = X12;
+
+constexpr auto reg_general_return_loc = X0;
+constexpr auto reg_general_auxilary_return_loc = X1;
+constexpr auto reg_double_return_loc = D0;
+constexpr auto reg_double_auxilary_return_loc = D1;
+constexpr auto reg_frame_pointer_loc = X29;
+constexpr auto reg_stack_pointer_loc = SP;
+
+constexpr auto fp = asmjit::a64::x29;
+constexpr auto lr = asmjit::a64::x30;
+
+} // namespace jit::codegen::arch
+
 #else
 
 #include "cinderx/Jit/codegen/arch/unknown.h"
@@ -79,6 +122,28 @@ constexpr auto reg_double_return_loc = D0;
 constexpr auto reg_double_auxilary_return_loc = D1;
 constexpr auto reg_frame_pointer_loc = R3;
 constexpr auto reg_stack_pointer_loc = SP;
+
+} // namespace jit::codegen::arch
+
+#endif
+
+#if defined(CINDER_AARCH64)
+
+namespace jit::codegen::arch {
+
+enum class AccessSize : int32_t { k8 = 1, k16 = 2, k32 = 4, k64 = 8 };
+
+asmjit::a64::Mem ptr_offset(
+    const asmjit::a64::Gp& base,
+    int32_t offset,
+    AccessSize access_size = AccessSize::k64);
+
+asmjit::a64::Mem ptr_resolve(
+    asmjit::a64::Builder* as,
+    const asmjit::a64::Gp& base,
+    int32_t offset,
+    const asmjit::a64::Gp& scratch,
+    AccessSize access_size = AccessSize::k64);
 
 } // namespace jit::codegen::arch
 

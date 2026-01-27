@@ -6,6 +6,13 @@
 
 #define CINDER_X86_64
 
+#elif defined(__aarch64__)
+
+#define CINDER_AARCH64
+
+// This is here until we have aarch64 support everywhere.
+#define CINDER_UNSUPPORTED
+
 #else
 
 #define CINDER_UNKNOWN
