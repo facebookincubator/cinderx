@@ -137,6 +137,9 @@ void JumpPatcher::linkJump(uintptr_t patchpoint, uintptr_t jump_target) {
   buf[0] = 0xe9;
   std::memcpy(buf.data() + 1, &disp, sizeof(uint32_t));
 #elif defined(CINDER_AARCH64)
+  JIT_CHECK(
+      disp % 4 == 0, "Jump displacement must be a multiple of 4, got {}", disp);
+
   disp /= 4;
   JIT_CHECK(fitsSignedInt<26>(disp), "Not enough bits to encode relative jump");
 
