@@ -123,23 +123,28 @@ class SlabArena {
   T* allocate(Args&&... args) {
     std::lock_guard<std::mutex> guard{mutex_};
 
+#ifndef WIN32
     if (mlocked_) {
       // It's not necessarily an error to allocate after locking but it's
       // probably not what we expect to happen in the common forking case.
       JIT_DLOG("Allocating while locked");
     }
+#endif
 
     void* mem = slabs_.back().allocate();
     if (mem == nullptr) {
       mem = slabs_.emplace_back(SizeTrait::size()).allocate();
       JIT_CHECK(mem != nullptr, "Empty slab failed to allocate");
+#ifndef WIN32
       if (mlocked_) {
         slabs_.back().mlock();
       }
+#endif
     }
     return new (mem) T(std::forward<Args>(args)...);
   }
 
+#ifndef WIN32
   // Pin the contents to physical memory.
   void mlock() {
     std::lock_guard<std::mutex> guard{mutex_};
@@ -155,6 +160,7 @@ class SlabArena {
       slab.munlock();
     }
   }
+#endif
 
   iterator begin() {
     return iterator{&slabs_};
@@ -167,7 +173,9 @@ class SlabArena {
  private:
   std::vector<Slab<T, kSlabSize>> slabs_;
   std::mutex mutex_;
+#ifndef WIN32
   bool mlocked_{false};
+#endif
 };
 
 } // namespace jit

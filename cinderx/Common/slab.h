@@ -4,7 +4,9 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#ifndef WIN32
 #include "sys/mman.h"
+#endif
 
 #include <cstddef>
 #include <cstdlib>
@@ -64,8 +66,13 @@ class Slab {
         increment >= sizeof(T),
         "Trying to fit a slab object into too little memory");
     void* ptr;
+#ifndef WIN32
     int result = posix_memalign(&ptr, kPageSize, kSlabSize);
     JIT_CHECK(result == 0, "Failed to allocate {} bytes", kSlabSize);
+#else
+    ptr = _aligned_malloc(kSlabSize, kPageSize);
+    JIT_CHECK(ptr != nullptr, "Failed to allocate {} bytes", kSlabSize);
+#endif
     base_.reset(static_cast<char*>(ptr));
     fill_ = base_.get();
   }
@@ -96,6 +103,7 @@ class Slab {
     return ptr;
   }
 
+#ifndef WIN32
   void mlock() {
     if (::mlock(base_.get(), kSlabSize) < 0) {
       JIT_LOG("Failed to mlock slab at {}", base_.get());
@@ -117,6 +125,7 @@ class Slab {
     }
     mlocks_--;
   }
+#endif
 
   iterator begin() const {
     return iterator{base_.get(), increment_};
