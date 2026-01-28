@@ -61,7 +61,10 @@ bool setHugePages([[maybe_unused]] void* ptr, [[maybe_unused]] size_t size) {
 
   auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
   JIT_LOG(
-      "Failed to madvise [{}, {}) with MADV_HUGEPAGE, errno=", ptr, end, errno);
+      "Failed to madvise [{}, {}) with MADV_HUGEPAGE, errno={}",
+      ptr,
+      end,
+      errno);
 #endif
 
   return false;
@@ -126,10 +129,10 @@ CodeAllocatorCinder::~CodeAllocatorCinder() {
 #ifndef WIN32
     JIT_CHECK(
         munmap(alloc.data(), alloc.size()) == 0, "Freeing code memory failed");
-  }
 #else
     VirtualFree(alloc.data(), 0, MEM_RELEASE);
 #endif
+  }
 }
 
 AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
@@ -209,7 +212,7 @@ MultipleSectionCodeAllocator::~MultipleSectionCodeAllocator() {
       munmap(code_alloc_, total_allocation_size_) == 0,
       "Freeing code sections failed");
 #else
-    VirtualFree(code_alloc_, 0, MEM_RELEASE);
+  VirtualFree(code_alloc_, 0, MEM_RELEASE);
 #endif
 }
 
