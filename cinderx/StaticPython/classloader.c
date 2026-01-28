@@ -20,6 +20,7 @@
 #include "cinder/exports.h"
 #endif
 
+#ifndef WIN32
 #include <dlfcn.h>
 
 // This is a dict containing a mapping of lib name to "handle"
@@ -31,6 +32,7 @@ static PyObject* dlopen_cache;
 // the raw address as returned by `dlsym()`.
 // Dict[Tuple[str, str], int]
 static PyObject* dlsym_cache;
+#endif
 
 int used_in_vtable(PyObject* value);
 
@@ -634,6 +636,7 @@ int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code) {
   return 0;
 }
 
+#ifndef WIN32
 static PyObject* invoke_native_helper = NULL;
 
 static inline int import_invoke_native() {
@@ -907,6 +910,7 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
   Py_DECREF(res);
   return addr;
 }
+#endif
 
 // Python list used to cache values
 static PyObject* value_cache;
