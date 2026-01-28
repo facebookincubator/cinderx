@@ -6,7 +6,12 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#ifdef WIN32
+#include <Windows.h>
+#include <memoryapi.h>
+#else
 #include <sys/mman.h>
+#endif
 
 #include <cstring>
 
@@ -27,6 +32,7 @@ constexpr size_t kAllocSize = 1024 * 1024 * 2;
 
 // Allocate memory for JIT'd code.
 uint8_t* allocPages(size_t size) {
+#ifndef WIN32
   void* res = mmap(
       nullptr,
       size,
@@ -38,6 +44,12 @@ uint8_t* allocPages(size_t size) {
       res != MAP_FAILED,
       "Failed to allocate {} bytes of memory for code",
       size);
+#else
+  void* res = VirtualAllocEx(
+      nullptr, nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+  JIT_CHECK(
+      res != nullptr, "Failed to allocate {} bytes of memory for code", size);
+#endif
   return static_cast<uint8_t*>(res);
 }
 
@@ -111,9 +123,13 @@ const asmjit::Environment& CodeAllocator::asmJitEnvironment() const {
 
 CodeAllocatorCinder::~CodeAllocatorCinder() {
   for (std::span<uint8_t> alloc : allocations_) {
+#ifndef WIN32
     JIT_CHECK(
         munmap(alloc.data(), alloc.size()) == 0, "Freeing code memory failed");
   }
+#else
+    VirtualFree(alloc.data(), 0, MEM_RELEASE);
+#endif
 }
 
 AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
@@ -188,9 +204,13 @@ MultipleSectionCodeAllocator::~MultipleSectionCodeAllocator() {
   if (code_alloc_ == nullptr) {
     return;
   }
+#ifndef WIN32
   JIT_CHECK(
       munmap(code_alloc_, total_allocation_size_) == 0,
       "Freeing code sections failed");
+#else
+    VirtualFree(code_alloc_, 0, MEM_RELEASE);
+#endif
 }
 
 /*
