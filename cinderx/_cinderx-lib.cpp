@@ -470,21 +470,41 @@ PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
 }
 #endif
 
-void ensurePyFunctionVectorcall(BorrowedRef<PyFunctionObject> func) {
+// Capture the default vectorcall entrypoint for functions.
+int ensurePyFunctionVectorcall() {
 #if PY_VERSION_HEX < 0x030F0000
-  if (!Ci_PyFunction_Vectorcall) {
-    // capture the original vectorcall function on the first function
-    // creation
-    Ci_PyFunction_Vectorcall = func->vectorcall;
+  // Picking a function that has a high chance of being implemented in Python,
+  // and is extremely likely to be loaded already.
+  const char* mod_name = "site";
+  const char* func_name = "addsitedir";
+
+  auto mod = Ref<>::steal(PyImport_ImportModule(mod_name));
+  if (mod == nullptr) {
+    return -1;
   }
+  auto obj = Ref<>::steal(PyObject_GetAttrString(mod, func_name));
+  if (obj == nullptr) {
+    return -1;
+  }
+  if (!PyFunction_Check(obj)) {
+    PyErr_Format(
+        PyExc_RuntimeError,
+        "Tried to load a Python function (%s.%s()) but got a '%.200s'",
+        mod_name,
+        func_name,
+        Py_TYPE(obj)->tp_name);
+    return -1;
+  }
+  BorrowedRef<PyFunctionObject> func{obj};
+  Ci_PyFunction_Vectorcall = func->vectorcall;
 #endif
+
+  return 0;
 }
 
 // Schedule a function to be JIT-compiled.  If that fails, then also try
 // compiling a perf trampoline for the Python function.
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
-  ensurePyFunctionVectorcall(func);
-
   bool scheduled =
       jit::shouldScheduleCompile(func) && jit::scheduleJitCompile(func);
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
@@ -778,9 +798,6 @@ int cinderx_func_watcher(
     PyObject* new_value) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
-      // Using Ci_PyFunction_Vectorcall before calling scheduleCompile, so we
-      // need to ensure that the global variable is defined.
-      ensurePyFunctionVectorcall(func);
       // Update the new function's vectorcall to have it run with Static Python
       // if it needs to.
       func->vectorcall = getInterpretedVectorcall(func);
@@ -1178,6 +1195,10 @@ PyMethodDef _cinderx_methods[] = {
 
 int _cinderx_exec_impl(PyObject* m) {
   cinderx::initStaticObjects();
+
+  // The JIT is going to need the Python function entrypoint during its
+  // initialization.
+  ensurePyFunctionVectorcall();
 
   // The state will be destroyed in module_free(), which gets called even if
   // this function exits early with an error.
