@@ -133,7 +133,7 @@ constexpr int kKiB = 1024;
 constexpr int kMiB = kKiB * kKiB;
 constexpr int kGiB = kKiB * kKiB * kKiB;
 
-#if defined(__x86_64__) || defined(__aarch64__)
+#if defined(__x86_64__) || defined(__aarch64__) || defined(_M_AMD64)
 constexpr int kPageSize = 4 * kKiB;
 #else
 #error Please define kPageSize for the current architecture

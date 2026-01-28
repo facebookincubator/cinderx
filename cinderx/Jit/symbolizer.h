@@ -6,10 +6,12 @@
 #include "cinderx/Jit/symbolizer_iface.h"
 
 #include <fcntl.h>
+#ifndef WIN32
 #include <sys/mman.h>
+#include <unistd.h>
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 
 #include <optional>
 #include <string>
