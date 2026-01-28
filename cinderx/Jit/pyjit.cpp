@@ -1890,6 +1890,17 @@ void deleteJitList() {
   cinderx::getModuleState()->setJitList(nullptr);
 }
 
+// Reschedule all functions on the JIT list for compilation.  Run when the JIT
+// list is modified.
+void rescheduleJitList() {
+  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
+    auto jit_list = cinderx::getModuleState()->jitList();
+    if (jit_list->lookupFunc(func)) {
+      scheduleJitCompile(func);
+    }
+  });
+}
+
 PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
   if (!PyUnicode_Check(arg)) {
     PyErr_Format(
@@ -1921,14 +1932,7 @@ PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  // Reset existing functions to have the JIT vectorcall entrypoint again if
-  // they're now on the JIT list.
-  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
-    auto jit_list = cinderx::getModuleState()->jitList();
-    if (jit_list->lookupFunc(func)) {
-      scheduleJitCompile(func);
-    }
-  });
+  rescheduleJitList();
 
   Py_RETURN_NONE;
 }
@@ -1964,14 +1968,7 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  // Reset existing functions to have the JIT vectorcall entrypoint again if
-  // they're now on the JIT list.
-  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
-    auto jit_list = cinderx::getModuleState()->jitList();
-    if (jit_list->lookupFunc(func)) {
-      scheduleJitCompile(func);
-    }
-  });
+  rescheduleJitList();
 
   Py_RETURN_NONE;
 }
@@ -3377,6 +3374,15 @@ int initialize() {
   getMutableConfig().state = State::kRunning;
 
   mod_state->setJitList(std::move(jit_list));
+
+  // JIT is now fully initialized.  If it was configured to run automatically on
+  // startup, start scheduling functions for compilation now.
+  if (auto compile_n = getConfig().compile_after_n_calls;
+      compile_n.has_value()) {
+    compile_after_n_calls_impl(*compile_n);
+  } else if (mod_state->jitList() != nullptr) {
+    rescheduleJitList();
+  }
 
   return 0;
 }
