@@ -153,6 +153,8 @@ void FrameAsm::emitIncTotalRefCount(const arch::Gp& scratch_reg) {
 #endif
 }
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+// TODO(T251571746): need to correctly implement FT incref.
 void FrameAsm::incRef(const arch::Gp& reg, const arch::Gp& scratch_reg) {
 #if defined(CINDER_X86_64)
   as_->mov(scratch_reg, x86::ptr(reg, offsetof(PyObject, ob_refcnt)));
@@ -171,6 +173,7 @@ void FrameAsm::incRef(const arch::Gp& reg, const arch::Gp& scratch_reg) {
   CINDER_UNSUPPORTED
 #endif
 }
+#endif
 
 bool FrameAsm::storeConst(
     const arch::Gp& reg,
@@ -358,6 +361,8 @@ void FrameAsm::linkLightWeightFunctionFrame(
     preserver.remap();
   }
 #else
+  // TODO(T251571746): For FTPython either need to set TLBC somewhere in here or
+  // in the reifier.
   throw std::runtime_error{
       "linkLightWeightFunctionFrame: Lightweight frames are not supported"};
 #endif

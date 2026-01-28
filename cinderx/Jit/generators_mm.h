@@ -52,6 +52,16 @@ class JitGenFreeList : public IJitGenFreeList {
   Entry* head_;
 };
 
+class JITGenFreeThreadedFreeList : public IJitGenFreeList {
+ public:
+  ~JITGenFreeThreadedFreeList() override = default;
+
+  std::pair<JitGenObject*, size_t> allocate(
+      BorrowedRef<PyCodeObject> code,
+      uint64_t jit_spill_words) override;
+  void free(PyObject* ptr) override;
+};
+
 } // namespace jit
 
 #endif // PY_VERSION_HEX >= 0x030C0000

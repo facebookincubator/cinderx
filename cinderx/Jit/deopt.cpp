@@ -2,6 +2,12 @@
 
 #include "cinderx/Jit/deopt.h"
 
+// clang-tidy off
+#include "cinderx/UpstreamBorrow/borrowed.h"
+// clang-tidy on
+
+#include "internal/pycore_ceval.h"
+
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
@@ -313,11 +319,18 @@ static void reifyFrameImpl(
     const uint64_t* regs) {
 #if PY_VERSION_HEX >= 0x030E0000
   BorrowedRef<PyCodeObject> code_obj = frameCode(frame);
+#ifdef Py_GIL_DISABLED
+  PyThreadState* tstate = _PyThreadState_GET();
+  frame->instr_ptr = _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
+  frame->tlbc_index = reinterpret_cast<_PyThreadStateImpl*>(tstate)->tlbc_index;
+#else
+  frame->instr_ptr = _PyCode_CODE(code_obj);
+#endif
   int cause_instr_idx = frame_meta.cause_instr_idx.value();
   // Resume with instr_ptr pointing to the cause instruction if we are entering
   // the interpreter to re-run a failed instruction, or implement an instruction
   // we don't JIT.
-  frame->instr_ptr = _PyCode_CODE(code_obj) + cause_instr_idx;
+  frame->instr_ptr += cause_instr_idx;
   if (&frame_meta != &meta.innermostFrame()) {
     // If we're not the inner most frame then we're always deopting
     // after the instruction that executed

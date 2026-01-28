@@ -816,7 +816,14 @@ void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
   jit::jitFrameClearExceptCode(frame);
+#if PY_VERSION_HEX >= 0x030E0000
+  // Can't use a plain decref as this needs to be symmetric with
+  // _PyFrame_Initialize() which uses PyStackRef_FromPyObjectNew() for
+  // f_executable.
+  PyStackRef_CLOSE(frame->f_executable);
+#else
   Py_DECREF(frameExecutable(frame));
+#endif
 
   if (jit::getConfig().frame_mode != jit::FrameMode::kLightweight) {
     Cix_PyThreadState_PopFrame(tstate, frame);

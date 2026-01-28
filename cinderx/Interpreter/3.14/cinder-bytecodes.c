@@ -466,6 +466,19 @@ dummy_func(
         }
 
         override inst(MAP_ADD, (dict_st, unused[oparg - 1], key, value -- dict_st, unused[oparg - 1])) {
+#ifdef Py_GIL_DISABLED
+            // T250369690: Need thread-safe checked collections
+            PyObject *dict = PyStackRef_AsPyObjectBorrow(dict_st);
+            assert(PyDict_CheckExact(dict));
+            /* dict[key] = value */
+            // Do not DECREF INPUTS because the function steals the references
+            int err = _PyDict_SetItem_Take2(
+                (PyDictObject *)dict,
+                PyStackRef_AsPyObjectSteal(key),
+                PyStackRef_AsPyObjectSteal(value)
+            );
+            ERROR_IF(err != 0);
+#else
             PyObject *dict = PyStackRef_AsPyObjectBorrow(dict_st);
             /* dict[key] = value */
             int err = Ci_DictOrChecked_SetItem(dict,
@@ -473,14 +486,22 @@ dummy_func(
                 PyStackRef_AsPyObjectBorrow(value));
             PyStackRef_CLOSE(value);
             PyStackRef_CLOSE(key);
+#endif
             ERROR_IF(err != 0);
         }
 
         override inst(LIST_APPEND, (list, unused[oparg-1], v -- list, unused[oparg-1])) {
+#ifdef Py_GIL_DISABLED
+            // T250369690: Need thread-safe checked collections
+            int err = _PyList_AppendTakeRef((PyListObject *)PyStackRef_AsPyObjectBorrow(list),
+                                           PyStackRef_AsPyObjectSteal(v));
+            ERROR_IF(err < 0);
+#else
             int err = Ci_ListOrCheckedList_Append(
                 (PyListObject*)PyStackRef_AsPyObjectBorrow(list), PyStackRef_AsPyObjectBorrow(v));
             PyStackRef_CLOSE(v);
             ERROR_IF(err < 0);
+#endif
         }
 
         override inst(EXTENDED_OPCODE, (args[oparg>>2] -- top[oparg&0x03])) {

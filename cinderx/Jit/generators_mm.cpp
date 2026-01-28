@@ -16,6 +16,35 @@
 
 namespace jit {
 
+namespace {
+
+size_t computeSlots(BorrowedRef<PyCodeObject> code, uint64_t jit_data_size) {
+  // A "slot" is the size of PyObject* and we assume this just means 64 bits for
+  // purposes of sizing allocation to cover JIT data.
+  static_assert(sizeof(uint64_t) == sizeof(PyObject*));
+  // +1 for the pointer to JIT data (GenDataFooter*)
+  return _PyFrame_NumSlotsForCodeObject(code) + 1 + ceilDiv(jit_data_size, 8);
+}
+
+std::pair<JitGenObject*, size_t> allocateNonFreeList(
+    size_t slots,
+    bool is_coro) {
+  BorrowedRef<PyTypeObject> gen_tp = cinderx::getModuleState()->genType();
+  // All the generator types should be the same size.
+  size_t size = _PyObject_VAR_SIZE(gen_tp, slots);
+
+  JitGenObject* gen = is_coro
+      ? reinterpret_cast<JitGenObject*>(PyObject_GC_NewVar(
+            PyCoroObject, cinderx::getModuleState()->coroType(), slots))
+      : reinterpret_cast<JitGenObject*>(
+            PyObject_GC_NewVar(PyGenObject, gen_tp, slots));
+  // See comment in allocate_and_link_interpreter_frame about failure.
+  JIT_CHECK(gen != nullptr, "Failed to allocate JitGenObject");
+  return {gen, size};
+}
+
+} // namespace
+
 JitGenFreeList:: // NOLINT(cppcoreguidelines-pro-type-member-init)
     JitGenFreeList() {
   Entry* next = nullptr;
@@ -72,13 +101,7 @@ std::pair<JitGenObject*, size_t> JitGenFreeList::allocate(
           !_PyType_HasFeature(gen_tp, Py_TPFLAGS_PREHEADER),
       "Unexpected pre-header setup");
 
-  // A "slot" is the size of PyObject* and we assume this just means 64 bits for
-  // purposes of sizing allocation to cover JIT data.
-  static_assert(sizeof(uint64_t) == sizeof(PyObject*));
-
-  // +1 for the pointer to JIT data (GenDataFooter*)
-  size_t slots =
-      _PyFrame_NumSlotsForCodeObject(code) + 1 + ceilDiv(jit_data_size, 8);
+  size_t slots = computeSlots(code, jit_data_size);
   // All the generator types should be the same size.
   size_t size = _PyObject_VAR_SIZE(gen_tp, slots);
   size_t total_size = sizeof(PyGC_Head) + size;
@@ -86,14 +109,7 @@ std::pair<JitGenObject*, size_t> JitGenFreeList::allocate(
   bool is_coro = !!(code->co_flags & CO_COROUTINE);
 
   if (!head_ || total_size > kGenFreeListEntrySize) {
-    JitGenObject* gen = is_coro
-        ? reinterpret_cast<JitGenObject*>(PyObject_GC_NewVar(
-              PyCoroObject, cinderx::getModuleState()->coroType(), slots))
-        : reinterpret_cast<JitGenObject*>(
-              PyObject_GC_NewVar(PyGenObject, gen_tp, slots));
-    // See comment in allocate_and_link_interpreter_frame about failure.
-    JIT_CHECK(gen != nullptr, "Failed to allocate JitGenObject");
-    return {gen, size};
+    return allocateNonFreeList(slots, is_coro);
   }
 
   void* raw = rawAllocate();
@@ -114,6 +130,18 @@ std::pair<JitGenObject*, size_t> JitGenFreeList::allocate(
   _PyObject_InitVar(op, tp, slots);
 
   return {reinterpret_cast<JitGenObject*>(op), size};
+}
+
+std::pair<JitGenObject*, size_t> JITGenFreeThreadedFreeList::allocate(
+    BorrowedRef<PyCodeObject> code,
+    uint64_t jit_data_size) {
+  size_t slots = computeSlots(code, jit_data_size);
+  bool is_coro = !!(code->co_flags & CO_COROUTINE);
+  return allocateNonFreeList(slots, is_coro);
+}
+
+void JITGenFreeThreadedFreeList::free(PyObject* ptr) {
+  PyObject_GC_Del(ptr);
 }
 
 } // namespace jit

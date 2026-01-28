@@ -39,16 +39,16 @@ TEST_F(RefTest, MoveConstruction) {
   auto dict = Ref<>::steal(PyDict_New());
   ASSERT_NE(dict, nullptr);
 
-  Py_ssize_t refcnt = dict->ob_refcnt;
+  Py_ssize_t refcnt = Py_REFCNT(dict);
   Ref<> dict2(std::move(dict));
   EXPECT_EQ(dict, nullptr);
   ASSERT_NE(dict2, nullptr);
-  EXPECT_EQ(dict2->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(dict2), refcnt);
 
   Ref<> dict3 = std::move(dict2);
   EXPECT_EQ(dict2, nullptr);
   ASSERT_NE(dict3, nullptr);
-  EXPECT_EQ(dict3->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(dict3), refcnt);
 
   // Functions that steal refs
   auto src4 = Ref<>::create(Py_None);
@@ -59,7 +59,7 @@ TEST_F(RefTest, MoveConstruction) {
 TEST_F(RefTest, MoveAssignment) {
   auto list = Ref<>::steal(PyList_New(2));
   ASSERT_NE(list, nullptr);
-  Py_ssize_t refcnt = list->ob_refcnt;
+  Py_ssize_t refcnt = Py_REFCNT(list);
 
   Ref<> list2;
   ASSERT_EQ(list2, nullptr);
@@ -67,23 +67,23 @@ TEST_F(RefTest, MoveAssignment) {
   list2 = std::move(list);
   EXPECT_EQ(list, nullptr);
   ASSERT_NE(list2, nullptr);
-  EXPECT_EQ(list2->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(list2), refcnt);
 
   // Self move
   Ref<>* listp = &list2;
   list2 = std::move(*listp);
   ASSERT_NE(list2, nullptr);
-  EXPECT_EQ(list2->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(list2), refcnt);
 }
 
 TEST_F(RefTest, StolenRefs) {
   // Managing new refs returned from runtime calls
   auto dict = Ref<>::steal(PyDict_New());
-  EXPECT_EQ(dict->ob_refcnt, 1);
+  EXPECT_EQ(Py_REFCNT(dict), 1);
 
   // Make the refcount behavior clear
   auto d = Ref<>(Ref<>::create(dict.get()));
-  EXPECT_EQ(dict->ob_refcnt, 2);
+  EXPECT_EQ(Py_REFCNT(dict), 2);
 }
 
 TEST_F(RefTest, Reset) {
@@ -97,15 +97,15 @@ TEST_F(RefTest, Reset) {
   ASSERT_EQ(ref, list.get());
 
   // Self reset
-  Py_ssize_t refcnt = ref->ob_refcnt;
+  Py_ssize_t refcnt = Py_REFCNT(ref);
   ref.reset(ref.get());
   ASSERT_EQ(ref, list.get());
-  EXPECT_EQ(ref->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(ref), refcnt);
 
   // Clear
   ref.reset();
   EXPECT_EQ(ref, nullptr);
-  EXPECT_EQ(list->ob_refcnt, refcnt - 1);
+  EXPECT_EQ(Py_REFCNT(list), refcnt - 1);
 }
 
 TEST_F(RefTest, UseInContainer) {
@@ -113,15 +113,15 @@ TEST_F(RefTest, UseInContainer) {
   auto dict = Ref<>::steal(PyDict_New());
   ASSERT_NE(dict, nullptr);
 
-  auto refcnt = dict->ob_refcnt;
+  auto refcnt = Py_REFCNT(dict);
   auto p = objs.emplace(Ref<>::create(dict.get()));
   EXPECT_TRUE(p.second);
-  EXPECT_EQ(dict->ob_refcnt, refcnt + 1);
+  EXPECT_EQ(Py_REFCNT(dict), refcnt + 1);
   EXPECT_FALSE(objs.emplace(Ref<>::create(dict.get())).second);
 
   EXPECT_EQ(objs.erase(dict), 1);
   EXPECT_EQ(objs.erase(Ref<>::create(dict.get())), 0);
-  EXPECT_EQ(dict->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(dict), refcnt);
 }
 
 TEST_F(BorrowedRefTest, Equality) {
@@ -149,11 +149,11 @@ TEST_F(BorrowedRefTest, ImplicitConversions) {
 
 TEST_F(BorrowedRefTest, Refcounting) {
   auto dict = Ref<>::steal(PyDict_New());
-  Py_ssize_t refcnt = dict->ob_refcnt;
+  Py_ssize_t refcnt = Py_REFCNT(dict);
 
   BorrowedRef<> bdict = dict;
-  EXPECT_EQ(bdict->ob_refcnt, refcnt);
-  EXPECT_EQ(dict->ob_refcnt, refcnt);
+  EXPECT_EQ(Py_REFCNT(bdict), refcnt);
+  EXPECT_EQ(Py_REFCNT(dict), refcnt);
 }
 
 TEST_F(BorrowedRefTest, MoveConstruction) {

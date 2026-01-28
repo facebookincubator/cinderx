@@ -74,7 +74,13 @@ bool immortalize(PyObject* obj) {
 }
 
 #if PY_VERSION_HEX >= 0x030C0000
-PyObject* immortalize_heap(PyObject* mod) {
+PyObject* immortalize_heap([[maybe_unused]] PyObject* mod) {
+#ifdef Py_GIL_DISABLED
+  PyErr_SetString(
+      PyExc_RuntimeError,
+      "Immortalizing the heap is not yet supported in FT Python");
+#else
+  // TODO(T251571267): Low priority for now.
   /* Remove any dead objects to avoid immortalizing them */
   PyGC_Collect();
 
@@ -95,8 +101,10 @@ PyObject* immortalize_heap(PyObject* mod) {
     Py_TYPE(FROM_GC(gc))
         ->tp_traverse(FROM_GC(gc), immortalize_visitor, nullptr);
   }
+#endif
 
   Py_RETURN_NONE;
+}
 #else
 PyObject* immortalize_heap(PyObject* /* mod */) {
   // for 3.10.cinder, we fall back to the implementation that ships in the gc
@@ -112,5 +120,5 @@ PyObject* immortalize_heap(PyObject* /* mod */) {
     return nullptr;
   }
   return Ref<>::steal(PyObject_CallFunctionObjArgs(immortalize, nullptr));
-#endif
 }
+#endif

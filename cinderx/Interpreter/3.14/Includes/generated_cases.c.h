@@ -9445,6 +9445,13 @@
             _PyStackRef v;
             v = stack_pointer[-1];
             list = stack_pointer[-2 - (oparg-1)];
+            #if Py_GIL_DISABLED
+            int err = _PyList_AppendTakeRef((PyListObject *)PyStackRef_AsPyObjectBorrow(list),
+                PyStackRef_AsPyObjectSteal(v));
+            if (err < 0) {
+                JUMP_TO_LABEL(pop_1_error);
+            }
+            #else
             _PyFrame_SetStackPointer(frame, stack_pointer);
             int err = Ci_ListOrCheckedList_Append(
                 (PyListObject*)PyStackRef_AsPyObjectBorrow(list), PyStackRef_AsPyObjectBorrow(v));
@@ -9457,6 +9464,10 @@
             if (err < 0) {
                 JUMP_TO_LABEL(error);
             }
+            stack_pointer += 1;
+            #endif
+            stack_pointer += -1;
+            assert(WITHIN_STACK_BOUNDS());
             DISPATCH();
         }
 
@@ -11556,6 +11567,20 @@
             value = stack_pointer[-1];
             key = stack_pointer[-2];
             dict_st = stack_pointer[-3 - (oparg - 1)];
+            #if Py_GIL_DISABLED
+            PyObject *dict = PyStackRef_AsPyObjectBorrow(dict_st);
+            assert(PyDict_CheckExact(dict));
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            int err = _PyDict_SetItem_Take2(
+                (PyDictObject *)dict,
+                PyStackRef_AsPyObjectSteal(key),
+                PyStackRef_AsPyObjectSteal(value)
+            );
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            if (err != 0) {
+                JUMP_TO_LABEL(pop_2_error);
+            }
+            #else
             PyObject *dict = PyStackRef_AsPyObjectBorrow(dict_st);
             _PyFrame_SetStackPointer(frame, stack_pointer);
             int err = Ci_DictOrChecked_SetItem(dict,
@@ -11572,9 +11597,13 @@
             _PyFrame_SetStackPointer(frame, stack_pointer);
             PyStackRef_CLOSE(key);
             stack_pointer = _PyFrame_GetStackPointer(frame);
+            stack_pointer += 2;
+            #endif
             if (err != 0) {
-                JUMP_TO_LABEL(error);
+                JUMP_TO_LABEL(pop_2_error);
             }
+            stack_pointer += -2;
+            assert(WITHIN_STACK_BOUNDS());
             DISPATCH();
         }
 

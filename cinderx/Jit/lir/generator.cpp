@@ -60,7 +60,9 @@ namespace jit::lir {
 
 namespace {
 
+#ifndef Py_GIL_DISABLED
 constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
+#endif
 
 // These functions call their counterparts and convert its output from int (32
 // bits) to uint64_t (64 bits). This is solely because the code generator cannot
@@ -468,7 +470,7 @@ void LIRGenerator::MakeIncref(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
     bool xincref,
-    bool possible_immortal) {
+    [[maybe_unused]] bool possible_immortal) {
   auto end_incref = bbb.allocateBlock();
   if (xincref) {
     auto cont = bbb.allocateBlock();
@@ -476,6 +478,10 @@ void LIRGenerator::MakeIncref(
     bbb.appendBlock(cont);
   }
 
+#ifdef Py_GIL_DISABLED
+  // TODO(T250369689): Ideally we'd have a more optimized implementation for FT.
+  bbb.appendInvokeInstruction(Py_IncRef, instr);
+#else
   // If this could be an immortal object then we need to load the refcount as a
   // 32-bit integer to see if it overflows on increment, indicating that it's
   // immortal.  For mortal objects the refcount is a regular 64-bit integer.
@@ -504,6 +510,7 @@ void LIRGenerator::MakeIncref(
   }
 
   updateRefTotal(bbb, Instruction::kInc);
+#endif
 
   bbb.appendBlock(end_incref);
 }
@@ -529,9 +536,9 @@ void LIRGenerator::MakeIncref(
 void LIRGenerator::MakeDecref(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
-    std::optional<destructor> destructor,
+    [[maybe_unused]] std::optional<destructor> destructor,
     bool xdecref,
-    bool possible_immortal) {
+    [[maybe_unused]] bool possible_immortal) {
   auto end_decref = bbb.allocateBlock();
   if (xdecref) {
     auto cont = bbb.allocateBlock();
@@ -539,6 +546,10 @@ void LIRGenerator::MakeDecref(
     bbb.appendBlock(cont);
   }
 
+#ifdef Py_GIL_DISABLED
+  // TODO(T250369689): Ideally we'd have a more optimized implementation for FT.
+  bbb.appendInvokeInstruction(Py_DecRef, instr);
+#else
   Instruction* r1 = bbb.appendInstr(
       OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
 
@@ -569,6 +580,7 @@ void LIRGenerator::MakeDecref(
   } else {
     bbb.appendInvokeInstruction(_Py_Dealloc, instr);
   }
+#endif
 
   bbb.appendBlock(end_decref);
 }
@@ -2486,7 +2498,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const SetDictItem*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
+#ifdef Py_GIL_DISABLED
+            // TODO(T250369690): Need thread-safe checked collections
+            PyDict_SetItem,
+#else
             Ci_DictOrChecked_SetItem,
+#endif
             instr->GetOperand(0),
             instr->GetOperand(1),
             instr->GetOperand(2));
@@ -2655,7 +2672,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         bbb.appendCallInstruction(
             instr->output(),
+#ifdef Py_GIL_DISABLED
+            // TODO(T250369690): Need thread-safe checked collections
+            PyList_Append,
+#else
             Ci_ListOrCheckedList_Append,
+#endif
             instr->GetOperand(0),
             instr->GetOperand(1));
         break;

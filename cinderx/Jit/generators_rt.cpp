@@ -798,7 +798,12 @@ void init_jit_genobject_type() {
   copy_methods(PyGen_Type.tp_methods, gen_type->tp_methods);
   copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
+#ifdef Py_GIL_DISABLED
+  cinderx::getModuleState()->setJitGenFreeList(
+      new JITGenFreeThreadedFreeList());
+#else
   cinderx::getModuleState()->setJitGenFreeList(new JitGenFreeList());
+#endif
 
   // Override dealloc so we can use a "free-list" for our objects.
   JIT_CHECK(

@@ -285,7 +285,20 @@ class ThreadedRef : public RefBase<T> {
   static void incref(PyObject* obj) {
     if (obj != nullptr && !_Py_IsImmortal(obj)) {
       incref_total(ThreadedCompileContext::interpreter());
+#ifdef Py_GIL_DISABLED
+      uint32_t local = _Py_atomic_load_uint32_relaxed(&obj->ob_ref_local);
+      uint32_t new_local = local + 1;
+      if (new_local == 0) {
+        return;
+      }
+      if (_Py_IsOwnedByCurrentThread(obj)) {
+        _Py_atomic_store_uint32_relaxed(&obj->ob_ref_local, new_local);
+      } else {
+        _Py_atomic_add_ssize(&obj->ob_ref_shared, (1 << _Py_REF_SHARED_SHIFT));
+      }
+#else
       obj->ob_refcnt++;
+#endif
     }
   }
 
@@ -298,9 +311,25 @@ class ThreadedRef : public RefBase<T> {
   static void decref(PyObject* obj) {
     if (obj != nullptr && !_Py_IsImmortal(obj)) {
       decref_total(ThreadedCompileContext::interpreter());
+#ifdef Py_GIL_DISABLED
+      uint32_t local = _Py_atomic_load_uint32_relaxed(&obj->ob_ref_local);
+      if (local == _Py_IMMORTAL_REFCNT_LOCAL) {
+        return;
+      }
+      if (_Py_IsOwnedByCurrentThread(obj)) {
+        local--;
+        _Py_atomic_store_uint32_relaxed(&obj->ob_ref_local, local);
+        if (local == 0) {
+          _Py_MergeZeroLocalRefcount(obj);
+        }
+      } else {
+        _Py_DecRefShared(obj);
+      }
+#else
       if (--obj->ob_refcnt == 0) {
         _Py_Dealloc((PyObject*)obj);
       }
+#endif
     }
   }
 

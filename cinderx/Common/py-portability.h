@@ -240,7 +240,7 @@ inline PyObject* frameExecutable(_PyInterpreterFrame* frame) {
     *_tmp_dst_ptr = PyStackRef_FromPyObjectSteal(VAL); \
     PyStackRef_XCLOSE(_tmp_old_dst);                   \
   } while (0)
-#define Ci_STACK_NEWREF(VAL) _PyStackRef_FromPyObjectNew(VAL)
+#define Ci_STACK_NEWREF(VAL) PyStackRef_FromPyObjectNew(VAL)
 #define Ci_STACK_CLOSE(VAL) PyStackRef_CLOSE(VAL)
 #define Ci_STACK_XCLOSE(VAL) PyStackRef_XCLOSE(VAL)
 

@@ -12,6 +12,22 @@
 // be renamed for it's definition in CinderX.
 // Some of these also get included before we include borrowed.h, in which case
 // we also need function prototypes for them.
+
+#ifdef Py_GIL_DISABLED
+#define _PyCode_GetTLBC _CiCode_GetTLBC
+#define _PyDict_KeysSize _CiDict_KeysSize
+#define _PyList_GetItemRef _CiList_GetItemRef
+#define _PyList_GetItemRefNoLock _CiList_GetItemRefNoLock
+#define _Py_ExplicitMergeRefcount _Ci_ExplicitMergeRefcount
+#define _PyMem_FreeDelayed _CiMem_FreeDelayed
+#define _PyMem_ProcessDelayed _CiMem_ProcessDelayed
+#define _PyCode_Quicken _CiCode_Quicken
+#define _Py_qsbr_advance _Ci_qsbr_advance
+#define _Py_qsbr_shared_next _Ci_qsbr_shared_next
+#define _Py_qsbr_poll _Ci_qsbr_poll
+#define _Py_AddRefTotal _Ci_AddRefTotal
+#endif
+
 #define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
 #define _PyObject_HasLen _CiPyObject_HasLen
 #define _PyFrame_ClearLocals _CiFrame_ClearLocals
@@ -148,6 +164,13 @@ extern "C" {
 #if PY_VERSION_HEX >= 0x030E0000
 // Function prototypes for the huge list of redefinitions above that
 // get imported before borrowed.h
+
+#ifdef Py_GIL_DISABLED
+_Py_CODEUNIT* _PyCode_GetTLBC(PyCodeObject* co);
+void _PyMem_FreeDelayed(void* ptr, size_t size);
+void _PyMem_ProcessDelayed(PyThreadState* tstate);
+#endif
+
 _PyErr_StackItem* _PyErr_GetTopmostException(PyThreadState* tstate);
 int _PyObject_HasLen(PyObject* o);
 
@@ -281,7 +304,7 @@ void Cix_format_exc_check_arg(
     PyObject* obj);
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030C0000 && !defined(Py_GIL_DISABLED)
 PyObject* Cix_gc_freeze_impl(PyObject* module);
 #endif
 

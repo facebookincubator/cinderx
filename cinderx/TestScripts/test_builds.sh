@@ -13,3 +13,5 @@ function test_for_version() {
 test_for_version 3.10
 test_for_version 3.12
 test_for_version 3.14
+test_for_version 3.14t
+test_for_version 3.15
