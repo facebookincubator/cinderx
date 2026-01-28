@@ -45,8 +45,8 @@ uint8_t* allocPages(size_t size) {
       "Failed to allocate {} bytes of memory for code",
       size);
 #else
-  void* res = VirtualAllocEx(
-      nullptr, nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+  void* res = VirtualAlloc(
+      nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
   JIT_CHECK(
       res != nullptr, "Failed to allocate {} bytes of memory for code", size);
 #endif
