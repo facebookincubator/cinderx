@@ -1197,7 +1197,7 @@ TypedArgument::TypedArgument(
 
 TypedArgument::~TypedArgument() {
   ThreadedCompileSerialize guard;
-  pytype.release();
+  pytype.reset();
 }
 
 TypedArgument::TypedArgument(const TypedArgument& other)
