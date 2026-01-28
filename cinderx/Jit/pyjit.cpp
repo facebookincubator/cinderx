@@ -137,16 +137,6 @@ bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
   return hir::preloaderManager().find(func) != nullptr;
 }
 
-_PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
-  _PyJIT_Result result = compileFunction(func);
-  // Reset the function back to the interpreter if there was any non-retryable
-  // failure.
-  if (result != PYJIT_RESULT_OK && result != PYJIT_RESULT_RETRY) {
-    func->vectorcall = getInterpretedVectorcall(func);
-  }
-  return result;
-}
-
 void incrementShadowcodeCall([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
 #if SHADOWCODE_SUPPORTED
   // The interpreter will only increment up to the shadowcode threshold
@@ -172,46 +162,35 @@ PyObject* forcedJitVectorcall(
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
 
-  _PyJIT_Result result = tryCompile(func);
+  _PyJIT_Result result = compileFunction(func);
   if (result == PYJIT_RESULT_OK) {
     JIT_DCHECK(
         isJitCompiled(func),
         "JIT succeeded for function {} but it is not recognized as compiled",
         funcFullname(func));
-  } else {
-    JIT_DCHECK(
-        !isJitCompiled(func),
-        "JIT failed (error: {}) for function {} but it seems to have been "
-        "compiled",
-        result,
-        funcFullname(func));
+    return func->vectorcall(func_obj, stack, nargsf, kwnames);
   }
 
-  switch (result) {
-    case PYJIT_RESULT_OK:
-      return func->vectorcall(func_obj, stack, nargsf, kwnames);
-    case PYJIT_RESULT_RETRY: {
-      incrementShadowcodeCall(code);
-      auto entry = getInterpretedVectorcall(func);
-      return entry(func_obj, stack, nargsf, kwnames);
-    }
-    case PYJIT_RESULT_CANNOT_SPECIALIZE:
-    case PYJIT_RESULT_NOT_ON_JITLIST:
-    case PYJIT_NOT_INITIALIZED:
-    case PYJIT_RESULT_NO_PRELOADER:
-    case PYJIT_RESULT_UNKNOWN_ERROR:
-    case PYJIT_OVER_MAX_CODE_SIZE:
-      return func->vectorcall(func_obj, stack, nargsf, kwnames);
-    case PYJIT_RESULT_PYTHON_EXCEPTION:
-      return nullptr;
-    default:
-      break;
+  auto interp_entry = getInterpretedVectorcall(func);
+
+  // Python errors shouldn't happen during compilation, but if they do, bubble
+  // them up without calling the function.
+  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
+    func->vectorcall = interp_entry;
+    return nullptr;
   }
 
-  JIT_ABORT(
-      "Unrecognized JIT result code {} for function {}",
-      static_cast<int>(result),
-      funcFullname(func));
+  // Reset the function's entrypoint if it doesn't seem like there's a chance
+  // compilation will work "soon".
+  if (result != PYJIT_RESULT_ALREADY_SCHEDULED &&
+      result != PYJIT_RESULT_PAUSED) {
+    func->vectorcall = interp_entry;
+  }
+
+  // There's been some kind of compilation error, explicitly call the
+  // interpreted entrypoint instead.
+  incrementShadowcodeCall(code);
+  return interp_entry(func_obj, stack, nargsf, kwnames);
 }
 
 // Python function entry point when the JIT is enabled.
@@ -997,7 +976,7 @@ void compile_worker_thread() {
   while (BorrowedRef<> unit = getThreadedCompileContext().nextUnit()) {
     attempts++;
     _PyJIT_Result res = tryCompilePreloaded(unit);
-    if (res == PYJIT_RESULT_RETRY) {
+    if (res == PYJIT_RESULT_ALREADY_SCHEDULED) {
       retries++;
       getThreadedCompileContext().retryUnit(unit);
     }
@@ -1592,22 +1571,29 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
   if (func == nullptr) {
     return nullptr;
   }
-
   if (!isJitUsable() || isJitCompiled(func)) {
     Py_RETURN_FALSE;
   }
 
-  switch (compileFunction(func)) {
+  _PyJIT_Result result = compileFunction(func);
+  switch (result) {
     case PYJIT_RESULT_OK:
       Py_RETURN_TRUE;
+    case PYJIT_RESULT_ALREADY_SCHEDULED:
+      // Strange case, the function is being compiled by a different thread.
+      // Shouldn't happen, but don't die if it does.
+      Py_RETURN_FALSE;
+    case PYJIT_RESULT_PAUSED:
+      PyErr_SetString(
+          PyExc_RuntimeError,
+          "Compilation failed because the JIT was paused, but that shouldn't "
+          "be possible as this case was already checked");
+      return nullptr;
     case PYJIT_RESULT_CANNOT_SPECIALIZE:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_CANNOT_SPECIALIZE");
       return nullptr;
     case PYJIT_RESULT_NOT_ON_JITLIST:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_NOT_ON_JITLIST");
-      return nullptr;
-    case PYJIT_RESULT_RETRY:
-      PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_RETRY");
       return nullptr;
     case PYJIT_RESULT_UNKNOWN_ERROR:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_UNKNOWN_ERROR");
@@ -1624,7 +1610,10 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     case PYJIT_RESULT_PYTHON_EXCEPTION:
       return nullptr;
   }
-  PyErr_SetString(PyExc_RuntimeError, "Unhandled compilation result");
+  PyErr_Format(
+      PyExc_RuntimeError,
+      "Unhandled compilation result: %d",
+      static_cast<int>(result));
   return nullptr;
 }
 
@@ -3516,7 +3505,7 @@ _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return PYJIT_NOT_INITIALIZED;
   }
   if (isJitPaused()) {
-    return PYJIT_RESULT_RETRY;
+    return PYJIT_RESULT_PAUSED;
   }
   if (!isJitUsable()) {
     return PYJIT_RESULT_UNKNOWN_ERROR;
@@ -3724,7 +3713,7 @@ Context::CompilationResult compilePreloaderImpl(
       return {compiled, PYJIT_RESULT_OK};
     }
     if (!jit_ctx->addActiveCompile(key)) {
-      return {nullptr, PYJIT_RESULT_RETRY};
+      return {nullptr, PYJIT_RESULT_ALREADY_SCHEDULED};
     }
   }
 

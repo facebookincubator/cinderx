@@ -27,10 +27,11 @@ typedef enum {
   /* Someone tried to compile a function but the JIT is not initialized. */
   PYJIT_NOT_INITIALIZED,
 
-  /* During threaded compile we may end compiling the same code twice in
-     different contexts. If you get this response, you should retry later
-     or give up as best fits the case. */
-  PYJIT_RESULT_RETRY,
+  /* Function is being scheduled for compilation across multiple threads. */
+  PYJIT_RESULT_ALREADY_SCHEDULED,
+
+  /* Compilation didn't happen because the JIT is currently paused. */
+  PYJIT_RESULT_PAUSED,
 
   /* We are compiling with preload required, but did not find a preloader. */
   PYJIT_RESULT_NO_PRELOADER,
