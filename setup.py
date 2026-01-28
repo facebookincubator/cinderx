@@ -73,6 +73,12 @@ def get_compiler() -> tuple[str, str]:
     Returns:
         A tuple of (c_compiler, cxx_compiler) paths.
     """
+    cc_path = os.environ.get("CC")
+    cxx_path = os.environ.get("CXX")
+    if cc_path and cxx_path:
+        print(f"Using CC and CXX from environment: {cc_path}, {cxx_path}")
+        return (cc_path, cxx_path)
+
     gcc_path = shutil.which("gcc")
     gxx_path = shutil.which("g++")
 
