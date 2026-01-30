@@ -2946,7 +2946,13 @@ _PyObject_HasLen(PyObject *o) {
 #  endif
 #endif
 #ifdef MS_WINDOWS
+#  ifdef PYMALLOC_USE_HUGEPAGES
+#  endif
 #elif defined(ARENAS_USE_MMAP)
+#  ifdef PYMALLOC_USE_HUGEPAGES
+#    ifdef MAP_HUGETLB
+#    endif
+#  endif
 #else
 #endif
 #if defined(ARENAS_USE_MMAP)
