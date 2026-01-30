@@ -1323,7 +1323,6 @@ std::ostream& operator<<(std::ostream& os, OperandType op) {
       return os << "Primitive";
   }
   JIT_ABORT("unknown constraint");
-  return os << "<unknown>";
 }
 
 const FrameState* get_frame_state(const Instr& instr) {

@@ -62,7 +62,6 @@ bool registerTypeMatches(Type op_type, OperandType expected_type) {
           op_type <= TCDouble || op_type <= TCPtr;
   }
   JIT_ABORT("unknown constraint");
-  return false;
 }
 
 bool operandsMustMatch(OperandType op_type) {
@@ -80,7 +79,6 @@ bool operandsMustMatch(OperandType op_type) {
       return false;
   }
   JIT_ABORT("unknown constraint");
-  return false;
 }
 
 bool funcTypeChecks(const Function& func, std::ostream& err) {
