@@ -62,7 +62,7 @@ void HIRStats::Stats::dump(std::string_view function_name) const {
   };
 
   std::string result = fmt::format(
-      "{{\"function\": \"{}\", \"instructions\": {{",
+      R"({{"function": "{}", "instructions": {{)",
       escapeJsonString(function_name));
   bool first = true;
   for (const auto& [name, count] : instrs) {
