@@ -2945,6 +2945,10 @@ _PyObject_HasLen(PyObject *o) {
 #    endif
 #  endif
 #endif
+#if defined(PYMALLOC_USE_HUGEPAGES) && defined(ARENAS_USE_MMAP) && defined(MAP_HUGETLB)
+#ifdef __linux__
+#endif
+#endif
 #ifdef MS_WINDOWS
 #  ifdef PYMALLOC_USE_HUGEPAGES
 #  endif
@@ -5661,12 +5665,26 @@ static PyObject *
 gen_getyieldfrom(PyObject *self, void *Py_UNUSED(ignored))
 {
     PyGenObject *gen = _PyGen_CAST(self);
-    int8_t frame_state = FT_ATOMIC_LOAD_INT8_RELAXED(gen->gi_frame_state);
+#ifdef Py_GIL_DISABLED
+    int8_t frame_state = _Py_atomic_load_int8_relaxed(&gen->gi_frame_state);
+    do {
+        if (frame_state != FRAME_SUSPENDED_YIELD_FROM &&
+            frame_state != FRAME_SUSPENDED_YIELD_FROM_LOCKED)
+        {
+            Py_RETURN_NONE;
+        }
+    } while (!_Py_GEN_TRY_SET_FRAME_STATE(gen, frame_state, FRAME_SUSPENDED_YIELD_FROM_LOCKED));
+
+    PyObject *result = PyStackRef_AsPyObjectNew(_PyFrame_StackPeek(&gen->gi_iframe));
+    _Py_atomic_store_int8_release(&gen->gi_frame_state, FRAME_SUSPENDED_YIELD_FROM);
+    return result;
+#else
+    int8_t frame_state = gen->gi_frame_state;
     if (frame_state != FRAME_SUSPENDED_YIELD_FROM) {
         Py_RETURN_NONE;
     }
-    // TODO: still not thread-safe with free threading
     return PyStackRef_AsPyObjectNew(_PyFrame_StackPeek(&gen->gi_iframe));
+#endif
 }
 PyObject * _PyGen_yf(PyGenObject *gen) {
   PyObject *res = gen_getyieldfrom((PyObject *)gen, NULL);
