@@ -2,8 +2,10 @@
 
 # pyre-unsafe
 
-import multiprocessing
+import subprocess
 import sys
+import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -19,7 +21,7 @@ from cinderx.jit import (
     lazy_compile,
     pause as pause_jit,
 )
-from cinderx.test_support import passUnless
+from cinderx.test_support import passUnless, subprocess_env
 
 
 @passUnless(is_jit_enabled(), "Tests functionality on the JIT")
@@ -204,74 +206,67 @@ class DisableEnableTests(unittest.TestCase):
         # detection.
         force_uncompile(foo)
 
-    @staticmethod
-    def compile_no_config_test() -> None:
-        import cinderx.jit
-
-        def inc(x):
-            return x + 1
-
-        assert not cinderx.jit.is_jit_compiled(inc)
-        cinderx.jit.force_compile(inc)
-        assert cinderx.jit.is_jit_compiled(inc)
-
     def test_compile_no_config(self) -> None:
         """
         Test how code behaves when it forces compilation without any other
         configuration or options enabled.
         """
 
-        p = multiprocessing.Process(target=DisableEnableTests.compile_no_config_test)
-        p.start()
-        p.join()
-        self.assertEqual(p.exitcode, 0)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
 
-    @staticmethod
-    def auto_test() -> None:
-        import cinderx.jit
+            def inc(x):
+                return x + 1
 
-        def predefined(x):
-            return x + x
+            assert not cinderx.jit.is_jit_compiled(inc)
+            cinderx.jit.force_compile(inc)
+            assert cinderx.jit.is_jit_compiled(inc)
+            """)
 
-        cinderx.jit.auto()
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
 
-        def inc(x):
-            return x + 1
-
-        assert not cinderx.jit.is_jit_compiled(inc)
-        for i in range(1000):
-            inc(i)
-        assert not cinderx.jit.is_jit_compiled(inc)
-
-        inc(1001)
-        assert cinderx.jit.is_jit_compiled(inc)
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
 
     def test_auto(self) -> None:
         """
         Basic test for cinderx.jit.auto().
         """
 
-        p = multiprocessing.Process(target=DisableEnableTests.auto_test)
-        p.start()
-        p.join()
-        self.assertEqual(p.exitcode, 0)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
 
-    @staticmethod
-    def auto_predefined_test() -> None:
-        import cinderx.jit
+            def predefined(x):
+                return x + x
 
-        def predefined(x):
-            return x + x
+            cinderx.jit.auto()
 
-        cinderx.jit.auto()
+            def inc(x):
+                return x + 1
 
-        assert not cinderx.jit.is_jit_compiled(predefined)
-        for i in range(1000):
-            predefined(i)
-        assert not cinderx.jit.is_jit_compiled(predefined)
+            assert not cinderx.jit.is_jit_compiled(inc)
+            for i in range(1000):
+                inc(i)
+            assert not cinderx.jit.is_jit_compiled(inc)
 
-        predefined(1001)
-        assert cinderx.jit.is_jit_compiled(predefined)
+            inc(1001)
+            assert cinderx.jit.is_jit_compiled(inc)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
 
     def test_auto_predefined(self) -> None:
         """
@@ -279,74 +274,82 @@ class DisableEnableTests(unittest.TestCase):
         before it was called.
         """
 
-        p = multiprocessing.Process(target=DisableEnableTests.auto_predefined_test)
-        p.start()
-        p.join()
-        self.assertEqual(p.exitcode, 0)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
 
-    @staticmethod
-    def compile_after_n_calls_test() -> None:
-        import cinderx.jit
+            def predefined(x):
+                return x + x
 
-        cinderx.jit.compile_after_n_calls(2)
+            cinderx.jit.auto()
 
-        def inc(x):
-            return x + 1
+            assert not cinderx.jit.is_jit_compiled(predefined)
+            for i in range(1000):
+                predefined(i)
+            assert not cinderx.jit.is_jit_compiled(predefined)
 
-        assert not cinderx.jit.is_jit_compiled(inc)
-        inc(1)
-        inc(2)
-        assert not cinderx.jit.is_jit_compiled(inc)
+            predefined(1001)
+            assert cinderx.jit.is_jit_compiled(predefined)
+            """)
 
-        inc(3)
-        assert cinderx.jit.is_jit_compiled(inc)
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
 
-        # Change the setting and see it takes affect.
-
-        cinderx.jit.compile_after_n_calls(5)
-
-        def dec(x):
-            return x - 1
-
-        assert not cinderx.jit.is_jit_compiled(dec)
-        dec(1)
-        dec(2)
-        dec(3)
-        dec(4)
-        dec(5)
-        assert not cinderx.jit.is_jit_compiled(dec)
-
-        dec(6)
-        assert cinderx.jit.is_jit_compiled(dec)
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
 
     def test_compile_after_n_calls(self) -> None:
         """
         Basic test for cinderx.jit.compile_after_n_calls().
         """
 
-        p = multiprocessing.Process(
-            target=DisableEnableTests.compile_after_n_calls_test
-        )
-        p.start()
-        p.join()
-        self.assertEqual(p.exitcode, 0)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
 
-    @staticmethod
-    def compile_after_n_calls_predefined_test() -> None:
-        import cinderx.jit
+            cinderx.jit.compile_after_n_calls(2)
 
-        def predefined(x):
-            return x + x
+            def inc(x):
+                return x + 1
 
-        cinderx.jit.compile_after_n_calls(2)
+            assert not cinderx.jit.is_jit_compiled(inc)
+            inc(1)
+            inc(2)
+            assert not cinderx.jit.is_jit_compiled(inc)
 
-        assert not cinderx.jit.is_jit_compiled(predefined)
-        predefined(1)
-        predefined(2)
-        assert not cinderx.jit.is_jit_compiled(predefined)
+            inc(3)
+            assert cinderx.jit.is_jit_compiled(inc)
 
-        predefined(3)
-        assert cinderx.jit.is_jit_compiled(predefined)
+            # Change the setting and see it takes affect.
+
+            cinderx.jit.compile_after_n_calls(5)
+
+            def dec(x):
+                return x - 1
+
+            assert not cinderx.jit.is_jit_compiled(dec)
+            dec(1)
+            dec(2)
+            dec(3)
+            dec(4)
+            dec(5)
+            assert not cinderx.jit.is_jit_compiled(dec)
+
+            dec(6)
+            assert cinderx.jit.is_jit_compiled(dec)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
 
     def test_compile_after_n_calls_predefined(self) -> None:
         """
@@ -354,12 +357,32 @@ class DisableEnableTests(unittest.TestCase):
         were defined before it was called.
         """
 
-        p = multiprocessing.Process(
-            target=DisableEnableTests.compile_after_n_calls_predefined_test
-        )
-        p.start()
-        p.join()
-        self.assertEqual(p.exitcode, 0)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            def predefined(x):
+                return x + x
+
+            cinderx.jit.compile_after_n_calls(2)
+
+            assert not cinderx.jit.is_jit_compiled(predefined)
+            predefined(1)
+            predefined(2)
+            assert not cinderx.jit.is_jit_compiled(predefined)
+
+            predefined(3)
+            assert cinderx.jit.is_jit_compiled(predefined)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
 
 
 if __name__ == "__main__":

@@ -4,11 +4,11 @@
 
 # This is in its own file as it modifies the global JIT-list.
 
-import multiprocessing
 import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -170,29 +170,40 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(b"42\n", proc.stdout, proc.stdout)
 
-    @staticmethod
-    def precompile_all_test() -> None:
-        import cinderx.jit
-
-        def func() -> int:
-            return 24
-
-        assert not cinderx.jit.is_jit_compiled(func)
-        cinderx.jit.lazy_compile(func)
-        assert not cinderx.jit.is_jit_compiled(func)
-
-        assert cinderx.jit.precompile_all(workers=2)
-        assert cinderx.jit.is_jit_compiled(func)
-
-        assert func() == 24
-
     def test_precompile_all(self) -> None:
         # Has to be run under a separate process because precompile_all will mess up the
         # other JIT-related tests.
-        p = multiprocessing.Process(target=JitListTest.precompile_all_test)
-        p.start()
-        p.join()
-        self.assertEqual(p.exitcode, 0)
+        code = textwrap.dedent(
+            """
+            import cinderx.jit
+
+            def func():
+                return 24
+
+            assert not cinderx.jit.is_jit_compiled(func)
+            cinderx.jit.lazy_compile(func)
+            assert not cinderx.jit.is_jit_compiled(func)
+
+            assert cinderx.jit.precompile_all(workers=2)
+            assert cinderx.jit.is_jit_compiled(func)
+
+            print(func())
+        """
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dirpath = Path(tmp)
+            codepath = dirpath / "mod.py"
+            codepath.write_text(code)
+            proc = subprocess.run(
+                [sys.executable, "mod.py"],
+                stdout=subprocess.PIPE,
+                cwd=tmp,
+                encoding=ENCODING,
+                env=subprocess_env(),
+            )
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertEqual(proc.stdout.strip(), "24")
 
     def test_read_jit_list(self) -> None:
         def victim() -> None:
