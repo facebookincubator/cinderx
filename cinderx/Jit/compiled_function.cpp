@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/compiled_function.h"
 
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -65,6 +66,15 @@ void CompiledFunction::setCodePatchers(
 
 void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {
   irfunc_ = std::move(irfunc);
+}
+
+void* CompiledFunction::staticEntry() const {
+  if (runtime_ == nullptr ||
+      !(runtime_->frameState()->code()->co_flags & CI_CO_STATICALLY_COMPILED)) {
+    return nullptr;
+  }
+
+  return reinterpret_cast<void*>(JITRT_GET_STATIC_ENTRY(vectorcall_entry_));
 }
 
 } // namespace jit

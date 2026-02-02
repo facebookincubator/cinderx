@@ -86,7 +86,6 @@ class CompiledFunction {
   CompiledFunction(
       std::span<const std::byte> code,
       vectorcallfunc vectorcall_entry,
-      void* static_entry,
       int stack_size,
       int spill_stack_size,
       hir::Function::InlineFunctionStats inline_function_stats,
@@ -94,7 +93,6 @@ class CompiledFunction {
       CodeRuntime* runtime)
       : code_(code),
         vectorcall_entry_(vectorcall_entry),
-        static_entry_(static_entry),
         stack_size_(stack_size),
         spill_stack_size_(spill_stack_size),
         inline_function_stats_(std::move(inline_function_stats)),
@@ -113,9 +111,7 @@ class CompiledFunction {
     return vectorcall_entry_;
   }
 
-  void* staticEntry() const {
-    return static_entry_;
-  }
+  void* staticEntry() const;
 
   CodeRuntime* runtime() const {
     return runtime_;
@@ -161,7 +157,6 @@ class CompiledFunction {
 
   const std::span<const std::byte> code_;
   vectorcallfunc const vectorcall_entry_;
-  void* const static_entry_;
   const int stack_size_;
   const int spill_stack_size_;
   std::chrono::nanoseconds compile_time_;

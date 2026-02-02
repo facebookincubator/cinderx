@@ -23,7 +23,6 @@ class CodePatcherTest : public RuntimeTest {
     return std::make_unique<jit::CompiledFunction>(
         code,
         reinterpret_cast<vectorcallfunc>(entry),
-        ngen.getStaticEntry(),
         stack_size,
         spill_stack_size,
         jit::hir::Function::InlineFunctionStats{},

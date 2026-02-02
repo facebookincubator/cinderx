@@ -249,13 +249,11 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
   hir::Function::InlineFunctionStats inline_stats =
       std::move(irfunc->inline_function_stats);
   std::span<const std::byte> code = ngen->getCodeBuffer();
-  void* static_entry = ngen->getStaticEntry();
   auto code_runtime = ngen->codeRuntime();
 
   auto compiled_func = std::make_unique<CompiledFunction>(
       code,
       entry,
-      static_entry,
       stack_size,
       spill_stack_size,
       std::move(inline_stats),
