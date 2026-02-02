@@ -570,3 +570,10 @@ PyObject* JITRT_LookupAttrSpecial(
 #endif
 
 LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
+
+#ifdef Py_GIL_DISABLED
+/*
+ * Non-inline wrapper for _Py_qsbr_quiescent_state().
+ */
+void JITRT_AtQuiescentState(PyThreadState* tstate);
+#endif

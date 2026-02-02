@@ -1801,3 +1801,38 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 #endif
 }
+
+#if PY_VERSION_HEX >= 0x030C0000
+TEST_F(HIRBuildTest, AtQuiescentStateInEvalBreakerCheck) {
+  const char* src = R"(
+def test():
+    return 1
+)";
+  Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
+  ASSERT_NE(funcobj, nullptr);
+
+  std::unique_ptr<Function> irfunc(buildHIR(funcobj));
+  ASSERT_NE(irfunc, nullptr);
+
+  bool found_at_quiescent_state = false;
+  for (auto& block : irfunc->cfg.blocks) {
+    for (auto& instr : block) {
+      if (instr.IsAtQuiescentState()) {
+        found_at_quiescent_state = true;
+        break;
+      }
+    }
+    if (found_at_quiescent_state) {
+      break;
+    }
+  }
+
+#ifdef Py_GIL_DISABLED
+  EXPECT_TRUE(found_at_quiescent_state)
+      << "AtQuiescentState should be present in free-threaded builds";
+#else
+  EXPECT_FALSE(found_at_quiescent_state)
+      << "AtQuiescentState should not be present in non-free-threaded builds";
+#endif
+}
+#endif

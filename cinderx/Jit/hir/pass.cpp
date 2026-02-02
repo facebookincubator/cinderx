@@ -495,6 +495,7 @@ Type outputType(
     }
 
       // Finally, some opcodes have no destination.
+    case Opcode::kAtQuiescentState:
     case Opcode::kBatchDecref:
     case Opcode::kBeginInlinedFunction:
     case Opcode::kBranch:

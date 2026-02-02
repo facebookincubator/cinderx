@@ -3280,6 +3280,9 @@ class INSTR_CLASS(
 // followed immediately by a CondBranch.
 DEFINE_SIMPLE_INSTR(LoadEvalBreaker, (), HasOutput, Operands<0>);
 
+// Called when reaching a quiescent state for free-threading QSBR.
+DEFINE_SIMPLE_INSTR(AtQuiescentState, (), Operands<0>);
+
 // Let other threads run, run signal handlers, etc.
 DEFINE_SIMPLE_INSTR(RunPeriodicTasks, (), HasOutput, Operands<0>, DeoptBase);
 

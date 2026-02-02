@@ -2712,7 +2712,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kLoadEvalBreaker: {
-        // NB: This corresponds to an atomic load with
+        // TODO(T253170890): This corresponds to an atomic load with
         // std::memory_order_relaxed. It's correct on x86-64 but probably isn't
         // on other architectures.
         hir::Register* dest = i.output();
@@ -2753,6 +2753,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             dest,
             Instruction::kMove,
             Ind{interp, offsetof(PyInterpreterState, ceval.eval_breaker)});
+#endif
+        break;
+      }
+      case Opcode::kAtQuiescentState: {
+#ifdef Py_GIL_DISABLED
+        bbb.appendInvokeInstruction(JITRT_AtQuiescentState, env_->asm_tstate);
 #endif
         break;
       }

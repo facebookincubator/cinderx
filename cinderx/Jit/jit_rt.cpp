@@ -34,6 +34,10 @@
 #include "internal/pycore_typeobject.h"
 #endif
 
+#ifdef Py_GIL_DISABLED
+#include "internal/pycore_qsbr.h"
+#endif
+
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
 // We use the same logic to turn **args, nargsf, and kwnames into
 // **args / nargsf.
@@ -888,8 +892,14 @@ static bool is_eval_breaker_set(PyThreadState* tstate) {
   return value->load(std::memory_order_relaxed);
 }
 
-static bool
-handle_eval_breaker(PyThreadState* tstate, PyObject* res, PyObject* callable) {
+static bool handle_periodic_activities_on_call(
+    PyThreadState* tstate,
+    PyObject* res,
+    PyObject* callable) {
+#ifdef Py_GIL_DISABLED
+  _Py_qsbr_quiescent_state(
+      (reinterpret_cast<_PyThreadStateImpl*>(tstate))->qsbr);
+#endif
   return res != nullptr && !PyFunction_Check(callable) &&
       is_eval_breaker_set(tstate) && _Py_HandlePending(tstate) != 0;
 }
@@ -967,7 +977,7 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
-  if (handle_eval_breaker(tstate, res, func)) {
+  if (handle_periodic_activities_on_call(tstate, res, func)) {
     Py_DECREF(res);
     return nullptr;
   }
@@ -1021,7 +1031,7 @@ PyObject* JITRT_Call(
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
-  if (handle_eval_breaker(tstate, res, callable)) {
+  if (handle_periodic_activities_on_call(tstate, res, callable)) {
     Py_DECREF(res);
     return nullptr;
   }
@@ -1041,7 +1051,7 @@ PyObject* JITRT_Vectorcall(
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
-  if (handle_eval_breaker(tstate, res, callable)) {
+  if (handle_periodic_activities_on_call(tstate, res, callable)) {
     Py_DECREF(res);
     return nullptr;
   }
@@ -2197,3 +2207,10 @@ LoadMethodResult JITRT_LoadSpecial(
 #endif
   JIT_ABORT("JITRT_LoadSpecial not valid with this version of Python");
 }
+
+#ifdef Py_GIL_DISABLED
+void JITRT_AtQuiescentState(PyThreadState* tstate) {
+  _Py_qsbr_quiescent_state(
+      (reinterpret_cast<_PyThreadStateImpl*>(tstate))->qsbr);
+}
+#endif

@@ -1631,7 +1631,7 @@ void HIRBuilder::translate(
       irfunc.fullname);
 
   for (auto block : loop_headers) {
-    insertEvalBreakerCheckForLoop(irfunc.cfg, block);
+    insertRunPeriodicActivitesForLoop(irfunc.cfg, block);
   }
 }
 
@@ -2039,7 +2039,7 @@ void HIRBuilder::emitResume(
   }
   TranslationContext succ(cfg.AllocateBlock(), tc.frame);
   succ.emitSnapshot();
-  insertEvalBreakerCheck(cfg, tc.block, succ.block, tc.frame);
+  insertRunPeriodicActivites(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;
 }
 
@@ -5028,13 +5028,16 @@ void HIRBuilder::emitStoreGlobal(
   tc.emit<SetDictItem>(result, globals_dict, key, value, tc.frame);
 }
 
-void HIRBuilder::insertEvalBreakerCheck(
+void HIRBuilder::insertRunPeriodicActivites(
     CFG& cfg,
     BasicBlock* check_block,
     BasicBlock* succ,
     const FrameState& frame) {
   TranslationContext check(check_block, frame);
   TranslationContext body(cfg.AllocateBlock(), frame);
+#ifdef Py_GIL_DISABLED
+  check.emit<AtQuiescentState>();
+#endif
   // Check if the eval breaker has been set
   Register* eval_breaker = temps_.AllocateStack();
   check.emit<LoadEvalBreaker>(eval_breaker);
@@ -5045,7 +5048,7 @@ void HIRBuilder::insertEvalBreakerCheck(
   body.emit<Branch>(succ);
 }
 
-void HIRBuilder::insertEvalBreakerCheckForLoop(
+void HIRBuilder::insertRunPeriodicActivitesForLoop(
     CFG& cfg,
     BasicBlock* loop_header) {
   auto snap = loop_header->entrySnapshot();
@@ -5057,21 +5060,21 @@ void HIRBuilder::insertEvalBreakerCheckForLoop(
       loop_header->id);
   auto check_block = cfg.AllocateBlock();
   loop_header->retargetPreds(check_block);
-  insertEvalBreakerCheck(cfg, check_block, loop_header, *fs);
+  insertRunPeriodicActivites(cfg, check_block, loop_header, *fs);
 }
 
-void HIRBuilder::insertEvalBreakerCheckForExcept(
+void HIRBuilder::insertRunPeriodicActivitesForExcept(
     CFG& cfg,
     TranslationContext& tc) {
   TranslationContext succ(cfg.AllocateBlock(), tc.frame);
   succ.emitSnapshot();
-  insertEvalBreakerCheck(cfg, tc.block, succ.block, tc.frame);
+  insertRunPeriodicActivites(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;
 }
 
 ExecutionBlock HIRBuilder::popBlock(CFG& cfg, TranslationContext& tc) {
   if (tc.frame.block_stack.top().opcode == SETUP_FINALLY) {
-    insertEvalBreakerCheckForExcept(cfg, tc);
+    insertRunPeriodicActivitesForExcept(cfg, tc);
   }
   return tc.frame.block_stack.pop();
 }

@@ -101,6 +101,7 @@ namespace jit::hir {
   V(LoadConst)                         \
   V(LoadCurrentFunc)                   \
   V(LoadEvalBreaker)                   \
+  V(AtQuiescentState)                  \
   V(LoadField)                         \
   V(LoadFunctionIndirect)              \
   V(LoadGlobalCached)                  \

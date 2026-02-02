@@ -356,6 +356,7 @@ void Instr::set_successor(std::size_t i, BasicBlock* to) {
 bool Instr::isReplayable() const {
   switch (opcode()) {
     case Opcode::kAssign:
+    case Opcode::kAtQuiescentState:
     case Opcode::kBitCast:
     case Opcode::kBuildString:
     case Opcode::kCast:
@@ -816,6 +817,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kBatchDecref:
     case Opcode::kBeginInlinedFunction:
     case Opcode::kBranch:
+    case Opcode::kAtQuiescentState:
     case Opcode::kCondBranch:
     case Opcode::kCondBranchCheckType:
     case Opcode::kCondBranchIterNotDone:

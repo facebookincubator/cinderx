@@ -178,6 +178,13 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kStoreSubscr:
       return {true, AEmpty, {}, AManagedHeapAny};
 
+    // AtQuiescentState reports to QSBR that the thread holds no unprotected
+    // pointers. This requires that all borrowed references from transient
+    // locations (globals, dict items, etc.) be promoted to owned before the
+    // quiescent state is reported. The AManagedHeapAny may_store ensures this.
+    case Opcode::kAtQuiescentState:
+      return {false, AEmpty, {}, AManagedHeapAny};
+
     case Opcode::kListAppend:
     case Opcode::kListExtend:
       return {true, AEmpty, {inst.NumOperands()}, AListItem};
@@ -356,6 +363,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kReturn:
 
     case Opcode::kAssign:
+    case Opcode::kAtQuiescentState:
     case Opcode::kBeginInlinedFunction:
     case Opcode::kBitCast:
     case Opcode::kBranch:

@@ -487,9 +487,9 @@ class HIRBuilder {
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);
 
   ExecutionBlock popBlock(CFG& cfg, TranslationContext& tc);
-  void insertEvalBreakerCheckForLoop(CFG& cfg, BasicBlock* loop_header);
-  void insertEvalBreakerCheckForExcept(CFG& cfg, TranslationContext& tc);
-  void insertEvalBreakerCheck(
+  void insertRunPeriodicActivitesForLoop(CFG& cfg, BasicBlock* loop_header);
+  void insertRunPeriodicActivitesForExcept(CFG& cfg, TranslationContext& tc);
+  void insertRunPeriodicActivites(
       CFG& cfg,
       BasicBlock* check_block,
       BasicBlock* succ,
