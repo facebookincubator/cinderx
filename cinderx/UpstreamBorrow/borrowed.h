@@ -116,6 +116,7 @@
 #define _Py_CalculateSuggestions _Ci_CalculateSuggestions
 #if PY_VERSION_HEX >= 0x030F0000
 #define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
+#define _PyDict_LookupIndexAndValue _CixDict_LookupIndexAndValue
 #else
 #define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
 #endif
