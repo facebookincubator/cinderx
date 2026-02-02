@@ -193,3 +193,6 @@ test.test_generators.FinalizationTest.test_generator_resurrect
 
 # The JIT generator type is not the same object as the interpreter's
 test.test_types.TypesTests.test_names
+
+# Too many frame pointers because JIT frames are each their own frame pointer
+test.test_frame_pointer_unwind.FramePointerUnwindTests.test_manual_unwind_respects_frame_pointers
