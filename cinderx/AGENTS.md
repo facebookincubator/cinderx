@@ -95,3 +95,43 @@ There are also Python tests for CinderX in
 CinderX has C++ unit tests to exercise internal functionality more
 directly. These are in `cinderx/RuntimeTests`. Run with e.g. `buck test
 fbcode//cinderx/RuntimeTests:RuntimeTests_<version>`.
+
+## Adding a New HIR Instruction
+
+The JIT uses a High-level Intermediate Representation (HIR) defined in
+`Jit/hir/`. Adding a new HIR instruction requires updates to multiple files:
+
+1. **Jit/hir/opcode.h** - Add the new opcode to the `FOREACH_OPCODE` macro.
+   This auto-generates the enum value and `Is<Opcode>()` predicates.
+
+2. **Jit/hir/hir.h** - Define the instruction class. Simple instructions
+   with no special behavior can use `DEFINE_SIMPLE_INSTR`. More complex
+   instructions use `INSTR_CLASS` and inherit from `InstrT` with appropriate
+   template parameters (`HasOutput`, `Operands<N>`, `DeoptBase`, etc.).
+
+3. **Jit/lir/generator.cpp** - Add a case in `TranslateOneBasicBlock()` to
+   lower the HIR instruction to LIR/machine code. This typically involves
+   `bbb.appendCallInstruction()` for runtime calls or `bbb.appendInstr()`
+   for inline code generation.
+
+4. **Jit/hir/instr_effects.cpp** - Add the opcode to both switch statements:
+   - `memoryEffects()`: Defines memory read/write effects for optimization
+   - `hasArbitraryExecution()`: Whether the instruction can run user code
+
+5. **Jit/hir/hir.cpp** - Add the opcode to:
+   - `isReplayable()`: Whether the instruction can be safely re-executed
+   - `isPassthrough()`: Whether it passes through its input unchanged
+     (instructions with no output go in the abort list)
+
+6. **Jit/hir/printer.cpp** - Add to `format_immediates()` to control how
+   the instruction prints. Instructions with no special immediates return "".
+
+7. **Jit/hir/pass.cpp** - Add to `outputType()` to specify the instruction's
+   output type. Instructions with no output go in the "no destination" list.
+
+8. **Jit/hir/parser.cpp** - Add parsing support in `parseInstr()` if the
+   instruction needs to be parsed from text HIR (used in tests).
+
+If the instruction needs to call a custom runtime helper function:
+- Declare it in **Jit/jit_rt.h**
+- Implement it in **Jit/jit_rt.cpp**
