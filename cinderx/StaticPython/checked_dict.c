@@ -2991,9 +2991,7 @@ _PyGenericTypeDef Ci_CheckedDict_GenericType = {
     .gtd_type =
         {.ht_type =
              {
-                 PyVarObject_HEAD_INIT(
-                     &PyType_Type,
-                     0) "__static__.chkdict[K, V]",
+                 PyVarObject_HEAD_INIT(NULL, 0) "__static__.chkdict[K, V]",
                  sizeof(CiChkDictObject),
                  0,
                  (destructor)dict_dealloc, /* tp_dealloc */
@@ -3188,7 +3186,7 @@ fail:
 }
 
 PyTypeObject Ci_CheckedDictIterKey_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_keyiterator", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_keyiterator", /* tp_name */
     sizeof(dictiterobject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -3281,7 +3279,7 @@ fail:
 }
 
 PyTypeObject Ci_CheckedDictIterValue_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_valueiterator", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_valueiterator", /* tp_name */
     sizeof(dictiterobject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -3399,7 +3397,7 @@ fail:
 }
 
 PyTypeObject Ci_CheckedDictIterItem_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_itemiterator", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_itemiterator", /* tp_name */
     sizeof(dictiterobject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -3522,7 +3520,7 @@ fail:
 }
 
 PyTypeObject Ci_CheckedDictRevIterKey_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_reversekeyiterator",
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_reversekeyiterator",
     sizeof(dictiterobject),
     .tp_dealloc = (destructor)dictiter_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -3553,7 +3551,7 @@ static PyObject* dictiter_reduce(
 }
 
 PyTypeObject Ci_CheckedDictRevIterItem_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_reverseitemiterator",
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_reverseitemiterator",
     sizeof(dictiterobject),
     .tp_dealloc = (destructor)dictiter_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -3563,7 +3561,7 @@ PyTypeObject Ci_CheckedDictRevIterItem_Type = {
     .tp_methods = dictiter_methods};
 
 PyTypeObject Ci_CheckedDictRevIterValue_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_reversevalueiterator",
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_reversevalueiterator",
     sizeof(dictiterobject),
     .tp_dealloc = (destructor)dictiter_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -4115,7 +4113,7 @@ static PyMethodDef dictkeys_methods[] = {
 };
 
 PyTypeObject Ci_CheckedDictKeys_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_keys", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_keys", /* tp_name */
     sizeof(_CiDictViewObject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -4221,7 +4219,7 @@ static PyMethodDef dictitems_methods[] = {
 };
 
 PyTypeObject Ci_CheckedDictItems_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_items", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_items", /* tp_name */
     sizeof(_CiDictViewObject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -4302,7 +4300,7 @@ static PyMethodDef dictvalues_methods[] = {
 };
 
 PyTypeObject Ci_CheckedDictValues_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "dict_values", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "dict_values", /* tp_name */
     sizeof(_CiDictViewObject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */

@@ -26,7 +26,7 @@ static int typedargsinfoclear(_PyTypedArgsInfo* args_info) {
 }
 
 PyTypeObject _PyTypedArgsInfo_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "typed_args_info",
+    PyVarObject_HEAD_INIT(NULL, 0) "typed_args_info",
     sizeof(_PyTypedArgsInfo),
     sizeof(_PyTypedArgsInfo),
     .tp_dealloc = (destructor)typedargsinfodealloc,

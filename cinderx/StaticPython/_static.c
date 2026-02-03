@@ -39,6 +39,10 @@ typedef struct {
 static int _static_exec(PyObject* m) {
   StaticModuleState* mod_state = (StaticModuleState*)PyModule_GetState(m);
 
+  Ci_CheckedDict_GenericType.gtd_type.ht_type.ob_base.ob_base.ob_type =
+      &PyType_Type;
+  Ci_CheckedList_GenericType.gtd_type.ht_type.ob_base.ob_base.ob_type =
+      &PyType_Type;
   if ((Ci_CheckedDict_Type = _PyClassLoader_MakeGenericHeapType(
            &Ci_CheckedDict_GenericType)) == NULL ||
       PyModule_AddObjectRef(m, "chkdict", (PyObject*)Ci_CheckedDict_Type) < 0) {
@@ -57,6 +61,24 @@ static int _static_exec(PyObject* m) {
       PyModule_AddObjectRef(m, "staticarray", (PyObject*)PyStaticArray_Type)) {
     Py_CLEAR(Ci_CheckedDict_Type);
     Py_CLEAR(Ci_CheckedList_Type);
+    return -1;
+  }
+
+  if (PyType_Ready(&Ci_CheckedListRevIter_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedListIter_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictItems_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictValues_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictIterKey_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictIterValue_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictIterItem_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictRevIterKey_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictRevIterItem_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictRevIterValue_Type) < 0 ||
+      PyType_Ready(&Ci_CheckedDictKeys_Type) < 0 ||
+      PyType_Ready(&_PyType_MethodThunk) < 0 ||
+      PyType_Ready(&_PyType_StaticThunk) < 0 ||
+      PyType_Ready(&_PyType_PropertyThunk) < 0 ||
+      PyType_Ready(&_PyClassLoader_VTableInitThunk_Type)) {
     return -1;
   }
 
@@ -666,7 +688,7 @@ static void ctxmgrwrp_dealloc(_Py_ContextManagerWrapper* self) {
 }
 
 PyTypeObject _PyContextDecoratorWrapper_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "context_decorator_wrapper",
+    PyVarObject_HEAD_INIT(NULL, 0) "context_decorator_wrapper",
     sizeof(_Py_ContextManagerWrapper),
     .tp_base = &_PyWeakref_RefType,
     .tp_dealloc = (destructor)ctxmgrwrp_dealloc,

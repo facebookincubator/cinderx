@@ -550,7 +550,7 @@ static PyGetSetDef strict_module_getset[] = {
     {NULL}};
 
 PyTypeObject Ci_StrictModule_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "StrictModule", /* tp_name */
+    PyVarObject_HEAD_INIT(NULL, 0) "StrictModule", /* tp_name */
     sizeof(Ci_StrictModuleObject), /* tp_basicsize */
     0, /* tp_itemsize */
     (destructor)strictmodule_dealloc, /* tp_dealloc */

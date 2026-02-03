@@ -414,7 +414,7 @@ static PyAsyncMethods* jitcorowrapper_async_methods = nullptr;
 
 #endif
 PyTypeObject _JitCoroWrapper_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "coroutine_wrapper",
+    PyVarObject_HEAD_INIT(NULL, 0) "coroutine_wrapper",
     sizeof(JitCoroWrapper), /* tp_basicsize */
     0, /* tp_itemsize */
     reinterpret_cast<destructor>(
