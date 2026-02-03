@@ -17,6 +17,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Jit/frame.h"
@@ -389,16 +390,16 @@ class DeoptStressTest : public RuntimeTest {
       delete it->second;
       guards.erase(it);
     };
-    Runtime* ngen_rt = Runtime::get();
+    Context* ngen_ctx = getContext();
     auto pyfunc = reinterpret_cast<PyFunctionObject*>(funcobj.get());
     while (!guards.empty()) {
       NativeGenerator gen(irfunc.get());
       auto jitfunc = reinterpret_cast<vectorcallfunc>(gen.getVectorcallEntry());
       ASSERT_NE(jitfunc, nullptr);
-      ngen_rt->setGuardFailureCallback(delete_one_deopt);
+      ngen_ctx->setGuardFailureCallback(delete_one_deopt);
       auto res =
           jitfunc(reinterpret_cast<PyObject*>(pyfunc), args, nargs, nullptr);
-      ngen_rt->clearGuardFailureCallback();
+      ngen_ctx->clearGuardFailureCallback();
       if ((res == nullptr) ||
           (PyObject_RichCompareBool(res, expected, Py_EQ) < 1)) {
         dumpDebuggingOutput(*irfunc, res, expected);

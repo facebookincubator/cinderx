@@ -17,10 +17,10 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -4942,7 +4942,7 @@ void HIRBuilder::emitLoadCommonConstant(
     const BytecodeInstruction& bc_instr) {
   Register* out = temps_.AllocateStack();
   tc.emit<LoadConst>(
-      out, Runtime::get()->typeForCommonConstant(bc_instr.oparg()));
+      out, getContext()->typeForCommonConstant(bc_instr.oparg()));
   tc.frame.stack.push(out);
 }
 
@@ -5004,7 +5004,7 @@ void HIRBuilder::emitLoadBuildClass(TranslationContext& tc) {
   // dictionary, however I'm not sure there's any guarantee of this.
   Register* builtins_dict = temps_.AllocateNonStack();
   tc.emit<GuardType>(builtins_dict, TDictExact, builtins, tc.frame);
-  tc.emit<LoadConst>(key, Type::fromObject(Runtime::get()->strBuildClass()));
+  tc.emit<LoadConst>(key, Type::fromObject(getContext()->strBuildClass()));
   tc.emit<DictSubscr>(result, builtins_dict, key, tc.frame);
   tc.frame.stack.push(result);
 }

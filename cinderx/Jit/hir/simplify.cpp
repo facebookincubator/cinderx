@@ -9,12 +9,12 @@
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/type.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
@@ -1376,7 +1376,7 @@ static bool isBuiltin(PyMethodDef* meth, const char* name) {
   // To make sure we have the right function, look up the PyMethodDef in the
   // fixed builtins. Any joker can make a new C method called "len", for
   // example.
-  const Builtins& builtins = Runtime::get()->builtins();
+  const Builtins& builtins = getContext()->builtins();
   return builtins.find(meth) == name;
 }
 

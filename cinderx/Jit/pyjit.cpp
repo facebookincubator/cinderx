@@ -43,7 +43,6 @@
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/module_state.h"
 
@@ -781,9 +780,9 @@ void finalizeFunc(
   jitCtx()->removeDeoptedFunc(func);
 
   func->vectorcall = compiled.vectorcallEntry();
-  Runtime* rt = Runtime::get();
-  if (rt->hasFunctionEntryCache(func)) {
-    void** indirect = rt->findFunctionEntryCache(func);
+  CompilerContext<Compiler>* ctx = jitCtx();
+  if (ctx->hasFunctionEntryCache(func)) {
+    void** indirect = ctx->findFunctionEntryCache(func);
     *indirect = compiled.staticEntry();
   }
   return;
@@ -1042,8 +1041,8 @@ void multithread_compile_units_preloaded(
 
   auto retry_list = getThreadedCompileContext().endCompile();
 
-  Runtime::get()->fixupFunctionEntryCachePostMultiThreadedCompile();
-  Runtime::get()->watchPendingTypes();
+  jitCtx()->fixupFunctionEntryCachePostMultiThreadedCompile();
+  jitCtx()->watchPendingTypes();
 
   JIT_DLOG(
       "multithread_compile_units_preloaded retrying {} units serially",
@@ -2116,12 +2115,12 @@ PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
   if (jitCtx() == nullptr) {
     Py_RETURN_NONE;
   }
-  Runtime::get()->mlockProfilerDependencies();
+  jitCtx()->mlockProfilerDependencies();
   Py_RETURN_NONE;
 }
 
 PyObject* page_in_profiler_dependencies(PyObject*, PyObject*) {
-  Ref<> qualnames = Runtime::get()->pageInProfilerDependencies();
+  Ref<> qualnames = jitCtx()->pageInProfilerDependencies();
   return qualnames.release();
 }
 
@@ -2155,7 +2154,7 @@ Ref<> make_deopt_stats() {
   DEFINE_STATIC_STRING(int);
   DEFINE_STATIC_STRING(reason);
 
-  auto runtime = Runtime::get();
+  CompilerContext<Compiler>* ctx = jitCtx();
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
   for (auto& pair : jitCtx()->compiledCodes()) {
@@ -2167,7 +2166,7 @@ Ref<> make_deopt_stats() {
          ++deopt_idx) {
       const DeoptMetadata& meta = deopt_metadatas[deopt_idx];
 
-      auto stat_ptr = runtime->deoptStat(code_runtime, deopt_idx);
+      auto stat_ptr = ctx->deoptStat(code_runtime, deopt_idx);
       if (stat_ptr == nullptr) {
         continue;
       }
@@ -2226,7 +2225,7 @@ Ref<> make_deopt_stats() {
     }
   }
 
-  runtime->clearDeoptStats();
+  ctx->clearDeoptStats();
 
   return stats;
 }
@@ -2248,7 +2247,7 @@ PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
 }
 
 PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
-  Runtime::get()->clearDeoptStats();
+  jitCtx()->clearDeoptStats();
   Py_RETURN_NONE;
 }
 
@@ -2318,15 +2317,14 @@ PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
   };
   auto load_method_stats = Ref<>::steal(check(PyList_New(0)));
   check(PyDict_SetItemString(stats, "load_method_stats", load_method_stats));
-  for (auto& cache_stats : Runtime::get()->getAndClearLoadMethodCacheStats()) {
+  for (auto& cache_stats : jitCtx()->getAndClearLoadMethodCacheStats()) {
     make_inline_cache_stats(load_method_stats, cache_stats);
   }
 
   auto load_type_method_stats = Ref<>::steal(check(PyList_New(0)));
   check(PyDict_SetItemString(
       stats, "load_type_method_stats", load_type_method_stats));
-  for (auto& cache_stats :
-       Runtime::get()->getAndClearLoadTypeMethodCacheStats()) {
+  for (auto& cache_stats : jitCtx()->getAndClearLoadTypeMethodCacheStats()) {
     make_inline_cache_stats(load_type_method_stats, cache_stats);
   }
 
@@ -3078,8 +3076,8 @@ int register_fork_callback(BorrowedRef<> cinderjit_module) {
 // Informs the JIT that an instance has had an assignment to its __class__
 // field.
 void instanceTypeAssigned(PyTypeObject* old_ty, PyTypeObject* new_ty) {
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(old_ty, new_ty);
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->notifyTypeModified(old_ty, new_ty);
   }
 }
 
@@ -3213,7 +3211,7 @@ int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg) {
     size_t deopt_idx = yield_point->deoptIdx();
     const DeoptMetadata& deopt_meta =
         gen_footer->code_rt->getDeoptMetadata(deopt_idx);
-    return Runtime::get()->forEachOwnedRef(gen, deopt_meta, [&](PyObject* v) {
+    return jitCtx()->forEachOwnedRef(gen, deopt_meta, [&](PyObject* v) {
       Py_VISIT(v);
       return 0;
     });
@@ -3229,7 +3227,7 @@ void _PyJIT_GenDealloc(PyGenObject* gen) {
     size_t deopt_idx = yield_point->deoptIdx();
     const DeoptMetadata& deopt_meta =
         gen_footer->code_rt->getDeoptMetadata(deopt_idx);
-    Runtime::get()->forEachOwnedRef(gen, deopt_meta, [](PyObject* v) {
+    jitCtx()->forEachOwnedRef(gen, deopt_meta, [](PyObject* v) {
       Py_DECREF(v);
       return 0;
     });
@@ -3407,10 +3405,10 @@ void finalize() {
     dump_jit_stats();
   }
 
-  // Always release references from Runtime objects: C++ clients may have
+  // Always release references from Context objects: C++ clients may have
   // invoked the JIT directly without initializing a full jit::Context.
-  jit::Runtime::get()->clearDeoptStats();
-  jit::Runtime::get()->releaseReferences();
+  jitCtx()->clearDeoptStats();
+  jitCtx()->releaseReferences();
 
   deleteJitList();
 
@@ -3643,8 +3641,8 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
     jitCtx()->funcDestroyed(func);
   }
 
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->clearFunctionEntryCache(func);
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->clearFunctionEntryCache(func);
   }
 }
 
@@ -3653,22 +3651,22 @@ void funcModified(BorrowedRef<PyFunctionObject> func) {
 }
 
 void typeDestroyed(BorrowedRef<PyTypeObject> type) {
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(type, nullptr);
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->notifyTypeModified(type, nullptr);
   }
 }
 
 void typeModified(BorrowedRef<PyTypeObject> type) {
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(type, type);
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->notifyTypeModified(type, type);
   }
 }
 
 void typeNameModified(BorrowedRef<PyTypeObject> type) {
   // We assume that this is a very rare case, and simply give up on tracking
   // the type if it happens.
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(type, type);
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->notifyTypeModified(type, type);
   }
 }
 

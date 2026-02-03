@@ -17,7 +17,6 @@
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/python_runtime.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
@@ -70,7 +69,7 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   _PyCheckedDict_ClearCaches();
   _PyCheckedList_ClearCaches();
   _PyClassLoader_ClearValueCache();
-  jit::Runtime::get()->clearDeoptStats();
+  jit::getContext()->clearDeoptStats();
   // We replace sys._clear_type_cache with our own function which
   // clears the caches, so we should call this too.
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
@@ -1318,12 +1317,6 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 #endif
-
-  auto runtime = new (std::nothrow) jit::Runtime();
-  if (runtime == nullptr) {
-    return -1;
-  }
-  state->setRuntime(runtime);
 
   auto symbolizer = new (std::nothrow) jit::Symbolizer();
   if (symbolizer == nullptr) {

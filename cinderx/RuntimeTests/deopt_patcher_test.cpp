@@ -4,6 +4,7 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -147,8 +148,8 @@ def func():
 
   size_t deopts = 0;
   auto callback = [&deopts](const jit::DeoptMetadata&) { deopts += 1; };
-  jit::Runtime* jit_rt = jit::Runtime::get();
-  jit_rt->setGuardFailureCallback(callback);
+  jit::Context* jit_ctx = jit::getContext();
+  jit_ctx->setGuardFailureCallback(callback);
 
   // Make sure things work in the nominal case.
   auto res = Ref<>::steal(jitfunc->invoke(pyfunc, nullptr, 0));
@@ -176,5 +177,5 @@ def func():
   EXPECT_FALSE(patcher->isPatched());
   EXPECT_TRUE(patcher->calledOnUnpatch());
 
-  jit_rt->clearGuardFailureCallback();
+  jit_ctx->clearGuardFailureCallback();
 }

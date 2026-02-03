@@ -9,11 +9,11 @@
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_borrowed.h"
 #include "cinderx/Jit/generators_mm.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 

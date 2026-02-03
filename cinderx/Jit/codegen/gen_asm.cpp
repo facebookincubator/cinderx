@@ -24,6 +24,7 @@
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/generators_rt.h"
@@ -40,7 +41,6 @@
 #include "cinderx/Jit/lir/regalloc.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <fmt/format.h>
@@ -213,8 +213,8 @@ CiPyFrameObjType* prepareForDeopt(
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
   Ref<> deopt_obj = profileDeopt(deopt_meta, mem);
-  auto runtime = Runtime::get();
-  runtime->recordDeopt(code_runtime, deopt_idx, deopt_obj);
+  auto ctx = getContext();
+  ctx->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
 #if PY_VERSION_HEX >= 0x030C0000
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
@@ -228,7 +228,7 @@ CiPyFrameObjType* prepareForDeopt(
     auto reason = deopt_meta.reason;
     switch (reason) {
       case DeoptReason::kGuardFailure: {
-        runtime->guardFailed(deopt_meta);
+        ctx->guardFailed(deopt_meta);
         break;
       }
       case DeoptReason::kRaise:
@@ -845,8 +845,8 @@ void* NativeGenerator::getVectorcallEntry() {
 
   auto func = GetFunction();
 
-  env_.rt = Runtime::get();
-  env_.code_rt = env_.rt->allocateCodeRuntime(
+  env_.ctx = getContext();
+  env_.code_rt = env_.ctx->allocateCodeRuntime(
       func->code.get(), func->builtins.get(), func->globals.get());
 #if defined(ENABLE_LIGHTWEIGHT_FRAMES) && PY_VERSION_HEX >= 0x030E0000
   env_.code_rt->setReifier(func->reifier);
@@ -1546,7 +1546,7 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
 
     // Register patcher with the runtime if it is type-based.
     if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(udp.patcher)) {
-      env_.rt->watchType(typed_patcher->type(), typed_patcher);
+      env_.ctx->watchType(typed_patcher->type(), typed_patcher);
     }
   }
 

@@ -30,6 +30,7 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/analysis.h"
@@ -207,11 +208,11 @@ LIRGenerator::LIRGenerator(
     : func_(func), env_(env) {
   for (int i = 0, n = func->env.numLoadTypeAttrCaches(); i < n; i++) {
     load_type_attr_caches_.emplace_back(
-        Runtime::get()->allocateLoadTypeAttrCache());
+        getContext()->allocateLoadTypeAttrCache());
   }
   for (int i = 0, n = func->env.numLoadTypeMethodCaches(); i < n; i++) {
     load_type_method_caches_.emplace_back(
-        Runtime::get()->allocateLoadTypeMethodCache());
+        getContext()->allocateLoadTypeMethodCache());
   }
 }
 
@@ -1285,7 +1286,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->GetOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = Runtime::get()->allocateLoadAttrCache();
+        auto cache = getContext()->allocateLoadAttrCache();
         bbb.appendCallInstruction(
             dst, jit::LoadAttrCache::invoke, cache, base, name);
         break;
@@ -1407,7 +1408,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = Runtime::get()->allocateLoadMethodCache();
+        auto cache = getContext()->allocateLoadMethodCache();
         if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
           cache->initCacheStats(
@@ -1424,7 +1425,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inline caches must be enabled to use LoadModuleAttrCached");
         auto instr = static_cast<const LoadModuleAttrCached*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = Runtime::get()->allocateLoadModuleAttrCache();
+        auto cache = getContext()->allocateLoadModuleAttrCache();
         bbb.appendCallInstruction(
             instr->output(),
             LoadModuleAttrCache::lookupHelper,
@@ -1439,7 +1440,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inline caches must be enabled to use LoadModuleMethodCached");
         auto instr = static_cast<const LoadModuleMethodCached*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache_entry = Runtime::get()->allocateLoadModuleMethodCache();
+        auto cache_entry = getContext()->allocateLoadModuleMethodCache();
         bbb.appendCallInstruction(
             instr->output(),
             LoadModuleMethodCache::lookupHelper,
@@ -1928,7 +1929,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* base = instr->GetOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         hir::Register* value = instr->GetOperand(1);
-        auto cache = Runtime::get()->allocateStoreAttrCache();
+        auto cache = getContext()->allocateStoreAttrCache();
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{OperandBase::k32bit},
             jit::StoreAttrCache::invoke,
@@ -2156,7 +2157,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Imm{reinterpret_cast<uint64_t>(
                   JITRT_GET_STATIC_ENTRY(func->vectorcall))});
         } else {
-          void** indir = env_->rt->findFunctionEntryCache(func);
+          void** indir = env_->ctx->findFunctionEntryCache(func);
           env_->function_indirections.emplace(func, indir);
           Instruction* move = bbb.appendInstr(
               OutVReg{OperandBase::k64bit}, Instruction::kMove, MemImm{indir});

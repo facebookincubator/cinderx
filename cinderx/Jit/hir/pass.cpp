@@ -2,9 +2,9 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
-#include "cinderx/Jit/runtime.h"
 
 namespace jit::hir {
 
@@ -44,7 +44,7 @@ Type returnType(PyMethodDef* meth) {
   // To make sure we have the right function, look up the PyMethodDef in the
   // fixed builtins. Any joker can make a new C method called "len", for
   // example.
-  const Builtins& builtins = Runtime::get()->builtins();
+  const Builtins& builtins = getContext()->builtins();
   auto name = builtins.find(meth);
   if (!name.has_value()) {
     return TObject;

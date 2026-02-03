@@ -7,6 +7,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/lir/generator.h"
@@ -47,9 +48,8 @@ class LIRGeneratorTest : public RuntimeTest {
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 
     jit::codegen::Environ env;
-    jit::Runtime rt;
 
-    env.rt = &rt;
+    env.ctx = getContext();
 
     jit::CodeRuntime runtime{func};
     env.code_rt = &runtime;
@@ -457,9 +457,8 @@ fun foo {
           PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   jit::codegen::Environ env;
-  jit::Runtime rt;
 
-  env.rt = &rt;
+  env.ctx = getContext();
 
   LIRGenerator lir_gen(irfunc.get(), &env);
 
@@ -512,11 +511,10 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
           PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   jit::codegen::Environ env;
-  jit::Runtime rt;
   jit::CodeRuntime code_runtime{
       irfunc->code, irfunc->builtins, irfunc->globals};
 
-  env.rt = &rt;
+  env.ctx = getContext();
   env.code_rt = &code_runtime;
 
   LIRGenerator lir_gen(irfunc.get(), &env);

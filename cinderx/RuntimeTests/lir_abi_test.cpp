@@ -6,6 +6,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
@@ -35,8 +36,8 @@ class LIRABITest : public RuntimeTest {
     hir::Function hirFunction;
 
     Environ environ;
-    environ.rt = Runtime::get();
-    environ.code_rt = environ.rt->allocateCodeRuntime(
+    environ.ctx = getContext();
+    environ.code_rt = environ.ctx->allocateCodeRuntime(
         hirFunction.code.get(),
         hirFunction.builtins.get(),
         hirFunction.globals.get());

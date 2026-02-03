@@ -5,8 +5,8 @@
 #include "cinderx/Jit/codegen/annotations.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/debug_info.h"
-#include "cinderx/Jit/runtime.h"
 
 #include <asmjit/asmjit.h>
 
@@ -82,7 +82,7 @@ struct Environ {
       function_typed_args;
 
   // Global runtime data.
-  jit::Runtime* rt{nullptr};
+  jit::Context* ctx{nullptr};
 
   // Runtime data for this function.
   jit::CodeRuntime* code_rt{nullptr};

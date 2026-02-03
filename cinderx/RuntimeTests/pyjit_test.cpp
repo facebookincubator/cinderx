@@ -1,8 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/pyjit.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <cstdlib>
@@ -57,9 +57,9 @@ def test(a, b):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
   auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  Runtime* ngen_rt = Runtime::get();
-  CodeRuntime* code_rt = ngen_rt->allocateCodeRuntime(
-      code, func->func_builtins, func->func_globals);
+  Context* ctx = getContext();
+  CodeRuntime* code_rt =
+      ctx->allocateCodeRuntime(code, func->func_builtins, func->func_globals);
   EXPECT_EQ(
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(code_rt) + __strobe_CodeRuntime_py_code),

@@ -15,9 +15,9 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/runtime_support.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
@@ -1795,7 +1795,7 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
   }
 
   _PyTypedArgsInfo* arg_info =
-      jit::Runtime::get()->findFunctionPrimitiveArgInfo(func);
+      jit::getContext()->findFunctionPrimitiveArgInfo(func);
   auto allocated_args = std::make_unique<PyObject*[]>(
       arg_info == nullptr ? 0 : Py_SIZE(arg_info));
   int allocated_count = 0;

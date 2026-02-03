@@ -11,7 +11,6 @@
 #include "cinderx/Jit/generators_mm_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/jit_list_iface.h"
-#include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/symbolizer_iface.h"
 #include "cinderx/async_lazy_value_iface.h"
 
@@ -43,14 +42,6 @@ class ModuleState {
 
   void setCodeAllocator(jit::ICodeAllocator* code_allocator) {
     code_allocator_.reset(code_allocator);
-  }
-
-  jit::IRuntime* runtime() const {
-    return runtime_.get();
-  }
-
-  void setRuntime(jit::IRuntime* runtime) {
-    runtime_ = std::unique_ptr<jit::IRuntime>(runtime);
   }
 
   jit::IJitContext* jitContext() const {
@@ -206,7 +197,6 @@ class ModuleState {
 
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
-  std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
   std::unique_ptr<jit::IJitContext> jit_context_;
   std::unique_ptr<jit::IJITList> jit_list_;
