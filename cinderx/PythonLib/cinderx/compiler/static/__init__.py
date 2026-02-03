@@ -1391,7 +1391,7 @@ class Static314CodeGenerator(Static312CodeGenerator, CinderCodeGenerator314):
 
 
 class Static315CodeGenerator(Static314CodeGenerator, CinderCodeGenerator315):
-    pass
+    flow_graph = PyFlowGraph315
 
 
 if sys.version_info >= (3, 15):
