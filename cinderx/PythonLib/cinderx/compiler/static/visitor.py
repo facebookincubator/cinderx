@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ast import AST
 from contextlib import contextmanager, nullcontext
-from typing import ContextManager, Generator, Generic, Sequence, TYPE_CHECKING, TypeVar
+from typing import ContextManager, Generator, Generic, TYPE_CHECKING, TypeVar
 
 from ..visitor import ASTVisitor
 

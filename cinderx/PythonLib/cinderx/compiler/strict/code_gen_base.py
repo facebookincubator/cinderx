@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import ast
 import builtins
-import sys
 from ast import (
     AST,
     AsyncFunctionDef,
@@ -26,7 +25,7 @@ from ..pyassem import PyFlowGraph
 from ..pycodegen import CinderCodeGenBase, CodeGenerator, find_futures, FOR_LOOP
 from ..symbols import BaseSymbolVisitor, FunctionScope
 from .common import FIXED_MODULES, lineinfo
-from .feature_extractor import _IMPLICIT_GLOBALS, FeatureExtractor
+from .feature_extractor import FeatureExtractor
 
 
 def is_mutable(node: AST) -> bool:

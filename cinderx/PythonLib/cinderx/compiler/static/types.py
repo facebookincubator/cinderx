@@ -124,7 +124,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
     TYPE_CHECKING,
     TypeVar,
 )

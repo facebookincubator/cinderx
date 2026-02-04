@@ -3,7 +3,6 @@
 import asyncio
 import faulthandler
 import gc
-import os
 import subprocess
 import sys
 import tempfile

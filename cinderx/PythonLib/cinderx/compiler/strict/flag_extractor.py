@@ -7,9 +7,8 @@ from __future__ import annotations
 import ast
 from ast import Import, Module
 from dataclasses import dataclass
-from typing import Any, Sequence
 
-from ..symbols import ModuleScope, Scope, SymbolVisitor
+from ..symbols import SymbolVisitor
 
 
 @dataclass

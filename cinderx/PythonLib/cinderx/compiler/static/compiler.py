@@ -8,7 +8,6 @@ from __static__ import posix_clock_gettime_ns, rand, RAND_MAX
 
 import ast
 import builtins
-import sys
 from ast import AST
 from collections import deque
 from types import CodeType

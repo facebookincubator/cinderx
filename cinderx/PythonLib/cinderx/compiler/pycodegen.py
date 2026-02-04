@@ -69,7 +69,6 @@ try:
         PyFlowGraph314,
         PyFlowGraph315,
         PyFlowGraphCinder310,
-        PyFlowGraphCinder312,
         ResumeOparg,
         SrcLocation,
     )
@@ -86,7 +85,6 @@ try:
         SymbolVisitor310,
         SymbolVisitor312,
         SymbolVisitor314,
-        SymbolVisitor315,
         TypeParams,
         TypeParamScope,
         TypeVarDefault,

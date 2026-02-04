@@ -12,7 +12,7 @@ from dis import dis
 from types import CodeType
 from typing import Pattern, TextIO
 
-from .pycodegen import CinderCodeGenerator, CodeGenerator312, compile_code, make_header
+from .pycodegen import CinderCodeGenerator, compile_code, make_header
 from .static import FIXED_MODULES, StaticCodeGenerator
 from .strict import StrictCodeGenerator
 

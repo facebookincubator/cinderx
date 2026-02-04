@@ -29,14 +29,7 @@ from cinderx.compiler.pycodegen import (
 
 if sys.version_info >= (3, 14):
     # pyre-ignore[21]: unknown imports
-    from dis import (
-        _get_code_object,
-        _make_labels_map,
-        _parse_exception_table,
-        ArgResolver,
-        Bytecode,
-        Formatter,
-    )
+    from dis import _get_code_object, Bytecode, Formatter
 
 # Any value that can be passed into dis.dis() and dis.get_instructions().
 Disassembleable = Callable[..., Any] | CodeType | FunctionType | MethodType
