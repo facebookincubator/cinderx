@@ -25,7 +25,6 @@ from functools import partial
 from pathlib import Path
 from typing import Generator, Pattern, Type
 
-import cinderx
 from cinderx.compiler.pysourceloader import PySourceFileLoader
 from cinderx.compiler.strict.loader import strict_compile as strict_compile_fn
 
