@@ -524,7 +524,7 @@ static PyMethodDef cached_property_methods[] = {
     {NULL, NULL}};
 
 PyTypeObject PyCachedProperty_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "cached_property",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "cached_property",
     .tp_basicsize = sizeof(PyCachedPropertyDescrObject),
     .tp_dealloc = (destructor)cached_property_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
@@ -541,7 +541,8 @@ PyTypeObject PyCachedProperty_Type = {
 };
 
 PyTypeObject PyCachedPropertyWithDescr_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "cached_property_with_descr",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name =
+        "cached_property_with_descr",
     .tp_base = &PyCachedProperty_Type,
     .tp_basicsize = sizeof(PyCachedPropertyDescrObject),
     .tp_dealloc = (destructor)cached_property_dealloc,
@@ -917,7 +918,7 @@ exit:
 /* end clinic-generated code */
 
 PyTypeObject PyAsyncCachedProperty_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "async_cached_property",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "async_cached_property",
     .tp_basicsize = sizeof(PyAsyncCachedPropertyDescrObject),
     .tp_dealloc = (destructor)async_cached_property_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
@@ -933,7 +934,8 @@ PyTypeObject PyAsyncCachedProperty_Type = {
 };
 
 PyTypeObject PyAsyncCachedPropertyWithDescr_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "async_cached_property_with_descr",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name =
+        "async_cached_property_with_descr",
     .tp_basicsize = sizeof(PyAsyncCachedPropertyDescrObject),
     .tp_dealloc = (destructor)async_cached_property_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
@@ -1051,7 +1053,8 @@ static PyMemberDef async_cached_classproperty_members[] = {
     {0}};
 
 PyTypeObject PyAsyncCachedClassProperty_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "async_cached_classproperty",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name =
+        "async_cached_classproperty",
     .tp_basicsize = sizeof(PyAsyncCachedClassPropertyDescrObject),
     .tp_dealloc = (destructor)async_cached_classproperty_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,

@@ -31,7 +31,7 @@ static Py_hash_t objectkey_hash(_Ci_ObjectKey* self) {
 }
 
 PyTypeObject _Ci_ObjectKeyType = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "object_key",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "object_key",
     .tp_basicsize = sizeof(_Ci_ObjectKey),
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_richcompare = (richcmpfunc)objectkey_richcmp,

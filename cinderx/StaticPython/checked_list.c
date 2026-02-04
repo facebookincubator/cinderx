@@ -2694,7 +2694,7 @@ static PyMethodDef listiter_methods[] = {
 };
 
 PyTypeObject Ci_CheckedListIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "list_iterator", /* tp_name */
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "list_iterator", /* tp_name */
     sizeof(listiterobject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -2838,7 +2838,7 @@ static PyMethodDef listreviter_methods[] = {
 };
 
 PyTypeObject Ci_CheckedListRevIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "list_reverseiterator", /* tp_name */
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "list_reverseiterator", /* tp_name */
     sizeof(listreviterobject), /* tp_basicsize */
     0, /* tp_itemsize */
     /* methods */
@@ -3778,7 +3778,7 @@ _PyGenericTypeDef Ci_CheckedList_GenericType = {
     .gtd_type =
         {.ht_type =
              {
-                 PyVarObject_HEAD_INIT(NULL, 0) "__static__.chklist[T]",
+                 PyVarObject_HEAD_INIT(&PyType_Type, 0) "__static__.chklist[T]",
                  sizeof(PyListObject),
                  0,
                  (destructor)chklist_dealloc, /* tp_dealloc */

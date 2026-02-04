@@ -25,12 +25,6 @@ int Ci_DictOrChecked_SetItem(PyObject* op, PyObject* key, PyObject* value);
 
 void _PyCheckedDict_ClearCaches();
 
-extern PyTypeObject Ci_CheckedDictItems_Type, Ci_CheckedDictValues_Type,
-    Ci_CheckedDictIterKey_Type, Ci_CheckedDictIterValue_Type,
-    Ci_CheckedDictIterItem_Type, Ci_CheckedDictRevIterKey_Type,
-    Ci_CheckedDictRevIterItem_Type, Ci_CheckedDictRevIterValue_Type,
-    Ci_CheckedDictKeys_Type, Ci_CheckedDictItems_Type,
-    Ci_CheckedDictValues_Type;
 #ifdef __cplusplus
 }
 #endif

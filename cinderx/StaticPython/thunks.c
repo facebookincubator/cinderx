@@ -34,7 +34,7 @@ static int vtableinitthunk_clear(_PyClassLoader_VTableInitThunk* op) {
 }
 
 PyTypeObject _PyClassLoader_VTableInitThunk_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "vtable_init_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_init_thunk",
     sizeof(_PyClassLoader_VTableInitThunk),
     .tp_dealloc = (destructor)vtableinitthunk_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
@@ -67,7 +67,7 @@ static void _PyClassLoader_MethodThunk_dealloc(_PyClassLoader_MethodThunk* op) {
 }
 
 PyTypeObject _PyType_MethodThunk = {
-    PyVarObject_HEAD_INIT(NULL, 0) "vtable_method_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_method_thunk",
     sizeof(_PyClassLoader_MethodThunk),
     .tp_dealloc = (destructor)_PyClassLoader_MethodThunk_dealloc,
     .tp_flags =
@@ -103,7 +103,7 @@ static void thunkdealloc(_Py_StaticThunk* op) {
 }
 
 PyTypeObject _PyType_StaticThunk = {
-    PyVarObject_HEAD_INIT(NULL, 0) "static_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "static_thunk",
     sizeof(_Py_StaticThunk),
     .tp_dealloc = (destructor)thunkdealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
@@ -208,7 +208,7 @@ static PyObject* propthunk_del(
 }
 
 PyTypeObject _PyType_PropertyThunk = {
-    PyVarObject_HEAD_INIT(NULL, 0) "property_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "property_thunk",
     sizeof(_Py_PropertyThunk),
     .tp_dealloc = (destructor)propthunkdealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
@@ -341,7 +341,7 @@ static void _PyClassLoader_TypeCheckThunk_dealloc(
 }
 
 PyTypeObject _PyType_TypeCheckThunk = {
-    PyVarObject_HEAD_INIT(NULL, 0) "vtable_state_obj",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_state_obj",
     sizeof(_PyClassLoader_TypeCheckThunk),
     .tp_base = &_PyType_MethodThunk,
     .tp_dealloc = (destructor)_PyClassLoader_TypeCheckThunk_dealloc,
@@ -404,7 +404,7 @@ static void lazyfuncinit_thunk_dealloc(_PyClassLoader_LazyFuncJitThunk* op) {
 }
 
 PyTypeObject _PyClassLoader_LazyFuncJitThunk_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "lazyfuncinit_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "lazyfuncinit_thunk",
     sizeof(_PyClassLoader_LazyFuncJitThunk),
     .tp_base = &_PyType_MethodThunk,
     .tp_dealloc = (destructor)lazyfuncinit_thunk_dealloc,
@@ -459,7 +459,7 @@ static void staticmethodthunkdealloc(_PyClassLoader_StaticMethodThunk* op) {
 }
 
 PyTypeObject _PyClassLoader_StaticMethodThunk_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "staticmethod_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "staticmethod_thunk",
     sizeof(_PyClassLoader_StaticMethodThunk),
     .tp_base = &_PyType_MethodThunk,
     .tp_dealloc = (destructor)staticmethodthunkdealloc,
@@ -513,7 +513,7 @@ static void classmethodthunkdealloc(_PyClassLoader_ClassMethodThunk* op) {
 }
 
 PyTypeObject _PyClassLoader_ClassMethodThunk_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "classmethod_thunk",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "classmethod_thunk",
     sizeof(_PyClassLoader_ClassMethodThunk),
     .tp_base = &_PyType_MethodThunk,
     .tp_dealloc = (destructor)classmethodthunkdealloc,

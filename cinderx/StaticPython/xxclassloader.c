@@ -367,7 +367,7 @@ _PyGenericTypeDef spamobj_type = {
     .gtd_type =
         {.ht_type =
              {
-                 PyVarObject_HEAD_INIT(NULL, 0) "spamobj[T]",
+                 PyVarObject_HEAD_INIT(&PyType_Type, 0) "spamobj[T]",
                  sizeof(spamobject),
                  0,
                  (destructor)spamobj_dealloc, /* tp_dealloc */
