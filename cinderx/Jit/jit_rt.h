@@ -577,3 +577,15 @@ LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
  */
 void JITRT_AtQuiescentState(PyThreadState* tstate);
 #endif
+
+/*
+ * A PyObject that is used to indicate that an iterator has finished
+ * normally. This must never escape into managed code.
+ */
+extern PyObject JITRT_IterDoneSentinel;
+
+/*
+ * Invoke __next__ on iterator.
+ * Returns the next value, or JITRT_IterDoneSentinel if the iterator is done.
+ */
+PyObject* JITRT_InvokeIterNext(PyObject* iterator);

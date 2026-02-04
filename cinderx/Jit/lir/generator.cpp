@@ -37,7 +37,6 @@
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
-#include "cinderx/Jit/runtime_support.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -1224,7 +1223,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         if (opcode == Opcode::kCondBranchIterNotDone) {
           auto iter_done_addr =
-              reinterpret_cast<uint64_t>(&jit::g_iterDoneSentinel);
+              reinterpret_cast<uint64_t>(&JITRT_IterDoneSentinel);
           cond = bbb.appendInstr(
               Instruction::kSub,
               OutVReg{OperandBase::k64bit},
@@ -2709,7 +2708,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kInvokeIterNext: {
         auto instr = static_cast<const InvokeIterNext*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), jit::invokeIterNext, instr->GetOperand(0));
+            instr->output(), JITRT_InvokeIterNext, instr->GetOperand(0));
         break;
       }
       case Opcode::kLoadEvalBreaker: {
