@@ -2961,6 +2961,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove,
             codeunit_reg);
 
+#ifdef Py_GIL_DISABLED
+        bbb.appendInstr(
+            OutInd{
+                callee_frame,
+                offsetof(_PyInterpreterFrame, tlbc_index),
+                OperandBase::k32bit},
+            Instruction::kMove,
+            Imm{0, OperandBase::k32bit});
+#endif
+
         bbb.appendInstr(
             OutInd{
                 callee_frame,

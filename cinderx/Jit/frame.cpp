@@ -324,6 +324,14 @@ void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
     return;
   }
 
+#if Py_GIL_DISABLED
+  // The TLBC index should be 0 i.e. the default code for the frame. This makes
+  // sense because it's what the JIT is effectively running. Furthermore, if
+  // something did set the TLBC index, we have no guarantee this ran on the
+  // correct thread.
+  JIT_CHECK(frame->tlbc_index == 0, "frame has non-zero tlbc_index");
+#endif
+
   PyFunctionObject* func;
   if (!hasRtfsFunction(frame)) {
     func = jitFrameGetFunction(frame);
@@ -479,6 +487,9 @@ void jitFrameInitLightweight(
   JIT_DCHECK(reifier, "reifier needed for lightweight frames");
   frame->stackpointer = frame->localsplus;
   setFrameInstruction(frame, _PyCode_CODE(code));
+#ifdef Py_GIL_DISABLED
+  frame->tlbc_index = 0;
+#endif
   setFrameCode(frame, reifier);
   setFrameFunction(frame, (PyObject*)Py_NewRef(func));
   jitFrameGetHeader(frame)->rtfs = 0;

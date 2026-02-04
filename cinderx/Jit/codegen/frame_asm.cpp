@@ -134,7 +134,85 @@ void FrameAsm::linkNormalGeneratorFrame(
   preserver.restore();
 }
 
-void FrameAsm::emitIncTotalRefCount(const arch::Gp& scratch_reg) {
+#ifdef Py_GIL_DISABLED
+
+void emit_inc_total_ref_count_x86_nogil(
+    [[maybe_unused]] asmjit::x86::Builder* as,
+    [[maybe_unused]] const arch::Gp& tstate_reg) {
+#ifdef Py_REF_DEBUG
+#if defined(CINDER_X86_64)
+  as->inc(
+      x86::ptr(
+          tstate_reg,
+          offsetof(_PyThreadStateImpl, reftotal),
+          sizeof(Py_ssize_t)));
+#else
+  CINDER_UNSUPPORTED
+#endif
+#endif
+}
+
+void inc_ref_x86_nogil(
+    [[maybe_unused]] asmjit::x86::Builder* as,
+    [[maybe_unused]] const arch::Gp& reg,
+    [[maybe_unused]] const arch::Gp& scratch_reg,
+    [[maybe_unused]] const arch::Gp& tstate_reg) {
+#if defined(CINDER_X86_64)
+  // For free-threaded Python, check immortality via ob_ref_local.
+  // Load ob_ref_local (32-bit). Note this load should be atomic with relaxed
+  // memory semantics, which is default on x86.
+  as->mov(
+      scratch_reg.r32(), x86::dword_ptr(reg, offsetof(PyObject, ob_ref_local)));
+  // Add 1 - if result is zero, object was immortal (UINT32_MAX + 1 overflows
+  // to 0)
+  as->inc(scratch_reg.r32());
+  Label immortal = as->newLabel();
+  as->jz(immortal);
+
+  // Check if object is owned by current thread by comparing ob_tid with
+  // the current thread ID. This is equivalent to _Py_IsOwnedByCurrentThread.
+  // TODO: I don't have the stomach to find another scratch register for the
+  // ob_tid to current TID comparison, so I'm just reusing the one scratch
+  // register we have for now plus the stack. Should still be pretty fast on
+  // x86.
+  Label not_owned = as->newLabel();
+  as->push(scratch_reg);
+  as->mov(scratch_reg, x86::ptr(reg, offsetof(PyObject, ob_tid)));
+  x86::Mem tid_mem;
+  tid_mem.setOffset(0);
+  tid_mem.setSize(sizeof(uintptr_t));
+  tid_mem.setSegment(x86::fs);
+  as->cmp(scratch_reg, tid_mem);
+  as->pop(scratch_reg);
+  as->jne(not_owned);
+
+  // Owned by current thread - store directly to ob_ref_local (fast path).
+  // Note this store should be atomic with relaxed memory semantics, which is
+  // default on x86.
+  as->mov(
+      x86::dword_ptr(reg, offsetof(PyObject, ob_ref_local)), scratch_reg.r32());
+  Label done_incref = as->newLabel();
+  as->jmp(done_incref);
+
+  // Not owned - use atomic add to ob_ref_shared (slow path)
+  as->bind(not_owned);
+  as->lock().add(
+      x86::qword_ptr(reg, offsetof(PyObject, ob_ref_shared)),
+      1 << _Py_REF_SHARED_SHIFT);
+  as->bind(done_incref);
+  emit_inc_total_ref_count_x86_nogil(as, tstate_reg);
+  as->bind(immortal);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+#else
+// GILful inc-ref implementation
+
+void emit_inc_total_ref_count_x86_gil(
+    [[maybe_unused]] asmjit::x86::Builder* as,
+    [[maybe_unused]] const arch::Gp& scratch_reg) {
 #ifdef Py_REF_DEBUG
 #if defined(CINDER_X86_64)
   PyInterpreterState* interp;
@@ -145,35 +223,53 @@ void FrameAsm::emitIncTotalRefCount(const arch::Gp& scratch_reg) {
   }
 
   Py_ssize_t* ref_total = &interp->object_state.reftotal;
-  as_->mov(scratch_reg, ref_total);
-  as_->inc(x86::ptr(scratch_reg.r64(), 0, sizeof(void*)));
+  as->mov(scratch_reg, ref_total);
+  as->inc(x86::ptr(scratch_reg, 0, sizeof(void*)));
 #else
   CINDER_UNSUPPORTED
 #endif
 #endif
 }
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-// TODO(T251571746): need to correctly implement FT incref.
-void FrameAsm::incRef(const arch::Gp& reg, const arch::Gp& scratch_reg) {
+void inc_ref_x86_gil(
+    asmjit::x86::Builder* as,
+    const arch::Gp& reg,
+    const arch::Gp& scratch_reg) {
 #if defined(CINDER_X86_64)
-  as_->mov(scratch_reg, x86::ptr(reg, offsetof(PyObject, ob_refcnt)));
-  as_->inc(scratch_reg);
-  Label immortal = as_->newLabel();
+  Label immortal = as->newLabel();
+  as->mov(scratch_reg.r32(), x86::ptr(reg, offsetof(PyObject, ob_refcnt)));
+  as->inc(scratch_reg.r32());
 #if PY_VERSION_HEX >= 0x030E0000
-  as_->js(immortal);
+  as->js(immortal);
 #else
-  as_->je(immortal);
+  as->je(immortal);
 #endif
   // mortal
-  as_->mov(x86::ptr(reg, offsetof(PyObject, ob_refcnt)), scratch_reg);
-  emitIncTotalRefCount(scratch_reg.r64());
-  as_->bind(immortal);
+  as->mov(x86::ptr(reg, offsetof(PyObject, ob_refcnt)), scratch_reg.r32());
+  emit_inc_total_ref_count_x86_gil(as, scratch_reg);
+  as->bind(immortal);
 #else
   CINDER_UNSUPPORTED
 #endif
 }
+#endif // Py_GIL_DISABLED
+
+void FrameAsm::incRef(
+    const arch::Gp& reg,
+    const arch::Gp& scratch_reg,
+    [[maybe_unused]] const arch::Gp& tstate_reg) {
+#if defined(CINDER_X86_64)
+
+#if defined(Py_GIL_DISABLED)
+  inc_ref_x86_nogil(as_, reg, scratch_reg, tstate_reg);
+#else
+  inc_ref_x86_gil(as_, reg, scratch_reg);
 #endif
+
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
 
 bool FrameAsm::storeConst(
     const arch::Gp& reg,
@@ -241,7 +337,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
 #else
   PyObject* frame_reifier = env_.code_rt->reifier();
 #endif
-  const auto ref_cnt = x86::eax;
+  const auto ref_cnt = x86::rax;
 
 #define FRAME_OFFSET(NAME) \
   -frame_header_size + offsetof(_PyInterpreterFrame, NAME) + sizeof(FrameHeader)
@@ -254,7 +350,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   // Initialize the fields minus previous.
   // Store func before the header
   as_->mov(x86::ptr(x86::rbp, -frame_header_size), func_reg);
-  incRef(func_reg, ref_cnt);
+  incRef(func_reg, ref_cnt, tstate_reg);
   env_.addAnnotation("Store func before frame header", store_func_cursor);
 #endif
 
@@ -271,7 +367,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
       // if this fit into a 32-bit value we didn't spill it into scratch
       as_->mov(scratch, reinterpret_cast<uint64_t>(executable));
     }
-    incRef(scratch, ref_cnt);
+    incRef(scratch, ref_cnt, tstate_reg);
   }
   env_.addAnnotation(
       "Set _PyInterpreterFrame::f_executable/f_code", store_f_code_cursor);
@@ -280,7 +376,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   asmjit::BaseNode* store_f_funcobj_cursor = as_->cursor();
 #if PY_VERSION_HEX >= 0x030E0000
   as_->mov(x86::ptr(x86::rbp, FRAME_OFFSET(f_funcobj)), func_reg);
-  incRef(func_reg, ref_cnt);
+  incRef(func_reg, ref_cnt, tstate_reg);
 #else
   storeConst(x86::rbp, FRAME_OFFSET(f_funcobj), frame_reifier, scratch);
   JIT_DCHECK(_Py_IsImmortal(frame_reifier), "frame helper must be immortal");
@@ -288,7 +384,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   env_.addAnnotation(
       "Set _PyInterpreterFrame::f_funcobj", store_f_funcobj_cursor);
 
-  // Store prev_instr
+  // Store prev_instr + tlbc_index
   asmjit::BaseNode* store_prev_instr_cursor = as_->cursor();
 #if PY_VERSION_HEX >= 0x030E0000
   _Py_CODEUNIT* code = _PyCode_CODE(GetFunction()->code.get());
@@ -298,6 +394,11 @@ void FrameAsm::linkLightWeightFunctionFrame(
   storeConst(x86::rbp, FRAME_OFFSET(FRAME_INSTR), code, scratch);
   env_.addAnnotation(
       "Set _PyInterpreterFrame::prev_instr", store_prev_instr_cursor);
+#ifdef Py_GIL_DISABLED
+  asmjit::BaseNode* tlbc_index_cursor = as_->cursor();
+  as_->mov(x86::dword_ptr(x86::rbp, FRAME_OFFSET(tlbc_index)), 0);
+  env_.addAnnotation("Set TLBC index to 0", tlbc_index_cursor);
+#endif
 
   // Store owner
   asmjit::BaseNode* store_owner_cursor = as_->cursor();
@@ -361,8 +462,6 @@ void FrameAsm::linkLightWeightFunctionFrame(
     preserver.remap();
   }
 #else
-  // TODO(T251571746): For FTPython either need to set TLBC somewhere in here or
-  // in the reifier.
   throw std::runtime_error{
       "linkLightWeightFunctionFrame: Lightweight frames are not supported"};
 #endif

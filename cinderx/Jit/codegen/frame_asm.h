@@ -50,9 +50,10 @@ class FrameAsm {
   bool isGen() const {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }
-
-  void emitIncTotalRefCount(const arch::Gp& scratch_reg);
-  void incRef(const arch::Gp& reg, const arch::Gp& scratch_reg);
+  void incRef(
+      const arch::Gp& reg,
+      const arch::Gp& scratch_reg,
+      const arch::Gp& tstate_reg);
   bool storeConst(
       const arch::Gp& reg,
       int32_t offset,
