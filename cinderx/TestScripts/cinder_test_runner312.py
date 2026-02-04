@@ -31,7 +31,7 @@ import types
 import unittest
 
 # CPython always imports this on startup, but cinder's dev environment doesn't
-from importlib import util
+from importlib import util  # noqa: F401
 from pathlib import Path
 from typing import Dict, IO, Iterable, List, Optional, Set, Tuple
 

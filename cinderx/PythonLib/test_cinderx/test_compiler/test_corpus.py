@@ -6,7 +6,6 @@ import sys
 from io import StringIO
 from os import path
 from tokenize import detect_encoding
-from types import CodeType
 from unittest import main, TestCase
 
 from cinderx.compiler.dis_stable import Disassembler

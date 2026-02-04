@@ -1,8 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import StaticTypeError
 
-import unittest
-
 import cinderx.jit
 from cinderx.test_support import skip_unless_jit
 

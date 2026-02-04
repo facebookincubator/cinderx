@@ -5,8 +5,6 @@ import sys
 from contextlib import contextmanager
 from unittest.mock import MagicMock, Mock, patch
 
-from cinderx.test_support import passIf
-
 try:
     from cinder import getknobs, setknobs
 except ImportError:

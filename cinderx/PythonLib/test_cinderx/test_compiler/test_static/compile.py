@@ -5,13 +5,11 @@ import __static__
 import ast
 import asyncio
 import builtins
-import dis
 import inspect
 import re
 import subprocess
 import sys
 import unittest
-from io import StringIO
 from os import path
 from pathlib import Path
 from tempfile import TemporaryDirectory

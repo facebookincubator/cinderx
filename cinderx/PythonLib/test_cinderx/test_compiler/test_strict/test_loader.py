@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import unittest
 from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from importlib.abc import Loader
