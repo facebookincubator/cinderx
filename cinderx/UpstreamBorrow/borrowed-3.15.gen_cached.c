@@ -3211,9 +3211,10 @@ void
 _PyStack_UnpackDict_Free(PyObject *const *stack, Py_ssize_t nargs,
                          PyObject *kwnames)
 {
-    Py_ssize_t n = PyTuple_GET_SIZE(kwnames) + nargs;
-    for (Py_ssize_t i = 0; i < n; i++) {
-        Py_DECREF(stack[i]);
+    /* Only decref kwargs values, positional args are borrowed */
+    Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
+    for (Py_ssize_t i = 0; i < nkwargs; i++) {
+        Py_DECREF(stack[nargs + i]);
     }
     _PyStack_UnpackDict_FreeNoDecRef(stack, kwnames);
 }
