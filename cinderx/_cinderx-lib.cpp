@@ -69,7 +69,9 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   _PyCheckedDict_ClearCaches();
   _PyCheckedList_ClearCaches();
   _PyClassLoader_ClearValueCache();
-  jit::getContext()->clearDeoptStats();
+  if (auto* ctx = jit::getContext()) {
+    ctx->clearDeoptStats();
+  }
   // We replace sys._clear_type_cache with our own function which
   // clears the caches, so we should call this too.
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
