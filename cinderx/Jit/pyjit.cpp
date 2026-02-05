@@ -3420,7 +3420,10 @@ void finalize() {
   jit_reg_units.clear();
   JIT_CHECK(
       hir::preloaderManager().empty(),
-      "JIT cannot be finalized while batch compilation is active");
+      "JIT cannot be finalized while batch compilation is active size:{} "
+      "is_global:{}",
+      hir::preloaderManager().size(),
+      hir::preloaderManager().isGlobalManager());
 
   for (auto func : jitCtx()->compiledFuncs()) {
     deoptFuncImpl(func);

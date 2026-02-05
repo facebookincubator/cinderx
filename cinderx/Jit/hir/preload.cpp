@@ -119,6 +119,7 @@ static std::unique_ptr<NativeTarget> resolve_native_target(
 }
 
 PreloaderManager s_manager;
+thread_local PreloaderManager* tls_manager = nullptr;
 
 } // namespace
 
@@ -535,33 +536,31 @@ bool PreloaderManager::empty() const {
   return preloaders_.empty();
 }
 
+size_t PreloaderManager::size() const {
+  return preloaders_.size();
+}
+
 void PreloaderManager::clear() {
   preloaders_.clear();
 }
 
-void PreloaderManager::swap(PreloaderMap& replacement) {
-  // Should never be called from within the actual multi-threaded compile;
-  // it's not safe to mess with the global preloaders map in that context.
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "cannot preload single func from within multi-threaded compile");
-  preloaders_.swap(replacement);
+bool PreloaderManager::isGlobalManager() const {
+  return tls_manager == nullptr;
 }
 
 PreloaderManager& preloaderManager() {
+  if (tls_manager != nullptr) {
+    return *tls_manager;
+  }
   return s_manager;
 }
 
-IsolatedPreloaders::IsolatedPreloaders() {
-  swap();
+IsolatedPreloaders::IsolatedPreloaders() : prev_manager_(tls_manager) {
+  tls_manager = &local_manager_;
 }
 
 IsolatedPreloaders::~IsolatedPreloaders() {
-  swap();
-}
-
-void IsolatedPreloaders::swap() {
-  s_manager.swap(orig_preloaders_);
+  tls_manager = prev_manager_;
 }
 
 } // namespace jit::hir

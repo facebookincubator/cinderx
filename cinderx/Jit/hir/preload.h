@@ -269,12 +269,12 @@ class PreloaderManager {
   // Check if there are any preloaders registered.
   bool empty() const;
 
+  size_t size() const;
+
+  bool isGlobalManager() const;
+
   // Clear out all preloaders.
   void clear();
-
-  // Swap the inner map with the one passed as an argument.  Needed by
-  // IsolatedPreloaders.
-  void swap(PreloaderMap& replacement);
 
  private:
   PreloaderMap preloaders_;
@@ -284,15 +284,16 @@ class PreloaderManager {
 PreloaderManager& preloaderManager();
 
 // RAII device for isolating preloaders state.
+// Uses thread-local storage to give each thread its own PreloaderManager
+// while isolation is active, avoiding race conditions between threads.
 class IsolatedPreloaders {
  public:
   IsolatedPreloaders();
   ~IsolatedPreloaders();
 
  private:
-  void swap();
-
-  PreloaderMap orig_preloaders_;
+  PreloaderManager local_manager_;
+  PreloaderManager* prev_manager_;
 };
 
 } // namespace jit::hir
