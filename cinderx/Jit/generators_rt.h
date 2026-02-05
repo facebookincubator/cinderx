@@ -32,6 +32,7 @@ struct GenDataFooter;
 extern PyType_Spec JitGen_Spec;
 extern PyType_Spec JitCoro_Spec;
 extern PyType_Spec JitAnextAwaitable_Spec;
+extern PyTypeObject _JitCoroWrapper_Type;
 
 template <typename PyObjectT>
 int JitGen_CheckAny(PyObjectT* op) {

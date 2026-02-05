@@ -94,7 +94,7 @@ typed_descriptor_set(PyObject* self, PyObject* obj, PyObject* value) {
 }
 
 PyTypeObject _PyTypedDescriptor_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "typed_descriptor",
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "typed_descriptor",
     .tp_basicsize = sizeof(_PyTypedDescriptor),
     .tp_dealloc = (destructor)typed_descriptor_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
@@ -234,7 +234,7 @@ static int typed_descriptor_with_default_value_set(
 }
 
 PyTypeObject _PyTypedDescriptorWithDefaultValue_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name =
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name =
         "typed_descriptor_with_default_value",
     .tp_basicsize = sizeof(_PyTypedDescriptorWithDefaultValue),
     .tp_dealloc = (destructor)typed_descriptor_with_default_value_dealloc,

@@ -239,7 +239,7 @@ static PyMemberDef awaitable_memberlist[] = {
 };
 
 static PyTypeObject _PyClassLoader_AwaitableType = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "awaitable_wrapper",
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "awaitable_wrapper",
     sizeof(_PyClassLoader_Awaitable),
     0,
     .tp_dealloc = (destructor)awaitable_dealloc,

@@ -1365,6 +1365,11 @@ int _cinderx_exec_impl(PyObject* m) {
   if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
     return -1;
   }
+#if PY_VERSION_HEX >= 0x030C0000
+  if (PyType_Ready(&jit::_JitCoroWrapper_Type) < 0) {
+    return -1;
+  }
+#endif
 
   PyObject* cached_classproperty =
       PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);

@@ -67,7 +67,7 @@ constexpr uintptr_t kKindMask = 0x07;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-field-initializers"
 PyTypeObject s_empty_type_attr_cache = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "EmptyLoadTypeAttrCache",
+    PyVarObject_HEAD_INIT(NULL, 0) "EmptyLoadTypeAttrCache",
 };
 #pragma clang diagnostic pop
 

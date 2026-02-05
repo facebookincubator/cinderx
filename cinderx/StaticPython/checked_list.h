@@ -34,6 +34,8 @@ void _PyCheckedList_ClearCaches();
   ((void)(((PyListObject*)(op))->ob_item[i] = (v)))
 #define Ci_ListOrCheckedList_GET_SIZE(op) Py_SIZE((PyListObject*)(op))
 
+extern PyTypeObject Ci_CheckedListRevIter_Type;
+extern PyTypeObject Ci_CheckedListIter_Type;
 #ifdef __cplusplus
 }
 #endif

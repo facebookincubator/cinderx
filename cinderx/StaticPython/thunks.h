@@ -11,8 +11,11 @@ extern "C" {
 extern PyTypeObject _PyType_MethodThunk;
 extern PyTypeObject _PyType_StaticThunk;
 extern PyTypeObject _PyType_PropertyThunk;
-extern PyTypeObject _PyType_TypedDescriptorThunk;
 extern PyTypeObject _PyClassLoader_VTableInitThunk_Type;
+extern PyTypeObject _PyType_TypeCheckThunk;
+extern PyTypeObject _PyClassLoader_LazyFuncJitThunk_Type;
+extern PyTypeObject _PyClassLoader_StaticMethodThunk_Type;
+extern PyTypeObject _PyClassLoader_ClassMethodThunk_Type;
 
 #define THUNK_SIG(arg_count)      \
   {                               \

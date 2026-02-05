@@ -58,7 +58,7 @@ static int vtableclear(_PyType_VTable* op) {
 }
 
 PyTypeObject _PyType_VTableType = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable",
+    PyVarObject_HEAD_INIT(NULL, 0) "vtable",
     sizeof(_PyType_VTable) - sizeof(_PyType_VTableEntry),
     sizeof(_PyType_VTableEntry),
     .tp_dealloc = (destructor)vtabledealloc,
