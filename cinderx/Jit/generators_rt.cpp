@@ -25,7 +25,7 @@ PyObject* JitGenObject::yieldFrom() {
   GenDataFooter* gen_footer = genDataFooter();
   const GenYieldPoint* yield_point = gen_footer->yieldPoint;
   PyObject* yield_from = nullptr;
-  if (gi_frame_state < FRAME_COMPLETED && yield_point) {
+  if (!FRAME_STATE_FINISHED(gi_frame_state) && yield_point) {
     yield_from = yieldFromValue(gen_footer, yield_point);
     Py_XINCREF(yield_from);
   }
@@ -117,7 +117,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
     setCurrentFrame(tstate, frame->previous);
 
     frame->previous = nullptr;
-    if (jit_gen->gi_frame_state == FRAME_COMPLETED) {
+    if (FRAME_STATE_FINISHED(jit_gen->gi_frame_state)) {
       jit_gen->gi_frame_state = FRAME_CLEARED;
       jitFrameClearExceptCode(frame);
     } else {
@@ -183,7 +183,7 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   /* If the generator just returned (as opposed to yielding), signal
    * that the generator is exhausted. */
   if (result) {
-    if (gen->gi_frame_state < FRAME_COMPLETED) {
+    if (!FRAME_STATE_FINISHED(gen->gi_frame_state)) {
       *presult = result;
       return PYGEN_NEXT;
     }
@@ -326,7 +326,7 @@ void jitgen_finalize(PyObject* obj) {
   PyGenObject* gen = reinterpret_cast<PyGenObject*>(obj);
 
   // Fast-path: generator has completed so there's nothing to do.
-  if (gen->gi_frame_state >= FRAME_COMPLETED) {
+  if (FRAME_STATE_FINISHED(gen->gi_frame_state)) {
     return;
   }
 
@@ -516,6 +516,9 @@ static PyGetSetDef jitgen_getsetlist[] = {
     {"gi_frame", nullptr, nullptr, nullptr},
     {"gi_suspended", nullptr, nullptr, nullptr},
     {"gi_code", nullptr, nullptr, nullptr},
+#if PY_VERSION_HEX >= 0x030F0000
+    {"gi_state", nullptr, nullptr, nullptr},
+#endif
     {"__class__", jitgen_getclass, nullptr, nullptr},
     {} /* Sentinel */
 };
@@ -529,6 +532,9 @@ static PyGetSetDef jitcoro_getsetlist[] = {
     {"cr_frame", nullptr, nullptr, nullptr},
     {"cr_code", nullptr, nullptr, nullptr},
     {"cr_suspended", nullptr, nullptr, nullptr},
+#if PY_VERSION_HEX >= 0x030F0000
+    {"cr_state", nullptr, nullptr, nullptr},
+#endif
 #ifdef ENABLE_GENERATOR_AWAITER
     {"cr_ci_awaiter", nullptr, nullptr, nullptr},
     {"cr_awaiter", nullptr, nullptr, nullptr},
@@ -695,7 +701,7 @@ bool deopt_jit_gen(PyObject* obj) {
     releaseRefs(deopt_meta, gen_footer);
   } else {
     JIT_CHECK(
-        jit_gen->gi_frame_state >= FRAME_COMPLETED,
+        FRAME_STATE_FINISHED(jit_gen->gi_frame_state),
         "JIT generator has no yield point and is not running or completed");
   }
 

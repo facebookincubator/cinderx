@@ -1367,7 +1367,11 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
             x86::rdx,
             offsetof(PyGenObject, gi_frame_state),
             sizeof(PyGenObject::gi_frame_state)),
+#if PY_VERSION_HEX >= 0x030F0000
+        FRAME_CLEARED);
+#else
         FRAME_COMPLETED);
+#endif
 #endif
     as_->bind(env_.exit_for_yield_label);
     RestoreOriginalGeneratorFramePointer(as_);
