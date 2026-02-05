@@ -91,3 +91,12 @@ The JIT uses a High-level Intermediate Representation (HIR) defined in
 If the instruction needs to call a custom runtime helper function:
 - Declare it in **Jit/jit_rt.h**
 - Implement it in **Jit/jit_rt.cpp**
+
+## Investigating JIT failures
+If you're investigating a JIT issue you may want to isolate the issue to a
+single function.  You can use `cinderx.jit.force_compile` to compile an
+individual function if you suspect that a specific function is problematic.
+
+If you run the test with PYTHONJITDUMPASM=1 you can see the assembly dumped
+along with the HIR to understand what the compiled code looks like and what
+the underlying issue is.
