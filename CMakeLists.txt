@@ -348,6 +348,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
+  Python::Module
   borrowed cached-properties common immortalize interpreter jit parallel-gc static-python
   asmjit::asmjit fmt::fmt)
 
