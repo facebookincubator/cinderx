@@ -60,12 +60,12 @@ PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method);
 
 extern const Ci_Py_SigElement Ci_Py_Sig_T0;
 extern const Ci_Py_SigElement Ci_Py_Sig_T1;
-extern const Ci_Py_SigElement Ci_Py_Sig_T0_Opt;
-extern const Ci_Py_SigElement Ci_Py_Sig_T1_Opt;
+extern Ci_Py_SigElement Ci_Py_Sig_T0_Opt;
+extern Ci_Py_SigElement Ci_Py_Sig_T1_Opt;
 extern const Ci_Py_SigElement Ci_Py_Sig_Object;
-extern const Ci_Py_SigElement Ci_Py_Sig_Object_Opt;
+extern Ci_Py_SigElement Ci_Py_Sig_Object_Opt;
 extern const Ci_Py_SigElement Ci_Py_Sig_String;
-extern const Ci_Py_SigElement Ci_Py_Sig_String_Opt;
+extern Ci_Py_SigElement Ci_Py_Sig_String_Opt;
 
 extern const Ci_Py_SigElement Ci_Py_Sig_SSIZET;
 extern const Ci_Py_SigElement Ci_Py_Sig_SIZET;

@@ -43,6 +43,12 @@ static int _static_exec(PyObject* m) {
       &PyType_Type;
   Ci_CheckedList_GenericType.gtd_type.ht_type.ob_base.ob_base.ob_type =
       &PyType_Type;
+
+  Ci_Py_Sig_T0_Opt.se_default_value = Py_None;
+  Ci_Py_Sig_T1_Opt.se_default_value = Py_None;
+  Ci_Py_Sig_Object_Opt.se_default_value = Py_None;
+  Ci_Py_Sig_String_Opt.se_default_value = Py_None;
+
   if ((Ci_CheckedDict_Type = _PyClassLoader_MakeGenericHeapType(
            &Ci_CheckedDict_GenericType)) == NULL ||
       PyModule_AddObjectRef(m, "chkdict", (PyObject*)Ci_CheckedDict_Type) < 0) {

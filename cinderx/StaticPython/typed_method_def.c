@@ -8,20 +8,14 @@
 
 const Ci_Py_SigElement Ci_Py_Sig_T0 = {Ci_Py_SIG_TYPE_PARAM_IDX(0)};
 const Ci_Py_SigElement Ci_Py_Sig_T1 = {Ci_Py_SIG_TYPE_PARAM_IDX(1)};
-const Ci_Py_SigElement Ci_Py_Sig_T0_Opt = {
-    Ci_Py_SIG_TYPE_PARAM_IDX(0) | Ci_Py_SIG_OPTIONAL,
-    Py_None};
-const Ci_Py_SigElement Ci_Py_Sig_T1_Opt = {
-    Ci_Py_SIG_TYPE_PARAM_IDX(1) | Ci_Py_SIG_OPTIONAL,
-    Py_None};
+Ci_Py_SigElement Ci_Py_Sig_T0_Opt = {
+    Ci_Py_SIG_TYPE_PARAM_IDX(0) | Ci_Py_SIG_OPTIONAL};
+Ci_Py_SigElement Ci_Py_Sig_T1_Opt = {
+    Ci_Py_SIG_TYPE_PARAM_IDX(1) | Ci_Py_SIG_OPTIONAL};
 const Ci_Py_SigElement Ci_Py_Sig_Object = {Ci_Py_SIG_OBJECT};
-const Ci_Py_SigElement Ci_Py_Sig_Object_Opt = {
-    Ci_Py_SIG_OBJECT | Ci_Py_SIG_OPTIONAL,
-    Py_None};
+Ci_Py_SigElement Ci_Py_Sig_Object_Opt = {Ci_Py_SIG_OBJECT | Ci_Py_SIG_OPTIONAL};
 const Ci_Py_SigElement Ci_Py_Sig_String = {Ci_Py_SIG_STRING};
-const Ci_Py_SigElement Ci_Py_Sig_String_Opt = {
-    Ci_Py_SIG_STRING | Ci_Py_SIG_OPTIONAL,
-    Py_None};
+Ci_Py_SigElement Ci_Py_Sig_String_Opt = {Ci_Py_SIG_STRING | Ci_Py_SIG_OPTIONAL};
 
 const Ci_Py_SigElement Ci_Py_Sig_SSIZET = {Ci_Py_SIG_SSIZE_T};
 const Ci_Py_SigElement Ci_Py_Sig_SIZET = {Ci_Py_SIG_SIZE_T};
