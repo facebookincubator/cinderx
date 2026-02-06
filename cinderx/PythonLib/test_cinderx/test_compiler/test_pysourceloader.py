@@ -7,6 +7,7 @@ import tempfile
 from unittest import TestCase
 
 import cinderx
+from cinderx.test_support import subprocess_env
 
 
 class PySourceLoaderTest(TestCase):
@@ -18,11 +19,7 @@ class PySourceLoaderTest(TestCase):
             ):
                 with tempfile.TemporaryDirectory() as tmpdir:
                     env = os.environ.copy()
-                    if cinderx.__file__:
-                        # cinderx.__file__ is None in the baseline CPython test
-                        env["PYTHONPATH"] = os.path.dirname(
-                            os.path.dirname(cinderx.__file__)
-                        )
+                    env.update(subprocess_env())
                     if strict:
                         env["PYTHONINSTALLSTRICTLOADER"] = "1"
                     else:

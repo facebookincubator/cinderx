@@ -34,7 +34,7 @@ from cinderx.compiler.static.types import (
     TypeEnvironment,
     Value,
 )
-from cinderx.test_support import passIf, passUnless, skip_unless_jit
+from cinderx.test_support import passIf, passUnless, skip_unless_jit, subprocess_env
 
 from .common import (
     add_fixed_module,
@@ -44,8 +44,6 @@ from .common import (
     StaticTestBase,
     type_mismatch,
 )
-
-STATIC_PATH: str = path.dirname(path.dirname(__static__.__file__))
 
 RICHARDS_PATH = path.join(
     path.dirname(__file__),
@@ -5643,7 +5641,7 @@ class StaticCompilationTests(StaticTestBase):
                 "main.py",
             ]
             proc = subprocess.run(
-                cmd, capture_output=True, cwd=str(d), env={"PYTHONPATH": STATIC_PATH}
+                cmd, capture_output=True, cwd=str(d), env=subprocess_env()
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
