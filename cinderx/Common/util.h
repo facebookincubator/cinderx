@@ -190,7 +190,7 @@ combineHash(std::size_t seed, std::size_t hash, Args&&... args) {
 template <class T>
 std::optional<T> parseNumber(std::string_view s) {
   T n = 0;
-  auto result = std::from_chars(s.begin(), s.end(), n);
+  auto result = std::from_chars(&s.front(), (&s.back()) + 1, n);
   if (result.ec == std::errc{}) {
     return n;
   }

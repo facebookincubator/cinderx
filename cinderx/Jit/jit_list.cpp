@@ -159,7 +159,7 @@ bool JITList::addEntryCode(
 
   long line_no = 0;
   auto result =
-      std::from_chars(line_no_str.begin(), line_no_str.end(), line_no);
+      std::from_chars(&line_no_str.front(), (&line_no_str.back()) + 1, line_no);
   if (result.ec != std::errc{}) {
     return false;
   }
