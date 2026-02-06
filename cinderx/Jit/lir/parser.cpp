@@ -465,7 +465,7 @@ void Parser::parseIndirect(
   uint8_t multiplier = 0;
   int32_t offset = 0;
 
-  std::cmatch m;
+  std::match_results<std::string_view::const_iterator> m;
 
   // keep track of length of parsed operand
   // start at 1 to account for the right bracket
