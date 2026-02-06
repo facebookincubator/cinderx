@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/hir/opcode.h"
+#include "cinderx/Jit/hir/hir_ops.h"
 
 namespace jit::hir {
 

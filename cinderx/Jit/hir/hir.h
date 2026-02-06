@@ -6,7 +6,7 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/hir/frame_state.h"
-#include "cinderx/Jit/hir/opcode.h"
+#include "cinderx/Jit/hir/hir_ops.h"
 #include "cinderx/Jit/hir/register.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/intrusive_list.h"
