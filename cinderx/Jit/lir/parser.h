@@ -73,7 +73,7 @@ class Parser {
 
   struct Token {
     TokenType type{kError};
-    ssize_t length{0};
+    Py_ssize_t length{0};
     int64_t data{0};
   };
 

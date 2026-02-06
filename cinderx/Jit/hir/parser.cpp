@@ -127,7 +127,7 @@ Type HIRParser::parseType(std::string_view str) {
   }
 
   if (base <= TLong) {
-    return parseNumberLiteral<intptr_t>(spec_string, PyLong_FromLong);
+    return parseNumberLiteral<Py_ssize_t>(spec_string, PyLong_FromSsize_t);
   }
 
   if (base <= TFloat) {

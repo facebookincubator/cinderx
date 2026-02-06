@@ -1057,7 +1057,7 @@ bool compile_all(size_t workers = 0) {
   std::chrono::time_point start = std::chrono::steady_clock::now();
 
   if (workers == 0) {
-    workers = std::max(getConfig().batch_compile_workers, 1ul);
+    workers = std::max<size_t>(getConfig().batch_compile_workers, 1);
   }
 
   std::vector<BorrowedRef<>> compilation_units;

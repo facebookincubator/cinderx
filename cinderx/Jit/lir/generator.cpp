@@ -168,11 +168,11 @@ emitSubclassCheck(BasicBlockBuilder& bbb, hir::Register* obj, Type type) {
 
 #undef FOREACH_FAST_BUILTIN
 
-ssize_t frameOffsetBefore(const BeginInlinedFunction* instr) {
+Py_ssize_t frameOffsetBefore(const BeginInlinedFunction* instr) {
 #if PY_VERSION_HEX < 0x030C0000
-  return -instr->inlineDepth() * ssize_t{kJITShadowFrameSize};
+  return -instr->inlineDepth() * Py_ssize_t{kJITShadowFrameSize};
 #else
-  ssize_t depth = 0;
+  Py_ssize_t depth = 0;
   for (auto frame = instr->callerFrameState(); frame != nullptr;
        frame = frame->parent) {
     depth -= frameHeaderSize(frame->code);
@@ -181,9 +181,9 @@ ssize_t frameOffsetBefore(const BeginInlinedFunction* instr) {
 #endif
 }
 
-ssize_t frameOffsetOf(const BeginInlinedFunction* instr) {
+Py_ssize_t frameOffsetOf(const BeginInlinedFunction* instr) {
 #if PY_VERSION_HEX < 0x030C0000
-  return frameOffsetBefore(instr) - ssize_t{kJITShadowFrameSize};
+  return frameOffsetBefore(instr) - Py_ssize_t{kJITShadowFrameSize};
 #else
   return frameOffsetBefore(instr) - frameHeaderSize(instr->code());
 #endif
@@ -2916,8 +2916,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(
             OutInd{
                 callee_frame,
-                (ssize_t)offsetof(FrameHeader, func) -
-                    (ssize_t)sizeof(FrameHeader)},
+                (Py_ssize_t)offsetof(FrameHeader, func) -
+                    (Py_ssize_t)sizeof(FrameHeader)},
             Instruction::kMove,
             rtfs_reg);
 
@@ -3071,8 +3071,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             OutVReg{},
             Instruction::kMove,
             Ind{callee_frame,
-                (ssize_t)offsetof(FrameHeader, func) -
-                    (ssize_t)sizeof(FrameHeader)});
+                (Py_ssize_t)offsetof(FrameHeader, func) -
+                    (Py_ssize_t)sizeof(FrameHeader)});
         JIT_DCHECK(
             JIT_FRAME_INITIALIZED == 2,
             "JIT_FRAME_INITIALIZED changed"); // this is the bit we're testing

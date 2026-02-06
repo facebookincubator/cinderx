@@ -1940,7 +1940,7 @@ PyObject* JITRT_UnpackExToTuple(
   }
   tuple->ob_item[ti++] = list;
 
-  ssize_t list_size = PyList_GET_SIZE(list);
+  Py_ssize_t list_size = PyList_GET_SIZE(list);
   if (list_size < after) {
     _PyErr_Format(
         tstate,

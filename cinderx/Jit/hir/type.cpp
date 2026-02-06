@@ -399,7 +399,7 @@ Type Type::fromTypeImpl(PyTypeObject* type, bool exact) {
       reinterpret_cast<void*>(type));
 
   PyObject* mro = type->tp_mro;
-  for (ssize_t i = 0; i < PyTuple_GET_SIZE(mro); ++i) {
+  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(mro); ++i) {
     auto ty = reinterpret_cast<PyTypeObject*>(PyTuple_GET_ITEM(mro, i));
     auto it_2 = type_map.find(ty);
     if (it_2 != type_map.end()) {

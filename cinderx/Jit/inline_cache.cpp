@@ -608,7 +608,7 @@ void AttributeMutator::set_member_descr(PyTypeObject* type, PyObject* descr) {
 void AttributeMutator::set_descr_or_classvar(
     PyTypeObject* type,
     PyObject* descr,
-    uint keys_version) {
+    uint32_t keys_version) {
   set_type(type, Kind::kDescrOrClassVar);
   descr_or_cvar_.descr = descr;
   descr_or_cvar_.keys_version = keys_version;
@@ -765,7 +765,7 @@ bool canCacheType(PyTypeObject* type) {
 bool canCacheAttribute(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
-    uint& keys_version) {
+    uint32_t& keys_version) {
 #if PY_VERSION_HEX < 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
       (type->tp_dictoffset != 0)) {
@@ -832,7 +832,7 @@ void AttributeCache::fill(
       }
     } else {
       // Non-data descriptor or class var
-      uint keys_version = 0;
+      uint32_t keys_version = 0;
 #if PY_VERSION_HEX >= 0x030C0000
       canCacheAttribute(type, name, keys_version);
 #endif
@@ -1099,7 +1099,7 @@ LoadMethodResult LoadMethodCache::lookupHelper(
 // Checks to see if the cached keys version allows a lookup w/o looking in
 // the dictionary. This could be either that we have a match of the keys version
 // or that we a non-heap type w/ no dictionary.
-bool isValidKeysVersion(uint keys_version, BorrowedRef<> obj) {
+bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
   if (keys_version == 0) {
     // 0 is an invalid keys version and a sentinel value that we'll never
     // generate a a cache for a heap type with. We may have a non-heap type
@@ -1264,7 +1264,7 @@ void LoadMethodCache::fill(
 
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
-      uint keys_version = 0;
+      uint32_t keys_version = 0;
       if (!canCacheAttribute(type, name, keys_version)) {
         break;
       }

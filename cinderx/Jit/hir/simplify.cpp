@@ -650,7 +650,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       env.emit<IsNegativeAndErrOccurred>(right_index, *instr->frameState());
       Register* adjusted_idx =
           env.emit<CheckSequenceBounds>(lhs, right_index, *instr->frameState());
-      ssize_t offset = offsetof(PyTupleObject, ob_item);
+      Py_ssize_t offset = offsetof(PyTupleObject, ob_item);
       Register* array = lhs;
       // Lists carry a nested array of ob_item whereas tuples are variable-sized
       // structs.
