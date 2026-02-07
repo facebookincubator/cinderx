@@ -958,7 +958,9 @@ dummy_func(
                         *cache = index;
                         _Ci_specialize(next_instr, INVOKE_FUNCTION_CACHED);
                     }
-                } else {
+                } else if (_Py_IsImmortal(container)) {
+                    // We can only grab a cached pointer if the container is immortal as we have no way
+                    // to invalidate if the container is freed.
                     PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
                     PyObject ***cache = (PyObject ***)next_instr;
                     *cache = funcptr;

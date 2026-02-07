@@ -17,6 +17,8 @@
 import sys
 import unittest
 
+import cinderx
+
 
 def run_static_tests():
     import test_cinderx.test_compiler.test_static as test_static
@@ -77,6 +79,7 @@ def run_static_tests():
     print("Regenerate Static Python tests Python code")
 
     modules_to_clear = set()
+    cinderx.clear_caches()
 
     class StaticTestCodeRegenerator(StaticTestBase):
         def __init__(self):

@@ -932,7 +932,9 @@ dummy_func(
                     if (_PyClassLoader_IsImmutable(container)) {
                         /* frozen type, we don't need to worry about indirecting */
                         specialize_with_value(next_instr, func, INVOKE_FUNCTION_CACHED, 0, 0);
-                    } else {
+                    } else if (_Py_IsImmortal(container)) {
+                        // We can only grab a cached pointer if the container is immortal as we have no way
+                        // to invalidate if the container is freed.
                         PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
                         PyObject ***cache = (PyObject ***)next_instr;
                         *cache = funcptr;
