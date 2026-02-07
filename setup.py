@@ -186,19 +186,22 @@ class BuildCommand(build):
         workload_env = os.environ.copy()
 
         if is_clang:
-            clang_pgo_dir = os.path.join(self.build_temp, "pgo_data")
+            clang_pgo_dir = os.path.join(
+                os.getcwd(), os.path.join(self.build_temp, "pgo_data")
+            )
             os.makedirs(clang_pgo_dir, exist_ok=True)
             raw_profile_pattern = os.path.join(clang_pgo_dir, "code-%p.profraw")
             clang_merged_profile = os.path.join(clang_pgo_dir, "code.profdata")
             workload_env["LLVM_PROFILE_FILE"] = raw_profile_pattern
 
         # Add build output to PYTHONPATH so workload can import cinderx
+        cinderx_so_dir = os.path.join(os.getcwd(), self.build_lib)
         if "PYTHONPATH" in workload_env:
             workload_env["PYTHONPATH"] = (
-                f"{self.build_lib}:{workload_env['PYTHONPATH']}"
+                f"{cinderx_so_dir}:{workload_env['PYTHONPATH']}"
             )
         else:
-            workload_env["PYTHONPATH"] = self.build_lib
+            workload_env["PYTHONPATH"] = cinderx_so_dir
 
         # Uses the same default workload as CPython's PGO
         workload_cmd = [
@@ -236,11 +239,12 @@ if __name__ == "__main__":
             llvm_profdata = shutil.which("llvm-profdata")
             if not llvm_profdata:
                 raise RuntimeError("Cannot find llvm-profdata")
+            glob_path = os.path.join(clang_pgo_dir, "*.profraw")
             profraw_files = glob.glob(os.path.join(clang_pgo_dir, "*.profraw"))
 
             if not profraw_files:
                 raise RuntimeError(
-                    "No profile data generated! Check that workload ran successfully."
+                    f"No profile data generated when searching {glob_path}"
                 )
 
             print(f"Found {len(profraw_files)} profile files to merge")
