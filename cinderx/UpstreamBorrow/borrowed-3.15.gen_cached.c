@@ -2645,7 +2645,7 @@ take_ownership(PyFrameObject *f, _PyInterpreterFrame *frame)
     _PyFrame_Copy(frame, new_frame);
     // _PyFrame_Copy takes the reference to the executable,
     // so we need to restore it.
-    frame->f_executable = PyStackRef_DUP(new_frame->f_executable);
+    new_frame->f_executable = PyStackRef_DUP(new_frame->f_executable);
     f->f_frame = new_frame;
     new_frame->owner = FRAME_OWNED_BY_FRAME_OBJECT;
     if (_PyFrame_IsIncomplete(new_frame)) {
