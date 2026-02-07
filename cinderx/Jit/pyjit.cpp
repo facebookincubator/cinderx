@@ -929,7 +929,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         code,
         outer_func->func_builtins,
         outer_func->func_globals,
-        hir::AnnotationIndex::from_function(outer_func),
+        nullptr,
         codeFullname(outer_func->func_module, code),
         makeFrameReifier(code));
   }
