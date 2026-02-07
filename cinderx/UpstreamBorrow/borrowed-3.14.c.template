@@ -18,6 +18,7 @@
 #include "internal/pycore_descrobject.h"
 #include "internal/pycore_long.h"
 #include "internal/pycore_optimizer.h"     // _PyExecutorObject
+#include "internal/pycore_pyatomic_ft_wrappers.h"
 
 #ifdef META_PYTHON
 #include "pycore_import.h"        // _PyImport_LoadLazyImport()
