@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 import subprocess
 import sys
@@ -40,7 +40,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_enabled())
 
     def test_deopts(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -53,7 +53,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
     def test_suppress_and_reopt(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -73,7 +73,7 @@ class DisableEnableTests(unittest.TestCase):
         jit_unsuppress(foo)
 
     def test_disable_then_deopt(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -89,7 +89,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
     def test_already_disabled(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -105,7 +105,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
     def test_already_enabled(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -123,7 +123,7 @@ class DisableEnableTests(unittest.TestCase):
     def test_compile_new_after_reenable(self) -> None:
         disable_jit(deopt_all=True)
 
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -140,7 +140,7 @@ class DisableEnableTests(unittest.TestCase):
         force_uncompile(foo)
 
     def test_pause(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -165,7 +165,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
     def test_pause_nested(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -186,7 +186,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
     def test_pause_between_lazy_compile(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         self.assertFalse(is_jit_compiled(foo))
