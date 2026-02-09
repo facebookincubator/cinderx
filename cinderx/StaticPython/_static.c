@@ -797,19 +797,6 @@ PyObject* make_context_decorator_wrapper(
 
 Ci_Py_TYPED_SIGNATURE(Ci_static_rand, Ci_Py_SIG_INT32, NULL);
 
-#ifndef WIN32
-static int64_t posix_clock_gettime_ns(PyObject* mod) {
-  struct timespec result;
-  int64_t ret;
-
-  clock_gettime(CLOCK_MONOTONIC, &result);
-  ret = result.tv_sec * 1e9 + result.tv_nsec;
-  return ret;
-}
-
-Ci_Py_TYPED_SIGNATURE(posix_clock_gettime_ns, Ci_Py_SIG_INT64, NULL);
-#endif
-
 static Py_ssize_t static_property_missing_fget(PyObject* mod, PyObject* self) {
   PyErr_SetString(PyExc_AttributeError, "unreadable attribute");
   return -1;
@@ -846,17 +833,6 @@ Ci_Py_TYPED_SIGNATURE(
     NULL);
 
 #else
-
-#ifndef _WIN32
-static PyObject* posix_clock_gettime_ns(PyObject* mod) {
-  struct timespec result;
-  int64_t ret;
-
-  clock_gettime(CLOCK_MONOTONIC, &result);
-  ret = result.tv_sec * 1e9 + result.tv_nsec;
-  return PyLong_FromLong(ret);
-}
-#endif
 
 static PyObject* static_property_missing_fget(PyObject* mod, PyObject* self) {
   PyErr_SetString(PyExc_AttributeError, "unreadable attribute");
@@ -1828,13 +1804,6 @@ static PyMethodDef static_methods[] = {
      METH_FASTCALL,
      ""},
 #if PY_VERSION_HEX < 0x030C0000
-#ifndef WIN32
-    {"posix_clock_gettime_ns",
-     (PyCFunction)&posix_clock_gettime_ns_def,
-     Ci_METH_TYPED,
-     "Returns time in nanoseconds as an int64. Note: Does no error checks at "
-     "all."},
-#endif
     {"_property_missing_fget",
      (PyCFunction)&static_property_missing_fget_def,
      Ci_METH_TYPED,
@@ -1848,13 +1817,6 @@ static PyMethodDef static_methods[] = {
      Ci_METH_TYPED,
      ""},
 #else
-#ifndef WIN32
-    {"posix_clock_gettime_ns",
-     (PyCFunction)&posix_clock_gettime_ns,
-     METH_NOARGS,
-     "Returns time in nanoseconds as an int64. Note: Does no error checks at "
-     "all."},
-#endif
     {"_property_missing_fget",
      (PyCFunction)&static_property_missing_fget,
      METH_O,

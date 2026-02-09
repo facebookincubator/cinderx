@@ -6,7 +6,6 @@ from __static__ import chkdict, is_type_static, make_generic_type, StaticGeneric
 import asyncio
 import itertools
 import sys
-import time
 from collections import UserDict
 from typing import Optional, TypeVar
 
@@ -675,26 +674,6 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             y = mod.y
             self.assertEqual(y(), 421)
-
-    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_posix_clock_gettime_ns(self):
-        codestr = """
-        from __static__ import box, posix_clock_gettime_ns
-
-        def test() -> int:
-            x = posix_clock_gettime_ns()
-            return box(x)
-        """
-        with self.in_module(codestr) as mod:
-            test = mod.test
-            expected = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
-            res = test()
-            ten_sec_in_nanosec = 1e10
-            self.assertEqual(type(res), int)
-            # It is pretty reasonable to expect this test to finish within +/- 10 sec
-            self.assertTrue(
-                expected - ten_sec_in_nanosec <= res <= expected + ten_sec_in_nanosec
-            )
 
     def test_fast_len_list(self):
         codestr = """

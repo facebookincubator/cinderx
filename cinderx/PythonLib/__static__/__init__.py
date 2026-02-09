@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import functools
 import random
-import time
 from asyncio import iscoroutinefunction
 from types import UnionType as typesUnion
 
@@ -121,7 +120,6 @@ try:  # noqa: C901
         is_type_static,
         make_context_decorator_wrapper,
         make_recreate_cm,
-        posix_clock_gettime_ns,
         PRIM_OP_ADD_DBL,
         PRIM_OP_ADD_INT,
         PRIM_OP_AND_INT,
@@ -203,9 +201,6 @@ except ImportError:
 
     def make_context_decorator_wrapper(decorator, wrapper_func, wrapped_func):
         return wrapper_func
-
-    def posix_clock_gettime_ns():
-        return time.clock_gettime_ns(time.CLOCK_MONOTONIC)
 
     def rand():
         return random.randint(0, RAND_MAX)

@@ -31,7 +31,6 @@ from _static import (  # noqa: F401
     lookup_native_symbol,
     make_context_decorator_wrapper,
     make_recreate_cm,
-    posix_clock_gettime_ns,
     PRIM_OP_ADD_DBL,
     PRIM_OP_ADD_INT,
     PRIM_OP_AND_INT,

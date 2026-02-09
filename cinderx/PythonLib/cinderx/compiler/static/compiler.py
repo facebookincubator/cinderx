@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from __static__ import posix_clock_gettime_ns, rand, RAND_MAX
+from __static__ import rand, RAND_MAX
 
 import ast
 import builtins
@@ -406,12 +406,6 @@ class Compiler:
                 "pydict": self.type_env.dict.exact_type(),
                 "PyDict": self.type_env.dict.exact_type(),
                 "RAND_MAX": rand_max.instance,
-                "posix_clock_gettime_ns": reflect_builtin_function(
-                    # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
-                    posix_clock_gettime_ns,
-                    None,
-                    self.type_env,
-                ),
                 "rand": reflect_builtin_function(
                     # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
                     rand,
