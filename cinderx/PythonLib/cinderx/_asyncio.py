@@ -9,7 +9,6 @@ from typing import NoReturn, Optional, TypeVar
 
 
 try:
-    # pyre-ignore[21]: Unknwn import
     from _cinderx import AsyncLazyValue
 except ImportError:
 

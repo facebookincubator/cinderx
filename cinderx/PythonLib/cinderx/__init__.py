@@ -55,8 +55,7 @@ try:
             f"The _cinderx native extension is not supported for Python version '{sys.version}' on platform '{sys.platform}'"
         )
 
-    # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
-    from _cinderx import (  # noqa: F401
+    from _cinderx import (
         _compile_perf_trampoline_pre_fork,
         _is_compile_perf_trampoline_pre_fork_enabled,
         async_cached_classproperty,
