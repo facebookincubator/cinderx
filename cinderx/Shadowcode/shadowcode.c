@@ -993,8 +993,6 @@ void _PyShadow_InitGlobal(
     return;
   }
 
-  assert("Shadowcode broken");
-
   PyObject** cache = Ci_GetGlobalCache(builtins, globals, name);
   if (cache == NULL) {
     return;
