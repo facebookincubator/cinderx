@@ -1,22 +1,31 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 import unittest
 
 import cinderx
-
-cinderx.init()
-
 import cinderx.jit
 from cinderx.jit import count_interpreted_calls
 from cinderx.test_support import passIf, passUnless
 
 
+# Defined here because pyre is limited to typing constants in decorators.
+INIT: bool = cinderx.is_initialized()
+JIT_ENABLED: bool = cinderx.jit.is_enabled()
+JIT_COMPILE_AFTER_N_CALLS: int | None = cinderx.jit.get_compile_after_n_calls()
+JIT_AUTO: bool = (
+    JIT_ENABLED
+    and JIT_COMPILE_AFTER_N_CALLS is not None
+    and JIT_COMPILE_AFTER_N_CALLS > 0
+)
+JIT_ALL: bool = JIT_ENABLED and JIT_COMPILE_AFTER_N_CALLS == 0
+
+
 class CountCallsTest(unittest.TestCase):
-    @passIf(cinderx.is_initialized(), "Testing the no-init case")
+    @passIf(INIT, "Testing the no-init case")
     def test_no_init(self) -> None:
-        def func():
+        def func() -> int:
             return 13
 
         self.assertEqual(count_interpreted_calls(func), 0)
@@ -25,7 +34,7 @@ class CountCallsTest(unittest.TestCase):
         func()
         self.assertEqual(count_interpreted_calls(func), 0)
 
-    @passUnless(cinderx.jit.is_enabled(), "Stubs don't check argument types")
+    @passUnless(JIT_ENABLED, "Stubs don't check argument types")
     def test_bad_args(self) -> None:
         with self.assertRaises(TypeError):
             # pyre-ignore[6]: Intentionally checking runtime behavior.
@@ -39,13 +48,9 @@ class CountCallsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             count_interpreted_calls(count_interpreted_calls)
 
-    @passUnless(
-        cinderx.jit.is_enabled()
-        and cinderx.jit.get_compile_after_n_calls() is not None,
-        "Testing JitAuto functionality",
-    )
+    @passUnless(JIT_AUTO, "Testing JitAuto functionality")
     def test_basic_auto(self) -> None:
-        def func():
+        def func() -> int:
             return 15
 
         # Loop many times to check that the shadowcode threshold (50) isn't affecting
@@ -58,12 +63,9 @@ class CountCallsTest(unittest.TestCase):
             self.assertEqual(count_interpreted_calls(func), expected)
             func()
 
-    @passUnless(
-        cinderx.jit.is_enabled() and cinderx.jit.get_compile_after_n_calls() == 0,
-        "Testing JitAll functionality",
-    )
+    @passUnless(JIT_ALL, "Testing JitAll functionality")
     def test_basic_all(self) -> None:
-        def func():
+        def func() -> int:
             return 15
 
         # Loop many times to check that the shadowcode threshold (50) isn't affecting
