@@ -1,19 +1,22 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 import sys
 import unittest
+from types import CodeType, FrameType
 
 from cinderx.jit import force_compile, is_jit_compiled
 from cinderx.test_support import passUnless, skip_unless_jit
 
 
 # sys.monitoring is only available in Python 3.12+
-AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
+AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
-def dummy_callback(code, offset, callable, arg):
+def dummy_callback(
+    code: CodeType, offset: int, callable: object, arg: object
+) -> object:
     return None
 
 
@@ -41,7 +44,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
             dummy_callback,
         )
 
-        def new_function(a, b):
+        def new_function(a: int, b: int) -> int:
             return a + b
 
         force_compile(new_function)
@@ -54,7 +57,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
     def test_compiled_functions_deoptimized_on_callback_registration(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -75,7 +78,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
     def test_functions_reoptimized_after_callback_removed(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -103,7 +106,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
     def test_all_callbacks_must_be_removed_for_reoptimization(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -150,7 +153,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
 
     def test_reregistering_same_callback_only_needs_one_removal(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -183,7 +186,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
     def test_removing_callback_twice_is_harmless(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -233,19 +236,20 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
 
     def test_callbacks_invoked_for_deoptimized_functions(self) -> None:
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def call_callback(code, offset, callable, arg):
-            # Guard against callables without __name__; the callback may still
-            # be invoked after free_tool_id during interpreter cleanup.
-            if hasattr(callable, "__name__"):
-                calls_seen.append(callable.__name__)
-            return None
+        def call_callback(
+            code: CodeType, offset: int, callable: object, arg: object
+        ) -> object:
+            # Guard against callables without __name__; the callback may still be
+            # invoked after free_tool_id during interpreter cleanup.
+            if name := getattr(callable, "__name__", None):
+                calls_seen.append(name)
 
-        def helper():
+        def helper() -> int:
             return 42
 
-        def traced_function():
+        def traced_function() -> int:
             return helper()
 
         force_compile(traced_function)
@@ -274,7 +278,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
     def test_function_results_correct_across_jit_state_transitions(self) -> None:
-        def compute(n):
+        def compute(n: int) -> int:
             result = 0
             for i in range(n):
                 result += i * i
@@ -326,18 +330,17 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
         sys.setprofile(None)
 
     def test_compiled_functions_deoptimized_on_setprofile(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def profile_func(frame, event, arg):
+        def profile_func(frame: FrameType, event: str, arg: object) -> None:
             if event == "call" and frame.f_code.co_name == "foo":
                 calls_seen.append(frame.f_code.co_name)
-            return None
 
         sys.setprofile(profile_func)
 
@@ -350,18 +353,17 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
         self.assertIn("foo", calls_seen, "Profile callback should have been invoked")
 
     def test_functions_reoptimized_after_setprofile_cleared(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def profile_func(frame, event, arg):
+        def profile_func(frame: FrameType, event: str, arg: object) -> None:
             if event == "call" and frame.f_code.co_name == "foo":
                 calls_seen.append(frame.f_code.co_name)
-            return None
 
         sys.setprofile(profile_func)
         self.assertFalse(is_jit_compiled(foo))
@@ -383,16 +385,15 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
         )
 
     def test_new_functions_not_compiled_while_profiler_active(self) -> None:
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def profile_func(frame, event, arg):
+        def profile_func(frame: FrameType, event: str, arg: object) -> None:
             if event == "call" and frame.f_code.co_name == "new_function":
                 calls_seen.append(frame.f_code.co_name)
-            return None
 
         sys.setprofile(profile_func)
 
-        def new_function(a, b):
+        def new_function(a: int, b: int) -> int:
             return a + b
 
         force_compile(new_function)
@@ -423,15 +424,16 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         sys.settrace(None)
 
     def test_compiled_functions_deoptimized_on_settrace(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def trace_func(frame, event, arg):
+        # pyre-ignore[3]: Return type is recursive.
+        def trace_func(frame: FrameType, event: str, arg: object):
             if event == "call" and frame.f_code.co_name == "foo":
                 calls_seen.append(frame.f_code.co_name)
             return trace_func
@@ -447,15 +449,16 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         self.assertIn("foo", calls_seen, "Trace callback should have been invoked")
 
     def test_functions_reoptimized_after_settrace_cleared(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def trace_func(frame, event, arg):
+        # pyre-ignore[3]: Return type is recursive.
+        def trace_func(frame: FrameType, event: str, arg: object):
             if event == "call" and frame.f_code.co_name == "foo":
                 calls_seen.append(frame.f_code.co_name)
             return trace_func
@@ -480,16 +483,17 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         )
 
     def test_new_functions_not_compiled_while_tracer_active(self) -> None:
-        calls_seen = []
+        calls_seen: list[str] = []
 
-        def trace_func(frame, event, arg):
+        # pyre-ignore[3]: Return type is recursive.
+        def trace_func(frame: FrameType, event: str, arg: object):
             if event == "call" and frame.f_code.co_name == "new_function":
                 calls_seen.append(frame.f_code.co_name)
             return trace_func
 
         sys.settrace(trace_func)
 
-        def new_function(a, b):
+        def new_function(a: int, b: int) -> int:
             return a + b
 
         force_compile(new_function)
@@ -519,16 +523,17 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
     def test_profiling_and_tracing_callbacks_must_be_cleared_for_reoptimization(
         self,
     ) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        def profile_func(frame, event, arg):
+        def profile_func(frame: FrameType, event: str, arg: object) -> None:
             return None
 
-        def trace_func(frame, event, arg):
+        # pyre-ignore[3]: Return type is recursive.
+        def trace_func(frame: FrameType, event: str, arg: object):
             return trace_func
 
         sys.setprofile(profile_func)
@@ -549,7 +554,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
         )
 
     def test_monitoring_and_setprofile_combined(self) -> None:
-        def foo(a, b):
+        def foo(a: int, b: int) -> int:
             return a + b
 
         force_compile(foo)
@@ -562,7 +567,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
             dummy_callback,
         )
 
-        def profile_func(frame, event, arg):
+        def profile_func(frame: FrameType, event: str, arg: object) -> None:
             return None
 
         sys.setprofile(profile_func)
