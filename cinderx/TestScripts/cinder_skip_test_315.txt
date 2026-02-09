@@ -4,3 +4,6 @@ test.test_traceback.MiscTest.test_windows_only_module_error
 
 # T249123927
 test.test_generators.GeneratorTest.test_close_clears_frame
+
+# cinderx extension module is installed so output differs
+test.test_faulthandler.FaultHandlerTests.test_dump_ext_modules
