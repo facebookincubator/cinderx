@@ -358,7 +358,7 @@ static void validate_list(PyGC_Head* head, enum flagstates flags) {
       next_value = NEXT_MASK_UNREACHABLE;
       break;
     default:
-      assert(!"bad internal flags argument");
+      assert(0 && "bad internal flags argument");
   }
   PyGC_Head* prev = head;
   PyGC_Head* gc = GC_NEXT(head);
