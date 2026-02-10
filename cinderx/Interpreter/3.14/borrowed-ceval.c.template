@@ -127,8 +127,8 @@ Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
         _PyEval_FormatAwaitableError(PyThreadState_GET(),
             Py_TYPE(iterable), oparg);
     }
-    else if (PyCoro_CheckExact(iter)) {
-        PyObject *yf = _PyGen_yf((PyGenObject*)iter);
+    else if (PyCoro_CheckExact(iter) || JitCoro_CheckExact(iter)) {
+        PyObject *yf = JitGen_yf((PyGenObject*)iter);
         if (yf != NULL) {
             /* `iter` is a coroutine object that is being
                 awaited, `yf` is a pointer to the current awaitable
@@ -141,6 +141,10 @@ Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
     }
     return iter;
 }
+
+#define _PyEval_GetAwaitable Ci_PyEval_GetAwaitable
+#define _PyEval_GetANext Ci_PyEval_GetANext
+
 
 #if Py_TAIL_CALL_INTERP
 #include "cinderx/Interpreter/cinderx_opcode_targets.h"
