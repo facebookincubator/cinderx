@@ -27,7 +27,7 @@ from setuptools.command.build_py import build_py
 from setuptools.dist import Distribution
 
 CHECKOUT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
+SOURCE_DIR = "cinderx"
 PYTHON_LIB_DIR = "cinderx/PythonLib"
 
 MIN_GCC_VERSION = 13
@@ -127,21 +127,6 @@ class PgoStage(Enum):
     DISABLED = 0
     GENERATE = 1
     USE = 3
-
-
-def find_files(path: str, pred: Callable[[str], bool]) -> list[str]:
-    result = []
-    for root, dirs, files in os.walk(path):
-        for f in files:
-            if pred(f):
-                # Files are returned relative to the top directory.
-                abs_file = os.path.join(root, f)
-                result.append(os.path.relpath(abs_file, path))
-    return result
-
-
-def find_native_sources(path: str) -> list[str]:
-    return find_files(path, lambda f: f.endswith(".cpp") or f.endswith(".c"))
 
 
 def compute_py_version() -> str:
@@ -352,7 +337,8 @@ class CMakeExtension(Extension):
     Subclass to indicate to BuildExt that this should be handled specially.
     """
 
-    pass
+    def __init__(self, name: str) -> None:
+        super().__init__(name=name, sources=[])
 
 
 class BuildExt(build_ext):
@@ -480,24 +466,11 @@ class BuildExt(build_ext):
 
 
 def main() -> None:
-    # Native sources.
-    native_sources = find_native_sources(SOURCE_DIR)
-
     setup(
         name="cinderx",
-        description="High-performance Python runtime extension",
-        url="https://www.github.com/facebookincubator/cinderx",
         version=compute_package_version(),
-        classifiers=[
-            "Development Status :: 3 - Alpha",
-            "Intended Audience :: Developers",
-            "License :: OSI Approved :: MIT License",
-        ],
         ext_modules=[
-            CMakeExtension(
-                name="_cinderx",
-                sources=native_sources,
-            ),
+            CMakeExtension(name="_cinderx"),
         ],
         cmdclass={
             "build": BuildCommand,
@@ -507,7 +480,6 @@ def main() -> None:
         packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
         package_dir={"": PYTHON_LIB_DIR},
         package_data={"cinderx": [".dev_build"]},
-        python_requires=">=3.14,<3.16",
     )
 
 

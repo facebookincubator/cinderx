@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cinderx"
+description = "Extension aimed at improving the performance of the Python runtime"
+dynamic = ["version"]
+requires-python = ">= 3.14, < 3.16"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["performance", "jit", "compiler", "optimization", "cinder"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Compilers",
+]
+
+[project.urls]
+Repository = "https://www.github.com/facebookincubator/cinderx"
