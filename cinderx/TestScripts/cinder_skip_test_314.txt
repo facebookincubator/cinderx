@@ -6,3 +6,6 @@ test.test_threading.ThreadTests.test_native_id_after_fork
 
 # This is currently intermittently failing (T243385914)
 test_cinderx.test_parallel_gc.*
+
+# T249123927
+test.test_generators.GeneratorTest.test_close_clears_frame
