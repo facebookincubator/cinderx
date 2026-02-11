@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+
+# @lint-ignore-ide BLACK
+
 import __static__
 
 import ast
