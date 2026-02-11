@@ -81,9 +81,6 @@ class DisableGilCheck {
   int old_check_enabled_;
 };
 
-// Amount of time taken to batch compile everything when disable_jit is called
-std::chrono::milliseconds g_batch_compilation_time;
-
 CompilerContext<Compiler>* jitCtx() {
   auto state = cinderx::getModuleState();
   if (state != nullptr) {
@@ -1054,7 +1051,6 @@ void multithread_compile_units_preloaded(
 // yet.
 bool compile_all(size_t workers = 0) {
   JIT_CHECK(jitCtx(), "JIT not initialized");
-  std::chrono::time_point start = std::chrono::steady_clock::now();
 
   if (workers == 0) {
     workers = std::max<size_t>(getConfig().batch_compile_workers, 1);
@@ -1116,10 +1112,6 @@ bool compile_all(size_t workers = 0) {
   }
 
   hir::preloaderManager().clear();
-
-  std::chrono::time_point end = std::chrono::steady_clock::now();
-  g_batch_compilation_time =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
   auto& jit_code_outer_funcs = cinderx::getModuleState()->codeOuterFunctions();
   jit_code_outer_funcs.clear();
@@ -1219,12 +1211,18 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
   jitCtx()->clearCache();
+
+  std::chrono::time_point start = std::chrono::steady_clock::now();
   if (!compile_all()) {
     return nullptr;
   }
+  std::chrono::time_point end = std::chrono::steady_clock::now();
+  auto batch_compilation_time =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
   JIT_LOG(
       "Took {} ms, compiles attempted: {}, compiles retried: {}",
-      g_batch_compilation_time.count(),
+      batch_compilation_time.count(),
       g_compile_workers_attempted,
       g_compile_workers_retries);
   Py_RETURN_NONE;
@@ -1509,10 +1507,6 @@ PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
   Py_RETURN_NONE;
 }
 
-PyObject* get_batch_compilation_time_ms(PyObject*, PyObject*) {
-  return PyLong_FromLong(g_batch_compilation_time.count());
-}
-
 BorrowedRef<PyFunctionObject> get_func_arg(
     const char* method_name,
     BorrowedRef<> arg) {
@@ -1561,7 +1555,6 @@ precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     return nullptr;
   }
 
-  JIT_DLOG("precompile_all completed in {}", g_batch_compilation_time);
   Py_RETURN_TRUE;
 }
 
@@ -2863,12 +2856,6 @@ PyMethodDef jit_methods[] = {
      is_multithreaded_compile_test_enabled,
      METH_NOARGS,
      PyDoc_STR("Return True if multithreaded_compile_test mode is enabled.")},
-    {"get_batch_compilation_time_ms",
-     get_batch_compilation_time_ms,
-     METH_NOARGS,
-     PyDoc_STR(
-         "Return the number of milliseconds spent in batch compilation "
-         "the last time precompile_all() was called.")},
     {"get_allocator_stats",
      get_allocator_stats,
      METH_NOARGS,
