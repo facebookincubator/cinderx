@@ -9,6 +9,8 @@ from typing import NoReturn, Optional, TypeVar
 
 
 try:
+    # pyre-ignore[21]: Not including _cinderx as an explicit dependency because this can
+    # be used in environments where CinderX is not supported.
     from _cinderx import AsyncLazyValue
 except ImportError:
 
