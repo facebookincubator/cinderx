@@ -26,6 +26,16 @@ from os import environ
 _import_error: ImportError | None = None
 
 
+def is_force_disabled() -> bool:
+    """
+    Check that the _cinderx native extension hasn't been forcefully disabled
+    via an explicit environment variable.
+    """
+
+    cinderx_disable = environ.get("CINDERX_DISABLE", "")
+    return cinderx_disable != "" and cinderx_disable != "0"
+
+
 def is_supported_runtime() -> bool:
     """
     Check that the current Python runtime will be able to load the _cinderx
@@ -48,6 +58,11 @@ def is_supported_runtime() -> bool:
 
 
 try:
+    if is_force_disabled():
+        raise ImportError(
+            "The _cinderx native extension has been forcibly disabled with CINDERX_DISABLE in the environment"
+        )
+
     # Currently if we try to import _cinderx on runtimes without our internal patches
     # the import will crash.  This is meant to go away in the future.
     if not is_supported_runtime():
