@@ -150,6 +150,7 @@ namespace jit::hir {
   V(SetUpdate)                         \
   V(Snapshot)                          \
   V(StealCellItem)                     \
+  V(SwapCellItem)                      \
   V(StoreArrayItem)                    \
   V(StoreAttr)                         \
   V(StoreAttrCached)                   \

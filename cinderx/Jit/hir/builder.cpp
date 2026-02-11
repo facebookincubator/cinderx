@@ -2979,8 +2979,13 @@ void HIRBuilder::emitStoreDeref(
   Register* old = temps_.AllocateStack();
   Register* dst = tc.frame.localsplus[idx];
   Register* src = tc.frame.stack.pop();
+#ifdef Py_GIL_DISABLED
+  // Use atomic swap for thread-safe cell access in FT-Python.
+  tc.emit<SwapCellItem>(old, dst, src);
+#else
   tc.emit<StealCellItem>(old, dst);
   tc.emit<SetCellItem>(dst, src, old);
+#endif
 }
 
 void HIRBuilder::emitLoadAssertionError(

@@ -2663,6 +2663,15 @@ DEFINE_SIMPLE_INSTR(LoadCellItem, (TOptObject), HasOutput, Operands<1>);
 // in the cell that the cell is about to lose its reference to.
 DEFINE_SIMPLE_INSTR(StealCellItem, (TObject), HasOutput, Operands<1>);
 
+// Atomically swap the cell value, returning the old value. Used in FT-Python
+// for thread-safe STORE_DEREF. Takes cell as operand 0 and new value as
+// operand 1. Returns the old value (owned reference for decref).
+DEFINE_SIMPLE_INSTR(
+    SwapCellItem,
+    (TObject, TOptObject),
+    HasOutput,
+    Operands<2>);
+
 // Store a value to the cell in dst. The `old` arg is unused but exists in order
 // to ensure that the previous cell contents are not decref-ed until after the
 // new cell contents are in place.

@@ -646,12 +646,42 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->output(), PyCell_New, instr->GetOperand(0));
         break;
       }
-      case Opcode::kStealCellItem:
-      case Opcode::kLoadCellItem: {
+      case Opcode::kStealCellItem: {
         hir::Register* dest = i.output();
         Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
         constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
         bbb.appendInstr(dest, Instruction::kMove, Ind{src_base, kOffset});
+        break;
+      }
+      case Opcode::kSwapCellItem: {
+#if PY_VERSION_HEX >= 0x030D0000
+        // Atomically swap cell value, returning old value for decref.
+        // Used in FT-Python for thread-safe STORE_DEREF.
+        auto* instr = static_cast<const SwapCellItem*>(&i);
+        bbb.appendCallInstruction(
+            instr->output(),
+            JITRT_SwapCellItem,
+            instr->GetOperand(0),
+            instr->GetOperand(1));
+        break;
+#else
+        JIT_ABORT("SwapCellItem requires Python 3.13+");
+#endif
+      }
+      case Opcode::kLoadCellItem: {
+        // FT needs to call PyCell_GetRef for thread-safety. Switching the two
+        // implementations changes whether the output is borrowed or new so
+        // there is a corresponding switch in instr_effects.cpp.
+#ifdef Py_GIL_DISABLED
+        auto* instr = static_cast<const LoadCellItem*>(&i);
+        bbb.appendCallInstruction(
+            instr->output(), JITRT_LoadCellItem, instr->GetOperand(0));
+#else
+        hir::Register* dest = i.output();
+        Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
+        constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
+        bbb.appendInstr(dest, Instruction::kMove, Ind{src_base, kOffset});
+#endif
         break;
       }
       case Opcode::kSetCellItem: {

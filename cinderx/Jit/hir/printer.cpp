@@ -294,6 +294,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kSetUpdate:
     case Opcode::kSnapshot:
     case Opcode::kStealCellItem:
+    case Opcode::kSwapCellItem:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreSubscr:
     case Opcode::kWaitHandleLoadCoroOrResult:

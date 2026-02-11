@@ -162,6 +162,11 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kSetCellItem:
       return {true, AEmpty, {inst.NumOperands(), 2}, ACellItem};
 
+    // Atomically swaps cell value. Steals operand 1 (new value) and returns
+    // owned reference to old value. Used for thread-safe STORE_DEREF.
+    case Opcode::kSwapCellItem:
+      return {false, AEmpty, {inst.NumOperands(), 2}, ACellItem};
+
     // Returns a stolen (from the cell), not borrowed, reference.
     case Opcode::kStealCellItem:
       return commonEffects(inst, AEmpty);
@@ -233,7 +238,13 @@ MemoryEffects memoryEffects(const Instr& inst) {
       return borrowFrom(inst, AEmpty);
 
     case Opcode::kLoadCellItem:
+#ifdef Py_GIL_DISABLED
+      // In FT-Python, LoadCellItem calls PyCell_GetRef which returns an
+      // owned (new) reference.
+      return commonEffects(inst, AEmpty);
+#else
       return borrowFrom(inst, ACellItem);
+#endif
 
     case Opcode::kLoadField: {
       auto& ldfld = static_cast<const LoadField&>(inst);
@@ -427,6 +438,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
     case Opcode::kStealCellItem:
+    case Opcode::kSwapCellItem:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreField:
     case Opcode::kTpAlloc:

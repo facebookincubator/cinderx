@@ -234,6 +234,7 @@ Type outputType(
     case Opcode::kLoadGlobalCached:
     case Opcode::kMatchClass:
     case Opcode::kStealCellItem:
+    case Opcode::kSwapCellItem:
     case Opcode::kWaitHandleLoadWaiter:
       return TOptObject;
 
