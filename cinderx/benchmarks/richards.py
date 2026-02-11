@@ -11,7 +11,6 @@ based on a Java version:
  Outer loop added by Alex Jacoby
 """
 
-import os
 import sys
 
 import cinderx.jit
@@ -410,9 +409,7 @@ class Richards(object):
 
 
 if __name__ == "__main__":
-    jit_env = os.environ.get("CINDERX_JIT", "1")
-    if jit_env != "" and int(jit_env):
-        cinderx.jit.auto()
+    cinderx.jit.auto()
 
     num_iterations = 1
     if len(sys.argv) > 1:
