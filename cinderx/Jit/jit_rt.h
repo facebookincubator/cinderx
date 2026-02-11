@@ -578,23 +578,6 @@ LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
 void JITRT_AtQuiescentState(PyThreadState* tstate);
 #endif
 
-#if PY_VERSION_HEX >= 0x030D0000
-
-extern "C" {
-
-/*
- * Atomically load cell value with new reference (for LOAD_DEREF).
- */
-PyObject* JITRT_LoadCellItem(PyCellObject* cell);
-
-/*
- * Atomically swap cell value, returns old value for decref (for STORE_DEREF).
- */
-PyObject* JITRT_SwapCellItem(PyCellObject* cell, PyObject* new_value);
-}
-
-#endif
-
 /*
  * A PyObject that is used to indicate that an iterator has finished
  * normally. This must never escape into managed code.

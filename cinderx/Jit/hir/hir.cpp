@@ -499,7 +499,6 @@ bool Instr::isReplayable() const {
     case Opcode::kRunPeriodicTasks:
     case Opcode::kSend:
     case Opcode::kSetCellItem:
-    case Opcode::kSwapCellItem:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetDictItem:
     case Opcode::kSetSetItem:
@@ -795,7 +794,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kSetSetItem:
     case Opcode::kSetUpdate:
     case Opcode::kStealCellItem:
-    case Opcode::kSwapCellItem:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreAttr:
     case Opcode::kStoreAttrCached:
