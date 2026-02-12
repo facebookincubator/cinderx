@@ -14,6 +14,7 @@
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
@@ -1771,26 +1772,26 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
   // PyObject** args is:
   // arg0 - function object
   // arg1 - first real argument
-  // arg2
-  // arg3
-  // arg4
-  // arg5
-  // previous rbp
+  // argx - remaining register arguments
+  // ...
+  // previous frame pointer
   // return address to JITed code
-  // memory argument 0 (6th real argument)
+  // memory argument 0 - first stack argument
   // memory argument 1
   // ...
 
   PyObject** dest_args;
   auto final_args = std::make_unique<PyObject*[]>(total_args);
-  if (total_args <= 5) {
+  int cc_reg_args = jit::codegen::ARGUMENT_REGS.size();
+
+  if (total_args < cc_reg_args) {
     // no gap in args to worry about
     dest_args = args + 1;
   } else {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < cc_reg_args - 1; i++) {
       final_args[i] = args[i + 1];
     }
-    for (int i = 5; i < total_args; i++) {
+    for (int i = cc_reg_args - 1; i < total_args; i++) {
       final_args[i] = args[i + 3];
     }
     dest_args = final_args.get();
@@ -1810,7 +1811,7 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
         // primitive type, box...
         int arg = arg_info->tai_args[i].tai_argnum + 1;
         uint64_t arg_val;
-        if (arg >= 6) {
+        if (arg >= cc_reg_args) {
           arg += 4;
         }
         arg_val = (uint64_t)args[arg];
