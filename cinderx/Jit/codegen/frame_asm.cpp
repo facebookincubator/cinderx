@@ -84,6 +84,61 @@ void initThreadStateOffset() {
     assert(false);
 #endif
   }
+#elif defined(CINDER_AARCH64)
+  // PyThreadState_GetCurrent just accesses the thread local value, and
+  // we want to figure out what the offset from the thread-local storage it's
+  // stored at. So verify that we recognize what it's doing and pull
+  // out that offset.
+  uint32_t* ts_func = reinterpret_cast<uint32_t*>(&_PyThreadState_GetCurrent);
+
+  if (ts_func[0] == 0xa9bf7bfd && // stp x29, x30, [sp, #-16]!
+      ts_func[1] == 0x910003fd && // mov x29, sp
+      ((ts_func[2] & ~0x1f) == 0xd53bd048) // mrs x?, tpidr_el0
+  ) {
+    // Here we know we are loading the thread local base offset into some
+    // register, based on the mrs instruction.
+    uint32_t reg = ts_func[2] & 0x1f;
+    int32_t current_offset = 0;
+
+    // Now, we will interpret any subsequent add instructions in order to
+    // determine the offset. We will know we are done when we hit an ldr x0, or
+    // we hit something unknown and need to break.
+    for (size_t index = 3;; index++) {
+      if (ts_func[index] == (0xf9400000 | (reg << 5))) {
+        // ldr x0, [x?]
+        //
+        // Here we are loading the temporarily calculated offset into x0, which
+        // is the return register. At this point we are done.
+        break;
+      } else if (
+          (ts_func[index] & ~0x7ffc00) == (0x91000000 | (reg << 5) | reg)) {
+        // add x?, x?, #<imm>{, <shift>}
+        //
+        // Here we are adding to the temporary offset register. It is encoded
+        // as: 100100010<shift><imm><rn><rd>, where shift is 1 bit, imm is 12
+        // bits, rn and rd are both 5 bits, which should be equivalent to reg.
+        uint32_t imm = (ts_func[index] >> 10) & 0xfff;
+        if (ts_func[index] & (1 << 22)) {
+          imm <<= 12;
+        }
+
+        current_offset += imm;
+      } else {
+        // Otherwise, we found something we did not anticipate, so we need to
+        // bail out.
+        current_offset = -1;
+        break;
+      }
+    }
+
+    tstate_offset = current_offset;
+  }
+
+#ifndef Py_DEBUG
+  if (tstate_offset == -1) {
+    assert(false);
+  }
+#endif
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -100,6 +155,17 @@ void FrameAsm::loadTState(const arch::Gp& dst_reg) {
   } else {
     as_->call(_PyThreadState_GetCurrent);
     as_->mov(dst_reg, x86::rax);
+  }
+#elif defined(CINDER_AARCH64)
+  if (tstate_offset != -1) {
+    as_->mrs(dst_reg, a64::Predicate::SysReg::kTPIDR_EL0);
+    as_->ldr(
+        dst_reg,
+        arch::ptr_resolve(as_, dst_reg, tstate_offset, arch::reg_scratch_0));
+  } else {
+    as_->mov(arch::reg_scratch_br, _PyThreadState_GetCurrent);
+    as_->blr(arch::reg_scratch_br);
+    as_->mov(dst_reg, a64::x0);
   }
 #else
   CINDER_UNSUPPORTED
