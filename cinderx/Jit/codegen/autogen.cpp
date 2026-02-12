@@ -341,6 +341,71 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
         AutoTranslator::getGp(instr->output()),
         asmjit::x86::gpb(instr->output()->getPhyRegister().loc));
   }
+#elif defined(CINDER_AARCH64)
+  auto as = env->as;
+  const OperandBase* inp0 = instr->getInput(0);
+  const OperandBase* inp1 = instr->getInput(1);
+
+  if (inp1->isMem()) {
+    JIT_CHECK(inp1->sizeInBits() == 64, "Only 64-bit memory supported");
+
+    auto address = inp1->getConstantOrAddress();
+    auto scratch = arch::reg_scratch_0;
+
+    as->mov(scratch, address);
+    as->ldr(scratch, a64::ptr(scratch));
+    as->cmp(AutoTranslator::getGp(inp0), scratch);
+  } else if (inp1->isImm()) {
+    auto constant = inp1->getConstantOrAddress();
+    auto scratch = arch::reg_scratch_0;
+
+    if (arm::Utils::isAddSubImm(constant)) {
+      as->cmp(AutoTranslator::getGp(inp0), constant);
+    } else {
+      as->mov(scratch, constant);
+      as->cmp(AutoTranslator::getGp(inp0), scratch);
+    }
+  } else if (!inp1->isVecD()) {
+    as->cmp(AutoTranslator::getGp(inp0), AutoTranslator::getGp(inp1));
+  } else {
+    as->fcmp(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
+  }
+
+  auto output = AutoTranslator::getGp(instr->output());
+  switch (instr->opcode()) {
+    case Instruction::kEqual:
+      as->cset(output, arm::CondCode::kEQ);
+      break;
+    case Instruction::kNotEqual:
+      as->cset(output, arm::CondCode::kNE);
+      break;
+    case Instruction::kGreaterThanSigned:
+      as->cset(output, arm::CondCode::kGT);
+      break;
+    case Instruction::kGreaterThanEqualSigned:
+      as->cset(output, arm::CondCode::kGE);
+      break;
+    case Instruction::kLessThanSigned:
+      as->cset(output, arm::CondCode::kLT);
+      break;
+    case Instruction::kLessThanEqualSigned:
+      as->cset(output, arm::CondCode::kLE);
+      break;
+    case Instruction::kGreaterThanUnsigned:
+      as->cset(output, arm::CondCode::kHI);
+      break;
+    case Instruction::kGreaterThanEqualUnsigned:
+      as->cset(output, arm::CondCode::kHS);
+      break;
+    case Instruction::kLessThanUnsigned:
+      as->cset(output, arm::CondCode::kLO);
+      break;
+    case Instruction::kLessThanEqualUnsigned:
+      as->cset(output, arm::CondCode::kLS);
+      break;
+    default:
+      JIT_ABORT("bad instruction for TranslateCompare");
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
