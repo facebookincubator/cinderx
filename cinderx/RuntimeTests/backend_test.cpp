@@ -61,12 +61,28 @@ class BackendTest : public RuntimeTest {
 #if defined(CINDER_X86_64)
     as.push(asmjit::x86::rbp);
     as.mov(asmjit::x86::rbp, asmjit::x86::rsp);
+#elif defined(CINDER_AARCH64)
+    as.stp(arch::fp, arch::lr, asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
+    as.mov(arch::fp, asmjit::a64::sp);
 #else
     CINDER_UNSUPPORTED
 #endif
 
     auto saved_regs = environ.changed_regs & CALLEE_SAVE_REGS;
+
+#if defined(CINDER_X86_64)
     int saved_regs_size = saved_regs.count() * 8;
+#elif defined(CINDER_AARCH64)
+    int saved_regs_size = saved_regs.count() * 16;
+#else
+    CINDER_UNSUPPORTED
+    int saved_regs_size = saved_regs.count() * 8;
+#endif
+
+    // Allocate stack space for the function's stack.
+    // Allocate 8 bytes for the function's stack.
+    // If the stack size is not a multiple of 16, add 8 bytes to the stack size.
+    // This is to ensure that the stack is aligned to 16 bytes.
 
     int allocate_stack = std::max(environ.shadow_frames_and_spill_size, 8);
     if ((allocate_stack + saved_regs_size + arg_buffer_size) % 16 != 0) {
@@ -106,6 +122,45 @@ class BackendTest : public RuntimeTest {
 
     as.leave();
     as.ret();
+#elif defined(CINDER_AARCH64)
+    // Allocate stack space and save the size of the function's stack.
+    JIT_CHECK(allocate_stack % kStackAlign == 0, "unaligned");
+    as.sub(asmjit::a64::sp, asmjit::a64::sp, allocate_stack);
+
+    // Push used callee-saved registers.
+    std::vector<int> pushed_regs;
+    pushed_regs.reserve(saved_regs.count());
+    while (!saved_regs.Empty()) {
+      as.str(
+          asmjit::a64::x(saved_regs.GetFirst().loc),
+          asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
+      pushed_regs.push_back(saved_regs.GetFirst().loc);
+      saved_regs.RemoveFirst();
+    }
+
+    if (arg_buffer_size > 0) {
+      JIT_CHECK(arg_buffer_size % kStackAlign == 0, "unaligned");
+      as.sub(asmjit::a64::sp, asmjit::a64::sp, arg_buffer_size);
+    }
+
+    NativeGenerator gen(nullptr);
+    gen.env_ = std::move(environ);
+    gen.lir_func_.reset(lir_func);
+    gen.generateAssemblyBody(code);
+
+    if (arg_buffer_size > 0) {
+      as.add(asmjit::a64::sp, asmjit::a64::sp, arg_buffer_size);
+    }
+
+    for (auto riter = pushed_regs.rbegin(); riter != pushed_regs.rend();
+         ++riter) {
+      as.ldr(
+          asmjit::a64::x(*riter), asmjit::a64::ptr_post(asmjit::a64::sp, 16));
+    }
+
+    as.mov(asmjit::a64::sp, arch::fp);
+    as.ldp(arch::fp, arch::lr, asmjit::a64::ptr_post(asmjit::a64::sp, 16));
+    as.ret(arch::lr);
 #else
     NativeGenerator gen(nullptr);
     CINDER_UNSUPPORTED
@@ -519,7 +574,7 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
       Instruction::kMove,
       nullptr,
       OutStk(-16),
-      PhyReg(arch::reg_general_return_loc));
+      PhyReg(arch::reg_scratch_0_loc));
   bb->allocateInstr(
       Instruction::kMove, nullptr, OutStk(-24), PhyReg(ARGUMENT_REGS[1].loc));
   bb->allocateInstr(
@@ -851,8 +906,8 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
   auto expected_caller = fmt::format(
       R"(Function:
 BB %0 - succs: %7
-       %1:Object = Bind RDI:Object
-       %2:Object = Bind RSI:Object
+       %1:Object = Bind {0}:Object
+       %2:Object = Bind {1}:Object
 
 BB %7 - preds: %0 - succs: %9 %8
       %14:Object = Move [%1:Object + 0x8]:Object
@@ -860,13 +915,13 @@ BB %7 - preds: %0 - succs: %9 %8
                    CondBranch %15:Object
 
 BB %8 - preds: %7 - succs: %9 %10
-      %17:Object = Call {0}({0:#x}):Object, %14:Object, %2:Object
+      %17:Object = Call {2}({2:#x}):Object, %14:Object, %2:Object
                    CondBranch %17:Object
 
 BB %10 - preds: %8 - succs: %11
       %20:Object = Move [%14:Object + 0x18]:Object
       %21:Object = Move [%2:Object + 0x18]:Object
-                   Call {1}({1:#x}):Object, {2}({2:#x}):Object, string_literal, %21:Object, %20:Object
+                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %21:Object, %20:Object
       %23:Object = Move 0(0x0):Object
 
 BB %9 - preds: %7 %8 - succs: %11
@@ -881,6 +936,8 @@ BB %6 - preds: %11 - succs: %5
 BB %5 - preds: %6
 
 )",
+      ARGUMENT_REGS[0],
+      ARGUMENT_REGS[1],
       reinterpret_cast<uint64_t>(PyType_IsSubtype),
       reinterpret_cast<uint64_t>(PyErr_Format),
       reinterpret_cast<uint64_t>(PyExc_TypeError));
