@@ -192,7 +192,7 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   bool is_double = false;
   if (kind != kAlwaysFail) {
     if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
-      assert(kind == kNotZero);
+      JIT_CHECK(kind == kNotZero, "Only NotZero is supported for double");
       auto vecd_reg = AutoTranslator::getVecD(instr->getInput(2));
       as->ptest(vecd_reg, vecd_reg);
       as->jz(deopt_label);
@@ -249,15 +249,87 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
       }
     }
   }
+#elif defined(CINDER_AARCH64)
+  auto as = env->as;
+
+  // the first four operands of the guard instruction are:
+  //   * kind
+  //   * deopt meta id
+  //   * guard var (physical register) (0 for AlwaysFail)
+  //   * target (for GuardIs and GuardType, and 0 for all others)
+
+  auto deopt_label = as->newLabel();
+  auto kind = instr->getInput(0)->getConstant();
+
+  arch::Gp reg = arch::reg_scratch_0;
+  bool is_double = false;
+  if (kind != kAlwaysFail) {
+    if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
+      JIT_CHECK(kind == kNotZero, "Only NotZero is supported for double")
+      auto vecd_reg = AutoTranslator::getVecD(instr->getInput(2));
+      as->umov(reg, vecd_reg);
+      as->cbz(reg, deopt_label);
+      is_double = true;
+    } else {
+      reg = AutoTranslator::getGp(instr->getInput(2));
+    }
+  }
+
+  auto emit_cmp = [&](auto reg_arg) {
+    constexpr size_t kTargetIndex = 3;
+    auto target_opnd = instr->getInput(kTargetIndex);
+    if (target_opnd->isImm() || target_opnd->isMem()) {
+      auto target = target_opnd->getConstantOrAddress();
+      JIT_DCHECK(
+          arm::Utils::isAddSubImm(target),
+          "Constant operand should fit into a 12-bit constant, optionally "
+          "shifted by 12 bits, got {:x}.",
+          target);
+      as->cmp(reg_arg, target);
+    } else {
+      auto target_reg = AutoTranslator::getGp(target_opnd);
+      as->cmp(reg_arg, target_reg);
+    }
+  };
+
+  if (!is_double) {
+    switch (kind) {
+      case kNotZero:
+        as->cbz(reg, deopt_label);
+        break;
+      case kNotNegative:
+        as->tbnz(reg, ((reg.size() * CHAR_BIT) - 1), deopt_label);
+        break;
+      case kZero:
+        as->cbnz(reg, deopt_label);
+        break;
+      case kAlwaysFail:
+        as->b(deopt_label);
+        break;
+      case kIs:
+        emit_cmp(reg);
+        as->b_ne(deopt_label);
+        break;
+      case kHasType: {
+        as->ldr(
+            arch::reg_scratch_0,
+            arch::ptr_offset(reg, offsetof(PyObject, ob_type)));
+
+        emit_cmp(arch::reg_scratch_0);
+        as->b_ne(deopt_label);
+        break;
+      }
+    }
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   auto index = instr->getInput(1)->getConstant();
   // skip the first four inputs in Guard, which are
   // kind, deopt_meta id, guard var, and target.
   fillLiveValueLocations(env->code_rt, index, instr, 4, instr->getNumInputs());
   env->deopt_exits.emplace_back(index, deopt_label, instr);
-#else
-  CINDER_UNSUPPORTED
-#endif
 }
 
 void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
