@@ -193,6 +193,21 @@ void FrameAsm::linkNormalGeneratorFrame(
   // shouldn't have been any other data stored in the spilled area so far
   // so no need to copy things over.
   as_->mov(x86::rbp, x86::rdx);
+#elif defined(CINDER_AARCH64)
+  uint64_t full_words = env_.shadow_frames_and_spill_size / kPointerSize;
+
+  as_->mov(a64::x1, full_words);
+  as_->mov(a64::x2, reinterpret_cast<intptr_t>(codeRuntime()));
+  as_->adr(a64::x3, env_.gen_resume_entry_label);
+  as_->mov(a64::x4, arch::fp);
+  as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkGenAndInterpreterFrame);
+  as_->blr(arch::reg_scratch_br);
+  as_->mov(tstate_reg, a64::x0);
+  // tstate is now in x0 and GenDataFooter* in x1. Swap fp over to the
+  // generator data so spilled data starts getting stored there. There
+  // shouldn't have been any other data stored in the spilled area so far
+  // so no need to copy things over.
+  as_->mov(arch::fp, a64::x1);
 #else
   CINDER_UNSUPPORTED
 #endif
