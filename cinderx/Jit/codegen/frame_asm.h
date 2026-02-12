@@ -50,15 +50,39 @@ class FrameAsm {
   bool isGen() const {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }
+
+#if defined(CINDER_X86_64)
   void incRef(
       const arch::Gp& reg,
       const arch::Gp& scratch_reg,
       const arch::Gp& tstate_reg);
+#elif defined(CINDER_AARCH64)
+  void incRef(
+      const arch::Gp& reg,
+      const arch::Gp& scratch_reg,
+      const arch::Gp& scratch_reg2,
+      const arch::Gp& tstate_reg);
+#else
+  CINDER_UNSUPPORTED
+#endif
+
+#if defined(CINDER_X86_64)
   bool storeConst(
       const arch::Gp& reg,
       int32_t offset,
       void* val,
       const arch::Gp& scratch);
+#elif defined(CINDER_AARCH64)
+  bool storeConst(
+      arch::Builder* as,
+      const arch::Gp& reg,
+      int32_t offset,
+      void* val,
+      const arch::Gp& scratch0,
+      const arch::Gp& scratch1);
+#else
+  CINDER_UNSUPPORTED
+#endif
 
   void loadTState(const arch::Gp& dst_reg);
   void linkNormalGeneratorFrame(

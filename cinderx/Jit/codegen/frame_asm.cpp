@@ -215,30 +215,25 @@ void FrameAsm::linkNormalGeneratorFrame(
   preserver.restore();
 }
 
-#ifdef Py_GIL_DISABLED
-
-void emit_inc_total_ref_count_x86_nogil(
-    [[maybe_unused]] asmjit::x86::Builder* as,
-    [[maybe_unused]] const arch::Gp& tstate_reg) {
 #ifdef Py_REF_DEBUG
-#if defined(CINDER_X86_64)
-  as->inc(
-      x86::ptr(
-          tstate_reg,
-          offsetof(_PyThreadStateImpl, reftotal),
-          sizeof(Py_ssize_t)));
-#else
-  CINDER_UNSUPPORTED
-#endif
-#endif
+PyInterpreterState* getPyInterpreterState() {
+  PyInterpreterState* interp;
+  if (jit::getThreadedCompileContext().compileRunning()) {
+    interp = jit::getThreadedCompileContext().interpreter();
+  } else {
+    interp = PyInterpreterState_Get();
+  }
+  return interp;
 }
+#endif
 
-void inc_ref_x86_nogil(
-    [[maybe_unused]] asmjit::x86::Builder* as,
-    [[maybe_unused]] const arch::Gp& reg,
-    [[maybe_unused]] const arch::Gp& scratch_reg,
-    [[maybe_unused]] const arch::Gp& tstate_reg) {
 #if defined(CINDER_X86_64)
+#ifdef Py_GIL_DISABLED
+void inc_ref_nogil(
+    arch::Builder* as,
+    const arch::Gp& reg,
+    const arch::Gp& scratch_reg,
+    const arch::Gp& tstate_reg) {
   // For free-threaded Python, check immortality via ob_ref_local.
   // Load ob_ref_local (32-bit). Note this load should be atomic with relaxed
   // memory semantics, which is default on x86.
@@ -281,42 +276,24 @@ void inc_ref_x86_nogil(
       x86::qword_ptr(reg, offsetof(PyObject, ob_ref_shared)),
       1 << _Py_REF_SHARED_SHIFT);
   as->bind(done_incref);
-  emit_inc_total_ref_count_x86_nogil(as, tstate_reg);
-  as->bind(immortal);
-#else
-  CINDER_UNSUPPORTED
+
+#ifdef Py_REF_DEBUG
+  as->inc(
+      x86::ptr(
+          tstate_reg,
+          offsetof(_PyThreadStateImpl, reftotal),
+          sizeof(Py_ssize_t)));
 #endif
+
+  as->bind(immortal);
 }
 
 #else
 // GILful inc-ref implementation
-
-void emit_inc_total_ref_count_x86_gil(
-    [[maybe_unused]] asmjit::x86::Builder* as,
-    [[maybe_unused]] const arch::Gp& scratch_reg) {
-#ifdef Py_REF_DEBUG
-#if defined(CINDER_X86_64)
-  PyInterpreterState* interp;
-  if (jit::getThreadedCompileContext().compileRunning()) {
-    interp = jit::getThreadedCompileContext().interpreter();
-  } else {
-    interp = PyInterpreterState_Get();
-  }
-
-  Py_ssize_t* ref_total = &interp->object_state.reftotal;
-  as->mov(scratch_reg, ref_total);
-  as->inc(x86::ptr(scratch_reg, 0, sizeof(void*)));
-#else
-  CINDER_UNSUPPORTED
-#endif
-#endif
-}
-
-void inc_ref_x86_gil(
-    asmjit::x86::Builder* as,
+void inc_ref_gil(
+    arch::Builder* as,
     const arch::Gp& reg,
     const arch::Gp& scratch_reg) {
-#if defined(CINDER_X86_64)
   Label immortal = as->newLabel();
   as->mov(scratch_reg.r32(), x86::ptr(reg, offsetof(PyObject, ob_refcnt)));
   as->inc(scratch_reg.r32());
@@ -327,11 +304,14 @@ void inc_ref_x86_gil(
 #endif
   // mortal
   as->mov(x86::ptr(reg, offsetof(PyObject, ob_refcnt)), scratch_reg.r32());
-  emit_inc_total_ref_count_x86_gil(as, scratch_reg);
-  as->bind(immortal);
-#else
-  CINDER_UNSUPPORTED
+
+#ifdef Py_REF_DEBUG
+  Py_ssize_t* ref_total = &getPyInterpreterState()->object_state.reftotal;
+  as->mov(scratch_reg, ref_total);
+  as->inc(x86::ptr(scratch_reg, 0, sizeof(void*)));
 #endif
+
+  as->bind(immortal);
 }
 #endif // Py_GIL_DISABLED
 
@@ -339,25 +319,121 @@ void FrameAsm::incRef(
     const arch::Gp& reg,
     const arch::Gp& scratch_reg,
     [[maybe_unused]] const arch::Gp& tstate_reg) {
-#if defined(CINDER_X86_64)
-
 #if defined(Py_GIL_DISABLED)
-  inc_ref_x86_nogil(as_, reg, scratch_reg, tstate_reg);
+  inc_ref_nogil(as_, reg, scratch_reg, tstate_reg);
 #else
-  inc_ref_x86_gil(as_, reg, scratch_reg);
-#endif
-
-#else
-  CINDER_UNSUPPORTED
+  inc_ref_gil(as_, reg, scratch_reg);
 #endif
 }
+#elif defined(CINDER_AARCH64)
+void FrameAsm::incRef(
+    const arch::Gp& reg,
+    const arch::Gp& scratch_reg0,
+    const arch::Gp& scratch_reg1,
+    [[maybe_unused]] const arch::Gp& tstate_reg) {
+  Label immortal = as_->newLabel();
 
+#if defined(Py_GIL_DISABLED)
+  // For free-threaded Python, check immortality via ob_ref_local.
+  // Load ob_ref_local (32-bit). Note this load should be atomic with relaxed
+  // memory semantics, which is default on aarch64 for regular loads.
+  as_->ldr(
+      scratch_reg0,
+      arch::ptr_offset(
+          reg, offsetof(PyObject, ob_ref_local), arch::AccessSize::k32));
+  // Add 1 - if result is zero, object was immortal (UINT32_MAX + 1 overflows
+  // to 0)
+  as_->adds(scratch_reg0, scratch_reg0, 1);
+  as_->b_eq(immortal);
+
+  // Check if object is owned by current thread by comparing ob_tid with
+  // the current thread ID. This is equivalent to _Py_IsOwnedByCurrentThread.
+  // On aarch64, the thread ID is stored at offset 0 from TPIDR_EL0.
+  Label not_owned = as_->newLabel();
+  as_->ldr(
+      scratch_reg1.x(),
+      arch::ptr_offset(reg, offsetof(PyObject, ob_tid), arch::AccessSize::k64));
+  as_->mrs(arch::reg_scratch_0, a64::Predicate::SysReg::kTPIDR_EL0);
+  as_->cmp(scratch_reg1.x(), arch::reg_scratch_0);
+  as_->b_ne(not_owned);
+
+  // Owned by current thread - store directly to ob_ref_local (fast path).
+  // Note this store should be atomic with relaxed memory semantics, which is
+  // default on aarch64 for regular stores.
+  as_->str(
+      scratch_reg0,
+      arch::ptr_offset(
+          reg, offsetof(PyObject, ob_ref_local), arch::AccessSize::k32));
+  Label done_incref = as_->newLabel();
+  as_->b(done_incref);
+
+  // Not owned - use atomic add to ob_ref_shared (slow path)
+  // On aarch64, we use ldxr/stxr loop for atomic operations
+  as_->bind(not_owned);
+  as_->add(
+      scratch_reg1.x(),
+      reg,
+      static_cast<int32_t>(offsetof(PyObject, ob_ref_shared)));
+  Label retry = as_->newLabel();
+  as_->bind(retry);
+  as_->ldxr(scratch_reg0, a64::ptr(scratch_reg1.x()));
+  as_->add(scratch_reg0, scratch_reg0, 1 << _Py_REF_SHARED_SHIFT);
+  as_->stxr(arch::reg_scratch_0.w(), scratch_reg0, a64::ptr(scratch_reg1));
+  as_->cbnz(arch::reg_scratch_0.w(), retry);
+  as_->bind(done_incref);
+
+#ifdef Py_REF_DEBUG
+  as_->ldr(
+      scratch_reg0,
+      arch::ptr_offset(
+          tstate_reg,
+          offsetof(_PyThreadStateImpl, reftotal),
+          arch::AccessSize::k64));
+  as_->add(scratch_reg0, scratch_reg0, 1);
+  as_->str(
+      scratch_reg0,
+      arch::ptr_offset(
+          tstate_reg,
+          offsetof(_PyThreadStateImpl, reftotal),
+          arch::AccessSize::k64));
+#endif
+#else
+  as_->ldr(
+      scratch_reg0,
+      arch::ptr_offset(
+          reg, offsetof(PyObject, ob_refcnt), arch::AccessSize::k32));
+  as_->adds(scratch_reg0, scratch_reg0, 1);
+#if PY_VERSION_HEX >= 0x030E0000
+  as_->b_mi(immortal);
+#else
+  as_->b_eq(immortal);
+#endif
+  // mortal
+  as_->str(
+      scratch_reg0,
+      arch::ptr_offset(
+          reg, offsetof(PyObject, ob_refcnt), arch::AccessSize::k32));
+
+#ifdef Py_REF_DEBUG
+  Py_ssize_t* ref_total = &getPyInterpreterState()->object_state.reftotal;
+  as_->mov(scratch_reg0.x(), reinterpret_cast<intptr_t>(ref_total));
+  as_->ldr(scratch_reg1.x(), a64::ptr(scratch_reg0.x()));
+  as_->add(scratch_reg1.x(), scratch_reg1.x(), 1);
+  as_->str(scratch_reg1.x(), a64::ptr(scratch_reg0.x()));
+#endif
+#endif
+  as_->bind(immortal);
+}
+#else
+CINDER_UNSUPPORTED
+#endif
+
+#if defined(CINDER_X86_64)
 bool FrameAsm::storeConst(
     const arch::Gp& reg,
     int32_t offset,
     void* val,
     const arch::Gp& scratch) {
-#if defined(CINDER_X86_64)
   auto dest = x86::ptr(reg, offset, sizeof(void*));
   int64_t value = reinterpret_cast<int64_t>(val);
   if (fitsSignedInt<32>(value)) {
@@ -368,17 +444,31 @@ bool FrameAsm::storeConst(
   }
   as_->mov(scratch, value);
   as_->mov(dest, scratch);
-#else
-  CINDER_UNSUPPORTED
-#endif
   return false;
 }
+#elif defined(CINDER_AARCH64)
+bool FrameAsm::storeConst(
+    arch::Builder* as,
+    const arch::Gp& reg,
+    int32_t offset,
+    void* val,
+    const arch::Gp& scratch0,
+    const arch::Gp& scratch1) {
+  int64_t value = reinterpret_cast<int64_t>(val);
+  as_->mov(scratch0, value);
+  as_->str(scratch0, arch::ptr_resolve(as, reg, offset, scratch1));
+  return false;
+}
+#else
+CINDER_UNSUPPORTED
+#endif
 
 void FrameAsm::linkLightWeightFunctionFrame(
     RegisterPreserver& preserver,
     const arch::Gp& func_reg,
     const arch::Gp& tstate_reg) {
-#if defined(CINDER_X86_64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(CINDER_X86_64)
   // Light weight function headers are allocated on the stack as:
   //  PyFunctionObject* func_obj
   //  _PyInterpreterFrame
@@ -542,6 +632,9 @@ void FrameAsm::linkLightWeightFunctionFrame(
   } else {
     preserver.remap();
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
 #else
   throw std::runtime_error{
       "linkLightWeightFunctionFrame: Lightweight frames are not supported"};
