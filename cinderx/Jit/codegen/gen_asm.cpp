@@ -639,6 +639,229 @@ void* generateDeoptTrampoline(bool generator_mode) {
   code_sections.emplace_back(result, code_size);
   perf::registerFunction(code_sections, name);
   return result;
+#elif defined(CINDER_AARCH64)
+  auto annot_cursor = a.cursor();
+  // When we get here the stack has the following layout. The space on the
+  // stack for the call arg buffer / LOAD_METHOD scratch space is always safe
+  // to read, but its contents will depend on the function being compiled as
+  // well as the program point at which deopt occurs. We pass a pointer to it
+  // into the frame reification code so that it can properly reconstruct the
+  // interpreter's stack when the the result of a LOAD_METHOD is on the
+  // stack. See the comments in reifyStack in deopt.cpp for more details.
+  //
+  // +-------------------------+
+  // | ...                     |
+  // | ? call arg buffer       |
+  // | ^ LOAD_METHOD scratch   |
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | index of deopt metadata |
+  // | saved pc                |
+  // | padding (8 bytes)       |
+  // | padding (8 bytes)       |
+  // | address of CodeRuntime  |
+  // | address of epilogue     |
+  // | fp                      |
+  // | x28                     | <-- sp
+  // +-------------------------+
+  //
+  // Save registers for use in frame reification. Once these are saved we're
+  // free to clobber any caller-saved registers.
+  //
+  // IF YOU USE CALLEE-SAVED REGISTERS YOU HAVE TO RESTORE THEM MANUALLY BEFORE
+  // THE EXITING THE TRAMPOLINE.
+  a.stp(a64::x0, a64::x1, a64::ptr_pre(a64::sp, -16 * 14));
+  a.stp(a64::x2, a64::x3, a64::ptr(a64::sp, 16 * 1));
+  a.stp(a64::x4, a64::x5, a64::ptr(a64::sp, 16 * 2));
+  a.stp(a64::x6, a64::x7, a64::ptr(a64::sp, 16 * 3));
+  a.stp(a64::x8, a64::x9, a64::ptr(a64::sp, 16 * 4));
+  a.stp(a64::x10, a64::x11, a64::ptr(a64::sp, 16 * 5));
+  a.stp(a64::x12, a64::x13, a64::ptr(a64::sp, 16 * 6));
+  a.stp(a64::x14, a64::x15, a64::ptr(a64::sp, 16 * 7));
+  a.stp(a64::x16, a64::x17, a64::ptr(a64::sp, 16 * 8));
+  a.stp(a64::x18, a64::x19, a64::ptr(a64::sp, 16 * 9));
+  a.stp(a64::x20, a64::x21, a64::ptr(a64::sp, 16 * 10));
+  a.stp(a64::x22, a64::x23, a64::ptr(a64::sp, 16 * 11));
+  a.stp(a64::x24, a64::x25, a64::ptr(a64::sp, 16 * 12));
+  a.stp(a64::x26, a64::x27, a64::ptr(a64::sp, 16 * 13));
+
+  if (generator_mode) {
+    // Restore original frame pointer for use in epilogue.
+    RestoreOriginalGeneratorFramePointer(&a);
+  }
+
+  annot.add("Save registers", &a, annot_cursor);
+
+  // Set up a stack frame for the trampoline so that:
+  //
+  // 1. Runtime code in the JIT that is used to update PyFrameObjects can find
+  //    the saved pc at the expected location immediately following the end of
+  //    the JIT's fixed frame.  See getIP().
+  //
+  // 2. The JIT-compiled function shows up in C stack traces when it is
+  //    deopting. Only the deopt trampoline will appear in the trace if
+  //    we don't open a frame.
+  //
+  // Right now the stack has the following layout:
+  //
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | index of deopt metadata |
+  // | saved pc                |
+  // | padding (8 bytes)       |
+  // | padding (8 bytes)       |
+  // | address of CodeRuntime  |
+  // | address of epilogue     |
+  // | fp                      |
+  // | x28                     |
+  // | ...                     |
+  // | x0                      | <-- sp
+  // +-------------------------+
+  //
+  // We want our frame to look like:
+  //
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | saved pc                |
+  // | saved fp                | <-- fp
+  // | padding (8 bytes)       |
+  // | index of deopt metadata |
+  // | address of CodeRuntime  |
+  // | address of epilogue     |
+  // | fp                      |
+  // | x28                     |
+  // | ...                     |
+  // | x0                      | <-- sp
+  // +-------------------------+
+
+  annot_cursor = a.cursor();
+
+  // Setting up first argument to prepareForDeopt, the address of the saved
+  // registers.
+  a.mov(a64::x0, a64::sp);
+
+  // Load the saved pc passed to us from the JIT-compiled function, which
+  // resides where we're supposed to save the frame pointer.
+  const int saved_regs_slots = 30;
+  const int saved_metadata_slots = 4;
+
+  auto saved_pc = a64::x3;
+  auto saved_fp_offset =
+      (saved_regs_slots + saved_metadata_slots) * kPointerSize;
+  a.ldr(
+      saved_pc,
+      arch::ptr_resolve(&a, a64::sp, saved_fp_offset, arch::reg_scratch_0));
+
+  // Save the frame pointer and set up our frame.
+  a.str(
+      arch::fp,
+      arch::ptr_resolve(&a, a64::sp, saved_fp_offset, arch::reg_scratch_0));
+  a.add(arch::fp, a64::sp, saved_fp_offset);
+
+  // Load the index of the deopt metadata, which resides where we're supposed to
+  // save the pc.
+  auto deopt_idx = a64::x2;
+  a.ldr(
+      deopt_idx,
+      arch::ptr_resolve(&a, arch::fp, kPointerSize, arch::reg_scratch_0));
+  a.str(
+      saved_pc,
+      arch::ptr_resolve(&a, arch::fp, kPointerSize, arch::reg_scratch_0));
+
+  // Save the deopt metadata index to the lower padding slot.
+  auto deopt_idx_addr =
+      arch::ptr_resolve(&a, arch::fp, -2 * kPointerSize, arch::reg_scratch_0);
+  a.str(deopt_idx, deopt_idx_addr);
+
+  // Fetch the CodeRuntime address from the stack.
+  auto code_rt_addr =
+      arch::ptr_resolve(&a, arch::fp, -3 * kPointerSize, arch::reg_scratch_0);
+  auto code_rt = a64::x1;
+  a.ldr(code_rt, code_rt_addr);
+
+  annot.add("Shuffle pc, fp, and deopt index", &a, annot_cursor);
+
+  // Prep the frame for evaluation in the interpreter.
+  //
+  // We pass the array of saved registers, a pointer to the code runtime, and
+  // the index of the deopt metadata.
+  annot_cursor = a.cursor();
+
+  static_assert(
+      std::is_same_v<
+          decltype(prepareForDeopt),
+          CiPyFrameObjType*(const uint64_t*, CodeRuntime*, std::size_t)>,
+      "prepareForDeopt has unexpected signature");
+  a.mov(arch::reg_scratch_br, prepareForDeopt);
+  a.blr(arch::reg_scratch_br);
+
+  // Clean up saved registers.
+  //
+  // This isn't strictly necessary but saves 128 bytes on the stack if we end
+  // up resuming in the interpreter.
+  a.add(a64::sp, a64::sp, (saved_regs_slots - 2) * kPointerSize);
+
+  // We have to restore our scratch register manually since it's callee-saved
+  // and the stage 2 trampoline used it to hold the address of this
+  // trampoline. We can't rely on the JIT epilogue to restore it for us, as the
+  // JIT-compiled code may not have spilled it.
+  a.ldr(deopt_scratch_reg, a64::ptr(a64::sp));
+
+  annot.add("prepareForDeopt", &a, annot_cursor);
+
+  // Resume execution in the interpreter.
+  annot_cursor = a.cursor();
+
+  // First argument: frame returned from prepareForDeopt.
+  // already in x0
+  // Second argument: CodeRuntime, restored from the stack after
+  // prepareForDeopt.
+  a.ldr(code_rt, code_rt_addr);
+  // Third argument: DeoptMetadata index, restored from the stack after
+  // prepareForDeopt.
+  a.ldr(deopt_idx, deopt_idx_addr);
+  static_assert(
+      std::is_same_v<
+          decltype(resumeInInterpreter),
+          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
+      "resumeInInterpreter has unexpected signature");
+  a.mov(arch::reg_scratch_br, resumeInInterpreter);
+  a.blr(arch::reg_scratch_br);
+
+  // If we return a primitive and prepareForDeopt returned null, we need that
+  // null in w2/d1 to signal error to our caller. Since this trampoline is
+  // shared, we do this move unconditionally, but even if not needed, it's
+  // harmless. (To eliminate it, we'd need another trampoline specifically for
+  // deopt of primitive-returning functions, just to do this one move.)
+  a.mov(a64::w2, a64::w0);
+  a.fmov(a64::d1, a64::x0);
+
+  annot.add("resumeInInterpreter", &a, annot_cursor);
+
+  // Now we're done. Get the address of the epilogue and jump there.
+  annot_cursor = a.cursor();
+
+  auto epilogue_addr =
+      arch::ptr_resolve(&a, arch::fp, -4 * kPointerSize, arch::reg_scratch_0);
+  a.ldr(arch::reg_scratch_br, epilogue_addr);
+  // Remove our frame from the stack
+  a.mov(a64::sp, arch::fp);
+  a.ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+  a.br(arch::reg_scratch_br);
+  annot.add("Jump to real epilogue", &a, annot_cursor);
+
+  void* result = finalizeCode(a, name);
+  JIT_LOGIF(
+      getConfig().log.dump_asm,
+      "Disassembly for {}\n{}",
+      name,
+      annot.disassemble(result, code));
+
+  auto code_size = code.codeSize();
+  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
+
+  std::vector<std::pair<void*, std::size_t>> code_sections;
+  populateCodeSections(code_sections, code, result);
+  code_sections.emplace_back(result, code_size);
+  perf::registerFunction(code_sections, name);
+  return result;
 #else
   CINDER_UNSUPPORTED;
   return nullptr;
