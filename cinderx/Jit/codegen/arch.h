@@ -61,7 +61,7 @@ using Emitter = asmjit::a64::Emitter;
 using Gp = asmjit::a64::Gp;
 using Mem = asmjit::a64::Mem;
 using Reg = asmjit::a64::Reg;
-using VecD = asmjit::a64::VecD;
+using VecD = asmjit::a64::Vec;
 
 template <typename T>
 using EmitterExplicitT = asmjit::a64::EmitterExplicitT<T>;
