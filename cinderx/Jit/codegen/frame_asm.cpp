@@ -632,6 +632,197 @@ void FrameAsm::linkLightWeightFunctionFrame(
   } else {
     preserver.remap();
   }
+#elif defined(CINDER_AARCH64)
+  // Light weight function headers are allocated on the stack as:
+  //  PyFunctionObject* func_obj
+  //  _PyInterpererFrame
+  //
+  // We need to initialize the f_code, f_funcobj fields of
+  // the frame along w/ the previous pointer.
+  asmjit::BaseNode* init_tstate_off_cursor = as_->cursor();
+  initThreadStateOffset();
+  env_.addAnnotation("Init tstate offset", init_tstate_off_cursor);
+
+  // We have some caller-saved registers that we can trash that are not also
+  // argument registers (X8-X18). X10 we use for the extra args, and if we
+  // aren't preserving the stack it's not initialized yet, so we can use it. If
+  // we are preserving the stack (typically only in ASAN builds) then we'll need
+  // to preserve that as well after spilling and restoring the arguments around
+  // the call to get the thread state.
+  asmjit::BaseNode* load_tstate_cursor = as_->cursor();
+  auto scratch = a64::x(INITIAL_EXTRA_ARGS_REG.loc);
+  if (tstate_offset == -1) {
+    preserver.preserve();
+  }
+  loadTState(tstate_reg);
+
+  if (tstate_offset == -1) {
+    preserver.restore();
+    // and here's where we need to preserve the initial extra args reg
+    // too.
+    as_->str(scratch, a64::ptr_pre(a64::sp, -16));
+  }
+  env_.addAnnotation("Load tstate", load_tstate_cursor);
+
+  int frame_header_size = frameHeaderSizeExcludingSpillSpace();
+#if PY_VERSION_HEX < 0x030E0000
+  PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
+#else
+  PyObject* frame_reifier = env_.code_rt->reifier();
+#endif
+  const auto ref_cnt = a64::w9;
+  const auto ref_cnt_scratch = a64::w12;
+
+#define FRAME_OFFSET(NAME) \
+  -frame_header_size + offsetof(_PyInterpreterFrame, NAME) + sizeof(FrameHeader)
+
+  asmjit::BaseNode* store_func_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030E0000
+  as_->sub(arch::reg_scratch_0, arch::fp, frame_header_size);
+  as_->str(a64::xzr, a64::ptr(arch::reg_scratch_0));
+  env_.addAnnotation("Store rtfs state to 0", store_func_cursor);
+#else
+  // Initialize the fields minus previous.
+  // Store func before the header
+  as_->sub(arch::reg_scratch_0, arch::fp, frame_header_size);
+  as_->str(func_reg, a64::ptr(arch::reg_scratch_0));
+  incRef(func_reg, ref_cnt, ref_cnt_scratch, tstate_reg);
+  env_.addAnnotation("Store func before frame header", store_func_cursor);
+#endif
+
+  asmjit::BaseNode* store_f_code_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject* executable = frame_reifier;
+#else
+  PyObject* executable = (PyObject*)func_->code.get();
+#endif
+  storeConst(
+      as_,
+      arch::fp,
+      FRAME_OFFSET(FRAME_EXECUTABLE),
+      executable,
+      scratch,
+      arch::reg_scratch_1);
+  if (!_Py_IsImmortal(executable)) {
+    incRef(scratch, ref_cnt, ref_cnt_scratch, tstate_reg);
+  }
+  env_.addAnnotation("Set _PyInterpreterFrame::f_code", store_f_code_cursor);
+
+  // Store f_funcobj as our helper frame reifier object
+  asmjit::BaseNode* store_f_funcobj_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030E0000
+  as_->str(func_reg, arch::ptr_offset(arch::fp, FRAME_OFFSET(f_funcobj)));
+  incRef(func_reg, ref_cnt, ref_cnt_scratch, tstate_reg);
+#else
+  storeConst(
+      as_,
+      arch::fp,
+      FRAME_OFFSET(f_funcobj),
+      frame_reifier,
+      scratch,
+      arch::reg_scratch_1);
+  JIT_DCHECK(_Py_IsImmortal(frame_reifier), "frame helper must be immortal");
+#endif
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame::f_funcobj", store_f_funcobj_cursor);
+
+  // Store prev_instr + tlbc_index
+  asmjit::BaseNode* store_prev_instr_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030E0000
+  _Py_CODEUNIT* code = _PyCode_CODE(GetFunction()->code.get());
+#else
+  _Py_CODEUNIT* code = _PyCode_CODE(GetFunction()->code.get()) - 1;
+#endif
+  storeConst(
+      as_,
+      arch::fp,
+      FRAME_OFFSET(FRAME_INSTR),
+      code,
+      scratch,
+      arch::reg_scratch_1);
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame::prev_instr", store_prev_instr_cursor);
+#ifdef Py_GIL_DISABLED
+  asmjit::BaseNode* tlbc_index_cursor = as_->cursor();
+  as_->str(a64::xzr, arch::ptr_offset(arch::fp, FRAME_OFFSET(tlbc_index)));
+  env_.addAnnotation("Set TLBC index to 0", tlbc_index_cursor);
+#endif
+
+  // Store owner
+  asmjit::BaseNode* store_owner_cursor = as_->cursor();
+  as_->mov(a64::w1, FRAME_OWNED_BY_THREAD);
+  as_->strb(
+      a64::w1,
+      arch::ptr_offset(arch::fp, FRAME_OFFSET(owner), arch::AccessSize::k32));
+  env_.addAnnotation("Set _PyInterpreterFrame::owner", store_owner_cursor);
+
+  // Get the frame that is currently linked into thread state and update
+  // our frames pointer back to it.
+  asmjit::BaseNode* get_tos_cursor = as_->cursor();
+#if PY_VERSION_HEX >= 0x030D0000
+  // 3.14+ - current_frame is stored in PyThreadState.current_frame
+  const arch::Gp& frame_holder = tstate_reg;
+  // cur_frame->previous = PyThreadState.current_frame
+  as_->ldr(
+      scratch,
+      arch::ptr_offset(tstate_reg, offsetof(PyThreadState, current_frame)));
+#else
+  // 3.12 - current_frame is stored in PyThreadState.cframe
+  const arch::Gp& frame_holder = arch::reg_scratch_0;
+  as_->ldr(
+      frame_holder,
+      arch::ptr_offset(tstate_reg, offsetof(PyThreadState, cframe)));
+  as_->ldr(
+      scratch,
+      arch::ptr_offset(frame_holder, offsetof(_PyCFrame, current_frame)));
+#endif
+  env_.addAnnotation("Get topmost frame", get_tos_cursor);
+
+  asmjit::BaseNode* store_prev_cursor = as_->cursor();
+  // cur_frame->previous = PyThreadState.cframe.current_frame
+  as_->str(scratch, arch::ptr_offset(arch::fp, FRAME_OFFSET(previous)));
+  env_.addAnnotation("Set _PyInterpreterFrame::previous", store_prev_cursor);
+
+#if PY_VERSION_HEX >= 0x030E0000
+  asmjit::BaseNode* stack_pointer_cursor = as_->cursor();
+  as_->add(scratch, arch::fp, FRAME_OFFSET(localsplus));
+  as_->str(scratch, arch::ptr_offset(arch::fp, FRAME_OFFSET(stackpointer)));
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame::stackpointer", stack_pointer_cursor);
+
+  asmjit::BaseNode* locals_cursor = as_->cursor();
+  as_->str(a64::xzr, arch::ptr_offset(arch::fp, FRAME_OFFSET(f_locals)));
+  env_.addAnnotation("Set _PyInterpreterFrame::f_locals", locals_cursor);
+#endif
+
+  // Then finally link in our frame to thread state
+  asmjit::BaseNode* update_linkage_cursor = as_->cursor();
+  int size = -frame_header_size + sizeof(PyObject*);
+  if (size > 0) {
+    as_->add(scratch, arch::fp, size);
+  } else {
+    as_->sub(scratch, arch::fp, -size);
+  }
+
+#if PY_VERSION_HEX >= 0x030D0000
+  // (PyThreadState.cframe|PyThreadState).current_frame = &cur_frame
+  as_->str(
+      scratch,
+      arch::ptr_offset(frame_holder, offsetof(PyThreadState, current_frame)));
+#else
+  // (PyThreadState.cframe|PyThreadState).current_frame = &cur_frame
+  as_->str(
+      scratch,
+      arch::ptr_offset(frame_holder, offsetof(_PyCFrame, current_frame)));
+#endif
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame as topmost frame", update_linkage_cursor);
+
+  if (tstate_offset == -1) {
+    as_->ldr(scratch, a64::ptr_post(a64::sp, 16));
+  } else {
+    preserver.remap();
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
