@@ -341,6 +341,15 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   // Generate patchpoint by writing in an appropriately sized nop.  As a future
   // optimization, we may be able to avoid reserving space for the patchpoint if
   // we can prove that the following bytes are not the target of a jump.
+#if defined(CINDER_X86_64) && defined(Py_GIL_DISABLED)
+  // On x86, align the patchpoint to 8 bytes so the patch-point doesn't straddle
+  // a cache line boundary. This is enough to make updates appear atomic to
+  // other cores.
+  //
+  // Not needed on Arm as fixed instructions are a fixed size and updates
+  // naturally atomic.
+  as->align(AlignMode::kCode, 8);
+#endif
   auto patchpoint_label = as->newLabel();
   as->bind(patchpoint_label);
 

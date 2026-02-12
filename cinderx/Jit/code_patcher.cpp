@@ -8,6 +8,10 @@
 
 #include <array>
 #include <cstring>
+#if defined(CINDER_X86_64) && defined(Py_GIL_DISABLED)
+#include <algorithm>
+#include <atomic>
+#endif
 
 namespace jit {
 
@@ -116,10 +120,36 @@ std::span<const uint8_t> CodePatcher::storedBytes() const {
 }
 
 void CodePatcher::swap() {
+#if defined(CINDER_X86_64) && defined(Py_GIL_DISABLED)
+  // On x86 the patchpoint is up to 7 bytes (aligned to 8 bytes by the code
+  // generator). However, we work with 8 bytes here as that should be an
+  // atomically writable size on x86.
+  static_assert(sizeof(uint64_t) >= sizeof(data_));
+  static_assert(std::atomic_ref<uint64_t>::is_always_lock_free == true);
+  JIT_CHECK(
+      reinterpret_cast<uintptr_t>(patchpoint_) % 8 == 0, "Not 8-byte aligned");
+  uint64_t qword;
+  std::memcpy(&qword, patchpoint_, sizeof(qword));
+
+  auto* qword_bytes = reinterpret_cast<uint8_t*>(&qword);
+  std::swap_ranges(qword_bytes, qword_bytes + data_len_, data_.data());
+
+  std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(patchpoint_)}.store(
+      qword, std::memory_order_relaxed);
+#else
   decltype(data_) temp;
   std::memcpy(temp.data(), patchpoint_, data_len_);
   std::memcpy(patchpoint_, data_.data(), data_len_);
   std::memcpy(data_.data(), temp.data(), data_len_);
+#endif
+
+#ifdef Py_GIL_DISABLED
+  // Flush CPU caches, including the instruction cache, so all cores will see
+  // the update. Note for x86 this is a no-op as caches are coherent.
+  __builtin___clear_cache(
+      reinterpret_cast<char*>(patchpoint_),
+      reinterpret_cast<char*>(patchpoint_) + data_len_);
+#endif
 }
 
 JumpPatcher::JumpPatcher() {

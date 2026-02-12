@@ -952,6 +952,11 @@ Register* simplifyLoadAttrSplitDict(
     const LoadAttr* load_attr,
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> name) {
+#ifdef Py_GIL_DISABLED
+  // See T255055907.
+  return nullptr;
+#endif
+
   if (!PyType_HasFeature(
           type, Py_TPFLAGS_MANAGED_DICT | Py_TPFLAGS_INLINE_VALUES)) {
     return nullptr;
