@@ -554,6 +554,45 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 #endif
+#elif defined(CINDER_AARCH64)
+#if PY_VERSION_HEX < 0x030C0000
+  CINDER_UNSUPPORTED
+#else
+  arch::Builder* as = env->as;
+
+  // Load tstate into X0 for call to
+  // JITRT_UnlinkGenFrameAndReturnGenDataFooter.
+
+  // Consider avoiding reloading the tstate in from memory if it was already in
+  // a register before spilling. Still needs to be in memory though so it can be
+  // recovered after calling JITRT_MakeGenObject* which will trash it.
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->ldr(
+      a64::x0,
+      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
+
+  emitCall(
+      *env,
+      reinterpret_cast<uint64_t>(JITRT_UnlinkGenFrameAndReturnGenDataFooter),
+      instr);
+  // This will return pointers to a generator in X0 and JIT data in X1.
+
+  // Arbitrary scratch register for use in emitStoreGenYieldPoint(). Any
+  // caller-saved register not used in this scope will do because we're on the
+  // exit path now.
+  auto scratch_r = arch::reg_scratch_0;
+  asmjit::Label resume_label = as->newLabel();
+  emitStoreGenYieldPoint(as, env, instr, resume_label, a64::x1, scratch_r);
+
+  // Jump to epilogue
+  as->b(env->exit_for_yield_label);
+
+  // Resumed execution in this generator begins here
+  as->bind(resume_label);
+
+  // Sent in value is in X1, and tstate is in X3 from resume entry-point args
+  emitLoadResumedYieldInputs(as, instr, X1, a64::x3);
+#endif
 #else
   CINDER_UNSUPPORTED
 #endif
