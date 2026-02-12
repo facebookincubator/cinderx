@@ -851,6 +851,17 @@ void FrameAsm::linkNormalFunctionFrame(
   }
 
   as_->mov(tstate_reg, x86::rax);
+#elif defined(CINDER_AARCH64)
+  if (kPyDebug) {
+    as_->mov(a64::x1, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
+    as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkInterpreterFrame_Debug);
+  } else {
+    as_->mov(
+        arch::reg_scratch_br, JITRT_AllocateAndLinkInterpreterFrame_Release);
+  }
+
+  as_->blr(arch::reg_scratch_br);
+  as_->mov(tstate_reg, a64::x0);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -864,6 +875,8 @@ void FrameAsm::linkNormalFrame(
     const arch::Gp& tstate_reg) {
 #if defined(CINDER_X86_64)
   JIT_DCHECK(func_reg == x86::rdi, "func_reg must be rdi");
+#elif defined(CINDER_AARCH64)
+  JIT_DCHECK(func_reg == a64::x0, "func_reg must be x0");
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -900,6 +913,21 @@ void FrameAsm::linkNormalFrame(
 
   as_->call(reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkFrame));
   as_->mov(tstate_reg, x86::rax);
+#elif defined(CINDER_AARCH64)
+  as_->mov(
+      a64::x0,
+      reinterpret_cast<intptr_t>(codeRuntime()->frameState()->code().get()));
+  as_->mov(
+      a64::x1,
+      reinterpret_cast<intptr_t>(
+          codeRuntime()->frameState()->builtins().get()));
+  as_->mov(
+      a64::x2,
+      reinterpret_cast<intptr_t>(codeRuntime()->frameState()->globals().get()));
+
+  as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkFrame);
+  as_->blr(arch::reg_scratch_br);
+  as_->mov(tstate_reg, a64::x0);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -921,6 +949,12 @@ void FrameAsm::loadTState(const arch::Gp& dst_reg) {
     as_->mov(dst_reg, tstate);
     as_->mov(dst_reg, x86::ptr(dst_reg));
   }
+#elif defined(CINDER_AARCH64)
+  uint64_t tstate =
+      reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
+
+  as_->mov(dst_reg, tstate);
+  as_->ldr(dst_reg, a64::ptr(dst_reg));
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -997,6 +1031,34 @@ void FrameAsm::generateUnlinkFrame([[maybe_unused]] bool is_generator) {
   } else {
     as_->mov(x86::rax, saved_rax_ptr);
   }
+#elif defined(CINDER_AARCH64)
+#ifdef ENABLE_SHADOW_FRAMES
+  CINDER_UNSUPPORTED
+#else
+  auto saved_x0_ptr =
+      arch::ptr_resolve(as_, arch::fp, -frameHeaderSize(), arch::reg_scratch_0);
+
+  hir::Type ret_type = func_->return_type;
+  if (ret_type <= TCDouble) {
+    as_->str(a64::d0, saved_x0_ptr);
+  } else {
+    as_->str(a64::x0, saved_x0_ptr);
+  }
+  as_->mov(arch::reg_scratch_br, JITRT_UnlinkFrame);
+  as_->blr(arch::reg_scratch_br);
+
+  // It is possible that the scratch register used to compute the pointer was
+  // clobbered by the call. If so, we need to reload it. This only happens if
+  // the scratch register is caller-saved, which unfortunately it currently is.
+  saved_x0_ptr =
+      arch::ptr_resolve(as_, arch::fp, -frameHeaderSize(), arch::reg_scratch_0);
+
+  if (ret_type <= TCDouble) {
+    as_->ldr(a64::d0, saved_x0_ptr);
+  } else {
+    as_->ldr(a64::x0, saved_x0_ptr);
+  }
+#endif
 #else
   CINDER_UNSUPPORTED
 #endif
