@@ -244,12 +244,11 @@ PyObject* SplitMutator::getAttrSlowPath(
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
 
-  JIT_DCHECK(
-      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
-
   if (dict == nullptr) {
     return PyObject_GetAttr(obj, name);
   }
+  JIT_DCHECK(
+      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
   if (!ensureValueOffset(name)) {
     return getAttrSlowPath(obj, name, dict);
   }
@@ -261,12 +260,11 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
 PyObject* SplitMutator::getAttrKnownOffset(PyObject* obj, PyObject* name) {
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
 
-  JIT_DCHECK(
-      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
-
   if (dict == nullptr) {
     return PyObject_GetAttr(obj, name);
   }
+  JIT_DCHECK(
+      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
   if (dict->ma_keys != keys) {
     return getAttrSlowPath(obj, name, dict);
   }
@@ -839,11 +837,6 @@ void AttributeCache::fill(
       mut->set_descr_or_classvar(type, descr, keys_version);
     }
     ac_watcher.watch(type, this);
-    return;
-  }
-
-  // Not working yet.
-  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
     return;
   }
 
