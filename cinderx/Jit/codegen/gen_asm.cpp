@@ -91,6 +91,13 @@ void RestoreOriginalGeneratorFramePointer(arch::Builder* as) {
   size_t original_frame_pointer_offset =
       offsetof(GenDataFooter, originalFramePointer);
   as->mov(x86::rbp, x86::ptr(x86::rbp, original_frame_pointer_offset));
+#elif defined(CINDER_AARCH64)
+  size_t original_frame_pointer_offset =
+      offsetof(GenDataFooter, originalFramePointer);
+  as->ldr(
+      arch::fp,
+      arch::ptr_resolve(
+          as, arch::fp, original_frame_pointer_offset, arch::reg_scratch_0));
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -863,7 +870,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   perf::registerFunction(code_sections, name);
   return result;
 #else
-  CINDER_UNSUPPORTED;
+  CINDER_UNSUPPORTED
   return nullptr;
 #endif
 }
@@ -1228,6 +1235,22 @@ void NativeGenerator::generateFunctionEntry() {
 #if defined(CINDER_X86_64)
   as_->push(x86::rbp);
   as_->mov(x86::rbp, x86::rsp);
+#elif defined(CINDER_AARCH64)
+  as_->stp(arch::fp, arch::lr, a64::ptr_pre(a64::sp, -16));
+  as_->mov(arch::fp, a64::sp);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+void NativeGenerator::generateFunctionExit() {
+#if defined(CINDER_X86_64)
+  as_->leave();
+  as_->ret();
+#elif defined(CINDER_AARCH64)
+  as_->mov(a64::sp, arch::fp);
+  as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+  as_->ret(arch::lr);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1283,6 +1306,16 @@ int NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
   int padding = frame_info.header_and_spill_size % kStackAlign;
   as_->sub(x86::rsp, frame_info.header_and_spill_size + padding);
   return padding;
+#elif defined(CINDER_AARCH64)
+  int modulo = frame_info.header_and_spill_size % kStackAlign;
+  int padding = modulo == 0 ? 0 : kStackAlign - modulo;
+  as_->sub(a64::sp, a64::sp, frame_info.header_and_spill_size + padding);
+
+  // There is a difference here from x86-64, because the aarch64 stack cannot be
+  // misaligned. Here we are returning the amount of space that we have added to
+  // keep the stack aligned, as opposed to the amount of space that we have gone
+  // over the stack alignment.
+  return padding;
 #else
   CINDER_UNSUPPORTED
   return 0;
@@ -1306,6 +1339,33 @@ void NativeGenerator::saveCallerRegisters(
   if (frame_info.arg_buffer_size > 0) {
     as_->sub(x86::rsp, frame_info.arg_buffer_size);
   }
+#elif defined(CINDER_AARCH64)
+#ifdef ENABLE_SHADOW_FRAMES
+  frame_asm_.initializeFrameHeader(tstate_reg, a64::x0);
+#endif
+  // Push used callee-saved registers.
+  auto saved_regs = frame_info.saved_regs;
+  if (!saved_regs.Empty()) {
+    if (saved_regs.count() % 2 == 1) {
+      as_->str(a64::x(saved_regs.GetFirst().loc), a64::ptr_pre(a64::sp, -16));
+      saved_regs.RemoveFirst();
+    }
+
+    while (!saved_regs.Empty()) {
+      auto first = a64::x(saved_regs.GetFirst().loc);
+      saved_regs.RemoveFirst();
+
+      auto second = a64::x(saved_regs.GetFirst().loc);
+      saved_regs.RemoveFirst();
+
+      as_->stp(first, second, a64::ptr_pre(a64::sp, -16));
+    }
+  }
+
+  if (frame_info.arg_buffer_size > 0) {
+    JIT_CHECK(frame_info.arg_buffer_size % kStackAlign == 0, "unaligned");
+    as_->sub(a64::sp, a64::sp, frame_info.arg_buffer_size);
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1316,6 +1376,9 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(
     arch::Gp tstate_reg) {
 #if defined(CINDER_X86_64)
   as_->sub(x86::rsp, frame_info.header_and_spill_size);
+#elif defined(CINDER_AARCH64)
+  JIT_CHECK(frame_info.header_and_spill_size % kStackAlign == 0, "unaligned");
+  as_->sub(a64::sp, a64::sp, frame_info.header_and_spill_size);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1328,6 +1391,12 @@ arch::Gp get_arg_location(int arg) {
 
   if (phyloc.is_register()) {
     return x86::gpq(phyloc.loc);
+  }
+#elif defined(CINDER_AARCH64)
+  auto phyloc = get_arg_location_phy_location(arg);
+
+  if (phyloc.is_register()) {
+    return a64::x(phyloc.loc);
   }
 #else
   CINDER_UNSUPPORTED
@@ -1557,6 +1626,15 @@ emitCompare(arch::Builder* as, arch::Gp lhs, void* rhs, arch::Gp scratch) {
 
   if (!fitsSignedInt<32>(rhsi)) {
     // in shared mode type can be in a high address
+    as->mov(scratch, rhsi);
+    as->cmp(lhs, scratch);
+  } else {
+    as->cmp(lhs, rhsi);
+  }
+#elif defined(CINDER_AARCH64)
+  uint64_t rhsi = reinterpret_cast<uint64_t>(rhs);
+
+  if (!a64::Utils::isAddSubImm(rhsi)) {
     as->mov(scratch, rhsi);
     as->cmp(lhs, scratch);
   } else {
@@ -1885,8 +1963,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
     }
   }
 
-  as_->leave();
-  as_->ret();
+  generateFunctionExit();
 
   env_.addAnnotation(
       "Epilogue (restore regs; pop native frame; error exit)",
@@ -1997,9 +2074,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
     }
   }
 
-  as_->mov(a64::sp, arch::fp);
-  as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
-  as_->ret(arch::lr);
+  generateFunctionExit();
 
   env_.addAnnotation(
       "Epilogue (restore regs; pop native frame; error exit)",
@@ -2628,7 +2703,6 @@ bool NativeGenerator::hasStaticEntry() const {
 }
 
 void NativeGenerator::generateCode(CodeHolder& codeholder) {
-#if defined(CINDER_X86_64)
   // The body must be generated before the prologue to determine how much spill
   // space to allocate.
   auto prologue_cursor = as_->cursor();
@@ -2659,7 +2733,15 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   Label correct_args_entry = as_->newLabel();
   as_->bind(correct_args_entry);
   generateFunctionEntry();
+
+#if defined(CINDER_X86_64)
   as_->short_().jmp(correct_arg_count);
+#elif defined(CINDER_AARCH64)
+  as_->b(correct_arg_count);
+#else
+  CINDER_UNSUPPORTED
+#endif
+
   env_.addAnnotation("Reentry with processed args", arg_reentry_cursor);
 
   // Setup the normal entry point that expects that implements the
@@ -2677,6 +2759,8 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   if (env_.static_arg_typecheck_failed_label.isValid()) {
     auto static_typecheck_cursor = as_->cursor();
     as_->bind(env_.static_arg_typecheck_failed_label);
+
+#if defined(CINDER_X86_64)
     if (GetFunction()->returnsPrimitive()) {
       if (GetFunction()->returnsPrimitiveDouble()) {
         as_->call(
@@ -2693,6 +2777,30 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
     }
     as_->leave();
     as_->ret();
+#elif defined(CINDER_AARCH64)
+    if (GetFunction()->returnsPrimitive()) {
+      if (GetFunction()->returnsPrimitiveDouble()) {
+        as_->mov(
+            arch::reg_scratch_br,
+            JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn);
+      } else {
+        as_->mov(
+            arch::reg_scratch_br,
+            JITRT_ReportStaticArgTypecheckErrorsWithPrimitiveReturn);
+      }
+    } else {
+      as_->mov(arch::reg_scratch_br, JITRT_ReportStaticArgTypecheckErrors);
+    }
+    as_->blr(arch::reg_scratch_br);
+
+    // leave + ret equivalent on aarch64
+    as_->mov(a64::sp, arch::fp);
+    as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+    as_->ret(arch::lr);
+#else
+    CINDER_UNSUPPORTED
+#endif
+
     env_.addAnnotation(
         "Static argument typecheck failure stub", static_typecheck_cursor);
   }
@@ -2720,7 +2828,9 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
       codeholder.labelOffset(correct_args_entry) ==
           codeholder.labelOffset(vectorcall_entry_label) +
               JITRT_CALL_REENTRY_OFFSET,
-      "bad re-entry offset");
+      "bad re-entry offset, correct_args_entry={}, vectorcall_entry={}",
+      codeholder.labelOffset(correct_args_entry),
+      codeholder.labelOffset(vectorcall_entry_label));
 
   linkDeoptPatchers(codeholder);
   env_.code_rt->debugInfo()->resolvePending(
@@ -2774,9 +2884,6 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   std::vector<std::pair<void*, std::size_t>> code_sections;
   populateCodeSections(code_sections, codeholder, code_start_);
   perf::registerFunction(code_sections, func->fullname, prefix);
-#else
-  CINDER_UNSUPPORTED
-#endif
 }
 
 #ifdef __ASM_DEBUG
@@ -2811,11 +2918,11 @@ void NativeGenerator::generatePrimitiveArgsPrologue() {
       hasStaticEntry(),
       "Functions with primitive arguments must have been statically compiled");
 
-#if defined(CINDER_X86_64)
   // If we've been invoked statically we can skip all of the argument checking
   // because we know our args have been provided correctly.  But if we have
   // primitives we need to unbox them.  We usually get to avoid this by doing
   // direct invokes from JITed code.
+#if defined(CINDER_X86_64)
   BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
   env_.code_rt->addReference(info);
   as_->mov(x86::r8, reinterpret_cast<uint64_t>(info.get()));
@@ -2823,11 +2930,22 @@ void NativeGenerator::generatePrimitiveArgsPrologue() {
       ? reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignatureFP)
       : reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignature);
   as_->call(helper);
-  as_->leave();
-  as_->ret();
+#elif defined(CINDER_AARCH64)
+  BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
+  env_.code_rt->addReference(info);
+  as_->mov(arch::reg_scratch_0, reinterpret_cast<uint64_t>(info.get()));
+  if (func_->returnsPrimitiveDouble()) {
+    as_->mov(
+        arch::reg_scratch_br, JITRT_CallStaticallyWithPrimitiveSignatureFP);
+  } else {
+    as_->mov(arch::reg_scratch_br, JITRT_CallStaticallyWithPrimitiveSignature);
+  }
+  as_->blr(arch::reg_scratch_br);
 #else
   CINDER_UNSUPPORTED
 #endif
+
+  generateFunctionExit();
 }
 
 std::pair<asmjit::BaseNode*, asmjit::BaseNode*>
@@ -2838,8 +2956,9 @@ NativeGenerator::generateBoxedReturnWrapper() {
     return {entry_cursor, nullptr};
   }
 
-#if defined(CINDER_X86_64)
   Label generic_entry = as_->newLabel();
+
+#if defined(CINDER_X86_64)
   Label box_done = as_->newLabel();
   Label error = as_->newLabel();
   hir::Type ret_type = func_->return_type;
@@ -2895,8 +3014,7 @@ NativeGenerator::generateBoxedReturnWrapper() {
   as_->call(box_func);
 
   as_->bind(box_done);
-  as_->leave();
-  as_->ret();
+  generateFunctionExit();
 
   if (returns_double) {
     as_->bind(error);
@@ -2904,13 +3022,73 @@ NativeGenerator::generateBoxedReturnWrapper() {
     as_->leave();
     as_->ret();
   }
+#elif defined(CINDER_AARCH64)
+  Label box_done = as_->newLabel();
+  Label error = as_->newLabel();
+  hir::Type ret_type = func_->return_type;
+  uint64_t box_func;
 
-  as_->bind(generic_entry);
+  generateFunctionEntry();
+  as_->bl(generic_entry);
+
+  // If there was an error, there's nothing to box.
+  bool returns_double = func_->returnsPrimitiveDouble();
+  if (returns_double) {
+    as_->fmov(arch::reg_scratch_0, a64::d1);
+    as_->cbz(arch::reg_scratch_0, error);
+  } else {
+    as_->cmp(a64::w2, 0);
+    as_->b_eq(box_done);
+  }
+
+  if (ret_type <= TCBool) {
+    as_->uxtb(a64::w0, a64::w0);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
+  } else if (ret_type <= TCInt8) {
+    as_->sxtb(a64::w0, a64::w0);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+  } else if (ret_type <= TCUInt8) {
+    as_->uxtb(a64::w0, a64::w0);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+  } else if (ret_type <= TCInt16) {
+    as_->sxth(a64::w0, a64::w0);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+  } else if (ret_type <= TCUInt16) {
+    as_->uxth(a64::w0, a64::w0);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+  } else if (ret_type <= TCInt32) {
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+  } else if (ret_type <= TCUInt32) {
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+  } else if (ret_type <= TCInt64) {
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
+  } else if (ret_type <= TCUInt64) {
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
+  } else if (returns_double) {
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
+  } else {
+    JIT_ABORT("Unsupported primitive return type {}", ret_type.toString());
+  }
+
+  as_->mov(arch::reg_scratch_br, box_func);
+  as_->blr(arch::reg_scratch_br);
+
+  as_->bind(box_done);
+  generateFunctionExit();
+
+  if (returns_double) {
+    as_->bind(error);
+    as_->mov(a64::x0, 0);
+    as_->mov(a64::sp, arch::fp);
+    as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+    as_->ret(arch::lr);
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
 
   // New generic entry is after the boxed wrapper.
+  as_->bind(generic_entry);
   return {as_->cursor(), entry_cursor};
 }
 
@@ -2942,8 +3120,7 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
   // the empty tuple in which case we'll just go through the slow binding
   // path.
   as_->call(reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs));
-  as_->leave();
-  as_->ret();
+  generateFunctionExit();
 
   // Check that we have a valid number of args.
   if (will_check_argcount) {
@@ -2991,9 +3168,7 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
   // path.
   as_->mov(arch::reg_scratch_br, JITRT_CallWithKeywordArgs);
   as_->blr(arch::reg_scratch_br);
-  as_->mov(a64::sp, arch::fp);
-  as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
-  as_->ret(arch::lr);
+  generateFunctionExit();
 
   // Check that we have a valid number of args.
   if (will_check_argcount) {

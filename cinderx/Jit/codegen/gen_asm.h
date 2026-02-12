@@ -98,13 +98,21 @@ class NativeGenerator {
   int calcInlineStackSize(const hir::Function* func);
   void generateCode(asmjit::CodeHolder& code);
   void generateFunctionEntry();
+  void generateFunctionExit();
   struct FrameInfo {
     int header_and_spill_size{};
     PhyRegisterSet saved_regs;
     int arg_buffer_size{};
 
     int saved_regs_size() const {
-      return saved_regs.count() * 8;
+#if defined(CINDER_X86_64)
+      return saved_regs.count() * kPointerSize;
+#elif defined(CINDER_AARCH64)
+      return ((saved_regs.count() + 1) / 2) * kStackAlign;
+#else
+      CINDER_UNSUPPORTED
+      return saved_regs.count() * kPointerSize;
+#endif
     }
 
     int size() const {
