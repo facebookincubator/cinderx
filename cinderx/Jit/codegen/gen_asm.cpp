@@ -679,6 +679,28 @@ void* generateFailedDeferredCompileTrampoline() {
   a.call(reinterpret_cast<uint64_t>(JITRT_FailedDeferredCompileShim));
   a.leave();
   a.ret();
+#elif defined(CINDER_AARCH64)
+  auto annot_cursor = a.cursor();
+
+  a.stp(arch::fp, arch::lr, a64::ptr_pre(a64::sp, -16));
+  a.mov(arch::fp, a64::sp);
+
+  // save incoming arg registers
+  a.stp(a64::x0, a64::x1, a64::ptr_pre(a64::sp, -64));
+  a.stp(a64::x2, a64::x3, a64::ptr(a64::sp, 16));
+  a.stp(a64::x4, a64::x5, a64::ptr(a64::sp, 32));
+  a.stp(a64::x6, a64::x7, a64::ptr(a64::sp, 48));
+
+  annot.add("saveRegisters", &a, annot_cursor);
+
+  // x10 contains the function object from our stub
+  a.mov(a64::x0, a64::x10);
+  a.mov(a64::x1, a64::sp);
+  a.mov(arch::reg_scratch_br, JITRT_FailedDeferredCompileShim);
+  a.blr(arch::reg_scratch_br);
+  a.mov(a64::sp, arch::fp);
+  a.ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+  a.ret(arch::lr);
 #else
   CINDER_UNSUPPORTED
 #endif
