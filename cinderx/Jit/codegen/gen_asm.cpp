@@ -1336,6 +1336,124 @@ void NativeGenerator::generateStaticMethodTypeChecks(Label setup_frame) {
     env_.addAnnotation(
         fmt::format("StaticTypeCheck[{}]", arg.pytype->tp_name), check_cursor);
   }
+#elif defined(CINDER_AARCH64)
+  // We build a vector of labels corresponding to [first_check, second_check,
+  // ..., setup_frame] which will have |checks| + 1 elements, and the
+  // first_check label will precede the first check.
+  auto table_label = as_->newLabel();
+  as_->adr(a64::x8, table_label);
+  as_->add(a64::x8, a64::x8, a64::x3, a64::lsl(2));
+  as_->br(a64::x8);
+  auto jump_table_cursor = as_->cursor();
+  as_->align(AlignMode::kCode, 8);
+  as_->bind(table_label);
+  std::vector<Label> arg_labels;
+  int defaulted_arg_count = 0;
+  Py_ssize_t check_index = checks.size() - 1;
+  // Each check might be a label that hosts multiple arguments, as dynamic
+  // arguments aren't checked. We need to account for this in our bookkeeping.
+  auto next_arg = as_->newLabel();
+  arg_labels.emplace_back(next_arg);
+  while (defaulted_arg_count < GetFunction()->numArgs()) {
+    as_->b(next_arg);
+
+    if (check_index >= 0) {
+      long local = checks.at(check_index).locals_idx;
+      if (GetFunction()->numArgs() - defaulted_arg_count - 1 == local) {
+        if (check_index == 0) {
+          next_arg = setup_frame;
+        } else {
+          check_index--;
+          next_arg = as_->newLabel();
+        }
+        arg_labels.emplace_back(next_arg);
+      }
+    }
+
+    defaulted_arg_count++;
+  }
+  env_.addAnnotation(
+      fmt::format("Jump to first non-defaulted argument"), jump_table_cursor);
+
+  as_->align(AlignMode::kCode, 8);
+  as_->bind(arg_labels[0]);
+  for (Py_ssize_t i = checks.size() - 1; i >= 0; i--) {
+    auto check_cursor = as_->cursor();
+    const TypedArgument& arg = checks.at(i);
+    env_.code_rt->addReference(BorrowedRef(arg.pytype));
+    next_arg = arg_labels[checks.size() - i];
+
+    as_->ldr(
+        a64::x8,
+        arch::ptr_resolve(
+            as_,
+            a64::x1,
+            arg.locals_idx * 8,
+            arch::reg_scratch_0)); // load local
+    as_->ldr(
+        a64::x8,
+        arch::ptr_resolve(
+            as_,
+            a64::x8,
+            offsetof(PyObject, ob_type),
+            arch::reg_scratch_0)); // load type
+    if (arg.optional) {
+      // check if the value is None
+      emitCompare(as_, a64::x8, Py_TYPE(Py_None), arch::reg_scratch_0);
+      as_->b_eq(next_arg);
+    }
+
+    // common case: check if we have the exact right type
+    emitCompare(as_, a64::x8, arg.pytype, arch::reg_scratch_0);
+    as_->b_eq(next_arg);
+
+    if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
+      // We need to check the object's MRO and see if the declared type
+      // is present in it.  Technically we don't need to check the last
+      // entry that will be object but the code gen is a little bit simpler
+      // if we include it.
+      Label arg_loop = as_->newLabel();
+      as_->mov(a64::x10, reinterpret_cast<uint64_t>(arg.pytype.get()));
+
+      // PyObject *r8 = r8->tp_mro;
+      as_->ldr(
+          a64::x8,
+          arch::ptr_resolve(
+              as_,
+              a64::x8,
+              offsetof(PyTypeObject, tp_mro),
+              arch::reg_scratch_0));
+      // Py_ssize_t r11 = r8->ob_size;
+      as_->ldr(
+          a64::x11,
+          arch::ptr_resolve(
+              as_,
+              a64::x8,
+              offsetof(PyVarObject, ob_size),
+              arch::reg_scratch_0));
+      // PyObject *r8 = &r8->ob_item[0];
+      as_->add(a64::x8, a64::x8, offsetof(PyTupleObject, ob_item));
+      // PyObject *r11 = &r8->ob_item[r11];
+      as_->add(a64::x11, a64::x8, a64::x11, a64::lsl(3));
+
+      as_->bind(arg_loop);
+      as_->ldr(arch::reg_scratch_0, a64::ptr(a64::x8));
+      as_->cmp(arch::reg_scratch_0, a64::x10);
+      as_->b_eq(next_arg);
+      as_->add(a64::x8, a64::x8, sizeof(PyObject*));
+      as_->cmp(a64::x8, a64::x11);
+      as_->b_ne(arg_loop);
+    }
+
+    // no args match, bail to normal vector call to report error
+    as_->b(env_.static_arg_typecheck_failed_label);
+    bool last_check = i == 0;
+    if (!last_check) {
+      as_->bind(next_arg);
+    }
+    env_.addAnnotation(
+        fmt::format("StaticTypeCheck[{}]", arg.pytype->tp_name), check_cursor);
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
