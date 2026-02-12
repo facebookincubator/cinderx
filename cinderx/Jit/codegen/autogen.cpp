@@ -588,6 +588,38 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+#elif defined(CINDER_AARCH64)
+  a64::Builder* as = env->as;
+
+  // Make sure tstate is in x2 for use in epilogue.
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->ldr(
+      a64::x2,
+      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
+
+  // Value to send goes to x0 so it can be yielded (returned) by epilogue.
+  if (instr->getInput(1)->isImm()) {
+    as->mov(a64::x0, instr->getInput(1)->getConstant());
+  } else {
+    PhyLocation value_out = instr->getInput(1)->getStackSlot();
+    as->ldr(
+        a64::x0,
+        arch::ptr_resolve(as, arch::fp, value_out.loc, arch::reg_scratch_0));
+  }
+
+  // Arbitrary scratch register for use in emitStoreGenYieldPoint()
+  auto scratch_r = arch::reg_scratch_0;
+  auto resume_label = as->newLabel();
+  emitStoreGenYieldPoint(as, env, instr, resume_label, arch::fp, scratch_r);
+
+  // Jump to epilogue
+  as->b(env->exit_for_yield_label);
+
+  // Resumed execution in this generator begins here
+  as->bind(resume_label);
+
+  // Sent in value is in x1, and tstate is in x3 from resume entry-point args
+  emitLoadResumedYieldInputs(as, instr, X1, a64::x3);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -666,6 +698,85 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   auto scratch_r = x86::r9;
   emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rbp, scratch_r);
   as->jmp(env->exit_for_yield_label);
+
+  as->bind(done_label);
+  emitLoadResumedYieldInputs(as, instr, yf_result_phys_reg, tstate_phys_reg);
+#elif defined(CINDER_AARCH64)
+  arch::Builder* as = env->as;
+  bool skip_initial_send = instr->isYieldFromSkipInitialSend();
+
+  // Make sure tstate is in X0 for use in epilogue and here.
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  auto tstate_phys_reg = a64::x0;
+  as->ldr(
+      tstate_phys_reg,
+      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
+
+  // If we're skipping the initial send the send value is actually the first
+  // value to yield and so needs to go into X0 to be returned. Otherwise,
+  // put initial send value in X1, the same location future send values will
+  // be on resume.
+  PhyLocation send_value = instr->getInput(1)->getStackSlot();
+  const auto send_value_phys_reg = skip_initial_send ? X0 : X1;
+  as->ldr(
+      a64::x(send_value_phys_reg.loc),
+      arch::ptr_resolve(as, arch::fp, send_value.loc, arch::reg_scratch_0));
+
+  asmjit::Label yield_label = as->newLabel();
+  if (skip_initial_send) {
+    as->b(yield_label);
+  } else {
+    // Setup call to JITRT_GenSend
+
+    // Put tstate and the current generator into X3 and X0 respectively, and
+    // set finish_yield_from (X2) to 0. This register setup matches that when
+    // `resume_label` is reached from the resume entry.
+    auto gen_offs = offsetof(GenDataFooter, gen);
+    as->mov(a64::x3, tstate_phys_reg);
+    as->ldr(a64::x0, arch::ptr_offset(arch::fp, gen_offs));
+    as->mov(a64::x2, a64::xzr);
+  }
+
+  // Resumed execution begins here
+  auto resume_label = as->newLabel();
+  as->bind(resume_label);
+
+  // Save tstate from resume to callee-saved reigster.
+  as->mov(a64::x19, a64::x3);
+
+  // 'send_value', and 'finish_yield_from' will already be in X1 and X3
+  // respectively, either from code above on initial start or from resume entry
+  // point args.
+
+  // Load sub-iterator into X0
+  PhyLocation iter_slot = instr->getInput(2)->getStackSlot();
+  as->ldr(
+      a64::x0,
+      arch::ptr_resolve(as, arch::fp, iter_slot.loc, arch::reg_scratch_0));
+
+  uint64_t func = reinterpret_cast<uint64_t>(
+      instr->isYieldFromHandleStopAsyncIteration()
+          ? JITRT_GenSendHandleStopAsyncIteration
+          : JITRT_GenSend);
+  emitCall(*env, func, instr);
+  // Yielded or final result value now in X0. If the result was nullptr then
+  // done will be set so we'll correctly jump to the following CheckExc.
+  const auto yf_result_phys_reg = X0;
+  const auto done_r = a64::x2;
+
+  // Restore tstate from callee-saved register.
+  as->mov(tstate_phys_reg, a64::x19);
+
+  // If not done, jump to epilogue which will yield/return the value from
+  // JITRT_GenSend in X0.
+  asmjit::Label done_label = as->newLabel();
+  as->cbnz(done_r, done_label);
+
+  as->bind(yield_label);
+  // Arbitrary scratch register for use in emitStoreGenYieldPoint()
+  auto scratch_r = arch::reg_scratch_0;
+  emitStoreGenYieldPoint(as, env, instr, resume_label, arch::fp, scratch_r);
+  as->b(env->exit_for_yield_label);
 
   as->bind(done_label);
   emitLoadResumedYieldInputs(as, instr, yf_result_phys_reg, tstate_phys_reg);
