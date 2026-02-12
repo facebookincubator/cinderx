@@ -361,6 +361,20 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
     as->test(AutoTranslator::getGp(input), AutoTranslator::getGp(input));
     as->setne(output);
   }
+#elif defined(CINDER_AARCH64)
+  a64::Builder* as = env->as;
+  const OperandBase* input = instr->getInput(0);
+  a64::Gp output = AutoTranslator::getGp(instr->output());
+  JIT_CHECK(
+      instr->output()->dataType() == OperandBase::k8bit,
+      "Output should be 8bits, not {}",
+      instr->output()->dataType());
+  if (input->isImm()) {
+    as->mov(output, input->getConstant() ? 1 : 0);
+  } else {
+    as->cmp(AutoTranslator::getGp(input), 0);
+    as->cset(output, a64::CondCode::kNE);
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
