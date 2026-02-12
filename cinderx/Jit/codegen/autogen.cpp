@@ -764,6 +764,19 @@ struct RegOperand {
       case 64:
         return asmjit::x86::gpq(reg.loc);
     }
+#elif defined(CINDER_AARCH64)
+    int size = Size == -1 ? LIROperandSizeMapper<N>(instr) : Size;
+
+    PhyLocation reg = LIROperandMapper<N>(instr)->getPhyRegister();
+    switch (size) {
+      case 8:
+      case 16:
+        JIT_ABORT("Currently unsupported size.");
+      case 32:
+        return asmjit::a64::w(reg.loc);
+      case 64:
+        return asmjit::a64::x(reg.loc);
+    }
 #else
     CINDER_UNSUPPORTED
 #endif
@@ -778,6 +791,9 @@ struct VecDOperand {
   static arch::VecD GetAsmOperand(Environ*, const Instruction* instr) {
 #if defined(CINDER_X86_64)
     return asmjit::x86::xmm(
+        LIROperandMapper<N>(instr)->getPhyRegister().loc - VECD_REG_BASE);
+#elif defined(CINDER_AARCH64)
+    return asmjit::a64::d(
         LIROperandMapper<N>(instr)->getPhyRegister().loc - VECD_REG_BASE);
 #else
     CINDER_UNSUPPORTED
@@ -816,6 +832,8 @@ arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
         indirect->getMultipiler(),
         indirect->getOffset());
   }
+#elif defined(CINDER_AARCH64)
+  JIT_ABORT("Unreachable.");
 #else
   CINDER_UNSUPPORTED
   return arch::Mem();
@@ -844,6 +862,16 @@ struct MemOperand {
 
     memptr.setSize(size);
     return memptr;
+#elif defined(CINDER_AARCH64)
+    const OperandBase* operand = LIROperandMapper<N>(instr);
+    if (!operand->isStack()) {
+      JIT_ABORT("Unreachable.");
+    }
+
+    int32_t loc = operand->getStackSlot().loc;
+    JIT_CHECK(loc >= -256 && loc < 256, "Stack slot out of range");
+
+    return arch::ptr_offset(arch::fp, loc);
 #else
     CINDER_UNSUPPORTED
     return arch::Mem();
