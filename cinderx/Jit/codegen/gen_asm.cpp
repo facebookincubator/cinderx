@@ -1203,6 +1203,103 @@ void NativeGenerator::generatePrologue(
   saveCallerRegisters(frame_info, x86::r11);
 
   env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
+#elif defined(CINDER_AARCH64)
+  // The boxed return wrapper gets generated first, if it is necessary.
+  auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
+
+  generateFunctionEntry();
+
+  // Verify arguments have been passed in correctly.
+  if (func_->has_primitive_args) {
+    generatePrimitiveArgsPrologue();
+  } else {
+    generateArgcountCheckPrologue(correct_arg_count);
+  }
+  as_->bind(correct_arg_count);
+
+  Label setup_frame = as_->newLabel();
+
+  if (hasStaticEntry()) {
+    if (!func_->has_primitive_args) {
+      // We weren't called statically, but we've now resolved all arguments to
+      // fixed offsets.  Validate that the arguments are correctly typed.
+      generateStaticMethodTypeChecks(setup_frame);
+    } else if (func_->has_primitive_first_arg) {
+      as_->mov(a64::x2, 0);
+    }
+  }
+
+  env_.addAnnotation("Generic entry", generic_entry_cursor);
+
+  if (box_entry_cursor) {
+    env_.addAnnotation(
+        "Generic entry (box primitive return)", box_entry_cursor);
+  }
+
+  // Args are now validated, setup frame.
+  constexpr auto kFuncPtrReg = a64::x(INITIAL_FUNC_REG.loc);
+  constexpr auto kArgsReg = a64::x(INITIAL_EXTRA_ARGS_REG.loc);
+  constexpr auto kArgsPastEightReg = kArgsReg;
+
+  asmjit::BaseNode* frame_cursor = as_->cursor();
+  as_->bind(setup_frame);
+  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
+
+  save_regs.emplace_back(a64::x1, kArgsReg);
+  if (GetFunction()->uses_runtime_func) {
+    save_regs.emplace_back(a64::x0, kFuncPtrReg);
+  }
+
+  // Ensure that sp is below the fields in the stack allocated interpreter
+  // frame that may be initialized in the `generateLinkFrame` call below,
+  // preventing the signal handling routine in the kernel from overwriting
+  // them. Note that we do not need to worry about the padding here, as the
+  // stack is already aligned by that allocation function.
+  (void)allocateHeaderAndSpillSpace(frame_info);
+
+  frame_asm_.generateLinkFrame(
+      kFuncPtrReg, a64::x(INITIAL_TSTATE_REG.loc), save_regs);
+
+  env_.addAnnotation("Link frame", frame_cursor);
+
+  asmjit::BaseNode* load_args_cursor = as_->cursor();
+  // Move arguments into their expected registers and then set a register as the
+  // base for additional args.
+  bool has_extra_args = false;
+  for (size_t i = 0; i < env_.arg_locations.size(); i++) {
+    PhyLocation arg = env_.arg_locations[i];
+    if (arg == PhyLocation::REG_INVALID) {
+      has_extra_args = true;
+      continue;
+    }
+    if (arg.is_gp_register()) {
+      as_->ldr(
+          a64::x(arg.loc),
+          arch::ptr_resolve(
+              as_, kArgsReg, i * sizeof(void*), arch::reg_scratch_0));
+    } else {
+      as_->ldr(
+          a64::d(arg.loc),
+          arch::ptr_resolve(
+              as_, kArgsReg, i * sizeof(void*), arch::reg_scratch_0));
+    }
+  }
+  if (has_extra_args) {
+    // Load the location of the remaining args, the backend will deal with
+    // loading them from here...
+    as_->add(
+        kArgsPastEightReg,
+        kArgsReg,
+        (ARGUMENT_REGS.size() - 1) * sizeof(void*));
+  }
+  env_.addAnnotation("Load arguments", load_args_cursor);
+
+  // Finally allocate the saved space required for the actual function.
+  auto finish_frame_setup_cursor = as_->cursor();
+  as_->bind(finish_frame_setup);
+  saveCallerRegisters(frame_info, a64::x11);
+
+  env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #else
   CINDER_UNSUPPORTED
 #endif
