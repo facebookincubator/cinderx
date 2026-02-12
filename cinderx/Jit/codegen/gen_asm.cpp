@@ -2104,6 +2104,59 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
     env_.addAnnotation(
         "Check if called with correct argcount", arg_check_cursor);
   }
+#elif defined(CINDER_AARCH64)
+  BorrowedRef<PyCodeObject> code = GetFunction()->code;
+
+  Label arg_check = as_->newLabel();
+  bool have_varargs = code->co_flags & (CO_VARARGS | CO_VARKEYWORDS);
+
+  // If the code object expects *args or **kwargs we need to dispatch
+  // through our helper regardless if they are provided to create the *args
+  // tuple and the **kwargs dict and free them on exit.
+  //
+  // Similarly, if the function expects keyword-only args, we dispatch
+  // through the helper to check that they were, in fact, passed via keyword
+  // arguments.
+  //
+  // There's a lot of other things that happen in the helper so there is
+  // potentially a lot of room for optimization here.
+  bool will_check_argcount = !have_varargs && code->co_kwonlyargcount == 0;
+  if (will_check_argcount) {
+    as_->cbz(a64::x3, arg_check);
+  }
+
+  // We don't check the length of the kwnames tuple here, normal callers will
+  // never pass the empty tuple.  It is possible for odd callers to still pass
+  // the empty tuple in which case we'll just go through the slow binding
+  // path.
+  as_->mov(arch::reg_scratch_br, JITRT_CallWithKeywordArgs);
+  as_->blr(arch::reg_scratch_br);
+  as_->mov(a64::sp, arch::fp);
+  as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+  as_->ret(arch::lr);
+
+  // Check that we have a valid number of args.
+  if (will_check_argcount) {
+    as_->bind(arg_check);
+    asmjit::BaseNode* arg_check_cursor = as_->cursor();
+    as_->cmp(a64::w2, GetFunction()->numArgs());
+
+    // We don't have the correct number of arguments. Call a helper to either
+    // fix them up with defaults or raise an approprate exception.
+    as_->b_eq(correct_arg_count);
+    as_->mov(a64::x3, GetFunction()->numArgs());
+    if (func_->returnsPrimitiveDouble()) {
+      as_->mov(arch::reg_scratch_br, JITRT_CallWithIncorrectArgcountFPReturn);
+    } else {
+      as_->mov(arch::reg_scratch_br, JITRT_CallWithIncorrectArgcount);
+    }
+    as_->blr(arch::reg_scratch_br);
+    as_->mov(a64::sp, arch::fp);
+    as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+    as_->ret(arch::lr);
+    env_.addAnnotation(
+        "Check if called with correct argcount", arg_check_cursor);
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
