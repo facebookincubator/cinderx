@@ -48,6 +48,22 @@ class AutoTranslator {
       case jit::lir::OperandBase::kDouble:
         JIT_ABORT("incorrect register type.");
     }
+#elif defined(CINDER_AARCH64)
+    JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
+
+    auto data_type = op->dataType();
+    switch (data_type) {
+      case jit::lir::OperandBase::k8bit:
+      case jit::lir::OperandBase::k16bit:
+        JIT_ABORT("Unsupported register size in aarch64.");
+      case jit::lir::OperandBase::k32bit:
+        return asmjit::a64::w(reg);
+      case jit::lir::OperandBase::kObject:
+      case jit::lir::OperandBase::k64bit:
+        return asmjit::a64::x(reg);
+      case jit::lir::OperandBase::kDouble:
+        JIT_ABORT("incorrect register type.");
+    }
 #else
     CINDER_UNSUPPORTED
 #endif
@@ -60,6 +76,14 @@ class AutoTranslator {
     switch (data_type) {
       case jit::lir::OperandBase::kDouble:
         return asmjit::x86::xmm(op->getPhyRegister().loc - VECD_REG_BASE);
+      default:
+        JIT_ABORT("incorrect register type.");
+    }
+#elif defined(CINDER_AARCH64)
+    auto data_type = op->dataType();
+    switch (data_type) {
+      case jit::lir::OperandBase::kDouble:
+        return asmjit::a64::d(op->getPhyRegister().loc - VECD_REG_BASE);
       default:
         JIT_ABORT("incorrect register type.");
     }
