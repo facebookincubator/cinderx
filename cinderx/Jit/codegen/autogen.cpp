@@ -407,11 +407,18 @@ void emitStoreGenYieldPoint(
     env->pending_debug_locs.emplace_back(resume_label, yield->origin());
   }
 
-#if defined(CINDER_X86_64)
   as->mov(scratch_r, reinterpret_cast<uint64_t>(gen_yield_point));
   auto yieldPointOffset = offsetof(GenDataFooter, yieldPoint);
+
+#if defined(CINDER_X86_64)
   as->mov(x86::qword_ptr(suspend_data_r, yieldPointOffset), scratch_r);
+#elif defined(CINDER_AARCH64)
+  as->str(
+      scratch_r,
+      arch::ptr_resolve(
+          as, suspend_data_r, yieldPointOffset, arch::reg_scratch_0));
 #else
+  (void)yieldPointOffset;
   CINDER_UNSUPPORTED
 #endif
 }
@@ -438,6 +445,34 @@ void emitLoadResumedYieldInputs(
     PhyLocation target_loc = target->getPhyRegister();
     if (target_loc != sent_in_source_loc) {
       as->mov(x86::gpq(target_loc.loc), x86::gpq(sent_in_source_loc.loc));
+    }
+    return;
+  }
+
+  JIT_CHECK(
+      target->isNone(),
+      "Have an output that isn't a register or a stack slot, {}",
+      target->type());
+#elif defined(CINDER_AARCH64)
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->str(
+      tstate_reg,
+      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
+
+  const lir::Operand* target = instr->output();
+
+  if (target->isStack()) {
+    as->str(
+        a64::x(sent_in_source_loc.loc),
+        arch::ptr_resolve(
+            as, arch::fp, target->getStackSlot().loc, arch::reg_scratch_0));
+    return;
+  }
+
+  if (target->isReg()) {
+    PhyLocation target_loc = target->getPhyRegister();
+    if (target_loc != sent_in_source_loc) {
+      as->mov(a64::x(target_loc.loc), a64::x(sent_in_source_loc.loc));
     }
     return;
   }
