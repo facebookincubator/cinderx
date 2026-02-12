@@ -1563,6 +1563,17 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
       });
 }
 
+Py_ssize_t NativeGenerator::giJITDataOffset() {
+#if PY_VERSION_HEX < 0x030C0000
+  return static_cast<Py_ssize_t>(offsetof(PyGenObject, gi_jit_data));
+#else
+  Py_ssize_t python_frame_slots =
+      _PyFrame_NumSlotsForCodeObject(GetFunction()->code);
+  return _PyObject_VAR_SIZE(
+      cinderx::getModuleState()->genType(), python_frame_slots);
+#endif
+}
+
 void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
 #if defined(CINDER_X86_64)
   // Arbitrary scratch register for use throughout this function. Can be changed
@@ -1586,15 +1597,7 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   const auto jit_data_r = x86::r9;
 
   // jit_data_r = gen->gi_jit_data
-#if PY_VERSION_HEX < 0x030C0000
-  auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
-#else
-  Py_ssize_t python_frame_slots =
-      _PyFrame_NumSlotsForCodeObject(GetFunction()->code);
-  Py_ssize_t gi_jit_data_offset = _PyObject_VAR_SIZE(
-      cinderx::getModuleState()->genType(), python_frame_slots);
-#endif
-  as_->mov(jit_data_r, x86::ptr(x86::rdi, gi_jit_data_offset));
+  as_->mov(jit_data_r, x86::ptr(x86::rdi, giJITDataOffset()));
 
   // Store linked frame address
   size_t link_address_offset = offsetof(GenDataFooter, linkAddress);
@@ -1621,6 +1624,79 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   as_->mov(x86::qword_ptr(x86::rbp, yield_point_offset), 0);
   size_t resume_target_offset = GenYieldPoint::resumeTargetOffset();
   as_->jmp(x86::ptr(scratch_r, resume_target_offset));
+
+  env_.addAnnotation("Resume entry point", cursor);
+#elif defined(CINDER_AARCH64)
+  // Arbitrary scratch register for use throughout this function. Can be changed
+  // to pretty much anything which doesn't conflict with arg registers and is
+  // not a callee-saved register.
+  const auto scratch_r = a64::x8;
+
+  // arg #1 - x0 = PyGenObject/JitGenObject* generator
+  // arg #2 - x1 = PyObject* sent_value
+  // arg #3 - x2 = finish_yield_from
+  // arg #4 - x3 = tstate
+  // Arg regs must not be modified as they may be used by the next resume stage.
+  auto cursor = as_->cursor();
+  as_->bind(env_.gen_resume_entry_label);
+
+  generateFunctionEntry();
+  setupFrameAndSaveCallerRegisters(frame_info, a64::x3);
+
+  // Setup X29 (FP) to use storage in generator rather than stack.
+
+  // Pointer to GenDataFooter. Could be any conflict-free register.
+  const auto jit_data_r = a64::x9;
+
+  // jit_data_r = gen->gi_jit_data
+  as_->ldr(
+      jit_data_r,
+      arch::ptr_resolve(as_, a64::x0, giJITDataOffset(), arch::reg_scratch_0));
+
+  // Store linked frame address
+  size_t link_address_offset = offsetof(GenDataFooter, linkAddress);
+  as_->ldr(scratch_r, a64::ptr(arch::fp));
+  as_->str(
+      scratch_r,
+      arch::ptr_resolve(
+          as_, jit_data_r, link_address_offset, arch::reg_scratch_0));
+
+  // Store return address
+  size_t return_address_offset = offsetof(GenDataFooter, returnAddress);
+  as_->ldr(scratch_r, arch::ptr_resolve(as_, arch::fp, 8, arch::reg_scratch_0));
+  as_->str(
+      scratch_r,
+      arch::ptr_resolve(
+          as_, jit_data_r, return_address_offset, arch::reg_scratch_0));
+
+  // Store "original" X29 (FP)
+  size_t original_frame_pointer_offset =
+      offsetof(GenDataFooter, originalFramePointer);
+  as_->str(
+      arch::fp,
+      arch::ptr_resolve(
+          as_, jit_data_r, original_frame_pointer_offset, arch::reg_scratch_0));
+
+  // X29 = gen->gi_jit_data
+  as_->mov(arch::fp, jit_data_r);
+
+  // Resume generator execution: load and clear yieldPoint, then jump to the
+  // resume target.
+  size_t yield_point_offset = offsetof(GenDataFooter, yieldPoint);
+  as_->ldr(
+      scratch_r,
+      arch::ptr_resolve(
+          as_, arch::fp, yield_point_offset, arch::reg_scratch_0));
+  as_->str(
+      a64::xzr,
+      arch::ptr_resolve(
+          as_, arch::fp, yield_point_offset, arch::reg_scratch_0));
+  size_t resume_target_offset = GenYieldPoint::resumeTargetOffset();
+  as_->ldr(
+      arch::reg_scratch_br,
+      arch::ptr_resolve(
+          as_, scratch_r, resume_target_offset, arch::reg_scratch_0));
+  as_->br(arch::reg_scratch_br);
 
   env_.addAnnotation("Resume entry point", cursor);
 #else

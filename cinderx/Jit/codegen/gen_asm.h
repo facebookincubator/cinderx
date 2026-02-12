@@ -127,6 +127,7 @@ class NativeGenerator {
   void generateEpilogue(asmjit::BaseNode* epilogue_cursor);
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
+  Py_ssize_t giJITDataOffset();
   void generateResumeEntry(const FrameInfo& frame_info);
   void generateStaticMethodTypeChecks(asmjit::Label setup_frame);
   void generateStaticEntryPoint(
