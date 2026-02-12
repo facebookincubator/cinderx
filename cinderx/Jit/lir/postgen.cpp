@@ -182,7 +182,7 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto out = instr->output();
 
-  if (!instr->isMove() || !out->isInd()) {
+  if (!(instr->isMove() || instr->isMoveRelaxed()) || !out->isInd()) {
     return kUnchanged;
   }
 

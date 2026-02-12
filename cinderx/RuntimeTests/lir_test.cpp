@@ -723,3 +723,23 @@ def func():
       << "Should be calling out to JITRT_LoadName as code objects aren't "
          "stable";
 }
+
+TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesMoveRelaxed) {
+  // Backward jumps (loop back-edges) emit LoadEvalBreaker in HIR to check
+  // whether the interpreter needs to handle pending events. This should lower
+  // to MoveRelaxed in LIR.
+  const char* src = R"(
+def func():
+  x = 0
+  while x < 10:
+    x += 1
+  return x
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_str = getLIRString(pyfunc.get());
+  EXPECT_NE(lir_str.find("MoveRelaxed"), std::string::npos)
+      << "LoadEvalBreaker should lower to MoveRelaxed";
+}

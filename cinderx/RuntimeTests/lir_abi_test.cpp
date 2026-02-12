@@ -1304,4 +1304,32 @@ TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_Imm) {
       Imm{UINT64_MAX});
 }
 
+// kMoveRelaxed R r
+TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_PhyReg) {
+  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), makePhyReg(1));
+}
+
+// kMoveRelaxed R i
+TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_Imm) {
+  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), Imm{0});
+  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), Imm{UINT64_MAX});
+}
+
+// kMoveRelaxed R m
+TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_Mem) {
+  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), makeStk());
+  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), makeInd(1, 16));
+}
+
+// kMoveRelaxed M r
+TEST_F(LIRABITest, TestkMoveRelaxed_Mem_PhyReg) {
+  translateInstr(Instruction::kMoveRelaxed, makeOutStk(), makePhyReg());
+  translateInstr(Instruction::kMoveRelaxed, makeOutInd(1, 16), makePhyReg());
+}
+
+// kMoveRelaxed M i
+TEST_F(LIRABITest, TestkMoveRelaxed_Mem_Imm) {
+  translateInstr(Instruction::kMoveRelaxed, makeOutInd(1, 16), Imm{0});
+}
+
 } // namespace jit::lir

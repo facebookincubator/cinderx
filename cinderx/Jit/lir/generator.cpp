@@ -2742,9 +2742,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kLoadEvalBreaker: {
-        // TODO(T253170890): This corresponds to an atomic load with
-        // std::memory_order_relaxed. It's correct on x86-64 but probably isn't
-        // on other architectures.
         hir::Register* dest = i.output();
 #if PY_VERSION_HEX >= 0x030D0000
         Instruction* tstate = env_->asm_tstate;
@@ -2754,7 +2751,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Eval breaker is not a 8 byte value");
         bbb.appendInstr(
             dest,
-            Instruction::kMove,
+            Instruction::kMoveRelaxed,
             Ind{tstate, offsetof(PyThreadState, eval_breaker)});
 #elif PY_VERSION_HEX >= 0x030C0000
         // eval_breaker is in the runtime, which the code is generated against,
@@ -2765,7 +2762,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Eval breaker is not a 4 byte value");
         bbb.appendInstr(
             dest,
-            Instruction::kMove,
+            Instruction::kMoveRelaxed,
             MemImm{reinterpret_cast<int*>(
                 &ThreadedCompileContext::interpreter()->ceval.eval_breaker)});
 #else
@@ -2781,7 +2778,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Ind{tstate, offsetof(PyThreadState, interp)});
         bbb.appendInstr(
             dest,
-            Instruction::kMove,
+            Instruction::kMoveRelaxed,
             Ind{interp, offsetof(PyInterpreterState, ceval.eval_breaker)});
 #endif
         break;

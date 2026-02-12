@@ -130,6 +130,7 @@ enum OperandSizeType {
   X(LoadSecondCallResult, false, FlagEffects::kNone, kDefault, 0, {}, 0)      \
   X(Exchange, false, FlagEffects::kNone, kAlways64, 1, {1, 1})                \
   X(Move, false, FlagEffects::kNone, kOut)                                    \
+  X(MoveRelaxed, false, FlagEffects::kNone, kOut)                             \
   X(Push, false, FlagEffects::kNone, kDefault, 1, {}, 1)                      \
   X(Pop, false, FlagEffects::kNone, kDefault, 0, {}, 1)                       \
   X(Cdq, false, FlagEffects::kNone, kDefault, 1, {}, 1)                       \

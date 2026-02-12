@@ -481,8 +481,8 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
 RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
-  if (!instr->isMove() || instr->getNumInputs() != 1 ||
-      !instr->getInput(0)->isMem()) {
+  if (!(instr->isMove() || instr->isMoveRelaxed()) ||
+      instr->getNumInputs() != 1 || !instr->getInput(0)->isMem()) {
     return kUnchanged;
   }
 

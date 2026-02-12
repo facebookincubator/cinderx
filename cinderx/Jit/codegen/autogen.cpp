@@ -1028,6 +1028,18 @@ BEGIN_RULES(Instruction::kMove)
   GEN("Rx", ASM(movq, OP(0), OP(1)))
 END_RULES
 
+// Atomic move with relaxed ordering.
+// On x86-64, relaxed loads/stores are plain mov.
+// This corresponds to the C++/C memory_order_relaxed.
+BEGIN_RULES(Instruction::kMoveRelaxed)
+  GEN("Rr", ASM(mov, OP(0), OP(1)))
+  GEN("Ri", ASM(mov, OP(0), OP(1)))
+  GEN("Rm", ASM(mov, OP(0), MEM(1)))
+  GEN("Mr", ASM(mov, MEM(0), OP(1)))
+  GEN("Mi", ASM(mov, MEM(0), OP(1)))
+END_RULES
+
+
 BEGIN_RULES(Instruction::kGuard)
   GEN(ANY, CALL_C(TranslateGuard));
 END_RULES
