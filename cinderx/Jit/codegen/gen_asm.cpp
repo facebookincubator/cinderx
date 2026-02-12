@@ -1757,6 +1757,127 @@ void NativeGenerator::generateStaticEntryPoint(
   // a consistent offset for the static entry point from the normal entry point.
   as_->long_().jmp(static_entry_point);
   env_.addAnnotation("StaticEntryPoint", static_entry_point_cursor);
+#elif defined(CINDER_AARCH64)
+  // Static entry point is the first thing in the method, we'll
+  // jump back to hit it so that we have a fixed offset to jump from
+  auto static_link_cursor = as_->cursor();
+  Label static_entry_point = as_->newLabel();
+  as_->bind(static_entry_point);
+
+  generateFunctionEntry();
+
+  // Save incoming args across link call...
+  size_t total_args = (size_t)GetFunction()->numArgs();
+
+  const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
+  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
+
+  if (linkFrameNeedsSpill()) {
+    save_regs.emplace_back(a64::x0, a64::x0);
+    for (size_t i = 0, check_index = 0, arg_index = 0, fp_index = 0;
+         i < total_args;
+         i++) {
+      if (check_index < checks.size() &&
+          checks[check_index].locals_idx == static_cast<int>(i)) {
+        if (checks[check_index++].jit_type <= TCDouble &&
+            fp_index < FP_ARGUMENT_REGS.size()) {
+          switch (FP_ARGUMENT_REGS[fp_index++].loc) {
+            case D0.loc:
+              save_regs.emplace_back(a64::d0, a64::d0);
+              break;
+            case D1.loc:
+              save_regs.emplace_back(a64::d1, a64::d1);
+              break;
+            case D2.loc:
+              save_regs.emplace_back(a64::d2, a64::d2);
+              break;
+            case D3.loc:
+              save_regs.emplace_back(a64::d3, a64::d3);
+              break;
+            case D4.loc:
+              save_regs.emplace_back(a64::d4, a64::d4);
+              break;
+            case D5.loc:
+              save_regs.emplace_back(a64::d5, a64::d5);
+              break;
+            case D6.loc:
+              save_regs.emplace_back(a64::d6, a64::d6);
+              break;
+            case D7.loc:
+              save_regs.emplace_back(a64::d7, a64::d7);
+              break;
+            default:
+              break;
+          }
+          continue;
+        }
+      }
+
+      if (arg_index + 1 < ARGUMENT_REGS.size()) {
+        switch (ARGUMENT_REGS[++arg_index].loc) {
+          case X0.loc:
+            save_regs.emplace_back(a64::x0, a64::x0);
+            break;
+          case X1.loc:
+            save_regs.emplace_back(a64::x1, a64::x1);
+            break;
+          case X2.loc:
+            save_regs.emplace_back(a64::x2, a64::x2);
+            break;
+          case X3.loc:
+            save_regs.emplace_back(a64::x3, a64::x3);
+            break;
+          case X4.loc:
+            save_regs.emplace_back(a64::x4, a64::x4);
+            break;
+          case X5.loc:
+            save_regs.emplace_back(a64::x5, a64::x5);
+            break;
+          case X6.loc:
+            save_regs.emplace_back(a64::x6, a64::x6);
+            break;
+          case X7.loc:
+            save_regs.emplace_back(a64::x7, a64::x7);
+            break;
+          default:
+            break;
+        }
+      }
+    }
+  }
+
+  bool need_extra_args_load = total_args + 1 > ARGUMENT_REGS.size();
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    if (need_extra_args_load && isGen()) {
+      // In 3.12 for generators we'll end up replacing fp with a pointer
+      // into the generator object when we link the frame. We need to
+      // capture the incoming arguments first, which will mean we'll
+      // need to save and restore the register.
+      as_->add(a64::x10, arch::fp, 16);
+      save_regs.emplace_back(a64::x10, a64::x10);
+      need_extra_args_load = false;
+    }
+  }
+
+  // Ensure that sp is below the fields in the stack allocated interpreter
+  // frame that may be initialized in the `generateLinkFrame` call below,
+  // preventing the signal handling routine in the kernel from overwriting
+  // them.
+  allocateHeaderAndSpillSpace(frame_info);
+
+  frame_asm_.generateLinkFrame(
+      a64::x(INITIAL_FUNC_REG.loc), a64::x(INITIAL_TSTATE_REG.loc), save_regs);
+
+  if (need_extra_args_load) {
+    as_->add(a64::x10, arch::fp, 16);
+  }
+  as_->b(finish_frame_setup);
+  env_.addAnnotation("StaticLinkFrame", static_link_cursor);
+  auto static_entry_point_cursor = as_->cursor();
+
+  as_->bind(static_jmp_location);
+  as_->b(static_entry_point);
+  env_.addAnnotation("StaticEntryPoint", static_entry_point_cursor);
 #else
   CINDER_UNSUPPORTED
 #endif
