@@ -8,9 +8,11 @@
 
 #include <array>
 #include <cstring>
-#if defined(CINDER_X86_64) && defined(Py_GIL_DISABLED)
-#include <algorithm>
+#ifdef Py_GIL_DISABLED
 #include <atomic>
+#ifdef CINDER_X86_64
+#include <algorithm>
+#endif
 #endif
 
 namespace jit {
@@ -78,7 +80,7 @@ void CodePatcher::link(uintptr_t patchpoint, std::span<const uint8_t> data) {
       data_.size());
 
   std::memcpy(data_.data(), data.data(), data.size());
-  data_len_ = data.size();
+  flags_.data_len = data.size();
 
   onLink();
 }
@@ -89,7 +91,7 @@ void CodePatcher::patch() {
 
   swap();
 
-  is_patched_ = true;
+  flags_.is_patched = true;
   onPatch();
 }
 
@@ -99,7 +101,7 @@ void CodePatcher::unpatch() {
 
   swap();
 
-  is_patched_ = false;
+  flags_.is_patched = false;
   onUnpatch();
 }
 
@@ -108,7 +110,7 @@ bool CodePatcher::isLinked() const {
 }
 
 bool CodePatcher::isPatched() const {
-  return is_patched_;
+  return flags_.is_patched;
 }
 
 uint8_t* CodePatcher::patchpoint() const {
@@ -116,10 +118,14 @@ uint8_t* CodePatcher::patchpoint() const {
 }
 
 std::span<const uint8_t> CodePatcher::storedBytes() const {
-  return std::span{data_.data(), data_len_};
+  return std::span{data_.data(), flags_.data_len};
 }
 
 void CodePatcher::swap() {
+#ifdef Py_GIL_DISABLED
+  SwapLockGuard lock{*this};
+#endif
+
 #if defined(CINDER_X86_64) && defined(Py_GIL_DISABLED)
   // On x86 the patchpoint is up to 7 bytes (aligned to 8 bytes by the code
   // generator). However, we work with 8 bytes here as that should be an
@@ -132,15 +138,15 @@ void CodePatcher::swap() {
   std::memcpy(&qword, patchpoint_, sizeof(qword));
 
   auto* qword_bytes = reinterpret_cast<uint8_t*>(&qword);
-  std::swap_ranges(qword_bytes, qword_bytes + data_len_, data_.data());
+  std::swap_ranges(qword_bytes, qword_bytes + flags_.data_len, data_.data());
 
   std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(patchpoint_)}.store(
       qword, std::memory_order_relaxed);
 #else
   decltype(data_) temp;
-  std::memcpy(temp.data(), patchpoint_, data_len_);
-  std::memcpy(patchpoint_, data_.data(), data_len_);
-  std::memcpy(data_.data(), temp.data(), data_len_);
+  std::memcpy(temp.data(), patchpoint_, flags_.data_len);
+  std::memcpy(patchpoint_, data_.data(), flags_.data_len);
+  std::memcpy(data_.data(), temp.data(), flags_.data_len);
 #endif
 
 #ifdef Py_GIL_DISABLED
@@ -148,14 +154,41 @@ void CodePatcher::swap() {
   // the update. Note for x86 this is a no-op as caches are coherent.
   __builtin___clear_cache(
       reinterpret_cast<char*>(patchpoint_),
-      reinterpret_cast<char*>(patchpoint_) + data_len_);
+      reinterpret_cast<char*>(patchpoint_) + flags_.data_len);
 #endif
 }
+
+#ifdef Py_GIL_DISABLED
+// We use a custom spin-lock implementation as I'm not aware of a generic way of
+// implementing a lock where the mutex is bit-packed with other data. This
+// should be fine as the critical section is a short, slow-path, and should
+// only happen very rarely.
+CodePatcher::SwapLockGuard::SwapLockGuard(CodePatcher& patcher)
+    : patcher_(patcher) {
+  std::atomic_ref<uint8_t> ref{patcher_.flags_byte_};
+  while (true) {
+    uint8_t expected = ref.load(std::memory_order_relaxed);
+    if (!(expected & lockBit()) &&
+        ref.compare_exchange_weak(
+            expected,
+            expected | lockBit(),
+            std::memory_order_acquire,
+            std::memory_order_relaxed)) {
+      return;
+    }
+  }
+}
+
+CodePatcher::SwapLockGuard::~SwapLockGuard() {
+  std::atomic_ref<uint8_t>{patcher_.flags_byte_}.fetch_and(
+      static_cast<uint8_t>(~lockBit()), std::memory_order_release);
+}
+#endif
 
 JumpPatcher::JumpPatcher() {
   // Initializes to a nop.
   std::memcpy(data_.data(), kJmpNopBytes.data(), kJmpNopBytes.size());
-  data_len_ = kJmpNopBytes.size();
+  flags_.data_len = kJmpNopBytes.size();
 }
 
 void JumpPatcher::linkJump(uintptr_t patchpoint, uintptr_t jump_target) {

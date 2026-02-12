@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <array>
+#include <bit>
 #include <cstdint>
 #include <span>
 
@@ -87,12 +89,35 @@ class CodePatcher {
   // will be patched.
   std::array<uint8_t, 7> data_{};
 
-  // Actual length of the data buffer above, from 0 to 7 bytes.
-  uint8_t data_len_ : 7 {0};
+  // RAII lock guard for swap operations.
+  class [[nodiscard]] SwapLockGuard {
+   public:
+    explicit SwapLockGuard(CodePatcher& patcher);
+    ~SwapLockGuard();
+    SwapLockGuard(const SwapLockGuard&) = delete;
+    SwapLockGuard& operator=(const SwapLockGuard&) = delete;
 
-  // Whether patch() has been called and a corresponding unpatch() has not yet
-  // been called..
-  bool is_patched_ : 1 {false};
+   private:
+    CodePatcher& patcher_;
+  };
+
+  // Bit packed because we don't want to bloat CodePatchers.
+  struct Flags {
+    uint8_t data_len : 3;
+    bool is_patched : 1;
+    bool lock : 1;
+  };
+  union {
+    Flags flags_{};
+    uint8_t flags_byte_;
+  };
+
+  // Avoids hardcoding the bit-pattern to access Flags::lock.
+  static constexpr uint8_t lockBit() {
+    Flags f{};
+    f.lock = true;
+    return std::bit_cast<uint8_t>(f);
+  }
 };
 
 // Subclass of a CodePatcher that is intended for patching in jumps.
