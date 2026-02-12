@@ -1561,6 +1561,120 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
     }
     env_.addAnnotation("JitHelpers", jit_helpers);
   }
+#elif defined(CINDER_AARCH64)
+  bool is_gen = GetFunction()->code->co_flags & kCoFlagsAnyGenerator;
+  if (is_gen) {
+#if PY_VERSION_HEX < 0x030C0000
+    CINDER_UNSUPPORTED
+#else
+    // ((GenDataFooter*) fp)->gen->gi_frame_state = FRAME_COMPLETED
+    // X2 is an arbitrary scratch register - any caller saved reg is fine.
+    auto gen_offs = offsetof(GenDataFooter, gen);
+    as_->ldr(
+        a64::x2,
+        arch::ptr_resolve(as_, arch::fp, gen_offs, arch::reg_scratch_0));
+    as_->mov(
+        arch::reg_scratch_0,
+#if PY_VERSION_HEX >= 0x030F0000
+        FRAME_CLEARED
+#else
+        FRAME_COMPLETED
+#endif
+    );
+
+    static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
+    as_->str(
+        arch::reg_scratch_0,
+        arch::ptr_resolve(
+            as_,
+            a64::x2,
+            offsetof(PyGenObject, gi_frame_state),
+            arch::reg_scratch_1,
+            arch::AccessSize::k8));
+#endif
+    as_->bind(env_.exit_for_yield_label);
+    RestoreOriginalGeneratorFramePointer(as_);
+  }
+
+#if PY_VERSION_HEX >= 0x030C0000
+  // Generator frame linkage for resumed generators is handled by the generator
+  // object i.e. in generators_rt. For the initial yield unlinking happens as
+  // part of the YieldInitial LIR instruction.
+  if (!is_gen) {
+    frame_asm_.generateUnlinkFrame(false);
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
+
+  // If we return a primitive, set w2/d0 to 1 to indicate no error (in case
+  // of error, deopt will set it to 0 and jump to hard_exit_label, skipping
+  // this.)
+  if (func_->returnsPrimitive()) {
+    JIT_CHECK(!is_gen, "generators can't return primitives");
+    if (func_->returnsPrimitiveDouble()) {
+      // Loads an *integer* 1 in D0.. value doesn't matter,
+      // but it needs to be non-zero.
+      as_->movi(a64::d0, 1);
+    } else {
+      as_->mov(a64::w2, 1);
+    }
+  }
+
+  as_->bind(env_.hard_exit_label);
+  asmjit::BaseNode* epilogue_error_cursor = as_->cursor();
+
+  auto saved_regs = env_.changed_regs & CALLEE_SAVE_REGS;
+  if (!saved_regs.Empty()) {
+    // Reset the stack pointer to point at our callee-saved registers and
+    // restore them.
+    JIT_CHECK(
+        env_.last_callee_saved_reg_off != -1,
+        "offset to callee saved regs not initialized");
+
+    JIT_CHECK(env_.last_callee_saved_reg_off % kStackAlign == 0, "unaligned");
+
+    if (env_.last_callee_saved_reg_off >= 0) {
+      as_->sub(a64::sp, arch::fp, env_.last_callee_saved_reg_off);
+    } else {
+      as_->add(a64::sp, arch::fp, -env_.last_callee_saved_reg_off);
+    }
+
+    while (!saved_regs.Empty()) {
+      auto second = a64::x(saved_regs.GetLast().loc);
+      saved_regs.RemoveLast();
+
+      if (!saved_regs.Empty()) {
+        auto first = a64::x(saved_regs.GetLast().loc);
+        saved_regs.RemoveLast();
+
+        as_->ldp(first, second, a64::ptr_post(a64::sp, 16));
+      } else {
+        as_->ldr(second, a64::ptr_post(a64::sp, 16));
+      }
+    }
+  }
+
+  as_->mov(a64::sp, arch::fp);
+  as_->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 16));
+  as_->ret(arch::lr);
+
+  env_.addAnnotation(
+      "Epilogue (restore regs; pop native frame; error exit)",
+      epilogue_error_cursor);
+  env_.addAnnotation("Epilogue", epilogue_cursor);
+  if (env_.function_indirections.size()) {
+    auto jit_helpers = as_->cursor();
+    for (auto& x : env_.function_indirections) {
+      Label trampoline = as_->newLabel();
+      as_->bind(trampoline);
+      as_->mov(a64::x10, reinterpret_cast<uint64_t>(x.first));
+      as_->mov(arch::reg_scratch_br, failed_deferred_compile_trampoline_);
+      as_->blr(arch::reg_scratch_br);
+      x.second.trampoline = trampoline;
+    }
+    env_.addAnnotation("JitHelpers", jit_helpers);
+  }
 #else
   CINDER_UNSUPPORTED
 #endif
