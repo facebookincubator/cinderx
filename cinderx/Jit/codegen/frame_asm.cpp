@@ -711,7 +711,10 @@ void FrameAsm::linkLightWeightFunctionFrame(
   // Store f_funcobj as our helper frame reifier object
   asmjit::BaseNode* store_f_funcobj_cursor = as_->cursor();
 #if PY_VERSION_HEX >= 0x030E0000
-  as_->str(func_reg, arch::ptr_offset(arch::fp, FRAME_OFFSET(f_funcobj)));
+  as_->str(
+      func_reg,
+      arch::ptr_resolve(
+          as_, arch::fp, FRAME_OFFSET(f_funcobj), arch::reg_scratch_0));
   incRef(func_reg, ref_cnt, ref_cnt_scratch, tstate_reg);
 #else
   storeConst(
@@ -753,7 +756,12 @@ void FrameAsm::linkLightWeightFunctionFrame(
   as_->mov(a64::w1, FRAME_OWNED_BY_THREAD);
   as_->strb(
       a64::w1,
-      arch::ptr_offset(arch::fp, FRAME_OFFSET(owner), arch::AccessSize::k32));
+      arch::ptr_resolve(
+          as_,
+          arch::fp,
+          FRAME_OFFSET(owner),
+          arch::reg_scratch_1,
+          arch::AccessSize::k32));
   env_.addAnnotation("Set _PyInterpreterFrame::owner", store_owner_cursor);
 
   // Get the frame that is currently linked into thread state and update
@@ -780,7 +788,10 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
   asmjit::BaseNode* store_prev_cursor = as_->cursor();
   // cur_frame->previous = PyThreadState.cframe.current_frame
-  as_->str(scratch, arch::ptr_offset(arch::fp, FRAME_OFFSET(previous)));
+  as_->str(
+      scratch,
+      arch::ptr_resolve(
+          as_, arch::fp, FRAME_OFFSET(previous), arch::reg_scratch_1));
   env_.addAnnotation("Set _PyInterpreterFrame::previous", store_prev_cursor);
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -791,12 +802,18 @@ void FrameAsm::linkLightWeightFunctionFrame(
     as_->mov(scratch, -FRAME_OFFSET(localsplus));
     as_->sub(scratch, arch::fp, scratch);
   }
-  as_->str(scratch, arch::ptr_offset(arch::fp, FRAME_OFFSET(stackpointer)));
+  as_->str(
+      scratch,
+      arch::ptr_resolve(
+          as_, arch::fp, FRAME_OFFSET(stackpointer), arch::reg_scratch_1));
   env_.addAnnotation(
       "Set _PyInterpreterFrame::stackpointer", stack_pointer_cursor);
 
   asmjit::BaseNode* locals_cursor = as_->cursor();
-  as_->str(a64::xzr, arch::ptr_offset(arch::fp, FRAME_OFFSET(f_locals)));
+  as_->str(
+      a64::xzr,
+      arch::ptr_resolve(
+          as_, arch::fp, FRAME_OFFSET(f_locals), arch::reg_scratch_1));
   env_.addAnnotation("Set _PyInterpreterFrame::f_locals", locals_cursor);
 #endif
 
