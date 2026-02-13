@@ -1734,6 +1734,10 @@ arch::Gp getGpOrSP(const OperandBase* operand) {
 
 // Load the effective address of a scaled index into the given output register
 // (used to resolve MemoryIndirect instances).
+//
+// The multiplier uses x86 SIB log2 encoding: 0 means scale by 1 (2^0),
+// 1 means scale by 2 (2^1), 2 means scale by 4 (2^2), 3 means scale by 8
+// (2^3).
 void leaIndex(
     arch::Builder* as,
     arch::Gp output,
@@ -1741,21 +1745,23 @@ void leaIndex(
     arch::Gp index,
     uint8_t multiplier) {
   switch (multiplier) {
-    case 1:
+    case 0:
       as->add(output, base, index);
       break;
-    case 2:
+    case 1:
       as->add(output, base, index, a64::lsl(1));
       break;
-    case 4:
+    case 2:
       as->add(output, base, index, a64::lsl(2));
       break;
-    case 8:
+    case 3:
       as->add(output, base, index, a64::lsl(3));
       break;
     default: {
-      as->mov(output, multiplier);
-      as->madd(output, index, output, base);
+      // Use scratch register to avoid clobbering index when output and
+      // index are the same register.
+      as->mov(arch::reg_scratch_0, uint64_t{1} << multiplier);
+      as->madd(output, index, arch::reg_scratch_0, base);
       break;
     }
   }
