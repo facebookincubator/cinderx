@@ -4137,14 +4137,24 @@ void HIRBuilder::emitUnpackSequence(
   if (seq->isA(TTupleExact)) {
     tc.emit<Branch>(tuple_fast_path);
   } else if (seq->isA(TListExact)) {
+// TODO(T255264577). Enable this again. See P2169677587.
+#ifdef Py_GIL_DISABLED
+    tc.emit<Branch>(deopt_path.block);
+#else
     tc.emit<Branch>(list_fast_path);
+#endif
   } else {
     tc.emit<CondBranchCheckType>(
         seq, TTupleExact, tuple_fast_path, list_check_path);
 
     tc.block = list_check_path;
+// TODO(T255264577). Enable this again. See P2169677587.
+#ifdef Py_GIL_DISABLED
+    tc.emit<Branch>(deopt_path.block);
+#else
     tc.emit<CondBranchCheckType>(
         seq, TListExact, list_fast_path, deopt_path.block);
+#endif
   }
 
   tc.block = tuple_fast_path;

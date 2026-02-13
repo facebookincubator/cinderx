@@ -314,12 +314,22 @@ Register* simplifyCast(const Cast* instr) {
 
 Register* emitGetLengthInt64(Env& env, Register* obj) {
   Type ty = obj->type();
-  if (ty <= TListExact || ty <= TTupleExact || ty <= TArray) {
+  if (
+// TODO(T255264007). Enable this again. See P2169677410.
+#ifndef Py_GIL_DISABLED
+      ty <= TListExact || ty <= TArray ||
+#endif
+      ty <= TTupleExact) {
     env.emit<UseType>(obj, ty.unspecialized());
     return env.emit<LoadField>(
         obj, "ob_size", offsetof(PyVarObject, ob_size), TCInt64);
   }
-  if (ty <= TDictExact || ty <= TSetExact || ty <= TUnicodeExact) {
+  if (
+// TODO(T255264007). Enable this again. See P2169677410.
+#ifndef Py_GIL_DISABLED
+      ty <= TDictExact || ty <= TSetExact ||
+#endif
+      ty <= TUnicodeExact) {
     std::size_t offset = 0;
     const char* name = nullptr;
     if (ty <= TDictExact) {
@@ -641,6 +651,8 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       }
       // Fallthrough
     }
+// TODO(T255264263). Enable this again. See P2169673256.
+#ifndef Py_GIL_DISABLED
     if (lhs->isA(TListExact) || lhs->isA(TTupleExact)) {
       // TASK(T93509109): Replace TCInt64 with a less platform-specific
       // representation of the type, which should be analagous to Py_ssize_t.
@@ -661,6 +673,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       }
       return env.emit<LoadArrayItem>(array, adjusted_idx, lhs, offset, TObject);
     }
+#endif
     if (lhs_type <= TUnicodeExact && rhs_type <= TLongExact) { // Unicode subscr
       if (lhs_type.hasObjectSpec() && rhs_type.hasObjectSpec()) {
         // This isn't safe in the multi-threaded compilation on 3.12 because
@@ -1829,10 +1842,17 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kIsTruthy:
       return simplifyIsTruthy(env, static_cast<const IsTruthy*>(instr));
 
+// TODO(T255262756) - Enable this again. See P2169675076 and P2184559031 (same
+// pattern but applied to simplifyLoadAttrTypeReceiver).
+#ifndef Py_GIL_DISABLED
     case Opcode::kLoadAttr:
       return simplifyLoadAttr(env, static_cast<const LoadAttr*>(instr));
+#endif
+// TODO(T255263721) - Enable this again. See P2169673579 and P2184559031.
+#ifndef Py_GIL_DISABLED
     case Opcode::kLoadMethod:
       return simplifyLoadMethod(env, static_cast<const LoadMethod*>(instr));
+#endif
     case Opcode::kLoadField:
       return simplifyLoadField(env, static_cast<const LoadField*>(instr));
     case Opcode::kLoadTupleItem:
