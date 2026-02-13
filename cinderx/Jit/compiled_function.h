@@ -78,6 +78,23 @@ bool isJitCompiled(const PyFunctionObject* func);
 
 namespace jit {
 
+// Data members extracted from CompiledFunction to enable separate storage.
+struct CompiledFunctionData {
+  std::span<const std::byte> code;
+  vectorcallfunc vectorcall_entry{nullptr};
+  int stack_size{0};
+  int spill_stack_size{0};
+  std::chrono::nanoseconds compile_time{};
+  hir::Function::InlineFunctionStats inline_function_stats;
+  hir::OpcodeCounts hir_opcode_counts{};
+  // All the code patchers pointing to patch points in this function.
+  std::vector<std::unique_ptr<CodePatcher>> code_patchers;
+  std::unique_ptr<hir::Function> irfunc;
+  CodeRuntime* runtime{nullptr};
+
+  CompiledFunctionData() = default;
+};
+
 // CompiledFunction contains a pointer to the native code that was compiled for
 // a Python function.  The memory behind the generated native code is in the
 // CodeAllocator.
@@ -90,50 +107,51 @@ class CompiledFunction {
       int spill_stack_size,
       hir::Function::InlineFunctionStats inline_function_stats,
       const hir::OpcodeCounts& hir_opcode_counts,
-      CodeRuntime* runtime)
-      : code_(code),
-        vectorcall_entry_(vectorcall_entry),
-        stack_size_(stack_size),
-        spill_stack_size_(spill_stack_size),
-        inline_function_stats_(std::move(inline_function_stats)),
-        hir_opcode_counts_(hir_opcode_counts),
-        runtime_(runtime) {}
+      CodeRuntime* runtime) {
+    data_.code = code;
+    data_.vectorcall_entry = vectorcall_entry;
+    data_.stack_size = stack_size;
+    data_.spill_stack_size = spill_stack_size;
+    data_.inline_function_stats = std::move(inline_function_stats);
+    data_.hir_opcode_counts = hir_opcode_counts;
+    data_.runtime = runtime;
+  }
 
   ~CompiledFunction();
 
   // Get the buffer containing the compiled machine code.  The start of this
   // buffer is not guaranteed to be a valid entry point.
   std::span<const std::byte> codeBuffer() const {
-    return code_;
+    return data_.code;
   }
 
   vectorcallfunc vectorcallEntry() const {
-    return vectorcall_entry_;
+    return data_.vectorcall_entry;
   }
 
   void* staticEntry() const;
 
   CodeRuntime* runtime() const {
-    return runtime_;
+    return data_.runtime;
   }
 
   PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const {
-    return vectorcall_entry_(func, args, nargs, nullptr);
+    return data_.vectorcall_entry(func, args, nargs, nullptr);
   }
 
   void printHIR() const;
   void disassemble() const;
 
   size_t codeSize() const {
-    return code_.size();
+    return data_.code.size();
   }
 
   int stackSize() const {
-    return stack_size_;
+    return data_.stack_size;
   }
 
   int spillStackSize() const {
-    return spill_stack_size_;
+    return data_.spill_stack_size;
   }
 
   std::chrono::nanoseconds compileTime() const;
@@ -145,27 +163,19 @@ class CompiledFunction {
   void setHirFunc(std::unique_ptr<hir::Function>&& irfunc);
 
   const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const {
-    return inline_function_stats_;
+    return data_.inline_function_stats;
   }
 
   const hir::OpcodeCounts& hirOpcodeCounts() const {
-    return hir_opcode_counts_;
+    return data_.hir_opcode_counts;
   }
 
  private:
+  friend Ref<CompiledFunction>;
+
   DISALLOW_COPY_AND_ASSIGN(CompiledFunction);
 
-  const std::span<const std::byte> code_;
-  vectorcallfunc const vectorcall_entry_;
-  const int stack_size_;
-  const int spill_stack_size_;
-  std::chrono::nanoseconds compile_time_;
-  hir::Function::InlineFunctionStats inline_function_stats_;
-  hir::OpcodeCounts hir_opcode_counts_;
-  // All the code patchers pointing to patch points in this function.
-  std::vector<std::unique_ptr<CodePatcher>> code_patchers_;
-  std::unique_ptr<hir::Function> irfunc_;
-  CodeRuntime* runtime_;
+  CompiledFunctionData data_;
 };
 
 } // namespace jit

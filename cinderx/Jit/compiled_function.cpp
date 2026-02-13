@@ -29,12 +29,12 @@ bool isJitCompiled(const PyFunctionObject* func) {
 namespace jit {
 
 CompiledFunction::~CompiledFunction() {
-  if (runtime_ != nullptr) {
-    runtime_->releaseReferences();
+  if (data_.runtime != nullptr) {
+    data_.runtime->releaseReferences();
   }
 
   auto code_allocator = cinderx::getModuleState()->codeAllocator();
-  code_allocator->releaseCode(const_cast<std::byte*>(code_.data()));
+  code_allocator->releaseCode(const_cast<std::byte*>(data_.code.data()));
 }
 
 void CompiledFunction::disassemble() const {
@@ -45,36 +45,38 @@ void CompiledFunction::disassemble() const {
 
 void CompiledFunction::printHIR() const {
   JIT_CHECK(
-      irfunc_ != nullptr,
+      data_.irfunc != nullptr,
       "Can only call CompiledFunction::printHIR() from a debug build");
   jit::hir::HIRPrinter printer;
-  printer.Print(std::cout, *irfunc_);
+  printer.Print(std::cout, *data_.irfunc);
 }
 
 std::chrono::nanoseconds CompiledFunction::compileTime() const {
-  return compile_time_;
+  return data_.compile_time;
 }
 
 void CompiledFunction::setCompileTime(std::chrono::nanoseconds time) {
-  compile_time_ = time;
+  data_.compile_time = time;
 }
 
 void CompiledFunction::setCodePatchers(
     std::vector<std::unique_ptr<CodePatcher>>&& code_patchers) {
-  code_patchers_ = std::move(code_patchers);
+  data_.code_patchers = std::move(code_patchers);
 }
 
 void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {
-  irfunc_ = std::move(irfunc);
+  data_.irfunc = std::move(irfunc);
 }
 
 void* CompiledFunction::staticEntry() const {
-  if (runtime_ == nullptr ||
-      !(runtime_->frameState()->code()->co_flags & CI_CO_STATICALLY_COMPILED)) {
+  if (data_.runtime == nullptr ||
+      !(data_.runtime->frameState()->code()->co_flags &
+        CI_CO_STATICALLY_COMPILED)) {
     return nullptr;
   }
 
-  return reinterpret_cast<void*>(JITRT_GET_STATIC_ENTRY(vectorcall_entry_));
+  return reinterpret_cast<void*>(
+      JITRT_GET_STATIC_ENTRY(data_.vectorcall_entry));
 }
 
 } // namespace jit
