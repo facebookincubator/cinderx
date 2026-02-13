@@ -1847,7 +1847,18 @@ void loadToReg(
   if (output->isVecD()) {
     as->ldr(AT::getVecD(output), input);
   } else {
-    as->ldr(AT::getGp(output), input);
+    auto reg = AT::getGp(output);
+    switch (output->dataType()) {
+      case OperandBase::k8bit:
+        as->ldrb(reg, input);
+        break;
+      case OperandBase::k16bit:
+        as->ldrh(reg, input);
+        break;
+      default:
+        as->ldr(reg, input);
+        break;
+    }
   }
 }
 
@@ -1858,7 +1869,18 @@ void storeFromReg(
   if (input->isVecD()) {
     as->str(AT::getVecD(input), output);
   } else {
-    as->str(AT::getGp(input), output);
+    auto reg = AT::getGp(input);
+    switch (input->dataType()) {
+      case OperandBase::k8bit:
+        as->strb(reg, output);
+        break;
+      case OperandBase::k16bit:
+        as->strh(reg, output);
+        break;
+      default:
+        as->str(reg, output);
+        break;
+    }
   }
 }
 
@@ -1908,7 +1930,14 @@ void translateCall(Environ* env, const Instruction* instr) {
     if (output->isVecD()) {
       as->mov(AT::getVecD(output), a64::d0);
     } else {
-      as->mov(AT::getGp(output), a64::x0);
+      auto out_reg = AT::getGp(output);
+      // Match the source register width to the destination register width.
+      // aarch64 mov requires both operands to be the same size.
+      if (out_reg.isGpW()) {
+        as->mov(out_reg, a64::w0);
+      } else {
+        as->mov(out_reg, a64::x0);
+      }
     }
   }
 }
@@ -2041,8 +2070,21 @@ void translateMove(Environ* env, const Instruction* instr) {
         auto ptr =
             ptrIndirect(as, scratch0, scratch1, output->getMemoryIndirect());
 
-        as->mov(scratch1, input->getConstant());
-        as->str(scratch1, ptr);
+        // Use the output's data type to determine the store width.
+        switch (output->dataType()) {
+          case OperandBase::k8bit:
+            as->mov(a64::w(scratch1.id()), input->getConstant());
+            as->strb(a64::w(scratch1.id()), ptr);
+            break;
+          case OperandBase::k16bit:
+            as->mov(a64::w(scratch1.id()), input->getConstant());
+            as->strh(a64::w(scratch1.id()), ptr);
+            break;
+          default:
+            as->mov(scratch1, input->getConstant());
+            as->str(scratch1, ptr);
+            break;
+        }
       } else {
         JIT_ABORT("Unsupported operand type for Move: Ind + {}", input->type());
       }
