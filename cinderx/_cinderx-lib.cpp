@@ -922,39 +922,45 @@ void initCinderHooks() {
 #endif
 }
 
-int initFrameEvalFunc() {
-#ifdef ENABLE_INTERPRETER_LOOP
-#ifdef ENABLE_EVAL_HOOK
-  Ci_hook_EvalFrame = Ci_EvalFrame;
-#elif defined(ENABLE_PEP523_HOOK)
-  // Let borrowed.h know the eval frame pointer
-  Ci_EvalFrameFunc = Ci_EvalFrame;
-
-  auto interp = _PyInterpreterState_GET();
-  auto current_eval_frame = _PyInterpreterState_GetEvalFrameFunc(interp);
-  if (current_eval_frame != _PyEval_EvalFrameDefault) {
-    PyErr_SetString(
-        PyExc_RuntimeError,
-        "CinderX tried to set a frame evaluator function but something else "
-        "has done it first, this is not supported");
-    return -1;
+PyDoc_STRVAR(
+    install_frame_evaluator_doc,
+    "Install the CinderX frame evaluator.  This is needed for the JIT "
+    "and Static Python to function.");
+PyObject* install_frame_evaluator(PyObject* /* mod */, PyObject* /* args */) {
+  if (Ci_InitFrameEvalFunc() < 0) {
+    return nullptr;
   }
-
-  _PyInterpreterState_SetEvalFrameFunc(interp, Ci_EvalFrame);
-#endif
-#endif
-
-  return 0;
+  Py_RETURN_NONE;
 }
 
-void finiFrameEvalFunc() {
+PyDoc_STRVAR(
+    remove_frame_evaluator_doc,
+    "Remove the CinderX frame evaluator.  This is DANGEROUS to do in the "
+    "middle of Python execution, as code that has been compiled with the "
+    "CinderX bytecode compiler (e.g. Static Python) will not work with the "
+    "standard CPython frame evaluator.  This function should generally be "
+    "avoided, and is exposed primarily for testing purposes.");
+PyObject* remove_frame_evaluator(PyObject* /* mod */, PyObject* /* args */) {
+  Ci_FiniFrameEvalFunc();
+  Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(
+    is_frame_evaluator_installed_doc,
+    "Check whether the CinderX frame evaluator is currently installed.");
+PyObject* is_frame_evaluator_installed(
+    PyObject* /* mod */,
+    PyObject* /* args */) {
 #ifdef ENABLE_INTERPRETER_LOOP
-#ifdef ENABLE_EVAL_HOOK
-  Ci_hook_EvalFrame = nullptr;
+#if defined(ENABLE_EVAL_HOOK)
+  return PyBool_FromLong(Ci_hook_EvalFrame == Ci_EvalFrame);
 #elif defined(ENABLE_PEP523_HOOK)
-  _PyInterpreterState_SetEvalFrameFunc(_PyInterpreterState_GET(), nullptr);
+  auto interp = _PyInterpreterState_GET();
+  auto current_eval_frame = _PyInterpreterState_GetEvalFrameFunc(interp);
+  return PyBool_FromLong(current_eval_frame == Ci_EvalFrame);
 #endif
 #endif
+  Py_RETURN_FALSE;
 }
 
 // Check if Python code is still being executed.
@@ -993,7 +999,7 @@ void module_free(void* raw_mod) {
   // the result of deopt and JIT code may still be on the native stack.
   JIT_CHECK(!isCodeRunning(), "Python code still running on CinderX unload");
 
-  finiFrameEvalFunc();
+  Ci_FiniFrameEvalFunc();
 
   jit::finalize();
 
@@ -1082,6 +1088,18 @@ static PyObject* clear_strict_modules(PyObject*, PyObject*) {
 }
 
 PyMethodDef _cinderx_methods[] = {
+    {"install_frame_evaluator",
+     install_frame_evaluator,
+     METH_NOARGS,
+     install_frame_evaluator_doc},
+    {"remove_frame_evaluator",
+     remove_frame_evaluator,
+     METH_NOARGS,
+     remove_frame_evaluator_doc},
+    {"is_frame_evaluator_installed",
+     is_frame_evaluator_installed,
+     METH_NOARGS,
+     is_frame_evaluator_installed_doc},
     {"clear_caches",
      clear_caches,
      METH_NOARGS,
@@ -1448,10 +1466,6 @@ int _cinderx_exec_impl(PyObject* m) {
 
   initCinderHooks();
 
-  if (initFrameEvalFunc() < 0) {
-    return -1;
-  }
-
   init_already_existing_types();
 
   if (watcher_state.init() < 0) {
@@ -1505,7 +1519,7 @@ int _cinderx_exec(PyObject* m) {
   //
   // Everything else will be handled by module_free() when there's an error.
   if (result < 0) {
-    finiFrameEvalFunc();
+    Ci_FiniFrameEvalFunc();
   }
   return result;
 }

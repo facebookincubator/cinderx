@@ -1472,7 +1472,11 @@ PyObject* patched_sys_settrace(
 
 #endif // PY_VERSION_HEX >= 0x030C0000
 
-void compile_after_n_calls_impl(uint32_t calls) {
+int compile_after_n_calls_impl(uint32_t calls) {
+  if (Ci_InitFrameEvalFunc() < 0) {
+    return -1;
+  }
+
   getMutableConfig().compile_after_n_calls = calls;
 
   // Schedule all pre-existing functions for compilation.
@@ -1480,6 +1484,8 @@ void compile_after_n_calls_impl(uint32_t calls) {
       [](BorrowedRef<PyFunctionObject> func) { scheduleJitCompile(func); });
 
   JIT_DLOG("Configuring JIT to compile functions after {} calls", calls);
+
+  return 0;
 }
 
 PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
@@ -1495,14 +1501,18 @@ PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  compile_after_n_calls_impl(calls);
+  if (compile_after_n_calls_impl(calls) < 0) {
+    return nullptr;
+  }
 
   Py_RETURN_NONE;
 }
 
 PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
   // Default value that works well for most applications.
-  compile_after_n_calls_impl(1000);
+  if (compile_after_n_calls_impl(1000) < 0) {
+    return nullptr;
+  }
 
   Py_RETURN_NONE;
 }
@@ -1567,6 +1577,10 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     Py_RETURN_FALSE;
   }
 
+  if (Ci_InitFrameEvalFunc() < 0) {
+    return nullptr;
+  }
+
   _PyJIT_Result result = compileFunction(func);
   switch (result) {
     case PYJIT_RESULT_OK:
@@ -1617,6 +1631,10 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
 
   if (!isJitUsable() || isJitCompiled(func)) {
     Py_RETURN_FALSE;
+  }
+
+  if (Ci_InitFrameEvalFunc() < 0) {
+    return nullptr;
   }
 
   func->vectorcall = forcedJitVectorcall;
@@ -1884,13 +1902,19 @@ void deleteJitList() {
 
 // Reschedule all functions on the JIT list for compilation.  Run when the JIT
 // list is modified.
-void rescheduleJitList() {
+int rescheduleJitList() {
+  if (Ci_InitFrameEvalFunc() < 0) {
+    return -1;
+  }
+
   walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
     auto jit_list = cinderx::getModuleState()->jitList();
     if (jit_list->lookupFunc(func)) {
       scheduleJitCompile(func);
     }
   });
+
+  return 0;
 }
 
 PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
@@ -1924,7 +1948,9 @@ PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  rescheduleJitList();
+  if (rescheduleJitList() < 0) {
+    return nullptr;
+  }
 
   Py_RETURN_NONE;
 }
@@ -1960,7 +1986,9 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  rescheduleJitList();
+  if (rescheduleJitList() < 0) {
+    return nullptr;
+  }
 
   Py_RETURN_NONE;
 }
@@ -3364,9 +3392,13 @@ int initialize() {
   // startup, start scheduling functions for compilation now.
   if (auto compile_n = getConfig().compile_after_n_calls;
       compile_n.has_value()) {
-    compile_after_n_calls_impl(*compile_n);
+    if (compile_after_n_calls_impl(*compile_n) < 0) {
+      return -1;
+    }
   } else if (mod_state->jitList() != nullptr) {
-    rescheduleJitList();
+    if (rescheduleJitList() < 0) {
+      return -1;
+    }
   }
 
   return 0;

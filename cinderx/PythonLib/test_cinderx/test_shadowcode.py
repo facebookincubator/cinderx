@@ -8,7 +8,6 @@ import unittest
 if sys.version_info >= (3, 12):
     raise unittest.SkipTest("shadow code unsupported in 3.12+")
 
-
 import builtins
 import cinder
 import gc
@@ -18,9 +17,14 @@ import weakref
 from cinder import cached_property, strict_module_patch, StrictModule
 from types import CodeType, FunctionType
 
+import cinderx
 import cinderx.jit
 from cinderx.test_support import passIf, passUnless
 from test.support.script_helper import assert_python_ok, run_python_until_end
+
+cinderx.install_frame_evaluator()
+if not cinderx.is_frame_evaluator_installed():
+    raise unittest.SkipTest("Cannot test shadowcode without CinderX frame evaluator")
 
 # Sets the number of repetitions required in order to hit caching
 REPETITION = 100

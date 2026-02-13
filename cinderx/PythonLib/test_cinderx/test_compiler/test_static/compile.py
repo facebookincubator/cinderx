@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 import cinderx.jit
 import xxclassloader
-from cinderx import StrictModule
+from cinderx import install_frame_evaluator, StrictModule
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
@@ -107,6 +107,8 @@ def init_xxclassloader():
     code = comp.compile("xxclassloader", "", tree, codestr, optimize=0)
     d = {"<builtins>": builtins.__dict__}
     add_fixed_module(d)
+
+    install_frame_evaluator()
     exec(code, d, d)
 
     xxclassloader.XXGeneric = d["XXGeneric"]

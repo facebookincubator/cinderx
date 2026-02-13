@@ -254,7 +254,11 @@ target_link_libraries(cached-properties PRIVATE common borrowed)
 ########################################
 # Interpreter/
 
-set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/cinder_opcode.c ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
+set(INTERP_SOURCES
+  ${PROJECT_SOURCE_DIR}/Interpreter/cinder_opcode.c
+  ${PROJECT_SOURCE_DIR}/Interpreter/interpreter_base.cpp
+  ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c
+)
 
 if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14 OR ${PY_VERSION} EQUAL 3.15)
   set(SOURCE_CINDERX_OPCODE_TARGETS_H ${PROJECT_SOURCE_DIR}/Interpreter/${PY_VERSION}/cinderx_opcode_targets.h)

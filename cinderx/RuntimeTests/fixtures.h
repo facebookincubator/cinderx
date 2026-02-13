@@ -7,6 +7,7 @@
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/pass.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -71,6 +72,10 @@ class RuntimeTest : public ::testing::Test {
       ASSERT_NE(code_allocator, nullptr)
           << "Configured to use the JIT but it wasn't initialized";
     }
+
+    JIT_CHECK(
+        Ci_InitFrameEvalFunc() == 0,
+        "Failed to install CinderX frame evaluator");
 
     globals_ = isStaticCompiler() ? MakeGlobalsStrict() : MakeGlobals();
     ASSERT_NE(globals_, nullptr);

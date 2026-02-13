@@ -12,6 +12,9 @@ extern "C" {
 
 // Copy of CPython's vectorcall implementation for PyFunctionObject.
 #if PY_VERSION_HEX >= 0x030F0000
+
+#include "internal/pycore_function.h"
+
 #define Ci_PyFunction_Vectorcall _PyFunction_Vectorcall
 #else
 extern vectorcallfunc Ci_PyFunction_Vectorcall;

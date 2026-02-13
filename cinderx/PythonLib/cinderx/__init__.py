@@ -86,7 +86,10 @@ try:
         get_parallel_gc_settings,
         has_parallel_gc,
         immortalize_heap,
+        install_frame_evaluator,
+        is_frame_evaluator_installed,
         is_immortal,
+        remove_frame_evaluator,
         strict_module_patch,
         strict_module_patch_delete,
         strict_module_patch_enabled,
@@ -501,10 +504,19 @@ except ImportError as e:
     def immortalize_heap() -> None:
         pass
 
+    def install_frame_evaluator() -> None:
+        pass
+
+    def is_frame_evaluator_installed() -> bool:
+        return False
+
     def is_immortal(obj: object) -> bool:
         raise RuntimeError(
             "Can't answer whether an object is mortal or immortal from Python code"
         )
+
+    def remove_frame_evaluator() -> None:
+        pass
 
     def strict_module_patch(mod: object, name: str, value: object) -> None:
         pass

@@ -46,7 +46,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     from types import CodeType, ModuleType
     from typing import Callable, cast, Collection, final, Iterable, Mapping
 
-    from _cinderx import StrictModule, watch_sys_modules
+    from _cinderx import install_frame_evaluator, StrictModule, watch_sys_modules
     from cinderx.static import install_sp_audit_hook
 
     from ..consts import CI_CO_STATICALLY_COMPILED
@@ -795,6 +795,7 @@ def init_static_python() -> None:
 
     Should be called at least once if any Static modules/functions exist.
     """
+    install_frame_evaluator()
     watch_sys_modules()
     install_sp_audit_hook()
 

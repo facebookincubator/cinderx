@@ -4,16 +4,19 @@
 
 #include "cinderx/python.h"
 
-#include "cinderx/Common/extra-py-flags.h"
-#include "cinderx/UpstreamBorrow/borrowed.h"
+// Exporting Ci_PyFunction_Vectorcall.
 #include "cinderx/module_c_state.h"
-#if PY_VERSION_HEX >= 0x030D0000
-#include "internal/pycore_function.h"
-#endif
+
+#include <stdbool.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/*
+ * The CinderX frame evaluator function (interpreter loop).
+ */
 #if PY_VERSION_HEX < 0x030C0000
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState* tstate, PyFrameObject* f, int throwflag);
@@ -51,17 +54,17 @@ PyObject* Ci_PyFunction_CallStatic(
  * This is a different function for Static Python functions versus "normal"
  * Python functions.
  */
-static inline vectorcallfunc getInterpretedVectorcall(
-    [[maybe_unused]] const PyFunctionObject* func) {
-#ifdef ENABLE_INTERPRETER_LOOP
-  const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
-  return (code->co_flags & CI_CO_STATICALLY_COMPILED)
-      ? Ci_StaticFunction_Vectorcall
-      : Ci_PyFunction_Vectorcall;
-#else
-  return Ci_PyFunction_Vectorcall;
-#endif
-}
+vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func);
+
+/*
+ * Install the CinderX frame evaluator function into the runtime.
+ */
+int Ci_InitFrameEvalFunc();
+
+/*
+ * Remove the CinderX frame evaluator function from the runtime.
+ */
+void Ci_FiniFrameEvalFunc();
 
 void Ci_InitOpcodes();
 
