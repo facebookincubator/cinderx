@@ -870,7 +870,7 @@ std::string unitFullname(BorrowedRef<> unit) {
   if (func != nullptr) {
     return funcFullname(func);
   }
-  auto& jit_code_outer_funcs = cinderx::getModuleState()->codeOuterFunctions();
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
   auto iter = jit_code_outer_funcs.find(code);
   if (iter == jit_code_outer_funcs.end()) {
     return fmt::format(
@@ -897,8 +897,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
     preloader =
         hir::Preloader::makePreloader(func, makeFrameReifier(func->func_code));
   } else {
-    auto& jit_code_outer_funcs =
-        cinderx::getModuleState()->codeOuterFunctions();
+    auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
     auto it = jit_code_outer_funcs.find(code);
     if (it == jit_code_outer_funcs.end()) {
       PyErr_Format(
@@ -1113,9 +1112,6 @@ bool compile_all(size_t workers = 0) {
 
   hir::preloaderManager().clear();
 
-  auto& jit_code_outer_funcs = cinderx::getModuleState()->codeOuterFunctions();
-  jit_code_outer_funcs.clear();
-
   return true;
 }
 
@@ -1183,6 +1179,11 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   jit_reg_units.emplace(func.getObj());
 
+  // Map this function's code object to itself.
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  BorrowedRef<PyCodeObject> func_code{func->func_code};
+  jit_code_outer_funcs.emplace(func_code, func);
+
   // If we have an active jit-list, scan this function's code object for any
   // nested functions that might be on the jit-list, and register them as well.
   if (cinderx::getModuleState()->jitList() != nullptr) {
@@ -1191,8 +1192,6 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
     BorrowedRef<> top_consts{top_code->co_consts};
     for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
       jit_reg_units.emplace(code.getObj());
-      auto& jit_code_outer_funcs =
-          cinderx::getModuleState()->codeOuterFunctions();
       jit_code_outer_funcs.emplace(code, func);
     }
   }
@@ -2989,6 +2988,11 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // jitable function, resulting in a single-function compile
   hir::IsolatedPreloaders ip;
 
+  // Ensure the function's code object is mapped to itself.
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  BorrowedRef<PyCodeObject> func_code{func->func_code};
+  jit_code_outer_funcs.emplace(func_code, func);
+
   // Collect a list of functions to compile.  If it's empty then there must have
   // been a Python error during preloading.
   std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
@@ -3433,7 +3437,7 @@ void finalize() {
 
   // Clear some global maps that reference Python data.
   auto mod_state = cinderx::getModuleState();
-  auto& jit_code_outer_funcs = mod_state->codeOuterFunctions();
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
   auto& jit_reg_units = mod_state->registeredCompilationUnits();
   jit_code_outer_funcs.clear();
   jit_reg_units.clear();
@@ -3622,9 +3626,9 @@ void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   if (isJitUsable()) {
     auto mod_state = cinderx::getModuleState();
     auto& jit_reg_units = mod_state->registeredCompilationUnits();
-    auto& jit_code_outer_funcs = mod_state->codeOuterFunctions();
+    auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
     jit_reg_units.erase(code.getObj());
-    jit_code_outer_funcs.erase(code.getObj());
+    jit_code_outer_funcs.erase(code);
     if (handle_unit_deleted_during_preload != nullptr) {
       handle_unit_deleted_during_preload(code.getObj());
     }
@@ -3643,7 +3647,7 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
 
     // erase any child code objects we registered too
     if (mod_state->jitList() != nullptr) {
-      auto& jit_code_outer_funcs = mod_state->codeOuterFunctions();
+      auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
       PyObject* module = func->func_module;
       BorrowedRef<PyCodeObject> top_code{func->func_code};
       BorrowedRef<> top_consts{top_code->co_consts};

@@ -189,9 +189,6 @@ class ModuleState {
 
   jit::UnorderedSet<BorrowedRef<>>& registeredCompilationUnits();
 
-  jit::UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>&
-  codeOuterFunctions();
-
  private:
   WatcherState watcher_state_;
 
@@ -214,13 +211,6 @@ class ModuleState {
 
   // Function and code objects ("units") registered for compilation.
   jit::UnorderedSet<BorrowedRef<>> registered_compilation_units;
-
-  // Map of all compiled or to-be-compiled code objects to the functions that
-  // they were found in.
-  //
-  // Needed for printing the name of the code object and for preloading.
-  jit::UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
-      code_outer_funcs;
 
   // Function objects registered for pre-fork perf-trampoline compilation.
   jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist_;

@@ -398,6 +398,13 @@ class Context : public IJitContext {
 
   const hir::Type& typeForCommonConstant(int i) const;
 
+  // Map of all code objects to the functions that they were found in.
+  // Needed for printing the name of the code object and for preloading.
+  UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>&
+  codeOuterFunctions() {
+    return code_outer_funcs_;
+  }
+
   // Allocate all CodeRuntimes together so they can be mlocked() without
   // including any other data that happened to be on the same page.
   SlabArena<CodeRuntime> code_runtimes_;
@@ -475,6 +482,10 @@ class Context : public IJitContext {
   Ref<> cinderjit_module_;
 
   std::atomic_size_t total_compile_time_ms_;
+
+  // Map of all code objects to the functions that they were found in.
+  UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
+      code_outer_funcs_;
 };
 
 // A CompilerContext is like a Context but it also holds a compiler object
