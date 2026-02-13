@@ -38,7 +38,7 @@ bool Ci_DelayAdaptiveCode = false;
 uint64_t Ci_AdaptiveThreshold = 80;
 
 bool is_adaptive_enabled(CodeExtra *extra) {
-    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+    return !Ci_DelayAdaptiveCode || Ci_code_extra_get_calls(extra) > Ci_AdaptiveThreshold;
 }
 
 #endif

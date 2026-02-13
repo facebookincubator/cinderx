@@ -102,7 +102,7 @@ uint64_t countCalls(PyCodeObject* code) {
   return code->co_mutable->ncalls;
 #else
   auto extra = codeExtra(code);
-  return extra != nullptr ? extra->calls : 0;
+  return extra != nullptr ? Ci_code_extra_get_calls(extra) : 0;
 #endif
 }
 

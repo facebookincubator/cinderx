@@ -297,7 +297,7 @@ for i in range(30):
 #else
   auto extra = codeExtra(code);
   ASSERT_NE(extra, nullptr) << "Failed to load code object extra data";
-  uint64_t ncalls = extra->calls;
+  uint64_t ncalls = Ci_code_extra_get_calls(extra);
 #endif
 
   // TASK(T190615535): This is waiting on the 3.12 custom interpreter loop.

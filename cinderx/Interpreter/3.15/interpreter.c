@@ -35,7 +35,7 @@ bool Ci_DelayAdaptiveCode = false;
 uint64_t Ci_AdaptiveThreshold = 80;
 
 bool is_adaptive_enabled(CodeExtra *extra) {
-    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+    return !Ci_DelayAdaptiveCode || Ci_code_extra_get_calls(extra) > Ci_AdaptiveThreshold;
 }
 
 #endif
@@ -454,7 +454,7 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
         if (extra == NULL) {                                                 \
           adaptive_enabled = false;                                          \
         } else {                                                             \
-          extra->calls += 1;                                                 \
+          Ci_code_extra_incr_calls(extra);                                   \
           adaptive_enabled = is_adaptive_enabled(extra);                     \
         }                                                                    \
       }                                                                      \
@@ -547,7 +547,7 @@ void **opcode_targets = opcode_targets_table;
 
     // Suppress unused variable warning because it's too hard to improve the
     // variable's scope to avoid an unused-but-set-variable warning.
-    (void)adaptive_enabled; 
+    (void)adaptive_enabled;
 
     /* support for generator.throw() */
     if (throwflag) {

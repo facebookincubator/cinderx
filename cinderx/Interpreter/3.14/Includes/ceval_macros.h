@@ -453,7 +453,7 @@ do { \
                 if (extra == NULL) { \
                     adaptive_enabled = false; \
                 } else { \
-                    extra->calls += 1; \
+                    Ci_code_extra_incr_calls(extra); \
                     adaptive_enabled = is_adaptive_enabled(extra); \
                 } \
             } \
