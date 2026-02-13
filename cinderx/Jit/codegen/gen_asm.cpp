@@ -982,6 +982,104 @@ class ThrowableErrorHandler : public ErrorHandler {
   }
 };
 
+#if defined(CINDER_AARCH64)
+// Save a set of callee-saved registers to the stack, properly handling both
+// GP (x) and VecD (d) registers. GP and VecD registers must not be mixed in
+// a single stp instruction.
+void saveCalleeSavedRegsAarch64(arch::Builder* as, PhyRegisterSet saved_regs) {
+  auto gp_regs = saved_regs & ALL_GP_REGISTERS;
+  auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
+
+  // Save GP registers first (they will be at higher addresses, restored last).
+  if (!gp_regs.Empty()) {
+    if (gp_regs.count() % 2 == 1) {
+      as->str(a64::x(gp_regs.GetFirst().loc), a64::ptr_pre(a64::sp, -16));
+      gp_regs.RemoveFirst();
+    }
+    while (!gp_regs.Empty()) {
+      auto first = a64::x(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+      auto second = a64::x(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+      as->stp(first, second, a64::ptr_pre(a64::sp, -16));
+    }
+  }
+
+  // Save VecD registers (they will be at lower addresses, restored first).
+  if (!vecd_regs.Empty()) {
+    if (vecd_regs.count() % 2 == 1) {
+      as->str(
+          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          a64::ptr_pre(a64::sp, -16));
+      vecd_regs.RemoveFirst();
+    }
+    while (!vecd_regs.Empty()) {
+      auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+      vecd_regs.RemoveFirst();
+      auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+      vecd_regs.RemoveFirst();
+      as->stp(first, second, a64::ptr_pre(a64::sp, -16));
+    }
+  }
+}
+
+// Restore a set of callee-saved registers from the stack, in reverse order
+// of saveCalleeSavedRegsAarch64.
+void restoreCalleeSavedRegsAarch64(
+    arch::Builder* as,
+    PhyRegisterSet saved_regs) {
+  auto gp_regs = saved_regs & ALL_GP_REGISTERS;
+  auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
+
+  // Restore VecD registers first (they were saved last, so they're at the
+  // lowest addresses).
+  if (!vecd_regs.Empty()) {
+    // Restore in reverse order (GetLast first).
+    // If odd count, the first-saved was a single str, so it's the last to
+    // restore and will be a single ldr.
+    bool odd = vecd_regs.count() % 2 == 1;
+    // First restore the pairs (from the paired stps).
+    // The pairs were saved GetFirst-first, so we restore GetLast-first.
+    PhyRegisterSet vecd_pairs = vecd_regs;
+    if (odd) {
+      vecd_pairs.RemoveFirst(); // skip the odd one for now
+    }
+    while (!vecd_pairs.Empty()) {
+      auto second = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
+      vecd_pairs.RemoveLast();
+      auto first = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
+      vecd_pairs.RemoveLast();
+      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
+    }
+    if (odd) {
+      as->ldr(
+          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          a64::ptr_post(a64::sp, 16));
+    }
+  }
+
+  // Restore GP registers (they were saved first, so they're at higher
+  // addresses).
+  if (!gp_regs.Empty()) {
+    bool odd = gp_regs.count() % 2 == 1;
+    PhyRegisterSet gp_pairs = gp_regs;
+    if (odd) {
+      gp_pairs.RemoveFirst();
+    }
+    while (!gp_pairs.Empty()) {
+      auto second = a64::x(gp_pairs.GetLast().loc);
+      gp_pairs.RemoveLast();
+      auto first = a64::x(gp_pairs.GetLast().loc);
+      gp_pairs.RemoveLast();
+      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
+    }
+    if (odd) {
+      as->ldr(a64::x(gp_regs.GetFirst().loc), a64::ptr_post(a64::sp, 16));
+    }
+  }
+}
+#endif
+
 } // namespace
 
 NativeGenerator::NativeGenerator(const hir::Function* func)
@@ -1344,23 +1442,7 @@ void NativeGenerator::saveCallerRegisters(
   frame_asm_.initializeFrameHeader(tstate_reg, a64::x0);
 #endif
   // Push used callee-saved registers.
-  auto saved_regs = frame_info.saved_regs;
-  if (!saved_regs.Empty()) {
-    if (saved_regs.count() % 2 == 1) {
-      as_->str(a64::x(saved_regs.GetFirst().loc), a64::ptr_pre(a64::sp, -16));
-      saved_regs.RemoveFirst();
-    }
-
-    while (!saved_regs.Empty()) {
-      auto first = a64::x(saved_regs.GetFirst().loc);
-      saved_regs.RemoveFirst();
-
-      auto second = a64::x(saved_regs.GetFirst().loc);
-      saved_regs.RemoveFirst();
-
-      as_->stp(first, second, a64::ptr_pre(a64::sp, -16));
-    }
-  }
+  saveCalleeSavedRegsAarch64(as_, frame_info.saved_regs);
 
   if (frame_info.arg_buffer_size > 0) {
     JIT_CHECK(frame_info.arg_buffer_size % kStackAlign == 0, "unaligned");
@@ -2059,19 +2141,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
       as_->add(a64::sp, arch::fp, -env_.last_callee_saved_reg_off);
     }
 
-    while (!saved_regs.Empty()) {
-      auto second = a64::x(saved_regs.GetLast().loc);
-      saved_regs.RemoveLast();
-
-      if (!saved_regs.Empty()) {
-        auto first = a64::x(saved_regs.GetLast().loc);
-        saved_regs.RemoveLast();
-
-        as_->ldp(first, second, a64::ptr_post(a64::sp, 16));
-      } else {
-        as_->ldr(second, a64::ptr_post(a64::sp, 16));
-      }
-    }
+    restoreCalleeSavedRegsAarch64(as_, saved_regs);
   }
 
   generateFunctionExit();
