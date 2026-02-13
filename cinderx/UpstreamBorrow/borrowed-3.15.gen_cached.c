@@ -3322,6 +3322,7 @@ do { \
 #define SPEC_FAIL_ATTR_BUILTIN_CLASS_METHOD 22
 #define SPEC_FAIL_ATTR_CLASS_METHOD_OBJ 23
 #define SPEC_FAIL_ATTR_OBJECT_SLOT 24
+#define SPEC_FAIL_ATTR_MODULE_LAZY_VALUE 25
 #define SPEC_FAIL_ATTR_INSTANCE_ATTRIBUTE 26
 #define SPEC_FAIL_ATTR_METACLASS_ATTRIBUTE 27
 #define SPEC_FAIL_ATTR_PROPERTY_NOT_PY_FUNCTION 28
@@ -3468,9 +3469,6 @@ do { \
 #ifdef Py_STATS
 #endif   // Py_STATS
 #ifdef Py_STATS
-#endif
-#ifdef Py_GIL_DISABLED
-#else
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -3635,6 +3633,10 @@ specialize_module_load_attr_lock_held(PyDictObject *dict, _Py_CODEUNIT *instr, P
     }
     PyObject *value;
     Py_ssize_t index = _PyDict_LookupIndexAndValue(dict, name, &value);
+    if (value != NULL && PyLazyImport_CheckExact(value)) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_MODULE_LAZY_VALUE);
+        return -1;
+    }
     assert(index != DKIX_ERROR);
     if (index != (uint16_t)index) {
         SPECIALIZATION_FAIL(LOAD_ATTR,
@@ -4487,14 +4489,14 @@ specialize_load_global_lock_held(
         SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT);
         goto fail;
     }
-#ifdef Py_GIL_DISABLED
     PyObject *value;
     Py_ssize_t index = _PyDict_LookupIndexAndValue((PyDictObject *)globals, name, &value);
-#else
-    Py_ssize_t index = _PyDictKeys_StringLookup(globals_keys, name);
-#endif
     if (index == DKIX_ERROR) {
         SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_EXPECTED_ERROR);
+        goto fail;
+    }
+    if (value != NULL && PyLazyImport_CheckExact(value)) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_ATTR_MODULE_LAZY_VALUE);
         goto fail;
     }
     PyInterpreterState *interp = _PyInterpreterState_GET();
