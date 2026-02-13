@@ -25,10 +25,13 @@ class ASMGeneratorTest : public RuntimeTest {
         func_obj->func_code, func_obj->func_builtins, func_obj->func_globals};
     auto jit_ctx = reinterpret_cast<jit::CompilerContext<Compiler>*>(
         cinderx::getModuleState()->jitContext());
-    auto compiled = jit_ctx->compiler().Compile(func);
-    auto compiled_func = compiled.get();
-    jit_ctx->addCompiledFunction(key, std::move(compiled));
-    return compiled_func;
+    std::optional<CompiledFunctionData> compiled_func =
+        jit_ctx->compiler().Compile(func);
+    if (!compiled_func.has_value()) {
+      return nullptr;
+    }
+    return jit_ctx->makeCompiledFunction(
+        func_obj, key, std::move(*compiled_func));
   }
 };
 
@@ -1389,7 +1392,12 @@ TEST_F(ASMGeneratorTest, GetLength) {
 class NewASMGeneratorTest : public RuntimeTest {
  public:
   std::unique_ptr<CompiledFunction> GenerateCode(PyObject* func) {
-    return Compiler().Compile(func);
+    std::optional<CompiledFunctionData> compiled_func =
+        Compiler().Compile(func);
+    if (!compiled_func.has_value()) {
+      return nullptr;
+    }
+    return std::make_unique<CompiledFunction>(std::move(*compiled_func));
   }
 };
 

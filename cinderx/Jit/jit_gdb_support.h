@@ -5,7 +5,7 @@
 #include "cinderx/python.h"
 
 namespace jit {
-class CompiledFunction;
+struct CompiledFunctionData;
 }
 
 int register_raw_debug_symbol(
@@ -19,4 +19,4 @@ int register_raw_debug_symbol(
 int register_pycode_debug_symbol(
     PyCodeObject* codeobj,
     const char* fullname,
-    jit::CompiledFunction* compiled_func);
+    jit::CompiledFunctionData& compiled_func);

@@ -101,9 +101,10 @@ void typeModified(BorrowedRef<PyTypeObject> type);
 void typeNameModified(BorrowedRef<PyTypeObject> type);
 
 // Exposed for unit tests
-Context::CompilationResult compilePreloaderImpl(
+_PyJIT_Result compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
-    const hir::Preloader& preloader);
+    const hir::Preloader& preloader,
+    BorrowedRef<PyFunctionObject> func);
 
 } // namespace jit
 

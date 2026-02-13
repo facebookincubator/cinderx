@@ -391,6 +391,59 @@ void Context::notifyTypeModified(
   }
 }
 
+bool Context::hasCompletedCompile(CompilationKey& key) {
+  return completed_compiles_.contains(key);
+}
+
+void Context::finalizeMultiThreadedCompile() {
+  fixupFunctionEntryCachePostMultiThreadedCompile();
+  watchPendingTypes();
+
+  for (auto& codes : completed_compiles_) {
+    makeCompiledFunction(
+        codes.second.second, codes.first, std::move(codes.second.first));
+  }
+  completed_compiles_.clear();
+}
+
+void Context::finalizeFunc(
+    BorrowedRef<PyFunctionObject> func,
+    const CompiledFunction& compiled) {
+  ThreadedCompileSerialize guard;
+  if (!addCompiledFunc(func)) {
+    // Someone else compiled the function between when our caller checked and
+    // called us.
+    return;
+  }
+
+  // In case the function had previously been deopted.
+  removeDeoptedFunc(func);
+
+  func->vectorcall = compiled.vectorcallEntry();
+  if (hasFunctionEntryCache(func)) {
+    void** indirect = findFunctionEntryCache(func);
+    *indirect = compiled.staticEntry();
+  }
+}
+
+void Context::codeCompiled(
+    BorrowedRef<PyFunctionObject> func,
+    CompilationKey& key,
+    CompiledFunctionData&& compiled_func) {
+  addCompileTime(compiled_func.compile_time);
+
+  if (getThreadedCompileContext().compileRunning()) {
+    completed_compiles_.emplace(
+        key,
+        std::pair(
+            std::move(compiled_func),
+            ThreadedRef<PyFunctionObject>::create(func)));
+    return;
+  }
+
+  makeCompiledFunction(func, key, std::move(compiled_func));
+}
+
 const hir::Type& Context::typeForCommonConstant([[maybe_unused]] int i) const {
 #if PY_VERSION_HEX >= 0x030E0000
   return common_constant_types_.at(i);
@@ -543,11 +596,18 @@ void Context::removeActiveCompile(CompilationKey& key) {
   active_compiles_.erase(key);
 }
 
-CompiledFunction* Context::addCompiledFunction(
-    CompilationKey& key,
-    std::unique_ptr<CompiledFunction> compiled) {
+CompiledFunction* Context::makeCompiledFunction(
+    BorrowedRef<PyFunctionObject> func,
+    const CompilationKey& key,
+    CompiledFunctionData&& compiled_func) {
+  auto compiled = std::make_unique<CompiledFunction>(std::move(compiled_func));
+
   auto pair = compiled_codes_.emplace(key, std::move(compiled));
   JIT_CHECK(pair.second, "CompilationKey already present");
+  // If we have a function go ahead and initialize it
+  if (func != nullptr) {
+    finalizeFunc(func, *pair.first->second.get());
+  }
   return pair.first->second.get();
 }
 

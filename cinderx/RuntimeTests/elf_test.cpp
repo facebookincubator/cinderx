@@ -70,7 +70,10 @@ def func(x):
 
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
-  std::unique_ptr<CompiledFunction> compiled_func = Compiler().Compile(func);
+  std::optional<CompiledFunctionData> compiled_data = Compiler().Compile(func);
+  ASSERT_TRUE(compiled_data.has_value());
+  auto compiled_func =
+      std::make_unique<CompiledFunction>(std::move(*compiled_data));
 
   std::stringstream ss;
 

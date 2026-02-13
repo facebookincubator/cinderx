@@ -126,7 +126,7 @@ void Compiler::runPasses(
       irfunc);
 }
 
-std::unique_ptr<CompiledFunction> Compiler::Compile(
+std::optional<CompiledFunctionData> Compiler::Compile(
     BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
@@ -134,7 +134,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::makePreloader(func, makeFrameReifier(func->func_code));
-  return preloader ? Compile(*preloader) : nullptr;
+  return preloader ? Compile(*preloader) : std::nullopt;
 }
 
 PassConfig createConfig() {
@@ -162,7 +162,7 @@ PassConfig createConfig() {
   return static_cast<PassConfig>(result);
 }
 
-std::unique_ptr<CompiledFunction> Compiler::Compile(
+std::optional<CompiledFunctionData> Compiler::Compile(
     const jit::hir::Preloader& preloader) {
   const std::string& fullname = preloader.fullname();
   if (!PyDict_CheckExact(preloader.globals())) {
@@ -170,7 +170,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
         "Refusing to compile {}: globals is a {:.200}, not a dict",
         fullname,
         Py_TYPE(preloader.globals())->tp_name);
-    return nullptr;
+    return std::nullopt;
   }
 
   PyObject* builtins = preloader.builtins();
@@ -179,7 +179,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
         "Refusing to compile {}: builtins is a {:.200}, not a dict",
         fullname,
         Py_TYPE(builtins)->tp_name);
-    return nullptr;
+    return std::nullopt;
   }
   JIT_DLOG("Compiling {}", fullname);
 
@@ -216,7 +216,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
 
   auto ngen = ngen_factory_(irfunc.get());
   if (ngen == nullptr) {
-    return nullptr;
+    return std::nullopt;
   }
 
   vectorcallfunc entry = nullptr;
@@ -226,7 +226,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       entry = reinterpret_cast<vectorcallfunc>(ngen->getVectorcallEntry()))
   if (entry == nullptr) {
     JIT_DLOG("Generating native code for {} failed", fullname);
-    return nullptr;
+    return std::nullopt;
   }
 
   auto compile_time =
@@ -251,21 +251,21 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
   std::span<const std::byte> code = ngen->getCodeBuffer();
   auto code_runtime = ngen->codeRuntime();
 
-  auto compiled_func = std::make_unique<CompiledFunction>(
-      code,
-      entry,
-      stack_size,
-      spill_stack_size,
-      std::move(inline_stats),
-      hir_opcode_counts,
-      code_runtime);
-  compiled_func->setCompileTime(compile_time);
-  compiled_func->setCodePatchers(std::move(irfunc->code_patchers));
+  CompiledFunctionData compiled_data;
+  compiled_data.code = code;
+  compiled_data.vectorcall_entry = entry;
+  compiled_data.stack_size = stack_size;
+  compiled_data.spill_stack_size = spill_stack_size;
+  compiled_data.inline_function_stats = std::move(inline_stats);
+  compiled_data.hir_opcode_counts = hir_opcode_counts;
+  compiled_data.runtime = code_runtime;
+  compiled_data.compile_time = compile_time;
+  compiled_data.code_patchers = std::move(irfunc->code_patchers);
   if (getConfig().log.debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
-    compiled_func->setHirFunc(std::move(irfunc));
+    compiled_data.irfunc = std::move(irfunc);
   }
-  return compiled_func;
+  return std::move(compiled_data);
 }
 
 } // namespace jit

@@ -117,6 +117,9 @@ class CompiledFunction {
     data_.runtime = runtime;
   }
 
+  explicit CompiledFunction(CompiledFunctionData&& data)
+      : data_(std::move(data)) {}
+
   ~CompiledFunction();
 
   // Get the buffer containing the compiled machine code.  The start of this

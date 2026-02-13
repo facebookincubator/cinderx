@@ -49,9 +49,9 @@ foo = "hello"
       jit::hir::Preloader::makePreloader(
           func, jit::makeFrameReifier(func->func_code)));
 
-  auto comp_result = jit::compilePreloaderImpl(jit_ctx_.get(), *preloader);
-  ASSERT_EQ(comp_result.result, PYJIT_RESULT_OK);
-  ASSERT_NE(comp_result.compiled, nullptr);
+  auto comp_result =
+      jit::compilePreloaderImpl(jit_ctx_.get(), *preloader, func);
+  ASSERT_EQ(comp_result, PYJIT_RESULT_OK);
 
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));

@@ -175,14 +175,15 @@ int register_raw_debug_symbol(
 int register_pycode_debug_symbol(
     PyCodeObject* codeobj,
     const char* fullname,
-    jit::CompiledFunction* compiled_func) {
+    jit::CompiledFunctionData& compiled_func) {
   if (!jit::getConfig().gdb.supported) {
     return 1;
   }
 
-  int code_size = compiled_func->codeSize();
-  int stack_size = compiled_func->stackSize();
-  auto code = reinterpret_cast<void*>(compiled_func->vectorcallEntry());
+  int code_size = compiled_func.code.size();
+  int stack_size = compiled_func.stack_size;
+  auto code =
+      const_cast<void*>(reinterpret_cast<const void*>(&compiled_func.code[0]));
   if (code_size < 1) {
     JIT_DLOG(
         "Not registering symbol at {} because it has an invalid size {}",

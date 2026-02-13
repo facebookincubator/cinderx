@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/preload.h"
 
 #include <cstddef>
+#include <memory>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -51,11 +52,13 @@ class Compiler {
   Compiler() = default;
 
   // Compile the function / code object preloaded by the given Preloader.
-  std::unique_ptr<CompiledFunction> Compile(const hir::Preloader& preloader);
+  // Returns the compiled function data, or nullptr on failure.
+  std::optional<CompiledFunctionData> Compile(const hir::Preloader& preloader);
 
   // Convenience wrapper to create and compile a preloader from a
   // PyFunctionObject.
-  std::unique_ptr<CompiledFunction> Compile(BorrowedRef<PyFunctionObject> func);
+  std::optional<CompiledFunctionData> Compile(
+      BorrowedRef<PyFunctionObject> func);
 
   // Runs all the compiler passes on the HIR function.
   static void runPasses(hir::Function&, PassConfig config);

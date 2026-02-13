@@ -140,11 +140,6 @@ class Context : public IJitContext {
  public:
   Context();
 
-  struct CompilationResult {
-    CompiledFunction* compiled;
-    _PyJIT_Result result;
-  };
-
   /*
    * Adds a function to the list of deopted functions - this means the function
    * was once compiled but has now been turned back into a normal Python
@@ -176,12 +171,21 @@ class Context : public IJitContext {
   void removeActiveCompile(CompilationKey& key);
 
   /*
-   * Registers the CompiledFunction object for a given compilation key.
+   * Creates the CompiledFunction object for a given compilation key.
    * The compiled code can then be shared amongst compatible functions.
    */
-  CompiledFunction* addCompiledFunction(
-      CompilationKey& key,
-      std::unique_ptr<CompiledFunction> compiled);
+  CompiledFunction* makeCompiledFunction(
+      BorrowedRef<PyFunctionObject> func,
+      const CompilationKey& key,
+      CompiledFunctionData&& compiled_func);
+
+  /*
+   * Record per-function metadata for a newly compiled function and set the
+   * function's entrypoint.
+   */
+  void finalizeFunc(
+      BorrowedRef<PyFunctionObject> func,
+      const CompiledFunction& compiled);
 
   /*
    * Adds a compiled function to the Context. Returns false if the function was
@@ -367,6 +371,21 @@ class Context : public IJitContext {
       BorrowedRef<PyTypeObject> lookup_type,
       BorrowedRef<PyTypeObject> new_type);
 
+  // Checks to see if we've compiled a code but not yet created a
+  // CompiledFunction object.
+  bool hasCompletedCompile(CompilationKey& key);
+
+  void finalizeMultiThreadedCompile();
+
+  // Notifies that a compilation is complete. If we're not in multi-threaded
+  // compile the CompiledFunction will immediately be created, otherwise the
+  // CompiledFunctionData will be preserved until the multi-threaded compile can
+  // finalize things.
+  void codeCompiled(
+      BorrowedRef<PyFunctionObject> func,
+      CompilationKey& key,
+      CompiledFunctionData&& compiled_func);
+
 #if PY_VERSION_HEX < 0x030C0000
   // In 3.12+ the equivalent of this is in generators_rt.cpp.
   template <typename F>
@@ -441,16 +460,6 @@ class Context : public IJitContext {
   std::vector<hir::Type> common_constant_types_;
 
  private:
-  CompilationResult compilePreloaderImpl(const hir::Preloader& preloader);
-
-  /*
-   * Record per-function metadata for a newly compiled function and set the
-   * function's entrypoint.
-   */
-  void finalizeFunc(
-      BorrowedRef<PyFunctionObject> func,
-      const CompiledFunction& compiled);
-
   /* Deopts a function but doesn't touch deopted_funcs_. */
   bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
 
@@ -471,6 +480,17 @@ class Context : public IJitContext {
    * Set of compilations that are currently active, across all threads.
    */
   UnorderedSet<CompilationKey> active_compiles_;
+
+  /*
+   * Compilations which have been finished but we haven't created the
+   * CompiledFunction objects yet. These are used in the multi-threaded compile
+   * case to avoid creating CompiledFunction objects until after all the
+   * compiles have completed.
+   */
+  UnorderedMap<
+      CompilationKey,
+      std::pair<CompiledFunctionData, ThreadedRef<PyFunctionObject>>>
+      completed_compiles_;
 
   /*
    * Code which is being kept alive in case it was in use when
