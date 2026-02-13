@@ -1195,7 +1195,7 @@ TypedArgument::TypedArgument(
       exact(exact),
       jit_type(jit_type) {
   ThreadedCompileSerialize guard;
-  this->pytype = Ref<PyTypeObject>::create(pytype);
+  this->pytype = ThreadedRef<PyTypeObject>::create(pytype);
   thread_safe_flags = pytype->tp_flags & kThreadSafeFlagsMask;
 }
 
@@ -1211,7 +1211,7 @@ TypedArgument::TypedArgument(const TypedArgument& other)
       jit_type(other.jit_type),
       thread_safe_flags(other.thread_safe_flags) {
   ThreadedCompileSerialize guard;
-  pytype = Ref<PyTypeObject>::create(other.pytype);
+  pytype = ThreadedRef<PyTypeObject>::create(other.pytype);
 }
 
 TypedArgument& TypedArgument::operator=(const TypedArgument& other) {

@@ -3,6 +3,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/code_patcher.h"
+#include "cinderx/Jit/threaded_compile.h"
 
 namespace jit {
 
@@ -41,8 +42,8 @@ class TypeAttrDeoptPatcher : public TypeDeoptPatcher {
  private:
   void onPatch() override;
 
-  Ref<PyUnicodeObject> attr_name_;
-  Ref<> target_object_;
+  ThreadedRef<PyUnicodeObject> attr_name_;
+  ThreadedRef<> target_object_;
 };
 
 class SplitDictDeoptPatcher : public TypeDeoptPatcher {
@@ -57,7 +58,7 @@ class SplitDictDeoptPatcher : public TypeDeoptPatcher {
  private:
   void onPatch() override;
 
-  Ref<PyUnicodeObject> attr_name_;
+  ThreadedRef<PyUnicodeObject> attr_name_;
 
   // We don't need to hold a strong reference to keys_ like we do for
   // attr_name_ because calls to PyTypeModified() happen before the old keys

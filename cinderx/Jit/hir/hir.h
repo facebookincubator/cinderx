@@ -4025,7 +4025,7 @@ struct TypedArgument {
   unsigned long threadSafeTpFlags() const;
 
   long locals_idx;
-  Ref<PyTypeObject> pytype;
+  ThreadedRef<PyTypeObject> pytype;
   int optional;
   int exact;
   Type jit_type;
