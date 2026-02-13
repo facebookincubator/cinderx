@@ -2576,6 +2576,14 @@ BEGIN_RULES(Instruction::kMove)
   GEN("Rx", ASM(fmov, OP(0), OP(1)))
 END_RULES
 
+BEGIN_RULES(Instruction::kMoveRelaxed)
+  GEN("Rr", ASM(mov, OP(0), OP(1)))
+  GEN("Ri", CALL_C(translateMove))
+  GEN("Rm", CALL_C(translateMove))
+  GEN("Mr", CALL_C(translateMove))
+  GEN("Mi", CALL_C(translateMove))
+END_RULES
+
 BEGIN_RULES(Instruction::kGuard)
   GEN(ANY, CALL_C(TranslateGuard))
 END_RULES
