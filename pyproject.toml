@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cinderx"
 description = "Extension aimed at improving the performance of the Python runtime"
 dynamic = ["version"]
-requires-python = ">= 3.14, < 3.16"
+requires-python = ">= 3.14.3, < 3.16"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

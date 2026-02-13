@@ -13,16 +13,16 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
-        python-version: 3.14
+        python-version: 3.14.3
 
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@v7
 
     - name: Create venv
-      run: uv venv --python 3.14
+      run: uv venv --python 3.14.3
 
     - name: Build CinderX
-      run: uv build --wheel --python 3.14
+      run: uv build --wheel --python 3.14.3
 
     - name: Install CinderX
       run: uv pip install dist/*.whl
