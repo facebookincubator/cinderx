@@ -785,7 +785,12 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
 #if PY_VERSION_HEX >= 0x030E0000
   asmjit::BaseNode* stack_pointer_cursor = as_->cursor();
-  as_->add(scratch, arch::fp, FRAME_OFFSET(localsplus));
+  if (arm::Utils::isAddSubImm(-FRAME_OFFSET(localsplus))) {
+    as_->sub(scratch, arch::fp, -FRAME_OFFSET(localsplus));
+  } else {
+    as_->mov(scratch, -FRAME_OFFSET(localsplus));
+    as_->sub(scratch, arch::fp, scratch);
+  }
   as_->str(scratch, arch::ptr_offset(arch::fp, FRAME_OFFSET(stackpointer)));
   env_.addAnnotation(
       "Set _PyInterpreterFrame::stackpointer", stack_pointer_cursor);
