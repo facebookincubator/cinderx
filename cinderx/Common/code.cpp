@@ -229,6 +229,10 @@ CodeExtra* codeExtra(PyCodeObject* code) {
 
   auto code_obj = reinterpret_cast<PyObject*>(code);
 
+  // Lock the code object to prevent concurrent get-or-create races under
+  // FT-Python. Under GIL builds this is a no-op.
+  jit::CriticalSectionGuard guard(code_obj);
+
   void* data_ptr = nullptr;
   if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &data_ptr) < 0) {
     JIT_LOG("Failed to get code extra data for {}", codeName(code));

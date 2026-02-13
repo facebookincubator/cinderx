@@ -318,6 +318,31 @@ class ScopeExit {
   T lambda_;
 };
 
+// RAII wrapper for PyCriticalSection. Under GIL builds the class is empty
+// and the constructor/destructor are trivial no-ops.
+class CriticalSectionGuard final {
+ public:
+  explicit CriticalSectionGuard([[maybe_unused]] PyObject* obj) noexcept {
+#ifdef Py_GIL_DISABLED
+    PyCriticalSection_Begin(&cs_, obj);
+#endif
+  }
+  ~CriticalSectionGuard() {
+#ifdef Py_GIL_DISABLED
+    PyCriticalSection_End(&cs_);
+#endif
+  }
+  CriticalSectionGuard(const CriticalSectionGuard&) = delete;
+  CriticalSectionGuard& operator=(const CriticalSectionGuard&) = delete;
+  CriticalSectionGuard(CriticalSectionGuard&&) = delete;
+  CriticalSectionGuard& operator=(CriticalSectionGuard&&) = delete;
+
+ private:
+#ifdef Py_GIL_DISABLED
+  PyCriticalSection cs_;
+#endif
+};
+
 #define SCOPE_EXIT_INTERNAL2(lname, aname, ...) \
   auto lname = [&]() { __VA_ARGS__; };          \
   jit::ScopeExit<decltype(lname)> aname(std::move(lname));
