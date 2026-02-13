@@ -2084,8 +2084,8 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
     );
 
     static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
-    as_->str(
-        arch::reg_scratch_0,
+    as_->strb(
+        arch::reg_scratch_0.w(),
         arch::ptr_resolve(
             as_,
             a64::x2,
