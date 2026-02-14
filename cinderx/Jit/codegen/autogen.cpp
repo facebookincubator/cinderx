@@ -263,6 +263,8 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
 
   arch::Gp reg = arch::reg_scratch_0;
   bool is_double = false;
+  uint64_t mask = 0;
+  size_t sign_bit = 0;
   if (kind != kAlwaysFail) {
     if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
       JIT_CHECK(kind == kNotZero, "Only NotZero is supported for double")
@@ -271,7 +273,21 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
       as->cbz(reg, deopt_label);
       is_double = true;
     } else {
-      reg = AutoTranslator::getGp(instr->getInput(2));
+      auto data_type = instr->getInput(2)->dataType();
+      if (data_type == jit::lir::OperandBase::k8bit) {
+        mask = 0xFF;
+        sign_bit = 7;
+        // aarch64 doesn't have 8-bit registers, use 32-bit w register.
+        reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
+      } else if (data_type == jit::lir::OperandBase::k16bit) {
+        mask = 0xFFFF;
+        sign_bit = 15;
+        // aarch64 doesn't have 16-bit registers, use 32-bit w register.
+        reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
+      } else {
+        reg = AutoTranslator::getGp(instr->getInput(2));
+        sign_bit = reg.size() * CHAR_BIT - 1;
+      }
     }
   }
 
@@ -295,20 +311,29 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   if (!is_double) {
     switch (kind) {
       case kNotZero:
-        as->cbz(reg, deopt_label);
+        if (mask) {
+          as->tst(reg, mask);
+          as->b_eq(deopt_label);
+        } else {
+          as->cbz(reg, deopt_label);
+        }
         break;
       case kNotNegative: {
         // Ideally we'd do but we don't know if we're outside the 32kb
-        // displacement limit as->tbnz(reg, ((reg.size() * CHAR_BIT) - 1),
-        // deopt_label);
+        // displacement limit as->tbnz(reg, sign_bit, deopt_label);
         auto skip = as->newLabel();
-        as->tbz(reg, ((reg.size() * CHAR_BIT) - 1), skip);
+        as->tbz(reg, sign_bit, skip);
         as->b(deopt_label);
         as->bind(skip);
         break;
       }
       case kZero:
-        as->cbnz(reg, deopt_label);
+        if (mask) {
+          as->tst(reg, mask);
+          as->b_ne(deopt_label);
+        } else {
+          as->cbnz(reg, deopt_label);
+        }
         break;
       case kAlwaysFail:
         as->b(deopt_label);
@@ -2550,6 +2575,34 @@ void translateBitTest(Environ* env, const Instruction* instr) {
   as->tst(test_reg, mask);
 }
 
+void translateTst(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+
+  auto opnd0 = instr->getInput(0);
+  auto opnd1 = instr->getInput(1);
+  auto data_type = opnd0->dataType();
+
+  // For 8-bit and 16-bit values, shift the valid bits into the high bits of a
+  // 32-bit register using LSL so that TST sets the N and Z flags correctly for
+  // the sub-register width.
+  int shift = 0;
+  if (data_type == jit::lir::OperandBase::k8bit) {
+    shift = 24;
+  } else if (data_type == jit::lir::OperandBase::k16bit) {
+    shift = 16;
+  }
+
+  if (shift) {
+    auto w0 = asmjit::a64::w(opnd0->getPhyRegister().loc);
+    auto w1 = asmjit::a64::w(opnd1->getPhyRegister().loc);
+    auto scratch = arch::reg_scratch_0.w();
+    as->lsl(scratch, w0, shift);
+    as->tst(scratch, w1, arm::Shift(arm::ShiftOp::kLSL, shift));
+  } else {
+    as->tst(AT::getGp(opnd0), AT::getGp(opnd1));
+  }
+}
+
 void translateSelect(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
@@ -2767,7 +2820,7 @@ BEGIN_RULES(Instruction::kCmp)
 END_RULES
 
 BEGIN_RULES(Instruction::kTest)
-  GEN("rr", ASM(tst, OP(0), OP(1)))
+  GEN("rr", CALL_C(translateTst))
 END_RULES
 
 BEGIN_RULES(Instruction::kTest32)
