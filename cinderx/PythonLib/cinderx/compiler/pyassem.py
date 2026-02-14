@@ -3271,6 +3271,18 @@ class PyFlowGraph314(PyFlowGraph312):
 
 
 class PyFlowGraph315(PyFlowGraph314):
+    def _convert_IMPORT_NAME(self: PyFlowGraph, arg: object) -> int:
+        if isinstance(arg, tuple):
+            name, flags = arg
+            return (self.names.get_index(name) << 2) | flags
+        assert isinstance(arg, str)
+        return self.names.get_index(arg) << 2
+
+    _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
+        **PyFlowGraph314._converters,
+        "IMPORT_NAME": _convert_IMPORT_NAME,
+    }
+
     def maybe_propagate_location(
         self, instr: Instruction, loc: AST | SrcLocation
     ) -> None:

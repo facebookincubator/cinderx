@@ -7295,6 +7295,85 @@ class CodeGenerator315(CodeGenerator314):
         "set",
     )
 
+    # Import flags for IMPORT_NAME oparg encoding (CPython 3.15)
+    _IMPORT_DEFAULT = 0  # Runtime decides laziness
+    _IMPORT_LAZY = 1  # Explicitly lazy
+    _IMPORT_EAGER = 2  # Forced eager
+
+    def _in_exception_handler(self) -> bool:
+        """Check if we are inside an exception-related fblock."""
+        _EXCEPTION_FBLOCK_KINDS = frozenset(
+            {
+                TRY_EXCEPT,
+                FINALLY_TRY,
+                FINALLY_END,
+                EXCEPTION_HANDLER,
+                EXCEPTION_GROUP_HANDLER,
+                HANDLER_CLEANUP,
+            }
+        )
+        return any(e.kind in _EXCEPTION_FBLOCK_KINDS for e in self.setups)
+
+    def _get_import_flags(self, is_lazy: bool, is_star: bool = False) -> int:
+        """Determine the low 2 bits for IMPORT_NAME oparg."""
+        if is_lazy:
+            return self._IMPORT_LAZY
+        if (
+            self._in_exception_handler()
+            or not isinstance(self.scope, ModuleScope)
+            or is_star
+        ):
+            return self._IMPORT_EAGER
+        return self._IMPORT_DEFAULT
+
+    def emit_import_name(self, name: str) -> None:
+        # 3.15 does not use the simple name form; callers must use
+        # visitImport/visitImportFrom which pass (name, flags) tuples.
+        self.emit("IMPORT_NAME", name)
+
+    def _emit_import_name_with_flags(self, name: str, flags: int) -> None:
+        self.emit("IMPORT_NAME", (name, flags))
+
+    def visitImport(self, node: ast.Import) -> None:
+        level = 0
+        is_lazy = getattr(node, "is_lazy", False)
+        flags = self._get_import_flags(is_lazy)
+        for alias in node.names:
+            name = alias.name
+            asname = alias.asname
+            self.emit("LOAD_CONST", level)
+            self.emit("LOAD_CONST", None)
+            self._emit_import_name_with_flags(self.mangle(name), flags)
+            mod = name.split(".")[0]
+            if asname:
+                self.emitImportAs(name, asname)
+            else:
+                self.storeName(mod)
+
+    def visitImportFrom(self, node: ast.ImportFrom) -> None:
+        level = node.level
+        fromlist = tuple(alias.name for alias in node.names)
+        is_lazy = getattr(node, "is_lazy", False)
+        is_star = any(alias.name == "*" for alias in node.names)
+        flags = self._get_import_flags(is_lazy, is_star)
+        self.emit("LOAD_CONST", level)
+        self.emit("LOAD_CONST", fromlist)
+        self._emit_import_name_with_flags(node.module or "", flags)
+        for alias in node.names:
+            name = alias.name
+            asname = alias.asname
+            if name == "*":
+                # pyre-fixme[16] This field does not appear to be used.
+                self.namespace = 0
+                self.emit_import_star()
+                # There can only be one name w/ from ... import *
+                assert len(node.names) == 1
+                return
+            else:
+                self.emit("IMPORT_FROM", name)
+                self.storeName(asname or name)
+        self.emit("POP_TOP")
+
     def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
         if e.kind == FOR_LOOP:
             if preserve_tos:
