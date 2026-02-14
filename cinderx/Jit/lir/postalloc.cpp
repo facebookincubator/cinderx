@@ -682,6 +682,41 @@ RewriteResult rewriteBinaryOpInstrs(instr_iter_t instr_iter) {
   return kUnchanged;
 }
 
+#if defined(CINDER_AARCH64)
+// AARCH64 only has 32-bit (W) and 64-bit (X) register operands. Rewrite 8-bit
+// and 16-bit register-to-register moves to use 32-bit registers instead.
+RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  if (!instr->isMove()) {
+    return kUnchanged;
+  }
+
+  auto out = instr->output();
+  if (!out->isReg()) {
+    return kUnchanged;
+  }
+
+  auto size = out->dataType();
+  if (size != OperandBase::k8bit && size != OperandBase::k16bit) {
+    return kUnchanged;
+  }
+
+  auto in = instr->getInput(0);
+  if (!in->isReg() && !in->isImm()) {
+    return kUnchanged;
+  }
+
+  size = in->dataType();
+  if (size != OperandBase::k8bit && size != OperandBase::k16bit) {
+    return kUnchanged;
+  }
+
+  out->setDataType(OperandBase::k32bit);
+  static_cast<Operand*>(in)->setDataType(OperandBase::k32bit);
+  return kChanged;
+}
+#endif
+
 #if defined(CINDER_X86_64)
 // Rewrite 8-bit multiply to use single-operand imul.
 RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
@@ -1042,6 +1077,8 @@ void PostRegAllocRewrite::registerRewrites() {
 
 #if defined(CINDER_X86_64)
   registerOneRewriteFunction(rewriteByteMultiply);
+#elif defined(CINDER_AARCH64)
+  registerOneRewriteFunction(rewriteSubWordRegMoves);
 #endif
 
   registerOneRewriteFunction(optimizeMoveSequence, 1);
