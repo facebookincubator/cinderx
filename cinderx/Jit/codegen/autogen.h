@@ -32,9 +32,8 @@ class AutoTranslator {
 
   void translateInstr(Environ* env, const jit::lir::Instruction* instr) const;
 
-  static arch::Gp getGp(const lir::OperandBase* op, unsigned int reg) {
+  static arch::Gp getGp(lir::DataType data_type, unsigned int reg) {
 #if defined(CINDER_X86_64)
-    auto data_type = op->dataType();
     switch (data_type) {
       case jit::lir::OperandBase::k8bit:
         return asmjit::x86::gpb(reg);
@@ -51,7 +50,6 @@ class AutoTranslator {
 #elif defined(CINDER_AARCH64)
     JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
 
-    auto data_type = op->dataType();
     switch (data_type) {
       case jit::lir::OperandBase::k8bit:
       case jit::lir::OperandBase::k16bit:
@@ -64,6 +62,36 @@ class AutoTranslator {
       case jit::lir::OperandBase::kDouble:
         JIT_ABORT("incorrect register type.");
     }
+#else
+    CINDER_UNSUPPORTED
+#endif
+    Py_UNREACHABLE();
+  }
+
+  static arch::Gp getGp(const lir::OperandBase* op, unsigned int reg) {
+#if defined(CINDER_X86_64)
+    return getGp(op->dataType(), reg);
+#elif defined(CINDER_AARCH64)
+    JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
+    return getGp(op->dataType(), reg);
+#else
+    CINDER_UNSUPPORTED
+#endif
+    Py_UNREACHABLE();
+  }
+
+  static arch::Gp getGpOutput(const lir::OperandBase* op, unsigned int reg) {
+#if defined(CINDER_X86_64)
+    return getGp(op->dataType(), reg);
+#elif defined(CINDER_AARCH64)
+    JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
+    auto data_type = op->dataType();
+
+    if (data_type == jit::lir::OperandBase::k8bit ||
+        data_type == jit::lir::OperandBase::k16bit) {
+      return asmjit::a64::w(reg);
+    }
+    return getGp(op->dataType(), reg);
 #else
     CINDER_UNSUPPORTED
 #endif
@@ -95,6 +123,10 @@ class AutoTranslator {
 
   static arch::Gp getGp(const jit::lir::OperandBase* op) {
     return getGp(op, op->getPhyRegister().loc);
+  }
+
+  static arch::Gp getGpOutput(const jit::lir::OperandBase* op) {
+    return getGpOutput(op, op->getPhyRegister().loc);
   }
 
  private:

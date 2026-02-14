@@ -459,7 +459,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
     as->fcmp(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
 
-  auto output = AutoTranslator::getGp(instr->output());
+  auto output = AutoTranslator::getGpOutput(instr->output());
   switch (instr->opcode()) {
     case Instruction::kEqual:
       as->cset(output, arm::CondCode::kEQ);
@@ -517,7 +517,7 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
 #elif defined(CINDER_AARCH64)
   a64::Builder* as = env->as;
   const OperandBase* input = instr->getInput(0);
-  a64::Gp output = AutoTranslator::getGp(instr->output());
+  a64::Gp output = AutoTranslator::getGpOutput(instr->output());
   JIT_CHECK(
       instr->output()->dataType() == OperandBase::k8bit,
       "Output should be 8bits, not {}",
@@ -1869,16 +1869,17 @@ void storeFromReg(
   if (input->isVecD()) {
     as->str(AT::getVecD(input), output);
   } else {
-    auto reg = AT::getGp(input);
     switch (input->dataType()) {
       case OperandBase::k8bit:
-        as->strb(reg, output);
+        as->strb(
+            AT::getGp(DataType::k32bit, input->getPhyRegister().loc), output);
         break;
       case OperandBase::k16bit:
-        as->strh(reg, output);
+        as->strh(
+            AT::getGp(DataType::k32bit, input->getPhyRegister().loc), output);
         break;
       default:
-        as->str(reg, output);
+        as->str(AT::getGp(input), output);
         break;
     }
   }
@@ -1992,7 +1993,17 @@ void translateMove(Environ* env, const Instruction* instr) {
           if (output->isVecD()) {
             as->ldr(AT::getVecD(output), ptr);
           } else {
-            as->ldr(AT::getGp(output), ptr);
+            switch (output->dataType()) {
+              case OperandBase::k8bit:
+                as->ldrb(AT::getGpOutput(output), ptr);
+                break;
+              case OperandBase::k16bit:
+                as->ldrh(AT::getGpOutput(output), ptr);
+                break;
+              default:
+                as->ldr(AT::getGp(output), ptr);
+                break;
+            }
           }
           break;
         }
@@ -2119,7 +2130,7 @@ void translateMovExtOp(
     EmitLoad16Fn emit_load16) {
   a64::Builder* as = env->as;
 
-  auto output = AT::getGp(instr->output());
+  auto output = AT::getGpOutput(instr->output());
   const OperandBase* input = instr->getInput(0);
   int input_size = input->sizeInBits();
 
@@ -2196,7 +2207,7 @@ void translateMovSX(Environ* env, const Instruction* instr) {
 void translateMovSXD(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  auto output = AT::getGp(instr->output());
+  auto output = AT::getGpOutput(instr->output());
   const OperandBase* input = instr->getInput(0);
 
   if (input->isReg()) {
@@ -2542,8 +2553,23 @@ void translateBitTest(Environ* env, const Instruction* instr) {
 void translateSelect(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  auto output = AT::getGp(instr->output());
-  auto condition_reg = AT::getGp(instr->getInput(0));
+  auto output = AT::getGpOutput(instr->output());
+  auto condition_op = instr->getInput(0);
+  arch::Gp condition_reg;
+  switch (condition_op->dataType()) {
+    case jit::lir::OperandBase::k8bit:
+    case jit::lir::OperandBase::k16bit:
+      condition_reg =
+          AT::getGp(DataType::k32bit, condition_op->getPhyRegister().loc);
+      as->and_(
+          condition_reg,
+          condition_reg,
+          (1 << bitSize(condition_op->dataType())) - 1);
+      break;
+    default:
+      condition_reg = AT::getGp(condition_op);
+      break;
+  }
   auto true_val_reg = AT::getGp(instr->getInput(1));
   auto false_val = instr->getInput(2)->getConstant();
 
