@@ -11,6 +11,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/gen_data_footer.h"
+#include "cinderx/Jit/symbolizer.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
@@ -107,12 +108,38 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
   } else {
     frame_base = getFrameBaseFromOnStackFrame(frame);
   }
-  // Read the saved IP from the stack
+  // Read the saved IP from the stack.
+#if defined(__x86_64__)
+  // On x86, `call` pushes the return address on the stack at a fixed
+  // location relative to the caller's frame pointer.
   uintptr_t ip;
   auto saved_ip =
       reinterpret_cast<uintptr_t*>(frame_base - frame_size - kPointerSize);
   memcpy(&ip, saved_ip, kPointerSize);
   return ip;
+#elif defined(__aarch64__)
+  // On ARM64, `blr` stores the return address in lr (x30) rather than
+  // pushing it on the stack. The callee saves lr in its own frame at a
+  // position that depends on its prologue, so we cannot read it from a
+  // fixed offset below the JIT function's stack pointer.
+  //
+  // Walk the frame pointer chain to find the frame whose saved fp equals
+  // the JIT function's fp (frame_base). That frame belongs to the
+  // immediate callee of the JIT function, and its saved lr ([fp+8]) is
+  // the return address we need.
+  auto* fp = reinterpret_cast<uintptr_t*>(__builtin_frame_address(0));
+  while (fp != nullptr) {
+    auto saved_fp = fp[0];
+    if (saved_fp == frame_base) {
+      return fp[1];
+    }
+    fp = reinterpret_cast<uintptr_t*>(saved_fp);
+  }
+  JIT_ABORT("Could not find JIT frame in frame pointer chain");
+#else
+  // Unsupported architecture.
+  JIT_ABORT("getIP: unsupported architecture");
+#endif
 #else
   throw std::runtime_error{"getIP: Lightweight frames are not supported"};
 #endif
@@ -194,7 +221,10 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
     // generating the information). The consequences of getting this wrong
     // (incorrect line numbers) don't warrant aborting in production, but it is
     // worth investigating. Leave some breadcrumbs to help with debugging.
-    JIT_LOG("No debug info for addr {:x}", ip);
+    JIT_LOG(
+        "No debug info for addr {:x} {}",
+        ip,
+        symbolize(reinterpret_cast<void*>(ip)).value_or("no symbol"));
     logUnitFrames();
     JIT_DABORT("No debug info for addr {:x}", ip);
     for (_PyInterpreterFrame* unit_frame : unit_frames) {

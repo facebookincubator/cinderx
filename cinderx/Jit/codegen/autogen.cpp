@@ -1926,6 +1926,12 @@ void translateCall(Environ* env, const Instruction* instr) {
     JIT_ABORT("Unsupported operand type for Call: {}", input->type());
   }
 
+  if (instr->origin()) {
+    asmjit::Label label = as->newLabel();
+    as->bind(label);
+    env->pending_debug_locs.emplace_back(label, instr->origin());
+  }
+
   if (output->type() != OperandBase::kNone) {
     if (output->isVecD()) {
       as->mov(AT::getVecD(output), a64::d0);
