@@ -3226,7 +3226,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kEagerImportName: {
         auto instr = static_cast<const EagerImportName*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030F0000
+        bbb.appendCallInstruction(
+            i.output(),
+            JITRT_ImportName,
+            env_->asm_tstate,
+            name,
+            instr->GetFromList(),
+            instr->GetLevel());
+#elif PY_VERSION_HEX >= 0x030E0000
         // asm_interpreter_frame isn't right for inlined functions but we don't
         // allow inlining of things which contain EagerImportName instructions.
         bbb.appendCallInstruction(

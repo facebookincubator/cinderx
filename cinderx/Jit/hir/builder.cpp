@@ -4415,6 +4415,15 @@ void HIRBuilder::emitImportFrom(
   stack.push(res);
 }
 
+// Adjusts the oparg for import name to be the name index.
+int importNameIdx(int oparg) {
+  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+    return oparg >> 2;
+  } else {
+    return oparg;
+  }
+}
+
 void HIRBuilder::emitImportName(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
@@ -4425,7 +4434,8 @@ void HIRBuilder::emitImportName(
   if (bc_instr.opcode() == EAGER_IMPORT_NAME) {
     tc.emit<EagerImportName>(res, bc_instr.oparg(), fromlist, level, tc.frame);
   } else {
-    tc.emit<ImportName>(res, bc_instr.oparg(), fromlist, level, tc.frame);
+    tc.emit<ImportName>(
+        res, importNameIdx(bc_instr.oparg()), fromlist, level, tc.frame);
   }
   stack.push(res);
 }

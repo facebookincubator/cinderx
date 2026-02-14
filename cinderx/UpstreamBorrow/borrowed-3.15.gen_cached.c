@@ -28,6 +28,7 @@
 #include "internal/pycore_descrobject.h"
 #include "internal/pycore_long.h"
 #include "internal/pycore_optimizer.h"     // _PyExecutorObject
+#include "internal/pycore_lazyimportobject.h"
 #ifdef ENABLE_LAZY_IMPORTS
 #include "pycore_import.h"        // _PyImport_LoadLazyImport()
 #include "pycore_lazyimport.h"    // _PyLazyImport_New(), _PyLazyImport_GetName()
