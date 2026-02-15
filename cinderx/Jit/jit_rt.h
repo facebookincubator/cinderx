@@ -93,6 +93,19 @@ void JITRT_UnlinkPyFrame(PyThreadState* tstate);
 void JITRT_UnlinkFrame(bool unlink_shadow_frame);
 
 /*
+ * Call a Python function through the interpreter's vectorcall entry point,
+ * bypassing any JIT-patched entrypoint.
+ *
+ * This is primarily used as a portable fallback when native code generation is
+ * unavailable.
+ */
+PyObject* JITRT_CallInterpretedVectorcall(
+    PyObject* func,
+    PyObject* const* stack,
+    size_t nargsf,
+    PyObject* kwnames);
+
+/*
  * Handles a call that includes kw arguments or excess tuple arguments
  */
 PyObject* JITRT_CallWithKeywordArgs(

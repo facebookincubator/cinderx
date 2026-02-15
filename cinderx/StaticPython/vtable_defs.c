@@ -656,7 +656,7 @@ StaticMethodInfo _PyVTable_load_generic(PyObject* state, PyObject* self) {
   return res;
 }
 
-[[gnu::used]] _PyClassLoader_StaticCallReturn _PyVTable_thunk_native(
+__attribute__((used)) _PyClassLoader_StaticCallReturn _PyVTable_thunk_native(
     _PyClassLoader_MethodThunk* thunk,
     void** args) {
   assert(

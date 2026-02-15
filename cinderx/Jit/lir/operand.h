@@ -31,16 +31,17 @@ class OperandBase {
 
   OperandBase(const OperandBase& ob);
 
-#define OPERAND_TYPE_DEFINES(V, ...) \
-  using OperandType::k##V;           \
-                                     \
-  bool is##V() const {               \
-    return type() == Type::k##V;     \
+#define OPERAND_TYPE_DEFINES(V, ...)        \
+  static constexpr Type k##V = Type::k##V; \
+                                           \
+  bool is##V() const {                     \
+    return type() == Type::k##V;           \
   }
   FOREACH_OPERAND_TYPE(OPERAND_TYPE_DEFINES)
 #undef OPERAND_TYPE_DEFINES
 
-#define OPERAND_DATA_TYPE_DEFINES(V, ...) using DataType::k##V;
+#define OPERAND_DATA_TYPE_DEFINES(V, ...) \
+  static constexpr DataType k##V = DataType::k##V;
   FOREACH_OPERAND_DATA_TYPE(OPERAND_DATA_TYPE_DEFINES)
 #undef OPERAND_DATA_TYPE_DEFINES
 

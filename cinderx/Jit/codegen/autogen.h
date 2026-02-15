@@ -53,7 +53,6 @@ class AutoTranslator {
     switch (data_type) {
       case jit::lir::OperandBase::k8bit:
       case jit::lir::OperandBase::k16bit:
-        JIT_ABORT("Unsupported register size in aarch64.");
       case jit::lir::OperandBase::k32bit:
         return asmjit::a64::w(reg);
       case jit::lir::OperandBase::kObject:

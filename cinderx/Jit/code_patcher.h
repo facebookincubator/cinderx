@@ -3,7 +3,6 @@
 #pragma once
 
 #include <array>
-#include <bit>
 #include <cstdint>
 #include <span>
 
@@ -113,10 +112,13 @@ class CodePatcher {
   };
 
   // Avoids hardcoding the bit-pattern to access Flags::lock.
-  static constexpr uint8_t lockBit() {
-    Flags f{};
-    f.lock = true;
-    return std::bit_cast<uint8_t>(f);
+  static uint8_t lockBit() {
+    union {
+      Flags flags;
+      uint8_t byte;
+    } u{};
+    u.flags.lock = true;
+    return u.byte;
   }
 };
 
