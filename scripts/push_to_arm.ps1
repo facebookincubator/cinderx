@@ -8,7 +8,7 @@ param(
   [string]$WorkBranch = "arm-jit",
 
   # ARM host to deploy+test on.
-  [string]$ArmHost = "124.70.162.35",
+  [string]$ArmHost = "arm-host",
   [string]$User = "root",
 
   # Where the (non-git) working tree lives on ARM (rsync target).
@@ -59,6 +59,8 @@ $tmpDir = Join-Path $env:TEMP ("cinderx_arm_push_" + $timestamp)
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 $tarPath = Join-Path $tmpDir ("cinderx-src_" + $timestamp + ".tar")
 
+$sshOpts = "-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+
 try {
   # 1) Sync/rebase (Windows only), then archive WorkBranch.
   $syncScript = Join-Path $PSScriptRoot "sync_upstream.ps1"
@@ -93,8 +95,8 @@ try {
   }
 
   # 2) Copy archive to ARM.
-  Exec ("ssh {0}@{1} `"mkdir -p {2}`"" -f $User, $ArmHost, $RemoteIncomingDir)
-  Exec ("scp `"{0}`" {1}@{2}:{3}/cinderx-update.tar" -f $tarPath, $User, $ArmHost, $RemoteIncomingDir)
+  Exec ("ssh {0} {1}@{2} `"mkdir -p {3}`"" -f $sshOpts, $User, $ArmHost, $RemoteIncomingDir)
+  Exec ("scp {0} `"{1}`" {2}@{3}:{4}/cinderx-update.tar" -f $sshOpts, $tarPath, $User, $ArmHost, $RemoteIncomingDir)
 
   # 3) Push the ARM helper script and execute it remotely (build + smoke + pyperformance gate).
   $remoteScript = Join-Path $PSScriptRoot "arm\\remote_update_build_test.sh"
@@ -102,7 +104,10 @@ try {
     throw "Missing remote helper script: $remoteScript"
   }
 
-  Exec ("scp `"{0}`" {1}@{2}:{3}/remote_update_build_test.sh" -f $remoteScript, $User, $ArmHost, $RemoteIncomingDir)
+  Exec ("scp {0} `"{1}`" {2}@{3}:{4}/remote_update_build_test.sh" -f $sshOpts, $remoteScript, $User, $ArmHost, $RemoteIncomingDir)
+
+  # Ensure LF line endings on the ARM host (Windows checkouts often use CRLF).
+  Exec ("ssh {0} {1}@{2} `"tr -d '\\r' < {3}/remote_update_build_test.sh > {3}/remote_update_build_test.sh.lf && mv {3}/remote_update_build_test.sh.lf {3}/remote_update_build_test.sh`"" -f $sshOpts, $User, $ArmHost, $RemoteIncomingDir)
 
   $skip = $(if ($SkipPyperformance) { 1 } else { 0 })
   $recreate = $(if ($RecreatePyperfVenv) { 1 } else { 0 })
@@ -126,7 +131,7 @@ try {
     "$RemoteIncomingDir/remote_update_build_test.sh"
   ) -join " "
 
-  Exec ("ssh {0}@{1} `"{2}`"" -f $User, $ArmHost, $runCmd)
+  Exec ("ssh {0} {1}@{2} `"{3}`"" -f $sshOpts, $User, $ArmHost, $runCmd)
 } finally {
   if (Test-Path $tmpDir) {
     Remove-Item -Recurse -Force $tmpDir | Out-Null

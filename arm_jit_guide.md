@@ -6,11 +6,11 @@ This is a pragmatic, reproducible workflow to get CinderX JIT running on ARM, th
 
 Do upstream sync in a *git* clone, and treat the ARM host as the place that validates builds/benchmarks.
 
-- Upstream clone (git): `d:\code\cinderx-upstream-20260213`
-- Work branch: `arm-jit`
-- ARM host build dir: `/root/work/cinderx-main` (or `/root/work/cinderx-upstream`)
+- Upstream clone (git): your local git clone of `facebookincubator/cinderx`
+- Work branch: `arm-jit` (or your own branch name)
+- ARM host build dir: e.g. `/root/work/cinderx-main`
 
-If you only have a non-git snapshot (`d:\code\cinderx-main`), it is fine for local browsing, but it is not a good long-term base for syncing.
+If you only have a non-git snapshot, it is fine for local browsing, but it is not a good long-term base for syncing.
 
 ## 1. ARM Host Prereqs (Generic)
 
@@ -120,14 +120,14 @@ This makes ARM bring-up tractable: "fix one crash, re-run richards".
 
 ### Option A (Recommended): Sync On Windows (git) -> copy to ARM
 
-- Fetch/rebase in `d:\code\cinderx-upstream-20260213`
+- Fetch/rebase in your local git clone
 - Create a `git archive` tarball and `scp` it to ARM
 - On ARM: rsync into the non-git working tree (preserve `scratch/`), rebuild wheel, run smoke + `pyperformance richards`
 
 One-command driver:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\push_to_arm.ps1 -RepoPath d:\code\cinderx-upstream-20260213
+powershell -ExecutionPolicy Bypass -File scripts\push_to_arm.ps1 -RepoPath <path-to-your-git-clone> -ArmHost <arm-host>
 ```
 
 ### Option B: Sync Directly On ARM (git clone on ARM)
