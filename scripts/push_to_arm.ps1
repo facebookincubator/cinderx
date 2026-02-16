@@ -107,7 +107,7 @@ try {
   Exec ("scp {0} `"{1}`" {2}@{3}:{4}/remote_update_build_test.sh" -f $sshOpts, $remoteScript, $User, $ArmHost, $RemoteIncomingDir)
 
   # Ensure LF line endings on the ARM host (Windows checkouts often use CRLF).
-  Exec ("ssh {0} {1}@{2} `"tr -d '\\r' < {3}/remote_update_build_test.sh > {3}/remote_update_build_test.sh.lf && mv {3}/remote_update_build_test.sh.lf {3}/remote_update_build_test.sh`"" -f $sshOpts, $User, $ArmHost, $RemoteIncomingDir)
+  Exec ("ssh {0} {1}@{2} `"tr -d '\r' < {3}/remote_update_build_test.sh > {3}/remote_update_build_test.sh.lf && mv {3}/remote_update_build_test.sh.lf {3}/remote_update_build_test.sh`"" -f $sshOpts, $User, $ArmHost, $RemoteIncomingDir)
 
   $skip = $(if ($SkipPyperformance) { 1 } else { 0 })
   $recreate = $(if ($RecreatePyperfVenv) { 1 } else { 0 })
