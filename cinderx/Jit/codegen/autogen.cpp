@@ -1148,7 +1148,6 @@ struct RegOperand {
     switch (size) {
       case 8:
       case 16:
-        JIT_ABORT("Currently unsupported size.");
       case 32:
         return asmjit::a64::w(reg.loc);
       case 64:
@@ -1776,6 +1775,14 @@ void leaIndex(
     arch::Gp base,
     arch::Gp index,
     uint8_t multiplier) {
+  // NOTE: LIR encodes scaled-index multipliers as log2(scale). For example:
+  //  - multiplier=0 => scale=1
+  //  - multiplier=1 => scale=2
+  //  - multiplier=2 => scale=4
+  //  - multiplier=3 => scale=8
+  //
+  // AArch64 supports scaled indexing via lsl, so interpret `multiplier` as the
+  // shift amount. This also avoids clobbering `index` when `output == index`.
   switch (multiplier) {
     case 0:
       as->add(output, base, index);
@@ -1790,8 +1797,12 @@ void leaIndex(
       as->add(output, base, index, a64::lsl(3));
       break;
     default: {
-      // Use scratch register to avoid clobbering index when output and
-      // index are the same register.
+      // Fallback for unexpected multipliers: output = base + index * (1 <<
+      // multiplier). This case shouldn't normally be hit because LIR only
+      // produces 0..3.
+      //
+      // Use scratch register to avoid clobbering index when output and index
+      // are the same register.
       as->mov(arch::reg_scratch_0, uint64_t{1} << multiplier);
       as->madd(output, index, arch::reg_scratch_0, base);
       break;
@@ -2661,6 +2672,11 @@ BEGIN_RULES(Instruction::kMove)
   GEN("Rx", ASM(fmov, OP(0), OP(1)))
 END_RULES
 
+// Atomic move with relaxed ordering.
+//
+// This corresponds to the C++/C memory_order_relaxed. On AArch64 a relaxed
+// load/store can be implemented as a normal load/store; we use the same
+// lowering as kMove.
 BEGIN_RULES(Instruction::kMoveRelaxed)
   GEN("Rr", ASM(mov, OP(0), OP(1)))
   GEN("Ri", CALL_C(translateMove))

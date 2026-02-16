@@ -2039,10 +2039,10 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
         "offset to callee saved regs not initialized");
     as_->lea(x86::rsp, x86::ptr(x86::rbp, -env_.last_callee_saved_reg_off));
 
-    while (!saved_regs.Empty()) {
-      as_->pop(x86::gpq(saved_regs.GetLast().loc));
-      saved_regs.RemoveLast();
-    }
+  while (!saved_regs.Empty()) {
+    as_->pop(x86::gpq(saved_regs.GetLast().loc));
+    saved_regs.RemoveLast();
+  }
   }
 
   generateFunctionExit();

@@ -610,21 +610,17 @@ PyType_Slot gen_slots[] = {
     {0, nullptr},
 };
 
+// Generator/coroutine objects are variable-sized: their variable part begins at
+// gi_iframe.localsplus. This matches CPython's tp_basicsize
+// (Objects/genobject.c).
 constexpr size_t kGenObjectSize =
-#if PY_VERSION_HEX >= 0x030E0000
-    sizeof(PyGenObject)
-#else
-    // For 3.12 and 3.13 generator objects are variable-sized, so we use
-    // offsetof(). This is inherited from genobject.c.
-    offsetof(PyGenObject, gi_iframe) + offsetof(_PyInterpreterFrame, localsplus)
-#endif
-    ;
+    offsetof(PyGenObject, gi_iframe) + offsetof(_PyInterpreterFrame, localsplus);
 
 PyType_Spec JitGen_Spec = {
     .name = "builtins.generator",
     // We store our pointer to JIT data in an additional
     // variable slot at the end of the object.
-    .basicsize = kGenObjectSize + sizeof(GenDataFooter*),
+    .basicsize = kGenObjectSize,
     .itemsize = sizeof(PyObject*),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_IMMUTABLETYPE,
     .slots = gen_slots,
@@ -649,7 +645,7 @@ PyType_Spec JitCoro_Spec = {
     .name = "builtins.coroutine",
     // We store our pointer to JIT data in an additional variable slot at the
     // end of the object.
-    .basicsize = kGenObjectSize + sizeof(GenDataFooter*),
+    .basicsize = kGenObjectSize,
     .itemsize = sizeof(PyObject*),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
         Ci_TPFLAGS_HAVE_AM_EXTRA | Py_TPFLAGS_IMMUTABLETYPE,

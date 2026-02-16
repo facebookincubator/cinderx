@@ -11,13 +11,16 @@
 #ifdef __cplusplus
 #include "cinderx/Common/log.h"
 
+#include <cerrno>
 #include <charconv>
 #include <concepts>
 #include <cstdarg>
 #include <cstddef>
+#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <queue>
+#include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
@@ -189,12 +192,43 @@ combineHash(std::size_t seed, std::size_t hash, Args&&... args) {
 
 template <class T>
 std::optional<T> parseNumber(std::string_view s) {
-  T n = 0;
-  auto result = std::from_chars(&s.front(), (&s.back()) + 1, n);
-  if (result.ec == std::errc{}) {
-    return n;
+  if (s.empty()) {
+    return std::nullopt;
   }
-  return std::nullopt;
+
+  if constexpr (std::is_integral_v<T>) {
+    T n{};
+    const char* begin = s.data();
+    const char* end = begin + s.size();
+    auto result = std::from_chars(begin, end, n);
+    if (result.ec == std::errc{} && result.ptr == end) {
+      return n;
+    }
+    return std::nullopt;
+  } else if constexpr (std::is_floating_point_v<T>) {
+    // std::from_chars() for floating point types isn't implemented on older
+    // libstdc++ (for example libstdc++ 10 on some aarch64 distros).
+    std::string tmp{s};
+    char* p = nullptr;
+    errno = 0;
+    long double v = 0.0;
+
+    if constexpr (std::is_same_v<T, float>) {
+      v = std::strtof(tmp.c_str(), &p);
+    } else if constexpr (std::is_same_v<T, double>) {
+      v = std::strtod(tmp.c_str(), &p);
+    } else {
+      v = std::strtold(tmp.c_str(), &p);
+    }
+
+    if (p != nullptr && *p == '\0' && errno == 0) {
+      return static_cast<T>(v);
+    }
+    return std::nullopt;
+  } else {
+    static_assert(std::is_arithmetic_v<T>, "parseNumber only supports numbers");
+    return std::nullopt;
+  }
 }
 
 // Return the given PyUnicodeObject as a std::string, or "" if an error occurs.

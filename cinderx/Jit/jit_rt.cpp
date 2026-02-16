@@ -200,6 +200,22 @@ static int JITRT_BindKeywordArgs(
   return 1;
 }
 
+PyObject* JITRT_CallInterpretedVectorcall(
+    PyObject* func_obj,
+    PyObject* const* stack,
+    size_t nargsf,
+    PyObject* kwnames) {
+  // This helper is used by platform-specific stubs and should never recurse
+  // back into JIT entrypoints (which patch `func->vectorcall`).
+  if (!PyFunction_Check(func_obj)) {
+    return PyObject_Vectorcall(func_obj, stack, nargsf, kwnames);
+  }
+
+  auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
+  vectorcallfunc entry = getInterpretedVectorcall(func);
+  return entry(func_obj, stack, nargsf, kwnames);
+}
+
 // This uses JITRT_BindKeywordArgs to get the newly bound keyword
 // arguments.   We then turn around and dispatch to the
 // JITed function with the newly packed args.
