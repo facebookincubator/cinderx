@@ -85,6 +85,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // Can write to fields of its operands.
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kWaitHandleRelease:
+    case Opcode::kLoadFrame:
       return commonEffects(inst, AOther);
 
     // These can deopt but don't write to any memory locations when they fall
@@ -406,6 +407,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadCellItem:
     case Opcode::kLoadConst:
     case Opcode::kLoadCurrentFunc:
+    case Opcode::kLoadFrame:
     case Opcode::kLoadEvalBreaker:
     case Opcode::kLoadField:
     case Opcode::kLoadFieldAddress:

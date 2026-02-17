@@ -230,31 +230,6 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
     env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
   }
 
-#if PY_VERSION_HEX >= 0x030C0000
-
-  // Load the current interpreter frame pointer from tstate.
-
-#if PY_VERSION_HEX >= 0x030D0000
-  env_->asm_interpreter_frame = block->allocateInstr(
-      Instruction::kMove,
-      nullptr /* HIR instruction */,
-      OutVReg{},
-      Ind{env_->asm_tstate, offsetof(PyThreadState, current_frame)});
-#else
-  Instruction* cframe = block->allocateInstr(
-      Instruction::kMove,
-      nullptr /* HIR instruction */,
-      OutVReg{},
-      Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
-  env_->asm_interpreter_frame = block->allocateInstr(
-      Instruction::kMove,
-      nullptr /* HIR instruction */,
-      OutVReg{},
-      Ind{cframe, offsetof(_PyCFrame, current_frame)});
-#endif
-
-#endif
-
   return block;
 }
 
@@ -638,6 +613,24 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* dest = i.output();
         Instruction* func = env_->asm_func;
         bbb.appendInstr(dest, Instruction::kMove, func);
+        break;
+      }
+      case Opcode::kLoadFrame: {
+#if PY_VERSION_HEX >= 0x030D0000
+        env_->asm_interpreter_frame = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            Ind{env_->asm_tstate, offsetof(PyThreadState, current_frame)});
+#elif PY_VERSION_HEX >= 0x030C0000
+        auto* cframe = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
+        env_->asm_interpreter_frame = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            Ind{cframe, offsetof(_PyCFrame, current_frame)});
+#endif
         break;
       }
       case Opcode::kMakeCell: {

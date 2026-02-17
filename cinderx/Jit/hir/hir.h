@@ -2655,6 +2655,10 @@ class INSTR_CLASS(
 // any non-LoadArg instructions.
 DEFINE_SIMPLE_INSTR(LoadCurrentFunc, (), HasOutput, Operands<0>);
 
+// Load the current interpreter frame pointer from thread state. Must appear
+// in the prologue section alongside LoadArg/LoadCurrentFunc.
+DEFINE_SIMPLE_INSTR(LoadFrame, (), Operands<0>);
+
 // Load the value from the cell in operand
 DEFINE_SIMPLE_INSTR(LoadCellItem, (TOptObject), HasOutput, Operands<1>);
 

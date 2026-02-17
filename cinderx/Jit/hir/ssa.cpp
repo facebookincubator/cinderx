@@ -252,11 +252,12 @@ bool checkFunc(const Function& func, std::ostream& err) {
         phi_section = false;
       }
 
-      if (instr.IsLoadArg() || instr.IsLoadCurrentFunc()) {
+      if (instr.IsLoadArg() || instr.IsLoadCurrentFunc() ||
+          instr.IsLoadFrame()) {
         if (!allow_prologue_loads) {
           fmt::print(
               err,
-              "ERROR: '{}' in bb {} comes after non-LoadArg instruction\n",
+              "ERROR: '{}' in bb {} comes after non-Load* instruction\n",
               instr,
               block.id);
           env.ok = false;
@@ -356,8 +357,9 @@ Register* SSAify::getDefine(SSABasicBlock* ssablock, Register* reg) {
     // which explicitly come first.
     if (null_reg_ == nullptr) {
       auto it = ssablock->block->begin();
-      while (it != ssablock->block->end() &&
-             (it->IsLoadArg() || it->IsLoadCurrentFunc())) {
+      while (
+          it != ssablock->block->end() &&
+          (it->IsLoadArg() || it->IsLoadCurrentFunc() || it->IsLoadFrame())) {
         ++it;
       }
       null_reg_ = env_->AllocateRegister();

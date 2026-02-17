@@ -386,6 +386,7 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadCellItem:
     case Opcode::kLoadConst:
     case Opcode::kLoadCurrentFunc:
+    case Opcode::kLoadFrame:
     case Opcode::kLoadEvalBreaker:
     case Opcode::kLoadField:
     case Opcode::kLoadFieldAddress:
@@ -748,6 +749,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadCellItem:
     case Opcode::kLoadConst:
     case Opcode::kLoadCurrentFunc:
+    case Opcode::kLoadFrame:
     case Opcode::kLoadEvalBreaker:
     case Opcode::kLoadField:
     case Opcode::kLoadFieldAddress:

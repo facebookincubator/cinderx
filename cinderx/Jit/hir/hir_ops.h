@@ -100,6 +100,7 @@ namespace jit::hir {
   V(LoadCellItem)                      \
   V(LoadConst)                         \
   V(LoadCurrentFunc)                   \
+  V(LoadFrame)                         \
   V(LoadEvalBreaker)                   \
   V(AtQuiescentState)                  \
   V(LoadField)                         \

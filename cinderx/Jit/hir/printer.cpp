@@ -272,6 +272,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kListExtend:
     case Opcode::kLoadCellItem:
     case Opcode::kLoadCurrentFunc:
+    case Opcode::kLoadFrame:
     case Opcode::kLoadEvalBreaker:
     case Opcode::kAtQuiescentState:
     case Opcode::kLoadFieldAddress:
