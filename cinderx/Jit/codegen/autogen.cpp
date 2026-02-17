@@ -1437,8 +1437,6 @@ END_RULES
 // On x86-64, relaxed loads/stores are plain mov.
 // This corresponds to the C++/C memory_order_relaxed.
 BEGIN_RULES(Instruction::kMoveRelaxed)
-  GEN("Rr", ASM(mov, OP(0), OP(1)))
-  GEN("Ri", ASM(mov, OP(0), OP(1)))
   GEN("Rm", ASM(mov, OP(0), MEM(1)))
   GEN("Mr", ASM(mov, MEM(0), OP(1)))
   GEN("Mi", ASM(mov, MEM(0), OP(1)))
@@ -2662,8 +2660,6 @@ BEGIN_RULES(Instruction::kMove)
 END_RULES
 
 BEGIN_RULES(Instruction::kMoveRelaxed)
-  GEN("Rr", ASM(mov, OP(0), OP(1)))
-  GEN("Ri", CALL_C(translateMove))
   GEN("Rm", CALL_C(translateMove))
   GEN("Mr", CALL_C(translateMove))
   GEN("Mi", CALL_C(translateMove))
