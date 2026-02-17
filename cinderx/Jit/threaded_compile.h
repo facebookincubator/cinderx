@@ -38,6 +38,9 @@ class ThreadedCompileContext {
     work_list_ = std::move(work_list);
     compile_running_ = true;
     interpreter_ = PyInterpreterState_Get();
+#ifdef Py_GIL_DISABLED
+    tstate_ = PyThreadState_Get();
+#endif
   }
 
   // Stop the current iteration of the multi-threaded compile, and return the
@@ -86,6 +89,15 @@ class ThreadedCompileContext {
     }
     return PyInterpreterState_Get();
   }
+
+#ifdef Py_GIL_DISABLED
+  static PyThreadState* tstate() {
+    if (getThreadedCompileContext().compileRunning()) {
+      return getThreadedCompileContext().tstate_;
+    }
+    return PyThreadState_Get();
+  }
+#endif
 
  private:
   friend class ThreadedCompileSerialize;
@@ -166,6 +178,12 @@ class ThreadedCompileContext {
 
   // The interpreter state that kicked off the multi-threaded compile.
   PyInterpreterState* interpreter_;
+
+#ifdef Py_GIL_DISABLED
+  // The thread state of the main thread that kicked off the compile.
+  // Used by worker threads to update per-thread reftotal in FT debug builds.
+  PyThreadState* tstate_;
+#endif
 };
 
 // RAII device for acquiring the global threaded-compile lock.
@@ -284,7 +302,11 @@ class ThreadedRef : public RefBase<T> {
 
   static void incref(PyObject* obj) {
     if (obj != nullptr && !_Py_IsImmortal(obj)) {
+#ifdef Py_GIL_DISABLED
+      incref_total(ThreadedCompileContext::tstate());
+#else
       incref_total(ThreadedCompileContext::interpreter());
+#endif
 #ifdef Py_GIL_DISABLED
       uint32_t local = _Py_atomic_load_uint32_relaxed(&obj->ob_ref_local);
       uint32_t new_local = local + 1;
@@ -310,7 +332,11 @@ class ThreadedRef : public RefBase<T> {
 
   static void decref(PyObject* obj) {
     if (obj != nullptr && !_Py_IsImmortal(obj)) {
+#ifdef Py_GIL_DISABLED
+      decref_total(ThreadedCompileContext::tstate());
+#else
       decref_total(ThreadedCompileContext::interpreter());
+#endif
 #ifdef Py_GIL_DISABLED
       uint32_t local = _Py_atomic_load_uint32_relaxed(&obj->ob_ref_local);
       if (local == _Py_IMMORTAL_REFCNT_LOCAL) {
