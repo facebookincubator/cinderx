@@ -378,6 +378,34 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   return kRemoved;
 }
 
+#if defined(CINDER_AARCH64)
+// On AArch64, we never are going to produce an output that is less than 32-bits
+// for our comparisons so promote all of these to 32-bits so we don't need to
+// mask them.
+RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  switch (instr->opcode()) {
+    case Instruction::kEqual:
+    case Instruction::kNotEqual:
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+    case Instruction::kGreaterThanUnsigned:
+    case Instruction::kGreaterThanEqualUnsigned:
+    case Instruction::kLessThanUnsigned:
+    case Instruction::kLessThanEqualUnsigned:
+      if (instr->output()->sizeInBits() < 32) {
+        instr->output()->setDataType(DataType::k32bit);
+        return kChanged;
+      }
+      return kUnchanged;
+    default:
+      return kUnchanged;
+  }
+}
+#endif
+
 } // namespace
 
 void PostGenerationRewrite::registerRewrites() {
@@ -391,6 +419,8 @@ void PostGenerationRewrite::registerRewrites() {
 
 #if defined(CINDER_X86_64)
   registerOneRewriteFunction(rewriteMoveToMemoryLargeConstant, 1);
+#elif defined(CINDER_AARCH64)
+  registerOneRewriteFunction(rewritePromoteOutputSize, 1);
 #endif
 
   registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);
