@@ -51,13 +51,13 @@ void insertMoveToMemoryLocation(
       block->allocateInstrBefore(
           instr_iter,
           Instruction::kMove,
-          OutPhyReg{temp, data_type},
-          Imm{constant, data_type});
+          OutPhyReg{temp, DataType::k64bit},
+          Imm{constant, DataType::k64bit});
       block->allocateInstrBefore(
           instr_iter,
           Instruction::kMove,
-          OutInd{base, index, data_type},
-          PhyReg{temp, data_type});
+          OutInd{base, index, DataType::k64bit},
+          PhyReg{temp, DataType::k64bit});
     } else {
       block->allocateInstrBefore(
           instr_iter,
