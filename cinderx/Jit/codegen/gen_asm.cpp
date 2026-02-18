@@ -1289,6 +1289,7 @@ void* NativeGenerator::getVectorcallEntry() {
   } catch (const AsmJitException& ex) {
     String s;
     FormatOptions formatOptions;
+    formatOptions.setFlags(FormatFlags::kHexImms);
     Formatter::formatNodeList(s, formatOptions, as_);
     JIT_ABORT(
         "Failed to emit code for '{}': '{}' failed with '{}'\n\n"
