@@ -509,8 +509,7 @@ int ensurePyFunctionVectorcall() {
 // Schedule a function to be JIT-compiled.  If that fails, then also try
 // compiling a perf trampoline for the Python function.
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
-  bool scheduled =
-      jit::shouldScheduleCompile(func) && jit::scheduleJitCompile(func);
+  bool scheduled = jit::scheduleJitCompile(func);
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
     auto& perf_trampoline_worklist =
         cinderx::getModuleState()->perfTrampolineWorklist();

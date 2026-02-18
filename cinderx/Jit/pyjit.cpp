@@ -97,6 +97,13 @@ UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 std::atomic<int> g_compile_workers_attempted;
 std::atomic<int> g_compile_workers_retries;
 
+// Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
+// "annotations" which doesn't impact bytecode execution.)
+constexpr int required_code_flags = CO_OPTIMIZED | CO_NEWLOCALS;
+bool hasRequiredFlags(BorrowedRef<PyCodeObject> code) {
+  return (code->co_flags & required_code_flags) == required_code_flags;
+}
+
 uint64_t countCalls(PyCodeObject* code) {
 #if SHADOWCODE_SUPPORTED
   return code->co_mutable->ncalls;
@@ -1087,6 +1094,89 @@ bool compile_all(size_t workers = 0) {
   return true;
 }
 
+// Gets the eligibility for code or a function to be compiled. A function
+// can be ineligible, eligible due to the JIT list, or if there's no
+// jit list then just eligible. This is used to support handling nested
+// functions in the cases of multi-threaded compile / JIT list and without.
+//
+// In multi-threaded compile w/ a JIT list: We need to track the nested code
+// objects in jit_reg_units for when the multi-threaded compile kicks in and we
+// may not have created any functions yet. But we don't need that if we're not
+// doing multi-threaded compile, we'll only compile nested functions when a
+// function gets called. So that's why we track this as an extra state.
+//
+// In both cases we always need to track the outer function so that we don't
+// repeatedly re-compile nested functions - which is the big change here. That's
+// the processing that we were previously only doing when we had a JIT list so
+// now we're just skipping the jit_reg_units case when we're doing this for the
+// non-JIT list/multi-threaded compile case.
+enum class JitEligibility { Ineligible, JitListEligible, Eligible };
+
+/*
+ * Check for a functions eligibility to be compiled.
+ *
+ * This is the most broad definition of eligibility - that is it will only
+ * return Ineligible for functions which are specifically not allowed to
+ * be compiled for one reason or another.
+ *
+ * This doesn't guarantee that the function can or will be compiled, it just
+ * checks if the JIT has been configured in such a way that compilation is
+ * possible.
+ */
+JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func) {
+  // Can be called after the module has been finalized, due to function events.
+  if (jitCtx() == nullptr || isCinderModule(func->func_module)) {
+    return JitEligibility::Ineligible;
+  }
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  if (!hasRequiredFlags(code)) {
+    return JitEligibility::Ineligible;
+  }
+
+  // Note: This is not the same as fetching the function's code object and
+  // checking its module and qualname, as functions can be renamed after they
+  // are created.  Code objects cannot.
+  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+    if (jit_list->lookupFunc(func) == 1) {
+      return JitEligibility::JitListEligible;
+    }
+    return JitEligibility::Ineligible;
+  }
+
+  return JitEligibility::Eligible;
+}
+
+/*
+ * Variant of getCompilationEligibility() for nested code objects.
+ */
+JitEligibility getCompilationEligibility(
+    BorrowedRef<> module_name,
+    BorrowedRef<PyCodeObject> code) {
+  // Can be called after the module has been finalized, due to function events.
+  if (jitCtx() == nullptr) {
+    return JitEligibility::Ineligible;
+  }
+
+  if (isCinderModule(module_name)) {
+    return JitEligibility::Ineligible;
+  }
+
+  if (!hasRequiredFlags(code)) {
+    return JitEligibility::Ineligible;
+  }
+
+  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+    if (jit_list->lookupCode(code) == 1 ||
+        jit_list->lookupName(module_name, code->co_qualname) == 1) {
+      return JitEligibility::JitListEligible;
+    }
+    return JitEligibility::Ineligible;
+  }
+
+  return JitEligibility::Eligible;
+}
+
 // Recursively search the given co_consts tuple for any code objects that are
 // on the current jit-list, using the given module name to form a
 // fully-qualified function name.
@@ -1106,7 +1196,8 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
       BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
       if (!PyCode_Check(code) || !visited.insert(code).second ||
           code->co_qualname == nullptr ||
-          !shouldScheduleCompile(module, code)) {
+          getCompilationEligibility(module, code) ==
+              JitEligibility::Ineligible) {
         continue;
       }
 
@@ -1150,23 +1241,6 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
       "Not intended for using during threaded compilation");
   auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   jit_reg_units.emplace(func.getObj());
-
-  // Map this function's code object to itself.
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  BorrowedRef<PyCodeObject> func_code{func->func_code};
-  jit_code_outer_funcs.emplace(func_code, func);
-
-  // If we have an active jit-list, scan this function's code object for any
-  // nested functions that might be on the jit-list, and register them as well.
-  if (cinderx::getModuleState()->jitList() != nullptr) {
-    PyObject* module = func->func_module;
-    BorrowedRef<PyCodeObject> top_code{func->func_code};
-    BorrowedRef<> top_consts{top_code->co_consts};
-    for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
-      jit_reg_units.emplace(code.getObj());
-      jit_code_outer_funcs.emplace(code, func);
-    }
-  }
 
   return true;
 }
@@ -2952,6 +3026,39 @@ PyModuleDef jit_module = {
     nullptr, /* m_free */
 };
 
+void trackEligibleCodeObjects(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<PyCodeObject> func_code,
+    JitEligibility eligibility = JitEligibility::Eligible) {
+  // We need to maintain a mapping for all functions which are
+  // eligible for compilation at some point - we track the code
+  // object and their parent function.
+  // Map this function's code object to itself.
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  if (jit_code_outer_funcs.contains(func_code)) {
+    // already registered this code
+    return;
+  }
+
+  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
+
+  jit_code_outer_funcs.try_emplace(func_code, func);
+
+  // Scan this function's code object for any nested functions that
+  // might be compiled
+  PyObject* module = func->func_module;
+  BorrowedRef<> top_consts{func_code->co_consts};
+  for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
+    if (jit_code_outer_funcs.contains(code)) {
+      continue;
+    }
+    jit_code_outer_funcs.emplace(code, func);
+    if (eligibility == JitEligibility::JitListEligible) {
+      jit_reg_units.emplace(code.getObj());
+    }
+  }
+}
+
 // Preload a function and its dependencies, then compile them all.
 //
 // Failing to compile a dependent function is a soft failure, and is ignored.
@@ -2960,10 +3067,13 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // jitable function, resulting in a single-function compile
   hir::IsolatedPreloaders ip;
 
-  // Ensure the function's code object is mapped to itself.
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  BorrowedRef<PyCodeObject> func_code{func->func_code};
-  jit_code_outer_funcs.emplace(func_code, func);
+  // We generally track function objects when they are created. But we may need
+  // to re-track here. A function can have nested functions and those nested
+  // functions can out-live the function that created them. When the outer
+  // function is destroyed we need to remove the dangling registrations in
+  // codeOuterFunctions. We will treat whatever remains as new top-level
+  // functions.
+  trackEligibleCodeObjects(func, func->func_code);
 
   // Collect a list of functions to compile.  If it's empty then there must have
   // been a Python error during preloading.
@@ -3126,6 +3236,46 @@ constexpr std::string_view getCpuArchName() {
 #else
   return "unknown";
 #endif
+}
+
+// Unregister a function and its nested code objects from jit_reg_units and
+// jit_code_outer_funcs. Called when a function is destroyed or its code object
+// is being replaced.
+void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
+  if (!jitCtx()) {
+    return;
+  }
+  auto mod_state = cinderx::getModuleState();
+  if (!mod_state) {
+    return;
+  }
+
+  auto& jit_reg_units = mod_state->registeredCompilationUnits();
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+
+  BorrowedRef<PyCodeObject> top_code{func->func_code};
+  auto it = jit_code_outer_funcs.find(top_code);
+  if (it != jit_code_outer_funcs.end() && it->second == func) {
+    jit_code_outer_funcs.erase(it);
+    PyObject* module = func->func_module;
+    BorrowedRef<> top_consts{top_code->co_consts};
+    for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
+      jit_reg_units.erase(code);
+      auto existing = jit_code_outer_funcs.find(code);
+      if (existing != jit_code_outer_funcs.end() && existing->second == func) {
+        jit_code_outer_funcs.erase(code);
+      }
+      if (handle_unit_deleted_during_preload != nullptr) {
+        handle_unit_deleted_during_preload(code.getObj());
+      }
+    }
+  }
+
+  jit_reg_units.erase(func);
+  jit_reg_units.erase(top_code);
+  if (handle_unit_deleted_during_preload != nullptr) {
+    handle_unit_deleted_during_preload(func.getObj());
+  }
 }
 
 } // namespace
@@ -3435,44 +3585,25 @@ void finalize() {
 }
 
 bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
-  // Can be called after the module has been finalized, due to function events.
-  if (jitCtx() == nullptr) {
-    return false;
-  }
-
-  if (isCinderModule(func->func_module)) {
-    return false;
-  }
-
-  // Note: This is not the same as fetching the function's code object and
-  // checking its module and qualname, as functions can be renamed after they
-  // are created.  Code objects cannot.
-  if (auto jit_list = cinderx::getModuleState()->jitList()) {
-    return jit_list->lookupFunc(func) == 1;
-  }
-
   BorrowedRef<PyCodeObject> code{func->func_code};
   return shouldAlwaysScheduleCompile(code) ||
       getConfig().compile_after_n_calls.has_value();
 }
 
-bool shouldScheduleCompile(
-    BorrowedRef<> module_name,
-    BorrowedRef<PyCodeObject> code) {
-  if (isCinderModule(module_name)) {
+bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
+  auto eligible = getCompilationEligibility(func);
+  if (eligible == JitEligibility::Ineligible) {
+    return false;
+  }
+  trackEligibleCodeObjects(func, func->func_code, eligible);
+
+  // If we're not eligible due to the JIT list check if we have config (e.g.
+  // auto jit, jit all, or jit all static methods) that makes compilation happen
+  // automatically.
+  if (eligible == JitEligibility::Eligible && !shouldScheduleCompile(func)) {
     return false;
   }
 
-  if (auto jit_list = cinderx::getModuleState()->jitList()) {
-    return jit_list->lookupCode(code) == 1 ||
-        jit_list->lookupName(module_name, code->co_qualname) == 1;
-  }
-
-  return shouldAlwaysScheduleCompile(code) ||
-      getConfig().compile_after_n_calls.has_value();
-}
-
-bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // Could be creating an inner function with an already-compiled code object.
   if (isJitCompiled(func)) {
     return true;
@@ -3533,7 +3664,9 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
   worklist.push_back(func);
 
   auto shouldPreload = [&](BorrowedRef<PyFunctionObject> f) {
-    return !isPreloaded(f) && (shouldScheduleCompile(f) || forcePreload);
+    return !isPreloaded(f) &&
+        (forcePreload ||
+         getCompilationEligibility(f) != JitEligibility::Ineligible);
   };
 
   while (worklist.size() > 0 && result.size() < limit) {
@@ -3608,31 +3741,12 @@ void codeDestroyed(BorrowedRef<PyCodeObject> code) {
 }
 
 void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
-  if (isJitUsable()) {
-    auto mod_state = cinderx::getModuleState();
-
-    auto& jit_reg_units = mod_state->registeredCompilationUnits();
-    jit_reg_units.erase(func.getObj());
-    if (handle_unit_deleted_during_preload != nullptr) {
-      handle_unit_deleted_during_preload(func.getObj());
-    }
-
-    // erase any child code objects we registered too
-    if (mod_state->jitList() != nullptr) {
-      auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-      PyObject* module = func->func_module;
-      BorrowedRef<PyCodeObject> top_code{func->func_code};
-      BorrowedRef<> top_consts{top_code->co_consts};
-      for (BorrowedRef<PyCodeObject> code :
-           findNestedCodes(module, top_consts)) {
-        jit_reg_units.erase(code);
-        jit_code_outer_funcs.erase(code);
-        if (handle_unit_deleted_during_preload != nullptr) {
-          handle_unit_deleted_during_preload(code.getObj());
-        }
-      }
-    }
+  auto mod_state = cinderx::getModuleState();
+  if (!mod_state) {
+    return;
   }
+
+  unregisterFunctionCodes(func);
 
   // Have to check if context exists as this can fire after jit::finalize().
   if (jitCtx()) {
@@ -3646,6 +3760,11 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
 
 void funcModified(BorrowedRef<PyFunctionObject> func) {
   deoptFunc(func);
+  // Clean up registrations for the old code object. At this point
+  // func->func_code still refers to the old code. The caller will update
+  // func->func_code and call scheduleCompile() to re-register with the new
+  // code.
+  unregisterFunctionCodes(func);
 }
 
 void typeDestroyed(BorrowedRef<PyTypeObject> type) {
@@ -3691,10 +3810,7 @@ _PyJIT_Result compilePreloaderImpl(
   BorrowedRef<PyDictObject> builtins = preloader.builtins();
   BorrowedRef<PyDictObject> globals = preloader.globals();
 
-  // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
-  // "annotations" which doesn't impact bytecode execution.)
-  int required_flags = CO_OPTIMIZED | CO_NEWLOCALS;
-  if ((code->co_flags & required_flags) != required_flags) {
+  if (!hasRequiredFlags(code)) {
     JIT_DLOG(
         "Can't compile {} due to missing required code flags",
         preloader.fullname());
