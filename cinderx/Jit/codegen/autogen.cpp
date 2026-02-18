@@ -296,12 +296,7 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
     auto target_opnd = instr->getInput(kTargetIndex);
     if (target_opnd->isImm() || target_opnd->isMem()) {
       auto target = target_opnd->getConstantOrAddress();
-      JIT_DCHECK(
-          arm::Utils::isAddSubImm(target),
-          "Constant operand should fit into a 12-bit constant, optionally "
-          "shifted by 12 bits, got {:x}.",
-          target);
-      as->cmp(reg_arg, target);
+      arch::cmp_immediate(as, reg_arg, target);
     } else {
       auto target_reg = AutoTranslator::getGpWiden(target_opnd);
       as->cmp(reg_arg, target_reg);
@@ -470,15 +465,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
     as->cmp(AutoTranslator::getGpWiden(inp0), scratch);
   } else if (inp1->isImm()) {
     auto constant = inp1->getConstantOrAddress();
-
-    if (arm::Utils::isAddSubImm(constant)) {
-      as->cmp(AutoTranslator::getGpWiden(inp0), constant);
-    } else {
-      auto scratch = AutoTranslator::getGpWiden(
-          inp0->dataType(), arch::reg_scratch_0.id());
-      as->mov(scratch, constant);
-      as->cmp(AutoTranslator::getGpWiden(inp0), scratch);
-    }
+    arch::cmp_immediate(as, AutoTranslator::getGpWiden(inp0), constant);
   } else if (!inp1->isVecD()) {
     as->cmp(AutoTranslator::getGpWiden(inp0), AutoTranslator::getGpWiden(inp1));
   } else {
@@ -1819,24 +1806,7 @@ void leaIndirect(
 
     base = output;
   }
-
-  if (offset > 0) {
-    if (arm::Utils::isAddSubImm(static_cast<uint64_t>(offset))) {
-      as->add(output, base, offset);
-    } else {
-      as->mov(scratch0, offset);
-      as->add(output, base, scratch0);
-    }
-  } else if (offset < 0) {
-    if (arm::Utils::isAddSubImm(static_cast<uint64_t>(-offset))) {
-      as->sub(output, base, -offset);
-    } else {
-      as->mov(scratch0, -offset);
-      as->sub(output, base, scratch0);
-    }
-  } else if (indexRegOperand == nullptr) {
-    as->mov(output, base);
-  }
+  arch::add_signed_immediate(as, output, base, offset);
 }
 
 // Resolve the memory address represented by a MemoryIndirect into an a64::Mem
@@ -1919,25 +1889,7 @@ void translateLea(Environ* env, const Instruction* instr) {
   JIT_CHECK(output->isReg(), "Expected output to be a register");
 
   if (input->isStack()) {
-    auto loc = input->getStackSlot().loc;
-    auto out = AT::getGp(output);
-    if (loc > 0) {
-      if (arm::Utils::isAddSubImm(static_cast<uint64_t>(loc))) {
-        as->add(out, arch::fp, loc);
-      } else {
-        as->mov(arch::reg_scratch_0, loc);
-        as->add(out, arch::fp, arch::reg_scratch_0);
-      }
-    } else if (loc < 0) {
-      if (arm::Utils::isAddSubImm(static_cast<uint64_t>(-loc))) {
-        as->sub(out, arch::fp, -loc);
-      } else {
-        as->mov(arch::reg_scratch_0, -loc);
-        as->sub(out, arch::fp, arch::reg_scratch_0);
-      }
-    } else {
-      as->mov(out, arch::fp);
-    }
+    arch::add_signed_immediate(as, AT::getGp(output), arch::fp, input->getStackSlot().loc);
   } else if (input->isMem()) {
     auto address = reinterpret_cast<uint64_t>(input->getMemoryAddress());
     as->mov(AT::getGp(output), address);
@@ -2606,14 +2558,7 @@ void translateCmp(Environ* env, const Instruction* instr) {
     }
   } else if (inp1->isImm()) {
     auto constant = inp1->getConstant();
-
-    if (arm::Utils::isAddSubImm(constant)) {
-      as->cmp(AT::getGpWiden(inp0), constant);
-    } else {
-      auto scratch = AT::getGpWiden(inp0->dataType(), arch::reg_scratch_0.id());
-      as->mov(scratch, constant);
-      as->cmp(AT::getGpWiden(inp0), scratch);
-    }
+    arch::cmp_immediate(as, AT::getGpWiden(inp0), constant);
   } else {
     JIT_ABORT(
         "Unsupported operand types for cmp: {} {}", inp0->type(), inp1->type());
