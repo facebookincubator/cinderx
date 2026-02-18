@@ -35,6 +35,8 @@ extern "C" {
 // entry point lives.
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
 #define JITRT_STATIC_ENTRY_OFFSET (-11)
+#elif defined(__aarch64__)
+#define JITRT_STATIC_ENTRY_OFFSET (-16)
 #else
 // Without JIT support there's no entry offset.
 #define JITRT_STATIC_ENTRY_OFFSET (0)
