@@ -201,6 +201,9 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #define LOAD_INDEX(keys, size, idx) ((const int##size##_t*)(keys->dk_indices))[idx]
 #define STORE_INDEX(keys, size, idx, value) ((int##size##_t*)(keys->dk_indices))[idx] = (int##size##_t)value
 #endif
+#define _PyAnyDict_CAST(op) \
+    (assert(PyAnyDict_Check(op)), _Py_CAST(PyDictObject*, op))
+#define GET_USED(ep) FT_ATOMIC_LOAD_SSIZE_RELAXED((ep)->ma_used)
 #define STORE_KEY(ep, key) FT_ATOMIC_STORE_PTR_RELEASE((ep)->me_key, key)
 #define STORE_VALUE(ep, value) FT_ATOMIC_STORE_PTR_RELEASE((ep)->me_value, value)
 #define STORE_SPLIT_VALUE(mp, idx, value) FT_ATOMIC_STORE_PTR_RELEASE(mp->ma_values->values[idx], value)
@@ -578,7 +581,7 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
 
     assert(op != NULL);
-    CHECK(PyDict_Check(op));
+    CHECK(PyAnyDict_Check(op));
     PyDictObject *mp = (PyDictObject *)op;
 
     PyDictKeysObject *keys = mp->ma_keys;
@@ -1456,23 +1459,7 @@ static int
 setitem_take2_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
 {
     ASSERT_DICT_LOCKED(mp);
-
-    assert(key);
-    assert(value);
-    assert(PyDict_Check(mp));
-    Py_hash_t hash = _PyObject_HashFast(key);
-    if (hash == -1) {
-        dict_unhashable_type(key);
-        Py_DECREF(key);
-        Py_DECREF(value);
-        return -1;
-    }
-
-    if (mp->ma_keys == Py_EMPTY_KEYS) {
-        return insert_to_emptydict(mp, key, hash, value);
-    }
-    /* insertdict() handles any resizing that might be necessary */
-    return insertdict(mp, key, hash, value);
+    return anydict_setitem_take2(mp, key, value);
 }
 static int
 setitem_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
@@ -1514,6 +1501,11 @@ _PyDict_DelItem_KnownHash_LockHeld(PyObject *op, PyObject *key, Py_hash_t hash)
 int
 _PyDict_SetItem_LockHeld(PyDictObject *dict, PyObject *name, PyObject *value)
 {
+    if (!PyDict_Check(dict)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+
     if (value == NULL) {
         Py_hash_t hash = _PyObject_HashFast(name);
         if (hash == -1) {
@@ -2901,14 +2893,15 @@ _PyObject_HasLen(PyObject *o) {
 #endif // WITH_MIMALLOC
 #define MALLOC_ALLOC {NULL, _PyMem_RawMalloc, _PyMem_RawCalloc, _PyMem_RawRealloc, _PyMem_RawFree}
 #ifdef WITH_MIMALLOC
-#  define MIMALLOC_ALLOC {NULL, _PyMem_MiMalloc, _PyMem_MiCalloc, _PyMem_MiRealloc, _PyMem_MiFree}
+#  define MIMALLOC_ALLOC    {NULL, _PyMem_MiMalloc, _PyMem_MiCalloc, _PyMem_MiRealloc, _PyMem_MiFree}
+#  define MIMALLOC_RAWALLOC {NULL, _PyMem_MiRawMalloc, _PyMem_MiRawCalloc, _PyMem_MiRawRealloc, _PyMem_MiRawFree}
 #  define MIMALLOC_OBJALLOC {NULL, _PyObject_MiMalloc, _PyObject_MiCalloc, _PyObject_MiRealloc, _PyObject_MiFree}
 #endif
 #if defined(WITH_PYMALLOC)
 #  define PYMALLOC_ALLOC {NULL, _PyObject_Malloc, _PyObject_Calloc, _PyObject_Realloc, _PyObject_Free}
 #endif  // WITH_PYMALLOC
 #if defined(Py_GIL_DISABLED)
-#  define PYRAW_ALLOC MALLOC_ALLOC
+#  define PYRAW_ALLOC MIMALLOC_RAWALLOC
 #  define PYMEM_ALLOC MIMALLOC_ALLOC
 #  define PYOBJ_ALLOC MIMALLOC_OBJALLOC
 #elif defined(WITH_PYMALLOC)
