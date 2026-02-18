@@ -1870,16 +1870,17 @@ void loadToReg(
   if (output->isVecD()) {
     as->ldr(AT::getVecD(output), input);
   } else {
-    auto reg = AT::getGp(output);
     switch (output->dataType()) {
       case OperandBase::k8bit:
-        as->ldrb(reg, input);
+        as->ldrb(
+            AT::getGp(DataType::k32bit, output->getPhyRegister().loc), input);
         break;
       case OperandBase::k16bit:
-        as->ldrh(reg, input);
+        as->ldrh(
+            AT::getGp(DataType::k32bit, output->getPhyRegister().loc), input);
         break;
       default:
-        as->ldr(reg, input);
+        as->ldr(AT::getGp(output), input);
         break;
     }
   }
