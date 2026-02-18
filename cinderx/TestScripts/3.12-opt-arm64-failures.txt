@@ -1,3 +1,12 @@
+test_cinderx.test_cinderjit
+test_cinderx.test_compiler.test_static.compile
+test_cinderx.test_compiler.test_static.elide_type_checks
+test_cinderx.test_jit_async_generators
+test_cinderx.test_jit_disable
+test_cinderx.test_jit_frame
+test_cinderx.test_jit_perf_map
+test_cinderx.test_jit_preload
+test_cinderx.test_python312_bytecodes
 test.test_ctypes
 test.test_faulthandler
 test.test_posix

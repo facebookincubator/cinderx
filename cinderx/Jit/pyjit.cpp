@@ -3449,10 +3449,10 @@ int initialize() {
   }
 
   // Do this check after config is initialized, so we can use JIT_DLOG().
-#ifndef __x86_64__
+#if !defined(__x86_64__) && !defined(__aarch64__)
   JIT_DLOG(
-      "JIT only supported x86-64 platforms, detected current architecture as "
-      "'{}'. Disabling the JIT.",
+      "JIT only supported x86-64 or aarch64 platforms, detected current "
+      "architecture as '{}'. Disabling the JIT.",
       getCpuArchName());
   return 0;
 #endif
