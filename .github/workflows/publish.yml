@@ -36,6 +36,8 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp314-manylinux_x86_64 cp314-musllinux_x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MUSLLINUX_X86_64_IMAGE: musllinux_1_2
           CIBW_ENVIRONMENT: CINDERX_ENABLE_PGO=1 CINDERX_ENABLE_LTO=1 CINDERX_VERSION_PATCH=${{ inputs.patch_version || '0' }}
           CIBW_BUILD_VERBOSITY: 3
 
