@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+import dis
 import opcode
 import sys
 import types
@@ -7,7 +8,7 @@ import unittest
 from typing import Callable
 
 import cinderx.test_support as cinder_support
-from cinderx.test_support import passUnless
+from cinderx.test_support import passUnless, undo_fail_decorators
 
 
 def one():
@@ -405,6 +406,14 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
             assert a
 
         x(True)
+
+        # pytest overwrites assert statements and destroys LOAD_COMMON_CONSTANT
+        # bytecodes.
+        inner_x = undo_fail_decorators(x)
+        for inst in dis.get_instructions(inner_x):
+            if inst.opname == "LOAD_GLOBAL" and "pytest" in inst.argval:
+                return
+
         self.assertBytecodeContains(x, "LOAD_COMMON_CONSTANT")
 
     def test_LOAD_SPECIAL(self):

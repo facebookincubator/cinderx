@@ -7,7 +7,9 @@ import unittest
 from types import CodeType, FrameType
 
 from cinderx.jit import force_compile, is_jit_compiled
-from cinderx.test_support import passUnless, skip_unless_jit
+from cinderx.test_support import passUnless, skip_module_if_oss, skip_unless_jit
+
+skip_module_if_oss()
 
 
 # sys.monitoring is only available in Python 3.12+

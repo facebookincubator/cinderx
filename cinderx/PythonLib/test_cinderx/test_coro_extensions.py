@@ -1,16 +1,18 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import sys
 import types
 import unittest
 
-from cinderx import test_support as cinder_support
-from cinderx.test_support import passIf, skip_if_jit
+from cinderx.test_support import hasCinderX, passIf, skip_if_jit, skip_module_if_oss
+
+skip_module_if_oss()
 
 # pyre-ignore[21]: can't find test.support
 from test.support import import_helper, maybe_get_event_loop_policy
 
 
-if cinder_support.hasCinderX():
+if hasCinderX():
     import cinder
 
 

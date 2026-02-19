@@ -6,10 +6,12 @@ import unittest
 
 import cinderx
 import cinderx.jit
+from cinderx.test_support import passIf, passUnless, skip_module_if_oss
+
+skip_module_if_oss()
 
 # pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
 import test.test_gc
-from cinderx.test_support import passIf, passUnless
 
 
 def _restore_parallel_gc(settings: dict[str, int] | None) -> None:

@@ -206,6 +206,8 @@ def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
                 f"JIT compilation of {func.__qualname__} failed with {exc}"
             )
 
+        wrapper.inner_function = func
+
         return wrapper
 
     return func
@@ -235,6 +237,15 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
     return wrapper
 
 
+def is_oss() -> bool:
+    """
+    Check if this is running in an open source environment.
+
+    Currently implemented as looking for the absence of the Meta Python runtime.
+    """
+    return "+meta" not in sys.version and "+cinder" not in sys.version
+
+
 def skip_module_if_oss() -> None:
     """
     Skip a test module on OSS builds, i.e. ones that aren't built with Buck internally at Meta.
@@ -246,10 +257,8 @@ def skip_module_if_oss() -> None:
     (e.g. Meta Python's Lazy Imports).
     """
 
-    if "+meta" in sys.version or "+cinder" in sys.version:
-        return
-
-    raise unittest.SkipTest("Module not compatible with OSS imports")
+    if is_oss():
+        raise unittest.SkipTest("Module not compatible with OSS imports")
 
 
 def has_meta_lazy_imports() -> bool:
@@ -258,6 +267,16 @@ def has_meta_lazy_imports() -> bool:
     implementation, i.e. not PEP 810.
     """
     return hasattr(importlib, "set_lazy_imports")
+
+
+def undo_fail_decorators(func: Callable[..., object]) -> Callable[..., object]:
+    """
+    Unravel "fail" decorators defined in this module off of a function.
+    """
+
+    while inner_func := getattr(func, "inner_function", None):
+        func = inner_func
+    return func
 
 
 def is_asan_build() -> bool:
@@ -337,13 +356,8 @@ class AssertBytecodeContainsMixin(abc.ABC):
         expected_opcode: str,
         expected_oparg: int | None = None,
     ) -> None:
-        try:
-            # pyre-ignore[16] - for things wrapped by fail_if_deopt()
-            inner_function = func.inner_function
-        except AttributeError:
-            pass
-        else:
-            func = inner_function
+        # pyre-ignore[6]: func isn't properly typed as a callable yet.
+        func = undo_fail_decorators(func)
 
         bytecode_instructions = dis.get_instructions(func)
 

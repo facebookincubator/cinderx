@@ -2,8 +2,6 @@
 
 # pyre-unsafe
 
-# pyre-ignore[21]: Pyre doesn't know about _testcapi
-import _testcapi
 import asyncio
 import dis
 import sys
@@ -15,8 +13,14 @@ from cinderx.test_support import (
     compiles_after_one_call,
     passIf,
     passUnless,
+    skip_module_if_oss,
     skip_unless_jit,
 )
+
+skip_module_if_oss()
+
+# pyre-ignore[21]: Pyre doesn't know about _testcapi
+import _testcapi
 
 # Allow this file to run without CinderX.
 if cinderx.is_initialized():

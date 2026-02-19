@@ -8,10 +8,6 @@ import subprocess
 import sys
 import unittest
 
-import cinderx
-
-cinderx.init()
-
 import cinderx.jit
 from cinderx.test_support import (
     ENCODING,
