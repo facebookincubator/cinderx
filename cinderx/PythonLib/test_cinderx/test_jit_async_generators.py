@@ -13,13 +13,15 @@ from cinderx.test_support import passIf
 
 
 AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
+POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
 
 
 @passIf(AT_LEAST_312, "T194022335: Async generators not supported in 3.12 JIT yet")
 class AsyncGeneratorsTest(unittest.TestCase):
     def tearDown(self) -> None:
-        # This is needed to avoid an "environment changed" error
-        asyncio.set_event_loop_policy(None)
+        # This is needed to avoid an "environment changed" error.
+        if not POLICY_DEPRECATED:
+            asyncio.set_event_loop_policy(None)
 
     @cinder_support.failUnlessJITCompiled
     async def _f1(self, awaitable: Awaitable[Any]) -> AsyncGenerator[int, Any]:

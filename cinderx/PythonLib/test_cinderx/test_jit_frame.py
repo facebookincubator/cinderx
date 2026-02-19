@@ -14,6 +14,7 @@ from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
 from cinderx.test_support import passIf, skip_unless_jit
 
 POST_312 = sys.version_info >= (3, 12)
+POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
 
 
 def firstlineno(func):
@@ -37,7 +38,8 @@ def _create_getframe_cycle():
 
 
 class TestException(Exception):
-    pass
+    # Tells pytest that this isn't a test case.
+    __test__: bool = False
 
 
 class GetFrameLineNumberTests(unittest.TestCase):
@@ -459,7 +461,8 @@ class GetGenFrameDuringThrowTest(unittest.TestCase):
 
     def tearDown(self):
         self.loop.close()
-        asyncio.set_event_loop_policy(None)
+        if not POLICY_DEPRECATED:
+            asyncio.set_event_loop_policy(None)
 
     @cinder_support.failUnlessJITCompiled
     async def outer_propagates_exc(self, inner):

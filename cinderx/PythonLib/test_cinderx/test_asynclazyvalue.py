@@ -18,6 +18,9 @@ import cinderx.test_support as cinder_support
 from cinderx.test_support import passIf, passUnless
 
 
+POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
+
+
 if cinder_support.hasCinderX():
     from cinderx.test_support import get_await_stack
 
@@ -40,7 +43,8 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
 
     def tearDown(self):
         self.loop.close()
-        asyncio.set_event_loop_policy(None)
+        if not POLICY_DEPRECATED:
+            asyncio.set_event_loop_policy(None)
 
     @async_test
     async def test_close_not_started(self) -> None:
@@ -262,7 +266,8 @@ class AsyncLazyValueTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.loop.close()
-        asyncio.set_event_loop_policy(None)
+        if not POLICY_DEPRECATED:
+            asyncio.set_event_loop_policy(None)
 
     def log(self, msg: str) -> None:
         self.events.append(msg)
