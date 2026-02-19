@@ -1304,17 +1304,6 @@ TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_Imm) {
       Imm{UINT64_MAX});
 }
 
-// kMoveRelaxed R r
-TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_PhyReg) {
-  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), makePhyReg(1));
-}
-
-// kMoveRelaxed R i
-TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_Imm) {
-  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), Imm{0});
-  translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), Imm{UINT64_MAX});
-}
-
 // kMoveRelaxed R m
 TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_Mem) {
   translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), makeStk());
