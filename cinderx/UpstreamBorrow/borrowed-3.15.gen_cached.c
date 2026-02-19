@@ -1456,6 +1456,26 @@ Fail:
     return -1;
 }
 static int
+anydict_setitem_take2(PyDictObject *mp, PyObject *key, PyObject *value)
+{
+    assert(key);
+    assert(value);
+    assert(PyAnyDict_Check(mp));
+    Py_hash_t hash = _PyObject_HashFast(key);
+    if (hash == -1) {
+        dict_unhashable_type(key);
+        Py_DECREF(key);
+        Py_DECREF(value);
+        return -1;
+    }
+
+    if (mp->ma_keys == Py_EMPTY_KEYS) {
+        return insert_to_emptydict(mp, key, hash, value);
+    }
+    /* insertdict() handles any resizing that might be necessary */
+    return insertdict(mp, key, hash, value);
+}
+static int
 setitem_take2_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
 {
     ASSERT_DICT_LOCKED(mp);
