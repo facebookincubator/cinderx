@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/util.h"
 
+#ifndef WIN32
 #include <fcntl.h>
 #include <fmt/format.h>
 #include <sys/mman.h>
@@ -92,3 +93,5 @@ std::span<const std::byte> MmapFile::data() {
 }
 
 } // namespace jit
+
+#endif

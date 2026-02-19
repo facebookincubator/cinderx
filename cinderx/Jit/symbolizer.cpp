@@ -6,12 +6,18 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/module_state.h"
 
+#ifndef WIN32
+
 #include <cxxabi.h>
-#include <dlfcn.h>
+
+#endif
 
 #ifdef ENABLE_SYMBOLIZER
+
+#include <dlfcn.h>
 #include <elf.h>
 #include <link.h> // for ElfW
+
 #endif
 
 #include <cstdio>
@@ -128,6 +134,7 @@ int findSymbolIn(struct dl_phdr_info* info, size_t, void* data) {
 } // namespace
 
 Symbolizer::Symbolizer(const char* exe_path) {
+#ifdef ENABLE_SYMBOLIZER
   try {
     file_.open(exe_path);
   } catch (const std::exception& exn) {
@@ -135,7 +142,6 @@ Symbolizer::Symbolizer(const char* exe_path) {
     return;
   }
 
-#ifdef ENABLE_SYMBOLIZER
   const std::byte* exe = file_.data().data();
 
   auto elf = reinterpret_cast<const ElfW(Ehdr)*>(exe);
@@ -229,6 +235,7 @@ void Symbolizer::deinit() {
 }
 
 std::optional<std::string> demangle(const std::string& mangled_name) {
+#ifndef WIN32
   int status;
   char* demangled_name =
       abi::__cxa_demangle(mangled_name.c_str(), nullptr, nullptr, &status);
@@ -248,6 +255,9 @@ std::optional<std::string> demangle(const std::string& mangled_name) {
   std::string result{demangled_name};
   std::free(demangled_name);
   return result;
+#else
+  return std::nullopt;
+#endif
 }
 
 std::optional<std::string> symbolize(const void* func) {

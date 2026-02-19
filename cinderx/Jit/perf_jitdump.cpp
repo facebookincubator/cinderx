@@ -11,6 +11,8 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#ifndef WIN32
+
 #include <fmt/format.h>
 #include <sys/file.h>
 #include <sys/mman.h>
@@ -39,8 +41,11 @@
 #define EM_X86_64 62
 #define EM_AARCH64 183
 
+#endif
+
 namespace jit::perf {
 
+#ifndef WIN32
 int jit_perfmap = 0;
 std::string perf_jitdump_dir;
 
@@ -479,14 +484,21 @@ void copyJitdumpFile() {
 
 } // namespace
 
+#endif
+
 bool isPreforkCompilationEnabled() {
+#ifndef WIN32
   return getConfig().compile_perf_trampoline_prefork;
+#else
+  return false;
+#endif
 }
 
 void registerFunction(
     const std::vector<std::pair<void*, std::size_t>>& code_sections,
     std::string_view name,
     std::string_view prefix) {
+#ifndef WIN32
   ThreadedCompileSerialize guard;
 
   initFiles();
@@ -526,14 +538,17 @@ void registerFunction(
     }
     std::fflush(file);
   }
+#endif
 }
 
 void afterForkChild() {
+#ifndef WIN32
   // Make sure the parent processes map is closed before copying into it,
   // otherwise init is a nop.
   PyUnstable_PerfMapState_Fini();
   copyParentPidMap();
   copyJitdumpFile();
+#endif
 }
 
 } // namespace jit::perf

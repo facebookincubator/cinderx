@@ -12,10 +12,9 @@
 #include "cinderx/module_state.h"
 #include "cinderx/python_runtime.h"
 
-#include <sys/mman.h>
-
 #ifndef WIN32
 #include <dlfcn.h>
+#include <sys/mman.h>
 #endif
 
 namespace jit {
@@ -127,12 +126,14 @@ Context::Context()
 }
 
 void Context::mlockProfilerDependencies() {
+#ifndef WIN32
   for (auto& codert : code_runtimes_) {
     PyCodeObject* code = codert.frameState()->code().get();
     ::mlock(code, sizeof(PyCodeObject));
     ::mlock(code->co_qualname, Py_SIZE(code->co_qualname));
   }
   code_runtimes_.mlock();
+#endif
 }
 
 Ref<> Context::pageInProfilerDependencies() {

@@ -83,6 +83,7 @@ static void fill_primitive_arg_types_builtin(
   }
 }
 
+#ifndef WIN32
 static std::unique_ptr<NativeTarget> resolve_native_target(
     BorrowedRef<> native_descr,
     BorrowedRef<> signature) {
@@ -117,6 +118,7 @@ static std::unique_ptr<NativeTarget> resolve_native_target(
 
   return target;
 }
+#endif
 
 PreloaderManager s_manager;
 thread_local PreloaderManager* tls_manager = nullptr;
@@ -409,6 +411,7 @@ bool Preloader::preload() {
           return false;
         }
       }
+#ifndef WIN32
       case INVOKE_NATIVE: {
         BorrowedRef<> target_descr = PyTuple_GetItem(constArg(bc_instr), 0);
         BorrowedRef<> signature = PyTuple_GetItem(constArg(bc_instr), 1);
@@ -416,6 +419,7 @@ bool Preloader::preload() {
             target_descr, resolve_native_target(target_descr, signature));
         break;
       }
+#endif
     }
   }
 

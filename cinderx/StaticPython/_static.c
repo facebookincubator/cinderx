@@ -1675,6 +1675,7 @@ PyObject* resolve_primitive_descr(PyObject* mod, PyObject* descr) {
   return PyLong_FromLong(type_code);
 }
 
+#ifndef WIN32
 static PyObject* lookup_native_symbol(
     PyObject* Py_UNUSED(module),
     PyObject** args,
@@ -1710,6 +1711,7 @@ PyObject* clear_dlsym_cache(PyObject* Py_UNUSED(module)) {
   _PyClassloader_Clear_DlSym_Cache();
   Py_RETURN_NONE;
 }
+#endif
 
 static int sp_audit_hook(const char* event, PyObject* args, void* data) {
   if (strcmp(event, "object.__setattr__") != 0 || PyTuple_GET_SIZE(args) != 3) {
@@ -1839,6 +1841,7 @@ static PyMethodDef static_methods[] = {
      METH_FASTCALL,
      ""},
     {"init_subclass", (PyCFunction)init_subclass, METH_O, ""},
+#ifndef WIN32
     {"lookup_native_symbol",
      (PyCFunction)(void (*)(void))lookup_native_symbol,
      METH_FASTCALL,
@@ -1859,6 +1862,7 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)(void (*)(void))clear_dlsym_cache,
      METH_FASTCALL,
      ""},
+#endif
     {"install_sp_audit_hook",
      (PyCFunction)(void (*)(void))install_sp_audit_hook,
      METH_NOARGS,

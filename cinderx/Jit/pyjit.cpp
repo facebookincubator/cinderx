@@ -46,7 +46,9 @@
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/module_state.h"
 
+#ifndef WIN32
 #include <dlfcn.h>
+#endif
 #include <fmt/std.h>
 
 #include <atomic>
@@ -695,6 +697,7 @@ FlagProcessor initFlagProcessor() {
       "Add RefineType instructions to coerce Static Python types to be "
       "valid");
 
+#ifndef WIN32
   flag_processor.addOption(
       "jit-perfmap",
       "JIT_PERFMAP",
@@ -709,6 +712,7 @@ FlagProcessor initFlagProcessor() {
           "absolute path to a <DIRECTORY> that exists. A perf jitdump file "
           "will be written to this directory")
       .withFlagParamName("DIRECTORY");
+#endif
 
   flag_processor.addOption(
       "jit-help", "", [] {}, "print all available JIT flags and exits");
@@ -1732,6 +1736,7 @@ int aot_func_visitor(PyObject* obj, void* arg) {
   return kGcVisitContinue;
 }
 
+#ifndef WIN32
 PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
       jitCtx() != nullptr,
@@ -1796,6 +1801,7 @@ PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
 
   Py_RETURN_NONE;
 }
+#endif
 
 PyObject* get_compile_after_n_calls(PyObject* /* self */, PyObject*) {
   auto limit = getConfig().compile_after_n_calls;
@@ -1878,6 +1884,7 @@ PyObject* disassemble(PyObject* /* self */, PyObject* func) {
   Py_RETURN_NONE;
 }
 
+#ifndef WIN32
 PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
       jitCtx() != nullptr,
@@ -1916,6 +1923,7 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
 
   Py_RETURN_NONE;
 }
+#endif
 
 PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
   if (auto jit_list = cinderx::getModuleState()->jitList()) {
@@ -2773,6 +2781,7 @@ PyMethodDef jit_methods[] = {
          "Configure the JIT to automatically compile functions after "
          "they are called a set number of times.")},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions."},
+#ifndef WIN32
     {"dump_elf",
      dump_elf,
      METH_O,
@@ -2788,6 +2797,7 @@ PyMethodDef jit_methods[] = {
          "file, whose filepath is passed as the first argument. Note: "
          "This does not actually work yet, it's being used for debugging "
          "purposes.")},
+#endif
     {"get_compile_after_n_calls",
      get_compile_after_n_calls,
      METH_NOARGS,
@@ -3576,7 +3586,9 @@ void finalize() {
   mod_state->setJitContext(nullptr);
   mod_state->setCodeAllocator(nullptr);
 
+#ifndef WIN32
   g_aot_ctx.destroy();
+#endif
 
   restoreSysMonitoringRegisterCallback();
   restoreSysSetProfileAndSetTrace();

@@ -7,6 +7,7 @@
 
 namespace jit {
 
+#ifndef WIN32
 class MmapFile {
  public:
   constexpr MmapFile() = default;
@@ -23,5 +24,7 @@ class MmapFile {
   const std::byte* data_{nullptr};
   size_t size_{0};
 };
+
+#endif
 
 } // namespace jit

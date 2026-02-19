@@ -5,13 +5,12 @@
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/symbolizer_iface.h"
 
-#include <fcntl.h>
 #ifndef WIN32
+#include <fcntl.h>
 #include <sys/mman.h>
-#include <unistd.h>
-#endif
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <optional>
 #include <string>
@@ -61,3 +60,4 @@ std::optional<std::string> demangle(const std::string& mangled_name);
 std::optional<std::string> symbolize(const void* func);
 
 } // namespace jit
+#endif
