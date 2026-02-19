@@ -108,7 +108,12 @@ class NativeGenerator {
 #if defined(CINDER_X86_64)
       return saved_regs.count() * kPointerSize;
 #elif defined(CINDER_AARCH64)
-      return ((saved_regs.count() + 1) / 2) * kStackAlign;
+      // GP and VecD registers cannot be paired in the same stp/ldp
+      // instruction, so each group must be independently rounded up to
+      // a pair count to match saveCalleeSavedRegsAarch64.
+      auto gp_count = (saved_regs & ALL_GP_REGISTERS).count();
+      auto vecd_count = (saved_regs & ALL_VECD_REGISTERS).count();
+      return (((gp_count + 1) / 2) + ((vecd_count + 1) / 2)) * kStackAlign;
 #else
       CINDER_UNSUPPORTED
       return saved_regs.count() * kPointerSize;
