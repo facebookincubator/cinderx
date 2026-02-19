@@ -12294,7 +12294,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: bytes'
     }
     Snapshot
-    v36:BytesExact = VectorCall<1> v34 v28 {
+    v36:{BytesExact|User} = VectorCall<1> v34 v28 {
       FrameState {
         CurInstrOffset 10
         Locals<1> v28
@@ -12380,7 +12380,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
     }
     Snapshot
-    v64:UnicodeExact = VectorCall<1> v62 v28 {
+    v64:{UnicodeExact|User} = VectorCall<1> v62 v28 {
       FrameState {
         CurInstrOffset 52
         Locals<1> v28
@@ -12494,7 +12494,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: bytes'
     }
     Snapshot
-    v103:BytesExact = VectorCall<1> v55 v44 {
+    v103:{BytesExact|User} = VectorCall<1> v55 v44 {
       FrameState {
         CurInstrOffset 34
         Locals<1> v44
@@ -12587,7 +12587,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
     }
     Snapshot
-    v110:UnicodeExact = VectorCall<1> v83 v44 {
+    v110:{UnicodeExact|User} = VectorCall<1> v83 v44 {
       FrameState {
         CurInstrOffset 174
         Locals<1> v44
