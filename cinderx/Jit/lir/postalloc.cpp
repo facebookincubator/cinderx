@@ -706,13 +706,11 @@ RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  size = in->dataType();
-  if (size != OperandBase::k8bit && size != OperandBase::k16bit) {
-    return kUnchanged;
-  }
-
   out->setDataType(OperandBase::k32bit);
-  static_cast<Operand*>(in)->setDataType(OperandBase::k32bit);
+  if (in->dataType() == OperandBase::k8bit ||
+      in->dataType() == OperandBase::k16bit) {
+    static_cast<Operand*>(in)->setDataType(OperandBase::k32bit);
+  }
   return kChanged;
 }
 #endif
