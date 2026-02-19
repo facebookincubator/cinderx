@@ -432,10 +432,7 @@ void jitFrameRemoveReifier(_PyInterpreterFrame* frame) {
   // interpreter.
   if (!hasRtfsFunction(frame)) {
     // ownership is transferred
-    if (jitFrameGetFunction(frame) != nullptr) {
-      setFrameFunction(frame, jitFrameGetFunction(frame));
-      jitFrameGetHeader(frame)->rtfs = JIT_FRAME_INITIALIZED;
-    }
+    setFrameFunction(frame, jitFrameGetFunction(frame));
   } else {
     RuntimeFrameState* rtfs = jitFrameGetRtfs(frame);
     auto func = rtfs->func();
@@ -639,8 +636,7 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   Ci_STACK_CLOSE(frame->f_funcobj);
   if constexpr (PY_VERSION_HEX < 0x030E0000) {
     if (!hasRtfsFunction(frame)) {
-      Py_XDECREF(jitFrameGetFunction(frame));
-      jitFrameGetHeader(frame)->rtfs = JIT_FRAME_INITIALIZED;
+      Py_DECREF(jitFrameGetFunction(frame));
     }
   }
 }

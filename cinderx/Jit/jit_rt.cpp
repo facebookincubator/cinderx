@@ -677,18 +677,10 @@ void JITRT_InitFrameCellVars(
   PyCodeObject* co = (PyCodeObject*)func->func_code;
   int offset = co->co_nlocalsplus - nvars;
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
-  for (int i = 0; i < offset; i++) {
-    frame->localsplus[i] = Ci_STACK_NULL;
-  }
   for (int i = 0; i < nvars; i++) {
     frame->localsplus[offset + i] =
         Ci_STACK_NEWREF(PyTuple_GET_ITEM(closure, i));
   }
-#if PY_VERSION_HEX < 0x030E0000
-  frame->stacktop = nvars + offset;
-#else
-  frame->stackpointer = &frame->localsplus[nvars + offset];
-#endif
 }
 
 std::pair<PyThreadState*, jit::GenDataFooter*>
