@@ -72,15 +72,6 @@ Type returnType(Type callable) {
     Type result =
         Type::fromTypeExact(reinterpret_cast<PyTypeObject*>(callable_obj));
     if (result <= TBuiltinExact && !(result <= TType)) {
-      if (result <= TUnicodeExact || result <= TBytesExact) {
-        // bytes and str are odd in that you can have a subclass which overrides
-        // __str__ or __bytes__ and returns a subclass. The subclass is what's
-        // returned instead of an exact type. Other types (e.g. int, float,
-        // complex) do not have this behavior and returning a subclass from
-        // their dunder method is deprecated. But if you do you'll get the exact
-        // type.
-        return result | TUser;
-      }
       return result;
     }
   }
