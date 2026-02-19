@@ -2,9 +2,7 @@
 # pyre-strict
 
 from _cinderx import StaticTypeError
-
-# pyre-ignore[21]: _static is defined as part of _cinderx.
-from _static import (  # noqa: F401
+from _static import (
     __build_cinder_class__,
     _clear_dlopen_cache,
     _clear_dlsym_cache,
@@ -12,7 +10,6 @@ from _static import (  # noqa: F401
     _property_missing_fset,
     _sizeof_dlopen_cache,
     _sizeof_dlsym_cache,
-    # Checked Containers
     chkdict,
     chklist,
     FAST_LEN_ARRAY,
@@ -84,12 +81,10 @@ from _static import (  # noqa: F401
     SEQ_REPEAT_REVERSED,
     SEQ_SUBSCR_UNCHECKED,
     SEQ_TUPLE,
-    # Static Methods,
     set_type_code,
     set_type_final,
     set_type_static,
     set_type_static_final,
-    # Static Classes
     staticarray,
     TYPED_ARRAY,
     TYPED_BOOL,

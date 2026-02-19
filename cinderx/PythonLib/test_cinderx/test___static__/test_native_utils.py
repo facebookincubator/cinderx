@@ -72,18 +72,21 @@ class TestNativeInvoke(unittest.TestCase):
         with self.assertRaisesRegex(
             TypeError, "lookup_native_symbol: Expected 2 arguments"
         ):
+            # pyre-ignore[20]: Intentional type error, checking runtime behavior.
             lookup_native_symbol("lol")
 
     def test_native_lookup_bad_lib_name(self) -> None:
         with self.assertRaisesRegex(
             TypeError, "classloader: 'lib_name' must be a str, got 'int'"
         ):
+            # pyre-ignore[6]: Intentional type error, checking runtime behavior.
             lookup_native_symbol(1, "labs")
 
     def test_native_lookup_bad_symbol_name(self) -> None:
         with self.assertRaisesRegex(
             TypeError, "classloader: 'symbol_name' must be a str, got 'int'"
         ):
+            # pyre-ignore[6]: Intentional type error, checking runtime behavior.
             lookup_native_symbol("libc.so.6", 42)
 
     def test_native_lookup_nonexistent_lib_name(self) -> None:

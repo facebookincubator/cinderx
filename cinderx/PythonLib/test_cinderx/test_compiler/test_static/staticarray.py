@@ -45,6 +45,7 @@ class StaticArrayTests(StaticTestBase):
         with self.assertRaisesRegex(
             TypeError, "'object' object cannot be interpreted as an integer"
         ):
+            # pyre-ignore[6]: Intentional type error, checking runtime behavior.
             my_array[0] = object()
 
     def test_get(self) -> None:
