@@ -269,7 +269,7 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
     if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
       JIT_CHECK(kind == kNotZero, "Only NotZero is supported for double")
       auto vecd_reg = AutoTranslator::getVecD(instr->getInput(2));
-      as->fmov(reg, vecd_reg);
+      as->umov(reg, vecd_reg);
       as->cbz(reg, deopt_label);
       is_double = true;
     } else {

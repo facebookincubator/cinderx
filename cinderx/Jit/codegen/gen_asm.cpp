@@ -837,7 +837,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // shared, we do this move unconditionally, but even if not needed, it's
   // harmless. (To eliminate it, we'd need another trampoline specifically for
   // deopt of primitive-returning functions, just to do this one move.)
-  a.mov(a64::w1, a64::w0);
+  a.mov(a64::w2, a64::w0);
   a.fmov(a64::d1, a64::x0);
 
   annot.add("resumeInInterpreter", &a, annot_cursor);
@@ -2115,11 +2115,11 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
   if (func_->returnsPrimitive()) {
     JIT_CHECK(!is_gen, "generators can't return primitives");
     if (func_->returnsPrimitiveDouble()) {
-      // Loads an *integer* 1 in D1.. value doesn't matter,
+      // Loads an *integer* 1 in D0.. value doesn't matter,
       // but it needs to be non-zero.
-      as_->fmov(a64::d1, 1.0);
+      as_->movi(a64::d0, 1);
     } else {
-      as_->mov(a64::w1, 1);
+      as_->mov(a64::w2, 1);
     }
   }
 
@@ -3108,7 +3108,7 @@ NativeGenerator::generateBoxedReturnWrapper() {
     as_->fmov(arch::reg_scratch_0, a64::d1);
     as_->cbz(arch::reg_scratch_0, error);
   } else {
-    as_->cmp(a64::w1, 0);
+    as_->cmp(a64::w2, 0);
     as_->b_eq(box_done);
   }
 
