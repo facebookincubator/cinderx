@@ -13,7 +13,7 @@ from cinderx.test_support import passIf, passUnless
 CINDERX_INITIALIZED: bool = cinderx.is_initialized()
 ALREADY_INSTALLED: bool = cinderx.is_frame_evaluator_installed()
 JIT_ENABLED: bool = cinderx.jit.is_enabled()
-ARM: bool = "aarch64" in platform.machine()
+ARM: bool = "aarch64" in platform.machine() or "arm64" in platform.machine()
 
 
 @passUnless(CINDERX_INITIALIZED, "Need CinderX initialized to test frame evaluator")

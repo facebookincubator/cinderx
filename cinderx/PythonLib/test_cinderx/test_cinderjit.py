@@ -13,15 +13,8 @@ import weakref
 from pathlib import Path
 from typing import Callable
 
-AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
-
-if not AT_LEAST_312:
-    # pyre-ignore[21]: Pyre doesn't know about this module.
-    import _testcindercapi
-
 import cinderx.jit
 import cinderx.test_support as cinder_support
-from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from cinderx.jit import (
     compile_after_n_calls,
     force_compile,
@@ -36,12 +29,24 @@ from cinderx.test_support import (
     passIf,
     passUnless,
     run_in_subprocess,
+    skip_module_if_oss,
     skip_unless_jit,
     subprocess_env,
 )
 
+skip_module_if_oss()
+
+from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
+
 from .common import failUnlessHasOpcodes, with_globals
 from .test_compiler.test_static.common import StaticTestBase
+
+
+AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
+
+if not AT_LEAST_312:
+    # pyre-ignore[21]: Pyre doesn't know about this module.
+    import _testcindercapi
 
 
 class TestException(Exception):

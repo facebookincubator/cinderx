@@ -13,9 +13,16 @@ import cinderx
 cinderx.init()
 
 import cinderx.jit
-from cinderx.test_support import ENCODING, passIf, skip_unless_jit, subprocess_env
+from cinderx.test_support import (
+    ENCODING,
+    has_meta_lazy_imports,
+    passUnless,
+    skip_unless_jit,
+    subprocess_env,
+)
 
 SKIP_315: bool = sys.version_info >= (3, 15)
+META_LAZY_IMPORTS: bool = has_meta_lazy_imports()
 
 
 class PreloadTests(unittest.TestCase):
@@ -24,7 +31,7 @@ class PreloadTests(unittest.TestCase):
     )
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    @passIf(SKIP_315, "no lazy imports on 3.15 T243514540")
+    @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
     def test_func_destroyed_during_preload(self) -> None:
         proc = subprocess.run(
             [
@@ -63,12 +70,8 @@ hello from b_func!
         for recursive, batch, lazyimports in itertools.product(
             [True, False],
             [True, False] if cinderx.jit.is_enabled() else [False],
-            [True, False],
+            [True, False] if META_LAZY_IMPORTS else [False],
         ):
-            if sys.version_info >= (3, 15) and lazyimports:
-                # T243514540: lazy imports isn't available on 3.15
-                continue
-
             root = os.path.join(
                 os.path.dirname(__file__),
                 "data/preload_error_recursive" if recursive else "data/preload_error",
@@ -109,13 +112,9 @@ hello from b_func!
         jitlist = os.path.join(root, "jitlist.txt")
         main = os.path.join(root, "main.py")
         for lazy_imports, jit in itertools.product(
-            [True, False],
+            [True, False] if META_LAZY_IMPORTS else [False],
             [True, False] if cinderx.jit.is_enabled() else [False],
         ):
-            if sys.version_info >= (3, 15) and lazy_imports:
-                # T243514540: lazy imports isn't available on 3.15
-                continue
-
             with self.subTest(lazy_imports=lazy_imports, jit=jit):
                 cmd = [sys.executable]
                 if jit:

@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import ast
 import dis
 import hashlib
@@ -6,6 +7,10 @@ from io import StringIO
 from os import path
 from tokenize import detect_encoding
 from unittest import TestCase
+
+from cinderx.test_support import skip_module_if_oss
+
+skip_module_if_oss()
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import compile as py_compile

@@ -235,6 +235,31 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
     return wrapper
 
 
+def skip_module_if_oss() -> None:
+    """
+    Skip a test module on OSS builds, i.e. ones that aren't built with Buck internally at Meta.
+
+    This is needed for modules whose imports are still expecting the internal layout, or those
+    that depend on internal testing modules in CPython.
+
+    Don't use this for specific features, those should be checked explicitly
+    (e.g. Meta Python's Lazy Imports).
+    """
+
+    if "+meta" in sys.version or "+cinder" in sys.version:
+        return
+
+    raise unittest.SkipTest("Module not compatible with OSS imports")
+
+
+def has_meta_lazy_imports() -> bool:
+    """
+    Check if the runtime has been built with Meta Python's Lazy Imports
+    implementation, i.e. not PEP 810.
+    """
+    return hasattr(importlib, "set_lazy_imports")
+
+
 def is_asan_build() -> bool:
     try:
         ctypes.pythonapi.__asan_init
