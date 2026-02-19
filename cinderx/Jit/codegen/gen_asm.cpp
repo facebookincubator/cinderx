@@ -368,19 +368,8 @@ PyObject* resumeInInterpreter(
     // exception state, so we don't need to do any cleanup after
     // _PyEval_EvalFrame. Note: We only set this up if it's not already set
     // (e.g., jitgen_am_send may have already set it up before we got here).
-    //
-    // Additionally, if the generator was never returned to the caller (i.e.,
-    // exception occurred before RETURN_GENERATOR), we need to decref the
-    // generator since nobody owns the reference. We detect this by checking
-    // if gi_frame_state was FRAME_CREATED before executing.
-    PyGenObject* gen_to_cleanup = nullptr;
     if (frame->owner == FRAME_OWNED_BY_GENERATOR) {
       PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
-      if (gen->gi_frame_state == FRAME_CREATED) {
-        // This generator was never returned to the caller (before
-        // RETURN_GENERATOR). If an exception occurs, we need to clean it up.
-        gen_to_cleanup = gen;
-      }
       if (tstate->exc_info != &gen->gi_exc_state) {
         gen->gi_exc_state.previous_item = tstate->exc_info;
         tstate->exc_info = &gen->gi_exc_state;
@@ -388,13 +377,6 @@ PyObject* resumeInInterpreter(
     }
 
     result = _PyEval_EvalFrame(tstate, frame, err_occurred);
-
-    // If exception occurred before RETURN_GENERATOR, the generator was never
-    // returned to anyone. The JIT created the generator early, but the caller
-    // never received it. We need to decref it to avoid a memory leak.
-    if (result == nullptr && gen_to_cleanup != nullptr) {
-      Py_DECREF(gen_to_cleanup);
-    }
 
     frame = prev_frame;
 
