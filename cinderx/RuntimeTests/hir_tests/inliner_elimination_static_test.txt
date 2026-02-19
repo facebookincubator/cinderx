@@ -27,6 +27,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v5:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v6:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v6
@@ -75,6 +76,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v5:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v6:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v6
@@ -124,6 +126,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v5:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v6:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v6
@@ -203,6 +206,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -282,6 +286,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -363,6 +368,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -475,6 +481,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -532,6 +539,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -590,6 +598,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -685,6 +694,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -772,6 +782,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -859,6 +870,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9

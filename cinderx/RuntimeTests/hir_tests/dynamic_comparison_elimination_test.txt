@@ -291,6 +291,7 @@ fun jittestmodule:test {
   bb 0 {
     v11:Object = LoadArg<0; "x">
     v12:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v13:CInt32 = LoadEvalBreaker
     CondBranch<4, 3> v13
@@ -358,6 +359,7 @@ fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "x">
     v15:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v16:CInt64 = LoadEvalBreaker
     CondBranch<4, 3> v16
@@ -436,6 +438,7 @@ fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "x">
     v15:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v16:CInt64 = LoadEvalBreaker
     CondBranch<4, 3> v16

@@ -28,6 +28,7 @@ fun jittestmodule:Test.__init__ {
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v8:User[Test] = LoadArg<0; "self", User[Test]>
+    LoadFrame
     v10:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v10
   }
@@ -55,6 +56,7 @@ fun jittestmodule:Test.__init__ {
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v8:User[Test] = LoadArg<0; "self", User[Test]>
+    LoadFrame
     v10:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v10
   }
@@ -82,6 +84,7 @@ fun jittestmodule:Test.__init__ {
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v8:User[Test] = LoadArg<0; "self", User[Test]>
+    LoadFrame
     v10:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v10
   }
@@ -130,6 +133,7 @@ fun jittestmodule:Test.__init__ {
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v7:User[Test] = LoadArg<0; "self", User[Test]>
+    LoadFrame
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
   }
@@ -158,6 +162,7 @@ fun jittestmodule:Test.__init__ {
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v7:User[Test] = LoadArg<0; "self", User[Test]>
+    LoadFrame
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
   }
@@ -186,6 +191,7 @@ fun jittestmodule:Test.__init__ {
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v7:User[Test] = LoadArg<0; "self", User[Test]>
+    LoadFrame
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
   }

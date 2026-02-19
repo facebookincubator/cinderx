@@ -51,6 +51,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -95,6 +96,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -139,6 +141,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3

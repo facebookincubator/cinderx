@@ -33,6 +33,7 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt32 = LoadEvalBreaker
@@ -70,6 +71,7 @@ fun jittestmodule:test {
 --- Expected 3.14 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
@@ -107,6 +109,7 @@ fun jittestmodule:test {
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
@@ -166,6 +169,7 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt32 = LoadEvalBreaker
@@ -194,6 +198,7 @@ fun jittestmodule:test {
 --- Expected 3.14 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -222,6 +227,7 @@ fun jittestmodule:test {
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker

@@ -35,6 +35,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v11:Func = LoadCurrentFunc
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt32 = LoadEvalBreaker
@@ -75,6 +76,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v11:Func = LoadCurrentFunc
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
@@ -115,6 +117,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v11:Func = LoadCurrentFunc
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
@@ -195,6 +198,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v11:Func = LoadCurrentFunc
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt32 = LoadEvalBreaker
@@ -239,6 +243,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v11:Func = LoadCurrentFunc
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
@@ -284,6 +289,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v11:Func = LoadCurrentFunc
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
@@ -351,6 +357,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt32 = LoadEvalBreaker
@@ -380,6 +387,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -409,6 +417,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -460,6 +469,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt32 = LoadEvalBreaker
@@ -489,6 +499,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -519,6 +530,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -576,6 +588,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt32 = LoadEvalBreaker
@@ -610,6 +623,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -644,6 +658,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
@@ -695,6 +710,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Long = LoadArg<0; "x", Long>
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -722,6 +738,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Long = LoadArg<0; "x", Long>
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -749,6 +766,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Long = LoadArg<0; "x", Long>
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -792,6 +810,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v5:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v6:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v6
@@ -818,6 +837,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v5:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v6:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v6
@@ -844,6 +864,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v5:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v6:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v6
@@ -887,6 +908,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Bool = LoadArg<0; "x", Bool>
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -914,6 +936,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Bool = LoadArg<0; "x", Bool>
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -941,6 +964,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Bool = LoadArg<0; "x", Bool>
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -990,6 +1014,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "x">
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -1023,6 +1048,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "x">
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -1056,6 +1082,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "x">
     v6:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
@@ -1185,6 +1212,7 @@ fun jittestmodule:test {
   bb 0 {
     v19:TupleExact = LoadArg<0; "x", TupleExact>
     v20:Func = LoadCurrentFunc
+    LoadFrame
     v21:Nullptr = LoadConst<Nullptr>
     Snapshot
     v22:CInt32 = LoadEvalBreaker
@@ -1294,6 +1322,7 @@ fun jittestmodule:test {
   bb 0 {
     v19:TupleExact = LoadArg<0; "x", TupleExact>
     v20:Func = LoadCurrentFunc
+    LoadFrame
     v21:Nullptr = LoadConst<Nullptr>
     Snapshot
     v22:CInt64 = LoadEvalBreaker
@@ -1403,6 +1432,7 @@ fun jittestmodule:test {
   bb 0 {
     v19:TupleExact = LoadArg<0; "x", TupleExact>
     v20:Func = LoadCurrentFunc
+    LoadFrame
     v21:Nullptr = LoadConst<Nullptr>
     Snapshot
     v22:CInt64 = LoadEvalBreaker
@@ -1542,6 +1572,7 @@ fun jittestmodule:test {
   bb 0 {
     v8:CInt64 = LoadArg<0; "x", CInt64>
     v9:Func = LoadCurrentFunc
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
     v11:CInt32 = LoadEvalBreaker
@@ -1582,6 +1613,7 @@ fun jittestmodule:test {
   bb 0 {
     v8:CInt64 = LoadArg<0; "x", CInt64>
     v9:Func = LoadCurrentFunc
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
     v11:CInt64 = LoadEvalBreaker
@@ -1622,6 +1654,7 @@ fun jittestmodule:test {
   bb 0 {
     v8:CInt64 = LoadArg<0; "x", CInt64>
     v9:Func = LoadCurrentFunc
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
     v11:CInt64 = LoadEvalBreaker

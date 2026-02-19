@@ -29,6 +29,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -64,6 +65,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -99,6 +101,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -160,6 +163,7 @@ fun jittestmodule:test {
   bb 0 {
     v8:Object = LoadArg<0; "seq">
     v9:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v10:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v10
@@ -198,6 +202,7 @@ fun jittestmodule:test {
   bb 0 {
     v8:Object = LoadArg<0; "seq">
     v9:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v10:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v10
@@ -236,6 +241,7 @@ fun jittestmodule:test {
   bb 0 {
     v8:Object = LoadArg<0; "seq">
     v9:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v10:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v10
@@ -329,6 +335,7 @@ fun jittestmodule:test {
     v12:Object = LoadArg<0; "seq">
     v13:Object = LoadArg<1; "use_comma">
     v14:Func = LoadCurrentFunc
+    LoadFrame
     v15:Nullptr = LoadConst<Nullptr>
     Snapshot
     v16:CInt32 = LoadEvalBreaker
@@ -396,6 +403,7 @@ fun jittestmodule:test {
     v15:Object = LoadArg<0; "seq">
     v16:Object = LoadArg<1; "use_comma">
     v17:Func = LoadCurrentFunc
+    LoadFrame
     v18:Nullptr = LoadConst<Nullptr>
     Snapshot
     v19:CInt64 = LoadEvalBreaker
@@ -466,6 +474,7 @@ fun jittestmodule:test {
     v15:Object = LoadArg<0; "seq">
     v16:Object = LoadArg<1; "use_comma">
     v17:Func = LoadCurrentFunc
+    LoadFrame
     v18:Nullptr = LoadConst<Nullptr>
     Snapshot
     v19:CInt64 = LoadEvalBreaker
@@ -577,6 +586,7 @@ fun jittestmodule:test {
   bb 0 {
     v11:Object = LoadArg<0; "name">
     v12:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v13:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -632,6 +642,7 @@ fun jittestmodule:test {
   bb 0 {
     v11:Object = LoadArg<0; "name">
     v12:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v13:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -687,6 +698,7 @@ fun jittestmodule:test {
   bb 0 {
     v11:Object = LoadArg<0; "name">
     v12:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v13:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -774,6 +786,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v10:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v11:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v11
@@ -822,6 +835,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v10:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v11:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v11
@@ -870,6 +884,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v10:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v11:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v11
@@ -1008,6 +1023,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v14:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v15:OptNoneType = InitialYield {
       FrameState {
@@ -1108,6 +1124,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v14:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v15:OptNoneType = InitialYield {
       FrameState {
@@ -1208,6 +1225,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v14:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v15:OptNoneType = InitialYield {
       FrameState {
@@ -1356,6 +1374,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1416,6 +1435,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1476,6 +1496,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1562,6 +1583,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -1600,6 +1622,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -1638,6 +1661,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v7:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v8:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v8
@@ -1701,6 +1725,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1738,6 +1763,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1775,6 +1801,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1836,6 +1863,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1872,6 +1900,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -1909,6 +1938,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v8:Func = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9

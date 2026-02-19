@@ -97,6 +97,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v19:TupleExact = LoadArg<0; "x", TupleExact>
+    LoadFrame
     v21:Nullptr = LoadConst<Nullptr>
     UpdatePrevInstr<idx:0 line_no:0: no parent>
     v22:CInt32 = LoadEvalBreaker
@@ -198,6 +199,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v19:TupleExact = LoadArg<0; "x", TupleExact>
+    LoadFrame
     v21:Nullptr = LoadConst<Nullptr>
     UpdatePrevInstr<idx:0 line_no:0: no parent>
     v22:CInt64 = LoadEvalBreaker
@@ -299,6 +301,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v19:TupleExact = LoadArg<0; "x", TupleExact>
+    LoadFrame
     v21:Nullptr = LoadConst<Nullptr>
     v22:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v22

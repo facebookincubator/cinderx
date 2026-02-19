@@ -125,6 +125,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = InitialYield {
       FrameState {
@@ -243,6 +244,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = InitialYield {
       FrameState {
@@ -361,6 +363,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = InitialYield {
       FrameState {
@@ -512,6 +515,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -547,6 +551,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -582,6 +587,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -654,6 +660,7 @@ fun jittestmodule:test {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadArg<1; "x", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -686,6 +693,7 @@ fun jittestmodule:test {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadArg<1; "x", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -717,6 +725,7 @@ fun jittestmodule:test {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadArg<1; "x", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -779,6 +788,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -824,6 +834,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -869,6 +880,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -939,6 +951,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -973,6 +986,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -1008,6 +1022,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -1111,6 +1126,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = InitialYield {
       FrameState {
@@ -1213,6 +1229,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = InitialYield {
       FrameState {
@@ -1316,6 +1333,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v1 = InitialYield {
       FrameState {
@@ -1580,6 +1598,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -1743,6 +1762,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -1908,6 +1928,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -2110,6 +2131,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -2151,6 +2173,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -2192,6 +2215,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -2299,6 +2323,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -2370,6 +2395,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -2441,6 +2467,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -2591,6 +2618,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = MakeCell v0 {
       FrameState {
@@ -2676,6 +2704,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = MakeCell v0 {
       FrameState {
@@ -2758,6 +2787,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v3 = MakeCell v0 {
       FrameState {
@@ -2884,6 +2914,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -2931,6 +2962,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -2978,6 +3010,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -3049,6 +3082,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -3084,6 +3118,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -3119,6 +3154,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2

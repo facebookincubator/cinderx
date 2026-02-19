@@ -47,6 +47,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -93,6 +94,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -140,6 +142,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -232,6 +235,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -281,6 +285,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -331,6 +336,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
