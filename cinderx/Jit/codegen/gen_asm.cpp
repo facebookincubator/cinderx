@@ -3004,7 +3004,7 @@ void NativeGenerator::generatePrimitiveArgsPrologue() {
 #elif defined(CINDER_AARCH64)
   BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
   env_.code_rt->addReference(info);
-  as_->mov(arch::reg_scratch_0, reinterpret_cast<uint64_t>(info.get()));
+  as_->mov(a64::x4, reinterpret_cast<uint64_t>(info.get()));
   if (func_->returnsPrimitiveDouble()) {
     as_->mov(
         arch::reg_scratch_br, JITRT_CallStaticallyWithPrimitiveSignatureFP);
