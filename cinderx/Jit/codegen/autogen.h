@@ -129,6 +129,10 @@ class AutoTranslator {
     return getGpOutput(op, op->getPhyRegister().loc);
   }
 
+  static arch::Gp getGpOverflowSafe(const jit::lir::OperandBase* op) {
+    return getGpOutput(op, op->getPhyRegister().loc);
+  }
+
  private:
   AutoTranslator() {
     initTable();

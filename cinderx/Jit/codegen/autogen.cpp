@@ -1961,7 +1961,7 @@ void translateCall(Environ* env, const Instruction* instr) {
     if (output->isVecD()) {
       as->mov(AT::getVecD(output), a64::d0);
     } else {
-      auto out_reg = AT::getGp(output);
+      auto out_reg = AT::getGpOutput(output);
       // Match the source register width to the destination register width.
       // aarch64 mov requires both operands to be the same size.
       if (out_reg.isGpW()) {
@@ -2159,7 +2159,7 @@ void translateMovExtOp(
   int input_size = input->sizeInBits();
 
   if (input->isReg()) {
-    auto input_reg = AT::getGp(input);
+    auto input_reg = AT::getGp(DataType::k32bit, input->getPhyRegister().loc);
 
     switch (input_size) {
       case 8:
@@ -2169,7 +2169,7 @@ void translateMovExtOp(
         emit_ext16(as, output, input_reg);
         break;
       case 32:
-        as->mov(a64::w(output.id()), a64::w(input_reg.id()));
+        as->mov(a64::w(output.id()), input_reg);
         break;
       default:
         JIT_ABORT("Unsupported input size for {}: {}", opname, input_size);
@@ -2269,8 +2269,8 @@ void translateAddSubOp(
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
 
-  auto output_reg = AT::getGp(output);
-  auto opnd0_reg = AT::getGp(opnd0);
+  auto output_reg = AT::getGpOutput(output);
+  auto opnd0_reg = AT::getGpOverflowSafe(opnd0);
 
   if (opnd1->isImm()) {
     uint64_t constant = opnd1->getConstant();
@@ -2278,7 +2278,7 @@ void translateAddSubOp(
 
     emit(as, output_reg, opnd0_reg, constant);
   } else if (opnd1->isReg()) {
-    emit(as, output_reg, opnd0_reg, AT::getGp(opnd1));
+    emit(as, output_reg, opnd0_reg, AT::getGpOverflowSafe(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);

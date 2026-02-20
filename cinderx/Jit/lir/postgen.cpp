@@ -150,7 +150,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   auto move = block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutVReg{},
+      OutVReg{in1->dataType()},
       Imm{constant, in1->dataType()});
 
   // If the first operand is smaller in size than the second operand, replace
