@@ -147,6 +147,10 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
     }
   }
 
+  // Align to kStackAlign for AArch64 stack pointer alignment requirements.
+  if (stack_arg_size % kStackAlign != 0) {
+    stack_arg_size += kStackAlign - (stack_arg_size % kStackAlign);
+  }
   return stack_arg_size;
 }
 

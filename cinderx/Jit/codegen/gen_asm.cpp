@@ -1694,7 +1694,7 @@ void NativeGenerator::generatePrologue(
               as_, kArgsReg, i * sizeof(void*), arch::reg_scratch_0));
     } else {
       as_->ldr(
-          a64::d(arg.loc),
+          a64::d(arg.loc - VECD_REG_BASE),
           arch::ptr_resolve(
               as_, kArgsReg, i * sizeof(void*), arch::reg_scratch_0));
     }
