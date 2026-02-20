@@ -35,6 +35,6 @@ jobs:
       run: |
         uv pip install pytest
 
-    - name: Run Basic JIT Tests
+    - name: Run Tests
       run: |
-        uv run pytest cinderx/PythonLib/test_cinderx/test_jit_{async_generators,count_calls,disable,exception,frame,generators,global_cache,perf_map,specialization,type_annotations}.py
+        uv run pytest cinderx/PythonLib/test_cinderx/test*.py
