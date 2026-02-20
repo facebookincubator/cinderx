@@ -2176,7 +2176,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
       as_->bind(trampoline);
       as_->mov(a64::x10, reinterpret_cast<uint64_t>(x.first));
       as_->mov(arch::reg_scratch_br, failed_deferred_compile_trampoline_);
-      as_->blr(arch::reg_scratch_br);
+      as_->br(arch::reg_scratch_br);
       x.second.trampoline = trampoline;
     }
     env_.addAnnotation("JitHelpers", jit_helpers);
