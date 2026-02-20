@@ -2189,7 +2189,10 @@ LoadMethodResult JITRT_LoadSpecial(
   int err = _PyObject_LookupSpecialMethod(name, method_and_self);
   if (err <= 0) {
     PyStackRef_CLOSE(method_and_self[1]);
-    if (err == 0) {
+    if (err < 0) {
+      // When __get__ raises, method_and_self[0] holds a ref to the descriptor
+      PyStackRef_XCLOSE(method_and_self[0]);
+    } else if (err == 0) {
       PyObject* owner = PyStackRef_AsPyObjectBorrow(method_and_self[1]);
       const char* errfmt = _PyEval_SpecialMethodCanSuggest(owner, special_idx)
           ? _Py_SpecialMethods[special_idx].error_suggestion
