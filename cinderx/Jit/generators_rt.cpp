@@ -50,25 +50,42 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
   JitGenObject* jit_gen = JitGenObject::cast(obj);
   if (jit_gen != nullptr) {
     const GenDataFooter* gen_footer = jit_gen->genDataFooter();
-    if (gen_footer->yieldPoint == nullptr) {
-      return 0;
-    }
-    size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
-    const DeoptMetadata& meta =
-        gen_footer->code_rt->getDeoptMetadata(deopt_idx);
-    for (const LiveValue& value : meta.live_values) {
-      if (value.ref_kind != hir::RefKind::kOwned) {
-        continue;
+    // Only visit JIT-specific live values if we have a valid yield point.
+    // If yieldPoint is null, the generator hasn't yielded yet or has completed,
+    // but we still need to call PyGen_Type.tp_traverse below to visit standard
+    // generator references (gi_code, gi_frame, etc.).
+    if (gen_footer->yieldPoint != nullptr) {
+      size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
+      const DeoptMetadata& meta =
+          gen_footer->code_rt->getDeoptMetadata(deopt_idx);
+      for (const LiveValue& value : meta.live_values) {
+        if (value.ref_kind != hir::RefKind::kOwned) {
+          continue;
+        }
+        codegen::PhyLocation loc = value.location;
+        JIT_CHECK(
+            !loc.is_register(),
+            "DeoptMetadata for Yields should not reference registers");
+        PyObject* v = *reinterpret_cast<PyObject**>(
+            reinterpret_cast<uintptr_t>(gen_footer) + loc.loc);
+        Py_VISIT(v);
       }
-      codegen::PhyLocation loc = value.location;
-      JIT_CHECK(
-          !loc.is_register(),
-          "DeoptMetadata for Yields should not reference registers");
-      PyObject* v = *reinterpret_cast<PyObject**>(
-          reinterpret_cast<uintptr_t>(gen_footer) + loc.loc);
-      Py_VISIT(v);
+      JIT_CHECK(JitGen_CheckAny(obj), "Deopted during GC traversal");
     }
-    JIT_CHECK(JitGen_CheckAny(obj), "Deopted during GC traversal");
+
+#if PY_VERSION_HEX < 0x030E0000
+    // In lightweight frame mode, frame->f_funcobj is set to a reifier singleton
+    // rather than the actual function. The real function is stored in the
+    // FrameHeader and contains func_closure with closure cells that may
+    // participate in reference cycles. We must visit it explicitly since
+    // _PyFrame_Traverse won't see it.
+    if (getConfig().frame_mode == FrameMode::kLightweight &&
+        jit_gen->gi_frame_state < FRAME_CLEARED) {
+      _PyInterpreterFrame* frame = generatorFrame(jit_gen);
+      BorrowedRef<PyFunctionObject> func = jitFrameGetFunction(frame);
+      Py_VISIT(func.get());
+    }
+#endif
   }
   // Try to use CPython traverse as much as we can as it has internals which
   // are hard to borrow in 3.14 (compares 'visit' to a speicifc internal
@@ -337,6 +354,26 @@ void jitgen_finalize(PyObject* obj) {
   PyGen_Type.tp_finalize(obj);
 }
 
+int jitgen_clear(PyObject* obj) {
+  // tp_clear is called by the cyclic GC to break reference cycles.
+  // We need to deopt the JIT generator so that the standard generator
+  // tp_clear can properly clear all references.
+  //
+  // If the generator is currently executing (gi_frame_state ==
+  // FRAME_EXECUTING), we cannot deopt it. In that case, return 0 without
+  // clearing - the GC will try again later or the generator will complete and
+  // be collected normally.
+  if (!deopt_jit_gen(obj)) {
+    return 0;
+  }
+  // After deopting, the object is now a regular PyGenObject/PyCoroObject.
+  // Delegate to the base type's tp_clear to break cycles.
+  if (PyGen_Type.tp_clear != nullptr) {
+    return PyGen_Type.tp_clear(obj);
+  }
+  return 0;
+}
+
 typedef struct {
   PyObject_HEAD
   PyObject* cw_coroutine;
@@ -600,6 +637,7 @@ static PyAsyncMethods jitcoro_as_async = {
 PyType_Slot gen_slots[] = {
     {Py_tp_dealloc, reinterpret_cast<void*>(jitgen_dealloc)},
     {Py_tp_traverse, reinterpret_cast<void*>(jitgen_traverse)},
+    {Py_tp_clear, reinterpret_cast<void*>(jitgen_clear)},
     {Py_tp_finalize, reinterpret_cast<void*>(jitgen_finalize)},
     {Py_tp_iter, reinterpret_cast<void*>(PyObject_SelfIter)},
     {Py_tp_iternext, reinterpret_cast<void*>(jitgen_iternext)},
@@ -635,6 +673,7 @@ static_assert(sizeof(PyGenObject) == sizeof(PyCoroObject));
 PyType_Slot coro_slots[] = {
     {Py_tp_dealloc, reinterpret_cast<void*>(jitgen_dealloc)},
     {Py_tp_traverse, reinterpret_cast<void*>(jitgen_traverse)},
+    {Py_tp_clear, reinterpret_cast<void*>(jitgen_clear)},
     {Py_tp_finalize, reinterpret_cast<void*>(jitgen_finalize)},
     {Py_tp_methods, jitcoro_methods},
     {Py_tp_members, jitcoro_memberlist},
@@ -666,7 +705,16 @@ void deopt_jit_gen_object_only(JitGenObject* gen) {
   Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), type);
   if (getConfig().frame_mode == FrameMode::kLightweight) {
     auto frame = generatorFrame(gen);
-    jitFrameRemoveReifier(frame);
+    if (gen->gi_frame_state != FRAME_CLEARED) {
+      jitFrameRemoveReifier(frame);
+    } else if constexpr (PY_VERSION_HEX < 0x030E0000) {
+      // Normally we'll clear the function via jitFrameClearExceptCode. But
+      // a user can call clear on a reified frame object which transfers
+      // ownership of the _PyInterpreterFrame to the PyFrameObject and marks
+      // the generator frame as cleared. In that case we still need to decref
+      // the function which is stored before the _PyInterpreterFrame in 3.12.
+      Py_XDECREF(jitFrameGetFunction(frame));
+    }
   }
 }
 

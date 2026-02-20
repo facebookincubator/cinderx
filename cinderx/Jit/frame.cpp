@@ -432,7 +432,10 @@ void jitFrameRemoveReifier(_PyInterpreterFrame* frame) {
   // interpreter.
   if (!hasRtfsFunction(frame)) {
     // ownership is transferred
-    setFrameFunction(frame, jitFrameGetFunction(frame));
+    if (jitFrameGetFunction(frame) != nullptr) {
+      setFrameFunction(frame, jitFrameGetFunction(frame));
+      jitFrameGetHeader(frame)->rtfs = JIT_FRAME_INITIALIZED;
+    }
   } else {
     RuntimeFrameState* rtfs = jitFrameGetRtfs(frame);
     auto func = rtfs->func();
@@ -634,11 +637,16 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
     Ci_STACK_CLEAR(frame->localsplus[i]);
   }
   Ci_STACK_CLOSE(frame->f_funcobj);
-  if constexpr (PY_VERSION_HEX < 0x030E0000) {
-    if (!hasRtfsFunction(frame)) {
-      Py_DECREF(jitFrameGetFunction(frame));
-    }
+#if PY_VERSION_HEX < 0x030E0000
+  // We can't leave our reifier dangling here otherwise we may
+  // continue to get callbacks, instead leave the function dangling.
+  frame->f_funcobj = hasRtfsFunction(frame) ? jitFrameGetRtfs(frame)->func()
+                                            : jitFrameGetFunction(frame);
+  if (!hasRtfsFunction(frame)) {
+    Py_XDECREF(jitFrameGetFunction(frame));
+    jitFrameGetHeader(frame)->rtfs = JIT_FRAME_INITIALIZED;
   }
+#endif
 }
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
