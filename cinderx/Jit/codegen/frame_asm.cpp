@@ -753,9 +753,9 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
   // Store owner
   asmjit::BaseNode* store_owner_cursor = as_->cursor();
-  as_->mov(a64::w1, FRAME_OWNED_BY_THREAD);
+  as_->mov(a64::w(arch::reg_scratch_0.id()), FRAME_OWNED_BY_THREAD);
   as_->strb(
-      a64::w1,
+      a64::w(arch::reg_scratch_0.id()),
       arch::ptr_resolve(
           as_,
           arch::fp,
