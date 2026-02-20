@@ -120,6 +120,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // We also had to explicitly remove PyDict_New() because we need the original
 // version to initialize ci_dict_empty_keys.
 //
+// @Borrow function can_modify_dict from Objects/dictobject.c [3.15]
 // @Borrow function values_size_from_count from Objects/dictobject.c [3.15]
 // @Borrow function new_values from Objects/dictobject.c [3.15]
 // @Borrow function dictkeys_incref from Objects/dictobject.c [3.15]
@@ -163,7 +164,6 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function insert_split_value from Objects/dictobject.c [3.15]
 // @Borrow function insert_combined_dict from Objects/dictobject.c [3.15]
 // @Borrow function insertdict from Objects/dictobject.c [3.15]
-// @Borrow function anydict_setitem_take2 from Objects/dictobject.c [3.15]
 // @Borrow function setitem_take2_lock_held from Objects/dictobject.c [3.15]
 // @Borrow function setitem_lock_held from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.15]
