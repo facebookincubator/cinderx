@@ -303,7 +303,7 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
           target);
       as->cmp(reg_arg, target);
     } else {
-      auto target_reg = AutoTranslator::getGp(target_opnd);
+      auto target_reg = AutoTranslator::getGpWiden(target_opnd);
       as->cmp(reg_arg, target_reg);
     }
   };
@@ -467,19 +467,20 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
 
     as->mov(scratch, address);
     as->ldr(scratch, a64::ptr(scratch));
-    as->cmp(AutoTranslator::getGp(inp0), scratch);
+    as->cmp(AutoTranslator::getGpWiden(inp0), scratch);
   } else if (inp1->isImm()) {
     auto constant = inp1->getConstantOrAddress();
-    auto scratch = arch::reg_scratch_0;
 
     if (arm::Utils::isAddSubImm(constant)) {
-      as->cmp(AutoTranslator::getGp(inp0), constant);
+      as->cmp(AutoTranslator::getGpWiden(inp0), constant);
     } else {
+      auto scratch = AutoTranslator::getGpWiden(
+          inp0->dataType(), arch::reg_scratch_0.id());
       as->mov(scratch, constant);
-      as->cmp(AutoTranslator::getGp(inp0), scratch);
+      as->cmp(AutoTranslator::getGpWiden(inp0), scratch);
     }
   } else if (!inp1->isVecD()) {
-    as->cmp(AutoTranslator::getGp(inp0), AutoTranslator::getGp(inp1));
+    as->cmp(AutoTranslator::getGpWiden(inp0), AutoTranslator::getGpWiden(inp1));
   } else {
     as->fcmp(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
@@ -550,7 +551,7 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
   if (input->isImm()) {
     as->mov(output, input->getConstant() ? 1 : 0);
   } else {
-    as->cmp(AutoTranslator::getGp(input), 0);
+    as->cmp(AutoTranslator::getGpWiden(input), 0);
     as->cset(output, a64::CondCode::kNE);
   }
 #else
@@ -2024,7 +2025,7 @@ void translateMove(Environ* env, const Instruction* instr) {
             if (input->isVecD()) {
               as->fmov(AT::getGp(output), AT::getVecD(input));
             } else {
-              as->mov(AT::getGp(output), AT::getGp(input));
+              as->mov(AT::getGpWiden(output), AT::getGpWiden(input));
             }
           }
           break;
@@ -2071,7 +2072,7 @@ void translateMove(Environ* env, const Instruction* instr) {
           if (output->isVecD()) {
             as->fmov(AT::getVecD(output), input->getConstant());
           } else {
-            as->mov(AT::getGp(output), input->getConstant());
+            as->mov(AT::getGpWiden(output), input->getConstant());
           }
           break;
         case lir::OperandType::kNone:
@@ -2105,7 +2106,7 @@ void translateMove(Environ* env, const Instruction* instr) {
         if (input->isVecD()) {
           as->str(AT::getVecD(input), a64::ptr(scratch0));
         } else {
-          as->str(AT::getGp(input), a64::ptr(scratch0));
+          as->str(AT::getGpWiden(input), a64::ptr(scratch0));
         }
       } else if (input->isImm()) {
         // Storing a constant immediate to an absolute address.
@@ -2288,7 +2289,7 @@ void translateAddSubOp(
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
 
   auto output_reg = AT::getGpOutput(output);
-  auto opnd0_reg = AT::getGpOverflowSafe(opnd0);
+  auto opnd0_reg = AT::getGpWiden(opnd0);
 
   if (opnd1->isImm()) {
     uint64_t constant = opnd1->getConstant();
@@ -2296,12 +2297,13 @@ void translateAddSubOp(
 
     emit(as, output_reg, opnd0_reg, constant);
   } else if (opnd1->isReg()) {
-    emit(as, output_reg, opnd0_reg, AT::getGpOverflowSafe(opnd1));
+    emit(as, output_reg, opnd0_reg, AT::getGpWiden(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(arch::reg_scratch_0, ptr);
-    emit(as, output_reg, opnd0_reg, arch::reg_scratch_0);
+    as->ldr(scratch, ptr);
+    emit(as, output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd1->type());
   }
@@ -2335,8 +2337,8 @@ void translateLogicalOp(
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
 
-  auto output_reg = AT::getGp(output);
-  auto opnd0_reg = AT::getGp(opnd0);
+  auto output_reg = AT::getGpWiden(output);
+  auto opnd0_reg = AT::getGpWiden(opnd0);
 
   if (opnd1->isImm()) {
     uint64_t constant = opnd1->getConstant();
@@ -2345,12 +2347,13 @@ void translateLogicalOp(
 
     emit(as, output_reg, opnd0_reg, constant);
   } else if (opnd1->isReg()) {
-    emit(as, output_reg, opnd0_reg, AT::getGp(opnd1));
+    emit(as, output_reg, opnd0_reg, AT::getGpWiden(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(arch::reg_scratch_0, ptr);
-    emit(as, output_reg, opnd0_reg, arch::reg_scratch_0);
+    as->ldr(scratch, ptr);
+    emit(as, output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd1->type());
   }
@@ -2385,19 +2388,21 @@ void translateMul(Environ* env, const Instruction* instr) {
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
 
-  auto output_reg = AT::getGp(output);
-  auto opnd0_reg = AT::getGp(opnd0);
+  auto output_reg = AT::getGpWiden(output);
+  auto opnd0_reg = AT::getGpWiden(opnd0);
 
   if (opnd1->isImm()) {
-    as->mov(arch::reg_scratch_0, opnd1->getConstant());
-    as->mul(output_reg, opnd0_reg, arch::reg_scratch_0);
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
+    as->mov(scratch, opnd1->getConstant());
+    as->mul(output_reg, opnd0_reg, scratch);
   } else if (opnd1->isReg()) {
-    as->mul(output_reg, opnd0_reg, AT::getGp(opnd1));
+    as->mul(output_reg, opnd0_reg, AT::getGpWiden(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(arch::reg_scratch_0, ptr);
-    as->mul(output_reg, opnd0_reg, arch::reg_scratch_0);
+    as->ldr(scratch, ptr);
+    as->mul(output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for Mul: {}", opnd1->type());
   }
@@ -2419,16 +2424,17 @@ void translateDivOp(
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
 
-  auto output_reg = AT::getGp(output);
-  auto opnd0_reg = AT::getGp(opnd0);
+  auto output_reg = AT::getGpWiden(output);
+  auto opnd0_reg = AT::getGpWiden(opnd0);
 
   if (opnd1->isReg()) {
-    emit(as, output_reg, opnd0_reg, AT::getGp(opnd1));
+    emit(as, output_reg, opnd0_reg, AT::getGpWiden(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(arch::reg_scratch_0, ptr);
-    emit(as, output_reg, opnd0_reg, arch::reg_scratch_0);
+    as->ldr(scratch, ptr);
+    emit(as, output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd1->type());
   }
@@ -2455,7 +2461,7 @@ void translatePush(Environ* env, const Instruction* instr) {
     as->mov(arch::reg_scratch_0, operand->getConstant());
     as->str(arch::reg_scratch_0, a64::ptr_pre(a64::sp, -16));
   } else if (operand->isReg()) {
-    auto reg = AT::getGp(operand);
+    auto reg = AT::getGpWiden(operand);
     as->str(reg, a64::ptr_pre(a64::sp, -16));
   } else if (operand->isStack()) {
     auto loc = operand->getStackSlot().loc;
@@ -2473,7 +2479,7 @@ void translatePop(Environ* env, const Instruction* instr) {
   const OperandBase* operand = instr->output();
 
   if (operand->isReg()) {
-    auto reg = AT::getGp(operand);
+    auto reg = AT::getGpWiden(operand);
     as->ldr(reg, a64::ptr_post(a64::sp, 16));
   } else if (operand->isStack()) {
     auto loc = operand->getStackSlot().loc;
@@ -2502,9 +2508,9 @@ void translateExchange(Environ* env, const Instruction* instr) {
     as->eor(vec1.v16(), vec1.v16(), vec0.v16());
     as->eor(vec0.v16(), vec0.v16(), vec1.v16());
   } else {
-    auto reg0 = AT::getGp(opnd0);
-    auto reg1 = AT::getGp(opnd1);
-    auto scratch = arch::reg_scratch_0;
+    auto reg0 = AT::getGpWiden(opnd0);
+    auto reg1 = AT::getGpWiden(opnd1);
+    auto scratch = AT::getGpWiden(opnd0->dataType(), arch::reg_scratch_0.id());
 
     as->mov(scratch, reg0);
     as->mov(reg0, reg1);
@@ -2524,16 +2530,17 @@ void translateCmp(Environ* env, const Instruction* instr) {
     if (inp0->isVecD() && inp1->isVecD()) {
       as->fcmp(AT::getVecD(inp0), AT::getVecD(inp1));
     } else {
-      as->cmp(AT::getGp(inp0), AT::getGp(inp1));
+      as->cmp(AT::getGpWiden(inp0), AT::getGpWiden(inp1));
     }
   } else if (inp1->isImm()) {
     auto constant = inp1->getConstant();
 
     if (arm::Utils::isAddSubImm(constant)) {
-      as->cmp(AT::getGp(inp0), constant);
+      as->cmp(AT::getGpWiden(inp0), constant);
     } else {
-      as->mov(arch::reg_scratch_0, constant);
-      as->cmp(AT::getGp(inp0), arch::reg_scratch_0);
+      auto scratch = AT::getGpWiden(inp0->dataType(), arch::reg_scratch_0.id());
+      as->mov(scratch, constant);
+      as->cmp(AT::getGpWiden(inp0), scratch);
     }
   } else {
     JIT_ABORT(
@@ -2554,7 +2561,7 @@ void translateIncDecOp(
   if (opnd->isReg()) {
     // We have to do adds/subs here, because implicitly our LIR relies on the
     // Inc/Dec instructions setting flags.
-    emit(as, AT::getGp(opnd), AT::getGp(opnd), 1);
+    emit(as, AT::getGpWiden(opnd), AT::getGpWiden(opnd), 1);
   } else if (opnd->isStack()) {
     auto loc = opnd->getStackSlot().loc;
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_1);
@@ -2581,7 +2588,7 @@ void translateDec(Environ* env, const Instruction* instr) {
 void translateBitTest(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  auto test_reg = AT::getGp(instr->getInput(0));
+  auto test_reg = AT::getGpWiden(instr->getInput(0));
   auto bit_pos = instr->getInput(1)->getConstant();
 
   uint64_t mask = 1ULL << bit_pos;
@@ -2640,7 +2647,7 @@ void translateSelect(Environ* env, const Instruction* instr) {
       condition_reg = AT::getGp(condition_op);
       break;
   }
-  auto true_val_reg = AT::getGp(instr->getInput(1));
+  auto true_val_reg = AT::getGpWiden(instr->getInput(1));
   auto false_val = instr->getInput(2)->getConstant();
 
   as->mov(arch::reg_scratch_0, false_val);

@@ -129,8 +129,21 @@ class AutoTranslator {
     return getGpOutput(op, op->getPhyRegister().loc);
   }
 
-  static arch::Gp getGpOverflowSafe(const jit::lir::OperandBase* op) {
-    return getGpOutput(op, op->getPhyRegister().loc);
+  static arch::Gp getGpWiden(lir::DataType data_type, unsigned int reg) {
+#if defined(CINDER_AARCH64)
+    // AArch64 has no sub-32-bit GP registers. Values in registers are
+    // guaranteed to be properly zero-extended by ldrb/ldrh/cset.
+    // For signed operations, use the postgen sign-extension pass instead.
+    if (data_type == jit::lir::OperandBase::k8bit ||
+        data_type == jit::lir::OperandBase::k16bit) {
+      data_type = jit::lir::OperandBase::k32bit;
+    }
+#endif
+    return getGp(data_type, reg);
+  }
+
+  static arch::Gp getGpWiden(const lir::OperandBase* op) {
+    return getGpWiden(op->dataType(), op->getPhyRegister().loc);
   }
 
  private:
