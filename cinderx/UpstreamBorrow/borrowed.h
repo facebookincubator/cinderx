@@ -127,6 +127,12 @@
 #define _PyDict_DelItem_KnownHash_LockHeld _CiDict_DelItem_KnownHash_LockHeld
 #define _PyInterpreterState_GetConfig _CiInterpreterState_GetConfig
 
+// The 3.14 file is built with 3.14.3, which includes gh-142534 that defines
+// this new macro.  The lack of it on earlier point releases breaks the build.
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030E0300
+#define FT_ATOMIC_LOAD_PTR_CONSUME FT_ATOMIC_LOAD_PTR_ACQUIRE
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
