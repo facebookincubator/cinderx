@@ -2140,6 +2140,12 @@ void translateMove(Environ* env, const Instruction* instr) {
             as->mov(a64::w(scratch1.id()), input->getConstant());
             as->strh(a64::w(scratch1.id()), ptr);
             break;
+          case OperandBase::k32bit:
+            // Use w register for 4-byte store to avoid overflowing
+            // tightly-packed fields.
+            as->mov(a64::w(scratch1.id()), input->getConstant());
+            as->str(a64::w(scratch1.id()), ptr);
+            break;
           default:
             as->mov(scratch1, input->getConstant());
             as->str(scratch1, ptr);
@@ -2254,7 +2260,7 @@ void translateMovSXD(Environ* env, const Instruction* instr) {
   const OperandBase* input = instr->getInput(0);
 
   if (input->isReg()) {
-    auto input_reg = AT::getGp(input);
+    auto input_reg = asmjit::a64::w(input->getPhyRegister().loc);
     as->sxtw(output, input_reg);
   } else if (input->isStack()) {
     auto loc = input->getStackSlot().loc;
@@ -2418,20 +2424,32 @@ void translateDivOp(
 
   const OperandBase* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
-  const OperandBase* opnd0 = instr->getInput(0);
-  const OperandBase* opnd1 = instr->getInput(1);
+
+  // Division instructions may have an extra leading Imm{0} input (used by x86
+  // for the high half of the dividend). Skip it on AArch64.
+  size_t base = 0;
+  if (instr->getNumInputs() == 3 && instr->getInput(0)->isImm()) {
+    base = 1;
+  }
+  const OperandBase* opnd0 = instr->getInput(base);
+  const OperandBase* opnd1 = instr->getInput(base + 1);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
 
-  auto output_reg = AT::getGpWiden(output);
-  auto opnd0_reg = AT::getGpWiden(opnd0);
+  // Use getGpOutput to get the correct register width. sdiv/udiv require all
+  // operands to be the same width. getGpOutput returns w(reg) for k32bit and
+  // x(reg) for k64bit, matching the hardware instruction requirements.
+  // (getGpWiden would return x(reg) for k32bit, causing sdiv to interpret
+  // zero-extended 32-bit values as 64-bit, giving wrong results for negatives.)
+  auto output_reg = AT::getGpOutput(output);
+  auto opnd0_reg = AT::getGpOutput(opnd0);
 
   if (opnd1->isReg()) {
-    emit(as, output_reg, opnd0_reg, AT::getGpWiden(opnd1));
+    emit(as, output_reg, opnd0_reg, AT::getGpOutput(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
+    auto scratch = AT::getGpOutput(output, arch::reg_scratch_0.id());
     auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
     as->ldr(scratch, ptr);
     emit(as, output_reg, opnd0_reg, scratch);
@@ -2790,6 +2808,8 @@ BEGIN_RULES(Instruction::kDiv)
   GEN("rrm", CALL_C(translateDiv))
   GEN("rr", CALL_C(translateDiv))
   GEN("rm", CALL_C(translateDiv))
+  GEN("Rirr", CALL_C(translateDiv))
+  GEN("Rirm", CALL_C(translateDiv))
 END_RULES
 
 BEGIN_RULES(Instruction::kDivUn)
@@ -2797,6 +2817,8 @@ BEGIN_RULES(Instruction::kDivUn)
   GEN("rrm", CALL_C(translateDivUn))
   GEN("rr", CALL_C(translateDivUn))
   GEN("rm", CALL_C(translateDivUn))
+  GEN("Rirr", CALL_C(translateDivUn))
+  GEN("Rirm", CALL_C(translateDivUn))
 END_RULES
 
 BEGIN_RULES(Instruction::kFadd)

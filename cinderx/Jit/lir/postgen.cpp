@@ -28,23 +28,29 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   auto block = instr->basicblock();
 
   if (instr->isDiv() || instr->isDivUn()) {
-    auto divisor = instr->getInput(2);
-    if (!divisor->isImm()) {
-      return kUnchanged;
+    bool changed = false;
+    // div/sdiv/udiv don't support immediate operands on AArch64.
+    // Input layout is [Imm{0}, dividend, divisor] where input 0 is the x86
+    // high-half placeholder. Convert both dividend (input 1) and divisor
+    // (input 2) to registers if they are immediates.
+    for (int idx = 1; idx <= 2; idx++) {
+      auto operand = instr->getInput(idx);
+      if (!operand->isImm()) {
+        continue;
+      }
+      auto constant = operand->getConstant();
+      auto constant_size = operand->dataType();
+
+      auto move = block->allocateInstrBefore(
+          instr_iter,
+          Instruction::kMove,
+          OutVReg{constant_size},
+          Imm{constant, constant_size});
+
+      instr->setInput(idx, std::make_unique<LinkedOperand>(move));
+      changed = true;
     }
-
-    // div doesn't support an immediate as the divisor.
-    auto constant = divisor->getConstant();
-    auto constant_size = divisor->dataType();
-
-    auto move = block->allocateInstrBefore(
-        instr_iter,
-        Instruction::kMove,
-        OutVReg{constant_size},
-        Imm{constant, constant_size});
-
-    instr->setInput(2, std::make_unique<LinkedOperand>(move));
-    return kChanged;
+    return changed ? kChanged : kUnchanged;
   }
 
   if (!instr->isAdd() && !instr->isSub() && !instr->isXor() &&
