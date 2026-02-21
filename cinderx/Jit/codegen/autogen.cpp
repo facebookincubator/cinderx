@@ -2278,6 +2278,60 @@ void translateUnreachable(Environ* env, const Instruction* instr) {
   as->udf(0);
 }
 
+void translateNegate(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+
+  const OperandBase* output =
+      instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
+  const OperandBase* opnd0 = instr->getInput(0);
+
+  JIT_CHECK(output->isReg(), "Expected output to be a register");
+
+  auto output_reg = AT::getGpOutput(output);
+
+  if (opnd0->isImm()) {
+    int64_t constant = opnd0->getConstant();
+    as->mov(output_reg, asmjit::Imm(-constant));
+  } else if (opnd0->isReg()) {
+    as->neg(output_reg, AT::getGpWiden(opnd0));
+  } else if (opnd0->isStack()) {
+    auto loc = opnd0->getStackSlot().loc;
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
+    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
+    as->ldr(scratch, ptr);
+    as->neg(output_reg, scratch);
+  } else {
+    JIT_ABORT("Unsupported operand type for Negate: {}", opnd0->type());
+  }
+}
+
+void translateInvert(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+
+  const OperandBase* output =
+      instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
+  const OperandBase* opnd0 = instr->getInput(0);
+
+  JIT_CHECK(output->isReg(), "Expected output to be a register");
+
+  auto output_reg = AT::getGpOutput(output);
+
+  if (opnd0->isImm()) {
+    uint64_t constant = opnd0->getConstant();
+    as->mov(output_reg, asmjit::Imm(~constant));
+  } else if (opnd0->isReg()) {
+    as->mvn(output_reg, AT::getGpWiden(opnd0));
+  } else if (opnd0->isStack()) {
+    auto loc = opnd0->getStackSlot().loc;
+    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
+    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
+    as->ldr(scratch, ptr);
+    as->mvn(output_reg, scratch);
+  } else {
+    JIT_ABORT("Unsupported operand type for Invert: {}", opnd0->type());
+  }
+}
+
 template <typename EmitFn>
 void translateAddSubOp(
     Environ* env,
@@ -2718,16 +2772,16 @@ BEGIN_RULES(Instruction::kDeoptPatchpoint)
 END_RULES
 
 BEGIN_RULES(Instruction::kNegate)
-  GEN("r", ASM(neg, OP(0), OP(0)))
-  GEN("Ri", ASM(mov, OP(0), ImmOperandNegate<OP(1)>))
-  GEN("Rr", ASM(neg, OP(0), OP(1)))
-  GEN("Rm", ASM(ldr, OP(0), STK(1)), ASM(neg, OP(0), OP(0)))
+  GEN("r", CALL_C(translateNegate))
+  GEN("Ri", CALL_C(translateNegate))
+  GEN("Rr", CALL_C(translateNegate))
+  GEN("Rm", CALL_C(translateNegate))
 END_RULES
 
 BEGIN_RULES(Instruction::kInvert)
-  GEN("Ri", ASM(mov, OP(0), ImmOperandInvert<OP(1)>))
-  GEN("Rr", ASM(mvn, OP(0), OP(1)))
-  GEN("Rm", ASM(ldr, OP(0), STK(1)), ASM(mvn, OP(0), OP(0)))
+  GEN("Ri", CALL_C(translateInvert))
+  GEN("Rr", CALL_C(translateInvert))
+  GEN("Rm", CALL_C(translateInvert))
 END_RULES
 
 BEGIN_RULES(Instruction::kMovZX)
