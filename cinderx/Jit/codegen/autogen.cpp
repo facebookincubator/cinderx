@@ -1918,7 +1918,25 @@ void translateLea(Environ* env, const Instruction* instr) {
   JIT_CHECK(output->isReg(), "Expected output to be a register");
 
   if (input->isStack()) {
-    as->add(AT::getGp(output), arch::fp, input->getStackSlot().loc);
+    auto loc = input->getStackSlot().loc;
+    auto out = AT::getGp(output);
+    if (loc > 0) {
+      if (arm::Utils::isAddSubImm(static_cast<uint64_t>(loc))) {
+        as->add(out, arch::fp, loc);
+      } else {
+        as->mov(arch::reg_scratch_0, loc);
+        as->add(out, arch::fp, arch::reg_scratch_0);
+      }
+    } else if (loc < 0) {
+      if (arm::Utils::isAddSubImm(static_cast<uint64_t>(-loc))) {
+        as->sub(out, arch::fp, -loc);
+      } else {
+        as->mov(arch::reg_scratch_0, -loc);
+        as->sub(out, arch::fp, arch::reg_scratch_0);
+      }
+    } else {
+      as->mov(out, arch::fp);
+    }
   } else if (input->isMem()) {
     auto address = reinterpret_cast<uint64_t>(input->getMemoryAddress());
     as->mov(AT::getGp(output), address);
