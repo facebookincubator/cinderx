@@ -127,15 +127,28 @@ class BackendTest : public RuntimeTest {
     JIT_CHECK(allocate_stack % kStackAlign == 0, "unaligned");
     as.sub(asmjit::a64::sp, asmjit::a64::sp, allocate_stack);
 
-    // Push used callee-saved registers.
-    std::vector<int> pushed_regs;
-    pushed_regs.reserve(saved_regs.count());
-    while (!saved_regs.Empty()) {
+    // Push used callee-saved registers, handling GP and FP separately.
+    auto gp_regs = saved_regs & ALL_GP_REGISTERS;
+    auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
+
+    std::vector<int> pushed_gp_regs;
+    pushed_gp_regs.reserve(gp_regs.count());
+    while (!gp_regs.Empty()) {
       as.str(
-          asmjit::a64::x(saved_regs.GetFirst().loc),
+          asmjit::a64::x(gp_regs.GetFirst().loc),
           asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
-      pushed_regs.push_back(saved_regs.GetFirst().loc);
-      saved_regs.RemoveFirst();
+      pushed_gp_regs.push_back(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+    }
+
+    std::vector<int> pushed_vecd_regs;
+    pushed_vecd_regs.reserve(vecd_regs.count());
+    while (!vecd_regs.Empty()) {
+      as.str(
+          asmjit::a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
+      pushed_vecd_regs.push_back(vecd_regs.GetFirst().loc);
+      vecd_regs.RemoveFirst();
     }
 
     if (arg_buffer_size > 0) {
@@ -152,7 +165,15 @@ class BackendTest : public RuntimeTest {
       as.add(asmjit::a64::sp, asmjit::a64::sp, arg_buffer_size);
     }
 
-    for (auto riter = pushed_regs.rbegin(); riter != pushed_regs.rend();
+    for (auto riter = pushed_vecd_regs.rbegin();
+         riter != pushed_vecd_regs.rend();
+         ++riter) {
+      as.ldr(
+          asmjit::a64::d(*riter - VECD_REG_BASE),
+          asmjit::a64::ptr_post(asmjit::a64::sp, 16));
+    }
+
+    for (auto riter = pushed_gp_regs.rbegin(); riter != pushed_gp_regs.rend();
          ++riter) {
       as.ldr(
           asmjit::a64::x(*riter), asmjit::a64::ptr_post(asmjit::a64::sp, 16));
