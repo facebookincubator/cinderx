@@ -22,3 +22,13 @@ classifiers = [
 
 [project.urls]
 Repository = "https://www.github.com/facebookincubator/cinderx"
+
+[tool.cibuildwheel]
+build = ["cp314-manylinux_x86_64", "cp314-musllinux_x86_64"]
+environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
+build-verbosity = 3
+
+[tool.cibuildwheel.linux]
+# If it exists, pass through CINDERX_VERSION_PATCH to setuptools to specify the
+# patch version.
+environment-pass = ["CINDERX_VERSION_PATCH"]
