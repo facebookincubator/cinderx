@@ -762,7 +762,7 @@ done:
     return dict;
 }
 static void
-dict_unhashable_type(PyObject *key)
+dict_unhashable_type(PyObject *op, PyObject *key)
 {
     PyObject *exc = PyErr_GetRaisedException();
     assert(exc != NULL);
@@ -771,9 +771,14 @@ dict_unhashable_type(PyObject *key)
         return;
     }
 
-    PyErr_Format(PyExc_TypeError,
-                 "cannot use '%T' as a dict key (%S)",
-                 key, exc);
+    const char *errmsg;
+    if (PyObject_IsInstance(op, (PyObject*)&PyFrozenDict_Type)) {
+        errmsg = "cannot use '%T' as a frozendict key (%S)";
+    }
+    else {
+        errmsg = "cannot use '%T' as a dict key (%S)";
+    }
+    PyErr_Format(PyExc_TypeError, errmsg, key, exc);
     Py_DECREF(exc);
 }
 static inline Py_ALWAYS_INLINE Py_ssize_t
@@ -1483,7 +1488,7 @@ setitem_take2_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
 
     Py_hash_t hash = _PyObject_HashFast(key);
     if (hash == -1) {
-        dict_unhashable_type(key);
+        dict_unhashable_type((PyObject*)mp, key);
         Py_DECREF(key);
         Py_DECREF(value);
         return -1;
@@ -1541,7 +1546,7 @@ _PyDict_SetItem_LockHeld(PyDictObject *dict, PyObject *name, PyObject *value)
     if (value == NULL) {
         Py_hash_t hash = _PyObject_HashFast(name);
         if (hash == -1) {
-            dict_unhashable_type(name);
+            dict_unhashable_type((PyObject*)dict, name);
             return -1;
         }
         return _PyDict_DelItem_KnownHash_LockHeld((PyObject *)dict, name, hash);
@@ -1624,7 +1629,7 @@ _PyDict_LookupIndexAndValue(PyDictObject *mp, PyObject *key, PyObject **value)
 
     Py_hash_t hash = _PyObject_HashFast(key);
     if (hash == -1) {
-        dict_unhashable_type(key);
+        dict_unhashable_type((PyObject*)mp, key);
         return -1;
     }
 
