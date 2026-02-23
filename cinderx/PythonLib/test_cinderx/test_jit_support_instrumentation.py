@@ -107,6 +107,65 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    def test_functions_reoptimized_after_free_tool_id(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "test_debugger")
+        sys.monitoring.register_callback(
+            sys.monitoring.DEBUGGER_ID,
+            sys.monitoring.events.CALL,
+            dummy_callback,
+        )
+        self.assertFalse(is_jit_compiled(foo))
+
+        # Free the tool directly instead of clearing the callback
+        sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
+
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "Function should be re-JIT compiled after free_tool_id is called",
+        )
+
+    def test_free_tool_id_with_multiple_tools(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "test_debugger")
+        sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "test_profiler")
+
+        sys.monitoring.register_callback(
+            sys.monitoring.DEBUGGER_ID,
+            sys.monitoring.events.CALL,
+            dummy_callback,
+        )
+        sys.monitoring.register_callback(
+            sys.monitoring.PROFILER_ID,
+            sys.monitoring.events.CALL,
+            dummy_callback,
+        )
+        self.assertFalse(is_jit_compiled(foo))
+
+        # Free first tool - should still be deoptimized
+        sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "JIT should remain disabled while profiler callback is still active",
+        )
+
+        # Free second tool - now should reoptimize
+        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "JIT should re-enable after all tools are freed via free_tool_id",
+        )
+
     def test_all_callbacks_must_be_removed_for_reoptimization(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
