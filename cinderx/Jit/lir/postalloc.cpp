@@ -74,18 +74,27 @@ void insertMoveToMemoryLocation(
         instr_iter,
         Instruction::kMove,
         OutInd{base, index, data_type},
-        PhyReg{loc});
+        PhyReg{loc, data_type});
     return;
   }
 
+  // When the operand is a double spilled to the stack, use k64bit for the GP
+  // scratch register since we're moving the raw bits through a GP register
+  // (matching the immediate case above).
+  auto scratch_data_type =
+      data_type == DataType::kDouble ? DataType::k64bit : data_type;
+
   PhyLocation loc = operand->getStackSlot();
-  block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutPhyReg{temp, data_type}, Stk{loc});
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutInd{base, index, data_type},
-      PhyReg{temp, data_type});
+      OutPhyReg{temp, scratch_data_type},
+      Stk{loc});
+  block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kMove,
+      OutInd{base, index, scratch_data_type},
+      PhyReg{temp, scratch_data_type});
 }
 
 int rewriteRegularFunction(instr_iter_t instr_iter) {
