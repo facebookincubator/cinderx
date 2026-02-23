@@ -27,6 +27,9 @@ Repository = "https://www.github.com/facebookincubator/cinderx"
 build = ["cp314-manylinux_x86_64", "cp314-musllinux_x86_64"]
 environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
 build-verbosity = 3
+# Build using the latest image to try to get the latest Python point release.
+manylinux-x86_64-image = "quay.io/pypa/manylinux_2_28:latest"
+musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2:latest"
 
 [tool.cibuildwheel.linux]
 # If it exists, pass through CINDERX_VERSION_PATCH to setuptools to specify the
