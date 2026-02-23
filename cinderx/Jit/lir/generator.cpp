@@ -1097,10 +1097,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
 
         Instruction* is_no_err_set = bbb.appendInstr(
-            Instruction::kEqual,
-            OutVReg{OperandBase::k8bit},
-            curexc,
-            MemImm{nullptr});
+            Instruction::kEqual, OutVReg{OperandBase::k8bit}, curexc, Imm{0});
 
         bbb.appendBranch(
             Instruction::kCondBranch, is_no_err_set, done, set_err);
