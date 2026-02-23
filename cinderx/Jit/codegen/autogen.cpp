@@ -2576,9 +2576,9 @@ void translateExchange(Environ* env, const Instruction* instr) {
     auto vec0 = AT::getVecD(opnd0);
     auto vec1 = AT::getVecD(opnd1);
 
-    as->eor(vec0.v16(), vec0.v16(), vec1.v16());
-    as->eor(vec1.v16(), vec1.v16(), vec0.v16());
-    as->eor(vec0.v16(), vec0.v16(), vec1.v16());
+    as->eor(vec0, vec0, vec1);
+    as->eor(vec1, vec1, vec0);
+    as->eor(vec0, vec0, vec1);
   } else {
     auto reg0 = AT::getGpWiden(opnd0);
     auto reg1 = AT::getGpWiden(opnd1);
