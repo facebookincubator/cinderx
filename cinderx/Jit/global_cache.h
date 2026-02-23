@@ -10,6 +10,9 @@
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/Jit/global_cache_iface.h"
 
+#ifdef Py_GIL_DISABLED
+#include <mutex>
+#endif
 #include <set>
 #include <unordered_map>
 
@@ -152,6 +155,11 @@ class GlobalCacheManager : public IGlobalCacheManager {
 
   // Arena where all the global value caches are allocated.
   SlabArena<PyObject*> arena_;
+
+  // Protects map_ and watch_map_ from concurrent access.
+#ifdef Py_GIL_DISABLED
+  std::recursive_mutex mutex_;
+#endif
 
   // Map of all global value caches, keyed by (globals, builtins, name).
   GlobalCacheMap map_;
