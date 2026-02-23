@@ -121,6 +121,14 @@ class ModuleState {
     orig_sys_monitoring_register_callback_ = Ref<>::create(func);
   }
 
+  BorrowedRef<> getOriginalSysMonitoringFreeToolId() const {
+    return orig_sys_monitoring_free_tool_id_;
+  }
+
+  void setOriginalSysMonitoringFreeToolId(BorrowedRef<> func) {
+    orig_sys_monitoring_free_tool_id_ = Ref<>::create(func);
+  }
+
   BorrowedRef<> getOriginalSysSetProfile() const {
     return orig_sys_setprofile_;
   }
@@ -206,6 +214,7 @@ class ModuleState {
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
   Ref<> orig_sys_monitoring_register_callback_;
+  Ref<> orig_sys_monitoring_free_tool_id_;
   Ref<> orig_sys_setprofile_;
   Ref<> orig_sys_settrace_;
 

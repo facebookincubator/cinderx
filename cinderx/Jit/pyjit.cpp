@@ -1411,6 +1411,13 @@ bool hasRegisteredMonitoringCallbacks() {
         tool_id == PY_MONITORING_SYS_TRACE_ID) {
       continue;
     }
+    // Skip tool IDs that have been freed via sys.monitoring.free_tool_id().
+    // CPython's free_tool_id only clears monitoring_tool_names but leaves
+    // stale entries in monitoring_callables, so we must check the tool name
+    // to avoid treating orphaned callbacks as active instrumentation.
+    if (is->monitoring_tool_names[tool_id] == nullptr) {
+      continue;
+    }
     for (int event_id = 0; event_id < _PY_MONITORING_EVENTS; ++event_id) {
       BorrowedRef<> entry = is->monitoring_callables[tool_id][event_id];
       if (entry != nullptr && !Py_IsNone(entry)) {
@@ -1453,6 +1460,35 @@ PyObject* patched_sys_monitoring_register_callback(
   JIT_CHECK(
       original != nullptr,
       "Expecting to have sys.monitoring.register_callback already saved");
+
+  // Run the original function first
+  PyObject* result =
+      PyObject_Vectorcall(original, args, nargs, nullptr /* kwnames */);
+  if (result == nullptr) {
+    return nullptr;
+  }
+
+  if (!toggleJitBasedOnInstrumentationState()) {
+    Py_DECREF(result);
+    return nullptr;
+  }
+
+  return result;
+}
+
+// Patched version of sys.monitoring.free_tool_id().
+// Intercepts tool ID deallocation to re-enable the JIT when there are no more
+// active monitoring callbacks. Without this, stale entries left in
+// monitoring_callables by free_tool_id would cause the JIT to remain paused.
+PyObject* patched_sys_monitoring_free_tool_id(
+    PyObject* /* self */,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  auto mod_state = cinderx::getModuleState();
+  BorrowedRef<> original = mod_state->getOriginalSysMonitoringFreeToolId();
+  JIT_CHECK(
+      original != nullptr,
+      "Expecting to have sys.monitoring.free_tool_id already saved");
 
   // Run the original function first
   PyObject* result =
@@ -2639,6 +2675,37 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
 
   JIT_DLOG("Successfully patched sys.monitoring.register_callback");
 
+  // Also patch free_tool_id to trigger a JIT state re-evaluation when tools
+  // are freed. Without this, the JIT would remain paused until some other
+  // event happens to call `toggleJitBasedOnInstrumentationState()`.
+  Ref<> orig_free_tool_id =
+      Ref<>::steal(PyObject_GetAttrString(monitoring, "free_tool_id"));
+  if (orig_free_tool_id != nullptr) {
+    mod_state->setOriginalSysMonitoringFreeToolId(orig_free_tool_id);
+
+    Ref<> patched_free_tool_id = Ref<>::steal(PyObject_GetAttrString(
+        cinderjit_module, "patched_sys_monitoring_free_tool_id"));
+    if (patched_free_tool_id != nullptr) {
+      if (PyObject_SetAttrString(
+              monitoring, "free_tool_id", patched_free_tool_id) < 0) {
+        JIT_LOG("Failed to patch sys.monitoring.free_tool_id");
+        PyErr_Clear();
+      } else {
+        JIT_DLOG("Successfully patched sys.monitoring.free_tool_id");
+      }
+    } else {
+      JIT_LOG(
+          "Failed to get patched_sys_monitoring_free_tool_id from cinderjit "
+          "module");
+      PyErr_Clear();
+    }
+  } else {
+    PyErr_Clear();
+    JIT_DLOG(
+        "sys.monitoring.free_tool_id not found, skipping free_tool_id "
+        "patching");
+  }
+
 #endif // PY_VERSION_HEX >= 0x030C0000
 }
 
@@ -2695,21 +2762,28 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
 
 void restoreSysMonitoringRegisterCallback() {
 #if PY_VERSION_HEX >= 0x030C0000
-
   auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original =
-      mod_state->getOriginalSysMonitoringRegisterCallback();
-  if (original == nullptr) {
-    return;
-  }
-
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     return;
   }
 
-  if (PyObject_SetAttrString(monitoring, "register_callback", original) < 0) {
-    PyErr_Clear();
+  BorrowedRef<> orig_register_callback =
+      mod_state->getOriginalSysMonitoringRegisterCallback();
+  if (orig_register_callback != nullptr) {
+    if (PyObject_SetAttrString(
+            monitoring, "register_callback", orig_register_callback) < 0) {
+      PyErr_Clear();
+    }
+  }
+
+  BorrowedRef<> orig_free_tool_id =
+      mod_state->getOriginalSysMonitoringFreeToolId();
+  if (orig_free_tool_id != nullptr) {
+    if (PyObject_SetAttrString(monitoring, "free_tool_id", orig_free_tool_id) <
+        0) {
+      PyErr_Clear();
+    }
   }
 #endif // PY_VERSION_HEX >= 0x030C0000
 }
@@ -2755,6 +2829,12 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Patched version of sys.monitoring.register_callback that "
          "disables/enables the JIT when debuggers/profilers attach/detach.")},
+    {"patched_sys_monitoring_free_tool_id",
+     _PyCFunction_CAST(patched_sys_monitoring_free_tool_id),
+     METH_FASTCALL,
+     PyDoc_STR(
+         "Patched version of sys.monitoring.free_tool_id that "
+         "re-enables the JIT when monitoring tools are freed.")},
     {"patched_sys_setprofile",
      _PyCFunction_CAST(patched_sys_setprofile),
      METH_FASTCALL,
