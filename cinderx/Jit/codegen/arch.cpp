@@ -69,6 +69,64 @@ a64::Mem ptr_resolve(
   return a64::ptr(base, scratch);
 }
 
+void cmp_immediate(a64::Builder* as, const arch::Gp& reg, uint64_t imm) {
+  if (arm::Utils::isAddSubImm(imm)) {
+    as->cmp(reg, imm);
+  } else if (arm::Utils::isAddSubImm(-imm)) {
+    as->cmn(reg, -imm);
+  } else {
+    as->mov(arch::reg_scratch_0, imm);
+    as->cmp(reg, arch::reg_scratch_0);
+  }
+}
+
+void add_immediate(
+    a64::Builder* as,
+    const a64::Gp& res,
+    const a64::Gp& lhs,
+    uint64_t rhsi) {
+  if (rhsi == 0) {
+    if (res != lhs) {
+      as->mov(res, lhs);
+    }
+  } else if (arm::Utils::isAddSubImm(rhsi)) {
+    as->add(res, lhs, rhsi);
+  } else {
+    as->mov(arch::reg_scratch_0, rhsi);
+    as->add(res, lhs, arch::reg_scratch_0);
+  }
+}
+
+void sub_immediate(
+    a64::Builder* as,
+    const a64::Gp& res,
+    const a64::Gp& lhs,
+    uint64_t rhsi) {
+  if (rhsi == 0) {
+    if (res != lhs) {
+      as->mov(res, lhs);
+    }
+  } else if (arm::Utils::isAddSubImm(rhsi)) {
+    as->sub(res, lhs, rhsi);
+  } else {
+    as->mov(arch::reg_scratch_0, rhsi);
+    as->sub(res, lhs, arch::reg_scratch_0);
+  }
+}
+
+void add_signed_immediate(
+    a64::Builder* as,
+    const a64::Gp& res,
+    const a64::Gp& lhs,
+    int64_t rhsi) {
+  uint64_t rshu = static_cast<uint64_t>(rhsi);
+  if (rhsi >= 0) {
+    add_immediate(as, res, lhs, rshu);
+  } else {
+    sub_immediate(as, res, lhs, -rshu);
+  }
+}
+
 } // namespace jit::codegen::arch
 
 #endif

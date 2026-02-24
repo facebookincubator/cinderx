@@ -147,6 +147,33 @@ asmjit::a64::Mem ptr_resolve(
 
 } // namespace jit::codegen::arch
 
+namespace jit::codegen::arch {
+
+void cmp_immediate(
+    asmjit::a64::Builder* as,
+    const asmjit::a64::Gp& reg,
+    uint64_t imm);
+
+void add_immediate(
+    asmjit::a64::Builder* as,
+    const asmjit::a64::Gp& res,
+    const asmjit::a64::Gp& lhs,
+    uint64_t rhsi);
+
+void sub_immediate(
+    asmjit::a64::Builder* as,
+    const asmjit::a64::Gp& res,
+    const asmjit::a64::Gp& lhs,
+    uint64_t rhsi);
+
+void add_signed_immediate(
+    asmjit::a64::Builder* as,
+    const asmjit::a64::Gp& res,
+    const asmjit::a64::Gp& lhs,
+    int64_t rhsi);
+
+} // namespace jit::codegen::arch
+
 #endif
 
 namespace jit::codegen {
