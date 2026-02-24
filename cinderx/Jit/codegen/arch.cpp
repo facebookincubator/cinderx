@@ -71,7 +71,7 @@ a64::Mem ptr_resolve(
 
 void cmp_immediate(
     a64::Builder* as,
-    arch::Gp &reg,
+    const arch::Gp &reg,
     uint64_t imm
 ) {
   if (arm::Utils::isAddSubImm(imm)) {
