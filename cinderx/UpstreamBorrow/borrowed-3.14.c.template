@@ -616,4 +616,17 @@ void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
     gen_dealloc(obj);
 }
 
+// _PyCoroObject_CAST includes assert(PyCoro_CheckExact(op)) which fails
+// for JIT coroutines that have a different type. Replace with a plain cast.
+#undef _PyCoroObject_CAST
+#define _PyCoroObject_CAST(op) ((PyCoroObject *)(op))
+// @Borrow function cr_getrunning from Objects/genobject.c [3.14]
+PyObject* Cix_cr_getrunning(PyObject* self, void* ignored) {
+    return cr_getrunning(self, ignored);
+}
+// @Borrow function cr_getsuspended from Objects/genobject.c [3.14]
+PyObject* Cix_cr_getsuspended(PyObject* self, void* ignored) {
+    return cr_getsuspended(self, ignored);
+}
+
 // @Borrow function _PyTuple_MaybeUntrack from Objects/tupleobject.c [3.14]
