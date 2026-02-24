@@ -579,6 +579,7 @@ TEST_F(HIRBuildTest, GetLength) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -678,6 +679,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -775,6 +777,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
     v1 = LoadArg<1; "param1">
     v2 = LoadArg<2; "param2">
     v3 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<3> v0 v1 v2
@@ -913,6 +916,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -998,6 +1002,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -1338,6 +1343,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1425,6 +1431,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1512,6 +1519,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1622,6 +1630,7 @@ TEST_F(HIRBuildTest, ListExtend) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1722,6 +1731,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1780,6 +1790,7 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
