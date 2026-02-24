@@ -441,6 +441,9 @@ RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
     case Instruction::kGreaterThanEqualUnsigned:
     case Instruction::kLessThanUnsigned:
     case Instruction::kLessThanEqualUnsigned:
+    case Instruction::kAnd:
+    case Instruction::kXor:
+    case Instruction::kOr:
       if (instr->output()->sizeInBits() < 32) {
         instr->output()->setDataType(DataType::k32bit);
         return kChanged;
