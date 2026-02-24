@@ -528,16 +528,15 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 #if PY_VERSION_HEX >= 0x030E0000
   auto lir_expected = fmt::format(
       R"(Function:
-BB %0 - succs: %5
+BB %0 - succs: %4
        %1:Object = Bind {}:Object
        %2:Object = Bind {}:Object
        %3:Object = Bind {}:Object
-       %4:Object = Move [%2:Object + 0x48]:Object
 
-BB %5 - preds: %0
+BB %4 - preds: %0
 
 # v9:Nullptr = LoadConst<Nullptr>
-       %6:Object = Move 0(0x0):Object
+       %5:Object = Move 0(0x0):Object
 
 # v10:Bottom = CheckVar<"a"> v9 {{
 #   LiveValues<1> unc:v9
@@ -546,7 +545,7 @@ BB %5 - preds: %0
 #     Locals<1> v9
 #   }}
 # }}
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %5:Object, 0(0x0):64bit, %5:Object
 
 # Unreachable
                    Unreachable
