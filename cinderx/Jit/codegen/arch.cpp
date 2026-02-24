@@ -75,8 +75,13 @@ void cmp_immediate(a64::Builder* as, const arch::Gp& reg, uint64_t imm) {
   } else if (arm::Utils::isAddSubImm(-imm)) {
     as->cmn(reg, -imm);
   } else {
-    as->mov(arch::reg_scratch_0, imm);
-    as->cmp(reg, arch::reg_scratch_0);
+    arch::Gp scratch = arch::reg_scratch_0;
+    if (reg.isGpW()) {
+      scratch = scratch.w();
+    }
+
+    as->mov(scratch, imm);
+    as->cmp(reg, scratch);
   }
 }
 

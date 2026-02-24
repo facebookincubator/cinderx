@@ -3266,7 +3266,7 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
   if (will_check_argcount) {
     as_->bind(arg_check);
     asmjit::BaseNode* arg_check_cursor = as_->cursor();
-    as_->cmp(a64::w2, GetFunction()->numArgs());
+    arch::cmp_immediate(as_, a64::w2, GetFunction()->numArgs());
 
     // We don't have the correct number of arguments. Call a helper to either
     // fix them up with defaults or raise an approprate exception.
