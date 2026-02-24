@@ -3640,6 +3640,13 @@ void finalize() {
     dump_jit_stats();
   }
 
+  // Deopt all compiled functions before releasing references. This ensures
+  // that if any JIT Python functions are invoked as side-effects during the
+  // remainder of shutdown, they will go through the interpreter.
+  for (PyFunctionObject* func : jitCtx()->compiledFuncs()) {
+    deoptFuncImpl(func);
+  }
+
   // Always release references from Context objects: C++ clients may have
   // invoked the JIT directly without initializing a full jit::Context.
   jitCtx()->clearDeoptStats();
@@ -3659,10 +3666,6 @@ void finalize() {
       "is_global:{}",
       hir::preloaderManager().size(),
       hir::preloaderManager().isGlobalManager());
-
-  for (auto func : jitCtx()->compiledFuncs()) {
-    deoptFuncImpl(func);
-  }
   mod_state->setJitContext(nullptr);
   mod_state->setCodeAllocator(nullptr);
 
