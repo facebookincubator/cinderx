@@ -565,10 +565,18 @@ static PyGetSetDef jitcoro_getsetlist[] = {
     {"__name__", nullptr, nullptr, nullptr},
     {"__qualname__", nullptr, nullptr, nullptr},
     {"cr_await", (getter)jitgen_getyieldfrom, nullptr, nullptr},
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
+    {"cr_running", (getter)Cix_cr_getrunning, nullptr, nullptr},
+#else
     {"cr_running", nullptr, nullptr, nullptr},
+#endif
     {"cr_frame", nullptr, nullptr, nullptr},
     {"cr_code", nullptr, nullptr, nullptr},
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
+    {"cr_suspended", (getter)Cix_cr_getsuspended, nullptr, nullptr},
+#else
     {"cr_suspended", nullptr, nullptr, nullptr},
+#endif
 #if PY_VERSION_HEX >= 0x030F0000
     {"cr_state", nullptr, nullptr, nullptr},
 #endif
