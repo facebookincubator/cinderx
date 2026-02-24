@@ -554,7 +554,12 @@ BB %4 - preds: %0
 )",
       PhyLocation{10, 64},
       PhyLocation{11, 64},
-      PhyLocation{7, 64});
+#if defined(CINDER_X86_64)
+      PhyLocation{7, 64}
+#else
+      PhyLocation{0, 64}
+#endif
+  );
 #elif PY_VERSION_HEX >= 0x030C0000
   auto lir_expected = fmt::format(
       R"(Function:
@@ -584,7 +589,12 @@ BB %4 - preds: %0
 )",
       PhyLocation{10, 64},
       PhyLocation{11, 64},
-      PhyLocation{7, 64});
+#if defined(CINDER_X86_64)
+      PhyLocation{7, 64}
+#else
+      PhyLocation{0, 64}
+#endif
+  );
 #else
   auto lir_expected = fmt::format(
       R"(Function:

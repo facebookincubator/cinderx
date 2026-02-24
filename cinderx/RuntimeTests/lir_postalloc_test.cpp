@@ -61,10 +61,10 @@ BB %1 - preds: %0 - succs: %3 %4
                    BranchZ BB%4
 
 BB %3 - preds: %1 %2
-      {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 
 BB %4 - preds: %1 %2
-      {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 
 )",
       PhyLocation{0, 64},
@@ -117,10 +117,10 @@ BB %0 - succs: %1 %2
                    Branch BB%1
 
 BB %1 - preds: %0 - section: .coldtext
-      {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 
 BB %2 - preds: %0
-      {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 
 )",
       PhyLocation{0, 64},
@@ -137,9 +137,9 @@ TEST_F(LIRPostAllocRewriteTest, TestInsertBranchInDifferentSection) {
   auto lir_input_str = fmt::format(
       R"(Function:
 BB %0 - succs: %1 - section: .text
-       {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 BB %1 - preds: %0 - section: .coldtext
-       {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 )",
       PhyLocation{0, 64},
       PhyLocation{13, 64},
@@ -159,11 +159,11 @@ BB %1 - preds: %0 - section: .coldtext
   auto expected_lir_str = fmt::format(
       R"(Function:
 BB %0 - succs: %1
-      {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
                    Branch BB%1
 
 BB %1 - preds: %0 - section: .coldtext
-      {}:Object = Move {}:Object
+{:>9}:Object = Move {}:Object
 
 )",
       PhyLocation{0, 64},
