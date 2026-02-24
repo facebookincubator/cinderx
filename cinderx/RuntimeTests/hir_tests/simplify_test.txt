@@ -12916,7 +12916,7 @@ fun jittestmodule:test {
     }
     v55:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v103:BytesExact = VectorCall<1> v54 v44 {
+    v103:{BytesExact|User} = VectorCall<1> v54 v44 {
       FrameState {
         CurInstrOffset 34
         Locals<1> v44
@@ -13009,7 +13009,7 @@ fun jittestmodule:test {
     }
     v83:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v110:UnicodeExact = VectorCall<1> v82 v44 {
+    v110:{UnicodeExact|User} = VectorCall<1> v82 v44 {
       FrameState {
         CurInstrOffset 174
         Locals<1> v44

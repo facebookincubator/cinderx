@@ -108,6 +108,7 @@ def test(fs):
   bb 0 {
     v0 = LoadArg<0; "fs">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
