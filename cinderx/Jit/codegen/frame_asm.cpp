@@ -678,13 +678,13 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
   asmjit::BaseNode* store_func_cursor = as_->cursor();
 #if PY_VERSION_HEX >= 0x030E0000
-  as_->sub(arch::reg_scratch_0, arch::fp, frame_header_size);
+  arch::sub_immediate(as_, arch::reg_scratch_0, arch::fp, frame_header_size);
   as_->str(a64::xzr, a64::ptr(arch::reg_scratch_0));
   env_.addAnnotation("Store rtfs state to 0", store_func_cursor);
 #else
   // Initialize the fields minus previous.
   // Store func before the header
-  as_->sub(arch::reg_scratch_0, arch::fp, frame_header_size);
+  arch::sub_immediate(as_, arch::reg_scratch_0, arch::fp, frame_header_size);
   as_->str(func_reg, a64::ptr(arch::reg_scratch_0));
   incRef(func_reg, ref_cnt, ref_cnt_scratch, tstate_reg);
   env_.addAnnotation("Store func before frame header", store_func_cursor);
@@ -820,11 +820,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   // Then finally link in our frame to thread state
   asmjit::BaseNode* update_linkage_cursor = as_->cursor();
   int size = -frame_header_size + sizeof(PyObject*);
-  if (size > 0) {
-    as_->add(scratch, arch::fp, size);
-  } else {
-    as_->sub(scratch, arch::fp, -size);
-  }
+  arch::add_signed_immediate(as_, scratch, arch::fp, size);
 
 #if PY_VERSION_HEX >= 0x030D0000
   // (PyThreadState.cframe|PyThreadState).current_frame = &cur_frame
