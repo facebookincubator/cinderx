@@ -222,6 +222,7 @@ def test(fs):
   bb 0 {
     v0 = LoadArg<0; "fs">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -549,6 +550,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -751,6 +753,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -950,6 +953,7 @@ def test(f, a):
     v0 = LoadArg<0; "f">
     v1 = LoadArg<1; "a">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1328,6 +1332,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1480,6 +1485,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1624,6 +1630,7 @@ def test(x):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1769,6 +1776,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1915,6 +1923,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2069,6 +2078,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2267,6 +2277,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2415,6 +2426,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2564,6 +2576,7 @@ def test(x):
   bb 0 {
     v0 = LoadArg<0; "x">
     v2 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1

@@ -1712,6 +1712,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
