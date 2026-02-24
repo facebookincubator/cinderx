@@ -72,8 +72,7 @@ a64::Mem ptr_resolve(
 void cmp_immediate(
     a64::Builder* as,
     const arch::Gp &reg,
-    uint64_t imm
-) {
+    uint64_t imm) {
   if (arm::Utils::isAddSubImm(imm)) {
     as->cmp(reg, imm);
   } else if (arm::Utils::isAddSubImm(-imm)) {
@@ -88,8 +87,7 @@ void add_immediate(
     a64::Builder* as,
     const a64::Gp& res,
     const a64::Gp& lhs,
-    uint64_t rhsi
-) {
+    uint64_t rhsi) {
   if (rhsi == 0) {
     if (res != lhs) {
       as->mov(res, lhs);
@@ -106,8 +104,7 @@ void sub_immediate(
     a64::Builder* as,
     const a64::Gp& res,
     const a64::Gp& lhs,
-    uint64_t rhsi
-) {
+    uint64_t rhsi) {
   if (rhsi == 0) {
     if (res != lhs) {
       as->mov(res, lhs);
