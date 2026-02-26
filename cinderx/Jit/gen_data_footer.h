@@ -41,6 +41,13 @@ struct GenDataFooter {
   uint64_t linkAddress{};
   uint64_t returnAddress{};
 
+#if defined(__aarch64__)
+  // On aarch64, the return address from calls within JIT code is stored here
+  // so that getIP() can read it from a fixed offset (FP + 16) rather than
+  // walking the frame pointer chain (which doesn't work cross-thread).
+  uint64_t savedReturnIP{};
+#endif
+
   // The frame pointer that was swapped out to point to this spill-data.
   uint64_t originalFramePointer{};
 

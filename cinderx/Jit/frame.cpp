@@ -105,10 +105,10 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
       // stack relative to the resume function's RBP.
       frame_base = footer->originalFramePointer;
 #elif defined(__aarch64__)
-      // On ARM64, we walk the frame pointer chain to find the JIT frame.
-      // During generator execution, FP is set to the GenDataFooter pointer
-      // (gi_jit_data), so that's what callees save as their frame pointer
-      // and what we need to match against in the chain.
+      // On ARM64, the JIT stores the return address at [fp + 16] before
+      // each call. During generator execution, FP is set to the
+      // GenDataFooter pointer (gi_jit_data), so [footer + 16] is the
+      // savedReturnIP field.
       frame_base = reinterpret_cast<uintptr_t>(footer);
 #endif
     } else {
@@ -129,23 +129,13 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
   return ip;
 #elif defined(__aarch64__)
   // On ARM64, `blr` stores the return address in lr (x30) rather than
-  // pushing it on the stack. The callee saves lr in its own frame at a
-  // position that depends on its prologue, so we cannot read it from a
-  // fixed offset below the JIT function's stack pointer.
-  //
-  // Walk the frame pointer chain to find the frame whose saved fp equals
-  // the JIT function's fp (frame_base). That frame belongs to the
-  // immediate callee of the JIT function, and its saved lr ([fp+8]) is
-  // the return address we need.
-  auto* fp = reinterpret_cast<uintptr_t*>(__builtin_frame_address(0));
-  while (fp != nullptr) {
-    auto saved_fp = fp[0];
-    if (saved_fp == frame_base) {
-      return fp[1];
-    }
-    fp = reinterpret_cast<uintptr_t*>(saved_fp);
-  }
-  JIT_ABORT("Could not find JIT frame in frame pointer chain");
+  // pushing it on the stack. The JIT explicitly saves the return address
+  // at [fp + 16] before each call, so we can read it from a fixed offset
+  // from the frame base.
+  uintptr_t ip;
+  auto saved_ip = reinterpret_cast<uintptr_t*>(frame_base + 2 * kPointerSize);
+  memcpy(&ip, saved_ip, kPointerSize);
+  return ip;
 #else
   // Unsupported architecture.
   JIT_ABORT("getIP: unsupported architecture");
