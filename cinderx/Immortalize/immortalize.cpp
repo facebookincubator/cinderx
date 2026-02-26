@@ -79,6 +79,7 @@ PyObject* immortalize_heap([[maybe_unused]] PyObject* mod) {
   PyErr_SetString(
       PyExc_RuntimeError,
       "Immortalizing the heap is not yet supported in FT Python");
+  return nullptr;
 #else
   // TODO(T251571267): Low priority for now.
   /* Remove any dead objects to avoid immortalizing them */
