@@ -328,6 +328,7 @@ PyObject* JITRT_BoxU64(uint64_t i);
 PyObject* JITRT_BoxDouble(double_t d);
 
 double JITRT_PowerDouble(double x, double y);
+double JITRT_SqrtDouble(double x);
 double JITRT_Power32(int32_t x, int32_t y);
 double JITRT_PowerUnsigned32(uint32_t x, uint32_t y);
 double JITRT_Power64(int64_t x, int64_t y);

@@ -921,11 +921,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const DoubleBinaryOp*>(&i);
 
         if (instr->op() == BinaryOpKind::kPower) {
-          bbb.appendCallInstruction(
-              instr->output(),
-              JITRT_PowerDouble,
-              instr->left(),
-              instr->right());
+          Type right_type = instr->right()->type();
+          if (right_type.hasDoubleSpec() && right_type.doubleSpec() == 0.5) {
+            bbb.appendCallInstruction(
+                instr->output(), JITRT_SqrtDouble, instr->left());
+          } else {
+            bbb.appendCallInstruction(
+                instr->output(),
+                JITRT_PowerDouble,
+                instr->left(),
+                instr->right());
+          }
           break;
         }
 

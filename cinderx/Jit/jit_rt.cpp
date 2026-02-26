@@ -41,6 +41,8 @@
 #include "internal/pycore_qsbr.h"
 #endif
 
+#include <cmath>
+
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
 // We use the same logic to turn **args, nargsf, and kwnames into
 // **args / nargsf.
@@ -1358,6 +1360,10 @@ PyObject* JITRT_BoxDouble(double_t d) {
 
 double JITRT_PowerDouble(double x, double y) {
   return pow(x, y);
+}
+
+double JITRT_SqrtDouble(double x) {
+  return sqrt(x);
 }
 
 double JITRT_Power32(int32_t x, int32_t y) {

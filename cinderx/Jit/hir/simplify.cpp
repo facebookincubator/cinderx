@@ -788,6 +788,42 @@ Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
         break;
     }
   }
+
+  // Convert `x += y` into `x = x + y` because floats are immutable, there are
+  // further simplification cases for FloatBinaryOp.
+  if (lhs->isA(TFloatExact) && rhs->isA(TFloatExact)) {
+    std::optional<BinaryOpKind> binop;
+    switch (instr->op()) {
+      case InPlaceOpKind::kAdd:
+        binop = BinaryOpKind::kAdd;
+        break;
+      case InPlaceOpKind::kSubtract:
+        binop = BinaryOpKind::kSubtract;
+        break;
+      case InPlaceOpKind::kMultiply:
+        binop = BinaryOpKind::kMultiply;
+        break;
+      case InPlaceOpKind::kTrueDivide:
+        binop = BinaryOpKind::kTrueDivide;
+        break;
+      case InPlaceOpKind::kFloorDivide:
+        binop = BinaryOpKind::kFloorDivide;
+        break;
+      case InPlaceOpKind::kModulo:
+        binop = BinaryOpKind::kModulo;
+        break;
+      case InPlaceOpKind::kPower:
+        binop = BinaryOpKind::kPower;
+        break;
+      default:
+        break;
+    }
+    if (binop) {
+      env.emit<UseType>(lhs, TFloatExact);
+      env.emit<UseType>(rhs, TFloatExact);
+      return env.emit<FloatBinaryOp>(*binop, lhs, rhs, *instr->frameState());
+    }
+  }
   return nullptr;
 }
 
@@ -822,6 +858,32 @@ Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
 }
 
 Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
+  BinaryOpKind op = instr->op();
+
+  // Transform add/sub/mul to unboxed double operations.  These never raise
+  // exceptions for any double inputs, guards aren't needed.
+  if (op == BinaryOpKind::kAdd || op == BinaryOpKind::kSubtract ||
+      op == BinaryOpKind::kMultiply) {
+    Register* unbox_left = env.emit<PrimitiveUnbox>(instr->left(), TCDouble);
+    Register* unbox_right = env.emit<PrimitiveUnbox>(instr->right(), TCDouble);
+    Register* result = env.emit<DoubleBinaryOp>(op, unbox_left, unbox_right);
+    return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
+  }
+
+  // `x ** 0.5`, convert to the unboxed path.  The LIR generator can lower this
+  // into a call to sqrt().
+  if (op == BinaryOpKind::kPower) {
+    Type right_type = instr->right()->type();
+    if (right_type.hasObjectSpec() && PyFloat_Check(right_type.objectSpec()) &&
+        PyFloat_AS_DOUBLE(right_type.objectSpec()) == 0.5) {
+      Register* unbox_left = env.emit<PrimitiveUnbox>(instr->left(), TCDouble);
+      Register* half = env.emit<LoadConst>(Type::fromCDouble(0.5));
+      Register* result =
+          env.emit<DoubleBinaryOp>(BinaryOpKind::kPower, unbox_left, half);
+      return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
+    }
+  }
+
   // This isn't safe in the multi-threaded compilation on 3.12 because
   // we don't hold the GIL which is required for allocation.
   RETURN_MULTITHREADED_COMPILE(nullptr);
