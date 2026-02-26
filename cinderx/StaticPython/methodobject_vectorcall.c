@@ -34,6 +34,7 @@ PyObject* Ci_cfunction_vectorcall_typed_0(
           "%U() takes exactly one argument (%zd given)",
           funcstr,
           nargs);
+      Py_DECREF(funcstr);
     }
     return NULL;
   }
@@ -83,6 +84,7 @@ PyObject* Ci_cfunction_vectorcall_typed_1(
           "%U() takes exactly one argument (%zd given)",
           funcstr,
           nargs);
+      Py_DECREF(funcstr);
     }
     return NULL;
   }
@@ -118,9 +120,10 @@ PyObject* Ci_cfunction_vectorcall_typed_2(
     if (funcstr != NULL) {
       PyErr_Format(
           PyExc_TypeError,
-          "%U() takes exactly 2 argument s(%zd given)",
+          "%U() takes exactly 2 arguments (%zd given)",
           funcstr,
           nargs);
+      Py_DECREF(funcstr);
     }
     return NULL;
   }
@@ -169,7 +172,7 @@ vectorcallfunc Ci_PyCMethod_New_METH_TYPED(PyMethodDef* method) {
     default:
       PyErr_Format(
           PyExc_SystemError,
-          "%s() method: unsupported argument count",
+          "%s() method: unsupported argument count %zd",
           method->ml_name,
           arg_cnt);
       return NULL;
