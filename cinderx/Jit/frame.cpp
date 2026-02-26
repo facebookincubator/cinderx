@@ -278,7 +278,7 @@ PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
   }
 
   _PyInterpreterFrame* frame = reinterpret_cast<_PyInterpreterFrame*>(
-      PyLong_FromVoidPtr(PyTuple_GET_ITEM(args, 0)));
+      PyLong_AsVoidPtr(PyTuple_GET_ITEM(args, 0)));
   jitFramePopulateFrame(frame);
   updatePrevInstr(frame);
 
