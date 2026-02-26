@@ -668,18 +668,18 @@ PyObject* _PyClassloader_InvokeNativeFunction(
         Py_TYPE(lib_name)->tp_name);
     return NULL;
   }
-  if (!PyUnicode_CheckExact(lib_name)) {
+  if (!PyUnicode_CheckExact(symbol_name)) {
     PyErr_Format(
         PyExc_RuntimeError,
         "'symbol_name' must be a str, got '%s'",
-        Py_TYPE(lib_name)->tp_name);
+        Py_TYPE(symbol_name)->tp_name);
     return NULL;
   }
   if (!PyTuple_CheckExact(signature)) {
     PyErr_Format(
         PyExc_RuntimeError,
-        "'signature' must be a tuple of type descriptors",
-        Py_TYPE(lib_name)->tp_name);
+        "'signature' must be a tuple of type descriptors, got '%s'",
+        Py_TYPE(signature)->tp_name);
     return NULL;
   }
 
