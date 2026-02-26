@@ -351,6 +351,7 @@ PyObject* cinder_delay_adaptive(PyObject* mod, PyObject* delay) {
 #ifdef ENABLE_INTERPRETER_LOOP
   if (!PyBool_Check(delay)) {
     PyErr_SetString(PyExc_TypeError, "expected bool");
+    return nullptr;
   }
 
   Ci_DelayAdaptiveCode = delay == Py_True;
@@ -368,6 +369,7 @@ PyObject* cinder_set_adaptive_delay(PyObject* mod, PyObject* delay) {
 #ifdef ENABLE_INTERPRETER_LOOP
   if (!PyLong_Check(delay)) {
     PyErr_SetString(PyExc_TypeError, "expected long");
+    return nullptr;
   }
 
   Ci_AdaptiveThreshold = PyLong_AsLong(delay);
