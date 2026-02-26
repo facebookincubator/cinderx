@@ -119,6 +119,6 @@ PyObject* immortalize_heap(PyObject* /* mod */) {
   if (!immortalize) {
     return nullptr;
   }
-  return Ref<>::steal(PyObject_CallFunctionObjArgs(immortalize, nullptr));
+  return PyObject_CallFunctionObjArgs(immortalize, nullptr);
 }
 #endif
