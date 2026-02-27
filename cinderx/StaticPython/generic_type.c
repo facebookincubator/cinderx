@@ -391,7 +391,7 @@ error:
     PyMem_Free(gtr);
   }
   Py_DECREF(new_inst);
-  return (PyObject*)new_inst;
+  return NULL;
 }
 
 PyObject* _PyClassLoader_GetGenericInst(
