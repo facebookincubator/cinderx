@@ -24,7 +24,7 @@ However these features are not compatible with the stock CPython runtime yet.
 
 ## Requirements
 
-- Python 3.14 or later
+- Python 3.14.3 or later
 - Linux (x86_64)
 - GCC 13+ or Clang 18+
 
@@ -35,6 +35,45 @@ disabled at runtime.  Windows is not yet supported at all.
 
 ```bash
 pip install cinderx
+```
+
+## Using the JIT
+
+The recommended way to start using the JIT is to do:
+
+```python
+import cinderx.jit
+
+cinderx.jit.auto()
+```
+
+This will configure the CinderX extension to automatically compile Python
+functions to machine code.  It will track what functions are called frequently
+and compile the hottest ones automatically.
+
+For more control over this process, you can pass the call count threshold to use
+for compilation instead of using `auto()`:
+
+```python
+import cinderx.jit
+
+# Compile functions after they are called 10 times.
+cinderx.jit.compile_after_n_calls(10)
+```
+
+If you want to compile individual functions, you can do so manually:
+
+```python
+import cinderx.jit
+
+def foo(): ...
+def bar(): ...
+
+# Compile `foo` immediately.
+cinderx.jit.force_compile(foo)
+
+# Compile `bar` the next time it is called.
+cinderx.jit.lazy_compile(bar)
 ```
 
 ## CinderX vs Cinder
