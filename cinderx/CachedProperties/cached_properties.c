@@ -46,6 +46,7 @@ cached_classproperty_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     PyObject* name;
     if (PyFunction_Check(func)) {
       name = ((PyFunctionObject*)func)->func_name;
+      Py_INCREF(name);
     } else {
       name = PyObject_GetAttrString(func, "__name__");
       if (name == NULL) {
@@ -56,7 +57,6 @@ cached_classproperty_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     descr->func = func;
     descr->name = name;
     Py_INCREF(func);
-    Py_INCREF(name);
   }
   return (PyObject*)descr;
 }
