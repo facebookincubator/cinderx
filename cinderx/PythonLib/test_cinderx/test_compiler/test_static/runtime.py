@@ -7,6 +7,7 @@ import asyncio
 import itertools
 import sys
 from collections import UserDict
+from types import FunctionType
 from typing import Optional, TypeVar
 
 from cinderx.test_support import passIf
@@ -32,11 +33,34 @@ from cinderx.compiler.static.types import (
     SEQ_SUBSCR_UNCHECKED,
     TypedSyntaxError,
 )
+from cinderx.static import __build_cinder_class__
 
 from .common import bad_ret_type, StaticTestBase
 
 
 class StaticRuntimeTests(StaticTestBase):
+    def test_build_cinder_class_bool_error_has_class_cell(self) -> None:
+        class BadBool:
+            def __bool__(self) -> bool:
+                raise RuntimeError("bad bool")
+
+        c = compile("pass", "<test>", "exec")
+        with self.assertRaises(RuntimeError):
+            __build_cinder_class__(
+                FunctionType(c, globals(), "C"), "C", None, BadBool(), (), False, ()
+            )
+
+    def test_build_cinder_class_bool_error_final(self) -> None:
+        class BadBool:
+            def __bool__(self) -> bool:
+                raise RuntimeError("bad bool")
+
+        c = compile("pass", "<test>", "exec")
+        with self.assertRaises(RuntimeError):
+            __build_cinder_class__(
+                FunctionType(c, globals(), "C"), "C", None, False, (), BadBool(), ()
+            )
+
     def test_bad_slots_qualname_conflict(self):
         with self.assertRaises(ValueError):
 

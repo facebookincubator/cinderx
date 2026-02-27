@@ -1537,8 +1537,14 @@ static PyObject* _static___build_cinder_class__(
   }
 
   int has_class_cell = PyObject_IsTrue(args[3]);
+  if (has_class_cell < 0) {
+    return NULL;
+  }
   PyObject* final_method_names = args[4];
   int final = PyObject_IsTrue(args[5]);
+  if (final < 0) {
+    return NULL;
+  }
   PyObject* cached_properties = args[6];
   if (!PyTuple_CheckExact(cached_properties)) {
     PyErr_SetString(
