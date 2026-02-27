@@ -226,7 +226,7 @@ class Context : public IJitContext {
   /*
    * Looks up the CodeRuntime for a given function.
    */
-  CodeRuntime* lookupCodeRuntime(BorrowedRef<PyFunctionObject> func);
+  CodeRuntime* lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) override;
 
   /*
    * Get the map of all compiled code objects, keyed by their address and also

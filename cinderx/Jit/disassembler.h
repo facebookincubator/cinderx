@@ -21,6 +21,7 @@ struct Disassembler {
   void setPrintAddr(bool print);
   void setPrintInstBytes(bool print);
 
+#ifdef ENABLE_DISASSEMBLER
  private:
   const char* const buf_;
   size_t start_{0};
@@ -31,6 +32,7 @@ struct Disassembler {
 
   size_t disassemblerHandle();
   void disassemble(std::ostream& os, size_t handle);
+#endif
 };
 
 } // namespace jit
