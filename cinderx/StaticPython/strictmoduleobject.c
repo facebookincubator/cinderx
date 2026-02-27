@@ -198,10 +198,6 @@ static PyObject* strict_module_dict_get(PyObject* self, void* closure) {
       goto error;
     }
     if (PyUnicode_Check(key)) {
-      PyObject* angle = PyUnicode_FromString("<");
-      if (angle == NULL) {
-        goto error;
-      }
       const char* key_string = PyUnicode_AsUTF8(key);
       if (key_string == NULL ||
           PyDict_SetItemString(dict, key_string, value) < 0) {
