@@ -30,6 +30,7 @@ static inline int Ci_method_check_args(
           "object needs an argument",
           funcstr,
           PyDescr_TYPE(func)->tp_name);
+      Py_DECREF(funcstr);
     }
     return -1;
   }
@@ -53,6 +54,7 @@ static inline int Ci_method_check_args(
           funcstr,
           func_descrtype->tp_name,
           self_type->tp_name);
+      Py_DECREF(funcstr);
     }
     return -1;
   }
@@ -61,6 +63,7 @@ static inline int Ci_method_check_args(
     if (funcstr != NULL) {
       PyErr_Format(
           PyExc_TypeError, "%.200s() takes no keyword arguments", funcstr);
+      Py_DECREF(funcstr);
     }
     return -1;
   }
@@ -88,6 +91,7 @@ PyObject* Ci_method_vectorcall_typed_0(
           "%.200s() takes exactly one argument (%zd given)",
           funcstr,
           nargs - 1);
+      Py_DECREF(funcstr);
     }
     return NULL;
   }
@@ -182,6 +186,7 @@ PyObject* Ci_method_vectorcall_typed_2(
           "%.200s() expected at most 2 arguments, got %zd",
           funcstr,
           nargs - 1);
+      Py_DECREF(funcstr);
     }
     return NULL;
   }
