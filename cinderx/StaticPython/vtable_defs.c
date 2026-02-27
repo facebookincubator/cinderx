@@ -106,7 +106,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromCode(
   }
 
   // Long signature or primitive return, we need to allocate a signature object.
-  sig = _PyClassLoader_ThunkSignature_New(arg_count);
+  sig = _PyClassLoader_ThunkSignature_New(arg_count + extra_args);
   if (sig == NULL) {
     return NULL;
   }
