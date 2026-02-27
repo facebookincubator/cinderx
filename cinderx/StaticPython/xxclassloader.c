@@ -348,11 +348,13 @@ static PyMethodDef spamobj_methods[] = {
 
 static int spamobj_traverse(spamobject* o, visitproc visit, void* arg) {
   Py_VISIT(o->state);
+  Py_VISIT(o->str);
   return 0;
 }
 
 static int spamobj_clear(spamobject* o) {
   Py_CLEAR(o->state);
+  Py_CLEAR(o->str);
   return 0;
 }
 
