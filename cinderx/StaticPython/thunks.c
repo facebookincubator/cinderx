@@ -116,7 +116,7 @@ PyTypeObject _PyType_StaticThunk = {
 
 static int
 propthunktraverse(_Py_PropertyThunk* op, visitproc visit, void* arg) {
-  visit(op->propthunk_target, arg);
+  Py_VISIT(op->propthunk_target);
   return 0;
 }
 
