@@ -11,6 +11,7 @@
 #ifdef __cplusplus
 #include "cinderx/Common/log.h"
 
+#include <atomic>
 #include <charconv>
 #include <concepts>
 #include <cstdarg>
@@ -476,6 +477,20 @@ class FrozenList {
     }
   }
 };
+
+// Relaxed atomic store for func->vectorcall for thread-safe writes under
+// free-threading and to satisfy TSAN. A release store might be the right
+// choice in some cases to publish JIT metadata to readers, but CPython's
+// _PyVectorcall_FunctionInline does a plain (non-acquire) load, so
+// release/acquire isn't achievable without CPython changes.
+// Under the GIL this is unnecessary, but relaxed has no overhead so we skip
+// the Py_GIL_DISABLED guard.
+inline void setVectorcall(
+    BorrowedRef<PyFunctionObject> func,
+    vectorcallfunc entry) {
+  std::atomic_ref<vectorcallfunc>(func->vectorcall)
+      .store(entry, std::memory_order_relaxed);
+}
 
 using FuncVisitor = void (*)(BorrowedRef<PyFunctionObject>);
 

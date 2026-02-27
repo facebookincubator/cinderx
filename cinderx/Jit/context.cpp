@@ -420,7 +420,7 @@ void Context::finalizeFunc(
   // In case the function had previously been deopted.
   removeDeoptedFunc(func);
 
-  func->vectorcall = compiled.vectorcallEntry();
+  setVectorcall(func, compiled.vectorcallEntry());
   if (hasFunctionEntryCache(func)) {
     void** indirect = findFunctionEntryCache(func);
     *indirect = compiled.staticEntry();

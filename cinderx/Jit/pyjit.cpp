@@ -181,7 +181,7 @@ PyObject* forcedJitVectorcall(
   // Python errors shouldn't happen during compilation, but if they do, bubble
   // them up without calling the function.
   if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
-    func->vectorcall = interp_entry;
+    setVectorcall(func, interp_entry);
     return nullptr;
   }
 
@@ -189,7 +189,7 @@ PyObject* forcedJitVectorcall(
   // compilation will work "soon".
   if (result != PYJIT_RESULT_ALREADY_SCHEDULED &&
       result != PYJIT_RESULT_PAUSED) {
-    func->vectorcall = interp_entry;
+    setVectorcall(func, interp_entry);
   }
 
   // There's been some kind of compilation error, explicitly call the
@@ -1303,7 +1303,7 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
   if (!jitCtx()->removeCompiledFunc(func)) {
     return false;
   }
-  func->vectorcall = getInterpretedVectorcall(func);
+  setVectorcall(func, getInterpretedVectorcall(func));
   return true;
 }
 
@@ -1722,9 +1722,9 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  func->vectorcall = forcedJitVectorcall;
+  setVectorcall(func, forcedJitVectorcall);
   if (!registerFunction(func)) {
-    func->vectorcall = getInterpretedVectorcall(func);
+    setVectorcall(func, getInterpretedVectorcall(func));
     Py_RETURN_FALSE;
   }
 
@@ -1744,7 +1744,7 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
 
   // Replace the function entrypoint with the interpreter entrypoint, so that it
   // can properly be called again.
-  func->vectorcall = getInterpretedVectorcall(func);
+  setVectorcall(func, getInterpretedVectorcall(func));
 
   // "Destroy" the function from the perspective of the JIT, effectively erasing
   // all traces of it from the metadata.
@@ -1767,7 +1767,7 @@ int aot_func_visitor(PyObject* obj, void* arg) {
   BorrowedRef<PyFunctionObject> func{obj};
   auto func_state = aot_ctx->lookupFuncState(func);
   if (func_state != nullptr) {
-    func->vectorcall = func_state->normalEntry();
+    setVectorcall(func, func_state->normalEntry());
   }
   return kGcVisitContinue;
 }
@@ -3719,9 +3719,9 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  func->vectorcall = jitVectorcall;
+  setVectorcall(func, jitVectorcall);
   if (!registerFunction(func)) {
-    func->vectorcall = getInterpretedVectorcall(func);
+    setVectorcall(func, getInterpretedVectorcall(func));
     return false;
   }
 

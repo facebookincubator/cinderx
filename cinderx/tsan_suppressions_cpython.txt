@@ -1,0 +1,12 @@
+# TSAN suppressions for known CPython races in free-threaded Python (3.14t+).
+# Track upstream and remove once resolved.
+#
+# Usage:
+#   TSAN_OPTIONS="suppressions=path/to/tsan_suppressions_cpython.txt"
+
+# Non-atomic read of func->vectorcall in CPython's call dispatch path.
+race:_PyVectorcall_FunctionInline
+
+# Dictionary watcher API.
+race:PyDict_Watch
+race:PyDict_Unwatch
