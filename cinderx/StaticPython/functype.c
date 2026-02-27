@@ -275,7 +275,6 @@ PyObject* _PyClassLoader_ResolveReturnType(
           Py_INCREF(res);
         }
       }
-      Py_INCREF(res);
     } else if (
         Py_TYPE(func) == &PyMethodDescr_Type ||
         Py_TYPE(func) == &PyCFunction_Type) {
