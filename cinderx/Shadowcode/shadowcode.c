@@ -1587,15 +1587,18 @@ PyObject* _PyShadow_LoadAttrWithCache(
   PyTypeObject* type = Py_TYPE(owner);
   PyObject *res, *entry;
   PyObject* dir_str = PyUnicode_FromString("__dir__");
+  if (dir_str == NULL) {
+    return NULL;
+  }
   int i = 0;
   if (name != NULL &&
       PyUnicode_Find(name, dir_str, 0, PyUnicode_GET_LENGTH(name), 1) != -1) {
     i = test_func(name);
   }
+  Py_DECREF(dir_str);
   if (i) {
     return NULL;
   }
-  Py_XDECREF(dir_str);
 
   if (type->tp_getattro != PyObject_GenericGetAttr) {
     /* "rare"" types which overrides getattr, or something unsupported */
