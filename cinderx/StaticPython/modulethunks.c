@@ -117,6 +117,12 @@ _Py_StaticThunk* _PyClassLoader_GetOrMakeThunk(
       }
     }
     thunks = mod->static_thunks;
+  } else {
+    PyErr_Format(
+        PyExc_TypeError,
+        "_PyClassLoader_GetOrMakeThunk: unexpected container type '%s'",
+        Py_TYPE(container)->tp_name);
+    return NULL;
   }
   _Py_StaticThunk* thunk = (_Py_StaticThunk*)PyDict_GetItem(thunks, name);
   if (thunk != NULL) {
