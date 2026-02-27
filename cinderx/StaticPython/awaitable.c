@@ -267,6 +267,9 @@ PyObject* _PyClassLoader_NewAwaitableWrapper(
   }
   _PyClassLoader_Awaitable* awaitable =
       PyObject_GC_New(_PyClassLoader_Awaitable, &_PyClassLoader_AwaitableType);
+  if (awaitable == NULL) {
+    return NULL;
+  }
 
   Py_INCREF(state);
   awaitable->state = state;
