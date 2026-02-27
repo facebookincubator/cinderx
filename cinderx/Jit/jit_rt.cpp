@@ -1264,7 +1264,7 @@ PyObject* JITRT_CastToFloat(PyObject* obj) {
     return obj;
   } else if (PyObject_TypeCheck(obj, &PyLong_Type)) {
     // special case because Python typing pretends int subtypes float
-    return PyFloat_FromDouble(PyLong_AsLong(obj));
+    return PyFloat_FromDouble(PyLong_AsDouble(obj));
   }
 
   PyErr_Format(
@@ -1285,7 +1285,7 @@ PyObject* JITRT_CastToFloatOptional(PyObject* obj) {
     return obj;
   } else if (PyObject_TypeCheck(obj, &PyLong_Type)) {
     // special case because Python typing pretends int subtypes float
-    return PyFloat_FromDouble(PyLong_AsLong(obj));
+    return PyFloat_FromDouble(PyLong_AsDouble(obj));
   }
 
   PyErr_Format(
