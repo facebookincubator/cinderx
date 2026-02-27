@@ -1432,12 +1432,16 @@ static int init_cached_properties(
       char attr_name[strlen(name) - strlen(async_prefix) + 1];
       strcpy(attr_name, name + strlen(async_prefix));
       attr = PyUnicode_FromString(attr_name);
+      if (attr == NULL) {
+        return -1;
+      }
       PyObject* descr = PyDict_GetItem(_PyType_GetDict(type), attr);
       if (descr == NULL) {
         PyErr_Format(
             PyExc_TypeError,
             "cached property descriptor doesn't exist: %R",
             attr);
+        Py_DECREF(attr);
         return -1;
       }
 
@@ -1451,12 +1455,16 @@ static int init_cached_properties(
       char attr_name[strlen(name) - strlen(normal_prefix) + 1];
       strcpy(attr_name, name + strlen(normal_prefix));
       attr = PyUnicode_FromString(attr_name);
+      if (attr == NULL) {
+        return -1;
+      }
       PyObject* descr = PyDict_GetItem(_PyType_GetDict(type), attr);
       if (descr == NULL) {
         PyErr_Format(
             PyExc_TypeError,
             "cached property descriptor doesn't exist: %R",
             attr);
+        Py_DECREF(attr);
         return -1;
       }
 
@@ -1479,12 +1487,16 @@ static int init_cached_properties(
     int res;
     res = PyObject_SetAttr((PyObject*)type, attr, property);
     if (res != 0) {
+      Py_DECREF(property);
+      Py_DECREF(attr);
       return -1;
     }
 
     // Next clear the backing slot
     res = PyObject_SetAttr((PyObject*)type, impl_name, NULL);
     if (res != 0) {
+      Py_DECREF(property);
+      Py_DECREF(attr);
       return -1;
     }
     Py_DECREF(property);
