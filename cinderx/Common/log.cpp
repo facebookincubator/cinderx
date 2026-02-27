@@ -15,7 +15,8 @@ void printPythonException() {
   }
 #else
   if (PyErr_Occurred()) {
-    PyErr_DisplayException(PyErr_GetRaisedException());
+    auto exc = Ref<>::steal(PyErr_GetRaisedException());
+    PyErr_DisplayException(exc);
   }
 #endif
 }
