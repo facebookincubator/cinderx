@@ -190,6 +190,9 @@ PyObject* staticarray_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     return NULL;
   }
   PyStaticArrayObject* new = (PyStaticArrayObject*)type->tp_alloc(type, size);
+  if (new == NULL) {
+    return NULL;
+  }
   staticarray_zeroinitialize(new, size);
   return (PyObject*)new;
 }
