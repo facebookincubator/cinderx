@@ -539,6 +539,7 @@ static int classloader_init_field(PyObject* path, int* field_type) {
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type) {
   PyObject* classloader_cache = _PyClassLoader_GetCache();
   if (classloader_cache == NULL) {
+    return -1;
   }
 
   /* TODO: Should we gracefully handle when there are two
@@ -565,7 +566,7 @@ Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type) {
 
   PyObject* field_type_obj = PyLong_FromLong(tmp_field_type);
   if (field_type_obj == NULL) {
-    Py_DECREF(slot_index);
+    Py_DECREF(slot_index_obj);
     return -1;
   }
 
