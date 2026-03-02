@@ -2400,26 +2400,22 @@ PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
 
   auto make_inline_cache_stats = [](PyObject* stats, CacheStats& cache_stats) {
     auto result = Ref<>::steal(check(PyDict_New()));
-    check(PyDict_SetItemString(
-        result,
-        "filename",
-        PyUnicode_InternFromString(cache_stats.filename.c_str())));
-    check(PyDict_SetItemString(
-        result,
-        "method",
-        PyUnicode_InternFromString(cache_stats.method_name.c_str())));
+    auto filename = Ref<>::steal(
+        check(PyUnicode_InternFromString(cache_stats.filename.c_str())));
+    check(PyDict_SetItemString(result, "filename", filename));
+    auto method = Ref<>::steal(
+        check(PyUnicode_InternFromString(cache_stats.method_name.c_str())));
+    check(PyDict_SetItemString(result, "method", method));
     auto cache_misses_dict = Ref<>::steal(check(PyDict_New()));
     check(PyDict_SetItemString(result, "cache_misses", cache_misses_dict));
     for (auto& [key, miss] : cache_stats.misses) {
       auto py_key = Ref<>::steal(check(PyUnicode_FromString(key.c_str())));
       auto miss_dict = Ref<>::steal(check(PyDict_New()));
-      check(PyDict_SetItemString(
-          miss_dict, "count", PyLong_FromLong(miss.count)));
-      check(PyDict_SetItemString(
-          miss_dict,
-          "reason",
-          PyUnicode_InternFromString(
-              std::string(cacheMissReason(miss.reason)).c_str())));
+      auto count = Ref<>::steal(check(PyLong_FromLong(miss.count)));
+      check(PyDict_SetItemString(miss_dict, "count", count));
+      auto reason = Ref<>::steal(check(PyUnicode_InternFromString(
+          std::string(cacheMissReason(miss.reason)).c_str())));
+      check(PyDict_SetItemString(miss_dict, "reason", reason));
 
       check(PyDict_SetItem(cache_misses_dict, py_key, miss_dict));
     }
