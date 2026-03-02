@@ -165,7 +165,7 @@ bool JITList::addEntryCode(
   }
 
   auto line_no_obj = Ref<>::steal(PyLong_FromLong(line_no));
-  if (file_obj == nullptr) {
+  if (line_no_obj == nullptr) {
     return false;
   }
   return addEntryCode(name_obj, basename_obj, line_no_obj);
