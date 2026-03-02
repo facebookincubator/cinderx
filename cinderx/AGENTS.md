@@ -3,9 +3,9 @@
 This file provides guidance to AI coding agents when working with code in this
 directory.
 
-If the file Internal/AGENTS.md exists, read this too. It contains details of
-things which are relevant to Meta's internal developer environment but do not
-apply for non Meta environments.
+**Important**: If the file `Internal/AGENTS.md` exists, you MUST read it before
+proceeding with any task. It contains additional context for internal
+development environments.
 
 ## Overview
 
