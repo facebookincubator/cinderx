@@ -2313,7 +2313,7 @@ Ref<> make_deopt_stats() {
         check(PyDict_SetItem(ints, s_count, count));
         auto type_str =
             Ref<>::steal(check(PyUnicode_InternFromString(type_name)));
-        check(PyDict_SetItem(normals, s_guilty_type, type_str) < 0);
+        check(PyDict_SetItem(normals, s_guilty_type, type_str));
         check(PyList_Append(stats, event));
       };
 
