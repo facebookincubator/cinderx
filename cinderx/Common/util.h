@@ -488,7 +488,12 @@ class FrozenList {
 inline void setVectorcall(
     BorrowedRef<PyFunctionObject> func,
     vectorcallfunc entry) {
+#ifdef __cpp_lib_atomic_ref
+  std::atomic_ref<vectorcallfunc>(func->vectorcall)
+      .store(entry, std::memory_order_relaxed);
+#else
   __atomic_store_n(&func->vectorcall, entry, __ATOMIC_RELAXED);
+#endif
 }
 
 using FuncVisitor = void (*)(BorrowedRef<PyFunctionObject>);
