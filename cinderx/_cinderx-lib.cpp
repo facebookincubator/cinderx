@@ -1425,7 +1425,13 @@ int _cinderx_exec_impl(PyObject* m) {
   // happens so we can clear out strict modules first, so we register
   // directly with the atexit library.
   auto atexit = Ref<>::steal(PyImport_ImportModule("atexit"));
+  if (atexit == nullptr) {
+    return -1;
+  }
   auto register_func = Ref<>::steal(PyObject_GetAttrString(atexit, "register"));
+  if (register_func == nullptr) {
+    return -1;
+  }
   auto clear_strict_modules_func =
       Ref<>::steal(PyObject_GetAttrString(m, "_clear_strict_modules"));
   if (clear_strict_modules_func == nullptr) {
