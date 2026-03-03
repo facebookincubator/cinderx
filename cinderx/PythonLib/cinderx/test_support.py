@@ -279,17 +279,21 @@ def undo_fail_decorators(func: Callable[..., object]) -> Callable[..., object]:
     return func
 
 
-def is_asan_build() -> bool:
+def is_sanitizer_build() -> bool:
     try:
         ctypes.pythonapi.__asan_init
         return True
     except AttributeError:
-        return False
+        try:
+            ctypes.pythonapi.__tsan_init
+            return True
+        except AttributeError:
+            return False
 
 
 # This is long because ASAN + JIT + subprocess + the Python compiler can be
 # pretty slow in CI.
-SUBPROCESS_TIMEOUT_SEC = 100 if is_asan_build() else 5
+SUBPROCESS_TIMEOUT_SEC = 100 if is_sanitizer_build() else 5
 
 
 @contextmanager

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cinderx.test_support import is_asan_build
+from cinderx.test_support import is_sanitizer_build
 
 
 MAX_WORKERS = 64
@@ -195,7 +195,7 @@ class ASANLogManipulator:
         self._log_path_base = None
         self._base_asan_options = None
 
-        if not is_asan_build():
+        if not is_sanitizer_build():
             return
 
         asan_options = os.environ.get("ASAN_OPTIONS", "")

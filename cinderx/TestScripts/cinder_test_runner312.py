@@ -43,7 +43,7 @@ import test.libregrtest.runtests as libregrtest_runtests
 import test.libregrtest.setup as libregrtest_setup
 import test.libregrtest.single as libregrtest_single
 import test.libregrtest.utils as libregrtest_utils
-from cinderx.test_support import get_cinderjit_xargs, is_asan_build
+from cinderx.test_support import get_cinderjit_xargs, is_sanitizer_build
 from common import (
     ActiveTest,
     ASANLogManipulator,
@@ -917,11 +917,11 @@ def main():
     # Limit the amount of RAM per process by default to cause a quick OOM on
     # runaway loops. This 8GiB number is arbitrary but seems to be enough at
     # the time of writing.
-    mem_limit_default = -1 if is_asan_build() else 8192 * 1024 * 1024
+    mem_limit_default = -1 if is_sanitizer_build() else 8192 * 1024 * 1024
 
     # Increase default stack size for threads in ASAN builds as this can use
     # a lot more stack space.
-    if is_asan_build():
+    if is_sanitizer_build():
         threading.stack_size(1024 * 1024 * 10)
 
     parser.add_argument(
@@ -1046,7 +1046,7 @@ def main():
     args = parser.parse_args()
 
     # We need a large stack size for our debug builds
-    multiplier = 4 if is_asan_build() else 2
+    multiplier = 4 if is_sanitizer_build() else 2
     resource.setrlimit(
         resource.RLIMIT_STACK,
         (resource.getrlimit(resource.RLIMIT_STACK)[0] * multiplier, -1),

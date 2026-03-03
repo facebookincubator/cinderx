@@ -12,7 +12,7 @@ from cinderx.compiler.static.types import (
     TypedSyntaxError,
 )
 from cinderx.static import SEQ_SUBSCR_UNCHECKED, TYPED_INT64
-from cinderx.test_support import is_asan_build
+from cinderx.test_support import is_sanitizer_build
 
 from .common import StaticTestBase
 
@@ -154,7 +154,7 @@ class ArrayTests(StaticTestBase):
             class C2(Array):
                 pass
 
-    @unittest.skipIf(is_asan_build(), "T199794603 - Triggers ASAN error")
+    @unittest.skipIf(is_sanitizer_build(), "T199794603 - Triggers ASAN error")
     def test_array_enum(self):
         codestr = """
             from __static__ import Array, clen, int64, box
