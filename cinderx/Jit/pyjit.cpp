@@ -2332,11 +2332,9 @@ Ref<> make_deopt_stats() {
          ++deopt_idx) {
       const DeoptMetadata& meta = deopt_metadatas[deopt_idx];
 
-      auto stat_ptr = ctx->deoptStat(code_runtime, deopt_idx);
-      if (stat_ptr == nullptr) {
-        continue;
-      }
-      collect_deopt_stat(*stat_ptr, meta, stats);
+      ctx->ifDeoptStat(code_runtime, deopt_idx, [&](const auto& stat) {
+        collect_deopt_stat(stat, meta, stats);
+      });
     }
   }
 

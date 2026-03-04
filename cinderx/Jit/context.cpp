@@ -211,6 +211,9 @@ void Context::recordDeopt(
     CodeRuntime* code_runtime,
     std::size_t idx,
     BorrowedRef<> guilty_value) {
+#ifdef Py_GIL_DISABLED
+  std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
+#endif
   DeoptStat& stat = deopt_stats_[code_runtime][idx];
   stat.count++;
   if (guilty_value != nullptr) {
@@ -233,6 +236,9 @@ const DeoptStat* Context::deoptStat(
 }
 
 void Context::clearDeoptStats() {
+#ifdef Py_GIL_DISABLED
+  std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
+#endif
   deopt_stats_.clear();
 }
 

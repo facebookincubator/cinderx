@@ -27,6 +27,7 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -294,18 +295,34 @@ class Context : public IJitContext {
   // is typed to.  Typed object references are explicitly excluded.
   _PyTypedArgsInfo* findFunctionPrimitiveArgInfo(PyFunctionObject* function);
 
+  // Invoke f with the DeoptStat for the given deopt index if it exists.
+  // Returns true if the stat was found and f was called.
+  //
+  // Note: f runs while deopt_stats_mutex_ is held. If f triggers
+  // recordDeopt() or clearDeoptStats(), the non-recursive mutex will
+  // deadlock.
+  template <typename F>
+  bool ifDeoptStat(
+      const CodeRuntime* code_runtime,
+      std::size_t deopt_idx,
+      F&& f) const {
+#ifdef Py_GIL_DISABLED
+    std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
+#endif
+    const DeoptStat* stat = deoptStat(code_runtime, deopt_idx);
+    if (stat == nullptr) {
+      return false;
+    }
+    f(*stat);
+    return true;
+  }
+
   // Record that a deopt of the given index happened at runtime, with an
   // optional guilty value.
   void recordDeopt(
       CodeRuntime* code_runtime,
       std::size_t idx,
       BorrowedRef<> guilty_value);
-
-  // Get the stat object for a given deopt.  It will not exist if the deopt has
-  // never been hit.
-  const DeoptStat* deoptStat(
-      const CodeRuntime* code_runtime,
-      std::size_t deopt_idx) const;
 
   // Clear all deopt stats.
   void clearDeoptStats();
@@ -444,6 +461,16 @@ class Context : public IJitContext {
 
   std::vector<DeoptMetadata> deopt_metadata_;
   DeoptStats deopt_stats_;
+#ifdef Py_GIL_DISABLED
+  mutable std::mutex deopt_stats_mutex_;
+#endif
+
+  // Get the stat object for a given deopt.  It will not exist if the deopt has
+  // never been hit.  Caller must hold deopt_stats_mutex_ when Py_GIL_DISABLED.
+  const DeoptStat* deoptStat(
+      const CodeRuntime* code_runtime,
+      std::size_t deopt_idx) const;
+
   GuardFailureCallback guard_failure_callback_;
 
   // References to Python objects held by this Context
