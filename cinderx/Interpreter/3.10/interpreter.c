@@ -310,11 +310,11 @@ Ci_EvalFrame(PyThreadState* tstate, PyFrameObject* f, int throwflag) {
   consts = co->co_consts;
   fastlocals = f->f_localsplus;
   freevars = f->f_localsplus + co->co_nlocals;
-  assert(PyBytes_Check(PyCode_GetCode(co)));
-  assert(PyBytes_GET_SIZE(PyCode_GetCode(co)) <= INT_MAX);
-  assert(PyBytes_GET_SIZE(PyCode_GetCode(co)) % sizeof(_Py_CODEUNIT) == 0);
+  assert(PyBytes_Check(co->co_code));
+  assert(PyBytes_GET_SIZE(co->co_code) <= INT_MAX);
+  assert(PyBytes_GET_SIZE(co->co_code) % sizeof(_Py_CODEUNIT) == 0);
   assert(_Py_IS_ALIGNED(
-      PyBytes_AS_STRING(PyCode_GetCode(co)), sizeof(_Py_CODEUNIT)));
+      PyBytes_AS_STRING(co->co_code), sizeof(_Py_CODEUNIT)));
 
   /* facebook begin t39538061 */
   shadow.code = co;
@@ -504,7 +504,7 @@ main_loop:
               tstate,
               PyExc_UnboundLocalError,
               UNBOUNDLOCAL_ERROR_MSG,
-              PyTuple_GetItem(PyCode_GetVarnames(co), oparg));
+              PyTuple_GetItem(co->co_varnames, oparg));
           goto error;
         }
         Py_INCREF(value);
@@ -1636,10 +1636,10 @@ main_loop:
         PyObject *name, *value, *locals = f->f_locals;
         Py_ssize_t idx;
         assert(locals);
-        assert(oparg >= PyTuple_GET_SIZE(PyCode_GetCellvars(co)));
-        idx = oparg - PyTuple_GET_SIZE(PyCode_GetCellvars(co));
-        assert(idx >= 0 && idx < PyTuple_GET_SIZE(PyCode_GetFreevars(co)));
-        name = PyTuple_GET_ITEM(PyCode_GetFreevars(co), idx);
+        assert(oparg >= PyTuple_GET_SIZE(co->co_cellvars));
+        idx = oparg - PyTuple_GET_SIZE(co->co_cellvars);
+        assert(idx >= 0 && idx < PyTuple_GET_SIZE(co->co_freevars));
+        name = PyTuple_GET_ITEM(co->co_freevars, idx);
         if (PyDict_CheckExact(locals)) {
           value = PyDict_GetItemWithError(locals, name);
           if (value != NULL) {
@@ -5020,8 +5020,8 @@ _Ci_CheckArgs(PyThreadState* tstate, PyFrameObject* f, PyCodeObject* co) {
             "%U expected '%s' for argument %U, got '%s'",
             co->co_name,
             type->tp_name,
-            idx < 0 ? PyTuple_GetItem(PyCode_GetCellvars(co), -(idx + 1))
-                    : PyTuple_GetItem(PyCode_GetVarnames(co), idx),
+            idx < 0 ? PyTuple_GetItem(co->co_cellvars, -(idx + 1))
+                    : PyTuple_GetItem(co->co_varnames, idx),
             Py_TYPE(val)->tp_name);
         Py_DECREF(type);
         return -1;
@@ -5070,8 +5070,8 @@ _Ci_CheckArgs(PyThreadState* tstate, PyFrameObject* f, PyCodeObject* co) {
           "%U expected '%s' for argument %U, got '%s'",
           co->co_name,
           check->tai_type->tp_name,
-          idx < 0 ? PyTuple_GetItem(PyCode_GetCellvars(co), -(idx + 1))
-                  : PyTuple_GetItem(PyCode_GetVarnames(co), idx),
+          idx < 0 ? PyTuple_GetItem(co->co_cellvars, -(idx + 1))
+                  : PyTuple_GetItem(co->co_varnames, idx),
           Py_TYPE(val)->tp_name);
       return -1;
     }

@@ -347,8 +347,9 @@ def test(x, y):
     const int jump_index = 42;
     const int pop_instr_offset = 2;
 #endif
+    auto code_bytes = Ref<>::steal(PyCode_GetCode(code));
     ASSERT_EQ(
-        PyBytes_AS_STRING(PyCode_GetCode(code))[jump_index + pop_instr_offset],
+        PyBytes_AS_STRING(code_bytes.get())[jump_index + pop_instr_offset],
         (char)POP_JUMP_IF_ZERO);
 
     DeoptMetadata dm;

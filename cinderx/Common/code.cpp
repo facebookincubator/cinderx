@@ -52,9 +52,10 @@ PyObject* getVarnameTuple(BorrowedRef<PyCodeObject> code, int* idx) {
   }
 
   *idx -= code->co_nlocals;
-  auto ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
+  auto cellvars = Ref<>::steal(PyCode_GetCellvars(code));
+  auto ncellvars = PyTuple_GET_SIZE(cellvars.get());
   if (*idx < ncellvars) {
-    return PyCode_GetCellvars(code);
+    return cellvars.release();
   }
 
   *idx -= ncellvars;
@@ -65,14 +66,14 @@ PyObject* getVarname(BorrowedRef<PyCodeObject> code, int idx) {
 #if PY_VERSION_HEX >= 0x030C0000
   return PyTuple_GET_ITEM(code->co_localsplusnames, idx);
 #else
-  PyObject* tuple = getVarnameTuple(code, &idx);
-  return PyTuple_GET_ITEM(tuple, idx);
+  auto tuple = Ref<>::steal(getVarnameTuple(code, &idx));
+  return PyTuple_GET_ITEM(tuple.get(), idx);
 #endif
 }
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
   uint32_t crc = crc32(0, nullptr, 0);
-  PyObject* bc = PyCode_GetCode(code);
+  auto bc = Ref<>::steal(PyCode_GetCode(code));
   if (!PyBytes_Check(bc)) {
     return crc;
   }
@@ -111,11 +112,11 @@ _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
 #if PY_VERSION_HEX >= 0x030C0000
   return _PyCode_CODE(code);
 #else
-  PyObject* bytes_obj = PyCode_GetCode(code);
+  auto bytes_obj = Ref<>::steal(PyCode_GetCode(code));
   JIT_DCHECK(
       PyBytes_CheckExact(bytes_obj),
       "Code object must have its instructions stored as a byte string");
-  return (_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(code));
+  return (_Py_CODEUNIT*)PyBytes_AS_STRING(bytes_obj.get());
 #endif
 }
 
@@ -125,7 +126,8 @@ size_t countIndices(PyCodeObject* code) {
   // which we don't need just to determine the number of indices.
   return _PyCode_NBYTES(code) / sizeof(_Py_CODEUNIT);
 #else
-  return PyBytes_GET_SIZE(PyCode_GetCode(code)) / sizeof(_Py_CODEUNIT);
+  auto bytes_obj = Ref<>::steal(PyCode_GetCode(code));
+  return PyBytes_GET_SIZE(bytes_obj.get()) / sizeof(_Py_CODEUNIT);
 #endif
 }
 
@@ -268,7 +270,8 @@ int numCellvars(PyCodeObject* code) {
 #if PY_VERSION_HEX >= 0x030B0000
   return code->co_ncellvars;
 #else
-  return PyTuple_GET_SIZE(PyCode_GetCellvars(code));
+  auto cellvars = Ref<>::steal(PyCode_GetCellvars(code));
+  return PyTuple_GET_SIZE(cellvars.get());
 #endif
 }
 
@@ -276,7 +279,8 @@ int numFreevars(PyCodeObject* code) {
 #if PY_VERSION_HEX >= 0x030B0000
   return code->co_nfreevars;
 #else
-  return PyTuple_GET_SIZE(PyCode_GetFreevars(code));
+  auto freevars = Ref<>::steal(PyCode_GetFreevars(code));
+  return PyTuple_GET_SIZE(freevars.get());
 #endif
 }
 

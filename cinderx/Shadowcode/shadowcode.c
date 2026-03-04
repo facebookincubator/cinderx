@@ -619,7 +619,7 @@ int _PyShadow_GetOriginalOparg(
     _PyShadow_EvalState* state,
     const _Py_CODEUNIT* next_instr) {
   _Py_CODEUNIT* rawcode =
-      (_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(state->code));
+      (_Py_CODEUNIT*)PyBytes_AS_STRING(state->code->co_code);
   _Py_CODEUNIT* instr = &rawcode[next_instr - *state->first_instr];
   instr--; /* we point to the next instruction, we want the current one */
   const int existing_size = opsize(instr, rawcode);
@@ -2329,7 +2329,7 @@ PyObject* _PyShadow_GetInlineCacheStats(PyObject* self) {
 #endif
 
 int _PyShadow_InitCache(PyCodeObject* co) {
-  char* buffer = PyBytes_AS_STRING(PyCode_GetCode(co));
+  char* buffer = PyBytes_AS_STRING(co->co_code);
 
   /* names is a bitmask of seen names, if we have a limited number */
   size_t names = 0, funcs = 0;
@@ -2356,7 +2356,7 @@ int _PyShadow_InitCache(PyCodeObject* co) {
   /* Scan the byte code for all LOAD_GLOBALs and pre-allocate enough space
    * for all of them */
   _Py_CODEUNIT* instr = (_Py_CODEUNIT*)buffer;
-  _Py_CODEUNIT* end = (_Py_CODEUNIT*)(buffer + Py_SIZE(PyCode_GetCode(co)));
+  _Py_CODEUNIT* end = (_Py_CODEUNIT*)(buffer + Py_SIZE(co->co_code));
   while (instr < end) {
     unsigned char opcode = _Py_OPCODE(*instr);
     int oparg = _Py_OPARG(*instr);
@@ -2407,13 +2407,13 @@ int _PyShadow_InitCache(PyCodeObject* co) {
   }
 
   _PyShadowCode* shadow;
-  shadow = PyMem_Malloc(sizeof(_PyShadowCode) + Py_SIZE(PyCode_GetCode(co)));
+  shadow = PyMem_Malloc(sizeof(_PyShadowCode) + Py_SIZE(co->co_code));
   if (shadow == NULL) {
     return -1;
   }
 
   shadow->update_count = 0;
-  shadow->len = Py_SIZE(PyCode_GetCode(co));
+  shadow->len = Py_SIZE(co->co_code);
   memcpy(shadow->code, buffer, shadow->len);
 
   if (glob_count) {

@@ -44,10 +44,10 @@ bool immortalize(PyObject* obj) {
 #if PY_VERSION_HEX < 0x030B0000
     // In 3.11 these changed to have the bytes embedded in the code object and
     // the names in a unified tuple
-    IMMORTALIZE(PyCode_GetCode(code));
-    IMMORTALIZE(PyCode_GetVarnames(code));
-    IMMORTALIZE(PyCode_GetFreevars(code));
-    IMMORTALIZE(PyCode_GetCellvars(code));
+    IMMORTALIZE(code->co_code);
+    IMMORTALIZE(code->co_varnames);
+    IMMORTALIZE(code->co_freevars);
+    IMMORTALIZE(code->co_cellvars);
 #else
     IMMORTALIZE(code->co_localspluskinds);
     IMMORTALIZE(code->co_localsplusnames);

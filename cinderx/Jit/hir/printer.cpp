@@ -231,7 +231,7 @@ format_varname(const Function* func, const Instr& instr, int idx) {
     return fmt::format("{}", idx);
   }
 
-  auto names = getVarnameTuple(code, &idx);
+  auto names = Ref<>::steal(getVarnameTuple(code, &idx));
   return format_name_impl(idx, names);
 }
 

@@ -21,19 +21,19 @@ extern "C" {
 #if PY_VERSION_HEX < 0x030B0000
 
 static inline PyObject* PyCode_GetCode(PyCodeObject* code) {
-  return code->co_code;
+  return Py_NewRef(code->co_code);
 }
 
 static inline PyObject* PyCode_GetVarnames(PyCodeObject* code) {
-  return code->co_varnames;
+  return Py_NewRef(code->co_varnames);
 }
 
 static inline PyObject* PyCode_GetCellvars(PyCodeObject* code) {
-  return code->co_cellvars;
+  return Py_NewRef(code->co_cellvars);
 }
 
 static inline PyObject* PyCode_GetFreevars(PyCodeObject* code) {
-  return code->co_freevars;
+  return Py_NewRef(code->co_freevars);
 }
 
 static inline PyCodeObject* PyUnstable_Code_New(
@@ -163,8 +163,8 @@ std::string codeFullname(
 std::string funcFullname(BorrowedRef<PyFunctionObject> func);
 
 // Given a code object and an index into f_localsplus, compute which of
-// code->co_varnames, code->cellvars, or code->freevars contains the name of
-// the variable. Return that tuple and adjust idx as needed.
+// code->co_varnames, code->cellvars, or code->freevars contains the name of the
+// variable. Return a new reference to that tuple and adjust idx as needed.
 PyObject* getVarnameTuple(BorrowedRef<PyCodeObject> code, int* idx);
 
 // Similar to getVarnameTuple, but return the name itself rather than the

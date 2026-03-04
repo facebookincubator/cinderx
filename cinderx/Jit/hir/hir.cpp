@@ -1281,7 +1281,7 @@ const Environment::ReferenceSet& Environment::references() const {
 
 bool usesRuntimeFunc([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
 #if PY_VERSION_HEX < 0x030C0000
-  return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
+  return numFreevars(code) > 0;
 #else
   // In 3.12+ we always need the runtime function because we use it to
   // initialize the _PyInterpreterFrame object.

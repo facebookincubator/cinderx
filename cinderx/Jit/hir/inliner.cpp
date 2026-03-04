@@ -154,12 +154,10 @@ bool canInline(Function& caller, AbstractCall* call_instr) {
     }
   }
 #else
-  Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
-  if (ncellvars > 0) {
+  if (numCellvars(code) > 0) {
     return fail(InlineFailureType::kHasCellvars);
   }
-  Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
-  if (nfreevars > 0) {
+  if (numFreevars(code) > 0) {
     return fail(InlineFailureType::kHasFreevars);
   }
 #endif
