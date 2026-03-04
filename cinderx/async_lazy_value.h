@@ -84,7 +84,7 @@ class AsyncLazyValueState : public IAsyncLazyValueState {
   }
 
   BorrowedRef<> asyncioFutureBlocking();
-  BorrowedRef<PyTypeObject> cancalledError();
+  BorrowedRef<PyTypeObject> cancelledError();
 
   BorrowedRef<PyGetSetDescrObject> futureSourceTraceback();
 

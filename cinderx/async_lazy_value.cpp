@@ -123,7 +123,7 @@ BorrowedRef<> AsyncLazyValueState::asyncioFutureBlocking() {
   return asyncio_future_blocking_;
 }
 
-BorrowedRef<PyTypeObject> AsyncLazyValueState::cancalledError() {
+BorrowedRef<PyTypeObject> AsyncLazyValueState::cancelledError() {
   if (cancelled_error_ != nullptr) {
     return cancelled_error_;
   }
@@ -488,7 +488,7 @@ static int AsyncLazyValue_set_result(AsyncLazyValueObj* self, PyObject* res) {
 
 static int AsyncLazyValue_set_error(AsyncLazyValueObj* self, PyObject* exc) {
   int ok;
-  if (PyObject_IsInstance(exc, get_state()->cancalledError())) {
+  if (PyObject_IsInstance(exc, get_state()->cancelledError())) {
     ok = notify_futures(self->alv_futures, future_cancel_impl, exc);
   } else {
     ok = notify_futures(
