@@ -70,9 +70,8 @@ std::string repr(BorrowedRef<> obj);
   {                                 \
     static bool checked = false;    \
     if (!checked) {                 \
-      JIT_CHECK(COND, __VA_ARGS__); \
-    } else {                        \
       checked = true;               \
+      JIT_CHECK(COND, __VA_ARGS__); \
     }                               \
   }
 
