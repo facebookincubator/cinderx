@@ -2130,44 +2130,44 @@ PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
   auto const& stats = compiled_func->inlinedFunctionsStats();
   auto py_stats = Ref<>::steal(PyDict_New());
   if (py_stats == nullptr) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
   auto num_inlined_functions =
       Ref<>::steal(PyLong_FromSize_t(stats.num_inlined_functions));
   if (num_inlined_functions == nullptr) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
   if (PyDict_SetItemString(
           py_stats, "num_inlined_functions", num_inlined_functions) < 0) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
   auto failure_stats = Ref<>::steal(PyDict_New());
   if (failure_stats == nullptr) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
   for (const auto& [reason, functions] : stats.failure_stats) {
     auto py_failure_reason =
         Ref<>::steal(PyUnicode_InternFromString(getInlineFailureName(reason)));
     if (py_failure_reason == nullptr) {
-      Py_RETURN_NONE;
+      return nullptr;
     }
     auto py_functions_set = Ref<>::steal(PySet_New(nullptr));
     if (py_functions_set == nullptr) {
-      Py_RETURN_NONE;
+      return nullptr;
     }
     if (PyDict_SetItem(failure_stats, py_failure_reason, py_functions_set) <
         0) {
-      Py_RETURN_NONE;
+      return nullptr;
     }
     for (const auto& function : functions) {
       auto py_function = Ref<>::steal(PyUnicode_FromString(function.c_str()));
       if (PySet_Add(py_functions_set, py_function) < 0) {
-        Py_RETURN_NONE;
+        return nullptr;
       }
     }
   }
   if (PyDict_SetItemString(py_stats, "failure_stats", failure_stats) < 0) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
   return py_stats.release();
 }
