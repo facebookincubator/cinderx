@@ -154,12 +154,12 @@ PyObject* clear_classloader_caches(PyObject*, PyObject*) {
 PyObject* watch_sys_modules(PyObject*, PyObject*) {
   auto sys = Ref<>::steal(PyImport_ImportModule("sys"));
   if (sys == nullptr) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
 
   auto modules = Ref<>::steal(PyObject_GetAttrString(sys, "modules"));
   if (modules == nullptr) {
-    Py_RETURN_NONE;
+    return nullptr;
   }
   if (Ci_Watchers_WatchDict(modules) < 0) {
     return nullptr;
