@@ -2253,7 +2253,12 @@ int check(int ret) {
   return ret;
 }
 
-Ref<> make_deopt_stats() {
+// Appends deopt event dicts to stats: one per guilty type if profiled,
+// or a single "<none>" event otherwise.
+void collect_deopt_stat(
+    const DeoptStat& stat,
+    const DeoptMetadata& meta,
+    BorrowedRef<> stats) {
   DEFINE_STATIC_STRING(count);
   DEFINE_STATIC_STRING(description);
   DEFINE_STATIC_STRING(filename);
@@ -2264,6 +2269,57 @@ Ref<> make_deopt_stats() {
   DEFINE_STATIC_STRING(int);
   DEFINE_STATIC_STRING(reason);
 
+  const DeoptFrameMetadata& frame_meta = meta.innermostFrame();
+  BorrowedRef<PyCodeObject> code = frame_meta.code;
+
+  auto func_qualname = code->co_qualname;
+  BCOffset line_offset = frame_meta.cause_instr_idx;
+  int lineno_raw = code->co_linetable != nullptr
+      ? PyCode_Addr2Line(code, line_offset.value())
+      : -1;
+  auto lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
+  auto reason =
+      Ref<>::steal(check(PyUnicode_FromString(deoptReasonName(meta.reason))));
+  auto description = Ref<>::steal(check(PyUnicode_FromString(meta.descr)));
+
+  // Helper to create an event dict with a given count value.
+  auto append_event = [&](size_t count_raw, const char* type_name) {
+    auto event = Ref<>::steal(check(PyDict_New()));
+    auto normals = Ref<>::steal(check(PyDict_New()));
+    auto ints = Ref<>::steal(check(PyDict_New()));
+
+    check(PyDict_SetItem(event, s_normal, normals));
+    check(PyDict_SetItem(event, s_int, ints));
+    check(PyDict_SetItem(normals, s_func_qualname, func_qualname));
+    check(PyDict_SetItem(normals, s_filename, code->co_filename));
+    check(PyDict_SetItem(ints, s_lineno, lineno));
+    check(PyDict_SetItem(normals, s_reason, reason));
+    check(PyDict_SetItem(normals, s_description, description));
+
+    auto count = Ref<>::steal(check(PyLong_FromSize_t(count_raw)));
+    check(PyDict_SetItem(ints, s_count, count));
+    auto type_str = Ref<>::steal(check(PyUnicode_InternFromString(type_name)));
+    check(PyDict_SetItem(normals, s_guilty_type, type_str));
+    check(PyList_Append(stats, event));
+  };
+
+  // For deopts with type profiles, add a copy of the dict with counts for
+  // each type, including "other".
+  if (!stat.types.empty()) {
+    for (size_t i = 0; i < stat.types.size && stat.types.types[i] != nullptr;
+         ++i) {
+      append_event(
+          stat.types.counts[i], typeFullname(stat.types.types[i]).c_str());
+    }
+    if (stat.types.other > 0) {
+      append_event(stat.types.other, "<other>");
+    }
+  } else {
+    append_event(stat.count, "<none>");
+  }
+}
+
+Ref<> make_deopt_stats() {
   CompilerContext<Compiler>* ctx = jitCtx();
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
@@ -2280,58 +2336,7 @@ Ref<> make_deopt_stats() {
       if (stat_ptr == nullptr) {
         continue;
       }
-      const DeoptStat& stat = *stat_ptr;
-
-      const DeoptFrameMetadata& frame_meta = meta.innermostFrame();
-      BorrowedRef<PyCodeObject> code = frame_meta.code;
-
-      auto func_qualname = code->co_qualname;
-      BCOffset line_offset = frame_meta.cause_instr_idx;
-      int lineno_raw = code->co_linetable != nullptr
-          ? PyCode_Addr2Line(code, line_offset.value())
-          : -1;
-      auto lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
-      auto reason = Ref<>::steal(
-          check(PyUnicode_FromString(deoptReasonName(meta.reason))));
-      auto description = Ref<>::steal(check(PyUnicode_FromString(meta.descr)));
-
-      // Helper to create an event dict with a given count value.
-      auto append_event = [&](size_t count_raw, const char* type_name) {
-        auto event = Ref<>::steal(check(PyDict_New()));
-        auto normals = Ref<>::steal(check(PyDict_New()));
-        auto ints = Ref<>::steal(check(PyDict_New()));
-
-        check(PyDict_SetItem(event, s_normal, normals));
-        check(PyDict_SetItem(event, s_int, ints));
-        check(PyDict_SetItem(normals, s_func_qualname, func_qualname));
-        check(PyDict_SetItem(normals, s_filename, code->co_filename));
-        check(PyDict_SetItem(ints, s_lineno, lineno));
-        check(PyDict_SetItem(normals, s_reason, reason));
-        check(PyDict_SetItem(normals, s_description, description));
-
-        auto count = Ref<>::steal(check(PyLong_FromSize_t(count_raw)));
-        check(PyDict_SetItem(ints, s_count, count));
-        auto type_str =
-            Ref<>::steal(check(PyUnicode_InternFromString(type_name)));
-        check(PyDict_SetItem(normals, s_guilty_type, type_str));
-        check(PyList_Append(stats, event));
-      };
-
-      // For deopts with type profiles, add a copy of the dict with counts for
-      // each type, including "other".
-      if (!stat.types.empty()) {
-        for (size_t i = 0;
-             i < stat.types.size && stat.types.types[i] != nullptr;
-             ++i) {
-          append_event(
-              stat.types.counts[i], typeFullname(stat.types.types[i]).c_str());
-        }
-        if (stat.types.other > 0) {
-          append_event(stat.types.other, "<other>");
-        }
-      } else {
-        append_event(stat.count, "<none>");
-      }
+      collect_deopt_stat(*stat_ptr, meta, stats);
     }
   }
 
