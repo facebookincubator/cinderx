@@ -1312,6 +1312,7 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
   state->setAnextAwaitableType(anext_awaitable_type);
+  Py_DECREF(anext_awaitable_type);
 
   auto anext_func = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
   if (anext_func == nullptr ||
