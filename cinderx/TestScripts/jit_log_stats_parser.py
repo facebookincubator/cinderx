@@ -647,6 +647,11 @@ def main():
         action="store_true",
         help="Print detailed per-function information instead of cumulative summary",
     )
+    analyze_parser.add_argument(
+        "--code-size",
+        action="store_true",
+        help="Show code-size changes (these are little non-deterministic)",
+    )
 
     # Compare two log files
     compare_parser = subparsers.add_parser("compare", help="Compare two log files")
@@ -753,9 +758,6 @@ def main():
                 )
     except FileNotFoundError as e:
         print(f"Error: Log file not found: {e}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error processing log file: {e}", file=sys.stderr)
         sys.exit(1)
 
 
