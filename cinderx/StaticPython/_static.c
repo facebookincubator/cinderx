@@ -322,6 +322,7 @@ int ctxmgrwrp_import_value(
   if (*dest == NULL) {
     PyObject* value = PyObject_GetAttrString(mod, name);
     if (value == NULL) {
+      Py_DECREF(mod);
       return -1;
     }
     *dest = value;
