@@ -282,7 +282,7 @@ class ThreadedRef : public RefBase<T> {
   template <typename X = T>
     requires(!IsPyObject<X>)
   static ThreadedRef create(PyObject* obj) {
-    return Ref(reinterpret_cast<T*>(obj));
+    return ThreadedRef(reinterpret_cast<T*>(obj));
   }
 
  private:
