@@ -692,6 +692,28 @@ _PyDict_CheckConsistency(PyObject *op, int check_content)
 
 #undef CHECK
 }
+static inline PyObject *
+new_dict_impl(PyDictObject *mp, PyDictKeysObject *keys,
+              PyDictValues *values, Py_ssize_t used,
+              int free_values_on_failure)
+{
+    assert(keys != NULL);
+    if (mp == NULL) {
+        dictkeys_decref(keys, false);
+        if (free_values_on_failure) {
+            free_values(values, false);
+        }
+        return NULL;
+    }
+
+    mp->ma_keys = keys;
+    mp->ma_values = values;
+    mp->ma_used = used;
+    mp->_ma_watcher_tag = 0;
+    ASSERT_CONSISTENT(mp);
+    _PyObject_GC_TRACK(mp);
+    return (PyObject *)mp;
+}
 static PyObject *
 new_dict(PyDictKeysObject *keys, PyDictValues *values,
          Py_ssize_t used, int free_values_on_failure)

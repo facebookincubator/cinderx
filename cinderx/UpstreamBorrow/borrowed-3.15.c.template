@@ -134,6 +134,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function compare_generic from Objects/dictobject.c [3.15]
 // @Borrow function get_index_from_order from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_CheckConsistency from Objects/dictobject.c [3.15]
+// @Borrow function new_dict_impl from Objects/dictobject.c [3.15]
 // @Borrow function new_dict from Objects/dictobject.c [3.15]
 // @Borrow function new_dict_with_shared_keys from Objects/dictobject.c [3.15]
 // @Borrow function ensure_nonmanaged_dict from Objects/dictobject.c [3.15]
