@@ -113,10 +113,6 @@ static inline void gc_clear_collecting(PyGC_Head* g) {
   g->_gc_prev &= ~PREV_MASK_COLLECTING;
 }
 
-static inline void gc_clear_unreachable(PyGC_Head* g) {
-  g->_gc_next &= ~NEXT_MASK_UNREACHABLE;
-}
-
 static inline Py_ssize_t gc_get_refs(PyGC_Head* g) {
   return (Py_ssize_t)(g->_gc_prev >> _PyGC_PREV_SHIFT);
 }
