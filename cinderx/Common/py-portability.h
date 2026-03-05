@@ -175,7 +175,7 @@ static inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
 static inline void setFrameCode(_PyInterpreterFrame* frame, PyObject* code) {
   frame->f_executable = PyStackRef_FromPyObjectNew(code);
 }
-#elif PY_VERSION_HEX >= 0x30C0000
+#elif PY_VERSION_HEX >= 0x030C0000
 #define FRAME_EXECUTABLE f_code
 #define FRAME_EXECUTABLE_OFFSET offsetof(_PyInterpreterFrame, f_code)
 #define FRAME_INSTR prev_instr
