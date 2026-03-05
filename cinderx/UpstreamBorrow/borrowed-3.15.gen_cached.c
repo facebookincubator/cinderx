@@ -696,26 +696,13 @@ static PyObject *
 new_dict(PyDictKeysObject *keys, PyDictValues *values,
          Py_ssize_t used, int free_values_on_failure)
 {
-    assert(keys != NULL);
     PyDictObject *mp = _Py_FREELIST_POP(PyDictObject, dicts);
     if (mp == NULL) {
         mp = PyObject_GC_New(PyDictObject, &PyDict_Type);
-        if (mp == NULL) {
-            dictkeys_decref(keys, false);
-            if (free_values_on_failure) {
-                free_values(values, false);
-            }
-            return NULL;
-        }
     }
-    assert(Py_IS_TYPE(mp, &PyDict_Type));
-    mp->ma_keys = keys;
-    mp->ma_values = values;
-    mp->ma_used = used;
-    mp->_ma_watcher_tag = 0;
-    ASSERT_CONSISTENT(mp);
-    _PyObject_GC_TRACK(mp);
-    return (PyObject *)mp;
+    assert(mp == NULL || Py_IS_TYPE(mp, &PyDict_Type));
+
+    return new_dict_impl(mp, keys, values, used, free_values_on_failure);
 }
 static PyObject *
 new_dict_with_shared_keys(PyDictKeysObject *keys)
@@ -2200,9 +2187,6 @@ error:
 #endif
 #define PyTypeObject_CAST(op)   ((PyTypeObject *)(op))
 #ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#else
 #endif
 #define SIGNATURE_END_MARKER         ")\n--\n\n"
 #define SIGNATURE_END_MARKER_LENGTH  6
