@@ -763,7 +763,7 @@ int cinderx_dict_watcher(
         globalCaches->notifyDictUnwatch(dict);
         break;
       }
-      // key is overwhemingly likely to be interned, since in normal code it
+      // key is overwhelmingly likely to be interned, since in normal code it
       // comes from co_names. If it's not, we at least know that an interned
       // string with its value exists (because we're watching it), so this
       // should just be a quick lookup.

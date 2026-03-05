@@ -984,7 +984,7 @@ void stealInputs(
     if (rstate.isOwned() && dying_regs.count(reg)) {
       // This instruction is the last use of reg and we own a reference to it.
       // Normally we let ownership for the input pass to the instruction's
-      // reciever.
+      // receiver.
       //
       // However, for yield instructions, if the register is also in the
       // FrameState (localsplus/stack), we need to keep a strong reference even

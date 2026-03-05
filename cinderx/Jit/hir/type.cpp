@@ -433,7 +433,7 @@ Type Type::fromObject(PyObject* obj) {
 
   bits_t lifetime = [&]() {
     // Serialize to silence TSAN errors about accessing the reference count of
-    // which can change during compliation. However, this is really a false
+    // which can change during compilation. However, this is really a false
     // positive as the mortality of an object should not change during
     // compilation.
     ThreadedCompileSerialize guard;

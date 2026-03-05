@@ -46,7 +46,7 @@ BorrowedRef<> typeLookupSafe(
     BorrowedRef<> name) {
   JIT_CHECK(PyUnicode_CheckExact(name), "name must be a str");
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
-  // This flag should never change during compliation although other
+  // This flag should never change during compilation although other
   // flags may.
   ThreadedCompileSerialize guard;
 

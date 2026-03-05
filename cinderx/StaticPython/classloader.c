@@ -839,7 +839,7 @@ static PyObject* classloader_lookup_symbol(
     //
     // To be 100% correct, we could clear existing errors with `dlerror`,
     // call `dlsym` and then call `dlerror` again, to check whether an
-    // error occured, but that'll be more work than we need.
+    // error occurred, but that'll be more work than we need.
     PyErr_Format(
         PyExc_RuntimeError,
         "classloader: unable to lookup '%U' in '%U': %s",

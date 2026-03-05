@@ -229,7 +229,7 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
         r = func(*args, **kwargs)
         # pyre-ignore[6]
         if len(deopts := cinderx.jit.get_and_clear_runtime_stats()["deopt"]):
-            raise RuntimeError(f"Deopt occured {deopts}")
+            raise RuntimeError(f"Deopt occurred {deopts}")
         return r
 
     wrapper.inner_function = func

@@ -88,7 +88,7 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
 #endif
   }
   // Try to use CPython traverse as much as we can as it has internals which
-  // are hard to borrow in 3.14 (compares 'visit' to a speicifc internal
+  // are hard to borrow in 3.14 (compares 'visit' to a specific internal
   // function).
   return PyGen_Type.tp_traverse(obj, visit, arg);
 }
