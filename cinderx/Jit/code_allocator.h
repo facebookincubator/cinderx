@@ -8,6 +8,7 @@
 #include <asmjit/asmjit.h>
 
 #include <atomic>
+#include <mutex>
 #include <span>
 #include <unordered_map>
 #include <vector>
@@ -68,6 +69,13 @@ class CodeAllocatorCinder : public CodeAllocator {
   bool contains(const void* ptr) const override;
 
  private:
+  // Protects allocations_ from concurrent access between addCode() and
+  // contains(). In free-threaded Python, one thread may be compiling a
+  // function while another checks isJitCompiled() via a function watcher.
+#ifdef Py_GIL_DISABLED
+  mutable std::mutex allocations_mutex_;
+#endif
+
   // List of chunks allocated for use in deallocation
   std::vector<std::span<uint8_t>> allocations_;
 
