@@ -934,17 +934,11 @@ static void forward_and_clear_pending_awaiter(AsyncLazyValueComputeObj* self) {
 
 /**
     Runs a function that was provided to AsyncLazyValue.
-    - if function was not a coroutine - calls _PyCoro_GetAwaitableIter on a
-   result and stores it for subsequent 'send' calls
-    - if function was a coroutine and it was completed eagerly -
-      sets 'did_step' indicator and returns the result
-    - if function was a coroutine but it was not completed eagerly
-      sets 'did_step' indicator, stores coroutine object for subsequent 'send'
-   calls and return result of the step (typically it is future)
+    Calls _PyCoro_GetAwaitableIter on the result and stores it for
+    subsequent 'send' calls.
  */
 static PyObject* AsyncLazyValueCompute_create_and_set_subcoro(
-    AsyncLazyValueComputeObj* self,
-    int* did_step) {
+    AsyncLazyValueComputeObj* self) {
   Py_ssize_t nargs = PyTuple_GET_SIZE(self->alvc_target->alv_args);
   PyObject** args = &PyTuple_GET_ITEM(self->alvc_target->alv_args, 0);
   PyObject* kwargs = self->alvc_target->alv_kwargs;
@@ -1030,8 +1024,8 @@ static PyObject* AsyncLazyValueCompute_handle_error(
 }
 
 static void AsyncLazyValueCompute_set_awaiter(
-    AsyncLazyValueComputeObj* self,
-    PyObject* awaiter) {
+    [[maybe_unused]] AsyncLazyValueComputeObj* self,
+    [[maybe_unused]] PyObject* awaiter) {
 #if ENABLE_GENERATOR_AWAITER
   if (self->alvc_coroobj != nullptr) {
     Ci_PyAwaitable_SetAwaiter(self->alvc_coroobj, awaiter);
@@ -1050,32 +1044,12 @@ static PyObject* AsyncLazyValueCompute_itersend_(
     PyObject* sentValue,
     int* pReturn) {
   if (self->alvc_coroobj == nullptr) {
-    int did_step = 0;
     // here alvc_coroobj coroutine object was not created yet -
     // call coroutine and set coroutine object for subsequent sends
-    PyObject* retval =
-        AsyncLazyValueCompute_create_and_set_subcoro(self, &did_step);
+    PyObject* retval = AsyncLazyValueCompute_create_and_set_subcoro(self);
     if (retval == nullptr) {
       // failed - handle error
       return AsyncLazyValueCompute_handle_error(self, tstate, 1, 0);
-    }
-    if (did_step) {
-      // if we did step when calling coroutine - we attempted to run
-      // coroutine eagerly which might have two outcomes
-      if (self->alvc_coroobj == nullptr) {
-        // 1. coroutine has finished eagerly
-        // set the successful result to owning AsyncLazyValue
-        int ok = AsyncLazyValue_set_result(self->alvc_target, retval);
-        if (ok < 0) {
-          Py_DECREF(retval);
-          return AsyncLazyValueCompute_handle_error(self, tstate, 1, 0);
-        }
-        // ..and set return indicator
-        *pReturn = 1;
-      }
-      // 2. coroutine was not finished eagerly but we did some work
-      // return without setting return indicator - meaning we yielded
-      return retval;
     }
     Py_DECREF(retval);
   }
