@@ -20,15 +20,15 @@ struct JitGenObject;
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this
 // convention, returning this struct will fill the right registers
-typedef struct {
+struct JITRT_StaticCallReturn {
   void* rax;
   void* rdx;
-} JITRT_StaticCallReturn;
+};
 
-typedef struct {
+struct JITRT_StaticCallFPReturn {
   double xmm0;
   double xmm1;
-} JITRT_StaticCallFPReturn;
+};
 
 #if PY_VERSION_HEX < 0x030C0000
 /*

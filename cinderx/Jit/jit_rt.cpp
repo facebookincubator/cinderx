@@ -240,13 +240,13 @@ PyObject* JITRT_CallWithKeywordArgs(
   return Ci_PyFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
 }
 
-typedef JITRT_StaticCallReturn (*staticvectorcallfunc)(
+using staticvectorcallfunc = JITRT_StaticCallReturn (*)(
     PyObject* callable,
     PyObject* const* args,
     size_t nargsf,
     PyObject* kwnames);
 
-typedef JITRT_StaticCallFPReturn (*staticvectorcallfuncfp)(
+using staticvectorcallfuncfp = JITRT_StaticCallFPReturn (*)(
     PyObject* callable,
     PyObject* const* args,
     size_t nargsf,

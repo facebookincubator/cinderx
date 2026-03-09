@@ -271,8 +271,9 @@ PyObject* jitgen_iternext(PyObject* obj) {
 // generator may end up in the interpreter unnecessarily. So, I made the
 // machinery to cache methods anyway and we may as well use it. This does all
 // make the assumption that the methods on PyGen_Type don't change.
-typedef PyObject* (
-    *GenThrowMeth)(PyObject* obj, PyObject* const* args, Py_ssize_t nargs);
+using GenThrowMeth = PyObject* (*)(PyObject * obj,
+                                   PyObject* const* args,
+                                   Py_ssize_t nargs);
 GenThrowMeth gen_throw_meth;
 PyCFunction gen_close_meth;
 PyCFunction gen___sizeof___meth;
@@ -374,10 +375,10 @@ int jitgen_clear(PyObject* obj) {
   return 0;
 }
 
-typedef struct {
+struct JitCoroWrapper {
   PyObject_HEAD
   PyObject* cw_coroutine;
-} JitCoroWrapper;
+};
 
 void jitcoro_wrapper_dealloc(JitCoroWrapper* cw) {
   PyObject_GC_UnTrack(reinterpret_cast<PyObject*>(cw));

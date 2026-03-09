@@ -15,26 +15,22 @@
 
 /* These definitions must be kept in-sync with those in gdb/gdb/jit.h, which
  * is sadly not exported by GDB, so we have to resort to copypasta :-/ */
-typedef enum {
-  JIT_NOACTION = 0,
-  JIT_REGISTER_FN,
-  JIT_UNREGISTER_FN
-} JITActions;
+enum JITActions { JIT_NOACTION = 0, JIT_REGISTER_FN, JIT_UNREGISTER_FN };
 
-typedef struct _jit_code_entry {
-  struct _jit_code_entry* next_entry;
-  struct _jit_code_entry* prev_entry;
+struct JITCodeEntry {
+  JITCodeEntry* next_entry;
+  JITCodeEntry* prev_entry;
   const char* symfile_addr;
   uint64_t symfile_size;
-} JITCodeEntry;
+};
 
-typedef struct {
+struct JITDescriptor {
   uint32_t version;
   // This should be JITActions, but need to be specific about the size.
   uint32_t action_flag;
   JITCodeEntry* relevant_entry;
   JITCodeEntry* first_entry;
-} JITDescriptor;
+};
 
 /* This sets up the hook that GDB uses to register new symbols. GDB will set a
  * breakpoint inside of it to grab new symbol information when it's called.
@@ -62,8 +58,8 @@ typedef struct {
 /* End GDB hook */
 
 // Forward declarations.
-typedef struct ELFObjectContext ELFObjectContext;
-typedef struct ELFObject ELFObject;
+struct ELFObjectContext;
+struct ELFObject;
 static ELFObjectContext* elfctx_new(
     struct jit_string_t* filename,
     int lineno,
@@ -247,7 +243,7 @@ int register_pycode_debug_symbol(
  * only so much that can be done. */
 
 /* ELF definitions. */
-typedef struct ELFHeader {
+struct ELFHeader {
   uint8_t emagic[4];
   uint8_t eclass;
   uint8_t eendian;
@@ -268,9 +264,9 @@ typedef struct ELFHeader {
   uint16_t shentsize;
   uint16_t shnum;
   uint16_t shstridx;
-} ELFHeader;
+};
 
-typedef struct ELFSectionHeader {
+struct ELFSectionHeader {
   uint32_t name;
   uint32_t type;
   uintptr_t flags;
@@ -281,7 +277,7 @@ typedef struct ELFSectionHeader {
   uint32_t info;
   uintptr_t align;
   uintptr_t entsize;
-} ELFSectionHeader;
+};
 
 #define ELFSECT_IDX_ABS 0xfff1
 
@@ -296,14 +292,14 @@ enum {
 #define ELFSECT_FLAGS_ALLOC 2
 #define ELFSECT_FLAGS_EXEC 4
 
-typedef struct ELFSymbol {
+struct ELFSymbol {
   uint32_t name;
   uint8_t info;
   uint8_t other;
   uint16_t sectidx;
   uintptr_t value;
   uint64_t size;
-} ELFSymbol;
+};
 
 enum {
   ELFSYM_TYPE_FUNC = 2,
@@ -386,12 +382,12 @@ enum {
 enum { ELF_SYM_UNDEF, ELF_SYM_FILE, ELF_SYM_FUNC, ELF_SYM__MAX };
 
 /* In-memory ELF object. */
-typedef struct ELFObject {
+struct ELFObject {
   ELFHeader hdr; /* ELF header. */
   ELFSectionHeader sect[ELF_SECT__MAX]; /* ELF sections. */
   ELFSymbol sym[ELF_SYM__MAX]; /* ELF symbol table. */
   uint8_t space[4096]; /* Space for various section data. */
-} ELFObject;
+};
 
 /* Template for in-memory ELF header. */
 static const ELFHeader elfhdr_template = {
@@ -417,7 +413,7 @@ static const ELFHeader elfhdr_template = {
     .shstridx = ELF_SECT_shstrtab};
 
 /* Context for generating the ELF object for the GDB JIT API. */
-typedef struct ELFObjectContext {
+struct ELFObjectContext {
   uint8_t* p; /* Pointer to next address in obj.space. */
   uint8_t* startp; /* Pointer to start address in obj.space. */
   struct jit_string_t* function_name; /* The python function name */
@@ -428,7 +424,7 @@ typedef struct ELFObjectContext {
   uint32_t stack_size; /* Stack adjustment for trace itself. */
   size_t objsize; /* Final size of ELF object. */
   ELFObject obj; /* In-memory ELF object. */
-} ELFObjectContext;
+};
 
 /* Append a null-terminated string. */
 static uint32_t elfctx_append_string(ELFObjectContext* ctx, const char* str) {
@@ -644,7 +640,7 @@ static void elf_init_debugline(ELFObjectContext* ctx) {
 #undef DWRF_SECTION
 
 /* Type of a section initializer callback. */
-typedef void (*ELFSectionInitFn)(ELFObjectContext* ctx);
+using ELFSectionInitFn = void (*)(ELFObjectContext* ctx);
 
 /* Call section initializer and set the section offset and size. */
 static void
