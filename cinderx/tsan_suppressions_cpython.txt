@@ -10,3 +10,7 @@ race:_PyVectorcall_FunctionInline
 # Dictionary watcher API.
 race:PyDict_Watch
 race:PyDict_Unwatch
+
+# GH-129068: range iterator races in free-threaded CPython
+race:rangeiter_next
+race:longrangeiter_next
