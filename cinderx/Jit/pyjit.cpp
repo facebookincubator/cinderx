@@ -167,8 +167,8 @@ PyObject* forcedJitVectorcall(
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
 
-  _PyJIT_Result result = compileFunction(func);
-  if (result == PYJIT_RESULT_OK) {
+  auto result = compileFunction(func);
+  if (result == Result::OK) {
     JIT_DCHECK(
         isJitCompiled(func),
         "JIT succeeded for function {} but it is not recognized as compiled",
@@ -180,15 +180,14 @@ PyObject* forcedJitVectorcall(
 
   // Python errors shouldn't happen during compilation, but if they do, bubble
   // them up without calling the function.
-  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
+  if (result == Result::PYTHON_EXCEPTION) {
     setVectorcall(func, interp_entry);
     return nullptr;
   }
 
   // Reset the function's entrypoint if it doesn't seem like there's a chance
   // compilation will work "soon".
-  if (result != PYJIT_RESULT_ALREADY_SCHEDULED &&
-      result != PYJIT_RESULT_PAUSED) {
+  if (result != Result::ALREADY_SCHEDULED && result != Result::PAUSED) {
     setVectorcall(func, interp_entry);
   }
 
@@ -815,11 +814,11 @@ bool isOverMaxCodeSize() {
   return max_code_size && code_allocator->usedBytes() >= max_code_size;
 }
 
-_PyJIT_Result compilePreloader(
+Result compilePreloader(
     const hir::Preloader& preloader,
     BorrowedRef<PyFunctionObject> func) {
   if (isOverMaxCodeSize()) {
-    return PYJIT_OVER_MAX_CODE_SIZE;
+    return Result::OVER_MAX_CODE_SIZE;
   }
 
   return compilePreloaderImpl(jitCtx(), preloader, func);
@@ -936,14 +935,13 @@ hir::Preloader* preload(BorrowedRef<> unit) {
 // will only use an already-created preloader, it will not preload, and
 // therefore it cannot raise a Python exception.
 //
-// Returns PYJIT_RESULT_NO_PRELOADER if no preloader is available.
-_PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
+// Returns Result::NO_PRELOADER if no preloader is available.
+Result tryCompilePreloaded(BorrowedRef<> unit) {
   // func may be null here if we're just compiling a code object for a nested
   // function
   auto [func, code] = splitUnit(unit);
   hir::Preloader* preloader = hir::preloaderManager().find(code);
-  return preloader ? compilePreloader(*preloader, func)
-                   : PYJIT_RESULT_NO_PRELOADER;
+  return preloader ? compilePreloader(*preloader, func) : Result::NO_PRELOADER;
 }
 
 void compile_worker_thread() {
@@ -954,13 +952,13 @@ void compile_worker_thread() {
 
   while (BorrowedRef<> unit = getThreadedCompileContext().nextUnit()) {
     attempts++;
-    _PyJIT_Result res = tryCompilePreloaded(unit);
-    if (res == PYJIT_RESULT_ALREADY_SCHEDULED) {
+    auto result = tryCompilePreloaded(unit);
+    if (result == Result::ALREADY_SCHEDULED) {
       retries++;
       getThreadedCompileContext().retryUnit(unit);
     }
     JIT_CHECK(
-        res != PYJIT_RESULT_NO_PRELOADER,
+        result != Result::NO_PRELOADER,
         "Cannot find a JIT preloader for {}",
         unitFullname(unit));
   }
@@ -1666,39 +1664,39 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  _PyJIT_Result result = compileFunction(func);
+  auto result = compileFunction(func);
   switch (result) {
-    case PYJIT_RESULT_OK:
+    case Result::OK:
       Py_RETURN_TRUE;
-    case PYJIT_RESULT_ALREADY_SCHEDULED:
+    case Result::ALREADY_SCHEDULED:
       // Strange case, the function is being compiled by a different thread.
       // Shouldn't happen, but don't die if it does.
       Py_RETURN_FALSE;
-    case PYJIT_RESULT_PAUSED:
+    case Result::PAUSED:
       PyErr_SetString(
           PyExc_RuntimeError,
           "Compilation failed because the JIT was paused, but that shouldn't "
           "be possible as this case was already checked");
       return nullptr;
-    case PYJIT_RESULT_CANNOT_SPECIALIZE:
+    case Result::CANNOT_SPECIALIZE:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_CANNOT_SPECIALIZE");
       return nullptr;
-    case PYJIT_RESULT_NOT_ON_JITLIST:
+    case Result::NOT_ON_JITLIST:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_NOT_ON_JITLIST");
       return nullptr;
-    case PYJIT_RESULT_UNKNOWN_ERROR:
+    case Result::UNKNOWN_ERROR:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_UNKNOWN_ERROR");
       return nullptr;
-    case PYJIT_NOT_INITIALIZED:
+    case Result::NOT_INITIALIZED:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_NOT_INITIALIZED");
       return nullptr;
-    case PYJIT_RESULT_NO_PRELOADER:
+    case Result::NO_PRELOADER:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_RESULT_NO_PRELOADER");
       return nullptr;
-    case PYJIT_OVER_MAX_CODE_SIZE:
+    case Result::OVER_MAX_CODE_SIZE:
       PyErr_SetString(PyExc_RuntimeError, "PYJIT_OVER_MAX_CODE_SIZE");
       return nullptr;
-    case PYJIT_RESULT_PYTHON_EXCEPTION:
+    case Result::PYTHON_EXCEPTION:
       return nullptr;
   }
   PyErr_Format(
@@ -3151,7 +3149,7 @@ void trackEligibleCodeObjects(
 // Preload a function and its dependencies, then compile them all.
 //
 // Failing to compile a dependent function is a soft failure, and is ignored.
-_PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
+Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // isolate preloaders state since batch preloading might trigger a call to a
   // jitable function, resulting in a single-function compile
   hir::IsolatedPreloaders ip;
@@ -3170,7 +3168,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   if (targets.empty()) {
     JIT_CHECK(
         PyErr_Occurred(), "Expect a Python exception when preloading fails");
-    return PYJIT_RESULT_PYTHON_EXCEPTION;
+    return Result::PYTHON_EXCEPTION;
   }
 
   if (targets.size() > 1) {
@@ -3182,7 +3180,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
 
   // Will return unknown error if none of the targets can find a matching
   // preloader.
-  _PyJIT_Result result = PYJIT_RESULT_UNKNOWN_ERROR;
+  auto result = Result::UNKNOWN_ERROR;
 
   for (BorrowedRef<PyFunctionObject> target : targets) {
     auto preloader = hir::preloaderManager().find(target);
@@ -3198,18 +3196,18 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
 
     result = compilePreloader(*preloader, target);
     JIT_CHECK(
-        result != PYJIT_RESULT_PYTHON_EXCEPTION,
+        result != Result::PYTHON_EXCEPTION,
         "Raised a Python exception while JIT-compiling function {}, which is "
         "not allowed",
         funcFullname(target));
     JIT_CHECK(
-        result != PYJIT_RESULT_NO_PRELOADER,
+        result != Result::NO_PRELOADER,
         "Cannot find a preloader for function {}, despite it just being "
         "preloaded",
         funcFullname(target));
 
     // If we hit the max code size limit, stop compiling further functions
-    if (result == PYJIT_OVER_MAX_CODE_SIZE) {
+    if (result == Result::OVER_MAX_CODE_SIZE) {
       break;
     }
   }
@@ -3226,7 +3224,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // to pretend everything went okay.  It doesn't make sense to return the
   // results of any of the other preloaded functions, as the caller never asked
   // for them in the first place.
-  return PYJIT_RESULT_OK;
+  return Result::OK;
 }
 
 // Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
@@ -3727,15 +3725,15 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   return true;
 }
 
-_PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
+Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   if (!isJitInitialized()) {
-    return PYJIT_NOT_INITIALIZED;
+    return Result::NOT_INITIALIZED;
   }
   if (isJitPaused()) {
-    return PYJIT_RESULT_PAUSED;
+    return Result::PAUSED;
   }
   if (!isJitUsable()) {
-    return PYJIT_RESULT_UNKNOWN_ERROR;
+    return Result::UNKNOWN_ERROR;
   }
 
   auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
@@ -3881,7 +3879,7 @@ void typeNameModified(BorrowedRef<PyTypeObject> type) {
   }
 }
 
-_PyJIT_Result compilePreloaderImpl(
+Result compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     BorrowedRef<PyFunctionObject> func) {
@@ -3898,7 +3896,7 @@ _PyJIT_Result compilePreloaderImpl(
 
   if (code == nullptr) {
     JIT_DLOG("Can't compile {} as it has no code object", preloader.fullname());
-    return PYJIT_RESULT_CANNOT_SPECIALIZE;
+    return Result::CANNOT_SPECIALIZE;
   }
 
   BorrowedRef<PyDictObject> builtins = preloader.builtins();
@@ -3908,13 +3906,13 @@ _PyJIT_Result compilePreloaderImpl(
     JIT_DLOG(
         "Can't compile {} due to missing required code flags",
         preloader.fullname());
-    return PYJIT_RESULT_CANNOT_SPECIALIZE;
+    return Result::CANNOT_SPECIALIZE;
   }
   if (code->co_flags & CI_CO_SUPPRESS_JIT) {
     JIT_DLOG(
         "Can't compile {} as it has had the JIT suppressed",
         preloader.fullname());
-    return PYJIT_RESULT_CANNOT_SPECIALIZE;
+    return Result::CANNOT_SPECIALIZE;
   }
   constexpr int forbidden_flags =
       PY_VERSION_HEX >= 0x030C0000 ? CO_ASYNC_GENERATOR : 0;
@@ -3923,7 +3921,7 @@ _PyJIT_Result compilePreloaderImpl(
         "Cannot JIT compile {} as it has prohibited code flags: 0x{:x}",
         preloader.fullname(),
         code->co_flags & forbidden_flags);
-    return PYJIT_RESULT_CANNOT_SPECIALIZE;
+    return Result::CANNOT_SPECIALIZE;
   }
 
   CompilationKey key{code, builtins, globals};
@@ -3938,14 +3936,14 @@ _PyJIT_Result compilePreloaderImpl(
       if (func != nullptr) {
         jit_ctx->finalizeFunc(func, *compiled);
       }
-      return PYJIT_RESULT_OK;
+      return Result::OK;
     } else if (jit_ctx->hasCompletedCompile(key)) {
       // We're in the multi-threaded scenario we've created the
       // CompiledFunctionData and will create the CompiledFunction at the end
-      return PYJIT_RESULT_OK;
+      return Result::OK;
     } else if (!jit_ctx->addActiveCompile(key)) {
       // The compilation is in-flight on another thread
-      return PYJIT_RESULT_ALREADY_SCHEDULED;
+      return Result::ALREADY_SCHEDULED;
     }
   }
 
@@ -3959,7 +3957,7 @@ _PyJIT_Result compilePreloaderImpl(
   ThreadedCompileSerialize guard;
   jit_ctx->removeActiveCompile(key);
   if (!compiled_func.has_value()) {
-    return PYJIT_RESULT_UNKNOWN_ERROR;
+    return Result::UNKNOWN_ERROR;
   }
 
   register_pycode_debug_symbol(
@@ -3967,7 +3965,7 @@ _PyJIT_Result compilePreloaderImpl(
 
   jit_ctx->codeCompiled(func, key, std::move(*compiled_func));
 
-  return PYJIT_RESULT_OK;
+  return Result::OK;
 }
 
 } // namespace jit

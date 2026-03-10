@@ -51,7 +51,7 @@ foo = "hello"
 
   auto comp_result =
       jit::compilePreloaderImpl(jit_ctx_.get(), *preloader, func);
-  ASSERT_EQ(comp_result, PYJIT_RESULT_OK);
+  ASSERT_EQ(comp_result, jit::Result::OK);
 
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));
