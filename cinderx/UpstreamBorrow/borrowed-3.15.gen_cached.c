@@ -1818,6 +1818,7 @@ _PyObject_SetAttributeErrorContext(PyObject* v, PyObject* name)
     // Augment the exception with the name and object
     if (PyObject_SetAttr(exc, &_Py_ID(name), name) ||
         PyObject_SetAttr(exc, &_Py_ID(obj), v)) {
+        Py_DECREF(exc);
         return 1;
     }
 restore:
