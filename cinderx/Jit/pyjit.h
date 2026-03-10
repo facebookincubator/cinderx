@@ -90,11 +90,8 @@ Result compilePreloaderImpl(
 
 } // namespace jit
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if PY_VERSION_HEX < 0x030C0000
+
 /*
  * Send into/resume a suspended JIT generator and return the result.
  */
@@ -145,8 +142,5 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate);
  * PyFrameObjects for any jitted functions on the call stack.
  */
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
-#endif
 
-#ifdef __cplusplus
-} // extern "C"
 #endif

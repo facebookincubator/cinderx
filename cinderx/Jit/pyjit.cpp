@@ -3368,6 +3368,7 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
 } // namespace
 
 #if PY_VERSION_HEX < 0x030C0000
+
 PyObject* _PyJIT_GenSend(
     PyGenObject* gen,
     PyObject* arg,
@@ -3503,6 +3504,7 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
   }
   return tstate->frame;
 }
+
 #endif
 
 namespace jit {
