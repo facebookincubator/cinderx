@@ -27,6 +27,12 @@ if sys.version_info >= (3, 12):
     # pyre-fixme[21]: Could not find name `_specializations` in `opcode` (stubbed).
     from opcode import _cache_format, _inline_cache_entries, _specializations, hasarg
 
+    if sys.version_info >= (3, 15):
+        opmap = dict(opmap)
+        _cache_format = dict(_cache_format)
+        _inline_cache_entries = dict(_inline_cache_entries)
+        _specializations = dict(_specializations)
+
     from cinderx import opcode as cinderx_opcode
 
     cinderx_opcode.init(
