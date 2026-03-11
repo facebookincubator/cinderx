@@ -265,7 +265,7 @@ std::optional<CompiledFunctionData> Compiler::Compile(
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_data.irfunc = std::move(irfunc);
   }
-  return std::move(compiled_data);
+  return compiled_data;
 }
 
 } // namespace jit
