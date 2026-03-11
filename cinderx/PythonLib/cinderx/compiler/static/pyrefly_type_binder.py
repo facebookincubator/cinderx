@@ -12,8 +12,10 @@ from typing import TYPE_CHECKING, TypedDict
 from ..errors import TypedSyntaxError
 from ..symbols import SymbolVisitor
 from .effects import NarrowingEffect
+from .module_table import ModuleTable
 from .pyrefly_info import PyreflyTypeInfo
 from .type_binder import TypeBinder
+from .types import Class, Value
 
 if TYPE_CHECKING:
     from .compiler import Compiler
@@ -58,6 +60,44 @@ class LocationInfo:
             ^ self.end_col << 7
             ^ self.end_line << 32
         )
+
+def _resolve_classname(qname: str, modules: dict[str, ModuleTable]) -> Class | None:
+    """Resolve a dotted qname like 'builtins.int' to a Class.
+
+    Splits the qname on '.' and tries progressively shorter prefixes
+    as module names, then walks the remainder as nested attributes.
+    """
+    parts = qname.split(".")
+
+    # Try progressively shorter prefixes as module names
+    for i in range(len(parts) - 1, 0, -1):
+        mod_name = ".".join(parts[:i])
+        if mod_name in modules:
+            mod = modules[mod_name]
+            result = mod.get_child(parts[i], mod_name)
+            if result is None:
+                continue
+            # Walk any remaining parts (e.g. nested classes)
+            for part in parts[i + 1 :]:
+                if isinstance(result, Class):
+                    result = result.get_child(part, mod_name)
+                else:
+                    return None
+                if result is None:
+                    return None
+            if isinstance(result, Class):
+                return result
+            return None
+
+    # No dot — try builtins
+    if len(parts) == 1:
+        builtins = modules.get("builtins")
+        if builtins is not None:
+            result = builtins.get_child(parts[0], "builtins")
+            if isinstance(result, Class):
+                return result
+
+    return None
 
 
 class PyreflyTypeInfo:
@@ -130,7 +170,7 @@ class PyreflyTypeBinder(TypeBinder):
     """TypeBinder that uses pyrefly type inference to set types on expression nodes.
 
     For each expression node, looks up the pyrefly-inferred type,
-    parses it as an annotation, resolves it, and sets it on the node.
+    resolves it via the module table, and sets it on the node.
     """
 
     def __init__(
@@ -151,15 +191,15 @@ class PyreflyTypeBinder(TypeBinder):
 
     def visit(self, node: AST, *args: object) -> NarrowingEffect | None:
         ret = super().visit(node, *args)
-        if isinstance(node, ast.expr):
-            type_str = self._type_info.lookup(node)
-            if type_str:
-                annotation_node = ast.parse(type_str, "", "eval").body
-                comp_type = self.module.resolve_annotation(
-                    annotation_node, self.context_qualname
-                )
-                if comp_type is not None:
-                    declared_type = comp_type.instance
+        if isinstance(node, ast.expr) and self._type_info is not None:
+            # For now, we only try to get type information for classes,
+            # disregarding their type parameters, and doing nothing if we see a
+            # some other type_info kind like a callable.
+            classname = self._type_info.lookup_class_qname(node)
+            if classname:
+                resolved = _resolve_classname(classname, self.modules)
+                if resolved is not None:
+                    declared_type = resolved.instance
                     self.set_type(node, declared_type)
                     if isinstance(node, Name) and isinstance(node.ctx, ast.Store):
                         try:

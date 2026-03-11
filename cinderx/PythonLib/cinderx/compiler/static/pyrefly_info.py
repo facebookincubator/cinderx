@@ -61,18 +61,37 @@ class PyreflyTypeInfo:
             return f"Callable[[{', '.join(param_strs)}], {ret_str}]"
         return ""
 
-    def lookup(self, node: AST) -> str:
-        """Look up the type string for an AST node by its source position."""
+    def _lookup(self, node: AST) -> int | None:
+        """Look up the type_table index for an AST node by its source position."""
         key = (
             node.lineno,  # pyre-ignore[16]
             node.col_offset,  # pyre-ignore[16]
             node.end_lineno,  # pyre-ignore[16]
             node.end_col_offset,  # pyre-ignore[16]
         )
-        type_index = self._locations.get(key)
+        return self._locations.get(key)
+
+    def lookup(self, node: AST) -> str:
+        """Look up the type string for an AST node by its source position."""
+        type_index = self._lookup(node)
         if type_index is None:
             return ""
         return self._type_to_str(type_index)
+
+    def lookup_class_qname(self, node: AST) -> str:
+        """Look up the qname for an AST node if its type is a simple class.
+
+        We treat generic classes as their unparametrised "base" version,
+        e.g. A[T] -> A
+        """
+        type_index = self._lookup(node)
+        if type_index is None:
+            return ""
+        entry = self._type_table[type_index]
+        if entry["kind"] == "class":
+            # Ignore the generic args
+            return str(entry["qname"])
+        return ""
 
     @classmethod
     def load_json(cls, json_path: str) -> PyreflyTypeInfo:
