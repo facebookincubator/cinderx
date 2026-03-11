@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include <array>
+#include <bit>
 #include <string>
 #include <string_view>
 
@@ -209,8 +210,8 @@ constexpr PhyLocation SP{RegId::SP, 64};
 
 class PhyRegisterSet {
  public:
-  constexpr PhyRegisterSet() : rs_(0ULL) {}
-  explicit constexpr PhyRegisterSet(PhyLocation r) : rs_(0ULL) {
+  constexpr PhyRegisterSet() = default;
+  explicit constexpr PhyRegisterSet(PhyLocation r) {
     rs_ |= (1ULL << r.loc);
   }
 
@@ -255,16 +256,15 @@ class PhyRegisterSet {
     return rs_ == 0ULL;
   }
 
-  int count() const {
-    return popcount(rs_);
+  constexpr int count() const {
+    return std::popcount(rs_);
   }
 
-  PhyLocation GetFirst() const {
-    JIT_DCHECK(rs_ != 0, "__builtin_ctzll(0) is undefined");
-    return __builtin_ctzll(rs_);
+  constexpr PhyLocation GetFirst() const {
+    return std::countr_zero(rs_);
   }
 
-  PhyLocation GetLast() const {
+  constexpr PhyLocation GetLast() const {
     return GetLastBit();
   }
 
@@ -276,25 +276,27 @@ class PhyRegisterSet {
     rs_ &= ~(1ULL << GetLastBit());
   }
 
-  void Set(PhyLocation reg) {
+  constexpr void Set(PhyLocation reg) {
     rs_ |= (1ULL << reg.loc);
   }
-  void Reset(PhyLocation reg) {
+
+  constexpr void Reset(PhyLocation reg) {
     rs_ &= ~(1ULL << reg.loc);
   }
-  void ResetAll() {
+
+  constexpr void ResetAll() {
     rs_ = 0ULL;
   }
 
-  bool Has(PhyLocation reg) const {
+  constexpr bool Has(PhyLocation reg) const {
     return rs_ & (1ULL << reg.loc);
   }
 
  private:
-  uint64_t rs_;
+  uint64_t rs_{0};
 
-  int GetLastBit() const {
-    return (sizeof(rs_) * CHAR_BIT - 1) - __builtin_clzll(rs_);
+  constexpr int GetLastBit() const {
+    return (sizeof(rs_) * CHAR_BIT - 1) - std::countl_zero(rs_);
   }
 };
 
