@@ -308,6 +308,8 @@ bool shouldResumeInterpreterInErrorHandler(DeoptReason reason) {
     case jit::DeoptReason::kUnhandledNullField:
     case jit::DeoptReason::kRaiseStatic:
       return true;
+    default:
+      JIT_ABORT("Unrecognized deopt reason {}", static_cast<int>(reason));
   }
 }
 
