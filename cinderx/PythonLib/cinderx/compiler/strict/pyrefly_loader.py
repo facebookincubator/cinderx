@@ -14,7 +14,7 @@ from importlib.machinery import (
 from typing import Callable, Iterable, Mapping
 
 from cinderx.compiler.static.pyrefly_compiler import PyreflyCompiler
-from cinderx.compiler.static.pyrefly_type_binder import PyreflyTypeInfo
+from cinderx.compiler.static.pyrefly_info import Pyrefly
 
 from .compiler import Compiler, TIMING_LOGGER_TYPE
 from .loader import StrictSourceFileLoader
@@ -29,6 +29,8 @@ EMPTY_TYPE_INFO = PyreflyTypeInfo(
 
 
 class PyreflyLoader(StrictSourceFileLoader):
+    pyrefly_type_dir: str | None = None
+
     @classmethod
     def ensure_compiler(
         cls,
@@ -41,6 +43,10 @@ class PyreflyLoader(StrictSourceFileLoader):
         allow_list_regex: Iterable[str] | None = None,
     ) -> Compiler:
         if (comp := cls.compiler) is None:
+            if cls.pyrefly_type_dir is not None:
+                pyrefly = Pyrefly(cls.pyrefly_type_dir)
+            else:
+                pyrefly = None
             comp = cls.compiler = PyreflyCompiler(
                 type_info=EMPTY_TYPE_INFO,
                 static_opt_out=None,
@@ -49,6 +55,7 @@ class PyreflyLoader(StrictSourceFileLoader):
                 stub_path=stub_path,
                 allow_list_prefix=allow_list_prefix,
                 allow_list_exact=allow_list_exact,
+                pyrefly=pyrefly,
                 log_time_func=log_time_func,
                 enable_patching=enable_patching,
                 allow_list_regex=allow_list_regex or [],
@@ -114,8 +121,9 @@ def _get_supported_file_loaders(
     return [extensions, source, bytecode]
 
 
-def install(enable_patching: bool = False) -> None:
+def install(enable_patching: bool = False, pyrefly_type_dir: str | None = None) -> None:
     """Installs a loader which is capable of loading and validating strict modules"""
+    PyreflyLoader.pyrefly_type_dir = pyrefly_type_dir
     supported_loaders = _get_supported_file_loaders(enable_patching)
 
     for index, hook in enumerate(sys.path_hooks):

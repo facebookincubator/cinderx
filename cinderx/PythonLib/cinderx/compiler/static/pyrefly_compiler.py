@@ -5,12 +5,10 @@ import ast
 import sys
 from typing import Callable, Iterable
 
-from cinderx.compiler.static.pyrefly_type_binder import (
-    PyreflyTypeBinder,
-    PyreflyTypeInfo,
-)
+from cinderx.compiler.static.pyrefly_info import EMPTY_TYPE_INFO, Pyrefly
+from cinderx.compiler.static.pyrefly_type_binder import PyreflyTypeBinder
 from cinderx.compiler.static.type_binder import TypeBinder
-from cinderx.compiler.strict.compiler import Compiler, TIMING_LOGGER_TYPE
+from cinderx.compiler.strict.compiler import Compiler
 from cinderx.compiler.strict.flag_extractor import Flags
 from cinderx.compiler.symbols import SymbolVisitor
 
@@ -18,7 +16,7 @@ from cinderx.compiler.symbols import SymbolVisitor
 class PyreflyCompiler(Compiler):
     def __init__(
         self,
-        type_info: PyreflyTypeInfo | None = None,
+        pyrefly: Pyrefly | None = None,
         static_opt_out: set[str] | None = None,
         static_opt_in: set[str] | None = None,
         path: Iterable[str] | None = None,
@@ -40,8 +38,7 @@ class PyreflyCompiler(Compiler):
             use_py_compiler,
             allow_list_regex,
         )
-        assert type_info is not None
-        self.type_info = type_info
+        self.pyrefly = pyrefly
         self.static_opt_in = static_opt_in
         self.static_opt_out = static_opt_out or set()
 
@@ -66,6 +63,9 @@ class PyreflyCompiler(Compiler):
         optimize: int,
         enable_patching: bool = False,
     ) -> TypeBinder:
+        type_info = EMPTY_TYPE_INFO
+        if self.pyrefly is not None:
+            type_info = self.pyrefly.load_type_info(module_name) or EMPTY_TYPE_INFO
         return PyreflyTypeBinder(
             symbols,
             filename,
@@ -73,5 +73,5 @@ class PyreflyCompiler(Compiler):
             module_name,
             optimize,
             enable_patching,
-            self.type_info,
+            type_info,
         )

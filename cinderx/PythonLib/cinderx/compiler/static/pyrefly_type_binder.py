@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, TypedDict
 from ..errors import TypedSyntaxError
 from ..symbols import SymbolVisitor
 from .effects import NarrowingEffect
+from .pyrefly_info import PyreflyTypeInfo
 from .type_binder import TypeBinder
 
 if TYPE_CHECKING:
