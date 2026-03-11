@@ -5,9 +5,9 @@
 from __future__ import annotations
 
 import ast
-import json
 from ast import AST, Name
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, TypedDict
 
 from ..errors import TypedSyntaxError
 from ..symbols import SymbolVisitor
@@ -16,6 +16,47 @@ from .type_binder import TypeBinder
 
 if TYPE_CHECKING:
     from .compiler import Compiler
+
+
+class Location(TypedDict):
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+
+
+TypeKind = int
+
+
+class LocationEntry(TypedDict):
+    loc: LocationInfo
+    type: TypeKind
+
+
+class TypeInfo(TypedDict):
+    type_table: list[TypeTable]
+    locations: list[LocationEntry]
+
+
+class TypeTable(TypedDict):
+    kind: str
+    qname: object
+
+
+@dataclass(slots=True, eq=True)
+class LocationInfo:
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+
+    def __hash__(self) -> int:
+        return (
+            self.start_col
+            ^ self.start_line << 14
+            ^ self.end_col << 7
+            ^ self.end_line << 32
+        )
 
 
 class PyreflyTypeInfo:
@@ -30,14 +71,12 @@ class PyreflyTypeInfo:
     Python AST conventions.
     """
 
-    def __init__(self, json_path: str) -> None:
-        with open(json_path) as f:
-            data = json.load(f)
-        self._type_table: list[dict[str, object]] = data["type_table"]
-        self._locations: dict[tuple[int, int, int, int], int] = {}
-        for entry in data["locations"]:
+    def __init__(self, type_info: TypeInfo) -> None:
+        self._type_table: list[TypeTable] = type_info["type_table"]
+        self._locations: dict[LocationInfo, TypeKind] = {}
+        for entry in type_info["locations"]:
             loc = entry["loc"]
-            key = (
+            key = LocationInfo(
                 loc["start_line"],
                 loc["start_col"],
                 loc["end_line"],
@@ -74,7 +113,7 @@ class PyreflyTypeInfo:
 
     def lookup(self, node: AST) -> str:
         """Look up the type string for an AST node by its source position."""
-        key = (
+        key = LocationInfo(
             node.lineno,  # pyre-ignore[16]
             node.col_offset,  # pyre-ignore[16]
             node.end_lineno,  # pyre-ignore[16]
@@ -100,12 +139,13 @@ class PyreflyTypeBinder(TypeBinder):
         compiler: Compiler,
         module_name: str,
         optimize: int,
-        type_info: PyreflyTypeInfo,
         enable_patching: bool = False,
+        type_info: PyreflyTypeInfo | None = None,
     ) -> None:
         super().__init__(
             symbols, filename, compiler, module_name, optimize, enable_patching
         )
+        assert type_info is not None
         self._type_info = type_info
 
     def visit(self, node: AST, *args: object) -> NarrowingEffect | None:

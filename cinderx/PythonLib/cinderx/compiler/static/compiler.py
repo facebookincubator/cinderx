@@ -554,7 +554,7 @@ class Compiler:
         s.visit(tree)
 
         # Analyze the types of objects within local scopes
-        type_binder = TypeBinder(
+        type_binder = self.make_type_binder(
             s,
             filename,
             self,
@@ -564,6 +564,19 @@ class Compiler:
         )
         type_binder.visit(tree)
         return tree, s
+
+    def make_type_binder(
+        self,
+        symbols: SymbolVisitor,
+        filename: str,
+        compiler: Compiler,
+        module_name: str,
+        optimize: int,
+        enable_patching: bool = False,
+    ) -> TypeBinder:
+        return TypeBinder(
+            symbols, filename, compiler, module_name, optimize, enable_patching
+        )
 
     def compile(
         self,
