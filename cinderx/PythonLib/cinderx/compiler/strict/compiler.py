@@ -185,6 +185,11 @@ class Compiler(StaticCompiler):
             logger.setLevel(logging.DEBUG)
         return logger
 
+    def get_flags(
+        self, module_name: str, pyast: ast.Module, override_flags: Flags
+    ) -> Flags:
+        return FlagExtractor().get_flags(pyast).merge(override_flags)
+
     def load_compiled_module_from_source(
         self,
         source: str | bytes,
@@ -197,7 +202,7 @@ class Compiler(StaticCompiler):
         pyast = ast.parse(source)
         # pyre-fixme[6]: For 1st argument expected `str` but got `Union[bytes, str]`.
         symbols = symtable.symtable(source, filename, "exec")
-        flags = FlagExtractor().get_flags(pyast).merge(override_flags)
+        flags = self.get_flags(name, pyast, override_flags)
 
         if not flags.is_static and not flags.is_strict:
             code = self._compile_basic(name, pyast, filename, optimize)
