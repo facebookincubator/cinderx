@@ -7,6 +7,67 @@ from __future__ import annotations
 import json
 import os
 from ast import AST
+from dataclasses import dataclass
+from typing import TypedDict
+
+
+class Location(TypedDict):
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+
+
+TypeKind = int
+
+
+class LocationEntry(TypedDict):
+    loc: LocationInfo
+    type: TypeKind
+
+
+class TypeInfo(TypedDict):
+    type_table: list[TypeTableEntry]
+    locations: list[LocationEntry]
+
+
+class TypeTableEntry(TypedDict):
+    kind: str
+    qname: object
+
+
+@dataclass(slots=True, eq=True)
+class LocationInfo:
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+
+    def __hash__(self) -> int:
+        return (
+            self.start_col
+            ^ self.start_line << 14
+            ^ self.end_col << 7
+            ^ self.end_line << 32
+        )
+
+    @classmethod
+    def from_location(cls, loc: Location):
+        return cls(
+            start_line=loc["start_line"],
+            start_col=loc["start_col"],
+            end_line=loc["end_line"],
+            end_col=loc["end_col"],
+        )
+
+    @classmethod
+    def from_node(cls, node: AST):
+        return cls(
+            start_line=node.lineno,  # pyre-ignore[16]
+            start_col=node.col_offset,  # pyre-ignore[16]
+            end_line=node.end_lineno,  # pyre-ignore[16]
+            end_col=node.end_col_offset,  # pyre-ignore[16]
+        )
 
 
 class PyreflyTypeInfo:
@@ -21,17 +82,11 @@ class PyreflyTypeInfo:
     Python AST conventions.
     """
 
-    def __init__(self, data: dict[str, object]) -> None:
-        self._type_table: list[dict[str, object]] = data["type_table"]
-        self._locations: dict[tuple[int, int, int, int], int] = {}
+    def __init__(self, data: TypeInfo) -> None:
+        self._type_table: list[TypeTableEntry] = data["type_table"]
+        self._locations: dict[LocationInfo, int] = {}
         for entry in data["locations"]:
-            loc = entry["loc"]
-            key = (
-                loc["start_line"],
-                loc["start_col"],
-                loc["end_line"],
-                loc["end_col"],
-            )
+            key = LocationInfo.from_location(entry["loc"])
             self._locations[key] = entry["type"]
 
     def _type_to_str(self, type_index: int) -> str:
@@ -63,12 +118,7 @@ class PyreflyTypeInfo:
 
     def _lookup(self, node: AST) -> int | None:
         """Look up the type_table index for an AST node by its source position."""
-        key = (
-            node.lineno,  # pyre-ignore[16]
-            node.col_offset,  # pyre-ignore[16]
-            node.end_lineno,  # pyre-ignore[16]
-            node.end_col_offset,  # pyre-ignore[16]
-        )
+        key = LocationInfo.from_node(node)
         return self._locations.get(key)
 
     def lookup(self, node: AST) -> str:

@@ -16,7 +16,7 @@ class PyreBinderTests(StaticTestBase):
         code = self.compile_one("x = 1 + 2")
 
     def test_force_static(self):
-        compiler = PyreflyCompiler(non_static_modules=set())
+        compiler = PyreflyCompiler(static_opt_out=set())
         code, strict, static = compiler.load_compiled_module_from_source(
             "def f(x: int): return x.is_integer()", "foo.py", "foo", 0
         )
@@ -25,7 +25,7 @@ class PyreBinderTests(StaticTestBase):
         self.assertInBytecode(self.find_code(code, "f"), "INVOKE_METHOD")
 
     def test_non_force_static(self):
-        compiler = PyreflyCompiler(non_static_modules={"foo"})
+        compiler = PyreflyCompiler(static_opt_out={"foo"})
         code, strict, static = compiler.load_compiled_module_from_source(
             "def f(x: int): return x.is_integer()", "foo.py", "foo", 0
         )
