@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 """
 based on a Java version:
  Based on original version written in BCPL by Dr Martin Richards
@@ -31,10 +33,8 @@ K_WORK = 1001
 
 BUFSIZE = 4
 
-BUFSIZE_RANGE = range(BUFSIZE)
 
-
-class Packet(object):
+class Packet:
     def __init__(self, l, i, k):
         self.link = l
         self.ident = i
@@ -46,20 +46,19 @@ class Packet(object):
         self.link = None
         if lst is None:
             return self
-        else:
-            p = lst
+        p = lst
+        next = p.link
+        while next is not None:
+            p = next
             next = p.link
-            while next is not None:
-                p = next
-                next = p.link
-            p.link = self
-            return lst
+        p.link = self
+        return lst
 
 
 # Task Records
 
 
-class TaskRec(object):
+class TaskRec:
     pass
 
 
@@ -80,12 +79,12 @@ class HandlerTaskRec(TaskRec):
         self.device_in = None
 
     def workInAdd(self, p):
-        self.work_in = p.append_to(self.work_in)
-        return self.work_in
+        self.work_in = work_in = p.append_to(self.work_in)
+        return work_in
 
     def deviceInAdd(self, p):
-        self.device_in = p.append_to(self.device_in)
-        return self.device_in
+        self.device_in = device_in = p.append_to(self.device_in)
+        return device_in
 
 
 class WorkerTaskRec(TaskRec):
@@ -97,7 +96,7 @@ class WorkerTaskRec(TaskRec):
 # Task
 
 
-class TaskState(object):
+class TaskState:
     def __init__(self):
         self.packet_pending = True
         self.task_waiting = False
@@ -159,7 +158,7 @@ def trace(a):
 TASKTABSIZE = 10
 
 
-class TaskWorkArea(object):
+class TaskWorkArea:
     def __init__(self):
         self.taskTab = [None] * TASKTABSIZE
 
@@ -167,9 +166,6 @@ class TaskWorkArea(object):
 
         self.holdCount = 0
         self.qpktCount = 0
-
-
-taskWorkArea = TaskWorkArea()
 
 
 class Task(TaskState):
@@ -243,6 +239,9 @@ class Task(TaskState):
         if t is None:
             pass
         return t
+
+
+taskWorkArea = TaskWorkArea()
 
 
 # DeviceTask
@@ -353,7 +352,7 @@ class WorkTask(Task):
         return self.qpkt(pkt)
 
 
-def schedule():
+def schedule() -> None:
     t = taskWorkArea.taskList
     while t is not None:
         if tracing:
@@ -367,8 +366,8 @@ def schedule():
             t = t.runTask()
 
 
-class Richards(object):
-    def run(self, iterations):
+class Richards:
+    def run(self, iterations: int) -> bool:
         for i in range(iterations):
             taskWorkArea.holdCount = 0
             taskWorkArea.qpktCount = 0

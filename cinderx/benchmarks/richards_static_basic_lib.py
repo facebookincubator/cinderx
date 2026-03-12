@@ -1,4 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-strict
+
 """
 based on a Java version:
  Based on original version written in BCPL by Dr Martin Richards
@@ -16,7 +19,7 @@ import __static__
 from __static__ import cast
 
 import sys
-from typing import Final, List
+from typing import Final
 
 # Task IDs
 I_IDLE: Final[int] = 1
@@ -34,35 +37,32 @@ K_WORK: Final[int] = 1001
 
 BUFSIZE: Final[int] = 4
 
-BUFSIZE_RANGE: List[int] = list(range(BUFSIZE))
 
-
-class Packet(object):
+class Packet:
     def __init__(self, l: Packet | None, i: int, k: int) -> None:
         self.link: Packet | None = l
         self.ident: int = i
         self.kind: int = k
         self.datum: int = 0
-        self.data: List[int] = [0] * BUFSIZE
+        self.data: list[int] = [0] * BUFSIZE
 
     def append_to(self, lst: Packet | None) -> Packet:
         self.link = None
         if lst is None:
             return self
-        else:
-            p = lst
+        p = lst
+        next = p.link
+        while next is not None:
+            p = next
             next = p.link
-            while next is not None:
-                p = next
-                next = p.link
-            p.link = self
-            return lst
+        p.link = self
+        return lst
 
 
 # Task Records
 
 
-class TaskRec(object):
+class TaskRec:
     pass
 
 
@@ -82,13 +82,13 @@ class HandlerTaskRec(TaskRec):
         self.work_in: Packet | None = None
         self.device_in: Packet | None = None
 
-    def workInAdd(self, p: Packet) -> Packet | None:
-        self.work_in = p.append_to(self.work_in)
-        return self.work_in
+    def workInAdd(self, p: Packet) -> Packet:
+        self.work_in = work_in = p.append_to(self.work_in)
+        return work_in
 
-    def deviceInAdd(self, p: Packet) -> Packet | None:
-        self.device_in = p.append_to(self.device_in)
-        return self.device_in
+    def deviceInAdd(self, p: Packet) -> Packet:
+        self.device_in = device_in = p.append_to(self.device_in)
+        return device_in
 
 
 class WorkerTaskRec(TaskRec):
@@ -100,7 +100,7 @@ class WorkerTaskRec(TaskRec):
 # Task
 
 
-class TaskState(object):
+class TaskState:
     def __init__(self) -> None:
         self.packet_pending: bool = True
         self.task_waiting: bool = False
@@ -150,7 +150,7 @@ tracing: bool = False
 layout: int = 0
 
 
-def trace(a):
+def trace(a: object) -> None:
     global layout
     layout -= 1
     if layout <= 0:
@@ -162,18 +162,15 @@ def trace(a):
 TASKTABSIZE: Final[int] = 10
 
 
-class TaskWorkArea(object):
+class TaskWorkArea:
     def __init__(self) -> None:
-        # pyre-ignore[8]: Pyre confused on list[Task | None] vs list[None].
-        self.taskTab: List[Task | None] = [None] * TASKTABSIZE
+        none_task = cast(Task | None, None)
+        self.taskTab: list[Task | None] = [none_task] * TASKTABSIZE
 
         self.taskList: Task | None = None
 
         self.holdCount: int = 0
         self.qpktCount: int = 0
-
-
-taskWorkArea: Final[TaskWorkArea] = TaskWorkArea()
 
 
 class Task(TaskState):
@@ -249,6 +246,9 @@ class Task(TaskState):
         t = taskWorkArea.taskTab[id]
         assert t is not None
         return t
+
+
+taskWorkArea: Final[TaskWorkArea] = TaskWorkArea()
 
 
 # DeviceTask
@@ -379,7 +379,7 @@ def schedule() -> None:
             t = t.runTask()
 
 
-class Richards(object):
+class Richards:
     def run(self, iterations: int) -> bool:
         for i in range(iterations):
             taskWorkArea.holdCount = 0

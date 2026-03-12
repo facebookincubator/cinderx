@@ -16,7 +16,7 @@ from __future__ import annotations
 import __static__
 from __static__ import box, cast, cbool, inline, int64
 
-from typing import Final, List, Optional
+from typing import Final
 
 # Task IDs
 I_IDLE: Final[int] = 1
@@ -34,29 +34,26 @@ K_WORK: Final[int] = 1001
 
 BUFSIZE: Final[int] = 4
 
-BUFSIZE_RANGE = range(BUFSIZE)
 
-
-class Packet(object):
-    def __init__(self, l: Optional[Packet], i: int64, k: int64) -> None:
-        self.link: Optional[Packet] = l
+class Packet:
+    def __init__(self, l: Packet | None, i: int64, k: int64) -> None:
+        self.link: Packet | None = l
         self.ident: int64 = i
         self.kind: int64 = k
         self.datum: int = 0
-        self.data: List[int] = [0] * BUFSIZE
+        self.data: list[int] = [0] * BUFSIZE
 
-    def append_to(self, lst: Optional[Packet]) -> Packet:
+    def append_to(self, lst: Packet | None) -> Packet:
         self.link = None
         if lst is None:
             return self
-        else:
-            p: Packet = lst
-            next: Optional[Packet] = p.link
-            while next is not None:
-                p = next
-                next = p.link
-            p.link = self
-            return lst
+        p: Packet = lst
+        next: Packet | None = p.link
+        while next is not None:
+            p = next
+            next = p.link
+        p.link = self
+        return lst
 
 
 # Task Records
@@ -68,7 +65,7 @@ class TaskRec:
 
 class DeviceTaskRec(TaskRec):
     def __init__(self) -> None:
-        self.pending: Optional[Packet] = None
+        self.pending: Packet | None = None
 
 
 class IdleTaskRec(TaskRec):
@@ -79,16 +76,16 @@ class IdleTaskRec(TaskRec):
 
 class HandlerTaskRec(TaskRec):
     def __init__(self) -> None:
-        self.work_in: Optional[Packet] = None
-        self.device_in: Optional[Packet] = None
+        self.work_in: Packet | None = None
+        self.device_in: Packet | None = None
 
-    def workInAdd(self, p: Packet) -> Optional[Packet]:
-        self.work_in = p.append_to(self.work_in)
-        return self.work_in
+    def workInAdd(self, p: Packet) -> Packet:
+        self.work_in = work_in = p.append_to(self.work_in)
+        return work_in
 
-    def deviceInAdd(self, p: Packet) -> Optional[Packet]:
-        self.device_in = p.append_to(self.device_in)
-        return self.device_in
+    def deviceInAdd(self, p: Packet) -> Packet:
+        self.device_in = device_in = p.append_to(self.device_in)
+        return device_in
 
 
 class WorkerTaskRec(TaskRec):
@@ -100,7 +97,7 @@ class WorkerTaskRec(TaskRec):
 # Task
 
 
-class TaskState(object):
+class TaskState:
     def __init__(self) -> None:
         self.packet_pending: cbool = True
         self.task_waiting: cbool = False
@@ -151,11 +148,11 @@ class TaskState(object):
         return self.packet_pending and self.task_waiting and not self.task_holding
 
 
-tracing = False
-layout = 0
+tracing: bool = False
+layout: int = 0
 
 
-def trace(a):
+def trace(a: object) -> None:
     global layout
     layout -= 1
     if layout <= 0:
@@ -164,20 +161,18 @@ def trace(a):
     print(a, end="")
 
 
-TASKTABSIZE = 10
+TASKTABSIZE: Final[int] = 10
 
 
-class TaskWorkArea(object):
+class TaskWorkArea:
     def __init__(self) -> None:
-        self.taskTab: List[Task] = [None] * TASKTABSIZE
+        none_task = cast(Task | None, None)
+        self.taskTab: list[Task | None] = [none_task] * TASKTABSIZE
 
-        self.taskList: Optional[Task] = None
+        self.taskList: Task | None = None
 
         self.holdCount: int64 = 0
         self.qpktCount: int64 = 0
-
-
-taskWorkArea: TaskWorkArea = TaskWorkArea()
 
 
 class Task(TaskState):
@@ -185,15 +180,15 @@ class Task(TaskState):
         self,
         i: int64,
         p: int64,
-        w: Optional[Packet],
+        w: Packet | None,
         initialState: TaskState,
         r: TaskRec,
     ) -> None:
         wa: TaskWorkArea = taskWorkArea
-        self.link: Optional[Task] = wa.taskList
+        self.link: Task | None = wa.taskList
         self.ident: int64 = i
         self.priority: int64 = p
-        self.input: Optional[Packet] = w
+        self.input: Packet | None = w
 
         self.packet_pending = initialState.isPacketPending()
         self.task_waiting = initialState.isTaskWaiting()
@@ -204,7 +199,7 @@ class Task(TaskState):
         wa.taskList = self
         wa.taskTab[i] = self
 
-    def fn(self, pkt: Optional[Packet], r: TaskRec) -> Optional[Task]:
+    def fn(self, pkt: Packet | None, r: TaskRec) -> Task | None:
         raise NotImplementedError
 
     def addPacket(self, p: Packet, old: Task) -> Task:
@@ -217,9 +212,9 @@ class Task(TaskState):
             p.append_to(self.input)
         return old
 
-    def runTask(self) -> Optional[Task]:
+    def runTask(self) -> Task | None:
         if TaskState.isWaitingWithPacket(self):
-            msg: Optional[Packet] = self.input
+            msg: Packet | None = self.input
             if msg is not None:
                 self.input = msg.link
                 if self.input is None:
@@ -235,7 +230,7 @@ class Task(TaskState):
         self.task_waiting = True
         return self
 
-    def hold(self) -> Optional[Task]:
+    def hold(self) -> Task | None:
         taskWorkArea.holdCount += 1
         self.task_holding = True
         return self.link
@@ -260,16 +255,19 @@ class Task(TaskState):
         return cast(Task, t)
 
 
+taskWorkArea: TaskWorkArea = TaskWorkArea()
+
+
 # DeviceTask
 
 
 class DeviceTask(Task):
     def __init__(
-        self, i: int64, p: int64, w: Optional[Packet], s: TaskState, r: DeviceTaskRec
+        self, i: int64, p: int64, w: Packet | None, s: TaskState, r: DeviceTaskRec
     ) -> None:
         Task.__init__(self, i, p, w, s, r)
 
-    def fn(self, pkt: Optional[Packet], r: TaskRec) -> Task:
+    def fn(self, pkt: Packet | None, r: TaskRec) -> Task:
         d: DeviceTaskRec = cast(DeviceTaskRec, r)
         if pkt is None:
             pkt = d.pending
@@ -291,14 +289,14 @@ class HandlerTask(Task):
     ) -> None:
         Task.__init__(self, i, p, w, s, r)
 
-    def fn(self, pkt: Optional[Packet], r: TaskRec) -> Task:
+    def fn(self, pkt: Packet | None, r: TaskRec) -> Task:
         h: HandlerTaskRec = cast(HandlerTaskRec, r)
         if pkt is not None:
             if pkt.kind == int64(K_WORK):
                 h.workInAdd(pkt)
             else:
                 h.deviceInAdd(pkt)
-        work: Optional[Packet] = h.work_in
+        work: Packet | None = h.work_in
         if work is None:
             return self.waitTask()
         count: int = work.datum
@@ -306,7 +304,7 @@ class HandlerTask(Task):
             h.work_in = work.link
             return self.qpkt(work)
 
-        dev: Optional[Packet] = h.device_in
+        dev: Packet | None = h.device_in
         if dev is None:
             return self.waitTask()
 
@@ -325,7 +323,7 @@ class IdleTask(Task):
     ) -> None:
         Task.__init__(self, i, 0, None, s, r)
 
-    def fn(self, pkt: Optional[Packet], r: TaskRec) -> Optional[Task]:
+    def fn(self, pkt: Packet | None, r: TaskRec) -> Task | None:
         i: IdleTaskRec = cast(IdleTaskRec, r)
         i.count -= 1
         if i.count == 0:
@@ -352,7 +350,7 @@ class WorkTask(Task):
     ) -> None:
         Task.__init__(self, i, p, w, s, r)
 
-    def fn(self, pkt: Optional[Packet], r: TaskRec) -> Task:
+    def fn(self, pkt: Packet | None, r: TaskRec) -> Task:
         w: WorkerTaskRec = cast(WorkerTaskRec, r)
         if pkt is None:
             return self.waitTask()
@@ -379,7 +377,7 @@ class WorkTask(Task):
 
 
 def schedule() -> None:
-    t: Optional[Task] = taskWorkArea.taskList
+    t: Task | None = taskWorkArea.taskList
     while t is not None:
         if tracing:
             print("tcb =", box(t.ident))
@@ -392,7 +390,7 @@ def schedule() -> None:
             t = t.runTask()
 
 
-class Richards(object):
+class Richards:
     def run(self, iterations: int) -> bool:
         for i in range(iterations):
             taskWorkArea.holdCount = 0
@@ -400,7 +398,7 @@ class Richards(object):
 
             IdleTask(int64(I_IDLE), 1, 10000, TaskState().running(), IdleTaskRec())
 
-            wkq: Optional[Packet] = Packet(None, 0, int64(K_WORK))
+            wkq: Packet | None = Packet(None, 0, int64(K_WORK))
             wkq = Packet(wkq, 0, int64(K_WORK))
             WorkTask(
                 int64(I_WORK),
