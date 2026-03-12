@@ -6,12 +6,18 @@ from __future__ import annotations
 
 import json
 import os
-from ast import AST
+from ast import AST, Attribute
 from dataclasses import dataclass
 from typing import TypedDict
 
 from cinderx.compiler.static.module_table import ModuleTable
-from cinderx.compiler.static.types import Class, TypeEnvironment, Value
+from cinderx.compiler.static.types import (
+    Class,
+    Function,
+    MethodType,
+    TypeEnvironment,
+    Value,
+)
 
 
 class Location(TypedDict):
@@ -93,65 +99,69 @@ class PyreflyTypeInfo:
             key = LocationInfo.from_location(entry["loc"])
             self._locations[key] = entry["type"]
 
-    def _type_to_str(self, type_index: int) -> str:
-        """Convert a type_table entry to a Python annotation string."""
-        entry = self._type_table[type_index]
-        kind = entry["kind"]
-        if kind == "literal":
-            return ""
-        elif kind == "class":
-            qname = str(entry["qname"])
-            args = entry.get("args", [])
-            assert isinstance(args, list)
-            if not args:
-                return qname
-            arg_strs = [self._type_to_str(a) for a in args]
-            if any(not s for s in arg_strs):
-                return qname
-            return f"{qname}[{', '.join(arg_strs)}]"
-        elif kind == "callable":
-            params = entry.get("params", [])
-            assert isinstance(params, list)
-            ret = entry.get("return_type")
-            param_strs = [self._type_to_str(p) for p in params]
-            ret_str = self._type_to_str(ret) if isinstance(ret, int) else ""
-            if any(not s for s in param_strs) or not ret_str:
-                return ""
-            return f"Callable[[{', '.join(param_strs)}], {ret_str}]"
-        return ""
-
     def _lookup(self, node: AST) -> int | None:
         """Look up the type_table index for an AST node by its source position."""
         key = LocationInfo.from_node(node)
         return self._locations.get(key)
 
-    def lookup(self, node: AST) -> str:
-        """Look up the type string for an AST node by its source position."""
-        type_index = self._lookup(node)
-        if type_index is None:
-            return ""
-        return self._type_to_str(type_index)
+    def lookup(
+        self,
+        node: AST,
+        modules: dict[str, ModuleTable],
+        type_env: TypeEnvironment,
+    ) -> Value | None:
+        """Look up the type string for an AST node by its source position.
 
-    def _get_type_qname(self, type_index: TypeKind) -> str:
-        entry = self._type_table[type_index]
-        if entry["kind"] == "class":
-            # Ignore the generic args
-            return str(entry["qname"])
-        elif entry["kind"] == "literal":
-            if "promoted_type" in entry:
-                return self._get_type_qname(entry["promoted_type"])
-        return ""
-
-    def lookup_typename(self, node: AST) -> str:
-        """Look up the qname for an AST node if its type is a simple class.
-
-        We treat generic classes as their unparametrised "base" version,
-        e.g. A[T] -> A
+        For now, we only try to get type information for class instances
+        and literals, disregarding any type parameters, bound methods, and
+        doing nothing if we see a some other type_info kind like a callable.
         """
         type_index = self._lookup(node)
         if type_index is None:
-            return ""
-        return self._get_type_qname(type_index)
+            return None
+
+        entry = self._type_table[type_index]
+        # Try non-types
+        if entry["kind"] == "bound_method":
+            defining_class_qname = str(entry["defining_class"])
+            resolved_class = self.resolve_classname(
+                defining_class_qname, modules, type_env
+            )
+            if resolved_class is not None and isinstance(node, Attribute):
+                member = resolved_class.get_member(node.attr)
+                if isinstance(member, Function):
+                    return MethodType(
+                        resolved_class.type_name,
+                        member.node,
+                        node.value,
+                        member,
+                    )
+
+        # Fallback to types
+        return self.lookup_type(type_index, modules, type_env)
+
+    def lookup_type(
+        self,
+        type_index: TypeKind,
+        modules: dict[str, ModuleTable],
+        type_env: TypeEnvironment,
+    ) -> Value | None:
+        entry = self._type_table[type_index]
+        if entry["kind"] == "class":
+            qname = str(entry["qname"])
+            resolved = self.resolve_classname(qname, modules, type_env)
+            if resolved is not None:
+                return resolved.instance
+        elif entry["kind"] == "literal":
+            if "promoted_type" in entry:
+                return self.lookup_type(entry["promoted_type"], modules, type_env)
+        elif entry["kind"] == "other_form":
+            if entry["qname"] == "None":
+                resolved = self.resolve_classname("builtins.None", modules, type_env)
+                if resolved is not None:
+                    return resolved.instance
+
+        return None
 
     @classmethod
     def load_json(cls, json_path: str) -> PyreflyTypeInfo:

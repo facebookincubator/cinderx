@@ -46,17 +46,7 @@ class PyreflyTypeBinder(TypeBinder):
     def visit(self, node: AST, *args: object) -> NarrowingEffect | None:
         ret = super().visit(node, *args)
         if isinstance(node, ast.expr) and self._type_info is not None:
-            # For now, we only try to get type information for class instances
-            # and literals, disregarding any type parameters, and doing nothing
-            # if we see a some other type_info kind like a callable.
-            classname = self._type_info.lookup_typename(node)
-            declared_type = None
-            if classname:
-                resolved = self._type_info.resolve_classname(
-                    classname, self.modules, self.type_env
-                )
-                if resolved is not None:
-                    declared_type = resolved.instance
+            declared_type = self._type_info.lookup(node, self.modules, self.type_env)
 
             if declared_type is None:
                 declared_type = self.type_env.dynamic.instance

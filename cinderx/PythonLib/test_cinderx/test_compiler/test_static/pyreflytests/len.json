@@ -2,34 +2,103 @@
   "type_table": [
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.simple.C",
+      "qname": "builtins.int",
       "args": [],
-      "hash": 8563325631336090432
+      "hash": 7437843174258217660
     },
     {
-      "kind": "literal",
-      "value": "42",
-      "hash": 8390065111661787820
+      "kind": "other_form",
+      "qname": "typing.Type",
+      "args": [
+        0
+      ],
+      "hash": 6510812805515236383
+    },
+    {
+      "kind": "other_form",
+      "qname": "typing.Any",
+      "args": [],
+      "hash": 16900020518876608212
+    },
+    {
+      "kind": "class",
+      "qname": "builtins.dict",
+      "args": [
+        2,
+        2
+      ],
+      "hash": 6944757485787016286
+    },
+    {
+      "kind": "class",
+      "qname": "typing.Sized",
+      "args": [],
+      "hash": 13039512047080031574
+    },
+    {
+      "kind": "callable",
+      "params": [
+        4
+      ],
+      "return_type": 0,
+      "defining_func": "builtins.len",
+      "hash": 10918511340362036114
     }
   ],
   "locations": [
     {
       "loc": {
-        "start_line": 3,
+        "start_line": 1,
+        "start_col": 11,
+        "end_line": 1,
+        "end_col": 14
+      },
+      "type": 1
+    },
+    {
+      "loc": {
+        "start_line": 2,
+        "start_col": 4,
+        "end_line": 2,
+        "end_col": 5
+      },
+      "type": 3
+    },
+    {
+      "loc": {
+        "start_line": 2,
         "start_col": 8,
+        "end_line": 2,
+        "end_col": 10
+      },
+      "type": 3
+    },
+    {
+      "loc": {
+        "start_line": 3,
+        "start_col": 11,
         "end_line": 3,
-        "end_col": 12
+        "end_col": 17
       },
       "type": 0
     },
     {
       "loc": {
         "start_line": 3,
-        "start_col": 17,
+        "start_col": 11,
         "end_line": 3,
-        "end_col": 19
+        "end_col": 14
       },
-      "type": 1
+      "type": 5
+    },
+    {
+      "loc": {
+        "start_line": 3,
+        "start_col": 15,
+        "end_line": 3,
+        "end_col": 16
+      },
+      "type": 3
     }
   ]
 }
