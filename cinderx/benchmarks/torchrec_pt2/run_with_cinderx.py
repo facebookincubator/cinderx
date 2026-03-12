@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
 
 """Run the TorchRec DMP eager forward+backward with CinderX JIT enabled.
 
@@ -28,36 +25,12 @@ Usage (via buck):
 import sys
 import time
 
-_t0 = time.perf_counter()
-from cinderx.compiler.strict import loader as static_python_loader
-
-static_python_loader.install()
-_static_loader_time = time.perf_counter() - _t0
-
-import _static
-from cinderx.benchmarks.torchrec_pt2.static_helper import add_one
-
-assert _static.is_static_callable(add_one), (
-    "static_helper.add_one was not statically compiled! "
-    f"co_flags=0x{add_one.__code__.co_flags:x}"
-)
-print(f"Static compilation check passed: add_one is statically compiled")
-print(f"add_one(41) = {add_one(41)}")
-
 import cinderx.jit
 import click
 import torch
 import torch._dynamo
 import torchrec
 import torchrec.pt2.checks
-from cinderx.benchmarks.torchrec_pt2.test_pt2_multiprocess import (
-    _gen_model,
-    _ModelType,
-    _TestConfig,
-    EBCSharderFixedShardingType,
-    ECSharderFixedShardingType,
-    TestModelInfo,
-)
 from torch import distributed as dist
 from torch._dynamo.testing import reduce_to_scalar_loss
 from torch.distributed import ProcessGroup
@@ -80,6 +53,15 @@ from torchrec.modules.embedding_modules import (
 )
 from torchrec.pt2.utils import kjt_for_pt2_tracing
 from torchrec.sparse.jagged_tensor import KeyedJaggedTensor, KeyedTensor
+
+from .test_pt2_multiprocess import (
+    _gen_model,
+    _ModelType,
+    _TestConfig,
+    EBCSharderFixedShardingType,
+    ECSharderFixedShardingType,
+    TestModelInfo,
+)
 
 
 def setup_benchmark(
@@ -243,7 +225,6 @@ def main(
 ):
     print(f"Python {sys.version}")
     print("CinderX JIT eager forward+backward benchmark")
-    print(f"Static loader import+install: {_static_loader_time * 1000:.1f}ms")
     print(
         f"num_features={num_features}, batch_size={batch_size}, "
         f"warmup={warmup}, iters={iters}, repeat={repeat}"
@@ -261,7 +242,6 @@ def main(
 
     # Enable JIT auto-compilation
     print("Enabling CinderX JIT...")
-    cinderx.jit.enable()
     cinderx.jit.auto()
 
     # Warmup (lets JIT compile hot functions)
@@ -278,7 +258,9 @@ def main(
             f"({t / iters * 1000:.1f}ms/iter)"
         )
 
-    cinderx.jit.disable()
+    num_compiled_functions = len(cinderx.jit.get_compiled_functions())
+    total_compile_time = cinderx.jit.get_compilation_time()
+
     dist.destroy_process_group()
 
     avg = sum(times) / len(times)
@@ -291,6 +273,8 @@ def main(
     print(f"  Run times: {[f'{t:.3f}s' for t in times]}")
     print(f"  Avg per run: {avg:.3f}s")
     print(f"  Avg per iter: {avg_per_iter * 1000:.1f}ms")
+    print(f"  JIT Compiled Functions: {num_compiled_functions}")
+    print(f"  JIT Total Compile Time: {total_compile_time}ms")
     print("=" * 60)
 
 
