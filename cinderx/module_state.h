@@ -197,6 +197,14 @@ class ModuleState {
 
   jit::UnorderedSet<BorrowedRef<>>& registeredCompilationUnits();
 
+  std::atomic<int>& compileWorkersAttempted() {
+    return compile_workers_attempted_;
+  }
+
+  std::atomic<int>& compileWorkersRetries() {
+    return compile_workers_retries_;
+  }
+
  private:
   WatcherState watcher_state_;
 
@@ -225,6 +233,9 @@ class ModuleState {
   jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist_;
 
   BorrowedRef<> cinderx_module_;
+
+  std::atomic<int> compile_workers_attempted_{0};
+  std::atomic<int> compile_workers_retries_{0};
 };
 
 // Get the global ModuleState singleton.

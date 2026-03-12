@@ -96,9 +96,6 @@ CompilerContext<Compiler>* jitCtx() {
 using UnitDeletedCallback = std::function<void(PyObject*)>;
 UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 
-std::atomic<int> g_compile_workers_attempted;
-std::atomic<int> g_compile_workers_retries;
-
 // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
 // "annotations" which doesn't impact bytecode execution.)
 constexpr int required_code_flags = CO_OPTIMIZED | CO_NEWLOCALS;
@@ -947,8 +944,8 @@ Result tryCompilePreloaded(BorrowedRef<> unit) {
 void compile_worker_thread() {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
 
-  size_t attempts = 0;
-  size_t retries = 0;
+  int attempts = 0;
+  int retries = 0;
 
   while (BorrowedRef<> unit = getThreadedCompileContext().nextUnit()) {
     attempts++;
@@ -963,8 +960,8 @@ void compile_worker_thread() {
         unitFullname(unit));
   }
 
-  g_compile_workers_attempted.fetch_add(attempts);
-  g_compile_workers_retries.fetch_add(retries);
+  cinderx::getModuleState()->compileWorkersAttempted().fetch_add(attempts);
+  cinderx::getModuleState()->compileWorkersRetries().fetch_add(retries);
 
   JIT_DLOG(
       "Finished compile worker in thread {}. Compile attempts: {}, scheduled "
@@ -1253,8 +1250,8 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
         PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
     return nullptr;
   }
-  g_compile_workers_attempted = 0;
-  g_compile_workers_retries = 0;
+  cinderx::getModuleState()->compileWorkersAttempted() = 0;
+  cinderx::getModuleState()->compileWorkersRetries() = 0;
   auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
   JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
   jitCtx()->clearCache();
@@ -1270,8 +1267,8 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   JIT_LOG(
       "Took {} ms, compiles attempted: {}, compiles retried: {}",
       batch_compilation_time.count(),
-      g_compile_workers_attempted,
-      g_compile_workers_retries);
+      cinderx::getModuleState()->compileWorkersAttempted().load(),
+      cinderx::getModuleState()->compileWorkersRetries().load());
   Py_RETURN_NONE;
 }
 
