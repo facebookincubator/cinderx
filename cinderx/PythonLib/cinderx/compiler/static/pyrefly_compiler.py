@@ -13,6 +13,7 @@ from cinderx.compiler.strict.flag_extractor import Flags
 from cinderx.compiler.symbols import SymbolVisitor
 
 
+# pyre-ignore[39]: Compiler is final
 class PyreflyCompiler(Compiler):
     def __init__(
         self,
@@ -27,20 +28,20 @@ class PyreflyCompiler(Compiler):
         enable_patching: bool = False,
         use_py_compiler: bool = False,
         allow_list_regex: Iterable[str] | None = None,
-    ):
+    ) -> None:
         super().__init__(
-            path or sys.path,
-            stub_path or "",
-            allow_list_prefix or [],
-            allow_list_exact or [],
-            log_time_func,
-            enable_patching,
-            use_py_compiler,
-            allow_list_regex,
+            import_path=path or sys.path,
+            stub_root=stub_path or "",
+            allow_list_prefix=allow_list_prefix or [],
+            allow_list_exact=allow_list_exact or [],
+            log_time_func=log_time_func,
+            enable_patching=enable_patching,
+            use_py_compiler=use_py_compiler,
+            allow_list_regex=allow_list_regex,
         )
         self.pyrefly = pyrefly
         self.static_opt_in = static_opt_in
-        self.static_opt_out = static_opt_out or set()
+        self.static_opt_out: set[str] = static_opt_out or set()
 
     def get_flags(
         self, module_name: str, pyast: ast.Module, override_flags: Flags
@@ -54,6 +55,7 @@ class PyreflyCompiler(Compiler):
             override_flags
         )
 
+    # pyre-ignore[14]: Pyre thinks the `compiler: Compiler` argument is inconsistent
     def make_type_binder(
         self,
         symbols: SymbolVisitor,

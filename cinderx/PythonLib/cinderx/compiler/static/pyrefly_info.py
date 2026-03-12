@@ -8,7 +8,7 @@ import json
 import os
 from ast import AST, Attribute
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Self, TypedDict
 
 from cinderx.compiler.static.module_table import ModuleTable
 from cinderx.compiler.static.types import (
@@ -31,7 +31,7 @@ TypeKind = int
 
 
 class LocationEntry(TypedDict):
-    loc: LocationInfo
+    loc: Location
     type: TypeKind
 
 
@@ -62,7 +62,7 @@ class LocationInfo:
         )
 
     @classmethod
-    def from_location(cls, loc: Location):
+    def from_location(cls, loc: Location) -> Self:
         return cls(
             start_line=loc["start_line"],
             start_col=loc["start_col"],
@@ -71,7 +71,7 @@ class LocationInfo:
         )
 
     @classmethod
-    def from_node(cls, node: AST):
+    def from_node(cls, node: AST) -> Self:
         return cls(
             start_line=node.lineno,  # pyre-ignore[16]
             start_col=node.col_offset,  # pyre-ignore[16]
@@ -123,6 +123,7 @@ class PyreflyTypeInfo:
         entry = self._type_table[type_index]
         # Try non-types
         if entry["kind"] == "bound_method":
+            # pyre-ignore[27]: We need a more elaborate type declaration to represent tagged union data layout
             defining_class_qname = str(entry["defining_class"])
             resolved_class = self.resolve_classname(
                 defining_class_qname, modules, type_env
@@ -137,6 +138,7 @@ class PyreflyTypeInfo:
                         member,
                     )
         elif entry["kind"] == "callable" and "defining_func" in entry:
+            # pyre-ignore[27]: We need a more elaborate type declaration to represent tagged union data layout
             defining_func_qname = str(entry["defining_func"])
             resolved_func = self.resolve_func(defining_func_qname, modules, type_env)
             if resolved_func is not None:
@@ -231,6 +233,7 @@ class PyreflyTypeInfo:
                 # Walk any remaining parts (e.g. nested classes)
                 for part in parts[i + 1 :]:
                     if isinstance(result, Class):
+                        # pyre-ignore[16]: `Class` has no attribute `get_child`
                         result = result.get_child(part, mod_name)
                     else:
                         return None
@@ -260,7 +263,7 @@ class PyreflyTypeInfo:
 class Pyrefly:
     """Manages type information emitted by pyrefly."""
 
-    def __init__(self, type_dir: str):
+    def __init__(self, type_dir: str) -> None:
         self.type_dir = type_dir
 
     def load_type_info(self, module_name: str) -> PyreflyTypeInfo | None:
@@ -272,4 +275,4 @@ class Pyrefly:
         return PyreflyTypeInfo.load_json(json_path)
 
 
-EMPTY_TYPE_INFO = PyreflyTypeInfo.empty()
+EMPTY_TYPE_INFO: PyreflyTypeInfo = PyreflyTypeInfo.empty()

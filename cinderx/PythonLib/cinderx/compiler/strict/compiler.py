@@ -202,6 +202,7 @@ class Compiler(StaticCompiler):
         pyast = ast.parse(source)
         # pyre-fixme[6]: For 1st argument expected `str` but got `Union[bytes, str]`.
         symbols = symtable.symtable(source, filename, "exec")
+        # pyre-fixme[6]: For 1st argument expected `Flag` but got `Optional[Flags]`.
         flags = self.get_flags(name, pyast, override_flags)
 
         if not flags.is_static and not flags.is_strict:
