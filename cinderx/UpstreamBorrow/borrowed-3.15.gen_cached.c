@@ -301,6 +301,9 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
+#define frozendict_does_not_support(WHAT) \
+    PyErr_SetString(PyExc_TypeError, "frozendict object does " \
+                    "not support item " WHAT)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
@@ -1520,13 +1523,18 @@ setitem_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
 int
 _PyDict_DelItem_KnownHash_LockHeld(PyObject *op, PyObject *key, Py_hash_t hash)
 {
-    Py_ssize_t ix;
-    PyObject *old_value;
-
     if (!PyDict_Check(op)) {
-        PyErr_BadInternalCall();
+        if (PyFrozenDict_Check(op)) {
+            frozendict_does_not_support("deletion");
+        }
+        else {
+            PyErr_BadInternalCall();
+        }
         return -1;
     }
+
+    Py_ssize_t ix;
+    PyObject *old_value;
     PyDictObject *mp = (PyDictObject *)op;
     assert(can_modify_dict(mp));
 
@@ -1548,7 +1556,17 @@ int
 _PyDict_SetItem_LockHeld(PyDictObject *dict, PyObject *name, PyObject *value)
 {
     if (!PyDict_Check(dict)) {
-        PyErr_BadInternalCall();
+        if (PyFrozenDict_Check(dict)) {
+            if (value == NULL) {
+                frozendict_does_not_support("deletion");
+            }
+            else {
+                frozendict_does_not_support("assignment");
+            }
+        }
+        else {
+            PyErr_BadInternalCall();
+        }
         return -1;
     }
 
@@ -3210,9 +3228,20 @@ push_chunk(PyThreadState *tstate, int size)
     while (allocate_size < (int)sizeof(PyObject*)*(size + MINIMUM_OVERHEAD)) {
         allocate_size *= 2;
     }
-    _PyStackChunk *new = allocate_chunk(allocate_size, tstate->datastack_chunk);
-    if (new == NULL) {
-        return NULL;
+    _PyStackChunk *new;
+    if (tstate->datastack_cached_chunk != NULL
+        && (size_t)allocate_size <= tstate->datastack_cached_chunk->size)
+    {
+        new = tstate->datastack_cached_chunk;
+        tstate->datastack_cached_chunk = NULL;
+        new->previous = tstate->datastack_chunk;
+        new->top = 0;
+    }
+    else {
+        new = allocate_chunk(allocate_size, tstate->datastack_chunk);
+        if (new == NULL) {
+            return NULL;
+        }
     }
     if (tstate->datastack_chunk) {
         tstate->datastack_chunk->top = tstate->datastack_top -
