@@ -16,17 +16,8 @@ from typing import Callable, Iterable, Mapping
 from cinderx.compiler.static.pyrefly_compiler import PyreflyCompiler
 from cinderx.compiler.static.pyrefly_info import Pyrefly
 
-from ..static.pyrefly_info import PyreflyTypeInfo
 from .compiler import Compiler, TIMING_LOGGER_TYPE
 from .loader import StrictSourceFileLoader
-
-
-EMPTY_TYPE_INFO: PyreflyTypeInfo = PyreflyTypeInfo(
-    {
-        "type_table": [],
-        "locations": [],
-    }
-)
 
 
 class PyreflyLoader(StrictSourceFileLoader):
@@ -48,9 +39,7 @@ class PyreflyLoader(StrictSourceFileLoader):
                 pyrefly = Pyrefly(cls.pyrefly_type_dir)
             else:
                 pyrefly = None
-            # pyre-ignore: This code is probably dead? I'm pretty sure it always crashes if run.
             comp = cls.compiler = PyreflyCompiler(
-                type_info=EMPTY_TYPE_INFO,
                 static_opt_out=None,
                 static_opt_in=None,
                 path=path,
