@@ -34,6 +34,7 @@ class TypeInfo(TypedDict):
 class TypeTableEntry(TypedDict):
     kind: str
     qname: object
+    promoted_type: TypeKind
 
 
 @dataclass(slots=True, eq=True)
@@ -128,7 +129,17 @@ class PyreflyTypeInfo:
             return ""
         return self._type_to_str(type_index)
 
-    def lookup_class_qname(self, node: AST) -> str:
+    def _get_type_qname(self, type_index: TypeKind) -> str:
+        entry = self._type_table[type_index]
+        if entry["kind"] == "class":
+            # Ignore the generic args
+            return str(entry["qname"])
+        elif entry["kind"] == "literal":
+            if "promoted_type" in entry:
+                return self._get_type_qname(entry["promoted_type"])
+        return ""
+
+    def lookup_typename(self, node: AST) -> str:
         """Look up the qname for an AST node if its type is a simple class.
 
         We treat generic classes as their unparametrised "base" version,
@@ -137,11 +148,7 @@ class PyreflyTypeInfo:
         type_index = self._lookup(node)
         if type_index is None:
             return ""
-        entry = self._type_table[type_index]
-        if entry["kind"] == "class":
-            # Ignore the generic args
-            return str(entry["qname"])
-        return ""
+        return self._get_type_qname(type_index)
 
     @classmethod
     def load_json(cls, json_path: str) -> PyreflyTypeInfo:
