@@ -91,11 +91,6 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
-// Only set during preloading. Used to keep track of functions that were
-// deleted as a side effect of preloading.
-using UnitDeletedCallback = std::function<void(PyObject*)>;
-UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
-
 // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
 // "annotations" which doesn't impact bytecode execution.)
 constexpr int required_code_flags = CO_OPTIMIZED | CO_NEWLOCALS;
@@ -1035,11 +1030,11 @@ bool compile_all(size_t workers = 0) {
 
   std::vector<BorrowedRef<>> compilation_units;
   // units that were deleted during preloading
-  std::unordered_set<PyObject*> deleted_units;
+  std::unordered_set<BorrowedRef<>> deleted_units;
 
   auto error_cleanup = [&]() {
     hir::preloaderManager().clear();
-    handle_unit_deleted_during_preload = nullptr;
+    cinderx::getModuleState()->clearUnitDeletedDuringPreloadCallback();
   };
 
   auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
@@ -1059,9 +1054,10 @@ bool compile_all(size_t workers = 0) {
       if (deleted_units.contains(unit)) {
         continue;
       }
-      handle_unit_deleted_during_preload = [&](PyObject* deleted_unit) {
-        deleted_units.emplace(deleted_unit);
-      };
+      cinderx::getModuleState()->setUnitDeletedDuringPreloadCallback(
+          [&](BorrowedRef<> deleted_unit) {
+            deleted_units.emplace(deleted_unit);
+          });
       hir::Preloader* preloader = preload(unit);
       if (!preloader) {
         error_cleanup();
@@ -1070,7 +1066,7 @@ bool compile_all(size_t workers = 0) {
       compilation_units.push_back(unit);
     }
   }
-  handle_unit_deleted_during_preload = nullptr;
+  cinderx::getModuleState()->clearUnitDeletedDuringPreloadCallback();
 
   // Filter out any units that were deleted as a side effect of preloading.
   std::erase_if(compilation_units, [&](BorrowedRef<> unit) {
@@ -3349,17 +3345,13 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
       if (existing != jit_code_outer_funcs.end() && existing->second == func) {
         jit_code_outer_funcs.erase(code);
       }
-      if (handle_unit_deleted_during_preload != nullptr) {
-        handle_unit_deleted_during_preload(code.getObj());
-      }
+      mod_state->notifyUnitDeletedDuringPreload(code.getObj());
     }
   }
 
   jit_reg_units.erase(func);
   jit_reg_units.erase(top_code);
-  if (handle_unit_deleted_during_preload != nullptr) {
-    handle_unit_deleted_during_preload(func.getObj());
-  }
+  mod_state->notifyUnitDeletedDuringPreload(func.getObj());
 }
 
 } // namespace
@@ -3767,11 +3759,12 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     // This needs to be set every time before preload() is kicked off.
     // Preloading can run arbitrary Python code, which means it can re-enter
     // the JIT.
-    handle_unit_deleted_during_preload = [&](PyObject* deleted_unit) {
-      deleted_units.emplace(deleted_unit);
-    };
+    cinderx::getModuleState()->setUnitDeletedDuringPreloadCallback(
+        [&](BorrowedRef<> deleted_unit) {
+          deleted_units.emplace(deleted_unit);
+        });
     hir::Preloader* preloader = preload(f);
-    handle_unit_deleted_during_preload = nullptr;
+    cinderx::getModuleState()->clearUnitDeletedDuringPreloadCallback();
 
     if (preloader == nullptr) {
       return {};
@@ -3825,9 +3818,7 @@ void codeDestroyed(BorrowedRef<PyCodeObject> code) {
     auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
     jit_reg_units.erase(code.getObj());
     jit_code_outer_funcs.erase(code);
-    if (handle_unit_deleted_during_preload != nullptr) {
-      handle_unit_deleted_during_preload(code.getObj());
-    }
+    mod_state->notifyUnitDeletedDuringPreload(code.getObj());
   }
 }
 

@@ -14,10 +14,13 @@
 #include "cinderx/Jit/symbolizer_iface.h"
 #include "cinderx/async_lazy_value_iface.h"
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 
 namespace cinderx {
+
+using UnitDeletedCallback = std::function<void(BorrowedRef<>)>;
 
 class ModuleState {
  public:
@@ -197,6 +200,25 @@ class ModuleState {
 
   jit::UnorderedSet<BorrowedRef<>>& registeredCompilationUnits();
 
+  const UnitDeletedCallback& unitDeletedDuringPreloadCallback() const {
+    return unit_deleted_during_preload_;
+  }
+
+  template <class Fn>
+  void setUnitDeletedDuringPreloadCallback(Fn&& cb) {
+    unit_deleted_during_preload_ = std::forward<Fn>(cb);
+  }
+
+  void clearUnitDeletedDuringPreloadCallback() {
+    unit_deleted_during_preload_ = nullptr;
+  }
+
+  void notifyUnitDeletedDuringPreload(BorrowedRef<> unit) {
+    if (unit_deleted_during_preload_) {
+      unit_deleted_during_preload_(unit);
+    }
+  }
+
   std::atomic<int>& compileWorkersAttempted() {
     return compile_workers_attempted_;
   }
@@ -236,6 +258,8 @@ class ModuleState {
 
   std::atomic<int> compile_workers_attempted_{0};
   std::atomic<int> compile_workers_retries_{0};
+
+  UnitDeletedCallback unit_deleted_during_preload_;
 };
 
 // Get the global ModuleState singleton.
