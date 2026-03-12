@@ -89,14 +89,19 @@ class PyreflyTypeBinder(TypeBinder):
             # and literals, disregarding any type parameters, and doing nothing
             # if we see a some other type_info kind like a callable.
             classname = self._type_info.lookup_typename(node)
+            declared_type = None
             if classname:
                 resolved = _resolve_classname(classname, self.modules)
                 if resolved is not None:
                     declared_type = resolved.instance
-                    self.set_type(node, declared_type)
-                    if isinstance(node, Name) and isinstance(node.ctx, ast.Store):
-                        try:
-                            self.declare_local(node.id, declared_type)
-                        except TypedSyntaxError:
-                            pass  # already declared, just update the type
+
+            if declared_type is None:
+                declared_type = self.type_env.dynamic.instance
+
+            self.set_type(node, declared_type)
+            if isinstance(node, Name) and isinstance(node.ctx, ast.Store):
+                try:
+                    self.declare_local(node.id, declared_type)
+                except TypedSyntaxError:
+                    pass  # already declared, just update the type
         return ret

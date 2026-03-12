@@ -1,0 +1,35 @@
+{
+  "type_table": [
+    {
+      "kind": "class",
+      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.simple.C",
+      "args": [],
+      "hash": 8563325631336090432
+    },
+    {
+      "kind": "literal",
+      "value": "42",
+      "hash": 8390065111661787820
+    }
+  ],
+  "locations": [
+    {
+      "loc": {
+        "start_line": 3,
+        "start_col": 8,
+        "end_line": 3,
+        "end_col": 12
+      },
+      "type": 0
+    },
+    {
+      "loc": {
+        "start_line": 3,
+        "start_col": 17,
+        "end_line": 3,
+        "end_col": 19
+      },
+      "type": 1
+    }
+  ]
+}

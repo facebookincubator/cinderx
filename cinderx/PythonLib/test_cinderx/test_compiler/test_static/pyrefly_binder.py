@@ -1,21 +1,31 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import ast
+import json
 import unittest
+from glob import glob
+from os import path
 from types import CodeType
 
 from cinderx.compiler.static.pyrefly_compiler import PyreflyCompiler
-from cinderx.compiler.static.pyrefly_type_binder import PyreflyTypeInfo
+from cinderx.compiler.static.pyrefly_info import (
+    EMPTY_TYPE_INFO,
+    Pyrefly,
+    PyreflyTypeInfo,
+)
 
 from .common import StaticTestBase
 
 
-EMPTY_TYPE_INFO = PyreflyTypeInfo(
-    {
-        "type_table": [],
-        "locations": [],
-    }
-)
+class TestPyrefly(Pyrefly):
+    def __init__(self, info: PyreflyTypeInfo):
+        self.info = info
+
+    def load_type_info(self, module_name: str) -> PyreflyTypeInfo | None:
+        return self.info
+
+
+EMPTY_PYREFLY = TestPyrefly(EMPTY_TYPE_INFO)
 
 
 class PyreBinderTests(StaticTestBase):
@@ -26,7 +36,7 @@ class PyreBinderTests(StaticTestBase):
         )
 
     def test_force_static(self):
-        compiler = PyreflyCompiler(static_opt_out=set(), type_info=EMPTY_TYPE_INFO)
+        compiler = PyreflyCompiler(static_opt_out=set(), pyrefly=EMPTY_PYREFLY)
         code, strict, static = compiler.load_compiled_module_from_source(
             "def f(x: int): return x.bit_length()", "foo.py", "foo", 0
         )
@@ -35,7 +45,7 @@ class PyreBinderTests(StaticTestBase):
         self.assertIn("<fixed-modules>", code.co_names)
 
     def test_opt_in_static(self):
-        compiler = PyreflyCompiler(static_opt_in={"foo"}, type_info=EMPTY_TYPE_INFO)
+        compiler = PyreflyCompiler(static_opt_in={"foo"}, pyrefly=EMPTY_PYREFLY)
         code, strict, static = compiler.load_compiled_module_from_source(
             "def f(x: int): return x.bit_length()", "foo.py", "foo", 0
         )
@@ -44,7 +54,7 @@ class PyreBinderTests(StaticTestBase):
         self.assertIn("<fixed-modules>", code.co_names)
 
     def test_non_force_static(self):
-        compiler = PyreflyCompiler(static_opt_out={"foo"}, type_info=EMPTY_TYPE_INFO)
+        compiler = PyreflyCompiler(static_opt_out={"foo"}, pyrefly=EMPTY_PYREFLY)
         code, strict, static = compiler.load_compiled_module_from_source(
             "def f(x: int): return x.bit_length()", "foo.py", "foo", 0
         )
@@ -53,13 +63,39 @@ class PyreBinderTests(StaticTestBase):
         self.assertNotIn("<fixed-modules>", code.co_names)
 
     def test_non_opt_in(self):
-        compiler = PyreflyCompiler(static_opt_in=set(), type_info=EMPTY_TYPE_INFO)
+        compiler = PyreflyCompiler(static_opt_in=set(), pyrefly=EMPTY_PYREFLY)
         code, strict, static = compiler.load_compiled_module_from_source(
             "def f(x: int): return x.bit_length()", "foo.py", "foo", 0
         )
         self.assertFalse(static)
         self.assertFalse(strict)
         self.assertNotIn("<fixed-modules>", code.co_names)
+        self.assertNotIn("<fixed-modules>", code.co_names)
+
+    def test_cases(self):
+        for f in glob(path.dirname(__file__) + "/pyreflytests/*.py"):
+            if f.endswith(".test.py"):
+                continue
+            filename = path.splitext(f)[0]
+            jsonname = filename + ".json"
+            testname = filename + ".test.py"
+            basename = path.basename(filename)
+            if basename == "__init__":
+                continue
+            with self.subTest(f), open(f) as f, open(jsonname) as jsonf:
+                data = json.load(jsonf)
+                code = self.compile_one(
+                    f.read(),
+                    PyreflyTypeInfo(data),
+                    modname=f"cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.{basename}",
+                )
+                if path.exists(testname):
+                    print(testname)
+                    with open(testname) as testf:
+                        test_source = testf.read()
+                    ns = {}
+                    exec(compile(test_source, testname, "exec"), ns)
+                    ns["verify"](self, code)
 
     def compile_one(
         self,
@@ -70,7 +106,7 @@ class PyreBinderTests(StaticTestBase):
         ast_optimizer_enabled: bool = True,
         enable_patching: bool = False,
     ) -> CodeType:
-        compiler = PyreflyCompiler(type_info=type_info)
+        compiler = PyreflyCompiler(pyrefly=TestPyrefly(type_info))
         tree = ast.parse(self.clean_code(code))
         return compiler.compile(
             modname,
