@@ -20,45 +20,6 @@ if TYPE_CHECKING:
     from .compiler import Compiler
 
 
-def _resolve_classname(qname: str, modules: dict[str, ModuleTable]) -> Class | None:
-    """Resolve a dotted qname like 'builtins.int' to a Class.
-
-    Splits the qname on '.' and tries progressively shorter prefixes
-    as module names, then walks the remainder as nested attributes.
-    """
-    parts = qname.split(".")
-
-    # Try progressively shorter prefixes as module names
-    for i in range(len(parts) - 1, 0, -1):
-        mod_name = ".".join(parts[:i])
-        if mod_name in modules:
-            mod = modules[mod_name]
-            result = mod.get_child(parts[i], mod_name)
-            if result is None:
-                continue
-            # Walk any remaining parts (e.g. nested classes)
-            for part in parts[i + 1 :]:
-                if isinstance(result, Class):
-                    result = result.get_child(part, mod_name)
-                else:
-                    return None
-                if result is None:
-                    return None
-            if isinstance(result, Class):
-                return result
-            return None
-
-    # No dot — try builtins
-    if len(parts) == 1:
-        builtins = modules.get("builtins")
-        if builtins is not None:
-            result = builtins.get_child(parts[0], "builtins")
-            if isinstance(result, Class):
-                return result
-
-    return None
-
-
 class PyreflyTypeBinder(TypeBinder):
     """TypeBinder that uses pyrefly type inference to set types on expression nodes.
 
@@ -91,7 +52,9 @@ class PyreflyTypeBinder(TypeBinder):
             classname = self._type_info.lookup_typename(node)
             declared_type = None
             if classname:
-                resolved = _resolve_classname(classname, self.modules)
+                resolved = self._type_info.resolve_classname(
+                    classname, self.modules, self.type_env
+                )
                 if resolved is not None:
                     declared_type = resolved.instance
 
