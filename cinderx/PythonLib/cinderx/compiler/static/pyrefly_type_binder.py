@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import ast
-from ast import AST, Name
+from ast import AST, Name, Return
 from typing import TYPE_CHECKING
 
 from ..errors import TypedSyntaxError
@@ -13,7 +13,7 @@ from ..symbols import SymbolVisitor
 from .effects import NarrowingEffect
 from .module_table import ModuleTable
 from .pyrefly_info import PyreflyTypeInfo
-from .type_binder import TypeBinder
+from .type_binder import TerminalKind, TypeBinder
 from .types import Class
 
 if TYPE_CHECKING:
@@ -105,3 +105,8 @@ class PyreflyTypeBinder(TypeBinder):
                 except TypedSyntaxError:
                     pass  # already declared, just update the type
         return ret
+
+    def visitReturn(self, node: Return) -> None:
+        self.set_terminal_kind(node, TerminalKind.RaiseOrReturn)
+        if node.value is not None:
+            self.visit(node.value)
