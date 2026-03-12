@@ -136,6 +136,11 @@ class PyreflyTypeInfo:
                         node.value,
                         member,
                     )
+        elif entry["kind"] == "callable" and "defining_func" in entry:
+            defining_func_qname = str(entry["defining_func"])
+            resolved_func = self.resolve_func(defining_func_qname, modules, type_env)
+            if resolved_func is not None:
+                return resolved_func
 
         # Fallback to types
         return self.lookup_type(type_index, modules, type_env)
@@ -168,6 +173,42 @@ class PyreflyTypeInfo:
         with open(json_path) as f:
             data = json.load(f)
         return cls(data)
+
+    def resolve_func(
+        self,
+        qname: str,
+        modules: dict[str, ModuleTable],
+        type_env: TypeEnvironment,
+    ) -> Value | None:
+        """Resolve a dotted qname like 'module.path.func_name' to a callable Value.
+
+        Splits the qname on '.' and tries progressively shorter prefixes
+        as module names, then looks up the function name in the module.
+        This handles both user-defined Functions and built-in callable
+        types like LenFunction.
+        """
+        parts = qname.split(".")
+
+        for i in range(len(parts) - 1, 0, -1):
+            mod_name = ".".join(parts[:i])
+            if mod_name in modules:
+                mod = modules[mod_name]
+                result = mod.get_child(parts[i], mod_name)
+                if result is None:
+                    continue
+                # Walk remaining parts (e.g. Class.method)
+                for part in parts[i + 1 :]:
+                    if isinstance(result, Class):
+                        result = result.get_member(part)
+                    else:
+                        result = None
+                        break
+                    if result is None:
+                        break
+                if result is not None:
+                    return result
+
+        return None
 
     def resolve_classname(
         self, qname: str, modules: dict[str, ModuleTable], type_env: TypeEnvironment
