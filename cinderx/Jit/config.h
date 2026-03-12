@@ -159,7 +159,7 @@ struct Config {
   bool emit_type_annotation_guards{false};
   // Whether or not to JIT specialized opcodes or to fall back to their generic
   // counterparts.
-  bool specialized_opcodes{false};
+  bool specialized_opcodes{true};
   // Support instrumentation (monitoring/tracing/profiling) by falling back to
   // the interpreter
   bool support_instrumentation{false};
