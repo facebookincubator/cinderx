@@ -186,7 +186,7 @@ class PyreflyTypeInfo:
                     if result is None:
                         return None
                 if isinstance(result, Class):
-                    return result
+                    return result.inexact_type()
                 elif isinstance(result, Value):
                     return result.klass
                 return None

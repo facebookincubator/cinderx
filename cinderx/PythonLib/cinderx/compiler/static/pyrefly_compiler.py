@@ -8,7 +8,7 @@ from typing import Callable, Iterable
 from cinderx.compiler.static.pyrefly_info import EMPTY_TYPE_INFO, Pyrefly
 from cinderx.compiler.static.pyrefly_type_binder import PyreflyTypeBinder
 from cinderx.compiler.static.type_binder import TypeBinder
-from cinderx.compiler.strict.compiler import Compiler
+from cinderx.compiler.strict.compiler import Compiler, TIMING_LOGGER_TYPE
 from cinderx.compiler.strict.flag_extractor import Flags
 from cinderx.compiler.symbols import SymbolVisitor
 

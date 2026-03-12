@@ -1,0 +1,117 @@
+{
+  "type_table": [
+    {
+      "kind": "class",
+      "qname": "builtins.property",
+      "args": [],
+      "hash": 6891147978376177783
+    },
+    {
+      "kind": "other_form",
+      "qname": "typing.Type",
+      "args": [
+        0
+      ],
+      "hash": 1202475085224118155
+    },
+    {
+      "kind": "class",
+      "qname": "builtins.int",
+      "args": [],
+      "hash": 7437843174258217660
+    },
+    {
+      "kind": "other_form",
+      "qname": "typing.Type",
+      "args": [
+        2
+      ],
+      "hash": 6510812805515236383
+    },
+    {
+      "kind": "literal",
+      "value": "42",
+      "promoted_type": 2,
+      "hash": 8499067216537500750
+    },
+    {
+      "kind": "class",
+      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.property.C",
+      "args": [],
+      "hash": 18418907475535762116
+    },
+    {
+      "kind": "other_form",
+      "qname": "typing.Type",
+      "args": [
+        5
+      ],
+      "hash": 3047767295098807706
+    }
+  ],
+  "locations": [
+    {
+      "loc": {
+        "start_line": 2,
+        "start_col": 5,
+        "end_line": 2,
+        "end_col": 13
+      },
+      "type": 1
+    },
+    {
+      "loc": {
+        "start_line": 3,
+        "start_col": 19,
+        "end_line": 3,
+        "end_col": 22
+      },
+      "type": 3
+    },
+    {
+      "loc": {
+        "start_line": 4,
+        "start_col": 15,
+        "end_line": 4,
+        "end_col": 17
+      },
+      "type": 4
+    },
+    {
+      "loc": {
+        "start_line": 7,
+        "start_col": 11,
+        "end_line": 7,
+        "end_col": 14
+      },
+      "type": 3
+    },
+    {
+      "loc": {
+        "start_line": 8,
+        "start_col": 11,
+        "end_line": 8,
+        "end_col": 16
+      },
+      "type": 2
+    },
+    {
+      "loc": {
+        "start_line": 8,
+        "start_col": 11,
+        "end_line": 8,
+        "end_col": 14
+      },
+      "type": 5
+    },
+    {
+      "loc": {
+        "start_line": 8,
+        "start_col": 11,
+        "end_line": 8,
+        "end_col": 12
+      },
+      "type": 6
+    }
+  ]
+}
