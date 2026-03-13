@@ -469,10 +469,11 @@ PyObject* JITRT_UnpackExToTuple(
  * work in this function would have to be done anyway if we were initially
  * making a JIT static -> non-JIT static function anyway, so there is not too
  * much overhead.
+ *
+ * The function object is obtained from args[0] since in the static calling
+ * convention the function is always the first argument.
  */
-JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
-    PyFunctionObject* func,
-    PyObject** args);
+JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(PyObject** args);
 
 JITRT_StaticCallReturn JITRT_CallStaticallyWithPrimitiveSignature(
     PyFunctionObject* func,

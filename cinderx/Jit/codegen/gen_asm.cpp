@@ -921,9 +921,7 @@ void* generateFailedDeferredCompileTrampoline() {
 
   annot.add("saveRegisters", &a, annot_cursor);
 
-  // r10 contains the function object from our stub
-  a.mov(x86::rdi, x86::r10);
-  a.mov(x86::rsi, x86::rsp);
+  a.mov(x86::rdi, x86::rsp);
   a.call(reinterpret_cast<uint64_t>(JITRT_FailedDeferredCompileShim));
   a.leave();
   a.ret();
@@ -941,9 +939,7 @@ void* generateFailedDeferredCompileTrampoline() {
 
   annot.add("saveRegisters", &a, annot_cursor);
 
-  // x10 contains the function object from our stub
-  a.mov(a64::x0, a64::x10);
-  a.mov(a64::x1, a64::sp);
+  a.mov(a64::x0, a64::sp);
   a.mov(arch::reg_scratch_br, JITRT_FailedDeferredCompileShim);
   a.blr(arch::reg_scratch_br);
   a.mov(a64::sp, arch::fp);
@@ -2076,17 +2072,6 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
       "Epilogue (restore regs; pop native frame; error exit)",
       epilogue_error_cursor);
   env_.addAnnotation("Epilogue", epilogue_cursor);
-  if (env_.function_indirections.size()) {
-    auto jit_helpers = as_->cursor();
-    for (auto& x : env_.function_indirections) {
-      Label trampoline = as_->newLabel();
-      as_->bind(trampoline);
-      as_->mov(x86::r10, reinterpret_cast<uint64_t>(x.first));
-      as_->jmp(reinterpret_cast<uint64_t>(failed_deferred_compile_trampoline_));
-      x.second.trampoline = trampoline;
-    }
-    env_.addAnnotation("JitHelpers", jit_helpers);
-  }
 #elif defined(CINDER_AARCH64)
   bool is_gen = GetFunction()->code->co_flags & kCoFlagsAnyGenerator;
   if (is_gen) {
@@ -2172,18 +2157,6 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
       "Epilogue (restore regs; pop native frame; error exit)",
       epilogue_error_cursor);
   env_.addAnnotation("Epilogue", epilogue_cursor);
-  if (env_.function_indirections.size()) {
-    auto jit_helpers = as_->cursor();
-    for (auto& x : env_.function_indirections) {
-      Label trampoline = as_->newLabel();
-      as_->bind(trampoline);
-      as_->mov(a64::x10, reinterpret_cast<uint64_t>(x.first));
-      as_->mov(arch::reg_scratch_br, failed_deferred_compile_trampoline_);
-      as_->br(arch::reg_scratch_br);
-      x.second.trampoline = trampoline;
-    }
-    env_.addAnnotation("JitHelpers", jit_helpers);
-  }
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2956,10 +2929,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   {
     ThreadedCompileSerialize guard;
     for (auto& x : env_.function_indirections) {
-      Label trampoline = x.second.trampoline;
-      *x.second.indirect = reinterpret_cast<void*>(
-          codeholder.labelOffsetFromBase(trampoline) +
-          codeholder.baseAddress());
+      *x.second.indirect = failed_deferred_compile_trampoline_;
     }
   }
 

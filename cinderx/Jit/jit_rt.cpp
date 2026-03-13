@@ -1769,11 +1769,12 @@ PyObject* JITRT_BuildString(
   return _PyUnicode_JoinArray(empty, args, nargs);
 }
 
-JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
-    PyFunctionObject* func,
-    PyObject** args) {
+JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(PyObject** args) {
   void* no_error = reinterpret_cast<void*>(1);
 
+  // The function object is always the first argument in the static calling
+  // convention.
+  PyFunctionObject* func = reinterpret_cast<PyFunctionObject*>(args[0]);
   PyCodeObject* code = (PyCodeObject*)func->func_code;
   int total_args = code->co_argcount;
   if (code->co_flags & CO_VARARGS) {

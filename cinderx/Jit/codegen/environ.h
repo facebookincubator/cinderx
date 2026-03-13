@@ -74,7 +74,6 @@ struct Environ {
     explicit IndirectInfo(void** indirect_ptr) : indirect(indirect_ptr) {}
 
     void** indirect;
-    asmjit::Label trampoline{0};
   };
   UnorderedMap<PyFunctionObject*, IndirectInfo> function_indirections;
 
