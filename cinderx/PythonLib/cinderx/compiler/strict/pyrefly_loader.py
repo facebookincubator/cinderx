@@ -20,6 +20,10 @@ from .compiler import Compiler, TIMING_LOGGER_TYPE
 from .loader import StrictSourceFileLoader
 
 
+OPT_OUT_LIST: set[str] | None = None
+OPT_IN_LIST: set[str] | None = None
+
+
 class PyreflyLoader(StrictSourceFileLoader):
     pyrefly_type_dir: str | None = None
 
@@ -40,8 +44,8 @@ class PyreflyLoader(StrictSourceFileLoader):
             else:
                 pyrefly = None
             comp = cls.compiler = PyreflyCompiler(
-                static_opt_out=None,
-                static_opt_in=None,
+                static_opt_out=OPT_OUT_LIST,
+                static_opt_in=OPT_IN_LIST,
                 path=path,
                 stub_path=stub_path,
                 allow_list_prefix=allow_list_prefix,
@@ -54,6 +58,10 @@ class PyreflyLoader(StrictSourceFileLoader):
         return comp
 
     def should_force_strict(self) -> bool:
+        if OPT_IN_LIST is not None:
+            return self.name in OPT_IN_LIST
+        if OPT_OUT_LIST is not None:
+            return self.name not in OPT_OUT_LIST
         return True
 
 
@@ -112,10 +120,19 @@ def _get_supported_file_loaders(
     return [extensions, source, bytecode]
 
 
-def install(enable_patching: bool = False, pyrefly_type_dir: str | None = None) -> None:
+def install(
+    enable_patching: bool = False,
+    pyrefly_type_dir: str | None = None,
+    opt_in_list: set[str] | None = None,
+    opt_out_list: set[str] | None = None,
+) -> None:
     """Installs a loader which is capable of loading and validating strict modules"""
     PyreflyLoader.pyrefly_type_dir = pyrefly_type_dir
     supported_loaders = _get_supported_file_loaders(enable_patching)
+
+    global OPT_IN_LIST, OPT_OUT_LIST
+    OPT_IN_LIST = opt_in_list
+    OPT_OUT_LIST = opt_out_list
 
     for index, hook in enumerate(sys.path_hooks):
         if not isinstance(hook, type):
