@@ -5280,6 +5280,14 @@ class DataclassDecorator(Callable[Class]):
                 False,
                 ParamStyle.KWONLY,
             ),
+            Parameter(
+                "slots",
+                8,
+                ResolvedTypeRef(type_env.bool),
+                True,
+                True,  # Technically the CPython default is False, but for Static Python it's True.
+                ParamStyle.KWONLY,
+            ),
         ]
         super().__init__(
             type_env.function,
@@ -5330,6 +5338,7 @@ class DataclassDecorator(Callable[Class]):
             "unsafe_hash": False,
             "frozen": False,
             "kw_only": False,
+            "slots": True,
         }
 
         for kw in decorator.keywords:
@@ -5592,6 +5601,7 @@ class Dataclass(Class):
         unsafe_hash: bool = False,
         frozen: bool = False,
         kw_only: bool = False,
+        slots: bool = True,
     ) -> None:
         super().__init__(
             type_name=klass.type_name,
@@ -5622,6 +5632,11 @@ class Dataclass(Class):
 
         # Fields where field.kind is FIELD
         self.true_fields: dict[str, DataclassField] = {}
+
+        if not slots:
+            raise TypedSyntaxError(
+                f"Dataclass {self.qualname} sets slots=False but Static Python defaults to and only supports slots=True"
+            )
 
         if order:
             if not eq:

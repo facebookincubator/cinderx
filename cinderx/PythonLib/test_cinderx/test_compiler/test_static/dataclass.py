@@ -1888,3 +1888,34 @@ class DataclassTests(StaticTestBase):
         # TODO(T259691972): This should raise a TypedSyntaxError!
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.c.x, 10)
+
+    def test_dataclass_slots(self) -> None:
+        codestr = """
+        from dataclasses import dataclass
+
+        @dataclass(slots=True)
+        class C:
+            x: int
+            y: float
+
+        c = C(10, 2.0)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.c.x, 10)
+
+    def test_dataclass_slots_false(self) -> None:
+        codestr = """
+        from dataclasses import dataclass
+
+        @dataclass(slots=False)
+        class C:
+            x: int
+            y: float
+
+        c = C(10, 2.0)
+        """
+        self.type_error(
+            codestr,
+            "Dataclass C sets slots=False but Static Python defaults to and only supports slots=True",
+            at="dataclass(slots=False)",
+        )
