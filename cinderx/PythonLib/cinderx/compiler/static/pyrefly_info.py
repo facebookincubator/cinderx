@@ -8,7 +8,7 @@ import json
 import os
 from ast import AST, Attribute
 from dataclasses import dataclass
-from typing import Self, TypedDict
+from typing import TypedDict
 
 from cinderx.compiler.static.module_table import ModuleTable
 from cinderx.compiler.static.types import (
@@ -18,6 +18,14 @@ from cinderx.compiler.static.types import (
     TypeEnvironment,
     Value,
 )
+
+# Remove this once we drop the Python 3.10 tests.
+try:
+    from typing import Self
+except ImportError:
+    from typing import TypeVar
+
+    Self = TypeVar("T", bound="Self")
 
 
 class Location(TypedDict):
