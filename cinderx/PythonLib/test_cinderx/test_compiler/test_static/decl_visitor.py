@@ -393,3 +393,20 @@ class DeclarationVisitorTests(StaticTestBase):
         comp = self.compiler(**{"pkg.foo": foo_code, "pkg.mod": mod_code})
         f = self.find_code(comp.compile_module("pkg.mod"), "g")
         self.assertInBytecode(f, "INVOKE_METHOD", ((("pkg.foo", "C"), "f"), 0))
+
+    def test_relative_import_executes_compiled_code(self) -> None:
+        """Relative import should work at runtime when executing compiled module."""
+        foo_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            from .foo import C
+
+            def g() -> int:
+                return C().f()
+        """
+        comp = self.compiler(**{"pkg.foo": foo_code, "pkg.mod": mod_code})
+        with comp.in_module("pkg.mod") as mod:
+            self.assertEqual(mod.g(), 42)
