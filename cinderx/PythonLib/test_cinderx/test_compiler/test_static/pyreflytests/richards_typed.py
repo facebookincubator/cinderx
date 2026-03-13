@@ -419,6 +419,6 @@ class Richards(object):
 
 if __name__ == "__main__":
     num_iterations = 1
-    if len(sys.argv) > 1:
-        num_iterations = int(sys.argv[1])
+    # if len(sys.argv) > 1:
+    #    num_iterations = int(sys.argv[1])
     Richards().run(num_iterations)

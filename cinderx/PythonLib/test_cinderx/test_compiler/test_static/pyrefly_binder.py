@@ -2,6 +2,7 @@
 
 import ast
 import json
+import sys
 import unittest
 from glob import glob
 from os import path
@@ -82,12 +83,13 @@ class PyreBinderTests(StaticTestBase):
             basename = path.basename(filename)
             if basename == "__init__":
                 continue
+            modname = f"cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.{basename}"
             with self.subTest(f), open(f) as f, open(jsonname) as jsonf:
                 data = json.load(jsonf)
                 code = self.compile_one(
                     f.read(),
                     PyreflyTypeInfo(data),
-                    modname=f"cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.{basename}",
+                    modname=modname,
                 )
                 if path.exists(testname):
                     print(testname)
@@ -96,6 +98,19 @@ class PyreBinderTests(StaticTestBase):
                     ns = {}
                     exec(compile(test_source, testname, "exec"), ns)
                     ns["verify"](self, code)
+
+                mod = type(sys)(modname)
+                mod.__dict__.update(
+                    **{
+                        "<fixed-modules>": {
+                            "__strict__": __import__("__strict__").__dict__,
+                            "typing": __import__("typing").__dict__,
+                        },
+                        "__name__": "__main__",
+                    }
+                )
+                sys.modules[modname] = mod
+                exec(code, mod.__dict__)
 
     def compile_one(
         self,
