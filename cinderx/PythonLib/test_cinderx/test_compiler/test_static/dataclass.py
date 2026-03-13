@@ -1858,3 +1858,33 @@ class DataclassTests(StaticTestBase):
             a = mod.C("foo")
             for _ in range(256):
                 self.assertEqual(mod.x(a), "fooFalseNoneNone")
+
+    def test_dataclass_kw_only(self) -> None:
+        codestr = """
+        from dataclasses import dataclass
+
+        @dataclass(kw_only=True)
+        class C:
+            x: int
+            y: float
+
+        c = C(x=10, y=2.0)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.c.x, 10)
+
+    def test_dataclass_kw_only_wrong(self) -> None:
+        codestr = """
+        from dataclasses import dataclass
+
+        @dataclass(kw_only=True)
+        class C:
+            x: int
+            y: float
+
+        c = C(10, y=2.0)
+        """
+
+        # TODO(T259691972): This should raise a TypedSyntaxError!
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.c.x, 10)
