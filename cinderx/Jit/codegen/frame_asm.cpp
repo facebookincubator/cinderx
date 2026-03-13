@@ -828,6 +828,12 @@ void FrameAsm::linkLightWeightFunctionFrame(
       scratch,
       arch::ptr_offset(frame_holder, offsetof(PyThreadState, current_frame)));
 #else
+  // add_signed_immediate may have clobbered arch::reg_scratch_0 (x12) when the
+  // offset was too large for an ADD/SUB immediate. frame_holder aliases x12 on
+  // 3.12, so reload it from tstate.
+  as_->ldr(
+      frame_holder,
+      arch::ptr_offset(tstate_reg, offsetof(PyThreadState, cframe)));
   // (PyThreadState.cframe|PyThreadState).current_frame = &cur_frame
   as_->str(
       scratch,
