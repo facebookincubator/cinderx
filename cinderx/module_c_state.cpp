@@ -12,19 +12,19 @@ vectorcallfunc Ci_PyFunction_Vectorcall;
 #endif
 
 int Ci_Watchers_WatchDict(PyObject* dict) {
-  return cinderx::getModuleState()->watcherState().watchDict(dict);
+  return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }
 
 int Ci_Watchers_UnwatchDict(PyObject* dict) {
-  return cinderx::getModuleState()->watcherState().unwatchDict(dict);
+  return cinderx::getModuleState()->watcher_state.unwatchDict(dict);
 }
 
 int Ci_Watchers_WatchType(PyTypeObject* type) {
-  return cinderx::getModuleState()->watcherState().watchType(type);
+  return cinderx::getModuleState()->watcher_state.watchType(type);
 }
 
 int Ci_Watchers_UnwatchType(PyTypeObject* type) {
-  return cinderx::getModuleState()->watcherState().unwatchType(type);
+  return cinderx::getModuleState()->watcher_state.unwatchType(type);
 }
 
 PyObject**
@@ -42,7 +42,7 @@ Ci_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
       "Dictionary key should be a string, but is actually a {}",
       Py_TYPE(key)->tp_name);
 
-  return cinderx::getModuleState()->cacheManager()->getGlobalCache(
+  return cinderx::getModuleState()->cache_manager->getGlobalCache(
       builtins, globals, key);
 }
 
@@ -51,7 +51,7 @@ PyObject** Ci_GetDictCache(PyObject* dict, PyObject* key) {
 }
 
 void Ci_free_jit_list_gen(PyGenObject* obj) {
-  cinderx::getModuleState()->jitGenFreeList()->free(
+  cinderx::getModuleState()->jit_gen_free_list->free(
       reinterpret_cast<PyObject*>(obj));
 }
 

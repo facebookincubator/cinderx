@@ -51,7 +51,8 @@ class BackendTest : public RuntimeTest {
     post_rewrite.run();
 
     asmjit::CodeHolder code;
-    ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+    ICodeAllocator* code_allocator =
+        cinderx::getModuleState()->code_allocator.get();
     code.init(code_allocator->asmJitEnvironment());
 
     arch::Builder as(&code);

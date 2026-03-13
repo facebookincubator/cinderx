@@ -86,7 +86,7 @@ class DisableGilCheck {
 CompilerContext<Compiler>* jitCtx() {
   auto state = cinderx::getModuleState();
   if (state != nullptr) {
-    return static_cast<CompilerContext<Compiler>*>(state->jitContext());
+    return static_cast<CompilerContext<Compiler>*>(state->jit_context.get());
   }
   return nullptr;
 }
@@ -802,7 +802,8 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
 // Check if we have exceeded the max code size limit.
 bool isOverMaxCodeSize() {
   auto max_code_size = getConfig().max_code_size;
-  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  ICodeAllocator* code_allocator =
+      cinderx::getModuleState()->code_allocator.get();
   return max_code_size && code_allocator->usedBytes() >= max_code_size;
 }
 
@@ -955,8 +956,8 @@ void compile_worker_thread() {
         unitFullname(unit));
   }
 
-  cinderx::getModuleState()->compileWorkersAttempted().fetch_add(attempts);
-  cinderx::getModuleState()->compileWorkersRetries().fetch_add(retries);
+  cinderx::getModuleState()->compile_workers_attempted.fetch_add(attempts);
+  cinderx::getModuleState()->compile_workers_retries.fetch_add(retries);
 
   JIT_DLOG(
       "Finished compile worker in thread {}. Compile attempts: {}, scheduled "
@@ -1034,10 +1035,10 @@ bool compile_all(size_t workers = 0) {
 
   auto error_cleanup = [&]() {
     hir::preloaderManager().clear();
-    cinderx::getModuleState()->clearUnitDeletedDuringPreloadCallback();
+    cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
   };
 
-  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
+  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   JIT_DLOG(
       "Starting compile_all with {} workers for {} registered units",
       workers,
@@ -1054,10 +1055,10 @@ bool compile_all(size_t workers = 0) {
       if (deleted_units.contains(unit)) {
         continue;
       }
-      cinderx::getModuleState()->setUnitDeletedDuringPreloadCallback(
+      cinderx::getModuleState()->unit_deleted_during_preload =
           [&](BorrowedRef<> deleted_unit) {
             deleted_units.emplace(deleted_unit);
-          });
+          };
       hir::Preloader* preloader = preload(unit);
       if (!preloader) {
         error_cleanup();
@@ -1066,7 +1067,7 @@ bool compile_all(size_t workers = 0) {
       compilation_units.push_back(unit);
     }
   }
-  cinderx::getModuleState()->clearUnitDeletedDuringPreloadCallback();
+  cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
 
   // Filter out any units that were deleted as a side effect of preloading.
   std::erase_if(compilation_units, [&](BorrowedRef<> unit) {
@@ -1132,7 +1133,7 @@ JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func) {
   // Note: This is not the same as fetching the function's code object and
   // checking its module and qualname, as functions can be renamed after they
   // are created.  Code objects cannot.
-  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+  if (auto jit_list = cinderx::getModuleState()->jit_list.get()) {
     if (jit_list->lookupFunc(func) == 1) {
       return JitEligibility::JitListEligible;
     }
@@ -1161,7 +1162,7 @@ JitEligibility getCompilationEligibility(
     return JitEligibility::Ineligible;
   }
 
-  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+  if (auto jit_list = cinderx::getModuleState()->jit_list.get()) {
     if (jit_list->lookupCode(code) == 1 ||
         jit_list->lookupName(module_name, code->co_qualname) == 1) {
       return JitEligibility::JitListEligible;
@@ -1234,7 +1235,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(
       !getThreadedCompileContext().compileRunning(),
       "Not intended for using during threaded compilation");
-  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
+  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   jit_reg_units.emplace(func.getObj());
 
   return true;
@@ -1246,9 +1247,9 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
         PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
     return nullptr;
   }
-  cinderx::getModuleState()->compileWorkersAttempted() = 0;
-  cinderx::getModuleState()->compileWorkersRetries() = 0;
-  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
+  cinderx::getModuleState()->compile_workers_attempted = 0;
+  cinderx::getModuleState()->compile_workers_retries = 0;
+  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
   jitCtx()->clearCache();
 
@@ -1263,8 +1264,8 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   JIT_LOG(
       "Took {} ms, compiles attempted: {}, compiles retried: {}",
       batch_compilation_time.count(),
-      cinderx::getModuleState()->compileWorkersAttempted().load(),
-      cinderx::getModuleState()->compileWorkersRetries().load());
+      cinderx::getModuleState()->compile_workers_attempted.load(),
+      cinderx::getModuleState()->compile_workers_retries.load());
   Py_RETURN_NONE;
 }
 
@@ -1446,8 +1447,7 @@ PyObject* patched_sys_monitoring_register_callback(
     PyObject* const* args,
     Py_ssize_t nargs) {
   auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original =
-      mod_state->getOriginalSysMonitoringRegisterCallback();
+  BorrowedRef<> original = mod_state->orig_sys_monitoring_register_callback;
   JIT_CHECK(
       original != nullptr,
       "Expecting to have sys.monitoring.register_callback already saved");
@@ -1476,7 +1476,7 @@ PyObject* patched_sys_monitoring_free_tool_id(
     PyObject* const* args,
     Py_ssize_t nargs) {
   auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original = mod_state->getOriginalSysMonitoringFreeToolId();
+  BorrowedRef<> original = mod_state->orig_sys_monitoring_free_tool_id;
   JIT_CHECK(
       original != nullptr,
       "Expecting to have sys.monitoring.free_tool_id already saved");
@@ -1503,7 +1503,7 @@ PyObject* patched_sys_setprofile(
     PyObject* const* args,
     Py_ssize_t nargs) {
   auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original = mod_state->getOriginalSysSetProfile();
+  BorrowedRef<> original = mod_state->orig_sys_setprofile;
   JIT_CHECK(
       original != nullptr, "Expecting to have sys.setprofile already saved");
 
@@ -1528,7 +1528,7 @@ PyObject* patched_sys_settrace(
     PyObject* const* args,
     Py_ssize_t nargs) {
   auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original = mod_state->getOriginalSysSetTrace();
+  BorrowedRef<> original = mod_state->orig_sys_settrace;
   JIT_CHECK(
       original != nullptr, "Expecting to have sys.settrace already saved");
 
@@ -1953,7 +1953,7 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
 #endif
 
 PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
-  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+  if (auto jit_list = cinderx::getModuleState()->jit_list.get()) {
     return jit_list->getList().release();
   }
 
@@ -1963,7 +1963,7 @@ PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
 // Create a new JIT list if one doesn't exist yet, returning true if a new list
 // was made.
 bool ensureJitList() {
-  if (cinderx::getModuleState()->jitList() != nullptr) {
+  if (cinderx::getModuleState()->jit_list.get() != nullptr) {
     return false;
   }
   std::unique_ptr<JITList> jit_list;
@@ -1972,12 +1972,12 @@ bool ensureJitList() {
   } else {
     jit_list = JITList::create();
   }
-  cinderx::getModuleState()->setJitList(std::move(jit_list));
+  cinderx::getModuleState()->jit_list = std::move(jit_list);
   return true;
 }
 
 void deleteJitList() {
-  cinderx::getModuleState()->setJitList(nullptr);
+  cinderx::getModuleState()->jit_list = nullptr;
 }
 
 // Reschedule all functions on the JIT list for compilation.  Run when the JIT
@@ -1988,7 +1988,7 @@ int rescheduleJitList() {
   }
 
   walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
-    auto jit_list = cinderx::getModuleState()->jitList();
+    auto jit_list = cinderx::getModuleState()->jit_list.get();
     if (jit_list->lookupFunc(func)) {
       scheduleJitCompile(func);
     }
@@ -2018,7 +2018,7 @@ PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
 
   // Parse in the new line.  If that fails and a new list was created, delete
   // it.
-  auto jit_list = cinderx::getModuleState()->jitList();
+  auto jit_list = cinderx::getModuleState()->jit_list.get();
   if (!jit_list->parseLine(line)) {
     if (new_list) {
       deleteJitList();
@@ -2054,7 +2054,7 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
 
   // Parse in the new file.  If that fails and a new list was created, delete
   // it.
-  auto jit_list = cinderx::getModuleState()->jitList();
+  auto jit_list = cinderx::getModuleState()->jit_list.get();
   try {
     jit_list->parseFile(path);
   } catch (const std::exception& exn) {
@@ -2460,7 +2460,7 @@ PyObject* jit_unsuppress(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_allocator_stats(PyObject*, PyObject*) {
-  auto base_allocator = cinderx::getModuleState()->codeAllocator();
+  auto base_allocator = cinderx::getModuleState()->code_allocator.get();
   if (base_allocator == nullptr) {
     Py_RETURN_NONE;
   }
@@ -2644,7 +2644,7 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
   }
 
   auto mod_state = cinderx::getModuleState();
-  mod_state->setOriginalSysMonitoringRegisterCallback(original);
+  mod_state->orig_sys_monitoring_register_callback = Ref<>::create(original);
 
   Ref<> patched_func = Ref<>::steal(PyObject_GetAttrString(
       cinderjit_module, "patched_sys_monitoring_register_callback"));
@@ -2671,7 +2671,8 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
   Ref<> orig_free_tool_id =
       Ref<>::steal(PyObject_GetAttrString(monitoring, "free_tool_id"));
   if (orig_free_tool_id != nullptr) {
-    mod_state->setOriginalSysMonitoringFreeToolId(orig_free_tool_id);
+    mod_state->orig_sys_monitoring_free_tool_id =
+        Ref<>::create(orig_free_tool_id);
 
     Ref<> patched_free_tool_id = Ref<>::steal(PyObject_GetAttrString(
         cinderjit_module, "patched_sys_monitoring_free_tool_id"));
@@ -2741,10 +2742,10 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
       };
 
   patchSysFunc("setprofile", "patched_sys_setprofile", [&](BorrowedRef<> func) {
-    mod_state->setOriginalSysSetProfile(func);
+    mod_state->orig_sys_setprofile = Ref<>::create(func);
   });
   patchSysFunc("settrace", "patched_sys_settrace", [&](BorrowedRef<> func) {
-    mod_state->setOriginalSysSetTrace(func);
+    mod_state->orig_sys_settrace = Ref<>::create(func);
   });
 
 #endif // PY_VERSION_HEX >= 0x030C0000
@@ -2759,7 +2760,7 @@ void restoreSysMonitoringRegisterCallback() {
   }
 
   BorrowedRef<> orig_register_callback =
-      mod_state->getOriginalSysMonitoringRegisterCallback();
+      mod_state->orig_sys_monitoring_register_callback;
   if (orig_register_callback != nullptr) {
     if (PyObject_SetAttrString(
             monitoring, "register_callback", orig_register_callback) < 0) {
@@ -2767,8 +2768,7 @@ void restoreSysMonitoringRegisterCallback() {
     }
   }
 
-  BorrowedRef<> orig_free_tool_id =
-      mod_state->getOriginalSysMonitoringFreeToolId();
+  BorrowedRef<> orig_free_tool_id = mod_state->orig_sys_monitoring_free_tool_id;
   if (orig_free_tool_id != nullptr) {
     if (PyObject_SetAttrString(monitoring, "free_tool_id", orig_free_tool_id) <
         0) {
@@ -2783,14 +2783,13 @@ void restoreSysSetProfileAndSetTrace() {
 
   auto mod_state = cinderx::getModuleState();
 
-  if (BorrowedRef<> original_setprofile =
-          mod_state->getOriginalSysSetProfile()) {
+  if (BorrowedRef<> original_setprofile = mod_state->orig_sys_setprofile) {
     if (PySys_SetObject("setprofile", original_setprofile) < 0) {
       PyErr_Clear();
     }
   }
 
-  if (BorrowedRef<> original_settrace = mod_state->getOriginalSysSetTrace()) {
+  if (BorrowedRef<> original_settrace = mod_state->orig_sys_settrace) {
     if (PySys_SetObject("settrace", original_settrace) < 0) {
       PyErr_Clear();
     }
@@ -3120,7 +3119,7 @@ void trackEligibleCodeObjects(
     return;
   }
 
-  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
+  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
 
   jit_code_outer_funcs.try_emplace(func_code, func);
 
@@ -3318,6 +3317,14 @@ constexpr std::string_view getCpuArchName() {
 #endif
 }
 
+void notifyUnitDeletedDuringPreload(
+    cinderx::ModuleState* state,
+    BorrowedRef<> unit) {
+  if (state->unit_deleted_during_preload) {
+    state->unit_deleted_during_preload(unit);
+  }
+}
+
 // Unregister a function and its nested code objects from jit_reg_units and
 // jit_code_outer_funcs. Called when a function is destroyed or its code object
 // is being replaced.
@@ -3330,7 +3337,7 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
     return;
   }
 
-  auto& jit_reg_units = mod_state->registeredCompilationUnits();
+  auto& jit_reg_units = mod_state->registered_compilation_units;
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
 
   BorrowedRef<PyCodeObject> top_code{func->func_code};
@@ -3345,13 +3352,13 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
       if (existing != jit_code_outer_funcs.end() && existing->second == func) {
         jit_code_outer_funcs.erase(code);
       }
-      mod_state->notifyUnitDeletedDuringPreload(code.getObj());
+      notifyUnitDeletedDuringPreload(mod_state, code.getObj());
     }
   }
 
   jit_reg_units.erase(func);
   jit_reg_units.erase(top_code);
-  mod_state->notifyUnitDeletedDuringPreload(func.getObj());
+  notifyUnitDeletedDuringPreload(mod_state, func.getObj());
 }
 
 } // namespace
@@ -3561,12 +3568,13 @@ int initialize() {
 
   // Create code allocator after jit::Config has been filled out.
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
-  mod_state->setCodeAllocator(CodeAllocator::make());
+  mod_state->code_allocator.reset(CodeAllocator::make());
 
   // Initialize the main compiler object and its context.  This will throw if
   // asmjit cannot initialize.
   try {
-    cinderx::getModuleState()->setJitContext(new CompilerContext<Compiler>());
+    cinderx::getModuleState()->jit_context.reset(
+        new CompilerContext<Compiler>());
   } catch (const std::exception& exn) {
     PyErr_SetString(PyExc_RuntimeError, exn.what());
     return -1;
@@ -3590,7 +3598,7 @@ int initialize() {
 
   getMutableConfig().state = State::kRunning;
 
-  mod_state->setJitList(std::move(jit_list));
+  mod_state->jit_list = std::move(jit_list);
 
   // JIT is now fully initialized.  If it was configured to run automatically on
   // startup, start scheduling functions for compilation now.
@@ -3599,7 +3607,7 @@ int initialize() {
     if (compile_after_n_calls_impl(*compile_n) < 0) {
       return -1;
     }
-  } else if (mod_state->jitList() != nullptr) {
+  } else if (mod_state->jit_list.get() != nullptr) {
     if (rescheduleJitList() < 0) {
       return -1;
     }
@@ -3645,7 +3653,7 @@ void finalize() {
   // Clear some global maps that reference Python data.
   auto mod_state = cinderx::getModuleState();
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  auto& jit_reg_units = mod_state->registeredCompilationUnits();
+  auto& jit_reg_units = mod_state->registered_compilation_units;
   jit_code_outer_funcs.clear();
   jit_reg_units.clear();
   JIT_CHECK(
@@ -3654,8 +3662,8 @@ void finalize() {
       "is_global:{}",
       hir::preloaderManager().size(),
       hir::preloaderManager().isGlobalManager());
-  mod_state->setJitContext(nullptr);
-  mod_state->setCodeAllocator(nullptr);
+  mod_state->jit_context.reset();
+  mod_state->code_allocator.reset();
 
 #ifndef WIN32
   g_aot_ctx.destroy();
@@ -3727,7 +3735,7 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return Result::UNKNOWN_ERROR;
   }
 
-  auto& jit_reg_units = cinderx::getModuleState()->registeredCompilationUnits();
+  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   jit_reg_units.erase(func);
   return compile_func(func);
 }
@@ -3759,12 +3767,12 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     // This needs to be set every time before preload() is kicked off.
     // Preloading can run arbitrary Python code, which means it can re-enter
     // the JIT.
-    cinderx::getModuleState()->setUnitDeletedDuringPreloadCallback(
+    cinderx::getModuleState()->unit_deleted_during_preload =
         [&](BorrowedRef<> deleted_unit) {
           deleted_units.emplace(deleted_unit);
-        });
+        };
     hir::Preloader* preloader = preload(f);
-    cinderx::getModuleState()->clearUnitDeletedDuringPreloadCallback();
+    cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
 
     if (preloader == nullptr) {
       return {};
@@ -3814,11 +3822,11 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   if (isJitUsable()) {
     auto mod_state = cinderx::getModuleState();
-    auto& jit_reg_units = mod_state->registeredCompilationUnits();
+    auto& jit_reg_units = mod_state->registered_compilation_units;
     auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
     jit_reg_units.erase(code.getObj());
     jit_code_outer_funcs.erase(code);
-    mod_state->notifyUnitDeletedDuringPreload(code.getObj());
+    notifyUnitDeletedDuringPreload(mod_state, code.getObj());
   }
 }
 

@@ -504,7 +504,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
   int frame_header_size = frameHeaderSizeExcludingSpillSpace();
 #if PY_VERSION_HEX < 0x030E0000
-  PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
+  PyObject* frame_reifier = cinderx::getModuleState()->frame_reifier;
 #else
   PyObject* frame_reifier = env_.code_rt->reifier();
 #endif
@@ -666,7 +666,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
   int frame_header_size = frameHeaderSizeExcludingSpillSpace();
 #if PY_VERSION_HEX < 0x030E0000
-  PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
+  PyObject* frame_reifier = cinderx::getModuleState()->frame_reifier;
 #else
   PyObject* frame_reifier = env_.code_rt->reifier();
 #endif

@@ -427,7 +427,8 @@ void* finalizeCode(arch::Builder& builder, std::string_view name) {
         DebugUtils::errorAsString(err))};
   }
 
-  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  ICodeAllocator* code_allocator =
+      cinderx::getModuleState()->code_allocator.get();
   AllocateResult result = code_allocator->addCode(builder.code());
   if (result.error != kErrorOk) {
     throw std::runtime_error{fmt::format(
@@ -452,7 +453,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
       generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
 
   CodeHolder code;
-  ICodeAllocator* code_allocator = mod_state->codeAllocator();
+  ICodeAllocator* code_allocator = mod_state->code_allocator.get();
   ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
   arch::Builder a(&code);
   Annotations annot;
@@ -900,7 +901,7 @@ void* generateFailedDeferredCompileTrampoline() {
         "CinderX not initialized, cannot generate deopt trampolines"};
   }
   CodeHolder code;
-  ICodeAllocator* code_allocator = mod_state->codeAllocator();
+  ICodeAllocator* code_allocator = mod_state->code_allocator.get();
   code.init(code_allocator->asmJitEnvironment());
   arch::Builder a(&code);
   Annotations annot;
@@ -1146,7 +1147,8 @@ void* NativeGenerator::getVectorcallEntry() {
   JIT_CHECK(as_ == nullptr, "Builder should not have been initialized.");
 
   CodeHolder code;
-  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  ICodeAllocator* code_allocator =
+      cinderx::getModuleState()->code_allocator.get();
   code.init(code_allocator->asmJitEnvironment());
   ThrowableErrorHandler eh;
   code.setErrorHandler(&eh);
@@ -2373,7 +2375,7 @@ Py_ssize_t NativeGenerator::giJITDataOffset() {
   Py_ssize_t python_frame_slots =
       _PyFrame_NumSlotsForCodeObject(GetFunction()->code);
   return _PyObject_VAR_SIZE(
-      cinderx::getModuleState()->genType(), python_frame_slots);
+      cinderx::getModuleState()->gen_type, python_frame_slots);
 #endif
 }
 

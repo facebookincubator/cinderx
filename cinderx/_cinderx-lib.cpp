@@ -72,10 +72,10 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   if (auto* ctx = jit::getContext()) {
     ctx->clearDeoptStats();
   }
-  // We replace sys._clear_type_cache with our own function which
-  // clears the caches, so we should call this too.
+  // We replace sys._clear_type_cache with our own function which clears the
+  // caches, so we should call this too.
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    auto sys_clear = state->sysClearCaches();
+    BorrowedRef<> sys_clear = state->sys_clear_caches;
     if (sys_clear != nullptr) {
       Ref<> res =
           Ref<>::steal(PyObject_Vectorcall(sys_clear, nullptr, 0, nullptr));
@@ -317,7 +317,7 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
   PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
 
   auto& perf_trampoline_worklist =
-      cinderx::getModuleState(mod)->perfTrampolineWorklist();
+      cinderx::getModuleState(mod)->perf_trampoline_worklist;
 
   for (BorrowedRef<PyFunctionObject> func : perf_trampoline_worklist) {
     BorrowedRef<PyCodeObject> code = func->func_code;
@@ -514,7 +514,7 @@ void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
   bool scheduled = jit::scheduleJitCompile(func);
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
     auto& perf_trampoline_worklist =
-        cinderx::getModuleState()->perfTrampolineWorklist();
+        cinderx::getModuleState()->perf_trampoline_worklist;
     perf_trampoline_worklist.emplace(func);
   }
 }
@@ -748,7 +748,7 @@ int cinderx_dict_watcher(
 
   auto state = cinderx::getModuleState();
   jit::IGlobalCacheManager* globalCaches =
-      state != nullptr ? state->cacheManager() : nullptr;
+      state != nullptr ? state->cache_manager.get() : nullptr;
 
   switch (event) {
     case PyDict_EVENT_ADDED:
@@ -837,7 +837,7 @@ int cinderx_func_watcher(
     case PyFunction_EVENT_DESTROY:
       if (jit::perf::isPreforkCompilationEnabled()) {
         auto& perf_trampoline_worklist =
-            cinderx::getModuleState()->perfTrampolineWorklist();
+            cinderx::getModuleState()->perf_trampoline_worklist;
         perf_trampoline_worklist.erase(func);
       }
       jit::funcDestroyed(func);
@@ -1234,7 +1234,7 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-  state->setCacheManager(cache_manager);
+  state->cache_manager.reset(cache_manager);
 
   // Code allocator is initialized in jit::initialize(), because it needs to
   // read -X options from the CLI and environment variables to figure out which
@@ -1248,7 +1248,7 @@ int _cinderx_exec_impl(PyObject* m) {
   if (next == nullptr) {
     return -1;
   }
-  state->setBuiltinNext(next);
+  state->builtin_next = Ref<>::create(next);
 
 #if PY_VERSION_HEX >= 0x030C0000
 
@@ -1260,21 +1260,19 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-  state->setAsyncLazyValueState(async_lazy_value);
+  state->async_lazy_value.reset(async_lazy_value);
 
   PyTypeObject* gen_type = (PyTypeObject*)PyType_FromSpec(&jit::JitGen_Spec);
   if (gen_type == nullptr) {
     return -1;
   }
-  state->setGenType(gen_type);
-  Py_DECREF(gen_type);
+  state->gen_type = Ref<PyTypeObject>::steal(gen_type);
 
   PyTypeObject* coro_type = (PyTypeObject*)PyType_FromSpec(&jit::JitCoro_Spec);
   if (coro_type == nullptr) {
     return -1;
   }
-  state->setCoroType(coro_type);
-  Py_DECREF(coro_type);
+  state->coro_type = Ref<PyTypeObject>::steal(coro_type);
 
 #if defined(ENABLE_LIGHTWEIGHT_FRAMES) && PY_VERSION_HEX < 0x030E0000
   Ref<PyTypeObject> frame_reifier_type = Ref<PyTypeObject>::steal(
@@ -1289,7 +1287,7 @@ int _cinderx_exec_impl(PyObject* m) {
 
   ((jit::JitFrameReifier*)reifier)->vectorcall =
       (vectorcallfunc)jit::jitFrameReifierVectorcall;
-  state->setFrameReifier(reifier);
+  state->frame_reifier = Ref<>::create(reifier);
 
   // Mark as immortal so we don't have to refcount this.
   immortalize(reifier);
@@ -1311,8 +1309,7 @@ int _cinderx_exec_impl(PyObject* m) {
   if (anext_awaitable_type == nullptr) {
     return -1;
   }
-  state->setAnextAwaitableType(anext_awaitable_type);
-  Py_DECREF(anext_awaitable_type);
+  state->anext_awaitable_type = Ref<PyTypeObject>::steal(anext_awaitable_type);
 
   auto anext_func = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
   if (anext_func == nullptr ||
@@ -1321,8 +1318,8 @@ int _cinderx_exec_impl(PyObject* m) {
   }
 
 #else
-  state->setCoroType(&PyCoro_Type);
-  state->setGenType(&PyGen_Type);
+  state->coro_type = Ref<PyTypeObject>::create(&PyCoro_Type);
+  state->gen_type = Ref<PyTypeObject>::create(&PyGen_Type);
 
 #endif
 
@@ -1344,7 +1341,7 @@ int _cinderx_exec_impl(PyObject* m) {
   if (symbolizer == nullptr) {
     return -1;
   }
-  state->setSymbolizer(symbolizer);
+  state->symbolizer.reset(symbolizer);
 
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     if (!state->initBuiltinMembers()) {
@@ -1352,7 +1349,7 @@ int _cinderx_exec_impl(PyObject* m) {
     }
   }
 
-  auto& watcher_state = state->watcherState();
+  auto& watcher_state = state->watcher_state;
   watcher_state.setCodeWatcher(cinderx_code_watcher);
   watcher_state.setDictWatcher(cinderx_dict_watcher);
   watcher_state.setFuncWatcher(cinderx_func_watcher);
@@ -1453,7 +1450,7 @@ int _cinderx_exec_impl(PyObject* m) {
       clear_name = "_clear_type_cache";
     }
     BorrowedRef<> clear_type_cache = PySys_GetObject(clear_name);
-    state->setSysClearCaches(clear_type_cache);
+    state->sys_clear_caches = Ref<>::create(clear_type_cache);
 
     // Replace sys._clear_type_cache with our clearing function
     Ref<> clear_caches =

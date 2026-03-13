@@ -12,7 +12,7 @@ GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen, PyCodeObject* gen_code) {
   // use PyObject_VAR_HEAD like it probably should this would get simpler. If
   // we expanded the allocation to include the GenDataFooter it'd get simpler
   // still.
-  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->genType();
+  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->gen_type;
 
   size_t python_frame_data_bytes =
       _PyFrame_NumSlotsForCodeObject(gen_code) * gen_type->tp_itemsize;

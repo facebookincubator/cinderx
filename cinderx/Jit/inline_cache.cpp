@@ -28,7 +28,7 @@ struct TypeWatcher {
 
   void watch(BorrowedRef<PyTypeObject> type, T* cache) {
     JIT_CHECK(
-        cinderx::getModuleState()->watcherState().watchType(type) == 0,
+        cinderx::getModuleState()->watcher_state.watchType(type) == 0,
         "Failed to watch type {} for attribute cache",
         type->tp_name);
     caches[type].emplace(cache);
@@ -1543,7 +1543,7 @@ PyObject* __attribute__((noinline)) LoadModuleAttrCache::lookupSlowPath(
     PyObject* dict = getModuleDict(object);
     BorrowedRef<PyUnicodeObject> uname{name};
     if (hasOnlyUnicodeKeys(dict)) {
-      cache_ = cinderx::getModuleState()->cacheManager()->getGlobalCache(
+      cache_ = cinderx::getModuleState()->cache_manager->getGlobalCache(
           dict, dict, uname);
     }
 #else
@@ -1610,7 +1610,7 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
       module_obj_ = obj;
 #if PY_VERSION_HEX >= 0x030E0000
       BorrowedRef<PyUnicodeObject> uname{name};
-      cache_ = cinderx::getModuleState()->cacheManager()->getGlobalCache(
+      cache_ = cinderx::getModuleState()->cache_manager->getGlobalCache(
           getModuleDict(obj), getModuleDict(obj), uname);
 #else
       module_version_ = version;

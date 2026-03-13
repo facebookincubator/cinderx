@@ -13,32 +13,14 @@ ModuleState* s_cinderx_state;
 } // namespace
 
 int ModuleState::traverse(visitproc visit, void* arg) {
-  Py_VISIT(builtin_next_);
+  Py_VISIT(builtin_next);
   return 0;
 }
 
 int ModuleState::clear() {
-  sys_clear_caches_.reset();
-  builtin_next_.reset();
+  sys_clear_caches.reset();
+  builtin_next.reset();
   return 0;
-}
-
-void setModuleState(BorrowedRef<> mod) {
-  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
-  s_cinderx_state = state;
-  state->setModule(mod);
-}
-
-ModuleState* getModuleState() {
-  return s_cinderx_state;
-}
-
-ModuleState* getModuleState(BorrowedRef<> mod) {
-  return reinterpret_cast<ModuleState*>(PyModule_GetState(mod));
-}
-
-void removeModuleState() {
-  s_cinderx_state = nullptr;
 }
 
 bool ModuleState::initBuiltinMembers() {
@@ -87,18 +69,28 @@ bool ModuleState::initBuiltinMembers() {
       }
     }
 
-    builtin_members_.emplace(type, std::move(type_members));
+    builtin_members.emplace(type, std::move(type_members));
   }
 #endif
   return true;
 }
 
-WatcherState& ModuleState::watcherState() {
-  return watcher_state_;
+ModuleState* getModuleState() {
+  return s_cinderx_state;
 }
 
-jit::UnorderedSet<BorrowedRef<>>& ModuleState::registeredCompilationUnits() {
-  return registered_compilation_units;
+ModuleState* getModuleState(BorrowedRef<> mod) {
+  return reinterpret_cast<ModuleState*>(PyModule_GetState(mod));
+}
+
+void setModuleState(BorrowedRef<> mod) {
+  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
+  s_cinderx_state = state;
+  state->cinderx_module = mod;
+}
+
+void removeModuleState() {
+  s_cinderx_state = nullptr;
 }
 
 } // namespace cinderx

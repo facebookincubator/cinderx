@@ -38,10 +38,10 @@ template <typename PyObjectT>
 int JitGen_CheckAny(PyObjectT* op) {
   return Py_IS_TYPE(
              reinterpret_cast<PyObject*>(op),
-             cinderx::getModuleState()->genType()) ||
+             cinderx::getModuleState()->gen_type) ||
       Py_IS_TYPE(
              reinterpret_cast<PyObject*>(op),
-             cinderx::getModuleState()->coroType());
+             cinderx::getModuleState()->coro_type);
 }
 
 struct JitGenObject : PyGenObject {

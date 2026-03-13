@@ -349,7 +349,7 @@ void Context::watchType(
   }
 
   JIT_CHECK(
-      cinderx::getModuleState()->watcherState().watchType(type) == 0,
+      cinderx::getModuleState()->watcher_state.watchType(type) == 0,
       "Failed to watch type {}",
       type->tp_name);
 }
@@ -365,7 +365,7 @@ BorrowedRef<> Context::strBuildClass() {
 void Context::watchPendingTypes() {
   for (auto& type : pending_watches_) {
     JIT_CHECK(
-        cinderx::getModuleState()->watcherState().watchType(type) == 0,
+        cinderx::getModuleState()->watcher_state.watchType(type) == 0,
         "Failed to watch pending type {}",
         type->tp_name);
   }
@@ -684,7 +684,7 @@ Context* getContext() {
   if (state == nullptr) {
     return nullptr;
   }
-  return static_cast<Context*>(state->jitContext());
+  return static_cast<Context*>(state->jit_context.get());
 }
 
 } // namespace jit

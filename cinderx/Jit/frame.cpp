@@ -38,7 +38,7 @@ CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
     func = jitFrameGetFunction(frame);
   }
 
-  return cinderx::getModuleState()->jitContext()->lookupCodeRuntime(func);
+  return cinderx::getModuleState()->jit_context->lookupCodeRuntime(func);
 }
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -61,7 +61,7 @@ bool isJitFrame(_PyInterpreterFrame* frame) {
   return PyUnstable_JITExecutable_Check(code) &&
       ((PyUnstable_PyJitExecutable*)code)->je_reifier == &reifyRunningFrame;
 #else
-  return frameFunction(frame) == cinderx::getModuleState()->frameReifier();
+  return frameFunction(frame) == cinderx::getModuleState()->frame_reifier;
 #endif
 
 #else
@@ -532,9 +532,9 @@ void jitFrameInitLightweight(
   frame->prev_instr = _PyCode_CODE(code) - 1;
   setFrameCode(frame, (PyObject*)code);
   JIT_DCHECK(
-      _Py_IsImmortal(cinderx::getModuleState()->frameReifier()),
+      _Py_IsImmortal(cinderx::getModuleState()->frame_reifier),
       "frame helper must be immortal");
-  setFrameFunction(frame, cinderx::getModuleState()->frameReifier());
+  setFrameFunction(frame, cinderx::getModuleState()->frame_reifier);
   jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
 #endif
   frame->previous = previous;

@@ -19,7 +19,7 @@ bool isJitCompiled(const PyFunctionObject* func) {
   if (mod_state == nullptr) {
     return false;
   }
-  jit::ICodeAllocator* code_allocator = mod_state->codeAllocator();
+  jit::ICodeAllocator* code_allocator = mod_state->code_allocator.get();
   return code_allocator != nullptr &&
       code_allocator->contains(reinterpret_cast<const void*>(func->vectorcall));
 }
@@ -33,7 +33,7 @@ CompiledFunction::~CompiledFunction() {
     data_.runtime->releaseReferences();
   }
 
-  auto code_allocator = cinderx::getModuleState()->codeAllocator();
+  auto code_allocator = cinderx::getModuleState()->code_allocator.get();
   code_allocator->releaseCode(const_cast<std::byte*>(data_.code.data()));
 }
 

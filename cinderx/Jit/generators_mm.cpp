@@ -29,13 +29,13 @@ size_t computeSlots(BorrowedRef<PyCodeObject> code, uint64_t jit_data_size) {
 std::pair<JitGenObject*, size_t> allocateNonFreeList(
     size_t slots,
     bool is_coro) {
-  BorrowedRef<PyTypeObject> gen_tp = cinderx::getModuleState()->genType();
+  BorrowedRef<PyTypeObject> gen_tp = cinderx::getModuleState()->gen_type;
   // All the generator types should be the same size.
   size_t size = _PyObject_VAR_SIZE(gen_tp, slots);
 
   JitGenObject* gen = is_coro
       ? reinterpret_cast<JitGenObject*>(PyObject_GC_NewVar(
-            PyCoroObject, cinderx::getModuleState()->coroType(), slots))
+            PyCoroObject, cinderx::getModuleState()->coro_type, slots))
       : reinterpret_cast<JitGenObject*>(
             PyObject_GC_NewVar(PyGenObject, gen_tp, slots));
   // See comment in allocate_and_link_interpreter_frame about failure.
@@ -62,7 +62,7 @@ void* JitGenFreeList::rawAllocate() {
   // The memory for the free-list is backed by the module state, so bump the
   // reference count to prevent it being free'd before all free-listed
   // generators are.
-  Py_INCREF(cinderx::getModuleState()->module());
+  Py_INCREF(cinderx::getModuleState()->cinderx_module);
   return entry->data;
 }
 
@@ -88,13 +88,13 @@ void JitGenFreeList::free(PyObject* ptr) {
   entry->next = head_;
   head_ = entry;
   // See comment in rawAllocate()
-  Py_DECREF(cinderx::getModuleState()->module());
+  Py_DECREF(cinderx::getModuleState()->cinderx_module);
 }
 
 std::pair<JitGenObject*, size_t> JitGenFreeList::allocate(
     BorrowedRef<PyCodeObject> code,
     uint64_t jit_data_size) {
-  BorrowedRef<PyTypeObject> gen_tp = cinderx::getModuleState()->genType();
+  BorrowedRef<PyTypeObject> gen_tp = cinderx::getModuleState()->gen_type;
   // We *assume* these assertions hold in free().
   JIT_DCHECK_ONCE(
       _PyType_PreHeaderSize(gen_tp) == sizeof(PyGC_Head) &&
@@ -126,7 +126,7 @@ std::pair<JitGenObject*, size_t> JitGenFreeList::allocate(
       reinterpret_cast<PyVarObject*>( // NOLINT(performance-no-int-to-ptr)
           reinterpret_cast<uintptr_t>(raw) + sizeof(PyGC_Head));
 
-  PyTypeObject* tp = is_coro ? cinderx::getModuleState()->coroType() : gen_tp;
+  PyTypeObject* tp = is_coro ? cinderx::getModuleState()->coro_type : gen_tp;
   _PyObject_InitVar(op, tp, slots);
 
   return {reinterpret_cast<JitGenObject*>(op), size};

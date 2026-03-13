@@ -381,7 +381,7 @@ bool LIRGenerator::TranslateSpecializedCall(
     return false;
   }
 
-  if (callee == cinderx::getModuleState()->builtinNext()) {
+  if (callee == cinderx::getModuleState()->builtin_next) {
     if (hir_instr.numArgs() == 1) {
       bbb.appendCallInstruction(
           hir_instr.output(), Ci_Builtin_Next_Core, hir_instr.arg(0), nullptr);
@@ -1912,7 +1912,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             PyUnicode_CheckExact(name),
             "Global name should be a string, but is actually a {}",
             Py_TYPE(name)->tp_name);
-        auto cache = cinderx::getModuleState()->cacheManager()->getGlobalCache(
+        auto cache = cinderx::getModuleState()->cache_manager->getGlobalCache(
             builtins, globals, name);
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{cache});
         break;
@@ -2922,7 +2922,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         PyObject* func_val = func;
 #else
         // Store frame helper as f_funcobj
-        PyObject* func_val = cinderx::getModuleState()->frameReifier();
+        PyObject* func_val = cinderx::getModuleState()->frame_reifier;
 #endif
         Instruction* func_reg =
             bbb.appendInstr(OutVReg{}, Instruction::kMove, func_val);

@@ -709,7 +709,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
   PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
-  auto [gen, gen_size] = cinderx::getModuleState()->jitGenFreeList()->allocate(
+  auto [gen, gen_size] = cinderx::getModuleState()->jit_gen_free_list->allocate(
       co, spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
 
   gen->gi_frame_state = FRAME_CREATED;

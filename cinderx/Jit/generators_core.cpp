@@ -13,7 +13,7 @@
 namespace jit {
 
 bool jitgen_is_coroutine(PyObject* o) {
-  if (Py_TYPE(o) != cinderx::getModuleState()->genType() &&
+  if (Py_TYPE(o) != cinderx::getModuleState()->gen_type &&
       !PyGen_CheckExact(o)) {
     return false;
   }
@@ -29,11 +29,11 @@ bool jitgen_is_coroutine(PyObject* o) {
 
 extern "C" {
 int JitGen_CheckExact(PyObject* o) {
-  return Py_TYPE(o) == cinderx::getModuleState()->genType();
+  return Py_TYPE(o) == cinderx::getModuleState()->gen_type;
 }
 
 int JitCoro_CheckExact(PyObject* o) {
-  return Py_TYPE(o) == cinderx::getModuleState()->coroType();
+  return Py_TYPE(o) == cinderx::getModuleState()->coro_type;
 }
 
 // This is a slightly modified version of _PyCoro_GetAwaitableIter. It

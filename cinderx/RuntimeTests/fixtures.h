@@ -68,7 +68,7 @@ class RuntimeTest : public ::testing::Test {
     // initialized is trying to use the code allocator and crashing, so check
     // that here.
     if (jit) {
-      auto code_allocator = mod_state->codeAllocator();
+      auto code_allocator = mod_state->code_allocator.get();
       ASSERT_NE(code_allocator, nullptr)
           << "Configured to use the JIT but it wasn't initialized";
     }

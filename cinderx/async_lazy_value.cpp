@@ -243,7 +243,7 @@ extern "C" {
 
 static cinderx::AsyncLazyValueState* get_state() {
   return static_cast<cinderx::AsyncLazyValueState*>(
-      cinderx::getModuleState()->asyncLazyValueState());
+      cinderx::getModuleState()->async_lazy_value.get());
 }
 
 static PyObject* get_event_loop() {

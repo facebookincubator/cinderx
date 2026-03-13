@@ -27,7 +27,7 @@ BorrowedRef<> immutableMultithreadedTypeLookup(
     PyTypeObject* mro_type =
         reinterpret_cast<PyTypeObject*>(PyTuple_GET_ITEM(mro.get(), i));
     if (PyType_HasFeature(mro_type, _Py_TPFLAGS_STATIC_BUILTIN)) {
-      auto& builtins = cinderx::getModuleState()->builtinMembers();
+      auto& builtins = cinderx::getModuleState()->builtin_members;
 
       auto members = builtins.find(mro_type);
       if (members == builtins.end()) {
@@ -111,7 +111,7 @@ BorrowedRef<> getMethodObjectFromType(Type receiver_type, BorrowedRef<> name) {
   // access to the current runtime, and in multi-threaded compile we don't
   // have it. So we instead have a cache of all of the builtin types that we
   // support this for.
-  auto& builtins = cinderx::getModuleState()->builtinMembers();
+  auto& builtins = cinderx::getModuleState()->builtin_members;
 
   if (PyType_HasFeature(type, _Py_TPFLAGS_STATIC_BUILTIN)) {
     auto it = builtins.find(receiver_type.runtimePyType());

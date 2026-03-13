@@ -266,12 +266,12 @@ std::optional<std::string> symbolize(const void* func) {
     return std::nullopt;
   }
   auto module_state = cinderx::getModuleState();
-  if (module_state == nullptr || module_state->symbolizer() == nullptr) {
+  if (module_state == nullptr || module_state->symbolizer.get() == nullptr) {
     return std::nullopt;
   }
 
   std::optional<std::string_view> mangled_name =
-      module_state->symbolizer()->symbolize(func);
+      module_state->symbolizer.get()->symbolize(func);
   if (!mangled_name.has_value()) {
     return std::nullopt;
   }

@@ -97,7 +97,7 @@ void raise_already_running_exception(JitGenObject* jit_gen) {
   // If the executor is running we cannot deopt so have to replicate the
   // errors from CPython here.
   const char* msg = "generator already executing";
-  if (Py_TYPE(jit_gen) == cinderx::getModuleState()->coroType()) {
+  if (Py_TYPE(jit_gen) == cinderx::getModuleState()->coro_type) {
     msg = "coroutine already executing";
   }
   PyErr_SetString(PyExc_ValueError, msg);
@@ -707,7 +707,7 @@ PyType_Spec JitCoro_Spec = {
 void deopt_jit_gen_object_only(JitGenObject* gen) {
   PyTypeObject* old_type = Py_TYPE(gen);
 
-  PyTypeObject* type = Py_TYPE(gen) == cinderx::getModuleState()->genType()
+  PyTypeObject* type = Py_TYPE(gen) == cinderx::getModuleState()->gen_type
       ? &PyGen_Type
       : &PyCoro_Type;
   Py_DECREF(old_type);
@@ -771,8 +771,8 @@ bool deopt_jit_gen(PyObject* obj) {
 void init_jit_genobject_type() {
   using namespace std::literals;
   // Copy base type functions
-  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->genType();
-  BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coroType();
+  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->gen_type;
+  BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coro_type;
 
   gen_type->tp_repr = PyGen_Type.tp_repr;
 
@@ -865,10 +865,10 @@ void init_jit_genobject_type() {
   copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
 #ifdef Py_GIL_DISABLED
-  cinderx::getModuleState()->setJitGenFreeList(
+  cinderx::getModuleState()->jit_gen_free_list.reset(
       new JITGenFreeThreadedFreeList());
 #else
-  cinderx::getModuleState()->setJitGenFreeList(new JitGenFreeList());
+  cinderx::getModuleState()->jit_gen_free_list.reset(new JitGenFreeList());
 #endif
 
   // Override dealloc so we can use a "free-list" for our objects.
@@ -927,7 +927,7 @@ PyObject* JitGen_AnextAwaitable_New(
     PyObject* awaitable,
     PyObject* defaultValue) {
   anextawaitableobject* anext =
-      PyObject_GC_New(anextawaitableobject, moduleState->anextAwaitableType());
+      PyObject_GC_New(anextawaitableobject, moduleState->anext_awaitable_type);
   if (anext == nullptr) {
     return nullptr;
   }

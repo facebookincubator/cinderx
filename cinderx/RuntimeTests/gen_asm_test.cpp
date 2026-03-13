@@ -24,7 +24,7 @@ class ASMGeneratorTest : public RuntimeTest {
     CompilationKey key{
         func_obj->func_code, func_obj->func_builtins, func_obj->func_globals};
     auto jit_ctx = reinterpret_cast<jit::CompilerContext<Compiler>*>(
-        cinderx::getModuleState()->jitContext());
+        cinderx::getModuleState()->jit_context.get());
     std::optional<CompiledFunctionData> compiled_func =
         jit_ctx->compiler().Compile(func);
     if (!compiled_func.has_value()) {
