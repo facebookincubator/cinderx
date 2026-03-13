@@ -94,6 +94,9 @@ struct ModuleState {
 
   // Callback invoked when a compilation unit is deleted during preloading.
   std::function<void(BorrowedRef<>)> unit_deleted_during_preload;
+
+  // Whether runtime modification of Strict Module types is allowed.
+  bool enable_patching{false};
 };
 
 // Get the global ModuleState singleton.

@@ -856,10 +856,6 @@ int cinderx_type_watcher(PyTypeObject* type) {
   return 0;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
-bool enable_patching = 0;
-#endif
-
 static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
   if (!PyType_Check(o)) {
     PyErr_Format(
@@ -876,7 +872,7 @@ static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
     ((PyTypeObject*)o)->tp_flags |= Ci_Py_TPFLAGS_FROZEN;
   }
 #else
-  if (!enable_patching) {
+  if (!cinderx::getModuleState()->enable_patching) {
     ((PyTypeObject*)o)->tp_flags |= Py_TPFLAGS_IMMUTABLETYPE;
   }
 #endif
@@ -1495,7 +1491,7 @@ int _cinderx_exec_impl(PyObject* m) {
 
 #if PY_VERSION_HEX >= 0x030C0000
   char* patching = getenv("PYTHONENABLEPATCHING");
-  enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
+  state->enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
 
 #ifdef ENABLE_INTERPRETER_LOOP
   Ci_InitOpcodes();
