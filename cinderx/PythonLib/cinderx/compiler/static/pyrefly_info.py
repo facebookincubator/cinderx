@@ -176,6 +176,30 @@ class PyreflyTypeInfo:
             data = json.load(f)
         return cls(data)
 
+    def _resolve_qname(
+        self,
+        qname: str,
+        modules: dict[str, ModuleTable],
+    ) -> tuple[str, Value, list[str]] | None:
+        """Resolve a dotted qname into a top-level value and a chain of attributes.
+
+        Splits the qname on '.' and tries progressively shorter prefixes
+        as module names, then looks up the next name in the chain as a
+        top-level value in that module. Returns the module name, the top-level
+        value, and the remaining attributes, e.g. if foo.bar.baz is a module,
+          _resolve_qname("foo.bar.baz.A.B.f") ->
+              ("foo.bar.baz", foo.bar.baz.A, ["B", "f"])
+        """
+        parts = qname.split(".")
+        for i in range(len(parts) - 1, 0, -1):
+            mod_name = ".".join(parts[:i])
+            if mod_name in modules:
+                mod = modules[mod_name]
+                result = mod.get_child(parts[i], mod_name)
+                if result is not None:
+                    return mod_name, result, parts[i + 1 :]
+        return None
+
     def resolve_func(
         self,
         qname: str,
@@ -184,69 +208,48 @@ class PyreflyTypeInfo:
     ) -> Value | None:
         """Resolve a dotted qname like 'module.path.func_name' to a callable Value.
 
-        Splits the qname on '.' and tries progressively shorter prefixes
-        as module names, then looks up the function name in the module.
         This handles both user-defined Functions and built-in callable
         types like LenFunction.
         """
-        parts = qname.split(".")
-
-        for i in range(len(parts) - 1, 0, -1):
-            mod_name = ".".join(parts[:i])
-            if mod_name in modules:
-                mod = modules[mod_name]
-                result = mod.get_child(parts[i], mod_name)
-                if result is None:
-                    continue
-                # Walk remaining parts (e.g. Class.method)
-                for part in parts[i + 1 :]:
-                    if isinstance(result, Class):
-                        result = result.get_member(part)
-                    else:
-                        result = None
-                        break
-                    if result is None:
-                        break
-                if result is not None:
-                    return result
+        if ret := self._resolve_qname(qname, modules):
+            _, result, parts = ret
+        else:
+            return None
+        for part in parts:
+            if isinstance(result, Class):
+                result = result.get_member(part)
+            else:
+                result = None
+            if result is None:
+                break
+        if result is not None:
+            return result
 
         return None
 
     def resolve_classname(
         self, qname: str, modules: dict[str, ModuleTable], type_env: TypeEnvironment
     ) -> Class | None:
-        """Resolve a dotted qname like 'builtins.int' to a Class.
-
-        Splits the qname on '.' and tries progressively shorter prefixes
-        as module names, then walks the remainder as nested attributes.
-        """
-        parts = qname.split(".")
-
-        # Try progressively shorter prefixes as module names
-        for i in range(len(parts) - 1, 0, -1):
-            mod_name = ".".join(parts[:i])
-            if mod_name in modules:
-                mod = modules[mod_name]
-                result = mod.get_child(parts[i], mod_name)
-                if result is None:
-                    continue
-                # Walk any remaining parts (e.g. nested classes)
-                for part in parts[i + 1 :]:
-                    if isinstance(result, Class):
-                        # pyre-ignore[16]: `Class` has no attribute `get_child`
-                        result = result.get_child(part, mod_name)
-                    else:
-                        return None
-                    if result is None:
-                        return None
+        """Resolve a dotted qname like 'builtins.int' to a Class."""
+        if ret := self._resolve_qname(qname, modules):
+            mod_name, result, parts = ret
+            # Walk any remaining parts (e.g. nested classes)
+            for part in parts:
                 if isinstance(result, Class):
-                    return result.inexact_type()
-                elif isinstance(result, Value):
-                    return result.klass
-                return None
+                    # pyre-ignore[16]: `Class` has no attribute `get_child`
+                    result = result.get_child(part, mod_name)
+                else:
+                    return None
+                if result is None:
+                    return None
+            if isinstance(result, Class):
+                return result.inexact_type()
+            elif isinstance(result, Value):
+                return result.klass
+            return None
 
         # No dot — try builtins
-        if len(parts) == 1:
+        if "." not in qname:
             builtins = modules.get("builtins")
             if builtins is not None:
                 result = builtins.get_child(parts[0], "builtins")
