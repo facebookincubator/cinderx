@@ -2,10 +2,106 @@
 
 # pyre-strict
 
+import ast
+import unittest
+
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static.types import TypedSyntaxError
+from cinderx.compiler.static.visitor import GenericVisitor
 
 from .common import StaticTestBase
+
+
+def _make_import_from(code: str) -> ast.ImportFrom:
+    """Parse a single 'from ... import ...' statement into an ImportFrom node."""
+    mod = ast.parse(code)
+    node = mod.body[0]
+    assert isinstance(node, ast.ImportFrom)
+    return node
+
+
+class ResolveRelativeImportTests(unittest.TestCase):
+    """Unit tests for GenericVisitor._resolve_relative_import name resolution.
+
+    These test the name manipulation logic directly, without needing the full
+    static compiler infrastructure. This lets us test __init__.py handling
+    which the TestCompiler infra can't exercise (its _get_filename never
+    produces __init__.py filenames).
+    """
+
+    def _resolve(self, module_name: str, filename: str, import_code: str) -> str:
+        """Call _resolve_relative_import with the given module context."""
+        node = _make_import_from(import_code)
+        # Create a minimal mock that has the attributes _resolve_relative_import needs:
+        # module_name, filename, and syntax_error.
+        visitor = object.__new__(GenericVisitor)
+        visitor.module_name = module_name
+        visitor.filename = filename
+        errors: list[str] = []
+        # pyre-ignore[8]: Attribute has type `(self: GenericVisitor[TVisitRet], msg: str, node: AST) -> None`
+        visitor.syntax_error = lambda msg, node: errors.append(msg)
+        result = visitor._resolve_relative_import(node)
+        if errors:
+            raise ValueError(errors[0])
+        return result
+
+    # --- Non-__init__ modules (regular .py files) ---
+
+    def test_single_dot_from_submodule(self) -> None:
+        # from .foo import C in pkg.mod -> pkg.foo
+        result = self._resolve("pkg.mod", "mod.py", "from .foo import C")
+        self.assertEqual(result, "pkg.foo")
+
+    def test_single_dot_no_module(self) -> None:
+        # from . import foo in pkg.mod -> base module is "pkg",
+        # then "foo" is resolved as a child of pkg by visitImportFrom.
+        result = self._resolve("pkg.mod", "mod.py", "from . import foo")
+        self.assertEqual(result, "pkg")
+
+    def test_double_dot(self) -> None:
+        # from ..foo import C in pkg.sub.mod -> pkg.foo
+        result = self._resolve("pkg.sub.mod", "mod.py", "from ..foo import C")
+        self.assertEqual(result, "pkg.foo")
+
+    def test_double_dot_no_module(self) -> None:
+        # from .. import foo in pkg.sub.mod -> base module is "pkg",
+        # then "foo" is resolved as a child of pkg by visitImportFrom.
+        result = self._resolve("pkg.sub.mod", "mod.py", "from .. import foo")
+        self.assertEqual(result, "pkg")
+
+    def test_beyond_top_level(self) -> None:
+        # from ...foo import C in pkg.mod -> error (only 2 parts, 3 dots)
+        with self.assertRaisesRegex(ValueError, "beyond top-level"):
+            self._resolve("pkg.mod", "mod.py", "from ...foo import C")
+
+    # --- __init__.py modules (package __init__ files) ---
+
+    def test_init_single_dot(self) -> None:
+        # from . import foo in pkg/__init__.py (module_name="pkg") -> base is "pkg",
+        # then "foo" is resolved as a child of pkg by visitImportFrom.
+        result = self._resolve("pkg", "__init__.py", "from . import foo")
+        self.assertEqual(result, "pkg")
+
+    def test_init_single_dot_with_module(self) -> None:
+        # from .sub import C in pkg/__init__.py (module_name="pkg") -> pkg.sub
+        result = self._resolve("pkg", "__init__.py", "from .sub import C")
+        self.assertEqual(result, "pkg.sub")
+
+    def test_init_double_dot(self) -> None:
+        # from .. import foo in pkg.sub/__init__.py (module_name="pkg.sub") -> base is "pkg",
+        # then "foo" is resolved as a child of pkg by visitImportFrom.
+        result = self._resolve("pkg.sub", "__init__.py", "from .. import foo")
+        self.assertEqual(result, "pkg")
+
+    def test_init_double_dot_with_module(self) -> None:
+        # from ..other import C in pkg.sub/__init__.py -> pkg.other
+        result = self._resolve("pkg.sub", "__init__.py", "from ..other import C")
+        self.assertEqual(result, "pkg.other")
+
+    def test_init_beyond_top_level(self) -> None:
+        # from .. import foo in top-level pkg/__init__.py -> error
+        with self.assertRaisesRegex(ValueError, "beyond top-level"):
+            self._resolve("pkg", "__init__.py", "from .. import foo")
 
 
 class ImportTests(StaticTestBase):

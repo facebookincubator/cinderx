@@ -3,7 +3,7 @@
 # pyre-strict
 
 from cinderx.compiler.static.module_table import ModuleTableException
-from cinderx.compiler.static.types import ModuleInstance
+from cinderx.compiler.static.types import Class, ModuleInstance, TypedSyntaxError
 
 from .common import get_child, StaticTestBase, TestCompiler
 
@@ -313,6 +313,96 @@ class ModuleTests(StaticTestBase):
         """
         compiler = self.decl_visit(**{"a": acode, "b": bcode})
         compiler.compile_module("a")
+
+    # --- Relative import resolution tests ---
+
+    def test_relative_import_from_dot_module(self) -> None:
+        """from .foo import X in pkg.mod resolves to pkg.foo.X"""
+        foo_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            from .foo import C
+        """
+        compiler = self.decl_visit(**{"pkg.foo": foo_code, "pkg.mod": mod_code})
+
+        c = get_child(compiler.modules["pkg.mod"], "C")
+        self.assertIsNotNone(c)
+        assert isinstance(c, Class)
+        self.assertEqual(c.type_name.module, "pkg.foo")
+        self.assertEqual(c.type_name.qualname, "C")
+
+    def test_relative_import_from_dot_no_module(self) -> None:
+        """from . import foo in pkg.mod resolves to pkg.foo"""
+        foo_code = """
+            def f(x: int) -> int:
+                return x
+        """
+        mod_code = """
+            from . import foo
+        """
+        pkg_code = """
+            pass
+        """
+        compiler = self.decl_visit(
+            **{"pkg": pkg_code, "pkg.foo": foo_code, "pkg.mod": mod_code}
+        )
+
+        foo = get_child(compiler.modules["pkg.mod"], "foo")
+        self.assertIsNotNone(foo)
+        assert isinstance(foo, ModuleInstance)
+        self.assertEqual(foo.module_name, "pkg.foo")
+
+    def test_relative_import_multi_level(self) -> None:
+        """from .. import foo in pkg.sub.mod resolves to pkg.foo"""
+        foo_code = """
+            def f(x: int) -> int:
+                return x
+        """
+        mod_code = """
+            from .. import foo
+        """
+        pkg_code = """
+            pass
+        """
+        compiler = self.decl_visit(
+            **{"pkg": pkg_code, "pkg.foo": foo_code, "pkg.sub.mod": mod_code}
+        )
+
+        foo = get_child(compiler.modules["pkg.sub.mod"], "foo")
+        self.assertIsNotNone(foo)
+        assert isinstance(foo, ModuleInstance)
+        self.assertEqual(foo.module_name, "pkg.foo")
+
+    def test_relative_import_multi_level_with_module(self) -> None:
+        """from ..other import C in pkg.sub.mod resolves to pkg.other.C"""
+        other_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            from ..other import C
+        """
+        compiler = self.decl_visit(**{"pkg.other": other_code, "pkg.sub.mod": mod_code})
+
+        c = get_child(compiler.modules["pkg.sub.mod"], "C")
+        self.assertIsNotNone(c)
+        assert isinstance(c, Class)
+        self.assertEqual(c.type_name.module, "pkg.other")
+        self.assertEqual(c.type_name.qualname, "C")
+
+    def test_relative_import_beyond_top_level(self) -> None:
+        """Relative import with too many dots should error."""
+        mod_code = """
+            from ...foo import C
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "attempted relative import beyond top-level package"
+        ):
+            self.decl_visit(**{"pkg.mod": mod_code})
 
     def test_actual_cyclic_reference(self) -> None:
         acode = """

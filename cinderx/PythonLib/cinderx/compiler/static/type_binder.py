@@ -1755,9 +1755,13 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 self.declare_local(declaration_name, typ)
 
     def visitImportFrom(self, node: ImportFrom) -> None:
-        mod_name = node.module
-        if node.level or not mod_name:
-            raise NotImplementedError("relative imports aren't supported")
+        if node.level:
+            mod_name = self._resolve_relative_import(node)
+        else:
+            mod_name = node.module
+        if not mod_name:
+            self.syntax_error("empty module name in import", node)
+            return
 
         if mod_name == "__static__":
             for alias in node.names:

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from ast import AST
+from ast import AST, ImportFrom
 from contextlib import contextmanager, nullcontext
 from typing import ContextManager, Generator, Generic, TYPE_CHECKING, TypeVar
 
@@ -80,6 +80,35 @@ class GenericVisitor(ASTVisitor, Generic[TVisitRet]):
         if node is None:
             return nullcontext()
         return self.error_sink.error_context(self.filename, node)
+
+    def _resolve_relative_import(self, node: ImportFrom) -> str:
+        """Resolve a relative import to an absolute module name.
+
+        For __init__ modules, level=1 means "this package" (no stripping).
+        For non-__init__ modules, level=1 means "parent package" (strip one).
+        Each additional level strips one more package component.
+        """
+        level = node.level
+        parts = self.module_name.split(".")
+        # __init__ modules ARE the package, so relative imports start from
+        # the package itself rather than its parent.
+        is_package = self.filename.endswith("__init__.py")
+        strip = level if not is_package else level - 1
+        if strip > len(parts):
+            self.syntax_error(
+                "attempted relative import beyond top-level package", node
+            )
+            return ""
+        # Copy with list() when strip == 0 to avoid mutating `parts` via append below.
+        base_parts = parts[: len(parts) - strip] if strip > 0 else list(parts)
+        if node.module:
+            base_parts.append(node.module)
+        result = ".".join(base_parts)
+        if not result:
+            self.syntax_error(
+                "attempted relative import beyond top-level package", node
+            )
+        return result
 
     @contextmanager
     def temporary_error_sink(self, sink: ErrorSink) -> Generator[None, None, None]:

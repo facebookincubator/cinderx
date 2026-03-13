@@ -261,9 +261,13 @@ class DeclarationVisitor(GenericVisitor[None]):
                 )
 
     def visitImportFrom(self, node: ImportFrom) -> None:
-        mod_name = node.module
-        if not mod_name or node.level:
-            raise NotImplementedError("relative imports aren't supported")
+        if node.level:
+            mod_name = self._resolve_relative_import(node)
+        else:
+            mod_name = node.module
+        if not mod_name:
+            self.syntax_error("empty module name in import", node)
+            return
         for name in node.names:
             child_name = name.asname or name.name
             self.module.declare_import(

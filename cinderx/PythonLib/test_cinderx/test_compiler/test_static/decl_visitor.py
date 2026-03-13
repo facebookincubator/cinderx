@@ -295,3 +295,101 @@ class DeclarationVisitorTests(StaticTestBase):
             compiler.compile(
                 "a", "a.py", ast.parse(dedent(codestr)), codestr, optimize=1
             )
+
+    # --- Relative import tests ---
+
+    def test_relative_import_preserves_static_type(self) -> None:
+        """from .foo import C in pkg.mod should resolve C statically,
+        producing INVOKE_FUNCTION bytecode instead of a dynamic call."""
+        foo_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            from .foo import C
+
+            def g():
+                x = C()
+                return x.f()
+        """
+        comp = self.compiler(**{"pkg.foo": foo_code, "pkg.mod": mod_code})
+        f = self.find_code(comp.compile_module("pkg.mod"), "g")
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("pkg.foo", "C"), "f"), 1))
+
+    def test_relative_import_multi_level_preserves_static_type(self) -> None:
+        """from ..foo import C in pkg.sub.mod should resolve to pkg.foo.C."""
+        foo_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            from ..foo import C
+
+            def g():
+                x = C()
+                return x.f()
+        """
+        comp = self.compiler(**{"pkg.foo": foo_code, "pkg.sub.mod": mod_code})
+        f = self.find_code(comp.compile_module("pkg.sub.mod"), "g")
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("pkg.foo", "C"), "f"), 1))
+
+    def test_relative_import_from_dot_no_module(self) -> None:
+        """from . import foo in pkg.mod should resolve foo as a module,
+        and chained attribute access foo.f() should produce INVOKE_FUNCTION."""
+        pkg_code = """
+            pass
+        """
+        foo_code = """
+            def f(x: int) -> int:
+                return x
+        """
+        mod_code = """
+            from . import foo
+
+            def g():
+                return foo.f(1)
+        """
+        comp = self.compiler(
+            **{"pkg": pkg_code, "pkg.foo": foo_code, "pkg.mod": mod_code}
+        )
+        f = self.find_code(comp.compile_module("pkg.mod"), "g")
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("pkg.foo",), "f"), 1))
+
+    def test_relative_import_in_function_scope(self) -> None:
+        """Function-scope relative import should work via type_binder path."""
+        foo_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            def g():
+                from .foo import C
+                x = C()
+                return x.f()
+        """
+        comp = self.compiler(**{"pkg.foo": foo_code, "pkg.mod": mod_code})
+        f = self.find_code(comp.compile_module("pkg.mod"), "g")
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("pkg.foo", "C"), "f"), 1))
+
+    def test_relative_import_type_checking(self) -> None:
+        """Relative import under TYPE_CHECKING should resolve for type annotations."""
+        foo_code = """
+            class C:
+                def f(self) -> int:
+                    return 42
+        """
+        mod_code = """
+            from typing import TYPE_CHECKING
+
+            if TYPE_CHECKING:
+                from .foo import C
+
+            def g(x: C):
+                return x.f()
+        """
+        comp = self.compiler(**{"pkg.foo": foo_code, "pkg.mod": mod_code})
+        f = self.find_code(comp.compile_module("pkg.mod"), "g")
+        self.assertInBytecode(f, "INVOKE_METHOD", ((("pkg.foo", "C"), "f"), 0))
