@@ -38,6 +38,7 @@ class PyreflyCompiler(Compiler):
             enable_patching=enable_patching,
             use_py_compiler=use_py_compiler,
             allow_list_regex=allow_list_regex,
+            raise_on_error=True,
         )
         self.pyrefly = pyrefly
         self.static_opt_in = static_opt_in
