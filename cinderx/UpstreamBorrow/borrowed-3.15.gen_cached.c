@@ -2181,8 +2181,8 @@ error:
     MCACHE_HASH(FT_ATOMIC_LOAD_UINT_RELAXED((type)->tp_version_tag),   \
                 ((Py_ssize_t)(name)) >> 3)
 #define MCACHE_CACHEABLE_NAME(name)                             \
-        PyUnicode_CheckExact(name) &&                           \
-        (PyUnicode_GET_LENGTH(name) <= MCACHE_MAX_ATTR_SIZE)
+        (PyUnicode_CheckExact(name) &&                           \
+         (PyUnicode_GET_LENGTH(name) <= MCACHE_MAX_ATTR_SIZE))
 #define NEXT_VERSION_TAG(interp) \
     (interp)->types.next_version_tag
 #ifdef Py_GIL_DISABLED
