@@ -598,10 +598,6 @@ void init_existing_objects() {
   PyUnstable_GC_VisitObjects(object_visitor, nullptr);
 }
 
-std::unique_ptr<PyGetSetDef[]> s_func_getset;
-std::unique_ptr<PyGetSetDef[]> s_class_method_getset;
-std::unique_ptr<PyGetSetDef[]> s_method_getset;
-
 // Count the number of elements in a PyGetSetDef array.
 size_t getsetLen(PyGetSetDef* getset) {
   size_t len = 0;
@@ -615,7 +611,7 @@ size_t getsetLen(PyGetSetDef* getset) {
 // typed signature getter.
 void getsetOverride(
     PyTypeObject* type,
-    std::unique_ptr<PyGetSetDef[]>& targetArray,
+    cinderx::ModuleState::GetSetOverride& target,
     getter typeSigGetter) {
   constexpr std::string_view kGetterName{"__typed_signature__"};
 
@@ -624,7 +620,7 @@ void getsetOverride(
 
   // Might be re-initializing CinderX, when that happens the typed signature
   // getters are already installed.
-  if (original == targetArray.get()) {
+  if (original == target.override.get()) {
     PyGetSetDef* member = &original[len - 1];
     JIT_CHECK(
         member->name == kGetterName && member->get == typeSigGetter,
@@ -647,9 +643,11 @@ void getsetOverride(
   def->name = kGetterName.data();
   def->get = typeSigGetter;
 
-  // Override the type's getset array and assign it to global scope.
-  targetArray = std::move(newArray);
-  type->tp_getset = targetArray.get();
+  // Save the original array so it can be restored later, then override.
+  target.type = type;
+  target.original = original;
+  target.override = std::move(newArray);
+  type->tp_getset = target.override.get();
 
   // Assign a descr for the new getter.  Will abort on failure as there's no way
   // to recover right now.
@@ -665,24 +663,46 @@ void getsetOverride(
   PyType_Modified(type);
 }
 
+// Restore the original getset array on a type, undoing getsetOverride.
+void getsetRevert(cinderx::ModuleState::GetSetOverride& target) {
+  if (target.type == nullptr) {
+    return;
+  }
+  target.type->tp_getset = target.original;
+
+  // Remove the __typed_signature__ descriptor that getsetOverride added to the
+  // type's dict.  The descriptor references memory in the override array which
+  // is about to be freed.
+  BorrowedRef<> dict = _PyType_GetDict(target.type);
+  if (dict != nullptr) {
+    PyDict_DelItemString(dict, "__typed_signature__");
+    PyErr_Clear();
+  }
+
+  PyType_Modified(target.type);
+
+  target.override.reset();
+  target.type = nullptr;
+  target.original = nullptr;
+}
+
 void init_already_existing_types() {
   // Update getset functions for callable types to include typed signature
-  // getters.
-  //
-  // NB: This persists after cinderx is unloaded.  Ideally we would put the
-  // original arrays back.
+  // getters.  The original tp_getset pointers are saved so they can be
+  // restored when CinderX is unloaded (see fini_already_existing_types).
   if constexpr (PY_VERSION_HEX < 0x030E0000) {
+    auto* ms = cinderx::getModuleState();
     getsetOverride(
         &PyCFunction_Type,
-        s_func_getset,
+        ms->func_getset,
         reinterpret_cast<getter>(Ci_meth_get__typed_signature__));
     getsetOverride(
         &PyClassMethodDescr_Type,
-        s_class_method_getset,
+        ms->class_method_getset,
         reinterpret_cast<getter>(Ci_method_get_typed_signature));
     getsetOverride(
         &PyMethodDescr_Type,
-        s_method_getset,
+        ms->method_getset,
         reinterpret_cast<getter>(Ci_method_get_typed_signature));
   }
 }
@@ -1046,6 +1066,12 @@ void module_free(void* raw_mod) {
   // to keep the module alive while such uses are outstanding.
   jit::shutdown_jit_genobject_type();
 #endif
+
+  // Restore original tp_getset arrays on builtin types before destroying the
+  // override arrays in ModuleState.
+  getsetRevert(state->func_getset);
+  getsetRevert(state->class_method_getset);
+  getsetRevert(state->method_getset);
 
   // Running the module state's destructor will access the global singleton, so
   // reset the singleton afterwards.
