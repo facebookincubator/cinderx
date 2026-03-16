@@ -95,6 +95,10 @@ struct ModuleState {
   // Callback invoked when a compilation unit is deleted during preloading.
   std::function<void(BorrowedRef<>)> unit_deleted_during_preload;
 
+  // Index for the extra data that CinderX saves on code objects with
+  // PyUnstable_Code_SetExtra, and loads with PyUnstable_Code_GetExtra.
+  Py_ssize_t code_extra_index{-1};
+
   // Whether runtime modification of Strict Module types is allowed.
   bool enable_patching{false};
 };

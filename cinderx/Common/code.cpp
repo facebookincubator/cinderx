@@ -9,6 +9,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+#include "cinderx/module_state.h"
 
 #include <zlib.h>
 
@@ -17,13 +18,6 @@
 #include "cpython/code.h"
 
 #endif
-
-namespace {
-
-// Index used for fetching code object extra data.
-Py_ssize_t code_extra_index = -1;
-
-} // namespace
 
 namespace jit {
 static std::string fullnameImpl(PyObject* module, PyObject* qualname) {
@@ -202,22 +196,30 @@ void initCodeExtraIndex() {
   if constexpr (!USE_CODE_EXTRA) {
     return;
   }
+  auto state = cinderx::getModuleState();
   JIT_CHECK(
-      code_extra_index == -1,
+      state != nullptr,
+      "Trying to initialize code extra index but there's no module state");
+  JIT_CHECK(
+      state->code_extra_index == -1,
       "Cannot re-initialize code extra index without finalizing it first");
 
-  code_extra_index = PyUnstable_Eval_RequestCodeExtraIndex(PyMem_Free);
+  state->code_extra_index = PyUnstable_Eval_RequestCodeExtraIndex(PyMem_Free);
 }
 
 void finiCodeExtraIndex() {
   if constexpr (!USE_CODE_EXTRA) {
     return;
   }
+  auto state = cinderx::getModuleState();
   JIT_CHECK(
-      code_extra_index != -1,
+      state != nullptr,
+      "Trying to finalize code extra index but there's no module state");
+  JIT_CHECK(
+      state->code_extra_index != -1,
       "Cannot finalize code extra index without initializing it first");
 
-  code_extra_index = -1;
+  state->code_extra_index = -1;
 }
 
 CodeExtra* codeExtra(PyCodeObject* code) {
@@ -225,7 +227,13 @@ CodeExtra* codeExtra(PyCodeObject* code) {
     return nullptr;
   }
 
-  if (code_extra_index == -1) {
+  auto* state = cinderx::getModuleState();
+  // On shutdown the module state becomes inaccessible.
+  if (state == nullptr) {
+    return nullptr;
+  }
+  Py_ssize_t extra_index = state->code_extra_index;
+  if (extra_index == -1) {
     return nullptr;
   }
 
@@ -236,7 +244,7 @@ CodeExtra* codeExtra(PyCodeObject* code) {
   jit::CriticalSectionGuard guard(code_obj);
 
   void* data_ptr = nullptr;
-  if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &data_ptr) < 0) {
+  if (PyUnstable_Code_GetExtra(code_obj, extra_index, &data_ptr) < 0) {
     JIT_LOG("Failed to get code extra data for {}", codeName(code));
     jit::printPythonException();
     PyErr_Clear();
@@ -251,7 +259,7 @@ CodeExtra* codeExtra(PyCodeObject* code) {
     return nullptr;
   }
 
-  if (PyUnstable_Code_SetExtra(code_obj, code_extra_index, extra) < 0) {
+  if (PyUnstable_Code_SetExtra(code_obj, extra_index, extra) < 0) {
     JIT_LOG("Failed to set code extra data for {}", codeName(code));
     jit::printPythonException();
     PyErr_Clear();
