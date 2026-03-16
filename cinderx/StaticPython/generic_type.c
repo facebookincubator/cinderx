@@ -6,15 +6,14 @@
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
 
-static PyObject* genericinst_cache;
-
 void _PyClassLoader_ClearGenericTypes() {
-  Py_CLEAR(genericinst_cache);
+  Ci_ClearGenericInstCache();
 }
 
 static PyObject* get_optional_type(PyObject* type) {
@@ -398,11 +397,14 @@ PyObject* _PyClassLoader_GetGenericInst(
     PyObject* type,
     PyObject** args,
     Py_ssize_t nargs) {
-  if (genericinst_cache == NULL) {
-    genericinst_cache = PyDict_New();
-    if (genericinst_cache == NULL) {
+  PyObject* cache = Ci_GetGenericInstCache();
+  if (cache == NULL) {
+    cache = PyDict_New();
+    if (cache == NULL) {
       return NULL;
     }
+    Ci_SetGenericInstCache((PyDictObject*)cache);
+    Py_DECREF(cache);
   }
 
   PyObject* key = gtd_make_key(type, args, nargs);
@@ -410,7 +412,7 @@ PyObject* _PyClassLoader_GetGenericInst(
     return NULL;
   }
 
-  PyObject* inst = PyDict_GetItem(genericinst_cache, key);
+  PyObject* inst = PyDict_GetItem(cache, key);
   if (inst != NULL) {
     Py_DECREF(key);
     Py_INCREF(inst);
@@ -442,7 +444,7 @@ PyObject* _PyClassLoader_GetGenericInst(
     }
   }
 
-  if (res == NULL || PyDict_SetItem(genericinst_cache, key, res)) {
+  if (res == NULL || PyDict_SetItem(cache, key, res)) {
     Py_XDECREF(res);
     Py_DECREF(key);
     return NULL;

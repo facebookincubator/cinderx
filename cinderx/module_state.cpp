@@ -14,12 +14,14 @@ ModuleState* s_cinderx_state;
 
 int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(static_type_error);
+  Py_VISIT(genericinst_cache);
   Py_VISIT(builtin_next);
   return 0;
 }
 
 int ModuleState::clear() {
   static_type_error.reset();
+  genericinst_cache.reset();
   sys_clear_caches.reset();
   builtin_next.reset();
   return 0;

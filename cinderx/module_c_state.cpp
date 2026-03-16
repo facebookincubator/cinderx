@@ -16,6 +16,22 @@ PyObject* Ci_GetStaticTypeError(void) {
   return state != nullptr ? state->static_type_error.getObj() : nullptr;
 }
 
+PyObject* Ci_GetGenericInstCache(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->genericinst_cache.getObj() : nullptr;
+}
+
+void Ci_SetGenericInstCache(PyDictObject* cache) {
+  cinderx::getModuleState()->genericinst_cache =
+      Ref<PyDictObject>::create(cache);
+}
+
+void Ci_ClearGenericInstCache(void) {
+  if (auto state = cinderx::getModuleState(); state != nullptr) {
+    state->genericinst_cache.reset();
+  }
+}
+
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }

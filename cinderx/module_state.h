@@ -58,6 +58,9 @@ struct ModuleState {
   // The cinderx.StaticTypeError exception type.
   Ref<PyTypeObject> static_type_error;
 
+  // Cache for generic type instantiations (e.g. list[int]).
+  Ref<PyDictObject> genericinst_cache;
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).

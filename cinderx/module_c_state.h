@@ -23,6 +23,11 @@ extern vectorcallfunc Ci_PyFunction_Vectorcall;
 // Get the StaticTypeError exception type.
 PyObject* Ci_GetStaticTypeError(void);
 
+// Generic type instantiation cache.
+PyObject* Ci_GetGenericInstCache(void);
+void Ci_SetGenericInstCache(PyDictObject* cache);
+void Ci_ClearGenericInstCache(void);
+
 // WatcherState.
 
 int Ci_Watchers_WatchDict(PyObject* dict);
