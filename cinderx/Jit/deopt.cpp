@@ -421,11 +421,6 @@ static DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
     case jit::hir::Opcode::kLoadSplitDictItem: {
       return DeoptReason::kGuardFailure;
     }
-    case jit::hir::Opcode::kYieldAndYieldFrom:
-    case jit::hir::Opcode::kYieldFromHandleStopAsyncIteration:
-    case jit::hir::Opcode::kYieldFrom: {
-      return DeoptReason::kYieldFrom;
-    }
     case jit::hir::Opcode::kRaise: {
       return DeoptReason::kRaise;
     }

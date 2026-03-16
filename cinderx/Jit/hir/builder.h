@@ -384,6 +384,7 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitAsyncForHeaderYieldFrom(
+      CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitEndAsyncFor(TranslationContext& tc);
@@ -408,7 +409,11 @@ class HIRBuilder {
   void emitSetupWith(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitYieldFrom(TranslationContext& tc, Register* out);
+  void emitYieldFrom(
+      CFG& cfg,
+      TranslationContext& tc,
+      Register* out,
+      bool handle_stop_async_iteration = false);
   void emitDispatchEagerCoroResult(
       CFG& cfg,
       TranslationContext& tc,

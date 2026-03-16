@@ -287,9 +287,6 @@ bool Instruction::isTerminator() const {
 
 bool Instruction::isAnyYield() const {
   switch (opcode_) {
-    case kYieldFrom:
-    case kYieldFromHandleStopAsyncIteration:
-    case kYieldFromSkipInitialSend:
     case kYieldInitial:
     case kYieldValue:
       return true;

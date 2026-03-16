@@ -519,9 +519,6 @@ bool Instr::isReplayable() const {
     case Opcode::kUnreachable:
     case Opcode::kVectorCall:
     case Opcode::kWaitHandleRelease:
-    case Opcode::kYieldAndYieldFrom:
-    case Opcode::kYieldFrom:
-    case Opcode::kYieldFromHandleStopAsyncIteration:
     case Opcode::kYieldValue:
     case Opcode::kXDecref:
     case Opcode::kXIncref: {
@@ -812,9 +809,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kVectorCall:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:
-    case Opcode::kYieldAndYieldFrom:
-    case Opcode::kYieldFrom:
-    case Opcode::kYieldFromHandleStopAsyncIteration:
     case Opcode::kYieldValue:
       return false;
 

@@ -1153,65 +1153,87 @@ async def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
-    v12:Nullptr = LoadConst<Nullptr>
-    v13:OptNoneType = InitialYield {
-      LiveValues<1> unc:v12
+    v15:Nullptr = LoadConst<Nullptr>
+    v16:OptNoneType = InitialYield {
+      LiveValues<1> unc:v15
       FrameState {
         CurInstrOffset -2
-        Locals<1> v12
+        Locals<1> v15
       }
     }
-    v14:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
-    v34:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v19:UnicodeExact = VectorCall<1, awaited, static> v34 v14 {
-      LiveValues<2> b:v14 b:v34
+    v17:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
+    v52:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
+    v22:UnicodeExact = VectorCall<1, awaited, static> v52 v17 {
+      LiveValues<2> b:v17 b:v52
       FrameState {
         CurInstrOffset 10
-        Locals<1> v14
+        Locals<1> v17
       }
     }
-    v24:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v19
-    Decref v19
-    v25:Object = CheckExc v24 {
-      LiveValues<2> b:v14 o:v24
+    v36:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v22
+    Decref v22
+    v37:Object = CheckExc v36 {
+      LiveValues<2> b:v17 o:v36
       FrameState {
         CurInstrOffset 10
-        Locals<1> v14
+        Locals<1> v17
       }
     }
-    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v25
+    CondBranchCheckType<10, 11, ObjectUser[coroutine:Exact]> v37
   }
 
-  bb 7 (preds 0) {
-    v26:OptObject = CallCFunc<Cix_PyGen_yf> v25
-    CondBranch<9, 8> v26
+  bb 10 (preds 0) {
+    v38:OptObject = CallCFunc<Cix_PyGen_yf> v37
+    CondBranch<12, 11> v38
   }
 
-  bb 9 (preds 7) {
-    Decref v25
-    XDecref v26
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> b:v14>> {
-      LiveValues<1> b:v14
+  bb 12 (preds 10) {
+    Decref v37
+    XDecref v38
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> b:v17>> {
+      LiveValues<1> b:v17
       FrameState {
         CurInstrOffset 10
-        Locals<1> v14
+        Locals<1> v17
       }
     }
   }
 
-  bb 8 (preds 0, 7) {
-    v27:NoneType = LoadConst<NoneType>
-    SetCurrentAwaiter v25
-    v30:Object = YieldFrom v27 v25 {
-      LiveValues<3> b:v14 o:v25 b:v27
+  bb 11 (preds 0, 10) {
+    v39:NoneType = LoadConst<NoneType>
+    SetCurrentAwaiter v37
+    Branch<13>
+  }
+
+  bb 13 (preds 11, 14) {
+    v42:Object = Phi<11, 14> v39 v50
+    v44:Object = Send v37 v42 {
+      LiveValues<3> b:v17 o:v37 b:v42
       FrameState {
         CurInstrOffset 10
-        Locals<1> v14
-        Stack<1> v25
+        Locals<1> v17
+        Stack<1> v37
       }
     }
-    Decref v25
-    Return v30
+    v45:CInt64 = GetSecondOutput<CInt64> v44
+    CondBranch<3, 14> v45
+  }
+
+  bb 3 (preds 13) {
+    Decref v37
+    Return v44
+  }
+
+  bb 14 (preds 13) {
+    v50:Object = YieldValue v44 {
+      LiveValues<3> b:v17 o:v37 b:v44
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v17
+        Stack<1> v37
+      }
+    }
+    Branch<13>
   }
 }
 --- Expected 3.12 ---
@@ -1310,7 +1332,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    v42:Object = YieldFrom v39 v27 {
+    v42:Object = YieldValue v39 {
       LiveValues<3> unc:v21 o:v27 b:v39
       FrameState {
         CurInstrOffset 48
@@ -1417,7 +1439,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    v42:Object = YieldFrom v39 v27 {
+    v42:Object = YieldValue v39 {
       LiveValues<3> unc:v21 o:v27 b:v39
       FrameState {
         CurInstrOffset 50
@@ -1530,7 +1552,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     UpdatePrevInstr<idx:25 line_no:3: no parent>
-    v42:Object = YieldFrom v39 v27 {
+    v42:Object = YieldValue v39 {
       LiveValues<3> unc:v21 o:v27 b:v39
       FrameState {
         CurInstrOffset 50

@@ -81,9 +81,6 @@ class LIRABITest : public RuntimeTest {
         break;
       case Instruction::kDeoptPatchpoint:
       case Instruction::kGuard:
-      case Instruction::kYieldFrom:
-      case Instruction::kYieldFromHandleStopAsyncIteration:
-      case Instruction::kYieldFromSkipInitialSend:
       case Instruction::kYieldValue:
         environ.code_rt->addDeoptMetadata(DeoptMetadata{});
         break;
@@ -1201,61 +1198,6 @@ TEST_F(LIRABITest, TestkYieldInitial) {
 
   translateInstrWithOrigin(
       Instruction::kYieldInitial, origin.get(), tstate, live_regs, deopt_idx);
-}
-
-// kYieldFrom ANY
-TEST_F(LIRABITest, TestkYieldFrom) {
-  auto tstate = makeStk(-16);
-  auto iter_slot = makeStk(-32);
-  auto live_regs = Imm{0};
-  auto deopt_idx = Imm{0};
-
-  translateInstr(
-      Instruction::kYieldFrom,
-      tstate,
-      makeStk(-48),
-      iter_slot,
-      live_regs,
-      deopt_idx);
-
-#if PY_VERSION_HEX >= 0x030C0000
-  translateInstr(
-      Instruction::kYieldFrom, tstate, Imm{0}, iter_slot, live_regs, deopt_idx);
-#endif
-}
-
-// kYieldFromSkipInitialSend ANY
-TEST_F(LIRABITest, TestkYieldFromSkipInitialSend) {
-  auto tstate = makeStk(-16);
-  auto send_value = makeStk(-32);
-  auto iter_slot = makeStk(-48);
-  auto live_regs = Imm{0};
-  auto deopt_idx = Imm{0};
-
-  translateInstr(
-      Instruction::kYieldFromSkipInitialSend,
-      tstate,
-      send_value,
-      iter_slot,
-      live_regs,
-      deopt_idx);
-}
-
-// kYieldFromHandleStopAsyncIteration ANY
-TEST_F(LIRABITest, TestkYieldFromHandleStopAsyncIteration) {
-  auto tstate = makeStk(-16);
-  auto send_value = makeStk(-32);
-  auto iter_slot = makeStk(-48);
-  auto live_regs = Imm{0};
-  auto deopt_idx = Imm{0};
-
-  translateInstr(
-      Instruction::kYieldFromHandleStopAsyncIteration,
-      tstate,
-      send_value,
-      iter_slot,
-      live_regs,
-      deopt_idx);
 }
 
 // kYieldValue ANY

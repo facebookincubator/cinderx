@@ -937,41 +937,69 @@ async def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
-    v11:OptNoneType = InitialYield {
+    v14:OptNoneType = InitialYield {
       FrameState {
         CurInstrOffset -2
       }
     }
     Snapshot
-    v12:MortalUnicodeExact["Hello"] = LoadConst<MortalUnicodeExact["Hello"]>
-    UseType<MortalUnicodeExact> v12
-    v28:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v14:MortalUnicodeExact["Hello"] = Assign v12
+    v15:MortalUnicodeExact["Hello"] = LoadConst<MortalUnicodeExact["Hello"]>
+    UseType<MortalUnicodeExact> v15
+    v44:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
+    v17:MortalUnicodeExact["Hello"] = Assign v15
     Snapshot
-    v15:UnicodeExact = VectorCall<1, awaited, static> v28 v12 {
+    v18:UnicodeExact = VectorCall<1, awaited, static> v44 v15 {
       FrameState {
         CurInstrOffset 6
       }
     }
-    CondBranchCheckType<4, 2, WaitHandle> v15
+    CondBranchCheckType<4, 2, WaitHandle> v18
   }
 
   bb 4 (preds 0) {
-    v16:Object = WaitHandleLoadCoroOrResult v15
-    v17:OptObject = WaitHandleLoadWaiter v15
-    WaitHandleRelease v15
-    CondBranch<5, 6> v17
+    v19:Object = WaitHandleLoadCoroOrResult v18
+    v20:OptObject = WaitHandleLoadWaiter v18
+    WaitHandleRelease v18
+    CondBranch<5, 6> v20
   }
 
   bb 5 (preds 4) {
-    SetCurrentAwaiter v16
-    v18:Object = YieldAndYieldFrom v17 v16 {
+    v21:Object = RefineType<Object> v20
+    SetCurrentAwaiter v19
+    v22:Object = YieldValue v21 {
       FrameState {
         CurInstrOffset 6
-        Stack<1> v15
+        Stack<1> v18
       }
     }
+    SetCurrentAwaiter v19
+    Branch<7>
+  }
+
+  bb 7 (preds 5, 8) {
+    v24:Object = Phi<5, 8> v22 v29
+    v26:Object = Send v19 v24 {
+      FrameState {
+        CurInstrOffset 6
+        Stack<2> v18 v19
+      }
+    }
+    v27:CInt64 = GetSecondOutput<CInt64> v26
+    CondBranch<9, 8> v27
+  }
+
+  bb 9 (preds 7) {
     Branch<3>
+  }
+
+  bb 8 (preds 7) {
+    v29:Object = YieldValue v26 {
+      FrameState {
+        CurInstrOffset 6
+        Stack<2> v18 v19
+      }
+    }
+    Branch<7>
   }
 
   bb 6 (preds 4) {
@@ -979,21 +1007,21 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v20:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v15
-    v21:Object = CheckExc v20 {
+    v31:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v18
+    v32:Object = CheckExc v31 {
       FrameState {
         CurInstrOffset 6
       }
     }
-    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v21
+    CondBranchCheckType<10, 11, ObjectUser[coroutine:Exact]> v32
   }
 
-  bb 7 (preds 2) {
-    v22:OptObject = CallCFunc<Cix_PyGen_yf> v21
-    CondBranch<9, 8> v22
+  bb 10 (preds 2) {
+    v33:OptObject = CallCFunc<Cix_PyGen_yf> v32
+    CondBranch<12, 11> v33
   }
 
-  bb 9 (preds 7) {
+  bb 12 (preds 10) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
         CurInstrOffset 6
@@ -1001,22 +1029,42 @@ fun jittestmodule:test {
     }
   }
 
-  bb 8 (preds 2, 7) {
-    v23:NoneType = LoadConst<NoneType>
-    SetCurrentAwaiter v21
-    v25:Object = YieldFrom v23 v21 {
+  bb 11 (preds 2, 10) {
+    v34:NoneType = LoadConst<NoneType>
+    SetCurrentAwaiter v32
+    Branch<13>
+  }
+
+  bb 13 (preds 11, 14) {
+    v37:Object = Phi<11, 14> v34 v43
+    v38:Object = Send v32 v37 {
       FrameState {
         CurInstrOffset 6
-        Stack<1> v21
+        Stack<1> v32
       }
     }
+    v39:CInt64 = GetSecondOutput<CInt64> v38
+    CondBranch<15, 14> v39
+  }
+
+  bb 15 (preds 13) {
     Branch<3>
   }
 
-  bb 3 (preds 5, 6, 8) {
-    v26:Object = Phi<5, 6, 8> v18 v16 v25
+  bb 3 (preds 6, 9, 15) {
+    v41:Object = Phi<6, 9, 15> v19 v26 v38
     Snapshot
-    Return v26
+    Return v41
+  }
+
+  bb 14 (preds 13) {
+    v43:Object = YieldValue v38 {
+      FrameState {
+        CurInstrOffset 6
+        Stack<1> v32
+      }
+    }
+    Branch<13>
   }
 }
 --- Expected 3.12 ---
@@ -1110,7 +1158,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     Snapshot
-    v35:Object = YieldFrom v32 v23 {
+    v35:Object = YieldValue v32 {
       FrameState {
         CurInstrOffset 44
         Stack<1> v23
@@ -1211,7 +1259,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     Snapshot
-    v35:Object = YieldFrom v32 v23 {
+    v35:Object = YieldValue v32 {
       FrameState {
         CurInstrOffset 46
         Stack<1> v23
@@ -1312,7 +1360,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     Snapshot
-    v35:Object = YieldFrom v32 v23 {
+    v35:Object = YieldValue v32 {
       FrameState {
         CurInstrOffset 46
         Stack<1> v23

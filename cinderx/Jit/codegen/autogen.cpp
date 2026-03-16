@@ -556,9 +556,7 @@ void emitStoreGenYieldPoint(
     asmjit::Label resume_label,
     arch::Gp suspend_data_r,
     arch::Gp scratch_r) {
-  bool is_yield_from = yield->isYieldFrom() ||
-      yield->isYieldFromSkipInitialSend() ||
-      yield->isYieldFromHandleStopAsyncIteration();
+  bool is_yield_from = yield->isInYieldFromContext();
 
   auto calc_spill_offset = [&](size_t live_input_n) {
     PhyLocation mem = yield->getInput(live_input_n)->getStackSlot();
@@ -577,8 +575,9 @@ void emitStoreGenYieldPoint(
       live_regs_input - num_live_regs,
       live_regs_input);
 
-  auto yield_from_offset =
-      is_yield_from ? calc_spill_offset(2) : kInvalidYieldFromOffset;
+  auto yield_from_offset = is_yield_from
+      ? calc_spill_offset(yield->yieldFromInputIdx())
+      : kInvalidYieldFromOffset;
   GenYieldPoint* gen_yield_point = env->code_rt->addGenYieldPoint(
       GenYieldPoint{deopt_idx, yield_from_offset});
 
@@ -836,6 +835,16 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
   // Resumed execution in this generator begins here
   as->bind(resume_label);
 
+#if PY_VERSION_HEX < 0x030C0000
+  // On 3.10, for yield-from yield points, store the finish_yield_from arg
+  // (RDX from resume entry) into GenDataFooter so the subsequent Send
+  // instruction can load it.
+  if (instr->isInYieldFromContext()) {
+    auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
+    as->mov(x86::qword_ptr(x86::rbp, fyf_offset), x86::rdx);
+  }
+#endif
+
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 #elif defined(CINDER_AARCH64)
@@ -862,168 +871,20 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
   // Resumed execution in this generator begins here
   as->bind(resume_label);
 
+#if PY_VERSION_HEX < 0x030C0000
+  // On 3.10, for yield-from yield points, store the finish_yield_from arg
+  // (X2 from resume entry) into GenDataFooter so the subsequent Send
+  // instruction can load it.
+  if (instr->isInYieldFromContext()) {
+    auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
+    as->str(
+        a64::x2,
+        arch::ptr_resolve(as, arch::fp, fyf_offset, arch::reg_scratch_0));
+  }
+#endif
+
   // Sent in value is in x1, and tstate is in x3 from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, X1, a64::x3);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
-void translateYieldFrom(Environ* env, const Instruction* instr) {
-#if defined(CINDER_X86_64)
-  arch::Builder* as = env->as;
-  bool skip_initial_send = instr->isYieldFromSkipInitialSend();
-
-  // Make sure tstate is in RDI for use in epilogue and here.
-  PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  auto tstate_phys_reg = x86::rdi;
-  as->mov(tstate_phys_reg, x86::ptr(x86::rbp, tstate.loc));
-
-  // If we're skipping the initial send the send value is actually the first
-  // value to yield and so needs to go into RAX to be returned. Otherwise,
-  // put initial send value in RSI, the same location future send values will
-  // be on resume.
-  PhyLocation send_value = instr->getInput(1)->getStackSlot();
-  const auto send_value_phys_reg = skip_initial_send ? RAX : RSI;
-  as->mov(
-      x86::gpq(send_value_phys_reg.loc), x86::ptr(x86::rbp, send_value.loc));
-
-  asmjit::Label yield_label = as->newLabel();
-  if (skip_initial_send) {
-    as->jmp(yield_label);
-  } else {
-    // Setup call to JITRT_GenSend
-
-    // Put tstate and the current generator into RCX and RDI respectively, and
-    // set finish_yield_from (RDX) to 0. This register setup matches that when
-    // `resume_label` is reached from the resume entry.
-    auto gen_offs = offsetof(GenDataFooter, gen);
-    as->mov(x86::rcx, tstate_phys_reg);
-    as->mov(x86::rdi, x86::ptr(x86::rbp, gen_offs));
-    as->xor_(x86::rdx, x86::rdx);
-  }
-
-  // Resumed execution begins here
-  auto resume_label = as->newLabel();
-  as->bind(resume_label);
-
-  // Save tstate from resume to callee-saved reigster.
-  as->mov(x86::rbx, x86::rcx);
-
-  // 'send_value', and 'finish_yield_from' will already be in RSI and RCX
-  // respectively, either from code above on initial start or from resume entry
-  // point args.
-
-  // Load sub-iterator into RDI
-  PhyLocation iter_slot = instr->getInput(2)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, iter_slot.loc));
-
-  uint64_t func = reinterpret_cast<uint64_t>(
-      instr->isYieldFromHandleStopAsyncIteration()
-          ? JITRT_GenSendHandleStopAsyncIteration
-          : JITRT_GenSend);
-  emitCall(*env, func, instr);
-  // Yielded or final result value now in RAX. If the result was nullptr then
-  // done will be set so we'll correctly jump to the following CheckExc.
-  const auto yf_result_phys_reg = RAX;
-  const auto done_r = x86::rdx;
-
-  // Restore tstate from callee-saved register.
-  as->mov(tstate_phys_reg, x86::rbx);
-
-  // If not done, jump to epilogue which will yield/return the value from
-  // JITRT_GenSend in RAX.
-  as->test(done_r, done_r);
-  asmjit::Label done_label = as->newLabel();
-  as->jnz(done_label);
-
-  as->bind(yield_label);
-  // Arbitrary scratch register for use in emitStoreGenYieldPoint()
-  auto scratch_r = x86::r9;
-  emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rbp, scratch_r);
-  as->jmp(env->exit_for_yield_label);
-
-  as->bind(done_label);
-  emitLoadResumedYieldInputs(as, instr, yf_result_phys_reg, tstate_phys_reg);
-#elif defined(CINDER_AARCH64)
-  arch::Builder* as = env->as;
-  bool skip_initial_send = instr->isYieldFromSkipInitialSend();
-
-  // Make sure tstate is in X0 for use in epilogue and here.
-  PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  auto tstate_phys_reg = a64::x0;
-  as->ldr(
-      tstate_phys_reg,
-      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
-
-  // If we're skipping the initial send the send value is actually the first
-  // value to yield and so needs to go into X0 to be returned. Otherwise,
-  // put initial send value in X1, the same location future send values will
-  // be on resume.
-  PhyLocation send_value = instr->getInput(1)->getStackSlot();
-  const auto send_value_phys_reg = skip_initial_send ? X0 : X1;
-  as->ldr(
-      a64::x(send_value_phys_reg.loc),
-      arch::ptr_resolve(as, arch::fp, send_value.loc, arch::reg_scratch_0));
-
-  asmjit::Label yield_label = as->newLabel();
-  if (skip_initial_send) {
-    as->b(yield_label);
-  } else {
-    // Setup call to JITRT_GenSend
-
-    // Put tstate and the current generator into X3 and X0 respectively, and
-    // set finish_yield_from (X2) to 0. This register setup matches that when
-    // `resume_label` is reached from the resume entry.
-    auto gen_offs = offsetof(GenDataFooter, gen);
-    as->mov(a64::x3, tstate_phys_reg);
-    as->ldr(a64::x0, arch::ptr_offset(arch::fp, gen_offs));
-    as->mov(a64::x2, a64::xzr);
-  }
-
-  // Resumed execution begins here
-  auto resume_label = as->newLabel();
-  as->bind(resume_label);
-
-  // Save tstate from resume to callee-saved reigster.
-  as->mov(a64::x19, a64::x3);
-
-  // 'send_value', and 'finish_yield_from' will already be in X1 and X3
-  // respectively, either from code above on initial start or from resume entry
-  // point args.
-
-  // Load sub-iterator into X0
-  PhyLocation iter_slot = instr->getInput(2)->getStackSlot();
-  as->ldr(
-      a64::x0,
-      arch::ptr_resolve(as, arch::fp, iter_slot.loc, arch::reg_scratch_0));
-
-  uint64_t func = reinterpret_cast<uint64_t>(
-      instr->isYieldFromHandleStopAsyncIteration()
-          ? JITRT_GenSendHandleStopAsyncIteration
-          : JITRT_GenSend);
-  emitCall(*env, func, instr);
-  // Yielded or final result value now in X0. If the result was nullptr then
-  // done will be set so we'll correctly jump to the following CheckExc.
-  const auto yf_result_phys_reg = X0;
-  const auto done_r = a64::x2;
-
-  // Restore tstate from callee-saved register.
-  as->mov(tstate_phys_reg, a64::x19);
-
-  // If not done, jump to epilogue which will yield/return the value from
-  // JITRT_GenSend in X0.
-  asmjit::Label done_label = as->newLabel();
-  as->cbnz(done_r, done_label);
-
-  as->bind(yield_label);
-  // Arbitrary scratch register for use in emitStoreGenYieldPoint()
-  auto scratch_r = arch::reg_scratch_0;
-  emitStoreGenYieldPoint(as, env, instr, resume_label, arch::fp, scratch_r);
-  as->b(env->exit_for_yield_label);
-
-  as->bind(done_label);
-  emitLoadResumedYieldInputs(as, instr, yf_result_phys_reg, tstate_phys_reg);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1835,28 +1696,6 @@ END_RULES
 
 BEGIN_RULES(Instruction::kYieldInitial)
   GEN(ANY, CALL_C(translateYieldInitial))
-END_RULES
-
-#if PY_VERSION_HEX < 0x030C0000
-BEGIN_RULES(Instruction::kYieldFrom)
-  GEN(ANY, CALL_C(translateYieldFrom))
-END_RULES
-#else
-// In 3.12+ YieldFrom is a pseudo-op which is YieldValue plus enough
-// information to know which live value contains the target iterator. See
-// emitStoreGenYieldPoint() for where this is captured. The target iterator is
-// used for things like the result of reading gi_yieldfrom.
-BEGIN_RULES(Instruction::kYieldFrom)
-  GEN(ANY, CALL_C(translateYieldValue))
-END_RULES
-#endif
-
-BEGIN_RULES(Instruction::kYieldFromSkipInitialSend)
-  GEN(ANY, CALL_C(translateYieldFrom))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldFromHandleStopAsyncIteration)
-  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
@@ -3148,28 +2987,6 @@ END_RULES
 
 BEGIN_RULES(Instruction::kYieldInitial)
   GEN(ANY, CALL_C(translateYieldInitial))
-END_RULES
-
-#if PY_VERSION_HEX < 0x030C0000
-BEGIN_RULES(Instruction::kYieldFrom)
-  GEN(ANY, CALL_C(translateYieldFrom))
-END_RULES
-#else
-// In 3.12+ YieldFrom is a pseudo-op which is YieldValue plus enough
-// information to know which live value contains the target iterator. See
-// emitStoreGenYieldPoint() for where this is captured. The target iterator is
-// used for things like the result of reading gi_yieldfrom.
-BEGIN_RULES(Instruction::kYieldFrom)
-  GEN(ANY, CALL_C(translateYieldValue))
-END_RULES
-#endif
-
-BEGIN_RULES(Instruction::kYieldFromSkipInitialSend)
-  GEN(ANY, CALL_C(translateYieldFrom))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldFromHandleStopAsyncIteration)
-  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)

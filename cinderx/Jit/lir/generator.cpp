@@ -1314,6 +1314,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kYieldValue,
             env_->asm_tstate,
             hir_instr->reg());
+        if (hir_instr->isYieldFrom()) {
+          // Add the sub-iterator as an extra input so that
+          // emitStoreGenYieldPoint can capture its spill offset.
+          instr->addOperands(VReg{bbb.getDefInstr(hir_instr->yieldFromIter())});
+          instr->setYieldFromInputIdx(instr->getNumInputs() - 1);
+        }
         finishYield(bbb, instr, hir_instr);
         break;
       }
@@ -1322,23 +1328,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* instr = bbb.appendInstr(
             hir_instr->output(), Instruction::kYieldInitial, env_->asm_tstate);
         finishYield(bbb, instr, hir_instr);
-        break;
-      }
-      case Opcode::kYieldAndYieldFrom:
-      case Opcode::kYieldFrom:
-      case Opcode::kYieldFromHandleStopAsyncIteration: {
-        Instruction::Opcode op = [&] {
-          if (opcode == Opcode::kYieldAndYieldFrom) {
-            return Instruction::kYieldFromSkipInitialSend;
-          } else if (opcode == Opcode::kYieldFrom) {
-            return Instruction::kYieldFrom;
-          } else {
-            return Instruction::kYieldFromHandleStopAsyncIteration;
-          }
-        }();
-        Instruction* instr = bbb.appendInstr(
-            i.output(), op, env_->asm_tstate, i.GetOperand(0), i.GetOperand(1));
-        finishYield(bbb, instr, static_cast<const DeoptBase*>(&i));
         break;
       }
       case Opcode::kAssign: {
@@ -3542,16 +3531,39 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kSend: {
         auto& hir_instr = static_cast<const Send&>(i);
+        uint64_t func = reinterpret_cast<uint64_t>(
+            hir_instr.handleStopAsyncIteration()
+                ? JITRT_GenSendHandleStopAsyncIteration
+                : JITRT_GenSend);
         // Note: asm_interpreter_frame isn't right for inlined functions, but we
         // never inline generators so this is fine for now.
+#if PY_VERSION_HEX < 0x030C0000
+        // On 3.10, finish_yield_from is stashed in GenDataFooter by
+        // translateYieldValue on resume from a yield-from yield point.
+        // Load it for the JITRT_GenSend call.
+        Instruction* fyf_load = bbb.appendInstr(
+            Instruction::kMove,
+            OutVReg{},
+            Ind{codegen::arch::reg_frame_pointer_loc,
+                static_cast<int32_t>(
+                    offsetof(GenDataFooter, finishYieldFrom))});
         bbb.appendInstr(
             hir_instr.output(),
             Instruction::kCall,
-            Imm{reinterpret_cast<uint64_t>(JITRT_GenSend)},
+            Imm{func},
+            hir_instr.GetOperand(0),
+            hir_instr.GetOperand(1),
+            VReg{fyf_load});
+#else
+        bbb.appendInstr(
+            hir_instr.output(),
+            Instruction::kCall,
+            Imm{func},
             hir_instr.GetOperand(0),
             hir_instr.GetOperand(1),
             Imm{0},
             env_->asm_interpreter_frame);
+#endif
         break;
       }
       case Opcode::kBuildInterpolation: {

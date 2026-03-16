@@ -217,9 +217,6 @@ Type outputType(
     case Opcode::kMatchKeys:
     case Opcode::kSend:
     case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kYieldAndYieldFrom:
-    case Opcode::kYieldFrom:
-    case Opcode::kYieldFromHandleStopAsyncIteration:
     case Opcode::kYieldValue:
       return TObject;
     case Opcode::kBuildString:

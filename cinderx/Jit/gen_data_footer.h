@@ -59,6 +59,11 @@ struct GenDataFooter {
   // Current overall state of the JIT.
   // In 3.12+ we use the new PyGenObject::gi_frame_state field instead.
   CiJITGenState state{};
+
+  // On resume from a yield-from yield point, the resume entry receives a
+  // finish_yield_from flag. translateYieldValue stores it here so that the
+  // subsequent Send instruction can load it.
+  uint64_t finishYieldFrom{0};
 #endif
 
   // Allocated space before this struct in 64-bit words.

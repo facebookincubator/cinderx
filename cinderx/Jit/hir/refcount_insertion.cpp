@@ -998,9 +998,6 @@ void stealInputs(
       // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
       switch (instr.opcode()) {
         case Opcode::kYieldValue:
-        case Opcode::kYieldFrom:
-        case Opcode::kYieldAndYieldFrom:
-        case Opcode::kYieldFromHandleStopAsyncIteration:
         case Opcode::kInitialYield: {
           if (isInFrameState(instr.asDeoptBase()->frameState(), reg)) {
             if (env.mutate) {

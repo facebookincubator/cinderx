@@ -1570,6 +1570,9 @@ static inline PyObject* make_gen_object(
   footer->resumeEntry = resume_entry;
   footer->yieldPoint = nullptr;
   footer->state = Ci_JITGenState_JustStarted;
+#if PY_VERSION_HEX < 0x030C0000
+  footer->finishYieldFrom = 0;
+#endif
   footer->gen = gen;
   footer->code_rt = code_rt;
 

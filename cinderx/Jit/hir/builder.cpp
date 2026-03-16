@@ -1384,9 +1384,9 @@ void HIRBuilder::translate(
         }
         case YIELD_FROM: {
           if (is_in_async_for_header_block()) {
-            emitAsyncForHeaderYieldFrom(tc, bc_instr);
+            emitAsyncForHeaderYieldFrom(irfunc.cfg, tc, bc_instr);
           } else {
-            emitYieldFrom(tc, temps_.AllocateStack());
+            emitYieldFrom(irfunc.cfg, tc, temps_.AllocateStack());
           }
           break;
         }
@@ -1999,7 +1999,7 @@ void HIRBuilder::emitAnyCall(
     JIT_CHECK(
         bc_it->opcode() == YIELD_FROM,
         "GET_AWAITABLE should always be followed by LOAD_CONST+YIELD_FROM");
-    emitYieldFrom(tc, out);
+    emitYieldFrom(cfg, tc, out);
     tc.emit<Branch>(post_await_block.block);
 
     tc.block = post_await_block.block;
@@ -4208,18 +4208,11 @@ void HIRBuilder::emitSetupFinally(
 }
 
 void HIRBuilder::emitAsyncForHeaderYieldFrom(
+    CFG& cfg,
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  Register* send_value = tc.frame.stack.pop();
-  Register* awaitable = tc.frame.stack.top();
   Register* out = temps_.AllocateStack();
-  if (code_->co_flags & CO_COROUTINE) {
-    tc.emit<SetCurrentAwaiter>(awaitable);
-  }
-  tc.emit<YieldFromHandleStopAsyncIteration>(
-      out, send_value, awaitable, tc.frame);
-  tc.frame.stack.pop();
-  tc.frame.stack.push(out);
+  emitYieldFrom(cfg, tc, out, /*handle_stop_async_iteration=*/true);
 
   BasicBlock* yf_cont_block = getBlockAtOff(bc_instr.nextInstrOffset());
   BCOffset handler_off{tc.frame.block_stack.top().handler_off};
@@ -4450,16 +4443,67 @@ void HIRBuilder::emitRaiseVarargs(TranslationContext& tc) {
   tc.emit<Raise>(tc.frame);
 }
 
-void HIRBuilder::emitYieldFrom(TranslationContext& tc, Register* out) {
+void HIRBuilder::emitYieldFrom(
+    CFG& cfg,
+    TranslationContext& tc,
+    Register* out,
+    bool handle_stop_async_iteration) {
   auto& stack = tc.frame.stack;
-  auto send_value = stack.pop();
-  auto iter = stack.top();
+  // Stack: [..., iter, send_value]
+  auto iter = stack.top(1);
+
   if (code_->co_flags & CO_COROUTINE) {
     tc.emit<SetCurrentAwaiter>(iter);
   }
-  tc.emit<YieldFrom>(out, send_value, iter, tc.frame);
-  stack.pop();
-  stack.push(out);
+
+  BasicBlock* send_bb = cfg.AllocateBlock();
+  BasicBlock* yield_bb = cfg.AllocateBlock();
+  BasicBlock* done_bb = cfg.AllocateBlock();
+
+  tc.emit<Branch>(send_bb);
+
+  // --- send_block: merge point for initial entry and yield back-edge ---
+  TranslationContext send_tc{send_bb, tc.frame};
+  auto send_value = send_tc.frame.stack.pop();
+  auto iter_reg = send_tc.frame.stack.top();
+  // Due to the mixin order (Operands<2>, HasOutput, DeoptBase), the Send
+  // constructor maps: arg1→operand[0], arg2→operand[1], arg3→output.
+  // So we pass (iter, send_value, result) to match emitSend's convention.
+  // Reuse send_value as the output so SSAify creates a proper Phi at this
+  // merge point (send_value is defined on both the initial and back-edge
+  // paths).
+  send_tc.emit<Send>(
+      iter_reg,
+      send_value,
+      send_value,
+      send_tc.frame,
+      handle_stop_async_iteration);
+  auto is_done = temps_.AllocateNonStack();
+  send_tc.emit<GetSecondOutput>(is_done, TCInt64, send_value);
+  send_tc.frame.stack.push(send_value);
+  send_tc.emit<CondBranch>(is_done, done_bb, yield_bb);
+
+  // --- yield_block: yield the intermediate value, loop back ---
+  TranslationContext yield_tc{yield_bb, send_tc.frame};
+  yield_tc.frame.stack.pop();
+  auto* yv = yield_tc.emit<YieldValue>(send_value, send_value, yield_tc.frame);
+  yv->setYieldFromIter(yield_tc.frame.stack.top()); // iter
+  yield_tc.frame.stack.push(send_value);
+  yield_tc.emit<Branch>(send_bb);
+
+  // --- done_block: pop result and iter, push final result ---
+  TranslationContext done_tc{done_bb, send_tc.frame};
+  auto final_result = done_tc.frame.stack.pop();
+  done_tc.frame.stack.pop(); // pop iter
+
+  if (out != final_result) {
+    done_tc.emit<Assign>(out, final_result);
+  }
+  done_tc.frame.stack.push(out);
+
+  // Continue from done_block
+  tc.block = done_bb;
+  tc.frame = done_tc.frame;
 }
 
 void HIRBuilder::emitYieldValue(
@@ -4488,14 +4532,16 @@ void HIRBuilder::emitYieldValue(
     // primarily for this check - values 2 and 3 indicate a "yield from" and
     // "await" respectively.
     if (next_bc.opcode() == RESUME && next_bc.oparg() >= 2) {
-      tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
+      auto* yv = tc.emit<YieldValue>(out, in, tc.frame);
+      yv->setYieldFromIter(stack.top());
     } else {
       tc.emit<YieldValue>(out, in, tc.frame);
     }
   } else {
     advancePastYieldInstr(tc);
     if (bc_instr.oparg() == 1) {
-      tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
+      auto* yv = tc.emit<YieldValue>(out, in, tc.frame);
+      yv->setYieldFromIter(stack.top());
     } else {
       JIT_CHECK(bc_instr.oparg() == 0, "Invalid oparg {}", bc_instr.oparg());
       tc.emit<YieldValue>(out, in, tc.frame);
@@ -4703,11 +4749,22 @@ void HIRBuilder::emitDispatchEagerCoroResult(
   TranslationContext res_block{cfg.AllocateBlock(), tc.frame};
   has_wh_block.emit<CondBranch>(wh_waiter, coro_block.block, res_block.block);
 
+  // wh_waiter is OptObject; refine to Object in the true branch.
+  coro_block.emit<RefineType>(wh_waiter, TObject, wh_waiter);
+
   if (code_->co_flags & CO_COROUTINE) {
     coro_block.emit<SetCurrentAwaiter>(wh_coro_or_result);
   }
-  coro_block.emit<YieldAndYieldFrom>(
-      out, wh_waiter, wh_coro_or_result, tc.frame);
+  // Yield the waiter value first (like YieldAndYieldFrom's skip-initial-send),
+  // then enter the yield-from Send loop with the resumed value.
+  Register* initial_send = temps_.AllocateStack();
+  auto* yv =
+      coro_block.emit<YieldValue>(initial_send, wh_waiter, coro_block.frame);
+  yv->setYieldFromIter(wh_coro_or_result);
+  // Set up stack for emitYieldFrom: [..., iter, send_value]
+  coro_block.frame.stack.push(wh_coro_or_result);
+  coro_block.frame.stack.push(initial_send);
+  emitYieldFrom(cfg, coro_block, out);
   coro_block.emit<Branch>(post_await_block);
 
   res_block.emit<Assign>(out, wh_coro_or_result);

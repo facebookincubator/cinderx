@@ -303,9 +303,6 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:
     case Opcode::kXIncref:
-    case Opcode::kYieldAndYieldFrom:
-    case Opcode::kYieldFrom:
-    case Opcode::kYieldFromHandleStopAsyncIteration:
     case Opcode::kUnicodeConcat:
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:

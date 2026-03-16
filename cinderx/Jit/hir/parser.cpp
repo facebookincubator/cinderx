@@ -1054,10 +1054,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:
     case Opcode::kWaitHandleRelease:
-    case Opcode::kXIncref:
-    case Opcode::kYieldAndYieldFrom:
-    case Opcode::kYieldFrom:
-    case Opcode::kYieldFromHandleStopAsyncIteration: {
+    case Opcode::kXIncref: {
       JIT_ABORT("Unsupported opcode: {}", opcode);
     }
   }
