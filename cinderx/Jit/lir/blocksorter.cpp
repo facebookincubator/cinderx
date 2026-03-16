@@ -211,6 +211,15 @@ void BasicBlockSorter::sortRPO() {
   std::reverse(scc_blocks_.begin(), scc_blocks_.end());
   if (exit_scc != nullptr) {
     scc_blocks_.emplace_back(std::move(exit_scc));
+  } else if (exit_ != nullptr) {
+    // The exit block may be unreachable (e.g. when all paths deopt), but it
+    // can still contain epilogue instructions that bind labels referenced by
+    // deopt trampolines. Always include it.
+    auto exit_scc_ptr = map_get(block_to_scc_map_, exit_);
+    if (!visited_blocks.contains(exit_scc_ptr)) {
+      auto index = map_get(block_index_map, exit_scc_ptr);
+      scc_blocks_.emplace_back(std::move(sccblocks.at(index)));
+    }
   }
 }
 

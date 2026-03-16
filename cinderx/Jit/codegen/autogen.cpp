@@ -817,10 +817,6 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
   arch::Builder* as = env->as;
 
-  // Make sure tstate is in RDI for use in epilogue.
-  PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
-
   // Value to send goes to RAX so it can be yielded (returned) by epilogue.
   if (instr->getInput(1)->isImm()) {
     as->mov(x86::rax, instr->getInput(1)->getConstant());
@@ -844,12 +840,6 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 #elif defined(CINDER_AARCH64)
   a64::Builder* as = env->as;
-
-  // Make sure tstate is in x2 for use in epilogue.
-  PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  as->ldr(
-      a64::x2,
-      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
 
   // Value to send goes to x0 so it can be yielded (returned) by epilogue.
   if (instr->getInput(1)->isImm()) {
@@ -1311,6 +1301,159 @@ struct AddDebugEntryAction {
   }
 };
 
+void translateYieldExitPoint(Environ* env, const Instruction*) {
+  env->as->bind(env->exit_for_yield_label);
+}
+
+#if defined(CINDER_AARCH64)
+void restoreCalleeSavedRegsAarch64(
+    arch::Builder* as,
+    PhyRegisterSet saved_regs) {
+  auto gp_regs = saved_regs & ALL_GP_REGISTERS;
+  auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
+
+  // Restore VecD registers first (they were saved last, so they're at the
+  // lowest addresses).
+  if (!vecd_regs.Empty()) {
+    bool odd = vecd_regs.count() % 2 == 1;
+    PhyRegisterSet vecd_pairs = vecd_regs;
+    if (odd) {
+      vecd_pairs.RemoveFirst();
+    }
+    while (!vecd_pairs.Empty()) {
+      auto second = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
+      vecd_pairs.RemoveLast();
+      auto first = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
+      vecd_pairs.RemoveLast();
+      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
+    }
+    if (odd) {
+      as->ldr(
+          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          a64::ptr_post(a64::sp, 16));
+    }
+  }
+
+  // Restore GP registers (they were saved first, so they're at higher
+  // addresses).
+  if (!gp_regs.Empty()) {
+    bool odd = gp_regs.count() % 2 == 1;
+    PhyRegisterSet gp_pairs = gp_regs;
+    if (odd) {
+      gp_pairs.RemoveFirst();
+    }
+    while (!gp_pairs.Empty()) {
+      auto second = a64::x(gp_pairs.GetLast().loc);
+      gp_pairs.RemoveLast();
+      auto first = a64::x(gp_pairs.GetLast().loc);
+      gp_pairs.RemoveLast();
+      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
+    }
+    if (odd) {
+      as->ldr(a64::x(gp_regs.GetFirst().loc), a64::ptr_post(a64::sp, 16));
+    }
+  }
+}
+#endif
+
+void translateEpilogueEnd(Environ* env, const Instruction* instr) {
+  auto* as = env->as;
+
+  auto* ret_val = instr->getInput(0);
+  bool is_primitive = ret_val->dataType() != DataType::kObject;
+  bool is_double = ret_val->isFp();
+
+#if defined(CINDER_X86_64)
+  // Move return value to ABI return register
+  if (is_double) {
+    if (ret_val->isStack()) {
+      as->movsd(x86::xmm0, x86::ptr(x86::rbp, ret_val->getStackSlot().loc));
+    } else if (
+        ret_val->isReg() &&
+        ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
+      as->movsd(
+          x86::xmm0, x86::xmm(ret_val->getPhyRegister().loc - VECD_REG_BASE));
+    }
+  } else {
+    if (ret_val->isStack()) {
+      as->mov(x86::rax, x86::ptr(x86::rbp, ret_val->getStackSlot().loc));
+    } else if (
+        ret_val->isReg() &&
+        ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
+      as->mov(x86::rax, x86::gpq(ret_val->getPhyRegister().loc));
+    }
+  }
+
+  if (is_primitive) {
+    if (is_double) {
+      as->pcmpeqw(x86::xmm1, x86::xmm1);
+      as->psrlq(x86::xmm1, 63);
+    } else {
+      as->mov(x86::edx, 1);
+    }
+  }
+
+  as->bind(env->hard_exit_label);
+  auto saved_regs = env->changed_regs & CALLEE_SAVE_REGS;
+  if (!saved_regs.Empty()) {
+    JIT_CHECK(
+        env->last_callee_saved_reg_off != -1,
+        "offset to callee saved regs not initialized");
+    as->lea(x86::rsp, x86::ptr(x86::rbp, -env->last_callee_saved_reg_off));
+    while (!saved_regs.Empty()) {
+      as->pop(x86::gpq(saved_regs.GetLast().loc));
+      saved_regs.RemoveLast();
+    }
+  }
+  as->leave();
+  as->ret();
+#elif defined(CINDER_AARCH64)
+  // Move return value to ABI return register
+  if (is_double) {
+    if (ret_val->isStack()) {
+      as->ldr(a64::d0, a64::ptr(arch::fp, ret_val->getStackSlot().loc));
+    } else if (
+        ret_val->isReg() &&
+        ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
+      as->fmov(a64::d0, a64::d(ret_val->getPhyRegister().loc - VECD_REG_BASE));
+    }
+  } else {
+    if (ret_val->isStack()) {
+      as->ldr(a64::x0, a64::ptr(arch::fp, ret_val->getStackSlot().loc));
+    } else if (
+        ret_val->isReg() &&
+        ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
+      as->mov(a64::x0, a64::x(ret_val->getPhyRegister().loc));
+    }
+  }
+
+  if (is_primitive) {
+    if (is_double) {
+      as->fmov(a64::d1, 1.0);
+    } else {
+      as->mov(a64::w1, 1);
+    }
+  }
+
+  as->bind(env->hard_exit_label);
+  auto saved_regs = env->changed_regs & CALLEE_SAVE_REGS;
+  if (!saved_regs.Empty()) {
+    JIT_CHECK(
+        env->last_callee_saved_reg_off != -1,
+        "offset to callee saved regs not initialized");
+    JIT_CHECK(env->last_callee_saved_reg_off % kStackAlign == 0, "unaligned");
+    arch::add_signed_immediate(
+        as, a64::sp, arch::fp, -env->last_callee_saved_reg_off);
+    restoreCalleeSavedRegsAarch64(as, saved_regs);
+  }
+  as->mov(a64::sp, arch::fp);
+  as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 32));
+  as->ret(arch::lr);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 } // namespace
 
 #define ASM(instr, args...)                    \
@@ -1718,6 +1861,14 @@ END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
   GEN(ANY, CALL_C(translateYieldValue))
+END_RULES
+
+BEGIN_RULES(Instruction::kYieldExitPoint)
+  GEN(ANY, CALL_C(translateYieldExitPoint))
+END_RULES
+
+BEGIN_RULES(Instruction::kEpilogueEnd)
+  GEN(ANY, CALL_C(translateEpilogueEnd))
 END_RULES
 
 BEGIN_RULES(Instruction::kSelect)
@@ -3023,6 +3174,14 @@ END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
   GEN(ANY, CALL_C(translateYieldValue))
+END_RULES
+
+BEGIN_RULES(Instruction::kYieldExitPoint)
+  GEN(ANY, CALL_C(translateYieldExitPoint))
+END_RULES
+
+BEGIN_RULES(Instruction::kEpilogueEnd)
+  GEN(ANY, CALL_C(translateEpilogueEnd))
 END_RULES
 
 BEGIN_RULES(Instruction::kSelect)

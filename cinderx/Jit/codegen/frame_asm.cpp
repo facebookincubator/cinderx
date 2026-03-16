@@ -1032,62 +1032,6 @@ void FrameAsm::generateLinkFrame(
 }
 #endif
 
-void FrameAsm::generateUnlinkFrame([[maybe_unused]] bool is_generator) {
-#if defined(CINDER_X86_64)
-#ifdef ENABLE_SHADOW_FRAMES
-  // Unlink shadow frame? The send implementation handles unlinking these for
-  // generators.
-  as_->mov(x86::rdi, is_generator ? 0 : 1);
-  auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
-#else
-  auto saved_rax_ptr = x86::ptr(x86::rbp, -frameHeaderSize());
-#endif
-
-  hir::Type ret_type = func_->return_type;
-  if (ret_type <= TCDouble) {
-    as_->movsd(saved_rax_ptr, x86::xmm0);
-  } else {
-    as_->mov(saved_rax_ptr, x86::rax);
-  }
-  as_->call(reinterpret_cast<uint64_t>(JITRT_UnlinkFrame));
-  if (ret_type <= TCDouble) {
-    as_->movsd(x86::xmm0, saved_rax_ptr);
-  } else {
-    as_->mov(x86::rax, saved_rax_ptr);
-  }
-#elif defined(CINDER_AARCH64)
-#ifdef ENABLE_SHADOW_FRAMES
-  CINDER_UNSUPPORTED
-#else
-  auto saved_x0_ptr =
-      arch::ptr_resolve(as_, arch::fp, -frameHeaderSize(), arch::reg_scratch_0);
-
-  hir::Type ret_type = func_->return_type;
-  if (ret_type <= TCDouble) {
-    as_->str(a64::d0, saved_x0_ptr);
-  } else {
-    as_->str(a64::x0, saved_x0_ptr);
-  }
-  as_->mov(arch::reg_scratch_br, JITRT_UnlinkFrame);
-  as_->blr(arch::reg_scratch_br);
-
-  // It is possible that the scratch register used to compute the pointer was
-  // clobbered by the call. If so, we need to reload it. This only happens if
-  // the scratch register is caller-saved, which unfortunately it currently is.
-  saved_x0_ptr =
-      arch::ptr_resolve(as_, arch::fp, -frameHeaderSize(), arch::reg_scratch_0);
-
-  if (ret_type <= TCDouble) {
-    as_->ldr(a64::d0, saved_x0_ptr);
-  } else {
-    as_->ldr(a64::x0, saved_x0_ptr);
-  }
-#endif
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
 #ifdef ENABLE_SHADOW_FRAMES
 void FrameAsm::linkOnStackShadowFrame(
     const arch::Gp& tstate_reg,

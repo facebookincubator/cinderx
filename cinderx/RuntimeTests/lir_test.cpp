@@ -550,6 +550,8 @@ BB %4 - preds: %0
 # Unreachable
                    Unreachable
 
+BB %8
+
 
 )",
       PhyLocation{10, 64},
@@ -585,6 +587,8 @@ BB %4 - preds: %0
 # Unreachable
                    Unreachable
 
+BB %8
+
 
 )",
       PhyLocation{10, 64},
@@ -618,6 +622,8 @@ BB %3 - preds: %0
 
 # Unreachable
                    Unreachable
+
+BB %7
 
 
 )",

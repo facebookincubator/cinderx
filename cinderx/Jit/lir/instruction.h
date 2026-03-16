@@ -182,7 +182,9 @@ enum OperandSizeType {
     0,                                                                        \
     {},                                                                       \
     1)                                                                        \
-  X(YieldValue, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)
+  X(YieldValue, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)          \
+  X(YieldExitPoint, false, FlagEffects::kNone, kDefault, 0, {}, 1)            \
+  X(EpilogueEnd, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)
 
 // Instruction class defines instructions in LIR.
 // Every instruction can have no more than one output, but arbitrary

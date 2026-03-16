@@ -278,6 +278,7 @@ bool Instruction::isAnyBranch() const {
 bool Instruction::isTerminator() const {
   switch (opcode_) {
     case kReturn:
+    case kEpilogueEnd:
       return true;
     default:
       return false;

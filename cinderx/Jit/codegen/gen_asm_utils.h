@@ -4,6 +4,7 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/lir/instruction.h"
 
@@ -24,5 +25,9 @@ void emitCall(
     asmjit::Label label,
     const jit::lir::Instruction* instr);
 void emitCall(Environ& env, uint64_t func, const jit::lir::Instruction* instr);
+
+// Restore the frame pointer to the "original frame pointer" value when called
+// in the context of a generator.
+void RestoreOriginalGeneratorFramePointer(arch::Builder* as);
 
 } // namespace jit::codegen

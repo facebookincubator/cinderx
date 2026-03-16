@@ -84,25 +84,6 @@ namespace {
 // Scratch register used by the various deopt trampolines.
 [[maybe_unused]] const auto deopt_scratch_reg = arch::reg_scratch_deopt;
 
-// Set the frame pointer to "original frame pointer" value when called in the
-// context of a generator.
-void RestoreOriginalGeneratorFramePointer(arch::Builder* as) {
-#if defined(CINDER_X86_64)
-  size_t original_frame_pointer_offset =
-      offsetof(GenDataFooter, originalFramePointer);
-  as->mov(x86::rbp, x86::ptr(x86::rbp, original_frame_pointer_offset));
-#elif defined(CINDER_AARCH64)
-  size_t original_frame_pointer_offset =
-      offsetof(GenDataFooter, originalFramePointer);
-  as->ldr(
-      arch::fp,
-      arch::ptr_resolve(
-          as, arch::fp, original_frame_pointer_offset, arch::reg_scratch_0));
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
 void raiseUnboundLocalError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
 
@@ -1037,62 +1018,6 @@ void saveCalleeSavedRegsAarch64(arch::Builder* as, PhyRegisterSet saved_regs) {
     }
   }
 }
-
-// Restore a set of callee-saved registers from the stack, in reverse order
-// of saveCalleeSavedRegsAarch64.
-void restoreCalleeSavedRegsAarch64(
-    arch::Builder* as,
-    PhyRegisterSet saved_regs) {
-  auto gp_regs = saved_regs & ALL_GP_REGISTERS;
-  auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
-
-  // Restore VecD registers first (they were saved last, so they're at the
-  // lowest addresses).
-  if (!vecd_regs.Empty()) {
-    // Restore in reverse order (GetLast first).
-    // If odd count, the first-saved was a single str, so it's the last to
-    // restore and will be a single ldr.
-    bool odd = vecd_regs.count() % 2 == 1;
-    // First restore the pairs (from the paired stps).
-    // The pairs were saved GetFirst-first, so we restore GetLast-first.
-    PhyRegisterSet vecd_pairs = vecd_regs;
-    if (odd) {
-      vecd_pairs.RemoveFirst(); // skip the odd one for now
-    }
-    while (!vecd_pairs.Empty()) {
-      auto second = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
-      vecd_pairs.RemoveLast();
-      auto first = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
-      vecd_pairs.RemoveLast();
-      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
-    }
-    if (odd) {
-      as->ldr(
-          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
-          a64::ptr_post(a64::sp, 16));
-    }
-  }
-
-  // Restore GP registers (they were saved first, so they're at higher
-  // addresses).
-  if (!gp_regs.Empty()) {
-    bool odd = gp_regs.count() % 2 == 1;
-    PhyRegisterSet gp_pairs = gp_regs;
-    if (odd) {
-      gp_pairs.RemoveFirst();
-    }
-    while (!gp_pairs.Empty()) {
-      auto second = a64::x(gp_pairs.GetLast().loc);
-      gp_pairs.RemoveLast();
-      auto first = a64::x(gp_pairs.GetLast().loc);
-      gp_pairs.RemoveLast();
-      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
-    }
-    if (odd) {
-      as->ldr(a64::x(gp_regs.GetFirst().loc), a64::ptr_post(a64::sp, 16));
-    }
-  }
-}
 #endif
 
 } // namespace
@@ -1987,178 +1912,15 @@ void NativeGenerator::generateStaticMethodTypeChecks(Label setup_frame) {
 void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
   as_->setCursor(epilogue_cursor);
 
-  // now we can use all the caller save registers except for RAX
+  // The main epilogue code (generator state, frame unlink, primitive return
+  // flag, callee-saved restore, leave/ret) is now emitted by LIR instructions
+  // in the exit block.
+
+  // Bind exit_label for annotation tracking.
   as_->bind(env_.exit_label);
 
 #if defined(CINDER_X86_64)
-  bool is_gen = GetFunction()->code->co_flags & kCoFlagsAnyGenerator;
-  if (is_gen) {
-#if PY_VERSION_HEX < 0x030C0000
-    // Set generator state to "completed". We access the state via RBP which
-    // points to the of spill data and bottom of GenDataFooter.
-    auto state_offs = offsetof(GenDataFooter, state);
-    as_->mov(
-        x86::ptr(x86::rbp, state_offs, sizeof(GenDataFooter::state)),
-        Ci_JITGenState_Completed);
-#else
-    // ((GenDataFooter*)rbp)->gen->gi_frame_state = FRAME_COMPLETED
-    // RDX is an arbitrary scratch register - any caller saved reg is fine.
-    auto gen_offs = offsetof(GenDataFooter, gen);
-    as_->mov(x86::rdx, x86::ptr(x86::rbp, gen_offs));
-    as_->mov(
-        x86::ptr(
-            x86::rdx,
-            offsetof(PyGenObject, gi_frame_state),
-            sizeof(PyGenObject::gi_frame_state)),
-#if PY_VERSION_HEX >= 0x030F0000
-        FRAME_CLEARED);
-#else
-        FRAME_COMPLETED);
-#endif
-#endif
-    as_->bind(env_.exit_for_yield_label);
-    RestoreOriginalGeneratorFramePointer(as_);
-  }
-
-#if PY_VERSION_HEX >= 0x030C0000
-  // Generator frame linkage for resumed generators is handled by the generator
-  // object i.e. in generators_rt. For the initial yield unlinking happens as
-  // part of the YieldInitial LIR instruction.
-  if (!is_gen) {
-    frame_asm_.generateUnlinkFrame(false);
-  }
-#else
-  // Ideally this would also be the same in 3.10 as well but I spent maybe half
-  // a day trying to change things and gave up. Our implementation is really
-  // wonky and a clear ownership model is made difficult by shadow frames. It's
-  // probably subtly broken somewhere.
-  frame_asm_.generateUnlinkFrame(is_gen);
-#endif
-
-  // If we return a primitive, set edx/xmm1 to 1 to indicate no error (in case
-  // of error, deopt will set it to 0 and jump to hard_exit_label, skipping
-  // this.)
-  if (func_->returnsPrimitive()) {
-    JIT_CHECK(!is_gen, "generators can't return primitives");
-    if (func_->returnsPrimitiveDouble()) {
-      // Loads an *integer* 1 in XMM1.. value doesn't matter,
-      // but it needs to be non-zero. See pg 124,
-      // https://www.agner.org/optimize/optimizing_assembly.pdf
-      as_->pcmpeqw(x86::xmm1, x86::xmm1);
-      as_->psrlq(x86::xmm1, 63);
-    } else {
-      as_->mov(x86::edx, 1);
-    }
-  }
-
-  as_->bind(env_.hard_exit_label);
-  asmjit::BaseNode* epilogue_error_cursor = as_->cursor();
-
-  auto saved_regs = env_.changed_regs & CALLEE_SAVE_REGS;
-  if (!saved_regs.Empty()) {
-    // Reset rsp to point at our callee-saved registers and restore them.
-    JIT_CHECK(
-        env_.last_callee_saved_reg_off != -1,
-        "offset to callee saved regs not initialized");
-    as_->lea(x86::rsp, x86::ptr(x86::rbp, -env_.last_callee_saved_reg_off));
-
-    while (!saved_regs.Empty()) {
-      as_->pop(x86::gpq(saved_regs.GetLast().loc));
-      saved_regs.RemoveLast();
-    }
-  }
-
-  generateFunctionExit();
-
-  env_.addAnnotation(
-      "Epilogue (restore regs; pop native frame; error exit)",
-      epilogue_error_cursor);
-  env_.addAnnotation("Epilogue", epilogue_cursor);
 #elif defined(CINDER_AARCH64)
-  bool is_gen = GetFunction()->code->co_flags & kCoFlagsAnyGenerator;
-  if (is_gen) {
-#if PY_VERSION_HEX < 0x030C0000
-    CINDER_UNSUPPORTED
-#else
-    // ((GenDataFooter*) fp)->gen->gi_frame_state = FRAME_COMPLETED
-    // X2 is an arbitrary scratch register - any caller saved reg is fine.
-    auto gen_offs = offsetof(GenDataFooter, gen);
-    as_->ldr(
-        a64::x2,
-        arch::ptr_resolve(as_, arch::fp, gen_offs, arch::reg_scratch_0));
-    as_->mov(
-        arch::reg_scratch_0,
-#if PY_VERSION_HEX >= 0x030F0000
-        FRAME_CLEARED
-#else
-        FRAME_COMPLETED
-#endif
-    );
-
-    static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
-    as_->strb(
-        arch::reg_scratch_0.w(),
-        arch::ptr_resolve(
-            as_,
-            a64::x2,
-            offsetof(PyGenObject, gi_frame_state),
-            arch::reg_scratch_1,
-            arch::AccessSize::k8));
-#endif
-    as_->bind(env_.exit_for_yield_label);
-    RestoreOriginalGeneratorFramePointer(as_);
-  }
-
-#if PY_VERSION_HEX >= 0x030C0000
-  // Generator frame linkage for resumed generators is handled by the generator
-  // object i.e. in generators_rt. For the initial yield unlinking happens as
-  // part of the YieldInitial LIR instruction.
-  if (!is_gen) {
-    frame_asm_.generateUnlinkFrame(false);
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
-
-  // If we return a primitive, set w2/d0 to 1 to indicate no error (in case
-  // of error, deopt will set it to 0 and jump to hard_exit_label, skipping
-  // this.)
-  if (func_->returnsPrimitive()) {
-    JIT_CHECK(!is_gen, "generators can't return primitives");
-    if (func_->returnsPrimitiveDouble()) {
-      // Loads an *integer* 1 in D1.. value doesn't matter,
-      // but it needs to be non-zero.
-      as_->fmov(a64::d1, 1.0);
-    } else {
-      as_->mov(a64::w1, 1);
-    }
-  }
-
-  as_->bind(env_.hard_exit_label);
-  asmjit::BaseNode* epilogue_error_cursor = as_->cursor();
-
-  auto saved_regs = env_.changed_regs & CALLEE_SAVE_REGS;
-  if (!saved_regs.Empty()) {
-    // Reset the stack pointer to point at our callee-saved registers and
-    // restore them.
-    JIT_CHECK(
-        env_.last_callee_saved_reg_off != -1,
-        "offset to callee saved regs not initialized");
-
-    JIT_CHECK(env_.last_callee_saved_reg_off % kStackAlign == 0, "unaligned");
-
-    arch::add_signed_immediate(
-        as_, a64::sp, arch::fp, -env_.last_callee_saved_reg_off);
-
-    restoreCalleeSavedRegsAarch64(as_, saved_regs);
-  }
-
-  generateFunctionExit();
-
-  env_.addAnnotation(
-      "Epilogue (restore regs; pop native frame; error exit)",
-      epilogue_error_cursor);
-  env_.addAnnotation("Epilogue", epilogue_cursor);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2774,8 +2536,14 @@ bool NativeGenerator::hasStaticEntry() const {
 }
 
 void NativeGenerator::generateCode(CodeHolder& codeholder) {
-  // The body must be generated before the prologue to determine how much spill
-  // space to allocate.
+  // computeFrameInfo() is called before generateAssemblyBody() so that
+  // env_.last_callee_saved_reg_off is available to the exit block's custom
+  // translators. All of computeFrameInfo()'s inputs
+  // (shadow_frames_and_spill_size, changed_regs, max_arg_buffer_size) are set
+  // during register allocation, which completes before generateCode() is
+  // called.
+  auto frame_info = computeFrameInfo();
+
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
 
@@ -2786,7 +2554,6 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   Label correct_arg_count = as_->newLabel();
   Label finish_frame_setup = as_->newLabel();
   Label static_jmp_location = as_->newLabel();
-  auto frame_info = computeFrameInfo();
 
   bool has_static_entry = hasStaticEntry();
   if (has_static_entry) {

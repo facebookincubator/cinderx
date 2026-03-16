@@ -30,8 +30,6 @@ class FrameAsm {
       const std::vector<std::pair<const arch::Reg&, const arch::Reg&>>&
           save_regs);
 
-  void generateUnlinkFrame(bool is_generator);
-
   void setAssembler(arch::Builder* as) {
     as_ = as;
   }

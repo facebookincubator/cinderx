@@ -428,7 +428,8 @@ RewriteResult rewriteBranchInstrs(Function* function) {
     auto last_instr = block->getLastInstr();
     auto last_opcode =
         last_instr != nullptr ? last_instr->opcode() : Instruction::kNone;
-    if (last_opcode == Instruction::kReturn) {
+    if (last_opcode == Instruction::kReturn ||
+        last_opcode == Instruction::kEpilogueEnd) {
       continue;
     }
 

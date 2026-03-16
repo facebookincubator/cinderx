@@ -234,7 +234,112 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
 }
 
 BasicBlock* LIRGenerator::GenerateExitBlock() {
-  return lir_func_->allocateBasicBlock();
+  auto* block = lir_func_->allocateBasicBlock();
+
+  // func_->code may be null in unit tests that parse HIR directly.
+  if (func_->code == nullptr) {
+    return block;
+  }
+
+  bool is_gen = func_->code->co_flags & kCoFlagsAnyGenerator;
+  bool is_double = func_->returnsPrimitiveDouble();
+
+  auto ret_data_type = hirTypeToDataType(func_->return_type);
+  auto ret_reg = is_double ? codegen::arch::reg_double_return_loc
+                           : codegen::arch::reg_general_return_loc;
+
+  Instruction* save_instr = nullptr;
+
+  // Use kBind to associate ret_reg with a vreg before the GenDataFooter
+  // updates. The register allocator pre-allocates this vreg to ret_reg
+  // and extends its live range through kEpilogueEnd.
+  save_instr = block->allocateInstr(
+      Instruction::kBind,
+      nullptr,
+      OutVReg{ret_data_type},
+      PhyReg{ret_reg, ret_data_type});
+
+  if (is_gen) {
+    // Returning from a generator, it is now complete
+#if PY_VERSION_HEX < 0x030C0000
+    // Pre-3.12: store Completed state directly into GenDataFooter
+    auto* state_store = block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutInd{
+            codegen::arch::reg_frame_pointer_loc,
+            static_cast<int32_t>(offsetof(GenDataFooter, state))},
+        Imm{static_cast<uint64_t>(Ci_JITGenState_Completed), DataType::k32bit});
+    state_store->output()->setDataType(DataType::k32bit);
+#else
+    // 3.12+: load gen pointer from GenDataFooter, then store gi_frame_state
+    auto* gen_ptr = block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutVReg{},
+        Ind{codegen::arch::reg_frame_pointer_loc,
+            static_cast<int32_t>(offsetof(GenDataFooter, gen))});
+
+    auto* gi_store = block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutInd{
+            gen_ptr,
+            static_cast<int32_t>(offsetof(PyGenObject, gi_frame_state))},
+        Imm{static_cast<uint64_t>(
+#if PY_VERSION_HEX >= 0x030F0000
+                FRAME_CLEARED
+#else
+                FRAME_COMPLETED
+#endif
+                ),
+            DataType::k8bit});
+    static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
+    gi_store->output()->setDataType(DataType::k8bit);
+#endif
+
+    block->allocateInstr(Instruction::kYieldExitPoint, nullptr);
+  }
+
+  // Call JITRT_UnlinkFrame BEFORE FP restore. The allocator may need to
+  // spill ret_reg across this call, and spill slots are relative to RBP.
+  // Doing this before FP restore ensures the spill slots are accessible.
+  // The shadow frame itself is accessed via tstate (not RBP), so the order
+  // relative to FP restore doesn't matter for correctness.
+#ifndef ENABLE_SHADOW_FRAMES
+  bool unlink = !is_gen;
+#else
+  bool unlink = true;
+#endif
+
+  if (unlink) {
+    block->allocateInstr(
+        Instruction::kCall,
+        nullptr,
+        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)}
+#ifdef ENABLE_SHADOW_FRAMES
+        ,
+        Imm{is_gen ? 0UL : 1UL}
+#endif
+    );
+  }
+
+  if (is_gen) {
+    // Restore original frame pointer. Must come after JITRT_UnlinkFrame
+    // (if present) since changing RBP makes regalloc spill slots
+    // inaccessible.
+    block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{codegen::arch::reg_frame_pointer_loc},
+        Ind{codegen::arch::reg_frame_pointer_loc,
+            static_cast<int32_t>(
+                offsetof(GenDataFooter, originalFramePointer))});
+  }
+
+  block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{save_instr});
+
+  return block;
 }
 
 void LIRGenerator::AnalyzeCopies() {
