@@ -456,7 +456,7 @@ RewriteResult rewriteBranchInstrs(Function* function) {
 // rewrite move instructions
 // optimize move instruction in the following cases:
 //   1. remove the move instruction when source and destination are the same
-//   2. rewrite move instruction to xor when the source operand is 0.
+//   2. rewrite move instruction to xor when the source operand is 0 on x86_64.
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto instr_opcode = instr->opcode();
@@ -474,6 +474,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     return kRemoved;
   }
 
+#if defined(CINDER_X86_64)
   if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
     auto in_opnd = dynamic_cast<Operand*>(in);
     JIT_CHECK(
@@ -488,6 +489,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     instr->addOperands(PhyReg{reg, data_type}, PhyReg{reg, data_type});
     return kChanged;
   }
+#endif
 
   return kUnchanged;
 }
