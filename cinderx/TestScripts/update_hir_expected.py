@@ -290,6 +290,7 @@ def write_if_changed(filename: str, old_lines: list[str], new_lines: list[str]) 
 
 CPP_TEST_NAME_RE: re.Pattern[str] = re.compile(r"^TEST(_F)?\(([^,]+), ([^)]+)\) {")
 # Dynamic regex patterns - will be generated based on versions found
+CPP_MACRO_IF_RE: re.Pattern[str] = re.compile(r"^#if\b")
 CPP_MACRO_ELSE_RE: re.Pattern[str] = re.compile(r"^#else")
 CPP_MACRO_ENDIF_RE: re.Pattern[str] = re.compile(r"^#endif")
 
@@ -400,6 +401,7 @@ def update_cpp_tests(  # noqa: C901
 
         state = State.WAIT_FOR_TEST
         in_version_block = None
+        non_version_pp_depth = 0
         needs_to_close_upgraded_block = False
         new_lines = []
         for lineno, line in enumerate(old_lines, 1):  # noqa: B007
@@ -442,16 +444,34 @@ def update_cpp_tests(  # noqa: C901
                 new_lines.append(line)
                 continue
 
-            if in_version_block is not None and CPP_MACRO_ELSE_RE.match(line):
-                # #else represents the fallback version (lowest supported version)
-                in_version_block = "3.10"  # Assume 3.10 as the lowest supported version
+            # Track non-version preprocessor #if directives (e.g., #if defined(...))
+            # so their #else/#endif don't get confused with version block boundaries.
+            if CPP_MACRO_IF_RE.match(line):
+                non_version_pp_depth += 1
                 new_lines.append(line)
                 continue
 
-            if in_version_block is not None and CPP_MACRO_ENDIF_RE.match(line):
-                in_version_block = None
-                new_lines.append(line)
-                continue
+            if CPP_MACRO_ELSE_RE.match(line):
+                if non_version_pp_depth > 0:
+                    new_lines.append(line)
+                    continue
+                if in_version_block is not None:
+                    # #else represents the fallback version (lowest supported version)
+                    in_version_block = (
+                        "3.10"  # Assume 3.10 as the lowest supported version
+                    )
+                    new_lines.append(line)
+                    continue
+
+            if CPP_MACRO_ENDIF_RE.match(line):
+                if non_version_pp_depth > 0:
+                    non_version_pp_depth -= 1
+                    new_lines.append(line)
+                    continue
+                if in_version_block is not None:
+                    in_version_block = None
+                    new_lines.append(line)
+                    continue
 
             m = CPP_EXPECTED_START_RE.match(line)
             if m is not None:
