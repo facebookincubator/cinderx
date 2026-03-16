@@ -3513,13 +3513,15 @@ int initialize() {
     return 0;
   }
 
-  // Save the force_init field as it might have be set by test code before
-  // jit::initialize() is called.
+  // Save fields that might have been set by test code before jit::initialize()
+  // is called.
   auto force_init = getConfig().force_init;
+  auto use_stable_pointers = getConfig().use_stable_pointers;
   getMutableConfig() = Config{};
   if (force_init.has_value()) {
     getMutableConfig().force_init = force_init;
   }
+  getMutableConfig().use_stable_pointers = use_stable_pointers;
 
   FlagProcessor flag_processor = initFlagProcessor();
   if (flag_processor.hasHandled("jit-help")) {

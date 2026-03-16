@@ -3,6 +3,7 @@
 #include "cinderx/Jit/jit_time_log.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 
 #include <fmt/core.h>
@@ -14,10 +15,9 @@
 
 namespace jit {
 
-static std::vector<std::string> capture_compilation_times_for;
-
 void parseAndSetFuncList(const std::string& flag_value) {
-  capture_compilation_times_for.clear();
+  auto& func_list = getMutableConfig().capture_compilation_times_for;
+  func_list.clear();
 
   std::stringstream ss(flag_value);
 
@@ -25,7 +25,7 @@ void parseAndSetFuncList(const std::string& flag_value) {
     std::string substr;
     getline(ss, substr, ',');
     if (!substr.empty()) {
-      capture_compilation_times_for.emplace_back(substr);
+      func_list.emplace_back(substr);
     }
   }
 }
@@ -63,7 +63,7 @@ bool isMatch(const std::string& word, const std::string& pattern) {
 }
 
 bool captureCompilationTimeFor(const std::string& function_name) {
-  for (const std::string& pattern : capture_compilation_times_for) {
+  for (const std::string& pattern : getConfig().capture_compilation_times_for) {
     if (isMatch(function_name, pattern)) {
       return true;
     }

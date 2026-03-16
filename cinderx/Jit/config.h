@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace jit {
 
@@ -203,6 +204,12 @@ struct Config {
 
   // The ASM syntax the JIT should use when disassembling.
   AsmSyntax asm_syntax{AsmSyntax::ATT};
+
+  // List of function name patterns for which to capture compilation times.
+  std::vector<std::string> capture_compilation_times_for;
+
+  // Use stable sentinel pointers in output (for deterministic test output).
+  bool use_stable_pointers{false};
 };
 
 // Get the JIT's current config object.

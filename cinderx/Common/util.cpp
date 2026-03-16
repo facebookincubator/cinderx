@@ -8,6 +8,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/config.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -103,15 +104,14 @@ jit_string_t* ss_sprintf_alloc(const char* format, ...) {
 
 namespace jit {
 
-static bool s_use_stable_pointers{false};
-
 const void* getStablePointer(const void* ptr) {
-  return s_use_stable_pointers ? reinterpret_cast<const void*>(0xdeadbeef)
-                               : ptr;
+  return getConfig().use_stable_pointers
+      ? reinterpret_cast<const void*>(0xdeadbeef)
+      : ptr;
 }
 
 void setUseStablePointers(bool enable) {
-  s_use_stable_pointers = enable;
+  getMutableConfig().use_stable_pointers = enable;
 }
 
 std::string unicodeAsString(PyObject* str) {
