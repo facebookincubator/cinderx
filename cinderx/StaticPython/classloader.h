@@ -25,8 +25,6 @@
 extern "C" {
 #endif
 
-extern PyObject* CiExc_StaticTypeError;
-
 #ifndef Py_LIMITED_API
 
 #endif

@@ -2,14 +2,9 @@
 
 #pragma once
 
-#include "cinderx/python.h"
+#include "cinderx/module_c_state.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern PyObject* CiExc_StaticTypeError;
-
-#ifdef __cplusplus
-}
-#endif
+// CiExc_StaticTypeError is stored in ModuleState and accessed via a C
+// accessor function. The macro preserves source compatibility with all
+// existing usage sites.
+#define CiExc_StaticTypeError Ci_GetStaticTypeError()

@@ -11,6 +11,11 @@ extern "C" {
 vectorcallfunc Ci_PyFunction_Vectorcall;
 #endif
 
+PyObject* Ci_GetStaticTypeError(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->static_type_error.getObj() : nullptr;
+}
+
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }

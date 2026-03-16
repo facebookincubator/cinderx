@@ -20,6 +20,9 @@ extern "C" {
 extern vectorcallfunc Ci_PyFunction_Vectorcall;
 #endif
 
+// Get the StaticTypeError exception type.
+PyObject* Ci_GetStaticTypeError(void);
+
 // WatcherState.
 
 int Ci_Watchers_WatchDict(PyObject* dict);

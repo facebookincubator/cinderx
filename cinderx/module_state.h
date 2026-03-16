@@ -55,6 +55,9 @@ struct ModuleState {
   // Type for the custom awaitable returned by CinderX's anext() replacement.
   Ref<PyTypeObject> anext_awaitable_type;
 
+  // The cinderx.StaticTypeError exception type.
+  Ref<PyTypeObject> static_type_error;
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).

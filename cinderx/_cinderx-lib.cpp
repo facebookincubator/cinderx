@@ -1377,11 +1377,15 @@ int _cinderx_exec_impl(PyObject* m) {
   watcher_state.setFuncWatcher(cinderx_func_watcher);
   watcher_state.setTypeWatcher(cinderx_type_watcher);
 
-  CiExc_StaticTypeError =
-      PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);
-  if (CiExc_StaticTypeError == nullptr) {
+  PyObject* static_type_error = PyErr_NewException(
+      "cinderx.StaticTypeError", PyExc_TypeError, nullptr /* dict */);
+  if (static_type_error == nullptr) {
     return -1;
   }
+  JIT_CHECK(
+      PyType_Check(static_type_error),
+      "Created StaticTypeError but it isn't a type object");
+  state->static_type_error = Ref<PyTypeObject>::steal(static_type_error);
 
   if (PyType_Ready(&PyCachedProperty_Type) < 0) {
     return -1;
