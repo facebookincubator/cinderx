@@ -289,6 +289,7 @@ bool Instruction::isAnyYield() const {
   switch (opcode_) {
     case kYieldInitial:
     case kYieldValue:
+    case kStoreGenYieldPoint:
       return true;
     default:
       return false;

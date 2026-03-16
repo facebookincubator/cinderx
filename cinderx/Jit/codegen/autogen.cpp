@@ -8,6 +8,7 @@
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
+#include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/printer.h"
@@ -823,30 +824,6 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
     PhyLocation value_out = instr->getInput(1)->getStackSlot();
     as->mov(x86::rax, x86::ptr(x86::rbp, value_out.loc));
   }
-
-  // Arbitrary scratch register for use in emitStoreGenYieldPoint()
-  auto scratch_r = x86::r9;
-  auto resume_label = as->newLabel();
-  emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rbp, scratch_r);
-
-  // Jump to epilogue
-  as->jmp(env->exit_for_yield_label);
-
-  // Resumed execution in this generator begins here
-  as->bind(resume_label);
-
-#if PY_VERSION_HEX < 0x030C0000
-  // On 3.10, for yield-from yield points, store the finish_yield_from arg
-  // (RDX from resume entry) into GenDataFooter so the subsequent Send
-  // instruction can load it.
-  if (instr->isInYieldFromContext()) {
-    auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
-    as->mov(x86::qword_ptr(x86::rbp, fyf_offset), x86::rdx);
-  }
-#endif
-
-  // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 #elif defined(CINDER_AARCH64)
   a64::Builder* as = env->as;
 
@@ -859,23 +836,71 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
         a64::x0,
         arch::ptr_resolve(as, arch::fp, value_out.loc, arch::reg_scratch_0));
   }
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
 
-  // Arbitrary scratch register for use in emitStoreGenYieldPoint()
+void translateStoreGenYieldPoint(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
+  arch::Builder* as = env->as;
+  auto scratch_r = x86::r9;
+  env->pending_yield_resume_label = as->newLabel();
+  emitStoreGenYieldPoint(
+      as, env, instr, env->pending_yield_resume_label, x86::rbp, scratch_r);
+#elif defined(CINDER_AARCH64)
+  a64::Builder* as = env->as;
   auto scratch_r = arch::reg_scratch_0;
-  auto resume_label = as->newLabel();
-  emitStoreGenYieldPoint(as, env, instr, resume_label, arch::fp, scratch_r);
+  env->pending_yield_resume_label = as->newLabel();
+  emitStoreGenYieldPoint(
+      as, env, instr, env->pending_yield_resume_label, arch::fp, scratch_r);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
 
-  // Jump to epilogue
-  as->b(env->exit_for_yield_label);
+void translateBranchToYieldExit(Environ* env, const Instruction*) {
+#if defined(CINDER_X86_64)
+  env->as->jmp(env->exit_for_yield_label);
+#elif defined(CINDER_AARCH64)
+  env->as->b(env->exit_for_yield_label);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+void translateResumeGenYield(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
+  arch::Builder* as = env->as;
 
   // Resumed execution in this generator begins here
-  as->bind(resume_label);
+  as->bind(env->pending_yield_resume_label);
+
+#if PY_VERSION_HEX < 0x030C0000
+  // On 3.10, for yield-from yield points, store the finish_yield_from arg
+  // (RDX from resume entry) into GenDataFooter so the subsequent Send
+  // instruction can load it.
+  if (instr->origin() &&
+      static_cast<const hir::YieldValue*>(instr->origin())->isYieldFrom()) {
+    auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
+    as->mov(x86::qword_ptr(x86::rbp, fyf_offset), x86::rdx);
+  }
+#endif
+
+  // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+#elif defined(CINDER_AARCH64)
+  a64::Builder* as = env->as;
+
+  // Resumed execution in this generator begins here
+  as->bind(env->pending_yield_resume_label);
 
 #if PY_VERSION_HEX < 0x030C0000
   // On 3.10, for yield-from yield points, store the finish_yield_from arg
   // (X2 from resume entry) into GenDataFooter so the subsequent Send
   // instruction can load it.
-  if (instr->isInYieldFromContext()) {
+  if (instr->origin() &&
+      static_cast<const hir::YieldValue*>(instr->origin())->isYieldFrom()) {
     auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
     as->str(
         a64::x2,
@@ -1700,6 +1725,18 @@ END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
   GEN(ANY, CALL_C(translateYieldValue))
+END_RULES
+
+BEGIN_RULES(Instruction::kStoreGenYieldPoint)
+  GEN(ANY, CALL_C(translateStoreGenYieldPoint))
+END_RULES
+
+BEGIN_RULES(Instruction::kBranchToYieldExit)
+  GEN(ANY, CALL_C(translateBranchToYieldExit))
+END_RULES
+
+BEGIN_RULES(Instruction::kResumeGenYield)
+  GEN(ANY, CALL_C(translateResumeGenYield))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldExitPoint)
@@ -2991,6 +3028,18 @@ END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
   GEN(ANY, CALL_C(translateYieldValue))
+END_RULES
+
+BEGIN_RULES(Instruction::kStoreGenYieldPoint)
+  GEN(ANY, CALL_C(translateStoreGenYieldPoint))
+END_RULES
+
+BEGIN_RULES(Instruction::kBranchToYieldExit)
+  GEN(ANY, CALL_C(translateBranchToYieldExit))
+END_RULES
+
+BEGIN_RULES(Instruction::kResumeGenYield)
+  GEN(ANY, CALL_C(translateResumeGenYield))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldExitPoint)

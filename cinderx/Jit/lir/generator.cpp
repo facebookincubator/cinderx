@@ -1309,18 +1309,34 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kYieldValue: {
         auto hir_instr = static_cast<const YieldValue*>(&i);
-        Instruction* instr = bbb.appendInstr(
-            hir_instr->output(),
-            Instruction::kYieldValue,
-            env_->asm_tstate,
-            hir_instr->reg());
+
+        // 1. kYieldValue: load tstate and yield value into ABI registers.
+        //    No output — the yielded value goes to the return register in
+        //    codegen.
+        bbb.appendInstr(
+            Instruction::kYieldValue, env_->asm_tstate, hir_instr->reg());
+
+        // 2. kStoreGenYieldPoint: store yield point metadata and live regs.
+        Instruction* store_instr =
+            bbb.appendInstr(Instruction::kStoreGenYieldPoint);
         if (hir_instr->isYieldFrom()) {
           // Add the sub-iterator as an extra input so that
           // emitStoreGenYieldPoint can capture its spill offset.
-          instr->addOperands(VReg{bbb.getDefInstr(hir_instr->yieldFromIter())});
-          instr->setYieldFromInputIdx(instr->getNumInputs() - 1);
+          store_instr->addOperands(
+              VReg{bbb.getDefInstr(hir_instr->yieldFromIter())});
+          store_instr->setYieldFromInputIdx(store_instr->getNumInputs() - 1);
         }
-        finishYield(bbb, instr, hir_instr);
+        finishYield(bbb, store_instr, hir_instr);
+
+        // 3. kBranchToYieldExit: jump to yield exit epilogue.
+        bbb.appendInstr(Instruction::kBranchToYieldExit);
+
+        // 4. kResumeGenYield: bind resume label, load resumed inputs.
+        //    Has output (the sent-in value) and takes tstate as input.
+        bbb.appendInstr(
+            hir_instr->output(),
+            Instruction::kResumeGenYield,
+            env_->asm_tstate);
         break;
       }
       case Opcode::kInitialYield: {
