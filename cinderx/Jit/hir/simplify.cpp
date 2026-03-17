@@ -1907,6 +1907,7 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
 
 Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
   if (instr->GetOperand(0)->isA(TDictExact)) {
+    env.emit<UseType>(instr->GetOperand(0), TDictExact);
     auto output = env.func.env.AllocateRegister();
     env.emitRawInstr<CallStatic>(
         3,
