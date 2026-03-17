@@ -4949,7 +4949,6 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr):
             pass
 
-    @skip("Check for Protocol temporarily reverted until CI issues are fixed")
     def test_protocol(self) -> None:
         # Regression test for an error when inheriting from protocol
         codestr = """
