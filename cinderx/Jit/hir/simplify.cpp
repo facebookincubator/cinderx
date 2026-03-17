@@ -744,6 +744,55 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
     return env.emit<FloatBinaryOp>(instr->op(), lhs, rhs, *instr->frameState());
   }
 
+  // Mixed float/int binary ops where the int is a known constant: convert the
+  // int to a double at compile time and emit an unboxed DoubleBinaryOp.  This
+  // avoids going through CPython's generic binary op dispatch which would do
+  // the int-to-float conversion at runtime.
+  if ((op == BinaryOpKind::kAdd || op == BinaryOpKind::kSubtract ||
+       op == BinaryOpKind::kMultiply || op == BinaryOpKind::kTrueDivide ||
+       op == BinaryOpKind::kPower)) {
+    Register* float_reg = nullptr;
+    Register* int_reg = nullptr;
+    bool int_on_right = false;
+    if (lhs->isA(TFloatExact) && rhs->isA(TLongExact) &&
+        rhs->type().hasObjectSpec()) {
+      float_reg = lhs;
+      int_reg = rhs;
+      int_on_right = true;
+    } else if (
+        lhs->isA(TLongExact) && rhs->isA(TFloatExact) &&
+        lhs->type().hasObjectSpec()) {
+      float_reg = rhs;
+      int_reg = lhs;
+      int_on_right = false;
+    }
+    if (float_reg != nullptr) {
+      int overflow;
+      long long_val =
+          PyLong_AsLongAndOverflow(int_reg->type().objectSpec(), &overflow);
+      if (!overflow) {
+        auto double_val = static_cast<double>(long_val);
+        env.emit<UseType>(float_reg, TFloatExact);
+        env.emit<UseType>(int_reg, int_reg->type());
+        Register* unbox_float = env.emit<PrimitiveUnbox>(float_reg, TCDouble);
+        Register* const_double =
+            env.emit<LoadConst>(Type::fromCDouble(double_val));
+        Register* unbox_left = int_on_right ? unbox_float : const_double;
+        Register* unbox_right = int_on_right ? const_double : unbox_float;
+        // Need to guard against division by zero.
+        if (op == BinaryOpKind::kTrueDivide) {
+          Register* zero = env.emit<LoadConst>(Type::fromCDouble(0.0));
+          Register* is_nonzero = env.emit<PrimitiveCompare>(
+              PrimitiveCompareOp::kNotEqual, unbox_right, zero);
+          env.emitInstr<Guard>(is_nonzero);
+        }
+        Register* result =
+            env.emit<DoubleBinaryOp>(op, unbox_left, unbox_right);
+        return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
+      }
+    }
+  }
+
   if ((lhs->isA(TUnicodeExact) && rhs->isA(TLongExact)) &&
       (op == BinaryOpKind::kMultiply)) {
     Register* unboxed_rhs = env.emit<IndexUnbox>(rhs, PyExc_OverflowError);
@@ -866,6 +915,19 @@ Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
       op == BinaryOpKind::kMultiply) {
     Register* unbox_left = env.emit<PrimitiveUnbox>(instr->left(), TCDouble);
     Register* unbox_right = env.emit<PrimitiveUnbox>(instr->right(), TCDouble);
+    Register* result = env.emit<DoubleBinaryOp>(op, unbox_left, unbox_right);
+    return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
+  }
+
+  // True-divide is similar to add/sub/mul, but needs to guard against division
+  // by zero as that would raise a ZeroDivisionError in the interpreter.
+  if (op == BinaryOpKind::kTrueDivide) {
+    Register* unbox_left = env.emit<PrimitiveUnbox>(instr->left(), TCDouble);
+    Register* unbox_right = env.emit<PrimitiveUnbox>(instr->right(), TCDouble);
+    Register* zero = env.emit<LoadConst>(Type::fromCDouble(0.0));
+    Register* is_nonzero = env.emit<PrimitiveCompare>(
+        PrimitiveCompareOp::kNotEqual, unbox_right, zero);
+    env.emitInstr<Guard>(is_nonzero);
     Register* result = env.emit<DoubleBinaryOp>(op, unbox_left, unbox_right);
     return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
   }

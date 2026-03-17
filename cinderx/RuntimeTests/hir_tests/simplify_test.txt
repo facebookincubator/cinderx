@@ -6155,6 +6155,200 @@ fun test {
   }
 }
 --- Test Name ---
+BinaryOpMulFloatExactAndConstIntToUnboxed
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v3 = RefineType<FloatExact> v1
+    v4 = BinaryOp<Multiply> v3 v2
+    Return v4
+  }
+}
+--- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v3:FloatExact = RefineType<FloatExact> v1
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[3]> v2
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[3] = LoadConst<CDouble[3]>
+    v7:CDouble = DoubleBinaryOp<Multiply> v5 v6
+    v8:FloatExact = PrimitiveBox<CDouble> v7 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v3:FloatExact = RefineType<FloatExact> v1
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[3]> v2
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[3] = LoadConst<CDouble[3]>
+    v7:CDouble = DoubleBinaryOp<Multiply> v5 v6
+    v8:FloatExact = PrimitiveBox<CDouble> v7 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v3:FloatExact = RefineType<FloatExact> v1
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[3]> v2
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[3] = LoadConst<CDouble[3]>
+    v7:CDouble = DoubleBinaryOp<Multiply> v5 v6
+    v8:FloatExact = PrimitiveBox<CDouble> v7 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v3:FloatExact = RefineType<FloatExact> v1
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[3]> v2
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[3] = LoadConst<CDouble[3]>
+    v7:CDouble = DoubleBinaryOp<Multiply> v5 v6
+    v8:FloatExact = PrimitiveBox<CDouble> v7 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v8
+  }
+}
+--- Test Name ---
+BinaryOpTrueDivideConstIntAndFloatExactToUnboxed
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v2 = LoadArg<0>
+    v1:MortalLongExact[1] = LoadConst<MortalLongExact[1]>
+    v3 = RefineType<FloatExact> v2
+    v4 = BinaryOp<TrueDivide> v1 v3
+    Return v4
+  }
+}
+--- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v2:Object = LoadArg<0>
+    v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v3:FloatExact = RefineType<FloatExact> v2
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[1]> v1
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[1] = LoadConst<CDouble[1]>
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    v8:CBool = PrimitiveCompare<NotEqual> v5 v7
+    Guard v8 {
+    }
+    v9:CDouble = DoubleBinaryOp<TrueDivide> v6 v5
+    v10:FloatExact = PrimitiveBox<CDouble> v9 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v10
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v2:Object = LoadArg<0>
+    v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v3:FloatExact = RefineType<FloatExact> v2
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[1]> v1
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[1] = LoadConst<CDouble[1]>
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    v8:CBool = PrimitiveCompare<NotEqual> v5 v7
+    Guard v8 {
+    }
+    v9:CDouble = DoubleBinaryOp<TrueDivide> v6 v5
+    v10:FloatExact = PrimitiveBox<CDouble> v9 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v10
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v2:Object = LoadArg<0>
+    v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v3:FloatExact = RefineType<FloatExact> v2
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[1]> v1
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[1] = LoadConst<CDouble[1]>
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    v8:CBool = PrimitiveCompare<NotEqual> v5 v7
+    Guard v8 {
+    }
+    v9:CDouble = DoubleBinaryOp<TrueDivide> v6 v5
+    v10:FloatExact = PrimitiveBox<CDouble> v9 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v10
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v2:Object = LoadArg<0>
+    v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v3:FloatExact = RefineType<FloatExact> v2
+    UseType<FloatExact> v3
+    UseType<ImmortalLongExact[1]> v1
+    v5:CDouble = PrimitiveUnbox<CDouble> v3
+    v6:CDouble[1] = LoadConst<CDouble[1]>
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    v8:CBool = PrimitiveCompare<NotEqual> v5 v7
+    Guard v8 {
+    }
+    v9:CDouble = DoubleBinaryOp<TrueDivide> v6 v5
+    v10:FloatExact = PrimitiveBox<CDouble> v9 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v10
+  }
+}
+--- Test Name ---
 BinaryOpWithObjSpecLeftAndRightLongExactTurnsIntoLoadConst
 --- Input ---
 # HIR
@@ -14132,6 +14326,108 @@ fun test {
       }
     }
     Return v9
+  }
+}
+--- Test Name ---
+FloatBinaryOpTrueDivideToUnboxed
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = LoadArg<1>
+    v3 = RefineType<FloatExact> v1
+    v4 = RefineType<FloatExact> v2
+    v5 = FloatBinaryOp<TrueDivide> v3 v4
+    Return v5
+  }
+}
+--- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble[0] = LoadConst<CDouble[0]>
+    v9:CBool = PrimitiveCompare<NotEqual> v7 v8
+    Guard v9 {
+    }
+    v10:CDouble = DoubleBinaryOp<TrueDivide> v6 v7
+    v11:FloatExact = PrimitiveBox<CDouble> v10 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v11
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble[0] = LoadConst<CDouble[0]>
+    v9:CBool = PrimitiveCompare<NotEqual> v7 v8
+    Guard v9 {
+    }
+    v10:CDouble = DoubleBinaryOp<TrueDivide> v6 v7
+    v11:FloatExact = PrimitiveBox<CDouble> v10 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v11
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble[0] = LoadConst<CDouble[0]>
+    v9:CBool = PrimitiveCompare<NotEqual> v7 v8
+    Guard v9 {
+    }
+    v10:CDouble = DoubleBinaryOp<TrueDivide> v6 v7
+    v11:FloatExact = PrimitiveBox<CDouble> v10 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v11
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble[0] = LoadConst<CDouble[0]>
+    v9:CBool = PrimitiveCompare<NotEqual> v7 v8
+    Guard v9 {
+    }
+    v10:CDouble = DoubleBinaryOp<TrueDivide> v6 v7
+    v11:FloatExact = PrimitiveBox<CDouble> v10 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v11
   }
 }
 --- Test Name ---

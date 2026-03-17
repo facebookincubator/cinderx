@@ -21,7 +21,7 @@ SOLAR_MASS = 4 * PI * PI
 DAYS_PER_YEAR = 365.24
 
 
-class Body(object):
+class Body:
     def __init__(self, x, y, z, vx, vy, vz, mass):
         self.x = x
         self.y = y
@@ -98,7 +98,7 @@ def offset_momentum(bodies):
     sun.vz = pz / SOLAR_MASS
 
 
-def advance(bodies, dt, n_bodies):
+def advance(bodies: list[Body], dt: float, n_bodies: int) -> None:
     for i in range(n_bodies):
         bi = bodies[i]
         bi_x = bi.x
