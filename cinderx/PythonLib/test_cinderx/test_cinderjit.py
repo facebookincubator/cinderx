@@ -1458,6 +1458,26 @@ class KeywordOnlyArgTests(unittest.TestCase):
         self.assertEqual(self.f4(2, y=10, z=30, a=40, b=50), {"a": 40, "b": 50})
 
 
+class PositionalDefaultsWithKeywordCallTest(unittest.TestCase):
+    """Test that positional args with defaults are filled correctly
+    when the function is called with keyword arguments."""
+
+    @cinder_support.failUnlessJITCompiled
+    def f(self, a, b=2, c=3):
+        return (a, b, c)
+
+    def test_skip_default_with_kwarg(self) -> None:
+        self.assertEqual(self.f(1, b=20), (1, 20, 3))
+        self.assertEqual(self.f(1, c=30), (1, 2, 30))
+
+    def test_override_defaults_with_kwargs(self) -> None:
+        self.assertEqual(self.f(1, b=20, c=30), (1, 20, 30))
+
+    def test_missing_required_arg_with_kwargs(self) -> None:
+        with self.assertRaises(TypeError):
+            self.f(b=20, c=30)
+
+
 class ClassA:
     z = 100
     x = 41

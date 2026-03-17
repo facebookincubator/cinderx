@@ -144,30 +144,26 @@ static int JITRT_BindKeywordArgs(
 
   // Add missing positional arguments (copy default values from defs)
   if (argcount < co->co_argcount) {
-    Py_ssize_t defcount;
-    if (func->func_defaults != nullptr) {
-      defcount = PyTuple_Size(func->func_defaults);
-    } else {
-      defcount = 0;
-    }
-    Py_ssize_t m = co->co_argcount - defcount;
-    Py_ssize_t missing = 0;
-    for (Py_ssize_t i = argcount; i < m; i++) {
+    PyObject* defaults = func->func_defaults;
+    Py_ssize_t defcount = defaults == nullptr ? 0 : PyTuple_Size(defaults);
+    Py_ssize_t first_default_arg = co->co_argcount - defcount;
+
+    // Any unset slot before the defaults region means we are missing
+    // a required positional argument.
+    for (Py_ssize_t i = argcount; i < first_default_arg; i++) {
       if (arg_space[i] == nullptr) {
-        missing++;
+        return 0;
       }
     }
-    if (missing) {
-      return 0;
-    }
 
-    if (defcount) {
-      PyObject* const* defs =
-          &((PyTupleObject*)func->func_defaults)->ob_item[0];
-      for (Py_ssize_t i = std::max<Py_ssize_t>(n - m, 0); i < defcount; i++) {
-        if (arg_space[m + i] == nullptr) {
-          PyObject* def = defs[i];
-          arg_space[m + i] = def;
+    if (defaults != nullptr) {
+      PyObject* const* defs = &((PyTupleObject*)defaults)->ob_item[0];
+      // Only slots in the defaults-covered tail can still need filling.
+      Py_ssize_t arg_index = std::max(argcount, first_default_arg);
+      for (; arg_index < co->co_argcount; arg_index++) {
+        if (arg_space[arg_index] == nullptr) {
+          Py_ssize_t def_index = arg_index - first_default_arg;
+          arg_space[arg_index] = defs[def_index];
         }
       }
     }
