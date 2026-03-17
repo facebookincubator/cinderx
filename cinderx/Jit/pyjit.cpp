@@ -1327,7 +1327,12 @@ void disable_jit_impl(bool deopt_all) {
     JIT_DLOG(
         "Deopting {} compiled functions", jitCtx()->compiledFuncs().size());
     size_t success = 0;
-    for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
+    auto& funcs = jitCtx()->compiledFuncs();
+    for (auto it = funcs.begin(); it != funcs.end();) {
+      BorrowedRef<PyFunctionObject> func = *it;
+      // Advance before deoptFunc() which erases func from funcs,
+      // invalidating the iterator pointing to it.
+      ++it;
       if (deoptFunc(func)) {
         success++;
       } else {
