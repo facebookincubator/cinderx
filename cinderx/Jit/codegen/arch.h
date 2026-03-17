@@ -70,11 +70,11 @@ using EmitterExplicitT = asmjit::a64::EmitterExplicitT<T>;
 // trampoline code that saves all registers.
 constexpr auto reg_scratch_deopt = asmjit::a64::x28;
 
-constexpr auto reg_scratch_0 = asmjit::a64::x12;
-constexpr auto reg_scratch_1 = asmjit::a64::x13;
+constexpr auto reg_scratch_0 = asmjit::a64::x13;
+constexpr auto reg_scratch_1 = asmjit::a64::x14;
 constexpr auto reg_scratch_br = asmjit::a64::x16;
 
-constexpr auto reg_scratch_0_loc = X12;
+constexpr auto reg_scratch_0_loc = X13;
 
 constexpr auto reg_general_return_loc = X0;
 constexpr auto reg_general_auxilary_return_loc = X1;

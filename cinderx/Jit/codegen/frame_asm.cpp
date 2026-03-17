@@ -775,8 +775,10 @@ void FrameAsm::linkLightWeightFunctionFrame(
       scratch,
       arch::ptr_offset(tstate_reg, offsetof(PyThreadState, current_frame)));
 #else
-  // 3.12 - current_frame is stored in PyThreadState.cframe
-  const arch::Gp& frame_holder = arch::reg_scratch_0;
+  // 3.12 - current_frame is stored in PyThreadState.cframe.
+  // Use reg_scratch_1 here because add_signed_immediate below may clobber
+  // reg_scratch_0 when materializing large frame offsets.
+  const arch::Gp& frame_holder = arch::reg_scratch_1;
   as_->ldr(
       frame_holder,
       arch::ptr_offset(tstate_reg, offsetof(PyThreadState, cframe)));
@@ -791,7 +793,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   as_->str(
       scratch,
       arch::ptr_resolve(
-          as_, arch::fp, FRAME_OFFSET(previous), arch::reg_scratch_1));
+          as_, arch::fp, FRAME_OFFSET(previous), arch::reg_scratch_0));
   env_.addAnnotation("Set _PyInterpreterFrame::previous", store_prev_cursor);
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -828,12 +830,6 @@ void FrameAsm::linkLightWeightFunctionFrame(
       scratch,
       arch::ptr_offset(frame_holder, offsetof(PyThreadState, current_frame)));
 #else
-  // add_signed_immediate may have clobbered arch::reg_scratch_0 (x12) when the
-  // offset was too large for an ADD/SUB immediate. frame_holder aliases x12 on
-  // 3.12, so reload it from tstate.
-  as_->ldr(
-      frame_holder,
-      arch::ptr_offset(tstate_reg, offsetof(PyThreadState, cframe)));
   // (PyThreadState.cframe|PyThreadState).current_frame = &cur_frame
   as_->str(
       scratch,

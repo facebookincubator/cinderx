@@ -309,7 +309,7 @@ constexpr PhyRegisterSet ALL_REGISTERS = ALL_GP_REGISTERS | ALL_VECD_REGISTERS;
 #undef ADD_REG
 
 constexpr PhyRegisterSet DISALLOWED_REGISTERS = PhyRegisterSet(X29) /* FP */ |
-    X30 /* LR */ | XZR /* zero */ | X12 /* scratch0 */ | X13 /* scratch1 */ |
+    X30 /* LR */ | XZR /* zero */ | X13 /* scratch0 */ | X14 /* scratch1 */ |
     X16 /* IP0 */;
 
 constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - DISALLOWED_REGISTERS;
