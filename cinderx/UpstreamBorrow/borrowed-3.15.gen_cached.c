@@ -3293,8 +3293,7 @@ _PyExc_CreateExceptionGroup(const char *msg_str, PyObject *excs)
     if (!msg) {
         return NULL;
     }
-    PyObject *args = PyTuple_Pack(2, msg, excs);
-    Py_DECREF(msg);
+    PyObject *args = _PyTuple_FromPairSteal(msg, Py_NewRef(excs));
     if (!args) {
         return NULL;
     }
