@@ -775,9 +775,9 @@ static int AsyncLazyValue_clear(AsyncLazyValueObj* self) {
 }
 
 static void AsyncLazyValue_dealloc(AsyncLazyValueObj* self) {
-  AsyncLazyValue_clear(self);
-
   PyObject_GC_UnTrack(self);
+
+  AsyncLazyValue_clear(self);
   Py_DECREF(((PyObject*)self)->ob_type);
   Py_TYPE(self)->tp_free(self);
 }
@@ -914,9 +914,9 @@ static int AsyncLazyValueCompute_clear(AsyncLazyValueComputeObj* self) {
 }
 
 static void AsyncLazyValueCompute_dealloc(AsyncLazyValueComputeObj* self) {
-  AsyncLazyValueCompute_clear(self);
-
   PyObject_GC_UnTrack(self);
+
+  AsyncLazyValueCompute_clear(self);
   Py_DECREF(((PyObject*)self)->ob_type);
   Py_TYPE(self)->tp_free(self);
 }
@@ -1424,9 +1424,9 @@ static PyObject* AwaitableValueObj_next(AwaitableValueObj* self) {
 }
 
 static void AwaitableValueObj_dealloc(AwaitableValueObj* self) {
-  AwaitableValueObj_clear(self);
-
   PyObject_GC_UnTrack(self);
+
+  AwaitableValueObj_clear(self);
   Py_DECREF(((PyObject*)self)->ob_type);
   Py_TYPE(self)->tp_free(self);
 }
