@@ -409,7 +409,49 @@ error:
 // @Borrow CPP directives noinclude from Objects/obmalloc.c
 // @Borrow function _PyObject_VirtualAlloc from Objects/obmalloc.c
 // @Borrow function allocate_chunk from Python/pystate.c
-// @Borrow function push_chunk from Python/pystate.c
+
+// Borrowed and patched to gate the use of tstate->datastack_cached_chunk on
+// a feature define, since Python 3.14.3 and earlier don't have that struct
+// member, and trying to use it would read out of bounds data.
+static PyObject **
+push_chunk(PyThreadState *tstate, int size)
+{
+    int allocate_size = _PY_DATA_STACK_CHUNK_SIZE;
+    while (allocate_size < (int)sizeof(PyObject*)*(size + MINIMUM_OVERHEAD)) {
+        allocate_size *= 2;
+    }
+    _PyStackChunk *new;
+#ifdef ENABLE_PYTHON_TSTATE_DATASTACK_CACHE
+    if (tstate->datastack_cached_chunk != NULL
+        && (size_t)allocate_size <= tstate->datastack_cached_chunk->size)
+    {
+        new = tstate->datastack_cached_chunk;
+        tstate->datastack_cached_chunk = NULL;
+        new->previous = tstate->datastack_chunk;
+        new->top = 0;
+    }
+    else
+#endif
+    {
+        new = allocate_chunk(allocate_size, tstate->datastack_chunk);
+        if (new == NULL) {
+            return NULL;
+        }
+    }
+    if (tstate->datastack_chunk) {
+        tstate->datastack_chunk->top = tstate->datastack_top -
+                                       &tstate->datastack_chunk->data[0];
+    }
+    tstate->datastack_chunk = new;
+    tstate->datastack_limit = (PyObject **)(((char *)new) + allocate_size);
+    // When new is the "root" chunk (i.e. new->previous == NULL), we can keep
+    // _PyThreadState_PopFrame from freeing it later by "skipping" over the
+    // first element:
+    PyObject **res = &new->data[new->previous == NULL];
+    tstate->datastack_top = res + size;
+    return res;
+}
+
 // @Borrow function _PyThreadState_PushFrame from Python/pystate.c
 
 void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {

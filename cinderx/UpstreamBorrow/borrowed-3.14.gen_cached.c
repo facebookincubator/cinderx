@@ -3821,6 +3821,10 @@ allocate_chunk(int size_in_bytes, _PyStackChunk* previous)
     res->top = 0;
     return res;
 }
+
+// Borrowed and patched to gate the use of tstate->datastack_cached_chunk on
+// a feature define, since Python 3.14.3 and earlier don't have that struct
+// member, and trying to use it would read out of bounds data.
 static PyObject **
 push_chunk(PyThreadState *tstate, int size)
 {
@@ -3828,9 +3832,23 @@ push_chunk(PyThreadState *tstate, int size)
     while (allocate_size < (int)sizeof(PyObject*)*(size + MINIMUM_OVERHEAD)) {
         allocate_size *= 2;
     }
-    _PyStackChunk *new = allocate_chunk(allocate_size, tstate->datastack_chunk);
-    if (new == NULL) {
-        return NULL;
+    _PyStackChunk *new;
+#ifdef ENABLE_PYTHON_TSTATE_DATASTACK_CACHE
+    if (tstate->datastack_cached_chunk != NULL
+        && (size_t)allocate_size <= tstate->datastack_cached_chunk->size)
+    {
+        new = tstate->datastack_cached_chunk;
+        tstate->datastack_cached_chunk = NULL;
+        new->previous = tstate->datastack_chunk;
+        new->top = 0;
+    }
+    else
+#endif
+    {
+        new = allocate_chunk(allocate_size, tstate->datastack_chunk);
+        if (new == NULL) {
+            return NULL;
+        }
     }
     if (tstate->datastack_chunk) {
         tstate->datastack_chunk->top = tstate->datastack_top -
@@ -3845,6 +3863,7 @@ push_chunk(PyThreadState *tstate, int size)
     tstate->datastack_top = res + size;
     return res;
 }
+
 _PyInterpreterFrame *
 _PyThreadState_PushFrame(PyThreadState *tstate, size_t size)
 {
