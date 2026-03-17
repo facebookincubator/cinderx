@@ -256,6 +256,11 @@ class PyreflyTypeInfo:
                 return result.klass
             return None
 
+        # Try well-known types (e.g. __static__.int64)
+        well_known = type_env.name_to_type.get(qname)
+        if well_known is not None:
+            return well_known
+
         # No dot — try builtins
         if "." not in qname:
             builtins = modules.get("builtins")
@@ -280,7 +285,7 @@ class Pyrefly:
     def load_type_info(self, module_name: str) -> PyreflyTypeInfo | None:
         if self.type_dir is None:
             return None
-        json_path = os.path.join(self.type_dir, "types", f"{module_name}.json")
+        json_path = os.path.join(self.type_dir, f"{module_name}.json")
         if not os.path.isfile(json_path):
             return None
         return PyreflyTypeInfo.load_json(json_path)

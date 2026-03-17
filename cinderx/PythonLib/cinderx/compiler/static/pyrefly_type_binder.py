@@ -14,7 +14,7 @@ from .effects import NarrowingEffect
 from .module_table import ModuleTable
 from .pyrefly_info import PyreflyTypeInfo
 from .type_binder import TerminalKind, TypeBinder
-from .types import CInstance, Class
+from .types import CInstance, Class, CType
 
 if TYPE_CHECKING:
     from .compiler import Compiler
@@ -46,11 +46,11 @@ class PyreflyTypeBinder(TypeBinder):
     def visit(self, node: AST, *args: object) -> NarrowingEffect | None:
         ret = super().visit(node, *args)
         if isinstance(node, ast.expr) and self._type_info is not None:
-            # If the parent visitor already promoted a literal to a primitive
-            # type (e.g. `x: int64 = 0` promotes 0 to int64), don't override
-            # it with the pyrefly-inferred type.
+            # If the parent visitor already resolved to a C primitive type
+            # (e.g. `x: int64 = 0` promotes 0 to int64, or a Name referencing
+            # a CType like int64), don't override with the pyrefly-inferred type.
             existing_type = self.get_type(node)
-            if isinstance(existing_type, CInstance):
+            if isinstance(existing_type, (CInstance, CType)):
                 return ret
 
             declared_type = self._type_info.lookup(node, self.modules, self.type_env)
