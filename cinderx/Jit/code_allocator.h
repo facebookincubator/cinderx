@@ -69,11 +69,9 @@ class CodeAllocatorCinder : public CodeAllocator {
   bool contains(const void* ptr) const override;
 
  private:
-  // Protects allocations_ from concurrent access between addCode() and
-  // contains(). In free-threaded Python, one thread may be compiling a
-  // function while another checks isJitCompiled() via a function watcher.
 #ifdef Py_GIL_DISABLED
-  mutable std::mutex allocations_mutex_;
+  // Protects all allocator-owned state used by addCode()/contains().
+  mutable std::mutex allocator_mutex_;
 #endif
 
   // List of chunks allocated for use in deallocation
@@ -103,6 +101,11 @@ class MultipleSectionCodeAllocator : public CodeAllocator {
 
  private:
   void createSlabs() noexcept;
+
+#ifdef Py_GIL_DISABLED
+  // Protects all allocator-owned state used by addCode()/contains().
+  mutable std::mutex allocator_mutex_;
+#endif
 
   std::unordered_map<codegen::CodeSection, uint8_t*> code_sections_;
   std::unordered_map<codegen::CodeSection, size_t> code_section_free_sizes_;

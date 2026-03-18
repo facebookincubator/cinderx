@@ -137,6 +137,9 @@ CodeAllocatorCinder::~CodeAllocatorCinder() {
 
 AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
   ThreadedCompileSerialize guard;
+#ifdef Py_GIL_DISABLED
+  std::lock_guard lock{allocator_mutex_};
+#endif
 
   PROPAGATE_ERROR(code->flatten());
   PROPAGATE_ERROR(code->resolveUnresolvedLinks());
@@ -153,12 +156,7 @@ AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
       huge_allocs_++;
     }
     current_alloc_ = static_cast<uint8_t*>(res);
-    {
-#ifdef Py_GIL_DISABLED
-      std::lock_guard lock{allocations_mutex_};
-#endif
-      allocations_.emplace_back(res, alloc_size);
-    }
+    allocations_.emplace_back(res, alloc_size);
     current_alloc_free_ = alloc_size;
   }
 
@@ -200,7 +198,7 @@ asmjit::Error CodeAllocatorCinder::releaseCode([[maybe_unused]] void* code) {
 
 bool CodeAllocatorCinder::contains(const void* ptr) const {
 #ifdef Py_GIL_DISABLED
-  std::lock_guard lock{allocations_mutex_};
+  std::lock_guard lock{allocator_mutex_};
 #endif
   for (std::span<uint8_t> alloc : allocations_) {
     if (alloc.data() <= ptr && ptr < alloc.data() + alloc.size()) {
@@ -257,6 +255,9 @@ void MultipleSectionCodeAllocator::createSlabs() noexcept {
 
 AllocateResult MultipleSectionCodeAllocator::addCode(asmjit::CodeHolder* code) {
   ThreadedCompileSerialize guard;
+#ifdef Py_GIL_DISABLED
+  std::lock_guard lock{allocator_mutex_};
+#endif
 
   if (code_sections_.empty()) {
     createSlabs();
@@ -338,6 +339,9 @@ bool MultipleSectionCodeAllocator::contains(const void* ptr) const {
   // is already thread-safe.
   {
     ThreadedCompileSerialize guard;
+#ifdef Py_GIL_DISABLED
+    std::lock_guard lock{allocator_mutex_};
+#endif
     if (code_alloc_ <= ptr && ptr < code_alloc_ + total_allocation_size_) {
       return true;
     }
