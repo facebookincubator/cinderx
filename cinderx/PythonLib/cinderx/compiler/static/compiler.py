@@ -315,6 +315,7 @@ class Compiler:
         }
         typing_extensions_children: dict[str, Value] = {
             "Annotated": self.type_env.annotated,
+            "NamedTuple": self.type_env.named_tuple,
             "Protocol": self.type_env.protocol,
             "TypedDict": self.type_env.typed_dict,
         }

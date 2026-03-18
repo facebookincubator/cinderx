@@ -139,7 +139,7 @@ class DeclarationVisitor(GenericVisitor[None]):
             klass = klasses[0]
 
         for base in bases:
-            if base is self.type_env.named_tuple:
+            if base is self.type_env.named_tuple or base is self.type_env.tuple:
                 # In named tuples, the fields are actually elements
                 # of the tuple, so we can't do any advanced binding against it.
                 klass = self.type_env.dynamic
