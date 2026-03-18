@@ -265,6 +265,7 @@ class PyreflyTypeInfo:
         if "." not in qname:
             builtins = modules.get("builtins")
             if builtins is not None:
+                # pyre-fixme[61]: `parts` is undefined, or not always defined.
                 result = builtins.get_child(parts[0], "builtins")
                 if isinstance(result, Class):
                     return result

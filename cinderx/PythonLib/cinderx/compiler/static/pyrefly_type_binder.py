@@ -53,6 +53,7 @@ class PyreflyTypeBinder(TypeBinder):
             if isinstance(existing_type, (CInstance, CType)):
                 return ret
 
+            # pyre-fixme[16]: Optional type has no attribute `lookup`.
             declared_type = self._type_info.lookup(node, self.modules, self.type_env)
 
             if declared_type is None:
