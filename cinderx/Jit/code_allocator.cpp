@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/threaded_compile.h"
 
 #ifdef WIN32
 #include <Windows.h>
@@ -136,10 +135,7 @@ CodeAllocatorCinder::~CodeAllocatorCinder() {
 }
 
 AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
-  ThreadedCompileSerialize guard;
-#ifdef Py_GIL_DISABLED
   std::lock_guard lock{allocator_mutex_};
-#endif
 
   PROPAGATE_ERROR(code->flatten());
   PROPAGATE_ERROR(code->resolveUnresolvedLinks());
@@ -197,9 +193,7 @@ asmjit::Error CodeAllocatorCinder::releaseCode([[maybe_unused]] void* code) {
 }
 
 bool CodeAllocatorCinder::contains(const void* ptr) const {
-#ifdef Py_GIL_DISABLED
   std::lock_guard lock{allocator_mutex_};
-#endif
   for (std::span<uint8_t> alloc : allocations_) {
     if (alloc.data() <= ptr && ptr < alloc.data() + alloc.size()) {
       return true;
@@ -254,10 +248,7 @@ void MultipleSectionCodeAllocator::createSlabs() noexcept {
 }
 
 AllocateResult MultipleSectionCodeAllocator::addCode(asmjit::CodeHolder* code) {
-  ThreadedCompileSerialize guard;
-#ifdef Py_GIL_DISABLED
   std::lock_guard lock{allocator_mutex_};
-#endif
 
   if (code_sections_.empty()) {
     createSlabs();
@@ -335,13 +326,10 @@ asmjit::Error MultipleSectionCodeAllocator::releaseCode(
 }
 
 bool MultipleSectionCodeAllocator::contains(const void* ptr) const {
-  // Have to check both the hot/cold slab and the asmjit allocator.  The latter
+  // Have to check both the hot/cold slab and the asmjit allocator. The latter
   // is already thread-safe.
   {
-    ThreadedCompileSerialize guard;
-#ifdef Py_GIL_DISABLED
     std::lock_guard lock{allocator_mutex_};
-#endif
     if (code_alloc_ <= ptr && ptr < code_alloc_ + total_allocation_size_) {
       return true;
     }

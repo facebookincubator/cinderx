@@ -69,10 +69,8 @@ class CodeAllocatorCinder : public CodeAllocator {
   bool contains(const void* ptr) const override;
 
  private:
-#ifdef Py_GIL_DISABLED
   // Protects all allocator-owned state used by addCode()/contains().
   mutable std::mutex allocator_mutex_;
-#endif
 
   // List of chunks allocated for use in deallocation
   std::vector<std::span<uint8_t>> allocations_;
@@ -102,10 +100,8 @@ class MultipleSectionCodeAllocator : public CodeAllocator {
  private:
   void createSlabs() noexcept;
 
-#ifdef Py_GIL_DISABLED
   // Protects all allocator-owned state used by addCode()/contains().
   mutable std::mutex allocator_mutex_;
-#endif
 
   std::unordered_map<codegen::CodeSection, uint8_t*> code_sections_;
   std::unordered_map<codegen::CodeSection, size_t> code_section_free_sizes_;
