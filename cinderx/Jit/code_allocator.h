@@ -53,15 +53,15 @@ class CodeAllocatorCinder : public CodeAllocator {
   ~CodeAllocatorCinder() override;
 
   size_t lostBytes() const {
-    return lost_bytes_;
+    return lost_bytes_.load(std::memory_order_relaxed);
   }
 
   size_t fragmentedAllocs() const {
-    return fragmented_allocs_;
+    return fragmented_allocs_.load(std::memory_order_relaxed);
   }
 
   size_t hugeAllocs() const {
-    return huge_allocs_;
+    return huge_allocs_.load(std::memory_order_relaxed);
   }
 
   AllocateResult addCode(asmjit::CodeHolder* code) override;
@@ -84,11 +84,11 @@ class CodeAllocatorCinder : public CodeAllocator {
 
   // Number of bytes in total lost when allocations didn't fit neatly into
   // the bytes remaining in a chunk so a new one was allocated.
-  size_t lost_bytes_{0};
+  std::atomic<size_t> lost_bytes_{0};
   // Number of chunks allocated (= to number of huge pages used)
-  size_t huge_allocs_{0};
+  std::atomic<size_t> huge_allocs_{0};
   // Number of chunks allocated which did not use huge pages.
-  size_t fragmented_allocs_{0};
+  std::atomic<size_t> fragmented_allocs_{0};
 };
 
 class MultipleSectionCodeAllocator : public CodeAllocator {

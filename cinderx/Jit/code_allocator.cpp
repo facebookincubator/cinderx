@@ -147,13 +147,13 @@ AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
   size_t max_code_size = code->codeSize();
   size_t alloc_size = ((max_code_size / kAllocSize) + 1) * kAllocSize;
   if (current_alloc_free_ < max_code_size) {
-    lost_bytes_ += current_alloc_free_;
+    lost_bytes_.fetch_add(current_alloc_free_, std::memory_order_relaxed);
 
     uint8_t* res = allocPages(alloc_size);
     if (!setHugePages(res, alloc_size)) {
-      fragmented_allocs_++;
+      fragmented_allocs_.fetch_add(1, std::memory_order_relaxed);
     } else {
-      huge_allocs_++;
+      huge_allocs_.fetch_add(1, std::memory_order_relaxed);
     }
     current_alloc_ = static_cast<uint8_t*>(res);
     allocations_.emplace_back(res, alloc_size);
@@ -186,7 +186,7 @@ AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
 
   current_alloc_ += actual_code_size;
   current_alloc_free_ -= actual_code_size;
-  used_bytes_ += actual_code_size;
+  used_bytes_.fetch_add(actual_code_size, std::memory_order_relaxed);
 
   return AllocateResult{addr, asmjit::kErrorOk};
 }
@@ -264,7 +264,7 @@ AllocateResult MultipleSectionCodeAllocator::addCode(asmjit::CodeHolder* code) {
   }
 
   size_t potential_code_size = code->codeSize();
-  used_bytes_ += potential_code_size;
+  used_bytes_.fetch_add(potential_code_size, std::memory_order_relaxed);
   // We fall back to the default size of code allocation if the
   // code doesn't fit into either section, and we can make this check more
   // granular by comparing sizes section-by-section.
