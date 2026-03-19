@@ -12,8 +12,8 @@ import sys
 from enum import Enum
 from typing import Generator, Iterator, Sequence
 
-# Maps HIR variable to its HIR output.
-VarOutputDict = dict[str, Sequence[str]]
+# Maps HIR variable to (actual_output, expected_output) tuples.
+VarOutputDict = dict[str, tuple[Sequence[str], Sequence[str] | None]]
 
 # Maps all test cases to their variables.
 TestOutputDict = dict[str, VarOutputDict]
@@ -108,7 +108,7 @@ def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
 
     failed_tests = collections.defaultdict(lambda: {})
     line_iter = timestamp_stripped_lineiter(iter(stdout.split("\n")))
-    test_dict: dict[str, list[str]] = {}
+    test_dict: dict[str, tuple[list[str], Sequence[str] | None]] = {}
     test_name: tuple[str, str] = ("??", "??")
     for line in line_iter:
         if m := VERSION_RE.match(line):
@@ -130,15 +130,21 @@ def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
         if not m:
             raise RuntimeError(f"Unexpected line '{line}' after actual text")
         varname = m[1]
+        if varname.endswith(".c_str()"):
+            varname = varname[:-8]
         if varname in test_dict:
             raise RuntimeError(
                 f"Duplicate expect variable name '{varname}' in {test_name[0]}.{test_name[1]}"
             )
-        test_dict[varname] = actual_text
-        failed_tests[test_name[0]][test_name[1]] = test_dict
 
-        # Skip the "Which is: ..." line after the expect variable name.
-        next(line_iter)
+        # Capture old expected text from second "Which is:" line
+        expected_line = next(line_iter)
+        expected_m = ACTUAL_TEXT_RE.match(expected_line)
+        expected_text: Sequence[str] | None = None
+        if expected_m:
+            expected_text = unescape_gtest_string(expected_m[1]).split("\n")
+        test_dict[varname] = (actual_text, expected_text)
+        failed_tests[test_name[0]][test_name[1]] = test_dict
 
     if py_version == unknown_version:
         raise RuntimeError("Couldn't figure out Python version from test output")
@@ -258,7 +264,7 @@ def update_text_test(  # noqa: C901
                     new_lines.append(expected_version)
                 # For text HIR tests, there should only be one element in the
                 # failed test dict.
-                hir_lines = next(iter(failed_tests[test_case].values()))
+                hir_lines = next(iter(failed_tests[test_case].values()))[0]
                 new_lines += hir_lines
                 while not peek_line().startswith("---"):
                     next_line()
@@ -333,6 +339,9 @@ def version_compare(v1: str, v2: str) -> int:
 
 
 CPP_EXPECTED_START_RE: re.Pattern[str] = re.compile(r"^(  const char\* ([^ ]+) =)")
+CPP_FMT_FORMAT_START_RE: re.Pattern[str] = re.compile(
+    r"^(  (auto|std::string) ([^ ]+) = fmt::format\()$"
+)
 CPP_EXPECTED_END = ')";'
 CPP_TEST_END = "}"
 
@@ -354,6 +363,85 @@ class State(Enum):
 
     # Active while skipping lines of an expected variable.
     SKIP_EXPECTED = 3
+
+    # Active while collecting lines of a fmt::format raw string.
+    COLLECT_FMT_RAW_STRING = 4
+
+
+_PLACEHOLDER = "\x00PLACEHOLDER\x00"
+
+
+def escape_literal_braces(s: str) -> str:
+    """Escape { -> {{ and } -> }} for use in fmt::format templates."""
+    return s.replace("{", "{{").replace("}", "}}")
+
+
+def re_templatize(
+    old_template_lines: Sequence[str],
+    old_expanded_lines: Sequence[str],
+    new_actual_lines: Sequence[str],
+) -> list[str] | None:
+    """Re-apply {} placeholders from old_template into new_actual output.
+
+    Uses the old format template and its gtest-reported expanded form to
+    discover what {} placeholders expanded to, then replaces those concrete
+    values in the new actual output with {} placeholders.
+
+    Returns None if the old template cannot be matched against the old expanded
+    output (e.g. if the format changed too much).
+    """
+    old_template = "\n".join(old_template_lines)
+    old_expanded = "\n".join(old_expanded_lines)
+    new_actual = "\n".join(new_actual_lines)
+
+    # Build a regex from the old template:
+    # - {{ -> literal {
+    # - }} -> literal }
+    # - {} -> capture group (.+?)
+    # - everything else is escaped
+    parts = []
+    expansions_count = 0
+    i = 0
+    while i < len(old_template):
+        if i + 1 < len(old_template) and old_template[i : i + 2] == "{{":
+            parts.append(re.escape("{"))
+            i += 2
+        elif i + 1 < len(old_template) and old_template[i : i + 2] == "}}":
+            parts.append(re.escape("}"))
+            i += 2
+        elif i + 1 < len(old_template) and old_template[i : i + 2] == "{}":
+            parts.append("(.+?)")
+            expansions_count += 1
+            i += 2
+        else:
+            parts.append(re.escape(old_template[i]))
+            i += 1
+
+    if expansions_count == 0:
+        # No placeholders to re-templatize; just return the new actual lines
+        # with literal braces escaped.
+        return escape_literal_braces(new_actual).split("\n")
+
+    pattern = "".join(parts)
+    m = re.match(pattern, old_expanded, re.DOTALL)
+    if m is None:
+        return None
+
+    # Extract what each {} expanded to
+    expansion_values = list(m.groups())
+
+    # Replace each expansion value in the new actual output with a sentinel
+    result = new_actual
+    for val in expansion_values:
+        result = result.replace(val, _PLACEHOLDER, 1)
+
+    # Escape remaining literal braces
+    result = escape_literal_braces(result)
+
+    # Replace sentinels with {}
+    result = result.replace(_PLACEHOLDER, "{}")
+
+    return result.split("\n")
 
 
 # pyre-ignore[30]
@@ -403,7 +491,14 @@ def update_cpp_tests(  # noqa: C901
         in_version_block = None
         non_version_pp_depth = 0
         needs_to_close_upgraded_block = False
+        fmt_collecting_template = False
+        fmt_old_template_lines: list[str] = []
+        fmt_raw_prefix = ""
+        fmt_varname = ""
+        fmt_actual_lines: Sequence[str] = []
+        fmt_expected_lines: Sequence[str] | None = None
         new_lines = []
+        suite_name = test_name = ""
         for lineno, line in enumerate(old_lines, 1):  # noqa: B007
             m = CPP_TEST_NAME_RE.match(line)
             if m is not None:
@@ -426,6 +521,53 @@ def update_cpp_tests(  # noqa: C901
 
             if state is State.WAIT_FOR_TEST:
                 new_lines.append(line)
+                continue
+
+            # Handle COLLECT_FMT_RAW_STRING before preprocessor handling
+            # to avoid misinterpreting raw string content as #if directives.
+            if state is State.COLLECT_FMT_RAW_STRING:
+                if fmt_collecting_template:
+                    # We're inside the raw string collecting template lines.
+                    # The raw string ends with )" optionally followed by , and whitespace.
+                    end_m = re.match(r'^(\s*\)"\s*,?\s*)$', line)
+                    if end_m:
+                        # Re-templatize the new actual output
+                        new_template_lines = None
+                        if fmt_expected_lines is not None:
+                            new_template_lines = re_templatize(
+                                fmt_old_template_lines,
+                                fmt_expected_lines,
+                                fmt_actual_lines,
+                            )
+                        if new_template_lines is None:
+                            print(
+                                f"  Warning: couldn't re-templatize {fmt_varname} "
+                                f"in {suite_name}.{test_name}, using escaped actual output"
+                            )
+                            new_template_lines = escape_literal_braces(
+                                "\n".join(fmt_actual_lines)
+                            ).split("\n")
+
+                        # Output: R"( prefix + new template + )" suffix
+                        new_lines.append(fmt_raw_prefix + new_template_lines[0])
+                        new_lines += new_template_lines[1:]
+                        new_lines.append(line)  # the )" line (preserved as-is)
+                        state = State.PROCESS_FAILED_TEST
+                    else:
+                        fmt_old_template_lines.append(line)
+                else:
+                    # First line in COLLECT_FMT_RAW_STRING: look for R"( prefix
+                    raw_m = re.match(r'^(\s*R"\()(.*)', line)
+                    if raw_m:
+                        fmt_raw_prefix = raw_m[1]
+                        first_content = raw_m[2]
+                        fmt_old_template_lines = []
+                        if first_content:
+                            fmt_old_template_lines.append(first_content)
+                        fmt_collecting_template = True
+                    else:
+                        # Not a raw string start, pass through
+                        new_lines.append(line)
                 continue
 
             # Dynamically detect version-specific preprocessor directives
@@ -479,11 +621,12 @@ def update_cpp_tests(  # noqa: C901
                 decl = m[1]
                 varname = m[2]
 
-                actual_lines = test_dict.pop(varname, None)
-                if actual_lines is None:
+                entry = test_dict.pop(varname, None)
+                if entry is None:
                     # This test has multiple expected variables, and this one is OK.
                     new_lines.append(line)
                     continue
+                actual_lines, _expected_lines = entry
 
                 # Handle upgrading existing version block to accommodate new version
                 if (
@@ -547,6 +690,36 @@ def update_cpp_tests(  # noqa: C901
                         new_lines.append("#endif")
                         needs_to_close_upgraded_block = False
                     state = State.PROCESS_FAILED_TEST
+                continue
+
+            m = CPP_FMT_FORMAT_START_RE.match(line)
+            if m is not None:
+                expect_state(State.PROCESS_FAILED_TEST)
+                fmt_varname = m[2]
+
+                entry = test_dict.pop(fmt_varname, None)
+                if entry is None:
+                    # This test has multiple expected variables, and this one is OK.
+                    new_lines.append(line)
+                    continue
+                fmt_actual_lines, fmt_expected_lines = entry
+
+                # For version block mismatches, pass through unchanged
+                if in_version_block is not None and in_version_block != py_version:
+                    if version_compare(py_version, in_version_block) > 0:
+                        print(
+                            f"  Warning: fmt::format version upgrade not yet supported "
+                            f"for {fmt_varname} in {suite_name}.{test_name}"
+                        )
+                    new_lines.append(line)
+                    continue
+
+                # Enter COLLECT_FMT_RAW_STRING state
+                new_lines.append(line)
+                fmt_collecting_template = False
+                fmt_old_template_lines = []
+                fmt_raw_prefix = ""
+                state = State.COLLECT_FMT_RAW_STRING
                 continue
 
             new_lines.append(line)
