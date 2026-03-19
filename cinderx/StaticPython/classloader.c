@@ -22,16 +22,6 @@
 
 #ifndef WIN32
 #include <dlfcn.h>
-
-// This is a dict containing a mapping of lib name to "handle"
-// as returned by `dlopen()`.
-// Dict[str, int]
-static PyObject* dlopen_cache;
-
-// This is a dict containing a mapping of (lib_name, symbol_name) to
-// the raw address as returned by `dlsym()`.
-// Dict[Tuple[str, str], int]
-static PyObject* dlsym_cache;
 #endif
 
 int used_in_vtable(PyObject* value);
@@ -638,20 +628,29 @@ int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code) {
 }
 
 #ifndef WIN32
-static PyObject* invoke_native_helper = NULL;
 
 static inline int import_invoke_native() {
-  if (__builtin_expect(invoke_native_helper == NULL, 0)) {
+  if (__builtin_expect(Ci_GetInvokeNativeHelper() == NULL, 0)) {
     PyObject* native_utils = PyImport_ImportModule("__static__.native_utils");
     if (native_utils == NULL) {
       return -1;
     }
-    invoke_native_helper =
-        PyObject_GetAttrString(native_utils, "invoke_native");
+    PyObject* helper = PyObject_GetAttrString(native_utils, "invoke_native");
     Py_DECREF(native_utils);
-    if (invoke_native_helper == NULL) {
+    if (helper == NULL) {
       return -1;
     }
+    if (!PyFunction_Check(helper)) {
+      PyErr_Format(
+          PyExc_TypeError,
+          "Expected __static__.native_utils.invoke_native to be a function, "
+          "got %s",
+          Py_TYPE(helper)->tp_name);
+      Py_DECREF(helper);
+      return -1;
+    }
+    Ci_SetInvokeNativeHelper((PyFunctionObject*)helper);
+    Py_DECREF(helper);
   }
   return 0;
 }
@@ -707,7 +706,7 @@ PyObject* _PyClassloader_InvokeNativeFunction(
     return NULL;
   }
   PyObject* res = PyObject_CallFunction(
-      invoke_native_helper,
+      Ci_GetInvokeNativeHelper(),
       "OOOO",
       lib_name,
       symbol_name,
@@ -720,41 +719,45 @@ PyObject* _PyClassloader_InvokeNativeFunction(
 
 // Returns the size of the dlsym_cache dict (0 if uninitialized)
 PyObject* _PyClassloader_SizeOf_DlSym_Cache() {
-  if (dlsym_cache == NULL) {
+  PyObject* cache = Ci_GetDlsymCache();
+  if (cache == NULL) {
     return PyLong_FromLong(0);
   }
-  Py_ssize_t size = PyDict_Size(dlsym_cache);
+  Py_ssize_t size = PyDict_Size(cache);
   return PyLong_FromSsize_t(size);
 }
 
 // Returns the size of the dlopen_cache dict (0 if uninitialized)
 PyObject* _PyClassloader_SizeOf_DlOpen_Cache() {
-  if (dlopen_cache == NULL) {
+  PyObject* cache = Ci_GetDlopenCache();
+  if (cache == NULL) {
     return PyLong_FromLong(0);
   }
-  Py_ssize_t size = PyDict_Size(dlopen_cache);
+  Py_ssize_t size = PyDict_Size(cache);
   return PyLong_FromSsize_t(size);
 }
 
 // Clears the dlsym_cache dict
 void _PyClassloader_Clear_DlSym_Cache() {
-  if (dlsym_cache != NULL) {
-    PyDict_Clear(dlsym_cache);
+  PyObject* cache = Ci_GetDlsymCache();
+  if (cache != NULL) {
+    PyDict_Clear(cache);
   }
 }
 
 // Clears the dlopen_cache dict
 void _PyClassloader_Clear_DlOpen_Cache() {
-  if (dlopen_cache != NULL) {
+  PyObject* cache = Ci_GetDlopenCache();
+  if (cache != NULL) {
     PyObject *name, *handle;
     Py_ssize_t i = 0;
-    while (PyDict_Next(dlopen_cache, &i, &name, &handle)) {
+    while (PyDict_Next(cache, &i, &name, &handle)) {
       void* raw_handle = PyLong_AsVoidPtr(handle);
       // Ignore errors - we can't do much even if they occur
       dlclose(raw_handle);
     }
 
-    PyDict_Clear(dlopen_cache);
+    PyDict_Clear(cache);
   }
 }
 
@@ -784,14 +787,17 @@ static void* classloader_lookup_sharedlib(PyObject* lib_name) {
   PyObject* val = NULL;
 
   // Ensure cache exists
-  if (dlopen_cache == NULL) {
-    dlopen_cache = PyDict_New();
-    if (dlopen_cache == NULL) {
+  PyObject* dl_cache = Ci_GetDlopenCache();
+  if (dl_cache == NULL) {
+    dl_cache = PyDict_New();
+    if (dl_cache == NULL) {
       return NULL;
     }
+    Ci_SetDlopenCache((PyDictObject*)dl_cache);
+    Py_DECREF(dl_cache);
   }
 
-  val = PyDict_GetItem(dlopen_cache, lib_name);
+  val = PyDict_GetItem(dl_cache, lib_name);
   if (val != NULL) {
     // Cache hit
     return PyLong_AsVoidPtr(val);
@@ -808,7 +814,7 @@ static void* classloader_lookup_sharedlib(PyObject* lib_name) {
   if (val == NULL) {
     return NULL;
   }
-  int res = PyDict_SetItem(dlopen_cache, lib_name, val);
+  int res = PyDict_SetItem(dl_cache, lib_name, val);
   Py_DECREF(val);
   if (res < 0) {
     return NULL;
@@ -875,11 +881,14 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
   }
 
   // Ensure cache exists
-  if (dlsym_cache == NULL) {
-    dlsym_cache = PyDict_New();
-    if (dlsym_cache == NULL) {
+  PyObject* sym_cache = Ci_GetDlsymCache();
+  if (sym_cache == NULL) {
+    sym_cache = PyDict_New();
+    if (sym_cache == NULL) {
       return NULL;
     }
+    Ci_SetDlsymCache((PyDictObject*)sym_cache);
+    Py_DECREF(sym_cache);
   }
 
   PyObject* key = PyTuple_Pack(2, lib_name, symbol_name);
@@ -887,7 +896,7 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
     return NULL;
   }
 
-  PyObject* res = PyDict_GetItem(dlsym_cache, key);
+  PyObject* res = PyDict_GetItem(sym_cache, key);
 
   if (res != NULL) {
     Py_DECREF(key);
@@ -900,7 +909,7 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
     return NULL;
   }
 
-  if (PyDict_SetItem(dlsym_cache, key, res) < 0) {
+  if (PyDict_SetItem(sym_cache, key, res) < 0) {
     Py_DECREF(key);
     Py_DECREF(res);
     return NULL;

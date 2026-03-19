@@ -52,6 +52,18 @@ void Ci_ClearValueIndices(void);
 int32_t Ci_GetTypeIndexOffset(void);
 void Ci_AddTypeIndexOffset(int32_t offset);
 
+// dlopen handle cache (lib_name -> handle).
+PyObject* Ci_GetDlopenCache(void);
+void Ci_SetDlopenCache(PyDictObject* cache);
+
+// dlsym address cache ((lib_name, symbol_name) -> address).
+PyObject* Ci_GetDlsymCache(void);
+void Ci_SetDlsymCache(PyDictObject* cache);
+
+// Cached reference to __static__.native_utils.invoke_native.
+PyObject* Ci_GetInvokeNativeHelper(void);
+void Ci_SetInvokeNativeHelper(PyFunctionObject* helper);
+
 // WatcherState.
 
 int Ci_Watchers_WatchDict(PyObject* dict);

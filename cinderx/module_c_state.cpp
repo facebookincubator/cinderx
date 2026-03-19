@@ -103,6 +103,34 @@ void Ci_AddTypeIndexOffset(int32_t offset) {
   cinderx::getModuleState()->type_index_offset += offset;
 }
 
+PyObject* Ci_GetDlopenCache(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->dlopen_cache.getObj() : nullptr;
+}
+
+void Ci_SetDlopenCache(PyDictObject* cache) {
+  cinderx::getModuleState()->dlopen_cache = Ref<PyDictObject>::create(cache);
+}
+
+PyObject* Ci_GetDlsymCache(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->dlsym_cache.getObj() : nullptr;
+}
+
+void Ci_SetDlsymCache(PyDictObject* cache) {
+  cinderx::getModuleState()->dlsym_cache = Ref<PyDictObject>::create(cache);
+}
+
+PyObject* Ci_GetInvokeNativeHelper(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->invoke_native_helper.getObj() : nullptr;
+}
+
+void Ci_SetInvokeNativeHelper(PyFunctionObject* helper) {
+  cinderx::getModuleState()->invoke_native_helper =
+      Ref<PyFunctionObject>::create(helper);
+}
+
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }

@@ -76,6 +76,15 @@ struct ModuleState {
   // Running offset for assigning type indices to Static Python types.
   int32_t type_index_offset{0};
 
+  // Cache of dlopen'd shared library handles for invoke_native.
+  Ref<PyDictObject> dlopen_cache;
+
+  // Cache of dlsym'd function pointers for invoke_native.
+  Ref<PyDictObject> dlsym_cache;
+
+  // Python helper function used by the invoke_native implementation.
+  Ref<PyFunctionObject> invoke_native_helper;
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).
