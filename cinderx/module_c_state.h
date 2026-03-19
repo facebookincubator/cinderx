@@ -38,6 +38,20 @@ PyObject* Ci_GetClassLoaderCacheModuleToKeys(void);
 void Ci_SetClassLoaderCacheModuleToKeys(PyDictObject* cache);
 void Ci_ClearClassLoaderCacheModuleToKeys(void);
 
+// Value cache for adaptive interpreter.
+PyObject* Ci_GetValueCache(void);
+void Ci_SetValueCache(PyListObject* cache);
+void Ci_ClearValueCache(void);
+
+// Value-to-index mapping.
+PyObject* Ci_GetValueIndices(void);
+void Ci_SetValueIndices(PyDictObject* indices);
+void Ci_ClearValueIndices(void);
+
+// Type index offset for value cache.
+int32_t Ci_GetTypeIndexOffset(void);
+void Ci_AddTypeIndexOffset(int32_t offset);
+
 // WatcherState.
 
 int Ci_Watchers_WatchDict(PyObject* dict);

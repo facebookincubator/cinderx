@@ -67,6 +67,15 @@ struct ModuleState {
   // Mapping from module name to classloader cache keys for that module.
   Ref<PyDictObject> classloader_cache_module_to_keys;
 
+  // Cache for Static Python primitive values (int/float/etc.) by type.
+  Ref<PyListObject> value_cache;
+
+  // Mapping from Static Python value types to their indices.
+  Ref<PyDictObject> value_indices;
+
+  // Running offset for assigning type indices to Static Python types.
+  int32_t type_index_offset{0};
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).

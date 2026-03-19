@@ -17,6 +17,8 @@ int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(genericinst_cache);
   Py_VISIT(classloader_cache);
   Py_VISIT(classloader_cache_module_to_keys);
+  Py_VISIT(value_cache);
+  Py_VISIT(value_indices);
   Py_VISIT(builtin_next);
   return 0;
 }
@@ -26,6 +28,8 @@ int ModuleState::clear() {
   genericinst_cache.reset();
   classloader_cache.reset();
   classloader_cache_module_to_keys.reset();
+  value_cache.reset();
+  value_indices.reset();
   sys_clear_caches.reset();
   builtin_next.reset();
   return 0;

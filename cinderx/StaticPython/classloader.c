@@ -913,43 +913,42 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
 }
 #endif
 
-// Python list used to cache values
-static PyObject* value_cache;
-// Dictionary of cached object -> index
-static PyObject* value_indices;
-// Current offset for type cache. When the type cache is cleared this
-// gets incremented by the current size so that we don't reuse previous
-// slots and any existing caches will fail.
-static int32_t type_index_offset;
-
 void _PyClassLoader_ClearValueCache() {
-  if (value_cache == NULL) {
+  PyObject* vc = Ci_GetValueCache();
+  if (vc == NULL) {
     return;
   }
-  type_index_offset += PyList_Size(value_cache);
-  Py_CLEAR(value_cache);
-  Py_CLEAR(value_indices);
+  Ci_AddTypeIndexOffset(PyList_Size(vc));
+  Ci_ClearValueCache();
+  Ci_ClearValueIndices();
 }
 
 int32_t _PyClassLoader_CacheValue(PyObject* value) {
-  if (value_cache == NULL) {
-    value_cache = PyList_New(0);
-    if (value_cache == NULL) {
+  PyObject* vc = Ci_GetValueCache();
+  if (vc == NULL) {
+    vc = PyList_New(0);
+    if (vc == NULL) {
       return -1;
     }
+    Ci_SetValueCache((PyListObject*)vc);
+    Py_DECREF(vc);
   }
-  if (value_indices == NULL) {
-    value_indices = PyDict_New();
-    if (value_indices == NULL) {
+  PyObject* vi = Ci_GetValueIndices();
+  if (vi == NULL) {
+    vi = PyDict_New();
+    if (vi == NULL) {
       return -1;
     }
+    Ci_SetValueIndices((PyDictObject*)vi);
+    Py_DECREF(vi);
   }
-  PyObject* index = PyDict_GetItem(value_indices, (PyObject*)value);
+  PyObject* index = PyDict_GetItem(vi, (PyObject*)value);
   if (index != NULL) {
     return PyLong_AsLong(index);
   }
 
-  Py_ssize_t iindex = PyList_GET_SIZE(value_cache) + type_index_offset;
+  int32_t tio = Ci_GetTypeIndexOffset();
+  Py_ssize_t iindex = PyList_GET_SIZE(vc) + tio;
   if (iindex >= INT32_MAX) {
     return -1;
   }
@@ -959,13 +958,13 @@ int32_t _PyClassLoader_CacheValue(PyObject* value) {
     return -1;
   }
 
-  if (PyList_Append(value_cache, value) < 0) {
+  if (PyList_Append(vc, value) < 0) {
     Py_DECREF(pyindex);
     return -1;
   }
 
-  if (PyDict_SetItem(value_indices, value, pyindex) < 0) {
-    Py_SET_SIZE((PyVarObject*)value_cache, iindex - type_index_offset);
+  if (PyDict_SetItem(vi, value, pyindex) < 0) {
+    Py_SET_SIZE((PyVarObject*)vc, iindex - tio);
     Py_DECREF(pyindex);
     return -1;
   }
@@ -974,9 +973,11 @@ int32_t _PyClassLoader_CacheValue(PyObject* value) {
 }
 
 PyObject* _PyClassLoader_GetCachedValue(int32_t type) {
-  if (value_cache == NULL || type < type_index_offset) {
+  PyObject* vc = Ci_GetValueCache();
+  int32_t tio = Ci_GetTypeIndexOffset();
+  if (vc == NULL || type < tio) {
     return NULL;
   }
-  type -= type_index_offset;
-  return Py_XNewRef(PyList_GetItem(value_cache, type));
+  type -= tio;
+  return Py_XNewRef(PyList_GetItem(vc, type));
 }

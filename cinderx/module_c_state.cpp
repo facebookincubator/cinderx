@@ -65,6 +65,44 @@ void Ci_ClearClassLoaderCacheModuleToKeys(void) {
   }
 }
 
+PyObject* Ci_GetValueCache(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->value_cache.getObj() : nullptr;
+}
+
+void Ci_SetValueCache(PyListObject* cache) {
+  cinderx::getModuleState()->value_cache = Ref<PyListObject>::create(cache);
+}
+
+void Ci_ClearValueCache(void) {
+  if (auto state = cinderx::getModuleState(); state != nullptr) {
+    state->value_cache.reset();
+  }
+}
+
+PyObject* Ci_GetValueIndices(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->value_indices.getObj() : nullptr;
+}
+
+void Ci_SetValueIndices(PyDictObject* indices) {
+  cinderx::getModuleState()->value_indices = Ref<PyDictObject>::create(indices);
+}
+
+void Ci_ClearValueIndices(void) {
+  if (auto state = cinderx::getModuleState(); state != nullptr) {
+    state->value_indices.reset();
+  }
+}
+
+int32_t Ci_GetTypeIndexOffset(void) {
+  return cinderx::getModuleState()->type_index_offset;
+}
+
+void Ci_AddTypeIndexOffset(int32_t offset) {
+  cinderx::getModuleState()->type_index_offset += offset;
+}
+
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }
