@@ -150,7 +150,7 @@ fun jittestmodule:test {
     Snapshot
     v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
+      CurInstrOffset 4
     }
     Snapshot
     v14:CInt64 = LoadEvalBreaker
@@ -354,7 +354,7 @@ fun jittestmodule:test {
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 6
+      CurInstrOffset 8
     }
     Snapshot
     v23:CInt64 = LoadEvalBreaker
@@ -534,7 +534,7 @@ fun jittestmodule:test {
     Snapshot
     v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
+      CurInstrOffset 4
     }
     Snapshot
     v14:CInt64 = LoadEvalBreaker
@@ -816,7 +816,7 @@ fun jittestmodule:test {
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
+      CurInstrOffset 6
       Locals<1> v6
     }
     Snapshot
@@ -860,7 +860,7 @@ fun jittestmodule:test {
   bb 9 (preds 4) {
     v36:CBool = IsInstance v6 v29 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<1> v6
       }
     }

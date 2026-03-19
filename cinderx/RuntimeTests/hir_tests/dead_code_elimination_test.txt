@@ -356,7 +356,7 @@ fun jittestmodule:test {
     v25:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v26:Object = GetIter v25 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
         Locals<3> v21 v23 v15
       }
     }
@@ -375,7 +375,7 @@ fun jittestmodule:test {
     Snapshot
     v36:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<3> v21 v34 v35
         Stack<2> v26 v27
       }
@@ -387,7 +387,7 @@ fun jittestmodule:test {
     Snapshot
     v42:Object = InvokeIterNext v26 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<3> v21 v34 v35
         Stack<2> v26 v27
       }
@@ -550,14 +550,14 @@ fun jittestmodule:test {
     v16:Nullptr = LoadConst<Nullptr>
     v17:MortalFunc = MakeFunction v15 v16 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<1> v11
       }
     }
     Snapshot
     v22:Object = VectorCall<0> v17 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
         Locals<1> v17
       }
     }

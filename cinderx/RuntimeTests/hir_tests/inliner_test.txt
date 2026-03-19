@@ -181,7 +181,7 @@ fun jittestmodule:test {
     v23:MortalCode["foo"] = GuardIs<0xdeadbeef> v22 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 12
+      CurInstrOffset 14
     }
     Snapshot
     v18:CInt64 = LoadEvalBreaker
@@ -488,7 +488,7 @@ fun jittestmodule:test {
     v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 12
+      CurInstrOffset 14
     }
     Snapshot
     v28:CInt64 = LoadEvalBreaker
@@ -521,7 +521,7 @@ fun jittestmodule:test {
     v43:MortalCode["bar"] = GuardIs<0xdeadbeef> v42 {
     }
     BeginInlinedFunction<jittestmodule:bar> {
-      CurInstrOffset 30
+      CurInstrOffset 32
       Stack<1> v30
     }
     Snapshot
@@ -823,7 +823,7 @@ fun jittestmodule:test {
     Snapshot
     v16:MortalListExact = MakeList<0> {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 4
         Locals<1> v12
       }
     }
@@ -831,7 +831,7 @@ fun jittestmodule:test {
     v17:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v18:NoneType = ListExtend v16 v17 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 8
         Locals<1> v12
         Stack<1> v16
       }
@@ -849,7 +849,7 @@ fun jittestmodule:test {
     v41:MortalCode["foo"] = GuardIs<0xdeadbeef> v40 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 24
+      CurInstrOffset 26
       Locals<1> v16
     }
     Snapshot
@@ -876,7 +876,7 @@ fun jittestmodule:test {
     v48:CInt64[0] = LoadConst<CInt64[0]>
     v44:CInt64 = CheckSequenceBounds v16 v47 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<2> v16 v23
       }
     }
@@ -1093,7 +1093,7 @@ fun jittestmodule:test {
     v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 16
+      CurInstrOffset 18
     }
     Snapshot
     v26:CInt64 = LoadEvalBreaker
@@ -1260,7 +1260,7 @@ fun jittestmodule:test {
     Snapshot
     v15:Object = VectorCall<1> v11 v13 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
       }
     }
     Snapshot
@@ -1397,7 +1397,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v10 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
       }
     }
     Snapshot
@@ -1546,7 +1546,7 @@ fun jittestmodule:test {
     Snapshot
     v17:Object = VectorCall<2> v12 v14 v15 {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
       }
     }
     Snapshot
@@ -1695,7 +1695,7 @@ fun jittestmodule:test {
     Snapshot
     v17:Object = VectorCall<2> v12 v14 v15 {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
       }
     }
     Snapshot
@@ -1832,7 +1832,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v10 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
       }
     }
     Snapshot
@@ -1972,7 +1972,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v10 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
       }
     }
     Snapshot
@@ -2217,7 +2217,7 @@ fun jittestmodule:test {
     Snapshot
     v24:MortalTupleExact = MakeTuple<1> v16 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 12
         Locals<1> v15
         Cells<1> v16
         Stack<1> v16
@@ -2228,7 +2228,7 @@ fun jittestmodule:test {
     v26:Nullptr = LoadConst<Nullptr>
     v27:MortalFunc = MakeFunction v25 v26 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<1> v15
         Cells<1> v16
         Stack<1> v24
@@ -2240,7 +2240,7 @@ fun jittestmodule:test {
     v29:Nullptr = LoadConst<Nullptr>
     v31:Object = VectorCall<0> v27 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<1> v27
         Cells<1> v16
       }
@@ -2396,7 +2396,7 @@ fun jittestmodule:test {
     v15:Nullptr = LoadConst<Nullptr>
     v16:MortalFunc = MakeFunction v14 v15 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<1> v10
       }
     }
@@ -2404,7 +2404,7 @@ fun jittestmodule:test {
     v18:Nullptr = LoadConst<Nullptr>
     v20:Object = VectorCall<0> v16 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
         Locals<1> v16
       }
     }
@@ -2545,7 +2545,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v10 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
       }
     }
     Snapshot
@@ -3045,13 +3045,13 @@ fun jittestmodule:test {
     Snapshot
     v23:Object = Compare<LessThan> v17 v22 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 8
         Locals<1> v17
       }
     }
     v24:CBool = IsTruthy v23 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 8
         Locals<1> v17
       }
     }
@@ -3080,7 +3080,7 @@ fun jittestmodule:test {
     Snapshot
     v33:Object = BinaryOp<Subtract> v17 v32 {
       FrameState {
-        CurInstrOffset 36
+        CurInstrOffset 38
         Locals<1> v17
         Stack<3> v17 v30 v31
       }
@@ -3090,7 +3090,7 @@ fun jittestmodule:test {
     v76:MortalCode["test"] = GuardIs<0xdeadbeef> v75 {
     }
     BeginInlinedFunction<jittestmodule:test> {
-      CurInstrOffset 48
+      CurInstrOffset 50
       Locals<1> v17
       Stack<1> v17
     }
@@ -3116,13 +3116,13 @@ fun jittestmodule:test {
     Snapshot
     v59:Object = Compare<LessThan> v33 v58 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 8
         Locals<1> v33
       }
     }
     v60:CBool = IsTruthy v59 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 8
         Locals<1> v33
       }
     }
@@ -3151,7 +3151,7 @@ fun jittestmodule:test {
     Snapshot
     v70:Object = BinaryOp<Subtract> v33 v69 {
       FrameState {
-        CurInstrOffset 36
+        CurInstrOffset 38
         Locals<1> v33
         Stack<3> v33 v67 v68
       }
@@ -3159,7 +3159,7 @@ fun jittestmodule:test {
     Snapshot
     v77:Object = VectorCall<1> v67 v70 {
       FrameState {
-        CurInstrOffset 48
+        CurInstrOffset 50
         Locals<1> v33
         Stack<1> v33
       }
@@ -3167,7 +3167,7 @@ fun jittestmodule:test {
     Snapshot
     v72:Object = BinaryOp<Multiply> v33 v77 {
       FrameState {
-        CurInstrOffset 56
+        CurInstrOffset 58
         Locals<1> v33
       }
     }
@@ -3181,7 +3181,7 @@ fun jittestmodule:test {
     Snapshot
     v35:Object = BinaryOp<Multiply> v17 v74 {
       FrameState {
-        CurInstrOffset 56
+        CurInstrOffset 58
         Locals<1> v17
       }
     }
@@ -3394,7 +3394,7 @@ fun jittestmodule:test {
     v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 16
+      CurInstrOffset 18
     }
     Snapshot
     v26:CInt64 = LoadEvalBreaker
@@ -3638,7 +3638,7 @@ fun jittestmodule:test {
     v34:MortalCode["foo"] = GuardIs<0xdeadbeef> v33 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 12
+      CurInstrOffset 14
     }
     Snapshot
     v27:CInt64 = LoadEvalBreaker
@@ -3930,7 +3930,7 @@ fun jittestmodule:test {
     v48:MortalCode["foo"] = GuardIs<0xdeadbeef> v47 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 16
+      CurInstrOffset 18
     }
     Snapshot
     v37:CInt64 = LoadEvalBreaker

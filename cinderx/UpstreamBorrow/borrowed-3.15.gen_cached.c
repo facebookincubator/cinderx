@@ -21,6 +21,7 @@
 #include "internal/pycore_genobject.h"
 #include "internal/pycore_interpframe.h"
 #include "internal/pycore_freelist.h"
+#include "internal/pycore_tuple.h"
 #include "internal/pycore_unicodeobject.h"
 #include "internal/pycore_weakref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"

@@ -146,7 +146,7 @@ fun jittestmodule:test {
     Snapshot
     v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
+      CurInstrOffset 4
     }
     Snapshot
     v14:CInt64 = LoadEvalBreaker
@@ -388,7 +388,7 @@ fun jittestmodule:test {
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
+      CurInstrOffset 4
     }
     Snapshot
     v20:CInt64 = LoadEvalBreaker
@@ -413,7 +413,7 @@ fun jittestmodule:test {
     Snapshot
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:bar> {
-      CurInstrOffset 6
+      CurInstrOffset 8
       Stack<1> v22
     }
     Snapshot
@@ -621,7 +621,7 @@ fun jittestmodule:test {
     v11:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:add> {
-      CurInstrOffset 6
+      CurInstrOffset 8
     }
     Snapshot
     v22:CInt64 = LoadEvalBreaker
@@ -643,7 +643,7 @@ fun jittestmodule:test {
     Snapshot
     v26:Object = BinaryOp<Add> v10 v11 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<2> v10 v11
       }
     }
@@ -890,13 +890,13 @@ fun jittestmodule:test {
     Snapshot
     v11:ObjectUser[C:Exact] = TpAlloc<C> {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 4
       }
     }
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:C.__init__> {
-      CurInstrOffset 8
+      CurInstrOffset 10
       Stack<1> v11
     }
     Snapshot
@@ -927,7 +927,7 @@ fun jittestmodule:test {
     Snapshot
     v14:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:C.getfoo> {
-      CurInstrOffset 14
+      CurInstrOffset 16
     }
     Snapshot
     v39:CInt64 = LoadEvalBreaker

@@ -212,7 +212,7 @@ fun jittestmodule:test {
     Snapshot
     v19:Bottom = CheckVar<"a"> v15 {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 4
         Locals<1> v15
       }
     }

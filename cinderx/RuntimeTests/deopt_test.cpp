@@ -170,7 +170,10 @@ def test(a, b):
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
   // Resuming at BINARY_OP +
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030F0000
+  // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
+  dfm.cause_instr_idx = BCOffset{6};
+#elif PY_VERSION_HEX >= 0x030E0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
   dfm.cause_instr_idx = BCOffset{4};
 #elif PY_VERSION_HEX >= 0x030C0000
@@ -227,7 +230,10 @@ def test(a, b):
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
   // Resuming at BINARY_OP +
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030F0000
+  // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
+  dfm.cause_instr_idx = BCOffset{6};
+#elif PY_VERSION_HEX >= 0x030E0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
   dfm.cause_instr_idx = BCOffset{4};
 #elif PY_VERSION_HEX >= 0x030C0000
@@ -292,7 +298,9 @@ def test(num):
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 2};
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030F0000
+  dfm.cause_instr_idx = BCOffset{12};
+#elif PY_VERSION_HEX >= 0x030C0000
   dfm.cause_instr_idx = BCOffset{10};
 #else
   dfm.cause_instr_idx = BCOffset{8};

@@ -147,7 +147,7 @@ fun jittestmodule:test {
     Snapshot
     v24:LongExact = PrimitiveBox<CInt64> v22 {
       FrameState {
-        CurInstrOffset 32
+        CurInstrOffset 34
         Locals<1> v22
       }
     }
@@ -682,7 +682,7 @@ fun jittestmodule:test {
     v14:CInt8 = PrimitiveUnbox<CInt8> v12
     v15:CInt64 = IsNegativeAndErrOccurred v14 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 10
         Locals<1> v8
       }
     }
@@ -1103,7 +1103,7 @@ fun jittestmodule:test {
     Snapshot
     v10:Bool = Cast<Exact[bool]> v5 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<1> v5
       }
     }
@@ -1467,7 +1467,7 @@ fun jittestmodule:test {
     Snapshot
     v35:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -1488,7 +1488,7 @@ fun jittestmodule:test {
     Snapshot
     v43:LongExact = PrimitiveBox<CInt64> v33 {
       FrameState {
-        CurInstrOffset 38
+        CurInstrOffset 40
         Locals<3> v19 v33 v34
         Stack<2> v19 v19
       }
@@ -1497,14 +1497,14 @@ fun jittestmodule:test {
     UseType<LongExact> v43
     v55:CInt64 = IsNegativeAndErrOccurred v33 {
       FrameState {
-        CurInstrOffset 42
+        CurInstrOffset 44
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
     }
     v56:CInt64 = CheckSequenceBounds v19 v33 {
       FrameState {
-        CurInstrOffset 42
+        CurInstrOffset 44
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -1522,7 +1522,7 @@ fun jittestmodule:test {
     Snapshot
     v58:Object = VectorCall<1> v50 v57 {
       FrameState {
-        CurInstrOffset 84
+        CurInstrOffset 86
         Locals<3> v19 v46 v57
         Stack<1> v19
       }
@@ -1676,14 +1676,14 @@ fun jittestmodule:test {
     Snapshot
     v15:LongExact = PrimitiveBox<CInt64> v8 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 8
         Locals<2> v8 v10
       }
     }
     v17:CInt8 = PrimitiveUnbox<CInt8> v15
     v18:CInt64 = IsNegativeAndErrOccurred v17 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<2> v8 v10
       }
     }

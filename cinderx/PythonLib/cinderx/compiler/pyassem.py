@@ -13,8 +13,15 @@ from dataclasses import dataclass
 from enum import IntEnum, IntFlag
 
 try:
-    # pyre-ignore[21]: No _inline_cache_entries
-    from opcode import _inline_cache_entries
+    # Import from .opcodes rather than opcode so we get the version with
+    # CinderX inline cache entries included (on 3.15+ opcodes.py copies the
+    # dict before mutating it, so the original opcode._inline_cache_entries
+    # doesn't have CinderX entries).
+    if sys.version_info >= (3, 15):
+        from .opcodes import _inline_cache_entries
+    else:
+        # pyre-ignore[21]: No _inline_cache_entries
+        from opcode import _inline_cache_entries
 except ImportError:
     _inline_cache_entries = None
 from types import CodeType

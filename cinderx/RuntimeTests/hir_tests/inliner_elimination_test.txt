@@ -177,7 +177,7 @@ fun jittestmodule:test {
     v23:MortalCode["foo"] = GuardIs<0xdeadbeef> v22 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 12
+      CurInstrOffset 14
     }
     Snapshot
     v18:CInt64 = LoadEvalBreaker
@@ -473,7 +473,7 @@ fun jittestmodule:test {
     v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
     }
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 12
+      CurInstrOffset 14
     }
     Snapshot
     v28:CInt64 = LoadEvalBreaker
@@ -506,7 +506,7 @@ fun jittestmodule:test {
     v43:MortalCode["bar"] = GuardIs<0xdeadbeef> v42 {
     }
     BeginInlinedFunction<jittestmodule:bar> {
-      CurInstrOffset 30
+      CurInstrOffset 32
       Stack<1> v30
     }
     Snapshot
@@ -745,7 +745,7 @@ fun jittestmodule:test {
     v33:MortalCode["add"] = GuardIs<0xdeadbeef> v32 {
     }
     BeginInlinedFunction<jittestmodule:add> {
-      CurInstrOffset 16
+      CurInstrOffset 18
     }
     Snapshot
     v26:CInt64 = LoadEvalBreaker
@@ -767,7 +767,7 @@ fun jittestmodule:test {
     Snapshot
     v30:Object = BinaryOp<Add> v14 v15 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<2> v14 v15
       }
     }

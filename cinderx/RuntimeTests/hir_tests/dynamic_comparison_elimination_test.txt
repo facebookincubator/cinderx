@@ -480,7 +480,7 @@ fun jittestmodule:test {
   bb 6 (preds 3) {
     v36:CBool = IsInstance v14 v23 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<1> v14
       }
     }

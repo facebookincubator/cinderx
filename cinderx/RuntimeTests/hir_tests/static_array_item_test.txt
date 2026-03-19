@@ -167,14 +167,14 @@ fun jittestmodule:test {
     v5 = PrimitiveUnbox<CInt64> v4
     v6 = IsNegativeAndErrOccurred v5 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 12
         Locals<1> v0
         Stack<1> v0
       }
     }
     v7 = CheckSequenceBounds v0 v5 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<1> v0
       }
     }
@@ -362,14 +362,14 @@ fun jittestmodule:test {
     v6 = PrimitiveUnbox<CInt64> v5
     v7 = IsNegativeAndErrOccurred v6 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<1> v0
         Stack<2> v4 v0
       }
     }
     v8 = CheckSequenceBounds v0 v6 {
       FrameState {
-        CurInstrOffset 18
+        CurInstrOffset 20
         Locals<1> v0
       }
     }

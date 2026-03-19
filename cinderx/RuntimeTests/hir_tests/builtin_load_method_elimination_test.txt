@@ -126,7 +126,7 @@ fun jittestmodule:test {
     Snapshot
     v13:UnicodeExact = VectorCall<1, static> v14 v10 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
       }
     }
     Snapshot
@@ -267,7 +267,7 @@ fun jittestmodule:test {
     Snapshot
     v16:UnicodeExact = VectorCall<2, static> v17 v13 v8 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 28
         Locals<1> v8
       }
     }
@@ -496,7 +496,7 @@ fun jittestmodule:test {
     Snapshot
     v24:CBool = IsTruthy v16 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
         Locals<3> v15 v16 v18
       }
     }
@@ -523,7 +523,7 @@ fun jittestmodule:test {
     Snapshot
     v38:Object = LoadMethodCached<0; "join"> v34 {
       FrameState {
-        CurInstrOffset 30
+        CurInstrOffset 32
         Locals<3> v15 v16 v34
       }
     }
@@ -531,7 +531,7 @@ fun jittestmodule:test {
     Snapshot
     v37:Object = CallMethod<3> v38 v36 v15 {
       FrameState {
-        CurInstrOffset 52
+        CurInstrOffset 54
         Locals<3> v15 v16 v34
       }
     }
@@ -724,7 +724,7 @@ fun jittestmodule:test {
     Snapshot
     v24:Object = LoadMethodCached<1; "upper"> v11 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 28
         Locals<1> v11
         Stack<3> v23 v18 v11
       }
@@ -733,7 +733,7 @@ fun jittestmodule:test {
     Snapshot
     v21:Object = CallMethod<2> v24 v20 {
       FrameState {
-        CurInstrOffset 46
+        CurInstrOffset 48
         Locals<1> v11
         Stack<3> v23 v18 v11
       }
@@ -741,7 +741,7 @@ fun jittestmodule:test {
     Snapshot
     v22:UnicodeExact = VectorCall<3, static> v23 v16 v11 v21 {
       FrameState {
-        CurInstrOffset 54
+        CurInstrOffset 56
         Locals<1> v11
       }
     }
@@ -909,20 +909,20 @@ fun jittestmodule:test {
     Snapshot
     v16:UnicodeExact = VectorCall<1, static> v20 v13 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
       }
     }
     Snapshot
     v21:Object = LoadMethodCached<1; "upper"> v16 {
       FrameState {
-        CurInstrOffset 32
+        CurInstrOffset 34
       }
     }
     v18:OptObject = GetSecondOutput<OptObject> v21
     Snapshot
     v19:Object = CallMethod<2> v21 v18 {
       FrameState {
-        CurInstrOffset 52
+        CurInstrOffset 54
       }
     }
     Snapshot
@@ -1304,14 +1304,14 @@ fun jittestmodule:test {
     Snapshot
     v21:UnicodeExact = VectorCall<1, static> v37 v18 {
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 30
       }
     }
     Snapshot
     v22:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v21
     v23:Object = CheckExc v22 {
       FrameState {
-        CurInstrOffset 36
+        CurInstrOffset 38
       }
     }
     CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v23
@@ -1329,7 +1329,7 @@ fun jittestmodule:test {
   bb 11 (preds 8) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        CurInstrOffset 36
+        CurInstrOffset 38
       }
     }
   }
@@ -1345,7 +1345,7 @@ fun jittestmodule:test {
     Snapshot
     v32:Object = Send v23 v31 {
       FrameState {
-        CurInstrOffset 40
+        CurInstrOffset 42
         Stack<1> v23
       }
     }
@@ -1362,7 +1362,7 @@ fun jittestmodule:test {
     Snapshot
     v35:Object = YieldValue v32 {
       FrameState {
-        CurInstrOffset 46
+        CurInstrOffset 48
         Stack<1> v23
       }
     }
@@ -1581,7 +1581,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v20:Object = FillTypeMethodCache<0, 1> v12 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
       }
     }
     Branch<5>
@@ -1594,7 +1594,7 @@ fun jittestmodule:test {
     v15:MortalUnicodeExact["Hello"] = LoadConst<MortalUnicodeExact["Hello"]>
     v16:Object = CallMethod<3> v21 v14 v15 {
       FrameState {
-        CurInstrOffset 34
+        CurInstrOffset 36
       }
     }
     Snapshot
@@ -1730,14 +1730,14 @@ fun jittestmodule:test {
     v10:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v14:Object = LoadMethodCached<0; "unknown"> v10 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 6
       }
     }
     v12:OptObject = GetSecondOutput<OptObject> v14
     Snapshot
     v13:Object = CallMethod<2> v14 v12 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
       }
     }
     Snapshot
@@ -1876,7 +1876,7 @@ fun jittestmodule:test {
     v17:ImmortalTypeExact[bytes:obj] = LoadConst<ImmortalTypeExact[bytes:obj]>
     v15:Object = VectorCall<2, static> v16 v17 v14 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 28
       }
     }
     Snapshot
@@ -2013,7 +2013,7 @@ fun jittestmodule:test {
     Snapshot
     v15:Object = VectorCall<2, static> v16 v11 v14 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 28
       }
     }
     Snapshot

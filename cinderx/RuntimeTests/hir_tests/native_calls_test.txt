@@ -164,7 +164,7 @@ fun jittestmodule:test {
     v5 = PrimitiveUnbox<CInt32> v0
     v6 = IsNegativeAndErrOccurred v5 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 10
         Locals<2> v0 v1
       }
     }
@@ -173,7 +173,7 @@ fun jittestmodule:test {
     Snapshot
     v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<2> v0 v1
       }
     }
