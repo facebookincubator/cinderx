@@ -198,6 +198,22 @@ class PyreflyTypeInfo:
                             # itself; use exact_type since a bare name like
                             # `C` refers to the exact class, not a subclass.
                             return resolved.exact_type()
+            elif entry["qname"] in ("typing.Optional", "typing.Union"):
+                # pyre-ignore[27]: tagged union data layout
+                args = entry.get("args", [])
+                resolved_args: list[Class] = []
+                for arg_index in args:
+                    arg_val = self.lookup_type(arg_index, modules, type_env)
+                    if arg_val is None:
+                        resolved_args = []
+                        break
+                    resolved_args.append(arg_val.klass)
+                if entry["qname"] == "typing.Optional" and resolved_args:
+                    none = self.resolve_classname("builtins.None", modules, type_env)
+                    if none is not None:
+                        resolved_args.append(none)
+                if resolved_args:
+                    return type_env.get_union(tuple(resolved_args)).instance
 
         return None
 
