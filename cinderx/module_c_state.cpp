@@ -32,6 +32,39 @@ void Ci_ClearGenericInstCache(void) {
   }
 }
 
+PyObject* Ci_GetClassLoaderCache(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->classloader_cache.getObj() : nullptr;
+}
+
+void Ci_SetClassLoaderCache(PyDictObject* cache) {
+  cinderx::getModuleState()->classloader_cache =
+      Ref<PyDictObject>::create(cache);
+}
+
+void Ci_ClearClassLoaderCache(void) {
+  if (auto state = cinderx::getModuleState(); state != nullptr) {
+    state->classloader_cache.reset();
+  }
+}
+
+PyObject* Ci_GetClassLoaderCacheModuleToKeys(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->classloader_cache_module_to_keys.getObj()
+                          : nullptr;
+}
+
+void Ci_SetClassLoaderCacheModuleToKeys(PyDictObject* cache) {
+  cinderx::getModuleState()->classloader_cache_module_to_keys =
+      Ref<PyDictObject>::create(cache);
+}
+
+void Ci_ClearClassLoaderCacheModuleToKeys(void) {
+  if (auto state = cinderx::getModuleState(); state != nullptr) {
+    state->classloader_cache_module_to_keys.reset();
+  }
+}
+
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }

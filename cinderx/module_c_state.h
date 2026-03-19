@@ -28,6 +28,16 @@ PyObject* Ci_GetGenericInstCache(void);
 void Ci_SetGenericInstCache(PyDictObject* cache);
 void Ci_ClearGenericInstCache(void);
 
+// Class loader type resolution cache.
+PyObject* Ci_GetClassLoaderCache(void);
+void Ci_SetClassLoaderCache(PyDictObject* cache);
+void Ci_ClearClassLoaderCache(void);
+
+// Class loader module-to-keys mapping for cache invalidation.
+PyObject* Ci_GetClassLoaderCacheModuleToKeys(void);
+void Ci_SetClassLoaderCacheModuleToKeys(PyDictObject* cache);
+void Ci_ClearClassLoaderCacheModuleToKeys(void);
+
 // WatcherState.
 
 int Ci_Watchers_WatchDict(PyObject* dict);

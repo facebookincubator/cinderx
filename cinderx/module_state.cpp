@@ -15,6 +15,8 @@ ModuleState* s_cinderx_state;
 int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(static_type_error);
   Py_VISIT(genericinst_cache);
+  Py_VISIT(classloader_cache);
+  Py_VISIT(classloader_cache_module_to_keys);
   Py_VISIT(builtin_next);
   return 0;
 }
@@ -22,6 +24,8 @@ int ModuleState::traverse(visitproc visit, void* arg) {
 int ModuleState::clear() {
   static_type_error.reset();
   genericinst_cache.reset();
+  classloader_cache.reset();
+  classloader_cache_module_to_keys.reset();
   sys_clear_caches.reset();
   builtin_next.reset();
   return 0;

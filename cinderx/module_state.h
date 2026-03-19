@@ -61,6 +61,12 @@ struct ModuleState {
   // Cache for generic type instantiations (e.g. list[int]).
   Ref<PyDictObject> genericinst_cache;
 
+  // Cache for the Static Python class loader.
+  Ref<PyDictObject> classloader_cache;
+
+  // Mapping from module name to classloader cache keys for that module.
+  Ref<PyDictObject> classloader_cache_module_to_keys;
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).

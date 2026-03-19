@@ -8,13 +8,11 @@
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-
-static PyObject* classloader_cache;
-static PyObject* classloader_cache_module_to_keys;
 
 Py_ssize_t _PyClassLoader_PrimitiveTypeToSize(int primitive_type) {
   switch (primitive_type) {
@@ -375,11 +373,13 @@ _PyClassLoader_ResolveType(PyObject* descr, int* optional, int* exact) {
     last = PyTuple_GET_ITEM(descr, items - 1);
   }
 
-  if (classloader_cache != NULL) {
-    PyObject* cache = PyDict_GetItem(classloader_cache, descr);
-    if (cache != NULL) {
-      Py_INCREF(cache);
-      return (PyTypeObject*)cache;
+  // Fast path that hits the cache.
+  PyObject* cl_cache = Ci_GetClassLoaderCache();
+  if (cl_cache != NULL) {
+    PyObject* cached = PyDict_GetItem(cl_cache, descr);
+    if (cached != NULL) {
+      Py_INCREF(cached);
+      return (PyTypeObject*)cached;
     }
   }
 
@@ -389,39 +389,37 @@ _PyClassLoader_ResolveType(PyObject* descr, int* optional, int* exact) {
     return NULL;
   }
 
-  if (classloader_cache == NULL) {
-    classloader_cache = PyDict_New();
-    if (classloader_cache == NULL) {
+  // Ensure type resolution cache is set up.
+  cl_cache = _PyClassLoader_GetCache();
+  if (cl_cache == NULL) {
+    Py_DECREF(res);
+    return NULL;
+  }
+
+  PyObject* mod_to_keys = Ci_GetClassLoaderCacheModuleToKeys();
+  if (mod_to_keys == NULL) {
+    mod_to_keys = PyDict_New();
+    if (mod_to_keys == NULL) {
       Py_DECREF(res);
       return NULL;
     }
+    Ci_SetClassLoaderCacheModuleToKeys((PyDictObject*)mod_to_keys);
+    Py_DECREF(mod_to_keys);
   }
 
-  if (classloader_cache_module_to_keys == NULL) {
-    classloader_cache_module_to_keys = PyDict_New();
-    if (classloader_cache_module_to_keys == NULL) {
-      Py_DECREF(res);
-      return NULL;
-    }
-  }
-
-  if (PyDict_SetItem(classloader_cache, descr, res)) {
+  if (PyDict_SetItem(cl_cache, descr, res)) {
     Py_DECREF(res);
     return NULL;
   }
   PyObject* module_key = PyTuple_GET_ITEM(descr, 0);
-  PyObject* existing_modules_to_keys =
-      PyDict_GetItem(classloader_cache_module_to_keys, module_key);
+  PyObject* existing_modules_to_keys = PyDict_GetItem(mod_to_keys, module_key);
   if (existing_modules_to_keys == NULL) {
     existing_modules_to_keys = PyList_New(0);
     if (existing_modules_to_keys == NULL) {
       Py_DECREF(res);
       return NULL;
     }
-    if (PyDict_SetItem(
-            classloader_cache_module_to_keys,
-            module_key,
-            existing_modules_to_keys) < 0) {
+    if (PyDict_SetItem(mod_to_keys, module_key, existing_modules_to_keys) < 0) {
       Py_DECREF(res);
       return NULL;
     }
@@ -441,34 +439,40 @@ int _PyClassLoader_CheckModuleChange(PyDictObject* dict, PyObject* key) {
   if (((PyObject*)dict) != modules_dict) {
     return 0;
   }
-  if (classloader_cache_module_to_keys == NULL) {
+  PyObject* mod_to_keys = Ci_GetClassLoaderCacheModuleToKeys();
+  if (mod_to_keys == NULL) {
     return 0;
   }
-  PyObject* keys_to_invalidate =
-      PyDict_GetItem(classloader_cache_module_to_keys, key);
+  PyObject* keys_to_invalidate = PyDict_GetItem(mod_to_keys, key);
   if (keys_to_invalidate == NULL) {
     return 0;
   }
+  PyObject* cl_cache = Ci_GetClassLoaderCache();
   for (Py_ssize_t i = 0; i < PyList_GET_SIZE(keys_to_invalidate); i++) {
     PyObject* key_to_invalidate = PyList_GET_ITEM(keys_to_invalidate, i);
-    if (PyDict_DelItem(classloader_cache, key_to_invalidate) < 0) {
+    if (PyDict_DelItem(cl_cache, key_to_invalidate) < 0) {
       return 0;
     }
   }
-  PyDict_DelItem(classloader_cache_module_to_keys, key);
+  PyDict_DelItem(mod_to_keys, key);
   return 0;
 }
 
 void _PyClassLoader_ClearCache() {
-  Py_CLEAR(classloader_cache);
-  Py_CLEAR(classloader_cache_module_to_keys);
+  Ci_ClearClassLoaderCache();
+  Ci_ClearClassLoaderCacheModuleToKeys();
 }
 
 PyObject* _PyClassLoader_GetCache() {
-  if (classloader_cache == NULL) {
-    classloader_cache = PyDict_New();
+  PyObject* cl_cache = Ci_GetClassLoaderCache();
+  if (cl_cache == NULL) {
+    cl_cache = PyDict_New();
+    if (cl_cache != NULL) {
+      Ci_SetClassLoaderCache((PyDictObject*)cl_cache);
+      Py_DECREF(cl_cache);
+    }
   }
-  return classloader_cache;
+  return cl_cache;
 }
 
 /* Resolve a tuple type descr to a `prim_type` integer (`TYPED_*`); return -1
