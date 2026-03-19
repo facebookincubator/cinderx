@@ -36,9 +36,9 @@
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.property.C",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.property.C",
       "args": [],
-      "hash": 18418907475535762116
+      "hash": 12217312010916604349
     },
     {
       "kind": "other_form",
@@ -46,7 +46,7 @@
       "args": [
         5
       ],
-      "hash": 3047767295098807706
+      "hash": 6410884098996484291
     }
   ],
   "locations": [

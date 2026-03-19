@@ -17,6 +17,7 @@ from typing import (
     Literal,
     Protocol,
     Type,
+    TYPE_CHECKING,
     TypeVar,
     Union,
 )
@@ -284,7 +285,10 @@ class int32(int):
 @set_type_final
 @type_code(TYPED_INT64)
 class int64(int):
-    pass
+    if TYPE_CHECKING:
+
+        def __add__(self, other) -> int64:
+            return int64(0)
 
 
 @set_type_final

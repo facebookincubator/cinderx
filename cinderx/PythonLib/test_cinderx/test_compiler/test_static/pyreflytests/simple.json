@@ -2,14 +2,21 @@
   "type_table": [
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.simple.C",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.simple.C",
       "args": [],
-      "hash": 8563325631336090432
+      "hash": 13369221997333332218
+    },
+    {
+      "kind": "class",
+      "qname": "builtins.int",
+      "args": [],
+      "hash": 7437843174258217660
     },
     {
       "kind": "literal",
       "value": "42",
-      "hash": 8390065111661787820
+      "promoted_type": 1,
+      "hash": 8499067216537500750
     }
   ],
   "locations": [
@@ -29,7 +36,7 @@
         "end_line": 3,
         "end_col": 19
       },
-      "type": 1
+      "type": 2
     }
   ]
 }

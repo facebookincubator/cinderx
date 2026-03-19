@@ -61,7 +61,6 @@ class PyreflyTypeBinder(TypeBinder):
             ret = super().generic_visit(node, *args)
             # pyre-fixme[16]: Optional type has no attribute `lookup`.
             declared_type = self._type_info.lookup(node, self.modules, self.type_env)
-
             if declared_type is None:
                 declared_type = self.type_env.dynamic.instance
                 if isinstance(node, (ast.List, ast.ListComp)):

@@ -105,12 +105,22 @@ class PyreflyTypeInfo:
         self._locations: dict[LocationInfo, int] = {}
         for entry in data["locations"]:
             key = LocationInfo.from_location(entry["loc"])
-            self._locations[key] = entry["type"]
+            if "contextual_type" in entry:
+                self._locations[key] = entry["contextual_type"]
+            else:
+                self._locations[key] = entry["type"]
 
     def _lookup(self, node: AST) -> int | None:
         """Look up the type_table index for an AST node by its source position."""
         key = LocationInfo.from_node(node)
         return self._locations.get(key)
+
+    def lookup_entry(self, node: AST) -> TypeTableEntry | None:
+        """Look up the raw type_table entry for an AST node (for debugging)."""
+        type_index = self._lookup(node)
+        if type_index is None:
+            return None
+        return self._type_table[type_index]
 
     def lookup(
         self,
@@ -175,6 +185,19 @@ class PyreflyTypeInfo:
                 resolved = self.resolve_classname("builtins.None", modules, type_env)
                 if resolved is not None:
                     return resolved.instance
+            elif entry["qname"] == "typing.Type":
+                # pyre-ignore[27]: tagged union data layout
+                args = entry.get("args", [])
+                if args:
+                    inner_entry = self._type_table[args[0]]
+                    if inner_entry["kind"] == "class":
+                        qname = str(inner_entry["qname"])
+                        resolved = self.resolve_classname(qname, modules, type_env)
+                        if resolved is not None:
+                            # typing.Type[X] should resolve to the class X
+                            # itself; use exact_type since a bare name like
+                            # `C` refers to the exact class, not a subclass.
+                            return resolved.exact_type()
 
         return None
 

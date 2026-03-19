@@ -8,9 +8,9 @@
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.method_call.C",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.method_call.C",
       "args": [],
-      "hash": 15166489944257147537
+      "hash": 2273513381601418985
     },
     {
       "kind": "callable",
@@ -18,14 +18,15 @@
         1
       ],
       "return_type": 0,
-      "hash": 9850197048967803762
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.method_call.C.f",
+      "hash": 17450959045071387878
     },
     {
       "kind": "bound_method",
       "self_type": 1,
       "func_type": 2,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.method_call.C",
-      "hash": 170909769984178760
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.method_call.C",
+      "hash": 280600409630062807
     },
     {
       "kind": "other_form",
@@ -33,7 +34,7 @@
       "args": [
         1
       ],
-      "hash": 6809742840824427841
+      "hash": 8453644861543316080
     }
   ],
   "locations": [

@@ -10,8 +10,8 @@
       "kind": "callable",
       "params": [],
       "return_type": 0,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.call.f",
-      "hash": 14932184105665906002
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.call.f",
+      "hash": 12738833633897673461
     }
   ],
   "locations": [

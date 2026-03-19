@@ -148,9 +148,9 @@
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Packet",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Packet",
       "args": [],
-      "hash": 15164499519051732779
+      "hash": 1052968268191550552
     },
     {
       "kind": "other_form",
@@ -158,7 +158,7 @@
       "args": [
         22
       ],
-      "hash": 8304299442647147511
+      "hash": 7927615472383145844
     },
     {
       "kind": "other_form",
@@ -166,7 +166,7 @@
       "args": [
         23
       ],
-      "hash": 15859996599813539326
+      "hash": 1553654282377807167
     },
     {
       "kind": "other_form",
@@ -174,7 +174,7 @@
       "args": [
         22
       ],
-      "hash": 9810772809250363083
+      "hash": 6901780997896768136
     },
     {
       "kind": "other_form",
@@ -196,9 +196,9 @@
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskRec",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskRec",
       "args": [],
-      "hash": 8309275959672773969
+      "hash": 10562525037282555323
     },
     {
       "kind": "other_form",
@@ -206,19 +206,19 @@
       "args": [
         29
       ],
-      "hash": 4945208889955065692
+      "hash": 12184051924395452295
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.DeviceTaskRec",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.DeviceTaskRec",
       "args": [],
-      "hash": 17333781651253112898
+      "hash": 2093120175297660611
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.IdleTaskRec",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.IdleTaskRec",
       "args": [],
-      "hash": 9475381045391155654
+      "hash": 17512182120490156436
     },
     {
       "kind": "literal",
@@ -228,9 +228,9 @@
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec",
       "args": [],
-      "hash": 9034995190166739211
+      "hash": 13895524344665275128
     },
     {
       "kind": "callable",
@@ -239,27 +239,27 @@
         23
       ],
       "return_type": 22,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Packet.append_to",
-      "hash": 3818907541633193850
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Packet.append_to",
+      "hash": 5112037311907461411
     },
     {
       "kind": "bound_method",
       "self_type": 22,
       "func_type": 35,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Packet",
-      "hash": 18061864070108897259
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Packet",
+      "hash": 15669953669425768701
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.WorkerTaskRec",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.WorkerTaskRec",
       "args": [],
-      "hash": 2207285325226578650
+      "hash": 4255298656931206169
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
       "args": [],
-      "hash": 17069875557965873333
+      "hash": 17692244360987311995
     },
     {
       "kind": "other_form",
@@ -287,7 +287,7 @@
       "args": [
         38
       ],
-      "hash": 11160968490042717897
+      "hash": 18277659112042110799
     },
     {
       "kind": "other_form",
@@ -315,15 +315,15 @@
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskWorkArea",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskWorkArea",
       "args": [],
-      "hash": 8865786268008214445
+      "hash": 3061415147236594360
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
       "args": [],
-      "hash": 2448543256567111331
+      "hash": 7792061722240797512
     },
     {
       "kind": "other_form",
@@ -331,7 +331,7 @@
       "args": [
         48
       ],
-      "hash": 14502235369001181847
+      "hash": 4532233161809567209
     },
     {
       "kind": "class",
@@ -339,7 +339,7 @@
       "args": [
         49
       ],
-      "hash": 7391040423175557243
+      "hash": 17918698972593593097
     },
     {
       "kind": "other_form",
@@ -347,7 +347,7 @@
       "args": [
         50
       ],
-      "hash": 14087047584324102203
+      "hash": 13044680104857286680
     },
     {
       "kind": "other_form",
@@ -355,7 +355,7 @@
       "args": [
         49
       ],
-      "hash": 12776407681708759916
+      "hash": 13452861142846460735
     },
     {
       "kind": "other_form",
@@ -363,7 +363,7 @@
       "args": [
         48
       ],
-      "hash": 12578146998671842596
+      "hash": 6130890321628923611
     },
     {
       "kind": "other_form",
@@ -371,7 +371,7 @@
       "args": [
         47
       ],
-      "hash": 9787087451381543239
+      "hash": 3736308282079412857
     },
     {
       "kind": "callable",
@@ -379,15 +379,15 @@
         38
       ],
       "return_type": 28,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isPacketPending",
-      "hash": 7351646247698540366
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isPacketPending",
+      "hash": 18028021074001266834
     },
     {
       "kind": "bound_method",
       "self_type": 38,
       "func_type": 55,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 16883169598477265243
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 17155674400245744642
     },
     {
       "kind": "callable",
@@ -395,15 +395,15 @@
         38
       ],
       "return_type": 28,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isTaskWaiting",
-      "hash": 10244765028035639711
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isTaskWaiting",
+      "hash": 12428823738097963461
     },
     {
       "kind": "bound_method",
       "self_type": 38,
       "func_type": 57,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 9071991189637528479
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 16789587661981105610
     },
     {
       "kind": "callable",
@@ -411,15 +411,15 @@
         38
       ],
       "return_type": 28,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isTaskHolding",
-      "hash": 2946107065427991876
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isTaskHolding",
+      "hash": 16994294656706602570
     },
     {
       "kind": "bound_method",
       "self_type": 38,
       "func_type": 59,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 13725962010233207363
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 1641647506128949212
     },
     {
       "kind": "class",
@@ -441,15 +441,15 @@
         48
       ],
       "return_type": 28,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isWaitingWithPacket",
-      "hash": 15385845053083035527
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isWaitingWithPacket",
+      "hash": 5364989093080086473
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 63,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 12668757990983944589
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 1922677656688654073
     },
     {
       "kind": "callable",
@@ -457,15 +457,15 @@
         48
       ],
       "return_type": 38,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.running",
-      "hash": 11869565796865555301
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.running",
+      "hash": 2827574705383579371
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 65,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 13935511656677559407
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 3026412436130887673
     },
     {
       "kind": "callable",
@@ -473,15 +473,15 @@
         48
       ],
       "return_type": 38,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.packetPending",
-      "hash": 3503724896235268754
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.packetPending",
+      "hash": 8727910098190050958
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 67,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 13270806875599686317
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 15374168119149782612
     },
     {
       "kind": "callable",
@@ -491,15 +491,15 @@
         29
       ],
       "return_type": 49,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.fn",
-      "hash": 11438893175061305219
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.fn",
+      "hash": 5387918710773683094
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 69,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 800714058721382091
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 2867921197918863458
     },
     {
       "kind": "callable",
@@ -508,15 +508,15 @@
         2
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.findtcb",
-      "hash": 8294106024072052531
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.findtcb",
+      "hash": 5379780750827998865
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 71,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 5280679161861778969
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 7291052436273784627
     },
     {
       "kind": "callable",
@@ -526,15 +526,15 @@
         48
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.addPacket",
-      "hash": 4069524646551633354
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.addPacket",
+      "hash": 650663625074144357
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 73,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 13808830936719237937
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 18252835294962752057
     },
     {
       "kind": "other_form",
@@ -542,7 +542,7 @@
       "args": [
         31
       ],
-      "hash": 2210166166781722169
+      "hash": 6481083172058759011
     },
     {
       "kind": "callable",
@@ -555,14 +555,14 @@
         29
       ],
       "return_type": 26,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.__init__",
-      "hash": 12803457202900580648
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.__init__",
+      "hash": 6298705225246272095
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.DeviceTask",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.DeviceTask",
       "args": [],
-      "hash": 9600707718010016567
+      "hash": 11243961180537974082
     },
     {
       "kind": "callable",
@@ -570,15 +570,15 @@
         77
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.waitTask",
-      "hash": 16767813256762682323
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.waitTask",
+      "hash": 13696482708074934820
     },
     {
       "kind": "bound_method",
       "self_type": 77,
       "func_type": 78,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 10320451812507016085
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 2139726038883195253
     },
     {
       "kind": "callable",
@@ -587,15 +587,15 @@
         22
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.qpkt",
-      "hash": 6050093599552389975
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.qpkt",
+      "hash": 7001855961100509821
     },
     {
       "kind": "bound_method",
       "self_type": 77,
       "func_type": 80,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 3653822763961921259
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 7939410052363345592
     },
     {
       "kind": "callable",
@@ -603,8 +603,8 @@
         3
       ],
       "return_type": 3,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.trace",
-      "hash": 4401587539052570807
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.trace",
+      "hash": 8944089992864178910
     },
     {
       "kind": "callable",
@@ -612,15 +612,15 @@
         77
       ],
       "return_type": 49,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.hold",
-      "hash": 18372940089352807802
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.hold",
+      "hash": 4583380034472687652
     },
     {
       "kind": "bound_method",
       "self_type": 77,
       "func_type": 83,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 16283362687359970333
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 12001272351177921245
     },
     {
       "kind": "other_form",
@@ -628,13 +628,13 @@
       "args": [
         34
       ],
-      "hash": 746098251907298240
+      "hash": 5600054567780717449
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTask",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTask",
       "args": [],
-      "hash": 16564674364596381830
+      "hash": 10509225726812552327
     },
     {
       "kind": "callable",
@@ -643,15 +643,15 @@
         22
       ],
       "return_type": 23,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec.workInAdd",
-      "hash": 7034298078078538183
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec.workInAdd",
+      "hash": 2801686694975971605
     },
     {
       "kind": "bound_method",
       "self_type": 34,
       "func_type": 87,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec",
-      "hash": 3057154512075002938
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec",
+      "hash": 11672338307911823173
     },
     {
       "kind": "callable",
@@ -660,15 +660,15 @@
         22
       ],
       "return_type": 23,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec.deviceInAdd",
-      "hash": 757340282917088468
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec.deviceInAdd",
+      "hash": 7147712563952589217
     },
     {
       "kind": "bound_method",
       "self_type": 34,
       "func_type": 89,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec",
-      "hash": 537345418194275727
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.HandlerTaskRec",
+      "hash": 13852113127969277098
     },
     {
       "kind": "callable",
@@ -676,15 +676,15 @@
         86
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.waitTask",
-      "hash": 14954140087927162604
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.waitTask",
+      "hash": 4281829289846897486
     },
     {
       "kind": "bound_method",
       "self_type": 86,
       "func_type": 91,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 14590695818013094966
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 16523424118548222872
     },
     {
       "kind": "callable",
@@ -693,15 +693,15 @@
         22
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.qpkt",
-      "hash": 17063403755135320363
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.qpkt",
+      "hash": 9290793128981682915
     },
     {
       "kind": "bound_method",
       "self_type": 86,
       "func_type": 93,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 11983149839430594483
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 1130865287942200896
     },
     {
       "kind": "other_form",
@@ -709,13 +709,13 @@
       "args": [
         32
       ],
-      "hash": 6179406153698418739
+      "hash": 2243773597202615344
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.IdleTask",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.IdleTask",
       "args": [],
-      "hash": 6930436848995763630
+      "hash": 12071036127311669710
     },
     {
       "kind": "callable",
@@ -723,15 +723,15 @@
         96
       ],
       "return_type": 49,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.hold",
-      "hash": 3250168032535137976
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.hold",
+      "hash": 13322210833187505026
     },
     {
       "kind": "bound_method",
       "self_type": 96,
       "func_type": 97,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 13088011300746186860
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 323086444687201528
     },
     {
       "kind": "callable",
@@ -740,15 +740,15 @@
         2
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.release",
-      "hash": 14133100922306148577
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.release",
+      "hash": 6113023717506815406
     },
     {
       "kind": "bound_method",
       "self_type": 96,
       "func_type": 99,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 15241577843875143494
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 12511619496575014451
     },
     {
       "kind": "literal",
@@ -768,13 +768,13 @@
       "args": [
         37
       ],
-      "hash": 14221474043858462106
+      "hash": 8856978163147527321
     },
     {
       "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.WorkTask",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.WorkTask",
       "args": [],
-      "hash": 15162228205915828987
+      "hash": 2911203640129198325
     },
     {
       "kind": "callable",
@@ -782,15 +782,15 @@
         104
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.waitTask",
-      "hash": 17969876585462426687
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.waitTask",
+      "hash": 598042654273347741
     },
     {
       "kind": "bound_method",
       "self_type": 104,
       "func_type": 105,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 3212888145732354061
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 3657784625730644603
     },
     {
       "kind": "literal",
@@ -805,15 +805,15 @@
         22
       ],
       "return_type": 48,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.qpkt",
-      "hash": 4188696099989834885
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.qpkt",
+      "hash": 16347445814185779396
     },
     {
       "kind": "bound_method",
       "self_type": 104,
       "func_type": 108,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 7487854315578642769
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 5579969535049069929
     },
     {
       "kind": "literal",
@@ -827,15 +827,15 @@
         48
       ],
       "return_type": 28,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isTaskHoldingOrWaiting",
-      "hash": 14863449404775759842
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.isTaskHoldingOrWaiting",
+      "hash": 4365594285031806430
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 111,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 5869349678185553564
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 11856794115878656191
     },
     {
       "kind": "class",
@@ -895,15 +895,15 @@
         48
       ],
       "return_type": 49,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.runTask",
-      "hash": 4762810075140972761
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task.runTask",
+      "hash": 8511928275004959333
     },
     {
       "kind": "bound_method",
       "self_type": 48,
       "func_type": 120,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
-      "hash": 7372794450871128217
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Task",
+      "hash": 13832450574199939777
     },
     {
       "kind": "other_form",
@@ -911,7 +911,7 @@
       "args": [
         96
       ],
-      "hash": 2117237455514537744
+      "hash": 7785885168040578565
     },
     {
       "kind": "callable",
@@ -919,15 +919,15 @@
         38
       ],
       "return_type": 38,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.running",
-      "hash": 12096239168544550297
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.running",
+      "hash": 8015376917989297889
     },
     {
       "kind": "bound_method",
       "self_type": 38,
       "func_type": 123,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 9824734227886108998
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 15966811684952967559
     },
     {
       "kind": "other_form",
@@ -935,7 +935,7 @@
       "args": [
         104
       ],
-      "hash": 9328095877064402886
+      "hash": 10973675083081506056
     },
     {
       "kind": "callable",
@@ -943,15 +943,15 @@
         38
       ],
       "return_type": 38,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.waitingWithPacket",
-      "hash": 2608557389813180002
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.waitingWithPacket",
+      "hash": 5616213864371491758
     },
     {
       "kind": "bound_method",
       "self_type": 38,
       "func_type": 126,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 11517987091099146440
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 8668169707516358142
     },
     {
       "kind": "other_form",
@@ -959,7 +959,7 @@
       "args": [
         86
       ],
-      "hash": 1214097477643927838
+      "hash": 12150533531026939705
     },
     {
       "kind": "literal",
@@ -979,7 +979,7 @@
       "args": [
         77
       ],
-      "hash": 774559496644305754
+      "hash": 2093523928831922823
     },
     {
       "kind": "literal",
@@ -993,15 +993,15 @@
         38
       ],
       "return_type": 38,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.waiting",
-      "hash": 560667185923854307
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState.waiting",
+      "hash": 10392181084141408629
     },
     {
       "kind": "bound_method",
       "self_type": 38,
       "func_type": 133,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
-      "hash": 15397585833164978125
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.TaskState",
+      "hash": 1880638404174612009
     },
     {
       "kind": "literal",
@@ -1013,8 +1013,8 @@
       "kind": "callable",
       "params": [],
       "return_type": 26,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.schedule",
-      "hash": 2691638984399816522
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.schedule",
+      "hash": 6097509037624682183
     },
     {
       "kind": "literal",
@@ -1036,63 +1036,34 @@
     },
     {
       "kind": "class",
-      "qname": "typing.Sized",
+      "qname": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Richards",
       "args": [],
-      "hash": 13039512047080031574
+      "hash": 13287314615066182616
     },
     {
       "kind": "callable",
       "params": [
-        140
-      ],
-      "return_type": 2,
-      "defining_func": "builtins.len",
-      "hash": 10918511340362036114
-    },
-    {
-      "kind": "class",
-      "qname": "builtins.list",
-      "args": [
-        0
-      ],
-      "hash": 7789026085199031068
-    },
-    {
-      "kind": "other_form",
-      "qname": "types.ModuleType",
-      "args": [],
-      "hash": 2562660763195886776
-    },
-    {
-      "kind": "class",
-      "qname": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Richards",
-      "args": [],
-      "hash": 5949828263616204066
-    },
-    {
-      "kind": "callable",
-      "params": [
-        144,
+        140,
         2
       ],
       "return_type": 28,
-      "defining_func": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Richards.run",
-      "hash": 16040134814712652268
+      "defining_func": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Richards.run",
+      "hash": 10392458418120923172
     },
     {
       "kind": "bound_method",
-      "self_type": 144,
-      "func_type": 145,
-      "defining_class": "cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Richards",
-      "hash": 9168108648462954346
+      "self_type": 140,
+      "func_type": 141,
+      "defining_class": "test_cinderx.test_compiler.test_static.pyreflytests.richards_typed.Richards",
+      "hash": 354685652268874949
     },
     {
       "kind": "other_form",
       "qname": "typing.Type",
       "args": [
-        144
+        140
       ],
-      "hash": 10441089116118839195
+      "hash": 14272492647492377174
     }
   ],
   "locations": [
@@ -9599,125 +9570,6 @@
     },
     {
       "loc": {
-        "start_line": 422,
-        "start_col": 7,
-        "end_line": 422,
-        "end_col": 24
-      },
-      "type": 28
-    },
-    {
-      "loc": {
-        "start_line": 422,
-        "start_col": 7,
-        "end_line": 422,
-        "end_col": 20
-      },
-      "type": 2
-    },
-    {
-      "loc": {
-        "start_line": 422,
-        "start_col": 7,
-        "end_line": 422,
-        "end_col": 10
-      },
-      "type": 141
-    },
-    {
-      "loc": {
-        "start_line": 422,
-        "start_col": 11,
-        "end_line": 422,
-        "end_col": 19
-      },
-      "type": 142
-    },
-    {
-      "loc": {
-        "start_line": 422,
-        "start_col": 11,
-        "end_line": 422,
-        "end_col": 14
-      },
-      "type": 143
-    },
-    {
-      "loc": {
-        "start_line": 422,
-        "start_col": 23,
-        "end_line": 422,
-        "end_col": 24
-      },
-      "type": 6
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 8,
-        "end_line": 423,
-        "end_col": 22
-      },
-      "type": 2
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 25,
-        "end_line": 423,
-        "end_col": 41
-      },
-      "type": 2
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 25,
-        "end_line": 423,
-        "end_col": 28
-      },
-      "type": 5
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 29,
-        "end_line": 423,
-        "end_col": 40
-      },
-      "type": 0,
-      "unnarrowed_type": 0
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 29,
-        "end_line": 423,
-        "end_col": 37
-      },
-      "type": 142,
-      "unnarrowed_type": 142
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 29,
-        "end_line": 423,
-        "end_col": 32
-      },
-      "type": 143
-    },
-    {
-      "loc": {
-        "start_line": 423,
-        "start_col": 38,
-        "end_line": 423,
-        "end_col": 39
-      },
-      "type": 6
-    },
-    {
-      "loc": {
         "start_line": 424,
         "start_col": 4,
         "end_line": 424,
@@ -9732,7 +9584,7 @@
         "end_line": 424,
         "end_col": 18
       },
-      "type": 146
+      "type": 142
     },
     {
       "loc": {
@@ -9741,7 +9593,7 @@
         "end_line": 424,
         "end_col": 14
       },
-      "type": 144
+      "type": 140
     },
     {
       "loc": {
@@ -9750,7 +9602,7 @@
         "end_line": 424,
         "end_col": 12
       },
-      "type": 147
+      "type": 143
     },
     {
       "loc": {
@@ -9759,7 +9611,7 @@
         "end_line": 424,
         "end_col": 33
       },
-      "type": 2
+      "type": 6
     }
   ]
 }

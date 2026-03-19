@@ -83,7 +83,9 @@ class PyreBinderTests(StaticTestBase):
             basename = path.basename(filename)
             if basename == "__init__":
                 continue
-            modname = f"cinderx.PythonLib.test_cinderx.test_compiler.test_static.pyreflytests.{basename}"
+            # Set qualified name relative to PythonLib/, to match pyrefly
+            # (which goes off the sourcedb)
+            modname = f"test_cinderx.test_compiler.test_static.pyreflytests.{basename}"
             with self.subTest(f), open(f) as f, open(jsonname) as jsonf:
                 data = json.load(jsonf)
                 code = self.compile_one(
