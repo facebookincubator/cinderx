@@ -7,4 +7,4 @@ def verify(test: PyreBinderTests, code: CodeType) -> None:
     """Verify that the compiled code includes INVOKE_METHOD."""
 
     g = test.find_code(code, "g")
-    test.assertInBytecode(g, "INVOKE_METHOD")
+    test.assertInBytecode(g, "INVOKE_FUNCTION")

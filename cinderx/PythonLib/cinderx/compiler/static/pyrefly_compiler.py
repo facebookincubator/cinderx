@@ -3,8 +3,10 @@
 
 import ast
 import sys
+from ast import AST
 from typing import Callable, Iterable
 
+from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static.pyrefly_info import EMPTY_TYPE_INFO, Pyrefly
 from cinderx.compiler.static.pyrefly_type_binder import PyreflyTypeBinder
 from cinderx.compiler.static.type_binder import TypeBinder
@@ -55,6 +57,39 @@ class PyreflyCompiler(Compiler):
         return Flags(is_static=module_name not in self.static_opt_out).merge(
             override_flags
         )
+
+    def add_module(
+        self,
+        name: str,
+        filename: str,
+        tree: AST,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
+        optimize: int,
+    ) -> ast.Module:
+        from cinderx.compiler.optimizer import AstOptimizer
+        from cinderx.compiler.static.declaration_visitor import DeclarationVisitor
+
+        optimized = AstOptimizer(optimize=optimize > 0).visit(tree)
+        assert isinstance(optimized, ast.Module)
+        tree = optimized
+
+        self.ast_cache[source] = tree
+
+        validate_classes = not self.decl_visitors
+        decl_visit = DeclarationVisitor(name, filename, self, optimize)
+        self.decl_visitors.append(decl_visit)
+        decl_visit.visit(tree)
+        decl_visit.finish_bind()
+
+        if validate_classes:
+            while self.decl_visitors:
+                decl_visit = self.decl_visitors.popleft()
+                try:
+                    decl_visit.module.validate_overrides()
+                except TypedSyntaxError:
+                    pass
+
+        return tree
 
     # pyre-ignore[14]: Pyre thinks the `compiler: Compiler` argument is inconsistent
     def make_type_binder(

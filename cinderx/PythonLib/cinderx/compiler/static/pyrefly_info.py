@@ -254,7 +254,6 @@ class PyreflyTypeInfo:
                 return result.inexact_type()
             elif isinstance(result, Value):
                 return result.klass
-            return None
 
         # Try well-known types (e.g. __static__.int64)
         well_known = type_env.name_to_type.get(qname)
@@ -266,7 +265,7 @@ class PyreflyTypeInfo:
             builtins = modules.get("builtins")
             if builtins is not None:
                 # pyre-fixme[61]: `parts` is undefined, or not always defined.
-                result = builtins.get_child(parts[0], "builtins")
+                result = builtins.get_child(qname, "builtins")
                 if isinstance(result, Class):
                     return result
 
