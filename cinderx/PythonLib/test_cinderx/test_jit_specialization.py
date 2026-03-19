@@ -32,7 +32,8 @@ if hasattr(dis, "_specialized_instructions"):
 # because we compare this output against a specific instruction name to ensure
 # it no longer contains the original.
 def opnames(func: Callable[..., TCallableRet]) -> list[str]:
-    bytecode = dis.Bytecode(func, adaptive=True)  # pyre-ignore
+    # pyre-fixme[28]: Unexpected keyword argument `adaptive`.
+    bytecode = dis.Bytecode(func, adaptive=True)
     return [_all_opnames[insn.opcode] for insn in bytecode]
 
 

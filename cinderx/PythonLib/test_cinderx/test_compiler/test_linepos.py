@@ -212,7 +212,7 @@ class LinePositionTests(CompilerTest):
     def get_position(self, compiled: CodeType, opcode: str) -> tuple[...] | None:
         for instr in get_instructions(compiled):
             if instr.opname == opcode:
-                # pyre-ignore[16]: No co_positions
+                # pyre-fixme[16]: `CodeType` has no attribute `co_positions`.
                 return list(compiled.co_positions())[instr.offset // 2]
         else:
             self.fail(f"Could not find opcode {opcode} in bytecode")

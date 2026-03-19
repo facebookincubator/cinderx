@@ -444,7 +444,6 @@ def re_templatize(
     return result.split("\n")
 
 
-# pyre-ignore[30]
 def update_cpp_tests(  # noqa: C901
     failed_suites: SuiteOutputDict,
     failed_cpp_tests: set[tuple[str, str]],

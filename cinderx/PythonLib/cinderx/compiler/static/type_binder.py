@@ -683,7 +683,6 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             for t in node.type_params:
                 self.declare_local(t.name, self.type_env.DYNAMIC)
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
     def visitTypeAlias(self, node: ast.TypeAlias) -> None:
         self._visitTypeParams(node)
         self.visit(node.value)

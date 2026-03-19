@@ -53,7 +53,6 @@ class TypeParams(ast.AST):
         assert params, "TypeParams needs a node with a type_params field"
         first = params[0]
         last = params[-1]
-        # pyre-ignore[11]: ast.type_param added in 3.12, pyre still running in 3.10 mode.
         self.params: tuple[ast.type_param] = tuple(params)
         self.lineno: int = first.lineno
         self.end_lineno: int = last.end_lineno
@@ -83,7 +82,6 @@ class Annotations(ast.AST):
 class TypeVarDefault(ast.AST):
     """Artificial node to store the scope for a TypeParam w/ default values"""
 
-    # pyre-ignore[11]: Annotation `ast.TypeVar` is not defined as a type.
     def __init__(self, parent: ast.TypeVar) -> None:
         self.parent: ast.TypeVar = parent
 
@@ -454,7 +452,6 @@ class BaseSymbolVisitor(ASTVisitor):
 
     def enter_type_params(
         self,
-        # pyre-ignore[11]: Pyre doesn't know TypeAlias
         node: ast.ClassDef | ast.FunctionDef | ast.TypeAlias | ast.AsyncFunctionDef,
         parent: Scope,
     ) -> TypeParamScope:
@@ -499,7 +496,6 @@ class BaseSymbolVisitor(ASTVisitor):
             self.scopes[type_param] = scope
             parent.add_child(scope)
 
-    # pyre-ignore[11]: Pyre doesn't know TypeVar
     def visitTypeVar(self, node: ast.TypeVar, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
@@ -511,7 +507,6 @@ class BaseSymbolVisitor(ASTVisitor):
                 default_value, node.name, TypeVarDefault(node), parent
             )
 
-    # pyre-ignore[11]: Pyre doesn't know TypeVarTuple
     def visitTypeVarTuple(self, node: ast.TypeVarTuple, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
@@ -521,7 +516,6 @@ class BaseSymbolVisitor(ASTVisitor):
                 default_value, node.name, node, parent
             )
 
-    # pyre-ignore[11]: Pyre doesn't know ParamSpec
     def visitParamSpec(self, node: ast.ParamSpec, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
@@ -1372,7 +1366,6 @@ class SymbolVisitor312(BaseSymbolVisitor):
     def visitExpression(self, node: ast.Expression) -> None:
         self.visit_node_with_new_scope(node)
 
-    # pyre-ignore[11]: TryStar added in 3.11, pyre still running in 3.10 mode.
     def visitTryStar(self, node: ast.TryStar, scope: Scope) -> None:
         # pyre-fixme[6]: For 1st argument expected `Try` but got `TryStar`.
         return self.visitTry(node, scope)

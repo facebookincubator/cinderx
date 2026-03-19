@@ -73,7 +73,6 @@ class AnnotationRemover(ast.NodeTransformer):
         # an extra pass over the AST with ast.fix_missing_locations()
         value = node.value
         if value is None:
-            # pyre-fixme[20]: Argument `value` expected.
             value = ast.Constant(...)
             value.kind = None
             _copy_attrs(node, value)

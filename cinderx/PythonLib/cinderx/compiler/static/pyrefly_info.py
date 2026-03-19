@@ -106,6 +106,9 @@ class PyreflyTypeInfo:
         for entry in data["locations"]:
             key = LocationInfo.from_location(entry["loc"])
             if "contextual_type" in entry:
+                # pyre-fixme[6]: For 2nd argument expected `int` but got `Location`.
+                # pyre-fixme[27]: TypedDict `LocationEntry` has no key
+                #  `contextual_type`.
                 self._locations[key] = entry["contextual_type"]
             else:
                 self._locations[key] = entry["type"]
@@ -186,9 +189,10 @@ class PyreflyTypeInfo:
                 if resolved is not None:
                     return resolved.instance
             elif entry["qname"] == "typing.Type":
-                # pyre-ignore[27]: tagged union data layout
                 args = entry.get("args", [])
                 if args:
+                    # pyre-fixme[16]: Item `object` of `list[Any] | object` has no
+                    #  attribute `__getitem__`.
                     inner_entry = self._type_table[args[0]]
                     if inner_entry["kind"] == "class":
                         qname = str(inner_entry["qname"])
@@ -303,7 +307,6 @@ class PyreflyTypeInfo:
         if "." not in qname:
             builtins = modules.get("builtins")
             if builtins is not None:
-                # pyre-fixme[61]: `parts` is undefined, or not always defined.
                 result = builtins.get_child(qname, "builtins")
                 if isinstance(result, Class):
                     return result

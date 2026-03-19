@@ -344,7 +344,6 @@ except ImportError as e:
                 # has no attribute `_source_traceback`.
                 if t._source_traceback:
                     del t._source_traceback[-1]
-                # pyre-fixme[7]: Expected `Future[Any]` but got `Task[_T]`.
                 return t
 
     _TAwaitableReturnType = TypeVar("_TAwaitableReturnType")

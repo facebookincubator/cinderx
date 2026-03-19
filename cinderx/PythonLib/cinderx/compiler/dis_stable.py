@@ -116,7 +116,6 @@ def _disassemble_bytes(
             line_offset=line_offset,
         )
     else:
-        # pyre-fixme [16]: Module `dis` has no attribute `_get_instructions_bytes`
         instr_bytes = _dis._get_instructions_bytes(
             code, varnames, names, constants, cells, linestarts, line_offset=line_offset
         )

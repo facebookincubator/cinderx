@@ -660,7 +660,6 @@ class ContextDecoratorTests(StaticTestBase):
             await fut
             raise ValueError()
 
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = f()
         with self.assertRaises(ValueError):  # noqa: B908
             x.send(None)
@@ -680,7 +679,6 @@ class ContextDecoratorTests(StaticTestBase):
 
         # just checking to make sure this doesn't leak
         # in ref leak tests
-        # pyre-ignore[1001]: Intentionally checking that generator doesn't leak.
         x = f()  # noqa: F841
 
     def test_nonstatic_override(self) -> None:
@@ -820,7 +818,6 @@ class ContextDecoratorTests(StaticTestBase):
         async def f() -> None:
             await fut
 
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = f()
         x.send(None)
         with self.assertRaises(StopIteration) as e:

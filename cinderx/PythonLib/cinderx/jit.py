@@ -10,7 +10,6 @@ from warnings import catch_warnings, simplefilter, warn
 # The JIT compiles arbitrary Python functions.  Ideally this type would exclude native
 # functions, but that doesn't seem possible yet.
 #
-# pyre-ignore[33]: Not going to add a new type variable for every use of FuncAny.
 FuncAny = Callable[..., Any]
 
 

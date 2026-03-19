@@ -116,10 +116,10 @@ def sandbox(cls: type[_SandboxT] = Sandbox) -> Generator[_SandboxT, None, None]:
 _T = TypeVar("_T")
 
 
-# pyre-ignore[34]: The type variable `Variable[_T]` isn't present in the function's parameters.
+# pyre-fixme[34]: `Variable[_T]` isn't present in the function's parameters.
 def use_cm(cm_factory: Callable[[], ContextManager[_T]], testcase: TestCase) -> _T:
     cm = cm_factory()
     ret = cm.__enter__()
     testcase.addCleanup(cm.__exit__, None, None, None)
-    # pyre-ignore[7]: Expected `Variable[_T]` but got `Variable[_T_co]`.
+    # pyre-fixme[7]: Expected `_T` but got `_T_co`.
     return ret

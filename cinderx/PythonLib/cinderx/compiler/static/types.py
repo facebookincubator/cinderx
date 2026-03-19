@@ -1611,7 +1611,6 @@ class Class(Object["Class"]):
     def declare_variables(self, node: Assign, module: ModuleTable) -> None:
         pass
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
     def declare_type_alias(self, node: ast.TypeAlias) -> None:
         pass
 
@@ -3908,7 +3907,6 @@ class Function(Callable[Class], FunctionContainer):
     def declare_variables(self, node: Assign, module: ModuleTable) -> None:
         pass
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
     def declare_type_alias(self, node: ast.TypeAlias) -> None:
         pass
 

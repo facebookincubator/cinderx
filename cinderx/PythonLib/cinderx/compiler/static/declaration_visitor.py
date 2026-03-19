@@ -61,7 +61,6 @@ class NestedScope:
     def declare_variables(self, node: Assign, module: ModuleTable) -> None:
         pass
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
     def declare_type_alias(self, node: ast.TypeAlias) -> None:
         pass
 
@@ -109,7 +108,6 @@ class DeclarationVisitor(GenericVisitor[None]):
     def visitAssign(self, node: Assign) -> None:
         self.parent_scope().declare_variables(node, self.module)
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
     def visitTypeAlias(self, node: ast.TypeAlias) -> None:
         self.parent_scope().declare_type_alias(node)
 

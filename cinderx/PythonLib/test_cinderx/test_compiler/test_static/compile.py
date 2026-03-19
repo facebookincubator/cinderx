@@ -5599,7 +5599,6 @@ class StaticCompilationTests(StaticTestBase):
                 (((mod.__name__,), "f"), 0),
             )
 
-    # pyre-ignore[56]: skip_unless_jit isn't fully typed yet.
     @skip_unless_jit("runs subprocess with JIT")
     def test_invoke_recursive_compile_respects_jitlist(self) -> None:
         with TemporaryDirectory() as d:

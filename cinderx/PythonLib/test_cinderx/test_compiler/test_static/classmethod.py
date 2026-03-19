@@ -263,7 +263,6 @@ class ClassMethodTests(StaticTestBase):
 
             # pyre-ignore[16]: C is dynamically defined.
             self.assertInBytecode(D.bar, "INVOKE_METHOD")
-            # pyre-ignore[16]: C is dynamically defined.
             self.assertEqual(D.bar(6), 48)
 
     def test_classmethod_dynamic_subclass(self) -> None:

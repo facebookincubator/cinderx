@@ -61,7 +61,6 @@ TEST_OPT_OUT = DepTrackingOptOut("tests")
 # warnings about using Any.
 @final
 class TModule(ModuleType):
-    # pyre-ignore[3]: Have fun trying to type this as non-Any.
     def __getattr__(self, name: str) -> Any: ...
 
 
@@ -404,9 +403,13 @@ class StaticTestBase(CompilerTest):
         if offset is not None:
             self.assertEqual(exc.offset, offset)
 
-    # pyre-ignore[34]: missing type variable
+    # pyre-fixme[34]: `Variable[contextlib._ExitT_co (bound to
+    #  typing.Optional[bool])]` isn't present in the function's parameters.
+    # pyre-fixme[34]: `Variable[contextlib._T_co]` isn't present in the function's
+    #  parameters.
     def revealed_type_ctx(self, code: str, type: str) -> ContextManager[None]:
-        # pyre-ignore[7]: bad return type
+        # pyre-fixme[7]: Expected `AbstractContextManager[_T_co, _ExitT_co]` but got
+        #  `_GeneratorContextManager[None]`.
         return self.type_error_ctx(
             code, rf"reveal_type\(.+\): '{re.escape(type)}'", at="reveal_type("
         )

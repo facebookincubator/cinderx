@@ -109,7 +109,6 @@ class StrictModuleTestingPatchProxy:
         object.__setattr__(
             self, "_final_constants", getattr(module, "__final_constants__", ())
         )
-        # pyre-ignore[16]: pyre doesn't understand properties well enough
         if not type(module).__patch_enabled__.__get__(module, type(module)):
             raise ValueError(f"strict module {module} does not allow patching")
 
@@ -527,8 +526,6 @@ class StrictSourceFileLoader(SourceFileLoader):
     def should_force_strict(self) -> bool:
         return False
 
-    # pyre-fixme[14]: `source_to_code` overrides method defined in `InspectLoader`
-    #  inconsistently.
     def source_to_code(
         self, data: bytes | str, path: str, *, _optimize: int = -1
     ) -> CodeType:

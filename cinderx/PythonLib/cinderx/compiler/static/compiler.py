@@ -236,9 +236,7 @@ class Compiler:
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "dir": reflect_builtin_function(dir, None, self.type_env),
             "divmod": reflect_builtin_function(divmod, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "eval": reflect_builtin_function(eval, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "exec": reflect_builtin_function(exec, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "format": reflect_builtin_function(format, None, self.type_env),

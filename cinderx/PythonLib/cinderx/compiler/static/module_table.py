@@ -370,7 +370,6 @@ class ModuleTable:
 
     def maybe_set_type_alias(
         self,
-        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
         node: ast.Assign | ast.TypeAlias,
         name: str,
         *,
@@ -394,7 +393,6 @@ class ModuleTable:
                 raise TypedSyntaxError(f"RHS of type alias {name} is not a type: {rhs}")
             self.implicit_decl_names.add(name)
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
     def declare_type_alias(self, node: ast.TypeAlias) -> None:
         self.maybe_set_type_alias(node, node.name.id, require_type=True)
 

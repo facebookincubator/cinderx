@@ -28,7 +28,8 @@ from cinderx.compiler.pycodegen import (
 )
 
 if sys.version_info >= (3, 14):
-    # pyre-ignore[21]: unknown imports
+    # pyre-fixme[21]: Could not find name `Formatter` in `dis` (stubbed).
+    # pyre-fixme[21]: Could not find name `_get_code_object` in `dis` (stubbed).
     from dis import _get_code_object, Bytecode, Formatter
 
 # Any value that can be passed into dis.dis() and dis.get_instructions().
@@ -77,10 +78,10 @@ class CompilerTest(TestCase):
             dis.dis(co, file=s)
             return s.getvalue()
 
-        # pyre-ignore[10]: Formatter defined for 3.14+
-        # pyre-ignore[16]: dis has no Formatter
+        # pyre-fixme[10]: Name `Formatter` is used but not defined.
+        # pyre-fixme[16]: Module `dis` has no attribute `Formatter`.
         formatter = Formatter(file=s, offset_width=3)
-        # pyre-ignore[10]: Formatter defined for 3.14+
+        # pyre-fixme[10]: Name `Bytecode` is used but not defined.
         bc = Bytecode(co)
         extended = False
         for instr in bc:
@@ -102,8 +103,8 @@ class CompilerTest(TestCase):
                 STATIC_OPNAMES[instr.opcode],
                 instr[1],
                 instr.arg,
-                # pyre-ignore[10]: Formatter defined for 3.14+
-                # pyre-ignore[16]: dis has no _get_code_object
+                # pyre-fixme[10]: Name `_get_code_object` is used but not defined.
+                # pyre-fixme[16]: Module `dis` has no attribute `_get_code_object`.
                 _get_code_object(co).co_consts[instr.arg],
                 *instr[4:],
             )
@@ -191,10 +192,10 @@ class CompilerTest(TestCase):
     def assertBinOpInBytecode(self, x: Disassembleable, binop: str) -> None:
         if sys.version_info >= (3, 12):
             binop = "NB_" + binop.removeprefix("BINARY_")
-            # pyre-ignore[21]: unknown _nb_ops
+            # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
             from opcode import _nb_ops
 
-            # pyre-ignore[16]: unknown _nb_ops
+            # pyre-fixme[16]: Module `opcode` has no attribute `_nb_ops`.
             for i, (name, _sign) in enumerate(_nb_ops):
                 if name == binop:
                     self.assertInBytecode(x, "BINARY_OP", i)

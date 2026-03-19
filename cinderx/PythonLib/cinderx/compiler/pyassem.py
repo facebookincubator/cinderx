@@ -2267,7 +2267,6 @@ class PyFlowGraph312(PyFlowGraph):
         lnotab: bytes,
         exception_table: bytes,
     ) -> CodeType:
-        # pyre-ignore[19]: Too many arguments (this is right for 3.12)
         return CodeType(
             len(self.args),
             self.posonlyargs,

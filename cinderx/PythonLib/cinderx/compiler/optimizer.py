@@ -20,7 +20,6 @@ class PyLimits:
     MAX_TOTAL_ITEMS = 1024
 
 
-# pyre-fixme[5]: Global annotation cannot contain `Any`.
 UNARY_OPS: Mapping[type[ast.unaryop], Callable[[Any], object]] = {
     ast.Invert: operator.invert,
     ast.Not: operator.not_,
@@ -60,7 +59,6 @@ class DefaultLimits:
 LimitsType = type[PyLimits] | type[DefaultLimits]
 
 
-# pyre-fixme[2]: Parameter annotation cannot be `Any`.
 def safe_lshift(left: Any, right: Any, limits: LimitsType = DefaultLimits) -> object:
     if isinstance(left, int) and isinstance(right, int) and left and right:
         lbits = left.bit_length()
@@ -85,7 +83,6 @@ def check_complexity(obj: object, limit: int) -> int:
     return limit
 
 
-# pyre-fixme[2]: Parameter annotation cannot be `Any`.
 def safe_multiply(left: Any, right: Any, limits: LimitsType = DefaultLimits) -> object:
     if isinstance(left, int) and isinstance(right, int) and left and right:
         lbits = left.bit_length()
@@ -111,7 +108,6 @@ def safe_multiply(left: Any, right: Any, limits: LimitsType = DefaultLimits) -> 
     return left * right
 
 
-# pyre-fixme[2]: Parameter annotation cannot be `Any`.
 def safe_power(left: Any, right: Any, limits: LimitsType = DefaultLimits) -> object:
     if isinstance(left, int) and isinstance(right, int) and left and right > 0:
         lbits = left.bit_length()
@@ -121,7 +117,6 @@ def safe_power(left: Any, right: Any, limits: LimitsType = DefaultLimits) -> obj
     return left**right
 
 
-# pyre-fixme[2]: Parameter annotation cannot be `Any`.
 def safe_mod(left: Any, right: Any, limits: LimitsType = DefaultLimits) -> object:
     if isinstance(left, (str, bytes)):
         raise OverflowError()

@@ -159,7 +159,6 @@ def with_warn_handler() -> Generator[Sequence[tuple[object, ...]], None, None]:
         cinder_set_warn_handler(prev)
 
 
-# pyre-fixme[24]: Generic type `Callable` expects 2 type parameters.
 TCallable = TypeVar("TCallable", bound=Callable)
 
 
@@ -1495,7 +1494,7 @@ class StrictLoaderTest(StrictTestBase):
 
     def test_source_callback(self) -> None:
         calls: list[str] = []
-        # pyre-ignore[21]: this test relies on this being imported already.
+        # pyre-fixme[21]: Could not find module `__strict__`.
         import __strict__
 
         def log(filename: str, bytecode_path: str | None, bytecode_found: bool) -> None:
@@ -2348,7 +2347,6 @@ class StrictLoaderTest(StrictTestBase):
             import flag
 
             flag.val = False
-            # pyre-ignore[21]: Loaded dynamically.
             import mod  # noqa: E401, F811
 
             # pyre-ignore[21]: Loaded dynamically.

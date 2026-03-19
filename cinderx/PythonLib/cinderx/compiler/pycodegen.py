@@ -2421,11 +2421,8 @@ class CodeGenerator(ASTVisitor):
             return "<string>"
         elif isinstance(node, ast.Interactive):
             return "<stdin>"
-        # pyre-ignore[16]: Module `ast` has no attribute `TypeAlias`.
         elif hasattr(ast, "TypeAlias") and isinstance(node, ast.TypeAlias):
-            # pyre-ignore[16]: `_ast.AST` has no attribute `name`
             return node.name.id
-        # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
         elif hasattr(ast, "TypeVar") and isinstance(node, ast.TypeVar):
             return node.name
         elif isinstance(node, TypeParams):
@@ -3883,7 +3880,6 @@ class CodeGenerator312(CodeGenerator):
     #  `Tuple[Type[ClassDef], Type[TypeVar]]`.
     unqualified_asts: tuple[type[ast.AST]] = (
         ast.ClassDef,
-        # pyre-ignore[16]: No such attribute
         getattr(ast, "TypeVar", None),
     )
 
@@ -4736,7 +4732,6 @@ class CodeGenerator312(CodeGenerator):
         self,
         bound: ast.expr,
         name: str,
-        # pyre-ignore[11]: Annotation `ast.ParamSpec` is not defined as a type.
         key: ast.TypeVar | ast.TypeVarTuple | ast.ParamSpec | TypeVarDefault,
         allow_starred: bool,
     ) -> None:
@@ -4775,11 +4770,9 @@ class CodeGenerator312(CodeGenerator):
 
     def compile_type_params(
         self,
-        # pyre-ignore[11]: Annotation is not defined as a valid type
         type_params: list[ast.TypeVar | ast.TypeVarTuple | ast.ParamSpec],
     ) -> None:
         for param in type_params:
-            # pyre-ignore[16]: Undefined attribute [16]: Module `ast` has no attribute `TypeVar`.
             if isinstance(param, ast.TypeVar):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
@@ -4802,7 +4795,6 @@ class CodeGenerator312(CodeGenerator):
                     self.emit_call_intrinsic_2("INTRINSIC_SET_TYPEPARAM_DEFAULT")
                 self.emit("COPY", 1)
                 self.storeName(param.name)
-            # pyre-ignore[16]: Module `ast` has no attribute `TypeVarTuple`.
             elif isinstance(param, ast.TypeVarTuple):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
@@ -4814,7 +4806,6 @@ class CodeGenerator312(CodeGenerator):
                     self.emit_call_intrinsic_2("INTRINSIC_SET_TYPEPARAM_DEFAULT")
                 self.emit("COPY", 1)
                 self.storeName(param.name)
-            # pyre-ignore[16]: Module `ast` has no attribute `ParamSpec`.
             elif isinstance(param, ast.ParamSpec):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
@@ -4866,7 +4857,6 @@ class CodeGenerator312(CodeGenerator):
 
         self.emit_init_class_attrs(gen, node, first_lineno)
 
-        # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             gen.loadName(".type_params")
             gen.emit("STORE_NAME", "__type_params__")
@@ -4935,7 +4925,6 @@ class CodeGenerator312(CodeGenerator):
         self.emit_closure(class_body, 0)
         self.emit("LOAD_CONST", node.name)
 
-        # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             self.loadName(".type_params")
             self.emit_call_intrinsic_1("INTRINSIC_SUBSCRIPT_GENERIC")
@@ -4967,7 +4956,6 @@ class CodeGenerator312(CodeGenerator):
         first_lineno = node.lineno if first_lineno is None else first_lineno
 
         outer_gen: CodeGenerator312 = self
-        # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             self.prepare_type_params()
             gen_param_scope = self.symbols.scopes[TypeParams(node)]
@@ -5010,7 +4998,6 @@ class CodeGenerator312(CodeGenerator):
         self.set_pos(node)
         self.post_process_and_store_name(node)
 
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
     def make_type_alias_code_gen(self, node: ast.TypeAlias) -> CodeGenerator312:
         filename = self.graph.filename
         symbols = self.symbols
@@ -5225,7 +5212,6 @@ class CodeGenerator312(CodeGenerator):
 
     # Exceptions --------------------------------------------------
 
-    # pyre-ignore[11]: Annotation `ast.TryStar` is not defined as a type.
     def visitTryStar(self, node: ast.TryStar) -> None:
         if node.finalbody:
             # pyre-fixme[6]: For 1st argument expected `Optional[Try]` but got

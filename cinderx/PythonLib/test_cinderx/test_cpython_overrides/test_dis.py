@@ -16,7 +16,7 @@ except ImportError:
     if sys.version_info >= (3, 14):
         import opcode
 
-        # pyre-ignore[16]: No attribute _specialized_opmap
+        # pyre-fixme[16]: Module `opcode` has no attribute `_specialized_opmap`.
         shadowop = set(opcode._specialized_opmap)
     else:
         shadowop = set()
@@ -197,13 +197,13 @@ class CinderX_DisTests(unittest.TestCase):
                 # pyre-ignore[16]: no attribute _OPNAME_WIDTH
                 width = dis._OPNAME_WIDTH
                 if sys.version_info >= (3, 12):
-                    # pyre-ignore[16]: unknown hasarg
+                    # pyre-fixme[16]: Module `dis` has no attribute `hasarg`.
                     if opcode in dis.hasarg:
-                        # pyre-ignore[16]: no attribute _OPARG_WIDTH
+                        # pyre-fixme[16]: Module `dis` has no attribute `_OPARG_WIDTH`.
                         width += 1 + dis._OPARG_WIDTH
                 else:
                     if opcode < dis.HAVE_ARGUMENT:
-                        # pyre-ignore[16]: no attribute _OPARG_WIDTH
+                        # pyre-fixme[16]: Module `dis` has no attribute `_OPARG_WIDTH`.
                         width += 1 + dis._OPARG_WIDTH
                 self.assertLessEqual(len(opname), width)
 

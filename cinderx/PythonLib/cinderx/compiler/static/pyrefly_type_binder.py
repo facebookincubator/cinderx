@@ -138,6 +138,7 @@ class PyreflyTypeBinder(TypeBinder):
         else:
             return super().visit(node, *args)
 
+        # pyre-fixme[7]: Expected `Optional[NarrowingEffect]` but got `object`.
         return ret
 
     def visit_check_terminal(self, nodes: Sequence[ast.stmt]) -> TerminalKind:
@@ -147,6 +148,7 @@ class PyreflyTypeBinder(TypeBinder):
         if (
             len(nodes) == 1
             and isinstance(nodes[0], Expr)
+            # pyre-fixme[16]: `stmt` has no attribute `value`.
             and isinstance(nodes[0].value, Constant)
             and nodes[0].value.value is ...
         ):
