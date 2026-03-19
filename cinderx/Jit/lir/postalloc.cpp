@@ -542,6 +542,49 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   return kChanged;
 }
 
+// Try to find a compare instruction that defines the CondBranch's input
+// register, with no flag-clobbering instructions in between.
+Instruction* findFusibleCompare(
+    instr_iter_t cond_branch_iter,
+    BasicBlock* block) {
+  auto cond_branch = cond_branch_iter->get();
+  auto input_reg = cond_branch->getInput(0)->getPhyRegister();
+
+  // Walk backwards from the CondBranch looking for the defining compare.
+  auto& instrs = block->instructions();
+  for (auto it = cond_branch_iter; it != instrs.begin();) {
+    --it;
+    auto* candidate = it->get();
+
+    // Check if this is a compare that writes to our input register.
+    if (candidate->isCompare() && candidate->output()->isReg() &&
+        candidate->output()->getPhyRegister() == input_reg) {
+      return candidate;
+    }
+
+    // If this instruction clobbers flags, we can't fuse past it.
+    auto effects =
+        InstrProperty::getProperties(candidate->opcode()).flag_effects;
+    if (effects == FlagEffects::kInvalidate) {
+      return nullptr;
+    }
+
+    // If this instruction sets flags (but isn't our compare), we can't
+    // use the flags from an earlier compare.
+    if (effects == FlagEffects::kSet) {
+      return nullptr;
+    }
+
+    // If this instruction writes to the same register as the CondBranch, we
+    // can't fuse past it.
+    auto output = candidate->output();
+    if (output->isReg() && output->getPhyRegister() == input_reg) {
+      return nullptr;
+    }
+  }
+  return nullptr;
+}
+
 // Convert CondBranch to Test and BranchCC instructions.
 void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto instr = instr_iter->get();
@@ -549,22 +592,37 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto input = instr->getInput(0);
   auto block = instr->basicblock();
 
-  // insert test Reg, Reg instruction
-  auto size = input->dataType();
-  block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kTest,
-      PhyReg(input->getPhyRegister(), size),
-      PhyReg(input->getPhyRegister(), size));
-
-  // convert the current CondBranch instruction to a BranchCC instruction
   auto true_block = block->getTrueSuccessor();
   auto false_block = block->getFalseSuccessor();
 
   BasicBlock* target_block = nullptr;
   BasicBlock* fallthrough_block = nullptr;
 
-  auto opcode = Instruction::kBranchNZ;
+  // Try to fuse with a preceding compare instruction. If we find one, we
+  // can use its flags directly (cmp + jcc) instead of setcc + test + je.
+  Instruction* compare = findFusibleCompare(instr_iter, block);
+  Instruction::Opcode opcode;
+  if (compare != nullptr) {
+    // Use the compare's condition directly for the branch.
+    opcode = Instruction::compareToBranchCC(compare->opcode());
+    // If no instruction between the compare and the CondBranch reads the
+    // compare's output register, we could convert to kCmp to skip emitting the
+    // (now dead) setcc. However, the register allocator may have assigned the
+    // compare's output register to overlap with a value that is live-out from
+    // the block. Converting to kCmp would leave that register unwritten,
+    // causing the live-out value to be stale. A proper fix requires liveness
+    // information from the register allocator.
+  } else {
+    // No fusible compare found. Insert test Reg, Reg instruction.
+    auto size = input->dataType();
+    block->allocateInstrBefore(
+        instr_iter,
+        Instruction::kTest,
+        PhyReg(input->getPhyRegister(), size),
+        PhyReg(input->getPhyRegister(), size));
+    opcode = Instruction::kBranchNZ;
+  }
+
   if (true_block == next_block) {
     opcode = Instruction::negateBranchCC(opcode);
     target_block = false_block;
