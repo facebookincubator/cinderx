@@ -1,6 +1,6 @@
 # Static Python FAQ
 
-## What are the perfomance benefits?
+## What are the performance benefits?
 
 We ran a comprehensive benchmarking matrix, across three benchmarks,
 covering multiple combinations of Cinder features and code changes.
