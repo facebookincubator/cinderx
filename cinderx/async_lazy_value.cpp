@@ -137,17 +137,24 @@ BorrowedRef<PyTypeObject> AsyncLazyValueState::cancelledError() {
 }
 
 // Lookups up a get/set with the specific name. Returns the function if it's
-// found or Py_None if it isn't.
+// found.
 Ref<PyGetSetDescrObject> AsyncLazyValueState::lookupFutureGetSet(
     const char* name) {
   auto future_type = futureType();
   if (future_type == nullptr) {
-    return Ref<>::create(Py_None);
+    return nullptr;
   }
   auto func = Ref<PyGetSetDescrObject>::steal(
       PyObject_GetAttrString(future_type, name));
-  if (func == nullptr || Py_TYPE(func) != &PyGetSetDescr_Type) {
-    return Ref<>::create(Py_None);
+  if (func == nullptr) {
+    return nullptr;
+  }
+  if (Py_TYPE(func) != &PyGetSetDescr_Type) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "Expected descr object, got %s",
+        Py_TYPE(func)->tp_name);
+    return nullptr;
   }
 
   return func;
@@ -335,7 +342,11 @@ static int future_cancel_impl(FutureObj* fut, PyObject* msg) {
   (Py_TYPE(obj) == (PyTypeObject*)get_state()->asyncLazyValueComputeType())
 
 static PyObject* FutureObj_get_traceback(PyObject* fut) {
-  return get_state()->futureSourceTraceback()->d_getset->get(fut, nullptr);
+  auto traceback = get_state()->futureSourceTraceback();
+  if (traceback == nullptr) {
+    return nullptr;
+  }
+  return traceback->d_getset->get(fut, nullptr);
 }
 
 static PyObject* FutureLike_get_traceback(PyObject* fut) {
