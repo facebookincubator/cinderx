@@ -4,7 +4,7 @@ import asyncio
 import inspect
 import sys
 import unittest
-from typing import Any, Callable, Coroutine, List, Optional, Tuple
+from typing import Any, Callable, Coroutine
 
 try:
     from _cinderx import AsyncLazyValue
@@ -129,7 +129,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         class Exc(Exception):
             pass
 
-        async def g(fut: "asyncio.Future[Any]") -> Optional[int]:
+        async def g(fut: "asyncio.Future[Any]") -> int | None:
             try:
                 await fut
             except Exc:
@@ -225,8 +225,8 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         async def gatherer(c0: Any, c1: Any) -> Any:
             return await asyncio.gather(c0, c1)
 
-        coros: List[Any] = [None, None]
-        await_stacks: List[Any] = [None, None]
+        coros: list[Any] = [None, None]
+        await_stacks: list[Any] = [None, None]
 
         async def f(idx: int, res: int) -> int:
             nonlocal coros, await_stacks
@@ -261,7 +261,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.a = 1
 
-            async def m(self, b: int, c: int, d: int) -> Tuple[int, int, int, int]:
+            async def m(self, b: int, c: int, d: int) -> tuple[int, int, int, int]:
                 return self.a, b, c, d
 
         with self.assertRaises(StopIteration) as ctx:
@@ -273,7 +273,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
 
 class AsyncLazyValueTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.events: List[str] = []
+        self.events: list[str] = []
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         self.cancelled = asyncio.Event()
