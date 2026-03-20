@@ -322,7 +322,10 @@ class Pyrefly:
     """Manages type information emitted by pyrefly."""
 
     def __init__(self, type_dir: str) -> None:
-        self.type_dir = type_dir
+        # Buck always specifies the top-level directory, so double-check if there's a
+        # types/ subdirectory and use that if it exists.
+        types_subdir = os.path.join(type_dir, "types")
+        self.type_dir = types_subdir if os.path.isdir(types_subdir) else type_dir
 
     def load_type_info(self, module_name: str) -> PyreflyTypeInfo | None:
         if self.type_dir is None:
