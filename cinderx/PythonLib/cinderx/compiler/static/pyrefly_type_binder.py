@@ -19,15 +19,7 @@ from .type_binder import (
     TerminalKind,
     TypeBinder,
 )
-from .types import (
-    # CInstance,
-    # Class,
-    # CType,
-    Dataclass,
-    DataclassField,
-    ModuleInstance,
-    TypeDescr,
-)
+from .types import Dataclass, DataclassField, ModuleInstance, TypeDescr, Value
 
 if TYPE_CHECKING:
     from .compiler import Compiler
@@ -58,7 +50,16 @@ class PyreflyTypeBinder(TypeBinder):
 
     def visit(self, node: AST, *args: object) -> NarrowingEffect | None:
         if isinstance(node, ast.expr) and self._type_info is not None:
-            ret = super().generic_visit(node, *args)
+            # For BinOp/UnaryOp, use the base visitor so that type
+            # context propagates to operands (needed for CInstance
+            # promotion, e.g. `int64(x) + 1` must promote `1` to
+            # int64).  The base visitBinOp/visitUnaryOp also calls
+            # bind_binop/bind_unaryop which sets BinOpCommonType,
+            # required by emit_binop in code generation.
+            if isinstance(node, (ast.BinOp, ast.UnaryOp)):
+                ret = super().visit(node, *args)
+            else:
+                ret = super().generic_visit(node, *args)
             # pyre-fixme[16]: Optional type has no attribute `lookup`.
             declared_type = self._type_info.lookup(node, self.modules, self.type_env)
             if declared_type is None:
@@ -69,7 +70,17 @@ class PyreflyTypeBinder(TypeBinder):
                     declared_type = self.type_env.dict.instance
             self.set_type(node, declared_type)
 
-            if isinstance(node, Compare):
+            # Constant: when a type context is provided (e.g. from
+            # visitAugAssign passing target_type for `i += 1` where i
+            # is int64), apply bind_constant to promote the literal to
+            # the expected primitive type.  This mirrors what the base
+            # TypeBinder.visitConstant does with its type_ctx parameter.
+            if isinstance(node, Constant):
+                type_ctx = args[0] if args else None
+                if isinstance(type_ctx, Value):
+                    type_ctx.bind_constant(node, self)
+
+            elif isinstance(node, Compare):
                 for op in node.ops:
                     self.set_type(op, self.type_env.DYNAMIC)
 
