@@ -1375,7 +1375,12 @@ bool enable_jit_impl() {
   }
 
   size_t count = 0;
-  for (BorrowedRef<PyFunctionObject> func : jitCtx()->deoptedFuncs()) {
+  auto& funcs = jitCtx()->deoptedFuncs();
+  for (auto it = funcs.begin(); it != funcs.end();) {
+    BorrowedRef<PyFunctionObject> func = *it;
+    // Advance before reoptFunc() which erases func from funcs,
+    // invalidating the iterator pointing to it.
+    ++it;
     reoptFunc(func);
     count++;
   }
