@@ -2,6 +2,7 @@
 
 #include "cinderx/StaticPython/awaitable.h"
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 

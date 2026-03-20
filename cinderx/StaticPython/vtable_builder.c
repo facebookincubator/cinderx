@@ -19,6 +19,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/descrs.h"

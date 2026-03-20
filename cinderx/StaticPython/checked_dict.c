@@ -13,6 +13,7 @@
 #include "internal/pycore_object.h" // PyObject_GC_Track()
 #include "internal/pycore_pystate.h" // _Py_InterpreterState_GET
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"

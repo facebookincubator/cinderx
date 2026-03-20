@@ -2,6 +2,7 @@
 
 #include "cinderx/StaticPython/generic_type.h"
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/StaticPython/vtable_builder.h"
