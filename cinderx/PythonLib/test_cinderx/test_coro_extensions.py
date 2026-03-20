@@ -1,10 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# pyre-strict
 
 import sys
 import types
 import unittest
-from collections.abc import Coroutine, Generator
-from typing import Any, Callable, Iterator, Union
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 
 from cinderx.test_support import hasCinderX, passIf, skip_if_jit, skip_module_if_oss
 
@@ -19,8 +19,8 @@ if hasCinderX():
 
 
 def run_async(
-    coro: Union[Generator[Any, Any, Any], Coroutine[Any, Any, Any]],
-) -> tuple[list[Any], Any]:
+    coro: Generator[object, None, object] | Coroutine[object, None, object],
+) -> tuple[list[object], object | None]:
     assert coro.__class__ in {types.GeneratorType, types.CoroutineType}
 
     buffer = []
@@ -41,16 +41,16 @@ def run_async(
 @passIf(sys.version_info >= (3, 12), "not supported on 3.12+")
 class CoroutineAwaiterTest(unittest.TestCase):
     def test_basic_await(self) -> None:
-        async def coro():
+        async def coro() -> str:
             nonlocal awaiter_obj
             self.assertIs(cinder._get_coro_awaiter(coro_obj), awaiter_obj)
             return "success"
 
-        async def awaiter():
+        async def awaiter() -> str:
             return await coro_obj
 
-        coro_obj = coro()
-        awaiter_obj = awaiter()
+        coro_obj: Coroutine[object, None, str] = coro()
+        awaiter_obj: Coroutine[object, None, str] = awaiter()
         self.assertIsNone(cinder._get_coro_awaiter(coro_obj))
         self.assertEqual(run_async(awaiter_obj), ([], "success"))
         self.assertIsNone(cinder._get_coro_awaiter(coro_obj))
@@ -63,27 +63,30 @@ class CoroutineAwaiterTest(unittest.TestCase):
 
     @skip_if_jit("no eager await with JIT")
     def test_eager_await(self) -> None:
-        async def awaitee():
+        async def awaitee() -> str:
             nonlocal awaitee_frame
             awaitee_frame = sys._getframe()
+            # pyre-ignore[16]: no attribute _get_frame_gen
             self.assertIsNone(cinder._get_frame_gen(awaitee_frame))
+            # pyre-ignore[12]: FakeFuture implements __await__
             await self.FakeFuture()
 
             # Our caller verified our awaiter while we were suspended; ensure
             # it's still set while running.
+            # pyre-ignore[16]: no attribute _get_frame_gen
             awaitee_obj = cinder._get_frame_gen(awaitee_frame)
             self.assertIsInstance(awaitee_obj, types.CoroutineType)
             self.assertIs(cinder._get_coro_awaiter(awaitee_obj), awaiter_obj)
             return "good!"
 
-        async def awaiter():
+        async def awaiter() -> str:
             nonlocal awaiter_frame
             awaiter_frame = sys._getframe()
             return await awaitee()
 
-        awaitee_frame = None
-        awaiter_frame = None
-        awaiter_obj = awaiter()
+        awaitee_frame: types.FrameType | None = None
+        awaiter_frame: types.FrameType | None = None
+        awaiter_obj: Coroutine[object, None, str] = awaiter()
         self.assertIsNone(awaiter_frame)
         self.assertIsNone(awaitee_frame)
 
@@ -106,7 +109,7 @@ class CoroutineAwaiterTest(unittest.TestCase):
         self.assertIsNone(cinder._get_coro_awaiter(awaitee_obj))
 
         # Run roughly the same sequence again, with awaiter() executed eagerly.
-        async def awaiter2():
+        async def awaiter2() -> str:
             return await awaiter()
 
         awaitee_frame = None
@@ -134,10 +137,11 @@ class CoroutineAwaiterTest(unittest.TestCase):
         self.assertIsNone(cinder._get_coro_awaiter(awaiter_obj))
 
     def test_coro_outlives_awaiter(self) -> None:
-        async def coro():
+        async def coro() -> None:
+            # pyre-ignore[12]: FakeFuture implements __await__
             await self.FakeFuture()
 
-        async def awaiter(cr):
+        async def awaiter(cr: Coroutine[object, None, None]) -> None:
             await cr
 
         coro_obj = coro()
@@ -153,10 +157,13 @@ class CoroutineAwaiterTest(unittest.TestCase):
         self.assertIsNone(cinder._get_coro_awaiter(coro_obj))
 
     def test_async_gen_doesnt_set(self) -> None:
-        async def coro():
+        async def coro() -> None:
+            # pyre-ignore[12]: FakeFuture implements __await__
             await self.FakeFuture()
 
-        async def async_gen(cr):
+        async def async_gen(
+            cr: Coroutine[object, None, None],
+        ) -> AsyncGenerator[str, None]:
             await cr
             yield "hi"
 
@@ -195,27 +202,31 @@ class TestEagerExecution(unittest.TestCase):
 
     def _check(
         self,
-        expected_coro: Coroutine[Any, Any, Any],
-        actual_coro: Coroutine[Any, Any, Any],
+        expected_coro: Coroutine[object, None, object],
+        actual_coro: Coroutine[object, None, object],
     ) -> None:
-        def run(coro: Coroutine[Any, Any, Any]) -> type | None:
+        def run(coro: Coroutine[object, None, object]) -> type[BaseException] | None:
             try:
                 self._asyncio.run(coro)
                 self.fail("Exception expected")
             except RuntimeError as e:
+                if e.__context__ is None:
+                    return None
                 return type(e.__context__)
 
         self.assertEqual(run(expected_coro), run(actual_coro))
 
-    def _do_test_exc_handler(self, f: Callable[..., Any]) -> None:  # noqa: C901
-        async def actual_1():
+    def _do_test_exc_handler(  # noqa: C901
+        self, f: Callable[..., Coroutine[object, None, None]]
+    ) -> None:
+        async def actual_1() -> None:
             try:
                 raise ValueError
             except:  # noqa B001
                 await f()
                 raise RuntimeError
 
-        async def expected_1():
+        async def expected_1() -> None:
             try:
                 raise ValueError
             except:  # noqa B001
@@ -223,14 +234,14 @@ class TestEagerExecution(unittest.TestCase):
                 await coro
                 raise RuntimeError
 
-        async def actual_2():
+        async def actual_2() -> None:
             try:
                 raise ValueError
             except:  # noqa B001
                 await f(x=1)
                 raise RuntimeError
 
-        async def expected_2():
+        async def expected_2() -> None:
             try:
                 raise ValueError
 
@@ -243,22 +254,22 @@ class TestEagerExecution(unittest.TestCase):
         self._check(expected_1(), actual_1())
         self._check(expected_2(), actual_2())
 
-    def _do_test_no_err(self, f: Callable[..., Any]) -> None:
-        async def actual_1():
+    def _do_test_no_err(self, f: Callable[..., Coroutine[object, None, None]]) -> None:
+        async def actual_1() -> None:
             await f()
             raise RuntimeError
 
-        async def expected_1():
+        async def expected_1() -> None:
             coro = f()
             await coro
             raise RuntimeError
 
-        async def actual_2():
+        async def actual_2() -> None:
             await f(x=1)
 
             raise RuntimeError
 
-        async def expected_2():
+        async def expected_2() -> None:
             coro = f(x=1)
 
             await coro
