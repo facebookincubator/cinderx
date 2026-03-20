@@ -856,9 +856,11 @@ int cinderx_func_watcher(
 #endif
     case PyFunction_EVENT_DESTROY:
       if (jit::perf::isPreforkCompilationEnabled()) {
-        auto& perf_trampoline_worklist =
-            cinderx::getModuleState()->perf_trampoline_worklist;
-        perf_trampoline_worklist.erase(func);
+        auto state = cinderx::getModuleState();
+        if (state != nullptr) {
+          auto& perf_trampoline_worklist = state->perf_trampoline_worklist;
+          perf_trampoline_worklist.erase(func);
+        }
       }
       jit::funcDestroyed(func);
       break;
