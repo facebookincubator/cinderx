@@ -487,17 +487,27 @@ static int AsyncLazyValue_set_result(AsyncLazyValueObj* self, PyObject* res) {
 }
 
 static int AsyncLazyValue_set_error(AsyncLazyValueObj* self, PyObject* exc) {
-  int ok;
-  if (PyObject_IsInstance(exc, get_state()->cancelledError())) {
-    ok = notify_futures(self->alv_futures, future_cancel_impl, exc);
-  } else {
-    ok = notify_futures(
-        self->alv_futures, AsyncLazyValue_future_set_exception, exc);
+  BorrowedRef<PyTypeObject> cancelled_error = get_state()->cancelledError();
+  if (cancelled_error == nullptr) {
+    return -1;
+  }
+
+  int is_cancelled_error = PyObject_IsInstance(exc, cancelled_error);
+  if (is_cancelled_error < 0) {
+    return -1;
+  }
+
+  int notified = is_cancelled_error
+      ? notify_futures(self->alv_futures, future_cancel_impl, exc)
+      : notify_futures(
+            self->alv_futures, AsyncLazyValue_future_set_exception, exc);
+  if (notified < 0) {
+    return -1;
   }
 
   Py_CLEAR(self->alv_futures);
   self->alv_state = ALV_NOT_STARTED;
-  return ok;
+  return 0;
 }
 
 static PyObject* AsyncLazyValue_new_computeobj(AsyncLazyValueObj* self) {
