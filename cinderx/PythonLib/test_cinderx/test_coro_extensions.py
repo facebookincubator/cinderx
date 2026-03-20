@@ -3,6 +3,8 @@
 import sys
 import types
 import unittest
+from collections.abc import Coroutine, Generator
+from typing import Any, Callable, Iterator, Union
 
 from cinderx.test_support import hasCinderX, passIf, skip_if_jit, skip_module_if_oss
 
@@ -16,7 +18,9 @@ if hasCinderX():
     import cinder
 
 
-def run_async(coro):
+def run_async(
+    coro: Union[Generator[Any, Any, Any], Coroutine[Any, Any, Any]],
+) -> tuple[list[Any], Any]:
     assert coro.__class__ in {types.GeneratorType, types.CoroutineType}
 
     buffer = []
@@ -54,7 +58,7 @@ class CoroutineAwaiterTest(unittest.TestCase):
         self.assertIsNone(cinder._get_coro_awaiter(coro_obj))
 
     class FakeFuture:
-        def __await__(self):
+        def __await__(self) -> Iterator[str]:
             return iter(["future"])
 
     @skip_if_jit("no eager await with JIT")
@@ -172,25 +176,29 @@ class CoroutineAwaiterTest(unittest.TestCase):
 
 
 class TestEagerExecution(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self._asyncio = import_helper.import_module("asyncio")
         policy = maybe_get_event_loop_policy()
         self.addCleanup(lambda: self._asyncio.set_event_loop_policy(policy))
 
-    async def _raise_IndexError_eager(self, x=None):
+    async def _raise_IndexError_eager(self, x: object = None) -> None:
         try:
             raise IndexError
         except:  # noqa B001
             pass
 
-    async def _raise_IndexError_suspended(self, x=None):
+    async def _raise_IndexError_suspended(self, x: object = None) -> None:
         try:
             raise IndexError
         except:  # noqa B001
             await self._asyncio.sleep(0)
 
-    def _check(self, expected_coro, actual_coro):
-        def run(coro):
+    def _check(
+        self,
+        expected_coro: Coroutine[Any, Any, Any],
+        actual_coro: Coroutine[Any, Any, Any],
+    ) -> None:
+        def run(coro: Coroutine[Any, Any, Any]) -> type | None:
             try:
                 self._asyncio.run(coro)
                 self.fail("Exception expected")
@@ -199,7 +207,7 @@ class TestEagerExecution(unittest.TestCase):
 
         self.assertEqual(run(expected_coro), run(actual_coro))
 
-    def _do_test_exc_handler(self, f):  # noqa: C901
+    def _do_test_exc_handler(self, f: Callable[..., Any]) -> None:  # noqa: C901
         async def actual_1():
             try:
                 raise ValueError
@@ -235,7 +243,7 @@ class TestEagerExecution(unittest.TestCase):
         self._check(expected_1(), actual_1())
         self._check(expected_2(), actual_2())
 
-    def _do_test_no_err(self, f):
+    def _do_test_no_err(self, f: Callable[..., Any]) -> None:
         async def actual_1():
             await f()
             raise RuntimeError
