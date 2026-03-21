@@ -3651,7 +3651,12 @@ void finalize() {
   // Deopt all compiled functions before releasing references. This ensures
   // that if any JIT Python functions are invoked as side-effects during the
   // remainder of shutdown, they will go through the interpreter.
-  for (PyFunctionObject* func : jitCtx()->compiledFuncs()) {
+  auto& funcs = jitCtx()->compiledFuncs();
+  for (auto it = funcs.begin(); it != funcs.end();) {
+    BorrowedRef<PyFunctionObject> func = *it;
+    // Advance before deoptFuncImpl() which erases func from funcs,
+    // invalidating the iterator pointing to it.
+    ++it;
     deoptFuncImpl(func);
   }
 
