@@ -1414,9 +1414,7 @@ class CodeGenerator(ASTVisitor):
 
     def emitAugName(self, node: ast.AugAssign) -> None:
         target = node.target
-
-        # pyre-fixme[16] This code assumes that the target of the AugAssign is a
-        # Name as opposed to ast.Attribute or ast.Subscript.
+        assert isinstance(target, ast.Name)
         name = target.id
 
         self.loadName(name)
@@ -5446,26 +5444,19 @@ class CodeGenerator312(CodeGenerator):
             self.pop_fblock(HANDLER_CLEANUP)
             self.set_no_pos()
             self.emit("POP_BLOCK")
-            if handler.name:
+            handler_name = handler.name
+            if handler_name:
                 self.emit("LOAD_CONST", None)
-                # pyre-fixme[6]: For 1st argument expected `str` but got
-                #  `Optional[str]`.
-                self.storeName(handler.name)
-                # pyre-fixme[6]: For 1st argument expected `str` but got
-                #  `Optional[str]`.
-                self.delName(handler.name)
+                self.storeName(handler_name)
+                self.delName(handler_name)
             self.emit_jump_forward(except_)
 
             # except:
             self.nextBlock(cleanup_end)
-            if handler.name:
+            if handler_name:
                 self.emit("LOAD_CONST", None)
-                # pyre-fixme[6]: For 1st argument expected `str` but got
-                #  `Optional[str]`.
-                self.storeName(handler.name)
-                # pyre-fixme[6]: For 1st argument expected `str` but got
-                #  `Optional[str]`.
-                self.delName(handler.name)
+                self.storeName(handler_name)
+                self.delName(handler_name)
 
             # add exception raised to the res list
             self.emit("LIST_APPEND", 3)
