@@ -1270,7 +1270,16 @@ void HIRBuilder::translate(
           break;
         }
         case GET_ITER: {
-          emitGetIter(tc);
+          if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+            if (bc_instr.oparg() > 0) {
+              emitGetYieldFromIter(irfunc.cfg, tc);
+              emitPushNull(tc);
+            } else {
+              emitGetIter(tc);
+            }
+          } else {
+            emitGetIter(tc);
+          }
           break;
         }
         case GET_YIELD_FROM_ITER: {
