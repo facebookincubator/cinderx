@@ -334,17 +334,6 @@ double JITRT_PowerUnsigned32(uint32_t x, uint32_t y);
 double JITRT_Power64(int64_t x, int64_t y);
 double JITRT_PowerUnsigned64(uint64_t x, uint64_t y);
 
-/* Array set helpers */
-void JITRT_SetI8_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetU8_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetI16_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetU16_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetI32_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetU32_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetI64_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetU64_InArray(char* arr, uint64_t val, int64_t idx);
-void JITRT_SetObj_InArray(char* arr, uint64_t val, int64_t idx);
-
 uint64_t JITRT_UnboxU64(PyObject* obj);
 uint32_t JITRT_UnboxU32(PyObject* obj);
 uint16_t JITRT_UnboxU16(PyObject* obj);

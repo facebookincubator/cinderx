@@ -2499,33 +2499,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kStoreArrayItem: {
         auto instr = static_cast<const StoreArrayItem*>(&i);
-        auto type = instr->type();
-        decltype(JITRT_SetI8_InArray)* func = nullptr;
-
-        if (type <= TCInt8) {
-          func = JITRT_SetI8_InArray;
-        } else if (type <= TCUInt8) {
-          func = JITRT_SetU8_InArray;
-        } else if (type <= TCInt16) {
-          func = JITRT_SetI16_InArray;
-        } else if (type <= TCUInt16) {
-          func = JITRT_SetU16_InArray;
-        } else if (type <= TCInt32) {
-          func = JITRT_SetI32_InArray;
-        } else if (type <= TCUInt32) {
-          func = JITRT_SetU32_InArray;
-        } else if (type <= TCInt64) {
-          func = JITRT_SetI64_InArray;
-        } else if (type <= TCUInt64) {
-          func = JITRT_SetU64_InArray;
-        } else if (type <= TObject) {
-          func = JITRT_SetObj_InArray;
-        } else {
-          JIT_ABORT("Unknown array type {}", type.toString());
+        Instruction* ob_item = bbb.getDefInstr(instr->ob_item());
+        Instruction* idx = bbb.getDefInstr(instr->idx());
+        Instruction* value = bbb.getDefInstr(instr->value());
+        auto sizeBytes = instr->type().sizeInBytes();
+        auto dt = hirTypeToDataType(instr->type());
+        // Might know the index at compile-time.
+        auto ind = OutInd{ob_item, idx, sizeBytes, 0, dt};
+        if (instr->idx()->type().hasIntSpec()) {
+          auto scaled_offset =
+              static_cast<int32_t>(instr->idx()->type().intSpec() * sizeBytes);
+          ind = OutInd{ob_item, scaled_offset, dt};
         }
-
-        bbb.appendInvokeInstruction(
-            func, instr->ob_item(), instr->value(), instr->idx());
+        bbb.appendInstr(ind, Instruction::kMove, value);
         break;
       }
       case Opcode::kLoadSplitDictItem: {

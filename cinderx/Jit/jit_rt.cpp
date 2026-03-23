@@ -1378,42 +1378,6 @@ double JITRT_PowerUnsigned64(uint64_t x, uint64_t y) {
   return pow(x, y);
 }
 
-void JITRT_SetI8_InArray(char* arr, uint64_t val, int64_t idx) {
-  arr[idx] = (int8_t)val;
-}
-
-void JITRT_SetU8_InArray(char* arr, uint64_t val, int64_t idx) {
-  arr[idx] = (uint8_t)val;
-}
-
-void JITRT_SetI16_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((int16_t*)arr)[idx] = (int16_t)val;
-}
-
-void JITRT_SetU16_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((uint16_t*)arr)[idx] = (uint16_t)val;
-}
-
-void JITRT_SetI32_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((int32_t*)arr)[idx] = (int32_t)val;
-}
-
-void JITRT_SetU32_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((uint32_t*)arr)[idx] = (uint32_t)val;
-}
-
-void JITRT_SetI64_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((int64_t*)arr)[idx] = (int64_t)val;
-}
-
-void JITRT_SetU64_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((uint64_t*)arr)[idx] = (uint64_t)val;
-}
-
-void JITRT_SetObj_InArray(char* arr, uint64_t val, int64_t idx) {
-  ((PyObject**)arr)[idx] = (PyObject*)val;
-}
-
 template <typename T>
 static T checkedUnboxImpl(PyObject* obj) {
   constexpr bool is_signed = std::is_signed_v<T>;
