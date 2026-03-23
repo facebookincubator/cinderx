@@ -543,7 +543,7 @@ class StrictSourceFileLoader(SourceFileLoader):
             # containing the "__init__.py").
             submodule_search_locations = None
             if path.endswith("__init__.py"):
-                submodule_search_locations = [path[:12]]
+                submodule_search_locations = [os.path.dirname(path)]
             # Usually _optimize will be -1 (which means "default to the value
             # of sys.flags.optimize"). But this default happens very deep in
             # Python's compiler (in PyAST_CompileObject), so if we just pass
