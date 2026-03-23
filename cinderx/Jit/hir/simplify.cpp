@@ -1906,7 +1906,11 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
 }
 
 Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
-  if (instr->GetOperand(0)->isA(TDictExact)) {
+  Register* container = instr->GetOperand(0);
+  Register* index = instr->GetOperand(1);
+  Register* value = instr->GetOperand(2);
+
+  if (container->isA(TDictExact)) {
     env.emit<UseType>(instr->GetOperand(0), TDictExact);
     auto output = env.func.env.AllocateRegister();
     env.emitRawInstr<CallStatic>(
@@ -1914,13 +1918,36 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
         output,
         reinterpret_cast<void*>(PyDict_Type.tp_as_mapping->mp_ass_subscript),
         TCInt32,
-        instr->GetOperand(0),
-        instr->GetOperand(1),
-        instr->GetOperand(2));
+        container,
+        index,
+        value);
 
     env.emit<CheckNeg>(output, *instr->frameState());
     return nullptr;
   }
+
+// TODO(T255264263). Keep in sync with the list read optimization above.
+#ifndef Py_GIL_DISABLED
+  if (container->isA(TListExact) && index->isA(TLongExact)) {
+    env.emit<UseType>(container, TListExact);
+    env.emit<UseType>(index, TLongExact);
+    Register* unboxed_idx = env.emit<IndexUnbox>(index);
+    env.emit<IsNegativeAndErrOccurred>(unboxed_idx, *instr->frameState());
+    Register* adjusted_idx = env.emit<CheckSequenceBounds>(
+        container, unboxed_idx, *instr->frameState());
+    Register* ob_item = env.emit<LoadField>(
+        container, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
+    // Load the old value so the refcount insertion pass can DECREF it after
+    // the store. We pass old_value as StoreArrayItem's container operand to
+    // keep it alive through DCE (StoreArrayItem is a DCE root because it has
+    // may_store effects). The actual container stays alive through the
+    // LoadField -> ob_item -> StoreArrayItem dependency chain.
+    Register* old_value = env.emit<LoadArrayItem>(
+        ob_item, adjusted_idx, container, /*offset=*/0, TObject);
+    env.emit<StoreArrayItem>(ob_item, adjusted_idx, value, old_value, TObject);
+    return nullptr;
+  }
+#endif
 
   return nullptr;
 }
