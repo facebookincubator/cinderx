@@ -226,7 +226,7 @@ def read_items_file(file_path: str) -> list[str]:
     return items
 
 
-def main():
+def main() -> int | None:
     parser = argparse.ArgumentParser(
         description="Find minimal subset of items that cause a command to fail",
         formatter_class=argparse.RawDescriptionHelpFormatter,
