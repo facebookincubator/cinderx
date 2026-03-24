@@ -559,7 +559,7 @@ def main() -> bool:
         "-e",
         metavar="DIR",
         dest="limit_sl_dest",
-        help="Ignore symlinks pointing outsite of the DIR",
+        help="Ignore symlinks pointing outside of the DIR",
     )
     parser.add_argument(
         "--hardlink-dupes",
