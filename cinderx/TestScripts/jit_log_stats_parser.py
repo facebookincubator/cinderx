@@ -739,8 +739,8 @@ def main():
                     sys.exit(0)
 
         elif args.command == "find_missing_type":
-            function_data1 = parse_jit_log(args.log_file1)
-            function_data2 = parse_jit_log(args.log_file2)
+            function_data1 = parse_jit_log(args.log_file1, include_code_size=False)
+            function_data2 = parse_jit_log(args.log_file2, include_code_size=False)
 
             missing_type_functions = find_functions_missing_type(
                 function_data1, function_data2, args.type_name
