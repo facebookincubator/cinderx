@@ -56,7 +56,7 @@ class PyreflyTypeBinder(TypeBinder):
             # int64).  The base visitBinOp/visitUnaryOp also calls
             # bind_binop/bind_unaryop which sets BinOpCommonType,
             # required by emit_binop in code generation.
-            if isinstance(node, (ast.BinOp, ast.UnaryOp)):
+            if isinstance(node, (ast.BinOp, ast.UnaryOp, ast.Lambda)):
                 ret = super().visit(node, *args)
             else:
                 ret = super().generic_visit(node, *args)

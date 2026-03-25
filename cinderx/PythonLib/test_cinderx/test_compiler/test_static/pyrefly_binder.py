@@ -73,6 +73,20 @@ class PyreBinderTests(StaticTestBase):
         self.assertNotIn("<fixed-modules>", code.co_names)
         self.assertNotIn("<fixed-modules>", code.co_names)
 
+    def test_lambda_arg_types(self):
+        code = self.compile_one(
+            """
+            def f() -> object:
+                g = lambda x: x
+                return g(1)
+            """,
+            EMPTY_TYPE_INFO,
+        )
+        f = self.find_code(code, "f")
+        lam = self.find_code(f, "<lambda>")
+        self.assertEqual(lam.co_name, "<lambda>")
+        self.assertEqual(lam.co_argcount, 1)
+
     def test_cases(self):
         for f in glob(path.dirname(__file__) + "/pyreflytests/*.py"):
             if f.endswith(".test.py"):
