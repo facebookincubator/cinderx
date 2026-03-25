@@ -18,7 +18,7 @@ VarOutputDict = dict[str, tuple[Sequence[str], Sequence[str] | None]]
 # Maps all test cases to their variables.
 TestOutputDict = dict[str, VarOutputDict]
 
-# Maps all test suites to their tests..
+# Maps all test suites to their tests.
 SuiteOutputDict = dict[str, TestOutputDict]
 
 
@@ -46,7 +46,7 @@ ACTUAL_TEXT_RE: re.Pattern[str] = re.compile(r'^    Which is: "(.+)\\n"$')
 EXPECTED_VAR_RE: re.Pattern[str] = re.compile(r"^  ([^ ]+)$")
 VERSION_RE: re.Pattern[str] = re.compile(r"^Python Version: (.+)$")
 
-# special-case common abbrieviations like HIR and CFG when converting
+# special-case common abbreviations like HIR and CFG when converting
 # camel-cased suite name to its snake-cased file name
 SUITE_NAME_RE: re.Pattern[str] = re.compile(r"(HIR|CFG|[A-Z][a-z0-9]+)")
 
