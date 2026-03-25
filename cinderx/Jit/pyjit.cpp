@@ -3839,10 +3839,14 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   if (isJitUsable()) {
     auto mod_state = cinderx::getModuleState();
+    if (!mod_state) {
+      return;
+    }
     auto& jit_reg_units = mod_state->registered_compilation_units;
-    auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
     jit_reg_units.erase(code.getObj());
-    jit_code_outer_funcs.erase(code);
+    if (auto* ctx = jitCtx()) {
+      ctx->codeOuterFunctions().erase(code);
+    }
     notifyUnitDeletedDuringPreload(mod_state, code.getObj());
   }
 }

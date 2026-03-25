@@ -1011,6 +1011,14 @@ void module_free(void* raw_mod) {
   auto mod = reinterpret_cast<PyObject*>(raw_mod);
   auto state = cinderx::getModuleState(mod);
 
+  // If the module was never fully initialized (e.g. subinterpreter), just
+  // destroy the state object and return. Skip all global cleanup since it
+  // belongs to the main interpreter.
+  if (!state->fully_initialized) {
+    state->cinderx::ModuleState::~ModuleState();
+    return;
+  }
+
   _PyClassLoader_ClearCache();
   _PyClassLoader_ClearValueCache();
 
@@ -1242,16 +1250,30 @@ PyMethodDef _cinderx_methods[] = {
     {nullptr, nullptr, 0, nullptr}};
 
 int _cinderx_exec_impl(PyObject* m) {
+  // The state will be destroyed in module_free(), which gets called even if
+  // this function exits early with an error. Construct it first so that
+  // module_free always has a valid object to work with.
+  void* state_mem = PyModule_GetState(m);
+  auto state = new (state_mem) cinderx::ModuleState();
+
+  // CinderX does not support subinterpreters. Bail out early to avoid
+  // corrupting the global module state that belongs to the main interpreter.
+  // The state is left with fully_initialized == false so that module_free()
+  // skips global cleanup.
+  PyInterpreterState* interp = PyInterpreterState_Get();
+  if (interp != PyInterpreterState_Main()) {
+    PyErr_SetString(
+        PyExc_ImportError,
+        "The _cinderx extension does not support subinterpreters");
+    return -1;
+  }
+
   cinderx::initStaticObjects();
 
   // The JIT is going to need the Python function entrypoint during its
   // initialization.
   ensurePyFunctionVectorcall();
 
-  // The state will be destroyed in module_free(), which gets called even if
-  // this function exits early with an error.
-  void* state_mem = PyModule_GetState(m);
-  auto state = new (state_mem) cinderx::ModuleState();
   cinderx::setModuleState(m);
 
   auto cache_manager = new (std::nothrow) jit::GlobalCacheManager();
@@ -1542,6 +1564,7 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
+  state->fully_initialized = true;
   return 0;
 }
 

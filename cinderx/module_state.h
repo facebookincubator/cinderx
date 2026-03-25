@@ -154,6 +154,10 @@ struct ModuleState {
 
   // Whether runtime modification of Strict Module types is allowed.
   bool enable_patching{false};
+
+  // Whether this module state was fully initialized. False for subinterpreters
+  // where _cinderx does not support loading.
+  bool fully_initialized{false};
 };
 
 // Get the global ModuleState singleton.
