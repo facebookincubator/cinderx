@@ -131,6 +131,43 @@ void Ci_SetInvokeNativeHelper(PyFunctionObject* helper) {
       Ref<PyFunctionObject>::create(helper);
 }
 
+PyObject* Ci_GetReturnNone(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->return_none.getObj() : nullptr;
+}
+
+void Ci_SetReturnNone(PyFunctionObject* obj) {
+  cinderx::getModuleState()->return_none = Ref<PyFunctionObject>::create(obj);
+}
+
+PyObject* Ci_GetWeakrefCallback(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->weakref_callback.getObj() : nullptr;
+}
+
+void Ci_SetWeakrefCallback(PyCFunctionObject* cb) {
+  cinderx::getModuleState()->weakref_callback =
+      Ref<PyCFunctionObject>::create(cb);
+}
+
+bool Ci_GetSpAuditHookInstalled(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->sp_audit_hook_installed : false;
+}
+
+void Ci_SetSpAuditHookInstalled(bool installed) {
+  cinderx::getModuleState()->sp_audit_hook_installed = installed;
+}
+
+PyObject* Ci_GetIndexErr(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->indexerr.getObj() : nullptr;
+}
+
+void Ci_SetIndexErr(PyUnicodeObject* err) {
+  cinderx::getModuleState()->indexerr = Ref<PyUnicodeObject>::create(err);
+}
+
 int Ci_Watchers_WatchDict(PyObject* dict) {
   return cinderx::getModuleState()->watcher_state.watchDict(dict);
 }

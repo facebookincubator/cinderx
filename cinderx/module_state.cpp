@@ -22,6 +22,9 @@ int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(dlopen_cache);
   Py_VISIT(dlsym_cache);
   Py_VISIT(invoke_native_helper);
+  Py_VISIT(return_none);
+  Py_VISIT(weakref_callback);
+  Py_VISIT(indexerr);
   Py_VISIT(builtin_next);
   return 0;
 }
@@ -36,6 +39,9 @@ int ModuleState::clear() {
   dlopen_cache.reset();
   dlsym_cache.reset();
   invoke_native_helper.reset();
+  return_none.reset();
+  weakref_callback.reset();
+  indexerr.reset();
   sys_clear_caches.reset();
   builtin_next.reset();
   return 0;

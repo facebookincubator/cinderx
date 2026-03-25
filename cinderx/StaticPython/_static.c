@@ -309,8 +309,6 @@ typedef struct {
   int is_coroutine;
 } _Py_ContextManagerWrapper;
 
-static PyObject* _return_none;
-
 int ctxmgrwrp_import_value(
     const char* module,
     const char* name,
@@ -384,12 +382,26 @@ static PyObject* ctxmgrwrp_exit(
        * We need to actually produce a co-routine which is going to return
        * None to do that, so we have a helper function which does just that.
        */
-      if (_return_none == NULL &&
-          ctxmgrwrp_import_value("__static__", "_return_none", &_return_none)) {
-        return NULL;
+      PyObject* rn = Ci_GetReturnNone();
+      if (rn == NULL) {
+        PyObject* imported = NULL;
+        if (ctxmgrwrp_import_value("__static__", "_return_none", &imported)) {
+          return NULL;
+        }
+        if (!PyFunction_Check(imported)) {
+          PyErr_Format(
+              PyExc_TypeError,
+              "Expected __static__._return_none to be a function, got %s",
+              Py_TYPE(imported)->tp_name);
+          Py_DECREF(imported);
+          return NULL;
+        }
+        Ci_SetReturnNone((PyFunctionObject*)imported);
+        Py_DECREF(imported);
+        rn = Ci_GetReturnNone();
       }
 
-      return _PyObject_CallNoArgs(_return_none);
+      return _PyObject_CallNoArgs(rn);
     }
     Py_RETURN_NONE;
   } else {
@@ -728,8 +740,6 @@ static PyMethodDef _WeakrefCallback = {
     METH_O,
     NULL};
 
-static PyObject* weakref_callback;
-
 PyObject* make_context_decorator_wrapper(
     PyObject* mod,
     PyObject* const* args,
@@ -750,11 +760,14 @@ PyObject* make_context_decorator_wrapper(
   PyFunctionObject* wrapper_func = (PyFunctionObject*)args[1];
   PyObject* wrapped_func = args[2];
 
-  if (weakref_callback == NULL) {
-    weakref_callback = PyCFunction_New(&_WeakrefCallback, NULL);
-    if (weakref_callback == NULL) {
+  PyObject* wrcb = Ci_GetWeakrefCallback();
+  if (wrcb == NULL) {
+    wrcb = PyCFunction_New(&_WeakrefCallback, NULL);
+    if (wrcb == NULL) {
       return NULL;
     }
+    Ci_SetWeakrefCallback((PyCFunctionObject*)wrcb);
+    Py_DECREF(wrcb);
   }
 
   PyObject* wrargs = PyTuple_New(2);
@@ -764,8 +777,8 @@ PyObject* make_context_decorator_wrapper(
 
   PyTuple_SET_ITEM(wrargs, 0, (PyObject*)wrapper_func);
   Py_INCREF(wrapper_func);
-  PyTuple_SET_ITEM(wrargs, 1, weakref_callback);
-  Py_INCREF(weakref_callback);
+  PyTuple_SET_ITEM(wrargs, 1, wrcb);
+  Py_INCREF(wrcb);
 
   _Py_ContextManagerWrapper* ctxmgr_wrapper =
       (_Py_ContextManagerWrapper*)_PyWeakref_RefType.tp_new(
@@ -1755,10 +1768,8 @@ static int sp_audit_hook(const char* event, PyObject* args, void* data) {
   return 0;
 }
 
-static int sp_audit_hook_installed = 0;
-
 static PyObject* install_sp_audit_hook(PyObject* mod) {
-  if (sp_audit_hook_installed) {
+  if (Ci_GetSpAuditHookInstalled()) {
     Py_RETURN_NONE;
   }
   void* kData = NULL;
@@ -1767,7 +1778,7 @@ static PyObject* install_sp_audit_hook(PyObject* mod) {
         PyExc_RuntimeError, "Could not install Static Python audit hook");
     return NULL;
   }
-  sp_audit_hook_installed = 1;
+  Ci_SetSpAuditHookInstalled(true);
   Py_RETURN_NONE;
 }
 

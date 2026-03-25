@@ -16,6 +16,7 @@
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 static inline int Ci_List_CheckIncludingChecked(PyObject* op) {
   return PyList_Check(op) || Ci_CheckedList_Check(op);
@@ -166,8 +167,6 @@ static inline int valid_index(Py_ssize_t i, Py_ssize_t limit) {
   */
   return (size_t)i < (size_t)limit;
 }
-
-static PyObject* indexerr = NULL;
 
 static int ins1(PyListObject* self, Py_ssize_t where, PyObject* v) {
   Py_ssize_t i, n = Py_SIZE(self);
@@ -320,13 +319,16 @@ static int list_contains(PyListObject* a, PyObject* el) {
 
 static PyObject* list_item(PyListObject* a, Py_ssize_t i) {
   if (!valid_index(i, Py_SIZE(a))) {
-    if (indexerr == NULL) {
-      indexerr = PyUnicode_FromString("list index out of range");
-      if (indexerr == NULL) {
+    PyObject* err = Ci_GetIndexErr();
+    if (err == NULL) {
+      err = PyUnicode_FromString("list index out of range");
+      if (err == NULL) {
         return NULL;
       }
+      Ci_SetIndexErr((PyUnicodeObject*)err);
+      Py_DECREF(err);
     }
-    PyErr_SetObject(PyExc_IndexError, indexerr);
+    PyErr_SetObject(PyExc_IndexError, err);
     return NULL;
   }
   Py_INCREF(a->ob_item[i]);

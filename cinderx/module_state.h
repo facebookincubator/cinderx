@@ -85,6 +85,15 @@ struct ModuleState {
   // Python helper function used by the invoke_native implementation.
   Ref<PyFunctionObject> invoke_native_helper;
 
+  // A callable that simply returns None, used by Static Python coroutines.
+  Ref<PyFunctionObject> return_none;
+
+  // Weak reference callback for Static Python type cleanup.
+  Ref<PyCFunctionObject> weakref_callback;
+
+  // Cached IndexError message for Static Python checked list access.
+  Ref<PyUnicodeObject> indexerr;
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).
@@ -139,6 +148,9 @@ struct ModuleState {
   // Index for the extra data that CinderX saves on code objects with
   // PyUnstable_Code_SetExtra, and loads with PyUnstable_Code_GetExtra.
   Py_ssize_t code_extra_index{-1};
+
+  // Whether the Static Python audit hook has been installed.
+  bool sp_audit_hook_installed{false};
 
   // Whether runtime modification of Strict Module types is allowed.
   bool enable_patching{false};

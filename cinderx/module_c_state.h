@@ -6,6 +6,8 @@
 
 #include "cinderx/python.h"
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -63,6 +65,22 @@ void Ci_SetDlsymCache(PyDictObject* cache);
 // Cached reference to __static__.native_utils.invoke_native.
 PyObject* Ci_GetInvokeNativeHelper(void);
 void Ci_SetInvokeNativeHelper(PyFunctionObject* helper);
+
+// Cached reference to __static__._return_none.
+PyObject* Ci_GetReturnNone(void);
+void Ci_SetReturnNone(PyFunctionObject* obj);
+
+// Cached PyCFunction for weakref callback.
+PyObject* Ci_GetWeakrefCallback(void);
+void Ci_SetWeakrefCallback(PyCFunctionObject* cb);
+
+// Static Python audit hook installation flag.
+bool Ci_GetSpAuditHookInstalled(void);
+void Ci_SetSpAuditHookInstalled(bool installed);
+
+// Cached "list index out of range" error string.
+PyObject* Ci_GetIndexErr(void);
+void Ci_SetIndexErr(PyUnicodeObject* err);
 
 // WatcherState.
 
