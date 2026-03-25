@@ -591,7 +591,7 @@ class MultiWorkerCinderRegrtest:
             and not self._no_retry_on_test_errors
             and self._results.need_rerun()
         ):
-            rerun_tests, rereun_match_tests_dict = self._results.prepare_rerun()
+            rerun_tests, rerun_match_tests_dict = self._results.prepare_rerun()
             print()
             self._logger.log(f"Re-running {len(rerun_tests)} failed tests serially.")
             self._runtests_config = self._runtests_config.copy(
@@ -600,7 +600,7 @@ class MultiWorkerCinderRegrtest:
                 verbose=True,
                 forever=False,
                 fail_fast=False,
-                match_tests_dict=rereun_match_tests_dict,
+                match_tests_dict=rerun_match_tests_dict,
                 output_on_failure=False,
             )
             self._logger.set_tests(self._runtests_config)
