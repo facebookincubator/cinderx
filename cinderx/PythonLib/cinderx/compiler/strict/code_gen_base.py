@@ -383,7 +383,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         self.emit_binary_subscr()  # TOS = mod
 
         # Store all of the imported names from the module
-        for _i, name in enumerate(node.names):
+        for name in node.names:
             var_name = name.name
             asname = name.asname or var_name
             value = mod.get(var_name)
