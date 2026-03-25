@@ -3,6 +3,7 @@
 #include "cinderx/module_c_state.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/module_state.h"
 
 extern "C" {
@@ -210,6 +211,22 @@ PyObject** Ci_GetDictCache(PyObject* dict, PyObject* key) {
 void Ci_free_jit_list_gen(PyGenObject* obj) {
   cinderx::getModuleState()->jit_gen_free_list->free(
       reinterpret_cast<PyObject*>(obj));
+}
+
+bool Ci_GetDelayAdaptiveCode(void) {
+  return jit::getConfig().delay_adaptive_code;
+}
+
+void Ci_SetDelayAdaptiveCode(bool delay) {
+  jit::getMutableConfig().delay_adaptive_code = delay;
+}
+
+uint64_t Ci_GetAdaptiveThreshold(void) {
+  return jit::getConfig().adaptive_threshold;
+}
+
+void Ci_SetAdaptiveThreshold(uint64_t threshold) {
+  jit::getMutableConfig().adaptive_threshold = threshold;
 }
 
 } // extern "C"

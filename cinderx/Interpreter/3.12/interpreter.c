@@ -387,11 +387,8 @@ void Ci_InitOpcodes() {
 
 #define _PyOpcode_Caches _CiOpcode_Caches
 
-bool Ci_DelayAdaptiveCode = false;
-uint64_t Ci_AdaptiveThreshold = 80;
-
 bool is_adaptive_enabled(CodeExtra *extra) {
-    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+    return !Ci_GetDelayAdaptiveCode() || extra->calls > Ci_GetAdaptiveThreshold();
 }
 
 static void

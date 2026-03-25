@@ -99,6 +99,12 @@ PyObject** Ci_GetDictCache(PyObject* dict, PyObject* key);
 
 void Ci_free_jit_list_gen(PyGenObject* obj);
 
+// Adaptive interpreter configuration.
+bool Ci_GetDelayAdaptiveCode(void);
+void Ci_SetDelayAdaptiveCode(bool delay);
+uint64_t Ci_GetAdaptiveThreshold(void);
+void Ci_SetAdaptiveThreshold(uint64_t threshold);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

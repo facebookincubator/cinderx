@@ -210,6 +210,12 @@ struct Config {
 
   // Use stable sentinel pointers in output (for deterministic test output).
   bool use_stable_pointers{false};
+
+  // Delay adaptive specialization until a function has been called enough
+  // times.
+  bool delay_adaptive_code{false};
+  // Number of calls before adaptive specialization kicks in.
+  uint64_t adaptive_threshold{80};
 };
 
 // Get the JIT's current config object.

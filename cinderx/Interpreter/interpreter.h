@@ -68,9 +68,6 @@ void Ci_FiniFrameEvalFunc();
 
 void Ci_InitOpcodes();
 
-extern bool Ci_DelayAdaptiveCode;
-extern uint64_t Ci_AdaptiveThreshold;
-
 #ifdef __cplusplus
 }
 #endif

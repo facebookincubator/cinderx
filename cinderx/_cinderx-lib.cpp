@@ -12,6 +12,7 @@
 #include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/global_cache.h"
@@ -354,7 +355,7 @@ PyObject* cinder_delay_adaptive(PyObject* mod, PyObject* delay) {
     return nullptr;
   }
 
-  Ci_DelayAdaptiveCode = delay == Py_True;
+  jit::getMutableConfig().delay_adaptive_code = (delay == Py_True);
 #endif
   Py_RETURN_NONE;
 }
@@ -372,7 +373,7 @@ PyObject* cinder_set_adaptive_delay(PyObject* mod, PyObject* delay) {
     return nullptr;
   }
 
-  Ci_AdaptiveThreshold = PyLong_AsLong(delay);
+  jit::getMutableConfig().adaptive_threshold = PyLong_AsLong(delay);
 #endif
   Py_RETURN_NONE;
 }
@@ -385,7 +386,7 @@ PyDoc_STRVAR(
     "Gets the adaptive delay");
 PyObject* cinder_get_adaptive_delay(PyObject* mod, PyObject*) {
 #ifdef ENABLE_INTERPRETER_LOOP
-  return PyLong_FromUnsignedLongLong(Ci_AdaptiveThreshold);
+  return PyLong_FromUnsignedLongLong(jit::getConfig().adaptive_threshold);
 #else
   return PyLong_FromLong(-1);
 #endif
