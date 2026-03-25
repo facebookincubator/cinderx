@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-strict
+
 """
 Spectral norm benchmark.
 
@@ -18,12 +20,12 @@ import sys
 import cinderx.jit
 
 
-def eval_A(i, j):
+def eval_A(i: int, j: int) -> float:
     ij = i + j
     return 1.0 / (ij * (ij + 1) // 2 + i + 1)
 
 
-def eval_A_times_u(u, n):
+def eval_A_times_u(u: list[float], n: int) -> list[float]:
     result = []
     for i in range(n):
         s = 0.0
@@ -33,7 +35,7 @@ def eval_A_times_u(u, n):
     return result
 
 
-def eval_At_times_u(u, n):
+def eval_At_times_u(u: list[float], n: int) -> list[float]:
     result = []
     for i in range(n):
         s = 0.0
@@ -43,11 +45,11 @@ def eval_At_times_u(u, n):
     return result
 
 
-def eval_AtA_times_u(u, n):
+def eval_AtA_times_u(u: list[float], n: int) -> list[float]:
     return eval_At_times_u(eval_A_times_u(u, n), n)
 
 
-def spectral_norm(n):
+def spectral_norm(n: int) -> float:
     u = [1.0] * n
     v = [0.0] * n
 
@@ -63,8 +65,8 @@ def spectral_norm(n):
     return (vBv / vv) ** 0.5
 
 
-class SpectralNorm(object):
-    def run(self, iterations):
+class SpectralNorm:
+    def run(self, iterations: int) -> bool:
         for _ in range(iterations):
             n = 1200
             result = spectral_norm(n)

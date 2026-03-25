@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-strict
+
 """
 Binary trees benchmark.
 
@@ -12,32 +14,35 @@ Based on the classic "binary-trees" benchmark from the Computer Language
 Benchmarks Game.
 """
 
+from __future__ import annotations
+
 import sys
 
 import cinderx.jit
 
 
-class TreeNode(object):
-    def __init__(self, left, right):
+class TreeNode:
+    def __init__(self, left: TreeNode | None, right: TreeNode | None) -> None:
         self.left = left
         self.right = right
 
 
-def make_tree(depth):
+def make_tree(depth: int) -> TreeNode:
     if depth <= 0:
         return TreeNode(None, None)
     depth -= 1
     return TreeNode(make_tree(depth), make_tree(depth))
 
 
-def check_tree(node):
+def check_tree(node: TreeNode) -> int:
     if node.left is None:
         return 1
+    # pyre-ignore[6]: Subtrees have to be non-None.
     return 1 + check_tree(node.left) + check_tree(node.right)
 
 
-class BinaryTrees(object):
-    def run(self, iterations):
+class BinaryTrees:
+    def run(self, iterations: int) -> bool:
         for _ in range(iterations):
             min_depth = 4
             max_depth = 17
