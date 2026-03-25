@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-strict
+
 """
 N-body gravitational simulation benchmark.
 
@@ -16,13 +18,15 @@ import sys
 import cinderx.jit
 
 
-PI = 3.14159265358979323846
-SOLAR_MASS = 4 * PI * PI
-DAYS_PER_YEAR = 365.24
+PI: float = 3.14159265358979323846
+SOLAR_MASS: float = 4 * PI * PI
+DAYS_PER_YEAR: float = 365.24
 
 
 class Body:
-    def __init__(self, x, y, z, vx, vy, vz, mass):
+    def __init__(
+        self, x: float, y: float, z: float, vx: float, vy: float, vz: float, mass: float
+    ) -> None:
         self.x = x
         self.y = y
         self.z = z
@@ -32,11 +36,11 @@ class Body:
         self.mass = mass
 
 
-def make_sun():
+def make_sun() -> Body:
     return Body(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, SOLAR_MASS)
 
 
-def make_jupiter():
+def make_jupiter() -> Body:
     return Body(
         4.84143144246472090e00,
         -1.16032004402742839e00,
@@ -48,7 +52,7 @@ def make_jupiter():
     )
 
 
-def make_saturn():
+def make_saturn() -> Body:
     return Body(
         8.34336671824457987e00,
         4.12479856412430479e00,
@@ -60,7 +64,7 @@ def make_saturn():
     )
 
 
-def make_uranus():
+def make_uranus() -> Body:
     return Body(
         1.28943695621391310e01,
         -1.51111514016986312e01,
@@ -72,7 +76,7 @@ def make_uranus():
     )
 
 
-def make_neptune():
+def make_neptune() -> Body:
     return Body(
         1.53796971148509165e01,
         -2.59193146099879641e01,
@@ -84,7 +88,7 @@ def make_neptune():
     )
 
 
-def offset_momentum(bodies):
+def offset_momentum(bodies: list[Body]) -> None:
     px = 0.0
     py = 0.0
     pz = 0.0
@@ -133,7 +137,7 @@ def advance(bodies: list[Body], dt: float, n_bodies: int) -> None:
         bi.z += dt * bi.vz
 
 
-def energy(bodies, n_bodies):
+def energy(bodies: list[Body], n_bodies: int) -> float:
     e = 0.0
     for i in range(n_bodies):
         bi = bodies[i]
@@ -148,8 +152,8 @@ def energy(bodies, n_bodies):
     return e
 
 
-class NBody(object):
-    def run(self, iterations):
+class NBody:
+    def run(self, iterations: int) -> bool:
         for _ in range(iterations):
             bodies = [
                 make_sun(),
