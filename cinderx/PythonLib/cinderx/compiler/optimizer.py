@@ -394,7 +394,6 @@ class FormatParser:
         """Enumerates the components of the format string and returns a stream
         of interleaved strings and FormatInfo objects"""
         # Parse the string up to the format specifier
-        ch = None
         while self.pos < self.size:
             yield self.parse_str()
 
