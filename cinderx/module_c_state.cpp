@@ -2,6 +2,7 @@
 
 #include "cinderx/module_c_state.h"
 
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/module_state.h"
@@ -11,6 +12,24 @@ extern "C" {
 #if PY_VERSION_HEX < 0x030F0000
 vectorcallfunc Ci_PyFunction_Vectorcall;
 #endif
+
+vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func) {
+  auto state = cinderx::getModuleState();
+  if (state != nullptr && state->static_function_vectorcall != nullptr) {
+    const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
+    if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
+      return state->static_function_vectorcall;
+    }
+  }
+  return Ci_PyFunction_Vectorcall;
+}
+
+void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall) {
+  auto state = cinderx::getModuleState();
+  if (state != nullptr) {
+    state->static_function_vectorcall = vcall;
+  }
+}
 
 PyObject* Ci_GetStaticTypeError(void) {
   auto state = cinderx::getModuleState();

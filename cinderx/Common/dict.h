@@ -9,6 +9,10 @@
 #include "pycore_dict.h"
 #endif
 
+#ifdef __cplusplus
+#include "cinderx/Common/ref.h"
+#endif
+
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <stdbool.h>
@@ -109,4 +113,23 @@ static inline ci_dict_version_tag_t Ci_DictVersionTag(PyDictObject* dict) {
 
 #ifdef __cplusplus
 } // extern "C"
+#endif
+
+#ifdef __cplusplus
+
+inline Ref<> getDictRef(PyObject* dict, PyObject* key) {
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject* res;
+  if (PyDict_GetItemRef(dict, key, &res) > 0) {
+    return Ref<>::steal(res);
+  }
+#else
+  PyObject* res = PyDict_GetItemWithError(dict, key);
+  if (res != nullptr) {
+    return Ref<>::create(res);
+  }
+#endif
+  return nullptr;
+}
+
 #endif

@@ -18,7 +18,7 @@ using namespace jit::hir;
 
 class ASMGeneratorTest : public RuntimeTest {
  public:
-  CompiledFunction* GenerateCode(PyObject* func) {
+  Ref<CompiledFunction> GenerateCode(PyObject* func) {
     auto func_obj = reinterpret_cast<PyFunctionObject*>(func);
 
     CompilationKey key{
@@ -1391,13 +1391,13 @@ TEST_F(ASMGeneratorTest, GetLength) {
 
 class NewASMGeneratorTest : public RuntimeTest {
  public:
-  std::unique_ptr<CompiledFunction> GenerateCode(PyObject* func) {
+  Ref<CompiledFunction> GenerateCode(PyObject* func) {
     std::optional<CompiledFunctionData> compiled_func =
         Compiler().Compile(func);
     if (!compiled_func.has_value()) {
       return nullptr;
     }
-    return std::make_unique<CompiledFunction>(std::move(*compiled_func));
+    return CompiledFunction::create(std::move(*compiled_func), false);
   }
 };
 

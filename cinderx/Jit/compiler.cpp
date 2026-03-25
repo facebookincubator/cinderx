@@ -233,10 +233,11 @@ std::optional<CompiledFunctionData> Compiler::Compile(
       std::chrono::duration_cast<std::chrono::microseconds>(timer.finish());
 
   JIT_DLOG(
-      "Finished compiling {} in {}, code size: {} bytes",
+      "Finished compiling {} in {}, code size: {} bytes (code: {})",
       fullname,
       compile_time,
-      ngen->getCodeBuffer().size_bytes());
+      ngen->getCodeBuffer().size_bytes(),
+      static_cast<void*>(preloader.code()));
   if (nullptr != irfunc->compilation_phase_timer) {
     irfunc->compilation_phase_timer->end();
     irfunc->setCompilationPhaseTimer(nullptr);

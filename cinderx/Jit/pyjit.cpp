@@ -715,6 +715,12 @@ FlagProcessor initFlagProcessor() {
       "Compile perf trampoline pre-fork");
 
   flag_processor.addOption(
+      "jit-immortalize-compiled-functions",
+      "PYTHONJITIMMORTALIZECOMPILEDFUNCTIONS",
+      getMutableConfig().immortalize_compiled_functions,
+      "Always immortalize CompiledFunction objects");
+
+  flag_processor.addOption(
       "jit-max-code-size",
       "PYTHONJITMAXCODESIZE",
       [](const std::string& val) {
@@ -793,8 +799,7 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
   jitCtx()->removeDeoptedFunc(func);
 
   if (CompiledFunction* compiled = jitCtx()->lookupFunc(func)) {
-    jitCtx()->finalizeFunc(func, *compiled);
-    return true;
+    return jitCtx()->finalizeFunc(func, compiled);
   }
   return false;
 }
@@ -1250,8 +1255,8 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   cinderx::getModuleState()->compile_workers_attempted = 0;
   cinderx::getModuleState()->compile_workers_retries = 0;
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
-  JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
-  jitCtx()->clearCache();
+  JIT_LOG("(Re)compiling {} units compiles", jit_reg_units.size());
+  jitCtx()->clearForMultithreadedCompileTest();
 
   std::chrono::time_point start = std::chrono::steady_clock::now();
   if (!compile_all()) {
@@ -1329,7 +1334,7 @@ void disable_jit_impl(bool deopt_all) {
     size_t success = 0;
     auto& funcs = jitCtx()->compiledFuncs();
     for (auto it = funcs.begin(); it != funcs.end();) {
-      BorrowedRef<PyFunctionObject> func = *it;
+      BorrowedRef<PyFunctionObject> func = it->first;
       // Advance before deoptFunc() which erases func from funcs,
       // invalidating the iterator pointing to it.
       ++it;
@@ -1750,6 +1755,7 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   // "Destroy" the function from the perspective of the JIT, effectively erasing
   // all traces of it from the metadata.
   funcDestroyed(func);
+
   if (jitCtx() != nullptr) {
     uncompile(func);
   }
@@ -1936,7 +1942,8 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   const char* filename = PyUnicode_AsUTF8AndSize(arg, &filename_size);
 
   std::vector<elf::CodeEntry> entries;
-  for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
+  for (auto func_and_compiled : jitCtx()->compiledFuncs()) {
+    auto func = func_and_compiled.first;
     BorrowedRef<PyCodeObject> code{func->func_code};
     CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
 
@@ -2088,8 +2095,8 @@ PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
   if (funcs == nullptr) {
     return nullptr;
   }
-  for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
-    if (PyList_Append(funcs, func) < 0) {
+  for (auto func_and_compiled : jitCtx()->compiledFuncs()) {
+    if (PyList_Append(funcs, func_and_compiled.first) < 0) {
       return nullptr;
     }
   }
@@ -2325,8 +2332,8 @@ Ref<> make_deopt_stats() {
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
   for (auto& pair : jitCtx()->compiledCodes()) {
-    const CompiledFunction& compiled_func = *pair.second;
-    const CodeRuntime* code_runtime = compiled_func.runtime();
+    const BorrowedRef<CompiledFunction> compiled_func = pair.second;
+    const CodeRuntime* code_runtime = compiled_func->runtime();
 
     auto const& deopt_metadatas = code_runtime->deoptMetadatas();
     for (size_t deopt_idx = 0; deopt_idx < deopt_metadatas.size();
@@ -3121,7 +3128,8 @@ void trackEligibleCodeObjects(
     JitEligibility eligibility = JitEligibility::Eligible) {
   // We need to maintain a mapping for all functions which are
   // eligible for compilation at some point - we track the code
-  // object and their parent function.
+  // object and their parent function. If we have a JIT list we
+  // also track the registered units.
   // Map this function's code object to itself.
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
   if (jit_code_outer_funcs.contains(func_code)) {
@@ -3578,6 +3586,11 @@ int initialize() {
   jit::init_jit_genobject_type();
 #endif
 
+  // Initialize the CompiledFunction type.
+  if (jit::initCompiledFunctionType() < 0) {
+    return -1;
+  }
+
   // Create code allocator after jit::Config has been filled out.
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->code_allocator.reset(CodeAllocator::make());
@@ -3653,7 +3666,7 @@ void finalize() {
   // remainder of shutdown, they will go through the interpreter.
   auto& funcs = jitCtx()->compiledFuncs();
   for (auto it = funcs.begin(); it != funcs.end();) {
-    BorrowedRef<PyFunctionObject> func = *it;
+    BorrowedRef<PyFunctionObject> func = it->first;
     // Advance before deoptFuncImpl() which erases func from funcs,
     // invalidating the iterator pointing to it.
     ++it;
@@ -3679,6 +3692,7 @@ void finalize() {
       "is_global:{}",
       hir::preloaderManager().size(),
       hir::preloaderManager().isGlobalManager());
+
   mod_state->jit_context.reset();
   mod_state->code_allocator.reset();
 
@@ -3953,7 +3967,16 @@ Result compilePreloaderImpl(
       // The code is already compiled and we have a CompiledFunction object.
       // Just finalize the code.
       if (func != nullptr) {
-        jit_ctx->finalizeFunc(func, *compiled);
+        if (getThreadedCompileContext().compileRunning()) {
+          // Can't call finalizeFunc on a worker thread - it does Python
+          // allocations (PyDict_New, etc.) which require the GIL. Defer
+          // finalization to after multi-threaded compile completes.
+          jit_ctx->addDeferredFinalization(func, compiled);
+        } else if (!jit_ctx->finalizeFunc(func, compiled)) {
+          JIT_CHECK(PyErr_Occurred(), "should have set an error");
+          // Failed to finalize, probably due to failure to allocate
+          return Result::PYTHON_EXCEPTION;
+        }
       }
       return Result::OK;
     } else if (jit_ctx->hasCompletedCompile(key)) {

@@ -6,6 +6,7 @@
 #include "cinderx/Jit/hir/cfg.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_time_log.h"
+#include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
 namespace jit::hir {

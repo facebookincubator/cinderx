@@ -102,7 +102,7 @@ class CinderX_TestTracemallocEnabled(unittest.TestCase):
         # Python allocates some internals objects, so the test must tolerate
         # a small difference between the expected size and the real usage. The
         # JIT can increase this maximum amount.
-        max_error = 6000 if cinderx.jit.is_enabled() else 2048
+        max_error = 8500 if cinderx.jit.is_enabled() else 2048
 
         # allocate one object
         obj_size = 1024 * 1024

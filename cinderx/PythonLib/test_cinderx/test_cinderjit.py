@@ -138,6 +138,17 @@ def func_that_change_defaults():
     return func_with_defaults_that_will_change()
 
 
+def compiled_code_func():
+    pass
+
+
+def compiled_code_func_with_nested():
+    def nested():
+        return 42
+
+    return nested
+
+
 class InlinedFunctionTests(unittest.TestCase):
     @jit_suppress
     @passIf(
@@ -2737,6 +2748,60 @@ class BadArgumentTests(unittest.TestCase):
             jit_unsuppress(5)
         with self.assertRaises(TypeError):
             jit_unsuppress(is_jit_compiled)
+
+    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    def test_compiled_code_ref(self):
+        self.assertNotIn("__cinderx_compiled_func__", compiled_code_func.__dict__)
+        cinder_support.failUnlessJITCompiled(compiled_code_func)
+        # Compiling publishes the compiled func in the function's dictionary
+        self.assertIn("__cinderx_compiled_func__", compiled_code_func.__dict__)
+        self.assertTrue(cinderx.jit.is_jit_compiled(compiled_code_func))
+        # Removing the compiled code eliminates the last reference and deopts the
+        # function.
+        del compiled_code_func.__dict__["__cinderx_compiled_func__"]
+        self.assertFalse(cinderx.jit.is_jit_compiled(compiled_code_func))
+
+    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    def test_nested_compiled_code_ref(self):
+        # CompiledCode should be re-used for nested functions, even if the outer
+        # function is never compiled.
+        nested1 = compiled_code_func_with_nested()
+        cinder_support.failUnlessJITCompiled(nested1)
+        self.assertIn(
+            "__cinderx_nested_compiled_funcs__", compiled_code_func_with_nested.__dict__
+        )
+        self.assertIn("__cinderx_compiled_func__", nested1.__dict__)
+        code1 = id(nested1.__dict__["__cinderx_compiled_func__"])
+        del nested1
+        nested2 = compiled_code_func_with_nested()
+        cinder_support.failUnlessJITCompiled(nested2)
+
+        self.assertEqual(
+            code1,
+            id(nested2.__dict__["__cinderx_compiled_func__"]),
+        )
+
+    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    def test_nested_compiled_code_ref_outer_destroyed(self):
+        d = {}
+        exec(
+            textwrap.dedent("""
+def compiled_code_func_with_nested():
+    def nested():
+        return 42
+
+    return nested
+"""),
+            d,
+            d,
+        )
+
+        # If outer function is destroyed functions essentially become their own
+        # isolated units as no more nested functions can be created
+        nested = d["compiled_code_func_with_nested"]()
+        del d
+        cinder_support.failUnlessJITCompiled(nested)
+        self.assertIn("__cinderx_compiled_func__", nested.__dict__)
 
 
 @passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")

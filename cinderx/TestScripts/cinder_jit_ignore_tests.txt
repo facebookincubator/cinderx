@@ -104,6 +104,9 @@ test.test_enumerate.TestReversed.test_bug1229429
 test.test_frame.TestIncompleteFrameAreInvisible.test_sneaky_frame_object_teardown
 test.test_gc.GCTests.test_frame
 test.test_generators.FinalizationTest.test_refcycle
+# The JIT creates a new object on the first invocation which throws off expected
+# total ref count.
+test.test_descr.ClassPropertiesAndMethods.test_slots
 
 # TASK(T128782227): Frames accessed from exception tracebacks are different
 # in shadow-frame mode.

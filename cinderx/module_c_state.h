@@ -22,6 +22,15 @@ extern "C" {
 extern vectorcallfunc Ci_PyFunction_Vectorcall;
 #endif
 
+// Get the appropriate vectorcall entry point for executing a function in the
+// interpreter.  Returns the static function vectorcall for Static Python
+// functions (CI_CO_STATICALLY_COMPILED) and Ci_PyFunction_Vectorcall otherwise.
+vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func);
+
+// Set the vectorcall entry point used for Static Python functions in the
+// interpreter.  Called during interpreter initialization.
+void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall);
+
 // Get the StaticTypeError exception type.
 PyObject* Ci_GetStaticTypeError(void);
 

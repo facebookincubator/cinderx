@@ -4,7 +4,7 @@
 
 #include "cinderx/python.h"
 
-// Exporting Ci_PyFunction_Vectorcall.
+// Exporting Ci_PyFunction_Vectorcall and getInterpretedVectorcall.
 #include "cinderx/module_c_state.h"
 
 #include <stdbool.h>
@@ -46,15 +46,6 @@ PyObject* Ci_PyFunction_CallStatic(
     PyObject* const* args,
     size_t nargsf,
     PyObject* kwnames);
-
-/*
- * Get the appropriate entry point that will execute a function object in the
- * interpreter.
- *
- * This is a different function for Static Python functions versus "normal"
- * Python functions.
- */
-vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func);
 
 /*
  * Install the CinderX frame evaluator function into the runtime.

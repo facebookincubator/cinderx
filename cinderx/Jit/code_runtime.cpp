@@ -74,12 +74,21 @@ void CodeRuntime::addReference(BorrowedRef<> obj) {
 }
 
 void CodeRuntime::releaseReferences() {
-  // Serialize as we modify ref-counts which may be widely accessible.
-  ThreadedCompileSerialize guard;
-  references_.clear();
+  // We want to be careful here with the freeing of these references. Freeing
+  // the objects could cause our CompiledFunction to be freed as well so first
+  // we grab the references and then clear them.
+  std::unordered_set<ThreadedRef<>> refs;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  reifier_.reset(nullptr);
+  ThreadedRef<> tmp;
 #endif
+  {
+    ThreadedCompileSerialize guard;
+    refs = std::move(references_);
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+    tmp = std::move(reifier_);
+#endif
+  }
+  // and then we let the dtors clean everything up
 }
 
 GenYieldPoint* CodeRuntime::addGenYieldPoint(GenYieldPoint&& gen_yield_point) {
@@ -118,6 +127,30 @@ void CodeRuntime::setFrameSize(int size) {
 
 DebugInfo* CodeRuntime::debugInfo() {
   return &debug_info_;
+}
+
+bool CodeRuntime::isCleared() const {
+  // We always add some references when we first create the CodeRuntime, so we
+  // know if no references are left we've been cleared.
+  return references_.empty();
+}
+
+int CodeRuntime::traverse(visitproc visit, void* arg) {
+  // Only traverse objects that this CodeRuntime owns strong references to.
+  // The references_ set contains ThreadedRef which hold strong references.
+  // The frame_state_ and inlined_frame_states_ contain BorrowedRef which
+  // point to the same objects already in references_ - don't double-count.
+  for (const auto& ref : references_) {
+    Py_VISIT(ref.get());
+  }
+
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  if (reifier_ != nullptr) {
+    Py_VISIT(reifier_.get());
+  }
+#endif
+
+  return 0;
 }
 
 } // namespace jit

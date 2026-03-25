@@ -12,8 +12,7 @@
 
 class CodePatcherTest : public RuntimeTest {
  public:
-  std::unique_ptr<jit::CompiledFunction> generateCode(
-      jit::codegen::NativeGenerator& ngen) {
+  Ref<jit::CompiledFunction> generateCode(jit::codegen::NativeGenerator& ngen) {
     auto entry = ngen.getVectorcallEntry();
     if (entry == nullptr) {
       return nullptr;
@@ -21,14 +20,12 @@ class CodePatcherTest : public RuntimeTest {
     std::span<const std::byte> code = ngen.getCodeBuffer();
     int stack_size = ngen.GetCompiledFunctionStackSize();
     int spill_stack_size = ngen.GetCompiledFunctionSpillStackSize();
-    return std::make_unique<jit::CompiledFunction>(
-        code,
-        reinterpret_cast<vectorcallfunc>(entry),
-        stack_size,
-        spill_stack_size,
-        jit::hir::Function::InlineFunctionStats{},
-        jit::hir::OpcodeCounts{},
-        nullptr);
+    jit::CompiledFunctionData data;
+    data.code = code;
+    data.vectorcall_entry = reinterpret_cast<vectorcallfunc>(entry);
+    data.stack_size = stack_size;
+    data.spill_stack_size = spill_stack_size;
+    return jit::CompiledFunction::create(std::move(data), false);
   }
 
  protected:

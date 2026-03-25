@@ -208,6 +208,13 @@ struct Config {
   // List of function name patterns for which to capture compilation times.
   std::vector<std::string> capture_compilation_times_for;
 
+  // Option to force compiled functions to be immortalized. By default a
+  // CompiledFunction's timetime will be tied to a function via a reference put
+  // in the function's __dict__. When we force CompiledFunction's to always be
+  // immortalized no such reference will be created and the CompiledFunction
+  // will be set to be immortal and never collected.
+  bool immortalize_compiled_functions{false};
+
   // Use stable sentinel pointers in output (for deterministic test output).
   bool use_stable_pointers{false};
 

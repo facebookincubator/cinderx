@@ -1,6 +1,5 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
@@ -14,20 +13,9 @@
 
 extern "C" {
 
-vectorcallfunc getInterpretedVectorcall(
-    [[maybe_unused]] const PyFunctionObject* func) {
-#ifdef ENABLE_INTERPRETER_LOOP
-  const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
-  return (code->co_flags & CI_CO_STATICALLY_COMPILED)
-      ? Ci_StaticFunction_Vectorcall
-      : Ci_PyFunction_Vectorcall;
-#else
-  return Ci_PyFunction_Vectorcall;
-#endif
-}
-
 int Ci_InitFrameEvalFunc() {
 #ifdef ENABLE_INTERPRETER_LOOP
+  Ci_SetStaticFunctionVectorcall(Ci_StaticFunction_Vectorcall);
 #ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = Ci_EvalFrame;
 #elif defined(ENABLE_PEP523_HOOK)
@@ -56,6 +44,7 @@ int Ci_InitFrameEvalFunc() {
 
 void Ci_FiniFrameEvalFunc() {
 #ifdef ENABLE_INTERPRETER_LOOP
+  Ci_SetStaticFunctionVectorcall(nullptr);
 #ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = nullptr;
 #elif defined(ENABLE_PEP523_HOOK)

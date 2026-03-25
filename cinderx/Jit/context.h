@@ -115,6 +115,11 @@ struct CompilationKey {
         builtins{func->func_builtins},
         globals{func->func_globals} {}
 
+  explicit CompilationKey(const CompiledFunction& func)
+      : code{func.runtime()->frameState()->code()},
+        builtins{func.runtime()->frameState()->builtins()},
+        globals{func.runtime()->frameState()->globals()} {}
+
   CompilationKey(PyObject* code, PyObject* builtins, PyObject* globals)
       : code(code), builtins(builtins), globals(globals) {}
 
@@ -137,9 +142,11 @@ namespace jit {
 /*
  * A jit::Context encapsulates all the state managed by an instance of the JIT.
  */
-class Context : public IJitContext {
+class Context : public IJitContext, public CompiledFunctionOwner {
  public:
   Context();
+
+  ~Context() override;
 
   /*
    * Adds a function to the list of deopted functions - this means the function
@@ -175,7 +182,7 @@ class Context : public IJitContext {
    * Creates the CompiledFunction object for a given compilation key.
    * The compiled code can then be shared amongst compatible functions.
    */
-  CompiledFunction* makeCompiledFunction(
+  Ref<CompiledFunction> makeCompiledFunction(
       BorrowedRef<PyFunctionObject> func,
       const CompilationKey& key,
       CompiledFunctionData&& compiled_func);
@@ -184,15 +191,17 @@ class Context : public IJitContext {
    * Record per-function metadata for a newly compiled function and set the
    * function's entrypoint.
    */
-  void finalizeFunc(
+  bool finalizeFunc(
       BorrowedRef<PyFunctionObject> func,
-      const CompiledFunction& compiled);
+      BorrowedRef<CompiledFunction> compiled);
 
   /*
    * Adds a compiled function to the Context. Returns false if the function was
    * previously added.
    */
-  bool addCompiledFunc(BorrowedRef<PyFunctionObject> func);
+  bool addCompiledFunc(
+      BorrowedRef<PyFunctionObject> func,
+      BorrowedRef<CompiledFunction> compiled);
 
   /*
    * Removes a function from the set of functions that are known to be compiled.
@@ -212,14 +221,18 @@ class Context : public IJitContext {
    */
   void forgetCode(BorrowedRef<PyFunctionObject> func);
   /*
+   * Remove the specified code object from the known compiled codes.
+   */
+  void forgetCompiledFunction(CompiledFunction& function) override;
+  /*
    * Look up the compiled function object for a given Python function object.
    */
-  CompiledFunction* lookupFunc(BorrowedRef<PyFunctionObject> func);
+  BorrowedRef<CompiledFunction> lookupFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
    * Gets the CompiledFunction for a given code/builtins/globals triplet.
    */
-  CompiledFunction* lookupCode(
+  BorrowedRef<CompiledFunction> lookupCode(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals);
@@ -233,13 +246,16 @@ class Context : public IJitContext {
    * Get the map of all compiled code objects, keyed by their address and also
    * their builtins and globals objects.
    */
-  const UnorderedMap<CompilationKey, std::unique_ptr<CompiledFunction>>&
+  const UnorderedMap<CompilationKey, BorrowedRef<CompiledFunction>>&
   compiledCodes() const;
 
   /*
    * Get a range over all function objects that have been compiled.
    */
-  const UnorderedSet<BorrowedRef<PyFunctionObject>>& compiledFuncs();
+  const UnorderedMap<
+      BorrowedRef<PyFunctionObject>,
+      BorrowedRef<CompiledFunction>>&
+  compiledFuncs();
 
   /*
    * Get a range over all function objects that have been compiled and since
@@ -267,7 +283,7 @@ class Context : public IJitContext {
    * full rather than just re-binding pre-compiled code. Only intended to be
    * used during multithreaded_compile_test.
    */
-  void clearCache();
+  void clearForMultithreadedCompileTest();
 
   /*
    * Callbacks invoked by the runtime when a PyFunctionObject is destroyed.
@@ -374,6 +390,9 @@ class Context : public IJitContext {
   // call patcher->maybePatch(new_ty).
   void watchType(BorrowedRef<PyTypeObject> type, TypeDeoptPatcher* patcher);
 
+  // Stops watching for a specific TypeDeoptPatcher.
+  void unwatch(TypeDeoptPatcher* patcher) override;
+
   // Callback for when a type is modified or destroyed. lookup_type should be
   // the type that triggered the call (the type that's being
   // modified/deleted/otherwise messed with), and new_type should be the "new"
@@ -391,6 +410,13 @@ class Context : public IJitContext {
   // Checks to see if we've compiled a code but not yet created a
   // CompiledFunction object.
   bool hasCompletedCompile(CompilationKey& key);
+
+  // Defers finalization of a function with an already-compiled
+  // CompiledFunction during multi-threaded compile. The finalization will
+  // be performed in finalizeMultiThreadedCompile.
+  void addDeferredFinalization(
+      BorrowedRef<PyFunctionObject> func,
+      BorrowedRef<CompiledFunction> compiled);
 
   void finalizeMultiThreadedCompile();
 
@@ -477,7 +503,9 @@ class Context : public IJitContext {
   std::unordered_set<ThreadedRef<PyObject>> references_;
   Builtins builtins_;
 
-  std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<TypeDeoptPatcher*>>
+  std::unordered_map<
+      BorrowedRef<PyTypeObject>,
+      std::unordered_set<TypeDeoptPatcher*>>
       type_deopt_patchers_;
 
   Ref<> zero_;
@@ -494,11 +522,11 @@ class Context : public IJitContext {
    * Map of all compiled code objects, keyed by their address and also their
    * builtins and globals objects.
    */
-  UnorderedMap<CompilationKey, std::unique_ptr<CompiledFunction>>
-      compiled_codes_;
+  UnorderedMap<CompilationKey, BorrowedRef<CompiledFunction>> compiled_codes_;
 
   /* Set of which functions have JIT-compiled entrypoints. */
-  UnorderedSet<BorrowedRef<PyFunctionObject>> compiled_funcs_;
+  UnorderedMap<BorrowedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>
+      compiled_funcs_;
 
   /* Set of which functions were JIT-compiled but have since been deopted. */
   UnorderedSet<BorrowedRef<PyFunctionObject>> deopted_funcs_;
@@ -520,11 +548,21 @@ class Context : public IJitContext {
       completed_compiles_;
 
   /*
+   * Functions that need to be finalized with already-existing
+   * CompiledFunctions. This happens when lookupCode finds a pre-existing
+   * CompiledFunction during multi-threaded compile - we can't call
+   * finalizeFunc on a worker thread because it does Python allocations.
+   */
+  std::vector<
+      std::pair<ThreadedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>>
+      deferred_finalizations_;
+
+  /*
    * Code which is being kept alive in case it was in use when
    * clearCache was called. Only intended to be used during
    * multithreaded_compile_test.
    */
-  std::vector<std::unique_ptr<CompiledFunction>> orphaned_compiled_codes_;
+  std::vector<Ref<CompiledFunction>> orphaned_compiled_codes_;
 
   Ref<> cinderjit_module_;
 

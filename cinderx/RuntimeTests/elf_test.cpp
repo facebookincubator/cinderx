@@ -73,7 +73,7 @@ def func(x):
   std::optional<CompiledFunctionData> compiled_data = Compiler().Compile(func);
   ASSERT_TRUE(compiled_data.has_value());
   auto compiled_func =
-      std::make_unique<CompiledFunction>(std::move(*compiled_data));
+      CompiledFunction::create(std::move(*compiled_data), false);
 
   std::stringstream ss;
 

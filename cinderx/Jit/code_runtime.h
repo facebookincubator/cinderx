@@ -130,6 +130,12 @@ class alignas(16) CodeRuntime {
 
   DebugInfo* debugInfo();
 
+  // Traverse all GC-reachable objects held by this CodeRuntime.
+  int traverse(visitproc visit, void* arg);
+
+  // True if the references have been cleared
+  bool isCleared() const;
+
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   void setReifier(BorrowedRef<> reifier) {
     ThreadedCompileSerialize guard;

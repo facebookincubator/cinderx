@@ -152,6 +152,12 @@ struct ModuleState {
   // Whether the Static Python audit hook has been installed.
   bool sp_audit_hook_installed{false};
 
+  // The vectorcall entry point for Static Python functions executed in the
+  // interpreter.  Set when the interpreter feature is enabled, otherwise
+  // nullptr which causes getInterpretedVectorcall to fall back to
+  // Ci_PyFunction_Vectorcall.
+  vectorcallfunc static_function_vectorcall{nullptr};
+
   // Whether runtime modification of Strict Module types is allowed.
   bool enable_patching{false};
 

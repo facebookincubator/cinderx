@@ -3,10 +3,13 @@
 #include "cinderx/Jit/context.h"
 
 #include "internal/pycore_interp.h"
+#include "internal/pycore_object.h"
 #include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/module_state.h"
@@ -125,10 +128,24 @@ Context::Context()
 #endif
 }
 
+Context::~Context() {
+  // Clear all of the CompiledFunction's before we clear out the memory used for
+  // the CodeRuntime allocated in the slab.
+  for (auto& code : compiled_codes_) {
+    code.second->clear(true /* context_finalizing */);
+  }
+}
+
 void Context::mlockProfilerDependencies() {
 #ifndef WIN32
   for (auto& codert : code_runtimes_) {
+    if (codert.isCleared()) {
+      continue;
+    }
     PyCodeObject* code = codert.frameState()->code().get();
+    if (code == nullptr) {
+      continue;
+    }
     ::mlock(code, sizeof(PyCodeObject));
     ::mlock(code->co_qualname, Py_SIZE(code->co_qualname));
   }
@@ -147,6 +164,9 @@ Ref<> Context::pageInProfilerDependencies() {
   // the code to do so. There are probably more efficient ways of doing this
   // but perf isn't a major concern.
   for (auto& code_rt : code_runtimes_) {
+    if (code_rt.isCleared()) {
+      continue;
+    }
     BorrowedRef<> qualname = code_rt.frameState()->code()->co_qualname;
     if (qualname == nullptr) {
       continue;
@@ -292,6 +312,9 @@ void Context::addReference(BorrowedRef<> obj) {
 
 void Context::releaseReferences() {
   for (auto& code_rt : code_runtimes_) {
+    if (code_rt.isCleared()) {
+      continue;
+    }
     code_rt.releaseReferences();
   }
   references_.clear();
@@ -335,11 +358,15 @@ const Builtins& Context::builtins() {
   return builtins_;
 }
 
+void Context::unwatch(TypeDeoptPatcher* patcher) {
+  type_deopt_patchers_[patcher->type()].erase(patcher);
+}
+
 void Context::watchType(
     BorrowedRef<PyTypeObject> type,
     TypeDeoptPatcher* patcher) {
   ThreadedCompileSerialize guard;
-  type_deopt_patchers_[type].emplace_back(patcher);
+  type_deopt_patchers_[type].emplace(patcher);
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     // In 3.12 we require the interpreter state in order to watch types
     if (getThreadedCompileContext().compileRunning()) {
@@ -383,10 +410,10 @@ void Context::notifyTypeModified(
     return;
   }
 
-  std::vector<TypeDeoptPatcher*> remaining_patchers;
+  std::unordered_set<TypeDeoptPatcher*> remaining_patchers;
   for (TypeDeoptPatcher* patcher : it->second) {
     if (!patcher->maybePatch(new_type)) {
-      remaining_patchers.emplace_back(patcher);
+      remaining_patchers.emplace(patcher);
     }
   }
 
@@ -402,6 +429,14 @@ bool Context::hasCompletedCompile(CompilationKey& key) {
   return completed_compiles_.contains(key);
 }
 
+void Context::addDeferredFinalization(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> compiled) {
+  ThreadedCompileSerialize guard;
+  deferred_finalizations_.emplace_back(
+      ThreadedRef<PyFunctionObject>::create(func), compiled);
+}
+
 void Context::finalizeMultiThreadedCompile() {
   fixupFunctionEntryCachePostMultiThreadedCompile();
   watchPendingTypes();
@@ -411,26 +446,37 @@ void Context::finalizeMultiThreadedCompile() {
         codes.second.second, codes.first, std::move(codes.second.first));
   }
   completed_compiles_.clear();
+
+  for (auto& [func, compiled] : deferred_finalizations_) {
+    finalizeFunc(func, compiled);
+  }
+  deferred_finalizations_.clear();
 }
 
-void Context::finalizeFunc(
+bool Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
-    const CompiledFunction& compiled) {
-  ThreadedCompileSerialize guard;
-  if (!addCompiledFunc(func)) {
+    BorrowedRef<CompiledFunction> compiled) {
+  compiled->setOwner(this);
+
+  if (!addCompiledFunc(func, compiled)) {
     // Someone else compiled the function between when our caller checked and
     // called us.
-    return;
+    return true;
   }
 
   // In case the function had previously been deopted.
   removeDeoptedFunc(func);
 
-  setVectorcall(func, compiled.vectorcallEntry());
+  setVectorcall(func, compiled->vectorcallEntry());
   if (hasFunctionEntryCache(func)) {
     void** indirect = findFunctionEntryCache(func);
-    *indirect = compiled.staticEntry();
+    *indirect = compiled->staticEntry();
   }
+
+  // Associate the function with the CompiledFunction for GC tracking.
+  // This is ultimately what will keep the CompiledFunction alive and
+  // keep the PyFunctionObject JITed.
+  return associateFunctionWithCompiled(func, compiled, false /* is_nested */);
 }
 
 void Context::codeCompiled(
@@ -508,7 +554,50 @@ void jitgen_data_free(PyGenObject* gen) {
 #endif // PY_VERSION_HEX < 0x030C0000
 
 void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
+  auto it = compiled_codes_.find(CompilationKey{func});
+  if (it == compiled_codes_.end()) {
+    return;
+  }
+
+  // Remove the CF from any outer function's nested compiled functions list.
+  // When a nested function is compiled, its CF is stored both in the
+  // function's own __dict__ and in the outer function's
+  // __cinderx_nested_compiled_funcs__ list. We need to clean up the latter
+  // when forgetting the code.
+  BorrowedRef<CompiledFunction> cf = it->second;
+  BorrowedRef<PyCodeObject> code{it->first.code};
+  auto outer_it = code_outer_funcs_.find(code);
+  if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {
+    BorrowedRef<PyFunctionObject> outer = outer_it->second;
+    PyObject* outer_dict = outer->func_dict;
+    if (outer_dict != nullptr) {
+      Ref<> nested_list = getDictRef(outer_dict, kNestedCompiledFunctionsKey);
+      if (nested_list != nullptr && PyList_CheckExact(nested_list.get())) {
+        for (Py_ssize_t i = PyList_GET_SIZE(nested_list.get()) - 1; i >= 0;
+             i--) {
+          if (PyList_GET_ITEM(nested_list.get(), i) ==
+              reinterpret_cast<PyObject*>(cf.get())) {
+            if (PyList_SetSlice(nested_list.get(), i, i + 1, nullptr) < 0) {
+              PyErr_Clear();
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  it->second->clear();
   compiled_codes_.erase(CompilationKey{func});
+}
+
+void Context::forgetCompiledFunction(CompiledFunction& function) {
+  if (function.runtime() != nullptr) {
+    for (auto pyfunc : function.functions()) {
+      compiled_funcs_.erase(pyfunc);
+    }
+    compiled_codes_.erase(CompilationKey{function});
+  }
 }
 
 bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
@@ -516,24 +605,43 @@ bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
   return compiled_funcs_.contains(func);
 }
 
-CompiledFunction* Context::lookupFunc(BorrowedRef<PyFunctionObject> func) {
+BorrowedRef<CompiledFunction> Context::lookupFunc(
+    BorrowedRef<PyFunctionObject> func) {
   return lookupCode(func->func_code, func->func_builtins, func->func_globals);
 }
 
 CodeRuntime* Context::lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) {
   CompiledFunction* compiled = lookupFunc(func);
   if (compiled == nullptr) {
+    if (func->func_dict != nullptr) {
+      // For multi-threaded compile tests we clear the compiled codes. This is a
+      // super funky thing to do because the functions may actually still be
+      // running and we may try and get the code runtime. So here we make a
+      // last-ditch effort to try and recover the runtime from the function.
+      Ref<> compiled_val = getDictRef(func->func_dict, kCompiledFunctionKey);
+      if (compiled_val != nullptr &&
+          Py_TYPE(compiled_val) == getCompiledFunctionType()) {
+        auto compiled_func =
+            reinterpret_cast<CompiledFunction*>(compiled_val.get());
+        if (compiled_func->functions().contains(func)) {
+          return compiled_func->runtime();
+        }
+      }
+    }
     return nullptr;
   }
   return compiled->runtime();
 }
 
-const UnorderedMap<CompilationKey, std::unique_ptr<CompiledFunction>>&
+const UnorderedMap<CompilationKey, BorrowedRef<CompiledFunction>>&
 Context::compiledCodes() const {
   return compiled_codes_;
 }
 
-const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::compiledFuncs() {
+const UnorderedMap<
+    BorrowedRef<PyFunctionObject>,
+    BorrowedRef<CompiledFunction>>&
+Context::compiledFuncs() {
   return compiled_funcs_;
 }
 
@@ -555,22 +663,32 @@ void Context::setCinderJitModule(Ref<> mod) {
   cinderjit_module_ = std::move(mod);
 }
 
-void Context::clearCache() {
-  for (auto& entry : compiled_codes_) {
-    orphaned_compiled_codes_.emplace_back(std::move(entry.second));
+void Context::clearForMultithreadedCompileTest() {
+  for (auto& func_entry : compiled_funcs_) {
+    BorrowedRef<CompiledFunction> compiled = func_entry.second;
+    // Disconnect from Context so clear() on eventual destruction won't call
+    // back into us (e.g., forgetCompiledFunction, unwatch).
+    compiled->setOwner(nullptr);
+    // Keep the old CompiledFunction alive via a strong reference.
+    orphaned_compiled_codes_.emplace_back(
+        Ref<CompiledFunction>::create(compiled));
   }
   compiled_codes_.clear();
+  compiled_funcs_.clear();
 }
 
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
-  compiled_funcs_.erase(func);
+  auto it = compiled_funcs_.find(func);
+  if (it != compiled_funcs_.end()) {
+    it->second->removeFunction(func);
+    compiled_funcs_.erase(func);
+  }
   deopted_funcs_.erase(func);
-
   // This doesn't modify compiled_codes_, so if this is a nested function it can
   // easily be reopted later.
 }
 
-CompiledFunction* Context::lookupCode(
+BorrowedRef<CompiledFunction> Context::lookupCode(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals) {
@@ -587,12 +705,20 @@ void Context::removeDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
   deopted_funcs_.erase(func);
 }
 
-bool Context::addCompiledFunc(BorrowedRef<PyFunctionObject> func) {
-  return compiled_funcs_.emplace(func).second;
+bool Context::addCompiledFunc(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> compiled) {
+  return compiled_funcs_.emplace(func, compiled).second;
 }
 
 bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
-  return compiled_funcs_.erase(func) == 1;
+  auto in_compiled_funcs = compiled_funcs_.find(func);
+  if (in_compiled_funcs != compiled_funcs_.end()) {
+    in_compiled_funcs->second->removeFunction(func);
+    compiled_funcs_.erase(in_compiled_funcs);
+    return true;
+  }
+  return false;
 }
 
 bool Context::addActiveCompile(CompilationKey& key) {
@@ -603,19 +729,45 @@ void Context::removeActiveCompile(CompilationKey& key) {
   active_compiles_.erase(key);
 }
 
-CompiledFunction* Context::makeCompiledFunction(
+Ref<CompiledFunction> Context::makeCompiledFunction(
     BorrowedRef<PyFunctionObject> func,
     const CompilationKey& key,
     CompiledFunctionData&& compiled_func) {
-  auto compiled = std::make_unique<CompiledFunction>(std::move(compiled_func));
-
-  auto pair = compiled_codes_.emplace(key, std::move(compiled));
-  JIT_CHECK(pair.second, "CompilationKey already present");
-  // If we have a function go ahead and initialize it
-  if (func != nullptr) {
-    finalizeFunc(func, *pair.first->second.get());
+  BorrowedRef<PyFunctionObject> outer = nullptr;
+  auto outer_it = code_outer_funcs_.find(key.code);
+  if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {
+    outer = outer_it->second;
   }
-  return pair.first->second.get();
+  bool immortal = getConfig().immortalize_compiled_functions ||
+      (func != nullptr && _Py_IsImmortal(func)) ||
+      (outer != nullptr && _Py_IsImmortal(outer));
+  auto compiled = CompiledFunction::create(std::move(compiled_func), immortal);
+  if (compiled == nullptr) {
+    return nullptr;
+  }
+
+  // If the registered outer func for the code is different than the func we
+  // will register the CompiledCode on the outer most function.
+  if (outer != nullptr && outer->func_globals == key.globals &&
+      outer->func_builtins == key.builtins &&
+      !associateFunctionWithCompiled(outer, compiled, true)) {
+    return nullptr;
+  }
+
+  if (func != nullptr && !finalizeFunc(func, compiled)) {
+    return nullptr;
+  }
+
+  // We are storing a borrowed reference to the CompiledFunction. For functions,
+  // finalizeFunc has put the CompiledFunction in the function's dictionary to
+  // keep it alive. Code objects will be deleted when we receive a notification
+  // from Python that they are being destroyed.
+  auto pair = compiled_codes_.emplace(key, compiled);
+  JIT_CHECK(
+      pair.second,
+      "CompilationKey already present {}",
+      PyUnicode_AsUTF8(reinterpret_cast<PyCodeObject*>(key.code)->co_qualname));
+  return compiled;
 }
 
 #ifndef WIN32
