@@ -116,3 +116,7 @@ test.test_sysconfig.TestSysConfig.test_soabi
 # these esoteric tests fail on some versions
 test.test_subprocess.ProcessTestCase.test_executable_without_cwd
 test.test_subprocess.ProcessTestCaseNoPoll.test_executable_without_cwd
+
+# jemalloc creates a background thread which causes extra output to get
+# spewed to stderr on fork.
+test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works_after_fork_with_many_code_objects
