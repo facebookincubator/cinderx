@@ -31,3 +31,6 @@ test_cinderx.test_jit_generators.*
 # and clears and restores them between runs, but contextvars isn't
 # imported when it captures them when we run in cinder_test_runner.
 test.test_context.ContextTest.test_context_isinstance
+
+# Fails because we put in a JIT CompiledFunction to the dict
+test.test_funcattrs.FunctionDictsTest.test_unassigned_dict
