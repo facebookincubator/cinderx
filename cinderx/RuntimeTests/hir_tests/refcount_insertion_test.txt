@@ -931,7 +931,6 @@ fun jittestmodule:test {
     Decref v44
     Decref v47
     v48:NoneType = LoadConst<NoneType>
-    Incref v48
     Return v48
   }
 }
@@ -1407,7 +1406,6 @@ fun jittestmodule:test {
     Decref v54
     Decref v57
     v58:NoneType = LoadConst<NoneType>
-    Incref v58
     Return v58
   }
 }
@@ -1951,7 +1949,6 @@ fun jittestmodule:test {
     Decref v25
     XDecref v26
     v42:NoneType = LoadConst<NoneType>
-    Incref v42
     Return v42
   }
 }
@@ -2361,7 +2358,6 @@ fun jittestmodule:test {
       }
     }
     v7:NoneType = LoadConst<NoneType>
-    Incref v7
     Return v7
   }
 }
@@ -3355,14 +3351,12 @@ fun jittestmodule:test {
     Decref v32
     Decref v33
     v34:NoneType = LoadConst<NoneType>
-    Incref v34
     Return v34
   }
 
   bb 6 (preds 4) {
     XDecref v27
     v35:NoneType = LoadConst<NoneType>
-    Incref v35
     Return v35
   }
 }
@@ -3830,7 +3824,6 @@ fun jittestmodule:test {
 
   bb 3 (preds 2) {
     v39:NoneType = LoadConst<NoneType>
-    Incref v39
     Branch<4>
   }
 
@@ -3846,7 +3839,7 @@ fun jittestmodule:test {
     v47:OptObject = LoadGlobalCached<1; "print">
     v48:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v47 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v17 b:v27 o:v42 o:v44 b:v45 b:v47
+      LiveValues<6> b:v17 b:v27 o:v42 o:v44 unc:v45 b:v47
       FrameState {
         CurInstrOffset 34
         Locals<4> v27 v42 v17 v44
@@ -3855,7 +3848,7 @@ fun jittestmodule:test {
     Incref v27
     Decref v42
     v50:Object = VectorCall<1> v48 v27 {
-      LiveValues<5> b:v17 o:v27 o:v44 b:v45 b:v48
+      LiveValues<5> b:v17 o:v27 o:v44 unc:v45 b:v48
       FrameState {
         CurInstrOffset 42
         Locals<4> v27 v45 v17 v44
@@ -3865,7 +3858,6 @@ fun jittestmodule:test {
     Decref v44
     Decref v50
     v51:NoneType = LoadConst<NoneType>
-    Incref v51
     Return v51
   }
 }
@@ -4285,7 +4277,6 @@ fun jittestmodule:test {
     }
     Decref v11
     v14:NoneType = LoadConst<NoneType>
-    Incref v14
     Return v14
   }
 }
@@ -4307,7 +4298,6 @@ fun jittestmodule:test {
     }
     Decref v11
     v14:NoneType = LoadConst<NoneType>
-    Incref v14
     Return v14
   }
 }
@@ -4329,7 +4319,6 @@ fun jittestmodule:test {
     }
     Decref v11
     v14:NoneType = LoadConst<NoneType>
-    Incref v14
     Return v14
   }
 }
@@ -4351,7 +4340,6 @@ fun jittestmodule:test {
     }
     Decref v11
     v14:NoneType = LoadConst<NoneType>
-    Incref v14
     Return v14
   }
 }
