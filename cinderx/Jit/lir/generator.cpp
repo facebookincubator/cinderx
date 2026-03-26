@@ -371,29 +371,6 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   // generate entry block and exit block
   entry_block_ = GenerateEntryBlock();
 
-#if defined(CINDER_AARCH64)
-  // Compute the address of the deopt_idx field once in the entry block.
-  // TranslateOneBasicBlock reuses this for all deopt index stores.
-  if (func_->code != nullptr &&
-      getConfig().frame_mode == FrameMode::kLightweight) {
-    bool is_gen = func_->code->co_flags & kCoFlagsAnyGenerator;
-    int32_t deopt_idx_offset;
-    if (is_gen) {
-      deopt_idx_offset = static_cast<int32_t>(
-          offsetof(GenDataFooter, frame_header) +
-          offsetof(FrameHeader, deopt_idx));
-    } else {
-      deopt_idx_offset = static_cast<int32_t>(
-          -(Py_ssize_t)frameHeaderSize(func_->code) +
-          offsetof(FrameHeader, deopt_idx));
-    }
-    auto* instr = entry_block_->allocateInstr(Instruction::kLea, nullptr);
-    instr->output()->setVirtualRegister();
-    instr->allocateStackInput(PhyLocation(deopt_idx_offset));
-    deopt_idx_addr_ = instr;
-  }
-#endif
-
   UnorderedMap<const hir::BasicBlock*, TranslatedBlock> bb_map;
   std::vector<const hir::BasicBlock*> translated;
   auto translate_block = [&](const hir::BasicBlock* hir_bb) {
@@ -713,20 +690,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
   BasicBlock* entry_block = bbb.allocateBlock();
   bbb.switchBlock(entry_block);
 
-#if defined(CINDER_AARCH64)
-  // Track the last line number stored in deopt_idx so we can avoid redundant
-  // updates for Decrefs on the same line.
-  int last_deopt_line = -1;
-#endif
-
   for (auto& i : *hir_bb) {
     auto opcode = i.opcode();
     bbb.setCurrentInstr(&i);
-
-#if defined(CINDER_AARCH64)
-    updateDeoptIndex(bbb, i, opcode, last_deopt_line);
-#endif
-
     switch (opcode) {
       case Opcode::kLoadArg: {
         auto instr = static_cast<const LoadArg*>(&i);
@@ -3701,55 +3667,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
   return {bbs.front(), bbs.back()};
 }
-
-#if defined(CINDER_AARCH64)
-void LIRGenerator::updateDeoptIndex(
-    BasicBlockBuilder& bbb,
-    const jit::hir::Instr& i,
-    jit::hir::Opcode opcode,
-    int& last_deopt_line) {
-  // For any instruction that can deopt, store the deopt index in the
-  // outermost frame header before the instruction executes. This allows
-  // frame introspection (e.g. sys._current_frames) to recover the current
-  // bytecode offset without needing to walk the native stack.
-  if (deopt_idx_addr_ != nullptr && i.asDeoptBase() != nullptr) {
-    auto deopt_id = bbb.makeDeoptMetadata();
-    bbb.appendInstr(
-        OutInd{deopt_idx_addr_, 0},
-        Instruction::kMove,
-        Imm{deopt_id, DataType::k64bit});
-    auto code = func_->codeFor(i);
-    last_deopt_line = code != nullptr
-        ? PyCode_Addr2Line(code, i.bytecodeOffset().value())
-        : -1;
-  } else if (
-      deopt_idx_addr_ != nullptr &&
-      (opcode == Opcode::kDecref || opcode == Opcode::kXDecref ||
-       opcode == Opcode::kBatchDecref)) {
-    // Decref/XDecref can run arbitrary code via __del__ but don't have
-    // deopt metadata. Create a minimal entry so that frame introspection
-    // reports the correct bytecode offset / line number, but only when
-    // the line differs from the last deopt point in this basic block.
-    auto code = func_->codeFor(i);
-    int decref_line = code != nullptr
-        ? PyCode_Addr2Line(code, i.bytecodeOffset().value())
-        : -1;
-    if (decref_line != last_deopt_line) {
-      DeoptMetadata meta;
-      DeoptFrameMetadata frame_meta;
-      frame_meta.code = code;
-      frame_meta.cause_instr_idx = i.bytecodeOffset();
-      meta.frame_meta = {frame_meta};
-      auto deopt_id = env_->code_rt->addDeoptMetadata(std::move(meta));
-      bbb.appendInstr(
-          OutInd{deopt_idx_addr_, 0},
-          Instruction::kMove,
-          Imm{deopt_id, DataType::k64bit});
-      last_deopt_line = decref_line;
-    }
-  }
-}
-#endif
 
 void LIRGenerator::resolvePhiOperands(
     UnorderedMap<const hir::BasicBlock*, TranslatedBlock>& bb_map) {

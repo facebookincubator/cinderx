@@ -18,7 +18,7 @@ extern "C" {
 // jmp correct-bound-args
 #define JITRT_CALL_REENTRY_OFFSET (-6)
 #elif defined(__aarch64__)
-// stp fp, lr, [sp, #-16]!
+// stp fp, lr, [sp, #-32]!
 // mov fp, sp
 // b correct-bound-args
 #define JITRT_CALL_REENTRY_OFFSET (-12)

@@ -11,9 +11,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/gen_data_footer.h"
-#if defined(CINDER_X86_64)
 #include "cinderx/Jit/symbolizer.h"
-#endif
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
@@ -85,7 +83,6 @@ bool isInlined(_PyInterpreterFrame* frame) {
   return hasRtfsFunction(frame);
 }
 
-#if defined(CINDER_X86_64)
 // Return the base of the stack frame given its frame.
 uintptr_t getFrameBaseFromOnStackFrame(_PyInterpreterFrame* frame) {
   // The frame is embedded in the frame header at the beginning of the
@@ -103,9 +100,17 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
     auto footer = jitGenDataFooter(gen);
     if (footer->yieldPoint == nullptr) {
       // The generator is running.
+#if defined(__x86_64__)
       // On x86, we read the return address from a fixed offset on the real
       // stack relative to the resume function's RBP.
       frame_base = footer->originalFramePointer;
+#elif defined(__aarch64__)
+      // On ARM64, the JIT stores the return address at [fp + 16] before
+      // each call. During generator execution, FP is set to the
+      // GenDataFooter pointer (gi_jit_data), so [footer + 16] is the
+      // savedReturnIP field.
+      frame_base = reinterpret_cast<uintptr_t>(footer);
+#endif
     } else {
       // The generator is suspended.
       return footer->yieldPoint->resumeTarget();
@@ -114,6 +119,7 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
     frame_base = getFrameBaseFromOnStackFrame(frame);
   }
   // Read the saved IP from the stack.
+#if defined(__x86_64__)
   // On x86, `call` pushes the return address on the stack at a fixed
   // location relative to the caller's frame pointer.
   uintptr_t ip;
@@ -121,11 +127,23 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
       reinterpret_cast<uintptr_t*>(frame_base - frame_size - kPointerSize);
   memcpy(&ip, saved_ip, kPointerSize);
   return ip;
+#elif defined(__aarch64__)
+  // On ARM64, `blr` stores the return address in lr (x30) rather than
+  // pushing it on the stack. The JIT explicitly saves the return address
+  // at [fp + 16] before each call, so we can read it from a fixed offset
+  // from the frame base.
+  uintptr_t ip;
+  auto saved_ip = reinterpret_cast<uintptr_t*>(frame_base + 2 * kPointerSize);
+  memcpy(&ip, saved_ip, kPointerSize);
+  return ip;
+#else
+  // Unsupported architecture.
+  JIT_ABORT("getIP: unsupported architecture");
+#endif
 #else
   throw std::runtime_error{"getIP: Lightweight frames are not supported"};
 #endif
 }
-#endif
 
 // Collect all the frames in the unit, with the frame for the
 // non-inlined function as the first element in the return vector.
@@ -182,14 +200,9 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   _PyInterpreterFrame* non_inlined_sf = unit_frames[0];
   CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
   JIT_CHECK(code_rt != nullptr, "failed to find code runtime");
-
-#if defined(CINDER_AARCH64)
-  // On ARM64, look up bytecode offsets using the deopt index stored in the
-  // frame header. The JIT updates this index before each instruction that
-  // can deopt, so it always reflects the current position in the bytecode.
-  std::size_t deopt_idx = jitFrameGetHeader(non_inlined_sf)->deopt_idx;
+  uintptr_t ip = getIP(non_inlined_sf, code_rt->frameSize());
   std::optional<UnitCallStack> locs =
-      code_rt->getUnitCallStackFromDeoptIdx(deopt_idx);
+      code_rt->debugInfo()->getUnitCallStack(ip);
   if (locs.has_value()) {
     // We may have a different number of unit_frames than locs, this happens
     // when we're updating the outer frame while we're in an inlined function,
@@ -203,35 +216,11 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
       unit_state.emplace_back(unit_frames[i], locs->at(i));
     }
   } else {
-    // We might not have debug info for a number of reasons.
-    // The consequences of getting this wrong (incorrect line numbers) don't
-    // warrant aborting in production, but it is worth investigating.
-    JIT_LOG(
-        "No debug info for deopt_idx {} in {}",
-        deopt_idx,
-        PyUnicode_AsUTF8(code_rt->frameState()->func()->func_qualname));
-    logUnitFrames();
-    JIT_DABORT("No debug info for deopt_idx {}", deopt_idx);
-    for (_PyInterpreterFrame* unit_frame : unit_frames) {
-      unit_state.emplace_back(
-          unit_frame, CodeObjLoc{_PyFrame_GetCode(unit_frame), BCOffset{-1}});
-    }
-  }
-#elif defined(CINDER_X86_64)
-  // On x86-64, look up bytecode offsets using the IP-based symbolizer.
-  uintptr_t ip = getIP(non_inlined_sf, code_rt->frameSize());
-  std::optional<UnitCallStack> locs =
-      code_rt->debugInfo()->getUnitCallStack(ip);
-  if (locs.has_value()) {
-    for (std::size_t i = 0; i < unit_frames.size(); i++) {
-      JIT_DCHECK(
-          _PyFrame_GetCode(unit_frames[i]) == locs->at(i).code,
-          "code mismatch {} vs {}",
-          codeName(_PyFrame_GetCode(unit_frames[i])),
-          codeName(locs->at(i).code));
-      unit_state.emplace_back(unit_frames[i], locs->at(i));
-    }
-  } else {
+    // We might not have debug info for a number of reasons (e.g. we've read
+    // the return address incorrectly or there's a bug with how we're
+    // generating the information). The consequences of getting this wrong
+    // (incorrect line numbers) don't warrant aborting in production, but it is
+    // worth investigating. Leave some breadcrumbs to help with debugging.
     JIT_LOG(
         "No debug info for addr {:x} {}",
         ip,
@@ -243,9 +232,6 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
           unit_frame, CodeObjLoc{_PyFrame_GetCode(unit_frame), BCOffset{-1}});
     }
   }
-#else
-  CINDER_UNSUPPORTED
-#endif
 
   return unit_state;
 }
@@ -540,9 +526,6 @@ void jitFrameInitLightweight(
   setFrameCode(frame, reifier);
   setFrameFunction(frame, (PyObject*)Py_NewRef(func));
   jitFrameGetHeader(frame)->rtfs = 0;
-#if defined(CINDER_AARCH64)
-  jitFrameGetHeader(frame)->deopt_idx = 0;
-#endif
 #else
   frame->stacktop = 0;
   setFrameInstruction(frame, _PyCode_CODE(code) - 1);

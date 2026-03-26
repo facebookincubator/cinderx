@@ -124,13 +124,6 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& instr,
       bool xdecref);
-#if defined(CINDER_AARCH64)
-  void updateDeoptIndex(
-      BasicBlockBuilder& bbb,
-      const jit::hir::Instr& i,
-      jit::hir::Opcode opcode,
-      int& last_deopt_line);
-#endif
 
   bool TranslateSpecializedCall(
       BasicBlockBuilder& bbb,
@@ -157,13 +150,6 @@ class LIRGenerator {
       const hir::BeginInlinedFunction* instr);
 
   Function* lir_func_{nullptr};
-
-#if defined(CINDER_AARCH64)
-  // Address of the deopt_idx field in the FrameHeader, computed once per
-  // function in the entry block. Used by TranslateOneBasicBlock to store the
-  // deopt index before each deoptable instruction.
-  Instruction* deopt_idx_addr_{nullptr};
-#endif
 };
 
 } // namespace jit::lir

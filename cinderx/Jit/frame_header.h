@@ -33,13 +33,6 @@ struct FrameHeader {
     PyFunctionObject* func;
     uintptr_t rtfs;
   };
-#if defined(CINDER_AARCH64)
-  // Index into the CodeRuntime's deopt metadata array. Used to recover the
-  // current bytecode offset for frame introspection (e.g. sys._current_frames).
-  // Updated before each instruction that can deopt. On x86-64, we use the
-  // IP-based symbolizer approach instead.
-  std::size_t deopt_idx;
-#endif
 };
 
 #define JIT_FRAME_RTFS 0x01
