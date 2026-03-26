@@ -4971,6 +4971,21 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr):
             pass
 
+    def test_custom_metaclass_treated_as_dynamic(self) -> None:
+        codestr = """
+            class MyMeta(type):
+                pass
+
+            class C(metaclass=MyMeta):
+                x: int = 42
+
+            def myfunc(c: C):
+                return c.x
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.myfunc
+            self.assertNotInBytecode(f, "LOAD_FIELD")
+
     @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_error(self) -> None:
         codestr = """

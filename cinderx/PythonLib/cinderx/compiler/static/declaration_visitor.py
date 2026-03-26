@@ -161,6 +161,14 @@ class DeclarationVisitor(GenericVisitor[None]):
                     node,
                 )
 
+        # Classes with custom metaclasses may reject SP's
+        # __final_method_names__ attribute or conflict with slot generation.
+        # Treat them as dynamic, same as NamedTuple/Protocol/TypedDict.
+        for kw in node.keywords:
+            if kw.arg == "metaclass":
+                klass = self.type_env.dynamic
+                break
+
         # we can't statically load classes nested inside functions
         if not isinstance(parent_scope, (ModuleTable, Class)):
             klass = self.type_env.dynamic
