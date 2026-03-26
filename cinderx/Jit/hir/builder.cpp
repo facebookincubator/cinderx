@@ -1204,10 +1204,7 @@ void HIRBuilder::translate(
             break;
           }
           OperandStack& stack = tc.frame.stack;
-          Register* top = stack.top();
-
-          std::copy_backward(stack.end() - oparg, stack.end() - 1, stack.end());
-          stack.topPut(oparg - 1, top);
+          std::rotate(stack.end() - oparg, stack.end() - 1, stack.end());
           break;
         }
         case END_ASYNC_FOR: {
