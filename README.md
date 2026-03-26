@@ -2,6 +2,8 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/cinderx.svg)](https://pypi.org/pypi/cinderx/)
 
+![The CinderX logo, which is a lowercase "cinderx" with the dot in the i as a small flame, and a stylized orange x](assets/png/logo.png)
+
 CinderX is a Python extension that improves the performance of the Python
 runtime.
 
