@@ -136,6 +136,10 @@ class alignas(16) CodeRuntime {
   // True if the references have been cleared
   bool isCleared() const;
 
+  // Get the UnitCallStack from a deopt metadata index.
+  std::optional<UnitCallStack> getUnitCallStackFromDeoptIdx(
+      std::size_t deopt_idx) const;
+
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   void setReifier(BorrowedRef<> reifier) {
     ThreadedCompileSerialize guard;
