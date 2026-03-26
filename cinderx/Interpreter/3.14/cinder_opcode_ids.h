@@ -1,7 +1,7 @@
 
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-// 3.14 has a simple file that just defines the relavant ids:
+// 3.14 has a simple file that just defines the relevant ids:
 
 #include "opcode.h"
 
