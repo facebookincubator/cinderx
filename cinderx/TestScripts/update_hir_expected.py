@@ -653,6 +653,8 @@ def update_cpp_tests(  # noqa: C901
                     continue
 
                 if in_version_block is not None and in_version_block != py_version:
+                    # Put entry back so it can be found in the matching version block
+                    test_dict[varname] = entry
                     new_lines.append(line)
                     continue
 
