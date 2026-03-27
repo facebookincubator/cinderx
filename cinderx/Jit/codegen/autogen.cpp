@@ -1127,7 +1127,11 @@ template <int N>
 struct LabelOperand {
   using asmjit_type = const asmjit::Label&;
   static asmjit::Label GetAsmOperand(Environ* env, const Instruction* instr) {
-    auto block = LIROperandMapper<N>(instr)->getBasicBlock();
+    auto* operand = LIROperandMapper<N>(instr);
+    if (operand->getDefine()->hasAsmLabel()) {
+      return operand->getDefine()->getAsmLabel();
+    }
+    auto block = operand->getBasicBlock();
     return map_get(env->block_label_map, block);
   }
 };
@@ -1241,6 +1245,27 @@ void restoreCalleeSavedRegsAarch64(
   }
 }
 #endif
+
+void translateLeaLabel(Environ* env, const Instruction* instr) {
+  auto* as = env->as;
+  auto output = instr->output();
+  auto* input = instr->getInput(0);
+
+  JIT_CHECK(output->isReg(), "Expected output to be a register");
+  JIT_CHECK(input->isLabel(), "Expected input to be a label");
+
+  asmjit::Label label = input->getDefine()->hasAsmLabel()
+      ? input->getDefine()->getAsmLabel()
+      : map_get(env->block_label_map, input->getBasicBlock());
+
+#if defined(CINDER_X86_64)
+  as->lea(x86::gpq(output->getPhyRegister().loc), x86::ptr(label));
+#elif defined(CINDER_AARCH64)
+  as->adr(a64::x(output->getPhyRegister().loc), label);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
 
 void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   auto* as = env->as;
@@ -1427,6 +1452,7 @@ BEGIN_RULE_TABLE
 
 BEGIN_RULES(Instruction::kLea)
   GEN("Rm", ASM(lea, OP(0), MEM(1)))
+  GEN("Rb", CALL_C(translateLeaLabel))
 END_RULES
 
 BEGIN_RULES(Instruction::kCall)

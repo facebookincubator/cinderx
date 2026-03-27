@@ -257,6 +257,24 @@ void Operand::setBasicBlock(BasicBlock* block) {
   value_ = block;
 }
 
+asmjit::Label Operand::getAsmLabel() const {
+  JIT_CHECK(
+      type_ == kLabel,
+      "Trying to treat operand [type={}] as an asmjit label",
+      type_);
+  return std::get<asmjit::Label>(value_);
+}
+
+void Operand::setAsmLabel(const asmjit::Label& label) {
+  type_ = kLabel;
+  data_type_ = kObject;
+  value_ = label;
+}
+
+bool Operand::hasAsmLabel() const {
+  return type_ == kLabel && std::holds_alternative<asmjit::Label>(value_);
+}
+
 uint64_t Operand::getConstantOrAddress() const {
   if (auto v = std::get_if<uint64_t>(&value_)) {
     return *v;

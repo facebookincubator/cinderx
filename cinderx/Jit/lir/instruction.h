@@ -241,6 +241,7 @@ class Instruction {
   Operand* allocatePhyRegOrStackInput(PhyLocation loc);
   Operand* allocateAddressInput(void* address);
   Operand* allocateLabelInput(BasicBlock* block);
+  Operand* allocateAsmLabelInput(const asmjit::Label& label);
 
   template <typename... Args>
   Operand* allocateMemoryIndirectInput(Args&&... args) {
@@ -282,6 +283,8 @@ class Instruction {
       allocateAddressInput(first_arg.value);
     } else if constexpr (std::is_same_v<FT, Lbl>) {
       allocateLabelInput(first_arg.value);
+    } else if constexpr (std::is_same_v<FT, AsmLbl>) {
+      allocateAsmLabelInput(first_arg.value);
     } else if constexpr (std::is_same_v<FT, VReg>) {
       allocateLinkedInput(first_arg.value);
     } else if constexpr (std::is_same_v<FT, Ind>) {

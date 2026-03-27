@@ -179,6 +179,10 @@ class Operand : public OperandBase {
   BasicBlock* getBasicBlock() const override;
   void setBasicBlock(BasicBlock* block);
 
+  asmjit::Label getAsmLabel() const;
+  void setAsmLabel(const asmjit::Label& label);
+  bool hasAsmLabel() const;
+
   uint64_t getConstantOrAddress() const override;
 
   const Operand* getDefine() const override;
@@ -203,6 +207,7 @@ class Operand : public OperandBase {
       uint64_t,
       void*,
       BasicBlock*,
+      asmjit::Label,
       std::unique_ptr<MemoryIndirect>,
       PhyLocation>
       value_;
@@ -352,6 +357,14 @@ DECLARE_TYPE_ARG(Stk, PhyLocation, false)
 DECLARE_TYPE_ARG(Lbl, BasicBlock*, false)
 DECLARE_TYPE_ARG(VReg, Instruction*, false)
 DECLARE_TYPE_ARG(Ind, MemoryIndirect, false)
+
+// AsmLbl wraps an asmjit::Label directly (as opposed to Lbl which wraps a
+// BasicBlock* that is later resolved to a label via block_label_map).
+struct AsmLbl {
+  explicit AsmLbl(asmjit::Label& l) : value(l) {}
+  asmjit::Label value;
+  static constexpr bool is_output = false;
+};
 
 DECLARE_TYPE_ARG(OutPhyReg, PhyLocation, true)
 DECLARE_TYPE_ARG(OutImm, uint64_t, true)
