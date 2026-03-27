@@ -54,7 +54,6 @@ PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
 std::pair<PyThreadState*, jit::GenDataFooter*>
 JITRT_AllocateAndLinkGenAndInterpreterFrame(
     PyFunctionObject* func,
-    uint64_t spill_words,
     jit::CodeRuntime* code_rt,
     GenResumeFunc resume_entry,
     uint64_t original_frame_pointer);

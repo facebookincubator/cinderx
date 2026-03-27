@@ -692,7 +692,6 @@ void JITRT_InitFrameCellVars(
 std::pair<PyThreadState*, jit::GenDataFooter*>
 JITRT_AllocateAndLinkGenAndInterpreterFrame(
     PyFunctionObject* func,
-    uint64_t spill_words,
     jit::CodeRuntime* code_rt,
     GenResumeFunc resume_func,
     uint64_t original_frame_pointer) {
@@ -703,6 +702,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   BorrowedRef<PyCodeObject> co{func->func_code};
   JIT_DCHECK(co == code_rt->frameState()->code(), "Code object mismatch");
 
+  uint64_t spill_words = code_rt->spillWords();
   PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
   auto [gen, gen_size] = cinderx::getModuleState()->jit_gen_free_list->allocate(

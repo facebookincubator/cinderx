@@ -128,6 +128,10 @@ class alignas(16) CodeRuntime {
   int frameSize() const;
   void setFrameSize(int size);
 
+  // Get and set the number of spill words for generators.
+  uint32_t spillWords() const;
+  void setSpillWords(uint32_t words);
+
   DebugInfo* debugInfo();
 
   // Traverse all GC-reachable objects held by this CodeRuntime.
@@ -168,6 +172,7 @@ class alignas(16) CodeRuntime {
 #endif
 
   int frame_size_{-1};
+  uint32_t spill_words_{0};
   DebugInfo debug_info_;
 };
 

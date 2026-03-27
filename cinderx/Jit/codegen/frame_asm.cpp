@@ -179,12 +179,9 @@ void FrameAsm::linkNormalGeneratorFrame(
   preserver.preserve();
 
 #if defined(CINDER_X86_64)
-  uint64_t full_words = env_.shadow_frames_and_spill_size / kPointerSize;
-
-  as_->mov(x86::rsi, full_words);
-  as_->mov(x86::rdx, reinterpret_cast<intptr_t>(codeRuntime()));
-  as_->lea(x86::rcx, x86::ptr(env_.gen_resume_entry_label));
-  as_->mov(x86::r8, x86::rbp);
+  as_->mov(x86::rsi, reinterpret_cast<intptr_t>(codeRuntime()));
+  as_->lea(x86::rdx, x86::ptr(env_.gen_resume_entry_label));
+  as_->mov(x86::rcx, x86::rbp);
   as_->call(
       reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkGenAndInterpreterFrame));
   as_->mov(tstate_reg, x86::rax);
@@ -194,12 +191,9 @@ void FrameAsm::linkNormalGeneratorFrame(
   // so no need to copy things over.
   as_->mov(x86::rbp, x86::rdx);
 #elif defined(CINDER_AARCH64)
-  uint64_t full_words = env_.shadow_frames_and_spill_size / kPointerSize;
-
-  as_->mov(a64::x1, full_words);
-  as_->mov(a64::x2, reinterpret_cast<intptr_t>(codeRuntime()));
-  as_->adr(a64::x3, env_.gen_resume_entry_label);
-  as_->mov(a64::x4, arch::fp);
+  as_->mov(a64::x1, reinterpret_cast<intptr_t>(codeRuntime()));
+  as_->adr(a64::x2, env_.gen_resume_entry_label);
+  as_->mov(a64::x3, arch::fp);
   as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkGenAndInterpreterFrame);
   as_->blr(arch::reg_scratch_br);
   as_->mov(tstate_reg, a64::x0);

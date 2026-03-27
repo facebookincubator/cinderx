@@ -1249,6 +1249,13 @@ void* NativeGenerator::getVectorcallEntry() {
   JIT_DCHECK(code.codeSize() < INT_MAX, "Code size is larger than INT_MAX");
   compiled_size_ = code.codeSize();
   env_.code_rt->setFrameSize(env_.stack_frame_size);
+  if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
+    JIT_DCHECK(
+        env_.shadow_frames_and_spill_size % kPointerSize == 0,
+        "Bad spill alignment");
+    env_.code_rt->setSpillWords(
+        env_.shadow_frames_and_spill_size / kPointerSize);
+  }
   return vectorcall_entry_;
 }
 

@@ -125,6 +125,14 @@ void CodeRuntime::setFrameSize(int size) {
   frame_size_ = size;
 }
 
+uint32_t CodeRuntime::spillWords() const {
+  return spill_words_;
+}
+
+void CodeRuntime::setSpillWords(uint32_t words) {
+  spill_words_ = words;
+}
+
 DebugInfo* CodeRuntime::debugInfo() {
   return &debug_info_;
 }
