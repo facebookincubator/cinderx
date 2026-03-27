@@ -214,6 +214,20 @@ file(COPY ${usdt_SOURCE_DIR}/usdt.h DESTINATION ${USDT_DIR})
 
 find_package(ZLIB)
 
+########################################
+# capstone (optional, for JIT disassembly)
+
+if (${ENABLE_DISASSEMBLER})
+  FetchContent_Declare(
+    capstone
+    GIT_REPOSITORY https://github.com/capstone-engine/capstone
+    GIT_TAG 5.0.7
+  )
+  set(CAPSTONE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(CAPSTONE_BUILD_CSTOOL OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(capstone)
+endif()
+
 ##############################################################################
 # Build cinderx
 
@@ -322,6 +336,9 @@ endif()
 
 add_library(jit ${JIT_SOURCES})
 target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt)
+if (${ENABLE_DISASSEMBLER})
+  target_link_libraries(jit PRIVATE capstone_static)
+endif()
 
 ########################################
 # ParallelGC/
