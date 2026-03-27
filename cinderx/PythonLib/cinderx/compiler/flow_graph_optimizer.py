@@ -83,7 +83,7 @@ class FlowGraphOptimizer:
         raise NotImplementedError()
 
     def set_to_nop(self, instr: Instruction) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def dispatch_instr(
         self,
