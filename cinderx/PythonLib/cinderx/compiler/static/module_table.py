@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from .compiler import Compiler
 
 
-# When set to True, allow type alises of the form
+# When set to True, allow type aliases of the form
 #   A = Foo
 # as well as the explicit 3.12+
 #   type A = Foo

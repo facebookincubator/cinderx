@@ -8,7 +8,7 @@ When called as a script with arguments, this compiles the directories
 given as arguments recursively; the -l option prevents it from
 recursing into directories.
 
-Without arguments, if compiles all modules on sys.path, without
+Without arguments, it compiles all modules on sys.path, without
 recursing into subdirectories.  (Even though it should do so for
 packages -- for now, you'll have to deal with packages separately.)
 
@@ -390,8 +390,8 @@ def compile_path(
     quiet: as for compile_dir() (default 0)
     legacy: as for compile_dir() (default False)
     optimize: as for compile_dir() (default -1)
-    invalidation_mode: as for compiler_dir()
-    loader_override: as for compiler_dir()
+    invalidation_mode: as for compile_dir()
+    loader_override: as for compile_dir()
     """
     success = True
     for dir in sys.path:

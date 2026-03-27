@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# Dissassemble code objects:
+# Disassemble code objects:
 # a) recursively (like dis.dis() in CPython behaves);
 # b) providing stable references to internal code objects (by replacing
 #    memory address with incrementing number);

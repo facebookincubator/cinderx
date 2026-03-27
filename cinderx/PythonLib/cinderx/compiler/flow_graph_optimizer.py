@@ -362,7 +362,7 @@ class FlowGraphOptimizer:
 
 
 class FlowGraphOptimizer310(FlowGraphOptimizer):
-    """Python 3.10-specifc optimizations."""
+    """Python 3.10-specific optimizations."""
 
     def opt_build_tuple(
         self: FlowGraphOptimizer,
@@ -448,7 +448,7 @@ LOAD_CONST_INSTRS = ("LOAD_CONST", "LOAD_SMALL_INT")
 
 
 class FlowGraphOptimizer312(FlowGraphOptimizer):
-    """Python 3.12-specifc optimizations."""
+    """Python 3.12-specific optimizations."""
 
     JUMP_ABS = "JUMP"
 
