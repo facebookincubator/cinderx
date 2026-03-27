@@ -294,6 +294,7 @@ bool Instruction::isAnyYield() const {
     case kYieldInitial:
     case kYieldValue:
     case kStoreGenYieldPoint:
+    case kStoreGenYieldFromPoint:
       return true;
     default:
       return false;

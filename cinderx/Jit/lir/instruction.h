@@ -169,6 +169,13 @@ enum OperandSizeType {
   X(YieldInitial, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)        \
   X(YieldValue, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)          \
   X(StoreGenYieldPoint, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)  \
+  X(StoreGenYieldFromPoint,                                                   \
+    false,                                                                    \
+    FlagEffects::kInvalidate,                                                 \
+    kDefault,                                                                 \
+    0,                                                                        \
+    {},                                                                       \
+    1)                                                                        \
   X(BranchToYieldExit, false, FlagEffects::kNone, kDefault, 0, {}, 1)         \
   X(ResumeGenYield, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)      \
   X(YieldExitPoint, false, FlagEffects::kNone, kDefault, 0, {}, 1)            \
@@ -395,19 +402,6 @@ class Instruction {
   bool isTerminator() const;
   bool isAnyYield() const;
 
-  // For YieldValue instructions that are part of a yield-from, this records
-  // the input index of the sub-iterator so that emitStoreGenYieldPoint can
-  // capture its spill offset for gi_yieldfrom.
-  void setYieldFromInputIdx(int idx) {
-    yieldFromInputIdx_ = idx;
-  }
-  bool isInYieldFromContext() const {
-    return yieldFromInputIdx_ >= 0;
-  }
-  int yieldFromInputIdx() const {
-    return yieldFromInputIdx_;
-  }
-
   // negate the branch condition:
   // e.g. A >= B -> !(A < B)
   static Opcode negateBranchCC(Opcode opcode);
@@ -435,7 +429,6 @@ class Instruction {
   Operand output_;
   BasicBlock* basic_block_;
   const hir::Instr* origin_;
-  int yieldFromInputIdx_{-1};
   std::vector<std::unique_ptr<OperandBase>> inputs_;
 };
 

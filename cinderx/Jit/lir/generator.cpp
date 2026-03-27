@@ -1316,15 +1316,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(
             Instruction::kYieldValue, env_->asm_tstate, hir_instr->reg());
 
-        // 2. kStoreGenYieldPoint: store yield point metadata and live regs.
-        Instruction* store_instr =
-            bbb.appendInstr(Instruction::kStoreGenYieldPoint);
+        // 2. kStoreGenYieldPoint / kStoreGenYieldFromPoint: store yield point
+        //    metadata and live regs.
+        Instruction* store_instr;
         if (hir_instr->isYieldFrom()) {
-          // Add the sub-iterator as an extra input so that
+          store_instr = bbb.appendInstr(Instruction::kStoreGenYieldFromPoint);
+          // Add the sub-iterator as input 0 so that
           // emitStoreGenYieldPoint can capture its spill offset.
           store_instr->addOperands(
               VReg{bbb.getDefInstr(hir_instr->yieldFromIter())});
-          store_instr->setYieldFromInputIdx(store_instr->getNumInputs() - 1);
+        } else {
+          store_instr = bbb.appendInstr(Instruction::kStoreGenYieldPoint);
         }
         finishYield(bbb, store_instr, hir_instr);
 

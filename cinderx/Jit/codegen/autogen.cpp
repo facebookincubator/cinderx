@@ -556,9 +556,8 @@ void emitStoreGenYieldPoint(
     const Instruction* yield,
     asmjit::Label resume_label,
     arch::Gp suspend_data_r,
-    arch::Gp scratch_r) {
-  bool is_yield_from = yield->isInYieldFromContext();
-
+    arch::Gp scratch_r,
+    bool is_yield_from) {
   auto calc_spill_offset = [&](size_t live_input_n) {
     PhyLocation mem = yield->getInput(live_input_n)->getStackSlot();
     return mem.loc / kPointerSize;
@@ -576,9 +575,8 @@ void emitStoreGenYieldPoint(
       live_regs_input - num_live_regs,
       live_regs_input);
 
-  auto yield_from_offset = is_yield_from
-      ? calc_spill_offset(yield->yieldFromInputIdx())
-      : kInvalidYieldFromOffset;
+  auto yield_from_offset =
+      is_yield_from ? calc_spill_offset(0) : kInvalidYieldFromOffset;
   GenYieldPoint* gen_yield_point = env->code_rt->addGenYieldPoint(
       GenYieldPoint{deopt_idx, yield_from_offset});
 
@@ -714,7 +712,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // Arbitrary scratch register for use in emitStoreGenYieldPoint().
   auto scratch_r = x86::r9;
   asmjit::Label resume_label = as->newLabel();
-  emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rdi, scratch_r);
+  emitStoreGenYieldPoint(
+      as, env, instr, resume_label, x86::rdi, scratch_r, false);
 
   // Store variables spilled by this point to generator.
   int spill_bytes = env->initial_yield_spill_size_;
@@ -758,7 +757,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // exit path now.
   auto scratch_r = x86::r9;
   asmjit::Label resume_label = as->newLabel();
-  emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rdx, scratch_r);
+  emitStoreGenYieldPoint(
+      as, env, instr, resume_label, x86::rdx, scratch_r, false);
 
   // Jump to epilogue
   as->jmp(env->exit_for_yield_label);
@@ -797,7 +797,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // exit path now.
   auto scratch_r = arch::reg_scratch_0;
   asmjit::Label resume_label = as->newLabel();
-  emitStoreGenYieldPoint(as, env, instr, resume_label, a64::x1, scratch_r);
+  emitStoreGenYieldPoint(
+      as, env, instr, resume_label, a64::x1, scratch_r, false);
 
   // Jump to epilogue
   as->b(env->exit_for_yield_label);
@@ -847,13 +848,55 @@ void translateStoreGenYieldPoint(Environ* env, const Instruction* instr) {
   auto scratch_r = x86::r9;
   env->pending_yield_resume_label = as->newLabel();
   emitStoreGenYieldPoint(
-      as, env, instr, env->pending_yield_resume_label, x86::rbp, scratch_r);
+      as,
+      env,
+      instr,
+      env->pending_yield_resume_label,
+      x86::rbp,
+      scratch_r,
+      false);
 #elif defined(CINDER_AARCH64)
   a64::Builder* as = env->as;
   auto scratch_r = arch::reg_scratch_0;
   env->pending_yield_resume_label = as->newLabel();
   emitStoreGenYieldPoint(
-      as, env, instr, env->pending_yield_resume_label, arch::fp, scratch_r);
+      as,
+      env,
+      instr,
+      env->pending_yield_resume_label,
+      arch::fp,
+      scratch_r,
+      false);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+void translateStoreGenYieldFromPoint(Environ* env, const Instruction* instr) {
+#if defined(CINDER_X86_64)
+  arch::Builder* as = env->as;
+  auto scratch_r = x86::r9;
+  env->pending_yield_resume_label = as->newLabel();
+  emitStoreGenYieldPoint(
+      as,
+      env,
+      instr,
+      env->pending_yield_resume_label,
+      x86::rbp,
+      scratch_r,
+      true);
+#elif defined(CINDER_AARCH64)
+  a64::Builder* as = env->as;
+  auto scratch_r = arch::reg_scratch_0;
+  env->pending_yield_resume_label = as->newLabel();
+  emitStoreGenYieldPoint(
+      as,
+      env,
+      instr,
+      env->pending_yield_resume_label,
+      arch::fp,
+      scratch_r,
+      true);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1755,6 +1798,10 @@ END_RULES
 
 BEGIN_RULES(Instruction::kStoreGenYieldPoint)
   GEN(ANY, CALL_C(translateStoreGenYieldPoint))
+END_RULES
+
+BEGIN_RULES(Instruction::kStoreGenYieldFromPoint)
+  GEN(ANY, CALL_C(translateStoreGenYieldFromPoint))
 END_RULES
 
 BEGIN_RULES(Instruction::kBranchToYieldExit)
@@ -3065,6 +3112,10 @@ END_RULES
 
 BEGIN_RULES(Instruction::kStoreGenYieldPoint)
   GEN(ANY, CALL_C(translateStoreGenYieldPoint))
+END_RULES
+
+BEGIN_RULES(Instruction::kStoreGenYieldFromPoint)
+  GEN(ANY, CALL_C(translateStoreGenYieldFromPoint))
 END_RULES
 
 BEGIN_RULES(Instruction::kBranchToYieldExit)
