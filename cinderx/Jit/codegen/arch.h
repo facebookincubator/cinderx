@@ -43,6 +43,8 @@ constexpr auto reg_double_auxilary_return_loc = XMM1;
 constexpr auto reg_frame_pointer_loc = RBP;
 constexpr auto reg_stack_pointer_loc = RSP;
 
+constexpr auto fp = asmjit::x86::rbp;
+
 } // namespace jit::codegen::arch
 
 #elif defined(CINDER_AARCH64)
