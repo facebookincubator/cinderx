@@ -102,6 +102,19 @@ class BasicBlockBuilder {
     return instr;
   }
 
+  // Allocate and append a new instruction to the instruction stream.
+  //
+  // The instruction is expecting to produce a VReg and match it to an HIR
+  // register.
+  template <class... Args>
+  Instruction*
+  appendInstr(OutPhyReg dest, Instruction::Opcode opcode, Args&&... args) {
+    auto instr = appendInstr(opcode, std::forward<Args>(args)...);
+    instr->output()->setPhyRegister(dest.value);
+    instr->output()->setDataType(dest.data_type);
+    return instr;
+  }
+
   // Allocate and append a new branching instruction to the instruction stream.
   template <class Arg>
   Instruction* appendBranch(
