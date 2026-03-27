@@ -165,26 +165,26 @@ fun __main__:test {
     }
     v1:NoneType = LoadConst<NoneType>
     v2:Object = LoadGlobal<0> {
-      LiveValues<2> b:v0 unc:v1
+      LiveValues<2> b:v0 b:v1
       FrameState {
         CurInstrOffset -2
       }
     }
     CheckExc v2 {
-      LiveValues<3> b:v0 unc:v1 o:v2
+      LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
         CurInstrOffset 6
       }
     }
     Guard v2 {
-      LiveValues<3> b:v0 unc:v1 o:v2
+      LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
         CurInstrOffset 6
         Stack<3> v0 v1 v2
       }
     }
     v3:Object = VectorCall<2> v0 v1 v2 {
-      LiveValues<3> b:v0 unc:v1 o:v2
+      LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
         CurInstrOffset -2
       }

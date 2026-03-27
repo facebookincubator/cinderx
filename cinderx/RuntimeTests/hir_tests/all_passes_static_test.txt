@@ -89,6 +89,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     XDecref v25
     v44:NoneType = LoadConst<NoneType>
+    Incref v44
     Return v44
   }
 }

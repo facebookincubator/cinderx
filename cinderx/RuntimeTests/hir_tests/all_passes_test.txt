@@ -980,6 +980,7 @@ fun jittestmodule:test {
     }
     Decref v8
     v15:NoneType = LoadConst<NoneType>
+    Incref v15
     Return v15
   }
 }

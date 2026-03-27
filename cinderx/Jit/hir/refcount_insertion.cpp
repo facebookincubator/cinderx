@@ -476,14 +476,7 @@ std::vector<PredState> collectPredStates(Env& env, BasicBlock* block) {
 // Return true iff the given Register is definitely not a reference-counted
 // value.
 bool isUncounted(const Register* reg) {
-  auto ty = reg->type();
-  if (!ty.couldBe(TMortalObject)) {
-    return true;
-  }
-
-  // Types like TMortalBool always exist in the type system but with immortal
-  // instances enabled they're identical to their immortal equivalents.
-  return kImmortalInstances && (ty <= (TNoneType | TBool));
+  return !reg->type().couldBe(TMortalObject);
 }
 
 // Insert an Incref of `reg` before `cursor`.
