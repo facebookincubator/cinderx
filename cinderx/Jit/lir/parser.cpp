@@ -46,7 +46,7 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"[RD][0-9]+", kPhyReg},
 #endif
       {"XMM[0-9]+", kPhyReg},
-      {R"(\[RBP[ ]?-[ ]?(\d+)\])", kStack},
+      {R"(\[RBP\((-?\d+)\)\])", kStack},
       {"\\[(0x[0-9a-fA-F]+)\\]", kAddress},
       {R"((\d+)(\(0x[0-9a-fA-F]+\))?)", kImmediate},
       {"BB%(\\d+)", kBasicBlockRef},
