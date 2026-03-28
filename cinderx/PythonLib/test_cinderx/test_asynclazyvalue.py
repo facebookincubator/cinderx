@@ -251,7 +251,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         self.assertIs(await_stacks[0][0].cr_code, g.__code__)
         self.assertIs(await_stacks[0][1], h0_coro)
         self.assertIs(await_stacks[0][2], gatherer_coro)
-        # pyre-fixme[16]: Callable has no attribute `__code__`.
         self.assertIs(await_stacks[1][0].cr_code, g.__code__)
         self.assertIs(await_stacks[1][1], h1_coro)
         self.assertIs(await_stacks[1][2], gatherer_coro)
@@ -359,7 +358,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             self.log("completed-coro")
             raise RuntimeError("async_func never got cancelled")
 
-        # pyre-fixme[11]: Annotation `AsyncLazyValue` is not defined as a type.
         async def async_cancel(task: asyncio.Task, alv: AsyncLazyValue) -> None:
             start = time()
             while alv._awaiting_tasks < 1:
@@ -381,7 +379,6 @@ class AsyncLazyValueTest(unittest.TestCase):
         alv = AsyncLazyValue(async_func, 1, 2)
         ta = asyncio.ensure_future(alv)
         tb = asyncio.ensure_future(alv)
-        # pyre-fixme[6]: Expected `Task[Any]` for 1st param but got `Future[Any]`.
         tc = asyncio.ensure_future(async_cancel(ta, alv))
 
         ta_result, tb_result, tc_result = await asyncio.gather(
@@ -405,7 +402,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             await self.cancelled.wait()
             return arg1 + arg2
 
-        # pyre-fixme[11]: Annotation `AsyncLazyValue` is not defined as a type.
         async def async_cancel(task: asyncio.Task, alv: AsyncLazyValue) -> None:
             start = time()
             while alv._awaiting_tasks < 1:

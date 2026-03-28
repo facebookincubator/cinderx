@@ -203,9 +203,10 @@ class PyreflyTypeInfo:
                             # `C` refers to the exact class, not a subclass.
                             return resolved.exact_type()
             elif entry["qname"] in ("typing.Optional", "typing.Union"):
-                # pyre-ignore[27]: tagged union data layout
                 args = entry.get("args", [])
                 resolved_args: list[Class] = []
+                # pyre-fixme[16]: Item `object` of `list[Any] | object` has no
+                #  attribute `__iter__`.
                 for arg_index in args:
                     arg_val = self.lookup_type(arg_index, modules, type_env)
                     if arg_val is None:
@@ -325,6 +326,7 @@ class Pyrefly:
         # Buck always specifies the top-level directory, so double-check if there's a
         # types/ subdirectory and use that if it exists.
         types_subdir = os.path.join(type_dir, "types")
+        # pyre-fixme[4]: Attribute must be annotated.
         self.type_dir = types_subdir if os.path.isdir(types_subdir) else type_dir
 
     def load_type_info(self, module_name: str) -> PyreflyTypeInfo | None:
