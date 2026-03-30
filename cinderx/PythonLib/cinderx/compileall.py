@@ -19,11 +19,12 @@ import filecmp
 import importlib.util
 import os
 import py_compile
+import re
 import struct
 import sys
+from collections.abc import Generator
 from functools import partial
 from pathlib import Path
-from typing import Generator, Pattern, Type
 
 from cinderx.compiler.pysourceloader import PySourceFileLoader
 from cinderx.compiler.strict.loader import strict_compile as strict_compile_fn
@@ -64,7 +65,7 @@ def compile_dir(
     maxlevels: int | None = None,
     ddir: str | None = None,
     force: bool = False,
-    rx: Pattern | None = None,
+    rx: re.Pattern[str] | None = None,
     quiet: int = 0,
     legacy: bool = False,
     optimize: int | list[int] = -1,
@@ -75,7 +76,7 @@ def compile_dir(
     prependdir: str | None = None,
     limit_sl_dest: str | None = None,
     hardlink_dupes: bool = False,
-    loader_override: Type[PySourceFileLoader] | None = None,
+    loader_override: type[PySourceFileLoader] | None = None,
     strict_compile: bool = False,
 ) -> bool:
     """Byte-compile all modules in the given directory tree.
@@ -184,7 +185,7 @@ def compile_file(
     fullname: str,
     ddir: str | None = None,
     force: bool = False,
-    rx: Pattern | None = None,
+    rx: re.Pattern[str] | None = None,
     quiet: int = 0,
     legacy: bool = False,
     optimize: int | list[int] = -1,
@@ -194,7 +195,7 @@ def compile_file(
     prependdir: str | None = None,
     limit_sl_dest: str | None = None,
     hardlink_dupes: bool = False,
-    loader_override: Type[PySourceFileLoader] | None = None,
+    loader_override: type[PySourceFileLoader] | None = None,
     strict_compile: bool = False,
 ) -> bool:
     """Byte-compile one file.
@@ -377,7 +378,7 @@ def compile_path(
     legacy: bool = False,
     optimize: int | list[int] = -1,
     invalidation_mode: py_compile.PycInvalidationMode | None = None,
-    loader_override: Type[PySourceFileLoader] | None = None,
+    loader_override: type[PySourceFileLoader] | None = None,
     strict_compile: bool = False,
 ) -> bool:
     """Byte-compile all module on sys.path.
