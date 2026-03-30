@@ -224,11 +224,20 @@ struct Config {
   uint64_t adaptive_threshold{80};
 };
 
+// The JIT's config object. The accessors defined below are used in very hot
+// paths in the JIT and need to be defined in a header to ensure that they are
+// inlined reliably without LTO.
+extern Config s_jit_config;
+
 // Get the JIT's current config object.
-const Config& getConfig();
+inline const Config& getConfig() {
+  return s_jit_config;
+}
 
 // Get the JIT's current config object with the intent of modifying it.
-Config& getMutableConfig();
+inline Config& getMutableConfig() {
+  return s_jit_config;
+}
 
 // Check that the JIT is initialized.  Though it might be paused and or
 // finalizing, it's not necessarily usable.
