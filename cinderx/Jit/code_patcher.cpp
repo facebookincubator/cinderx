@@ -37,9 +37,9 @@ CINDER_UNSUPPORTED
 constexpr auto kJmpNopBytes = std::to_array<uint8_t>({0x00});
 #endif
 
-// Compute an unsigned 32-bit jump displacement.
-uint32_t jumpDisplacement(uintptr_t from, uintptr_t to) {
-  auto disp = to - from;
+// Compute a signed 32-bit jump displacement.
+int32_t jumpDisplacement(uintptr_t from, uintptr_t to) {
+  auto disp = static_cast<intptr_t>(to - from);
 
 #if defined(CINDER_X86_64)
   disp -= kJmpNopBytes.size();
@@ -50,13 +50,14 @@ uint32_t jumpDisplacement(uintptr_t from, uintptr_t to) {
       "Can't encode jump from {:#x} to {:#x} as relative",
       from,
       to);
-  return static_cast<uint32_t>(disp);
+  return static_cast<int32_t>(disp);
 }
 
 // Given the starting address and displacement operand of a jump instruction,
 // resolve it to a target address.
-uintptr_t resolveDisplacement(uintptr_t from, uint32_t displacement) {
-  auto disp = from + displacement;
+uintptr_t resolveDisplacement(uintptr_t from, int32_t displacement) {
+  auto disp =
+      from + static_cast<uintptr_t>(static_cast<intptr_t>(displacement));
 
 #if defined(CINDER_X86_64)
   disp += kJmpNopBytes.size();
@@ -198,7 +199,7 @@ void JumpPatcher::linkJump(uintptr_t patchpoint, uintptr_t jump_target) {
 #if defined(CINDER_X86_64)
   // 32 bit relative jump - https://www.felixcloutier.com/x86/jmp
   buf[0] = 0xe9;
-  std::memcpy(buf.data() + 1, &disp, sizeof(uint32_t));
+  std::memcpy(buf.data() + 1, &disp, sizeof(disp));
 #elif defined(CINDER_AARCH64)
   JIT_CHECK(
       disp % 4 == 0, "Jump displacement must be a multiple of 4, got {}", disp);
@@ -206,7 +207,7 @@ void JumpPatcher::linkJump(uintptr_t patchpoint, uintptr_t jump_target) {
   disp /= 4;
   JIT_CHECK(fitsSignedInt<26>(disp), "Not enough bits to encode relative jump");
 
-  uint32_t insn = 0x14000000 | disp;
+  uint32_t insn = 0x14000000 | (static_cast<uint32_t>(disp) & 0x03ffffff);
   std::memcpy(buf.data(), &insn, sizeof(uint32_t));
 #else
   (void)disp;
@@ -226,16 +227,15 @@ uint8_t* JumpPatcher::jumpTarget() const {
       "Must have linked a {}-byte jump instruction into a JumpPatcher",
       kJmpNopBytes.size());
 
-  uint32_t disp = 0;
+  int32_t disp = 0;
 
 #if defined(CINDER_X86_64)
   std::memcpy(&disp, bytes.data() + 1, bytes.size() - 1);
 #elif defined(CINDER_AARCH64)
-  std::memcpy(&disp, bytes.data(), bytes.size());
-  disp &= 0x03ffffff; // extract out 26-bit immediate
-  if (disp & 0x02000000) {
-    disp |= 0xfc000000; // sign-extend 26-bit immediate to 32-bit displacement
-  }
+  uint32_t insn = 0;
+  std::memcpy(&insn, bytes.data(), bytes.size());
+  // Extract 26-bit immediate and sign-extend to 32 bits.
+  disp = static_cast<int32_t>(insn << 6) >> 6;
   disp *= 4;
 #else
   CINDER_UNSUPPORTED
