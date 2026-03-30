@@ -181,11 +181,9 @@ def extract_summary_data(function_data: Dict[str, FunctionData]) -> Dict[str, An
     """
     # Initialize counters
     total_code_size = 0
-    total_functions_called = 0
     instruction_counts = defaultdict(int)
     type_counts = defaultdict(int)
     functions_with_code_size = 0
-    functions_with_calls_info = 0
 
     # Aggregate data
     for _, data in function_data.items():
@@ -207,8 +205,6 @@ def extract_summary_data(function_data: Dict[str, FunctionData]) -> Dict[str, An
         "total_functions": len(function_data),
         "total_code_size": total_code_size,
         "functions_with_code_size": functions_with_code_size,
-        "total_functions_called": total_functions_called,
-        "functions_with_calls_info": functions_with_calls_info,
         "instruction_counts": dict(instruction_counts),
         "type_counts": dict(type_counts),
     }
