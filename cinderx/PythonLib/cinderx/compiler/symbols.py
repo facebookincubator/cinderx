@@ -23,9 +23,6 @@ from .consts import (
 from .misc import mangle
 from .visitor import ASTVisitor
 
-if sys.version_info[0] >= 3:
-    long = int
-
 MANGLE_LEN = 256
 
 DEF_GLOBAL = 1
@@ -981,7 +978,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
     # prune if statements if tests are false
 
-    _const_types = str, bytes, int, long, float
+    _const_types = str, bytes, int, float
 
     def visitIf(self, node: ast.If, scope: Scope) -> None:
         self.visit(node.test, scope)
