@@ -16,9 +16,8 @@ import re
 import sys
 from collections.abc import Generator, Iterable
 from pprint import pformat
-from re import Pattern
 from types import CodeType
-from typing import Optional, TextIO
+from typing import TextIO
 
 
 def _make_stable(
@@ -62,15 +61,15 @@ def _disassemble_bytes(
     co: CodeType,
     code: bytes,
     lasti: int = -1,
-    varnames: Optional[tuple[str]] = None,
-    names: Optional[tuple[str]] = None,
-    constants: Optional[tuple[object]] = None,
-    cells: Optional[tuple[object]] = None,
-    linestarts: Optional[dict[int, int]] = None,
+    varnames: tuple[str] | None = None,
+    names: tuple[str] | None = None,
+    constants: tuple[object] | None = None,
+    cells: tuple[object] | None = None,
+    linestarts: dict[int, int] | None = None,
     *,
-    file: Optional[TextIO] = None,
+    file: TextIO | None = None,
     line_offset: int = 0,
-    localsplusnames: Optional[tuple[str]] = None,
+    localsplusnames: tuple[str] | None = None,
 ) -> None:
     # Omit the line number column entirely if we have no line number info
     show_lineno = linestarts is not None
@@ -142,7 +141,7 @@ def disassemble(
     co: CodeType,
     lasti: int = -1,
     *,
-    file: Optional[TextIO] = None,
+    file: TextIO | None = None,
     skip_line_nos: bool = False,
 ) -> None:
     cell_names = co.co_cellvars + co.co_freevars
@@ -194,7 +193,7 @@ class Disassembler:
         self,
         co: CodeType,
         lasti: int = -1,
-        file: Optional[TextIO] = None,
+        file: TextIO | None = None,
         skip_line_nos: bool = False,
     ) -> None:
         """Disassemble a code object."""
@@ -204,7 +203,7 @@ class Disassembler:
         codeobj = co.replace(co_consts=consts)
         disassemble(codeobj, file=file, skip_line_nos=skip_line_nos)
 
-    def dump_code(self, co: CodeType, file: Optional[TextIO] = None) -> None:
+    def dump_code(self, co: CodeType, file: TextIO | None = None) -> None:
         if not file:
             file = sys.stdout
         print(self.co_repr(co), file=file)
@@ -258,7 +257,7 @@ class Disassembler:
 
 
 # https://www.python.org/dev/peps/pep-0263/
-coding_re: Pattern[bytes] = re.compile(
+coding_re: re.Pattern[bytes] = re.compile(
     rb"^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)"
 )
 
