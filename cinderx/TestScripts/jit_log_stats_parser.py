@@ -646,7 +646,7 @@ def main():
     analyze_parser.add_argument(
         "--code-size",
         action="store_true",
-        help="Show code-size changes (these are little non-deterministic)",
+        help="Show code-size changes (these are a little non-deterministic)",
     )
 
     # Compare two log files
@@ -667,7 +667,7 @@ def main():
     compare_parser.add_argument(
         "--code-size",
         action="store_true",
-        help="Show code-size changes (these are little non-deterministic)",
+        help="Show code-size changes (these are a little non-deterministic)",
     )
     compare_parser.add_argument(
         "--error-on-diff",
