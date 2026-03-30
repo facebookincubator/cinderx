@@ -90,7 +90,7 @@ class FunctionScope(TransformerScope):
             self.add_attr_name(target, parent)
 
     def add_attr_name(self, target: Attribute, parent: ClassScope) -> None:
-        """records self.name = ... when salf matches the 1st parameter"""
+        """records self.name = ... when self matches the 1st parameter"""
         value = target.value
         node = self.node
         if (
