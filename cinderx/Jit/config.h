@@ -141,6 +141,9 @@ struct Config {
   bool multiple_code_sections{false};
   bool multithreaded_compile_test{false};
   bool use_huge_pages{true};
+  // Use huge pages for cold code sections as well. Only applicable when
+  // multiple_code_sections is enabled. Defaults to false (regular pages).
+  bool cold_code_huge_pages{false};
   // Assume that data found in the Python frame is unchanged across function
   // calls.  This includes the code object, and the globals and builtins
   // dictionaries (but not their contents).
@@ -186,10 +189,6 @@ struct Config {
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.
   size_t preload_dependent_limit{99};
-  // Sizes (in bytes) of the hot and cold code sections. Only applicable if
-  // multiple code sections are enabled.
-  size_t cold_code_section_size{0};
-  size_t hot_code_section_size{0};
   // Memory threshold after which we stop jitting.
   size_t max_code_size{0};
   // Size (in number of entries) of the LoadAttrCached and StoreAttrCached

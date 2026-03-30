@@ -650,16 +650,10 @@ FlagProcessor initFlagProcessor() {
       "Enable emitting code into multiple code sections.");
 
   flag_processor.addOption(
-      "jit-hot-code-section-size",
-      "PYTHONJITHOTCODESECTIONSIZE",
-      getMutableConfig().hot_code_section_size,
-      "Enable emitting code into multiple code sections.");
-
-  flag_processor.addOption(
-      "jit-cold-code-section-size",
-      "PYTHONJITCOLDCODESECTIONSIZE",
-      getMutableConfig().cold_code_section_size,
-      "Enable emitting code into multiple code sections.");
+      "jit-cold-code-huge-pages",
+      "PYTHONJITCOLDCODEHUGEPAGES",
+      getMutableConfig().cold_code_huge_pages,
+      "Use huge pages for cold code sections.");
 
   flag_processor.addOption(
       "jit-attr-caches",
