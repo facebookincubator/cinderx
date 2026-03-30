@@ -63,8 +63,8 @@ def make_fixed_modules() -> Mapping[str, Mapping[str, object]]:
 FIXED_MODULES: Mapping[str, Mapping[str, object]] = make_fixed_modules()
 
 
-TVar = TypeVar("TScope")
-TScopeData = TypeVar("TData", covariant=True)
+TVar = TypeVar("TVar")
+TScopeData = TypeVar("TScopeData", covariant=True)
 
 SymbolMap = dict[AST, SymbolTable]
 
