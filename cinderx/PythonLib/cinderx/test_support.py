@@ -216,7 +216,7 @@ def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
 def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
     """
     Raise a RuntimeException if _any_ deopts occur during execution of the
-    wrapped function. Note deopts occuring in nested function calls will also
+    wrapped function. Note deopts occurring in nested function calls will also
     trigger this. Also, execution will run to completion - it won't stop at the
     point a deopt occurs.
     """
