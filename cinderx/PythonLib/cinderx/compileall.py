@@ -585,8 +585,6 @@ def main() -> bool:
     compile_dests = args.compile_dest
 
     if args.rx:
-        import re
-
         args.rx = re.compile(args.rx)
 
     if args.limit_sl_dest == "":
