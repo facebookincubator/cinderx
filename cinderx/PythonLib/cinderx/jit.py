@@ -100,7 +100,7 @@ except ImportError:
         return None
 
     def enable() -> None:
-        # Warn here because users might think this is function is how to enable the JIT
+        # Warn here because users might think this function is how to enable the JIT
         # when it is not installed.
         warn(
             "Cinder JIT is not installed, calling cinderx.jit.enable() is doing nothing"
