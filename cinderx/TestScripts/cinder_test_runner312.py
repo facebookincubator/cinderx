@@ -346,8 +346,8 @@ def _select_tests(exclude: Set[str]) -> List[str]:
     return tests
 
 
-def list_tests(hunterleaks, use_rr):
-    skip_modules, skip_patterns = _computeSkipTests(hunterleaks, use_rr)
+def list_tests(huntrleaks, use_rr):
+    skip_modules, skip_patterns = _computeSkipTests(huntrleaks, use_rr)
 
     return _select_tests(skip_modules)
 
