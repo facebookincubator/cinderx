@@ -41,6 +41,20 @@ namespace jit::hir {
 
 namespace {
 
+void rotateStackTop(OperandStack& stack, int count) {
+  if (count < 2) {
+    return;
+  }
+
+  JIT_CHECK(
+      stack.size() >= count,
+      "Rotate requires {} values, operand stack only has {}",
+      count,
+      stack.size());
+
+  std::rotate(stack.end() - count, stack.end() - 1, stack.end());
+}
+
 // Check that an opcode is one we know how to translate into HIR.
 bool isSupportedOpcode(int opcode) {
   switch (opcode) {
@@ -1199,12 +1213,7 @@ void HIRBuilder::translate(
           break;
         }
         case ROT_N: {
-          int oparg = bc_instr.oparg();
-          if (oparg <= 1) {
-            break;
-          }
-          OperandStack& stack = tc.frame.stack;
-          std::rotate(stack.end() - oparg, stack.end() - 1, stack.end());
+          rotateStackTop(tc.frame.stack, bc_instr.oparg());
           break;
         }
         case END_ASYNC_FOR: {
@@ -1317,33 +1326,15 @@ void HIRBuilder::translate(
           break;
         }
         case ROT_TWO: {
-          auto& stack = tc.frame.stack;
-          Register* top = stack.pop();
-          Register* snd = stack.pop();
-          stack.push(top);
-          stack.push(snd);
+          rotateStackTop(tc.frame.stack, 2);
           break;
         }
         case ROT_THREE: {
-          auto& stack = tc.frame.stack;
-          Register* top = stack.pop();
-          Register* snd = stack.pop();
-          Register* thd = stack.pop();
-          stack.push(top);
-          stack.push(thd);
-          stack.push(snd);
+          rotateStackTop(tc.frame.stack, 3);
           break;
         }
         case ROT_FOUR: {
-          auto& stack = tc.frame.stack;
-          Register* r1 = stack.pop();
-          Register* r2 = stack.pop();
-          Register* r3 = stack.pop();
-          Register* r4 = stack.pop();
-          stack.push(r1);
-          stack.push(r4);
-          stack.push(r3);
-          stack.push(r2);
+          rotateStackTop(tc.frame.stack, 4);
           break;
         }
         case FOR_ITER: {
