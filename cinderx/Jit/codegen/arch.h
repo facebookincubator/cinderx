@@ -88,6 +88,9 @@ constexpr auto reg_stack_pointer_loc = SP;
 constexpr auto fp = asmjit::a64::x29;
 constexpr auto lr = asmjit::a64::x30;
 
+// Size of the AArch64 frame record: saved FP + LR (two 64-bit registers).
+constexpr int kFrameRecordSize = 2 * sizeof(void*);
+
 } // namespace jit::codegen::arch
 
 #else

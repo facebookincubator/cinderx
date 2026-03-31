@@ -1401,7 +1401,7 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
     restoreCalleeSavedRegsAarch64(as, saved_regs);
   }
   as->mov(a64::sp, arch::fp);
-  as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, 32));
+  as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
   as->ret(arch::lr);
 #else
   CINDER_UNSUPPORTED
@@ -2008,31 +2008,20 @@ void translateCall(Environ* env, const Instruction* instr) {
   auto output = instr->output();
   auto input = instr->getInput(0);
 
-  // Load call target into a register, then save the return address at
-  // [fp + 16] before calling. This allows getIP() to find the return address
-  // at a fixed offset from the frame base, which is needed for cross-thread
-  // frame inspection (e.g. sys._current_frames()).
-  a64::Gp target;
   if (input->isReg()) {
-    target = AT::getGp(input);
+    as->blr(AT::getGp(input));
   } else if (input->isImm()) {
     as->mov(arch::reg_scratch_br, input->getConstant());
-    target = arch::reg_scratch_br;
+    as->blr(arch::reg_scratch_br);
   } else if (input->isStack()) {
     auto loc = input->getStackSlot().loc;
     as->ldr(
         arch::reg_scratch_br,
         arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0));
-    target = arch::reg_scratch_br;
+    as->blr(arch::reg_scratch_br);
   } else {
     JIT_ABORT("Unsupported operand type for Call: {}", input->type());
   }
-
-  asmjit::Label after_call = as->newLabel();
-  as->adr(arch::reg_scratch_0, after_call);
-  as->str(arch::reg_scratch_0, a64::ptr(arch::fp, 16));
-  as->blr(target);
-  as->bind(after_call);
 
   if (instr->origin()) {
     asmjit::Label label = as->newLabel();
