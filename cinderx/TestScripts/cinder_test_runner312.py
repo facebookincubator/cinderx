@@ -82,7 +82,7 @@ try:
         return original_get_code(o)
 
     _testcapi.gen_get_code = gen_get_code
-except ImportError as e:
+except ImportError:
     pass
 
 
