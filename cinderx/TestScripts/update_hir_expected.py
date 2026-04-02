@@ -217,7 +217,7 @@ def update_text_test(  # noqa: C901
     try:
         while True:
             line = next_line()
-            if line in "--- End ---":
+            if line == "--- End ---":
                 new_lines.append(line)
                 break
             expect("--- Test Name ---", line)
