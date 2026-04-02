@@ -5,6 +5,7 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/codegen/arch/detection.h"
 
 namespace jit {
 
