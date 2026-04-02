@@ -38,11 +38,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     from io import BytesIO
     from os import getenv, makedirs
     from os.path import dirname, isdir
-    from py_compile import (
-        _get_default_invalidation_mode,
-        PycInvalidationMode,
-        PyCompileError,
-    )
+    from py_compile import _get_default_invalidation_mode, PycInvalidationMode
     from types import CodeType, ModuleType
     from typing import Callable, cast, Collection, final, Iterable, Mapping
 
@@ -750,14 +746,8 @@ def strict_compile(
     try:
         code = loader.source_to_code(source_bytes, dfile or file, _optimize=optimize)
         deps = loader.get_compiler().get_dependencies(modname)
-    except Exception as err:
+    except Exception:
         raise
-        py_exc = PyCompileError(err.__class__, err, dfile or file)
-        if doraise:
-            raise py_exc
-        else:
-            sys.stderr.write(py_exc.msg + "\n")
-            return
 
     makedirs(dirname(cfile), exist_ok=True)
 
