@@ -1110,7 +1110,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         assert isinstance(self, FlowGraphOptimizer314)
         self.optimize_one_unary(instr_index, instr, block, operator.not_)
 
-    def fold_constrant_intrinsic_list_to_tuple(
+    def fold_constant_intrinsic_list_to_tuple(
         self, block: Block, instr_index: int
     ) -> None:
         consts_found = 0
@@ -1149,7 +1149,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
             consts_found += 1
             expect_append = not expect_append
 
-    def optimize_call_instrinsic_1(
+    def optimize_call_intrinsic_1(
         self: FlowGraphOptimizer,
         instr_index: int,
         instr: Instruction,
@@ -1164,7 +1164,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
             if next_instr is not None and next_instr.opname == "GET_ITER":
                 instr.set_to_nop()
             else:
-                self.fold_constrant_intrinsic_list_to_tuple(block, instr_index)
+                self.fold_constant_intrinsic_list_to_tuple(block, instr_index)
         if intrins == "INTRINSIC_UNARY_POSITIVE":
             self.optimize_one_unary(instr_index, instr, block, operator.pos)
 
@@ -1195,7 +1195,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         "UNARY_INVERT": optimize_unary_invert,
         "UNARY_NEGATIVE": optimize_unary_negative,
         "UNARY_NOT": optimize_unary_not,
-        "CALL_INTRINSIC_1": optimize_call_instrinsic_1,
+        "CALL_INTRINSIC_1": optimize_call_intrinsic_1,
         "SWAP": optimize_swap,
     }
     del handlers["PUSH_NULL"]
