@@ -412,8 +412,18 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-dump-asm",
           "PYTHONJITDUMPASM",
-          getMutableConfig().log.dump_asm,
-          "log the final compiled code, annotated with HIR instructions")
+          [](bool value) {
+#ifndef ENABLE_DISASSEMBLER
+            if (value) {
+              JIT_LOG(
+                  "Cannot use PYTHONJITDUMPASM, disassembler not supported by "
+                  "this build");
+              return;
+            }
+#endif
+            getMutableConfig().log.dump_asm = value;
+          },
+          "Log the final compiled code, annotated with HIR instructions")
       .withDebugMessageOverride("Dump asm of JITed functions");
 
   flag_processor.addOption(

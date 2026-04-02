@@ -46,6 +46,12 @@ std::string Annotations::disassembleSection(
 
   std::stringstream result;
   Disassembler dis(section_start, size);
+  if (dis.cursor() == nullptr) {
+    // Should already be handled by ENABLE_DISASSEMBLER ifdefs, but putting this
+    // defensive check here just in case.
+    return "";
+  }
+
   dis.setPrintInstBytes(false);
   for (auto cursor = section_start, end = cursor + size; cursor < end;) {
     auto new_annot = prev_annot;
