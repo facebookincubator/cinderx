@@ -9,7 +9,6 @@
 #    PythonLib/opcodes/opcode_312.py
 
 import opcode
-import re
 import sys
 
 from . import cinderx_opcodes as cx
@@ -151,7 +150,7 @@ def build_size_map() -> dict[int, list[int]]:
         # pyre-ignore[16]: unknown attribute
         size_by_name[name] = opcode._inline_cache_entries.get(size_from, 0)
 
-    # First add add the specialized opcodes based upon their parent
+    # First add the specialized opcodes based upon their parent
     # pyre-ignore[16]: unknown attribute
     for op, specializations in opcode._specializations.items():
         add_one(op, op)
@@ -223,7 +222,6 @@ def assign_numbers314() -> list[str]:
         if isinstance(val, cx.Family):
             # TODO: Enable cache formats eventually
             cache_size = 0  # sum(val.cache_format.values())
-            cache_format = {}  # val.cache_format
 
             process_opcode(
                 name,
