@@ -429,7 +429,7 @@ class BuildExt(build_ext):
 
         set_option("META_PYTHON", meta_python)
         set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
-        set_option("ENABLE_DISASSEMBLER", False)
+        set_option("ENABLE_DISASSEMBLER", True)
         set_option("ENABLE_ELF_READER", linux)
         set_option("ENABLE_EVAL_HOOK", meta_312)
         set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312)
