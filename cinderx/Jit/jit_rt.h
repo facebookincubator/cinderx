@@ -91,6 +91,11 @@ void JITRT_UnlinkPyFrame(PyThreadState* tstate);
  */
 void JITRT_UnlinkFrame(bool unlink_shadow_frame);
 
+// Specialized version of JITRT_UnlinkFrame for non-generator functions with no
+// free variables that use lightweight frames. Avoids the expensive
+// jitFrameClearExceptCode path.
+void JITRT_UnlinkLightweightFrameFast();
+
 /*
  * Handles a call that includes kw arguments or excess tuple arguments
  */

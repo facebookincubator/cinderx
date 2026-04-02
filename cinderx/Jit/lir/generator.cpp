@@ -313,15 +313,22 @@ BasicBlock* LIRGenerator::GenerateExitBlock() {
 #endif
 
   if (unlink) {
+#ifdef ENABLE_SHADOW_FRAMES
     block->allocateInstr(
         Instruction::kCall,
         nullptr,
-        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)}
-#ifdef ENABLE_SHADOW_FRAMES
-        ,
-        Imm{is_gen ? 0UL : 1UL}
+        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)},
+        Imm{is_gen ? 0UL : 1UL});
+#else
+    // Use the specialized version for the common case: the function uses
+    // lightweight frames, is not a generator, and has no free variables.
+    bool has_freevars = func_->code != nullptr && func_->code->co_nfreevars > 0;
+    bool uses_lw_frames = getConfig().frame_mode == FrameMode::kLightweight;
+    auto helper = (has_freevars || is_gen || !uses_lw_frames)
+        ? reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)
+        : reinterpret_cast<uint64_t>(JITRT_UnlinkLightweightFrameFast);
+    block->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
 #endif
-    );
   }
 
   if (is_gen) {
