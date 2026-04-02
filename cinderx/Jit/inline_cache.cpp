@@ -1091,15 +1091,60 @@ LoadMethodResult LoadMethodCache::lookupHelper(
 #if PY_VERSION_HEX >= 0x030C0000
 // Checks to see if the cached keys version allows a lookup w/o looking in
 // the dictionary. This could be either that we have a match of the keys version
-// or that we a non-heap type w/ no dictionary.
+// or that we have a non-heap type w/ no dictionary.
+//
+// Avoid using _PyObject_GetDictPtr here as it can materialize the dictionary
+// on 3.12+. Instead use version-specific APIs to check the dict state without
+// side effects.
 bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
   if (keys_version == 0) {
     // 0 is an invalid keys version and a sentinel value that we'll never
-    // generate a a cache for a heap type with. We may have a non-heap type
+    // generate a cache for a heap type with. We may have a non-heap type
     // that is cached w/ a keys_version of 0 that has no dictionary in which
     // case the cache is always valid.
     return true;
   }
+
+#if PY_VERSION_HEX >= 0x030E0000
+  PyTypeObject* tp = Py_TYPE(obj);
+  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
+    if (PyType_HasFeature(tp, Py_TPFLAGS_INLINE_VALUES)) {
+      PyDictValues* values = _PyObject_InlineValues(obj);
+      if (values->valid) {
+        // Inline values are still active but the shared keys may have changed
+        // (e.g., a new instance attribute was added). Check the type's shared
+        // keys version.
+        PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
+        return ht->ht_cached_keys->dk_version == keys_version;
+      }
+    }
+    // Check the managed dict directly.
+    PyDictObject* dict = _PyObject_GetManagedDict(obj);
+    if (dict == nullptr) {
+      return true;
+    }
+    return dict->ma_keys->dk_version == keys_version;
+  }
+#else
+  PyTypeObject* tp = Py_TYPE(obj);
+  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
+    PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
+    if (_PyDictOrValues_IsValues(dorv)) {
+      // Values are still inline but the shared keys may have changed
+      // (e.g., a new instance attribute was added). Check the type's shared
+      // keys version.
+      PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
+      return ht->ht_cached_keys->dk_version == keys_version;
+    }
+    PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
+    if (dict == nullptr) {
+      return true;
+    }
+    return dict->ma_keys->dk_version == keys_version;
+  }
+#endif
+
+  // Non-managed-dict fallback (non-heap types with tp_dictoffset).
   PyObject** dictptr = _PyObject_GetDictPtr(obj);
   assert(dictptr != nullptr);
 
