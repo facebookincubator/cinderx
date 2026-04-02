@@ -1,0 +1,16 @@
+InheritParentConfig: true
+
+Checks: '
+-clang-diagnostic-extra-semi,
+-clang-diagnostic-suggest-override,
+-cppcoreguidelines-pro-type-member-init,
+-cppcoreguidelines-special-member-functions,
+-facebook-hte-MissingMoveAssignment,
+-facebook-hte-MissingOverride,
+-facebook-hte-NamespaceScopedStaticDeclaration,
+-facebook-hte-ShadowingClass,
+-facebook-hte-Volatile,
+-google-build-using-namespace,
+-modernize-use-using,
+-readability-braces-around-statements,
+'

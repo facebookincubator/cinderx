@@ -163,16 +163,11 @@ find_package(Python ${PY_VERSION} EXACT COMPONENTS Interpreter Development.Modul
 set(Python_INCLUDE_DIRS ${Python_INCLUDE_DIRS} "${Python_INCLUDE_DIRS}/internal")
 
 ########################################
-# asmjit
+# asmjit (vendored)
 
 set(ASMJIT_STATIC TRUE)
-
-FetchContent_Declare(
-  asmjit
-  GIT_REPOSITORY https://github.com/asmjit/asmjit
-  GIT_TAG cecc73f2979e9704c81a2c2ec79a7475b31c56ac # 2025-May-10
-)
-FetchContent_MakeAvailable(asmjit)
+set(ASMJIT_NO_CUSTOM_FLAGS TRUE)
+add_subdirectory(${PROJECT_SOURCE_DIR}/ThirdParty/asmjit asmjit)
 
 ########################################
 # fmt
