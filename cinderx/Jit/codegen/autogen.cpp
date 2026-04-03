@@ -328,15 +328,10 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
       emit_cmp(reg);
       as->b_ne(deopt_label);
       break;
-    case kHasType: {
-      as->ldr(
-          arch::reg_scratch_0,
-          arch::ptr_offset(reg, offsetof(PyObject, ob_type)));
-
-      emit_cmp(arch::reg_scratch_0);
-      as->b_ne(deopt_label);
-      break;
-    }
+    case kHasType:
+      JIT_ABORT(
+          "kHasType should have been lowered to kIs by postgen "
+          "rewriteGuardHasType");
   }
 #else
   CINDER_UNSUPPORTED

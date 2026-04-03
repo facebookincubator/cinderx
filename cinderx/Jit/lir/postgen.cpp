@@ -521,6 +521,47 @@ RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
   return kChanged;
 }
 
+// On AArch64, Guards with kHasType load obj->ob_type into a scratch register
+// in TranslateGuard. Decompose this into an explicit Move(Ind) to load the
+// type, then convert the guard to kIs so register allocation handles the
+// temporary.
+//
+// Before:  Guard(kHasType, meta, obj, expected_type, ...)
+// After:   type_vreg = Move([obj + ob_type_offset])
+//          Guard(kIs, meta, type_vreg, expected_type, ...)
+RewriteResult rewriteGuardHasType(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  if (!instr->isGuard()) {
+    return kUnchanged;
+  }
+
+  constexpr size_t kKindIndex = 0;
+  constexpr size_t kGuardVarIndex = 2;
+
+  auto kind_opnd = instr->getInput(kKindIndex);
+  if (kind_opnd->getConstant() != kHasType) {
+    return kUnchanged;
+  }
+
+  auto guard_var = instr->getInput(kGuardVarIndex);
+  JIT_CHECK(guard_var->isLinked(), "Expected guard var to be a linked operand");
+  auto guard_var_def = static_cast<LinkedOperand*>(guard_var)->getLinkedInstr();
+
+  auto block = instr->basicblock();
+  constexpr int32_t kObTypeOffset = offsetof(PyObject, ob_type);
+
+  // type_vreg = Move([guard_var + ob_type_offset])
+  auto type_load = block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
+  type_load->allocateMemoryIndirectInput(guard_var_def, kObTypeOffset);
+
+  // Replace guard var with the loaded type and change kind to kIs.
+  instr->setInput(kGuardVarIndex, std::make_unique<LinkedOperand>(type_load));
+  static_cast<Operand*>(instr->getInput(kKindIndex))->setConstant(kIs);
+
+  return kChanged;
+}
+
 // On AArch64, decompose Lea with MemoryIndirect whose multiplier >= 4 into
 // explicit Move(Imm) + MulAdd instructions. Multiplier 0-3 is already optimal
 // (add with shifted register in leaIndex), but multiplier >= 4 previously
@@ -854,6 +895,7 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
   registerOneRewriteFunction(rewritePromoteOutputSize, 1);
   registerOneRewriteFunction(rewriteGuardFPInput, 1);
+  registerOneRewriteFunction(rewriteGuardHasType, 1);
   registerOneRewriteFunction(rewriteLeaLargeMultiplier, 1);
   registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
   registerOneRewriteFunction(rewriteStackInputToVreg, 1);
