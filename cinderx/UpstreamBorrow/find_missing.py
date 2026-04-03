@@ -111,7 +111,6 @@ def find_decls(syms: Iterable[str]) -> dict[str, list[int]]:
     # grep character classes instead.
 
     patfile = "/tmp/patterns-" + str(random.randint(0, 1024))
-    print(patfile)
     with open(patfile, "w") as f:
         for sym in syms:
             f.write(rf"^(\w[\w\s*]*)?\b{sym}\b" + "\n")
