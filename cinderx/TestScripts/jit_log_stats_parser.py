@@ -11,16 +11,16 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
 class FunctionData:
     """Data structure to store compilation information for a function."""
 
-    code_size: Optional[int] = None
-    instructions: Dict[str, int] = None
-    types: Dict[str, int] = None
+    code_size: int | None = None
+    instructions: dict[str, int] | None = None
+    types: dict[str, int] | None = None
 
     def __post_init__(self):
         if self.instructions is None:
@@ -57,7 +57,7 @@ def format_type_name(type_name: str, max_prefix: int = 32, max_suffix: int = 4) 
 
 def parse_jit_log(
     log_file_path: str, include_code_size: bool
-) -> Dict[str, FunctionData]:
+) -> dict[str, FunctionData]:
     """
     Parse a JIT log file and extract compilation information for each function.
 
@@ -68,7 +68,7 @@ def parse_jit_log(
         Dictionary mapping function names to their compilation data
     """
     # Dictionary to store function data
-    function_data: Dict[str, FunctionData] = defaultdict(FunctionData)
+    function_data: dict[str, FunctionData] = defaultdict(FunctionData)
 
     # Regular expression patterns
     compiling_pattern = re.compile(r"JIT: .* -- Compiling (\S+)")
@@ -105,9 +105,9 @@ def parse_jit_log(
 def _process_compilation_start(
     line: str,
     pattern: re.Pattern,
-    function_data: Dict[str, FunctionData],
-    current_function: Optional[str],
-) -> Optional[str]:
+    function_data: dict[str, FunctionData],
+    current_function: str | None,
+) -> str | None:
     """Process a line that might indicate the start of a compilation."""
     match = pattern.search(line)
     if match:
@@ -119,7 +119,7 @@ def _process_compilation_start(
 
 
 def _process_json_with_function(
-    line: str, pattern: re.Pattern, function_data: Dict[str, FunctionData]
+    line: str, pattern: re.Pattern, function_data: dict[str, FunctionData]
 ) -> bool:
     """Process a line that might contain JSON data with a function name."""
     match = pattern.search(line)
@@ -152,10 +152,10 @@ def _process_json_with_function(
 def _process_compilation_end(
     line: str,
     pattern: re.Pattern,
-    function_data: Dict[str, FunctionData],
-    current_function: Optional[str],
+    function_data: dict[str, FunctionData],
+    current_function: str | None,
     include_code_size: bool,
-) -> Optional[str]:
+) -> str | None:
     """Process a line that might indicate the end of a compilation."""
     match = pattern.search(line)
     if match:
@@ -169,7 +169,7 @@ def _process_compilation_end(
     return current_function
 
 
-def extract_summary_data(function_data: Dict[str, FunctionData]) -> Dict[str, Any]:
+def extract_summary_data(function_data: dict[str, FunctionData]) -> dict[str, Any]:
     """
     Extract summary data from function data.
 
@@ -210,7 +210,7 @@ def extract_summary_data(function_data: Dict[str, FunctionData]) -> Dict[str, An
     }
 
 
-def generate_cumulative_summary(function_data: Dict[str, FunctionData]) -> None:
+def generate_cumulative_summary(function_data: dict[str, FunctionData]) -> None:
     """
     Generate and print a cumulative summary of all compiled functions.
 
@@ -240,8 +240,8 @@ def generate_cumulative_summary(function_data: Dict[str, FunctionData]) -> None:
 
 
 def compare_summaries(
-    summary1: Dict[str, Any],
-    summary2: Dict[str, Any],
+    summary1: dict[str, Any],
+    summary2: dict[str, Any],
     name1: str = "Log 1",
     name2: str = "Log 2",
 ) -> bool:
@@ -350,8 +350,8 @@ def compare_summaries(
 
 
 def compare_function_code_sizes(
-    function_data1: Dict[str, FunctionData],
-    function_data2: Dict[str, FunctionData],
+    function_data1: dict[str, FunctionData],
+    function_data2: dict[str, FunctionData],
     name1: str = "Log 1",
     name2: str = "Log 2",
 ) -> bool:
@@ -408,8 +408,8 @@ def compare_function_code_sizes(
 
 
 def compare_function_instructions_by_type(
-    function_data1: Dict[str, FunctionData],
-    function_data2: Dict[str, FunctionData],
+    function_data1: dict[str, FunctionData],
+    function_data2: dict[str, FunctionData],
     name1: str = "Log 1",
     name2: str = "Log 2",
 ) -> bool:
@@ -435,7 +435,7 @@ def compare_function_instructions_by_type(
             all_instructions.update(function_data2[func_name].instructions.keys())
 
     # For each instruction type, find functions with differences
-    instruction_to_func_diffs: Dict[str, list] = {}
+    instruction_to_func_diffs: dict[str, list] = {}
     for instr in all_instructions:
         func_diffs = []
         for func_name in all_functions:
@@ -485,8 +485,8 @@ def compare_function_instructions_by_type(
 
 
 def compare_function_types_by_type(
-    function_data1: Dict[str, FunctionData],
-    function_data2: Dict[str, FunctionData],
+    function_data1: dict[str, FunctionData],
+    function_data2: dict[str, FunctionData],
     name1: str = "Log 1",
     name2: str = "Log 2",
 ) -> bool:
@@ -512,7 +512,7 @@ def compare_function_types_by_type(
             all_types.update(function_data2[func_name].types.keys())
 
     # For each type, find functions with differences
-    type_to_func_diffs: Dict[str, list] = {}
+    type_to_func_diffs: dict[str, list] = {}
     for type_name in all_types:
         func_diffs = []
         for func_name in all_functions:
@@ -562,8 +562,8 @@ def compare_function_types_by_type(
 
 
 def find_functions_missing_type(
-    function_data1: Dict[str, FunctionData],
-    function_data2: Dict[str, FunctionData],
+    function_data1: dict[str, FunctionData],
+    function_data2: dict[str, FunctionData],
     type_name: str,
 ) -> list:
     """
@@ -592,7 +592,7 @@ def find_functions_missing_type(
     return result
 
 
-def print_detailed_summary(function_data: Dict[str, FunctionData]) -> None:
+def print_detailed_summary(function_data: dict[str, FunctionData]) -> None:
     """
     Print a detailed summary of the parsed function data.
 
