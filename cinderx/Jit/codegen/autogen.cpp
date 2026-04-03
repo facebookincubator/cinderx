@@ -536,12 +536,8 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
       instr->output()->dataType() == OperandBase::k8bit,
       "Output should be 8bits, not {}",
       instr->output()->dataType());
-  if (input->isImm()) {
-    as->mov(output, input->getConstant() ? 1 : 0);
-  } else {
-    as->cmp(AutoTranslator::getGpWiden(input), 0);
-    as->cset(output, a64::CondCode::kNE);
-  }
+  as->cmp(AutoTranslator::getGpWiden(input), 0);
+  as->cset(output, a64::CondCode::kNE);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2349,10 +2345,7 @@ void translateNegate(Environ* env, const Instruction* instr) {
 
   auto output_reg = AT::getGpOutput(output);
 
-  if (opnd0->isImm()) {
-    int64_t constant = opnd0->getConstant();
-    as->mov(output_reg, asmjit::Imm(-constant));
-  } else if (opnd0->isReg()) {
+  if (opnd0->isReg()) {
     as->neg(output_reg, AT::getGpWiden(opnd0));
   } else if (opnd0->isStack()) {
     auto loc = opnd0->getStackSlot().loc;
@@ -2376,10 +2369,7 @@ void translateInvert(Environ* env, const Instruction* instr) {
 
   auto output_reg = AT::getGpOutput(output);
 
-  if (opnd0->isImm()) {
-    uint64_t constant = opnd0->getConstant();
-    as->mov(output_reg, asmjit::Imm(~constant));
-  } else if (opnd0->isReg()) {
+  if (opnd0->isReg()) {
     as->mvn(output_reg, AT::getGpWiden(opnd0));
   } else if (opnd0->isStack()) {
     auto loc = opnd0->getStackSlot().loc;
@@ -2511,11 +2501,7 @@ void translateMul(Environ* env, const Instruction* instr) {
   auto output_reg = AT::getGpWiden(output);
   auto opnd0_reg = AT::getGpWiden(opnd0);
 
-  if (opnd1->isImm()) {
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
-    as->mov(scratch, opnd1->getConstant());
-    as->mul(output_reg, opnd0_reg, scratch);
-  } else if (opnd1->isReg()) {
+  if (opnd1->isReg()) {
     as->mul(output_reg, opnd0_reg, AT::getGpWiden(opnd1));
   } else if (opnd1->isStack()) {
     auto loc = opnd1->getStackSlot().loc;
@@ -2589,10 +2575,7 @@ void translatePush(Environ* env, const Instruction* instr) {
 
   const OperandBase* operand = instr->getInput(0);
 
-  if (operand->isImm()) {
-    as->mov(arch::reg_scratch_0, operand->getConstant());
-    as->str(arch::reg_scratch_0, a64::ptr_pre(a64::sp, -16));
-  } else if (operand->isReg()) {
+  if (operand->isReg()) {
     auto reg = AT::getGpWiden(operand);
     as->str(reg, a64::ptr_pre(a64::sp, -16));
   } else if (operand->isStack()) {
@@ -2773,11 +2756,10 @@ void translateSelect(Environ* env, const Instruction* instr) {
       break;
   }
   auto true_val_reg = AT::getGpWiden(instr->getInput(1));
-  auto false_val = instr->getInput(2)->getConstant();
+  auto false_val_reg = AT::getGpWiden(instr->getInput(2));
 
-  as->mov(arch::reg_scratch_0, false_val);
   as->cmp(condition_reg, 0);
-  as->csel(output, true_val_reg, arch::reg_scratch_0, a64::CondCode::kNE);
+  as->csel(output, true_val_reg, false_val_reg, a64::CondCode::kNE);
 }
 
 } // namespace
@@ -2826,13 +2808,11 @@ END_RULES
 
 BEGIN_RULES(Instruction::kNegate)
   GEN("r", CALL_C(translateNegate))
-  GEN("Ri", CALL_C(translateNegate))
   GEN("Rr", CALL_C(translateNegate))
   GEN("Rm", CALL_C(translateNegate))
 END_RULES
 
 BEGIN_RULES(Instruction::kInvert)
-  GEN("Ri", CALL_C(translateInvert))
   GEN("Rr", CALL_C(translateInvert))
   GEN("Rm", CALL_C(translateInvert))
 END_RULES
@@ -2902,10 +2882,8 @@ BEGIN_RULES(Instruction::kXor)
 END_RULES
 
 BEGIN_RULES(Instruction::kMul)
-  GEN("ri", CALL_C(translateMul))
   GEN("rr", CALL_C(translateMul))
   GEN("rm", CALL_C(translateMul))
-  GEN("Rri", CALL_C(translateMul))
   GEN("Rrr", CALL_C(translateMul))
   GEN("Rrm", CALL_C(translateMul))
 END_RULES
@@ -2951,7 +2929,6 @@ END_RULES
 BEGIN_RULES(Instruction::kPush)
   GEN("r", CALL_C(translatePush))
   GEN("m", CALL_C(translatePush))
-  GEN("i", CALL_C(translatePush))
 END_RULES
 
 BEGIN_RULES(Instruction::kPop)
@@ -3124,12 +3101,11 @@ BEGIN_RULES(Instruction::kEpilogueEnd)
 END_RULES
 
 BEGIN_RULES(Instruction::kSelect)
-  GEN("Rrri", CALL_C(translateSelect))
+  GEN("Rrrr", CALL_C(translateSelect))
 END_RULES
 
 BEGIN_RULES(Instruction::kIntToBool)
   GEN("Rr", CALL_C(translateIntToBool))
-  GEN("Ri", CALL_C(translateIntToBool))
 END_RULES
 
 END_RULE_TABLE

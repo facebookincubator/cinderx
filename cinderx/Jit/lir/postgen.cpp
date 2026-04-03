@@ -20,6 +20,49 @@ RewriteResult rewriteInlineHelper(function_rewrite_arg_t func) {
   return LIRInliner::inlineCalls(func) ? kChanged : kUnchanged;
 }
 
+// Constant fold unary operations with immediate inputs.
+// Negate(Imm(c)) → Move(Imm(-c))
+// Invert(Imm(c)) → Move(Imm(~c))
+// IntToBool(Imm(c)) → Move(Imm(c ? 1 : 0))
+RewriteResult rewriteConstantFoldUnaryOps(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+
+  switch (instr->opcode()) {
+    case Instruction::kNegate:
+    case Instruction::kInvert:
+    case Instruction::kIntToBool:
+      break;
+    default:
+      return kUnchanged;
+  }
+
+  auto input = instr->getInput(0);
+  if (!input->isImm()) {
+    return kUnchanged;
+  }
+
+  uint64_t constant = input->getConstant();
+  uint64_t result;
+  switch (instr->opcode()) {
+    case Instruction::kNegate:
+      result = static_cast<uint64_t>(-static_cast<int64_t>(constant));
+      break;
+    case Instruction::kInvert:
+      result = ~constant;
+      break;
+    case Instruction::kIntToBool:
+      result = constant ? 1 : 0;
+      break;
+    default:
+      return kUnchanged;
+  }
+
+  instr->setOpcode(Instruction::kMove);
+  auto dt = input->dataType();
+  static_cast<Operand*>(input)->setConstant(result, dt);
+  return kChanged;
+}
+
 // Fix constant input position. If a binary operation has a constant input,
 // always put it as the second operand (or move the 2nd to a register for div
 // instructions)
@@ -453,6 +496,115 @@ RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
       return kUnchanged;
   }
 }
+
+// On AArch64, lower immediate operands to virtual registers for instructions
+// that cannot encode immediates. This inserts a Move(Imm -> vreg) before the
+// instruction and replaces the immediate input with a linked reference to the
+// new vreg.
+//
+// NOT handled here (covered elsewhere or not needed):
+//   - Binary ops: rewriteBinaryOpLargeConstant
+//   - Guard: rewriteGuardLargeConstant
+//   - Div/DivUn: rewriteBinaryOpConstantPosition
+//   - BitTest input 1: isLogicalImm(1<<n) always encodes
+//   - Move "Ri" (load immediate to register): this IS the lowering target
+//   - Inc/Dec: hardcoded constant 1, no immediate operand
+RewriteResult rewriteNonBinaryImmediateToVreg(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  auto block = instr->basicblock();
+
+  switch (instr->opcode()) {
+    case Instruction::kPush: {
+      // ARM str can't take an immediate data operand.
+      auto input = instr->getInput(0);
+      if (!input->isImm()) {
+        return kUnchanged;
+      }
+      auto move = block->allocateInstrBefore(
+          instr_iter,
+          Instruction::kMove,
+          OutVReg{input->dataType()},
+          Imm{input->getConstant(), input->dataType()});
+      instr->setInput(0, std::make_unique<LinkedOperand>(move));
+      return kChanged;
+    }
+    case Instruction::kSelect: {
+      // ARM csel is register-only; the false_val (input 2) must be a register.
+      auto input = instr->getInput(2);
+      if (!input->isImm()) {
+        return kUnchanged;
+      }
+      auto move = block->allocateInstrBefore(
+          instr_iter,
+          Instruction::kMove,
+          OutVReg{input->dataType()},
+          Imm{input->getConstant(), input->dataType()});
+      instr->setInput(2, std::make_unique<LinkedOperand>(move));
+      return kChanged;
+    }
+    case Instruction::kMove:
+    case Instruction::kMoveRelaxed: {
+      // Lower immediate input ONLY when the output is memory (Ind or Stack).
+      // Do NOT lower "Ri" (register = immediate) — that's the load-immediate
+      // instruction and is the target of all other lowerings.
+      auto output = instr->output();
+      if (!output->isInd() && !output->isStack()) {
+        return kUnchanged;
+      }
+      auto input = instr->getInput(0);
+      if (!input->isImm()) {
+        return kUnchanged;
+      }
+      auto move = block->allocateInstrBefore(
+          instr_iter,
+          Instruction::kMove,
+          OutVReg{input->dataType()},
+          Imm{input->getConstant(), input->dataType()});
+      instr->setInput(0, std::make_unique<LinkedOperand>(move));
+      return kChanged;
+    }
+    default:
+      return kUnchanged;
+  }
+}
+
+// For Call/VarArgCall/VectorCall instructions with non-register inputs
+// (Imm or Stack), insert a Move to load the call target into a vreg so
+// translateCall only needs blr(reg).
+RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  if (!instr->isCall() && !instr->isVarArgCall() && !instr->isVectorCall()) {
+    return kUnchanged;
+  }
+
+  auto input = instr->getInput(0);
+  if (input->isReg() || input->isLinked()) {
+    return kUnchanged;
+  }
+
+  auto block = instr->basicblock();
+
+  if (input->isImm()) {
+    auto move = block->allocateInstrBefore(
+        instr_iter,
+        Instruction::kMove,
+        OutVReg{DataType::k64bit},
+        Imm{input->getConstant(), DataType::k64bit});
+    instr->setInput(0, std::make_unique<LinkedOperand>(move));
+    return kChanged;
+  }
+
+  if (input->isStack()) {
+    auto loc = input->getStackSlot();
+    auto dt = input->dataType();
+    auto move = block->allocateInstrBefore(
+        instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+    instr->setInput(0, std::make_unique<LinkedOperand>(move));
+    return kChanged;
+  }
+
+  return kUnchanged;
+}
 #endif
 
 } // namespace
@@ -461,6 +613,7 @@ void PostGenerationRewrite::registerRewrites() {
   // rewriteInlineHelper should occur before other rewrites.
   registerOneRewriteFunction(rewriteInlineHelper, 0);
 
+  registerOneRewriteFunction(rewriteConstantFoldUnaryOps, 1);
   registerOneRewriteFunction(rewriteBinaryOpConstantPosition, 1);
   registerOneRewriteFunction(rewriteBinaryOpLargeConstant, 1);
   registerOneRewriteFunction(rewriteGuardLargeConstant, 1);
@@ -471,6 +624,8 @@ void PostGenerationRewrite::registerRewrites() {
 #elif defined(CINDER_AARCH64)
   registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
   registerOneRewriteFunction(rewritePromoteOutputSize, 1);
+  registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
+  registerOneRewriteFunction(rewriteCallInput, 1);
 #endif
 
   registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);

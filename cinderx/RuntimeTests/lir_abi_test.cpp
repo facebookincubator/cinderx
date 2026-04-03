@@ -311,12 +311,14 @@ TEST_F(LIRABITest, TestkNegate_PhyReg) {
   translateInstr(Instruction::kNegate, makePhyReg());
 }
 
+#if !defined(CINDER_AARCH64)
 // kNegate R i
 TEST_F(LIRABITest, TestkNegate_OutPhyReg_Imm) {
   translateInstr(Instruction::kNegate, makeOutPhyReg(), Imm{0});
   translateInstr(Instruction::kNegate, makeOutPhyReg(), Imm{UINT64_MAX});
   translateInstr(Instruction::kNegate, makeOutPhyReg(), FPImm{0.0});
 }
+#endif
 
 // kNegate R r
 TEST_F(LIRABITest, TestkNegate_OutPhyReg_PhyReg) {
@@ -328,12 +330,14 @@ TEST_F(LIRABITest, TestkNegate_OutPhyReg_Mem) {
   translateInstr(Instruction::kNegate, makeOutPhyReg(), makeStk());
 }
 
+#if !defined(CINDER_AARCH64)
 // kInvert R i
 TEST_F(LIRABITest, TestkInvert_OutPhyReg_Imm) {
   translateInstr(Instruction::kInvert, makeOutPhyReg(), Imm{0});
   translateInstr(Instruction::kInvert, makeOutPhyReg(), Imm{UINT64_MAX});
   translateInstr(Instruction::kInvert, makeOutPhyReg(), FPImm{0.0});
 }
+#endif
 
 // kInvert R r
 TEST_F(LIRABITest, TestkInvert_OutPhyReg_PhyReg) {
@@ -578,6 +582,14 @@ TEST_F(LIRABITest, TestkXor_OutPhyReg_PhyReg_Imm) {
       Instruction::kXor, makeOutPhyReg(), makePhyReg(), Imm{UINT64_MAX - 1});
 }
 
+#if !defined(CINDER_AARCH64)
+// kMul r i
+TEST_F(LIRABITest, TestkMul_PhyReg_Imm) {
+  translateInstr(Instruction::kMul, makePhyReg(), Imm{0});
+  translateInstr(Instruction::kMul, makePhyReg(), Imm{UINT64_MAX});
+}
+#endif
+
 // kXor R r r
 TEST_F(LIRABITest, TestkXor_OutPhyReg_PhyReg_PhyReg) {
   translateInstr(
@@ -589,27 +601,23 @@ TEST_F(LIRABITest, TestkXor_OutPhyReg_PhyReg_Mem) {
   translateInstr(Instruction::kXor, makeOutPhyReg(), makePhyReg(), makeStk());
 }
 
-// kMul r i
-TEST_F(LIRABITest, TestkMul_PhyReg_Imm) {
-  translateInstr(Instruction::kMul, makePhyReg(), Imm{0});
-  translateInstr(Instruction::kMul, makePhyReg(), Imm{UINT64_MAX});
-}
-
 // kMul r r
 TEST_F(LIRABITest, TestkMul_PhyReg_PhyReg) {
   translateInstr(Instruction::kMul, makePhyReg(), makePhyReg());
 }
 
-// kMul r m
-TEST_F(LIRABITest, TestkMul_PhyReg_Mem) {
-  translateInstr(Instruction::kMul, makePhyReg(), makeStk());
-}
-
+#if !defined(CINDER_AARCH64)
 // kMul R r i
 TEST_F(LIRABITest, TestkMul_OutPhyReg_PhyReg_Imm) {
   translateInstr(Instruction::kMul, makeOutPhyReg(), makePhyReg(), Imm{0});
   translateInstr(
       Instruction::kMul, makeOutPhyReg(), makePhyReg(), Imm{UINT64_MAX});
+}
+#endif
+
+// kMul r m
+TEST_F(LIRABITest, TestkMul_PhyReg_Mem) {
+  translateInstr(Instruction::kMul, makePhyReg(), makeStk());
 }
 
 // kMul R r r
@@ -719,12 +727,14 @@ TEST_F(LIRABITest, TestkPush_Mem) {
   translateInstr(Instruction::kPush, makeStk());
 }
 
+#if !defined(CINDER_AARCH64)
 // kPush i
 TEST_F(LIRABITest, TestkPush_Imm) {
   translateInstr(Instruction::kPush, Imm{0});
   translateInstr(Instruction::kPush, Imm{UINT64_MAX});
   translateInstr(Instruction::kPush, FPImm{0.0});
 }
+#endif
 
 // kPop R
 TEST_F(LIRABITest, TestkPop_OutPhyReg) {
@@ -1212,8 +1222,9 @@ TEST_F(LIRABITest, TestkYieldValue) {
       Instruction::kYieldValue, tstate, makeStk(-32), live_regs, deopt_idx);
 }
 
-// kSelect R r r i
-TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_PhyReg_Imm) {
+// kSelect R r r r
+TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_PhyReg_PhyReg) {
+#if defined(CINDER_X86_64)
   translateInstr(
       Instruction::kSelect,
       makeOutPhyReg(0),
@@ -1226,6 +1237,14 @@ TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_PhyReg_Imm) {
       makePhyReg(1),
       makePhyReg(2),
       Imm{UINT64_MAX});
+#elif defined(CINDER_AARCH64)
+  translateInstr(
+      Instruction::kSelect,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makePhyReg(2),
+      makePhyReg(3));
+#endif
 }
 
 // kIntToBool R r
@@ -1236,6 +1255,7 @@ TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_PhyReg) {
       makePhyReg(1));
 }
 
+#if !defined(CINDER_AARCH64)
 // kIntToBool R i
 TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_Imm) {
   translateInstr(
@@ -1245,6 +1265,7 @@ TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_Imm) {
       makeOutPhyReg(0, DataType::k8bit),
       Imm{UINT64_MAX});
 }
+#endif
 
 // kMoveRelaxed R m
 TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_Mem) {
