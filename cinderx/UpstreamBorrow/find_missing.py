@@ -13,9 +13,9 @@
 import json
 import os
 import os.path
-import random
 import subprocess
 import sys
+import tempfile
 from collections import defaultdict
 from typing import Iterable
 
@@ -82,24 +82,29 @@ def find_defs(syms: Iterable[str]) -> dict[str, list[str]]:
     # so we can search for "^symbol" to distinguish definitions from function
     # calls.
 
-    patfile = "/tmp/patterns-" + str(random.randint(0, 1024))
-    with open(patfile, "w") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", prefix="patterns_", delete=False
+    ) as f:
+        patfile = f.name
         for sym in syms:
             f.write(f"^{sym}\\b\n")
-    # We need to grep over the cpython base dir
-    path = os.path.join(get_fbsource_root(), "third-party/python/3.12")
-    ret = run(["grep", "-oHR", "-f", patfile, path])
-    out = defaultdict(list)
-    seen = set()  # make sure each symbol has a single definition
-    for line in ret.strip().split("\n"):
-        file, sym = line.split(":")
-        if not file.endswith(".c"):
-            continue
-        if sym in seen:
-            raise RuntimeError(f"Multiple definitions found for {sym}")
-        seen.add(sym)
-        out[file.lstrip("./")].append(sym)
-    return out
+    try:
+        # We need to grep over the cpython base dir
+        path = os.path.join(get_fbsource_root(), "third-party/python/3.12")
+        ret = run(["grep", "-oHR", "-f", patfile, path])
+        out = defaultdict(list)
+        seen = set()  # make sure each symbol has a single definition
+        for line in ret.strip().split("\n"):
+            file, sym = line.split(":")
+            if not file.endswith(".c"):
+                continue
+            if sym in seen:
+                raise RuntimeError(f"Multiple definitions found for {sym}")
+            seen.add(sym)
+            out[file.lstrip("./")].append(sym)
+        return out
+    finally:
+        os.unlink(patfile)
 
 
 def find_decls(syms: Iterable[str]) -> dict[str, list[int]]:
@@ -110,25 +115,30 @@ def find_decls(syms: Iterable[str]) -> dict[str, list[int]]:
     # with a pattern file. If this is an issue, modify the pattern below to use
     # grep character classes instead.
 
-    patfile = "/tmp/patterns-" + str(random.randint(0, 1024))
-    with open(patfile, "w") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", prefix="patterns_", delete=False
+    ) as f:
+        patfile = f.name
         for sym in syms:
             f.write(rf"^(\w[\w\s*]*)?\b{sym}\b" + "\n")
-    # We need to grep over the cpython base dir
-    path = os.path.join(get_fbsource_root(), "third-party/python/3.12/Include")
-    ret = run(["rg", "-n", "-f", patfile, path])
-    if not ret:
-        # No missing symbols found
-        return {}
-    out = defaultdict(list)
-    for line in ret.strip().split("\n"):
-        file, lineno, decl = line.split(":", 3)
-        if not file.endswith(".h"):
-            continue
-        if decl.startswith(" ") or decl.startswith("PyAPI_"):
-            continue
-        out[file].append(int(lineno))
-    return out
+    try:
+        # We need to grep over the cpython base dir
+        path = os.path.join(get_fbsource_root(), "third-party/python/3.12/Include")
+        ret = run(["rg", "-n", "-f", patfile, path])
+        if not ret:
+            # No missing symbols found
+            return {}
+        out = defaultdict(list)
+        for line in ret.strip().split("\n"):
+            file, lineno, decl = line.split(":", 3)
+            if not file.endswith(".h"):
+                continue
+            if decl.startswith(" ") or decl.startswith("PyAPI_"):
+                continue
+            out[file].append(int(lineno))
+        return out
+    finally:
+        os.unlink(patfile)
 
 
 def find_missing_symbols() -> set[str]:
