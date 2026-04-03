@@ -521,6 +521,89 @@ RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
   return kChanged;
 }
 
+// On AArch64, decompose Lea with MemoryIndirect whose multiplier >= 4 into
+// explicit Move(Imm) + MulAdd instructions. Multiplier 0-3 is already optimal
+// (add with shifted register in leaIndex), but multiplier >= 4 previously
+// required a scratch register in the translate function. This rewrite lets
+// register allocation handle the temporary instead.
+//
+// [base + index * (1 << mult) + offset]  where mult >= 4 becomes:
+//   scale = Move(Imm(1 << mult))
+//   addr  = MulAdd(index, scale, base)
+//   [if offset != 0: addr = Add(addr, Imm(offset))]
+//   Lea -> Move(addr)
+RewriteResult rewriteLeaLargeMultiplier(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  if (!instr->isLea()) {
+    return kUnchanged;
+  }
+
+  auto input = instr->getInput(0);
+  if (!input->isInd()) {
+    return kUnchanged;
+  }
+
+  auto ind = input->getMemoryIndirect();
+  auto index_op = ind->getIndexRegOperand();
+  if (index_op == nullptr) {
+    return kUnchanged;
+  }
+
+  auto mult = ind->getMultipiler();
+  if (mult < 4) {
+    return kUnchanged;
+  }
+
+  auto block = instr->basicblock();
+  auto base_op = ind->getBaseRegOperand();
+  auto offset = ind->getOffset();
+
+  // Create a new reference to the same value as an existing operand from
+  // inside a MemoryIndirect.
+  auto cloneRef = [](OperandBase* op) -> std::unique_ptr<OperandBase> {
+    if (op->isLinked()) {
+      return std::make_unique<LinkedOperand>(
+          static_cast<LinkedOperand*>(op)->getLinkedInstr());
+    }
+    auto new_op = std::make_unique<Operand>();
+    new_op->setPhyRegister(op->getPhyRegister());
+    return new_op;
+  };
+
+  // scale = Move(Imm(1 << mult))
+  auto scale_move = block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kMove,
+      OutVReg{DataType::k64bit},
+      Imm{uint64_t{1} << mult, DataType::k64bit});
+
+  // addr = MulAdd(index, scale, base)  =>  base + index * scale
+  auto muladd = block->allocateInstrBefore(
+      instr_iter, Instruction::kMulAdd, OutVReg{DataType::k64bit});
+  muladd->appendInput(cloneRef(index_op));
+  muladd->appendInput(std::make_unique<LinkedOperand>(scale_move));
+  muladd->appendInput(cloneRef(base_op));
+
+  Instruction* final_result = muladd;
+
+  if (offset != 0) {
+    auto add = block->allocateInstrBefore(
+        instr_iter,
+        Instruction::kAdd,
+        OutVReg{DataType::k64bit},
+        VReg{muladd},
+        Imm{static_cast<uint64_t>(static_cast<int64_t>(offset)),
+            DataType::k64bit});
+    final_result = add;
+  }
+
+  // Convert Lea to Move(final_result).
+  instr->setOpcode(Instruction::kMove);
+  instr->setInput(0, std::make_unique<LinkedOperand>(final_result));
+
+  return kChanged;
+}
+
 // On AArch64, lower stack operands to virtual registers for instructions
 // that cannot operate on memory. ARM64 instructions require register operands,
 // so this inserts a Move(Stack -> vreg) before the instruction and replaces
@@ -736,6 +819,7 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
   registerOneRewriteFunction(rewritePromoteOutputSize, 1);
   registerOneRewriteFunction(rewriteGuardFPInput, 1);
+  registerOneRewriteFunction(rewriteLeaLargeMultiplier, 1);
   registerOneRewriteFunction(rewriteStackInputToVreg, 1);
   registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
   registerOneRewriteFunction(rewriteCallInput, 1);

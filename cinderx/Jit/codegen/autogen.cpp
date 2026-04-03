@@ -1860,13 +1860,11 @@ void leaIndex(
     case 3:
       as->add(output, base, index, a64::lsl(3));
       break;
-    default: {
-      // Use scratch register to avoid clobbering index when output and
-      // index are the same register.
-      as->mov(arch::reg_scratch_0, uint64_t{1} << multiplier);
-      as->madd(output, index, arch::reg_scratch_0, base);
-      break;
-    }
+    default:
+      JIT_ABORT(
+          "Unexpected multiplier {} in leaIndex - should have been lowered "
+          "by postgen rewrite",
+          multiplier);
   }
 }
 
@@ -1875,7 +1873,6 @@ void leaIndex(
 void leaIndirect(
     arch::Builder* as,
     arch::Gp output,
-    arch::Gp scratch0,
     const MemoryIndirect* indirect) {
   auto base = getGpOrSP(indirect->getBaseRegOperand());
   auto indexRegOperand = indirect->getIndexRegOperand();
@@ -1980,8 +1977,7 @@ void translateLea(Environ* env, const Instruction* instr) {
     auto address = reinterpret_cast<uint64_t>(input->getMemoryAddress());
     as->mov(AT::getGp(output), address);
   } else if (input->isInd()) {
-    leaIndirect(
-        as, AT::getGp(output), arch::reg_scratch_0, input->getMemoryIndirect());
+    leaIndirect(as, AT::getGp(output), input->getMemoryIndirect());
   } else {
     JIT_ABORT("Unsupported operand type for Lea: {}", input->type());
   }
@@ -2473,6 +2469,24 @@ void translateMul(Environ* env, const Instruction* instr) {
   }
 }
 
+void translateMulAdd(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+
+  auto output = instr->output();
+  auto opnd0 = instr->getInput(0);
+  auto opnd1 = instr->getInput(1);
+  auto opnd2 = instr->getInput(2);
+
+  JIT_CHECK(output->isReg(), "Expected output to be a register");
+  JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
+  JIT_CHECK(opnd1->isReg(), "Expected opnd1 to be a register");
+  JIT_CHECK(opnd2->isReg(), "Expected opnd2 to be a register");
+
+  // madd Rd, Rn, Rm, Ra  =>  Rd = Ra + Rn * Rm
+  as->madd(
+      AT::getGp(output), AT::getGp(opnd0), AT::getGp(opnd1), AT::getGp(opnd2));
+}
+
 template <typename EmitFn>
 void translateDivOp(
     Environ* env,
@@ -2819,6 +2833,10 @@ END_RULES
 BEGIN_RULES(Instruction::kMul)
   GEN("rr", CALL_C(translateMul))
   GEN("Rrr", CALL_C(translateMul))
+END_RULES
+
+BEGIN_RULES(Instruction::kMulAdd)
+  GEN("Rrrr", CALL_C(translateMulAdd))
 END_RULES
 
 BEGIN_RULES(Instruction::kDiv)

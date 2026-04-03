@@ -104,6 +104,7 @@ enum OperandSizeType {
   X(Div, false, FlagEffects::kSet, kDefault, 1, {1})                          \
   X(DivUn, false, FlagEffects::kSet, kDefault, 1, {1})                        \
   X(Mul, false, FlagEffects::kSet, kOut, 1, {1})                              \
+  X(MulAdd, false, FlagEffects::kNone, kAlways64, 1, {1, 1, 1})               \
   X(Or, false, FlagEffects::kSet, kOut, 1, {1})                               \
   X(Fadd, false, FlagEffects::kNone, kAlways64, 1, {1, 1})                    \
   X(Fsub, true, FlagEffects::kNone, kAlways64, 1, {1, 1})                     \

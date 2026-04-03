@@ -650,6 +650,24 @@ TEST_F(LIRABITest, TestkMul_OutPhyReg_PhyReg_PhyReg) {
       Instruction::kMul, makeOutPhyReg(), makePhyReg(), makePhyReg());
 }
 
+#if !defined(CINDER_AARCH64)
+// kMul R r m
+TEST_F(LIRABITest, TestkMul_OutPhyReg_PhyReg_Mem) {
+  translateInstr(Instruction::kMul, makeOutPhyReg(), makePhyReg(), makeStk());
+}
+#else
+
+// kMulAdd R r r r
+TEST_F(LIRABITest, TestkMulAdd_OutPhyReg_PhyReg_PhyReg_PhyReg) {
+  translateInstr(
+      Instruction::kMulAdd,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makePhyReg(2),
+      makePhyReg(3));
+}
+#endif
+
 // kDiv r r r
 TEST_F(LIRABITest, TestkDiv_PhyReg_PhyReg_PhyReg) {
   translateInstr(
