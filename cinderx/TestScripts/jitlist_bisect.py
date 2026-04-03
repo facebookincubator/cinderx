@@ -13,13 +13,13 @@ from generic_bisect import BisectRunner, config_logger, logger
 JITLIST_FILENAME = "jitlist.txt"
 
 
-def write_jitlist(jitlist):
+def write_jitlist(jitlist: list[str]) -> None:
     with open(JITLIST_FILENAME, "w") as file:
         for func in jitlist:
             print(func, file=file)
 
 
-def read_jitlist(jit_list_file):
+def read_jitlist(jit_list_file: str) -> list[str]:
     with open(jit_list_file) as file:
         return [line.strip() for line in file.readlines()]
 
@@ -27,7 +27,7 @@ def read_jitlist(jit_list_file):
 COMPILED_FUNC_RE = re.compile(r" -- (Compiling|Inlining function) ([^ ]+)($| into)")
 
 
-def get_compiled_funcs(command):
+def get_compiled_funcs(command: list[str]) -> list[str]:
     environ = dict(os.environ)
     environ.update({"PYTHONJITDEBUG": "1"})
 
@@ -55,7 +55,7 @@ def get_compiled_funcs(command):
     return sorted(funcs)
 
 
-def run_bisect(command, jit_list_file):
+def run_bisect(command: list[str], jit_list_file: str | None) -> None:
     if len(command) == 0:
         sys.exit("No command specified")
 
@@ -99,7 +99,7 @@ def run_bisect(command, jit_list_file):
     )
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="When given a command that fails with the jit enabled (including -X jit as appropriate), bisects to find a minimal jit-list that preserves the failure"
     )
@@ -116,7 +116,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = parse_args()
     config_logger(args.verbose)
     run_bisect(args.command, args.initial_jit_list_file)
