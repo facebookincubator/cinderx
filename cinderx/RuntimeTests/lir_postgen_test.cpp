@@ -30,11 +30,18 @@ BB %0
   std::string expected_lir_str = fmt::format(
       R"(Function:
 BB %0
-      %10:Object = Call 0(0x0):64bit
+{}      %10:Object = Call {}
        %11:16bit = Move {}:16bit
                    Return %11:16bit
 
 )",
+#if defined(CINDER_AARCH64)
+      "       %13:64bit = Move 0(0x0):64bit\n",
+      "%13:64bit",
+#else
+      "",
+      "0(0x0):64bit",
+#endif
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 16});
 
   EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
@@ -94,6 +101,63 @@ BB %6
 )";
 
   std::string expected_lir_str = fmt::format(
+#if defined(CINDER_AARCH64)
+      R"(Function:
+BB %0
+      %136:64bit = Move 0(0x0):64bit
+      %10:Object = Call %136:64bit
+                   CondBranch %10:Object, BB%1, BB%2
+
+BB %1
+      %137:64bit = Move 0(0x0):64bit
+      %11:Object = Call %137:64bit
+      %146:32bit = Move {0}:32bit
+                   CondBranch %11:Object, BB%3, BB%4
+
+BB %2
+      %138:64bit = Move 0(0x0):64bit
+      %12:Object = Call %138:64bit
+                   CondBranch %12:Object, BB%20, BB%21
+
+BB %20
+      %139:64bit = Move 0(0x0):64bit
+     %120:Object = Call %139:64bit
+      %144:32bit = Move {0}:32bit
+                   Branch BB%22
+
+BB %21
+      %140:64bit = Move 0(0x0):64bit
+     %121:Object = Call %140:64bit
+      %145:32bit = Move {0}:32bit
+                   Branch BB%22
+
+BB %22
+     %122:Object = Phi (BB%20, %120:Object), (BB%21, %121:Object)
+      %143:32bit = Phi (BB%20, %144:32bit), (BB%21, %145:32bit)
+                   Branch BB%5
+
+BB %3
+      %141:64bit = Move 0(0x0):64bit
+                   Call %141:64bit
+                   Branch BB%5
+
+BB %4
+      %142:64bit = Move 0(0x0):64bit
+                   Call %142:64bit
+                   Branch BB%5
+
+BB %5
+      %13:Object = Phi (BB%22, %122:Object), (BB%3, %11:Object), (BB%4, %11:Object), (BB%6, %13:Object)
+       %14:32bit = Phi (BB%22, %143:32bit), (BB%3, %146:32bit), (BB%4, %146:32bit), (BB%6, %14:32bit)
+                   Branch BB%6
+
+BB %6
+      %147:64bit = Move 0(0x0):64bit
+                   Call %147:64bit
+                   Branch BB%5
+
+)",
+#else
       R"(Function:
 BB %0
       %10:Object = Call 0(0x0):64bit
@@ -101,7 +165,7 @@ BB %0
 
 BB %1
       %11:Object = Call 0(0x0):64bit
-      %139:32bit = Move {}:32bit
+      %139:32bit = Move {0}:32bit
                    CondBranch %11:Object, BB%3, BB%4
 
 BB %2
@@ -110,12 +174,12 @@ BB %2
 
 BB %20
      %120:Object = Call 0(0x0):64bit
-      %137:32bit = Move {}:32bit
+      %137:32bit = Move {0}:32bit
                    Branch BB%22
 
 BB %21
      %121:Object = Call 0(0x0):64bit
-      %138:32bit = Move {}:32bit
+      %138:32bit = Move {0}:32bit
                    Branch BB%22
 
 BB %22
@@ -141,6 +205,7 @@ BB %6
                    Branch BB%5
 
 )",
+#endif
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32},
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32},
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32});

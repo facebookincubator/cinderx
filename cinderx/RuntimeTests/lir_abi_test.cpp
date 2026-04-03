@@ -163,9 +163,11 @@ TEST_F(LIRABITest, TestkLea_OutPhyReg_Mem) {
 }
 
 // kCall R i
+#if !defined(CINDER_AARCH64)
 TEST_F(LIRABITest, TestkCall_OutPhyReg_Imm) {
   translateInstr(Instruction::kCall, makeOutPhyReg(), makeImmPtr());
 }
+#endif
 
 // kCall R r
 TEST_F(LIRABITest, TestkCall_OutPhyReg_PhyReg) {
@@ -173,9 +175,11 @@ TEST_F(LIRABITest, TestkCall_OutPhyReg_PhyReg) {
 }
 
 // kCall i
+#if !defined(CINDER_AARCH64)
 TEST_F(LIRABITest, TestkCall_Imm) {
   translateInstr(Instruction::kCall, makeImmPtr());
 }
+#endif
 
 // kCall r
 TEST_F(LIRABITest, TestkCall_PhyReg) {
@@ -183,9 +187,11 @@ TEST_F(LIRABITest, TestkCall_PhyReg) {
 }
 
 // kCall m
+#if !defined(CINDER_AARCH64)
 TEST_F(LIRABITest, TestkCall_Stk) {
   translateInstr(Instruction::kCall, makeStk());
 }
+#endif
 
 // kMove R r
 TEST_F(LIRABITest, TestkMove_OutPhyReg_PhyReg) {

@@ -1986,9 +1986,6 @@ void translateCall(Environ* env, const Instruction* instr) {
 
   if (input->isReg()) {
     as->blr(AT::getGp(input));
-  } else if (input->isImm()) {
-    as->mov(arch::reg_scratch_br, input->getConstant());
-    as->blr(arch::reg_scratch_br);
   } else if (input->isStack()) {
     auto loc = input->getStackSlot().loc;
     as->ldr(
