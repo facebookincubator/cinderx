@@ -2347,12 +2347,6 @@ void translateNegate(Environ* env, const Instruction* instr) {
 
   if (opnd0->isReg()) {
     as->neg(output_reg, AT::getGpWiden(opnd0));
-  } else if (opnd0->isStack()) {
-    auto loc = opnd0->getStackSlot().loc;
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(scratch, ptr);
-    as->neg(output_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for Negate: {}", opnd0->type());
   }
@@ -2371,12 +2365,6 @@ void translateInvert(Environ* env, const Instruction* instr) {
 
   if (opnd0->isReg()) {
     as->mvn(output_reg, AT::getGpWiden(opnd0));
-  } else if (opnd0->isStack()) {
-    auto loc = opnd0->getStackSlot().loc;
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(scratch, ptr);
-    as->mvn(output_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for Invert: {}", opnd0->type());
   }
@@ -2408,12 +2396,6 @@ void translateAddSubOp(
     emit(as, output_reg, opnd0_reg, constant);
   } else if (opnd1->isReg()) {
     emit(as, output_reg, opnd0_reg, AT::getGpWiden(opnd1));
-  } else if (opnd1->isStack()) {
-    auto loc = opnd1->getStackSlot().loc;
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(scratch, ptr);
-    emit(as, output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd1->type());
   }
@@ -2458,12 +2440,6 @@ void translateLogicalOp(
     emit(as, output_reg, opnd0_reg, constant);
   } else if (opnd1->isReg()) {
     emit(as, output_reg, opnd0_reg, AT::getGpWiden(opnd1));
-  } else if (opnd1->isStack()) {
-    auto loc = opnd1->getStackSlot().loc;
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(scratch, ptr);
-    emit(as, output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd1->type());
   }
@@ -2503,12 +2479,6 @@ void translateMul(Environ* env, const Instruction* instr) {
 
   if (opnd1->isReg()) {
     as->mul(output_reg, opnd0_reg, AT::getGpWiden(opnd1));
-  } else if (opnd1->isStack()) {
-    auto loc = opnd1->getStackSlot().loc;
-    auto scratch = AT::getGpWiden(output->dataType(), arch::reg_scratch_0.id());
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(scratch, ptr);
-    as->mul(output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for Mul: {}", opnd1->type());
   }
@@ -2547,12 +2517,6 @@ void translateDivOp(
 
   if (opnd1->isReg()) {
     emit(as, output_reg, opnd0_reg, AT::getGpOutput(opnd1));
-  } else if (opnd1->isStack()) {
-    auto loc = opnd1->getStackSlot().loc;
-    auto scratch = AT::getGpOutput(output, arch::reg_scratch_0.id());
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0);
-    as->ldr(scratch, ptr);
-    emit(as, output_reg, opnd0_reg, scratch);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd1->type());
   }
@@ -2670,12 +2634,6 @@ void translateIncDecOp(
     // We have to do adds/subs here, because implicitly our LIR relies on the
     // Inc/Dec instructions setting flags.
     emit(as, AT::getGpWiden(opnd), AT::getGpWiden(opnd), 1);
-  } else if (opnd->isStack()) {
-    auto loc = opnd->getStackSlot().loc;
-    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_1);
-    as->ldr(arch::reg_scratch_0, ptr);
-    emit(as, arch::reg_scratch_0, arch::reg_scratch_0, 1);
-    as->str(arch::reg_scratch_0, ptr);
   } else {
     JIT_ABORT("Unsupported operand type for {}: {}", opname, opnd->dataType());
   }
@@ -2809,12 +2767,10 @@ END_RULES
 BEGIN_RULES(Instruction::kNegate)
   GEN("r", CALL_C(translateNegate))
   GEN("Rr", CALL_C(translateNegate))
-  GEN("Rm", CALL_C(translateNegate))
 END_RULES
 
 BEGIN_RULES(Instruction::kInvert)
   GEN("Rr", CALL_C(translateInvert))
-  GEN("Rm", CALL_C(translateInvert))
 END_RULES
 
 BEGIN_RULES(Instruction::kMovZX)
@@ -2839,71 +2795,53 @@ END_RULES
 BEGIN_RULES(Instruction::kAdd)
   GEN("ri", CALL_C(translateAdd))
   GEN("rr", CALL_C(translateAdd))
-  GEN("rm", CALL_C(translateAdd))
   GEN("Rri", CALL_C(translateAdd))
   GEN("Rrr", CALL_C(translateAdd))
-  GEN("Rrm", CALL_C(translateAdd))
 END_RULES
 
 BEGIN_RULES(Instruction::kSub)
   GEN("ri", CALL_C(translateSub))
   GEN("rr", CALL_C(translateSub))
-  GEN("rm", CALL_C(translateSub))
   GEN("Rri", CALL_C(translateSub))
   GEN("Rrr", CALL_C(translateSub))
-  GEN("Rrm", CALL_C(translateSub))
 END_RULES
 
 BEGIN_RULES(Instruction::kAnd)
   GEN("ri", CALL_C(translateAnd))
   GEN("rr", CALL_C(translateAnd))
-  GEN("rm", CALL_C(translateAnd))
   GEN("Rri", CALL_C(translateAnd))
   GEN("Rrr", CALL_C(translateAnd))
-  GEN("Rrm", CALL_C(translateAnd))
 END_RULES
 
 BEGIN_RULES(Instruction::kOr)
   GEN("ri", CALL_C(translateOr))
   GEN("rr", CALL_C(translateOr))
-  GEN("rm", CALL_C(translateOr))
   GEN("Rri", CALL_C(translateOr))
   GEN("Rrr", CALL_C(translateOr))
-  GEN("Rrm", CALL_C(translateOr))
 END_RULES
 
 BEGIN_RULES(Instruction::kXor)
   GEN("ri", CALL_C(translateXor))
   GEN("rr", CALL_C(translateXor))
-  GEN("rm", CALL_C(translateXor))
   GEN("Rri", CALL_C(translateXor))
   GEN("Rrr", CALL_C(translateXor))
-  GEN("Rrm", CALL_C(translateXor))
 END_RULES
 
 BEGIN_RULES(Instruction::kMul)
   GEN("rr", CALL_C(translateMul))
-  GEN("rm", CALL_C(translateMul))
   GEN("Rrr", CALL_C(translateMul))
-  GEN("Rrm", CALL_C(translateMul))
 END_RULES
 
 BEGIN_RULES(Instruction::kDiv)
   GEN("rrr", CALL_C(translateDiv))
-  GEN("rrm", CALL_C(translateDiv))
   GEN("rr", CALL_C(translateDiv))
-  GEN("rm", CALL_C(translateDiv))
   GEN("Rirr", CALL_C(translateDiv))
-  GEN("Rirm", CALL_C(translateDiv))
 END_RULES
 
 BEGIN_RULES(Instruction::kDivUn)
   GEN("rrr", CALL_C(translateDivUn))
-  GEN("rrm", CALL_C(translateDivUn))
   GEN("rr", CALL_C(translateDivUn))
-  GEN("rm", CALL_C(translateDivUn))
   GEN("Rirr", CALL_C(translateDivUn))
-  GEN("Rirm", CALL_C(translateDivUn))
 END_RULES
 
 BEGIN_RULES(Instruction::kFadd)
@@ -3035,7 +2973,6 @@ END_RULES
 BEGIN_RULES(Instruction::name) \
   GEN("Rrr", CALL_C(TranslateCompare)) \
   GEN("Rri", CALL_C(TranslateCompare)) \
-  GEN("Rrm", CALL_C(TranslateCompare)) \
   if (fpcomp) { \
     GEN("Rxx", CALL_C(TranslateCompare)) \
   } \
@@ -3056,12 +2993,10 @@ DEF_COMPARE_OP_RULES(kLessThanEqualSigned, false)
 
 BEGIN_RULES(Instruction::kInc)
   GEN("r", CALL_C(translateInc))
-  GEN("m", CALL_C(translateInc))
 END_RULES
 
 BEGIN_RULES(Instruction::kDec)
   GEN("r", CALL_C(translateDec))
-  GEN("m", CALL_C(translateDec))
 END_RULES
 
 BEGIN_RULES(Instruction::kBitTest)

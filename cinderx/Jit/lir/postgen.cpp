@@ -497,6 +497,93 @@ RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
   }
 }
 
+// On AArch64, lower stack operands to virtual registers for instructions
+// that cannot operate on memory. ARM64 instructions require register operands,
+// so this inserts a Move(Stack -> vreg) before the instruction and replaces
+// the stack input with a linked reference to the new vreg.
+//
+// NOT handled here:
+//   - Move/MoveRelaxed "Rm": IS the canonical load (the lowering target)
+//   - MovZX/MovSX/MovSXD: specialized sign/zero-extending loads from stack
+//   - Lea: takes the ADDRESS of a stack slot, not the value
+//   - Call: late-created by PostRegAllocRewrite via setOpcode()
+//   - EpilogueEnd: special return-value handling
+//   - Pop: stack output, not input
+RewriteResult rewriteStackInputToVreg(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  auto block = instr->basicblock();
+
+  auto lowerStackInput = [&](size_t idx) -> bool {
+    auto input = instr->getInput(idx);
+    if (!input->isStack()) {
+      return false;
+    }
+    auto loc = input->getStackSlot();
+    auto dt = input->dataType();
+    auto move = block->allocateInstrBefore(
+        instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+    instr->setInput(idx, std::make_unique<LinkedOperand>(move));
+    return true;
+  };
+
+  bool changed = false;
+
+  if (instr->isAdd() || instr->isSub() || instr->isXor() || instr->isAnd() ||
+      instr->isOr() || instr->isMul() || instr->isCompare()) {
+    // Binary ops and compare ops: lower any stack input.
+    for (size_t i = 0; i < instr->getNumInputs(); i++) {
+      changed |= lowerStackInput(i);
+    }
+  } else if (instr->isDiv() || instr->isDivUn()) {
+    // Div/DivUn may have an Imm{0} prefix for x86 high-half. Lower any
+    // non-immediate stack inputs.
+    for (size_t i = 0; i < instr->getNumInputs(); i++) {
+      changed |= lowerStackInput(i);
+    }
+  } else {
+    switch (instr->opcode()) {
+      case Instruction::kNegate:
+      case Instruction::kInvert:
+        changed |= lowerStackInput(0);
+        break;
+      case Instruction::kPush:
+        changed |= lowerStackInput(0);
+        break;
+      case Instruction::kInc:
+      case Instruction::kDec: {
+        // Inc/Dec are read-modify-write: the single operand is both input and
+        // output. For a stack operand, insert a load before and a store after:
+        //   vreg = Move [stack]
+        //   Inc/Dec vreg
+        //   Move vreg -> [stack]
+        auto input = instr->getInput(0);
+        if (input->isStack()) {
+          auto loc = input->getStackSlot();
+          auto dt = input->dataType();
+          auto move = block->allocateInstrBefore(
+              instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+          instr->setInput(0, std::make_unique<LinkedOperand>(move));
+          auto next_iter = std::next(instr_iter);
+          block->allocateInstrBefore(
+              next_iter, Instruction::kMove, OutStk{loc, dt}, VReg{move});
+          changed = true;
+        }
+        break;
+      }
+      case Instruction::kSelect:
+        // Select: condition (0), true_val (1), false_val (2)
+        for (size_t i = 0; i < instr->getNumInputs(); i++) {
+          changed |= lowerStackInput(i);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  return changed ? kChanged : kUnchanged;
+}
+
 // On AArch64, lower immediate operands to virtual registers for instructions
 // that cannot encode immediates. This inserts a Move(Imm -> vreg) before the
 // instruction and replaces the immediate input with a linked reference to the
@@ -624,6 +711,7 @@ void PostGenerationRewrite::registerRewrites() {
 #elif defined(CINDER_AARCH64)
   registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
   registerOneRewriteFunction(rewritePromoteOutputSize, 1);
+  registerOneRewriteFunction(rewriteStackInputToVreg, 1);
   registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
   registerOneRewriteFunction(rewriteCallInput, 1);
 #endif
