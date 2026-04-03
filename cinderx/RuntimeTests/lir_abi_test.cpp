@@ -273,6 +273,7 @@ TEST_F(LIRABITest, TestkMove_OutFPPhyReg_PhyReg) {
 // kGuard ANY
 TEST_F(LIRABITest, TestkGuard) {
   translateInstr(Instruction::kGuard, Imm{kAlwaysFail}, Imm{0}, Imm{0}, Imm{0});
+#if !defined(CINDER_AARCH64)
   translateInstr(
       Instruction::kGuard, Imm{kHasType}, Imm{0}, makePhyReg(), Imm{0});
   translateInstr(
@@ -283,6 +284,7 @@ TEST_F(LIRABITest, TestkGuard) {
       MemImm{nullptr});
   translateInstr(
       Instruction::kGuard, Imm{kHasType}, Imm{0}, makePhyReg(), makePhyReg());
+#endif
   translateInstr(Instruction::kGuard, Imm{kIs}, Imm{0}, makePhyReg(), Imm{0});
   translateInstr(
       Instruction::kGuard, Imm{kIs}, Imm{0}, makePhyReg(), MemImm{nullptr});

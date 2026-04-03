@@ -497,6 +497,30 @@ RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
   }
 }
 
+// On AArch64, Guard's kNotZero with a VecD (double) input needs the value
+// moved to a GP register first (ARM64 lacks direct FP-register
+// test-and-branch). Insert Move(VecD → OutVReg{k64bit}) before the Guard so
+// TranslateGuard only sees GP register inputs.
+RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  if (!instr->isGuard()) {
+    return kUnchanged;
+  }
+
+  constexpr size_t kGuardVarIndex = 2;
+  auto guard_var = instr->getInput(kGuardVarIndex);
+  if (guard_var->dataType() != DataType::kDouble) {
+    return kUnchanged;
+  }
+
+  auto block = instr->basicblock();
+  auto move = block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
+  move->appendInput(instr->releaseInput(kGuardVarIndex));
+  instr->setInput(kGuardVarIndex, std::make_unique<LinkedOperand>(move));
+  return kChanged;
+}
+
 // On AArch64, lower stack operands to virtual registers for instructions
 // that cannot operate on memory. ARM64 instructions require register operands,
 // so this inserts a Move(Stack -> vreg) before the instruction and replaces
@@ -711,6 +735,7 @@ void PostGenerationRewrite::registerRewrites() {
 #elif defined(CINDER_AARCH64)
   registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
   registerOneRewriteFunction(rewritePromoteOutputSize, 1);
+  registerOneRewriteFunction(rewriteGuardFPInput, 1);
   registerOneRewriteFunction(rewriteStackInputToVreg, 1);
   registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
   registerOneRewriteFunction(rewriteCallInput, 1);

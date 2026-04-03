@@ -263,32 +263,23 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   auto kind = instr->getInput(0)->getConstant();
 
   arch::Gp reg = arch::reg_scratch_0;
-  bool is_double = false;
   uint64_t mask = 0;
   size_t sign_bit = 0;
   if (kind != kAlwaysFail) {
-    if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
-      JIT_CHECK(kind == kNotZero, "Only NotZero is supported for double")
-      auto vecd_reg = AutoTranslator::getVecD(instr->getInput(2));
-      as->fmov(reg, vecd_reg);
-      as->cbz(reg, deopt_label);
-      is_double = true;
+    auto data_type = instr->getInput(2)->dataType();
+    if (data_type == jit::lir::OperandBase::k8bit) {
+      mask = 0xFF;
+      sign_bit = 7;
+      // aarch64 doesn't have 8-bit registers, use 32-bit w register.
+      reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
+    } else if (data_type == jit::lir::OperandBase::k16bit) {
+      mask = 0xFFFF;
+      sign_bit = 15;
+      // aarch64 doesn't have 16-bit registers, use 32-bit w register.
+      reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
     } else {
-      auto data_type = instr->getInput(2)->dataType();
-      if (data_type == jit::lir::OperandBase::k8bit) {
-        mask = 0xFF;
-        sign_bit = 7;
-        // aarch64 doesn't have 8-bit registers, use 32-bit w register.
-        reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
-      } else if (data_type == jit::lir::OperandBase::k16bit) {
-        mask = 0xFFFF;
-        sign_bit = 15;
-        // aarch64 doesn't have 16-bit registers, use 32-bit w register.
-        reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
-      } else {
-        reg = AutoTranslator::getGp(instr->getInput(2));
-        sign_bit = reg.size() * CHAR_BIT - 1;
-      }
+      reg = AutoTranslator::getGp(instr->getInput(2));
+      sign_bit = reg.size() * CHAR_BIT - 1;
     }
   }
 
@@ -304,49 +295,47 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
     }
   };
 
-  if (!is_double) {
-    switch (kind) {
-      case kNotZero:
-        if (mask) {
-          as->tst(reg, mask);
-          as->b_eq(deopt_label);
-        } else {
-          as->cbz(reg, deopt_label);
-        }
-        break;
-      case kNotNegative: {
-        // Ideally we'd do but we don't know if we're outside the 32kb
-        // displacement limit as->tbnz(reg, sign_bit, deopt_label);
-        auto skip = as->newLabel();
-        as->tbz(reg, sign_bit, skip);
-        as->b(deopt_label);
-        as->bind(skip);
-        break;
+  switch (kind) {
+    case kNotZero:
+      if (mask) {
+        as->tst(reg, mask);
+        as->b_eq(deopt_label);
+      } else {
+        as->cbz(reg, deopt_label);
       }
-      case kZero:
-        if (mask) {
-          as->tst(reg, mask);
-          as->b_ne(deopt_label);
-        } else {
-          as->cbnz(reg, deopt_label);
-        }
-        break;
-      case kAlwaysFail:
-        as->b(deopt_label);
-        break;
-      case kIs:
-        emit_cmp(reg);
+      break;
+    case kNotNegative: {
+      // Ideally we'd do but we don't know if we're outside the 32kb
+      // displacement limit as->tbnz(reg, sign_bit, deopt_label);
+      auto skip = as->newLabel();
+      as->tbz(reg, sign_bit, skip);
+      as->b(deopt_label);
+      as->bind(skip);
+      break;
+    }
+    case kZero:
+      if (mask) {
+        as->tst(reg, mask);
         as->b_ne(deopt_label);
-        break;
-      case kHasType: {
-        as->ldr(
-            arch::reg_scratch_0,
-            arch::ptr_offset(reg, offsetof(PyObject, ob_type)));
+      } else {
+        as->cbnz(reg, deopt_label);
+      }
+      break;
+    case kAlwaysFail:
+      as->b(deopt_label);
+      break;
+    case kIs:
+      emit_cmp(reg);
+      as->b_ne(deopt_label);
+      break;
+    case kHasType: {
+      as->ldr(
+          arch::reg_scratch_0,
+          arch::ptr_offset(reg, offsetof(PyObject, ob_type)));
 
-        emit_cmp(arch::reg_scratch_0);
-        as->b_ne(deopt_label);
-        break;
-      }
+      emit_cmp(arch::reg_scratch_0);
+      as->b_ne(deopt_label);
+      break;
     }
   }
 #else
