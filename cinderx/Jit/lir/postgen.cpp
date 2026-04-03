@@ -604,6 +604,41 @@ RewriteResult rewriteLeaLargeMultiplier(instr_iter_t instr_iter) {
   return kChanged;
 }
 
+// On AArch64, lower Move/MoveRelaxed with an absolute memory address (kMem)
+// input into Move(Imm{addr} → vreg) + Move(Ind{vreg, 0} → output). ARM64
+// cannot encode a 64-bit absolute address inline, so translateMove used a
+// scratch register. This rewrite lets register allocation handle it instead.
+RewriteResult rewriteMoveAbsoluteAddress(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+  if (!instr->isMove() && !instr->isMoveRelaxed()) {
+    return kUnchanged;
+  }
+
+  auto input = instr->getInput(0);
+  if (!input->isMem()) {
+    return kUnchanged;
+  }
+
+  auto block = instr->basicblock();
+  auto addr = reinterpret_cast<uint64_t>(input->getMemoryAddress());
+
+  // addr_vreg = Move(Imm{addr})
+  auto addr_move = block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kMove,
+      OutVReg{DataType::k64bit},
+      Imm{addr, DataType::k64bit});
+
+  // Replace the Mem input with Ind{addr_vreg, offset=0}. For a simple
+  // Ind with no index and offset 0, ptrIndirect resolves to ptr(base)
+  // without needing any scratch registers.
+  instr->removeInput(0);
+  instr->allocateMemoryIndirectInput(
+      static_cast<Instruction*>(addr_move), PhyLocation::REG_INVALID, 0, 0);
+
+  return kChanged;
+}
+
 // On AArch64, lower stack operands to virtual registers for instructions
 // that cannot operate on memory. ARM64 instructions require register operands,
 // so this inserts a Move(Stack -> vreg) before the instruction and replaces
@@ -820,6 +855,7 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewritePromoteOutputSize, 1);
   registerOneRewriteFunction(rewriteGuardFPInput, 1);
   registerOneRewriteFunction(rewriteLeaLargeMultiplier, 1);
+  registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
   registerOneRewriteFunction(rewriteStackInputToVreg, 1);
   registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
   registerOneRewriteFunction(rewriteCallInput, 1);

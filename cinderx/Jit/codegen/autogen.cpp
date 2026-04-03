@@ -2084,11 +2084,6 @@ void translateMove(Environ* env, const Instruction* instr) {
           }
           break;
         }
-        case lir::OperandType::kMem:
-          // Loading a value from an absolute address into a register.
-          as->mov(arch::reg_scratch_0, input->getMemoryAddress());
-          loadToReg(as, output, a64::ptr(arch::reg_scratch_0));
-          break;
         case lir::OperandType::kInd: {
           // Loading a value from an address relative to another register into
           // a register.
@@ -2118,6 +2113,7 @@ void translateMove(Environ* env, const Instruction* instr) {
         }
         case lir::OperandType::kNone:
         case lir::OperandType::kVreg:
+        case lir::OperandType::kMem:
         case lir::OperandType::kLabel:
           JIT_ABORT(
               "Unsupported operand type for Move: Reg + {}", input->type());
@@ -2130,10 +2126,6 @@ void translateMove(Environ* env, const Instruction* instr) {
       if (input->isReg()) {
         // Storing the value of a register to the stack.
         storeFromReg(as, input, ptr);
-      } else if (input->isImm()) {
-        // Storing a constant immediate to the stack.
-        as->mov(scratch0, input->getConstant());
-        as->str(scratch0, ptr);
       } else {
         JIT_ABORT("Unsupported operand type for Move: Stk + {}", input->type());
       }

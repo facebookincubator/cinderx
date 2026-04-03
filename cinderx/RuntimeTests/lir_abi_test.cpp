@@ -204,7 +204,9 @@ TEST_F(LIRABITest, TestkMove_OutPhyReg_Imm) {
 // kMove R m
 TEST_F(LIRABITest, TestkMove_OutPhyReg_Mem) {
   translateInstr(Instruction::kMove, makeOutPhyReg(), makeStk());
+#if !defined(CINDER_AARCH64)
   translateInstr(Instruction::kMove, makeOutPhyReg(), MemImm{nullptr});
+#endif
   translateInstr(Instruction::kMove, makeOutPhyReg(), makeInd(1, 16));
   translateInstr(
       Instruction::kMove, makeOutPhyReg(), makeIndScale(1, 2, 8, 16));
@@ -226,8 +228,10 @@ TEST_F(LIRABITest, TestkMove_Mem_PhyReg) {
 
 // kMove M i
 TEST_F(LIRABITest, TestkMove_Mem_Imm) {
+#if !defined(CINDER_AARCH64)
   translateInstr(Instruction::kMove, makeOutStk(), Imm{0});
   translateInstr(Instruction::kMove, makeOutStk(), Imm{UINT64_MAX});
+#endif
   translateInstr(Instruction::kMove, OutMemImm{nullptr}, Imm{0});
   translateInstr(Instruction::kMove, OutMemImm{nullptr}, Imm{UINT64_MAX});
   translateInstr(Instruction::kMove, makeOutInd(1, 16), Imm{0});
@@ -235,7 +239,9 @@ TEST_F(LIRABITest, TestkMove_Mem_Imm) {
   translateInstr(Instruction::kMove, makeOutIndScale(1, 2, 8, 16), Imm{0});
   translateInstr(
       Instruction::kMove, makeOutIndScale(1, 2, 8, 16), Imm{UINT64_MAX});
+#if !defined(CINDER_AARCH64)
   translateInstr(Instruction::kMove, makeOutStk(), FPImm{0.0});
+#endif
   translateInstr(Instruction::kMove, OutMemImm{nullptr}, FPImm{0.0});
   translateInstr(Instruction::kMove, makeOutInd(1, 16), FPImm{0.0});
   translateInstr(Instruction::kMove, makeOutIndScale(1, 2, 8, 16), FPImm{0.0});
@@ -259,7 +265,9 @@ TEST_F(LIRABITest, TestkMove_OutFPPhyReg_FPPhyReg) {
 // kMove X m
 TEST_F(LIRABITest, TestkMove_OutFPPhyReg_Mem) {
   translateInstr(Instruction::kMove, makeOutPhyRegFP(), makeStk());
+#if !defined(CINDER_AARCH64)
   translateInstr(Instruction::kMove, makeOutPhyRegFP(), MemImm{nullptr});
+#endif
   translateInstr(Instruction::kMove, makeOutPhyRegFP(), makeInd(1, 16));
   translateInstr(
       Instruction::kMove, makeOutPhyRegFP(), makeIndScale(1, 2, 8, 16));
