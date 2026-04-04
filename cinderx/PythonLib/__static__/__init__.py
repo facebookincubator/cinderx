@@ -417,7 +417,7 @@ def _replace_types(
     if existing_inst is not None:
         return existing_inst
 
-    # Check if we have a full instantation, and verify the constraints
+    # Check if we have a full instantiation, and verify the constraints
     new_dict = dict(gen_type.__dict__)
     has_params = False
     for sub in subs:
@@ -468,7 +468,7 @@ def _runtime_impl(f):
 
 
 class StaticGeneric:
-    """Base type used to mark static-Generic classes.  Instantations of these
+    """Base type used to mark static-Generic classes.  Instantiations of these
     classes share different generic types and the generic type arguments can
     be accessed via __args___"""
 
