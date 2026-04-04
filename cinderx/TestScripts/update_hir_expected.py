@@ -696,7 +696,7 @@ def update_cpp_tests(  # noqa: C901
             m = CPP_FMT_FORMAT_START_RE.match(line)
             if m is not None:
                 expect_state(State.PROCESS_FAILED_TEST)
-                fmt_varname = m[2]
+                fmt_varname = m[3]
 
                 entry = test_dict.pop(fmt_varname, None)
                 if entry is None:
