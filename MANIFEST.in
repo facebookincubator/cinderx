@@ -1,5 +1,5 @@
 include CMakeLists.txt
-recursive-include cinderx *.cpp *.c *.h
+recursive-include cinderx *.cpp *.c *.h CMakeLists.txt
 
 # Opcode directories have invalid Python package names (e.g. opcodes/3.14) so
 # they have to be included manually.
