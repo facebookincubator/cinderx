@@ -593,7 +593,7 @@ def _patched_runtest_inner2(ns: Namespace, tests_name: str) -> bool:
 
     if find_spec(tests_name) is not None:
         # if we have a module fallback to the existing _runtest_inner2, it
-        # does some additioanl setup like calling test_main that we can't
+        # does some additional setup like calling test_main that we can't
         # handle for non-module tests.
         return _runtest_inner2(ns, tests_name)
 
