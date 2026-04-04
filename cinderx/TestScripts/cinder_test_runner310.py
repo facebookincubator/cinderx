@@ -323,8 +323,7 @@ def _setupCinderIgnoredTests(ns: Namespace, use_rr: bool) -> Tuple[List[str], Se
     return list(stdtest_set), nottests
 
 
-@staticmethod
-def list_tests(ns: Namespace, use_rr: bool) -> None:
+def list_tests(ns: Namespace, use_rr: bool) -> list[str]:
     cinderx_dir = get_cinderx_dir()
     test_cinderx_dir = get_test_cinderx_dir(cinderx_dir)
 
