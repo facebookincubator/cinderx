@@ -28,7 +28,9 @@ void Disassembler::setPrintInstBytes(bool) {}
 } // namespace jit
 #else
 #pragma GCC diagnostic push
+#ifdef __clang__
 #pragma GCC diagnostic ignored "-Wduplicate-enum"
+#endif
 #include "capstone/capstone.h"
 #pragma GCC diagnostic pop
 
