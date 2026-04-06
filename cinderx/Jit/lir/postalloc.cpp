@@ -43,10 +43,8 @@ void insertMoveToMemoryLocation(
 
   if (operand->isImm()) {
     auto constant = operand->getConstant();
-    if (
-#if defined(CINDER_X86_64)
-        !fitsSignedInt<32>(constant) ||
-#endif
+    if ((arch::kBuildArch == arch::Arch::kX86_64 &&
+         !fitsSignedInt<32>(constant)) ||
         operand->isFp()) {
       block->allocateInstrBefore(
           instr_iter,
@@ -474,22 +472,22 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     return kRemoved;
   }
 
-#if defined(CINDER_X86_64)
-  if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
-    auto in_opnd = dynamic_cast<Operand*>(in);
-    JIT_CHECK(
-        in_opnd != nullptr,
-        "Register allocation should have replaced linked operand {}",
-        *in);
-    instr->setOpcode(Instruction::kXor);
-    auto reg = out->getPhyRegister();
-    auto data_type = out->dataType();
-    out->setNone();
-    instr->setNumInputs(0);
-    instr->addOperands(PhyReg{reg, data_type}, PhyReg{reg, data_type});
-    return kChanged;
+  if constexpr (arch::kBuildArch == arch::Arch::kX86_64) {
+    if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
+      auto in_opnd = dynamic_cast<Operand*>(in);
+      JIT_CHECK(
+          in_opnd != nullptr,
+          "Register allocation should have replaced linked operand {}",
+          *in);
+      instr->setOpcode(Instruction::kXor);
+      auto reg = out->getPhyRegister();
+      auto data_type = out->dataType();
+      out->setNone();
+      instr->setNumInputs(0);
+      instr->addOperands(PhyReg{reg, data_type}, PhyReg{reg, data_type});
+      return kChanged;
+    }
   }
-#endif
 
   return kUnchanged;
 }
@@ -517,18 +515,13 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto in = instr->getInput(0);
   auto mem_addr = reinterpret_cast<intptr_t>(in->getMemoryAddress());
 
-#if defined(CINDER_X86_64)
   // On x86-64, you can load a 32-bit address directly into any register, so
   // check for bounds here and return an unchanged instruction if possible.
-  if (fitsSignedInt<32>(mem_addr)) {
-    return kUnchanged;
-  }
-#elif defined(CINDER_AARCH64)
   // aarch64 does not support absolute addressing, so we will always need to
   // rewrite the instruction.
-#else
-  CINDER_UNSUPPORTED
-#endif
+  if (arch::kBuildArch == arch::Arch::kX86_64 && fitsSignedInt<32>(mem_addr)) {
+    return kUnchanged;
+  }
 
   auto block = instr->basicblock();
   block->allocateInstrBefore(
