@@ -274,7 +274,10 @@ class ScopeContextManager(Generic[TVar, TScopeData]):
         return self.scope
 
     def __exit__(
-        self, exc_type: type[Exception], exc_val: Exception, exc_tb: object
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
     ) -> None:
         self.parent.pop()
 

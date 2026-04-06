@@ -361,7 +361,6 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
         scope_node: ListComp | SetComp | GeneratorExp | DictComp | None = None,
     ) -> None:
         scope_node = scope_node or node
-        # pyrefly: ignore [bad-context-manager]
         with self.scopes.with_node_scope(scope_node):
             if isinstance(node, DictComp):
                 key = self.visit(node.key)
@@ -413,7 +412,6 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
         scope_node: AsyncFunctionDef | FunctionDef | Lambda | None = None,
     ) -> SymbolScope[TVar, TScopeData]:
         scope_node = scope_node or node
-        # pyrefly: ignore [bad-context-manager]
         with self.scopes.with_node_scope(scope_node) as next:
             assert next
             assert isinstance(node, Lambda) or node.name == next.symbols.get_name()
@@ -440,7 +438,6 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
         scope_node: ClassDef | None = None,
     ) -> SymbolScope[TVar, TScopeData]:
         scope_node = scope_node or node
-        # pyrefly: ignore [bad-context-manager]
         with self.scopes.with_node_scope(scope_node) as next:
             assert next
             assert node.name == next.symbols.get_name()
