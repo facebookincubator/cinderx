@@ -304,6 +304,7 @@ def _format_gen_exp(node: ast.GeneratorExp, level: int) -> str:
 
 def format_fstring_elt(res: list[str], elt: ast.expr, is_format_spec: bool) -> None:
     if isinstance(elt, ast.Constant):
+        # pyrefly: ignore [bad-argument-type]
         res.append(elt.value)
     elif isinstance(elt, ast.JoinedStr):
         res.append(format_joinedstr(elt, PR_TEST, is_format_spec))

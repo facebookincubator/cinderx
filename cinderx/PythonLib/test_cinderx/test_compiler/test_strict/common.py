@@ -126,10 +126,12 @@ class StrictTestBase(CompilerTest):
         # ensure clean classloader/vtable slate for all tests
         cinderx.clear_classloader_caches()
 
+    # pyrefly: ignore [bad-override]
     def subTest(
         self, msg: str | None = None, **kwargs: object
     ) -> AbstractContextManager[object, bool]:
         cinderx.clear_classloader_caches()
+        # pyrefly: ignore [bad-return]
         return super().subTest(msg=msg, **kwargs)
 
 

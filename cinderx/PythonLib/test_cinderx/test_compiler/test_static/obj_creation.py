@@ -552,6 +552,7 @@ class StaticObjCreationTests(StaticTestBase):
             d = CheckedDict[str, C]({})
         """
         with self.in_module(codestr) as mod:
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(mod.d), chkdict[str, object])
 
     def test_generic_unknown_type_list(self) -> None:
@@ -564,6 +565,7 @@ class StaticObjCreationTests(StaticTestBase):
             l = CheckedList[C]([])
         """
         with self.in_module(codestr) as mod:
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(mod.l), chklist[object])
 
     def test_class_method_call(self) -> None:

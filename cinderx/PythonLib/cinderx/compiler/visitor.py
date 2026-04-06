@@ -53,7 +53,9 @@ class ASTVisitor:
             meth = getattr(type(self), "visit" + className, type(self).generic_visit)
             self._cache[klass] = meth
         if not args:
+            # pyrefly: ignore [not-callable]
             return meth(self, node)
+        # pyrefly: ignore [not-callable]
         return meth(self, node, *args)
 
     def visit_list(self, nodes: Sequence[TAst], *args: object) -> None:
@@ -164,8 +166,10 @@ class ExampleASTVisitor(ASTVisitor):
             meth = getattr(self, "visit" + className, 0)
             self._cache[node.__class__] = meth
         if self.VERBOSE > 1:
+            # pyrefly: ignore [missing-attribute]
             print("visit", className, meth and meth.__name__ or "")
         if meth:
+            # pyrefly: ignore [not-callable]
             meth(node, *args)
         elif self.VERBOSE > 0:
             klass = node.__class__

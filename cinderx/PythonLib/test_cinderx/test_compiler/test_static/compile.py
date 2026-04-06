@@ -111,6 +111,7 @@ def init_xxclassloader():
     install_frame_evaluator()
     exec(code, d, d)
 
+    # pyrefly: ignore [missing-attribute]
     xxclassloader.XXGeneric = d["XXGeneric"]
 
 
@@ -122,6 +123,7 @@ class StaticCompilationTests(StaticTestBase):
 
     @classmethod
     def tearDownClass(cls):
+        # pyrefly: ignore [missing-attribute]
         del xxclassloader.XXGeneric
 
     def test_static_import_unknown(self) -> None:

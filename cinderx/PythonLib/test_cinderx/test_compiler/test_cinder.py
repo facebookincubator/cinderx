@@ -304,6 +304,7 @@ Free variables:
 
 
 class LoadSuperPyCompilerTests(LoadSuperTests):
+    # pyrefly: ignore [bad-override]
     compiler = staticmethod(py_compile)
 
 
@@ -655,4 +656,5 @@ def f(self, name, data, files=(), dirs=()):
     "3.12 has different inline comprehensions w/ CPython tests",
 )
 class ComprehensionInlinerPyCompilerTests(ComprehensionInlinerTests):
+    # pyrefly: ignore [bad-override]
     compiler = staticmethod(py_compile)

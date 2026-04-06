@@ -61,6 +61,7 @@ def error_location(filename: str, node: AST) -> ErrorLocation:
     return ErrorLocation(
         filename,
         node,
+        # pyrefly: ignore [missing-attribute]
         node.lineno,
         # pyre-fixme[16]: `AST` has no attribute `col_offset`.
         node.col_offset + 1,

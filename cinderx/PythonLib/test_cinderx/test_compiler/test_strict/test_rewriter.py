@@ -49,6 +49,7 @@ class RewriterTestCase(StrictTestWithCheckerBase):
         def strict_slots(typ: type[object]) -> type[object]:
             return typ
 
+        # pyrefly: ignore [no-matching-overload]
         fixed_modules = modules or dict(FIXED_MODULES)
         fixed_modules.update(
             __strict__={

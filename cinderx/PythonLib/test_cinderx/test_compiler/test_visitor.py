@@ -16,6 +16,7 @@ class VisitorTests(TestCase):
                     return ast.Name("foo", ast.Load())
                 return node
 
+        # pyrefly: ignore [missing-attribute]
         tree = ast.parse("x + y + z").body[0].value
 
         rewriter = TestRewriter()
@@ -23,13 +24,16 @@ class VisitorTests(TestCase):
 
         self.assertIsNotNone(new_tree)
         self.assertNotEqual(new_tree, tree, "tree should be rewritten")
+        # pyrefly: ignore [bad-argument-type]
         self.assertEqual(to_expr(new_tree), "x + y + foo")
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tree.left, new_tree.left, "Unchanged nodes should be the same")
 
     def test_rewrite_stmt(self):
         class TestRewriter(ASTRewriter):
             def visitAssign(self, node):
                 return ast.AnnAssign(
+                    # pyrefly: ignore [bad-argument-type]
                     ast.Name("foo", ast.Store),
                     ast.Constant("foo"),
                     ast.Constant(1),
@@ -43,7 +47,9 @@ class VisitorTests(TestCase):
 
         self.assertIsNotNone(new_tree)
         self.assertNotEqual(new_tree, tree, "tree should be rewritten")
+        # pyrefly: ignore [missing-attribute]
         self.assertNotEqual(tree.body[0], new_tree.body[0])
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tree.body[1], new_tree.body[1])
 
     def test_remove_node(self):
@@ -57,7 +63,9 @@ class VisitorTests(TestCase):
         new_tree = rewriter.visit(tree)
 
         self.assertIsNotNone(new_tree)
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tree.body[1], new_tree.body[0])
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(len(new_tree.body), 1)
 
     def test_change_child_and_list(self):
@@ -74,6 +82,7 @@ class VisitorTests(TestCase):
 
         rewriter = TestRewriter()
         new_tree = rewriter.visit(tree)
+        # pyrefly: ignore [missing-attribute]
         func = new_tree.body[0]
         self.assertEqual(type(func.body[0]), ast.Pass)
         self.assertIsNotNone(func.args.vararg)
@@ -81,6 +90,7 @@ class VisitorTests(TestCase):
     def test_change_list_and_child(self):
         class TestRewriter(ASTRewriter):
             def visitStr(self, node: ast.Constant):
+                # pyrefly: ignore [missing-attribute]
                 return ast.Str("bar")
 
             def visitAssign(self, node):
@@ -90,6 +100,7 @@ class VisitorTests(TestCase):
 
         rewriter = TestRewriter()
         new_tree = rewriter.visit(tree)
+        # pyrefly: ignore [missing-attribute]
         func = new_tree.body[0]
         self.assertIsNotNone(func.returns)
         self.assertEqual(type(func.body[0]), ast.Pass)

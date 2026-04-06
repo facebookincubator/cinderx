@@ -197,6 +197,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             # Force suspension. Otherwise the entire execution is eager and
             # awaiter is never set.
             await asyncio.sleep(0)
+            # pyrefly: ignore [bad-argument-type]
             await_stack = get_await_stack(coro)
             return 100
 
@@ -209,6 +210,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         # directly, only that it corresponds to g
         # pyre-fixme[16]: `None` has no attribute `__getitem__`.
         self.assertIs(await_stack[0].cr_code, g.__code__)
+        # pyrefly: ignore [unsupported-operation]
         self.assertIs(await_stack[1], h_coro)
 
     @passUnless(cinder_support.hasCinderX(), "Tests CinderX features")
@@ -360,6 +362,7 @@ class AsyncLazyValueTest(unittest.TestCase):
 
         async def async_cancel(task: asyncio.Task, alv: AsyncLazyValue) -> None:
             start = time()
+            # pyrefly: ignore [missing-attribute]
             while alv._awaiting_tasks < 1:
                 # Sleep until both tasks are awaiting on the future (one of them
                 # is awaiting on async_func, so we only wait until the count
@@ -404,6 +407,7 @@ class AsyncLazyValueTest(unittest.TestCase):
 
         async def async_cancel(task: asyncio.Task, alv: AsyncLazyValue) -> None:
             start = time()
+            # pyrefly: ignore [missing-attribute]
             while alv._awaiting_tasks < 1:
                 # Sleep until both tasks are awaiting on the future (one of them
                 # is awaiting on async_func, so we only wait until the count

@@ -232,6 +232,7 @@ class StaticPatchTests(StaticTestBase):
             g = mod.g
             for _ in range(100):
                 g()
+            # pyrefly: ignore [missing-attribute]
             del mod.f
             with self.assertRaisesRegex(
                 TypeError,
@@ -274,6 +275,7 @@ class StaticPatchTests(StaticTestBase):
             for _ in range(100):
                 self.assertEqual(g(), 42)
 
+            # pyrefly: ignore [invalid-decorator]
             @staticmethod
             def new():
                 return 100
@@ -1463,6 +1465,7 @@ class StaticPatchTests(StaticTestBase):
         with comp.in_module("b") as bmod:
             self.assertEqual(bmod.g(), 10)
 
+            # pyrefly: ignore [missing-attribute]
             bmod.f = lambda: 2
 
             self.assertEqual(bmod.g(), 20)
@@ -1529,6 +1532,7 @@ class StaticPatchTests(StaticTestBase):
                 with comp.in_module("b") as bmod:
                     self.assertEqual(bmod.g(), 10)
 
+                    # pyrefly: ignore [missing-attribute]
                     bmod.ff = lambda: 2
 
                     self.assertEqual(bmod.g(), 20)

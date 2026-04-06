@@ -17,6 +17,7 @@ from .common import failUnlessHasOpcodes, with_globals
 
 class LoadGlobalCacheTests(unittest.TestCase):
     def setUp(self):
+        # pyrefly: ignore [unknown-name]
         global license, a_global
         try:
             del license
@@ -29,6 +30,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @staticmethod
     def set_global(value):
+        # pyrefly: ignore [unknown-name]
         global a_global
         a_global = value
 
@@ -36,10 +38,12 @@ class LoadGlobalCacheTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def get_global():
+        # pyrefly: ignore [unknown-name]
         return a_global
 
     @staticmethod
     def del_global():
+        # pyrefly: ignore [unknown-name]
         global a_global
         del a_global
 
@@ -56,6 +60,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_simple(self):
+        # pyrefly: ignore [unknown-name]
         global a_global
         self.set_global(123)
         self.assertEqual(a_global, 123)
@@ -75,11 +80,15 @@ class LoadGlobalCacheTests(unittest.TestCase):
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_shadow_fake_builtin(self):
         self.assertRaises(NameError, self.get_global)
+        # pyrefly: ignore [missing-attribute]
         builtins.a_global = "poke"
+        # pyrefly: ignore [unknown-name]
         self.assertEqual(a_global, "poke")
         self.set_global("override poke")
+        # pyrefly: ignore [unknown-name]
         self.assertEqual(a_global, "override poke")
         self.del_global()
+        # pyrefly: ignore [unknown-name]
         self.assertEqual(a_global, "poke")
         # We don't support DELETE_ATTR yet.
         delattr(builtins, "a_global")
@@ -88,18 +97,22 @@ class LoadGlobalCacheTests(unittest.TestCase):
     class prefix_str(str):
         def __new__(cls, prefix, value):
             s = super().__new__(cls, value)
+            # pyrefly: ignore [missing-attribute]
             s.prefix = prefix
             return s
 
         def __hash__(self):
+            # pyrefly: ignore [missing-attribute]
             return hash(self.prefix + self)
 
         def __eq__(self, other):
+            # pyrefly: ignore [missing-attribute]
             return (self.prefix + self) == other
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_weird_key_in_globals(self):
+        # pyrefly: ignore [unknown-name]
         global a_global
         self.assertRaises(NameError, self.get_global)
         globals()[self.prefix_str("a_glo", "bal")] = "a value"
@@ -114,6 +127,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @with_globals(MyGlobals())
     def return_knock_knock(self):
+        # pyrefly: ignore [unknown-name]
         return knock_knock  # noqa: F821
 
     def test_dict_subclass_globals(self):
@@ -124,6 +138,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
     def _test_unwatch_builtins(self):
         self.set_global("hey")
         self.assertEqual(self.get_global(), "hey")
+        # pyrefly: ignore [unsupported-operation]
         builtins.__dict__[42] = 42
 
     @run_in_subprocess
@@ -131,6 +146,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
         try:
             self._test_unwatch_builtins()
         finally:
+            # pyrefly: ignore [unsupported-operation]
             del builtins.__dict__[42]
 
     @skip_unless_lazy_imports()
@@ -201,7 +217,9 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 # code that will inevitably deopt, and so we should.
                 stats = cinderx.jit.get_and_clear_runtime_stats()
                 relevant_deopts = [
-                    d for d in stats["deopt"] if d["normal"]["func_qualname"] == "get_a"
+                    d
+                    for d in stats["deopt"]  # pyrefly: ignore [not-iterable]
+                    if d["normal"]["func_qualname"] == "get_a"
                 ]
                 self.assertEqual(relevant_deopts, [])
 
@@ -241,6 +259,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
             )
 
             cinderx.jit.clear_runtime_stats()
+            # pyrefly: ignore [missing-import]
             import tmp_a
 
             # Force the compilation if this is running with AutoJIT.
@@ -282,6 +301,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 encoding="utf8",
             )
             cinderx.jit.clear_runtime_stats()
+            # pyrefly: ignore [missing-import]
             import tmp_a
 
             # Force the compilation if this is running with AutoJIT.
@@ -321,6 +341,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                     """
                 )
             )
+            # pyrefly: ignore [missing-import]
             import tmp_a
 
             self.assertEqual(tmp_a.f(), 3)

@@ -221,6 +221,7 @@ class Compiler:
             "all": reflect_builtin_function(all, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "any": reflect_builtin_function(any, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "anext": reflect_builtin_function(anext, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "ascii": reflect_builtin_function(ascii, None, self.type_env),
@@ -232,11 +233,15 @@ class Compiler:
             "callable": reflect_builtin_function(callable, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "chr": reflect_builtin_function(chr, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "compile": reflect_builtin_function(compile, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "dir": reflect_builtin_function(dir, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "divmod": reflect_builtin_function(divmod, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "eval": reflect_builtin_function(eval, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "exec": reflect_builtin_function(exec, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "format": reflect_builtin_function(format, None, self.type_env),
@@ -248,19 +253,27 @@ class Compiler:
             "id": reflect_builtin_function(id, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "input": reflect_builtin_function(input, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "iter": reflect_builtin_function(iter, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "next": reflect_builtin_function(next, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "oct": reflect_builtin_function(oct, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "open": reflect_builtin_function(open, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "ord": reflect_builtin_function(ord, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "pow": reflect_builtin_function(pow, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "print": reflect_builtin_function(print, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "repr": reflect_builtin_function(repr, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "round": reflect_builtin_function(round, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "sum": reflect_builtin_function(sum, None, self.type_env),
+            # pyrefly: ignore [bad-argument-type]
             "vars": reflect_builtin_function(vars, None, self.type_env),
             # FIXME: This is IG-specific. Add a way to customize the set of builtins
             # while initializing the loader.
@@ -447,16 +460,19 @@ class Compiler:
             if hasattr(xxclassloader, "foo"):
                 funcs = {
                     "foo": reflect_builtin_function(
+                        # pyrefly: ignore [bad-argument-type]
                         xxclassloader.foo,
                         None,
                         self.type_env,
                     ),
                     "bar": reflect_builtin_function(
+                        # pyrefly: ignore [bad-argument-type]
                         xxclassloader.bar,
                         None,
                         self.type_env,
                     ),
                     "neg": reflect_builtin_function(
+                        # pyrefly: ignore [bad-argument-type]
                         xxclassloader.neg,
                         None,
                         self.type_env,
@@ -554,6 +570,7 @@ class Compiler:
 
         # Analyze the types of objects within local scopes
         type_binder = self.make_type_binder(
+            # pyrefly: ignore [bad-argument-type]
             s,
             filename,
             self,
@@ -562,6 +579,7 @@ class Compiler:
             enable_patching=enable_patching,
         )
         type_binder.visit(tree)
+        # pyrefly: ignore [bad-return]
         return tree, s
 
     def make_type_binder(

@@ -149,6 +149,7 @@ def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
     if py_version == unknown_version:
         raise RuntimeError("Couldn't figure out Python version from test output")
 
+    # pyrefly: ignore [bad-return]
     return py_version, failed_tests
 
 

@@ -51,6 +51,7 @@ class SubclassTests(StaticTestBase):
             comp.type_env.awaitable,
             (comp.type_env.int,),
         )
+        # pyrefly: ignore [bad-argument-type]
         awaitable_num = comp.type_env.get_generic_type(comp.type_env.awaitable, (num,))
 
         self.assertTrue(awaitable_bool.is_subclass_of(awaitable_bool))

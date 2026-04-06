@@ -121,19 +121,21 @@ def passAlways(reason: str) -> Callable[[_FT], _FT]:
                     setattr(test_item, attr_name, passAlways(attr))
 
         else:
-
+            # pyrefly: ignore [bad-argument-type]
             @functools.wraps(test_item)
             def pass_wrapper(*args: object, **kwargs: object) -> None:
                 return
 
             test_item = pass_wrapper
 
+        # pyrefly: ignore [missing-attribute]
         test_item.__unittest_skip_why__ = reason
         return test_item
 
     if isinstance(reason, types.FunctionType):
         test_item = reason
         reason = ""
+        # pyrefly: ignore [bad-return]
         return decorator(test_item)
     # pyre-ignore[7]: bad return type
     return decorator
@@ -201,13 +203,16 @@ def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
         # when wrapper() is eventually called.
         exc: RuntimeError = re
 
+        # pyrefly: ignore [invalid-annotation]
         def wrapper(*args: ...) -> None:
             raise RuntimeError(
                 f"JIT compilation of {func.__qualname__} failed with {exc}"
             )
 
+        # pyrefly: ignore [missing-attribute]
         wrapper.inner_function = func
 
+        # pyrefly: ignore [bad-return]
         return wrapper
 
     return func
@@ -224,6 +229,7 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
     if not cinderx.jit.is_enabled():
         return func
 
+    # pyrefly: ignore [invalid-annotation]
     def wrapper(*args: ..., **kwargs: ...) -> TRet:
         cinderx.jit.get_and_clear_runtime_stats()
         r = func(*args, **kwargs)
@@ -232,6 +238,7 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
             raise RuntimeError(f"Deopt occurred {deopts}")
         return r
 
+    # pyrefly: ignore [missing-attribute]
     wrapper.inner_function = func
 
     return wrapper
@@ -281,10 +288,12 @@ def undo_fail_decorators(func: Callable[..., object]) -> Callable[..., object]:
 
 def is_sanitizer_build() -> bool:
     try:
+        # pyrefly: ignore [no-access]
         ctypes.pythonapi.__asan_init
         return True
     except AttributeError:
         try:
+            # pyrefly: ignore [no-access]
             ctypes.pythonapi.__tsan_init
             return True
         except AttributeError:

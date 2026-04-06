@@ -61,8 +61,11 @@ if sys.version_info >= (3, 12):
         # Fix up dis module to use the CinderX opcodes
         import dis
 
+        # pyrefly: ignore [missing-attribute]
         dis._all_opname = list(opname)
+        # pyrefly: ignore [missing-attribute]
         dis._all_opmap = dict(opmap)
+        # pyrefly: ignore [missing-attribute]
         dis._empty_slot = [
             slot
             # pyre-fixme[16]: Module `dis` has no attribute `_all_opname`.
@@ -72,6 +75,7 @@ if sys.version_info >= (3, 12):
 
 
 opcode: Opcode = Opcode()
+# pyrefly: ignore [bad-assignment]
 for opname, opnum in opmap.items():
     if opnum in hasname:
         opcode.name_op(opname, opnum)
@@ -247,8 +251,11 @@ if sys.version_info >= (3, 12):
     # pyre-fixme[21]: Could not find name `_intrinsic_2_descs` in `opcode` (stubbed).
     # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
     from opcode import (
+        # pyrefly: ignore [missing-module-attribute]
         _intrinsic_1_descs as INTRINSIC_1,
+        # pyrefly: ignore [missing-module-attribute]
         _intrinsic_2_descs as INTRINSIC_2,
+        # pyrefly: ignore [missing-module-attribute]
         _nb_ops as NB_OPS,
     )
 else:

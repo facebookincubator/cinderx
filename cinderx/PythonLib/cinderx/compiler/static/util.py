@@ -8,12 +8,17 @@ import sys
 from typing import Callable, Mapping
 
 COMPARE_OPS: Mapping[type[ast.cmpop], Callable[[object, object], bool]] = {
+    # pyrefly: ignore [unsupported-operation]
     ast.Gt: lambda a, b: a > b,
+    # pyrefly: ignore [unsupported-operation]
     ast.GtE: lambda a, b: a >= b,
+    # pyrefly: ignore [unsupported-operation]
     ast.Lt: lambda a, b: a < b,
+    # pyrefly: ignore [unsupported-operation]
     ast.LtE: lambda a, b: a <= b,
     ast.Eq: lambda a, b: a == b,
     ast.NotEq: lambda a, b: a != b,
+    # pyrefly: ignore [not-iterable]
     ast.In: lambda a, b: a in b,
     ast.Is: lambda a, b: a is b,
     ast.IsNot: lambda a, b: a is not b,

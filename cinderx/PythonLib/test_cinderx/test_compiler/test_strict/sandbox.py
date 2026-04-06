@@ -108,6 +108,7 @@ def on_sys_path(dir: str) -> Generator[None, None, None]:
 
 
 @contextmanager
+# pyrefly: ignore [bad-function-definition]
 def sandbox(cls: type[_SandboxT] = Sandbox) -> Generator[_SandboxT, None, None]:
     with TemporaryDirectory() as root:
         yield cls(Path(root))

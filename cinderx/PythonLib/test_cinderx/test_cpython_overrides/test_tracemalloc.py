@@ -69,6 +69,7 @@ def create_snapshots():
 
 
 def frame(filename, lineno):
+    # pyrefly: ignore [missing-attribute]
     return tracemalloc._Frame((filename, lineno))
 
 

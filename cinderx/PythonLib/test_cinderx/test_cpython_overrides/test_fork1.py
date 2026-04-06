@@ -32,10 +32,12 @@ class CinderX_ForkTest(ForkWait):
         def importer():
             imp.acquire_lock()
 
+            # pyrefly: ignore [unsupported-operation]
             sys.modules[fake_module_name] = partial_module
             import_started.set()
             # CinderX: This time.sleep is added to improve test reliability.
             time.sleep(0.01)  # Give the other thread time to try and acquire.
+            # pyrefly: ignore [unsupported-operation]
             sys.modules[fake_module_name] = complete_module
             imp.release_lock()
 

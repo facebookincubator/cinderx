@@ -102,17 +102,21 @@ class ArrayTests(StaticTestBase):
             self.compile(codestr, modname="foo")
 
     def test_array_slice_load_unsupported_nonstatic(self):
+        # pyrefly: ignore [bad-argument-count]
         v = Array[int64](10)
         with self.assertRaisesRegex(
             TypeError, "sequence index must be integer, not 'slice'"
         ):
+            # pyrefly: ignore [bad-index]
             v[1:4]
 
     def test_array_slice_store_unsupported_nonstatic(self):
+        # pyrefly: ignore [bad-argument-count]
         v = Array[int64](10)
         with self.assertRaisesRegex(
             TypeError, "sequence index must be integer, not 'slice'"
         ):
+            # pyrefly: ignore [unsupported-operation]
             v[1:4] = [1, 2, 3]
 
     def test_array_len(self):
@@ -129,6 +133,7 @@ class ArrayTests(StaticTestBase):
             self.assertEqual(y(), 5)
 
     def test_array_isinstance(self):
+        # pyrefly: ignore [bad-argument-count]
         x = Array[int64](0)
         self.assertTrue(isinstance(x, Array[int64]))
         self.assertTrue(issubclass(Array[int64], Array[int64]))
@@ -136,6 +141,7 @@ class ArrayTests(StaticTestBase):
     def test_array_weird_type_construction(self):
         self.assertIs(
             Array[int64],
+            # pyrefly: ignore [bad-index]
             Array[int64,],
         )
 
@@ -143,14 +149,14 @@ class ArrayTests(StaticTestBase):
         with self.assertRaisesRegex(
             TypeError, "type '__static__.staticarray' is not an acceptable base type"
         ):
-
+            # pyrefly: ignore [invalid-inheritance]
             class C1(Array[int64]):
                 pass
 
         with self.assertRaisesRegex(
             TypeError, "type '__static__.staticarray' is not an acceptable base type"
         ):
-
+            # pyrefly: ignore [invalid-inheritance]
             class C2(Array):
                 pass
 
@@ -169,10 +175,15 @@ class ArrayTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
+            # pyrefly: ignore [bad-argument-count]
             a = Array[int64](4)
+            # pyrefly: ignore [unsupported-operation]
             a[0] = 1
+            # pyrefly: ignore [unsupported-operation]
             a[1] = 2
+            # pyrefly: ignore [unsupported-operation]
             a[2] = 3
+            # pyrefly: ignore [unsupported-operation]
             a[3] = 4
             self.assertEqual(f(a), 10)
             with self.assertRaises(StaticTypeError):
@@ -196,10 +207,15 @@ class ArrayTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
+            # pyrefly: ignore [bad-argument-count]
             a = Array[int64](4)
+            # pyrefly: ignore [unsupported-operation]
             a[0] = 1
+            # pyrefly: ignore [unsupported-operation]
             a[1] = 2
+            # pyrefly: ignore [unsupported-operation]
             a[2] = 3
+            # pyrefly: ignore [unsupported-operation]
             a[3] = 4
             self.assertEqual(f(a), 10)
             self.assertEqual(f(None), 42)

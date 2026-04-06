@@ -308,7 +308,9 @@ def rewrite(
 
 
 TTransformedStmt = Union[Optional[AST], List[AST]]
+# pyrefly: ignore [invalid-type-var]
 TVar = TypeVar("TScope")
+# pyrefly: ignore [invalid-type-var]
 TScopeData = TypeVar("TData")
 
 
@@ -359,6 +361,7 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
         scope_node: ListComp | SetComp | GeneratorExp | DictComp | None = None,
     ) -> None:
         scope_node = scope_node or node
+        # pyrefly: ignore [bad-context-manager]
         with self.scopes.with_node_scope(scope_node):
             if isinstance(node, DictComp):
                 key = self.visit(node.key)
@@ -410,6 +413,7 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
         scope_node: AsyncFunctionDef | FunctionDef | Lambda | None = None,
     ) -> SymbolScope[TVar, TScopeData]:
         scope_node = scope_node or node
+        # pyrefly: ignore [bad-context-manager]
         with self.scopes.with_node_scope(scope_node) as next:
             assert next
             assert isinstance(node, Lambda) or node.name == next.symbols.get_name()
@@ -436,6 +440,7 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
         scope_node: ClassDef | None = None,
     ) -> SymbolScope[TVar, TScopeData]:
         scope_node = scope_node or node
+        # pyrefly: ignore [bad-context-manager]
         with self.scopes.with_node_scope(scope_node) as next:
             assert next
             assert node.name == next.symbols.get_name()
@@ -457,6 +462,7 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
             elif new is not None:
                 new_stmts.extend(new)
         if update:
+            # pyrefly: ignore [unsupported-operation]
             stmts[:] = new_stmts
 
     def visit_Lambda(self, node: Lambda) -> TTransformedStmt:
@@ -888,6 +894,7 @@ class ImmutableTransformer(SymbolVisitor[None, ScopeData], AstRewriter):
                                                     )
                                                 )
                                             ),
+                                            # pyrefly: ignore [bad-argument-type]
                                             lineinfo(Constant(value)),
                                         ],
                                         ast.Load(),

@@ -652,6 +652,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
         class ClassVar:
             pass
 
+        # pyrefly: ignore [bad-argument-type]
         self.descr.__class__ = ClassVar
 
         # Cached; type check on descriptor's type should fail
@@ -702,6 +703,7 @@ class ClosureTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _cellvar_unbound(self):
+        # pyrefly: ignore [unbound-name]
         b = a  # noqa: F821, F841
         a = 1
 
@@ -776,6 +778,7 @@ class ClosureTests(unittest.TestCase):
         @cinder_support.failUnlessJITCompiled
         @with_globals({"A_GLOBAL_CONSTANT": 0xDEADBEEF})
         def return_global():
+            # pyrefly: ignore [unknown-name]
             return A_GLOBAL_CONSTANT  # noqa: F821
 
         self.assertEqual(return_global(), 0xDEADBEEF)
@@ -868,6 +871,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             pass
         except:  # noqa: B001
             x = 1
+        # pyrefly: ignore [unbound-name]
         return x.__index__()
 
     def test_load_method_on_maybe_defined_value(self) -> None:
@@ -967,6 +971,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             main_fut = asyncio.Future()
             box = [None]
             coro = a(child_fut, main_fut, box)
+            # pyrefly: ignore [unsupported-operation]
             box[0] = coro
             t = asyncio.create_task(coro)
             # wait for d to have started
@@ -1154,6 +1159,7 @@ class SpecializeCCallTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     def _c_func_that_sets_pyerr(self):
         s = "abc"
+        # pyrefly: ignore [no-matching-overload]
         return s.removeprefix(1)
 
     def test_c_call_error_raised(self) -> None:
@@ -1209,6 +1215,7 @@ class UnpackSequenceTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_EX")
     def _unpack_not_iterable(self):
+        # pyrefly: ignore [not-iterable]
         (a, b, *c) = 1
 
     @cinder_support.failUnlessJITCompiled
@@ -1327,12 +1334,14 @@ class DeleteFastTests(unittest.TestCase):
     def _del_and_raise(self):
         x = 2
         del x
+        # pyrefly: ignore [unbound-name]
         return x
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("DELETE_FAST")
     def _del_arg_and_raise(self, a):
         del a
+        # pyrefly: ignore [unbound-name]
         return a  # noqa: F821
 
     @failUnlessHasOpcodes("DELETE_FAST")
@@ -1350,6 +1359,7 @@ class DeleteFastTests(unittest.TestCase):
             raise Exception()
         except Exception as e:  # noqa: F841
             pass
+        # pyrefly: ignore [unbound-name]
         return e  # noqa: F821
 
     def test_del_local(self) -> None:
@@ -1390,6 +1400,7 @@ class DictSubscrTests(unittest.TestCase):
         d = {}
         d[c] = 1
         with self.assertRaises(RuntimeError):
+            # pyrefly: ignore [bad-index]
             d[333]
 
     def test_unicode_custom_class(self) -> None:
@@ -1407,6 +1418,7 @@ class DictSubscrTests(unittest.TestCase):
         d = {}
         d[c] = 1
         with self.assertRaises(RuntimeError):
+            # pyrefly: ignore [bad-index]
             d["x"]
 
 
@@ -1517,6 +1529,7 @@ class ClassB(ClassA):
         return super().cls_g(a=a)
 
     @property
+    # pyrefly: ignore [bad-override]
     def x(self):
         return super().x + 1
 
@@ -1841,6 +1854,7 @@ class DeleteAttrTests(unittest.TestCase):
         c = C()
         # pyre-ignore[16]: Intentionally testing dynamically defined attribute.
         c.foo = "bar"
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(c.foo, "bar")
         self.del_foo(c)
         with self.assertRaises(AttributeError):
@@ -2206,8 +2220,11 @@ class SetupWithTests(unittest.TestCase):
         mgr = MyCtxMgr(should_suppress_exc=False)
         with self.assertRaisesRegex(SetupWithException, "foo"):
             self.with_raises(mgr)
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(mgr.exit_args[0], SetupWithException)
+        # pyrefly: ignore [unsupported-operation]
         self.assertTrue(isinstance(mgr.exit_args[1], SetupWithException))
+        # pyrefly: ignore [unsupported-operation]
         self.assertNotEqual(mgr.exit_args[2], None)
 
         mgr = MyCtxMgr(should_suppress_exc=True)
@@ -2351,6 +2368,7 @@ class MatchTests(unittest.TestCase):
         point = self.Point(x, y)
         # will raise because Point.__match_args__ is not a tuple
         match point:
+            # pyrefly: ignore [bad-match]
             case self.Point(x, y):
                 pass
 
@@ -2512,6 +2530,7 @@ def func(callee):
         self.assertEqual(callee.__code__.co_flags & flag, flag)
         force_compile(callee)
         flags = caller(callee)
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(flags & flag, flag)
 
     def test_merge_compiler_flags(self) -> None:

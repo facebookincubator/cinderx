@@ -601,6 +601,7 @@ class IndexedSet:
 
 TConstValue = TypeVar("TConstValue", bound=object)
 TConstKey: TypeAlias = (
+    # pyrefly: ignore [invalid-argument]
     tuple[type[TConstValue], TConstValue] | tuple[type[TConstValue], TConstValue, ...]
 )
 
@@ -626,6 +627,7 @@ class PyFlowGraph(FlowGraph):
         posonlyargs: int = 0,
         suppress_default_const: bool = False,
     ) -> None:
+        # pyrefly: ignore [bad-argument-count]
         self.super_init()
         self.name = name
         self.filename = filename
@@ -826,6 +828,7 @@ class PyFlowGraph(FlowGraph):
 
                     assert target_depth >= 0
 
+                    # pyrefly: ignore [bad-argument-type]
                     self.push_block(worklist, instr.target, target_depth)
 
                 depth = new_depth
@@ -933,6 +936,7 @@ class PyFlowGraph(FlowGraph):
         res = self.consts.get(key, self)
         if res is self:
             res = self.consts[key] = len(self.consts)
+        # pyrefly: ignore [bad-return]
         return res
 
     def get_const_key(self, value: TConstValue) -> TConstKey:
@@ -1023,6 +1027,7 @@ class PyFlowGraph(FlowGraph):
         "LOAD_NAME": _convert_NAME,
         "LOAD_FROM_DICT_OR_DEREF": _convert_DEREF,
         "LOAD_FROM_DICT_OR_GLOBALS": _convert_NAME,
+        # pyrefly: ignore [bad-argument-type]
         "LOAD_CLOSURE": lambda self, arg: self.closure.get_index(arg),
         "COMPARE_OP": lambda self, arg: self.opcode.CMP_OP.index(arg),
         "LOAD_GLOBAL": _convert_NAME,
@@ -1227,9 +1232,11 @@ class PyFlowGraph(FlowGraph):
                     target.num_predecessors -= 1
                     new_target.num_predecessors = 1
                     target.insert_next(new_target)
+                    # pyrefly: ignore [missing-attribute]
                     append_after.setdefault(target, []).append(new_target)
         for after, to_append in append_after.items():
             idx = self.ordered_blocks.index(after) + 1
+            # pyrefly: ignore [no-matching-overload]
             self.ordered_blocks[idx:idx] = reversed(to_append)
 
         for block in self.ordered_blocks:
@@ -1308,8 +1315,10 @@ class PyFlowGraph(FlowGraph):
             last = block.insts[-1]
             if last.is_jump(self.opcode) and last.opname != "END_ASYNC_FOR":
                 target = last.target
+                # pyrefly: ignore [missing-attribute]
                 while not target.insts and target.next:
                     target = target.next
+                # pyrefly: ignore [bad-assignment]
                 last.target = target
         self.ordered_blocks = [block for block in self.ordered_blocks if block.insts]
 
@@ -1784,6 +1793,7 @@ class PyFlowGraph312(PyFlowGraph):
                 to_end.append(block)
 
         for block in to_end:
+            # pyrefly: ignore [missing-attribute]
             prev.next = block
             block.prev = prev
             prev = block
@@ -2057,12 +2067,14 @@ class PyFlowGraph312(PyFlowGraph):
     def instrsize(self, instr: Instruction, oparg: int) -> int:
         opname = instr.opname
         opcode_index = opcodes_opcode.opmap[opname]
+        # pyrefly: ignore [bad-argument-type]
         if opcode_index >= len(_inline_cache_entries):
             # T190611021: This should never happen as we should remove pseudo
             # instructions, but we are still missing some functionality
             # like zero-cost exceptions so we emit things like END_FINALLY
             base_size = 0
         else:
+            # pyrefly: ignore [unsupported-operation]
             base_size = _inline_cache_entries[opcode_index]
         if oparg <= 0xFF:
             return 1 + base_size
@@ -2124,6 +2136,7 @@ class PyFlowGraph312(PyFlowGraph):
         for block in self.ordered_blocks:
             seen_blocks.add(block.bid)
             if block.insts:
+                # pyrefly: ignore [bad-argument-type]
                 ret = self.normalize_jumps_in_block(block, seen_blocks)
                 new_blocks[block] = ret
         new_ordered = []
@@ -2137,7 +2150,9 @@ class PyFlowGraph312(PyFlowGraph):
         self, opcode: str, addCode: Callable[[int, int], None]
     ) -> None:
         opcode_index = opcodes_opcode.opmap[opcode]
+        # pyrefly: ignore [bad-argument-type]
         if opcode_index < len(_inline_cache_entries):
+            # pyrefly: ignore [unsupported-operation]
             base_size = _inline_cache_entries[opcode_index]
         else:
             base_size = 0
@@ -2353,6 +2368,7 @@ class PyFlowGraph312(PyFlowGraph):
     _const_opcodes.add("KW_NAMES")
 
 
+# pyrefly: ignore [inconsistent-inheritance]
 class PyFlowGraphCinder312(PyFlowGraphCinderMixin, PyFlowGraph312):
     pass
 
@@ -2449,6 +2465,7 @@ class PyFlowGraph314(PyFlowGraph312):
                 to_end.append(block)
 
         for block in to_end:
+            # pyrefly: ignore [missing-attribute]
             prev.next = block
             block.prev = prev
             prev = block
@@ -2491,6 +2508,7 @@ class PyFlowGraph314(PyFlowGraph312):
                 if instr.is_jump(self.opcode):
                     target = instr.target
                     if target not in warm and target not in visited:
+                        # pyrefly: ignore [bad-argument-type]
                         stack.append(target)
                         visited.add(target)
         return cold
@@ -2578,6 +2596,7 @@ class PyFlowGraph314(PyFlowGraph312):
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         **PyFlowGraph312._converters,
         "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],
+        # pyrefly: ignore [bad-typed-dict-key]
         "LOAD_SPECIAL": lambda self, val: PyFlowGraph314._load_special_idx[val],
         "COMPARE_OP": _convert_compare_op,
     }
@@ -2590,6 +2609,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
     def instrsize(self, instr: Instruction, oparg: int) -> int:
         opname = instr.opname
+        # pyrefly: ignore [missing-attribute]
         base_size = _inline_cache_entries.get(opname, 0)
         if opname in STATIC_OPCODES:
             # extended opcode
@@ -2648,6 +2668,7 @@ class PyFlowGraph314(PyFlowGraph312):
     def emit_inline_cache(
         self, opcode: str, addCode: Callable[[int, int], None]
     ) -> None:
+        # pyrefly: ignore [missing-attribute]
         base_size = _inline_cache_entries.get(opcode, 0)
         for _i in range(base_size):
             addCode(0, 0)
@@ -3213,7 +3234,9 @@ class PyFlowGraph314(PyFlowGraph312):
             if last.opname not in UNCONDITIONAL_JUMP_OPCODES:
                 continue
             target = last.target
+            # pyrefly: ignore [missing-attribute]
             while not target.insts:
+                # pyrefly: ignore [missing-attribute]
                 target = target.next
             next = block.next
             while next and not next.insts:

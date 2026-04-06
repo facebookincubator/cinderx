@@ -154,6 +154,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
                 return x
         """
         mod = self.compile_and_run(code)
+        # pyrefly: ignore [missing-attribute]
         mod.x = 42
 
     def test_deleted(self) -> None:

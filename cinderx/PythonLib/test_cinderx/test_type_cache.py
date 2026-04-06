@@ -33,7 +33,9 @@ class TypeCacheTests(unittest.TestCase):
         """
         # Check if global version tag has already overflowed.
         Y = type("Y", (), {})
+        # pyrefly: ignore [missing-attribute]
         Y.x = 1
+        # pyrefly: ignore [missing-attribute]
         Y.x  # Force a _PyType_Lookup, populating version tag
         y_ver = type_get_version(Y)
         # Overflow, or not enough left to conduct the test.
@@ -45,9 +47,12 @@ class TypeCacheTests(unittest.TestCase):
         append_result = all_version_tags.append
         assertNotEqual = self.assertNotEqual
         for _ in range(30):
+            # pyrefly: ignore [not-callable]
             _clear_type_cache()
             X = type("Y", (), {})
+            # pyrefly: ignore [missing-attribute]
             X.x = 1
+            # pyrefly: ignore [missing-attribute]
             X.x
             tp_version_tag_after = type_get_version(X)
             assertNotEqual(tp_version_tag_after, 0, msg="Version overflowed")

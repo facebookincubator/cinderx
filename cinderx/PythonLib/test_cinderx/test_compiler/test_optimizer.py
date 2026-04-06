@@ -206,12 +206,14 @@ class AstOptimizerTests(CompilerTest):
         for inp, expected in cases:
             optimizer = AstOptimizer()
             tree = ast.parse(inp)
+            # pyrefly: ignore [missing-attribute]
             optimized = to_expr(optimizer.visit(tree).body[0].value)
             self.assertEqual(expected, optimized, "Input was: " + inp)
 
     def test_ast_optimizer_for(self):
         optimizer = AstOptimizer()
         tree = ast.parse("for x in [1,2,3]: pass")
+        # pyrefly: ignore [missing-attribute]
         optimized = optimizer.visit(tree).body[0]
         self.assertEqual(to_expr(optimized.iter), "(1, 2, 3)")
 
@@ -220,6 +222,7 @@ class AstOptimizerTests(CompilerTest):
         tree = ast.parse("[a for a in b if a.c in [e, f]]")
         optimized = optimizer.visit(tree)
         self.assertEqual(
+            # pyrefly: ignore [missing-attribute]
             to_expr(optimized.body[0].value.generators[0].ifs[0].comparators[0]),
             "(e, f)",
         )
@@ -231,10 +234,12 @@ class AstOptimizerTests(CompilerTest):
         tree = ast.parse(code)
         optimized = optimizer.visit(tree)
         # Function body should contain the assert
+        # pyrefly: ignore [missing-attribute]
         self.assertIsInstance(optimized.body[0].body[0], ast.Assert)
 
         unoptimized = non_optimizer.visit(tree)
         # Function body should contain the assert
+        # pyrefly: ignore [missing-attribute]
         self.assertIsInstance(unoptimized.body[0].body[0], ast.Assert)
 
     def test_folding_of_tuples_of_constants(self):
@@ -248,8 +253,10 @@ class AstOptimizerTests(CompilerTest):
             ("a = " + repr(bigtuple), bigtuple),
         ):
             tree = ast.parse(line)
+            # pyrefly: ignore [missing-attribute]
             self.assertIsInstance(tree.body[0].value, ast.Tuple)
             optimized = AstOptimizer(optimize=True).visit(tree)
+            # pyrefly: ignore [missing-attribute]
             const = optimized.body[0].value
             self.assertIsInstance(const, ast.Constant)
             self.assertEqual(const.value, elem)

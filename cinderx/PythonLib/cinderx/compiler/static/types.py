@@ -1235,6 +1235,7 @@ def resolve_instance_attr_by_name(
 class Object(Value, Generic[TClass]):
     """Represents an instance of a type at compile time"""
 
+    # pyrefly: ignore [bad-override]
     klass: TClass
 
     @property
@@ -2131,6 +2132,7 @@ class Variance(Enum):
 
 
 class GenericClass(Class):
+    # pyrefly: ignore [bad-override]
     type_name: GenericTypeName
     is_variadic = False
 
@@ -2425,6 +2427,7 @@ class CType(Class):
 
 
 class DynamicClass(Class):
+    # pyrefly: ignore [bad-override]
     instance: DynamicInstance
 
     def __init__(self, type_env: TypeEnvironment) -> None:
@@ -2687,6 +2690,7 @@ class ArgMapping:
         descr_override: TypeDescr | None = None,
         has_generic_params: bool = False,
     ) -> None:
+        # pyrefly: ignore [invalid-type-var]
         self.callable = callable
         self.call = call
         self.visitor = visitor
@@ -2801,6 +2805,7 @@ class ArgMapping:
             # an emitter which makes sure we never try and do code gen for this
             self.emitters.append(UnreachableArg())
         else:
+            # pyrefly: ignore [bad-argument-type]
             const = ast.Constant(param.default_val)
             copy_location(const, self.call)
             visitor.visit(const, param.type_ref.resolved(False).instance)
@@ -3818,6 +3823,7 @@ NON_VIRTUAL_METHODS = {"__init__", "__new__", "__init_subclass__"}
 
 
 class Function(Callable[Class], FunctionContainer):
+    # pyrefly: ignore [bad-override]
     args: list[Parameter]
 
     def __init__(
@@ -3988,6 +3994,7 @@ class Function(Callable[Class], FunctionContainer):
         new_node = AstOptimizer().visit(new_node)
         assert isinstance(new_node, ast.expr)
 
+        # pyrefly: ignore [bad-argument-type]
         inlined_call = InlinedCall(new_node, arg_replacements, spills)
         visitor.visit(new_node)
         visitor.set_node_data(node, Optional[InlinedCall], inlined_call)
@@ -4850,6 +4857,7 @@ class InlineFunctionDecorator(Class):
     ) -> Function | DecoratedMethod:
         real_fn = fn.real_function if isinstance(fn, DecoratedMethod) else fn
         if not isinstance(real_fn.node.body[0], ast.Return):
+            # pyrefly: ignore [no-matching-overload]
             raise TypedSyntaxError(
                 "@inline only supported on functions with simple return", real_fn.node
             )
@@ -5041,6 +5049,7 @@ class NativeDecorator(Callable[Class]):
                 lib_arg_node,
             )
 
+        # pyrefly: ignore [bad-assignment]
         self.lib_name = value
         visitor.set_type(node, self)
         return NO_EFFECT
@@ -6683,6 +6692,7 @@ class BuiltinMethod(Callable[Class]):
 
 def get_default_value(default: expr) -> object:
     if not isinstance(default, Constant):
+        # pyrefly: ignore [bad-assignment]
         default = AstOptimizer().visit(default)
 
     if isinstance(default, ast.Constant):
@@ -6752,6 +6762,7 @@ class Slot(Object[TClassInv]):
                 f"Final attribute not initialized: {self.container_type.instance.name}:{self.slot_name}"
             )
 
+    # pyrefly: ignore [bad-override]
     def resolve_descr_get(
         self,
         node: ast.Attribute,
@@ -7555,6 +7566,7 @@ def reflect_method_desc(
 ) -> BuiltinMethodDescriptor:
     sig = getattr(obj, "__typed_signature__", None) or ALT_SIGS.get(obj, None)
     if sig is not None:
+        # pyrefly: ignore [bad-argument-type]
         signature, return_type = parse_typed_signature(sig, klass, type_env)
 
         method = BuiltinMethodDescriptor(
@@ -7578,6 +7590,7 @@ def reflect_builtin_function(
 ) -> BuiltinFunction:
     sig = getattr(obj, "__typed_signature__", None) or ALT_SIGS.get(obj, None)
     if sig is not None:
+        # pyrefly: ignore [bad-argument-type]
         signature, return_type = parse_typed_signature(sig, None, type_env)
         method = BuiltinFunction(
             obj.__name__,
@@ -8474,6 +8487,7 @@ class UnionTypeName(GenericTypeName):
 
 
 class UnionType(GenericClass):
+    # pyrefly: ignore [bad-override]
     type_name: UnionTypeName
     # Union is a variadic generic, so we don't give the unbound Union any
     # GenericParameters, and we allow it to accept any number of type args.
@@ -8734,6 +8748,7 @@ class OptionalType(UnionType):
 class OptionalInstance(UnionInstance):
     """Only exists for typing purposes (so we know .klass is OptionalType)."""
 
+    # pyrefly: ignore [bad-override]
     klass: OptionalType
 
 
@@ -9309,6 +9324,7 @@ class CInstance(Value, Generic[TClass]):
 class CIntInstance(CInstance["CIntType"]):
     def __init__(self, klass: CIntType, constant: int, size: int, signed: bool) -> None:
         super().__init__(klass)
+        # pyrefly: ignore [bad-override]
         self.klass: CIntType = klass
         self.constant = constant
         self.size = size
@@ -9549,6 +9565,7 @@ class CIntInstance(CInstance["CIntType"]):
                         node,
                     )
         if type_ctx is None:
+            # pyrefly: ignore [bad-assignment]
             type_ctx = self.validate_mixed_math(visitor.get_type(node.right))
             if type_ctx is None:
                 visitor.syntax_error(
@@ -9557,6 +9574,7 @@ class CIntInstance(CInstance["CIntType"]):
                     ),
                     node,
                 )
+                # pyrefly: ignore [bad-assignment]
                 type_ctx = visitor.type_env.DYNAMIC
             else:
                 visitor.set_node_data(node, BinOpCommonType, BinOpCommonType(type_ctx))
@@ -9571,6 +9589,7 @@ class CIntInstance(CInstance["CIntType"]):
         if isinstance(node.op, ast.Pow):
             visitor.set_type(node, self.klass.type_env.double.instance)
         else:
+            # pyrefly: ignore [bad-argument-type]
             visitor.set_type(node, type_ctx)
         return True
 
@@ -9624,6 +9643,7 @@ class CIntInstance(CInstance["CIntType"]):
 
 
 class CIntType(CType):
+    # pyrefly: ignore [bad-override]
     instance: CIntInstance
 
     def __init__(
@@ -9856,6 +9876,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         visitor.set_type(node, self)
 
     def emit_constant(self, node: ast.Constant, code_gen: StaticCodeGenBase) -> None:
+        # pyrefly: ignore [bad-argument-type]
         code_gen.emit("PRIMITIVE_LOAD_CONST", (float(node.value), self.as_oparg()))
 
     def emit_box(self, code_gen: StaticCodeGenBase) -> None:

@@ -190,6 +190,7 @@ class ErrorTests(CompilerTest):
 
 
 class ErrorTestsBuiltin(ErrorTests):
+    # pyrefly: ignore [bad-override]
     def compile(self, code):
         code = inspect.cleandoc("\n" + code)
         return compile(code, "file.py", "exec")

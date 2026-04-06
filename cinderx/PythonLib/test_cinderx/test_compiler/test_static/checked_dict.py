@@ -104,6 +104,7 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             B = mod.B
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[int, chkdict[B, int]])
 
     def test_compile_dict_setdefault(self) -> None:
@@ -145,6 +146,7 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             B = mod.B
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[B, int])
 
     def test_chkdict_literal(self) -> None:
@@ -156,6 +158,7 @@ class CheckedDictTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(f()), chkdict[int, str])
 
     def test_compile_dict_get_typed(self) -> None:
@@ -293,6 +296,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             B = mod.B
             for _ in range(200):
+                # pyrefly: ignore [unsupported-operation]
                 self.assertEqual(type(test()), chkdict[B, int])
 
     def test_compile_checked_dict_optional(self) -> None:
@@ -311,6 +315,7 @@ class CheckedDictTests(StaticTestBase):
             f = mod.testfunc
             x = f()
             x["z"] = None
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(x), chkdict[str, str | None])
 
     def test_compile_checked_dict_bad_annotation(self) -> None:
@@ -323,6 +328,7 @@ class CheckedDictTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             test = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[str, str])
 
     def test_compile_checked_dict_ann_differs(self) -> None:
@@ -382,6 +388,7 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             B = mod.B
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[B, int])
 
     def test_compile_checked_dict_explicit_dict(self) -> None:
@@ -412,6 +419,7 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             B = mod.B
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[B, int])
 
     def test_compile_checked_dict_type_specified(self) -> None:
@@ -428,6 +436,7 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             B = mod.B
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[B, int])
 
     def test_compile_checked_dict_with_annotation_comprehension(self) -> None:
@@ -440,6 +449,7 @@ class CheckedDictTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             test = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[int, object])
 
     def test_compile_checked_dict_with_annotation(self) -> None:
@@ -456,6 +466,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             B = mod.B
             test()
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[B, int])
 
     def test_compile_checked_dict_with_annotation_wrong_value_type(self) -> None:
@@ -550,6 +561,7 @@ class CheckedDictTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             test = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[str, int])
 
     def test_compile_checked_dict_from_dict_call_3(self) -> None:
@@ -565,6 +577,7 @@ class CheckedDictTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             test = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(test()), chkdict[str, int])
 
     def test_compile_checked_dict_len(self) -> None:

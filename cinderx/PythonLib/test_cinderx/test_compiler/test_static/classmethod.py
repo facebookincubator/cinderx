@@ -371,6 +371,7 @@ class Child(C):
 
             class Callable:
                 async def __call__(self) -> None:
+                    # pyrefly: ignore [bad-return]
                     return 42
 
             class D(C):

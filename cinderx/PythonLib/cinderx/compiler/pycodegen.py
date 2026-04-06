@@ -1773,8 +1773,10 @@ class CodeGenerator(ASTVisitor):
         self.emit("BUILD_SLICE", num)
 
     def visitExtSlice(self, node: ast.ExtSlice) -> None:
+        # pyrefly: ignore [missing-attribute]
         for d in node.dims:
             self.visit(d)
+        # pyrefly: ignore [missing-attribute]
         self.emit("BUILD_TUPLE", len(node.dims))
 
     def emit_dup(self, count: int = 1) -> None:
@@ -1789,6 +1791,7 @@ class CodeGenerator(ASTVisitor):
         self, node: ast.expr | None
     ) -> None | str | bytes | bool | int | float | complex | ast.Ellipsis:
         assert isinstance(node, ast.Constant)
+        # pyrefly: ignore [bad-return]
         return node.value
 
     def get_bool_const(self, node: ast.expr) -> bool | None:
@@ -2342,8 +2345,10 @@ class CodeGenerator(ASTVisitor):
         self, name: str, ctx: type[ast.expr_context], loc: ast.AST
     ) -> None:
         if ctx is ast.Store and name == "__debug__":
+            # pyrefly: ignore [no-matching-overload]
             raise SyntaxError("cannot assign to __debug__", loc)
         if ctx is ast.Del and name == "__debug__":
+            # pyrefly: ignore [no-matching-overload]
             raise SyntaxError("cannot delete __debug__", loc)
 
     def _error_duplicate_store(self, name: str) -> SyntaxError:
@@ -3083,12 +3088,17 @@ class CodeGenerator310(CodeGenerator):
         while not isinstance(parent, ModuleScope):
             # Only real functions use "<locals>", nested scopes like
             # comprehensions don't.
+            # pyrefly: ignore [missing-attribute]
             if parent.is_function_scope:
+                # pyrefly: ignore [missing-attribute]
                 prefix = parent.name + ".<locals>." + prefix
             else:
+                # pyrefly: ignore [missing-attribute]
                 prefix = parent.name + "." + prefix
+            # pyrefly: ignore [missing-attribute]
             if parent.global_scope:
                 break
+            # pyrefly: ignore [missing-attribute]
             parent = parent.parent
         return prefix
 
@@ -5079,12 +5089,17 @@ class CodeGenerator312(CodeGenerator):
             if not isinstance(parent, TypeParamScope):
                 # Only real functions use "<locals>", nested scopes like
                 # comprehensions don't.
+                # pyrefly: ignore [missing-attribute]
                 if parent.is_function_scope:
+                    # pyrefly: ignore [missing-attribute]
                     prefix = parent.name + ".<locals>." + prefix
                 else:
+                    # pyrefly: ignore [missing-attribute]
                     prefix = parent.name + "." + prefix
+                # pyrefly: ignore [missing-attribute]
                 if parent.global_scope:
                     break
+            # pyrefly: ignore [missing-attribute]
             parent = parent.parent
         return prefix
 
@@ -6069,6 +6084,7 @@ class CinderCodeGenBase(CodeGenerator):
 
     def getCode(self) -> CodeType:
         code = super().getCode()
+        # pyrefly: ignore [bad-argument-type]
         cx_set_qualname(code, self._qual_name)
         return code
 
@@ -6340,6 +6356,7 @@ class CodeGenerator314(CodeGenerator312):
             self.emit("JUMP", loop)
         else:
             self.emit("TO_BOOL")
+            # pyrefly: ignore [bad-argument-type]
             self.emit(continue_jump_opcode, loop)
         self.nextBlock()
 

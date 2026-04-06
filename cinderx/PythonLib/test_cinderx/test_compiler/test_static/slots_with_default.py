@@ -150,6 +150,7 @@ class SlotsWithDefaultTests(StaticTestBase):
                     return 21
 
             class D(mod.C):
+                # pyrefly: ignore [bad-assignment]
                 x: int = descr()
 
             self.assertEqual(mod.f(D()), 21)

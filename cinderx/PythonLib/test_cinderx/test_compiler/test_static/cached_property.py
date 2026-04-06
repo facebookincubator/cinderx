@@ -613,6 +613,7 @@ class CachedPropertyTests(StaticTestBase):
                 return res
 
             async def await_d_x():
+                # pyrefly: ignore [not-async]
                 res = await D().x
                 return res
 

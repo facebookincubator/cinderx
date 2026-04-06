@@ -55,16 +55,25 @@ UNARY_OPS: dict[str, object] = {
 BINARY_OPS: dict[int, Callable[[object, object], object]] = {
     find_op_idx("NB_POWER"): lambda x, y: safe_power(x, y, PyLimits),
     find_op_idx("NB_MULTIPLY"): lambda x, y: safe_multiply(x, y, PyLimits),
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_TRUE_DIVIDE"): lambda left, right: left / right,
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_FLOOR_DIVIDE"): lambda left, right: left // right,
     find_op_idx("NB_REMAINDER"): lambda x, y: safe_mod(x, y, PyLimits),
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_ADD"): lambda left, right: left + right,
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_SUBTRACT"): lambda left, right: left - right,
+    # pyrefly: ignore [bad-index]
     find_op_idx("NB_SUBSCR"): lambda left, right: left[right],
     find_op_idx("NB_LSHIFT"): lambda x, y: safe_lshift(x, y, PyLimits),
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_RSHIFT"): lambda left, right: left >> right,
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_AND"): lambda left, right: left & right,
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_XOR"): lambda left, right: left ^ right,
+    # pyrefly: ignore [unsupported-operation]
     find_op_idx("NB_OR"): lambda left, right: left | right,
 }
 
@@ -1077,6 +1086,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         block: Block,
     ) -> int | None:
         assert isinstance(self, FlowGraphOptimizer314)
+        # pyrefly: ignore [bad-argument-type]
         self.optimize_one_unary(instr_index, instr, block, operator.inv)
 
     def optimize_unary_negative(
@@ -1088,6 +1098,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         block: Block,
     ) -> int | None:
         assert isinstance(self, FlowGraphOptimizer314)
+        # pyrefly: ignore [bad-argument-type]
         self.optimize_one_unary(instr_index, instr, block, operator.neg)
 
     def optimize_unary_not(
@@ -1166,6 +1177,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
             else:
                 self.fold_constant_intrinsic_list_to_tuple(block, instr_index)
         if intrins == "INTRINSIC_UNARY_POSITIVE":
+            # pyrefly: ignore [bad-argument-type]
             self.optimize_one_unary(instr_index, instr, block, operator.pos)
 
     def optimize_swap(

@@ -288,6 +288,7 @@ class ScopeStack(Generic[TVar, TScopeData]):
         scope_factory: Callable[
             [SymbolTable, AST, MutableMapping[str, TVar] | None],
             SymbolScope[TVar, TScopeData],
+            # pyrefly: ignore [bad-argument-type]
         ] = lambda symtable, node, vars: SymbolScope(symtable, None),
     ) -> None:
         self.scopes: list[SymbolScope[TVar, TScopeData]] = list(scopes)
@@ -498,9 +499,13 @@ class AstRewriter(NodeVisitor):
 def lineinfo(node: TAst, target: AST | None = None) -> TAst:
     if not target:
         # set lineno to -1 to indicate non-user code
+        # pyrefly: ignore [missing-attribute]
         node.lineno = -1
+        # pyrefly: ignore [missing-attribute]
         node.col_offset = -1
+        # pyrefly: ignore [missing-attribute]
         node.end_lineno = -1
+        # pyrefly: ignore [missing-attribute]
         node.end_col_offset = -1
     else:
         copy_location(node, target)

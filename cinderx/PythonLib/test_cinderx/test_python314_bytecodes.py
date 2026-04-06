@@ -44,6 +44,7 @@ def _reassemble_for_jit(ops, shell_function):
         co.co_firstlineno,
         co.co_linetable,
         co.co_exceptiontable,
+        # pyrefly: ignore [bad-argument-count]
         co.co_freevars,
         co.co_cellvars,
     )
@@ -109,6 +110,7 @@ def build_template():
 
 
 @passUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
+# pyrefly: ignore [inconsistent-inheritance]
 class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):
     def test_LOAD_SMALL_INT(self):
         @cinder_support.fail_if_deopt
@@ -255,6 +257,7 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
             @cinder_support.fail_if_deopt
             @cinder_support.failUnlessJITCompiled
             def m(self):
+                # pyrefly: ignore [missing-argument]
                 return super().attr()
 
         self.assertEqual(B().m(), 1)
@@ -297,6 +300,7 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
 
         try:
             exception_group()
+        # pyrefly: ignore [unknown-name]
         except ExceptionGroup:
             pass
         self.assertBytecodeContains(exception_group, "CALL_INTRINSIC_2")
@@ -359,7 +363,9 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         # Wrap this in an exec() to avoid breaking tests for earlier versions
         # of Python which don't support the new syntax.
         t = build_template()
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(t.strings, ("foo",))
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(t.interpolations, ())
         self.assertBytecodeContains(build_template, "BUILD_TEMPLATE")
 
@@ -387,7 +393,9 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         from string.templatelib import Interpolation
 
         t = interpolation()
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(t.strings, ("The value is ", " ", " ", ""))
+        # pyrefly: ignore [missing-attribute]
         match t.interpolations:
             case (
                 Interpolation(42, "42", None, ""),
@@ -396,6 +404,7 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
             ):
                 pass
             case _:
+                # pyrefly: ignore [missing-attribute]
                 self.fail(f"interpolations mismatch: {t.interpolations}")
         self.assertBytecodeContains(interpolation, "BUILD_INTERPOLATION")
 
@@ -439,6 +448,7 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
 
         @cinder_support.failUnlessJITCompiled
         def x():
+            # pyrefly: ignore [bad-context-manager]
             with InvalidCM():
                 pass
 
@@ -494,6 +504,7 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         self.assertBytecodeContains(x, "LOAD_BUILD_CLASS")
 
     def test_STORE_GLOBAL(self):
+        # pyrefly: ignore [unknown-name]
         global test_STORE_GLOBAL_v
 
         test_STORE_GLOBAL_v = 1
@@ -501,6 +512,7 @@ class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled
         def x():
+            # pyrefly: ignore [unknown-name]
             global test_STORE_GLOBAL_v
             test_STORE_GLOBAL_v = 42
 

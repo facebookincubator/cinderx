@@ -133,6 +133,7 @@ class UnparseTests(TestCase):
                     full = template.format(example=example)
                     code = py_compile(full, "foo.py", "exec")
                     py_globals = {}
+                    # pyrefly: ignore [bad-argument-type]
                     exec(code, py_globals, py_globals)
                     # self.assertEqual(expected, fetcher(py_globals))
 

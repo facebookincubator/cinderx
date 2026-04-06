@@ -51,6 +51,7 @@ class AnnotationRemover(ast.NodeTransformer):
         return node
 
     def visit_function(self, node: FunctionDefNode) -> FunctionDefNode:
+        # pyrefly: ignore [missing-attribute]
         node.arguments = self.visit_fn_arguments(node.args)
         node.returns = None
         node.decorator_list = [

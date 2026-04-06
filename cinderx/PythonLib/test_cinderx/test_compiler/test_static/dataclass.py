@@ -4,9 +4,13 @@
 
 # pyre-ignore[21]: Pyre doesn't know about dataclass internals.
 from dataclasses import (
+    # pyrefly: ignore [missing-module-attribute]
     _DataclassParams,
+    # pyrefly: ignore [missing-module-attribute]
     _FIELD,
+    # pyrefly: ignore [missing-module-attribute]
     _FIELD_CLASSVAR,
+    # pyrefly: ignore [missing-module-attribute]
     _FIELD_INITVAR,
     Field,
     FrozenInstanceError,
@@ -1258,6 +1262,7 @@ class DataclassTests(StaticTestBase):
                     self.assertIs(field.hash, None)
                     self.assertTrue(field.compare)
                     self.assertIsInstance(field.metadata, Mapping)
+                    # pyrefly: ignore [missing-attribute]
                     self.assertIs(field._field_type, kind)
 
     def test_nonstatic_dataclass_picks_up_static_fields(self) -> None:

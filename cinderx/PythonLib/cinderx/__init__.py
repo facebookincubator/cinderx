@@ -343,6 +343,7 @@ except ImportError as e:
                 # pyre-ignore[16]: Undefined attribute `asyncio.tasks.Task`
                 # has no attribute `_source_traceback`.
                 if t._source_traceback:
+                    # pyrefly: ignore [unsupported-operation]
                     del t._source_traceback[-1]
                 return t
 
@@ -357,8 +358,10 @@ except ImportError as e:
             f: Callable[[_TClass], _TReturnType],
             slot: Optional[Descriptor[_TReturnType]] = None,
         ) -> None:
+            # pyrefly: ignore [bad-argument-type]
             super().__init__(f, slot)
 
+        # pyrefly: ignore [bad-override]
         def __get__(
             self, obj: Optional[_TClass], cls: Type[_TClass]
         ) -> (
@@ -390,9 +393,11 @@ except ImportError as e:
             f: Callable[[_TClass], Awaitable[_TAwaitableReturnType]],
             slot: Optional[Descriptor[Awaitable[_TAwaitableReturnType]]] = None,
         ) -> None:
+            # pyrefly: ignore [bad-argument-type]
             super().__init__(f, slot)
             self._value: NoValueSet | Awaitable[_TAwaitableReturnType] = NO_VALUE_SET
 
+        # pyrefly: ignore [bad-override]
         def __get__(
             self, obj: Optional[_TClass], cls: Type[_TClass]
         ) -> Awaitable[_TAwaitableReturnType]:
@@ -408,9 +413,11 @@ except ImportError as e:
             f: Callable[[_TClass], _TReturnType],
             slot: Optional[Descriptor[_TReturnType]] = None,
         ) -> None:
+            # pyrefly: ignore [bad-argument-type]
             super().__init__(f, slot)
             self._value: NoValueSet | _TReturnType = NO_VALUE_SET
 
+        # pyrefly: ignore [bad-override]
         def __get__(self, obj: Optional[_TClass], cls: Type[_TClass]) -> _TReturnType:
             result = self._value
             if not isinstance(result, NoValueSet):

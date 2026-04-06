@@ -35,6 +35,7 @@ class TypeAnnotationTests(unittest.TestCase):
         cinderx.jit.force_compile(f)
 
         self.assertEqual(f(42), 43)
+        # pyrefly: ignore [bad-argument-type]
         self.assertIn("LongBinaryOp", cinderx.jit.get_function_hir_opcode_counts(f))
 
     def test_good_long_list(self):
@@ -75,4 +76,5 @@ class TypeAnnotationTests(unittest.TestCase):
 
         cinderx.jit.force_compile(f)
 
+        # pyrefly: ignore [bad-argument-type]
         self.assertEqual(f(self.Box(42)), self.Box(43))

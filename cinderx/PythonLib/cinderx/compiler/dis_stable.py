@@ -158,12 +158,16 @@ def disassemble(
         co,
         co.co_code,
         lasti,
+        # pyrefly: ignore [bad-argument-type]
         co.co_varnames,
+        # pyrefly: ignore [bad-argument-type]
         co.co_names,
         co.co_consts,
+        # pyrefly: ignore [bad-argument-type]
         cell_names,
         linestarts,
         file=file,
+        # pyrefly: ignore [bad-argument-type]
         localsplusnames=localsplusnames,
     )
 

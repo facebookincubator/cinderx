@@ -78,6 +78,7 @@ class StaticRuntimeTests(StaticTestBase):
             pass
 
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [missing-attribute]
             C.a.__get__(D(), D)
 
     def test_typed_slots_bad_slots(self):
@@ -93,21 +94,28 @@ class StaticRuntimeTests(StaticTestBase):
             self.build_static_type(("__weakref__",), {"__weakref__": "object"})
 
     def test_typed_slots_object(self):
+        # pyrefly: ignore [unknown-name]
         global C
+        # pyrefly: ignore [bad-argument-type]
         C = self.build_static_type(("a",), {"a": (__name__, "C")})
         inst = C()
 
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(C.a.__class__.__name__, "typed_descriptor")
         with self.assertRaises(TypeError):
             # type is checked
+            # pyrefly: ignore [missing-attribute]
             inst.a = 42
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [missing-attribute]
             inst.a = None
         with self.assertRaises(AttributeError):
             # is initially unassigned
+            # pyrefly: ignore [missing-attribute]
             inst.a
 
         # can assign correct type
+        # pyrefly: ignore [missing-attribute]
         inst.a = inst
 
         # __sizeof__ doesn't include GC header size
@@ -119,6 +127,7 @@ class StaticRuntimeTests(StaticTestBase):
         class D(C):
             pass
 
+        # pyrefly: ignore [missing-attribute]
         inst.a = D()
         del C
 
@@ -379,12 +388,16 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(o.twoargs(1, 2), 3)
 
     def test_typed_slots_one_missing(self):
+        # pyrefly: ignore [unknown-name]
         global C
+        # pyrefly: ignore [bad-argument-type]
         C = self.build_static_type(("a", "b"), {"a": (__name__, "C")})
         inst = C()
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(C.a.__class__.__name__, "typed_descriptor")
         with self.assertRaises(TypeError):
             # type is checked
+            # pyrefly: ignore [missing-attribute]
             inst.a = 42
         del C
 
@@ -646,10 +659,12 @@ class StaticRuntimeTests(StaticTestBase):
             pass
 
         c_t = make_generic_type(C, (T, int))
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(c_t.__parameters__, (T,))
         c_t_s = make_generic_type(c_t, (str,))
         self.assertEqual(c_t_s.__name__, "C[str, int]")
         c_u = make_generic_type(C, (int, U))
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(c_u.__parameters__, (U,))
         c_u_t = make_generic_type(c_u, (str,))
         self.assertEqual(c_u_t.__name__, "C[int, str]")
@@ -1330,66 +1345,93 @@ class StaticRuntimeTests(StaticTestBase):
         self.compile(codestr)
 
     def test_checked_dict(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str]()
         x["abc"] = "foo"
         self.assertEqual(repr(x), "{'abc': 'foo'}")
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int]()
         x["abc"] = 42
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[int, str]()
         x[42] = "abc"
 
     def test_checked_dict_type_name(self):
         self.assertEqual(chkdict.__name__, "chkdict[K, V]")
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str]
         self.assertEqual(x.__name__, "chkdict[str, str]")
 
     def test_checked_dict_optional(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, Optional[str]]()
         x["abc"] = None
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[Optional[str], str]()
         x[None] = "abc"
 
     def test_checked_dict_nonoptional(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, Optional[str]]()
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x[None] = "abc"
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[Optional[str], str]()
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x["abc"] = None
 
     def test_checked_dict_types_enforced(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str]()
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x[42] = "abc"
         self.assertEqual(x, {})
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x["abc"] = 42
         self.assertEqual(x, {})
 
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int]()
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x[42] = 42
         self.assertEqual(x, {})
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x["abc"] = "abc"
         self.assertEqual(x, {})
 
     def test_checked_dict_ctor(self):
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str](x="abc"), {"x": "abc"})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, int](x=42), {"x": 42})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str]({"x": "abc"}), {"x": "abc"})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str]([("a", "b")]), {"a": "b"})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str]([("a", "b")]), {"a": "b"})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str](chkdict[str, str](x="abc")), {"x": "abc"})
+        # pyrefly: ignore [no-matching-overload, unsupported-operation]
         self.assertEqual(chkdict[str, str](chkdict[str, object](x="abc")), {"x": "abc"})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str](UserDict(x="abc")), {"x": "abc"})
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(chkdict[str, str](UserDict(x="abc"), x="foo"), {"x": "foo"})
 
     def test_checked_dict_bad_ctor(self):
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload, unsupported-operation]
             chkdict[str, str](None)
 
     def test_checked_dict_setdefault(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str]()
         x.setdefault("abc", "foo")
         self.assertEqual(x, {"abc": "foo"})
@@ -1398,50 +1440,64 @@ class StaticRuntimeTests(StaticTestBase):
         class Lol:
             pass
 
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[int, Lol]()
         self.assertEqual(type(x).__module__, "__static__")
 
     def test_checked_dict_setdefault_bad_values(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int]()
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload]
             x.setdefault("abc", "abc")
         self.assertEqual(x, {})
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload]
             x.setdefault(42, 42)
         self.assertEqual(x, {})
 
     def test_checked_dict_fromkeys(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int].fromkeys("abc", 42)
         self.assertEqual(x, {"a": 42, "b": 42, "c": 42})
 
     def test_checked_dict_fromkeys_optional(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[Optional[str], int].fromkeys(["a", "b", "c", None], 42)
         self.assertEqual(x, {"a": 42, "b": 42, "c": 42, None: 42})
 
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, Optional[int]].fromkeys("abc", None)
         self.assertEqual(x, {"a": None, "b": None, "c": None})
 
     def test_checked_dict_fromkeys_bad_types(self):
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             chkdict[str, int].fromkeys([2], 42)
 
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             chkdict[str, int].fromkeys("abc", object())
 
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             chkdict[str, int].fromkeys("abc")
 
     def test_checked_dict_copy(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str](x="abc")
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(type(x), chkdict[str, str])
         self.assertEqual(x, {"x": "abc"})
 
     def test_checked_dict_clear(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str](x="abc")
         x.clear()
         self.assertEqual(x, {})
 
     def test_checked_dict_update(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, str](x="abc")
         x.update(y="foo")
         self.assertEqual(x, {"x": "abc", "y": "foo"})
@@ -1449,27 +1505,35 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(x, {"x": "abc", "y": "foo", "z": "bar"})
 
     def test_checked_dict_update_bad_type(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int]()
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload]
             x.update(x="abc")
         self.assertEqual(x, {})
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload]
             x.update({"x": "abc"})
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload]
             x.update({24: 42})
         self.assertEqual(x, {})
 
     def test_checked_dict_keys(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         self.assertEqual(list(x.keys()), ["x"])
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2, y=3)
         self.assertEqual(list(x.keys()), ["x", "y"])
 
     def test_checked_dict_values(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2, y=3)
         self.assertEqual(list(x.values()), [2, 3])
 
     def test_checked_dict_items(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         self.assertEqual(
             list(x.items()),
@@ -1477,10 +1541,12 @@ class StaticRuntimeTests(StaticTestBase):
                 ("x", 2),
             ],
         )
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2, y=3)
         self.assertEqual(list(x.items()), [("x", 2), ("y", 3)])
 
     def test_checked_dict_pop(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         y = x.pop("x")
         self.assertEqual(y, 2)
@@ -1488,6 +1554,7 @@ class StaticRuntimeTests(StaticTestBase):
             x.pop("z")
 
     def test_checked_dict_popitem(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         y = x.popitem()
         self.assertEqual(y, ("x", 2))
@@ -1495,27 +1562,34 @@ class StaticRuntimeTests(StaticTestBase):
             x.popitem()
 
     def test_checked_dict_get(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         self.assertEqual(x.get("x"), 2)
         self.assertEqual(x.get("y", 100), 100)
 
     def test_checked_dict_errors(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload]
             x.get(100)
         with self.assertRaises(TypeError):
             x.get("x", "abc")
 
     def test_checked_dict_sizeof(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2).__sizeof__()
         self.assertEqual(type(x), int)
 
     def test_checked_dict_getitem(self):
+        # pyrefly: ignore [unsupported-operation]
         x = chkdict[str, int](x=2)
         self.assertEqual(x.__getitem__("x"), 2)
 
     def test_checked_dict_free_list(self):
+        # pyrefly: ignore [unsupported-operation]
         t1 = chkdict[str, int]
+        # pyrefly: ignore [unsupported-operation]
         t2 = chkdict[str, str]
         x = t1()
         x_id1 = id(x)

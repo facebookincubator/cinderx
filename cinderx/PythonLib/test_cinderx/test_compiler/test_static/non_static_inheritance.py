@@ -294,7 +294,7 @@ class NonStaticInheritanceTests(StaticTestBase):
         # non-heap-allocated classes, so two builtins will run into the same
         # conflict as a static and a builtin type..
         with self.assertBaseClassConflict():
-
+            # pyrefly: ignore [inconsistent-inheritance]
             class C(int, str):
                 pass
 

@@ -243,6 +243,7 @@ class GeneratorsTest(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _f8(self, a):
+        # pyrefly: ignore [unbound-name]
         x += yield a  # noqa: F821, F841
 
     def test_do_not_deopt_before_initial_yield(self):
@@ -440,7 +441,9 @@ class GeneratorsTest(unittest.TestCase):
 
         @with_globals(gbls)
         def gen():
+            # pyrefly: ignore [unknown-name]
             yield A_GLOBAL  # noqa: F821
+            # pyrefly: ignore [unknown-name]
             yield A_GLOBAL  # noqa: F821
 
         g = gen()

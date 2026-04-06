@@ -153,5 +153,6 @@ except ImportError:
                 # pyre-ignore[16]: Undefined attribute `asyncio.tasks.Task`
                 # has no attribute `_source_traceback`.
                 if t._source_traceback:
+                    # pyrefly: ignore [unsupported-operation]
                     del t._source_traceback[-1]
                 return t

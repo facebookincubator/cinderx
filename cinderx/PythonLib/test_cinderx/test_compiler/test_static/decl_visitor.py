@@ -249,6 +249,7 @@ class DeclarationVisitorTests(StaticTestBase):
                 super().__init__(StaticCodeGenerator)
                 self.btree: ast.Module | None = None
 
+            # pyrefly: ignore [bad-return]
             def import_module(self, name: str, optimize: int) -> ModuleTable:
                 if name == "b":
                     btree = ast.parse(dedent(bcode))
@@ -284,6 +285,7 @@ class DeclarationVisitorTests(StaticTestBase):
             def __init__(self):
                 super().__init__(CustomCodeGenerator)
 
+            # pyrefly: ignore [bad-return]
             def import_module(self, name: str, optimize: int) -> ModuleTable:
                 pass
 

@@ -11,21 +11,27 @@ from .common import bad_ret_type, StaticTestBase, type_mismatch
 
 class CheckedListTests(StaticTestBase):
     def test_checked_list(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(1)
         self.assertEqual(repr(x), "[1]")
+        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(CheckedList[int].__module__, "__static__")
 
     def test_checked_list_append_bad_type(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         # No error
         x.append(42)
         self.assertEqual(x[0], 42)
         with self.assertRaisesRegex(TypeError, "int"):
+            # pyrefly: ignore [bad-argument-type]
             x.append("A")
 
     def test_checked_list_free_list(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         t1 = CheckedList[str]
+        # pyrefly: ignore [unsupported-operation]
         t2 = CheckedList[str]
         x = t1()
         x_id1 = id(x)
@@ -35,14 +41,17 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(x_id1, x_id2)
 
     def test_checked_list_insert(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.insert(0, 12)
         x.insert(0, 23)
         self.assertEqual(repr(x), "[23, 12]")
         with self.assertRaisesRegex(TypeError, "argument 2 expected int"):
+            # pyrefly: ignore [bad-argument-type]
             x.insert(1, "ASD")
 
     def test_checked_list_reversed(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(12)
         x.append(23)
@@ -52,6 +61,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(repr(list(y)), "[23, 12]")
 
     def test_checked_list_sizeof(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(12)
         x.append(23)
@@ -60,6 +70,7 @@ class CheckedListTests(StaticTestBase):
         self.assertLess(x.__sizeof__(), 100)
 
     def test_checked_list_clear(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(12)
         x.append(23)
@@ -69,6 +80,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(str(type(x)), "<class '__static__.chklist[int]'>")
 
     def test_checked_list_copy(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(12)
         x.append(23)
@@ -83,6 +95,7 @@ class CheckedListTests(StaticTestBase):
         class C:
             x: int = 0
 
+        # pyrefly: ignore [unsupported-operation]
         clist = CheckedList[C]()
         clist.append(C())
         clist_copy = clist.copy()
@@ -91,6 +104,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(clist[0].x, 1)
 
     def test_checked_list_extend(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(3)
         x.extend([1, 2])
@@ -98,24 +112,30 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(repr(type(x)), "<class '__static__.chklist[int]'>")
 
     def test_checked_list_extend_type_error(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.append(3)
         with self.assertRaisesRegex(TypeError, r"bad value 'str' for chklist\[int\]"):
+            # pyrefly: ignore [bad-argument-type]
             x.extend([1, "hi"])
         # Ensure that we leave the CheckedList in its old state when extend fails.
         self.assertEqual(repr(x), "[3]")
 
     def test_checked_list_extend_with_non_list(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         d: dict[int | str, int] = {1: 2, 2: 3}
+        # pyrefly: ignore [bad-argument-type]
         x.extend(d.keys())
         self.assertEqual(repr(x), "[1, 2]")
         d["a"] = 4
         with self.assertRaisesRegex(TypeError, r"bad value 'str' for chklist\[int\]"):
+            # pyrefly: ignore [bad-argument-type]
             x.extend(d.keys())
         self.assertEqual(repr(x), "[1, 2, 1, 2]")
 
     def test_checked_list_pop(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3, 4])
         self.assertEqual(x.pop(), 4)
@@ -135,10 +155,12 @@ class CheckedListTests(StaticTestBase):
             f = mod.foo
             self.assertInBytecode(f, "INVOKE_FUNCTION")
             self.assertNotInBytecode(f, "CAST")
+            # pyrefly: ignore [unsupported-operation]
             cl = CheckedList[int]([1, 2, 3])
             self.assertEqual(f(cl), 3)
 
     def test_checked_list_remove(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3, 1, 2, 3])
         x.remove(1)
@@ -150,6 +172,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(repr(x), "[2, 3, 2, 3]")
 
     def test_checked_list_index(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3, 1, 2, 3])
         self.assertEqual(x.index(1), 0)
@@ -160,6 +183,7 @@ class CheckedListTests(StaticTestBase):
             x.index(1)
 
     def test_checked_list_count(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3, 1, 2, 3])
         self.assertEqual(x.count(1), 2)
@@ -167,6 +191,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(x.count(1), 1)
 
     def test_checked_list_reverse(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3, 4])
         self.assertEqual(repr(x), "[1, 2, 3, 4]")
@@ -175,6 +200,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(repr(x), "[4, 3, 2, 1]")
 
     def test_checked_list_sort(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([3, 1, 2, 4])
         self.assertEqual(x.sort(), None)
@@ -182,19 +208,23 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(repr(x), "[1, 2, 3, 4]")
 
     def test_checked_list_richcompare(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3])
         self.assertEqual(x < x, False)
         self.assertEqual(x <= x, True)
+        # pyrefly: ignore [unsupported-operation]
         y = CheckedList[int]()
         y.extend([2, 2, 3])
         self.assertEqual(y <= x, False)
         self.assertEqual(x < y, True)
 
         # Compare CheckedLists of different types.
+        # pyrefly: ignore [unsupported-operation]
         z = CheckedList[str]()
         z.extend(["a", "a"])
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x < z  # noqa: B015
 
         # Compare CheckedLists to lists.
@@ -205,33 +235,41 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(x == [1, 2, 3], True)
 
     def test_checked_list_assign_subscript(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]([1, 2, 3, 4])
         self.assertEqual(x[2], 3)
         x[2] = 2
         self.assertEqual(x[2], 2)
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [unsupported-operation]
             x[2] = "A"
         self.assertEqual(x[2], 2)
 
     def test_checked_list_init(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         self.assertEqual(repr(x), "[]")
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]([1, 2, 3])
         self.assertEqual(repr(x), "[1, 2, 3]")
         self.assertEqual(repr(type(x)), "<class '__static__.chklist[int]'>")
         with self.assertRaises(TypeError):
+            # pyrefly: ignore [no-matching-overload, unsupported-operation]
             CheckedList[str]([1, 2, 3])
 
+        # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]({3: "a", 2: "b", 1: "c"})
         self.assertEqual(repr(x), "[3, 2, 1]")
         with self.assertRaisesRegex(
             TypeError, r"chklist\(\) takes no keyword arguments"
         ):
+            # pyrefly: ignore [no-matching-overload, unsupported-operation]
             CheckedList[int](iterable=[1, 2, 3])
 
         with self.assertRaisesRegex(
             TypeError, "chklist expected at most 1 argument, got 2"
         ):
+            # pyrefly: ignore [no-matching-overload, unsupported-operation]
             CheckedList[int]([], [])
 
     def test_checked_list_getitem_bad_return_type(self) -> None:
@@ -258,6 +296,7 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([1, 2, 3])
             self.assertEqual(f(li), 2)
 
@@ -268,6 +307,7 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([1, 2, 3])
             self.assertEqual(f(li), [2])
 
@@ -279,6 +319,7 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.assign_to_index_1
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([1, 1, 1])
             self.assertEqual(f(li), None)
             self.assertEqual(repr(li), "[1, 2, 1]")
@@ -299,6 +340,7 @@ class CheckedListTests(StaticTestBase):
          """
         with self.in_module(codestr) as mod:
             f = mod.assign_to_slice
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([1, 1, 1])
             self.assertEqual(f(li), None)
             self.assertEqual(repr(li), "[1, 2, 3]")
@@ -311,6 +353,7 @@ class CheckedListTests(StaticTestBase):
          """
         with self.in_module(codestr) as mod:
             f = mod.assign_to_slice
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([1, 1, 1])
             self.assertEqual(f(li), None)
             self.assertEqual(repr(li), "[1, 2, 3]")
@@ -333,6 +376,7 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([])
             self.assertEqual(f(li), 2)
             li.append(1)
@@ -346,6 +390,7 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             li = CheckedList[int]([])
             self.assertEqual(f(li), 0)
             li.append(1)
@@ -362,6 +407,7 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            # pyrefly: ignore [unsupported-operation]
             cl = CheckedList[int]([1, 42, 3, 4, 5, 6])
             self.assertInBytecode(f, "SEQUENCE_GET", SEQ_CHECKED_LIST)
             self.assertEqual(f(cl), 43)
@@ -379,6 +425,7 @@ class CheckedListTests(StaticTestBase):
             li = f()
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
             self.assertEqual(repr(li), "[1, 2, 3, 4]")
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_type_error(self) -> None:
@@ -407,6 +454,7 @@ class CheckedListTests(StaticTestBase):
             self.assert_jitted(f)
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
             self.assertEqual(repr(li), "[1, 2, 3, 4]")
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_unpack_with_elements(self) -> None:
@@ -422,6 +470,7 @@ class CheckedListTests(StaticTestBase):
             li = f()
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
             self.assertEqual(repr(li), "[5, 1, 2, 3, 4]")
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_comprehension(self) -> None:
@@ -435,6 +484,7 @@ class CheckedListTests(StaticTestBase):
             f = mod.testfunc
             li = f()
             self.assertEqual(repr(li), "[2, 3, 4, 5]")
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_comprehension_type_error(self) -> None:
@@ -459,6 +509,7 @@ class CheckedListTests(StaticTestBase):
             li = f()
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
             self.assertEqual(repr(li), "[1, 2, 3, 4]")
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_call_opt_in(self) -> None:
@@ -472,6 +523,7 @@ class CheckedListTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             li = mod.testfunc()
             self.assertEqual(repr(li), "[1, 2]")
+            # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_getitem_error(self) -> None:

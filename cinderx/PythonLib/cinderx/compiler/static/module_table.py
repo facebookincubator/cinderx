@@ -181,6 +181,7 @@ class AnnotationVisitor(ReferenceVisitor):
         if sval is None:
             return self.type_env.none
         elif isinstance(sval, str):
+            # pyrefly: ignore [no-matching-overload]
             n = ast.parse(node.value, "", "eval").body
             return self.visit(n)
 

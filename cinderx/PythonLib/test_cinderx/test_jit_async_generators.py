@@ -75,11 +75,14 @@ class AsyncGeneratorsTest(unittest.TestCase):
     def _assertExceptionFlowsThroughYieldFrom(self, exc: Exception) -> None:
         tb_prev = None
         tb = exc.__traceback__
+        # pyrefly: ignore [missing-attribute]
         while tb.tb_next:
             tb_prev = tb
             tb = tb.tb_next
+        # pyrefly: ignore [missing-attribute]
         instrs = list(dis.get_instructions(tb_prev.tb_frame.f_code))
         self.assertEqual(
+            # pyrefly: ignore [missing-attribute]
             instrs[tb_prev.tb_lasti // 2].opname,
             "YIELD_VALUE" if AT_LEAST_312 else "YIELD_FROM",
         )

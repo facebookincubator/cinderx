@@ -638,10 +638,12 @@ __slot_types__ = {slot_types!r}
         # framework complaining about environment changes.
         self.addCleanup(lambda: asyncio.set_event_loop_policy(None))
 
+    # pyrefly: ignore [bad-override]
     def subTest(
         self, msg: str | None = None, **kwargs: object
     ) -> AbstractContextManager[object, bool]:
         cinderx.clear_classloader_caches()
+        # pyrefly: ignore [bad-return]
         return super().subTest(msg=msg, **kwargs)
 
     def make_async_func_hot(self, func: Callable[[], Awaitable[object]]) -> None:

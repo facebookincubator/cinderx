@@ -248,6 +248,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             t = self.get_type(arg)
             if self._is_type_checked(t.klass):
                 arg_checks.append(self._calculate_idx(arg.arg, i, cellvars))
+                # pyrefly: ignore [bad-argument-type]
                 arg_checks.append(t.klass.type_descr)
 
         for i, arg in enumerate(args.args):
@@ -262,6 +263,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
                 arg_checks.append(
                     self._calculate_idx(arg.arg, i + len(args.posonlyargs), cellvars)
                 )
+                # pyrefly: ignore [bad-argument-type]
                 arg_checks.append(t.klass.type_descr)
 
         for i, arg in enumerate(args.kwonlyargs):
@@ -274,6 +276,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
                         cellvars,
                     )
                 )
+                # pyrefly: ignore [bad-argument-type]
                 arg_checks.append(t.klass.type_descr)
 
         # we should never emit arg checks for object
@@ -294,6 +297,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         self.cur_mod.set_node_data(key, data_type, value)
 
     @classmethod
+    # pyrefly: ignore [bad-override]
     def make_code_gen(
         cls,
         module_name: str,
@@ -1095,7 +1099,9 @@ class StaticCodeGenBase(StrictCodeGenBase):
                 "visit" + className,
                 StaticCodeGenBase.generic_visit,
             )
+            # pyrefly: ignore [unsupported-operation]
             self._default_cache[klass] = meth
+        # pyrefly: ignore [bad-return]
         return meth(self, node, *args)
 
     def get_bool_const(self, node: AST) -> bool | None:

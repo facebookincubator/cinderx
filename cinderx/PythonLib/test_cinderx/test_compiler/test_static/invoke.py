@@ -651,6 +651,7 @@ class InvokeTests(StaticTestBase):
                             raise Exception("no-way")
                         return 100
 
+                    # pyrefly: ignore [bad-assignment]
                     self.f = f
 
                 f = Callable()

@@ -137,6 +137,7 @@ def compile_dir(
     success = True
     if workers != 1 and poolexecutor is not None:
         # If workers == 0, let ProcessPoolExecutor choose
+        # pyrefly: ignore [bad-assignment]
         workers = workers or None
         with poolexecutor(max_workers=workers) as executor:
             results = executor.map(

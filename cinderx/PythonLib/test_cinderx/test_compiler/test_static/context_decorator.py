@@ -547,6 +547,7 @@ class ContextDecoratorTests(StaticTestBase):
 
     def test_nonstatic_async_eager_exit_raises(self) -> None:
         class C(ContextDecorator):
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 raise ValueError()
 
@@ -566,6 +567,7 @@ class ContextDecoratorTests(StaticTestBase):
         exit_called = False
 
         class C(ContextDecorator):
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 nonlocal exit_called
                 exit_called = True
@@ -583,6 +585,7 @@ class ContextDecoratorTests(StaticTestBase):
         exit_called = False
 
         class C(ContextDecorator):
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 nonlocal exit_called
                 exit_called = True
@@ -600,6 +603,7 @@ class ContextDecoratorTests(StaticTestBase):
         exit_called = False
 
         class C(ContextDecorator):
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 nonlocal exit_called
                 exit_called = True
@@ -631,6 +635,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return True
 
@@ -647,6 +652,7 @@ class ContextDecoratorTests(StaticTestBase):
         exit_called = False
 
         class C(ContextDecorator):
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 nonlocal exit_called
                 exit_called = True
@@ -689,6 +695,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return None
 
@@ -706,6 +713,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return False
 
@@ -728,6 +736,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return B()
 
@@ -750,6 +759,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 raise ValueError()
 
@@ -772,6 +782,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 raise ValueError()
 
@@ -790,6 +801,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return True
 
@@ -807,6 +819,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return True
 
@@ -844,6 +857,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return True
 
@@ -870,6 +884,7 @@ class ContextDecoratorTests(StaticTestBase):
                 self.assertNotEqual(a, self_)
                 return self_
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self_, *args):  # noqa: B902
                 return True
 
@@ -889,6 +904,7 @@ class ContextDecoratorTests(StaticTestBase):
             def __enter__(self):
                 return self
 
+            # pyrefly: ignore [bad-override]
             def __exit__(self, *args):
                 return True
 

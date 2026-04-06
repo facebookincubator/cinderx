@@ -46,6 +46,7 @@ class LoadMethodCacheTests(unittest.TestCase):
         def new_meaning_of_life(x):
             return 0
 
+        # pyrefly: ignore [bad-assignment]
         Oracle.meaning_of_life = new_meaning_of_life
 
         self.assertEqual(get_meaning_of_life(obj), 0)
@@ -68,6 +69,7 @@ class LoadMethodCacheTests(unittest.TestCase):
         def new_meaning_of_life(x):
             return 0
 
+        # pyrefly: ignore [bad-assignment]
         Base.meaning_of_life = new_meaning_of_life
 
         self.assertEqual(get_meaning_of_life(obj), 0)
@@ -108,6 +110,7 @@ class LoadMethodCacheTests(unittest.TestCase):
         # shadowing flag should be set
         obj1 = Derived()
         obj2 = Derived()
+        # pyrefly: ignore [missing-attribute]
         obj2.meaning_of_life = nothing
 
         # Now obj2.meaning_of_life shadows Base.meaning_of_life
@@ -158,6 +161,7 @@ class LoadMethodCacheTests(unittest.TestCase):
             pass
 
         other = Other()
+        # pyrefly: ignore [missing-attribute]
         other.meaning_of_life = nothing
         other.__class__ = obj.__class__
         self.assertEqual(get_meaning_of_life(other), 0)
@@ -239,6 +243,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
             self.assertIn(
                 "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
+                # pyrefly: ignore [bad-argument-type]
                 cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
             )
 
@@ -273,14 +278,19 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         """
         strict_sandbox.write_file("tmp_b.py", code_str)
         tmp_b = strict_sandbox.strict_import("tmp_b")
+        # pyrefly: ignore [missing-attribute]
         cinderx.jit.force_compile(tmp_b.test)
+        # pyrefly: ignore [missing-attribute]
         self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
         self.assertIn(
             "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
+            # pyrefly: ignore [bad-argument-type, missing-attribute]
             cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
         )
         # prime the cache
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tmp_b.test(), 3)
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tmp_b.test(), 3)
 
 
@@ -347,9 +357,11 @@ class LoadAttrCacheTests(unittest.TestCase):
         # cached
         self.assertEqual(get_foo(obj1), 100)
         obj2 = Base(200)
+        # pyrefly: ignore [missing-attribute]
         obj2.bar = 300
         # At this point the dictionary should still be split
         obj3 = Base(400)
+        # pyrefly: ignore [missing-attribute]
         obj3.baz = 500
         # Assigning 'baz' should clear the cached key object for Base and leave
         # existing instance dicts in the following states:
@@ -497,6 +509,7 @@ class StoreAttrCacheTests(unittest.TestCase):
         # Attaching a data descriptor to the type should invalidate the cache
         # and prevent future caching
         descr = DataDescr(300)
+        # pyrefly: ignore [no-access]
         Base.foo = descr
         set_foo(obj, 200)
         self.assertEqual(obj.foo, 300)
@@ -557,6 +570,7 @@ class StoreAttrCacheTests(unittest.TestCase):
 
         # obj is a split dict
         obj = Base()
+        # pyrefly: ignore [missing-attribute]
         obj.quox = 42
 
         # obj1 is no longer split, but the assignment
@@ -570,6 +584,7 @@ class StoreAttrCacheTests(unittest.TestCase):
         # with an invalid val_offset because there's no foo
         # entry in the cached keys.
         set_foo(obj1, 300)
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(obj1.foo, 300)
 
         set_foo(obj, 400)

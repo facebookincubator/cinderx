@@ -25,6 +25,7 @@ try:
 except ImportError:
     from typing import TypeVar
 
+    # pyrefly: ignore [invalid-annotation, invalid-type-var]
     Self = TypeVar("T", bound="Self")
 
 

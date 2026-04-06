@@ -86,6 +86,7 @@ class PrimitivesTests(StaticTestBase):
 
     def test_primitive_types_final(self):
         type_env = TypeEnvironment()
+        # pyrefly: ignore [unsupported-operation]
         PRIMITIVE_TYPES = type_env.all_cint_types + [
             type_env.cbool,
             type_env.char,
@@ -209,25 +210,32 @@ class PrimitivesTests(StaticTestBase):
                 num_slots = 8 // size
 
                 C = self.build_static_type(
+                    # pyrefly: ignore [bad-argument-type]
                     tuple(f"a{i}" for i in range(num_slots)),
+                    # pyrefly: ignore [bad-argument-type]
                     {f"a{i}": type_spec for i in range(num_slots)},
                 )
                 a = C()
                 self.assertEqual(sys.getsizeof(a), target_size, type_spec)
+                # pyrefly: ignore [missing-attribute]
                 self.assertEqual(a.a0, default)
                 self.assertEqual(type(a.a0), type(default))
                 for val in test_vals:
+                    # pyrefly: ignore [missing-attribute]
                     a.a0 = val
+                    # pyrefly: ignore [missing-attribute]
                     self.assertEqual(a.a0, val)
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("error", category=RuntimeWarning)
                     for val in warn_vals:
                         with self.assertRaises(RuntimeWarning):
+                            # pyrefly: ignore [missing-attribute]
                             a.a0 = val
 
                 for val in err_vals:
                     with self.assertRaises((TypeError, OverflowError)):
+                        # pyrefly: ignore [missing-attribute]
                         a.a0 = val
 
     def test_int_bad_assign(self):
@@ -3559,6 +3567,7 @@ class PrimitivesTests(StaticTestBase):
 
             ref = weakref.ref(mod.a, called)
             self.assertEqual(ref(), mod.a)
+            # pyrefly: ignore [missing-attribute]
             del mod.a
             self.assertTrue(was_called)
 

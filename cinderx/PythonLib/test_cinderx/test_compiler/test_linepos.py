@@ -194,6 +194,7 @@ class LinePositionTests(CompilerTest):
                 positions.append(
                     (
                         SrcLocation(
+                            # pyrefly: ignore [not-iterable]
                             *(val if val is not None else -1 for val in lastpos)
                         ),
                         length,
@@ -209,6 +210,7 @@ class LinePositionTests(CompilerTest):
                 table = bytes(postab.getTable())
                 self.assertEqual(table, f.__code__.co_linetable)
 
+    # pyrefly: ignore [invalid-argument]
     def get_position(self, compiled: CodeType, opcode: str) -> tuple[...] | None:
         for instr in get_instructions(compiled):
             if instr.opname == opcode:

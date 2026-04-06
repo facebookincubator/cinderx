@@ -10,6 +10,7 @@ from cinderx.test_support import passUnless
 @passUnless(
     sys.version_info >= (3, 12) and sys.version_info < (3, 13), "Python 3.12 only"
 )
+# pyrefly: ignore [inconsistent-inheritance]
 class Python312Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):
     def test_LOAD_BUILD_CLASS(self):
         @cinder_support.fail_if_deopt
@@ -26,6 +27,7 @@ class Python312Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         self.assertBytecodeContains(x, "LOAD_BUILD_CLASS")
 
     def test_STORE_GLOBAL(self):
+        # pyrefly: ignore [unknown-name]
         global test_STORE_GLOBAL_v
 
         test_STORE_GLOBAL_v = 1
@@ -33,6 +35,7 @@ class Python312Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContain
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled
         def x():
+            # pyrefly: ignore [unknown-name]
             global test_STORE_GLOBAL_v
             test_STORE_GLOBAL_v = 42
 

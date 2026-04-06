@@ -148,6 +148,7 @@ class AstOptimizer(ASTRewriter):
         if isinstance(op, Constant):
             conv = UNARY_OPS[type(node.op)]
             try:
+                # pyrefly: ignore [bad-argument-type]
                 return copy_location(Constant(conv(op.value)), node)
             except Exception:
                 pass
@@ -172,7 +173,9 @@ class AstOptimizer(ASTRewriter):
             if handler is not None:
                 try:
                     return copy_location(
-                        Constant(handler(left.value, right.value)), node
+                        # pyrefly: ignore [bad-argument-type]
+                        Constant(handler(left.value, right.value)),
+                        node,
                     )
                 except Exception:
                     pass
@@ -208,6 +211,7 @@ class AstOptimizer(ASTRewriter):
         ):
             try:
                 return copy_location(
+                    # pyrefly: ignore [bad-index, unsupported-operation]
                     Constant(value.value[slice.value]),
                     node,
                 )
@@ -233,6 +237,7 @@ class AstOptimizer(ASTRewriter):
             # pyre-ignore[6]: Can't type walk_list fully yet.
             res = self.makeConstTuple(elts)
             if res is not None:
+                # pyrefly: ignore [bad-argument-type, no-matching-overload]
                 return copy_location(Constant(frozenset(res.value)), node)
 
             return self.update_node(node, elts=elts)
@@ -526,7 +531,9 @@ class AstOptimizer314(AstOptimizer312):
                 node = self.update_node(
                     node, left=self.fold_const_match_patterns(node.left)
                 )
+                # pyrefly: ignore [missing-attribute]
                 if isinstance(node.left, ast.Constant):
+                    # pyrefly: ignore [bad-argument-type]
                     return super().visitBinOp(node)
 
         return node

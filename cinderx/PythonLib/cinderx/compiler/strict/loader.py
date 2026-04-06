@@ -18,9 +18,13 @@ try:  # ensure all imports in this module are eager, to avoid cycles
 
     # pyre-ignore[21]: typeshed doesn't know about this
     from importlib._bootstrap_external import (
+        # pyrefly: ignore [missing-module-attribute]
         _classify_pyc,
+        # pyrefly: ignore [missing-module-attribute]
         _compile_bytecode,
+        # pyrefly: ignore [missing-module-attribute]
         _validate_hash_pyc,
+        # pyrefly: ignore [missing-module-attribute]
         _validate_timestamp_pyc,
     )
     from importlib.abc import Loader
@@ -522,6 +526,7 @@ class StrictSourceFileLoader(SourceFileLoader):
     def should_force_strict(self) -> bool:
         return False
 
+    # pyrefly: ignore [bad-override]
     def source_to_code(
         self, data: bytes | str, path: str, *, _optimize: int = -1
     ) -> CodeType:
@@ -594,6 +599,7 @@ class StrictSourceFileLoader(SourceFileLoader):
             if module.__spec__ is not None:
                 module.__spec__.cached = cached
             if sys.version_info < (3, 15):
+                # pyrefly: ignore [missing-attribute]
                 module.__cached__ = cached
         spec: ModuleSpec | None = module.__spec__
 
@@ -739,6 +745,7 @@ def strict_compile(
         modname,
         file,
         import_path=sys.path,
+        # pyrefly: ignore [bad-argument-type]
         **loader_options,
     )
     cfile = add_strict_tag(cfile, enable_patching=loader.enable_patching)

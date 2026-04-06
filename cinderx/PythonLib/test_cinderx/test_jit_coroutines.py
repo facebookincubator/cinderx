@@ -68,6 +68,7 @@ class CoroutinesTest(unittest.TestCase):
 
     @passIf(POST_311, "asyncio.coroutine removed in 3.11")
     def test_pre_async_coroutine(self):
+        # pyrefly: ignore [missing-attribute]
         @asyncio.coroutine
         def _f3():
             yield 1
@@ -130,6 +131,7 @@ class CoroutinesTest(unittest.TestCase):
 
         @cinder_support.failUnlessJITCompiled
         async def jit_coro():
+            # pyrefly: ignore [not-async]
             await eager_suspend("bob")
 
         coro = jit_coro()
@@ -224,6 +226,7 @@ class CoroutinesTest(unittest.TestCase):
     cinderx.is_initialized() and hasattr(_testcapi, "TestAwaitedCall"),
     "Tests CinderX eager coroutine dispatch and needs extra support in _testcapi",
 )
+# pyrefly: ignore [invalid-inheritance]
 class EagerCoroutineDispatch(StaticTestBase):
     def tearDown(self):
         # This is needed to avoid an "environment changed" error
