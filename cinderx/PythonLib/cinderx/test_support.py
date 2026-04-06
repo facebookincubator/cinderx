@@ -203,8 +203,7 @@ def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
         # when wrapper() is eventually called.
         exc: RuntimeError = re
 
-        # pyrefly: ignore [invalid-annotation]
-        def wrapper(*args: ...) -> None:
+        def wrapper(*args: object) -> None:
             raise RuntimeError(
                 f"JIT compilation of {func.__qualname__} failed with {exc}"
             )
@@ -229,8 +228,7 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
     if not cinderx.jit.is_enabled():
         return func
 
-    # pyrefly: ignore [invalid-annotation]
-    def wrapper(*args: ..., **kwargs: ...) -> TRet:
+    def wrapper(*args: object, **kwargs: object) -> TRet:
         cinderx.jit.get_and_clear_runtime_stats()
         r = func(*args, **kwargs)
         # pyre-ignore[6]
