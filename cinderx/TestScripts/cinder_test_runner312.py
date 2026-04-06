@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # A modified version of the regrtest system which runs multiple tests per
-# instance of a parallel worker. This compensates for JIT compilation,
+# instance of a parallel worker. This compensates for JIT compilation which,
 # particularly for debug builds, is a huge overhead. So, we amortize initial
 # startup costs.
 #
