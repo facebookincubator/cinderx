@@ -2649,6 +2649,15 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
 
   generateDeoptExits(codeholder);
 
+#if defined(CINDER_AARCH64)
+  // Emit constant pool data for MovConstPool instructions. Each entry is an
+  // 8-byte value loaded via PC-relative ldr.
+  for (auto& [value, label] : env_.const_pool_labels) {
+    as_->bind(label);
+    as_->embed(&value, sizeof(value));
+  }
+#endif
+
   code_start_ = finalizeCode(*as_, GetFunction()->fullname);
 
   // ------------- code_start_

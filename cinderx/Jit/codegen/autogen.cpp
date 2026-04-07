@@ -2189,6 +2189,26 @@ void translateMove(Environ* env, const Instruction* instr) {
   }
 }
 
+void translateMovConstPool(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+  auto output = instr->output();
+  auto input = instr->getInput(0);
+  uint64_t value = static_cast<uint64_t>(input->getConstant());
+
+  // Look up or create constant pool entry for this value.
+  asmjit::Label label;
+  auto it = env->const_pool_labels.find(value);
+  if (it == env->const_pool_labels.end()) {
+    label = as->newLabel();
+    env->const_pool_labels[value] = label;
+  } else {
+    label = it->second;
+  }
+
+  // Load from constant pool via PC-relative ldr.
+  as->ldr(AT::getGpWiden(output), a64::ptr(label));
+}
+
 template <
     typename EmitExt8Fn,
     typename EmitExt16Fn,
@@ -2741,6 +2761,10 @@ BEGIN_RULES(Instruction::kMoveRelaxed)
   GEN("Rm", CALL_C(translateMove))
   GEN("Mr", CALL_C(translateMove))
   GEN("Mi", CALL_C(translateMove))
+END_RULES
+
+BEGIN_RULES(Instruction::kMovConstPool)
+  GEN("Ri", CALL_C(translateMovConstPool))
 END_RULES
 
 BEGIN_RULES(Instruction::kGuard)
