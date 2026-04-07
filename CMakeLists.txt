@@ -168,6 +168,7 @@ set(Python_INCLUDE_DIRS ${Python_INCLUDE_DIRS} "${Python_INCLUDE_DIRS}/internal"
 set(ASMJIT_STATIC TRUE)
 set(ASMJIT_NO_CUSTOM_FLAGS TRUE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/ThirdParty/asmjit asmjit)
+target_compile_options(asmjit PRIVATE -Wno-class-memaccess)
 
 ########################################
 # fmt
@@ -221,6 +222,8 @@ if (${ENABLE_DISASSEMBLER})
   set(CAPSTONE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
   set(CAPSTONE_BUILD_CSTOOL OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(capstone)
+  target_compile_options(capstone PRIVATE -w)
+  target_compile_options(capstone_static PRIVATE -w)
 endif()
 
 ##############################################################################
@@ -330,6 +333,7 @@ if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14 OR ${PY_VERSION} EQUAL 
 endif()
 
 add_library(jit ${JIT_SOURCES})
+target_compile_options(jit PRIVATE -Wno-free-nonheap-object)
 target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt)
 if (${ENABLE_DISASSEMBLER})
   target_link_libraries(jit PRIVATE capstone_static)
