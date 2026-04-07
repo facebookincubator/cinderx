@@ -126,6 +126,12 @@ struct Environ {
   int max_arg_buffer_size{0};
 
   bool has_inlined_functions{false};
+
+#if defined(CINDER_AARCH64)
+  // Constant pool for large immediate values. translateMovConstPool populates
+  // these; gen_asm.cpp emits the pool data after deopt exits.
+  UnorderedMap<uint64_t, asmjit::Label> const_pool_labels;
+#endif
 };
 
 } // namespace jit::codegen

@@ -5,6 +5,8 @@
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
 
+#include <unordered_map>
+
 using namespace jit::codegen;
 
 namespace jit::lir {
@@ -875,6 +877,102 @@ RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
 
   return kUnchanged;
 }
+
+// Returns true if the given 64-bit value needs more than 2 ARM64 mov
+// instructions (movz/movk or movn/movk) to load.
+bool needsMoreThanTwoMovInstructions(uint64_t value) {
+  int non_zero = 0;
+  int all_ones = 0;
+  for (int i = 0; i < 4; i++) {
+    uint16_t hw = (value >> (i * 16)) & 0xFFFF;
+    if (hw != 0) {
+      non_zero++;
+    }
+    if (hw == 0xFFFF) {
+      all_ones++;
+    }
+  }
+  // movz approach needs `non_zero` instructions.
+  // movn approach needs `4 - all_ones` instructions.
+  return std::min(non_zero, 4 - all_ones) > 2;
+}
+
+// For Move instructions loading large 64-bit immediates (needing 3-4
+// movz/movk), if the same value appears more than once in the function,
+// rewrite to MovConstPool to load from a constant pool via a single ldr.
+RewriteResult rewriteMovConstPool(function_rewrite_arg_t func) {
+  // Phase 1: Count occurrences of large immediate values.
+  std::unordered_map<uint64_t, int> value_counts;
+  for (auto& block : func->basicblocks()) {
+    for (auto it = block->instructions().begin();
+         it != block->instructions().end();
+         ++it) {
+      auto& instr = *it;
+      if (!instr->isMove()) {
+        continue;
+      }
+      if (instr->getNumInputs() != 1) {
+        continue;
+      }
+      auto* input = instr->getInput(0);
+      if (!input->isImm()) {
+        continue;
+      }
+      auto* output = instr->output();
+      if (bitSize(output->dataType()) != 64) {
+        continue;
+      }
+      uint64_t val = static_cast<uint64_t>(input->getConstant());
+      if (needsMoreThanTwoMovInstructions(val)) {
+        value_counts[val]++;
+      }
+    }
+  }
+
+  // Phase 2: Rewrite duplicates to MovConstPool.
+  bool changed = false;
+  for (auto& block : func->basicblocks()) {
+    for (auto it = block->instructions().begin();
+         it != block->instructions().end();
+         ++it) {
+      auto& instr = *it;
+      if (!instr->isMove()) {
+        continue;
+      }
+      if (instr->getNumInputs() != 1) {
+        continue;
+      }
+      auto* input = instr->getInput(0);
+      if (!input->isImm()) {
+        continue;
+      }
+      uint64_t val = static_cast<uint64_t>(input->getConstant());
+      auto count_it = value_counts.find(val);
+      if (count_it != value_counts.end() && count_it->second > 1) {
+        auto* output = instr->output();
+        if (bitSize(output->dataType()) != 64) {
+          continue;
+        }
+        if (output->isInd() || output->isStack()) {
+          // Memory destination: split into a MovConstPool load into a VReg
+          // followed by a Move from that VReg to the memory destination.
+          // This avoids scratch register clobbering in autogen.
+          auto pool_load = block->allocateInstrBefore(
+              it,
+              Instruction::kMovConstPool,
+              OutVReg{input->dataType()},
+              Imm{input->getConstant(), input->dataType()});
+          instr->setInput(0, std::make_unique<LinkedOperand>(pool_load));
+        } else {
+          instr->setOpcode(Instruction::kMovConstPool);
+        }
+        changed = true;
+      }
+    }
+  }
+
+  return changed ? kChanged : kUnchanged;
+}
 #endif
 
 } // namespace
@@ -901,6 +999,7 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteStackInputToVreg, 1);
   registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
   registerOneRewriteFunction(rewriteCallInput, 1);
+  registerOneRewriteFunction(rewriteMovConstPool, 1);
 #endif
 
   registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);
