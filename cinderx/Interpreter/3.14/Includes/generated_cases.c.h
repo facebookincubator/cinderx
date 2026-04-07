@@ -6446,7 +6446,7 @@
                         _PyFrame_SetStackPointer(frame, stack_pointer);
                         specialize_with_value(next_instr, func, INVOKE_FUNCTION_CACHED, 0, 0);
                         stack_pointer = _PyFrame_GetStackPointer(frame);
-                    } else {
+                    } else if (_Py_IsImmortal(container)) {
                         _PyFrame_SetStackPointer(frame, stack_pointer);
                         PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
                         stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -11009,13 +11009,6 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
                     JUMP_TO_PREDICTED(LOAD_GLOBAL);
                 }
-                #ifdef META_PYTHON
-                if (PyLazyImport_CheckExact(res_o)) {
-                    UPDATE_MISS_STATS(LOAD_GLOBAL);
-                    assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
-                    JUMP_TO_PREDICTED(LOAD_GLOBAL);
-                }
-                #endif
                 #if Py_GIL_DISABLED
                 int increfed = _Py_TryIncrefCompareStackRef(&entries[index].me_value, res_o, &res);
                 if (!increfed) {
@@ -11023,7 +11016,29 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
                     JUMP_TO_PREDICTED(LOAD_GLOBAL);
                 }
+                #ifdef META_PYTHON
+                if (PyLazyImport_CheckExact(PyStackRef_AsPyObjectBorrow(res))) {
+                    stack_pointer[0] = res;
+                    stack_pointer += 1;
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    PyStackRef_CLOSE(res);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (true) {
+                        UPDATE_MISS_STATS(LOAD_GLOBAL);
+                        assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
+                        JUMP_TO_PREDICTED(LOAD_GLOBAL);
+                    }
+                }
+                #endif
                 #else
+                #ifdef META_PYTHON
+                if (PyLazyImport_CheckExact(res_o)) {
+                    UPDATE_MISS_STATS(LOAD_GLOBAL);
+                    assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
+                    JUMP_TO_PREDICTED(LOAD_GLOBAL);
+                }
+                #endif
                 res = PyStackRef_FromPyObjectNew(res_o);
                 #endif
                 STAT_INC(LOAD_GLOBAL, hit);
@@ -11083,13 +11098,6 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
                     JUMP_TO_PREDICTED(LOAD_GLOBAL);
                 }
-                #ifdef META_PYTHON
-                if (PyLazyImport_CheckExact(res_o)) {
-                    UPDATE_MISS_STATS(LOAD_GLOBAL);
-                    assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
-                    JUMP_TO_PREDICTED(LOAD_GLOBAL);
-                }
-                #endif
                 #if Py_GIL_DISABLED
                 int increfed = _Py_TryIncrefCompareStackRef(&entries[index].me_value, res_o, &res);
                 if (!increfed) {
@@ -11097,7 +11105,29 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
                     JUMP_TO_PREDICTED(LOAD_GLOBAL);
                 }
+                #ifdef META_PYTHON
+                if (PyLazyImport_CheckExact(PyStackRef_AsPyObjectBorrow(res))) {
+                    stack_pointer[0] = res;
+                    stack_pointer += 1;
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    PyStackRef_CLOSE(res);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (true) {
+                        UPDATE_MISS_STATS(LOAD_GLOBAL);
+                        assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
+                        JUMP_TO_PREDICTED(LOAD_GLOBAL);
+                    }
+                }
+                #endif
                 #else
+                #ifdef META_PYTHON
+                if (PyLazyImport_CheckExact(res_o)) {
+                    UPDATE_MISS_STATS(LOAD_GLOBAL);
+                    assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
+                    JUMP_TO_PREDICTED(LOAD_GLOBAL);
+                }
+                #endif
                 res = PyStackRef_FromPyObjectNew(res_o);
                 #endif
                 STAT_INC(LOAD_GLOBAL, hit);
