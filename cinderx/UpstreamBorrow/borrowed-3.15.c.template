@@ -166,6 +166,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function insert_split_value from Objects/dictobject.c [3.15]
 // @Borrow function insert_combined_dict from Objects/dictobject.c [3.15]
 // @Borrow function insertdict from Objects/dictobject.c [3.15]
+// @Borrow function setitem_take2_lock_held_known_hash from Objects/dictobject.c [3.15]
 // @Borrow function setitem_take2_lock_held from Objects/dictobject.c [3.15]
 // @Borrow function setitem_lock_held from Objects/dictobject.c [3.15]
 // @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.15]
@@ -396,6 +397,7 @@ error:
 
 // @Borrow CPP directives noinclude from Python/pystate.c
 // @Borrow CPP directives noinclude from Objects/obmalloc.c
+// @Borrow function _pymalloc_virtual_alloc_size from Objects/obmalloc.c
 // @Borrow function _PyObject_VirtualAlloc from Objects/obmalloc.c
 // @Borrow function allocate_chunk from Python/pystate.c
 // @Borrow function push_chunk from Python/pystate.c

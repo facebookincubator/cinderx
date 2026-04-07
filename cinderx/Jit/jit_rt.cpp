@@ -2129,10 +2129,19 @@ int JITRT_DictMerge(
     PyObject* dict,
     PyObject* update,
     PyObject* func) {
+#if PY_VERSION_HEX >= 0x030F0000
+  PyObject* dupkey = NULL;
+  if (_PyDict_MergeUniq(dict, update, &dupkey) < 0) {
+    _PyEval_FormatKwargsError(tstate, func, update, dupkey);
+    Py_XDECREF(dupkey);
+    return -1;
+  }
+#else
   if (_PyDict_MergeEx(dict, update, 2) < 0) {
     _PyEval_FormatKwargsError(tstate, func, update);
     return -1;
   }
+#endif
   return 0;
 }
 

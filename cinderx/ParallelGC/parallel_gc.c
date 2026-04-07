@@ -1163,7 +1163,9 @@ gc_collect_main(
     struct Ci_PyGCImpl* gc_impl,
     PyThreadState* tstate,
     int generation,
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030F0000
+    struct gc_generation_stats* stats) {
+#elif PY_VERSION_HEX >= 0x030E0000
     struct gc_collection_stats* stats) {
 #else
     Py_ssize_t* n_collected,
