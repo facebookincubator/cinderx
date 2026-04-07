@@ -698,7 +698,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             return None
 
         # Create an array with elements {0, 1, 2, ..., depth - 1}:
-        stack = [i for i in range(depth)]
+        stack = list(range(depth))
         # Simulate the combined effect of these instructions by "running" them on
         # our "stack":
         for i in range(instr_index, cnt):
