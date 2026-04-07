@@ -134,6 +134,7 @@ test.test_peepholer.TestMarkingVariablesAsUnKnown.test_setting_lineno_two_undefi
 test.test_doctest.test_doctest.test_pdb_set_trace_nested
 test.test_doctest.test_doctest.test_pdb_set_trace
 test.test_frame.TestIncompleteFrameAreInvisible.test_sneaky_frame_object
+test.test_free_threading.test_monitoring.MonitoringMisc.test_toggle_setprofile_no_new_events
 
 # The JIT doesn't support pdb and this test runs it as part of a subprocess.
 test.test_zipimport_support.ZipSupportTests.test_pdb_issue4201
