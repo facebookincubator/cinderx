@@ -23,8 +23,6 @@ from cinderx.test_support import (
 )
 
 
-OSS: bool = is_oss()
-
 
 @skip_unless_jit("Tests JIT list behavior")
 @passUnless(
@@ -138,7 +136,6 @@ class JitListTest(unittest.TestCase):
         code_func_nojit()
         self.assertFalse(cinderx.jit.is_jit_compiled(code_func_nojit))
 
-    @passIf(OSS, "Qualname change events are Meta Python only")
     def test_change_func_qualname(self) -> None:
         # This should be a skipIf decorator, but that makes pyre unhappy for some
         # unknown reason.
