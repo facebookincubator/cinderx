@@ -691,7 +691,7 @@ void LinearScanAllocator::linearScan() {
     for (LiveInterval* interval : stack_intervals) {
       auto operand = interval->operand;
       auto iter = vreg_global_last_use_.find(operand);
-      if (iter != vreg_global_last_use_.end() && iter->second <= position) {
+      if (iter != vreg_global_last_use_.end() && iter->second < position) {
         freeStackSlot(operand);
       }
     }
