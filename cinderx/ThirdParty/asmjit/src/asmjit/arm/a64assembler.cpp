@@ -2198,8 +2198,63 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         opcode.reset(opData.opcode);
         opcode.addImm(x, 31);
         opcode.addReg(o0, 0);
-        offsetFormat.resetToImmValue(OffsetType::kSignedOffset, 4, 5, 19, 2);
 
+        // For label operands, handle cbz/cbnz relaxation directly instead of
+        // going through EmitOp_Rel. We always emit 8 bytes for label targets
+        // so that we can relax to `inverted-branch +8; b target` if the
+        // 19-bit displacement doesn't fit.
+        if (isign4 == ENC_OPS2(Reg, Label)) {
+          uint32_t labelId = o1.as<Label>().id();
+          LabelEntry* label = _code->labelEntry(labelId);
+          if (ASMJIT_UNLIKELY(!label))
+            goto InvalidLabel;
+
+          size_t codeOffset = writer.offsetFrom(_bufferData);
+
+          if (label->isBoundTo(_section)) {
+            // Backward reference - we know the displacement.
+            int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
+            int64_t dispImm = displacement >> 2;
+
+            if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 19)) {
+              // Fits in cbz/cbnz - emit normally (4 bytes).
+              uint32_t dispImm32 = uint32_t(dispImm) & Support::lsbMask<uint32_t>(19);
+              opcode.addImm(dispImm32, 5);
+              writer.emit32uLE(opcode.get());
+            } else {
+              // Doesn't fit in 19-bit range - emit relaxed sequence (8 bytes):
+              //   cbnz/cbz +8   (inverted condition, skip over b)
+              //   b target
+              uint32_t invertedOpcode = opcode.get() ^ (1u << 24);
+              invertedOpcode |= (2u << 5); // imm19 = +2 words = +8 bytes
+              writer.emit32uLE(invertedOpcode);
+
+              int64_t bDisp = (displacement - 4) >> 2;
+              if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26))
+                goto InvalidDisplacement;
+
+              uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
+              writer.emit32uLE(bOpcode);
+            }
+          } else {
+            // Forward reference - emit 8 bytes placeholder, create label link.
+            // The link will be resolved when the label is bound.
+            OffsetFormat fmt;
+            fmt.resetToImmValue(OffsetType::kAArch64_CompBranch, 4, 5, 19, 2);
+            fmt.setRegion(8, 0);
+
+            LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
+            if (ASMJIT_UNLIKELY(!link))
+              goto OutOfMemory;
+
+            writer.emit32uLE(opcode.get());   // opcode without offset
+            writer.emit32uLE(0xD503201Fu);    // NOP placeholder
+          }
+          goto EmitDone;
+        }
+
+        // For Imm operand (absolute address), use existing behavior.
+        offsetFormat.resetToImmValue(OffsetType::kSignedOffset, 4, 5, 19, 2);
         rmRel = &o1;
         goto EmitOp_Rel;
       }

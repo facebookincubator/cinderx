@@ -179,3 +179,97 @@ UNIT(a64_tbnz_patching_out_of_range) {
   EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "09200014", 8) == 0)
     .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
 }
+
+// ============================================================================
+// [CBZ/CBNZ Patching Tests]
+// ============================================================================
+
+// Test that cbz to a nearby label encodes as a direct cbz instruction.
+UNIT(a64_cbz_patching_in_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // cbz w1, target
+  as.cbz(a64::w1, target);
+  emitNops(as, 4);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // Forward ref emits 8-byte region (cbz + NOP placeholder).
+  // Layout: cbz(0) + NOP(4) + 4 NOPs(8-20) + target(24)
+  // displacement = 24, imm19 = 6
+  // cbz w1, +24: sf=0, opcode=0x34, imm19=6, Rt=1
+  // = 0x340000C1
+  // LE: C1000034
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "C1000034", 8) == 0)
+    .message("Expected cbz w1 encoding, got: %s", hex.data());
+}
+
+// Test that cbz to a far label (beyond ±1MB) gets relaxed:
+// inverted to cbnz +8, then unconditional b to target.
+UNIT(a64_cbz_patching_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // cbz w1, target
+  as.cbz(a64::w1, target);
+  // Emit enough NOPs to exceed 19-bit signed offset range (±1MB = 262144 instructions)
+  emitNops(as, 262200);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // The first 4 bytes should be the inverted condition: cbnz w1, +8
+  // cbnz has bit 24 set compared to cbz
+  // cbnz w1, +8: imm19 = 2 (2 words = 8 bytes)
+  // = 0x35000041
+  // LE: 41000035
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "41000035", 8) == 0)
+    .message("Expected cbnz w1, +8 (inverted), got first 8 chars: %.8s", hex.data());
+
+  // The second 4 bytes should be an unconditional b to target.
+  // b is at offset 4. Target = 8 + 262200*4 = 1048808. Displacement = 1048808 - 4 = 1048804.
+  // imm26 = 1048804/4 = 262201 = 0x40039
+  // b opcode: 0x14000000 | 0x40039 = 0x14040039
+  // LE: 39000414
+  EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "39000414", 8) == 0)
+    .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
+}
+
+// Test that cbnz (inverse) also relaxes correctly.
+UNIT(a64_cbnz_patching_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // cbnz w1, target
+  as.cbnz(a64::w1, target);
+  emitNops(as, 262200);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // The first 4 bytes should be inverted to cbz w1, +8
+  // cbz has bit 24 clear compared to cbnz
+  // cbz w1, +8: imm19 = 2
+  // = 0x34000041
+  // LE: 41000034
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "41000034", 8) == 0)
+    .message("Expected cbz w1, +8 (inverted cbnz), got first 8 chars: %.8s", hex.data());
+
+  // Second word: b to target (same displacement as cbz case)
+  EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "39000414", 8) == 0)
+    .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
+}

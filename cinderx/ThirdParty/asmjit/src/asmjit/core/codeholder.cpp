@@ -740,21 +740,26 @@ ASMJIT_API Error CodeHolder::bindLabel(const Label& label, uint32_t toSectionId,
       // Size of the value we are going to patch. Only BYTE/DWORD is allowed.
       ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= link->format.regionSize());
 
-      // AArch64 tbz/tbnz relaxation: 8-byte region with conditional + unconditional branch.
-      if (link->format.type() == OffsetType::kAArch64_TestBranch) {
+      // AArch64 tbz/tbnz and cbz/cbnz relaxation: 8-byte region with conditional + unconditional branch.
+      // Both use bit 24 to distinguish the condition (tbz/cbz=0, tbnz/cbnz=1) and encode the
+      // offset in the same position (bits [N:5]), just with different bit counts (14 vs 19).
+      if (link->format.type() == OffsetType::kAArch64_TestBranch ||
+          link->format.type() == OffsetType::kAArch64_CompBranch) {
         uint8_t* instPtr = buf._data + linkOffset;
         uint32_t origOpcode = Support::readU32uLE(instPtr);
+        uint32_t immBitCount = link->format.immBitCount();
+        uint32_t immMask = Support::lsbMask<uint32_t>(immBitCount);
 
         int64_t dispImm = displacement >> 2;
-        if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 14)) {
-          // Fits in tbz/tbnz - patch the first word with the offset, leave NOP.
-          uint32_t dispBits = (uint32_t(dispImm) & 0x3FFFu) << 5;
+        if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
+          // Fits in the original instruction - patch the first word, leave NOP.
+          uint32_t dispBits = (uint32_t(dispImm) & immMask) << 5;
           Support::writeU32uLE(instPtr, origOpcode | dispBits);
           // Second word stays as NOP.
         } else {
           // Doesn't fit - emit inverted condition branch +8, then unconditional b target.
           uint32_t invertedOpcode = origOpcode ^ (1u << 24);
-          invertedOpcode |= (2u << 5); // imm14 = +2 words = +8 bytes
+          invertedOpcode |= (2u << 5); // imm = +2 words = +8 bytes
           Support::writeU32uLE(instPtr, invertedOpcode);
 
           // b target: displacement from the b instruction at linkOffset + 4.
