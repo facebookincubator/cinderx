@@ -9,6 +9,7 @@
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/gen_data_footer.h"
 #if defined(CINDER_X86_64)
@@ -40,6 +41,9 @@ CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
     func = jitFrameGetFunction(frame);
   }
 
+  // Frame reification can look up runtime state without entering through a
+  // guarded top-level JIT entrypoint.
+  FreeThreadedJITEntrypointGuard guard;
   return cinderx::getModuleState()->jit_context->lookupCodeRuntime(func);
 }
 
