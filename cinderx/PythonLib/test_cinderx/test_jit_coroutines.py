@@ -20,13 +20,24 @@ from cinderx.test_support import (
 # pyre-ignore[21]: Pyre doesn't know about _testcapi
 import _testcapi
 
+HAS_XXCLASSLOADER = True
+
 # Allow this file to run without CinderX.
 if cinderx.is_initialized():
-    from .test_compiler.test_static.common import StaticTestBase
+    try:
+        from .test_compiler.test_static.common import StaticTestBase
+    except ModuleNotFoundError as exc:
+        if exc.name != "xxclassloader":
+            raise
+        from .test_compiler.common import CompilerTest
+
+        StaticTestBase = CompilerTest
+        HAS_XXCLASSLOADER = False
 else:
     from .test_compiler.common import CompilerTest
 
     StaticTestBase = CompilerTest
+    HAS_XXCLASSLOADER = False
 
 POST_311 = sys.version_info >= (3, 11)
 
@@ -221,8 +232,10 @@ class CoroutinesTest(unittest.TestCase):
 
 
 @passUnless(
-    cinderx.is_initialized() and hasattr(_testcapi, "TestAwaitedCall"),
-    "Tests CinderX eager coroutine dispatch and needs extra support in _testcapi",
+    cinderx.is_initialized()
+    and HAS_XXCLASSLOADER
+    and hasattr(_testcapi, "TestAwaitedCall"),
+    "Tests CinderX eager coroutine dispatch and needs xxclassloader plus extra support in _testcapi",
 )
 # pyrefly: ignore [invalid-inheritance]
 class EagerCoroutineDispatch(StaticTestBase):
