@@ -163,8 +163,7 @@ void FrameAsm::loadTState(const arch::Gp& dst_reg) {
         dst_reg,
         arch::ptr_resolve(as_, dst_reg, tstate_offset, arch::reg_scratch_0));
   } else {
-    as_->mov(arch::reg_scratch_br, _PyThreadState_GetCurrent);
-    as_->blr(arch::reg_scratch_br);
+    as_->bl(_PyThreadState_GetCurrent);
     as_->mov(dst_reg, a64::x0);
   }
 #else
@@ -194,8 +193,7 @@ void FrameAsm::linkNormalGeneratorFrame(
   as_->mov(a64::x1, reinterpret_cast<intptr_t>(codeRuntime()));
   as_->adr(a64::x2, env_.gen_resume_entry_label);
   as_->mov(a64::x3, arch::fp);
-  as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkGenAndInterpreterFrame);
-  as_->blr(arch::reg_scratch_br);
+  as_->bl(JITRT_AllocateAndLinkGenAndInterpreterFrame);
   as_->mov(tstate_reg, a64::x0);
   // tstate is now in x0 and GenDataFooter* in x1. Swap fp over to the
   // generator data so spilled data starts getting stored there. There
@@ -890,13 +888,10 @@ void FrameAsm::linkNormalFunctionFrame(
 #elif defined(CINDER_AARCH64)
   if (kPyDebug) {
     as_->mov(a64::x1, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
-    as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkInterpreterFrame_Debug);
+    as_->bl(JITRT_AllocateAndLinkInterpreterFrame_Debug);
   } else {
-    as_->mov(
-        arch::reg_scratch_br, JITRT_AllocateAndLinkInterpreterFrame_Release);
+    as_->bl(JITRT_AllocateAndLinkInterpreterFrame_Release);
   }
-
-  as_->blr(arch::reg_scratch_br);
   as_->mov(tstate_reg, a64::x0);
 #else
   CINDER_UNSUPPORTED
@@ -961,8 +956,7 @@ void FrameAsm::linkNormalFrame(
       a64::x2,
       reinterpret_cast<intptr_t>(codeRuntime()->frameState()->globals().get()));
 
-  as_->mov(arch::reg_scratch_br, JITRT_AllocateAndLinkFrame);
-  as_->blr(arch::reg_scratch_br);
+  as_->bl(JITRT_AllocateAndLinkFrame);
   as_->mov(tstate_reg, a64::x0);
 #else
   CINDER_UNSUPPORTED

@@ -39,12 +39,7 @@ void emitCall(Environ& env, uint64_t func, const jit::lir::Instruction* instr) {
 #if defined(CINDER_X86_64)
   env.as->call(func);
 #elif defined(CINDER_AARCH64)
-  // Note that we could do better than this if asmjit knew how to handle arm64
-  // relocations for relative calls. That work is done in
-  // https://github.com/asmjit/asmjit/issues/499, but as of writing is not yet
-  // available.
-  env.as->mov(arch::reg_scratch_br, func);
-  env.as->blr(arch::reg_scratch_br);
+  env.as->bl(func);
 #else
   CINDER_UNSUPPORTED
 #endif
