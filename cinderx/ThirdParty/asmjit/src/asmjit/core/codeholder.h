@@ -540,7 +540,9 @@ enum class RelocType : uint32_t {
   //! AArch64: Relocate absolute to relative `bl` or use `ldr+blr` via address table.
   kA64AddressEntry = 6,
   //! AArch64: Relocate `adr` or relax to `adrp+add` if displacement > ±1MB.
-  kA64AdrEntry = 7
+  kA64AdrEntry = 7,
+  //! AArch64: Relocate absolute to relative `b` or use `ldr+br` via address table.
+  kA64JumpAddressEntry = 8
 };
 
 //! Relocation entry.

@@ -397,3 +397,32 @@ UNIT(a64_adr_patching_forward_ref) {
   EXPECT_GT(code.relocEntries().size(), 0u)
     .message("Expected at least one reloc entry for adr forward ref");
 }
+
+// ============================================================================
+// [B (unconditional) Patching Tests]
+// ============================================================================
+
+// Test that b to an absolute address that is out of ±128MB range
+// gets relaxed via RelocEntry (similar to bl relaxation).
+UNIT(a64_b_patching_absolute_addr) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  // b to an absolute address (far away) should emit two NOPs as placeholder
+  // and create a RelocEntry. The actual relaxation happens in relocateToBase().
+  uint64_t farAddr = 0x100000000ULL; // 4GB away
+  as.b(Imm(farAddr));
+
+  String hex;
+  getHex(code, hex);
+
+  // Should emit two NOPs as placeholders (will be rewritten during relocation):
+  // NOP = 0xD503201F -> little-endian = 1F2003D5
+  EXPECT_EQ(hex, "1F2003D51F2003D5")
+    .message("Expected two NOPs as placeholder, got: %s", hex.data());
+
+  // Verify a RelocEntry was created
+  EXPECT_GT(code.relocEntries().size(), 0u)
+    .message("Expected at least one reloc entry for far b");
+}
