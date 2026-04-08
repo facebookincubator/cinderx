@@ -368,8 +368,15 @@ enum class OffsetType : uint8_t {
   //!   - If it doesn't fit: `tbnz/tbz +8; b target` (inverted condition, unconditional branch)
   kAArch64_TestBranch,
 
+  //! AArch64 compare-and-branch (cbz/cbnz) relaxation format.
+  //!
+  //! Emits 8 bytes (two 32-bit words). During label binding, the displacement is checked:
+  //!   - If it fits in 19-bit signed offset: `cbz/cbnz target; nop`
+  //!   - If it doesn't fit: `cbnz/cbz +8; b target` (inverted condition, unconditional branch)
+  kAArch64_CompBranch,
+
   //! Maximum value of `OffsetFormatType`.
-  kMaxValue = kAArch64_TestBranch
+  kMaxValue = kAArch64_CompBranch
 };
 
 //! Provides information about formatting offsets, absolute addresses, or their parts. Offset format is used by both
