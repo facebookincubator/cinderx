@@ -273,3 +273,127 @@ UNIT(a64_cbnz_patching_out_of_range) {
   EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "39000414", 8) == 0)
     .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
 }
+
+// ============================================================================
+// [B.cond Patching Tests]
+// ============================================================================
+
+// Test that b.eq to a nearby label encodes as a direct b.eq instruction.
+UNIT(a64_bcond_patching_in_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // b.eq target
+  as.b_eq(target);
+  emitNops(as, 4);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // Forward ref emits 8-byte region (b.eq + NOP placeholder).
+  // Layout: b.eq(0) + NOP(4) + 4 NOPs(8-20) + target(24)
+  // displacement = 24, imm19 = 6
+  // b.eq +24: opcode=0x54, imm19=6, cond=0
+  // = 0x540000C0
+  // LE: C0000054
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "C0000054", 8) == 0)
+    .message("Expected b.eq encoding, got: %s", hex.data());
+}
+
+// Test that b.eq to a far label (beyond ±1MB) gets relaxed:
+// inverted to b.ne +8, then unconditional b to target.
+UNIT(a64_bcond_patching_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // b.eq target
+  as.b_eq(target);
+  // Emit enough NOPs to exceed 19-bit signed offset range (±1MB)
+  emitNops(as, 262200);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // The first 4 bytes should be the inverted condition: b.ne +8
+  // b.ne flips bit 0 of cond: eq(0) -> ne(1)
+  // b.ne +8: imm19 = 2 (2 words = 8 bytes), cond = 1
+  // = 0x54000041
+  // LE: 41000054
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "41000054", 8) == 0)
+    .message("Expected b.ne +8 (inverted), got first 8 chars: %.8s", hex.data());
+
+  // The second 4 bytes should be an unconditional b to target.
+  // Same displacement as cbz case: imm26 = 262201 = 0x40039
+  // LE: 39000414
+  EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "39000414", 8) == 0)
+    .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
+}
+
+// Test that b.ne (already inverted) also relaxes correctly.
+UNIT(a64_bcond_ne_patching_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // b.ne target
+  as.b_ne(target);
+  emitNops(as, 262200);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // The first 4 bytes should be inverted to b.eq +8
+  // ne(1) -> eq(0)
+  // b.eq +8: imm19 = 2, cond = 0
+  // = 0x54000040
+  // LE: 40000054
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "40000054", 8) == 0)
+    .message("Expected b.eq +8 (inverted b.ne), got first 8 chars: %.8s", hex.data());
+
+  // Second word: b to target (same displacement)
+  EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "39000414", 8) == 0)
+    .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
+}
+
+// ============================================================================
+// [ADR Patching Tests]
+// ============================================================================
+
+// Test that adr to a forward label emits 8-byte region (adr + NOP placeholder)
+// and creates a RelocEntry for later resolution.
+UNIT(a64_adr_patching_forward_ref) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // adr x1, target
+  as.adr(a64::x1, target);
+  emitNops(as, 4);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // Forward ref emits 8-byte region: adr x1, #0 (unpatched) + NOP placeholder.
+  // adr x1, #0: 0x10000001 -> LE: 01000010
+  // The displacement is resolved during relocateToBase(), not at emit time.
+  EXPECT(hex.size() >= 16 && memcmp(hex.data(), "010000101F2003D5", 16) == 0)
+    .message("Expected adr x1, #0 + NOP placeholder, got: %s", hex.data());
+
+  // Verify a RelocEntry was created for the adr
+  EXPECT_GT(code.relocEntries().size(), 0u)
+    .message("Expected at least one reloc entry for adr forward ref");
+}

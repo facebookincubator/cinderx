@@ -711,6 +711,70 @@ static inline bool checkValidRegs(const Operand_& o0, const Operand_& o1, const 
               (unsigned(o3.id() < 31) | unsigned(o3.id() == commonHiRegIdOfType[o3.as<Reg>().type()])));
 }
 
+// Emit a conditional branch with relaxation support.
+//
+// Handles both backward references (where displacement is known) and forward
+// references (where we emit a placeholder). For backward references that fit
+// in `immBitCount` bits, emits a single 4-byte instruction. Otherwise, emits
+// an 8-byte relaxed sequence: inverted-condition +8, then unconditional b.
+// For forward references, always emits 8 bytes (opcode + NOP placeholder)
+// and creates a label link for later resolution.
+//
+// `inversionMask` controls how to flip the condition: bit 0 for b.cond,
+// bit 24 for tbz/tbnz and cbz/cbnz.
+static Error emitCondBranchRelax(
+    CodeHolder* code, Section* section, CodeWriter& writer, uint8_t* bufferData,
+    Opcode opcode, const Label& label, uint32_t immBitCount,
+    uint32_t inversionMask, OffsetType offsetType) {
+
+  LabelEntry* labelEntry = code->labelEntry(label.id());
+  if (ASMJIT_UNLIKELY(!labelEntry))
+    return DebugUtils::errored(kErrorInvalidLabel);
+
+  size_t codeOffset = writer.offsetFrom(bufferData);
+
+  if (labelEntry->isBoundTo(section)) {
+    // Backward reference - we know the displacement.
+    int64_t displacement = int64_t(labelEntry->offset() - uint64_t(codeOffset));
+    int64_t dispImm = displacement >> 2;
+
+    if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
+      // Fits - emit normally (4 bytes).
+      uint32_t dispImm32 = uint32_t(dispImm) & Support::lsbMask<uint32_t>(immBitCount);
+      opcode.addImm(dispImm32, 5);
+      writer.emit32uLE(opcode.get());
+    } else {
+      // Doesn't fit - emit relaxed sequence (8 bytes):
+      //   inverted-condition +8  (skip over b)
+      //   b target
+      uint32_t invertedOpcode = opcode.get() ^ inversionMask;
+      invertedOpcode |= (2u << 5); // imm = +2 words = +8 bytes
+      writer.emit32uLE(invertedOpcode);
+
+      int64_t bDisp = (displacement - 4) >> 2;
+      if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26))
+        return DebugUtils::errored(kErrorInvalidDisplacement);
+
+      uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
+      writer.emit32uLE(bOpcode);
+    }
+  } else {
+    // Forward reference - emit 8 bytes placeholder, create label link.
+    OffsetFormat fmt;
+    fmt.resetToImmValue(offsetType, 4, 5, immBitCount, 2);
+    fmt.setRegion(8, 0);
+
+    LabelLink* link = code->newLabelLink(labelEntry, section->id(), codeOffset, 0, fmt);
+    if (ASMJIT_UNLIKELY(!link))
+      return DebugUtils::errored(kErrorOutOfMemory);
+
+    writer.emit32uLE(opcode.get());   // opcode without offset
+    writer.emit32uLE(0xD503201Fu);    // NOP placeholder
+  }
+
+  return kErrorOk;
+}
+
 // a64::Assembler - Construction & Destruction
 // ===========================================
 
@@ -1163,6 +1227,62 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
 
         opcode.reset(opData.opcode());
         opcode.addReg(o0, 0);
+
+        // For adr (not adrp) with label operands, handle relaxation via
+        // relocation. We emit 8 bytes and create a RelocEntry so that at
+        // relocation time we can choose between `adr Rd, target; nop` and
+        // `adrp Rd, target_page; add Rd, Rd, #page_offset`.
+        if (instId == Inst::kIdAdr && isign4 == ENC_OPS2(Reg, Label)) {
+          uint32_t labelId = o1.as<Label>().id();
+          LabelEntry* label = _code->labelEntry(labelId);
+          if (ASMJIT_UNLIKELY(!label))
+            goto InvalidLabel;
+
+          size_t codeOffset = writer.offsetFrom(_bufferData);
+
+          if (label->isBoundTo(_section)) {
+            // Backward reference - check if adr fits.
+            int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
+            if (Support::isEncodableOffset64(displacement, 21)) {
+              // Fits in adr - emit normally (4 bytes).
+              uint32_t immLo = uint32_t(displacement) & 3u;
+              uint32_t immHi = (uint32_t(displacement) >> 2) & 0x7FFFFu;
+              opcode.addImm(immLo, 29);
+              opcode.addImm(immHi, 5);
+              writer.emit32uLE(opcode.get());
+              goto EmitDone;
+            }
+          }
+
+          // Forward reference or backward reference that doesn't fit:
+          // create a RelocEntry for resolution at relocateToBase time.
+          RelocEntry* re;
+          err = _code->newRelocEntry(&re, RelocType::kA64AdrEntry);
+          if (err)
+            goto Failed;
+
+          re->_sourceSectionId = _section->id();
+          re->_sourceOffset = codeOffset;
+
+          if (label->isBound()) {
+            re->_payload = label->offset();
+            re->_targetSectionId = label->section()->id();
+          } else {
+            // Create a LabelLink with the relocId so bindLabel updates the
+            // reloc entry with the label's offset.
+            OffsetFormat fmt{};
+            LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
+            if (ASMJIT_UNLIKELY(!link))
+              goto OutOfMemory;
+            link->relocId = re->id();
+          }
+
+          // Emit adr Rd, #0 (self-referencing, encodes Rd) + NOP placeholder.
+          writer.emit32uLE(opcode.get());
+          writer.emit32uLE(0xD503201Fu); // NOP
+          goto EmitDone;
+        }
+
         offsetFormat.resetToImmValue(opData.offsetType, 4, 5, 21, 0);
 
         if (instId == Inst::kIdAdrp)
@@ -2173,6 +2293,18 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         if (instCC != CondCode::kAL) {
           opcode |= B(30);
           opcode.addImm(condCodeToOpcodeCond(uint32_t(instCC)), 0);
+
+          // For label operands, handle b.cond relaxation: emit 8 bytes so we
+          // can relax to `b.inv_cond +8; b target` if 19-bit displacement doesn't fit.
+          if (isign4 == ENC_OPS1(Label)) {
+            err = emitCondBranchRelax(_code, _section, writer, _bufferData,
+                opcode, o0.as<Label>(), 19, 1u, OffsetType::kAArch64_CondBranch);
+            if (err)
+              goto Failed;
+            goto EmitDone;
+          }
+
+          // For Imm operand, use existing behavior.
           offsetFormat.resetToImmValue(OffsetType::kSignedOffset, 4, 5, 19, 2);
           goto EmitOp_Rel;
         }
@@ -2199,57 +2331,13 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         opcode.addImm(x, 31);
         opcode.addReg(o0, 0);
 
-        // For label operands, handle cbz/cbnz relaxation directly instead of
-        // going through EmitOp_Rel. We always emit 8 bytes for label targets
-        // so that we can relax to `inverted-branch +8; b target` if the
-        // 19-bit displacement doesn't fit.
+        // For label operands, handle cbz/cbnz relaxation: emit 8 bytes so we
+        // can relax to `inverted-branch +8; b target` if 19-bit displacement doesn't fit.
         if (isign4 == ENC_OPS2(Reg, Label)) {
-          uint32_t labelId = o1.as<Label>().id();
-          LabelEntry* label = _code->labelEntry(labelId);
-          if (ASMJIT_UNLIKELY(!label))
-            goto InvalidLabel;
-
-          size_t codeOffset = writer.offsetFrom(_bufferData);
-
-          if (label->isBoundTo(_section)) {
-            // Backward reference - we know the displacement.
-            int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
-            int64_t dispImm = displacement >> 2;
-
-            if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 19)) {
-              // Fits in cbz/cbnz - emit normally (4 bytes).
-              uint32_t dispImm32 = uint32_t(dispImm) & Support::lsbMask<uint32_t>(19);
-              opcode.addImm(dispImm32, 5);
-              writer.emit32uLE(opcode.get());
-            } else {
-              // Doesn't fit in 19-bit range - emit relaxed sequence (8 bytes):
-              //   cbnz/cbz +8   (inverted condition, skip over b)
-              //   b target
-              uint32_t invertedOpcode = opcode.get() ^ (1u << 24);
-              invertedOpcode |= (2u << 5); // imm19 = +2 words = +8 bytes
-              writer.emit32uLE(invertedOpcode);
-
-              int64_t bDisp = (displacement - 4) >> 2;
-              if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26))
-                goto InvalidDisplacement;
-
-              uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
-              writer.emit32uLE(bOpcode);
-            }
-          } else {
-            // Forward reference - emit 8 bytes placeholder, create label link.
-            // The link will be resolved when the label is bound.
-            OffsetFormat fmt;
-            fmt.resetToImmValue(OffsetType::kAArch64_CompBranch, 4, 5, 19, 2);
-            fmt.setRegion(8, 0);
-
-            LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
-            if (ASMJIT_UNLIKELY(!link))
-              goto OutOfMemory;
-
-            writer.emit32uLE(opcode.get());   // opcode without offset
-            writer.emit32uLE(0xD503201Fu);    // NOP placeholder
-          }
+          err = emitCondBranchRelax(_code, _section, writer, _bufferData,
+              opcode, o1.as<Label>(), 19, 1u << 24, OffsetType::kAArch64_CompBranch);
+          if (err)
+            goto Failed;
           goto EmitDone;
         }
 
@@ -2286,57 +2374,13 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         opcode.addReg(o0, 0);
         opcode.addImm(imm, 19);
 
-        // For label operands, handle tbz/tbnz relaxation directly instead of
-        // going through EmitOp_Rel. We always emit 8 bytes for label targets
-        // so that we can relax to `inverted-branch +8; b target` if the
-        // 14-bit displacement doesn't fit.
+        // For label operands, handle tbz/tbnz relaxation: emit 8 bytes so we
+        // can relax to `inverted-branch +8; b target` if 14-bit displacement doesn't fit.
         if (isign4 == ENC_OPS3(Reg, Imm, Label)) {
-          uint32_t labelId = o2.as<Label>().id();
-          LabelEntry* label = _code->labelEntry(labelId);
-          if (ASMJIT_UNLIKELY(!label))
-            goto InvalidLabel;
-
-          size_t codeOffset = writer.offsetFrom(_bufferData);
-
-          if (label->isBoundTo(_section)) {
-            // Backward reference - we know the displacement.
-            int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
-            int64_t dispImm = displacement >> 2;
-
-            if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 14)) {
-              // Fits in tbz/tbnz - emit normally (4 bytes).
-              uint32_t dispImm32 = uint32_t(dispImm) & Support::lsbMask<uint32_t>(14);
-              opcode.addImm(dispImm32, 5);
-              writer.emit32uLE(opcode.get());
-            } else {
-              // Doesn't fit in 14-bit range - emit relaxed sequence (8 bytes):
-              //   tbnz/tbz +8   (inverted condition, skip over b)
-              //   b target
-              uint32_t invertedOpcode = opcode.get() ^ (1u << 24);
-              invertedOpcode |= (2u << 5); // imm14 = +2 words = +8 bytes
-              writer.emit32uLE(invertedOpcode);
-
-              int64_t bDisp = (displacement - 4) >> 2;
-              if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26))
-                goto InvalidDisplacement;
-
-              uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
-              writer.emit32uLE(bOpcode);
-            }
-          } else {
-            // Forward reference - emit 8 bytes placeholder, create label link.
-            // The link will be resolved when the label is bound.
-            OffsetFormat fmt;
-            fmt.resetToImmValue(OffsetType::kAArch64_TestBranch, 4, 5, 14, 2);
-            fmt.setRegion(8, 0);
-
-            LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
-            if (ASMJIT_UNLIKELY(!link))
-              goto OutOfMemory;
-
-            writer.emit32uLE(opcode.get());   // opcode without offset
-            writer.emit32uLE(0xD503201Fu);    // NOP placeholder
-          }
+          err = emitCondBranchRelax(_code, _section, writer, _bufferData,
+              opcode, o2.as<Label>(), 14, 1u << 24, OffsetType::kAArch64_TestBranch);
+          if (err)
+            goto Failed;
           goto EmitDone;
         }
 
@@ -5104,27 +5148,8 @@ EmitOp_Rel:
     // we choose the optimal encoding based on the actual displacement.
     if (instId == Inst::kIdBl &&
         offsetFormat.immBitCount() == 26 &&
-        (baseAddress == Globals::kNoBaseAddress || _section->id() != 0)) {
-      RelocEntry* re;
-      err = _code->newRelocEntry(&re, RelocType::kA64AddressEntry);
-      if (err)
-        goto Failed;
-
-      err = _code->addAddressToAddressTable(targetOffset);
-      if (err)
-        goto Failed;
-
-      re->_sourceSectionId = _section->id();
-      re->_sourceOffset = codeOffset;
-      re->_format = offsetFormat;
-      re->_payload = targetOffset;
-
-      // Emit two 32-bit words (placeholder: nop; nop). These will be patched
-      // during relocation to either `bl target; nop` or `ldr x16, [pc+off]; blr x16`.
-      writer.emit32uLE(0xD503201F); // NOP
-      writer.emit32uLE(0xD503201F); // NOP
-      goto EmitDone;
-    }
+        (baseAddress == Globals::kNoBaseAddress || _section->id() != 0))
+      goto EmitOp_BlReloc;
 
     if (baseAddress == Globals::kNoBaseAddress || _section->id() != 0) {
       // Create a new RelocEntry as we cannot calculate the offset right now.
@@ -5146,30 +5171,12 @@ EmitOp_Rel:
         pc &= ~uint64_t(4096 - 1);
 
       // For bl(imm) when base address is known, try the direct encoding first.
-      // If it doesn't fit and this is a bl, use the address table mechanism.
+      // If it doesn't fit, use the address table mechanism.
       if (instId == Inst::kIdBl && offsetFormat.immBitCount() == 26) {
         int64_t displacement = int64_t(targetOffset - pc);
         int64_t dispImm = displacement >> 2;
-        if (!Support::isEncodableOffset64(dispImm, 26)) {
-          // Displacement doesn't fit in bl range, use ldr+blr via address table.
-          RelocEntry* re;
-          err = _code->newRelocEntry(&re, RelocType::kA64AddressEntry);
-          if (err)
-            goto Failed;
-
-          err = _code->addAddressToAddressTable(targetOffset);
-          if (err)
-            goto Failed;
-
-          re->_sourceSectionId = _section->id();
-          re->_sourceOffset = codeOffset;
-          re->_format = offsetFormat;
-          re->_payload = targetOffset;
-
-          writer.emit32uLE(0xD503201F); // NOP (placeholder)
-          writer.emit32uLE(0xD503201F); // NOP (placeholder)
-          goto EmitDone;
-        }
+        if (!Support::isEncodableOffset64(dispImm, 26))
+          goto EmitOp_BlReloc;
       }
 
       offsetValue = targetOffset - pc;
@@ -5207,6 +5214,35 @@ EmitOp_DispImm:
       default:
         goto InvalidDisplacement;
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // [EmitOp - bl Relaxation via Address Table]
+  // --------------------------------------------------------------------------
+
+EmitOp_BlReloc:
+  {
+    RelocEntry* re;
+    err = _code->newRelocEntry(&re, RelocType::kA64AddressEntry);
+    if (err)
+      goto Failed;
+
+    uint64_t targetOffset = rmRel->as<Imm>().valueAs<uint64_t>();
+    err = _code->addAddressToAddressTable(targetOffset);
+    if (err)
+      goto Failed;
+
+    size_t codeOffset = writer.offsetFrom(_bufferData);
+    re->_sourceSectionId = _section->id();
+    re->_sourceOffset = codeOffset;
+    re->_format = offsetFormat;
+    re->_payload = targetOffset;
+
+    // Emit two 32-bit words (placeholder: nop; nop). These will be patched
+    // during relocation to either `bl target; nop` or `ldr x16, [pc+off]; blr x16`.
+    writer.emit32uLE(0xD503201F); // NOP
+    writer.emit32uLE(0xD503201F); // NOP
+    goto EmitDone;
   }
 
   // --------------------------------------------------------------------------

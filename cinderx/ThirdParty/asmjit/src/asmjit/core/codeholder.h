@@ -375,8 +375,22 @@ enum class OffsetType : uint8_t {
   //!   - If it doesn't fit: `cbnz/cbz +8; b target` (inverted condition, unconditional branch)
   kAArch64_CompBranch,
 
+  //! AArch64 conditional branch (b.cond) relaxation format.
+  //!
+  //! Emits 8 bytes (two 32-bit words). During label binding, the displacement is checked:
+  //!   - If it fits in 19-bit signed offset: `b.cond target; nop`
+  //!   - If it doesn't fit: `b.inv_cond +8; b target` (inverted condition, unconditional branch)
+  kAArch64_CondBranch,
+
+  //! AArch64 ADR relaxation format (used via RelocEntry, not OffsetFormat).
+  //!
+  //! At relocation time, the displacement is checked:
+  //!   - If it fits in 21-bit signed offset: `adr Rd, target; nop`
+  //!   - If it doesn't fit: `adrp Rd, target_page; add Rd, Rd, #page_offset`
+  kAArch64_Adr,
+
   //! Maximum value of `OffsetFormatType`.
-  kMaxValue = kAArch64_CompBranch
+  kMaxValue = kAArch64_Adr
 };
 
 //! Provides information about formatting offsets, absolute addresses, or their parts. Offset format is used by both
@@ -524,7 +538,9 @@ enum class RelocType : uint32_t {
   //! Relocate absolute to relative or use trampoline.
   kX64AddressEntry = 5,
   //! AArch64: Relocate absolute to relative `bl` or use `ldr+blr` via address table.
-  kA64AddressEntry = 6
+  kA64AddressEntry = 6,
+  //! AArch64: Relocate `adr` or relax to `adrp+add` if displacement > ±1MB.
+  kA64AdrEntry = 7
 };
 
 //! Relocation entry.
