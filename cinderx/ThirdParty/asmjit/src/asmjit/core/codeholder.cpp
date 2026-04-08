@@ -740,15 +740,19 @@ ASMJIT_API Error CodeHolder::bindLabel(const Label& label, uint32_t toSectionId,
       // Size of the value we are going to patch. Only BYTE/DWORD is allowed.
       ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= link->format.regionSize());
 
-      // AArch64 tbz/tbnz and cbz/cbnz relaxation: 8-byte region with conditional + unconditional branch.
-      // Both use bit 24 to distinguish the condition (tbz/cbz=0, tbnz/cbnz=1) and encode the
-      // offset in the same position (bits [N:5]), just with different bit counts (14 vs 19).
+      // AArch64 branch relaxation: 8-byte region with conditional + unconditional branch.
+      // tbz/tbnz and cbz/cbnz use bit 24 to invert the condition; b.cond uses bit 0.
+      // All encode the offset in bits [N:5] with different bit counts (14 or 19).
       if (link->format.type() == OffsetType::kAArch64_TestBranch ||
-          link->format.type() == OffsetType::kAArch64_CompBranch) {
+          link->format.type() == OffsetType::kAArch64_CompBranch ||
+          link->format.type() == OffsetType::kAArch64_CondBranch) {
         uint8_t* instPtr = buf._data + linkOffset;
         uint32_t origOpcode = Support::readU32uLE(instPtr);
         uint32_t immBitCount = link->format.immBitCount();
         uint32_t immMask = Support::lsbMask<uint32_t>(immBitCount);
+        // b.cond inverts via bit 0; tbz/tbnz and cbz/cbnz invert via bit 24.
+        uint32_t inversionMask = link->format.type() == OffsetType::kAArch64_CondBranch
+          ? 1u : (1u << 24);
 
         int64_t dispImm = displacement >> 2;
         if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
@@ -758,7 +762,7 @@ ASMJIT_API Error CodeHolder::bindLabel(const Label& label, uint32_t toSectionId,
           // Second word stays as NOP.
         } else {
           // Doesn't fit - emit inverted condition branch +8, then unconditional b target.
-          uint32_t invertedOpcode = origOpcode ^ (1u << 24);
+          uint32_t invertedOpcode = origOpcode ^ inversionMask;
           invertedOpcode |= (2u << 5); // imm = +2 words = +8 bytes
           Support::writeU32uLE(instPtr, invertedOpcode);
 
@@ -1132,6 +1136,48 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
         }
 
         // Skip the normal writeOffset call - we've already written the instructions directly.
+        continue;
+      }
+
+      case RelocType::kA64AdrEntry: {
+        // AArch64: The source contains 8 bytes (adr Rd, #0 + NOP as placeholder).
+        // We try to use `adr Rd, target` first. If the displacement doesn't fit
+        // in the 21-bit signed offset (±1MB), we use `adrp Rd, page; add Rd, Rd, #off`.
+        if (ASMJIT_UNLIKELY(!targetSection))
+          return DebugUtils::errored(kErrorInvalidRelocEntry);
+
+        uint64_t targetAddress = baseAddress + targetSection->offset() + re->payload();
+        uint64_t pc = baseAddress + sectionOffset + sourceOffset;
+        int64_t displacement = int64_t(targetAddress - pc);
+
+        // Read the Rd register from the placeholder adr instruction (bits [4:0]).
+        uint32_t origAdr = Support::readU32uLE(buffer + sourceOffset);
+        uint32_t rd = origAdr & 0x1Fu;
+
+        if (Support::isEncodableOffset64(displacement, 21)) {
+          // Fits in adr: emit `adr Rd, target; nop`.
+          uint32_t immLo = uint32_t(displacement) & 3u;
+          uint32_t immHi = (uint32_t(displacement) >> 2) & 0x7FFFFu;
+          uint32_t adrOpcode = 0x10000000u | (immLo << 29) | (immHi << 5) | rd;
+          Support::writeU32uLE(buffer + sourceOffset, adrOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
+        } else {
+          // Doesn't fit: emit `adrp Rd, target_page; add Rd, Rd, #page_offset`.
+          int64_t pageDelta = (int64_t(targetAddress) >> 12) - (int64_t(pc) >> 12);
+          uint32_t pageOffset = uint32_t(targetAddress) & 0xFFFu;
+
+          if (!Support::isEncodableOffset64(pageDelta, 21))
+            return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
+
+          uint32_t immLo = uint32_t(pageDelta) & 3u;
+          uint32_t immHi = (uint32_t(pageDelta) >> 2) & 0x7FFFFu;
+          uint32_t adrpOpcode = 0x90000000u | (immLo << 29) | (immHi << 5) | rd;
+          uint32_t addOpcode = 0x91000000u | (pageOffset << 10) | (rd << 5) | rd;
+
+          Support::writeU32uLE(buffer + sourceOffset, adrpOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, addOpcode);
+        }
+
         continue;
       }
 
