@@ -6,6 +6,9 @@
 
 # Non-atomic read of func->vectorcall in CPython's call dispatch path.
 race:_PyVectorcall_FunctionInline
+# Non-atomic read of func->vectorcall in CPython's specialization path.
+race:specialize_py_call
+race:specialize_py_call_kw
 
 # Dictionary watcher API.
 race:PyDict_Watch
