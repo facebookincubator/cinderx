@@ -1032,6 +1032,7 @@ void multithread_compile_units_preloaded(
 // Compile all functions registered via a JIT list that haven't been executed
 // yet.
 bool compile_all(size_t workers = 0) {
+  FreeThreadedJITEntrypointGuard guard;
   JIT_CHECK(jitCtx(), "JIT not initialized");
 
   if (workers == 0) {
@@ -1227,6 +1228,8 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
 // Return true if the function is registered with JIT or is already compiled,
 // and false otherwise.
 bool registerFunction(BorrowedRef<PyFunctionObject> func) {
+  FreeThreadedJITEntrypointGuard guard;
+
   // Attempt to attach already-compiled code even if the JIT is disabled, as
   // long as it hasn't been finalized.
   if (reoptFunc(func)) {
@@ -1251,6 +1254,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
 }
 
 PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
+  FreeThreadedJITEntrypointGuard guard;
   if (!getConfig().multithreaded_compile_test) {
     PyErr_SetString(
         PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
@@ -1328,6 +1332,7 @@ bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
 }
 
 void disable_jit_impl(bool deopt_all) {
+  FreeThreadedJITEntrypointGuard guard;
   if (jitCtx() == nullptr) {
     return;
   }
@@ -1373,6 +1378,7 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
 }
 
 bool enable_jit_impl() {
+  FreeThreadedJITEntrypointGuard guard;
   if (jitCtx() == nullptr) {
     PyErr_SetString(
         PyExc_RuntimeError,
@@ -1451,6 +1457,7 @@ bool isInstrumentationActive() {
 
 // Returns false only if enable_jit_impl() fails (with Python exception set).
 bool toggleJitBasedOnInstrumentationState() {
+  FreeThreadedJITEntrypointGuard guard;
   if (isInstrumentationActive()) {
     disable_jit_impl(true /* deopt_all */);
     return true;
@@ -1723,6 +1730,7 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
   if (func == nullptr) {
     return nullptr;
   }
+  FreeThreadedJITEntrypointGuard guard;
 
   if (!isJitUsable() || isJitCompiled(func)) {
     Py_RETURN_FALSE;
@@ -1747,6 +1755,7 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   if (func == nullptr) {
     return nullptr;
   }
+  FreeThreadedJITEntrypointGuard guard;
 
   if (!isJitCompiled(func)) {
     Py_RETURN_FALSE;
@@ -3646,6 +3655,7 @@ int initialize() {
 }
 
 void finalize() {
+  FreeThreadedJITEntrypointGuard guard;
   if (!isJitInitialized()) {
     return;
   }
@@ -3717,6 +3727,8 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
 }
 
 bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
+  FreeThreadedJITEntrypointGuard guard;
+
   auto eligible = getCompilationEligibility(func);
   if (eligible == JitEligibility::Ineligible) {
     return false;
@@ -3760,6 +3772,7 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
 }
 
 Result compileFunction(BorrowedRef<PyFunctionObject> func) {
+  FreeThreadedJITEntrypointGuard guard;
   if (!isJitInitialized()) {
     return Result::NOT_INITIALIZED;
   }
@@ -3855,6 +3868,7 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 }
 
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
+  FreeThreadedJITEntrypointGuard guard;
   if (isJitUsable()) {
     auto mod_state = cinderx::getModuleState();
     if (!mod_state) {
@@ -3874,6 +3888,7 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   if (!mod_state) {
     return;
   }
+  FreeThreadedJITEntrypointGuard guard;
 
   unregisterFunctionCodes(func);
 
@@ -3888,6 +3903,7 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
 }
 
 void funcModified(BorrowedRef<PyFunctionObject> func) {
+  FreeThreadedJITEntrypointGuard guard;
   deoptFunc(func);
   // Clean up registrations for the old code object. At this point
   // func->func_code still refers to the old code. The caller will update

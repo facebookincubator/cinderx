@@ -24,6 +24,13 @@ namespace jit {
 
 AotContext g_aot_ctx;
 
+#ifdef Py_GIL_DISABLED
+std::recursive_mutex& freeThreadedJITEntrypointMutex() {
+  static std::recursive_mutex mutex;
+  return mutex;
+}
+#endif
+
 PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
     const GenYieldPoint* yield_point) {
@@ -592,6 +599,9 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
 }
 
 void Context::forgetCompiledFunction(CompiledFunction& function) {
+  // tp_clear() can reach here from GC without going through a guarded
+  // top-level JIT entrypoint, so this path has to take the FT guard itself.
+  FreeThreadedJITEntrypointGuard guard;
   if (function.runtime() != nullptr) {
     for (auto pyfunc : function.functions()) {
       compiled_funcs_.erase(pyfunc);
