@@ -508,7 +508,9 @@ enum class RelocType : uint32_t {
   //! Relocate absolute to relative.
   kAbsToRel = 4,
   //! Relocate absolute to relative or use trampoline.
-  kX64AddressEntry = 5
+  kX64AddressEntry = 5,
+  //! AArch64: Relocate absolute to relative `bl` or use `ldr+blr` via address table.
+  kA64AddressEntry = 6
 };
 
 //! Relocation entry.

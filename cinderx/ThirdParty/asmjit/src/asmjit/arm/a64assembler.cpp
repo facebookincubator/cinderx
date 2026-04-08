@@ -4989,6 +4989,33 @@ EmitOp_Rel:
 
     size_t codeOffset = writer.offsetFrom(_bufferData);
 
+    // For bl(imm), use address table mechanism to handle out-of-range targets.
+    // At emit time we reserve 8 bytes (bl+nop or ldr+blr), and during relocation
+    // we choose the optimal encoding based on the actual displacement.
+    if (instId == Inst::kIdBl &&
+        offsetFormat.immBitCount() == 26 &&
+        (baseAddress == Globals::kNoBaseAddress || _section->id() != 0)) {
+      RelocEntry* re;
+      err = _code->newRelocEntry(&re, RelocType::kA64AddressEntry);
+      if (err)
+        goto Failed;
+
+      err = _code->addAddressToAddressTable(targetOffset);
+      if (err)
+        goto Failed;
+
+      re->_sourceSectionId = _section->id();
+      re->_sourceOffset = codeOffset;
+      re->_format = offsetFormat;
+      re->_payload = targetOffset;
+
+      // Emit two 32-bit words (placeholder: nop; nop). These will be patched
+      // during relocation to either `bl target; nop` or `ldr x16, [pc+off]; blr x16`.
+      writer.emit32uLE(0xD503201F); // NOP
+      writer.emit32uLE(0xD503201F); // NOP
+      goto EmitDone;
+    }
+
     if (baseAddress == Globals::kNoBaseAddress || _section->id() != 0) {
       // Create a new RelocEntry as we cannot calculate the offset right now.
       RelocEntry* re;
@@ -5007,6 +5034,33 @@ EmitOp_Rel:
 
       if (offsetFormat.type() == OffsetType::kAArch64_ADRP)
         pc &= ~uint64_t(4096 - 1);
+
+      // For bl(imm) when base address is known, try the direct encoding first.
+      // If it doesn't fit and this is a bl, use the address table mechanism.
+      if (instId == Inst::kIdBl && offsetFormat.immBitCount() == 26) {
+        int64_t displacement = int64_t(targetOffset - pc);
+        int64_t dispImm = displacement >> 2;
+        if (!Support::isEncodableOffset64(dispImm, 26)) {
+          // Displacement doesn't fit in bl range, use ldr+blr via address table.
+          RelocEntry* re;
+          err = _code->newRelocEntry(&re, RelocType::kA64AddressEntry);
+          if (err)
+            goto Failed;
+
+          err = _code->addAddressToAddressTable(targetOffset);
+          if (err)
+            goto Failed;
+
+          re->_sourceSectionId = _section->id();
+          re->_sourceOffset = codeOffset;
+          re->_format = offsetFormat;
+          re->_payload = targetOffset;
+
+          writer.emit32uLE(0xD503201F); // NOP (placeholder)
+          writer.emit32uLE(0xD503201F); // NOP (placeholder)
+          goto EmitDone;
+        }
+      }
 
       offsetValue = targetOffset - pc;
       goto EmitOp_DispImm;
