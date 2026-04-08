@@ -5143,13 +5143,13 @@ EmitOp_Rel:
 
     size_t codeOffset = writer.offsetFrom(_bufferData);
 
-    // For bl(imm), use address table mechanism to handle out-of-range targets.
-    // At emit time we reserve 8 bytes (bl+nop or ldr+blr), and during relocation
-    // we choose the optimal encoding based on the actual displacement.
-    if (instId == Inst::kIdBl &&
+    // For b(imm) and bl(imm), use address table mechanism to handle out-of-range
+    // targets. At emit time we reserve 8 bytes, and during relocation we choose
+    // the optimal encoding based on the actual displacement.
+    if ((instId == Inst::kIdBl || instId == Inst::kIdB) &&
         offsetFormat.immBitCount() == 26 &&
         (baseAddress == Globals::kNoBaseAddress || _section->id() != 0))
-      goto EmitOp_BlReloc;
+      goto EmitOp_BranchReloc;
 
     if (baseAddress == Globals::kNoBaseAddress || _section->id() != 0) {
       // Create a new RelocEntry as we cannot calculate the offset right now.
@@ -5170,13 +5170,13 @@ EmitOp_Rel:
       if (offsetFormat.type() == OffsetType::kAArch64_ADRP)
         pc &= ~uint64_t(4096 - 1);
 
-      // For bl(imm) when base address is known, try the direct encoding first.
-      // If it doesn't fit, use the address table mechanism.
-      if (instId == Inst::kIdBl && offsetFormat.immBitCount() == 26) {
+      // For b(imm) and bl(imm) when base address is known, try the direct
+      // encoding first. If it doesn't fit, use the address table mechanism.
+      if ((instId == Inst::kIdBl || instId == Inst::kIdB) && offsetFormat.immBitCount() == 26) {
         int64_t displacement = int64_t(targetOffset - pc);
         int64_t dispImm = displacement >> 2;
         if (!Support::isEncodableOffset64(dispImm, 26))
-          goto EmitOp_BlReloc;
+          goto EmitOp_BranchReloc;
       }
 
       offsetValue = targetOffset - pc;
@@ -5217,13 +5217,17 @@ EmitOp_DispImm:
   }
 
   // --------------------------------------------------------------------------
-  // [EmitOp - bl Relaxation via Address Table]
+  // [EmitOp - b/bl Relaxation via Address Table]
   // --------------------------------------------------------------------------
 
-EmitOp_BlReloc:
+EmitOp_BranchReloc:
   {
+    RelocType relocType = instId == Inst::kIdBl
+      ? RelocType::kA64AddressEntry
+      : RelocType::kA64JumpAddressEntry;
+
     RelocEntry* re;
-    err = _code->newRelocEntry(&re, RelocType::kA64AddressEntry);
+    err = _code->newRelocEntry(&re, relocType);
     if (err)
       goto Failed;
 
@@ -5239,7 +5243,7 @@ EmitOp_BlReloc:
     re->_payload = targetOffset;
 
     // Emit two 32-bit words (placeholder: nop; nop). These will be patched
-    // during relocation to either `bl target; nop` or `ldr x16, [pc+off]; blr x16`.
+    // during relocation to either `b/bl target; nop` or `ldr x16, [pc+off]; br/blr x16`.
     writer.emit32uLE(0xD503201F); // NOP
     writer.emit32uLE(0xD503201F); // NOP
     goto EmitDone;
