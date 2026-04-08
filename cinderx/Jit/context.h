@@ -35,6 +35,37 @@
 
 namespace jit {
 
+#ifdef Py_GIL_DISABLED
+std::recursive_mutex& freeThreadedJITEntrypointMutex();
+#endif
+
+// Free-threaded builds can enter top-level JIT operations concurrently:
+// function/code registration, compilation, and destruction hooks.
+// Use a dedicated lock instead of ThreadedCompileSerialize, which is acquired
+// deeper in the threaded-compile internals.
+class FreeThreadedJITEntrypointGuard {
+ public:
+  FreeThreadedJITEntrypointGuard() {
+#ifdef Py_GIL_DISABLED
+    freeThreadedJITEntrypointMutex().lock();
+#endif
+  }
+
+  ~FreeThreadedJITEntrypointGuard() {
+#ifdef Py_GIL_DISABLED
+    freeThreadedJITEntrypointMutex().unlock();
+#endif
+  }
+
+  FreeThreadedJITEntrypointGuard(const FreeThreadedJITEntrypointGuard&) =
+      delete;
+  FreeThreadedJITEntrypointGuard& operator=(
+      const FreeThreadedJITEntrypointGuard&) = delete;
+  FreeThreadedJITEntrypointGuard(FreeThreadedJITEntrypointGuard&&) = delete;
+  FreeThreadedJITEntrypointGuard& operator=(FreeThreadedJITEntrypointGuard&&) =
+      delete;
+};
+
 #if PY_VERSION_HEX < 0x030C0000
 // Memory management functions for JIT generator data.
 // In 3.12+ there is no gen->gi_jit_data and this functionality is part of
