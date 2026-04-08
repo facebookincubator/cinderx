@@ -927,8 +927,10 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
   uint8_t* addressTableEntryData = nullptr;
 
   if (addressTableSection) {
+    size_t addrTableSize = size_t(addressTableSection->virtualSize());
     ASMJIT_PROPAGATE(
-      reserveBuffer(&addressTableSection->_buffer, size_t(addressTableSection->virtualSize())));
+      reserveBuffer(&addressTableSection->_buffer, addrTableSize));
+    addressTableSection->_buffer._size = addrTableSize;
     addressTableEntryData = addressTableSection->_buffer.data();
   }
 
@@ -1040,6 +1042,60 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
           Support::writeU64uLE(addressTableEntryData + atEntryIndex, re->payload());
         }
         break;
+      }
+
+      case RelocType::kA64AddressEntry: {
+        // AArch64: The source contains 8 bytes (two NOPs as placeholder).
+        // We try to use a direct `bl` first. If the displacement doesn't fit
+        // in the 26-bit signed offset (±128MB), we fall back to `ldr x16, [pc+off]; blr x16`
+        // using the address table to hold the target address.
+        uint64_t targetAddress = re->payload();
+        uint64_t pc = baseAddress + sectionOffset + sourceOffset;
+        int64_t displacement = int64_t(targetAddress - pc);
+        int64_t dispImm = displacement >> 2;
+
+        if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 26)) {
+          // Displacement fits in bl range: emit `bl target; nop`.
+          uint32_t blOpcode = 0x94000000u | (uint32_t(dispImm) & 0x03FFFFFFu);
+          Support::writeU32uLE(buffer + sourceOffset, blOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
+        }
+        else {
+          // Displacement doesn't fit: emit `ldr x16, [pc+off]; blr x16`.
+          AddressTableEntry* atEntry = _addressTableEntries.get(targetAddress);
+          if (ASMJIT_UNLIKELY(!atEntry))
+            return DebugUtils::errored(kErrorInvalidRelocEntry);
+
+          ASMJIT_ASSERT(addressTableSection != nullptr);
+
+          if (!atEntry->hasAssignedSlot())
+            atEntry->_slot = addressTableEntryCount++;
+
+          size_t atEntryIndex = size_t(atEntry->slot()) * addressSize;
+          uint64_t addrTableOffset = addressTableSection->offset() + uint64_t(atEntryIndex);
+
+          // LDR Xt, literal: loads from PC + signed imm19 * 4.
+          // The PC for the ldr instruction is at sourceOffset.
+          int64_t ldrDisplacement = int64_t(addrTableOffset - (sectionOffset + sourceOffset));
+          int64_t ldrImm19 = ldrDisplacement >> 2;
+
+          if ((ldrDisplacement & 3) != 0 || !Support::isEncodableOffset64(ldrImm19, 19))
+            return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
+
+          // LDR X16, [PC+off]: opc=01, V=0, imm19, Rt=16 -> 0x58000010 | (imm19 << 5)
+          uint32_t ldrOpcode = 0x58000010u | ((uint32_t(ldrImm19) & 0x7FFFFu) << 5);
+          // BLR X16: 0xD63F0200
+          uint32_t blrOpcode = 0xD63F0200u;
+
+          Support::writeU32uLE(buffer + sourceOffset, ldrOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, blrOpcode);
+
+          // Write the target address into the address table.
+          Support::writeU64uLE(addressTableEntryData + atEntryIndex, targetAddress);
+        }
+
+        // Skip the normal writeOffset call - we've already written the instructions directly.
+        continue;
       }
 
       default:
