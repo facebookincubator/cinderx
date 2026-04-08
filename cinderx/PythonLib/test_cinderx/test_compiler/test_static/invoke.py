@@ -3,8 +3,10 @@
 # pyre-strict
 
 import asyncio
+import sys
 from collections.abc import Sequence
 
+import cinderx.jit
 from cinderx import cached_property
 
 from .common import StaticTestBase
@@ -1227,3 +1229,95 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.C.f.__code__.co_freevars, ("__class__",))
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
+
+    def test_invoke_static_function_frame_globals(self) -> None:
+        """Regression test for a register allocator spill slot reuse bug.
+
+        With 17+ parameters and a mix of unbox/conditional operations,
+        emitLoadFrame() creates enough register pressure that the allocator
+        spills asm_func to a stack slot. A boundary condition bug (using <=
+        instead of < when freeing slots) can cause a LoadArg to reuse that
+        slot, corrupting either the function arguments (TypeError on unbox)
+        or FrameHeader.func (SIGSEGV on f_globals access).
+
+        Note: the exact register allocation is non-deterministic, so this
+        test exercises the code path but may not always crash without the
+        fix."""
+        codestr = """
+            import sys
+            from __static__ import int64, int32, unbox
+            from typing import Optional, Sequence
+
+            class C:
+                expiration: int64
+                state: int32
+                creation_time: int64
+                is_canary: bool
+                holdout_name: Optional[str]
+
+                def __init__(
+                    self,
+                    p1: str,
+                    p2: str,
+                    p3: int,
+                    p4: str,
+                    p5: Sequence[object],
+                    p6: int,
+                    p7: bool,
+                    p8: Optional[int],
+                    p9: object,
+                    p10: object,
+                    p11: Optional[bool],
+                    p12: int,
+                    p13: Optional[str],
+                    p14: Optional[int],
+                    p15: object,
+                    p16: Optional[str] = None,
+                    **p17: object,
+                ) -> None:
+                    self.p1: str = p1
+                    self.p2: str = p2
+                    self.fbid: int64 = unbox(p3)
+                    self.p4: str = p4
+                    self.p5: Sequence[object] = p5
+                    if p6 is not None:
+                        self.expiration = unbox(p6)
+                    self.auto_expose: bool = False
+                    if p7:
+                        self.auto_expose = True
+                    self.state = unbox(int(p8)) if p8 is not None else 0
+                    self.p9: object = p9
+                    self.p10: Optional[object] = p10
+                    self.is_canary = p11 if p11 is not None else False
+                    self.p13: Optional[str] = p13
+                    self.creation_time = (
+                        unbox(p14) if p14 is not None else 0
+                    )
+                    self.p15 = p15
+                    self.p12 = p12
+                    self.holdout_name = p16
+                    raise RuntimeError("trigger frame materialization")
+
+            def make_c() -> None:
+                C(
+                    "", "", 42, "", [], 42, True, 42,
+                    None, None, True, 42, "", 42, None,
+                )
+
+            def caller() -> str:
+                try:
+                    make_c()
+                except RuntimeError:
+                    tb = sys.exc_info()[2]
+                    result: str = ""
+                    while tb is not None:
+                        result = tb.tb_frame.f_globals["__name__"]
+                        tb = tb.tb_next
+                    return result
+                return ""
+        """
+        with self.in_strict_module(codestr) as mod:
+            cinderx.jit.force_compile(mod.C.__init__)
+            self.assertTrue(cinderx.jit.is_jit_compiled(mod.C.__init__))
+            result = mod.caller()
+            self.assertEqual(result, mod.__name__)
