@@ -84,3 +84,98 @@ UNIT(a64_bl_patching_absolute_addr) {
   EXPECT_GT(code.relocEntries().size(), 0u)
     .message("Expected at least one reloc entry for far bl");
 }
+
+// ============================================================================
+// [TBZ/TBNZ Patching Tests]
+// ============================================================================
+
+// Test that tbz to a nearby label encodes as a direct tbz instruction.
+UNIT(a64_tbz_patching_in_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // tbz x0, #5, target
+  as.tbz(a64::x0, 5, target);
+  emitNops(as, 4);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // Forward ref always emits 8-byte region (tbz + NOP placeholder).
+  // Layout: tbz(0) + NOP(4) + 4 NOPs(8-20) + target(24)
+  // displacement = 24, imm14 = 6
+  // tbz x0, #5, +24: b5=0, op=0, b40=00101, imm14=6, Rt=0
+  // = 0x362800C0
+  // LE: C0002836
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "C0002836", 8) == 0)
+    .message("Expected tbz x0, #5 encoding, got: %s", hex.data());
+}
+
+// Test that tbz to a far label (beyond ±32KB) gets relaxed:
+// inverted to tbnz +8, then unconditional b to target.
+UNIT(a64_tbz_patching_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // tbz x0, #5, target
+  as.tbz(a64::x0, 5, target);
+  // Emit enough NOPs to exceed 14-bit signed offset range (±32KB = 8192 instructions)
+  emitNops(as, 8200);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // The first 4 bytes should be the inverted condition: tbnz x0, #5, +8
+  // tbnz has op=1, so bit 24 is set compared to tbz
+  // tbnz x0, #5, +8: imm14 = 2 (2 words = 8 bytes)
+  // b5=0, op=1(tbnz), b40=00101, imm14=2, Rt=0
+  // = 0x37280040
+  // LE: 40002837
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "40002837", 8) == 0)
+    .message("Expected tbnz x0, #5, +8 (inverted), got first 8 chars: %.8s", hex.data());
+
+  // The second 4 bytes should be an unconditional b to target.
+  // b is at offset 4. Target = 8 + 8200*4 = 32808. Displacement = 32808 - 4 = 32804.
+  // imm26 = 32804/4 = 8201 = 0x2009
+  // b opcode: 0x14000000 | 0x2009 = 0x14002009
+  // LE: 09200014
+  EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "09200014", 8) == 0)
+    .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
+}
+
+// Test that tbnz (inverse) also relaxes correctly.
+UNIT(a64_tbnz_patching_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label target = as.newLabel();
+  // tbnz x0, #5, target
+  as.tbnz(a64::x0, 5, target);
+  emitNops(as, 8200);
+  as.bind(target);
+  as.nop();
+
+  String hex;
+  getHex(code, hex);
+
+  // The first 4 bytes should be inverted to tbz x0, #5, +8
+  // tbz has op=0, so bit 24 is clear compared to tbnz
+  // tbz x0, #5, +8: imm14 = 2
+  // = 0x36280040
+  // LE: 40002836
+  EXPECT(hex.size() >= 8 && memcmp(hex.data(), "40002836", 8) == 0)
+    .message("Expected tbz x0, #5, +8 (inverted tbnz), got first 8 chars: %.8s", hex.data());
+
+  // Second word: b to target (same displacement as tbz case)
+  EXPECT(hex.size() >= 16 && memcmp(hex.data() + 8, "09200014", 8) == 0)
+    .message("Expected b to target, got next 8 chars: %.8s", hex.data() + 8);
+}
