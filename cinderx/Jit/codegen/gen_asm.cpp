@@ -2875,8 +2875,7 @@ NativeGenerator::generateBoxedReturnWrapper() {
     as_->fmov(arch::reg_scratch_0, a64::d1);
     as_->cbz(arch::reg_scratch_0, error);
   } else {
-    as_->cmp(a64::w1, 0);
-    as_->b_eq(box_done);
+    as_->cbz(a64::w1, box_done);
   }
 
   if (ret_type <= TCBool) {
