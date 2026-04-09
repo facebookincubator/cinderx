@@ -38,7 +38,7 @@ void initThreadStateOffset() {
 
   if (ts_func[0] == 0xa9bf7bfd && // stp x29, x30, [sp, #-16]!
       ts_func[1] == 0x910003fd && // mov x29, sp
-      ((ts_func[2] & ~0x1f) == 0xd53bd048) // mrs x?, tpidr_el0
+      ((ts_func[2] & ~0x1f) == 0xd53bd040) // mrs x?, tpidr_el0
   ) {
     uint32_t reg = ts_func[2] & 0x1f;
     int32_t current_offset = 0;
