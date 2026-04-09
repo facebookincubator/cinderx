@@ -1574,7 +1574,9 @@
                 }
                 if (Py_TYPE(callable_o) == &PyFunction_Type &&
                     !IS_PEP523_HOOKED(tstate) &&
-                    ((PyFunctionObject *)callable_o)->vectorcall == _PyFunction_Vectorcall)
+                    FT_ATOMIC_LOAD_PTR_RELAXED(
+                        ((PyFunctionObject *)callable_o)->vectorcall) ==
+                    _PyFunction_Vectorcall)
                 {
                     int code_flags = ((PyCodeObject*)PyFunction_GET_CODE(callable_o))->co_flags;
                     PyObject *locals = code_flags & CO_OPTIMIZED ? NULL : Py_NewRef(PyFunction_GET_GLOBALS(callable_o));
@@ -2629,7 +2631,9 @@
                 else {
                     if (Py_TYPE(func) == &PyFunction_Type &&
                         !IS_PEP523_HOOKED(tstate) &&
-                        ((PyFunctionObject *)func)->vectorcall == _PyFunction_Vectorcall) {
+                        FT_ATOMIC_LOAD_PTR_RELAXED(
+                            ((PyFunctionObject *)func)->vectorcall) ==
+                        _PyFunction_Vectorcall) {
                         PyObject *callargs = PyStackRef_AsPyObjectSteal(callargs_st);
                         assert(PyTuple_CheckExact(callargs));
                         PyObject *kwargs = PyStackRef_IsNull(kwargs_st) ? NULL : PyStackRef_AsPyObjectSteal(kwargs_st);
@@ -2910,7 +2914,9 @@
                 int positional_args = total_args - (int)PyTuple_GET_SIZE(kwnames_o);
                 if (Py_TYPE(callable_o) == &PyFunction_Type &&
                     !IS_PEP523_HOOKED(tstate) &&
-                    ((PyFunctionObject *)callable_o)->vectorcall == _PyFunction_Vectorcall)
+                    FT_ATOMIC_LOAD_PTR_RELAXED(
+                        ((PyFunctionObject *)callable_o)->vectorcall) ==
+                    _PyFunction_Vectorcall)
                 {
                     int code_flags = ((PyCodeObject*)PyFunction_GET_CODE(callable_o))->co_flags;
                     PyObject *locals = code_flags & CO_OPTIMIZED ? NULL : Py_NewRef(PyFunction_GET_GLOBALS(callable_o));
@@ -7973,7 +7979,9 @@
                 }
                 if (Py_TYPE(callable_o) == &PyFunction_Type &&
                     !IS_PEP523_HOOKED(tstate) &&
-                    ((PyFunctionObject *)callable_o)->vectorcall == _PyFunction_Vectorcall)
+                    FT_ATOMIC_LOAD_PTR_RELAXED(
+                        ((PyFunctionObject *)callable_o)->vectorcall) ==
+                    _PyFunction_Vectorcall)
                 {
                     int code_flags = ((PyCodeObject*)PyFunction_GET_CODE(callable_o))->co_flags;
                     PyObject *locals = code_flags & CO_OPTIMIZED ? NULL : Py_NewRef(PyFunction_GET_GLOBALS(callable_o));
@@ -8189,7 +8197,9 @@
                 else {
                     if (Py_TYPE(func) == &PyFunction_Type &&
                         !IS_PEP523_HOOKED(tstate) &&
-                        ((PyFunctionObject *)func)->vectorcall == _PyFunction_Vectorcall) {
+                        FT_ATOMIC_LOAD_PTR_RELAXED(
+                            ((PyFunctionObject *)func)->vectorcall) ==
+                        _PyFunction_Vectorcall) {
                         PyObject *callargs = PyStackRef_AsPyObjectSteal(callargs_st);
                         assert(PyTuple_CheckExact(callargs));
                         PyObject *kwargs = PyStackRef_IsNull(kwargs_st) ? NULL : PyStackRef_AsPyObjectSteal(kwargs_st);
@@ -8342,7 +8352,9 @@
                 int positional_args = total_args - (int)PyTuple_GET_SIZE(kwnames_o);
                 if (Py_TYPE(callable_o) == &PyFunction_Type &&
                     !IS_PEP523_HOOKED(tstate) &&
-                    ((PyFunctionObject *)callable_o)->vectorcall == _PyFunction_Vectorcall)
+                    FT_ATOMIC_LOAD_PTR_RELAXED(
+                        ((PyFunctionObject *)callable_o)->vectorcall) ==
+                    _PyFunction_Vectorcall)
                 {
                     int code_flags = ((PyCodeObject*)PyFunction_GET_CODE(callable_o))->co_flags;
                     PyObject *locals = code_flags & CO_OPTIMIZED ? NULL : Py_NewRef(PyFunction_GET_GLOBALS(callable_o));
