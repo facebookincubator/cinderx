@@ -18,6 +18,7 @@ import multiprocessing
 import os
 import os.path
 import pathlib
+import platform
 import queue
 import resource
 import shlex
@@ -300,6 +301,9 @@ def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
 
     skip_modules = set()
     skip_patterns = set()
+
+    if platform.processor() != "" and platform.processor() != platform.machine():
+        skip_list_files.append("cross_platform_skip_tests.txt")
 
     for skip_file in skip_list_files:
         skip_file_path = os.path.join(os.path.dirname(__file__), skip_file)
