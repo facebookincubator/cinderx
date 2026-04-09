@@ -83,6 +83,13 @@ class CodeAllocatorCinder : public CodeAllocator {
       size_t size,
       bool use_huge_pages);
 
+  // Ensure both hot and cold bump allocators have enough space for the given
+  // sizes. If either needs a new allocation, a single contiguous region is
+  // allocated and split between hot (first half) and cold (second half). This
+  // guarantees cross-section jumps are within ARM64's relative branch range
+  // (±128MB for B/BL, ±1MB for B.cond). Used only on aarch64.
+  void ensureSplitSpace(size_t hot_needed, size_t cold_needed);
+
   // Protects all allocator-owned state used by addCode()/contains().
   mutable std::mutex allocator_mutex_;
 

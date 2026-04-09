@@ -25,6 +25,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/code_allocator.h"
+#include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/codegen/tls.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/compiler.h"
@@ -3574,6 +3575,15 @@ int initialize() {
       "architecture as '{}'. Disabling the JIT.",
       getCpuArchName());
   return 0;
+#endif
+
+#if defined(CINDER_AARCH64)
+  if (getConfig().cold_code_huge_pages) {
+    JIT_LOG(
+        "cold_code_huge_pages is not supported on ARM64 (hot and cold code "
+        "must share a contiguous allocation to stay within branch range). "
+        "The flag will be ignored.");
+  }
 #endif
 
   std::unique_ptr<JITList> jit_list;

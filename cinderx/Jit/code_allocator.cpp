@@ -156,6 +156,44 @@ void CodeAllocatorCinder::ensureSpace(
   alloc_free = chunk_size;
 }
 
+void CodeAllocatorCinder::ensureSplitSpace(
+    size_t hot_needed,
+    size_t cold_needed) {
+  if (hot_alloc_free_ >= hot_needed && cold_alloc_free_ >= cold_needed) {
+    return;
+  }
+
+  // When either side needs a new allocation, allocate a single contiguous
+  // region and split it. This guarantees hot and cold code are always within
+  // the same mmap region, so cross-section jumps stay within ARM64's relative
+  // branch range (±128MB for B/BL, ±1MB for B.cond). Without this,
+  // independent mmap() calls could place hot and cold regions too far apart,
+  // causing asmjit's relocateToBase()/resolveUnresolvedLinks() to fail with
+  // kErrorInvalidDisplacement.
+  lost_bytes_.fetch_add(
+      hot_alloc_free_ + cold_alloc_free_, std::memory_order_relaxed);
+
+  size_t total_needed = hot_needed + cold_needed;
+  size_t chunk_size = ((total_needed / kAllocSize) + 1) * kAllocSize;
+  uint8_t* res = allocPages(chunk_size);
+  if (setHugePages(res, chunk_size)) {
+    huge_allocs_.fetch_add(1, std::memory_order_relaxed);
+  } else {
+    fragmented_allocs_.fetch_add(1, std::memory_order_relaxed);
+  }
+  allocations_.emplace_back(res, chunk_size);
+
+  // Hot code grows forward from the start, cold code grows forward from a
+  // split point. Split proportionally so each side gets at least what it
+  // requested, distributing any surplus evenly.
+  size_t surplus = chunk_size - total_needed;
+  size_t hot_share = hot_needed + surplus / 2;
+  hot_alloc_ = res;
+  hot_alloc_free_ = hot_share;
+  cold_alloc_ = res + hot_share;
+  cold_alloc_free_ = chunk_size - hot_share;
+}
+
 AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
   // Compute how much space each section type needs.
   size_t hot_size = 0;
@@ -169,13 +207,22 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
     }
   }
 
-  // Ensure we have enough space in both bump allocators.
+  // Ensure we have enough space for both hot and cold code.
+#if defined(__aarch64__)
+  // On ARM64, branch displacements are limited (±128MB for B/BL, ±1MB for
+  // B.cond). Allocate hot and cold from a single contiguous region so
+  // cross-section jumps are always in range.
+  ensureSplitSpace(hot_size, cold_size);
+#else
+  // On x86-64, RIP-relative addressing has a ±2GB range which is large enough
+  // that independent allocations are unlikely to exceed it in practice.
   ensureSpace(hot_alloc_, hot_alloc_free_, hot_size, true);
   ensureSpace(
       cold_alloc_,
       cold_alloc_free_,
       cold_size,
       getConfig().cold_code_huge_pages);
+#endif
 
   // Fix up offsets for each code section before resolving links.
   // All offsets are relative to the hot allocation base so that asmjit can
