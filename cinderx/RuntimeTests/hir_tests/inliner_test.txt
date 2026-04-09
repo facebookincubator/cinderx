@@ -15,6 +15,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "foo">
     v3:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -221,6 +222,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:OptObject = LoadGlobalCached<0; "foo">
     v6:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v5 {
@@ -566,6 +568,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v7:Nullptr = LoadConst<Nullptr>
     Snapshot
     v8:MortalListExact = MakeList<0> {
@@ -899,6 +902,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -1135,6 +1139,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v3:OptObject = LoadGlobalCached<0; "foo">
     v4:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v3 {
@@ -1278,6 +1283,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "foo">
     v3:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -1415,6 +1421,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -1564,6 +1571,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -1713,6 +1721,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "foo">
     v3:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -1853,6 +1862,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "foo">
     v3:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -1990,6 +2000,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     v11:MortalCell = MakeCell v10 {
       FrameState {
@@ -2259,6 +2270,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
@@ -2426,6 +2438,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "foo">
     v3:MortalObjectUser[C:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -2563,6 +2576,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v10:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v12:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v13:Object = Compare<LessThan> v10 v12 {
@@ -3200,6 +3214,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -3436,6 +3451,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "foo">
     v3:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -3680,6 +3696,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {

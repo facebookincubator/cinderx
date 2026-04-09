@@ -15,6 +15,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
@@ -188,6 +189,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v5:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
@@ -400,6 +402,7 @@ def test() -> int8:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
@@ -573,6 +576,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {

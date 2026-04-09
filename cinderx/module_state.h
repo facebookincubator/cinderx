@@ -164,6 +164,9 @@ struct ModuleState {
   // Whether this module state was fully initialized. False for subinterpreters
   // where _cinderx does not support loading.
   bool fully_initialized{false};
+
+  bool tstate_offset_inited{false};
+  int32_t tstate_offset{-1};
 };
 
 // Get the global ModuleState singleton.

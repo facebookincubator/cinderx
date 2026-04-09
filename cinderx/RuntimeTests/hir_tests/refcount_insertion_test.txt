@@ -11,6 +11,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0; "x">
+    LoadFrame
     Incref v1
     Return v1
   }
@@ -845,6 +846,7 @@ fun jittestmodule:test {
     v14:Object = LoadArg<0; "a">
     v15:Object = LoadArg<1; "b">
     v16:Object = LoadArg<2; "l">
+    LoadFrame
     v17:Nullptr = LoadConst<Nullptr>
     v21:Object = GetIter v16 {
       LiveValues<4> b:v14 b:v15 b:v16 unc:v17
@@ -1289,6 +1291,7 @@ def test(l):
 fun jittestmodule:test {
   bb 0 {
     v18:Object = LoadArg<0; "l">
+    LoadFrame
     v19:Nullptr = LoadConst<Nullptr>
     v20:Object = LoadGlobal<0; "something"> {
       LiveValues<2> b:v18 unc:v19
@@ -1847,6 +1850,7 @@ def test(l):
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "l">
+    LoadFrame
     v15:Nullptr = LoadConst<Nullptr>
     v16:Object = LoadGlobal<0; "something"> {
       LiveValues<2> b:v14 unc:v15
@@ -2353,6 +2357,7 @@ fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
     v4:Object = LoadArg<1; "val">
+    LoadFrame
     StoreAttrCached<0; "foo"> v3 v4 {
       LiveValues<2> b:v3 b:v4
       FrameState {
@@ -2472,6 +2477,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v1:Object = LoadGlobal<0; "a_global"> {
       FrameState {
         CurInstrOffset 0
@@ -2567,6 +2573,7 @@ def test(a):
 fun jittestmodule:test {
   bb 0 {
     v2:Object = LoadArg<0; "a">
+    LoadFrame
     v6:MortalTupleExact = MakeTuple<3> v2 v2 v2 {
       LiveValues<1> b:v2
       FrameState {
@@ -2688,6 +2695,7 @@ fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "pred">
     v6:Object = LoadArg<1; "val">
+    LoadFrame
     v7:Nullptr = LoadConst<Nullptr>
     v9:CBool = IsTruthy v5 {
       LiveValues<3> b:v5 b:v6 unc:v7
@@ -2847,6 +2855,7 @@ def test(val):
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return v5
   }
@@ -2941,6 +2950,7 @@ def test(a):
 fun jittestmodule:test {
   bb 0 {
     v12:Object = LoadArg<0; "a">
+    LoadFrame
     v13:Nullptr = LoadConst<Nullptr>
     v14:MortalCell = MakeCell v12 {
       LiveValues<2> b:v12 unc:v13
@@ -3260,6 +3270,7 @@ def test(timings):
 fun jittestmodule:test {
   bb 0 {
     v12:Object = LoadArg<0; "timings">
+    LoadFrame
     v13:Nullptr = LoadConst<Nullptr>
     v15:CBool = IsTruthy v12 {
       LiveValues<2> b:v12 unc:v13
@@ -3764,6 +3775,7 @@ fun jittestmodule:test {
     v15:Object = LoadArg<0; "a">
     v16:Object = LoadArg<1; "b">
     v17:Object = LoadArg<2; "c">
+    LoadFrame
     v18:Nullptr = LoadConst<Nullptr>
     v19:OptObject = LoadGlobalCached<0; "dict">
     v20:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v19 {
@@ -4370,6 +4382,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v19:Nullptr = LoadConst<Nullptr>
     v20:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
     v21:MortalUnicodeExact["test.<locals>.<lambd"...] = LoadConst<MortalUnicodeExact["test.<locals>.<lambd"...]>

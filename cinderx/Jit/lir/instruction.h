@@ -168,6 +168,7 @@ enum OperandSizeType {
   X(MovSX)                                                                    \
   X(MovSXD)                                                                   \
   X(IntToBool, false, FlagEffects::kSet, kDefault, 1, {1})                    \
+  X(LoadThreadState, false, FlagEffects::kInvalidate, kDefault, 0, {}, 0)     \
   X(YieldInitial, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)        \
   X(YieldValue, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)          \
   X(StoreGenYieldPoint, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)  \

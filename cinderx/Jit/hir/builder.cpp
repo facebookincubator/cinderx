@@ -674,11 +674,9 @@ BasicBlock* HIRBuilder::buildHIRImpl(
     entry_tc.emit<LoadCurrentFunc>(func_);
   }
 
-#if PY_VERSION_HEX >= 0x030C0000
   if (frame_state == nullptr) {
     entry_tc.emit<LoadFrame>();
   }
-#endif
 
   emitTypeAnnotationGuards(entry_tc);
 

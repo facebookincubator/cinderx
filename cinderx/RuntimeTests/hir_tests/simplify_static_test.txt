@@ -12,6 +12,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v9:Nullptr = LoadConst<Nullptr>
     Snapshot
     v10:CInt32 = CallStatic<Ci_static_rand@0xdeadbeef, 0>
@@ -171,6 +172,7 @@ def test() -> bool:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CInt64[64] = LoadConst<CInt64[64]>
@@ -345,6 +347,7 @@ def test() -> double:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v4:Nullptr = LoadConst<Nullptr>
     Snapshot
     v5:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
@@ -457,6 +460,7 @@ def test() -> uint8:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v4:Nullptr = LoadConst<Nullptr>
     Snapshot
     v5:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
@@ -571,6 +575,7 @@ def test() -> int8:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v4:Nullptr = LoadConst<Nullptr>
     Snapshot
     v5:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
@@ -700,6 +705,7 @@ def test(x: int):
 fun jittestmodule:test {
   bb 0 {
     v2:Long = LoadArg<0; "x", Long>
+    LoadFrame
     Snapshot
     Snapshot
     Return v2
@@ -800,6 +806,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:NoneType = LoadConst<NoneType>
     Snapshot
@@ -898,6 +905,7 @@ def test(x: bool):
 fun jittestmodule:test {
   bb 0 {
     v2:Bool = LoadArg<0; "x", Bool>
+    LoadFrame
     Snapshot
     Snapshot
     Return v2
@@ -998,6 +1006,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v2:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v4:Bool = Cast<Exact[bool]> v2 {
       FrameState {
@@ -1121,6 +1130,7 @@ def test(*x):
 fun jittestmodule:test {
   bb 0 {
     v15:TupleExact = LoadArg<0; "x", TupleExact>
+    LoadFrame
     v16:Nullptr = LoadConst<Nullptr>
     Snapshot
     v18:CInt64[0] = LoadConst<CInt64[0]>
@@ -1549,6 +1559,7 @@ def test(x: int64) -> int8:
 fun jittestmodule:test {
   bb 0 {
     v5:CInt64 = LoadArg<0; "x", CInt64>
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:LongExact = PrimitiveBox<CInt64> v5 {

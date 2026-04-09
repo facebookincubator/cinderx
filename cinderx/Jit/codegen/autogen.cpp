@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/codegen/autogen.h"
 
+#include "internal/pycore_pystate.h"
+
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/codegen/arch.h"
@@ -12,6 +14,7 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/printer.h"
+#include "cinderx/module_state.h"
 
 #include <type_traits>
 #include <vector>
@@ -638,6 +641,99 @@ void emitLoadResumedYieldInputs(
 #endif
 }
 
+void translateLoadThreadState(Environ* env, const Instruction* instr) {
+  arch::Builder* as = env->as;
+  const lir::Operand* output = instr->output();
+
+#if defined(CINDER_X86_64)
+  x86::Gp dst;
+  if (output->isReg()) {
+    dst = x86::gpq(output->getPhyRegister().loc);
+  } else if (output->isStack()) {
+    // Use rax as scratch, will store to stack slot afterwards.
+    dst = x86::rax;
+  } else {
+    JIT_ABORT("LoadThreadState output must be a register or stack slot");
+  }
+
+#if PY_VERSION_HEX >= 0x030C0000
+  if (cinderx::getModuleState()->tstate_offset != -1) {
+    // Fast path: load tstate directly from the TLS segment register.
+    asmjit::x86::Mem tls(cinderx::getModuleState()->tstate_offset);
+    tls.setSegment(x86::fs);
+    as->mov(dst, tls);
+  } else {
+    // Fallback: call _PyThreadState_GetCurrent().
+    as->call(_PyThreadState_GetCurrent);
+    if (dst.id() != x86::rax.id()) {
+      as->mov(dst, x86::rax);
+    }
+  }
+#else
+  // 3.10: Load from _PyRuntime.gilstate.tstate_current.
+  uint64_t tstate_addr =
+      reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
+  if (fitsSignedInt<32>(tstate_addr)) {
+    as->mov(dst, x86::ptr(tstate_addr));
+  } else {
+    as->mov(dst, tstate_addr);
+    as->mov(dst, x86::ptr(dst));
+  }
+#endif
+
+  if (output->isStack()) {
+    as->mov(x86::ptr(x86::rbp, output->getStackSlot().loc), dst);
+  }
+
+#elif defined(CINDER_AARCH64)
+  a64::Gp dst;
+  if (output->isReg()) {
+    dst = a64::x(output->getPhyRegister().loc);
+  } else if (output->isStack()) {
+    dst = a64::x0;
+  } else {
+    JIT_ABORT("LoadThreadState output must be a register or stack slot");
+  }
+
+#if PY_VERSION_HEX >= 0x030C0000
+  if (cinderx::getModuleState()->tstate_offset != -1) {
+    // Fast path: load tstate from thread-local storage.
+    as->mrs(dst, a64::Predicate::SysReg::kTPIDR_EL0);
+    as->ldr(
+        dst,
+        arch::ptr_resolve(
+            as,
+            dst,
+            cinderx::getModuleState()->tstate_offset,
+            arch::reg_scratch_0));
+  } else {
+    // Fallback: call _PyThreadState_GetCurrent().
+    as->mov(arch::reg_scratch_br, _PyThreadState_GetCurrent);
+    as->blr(arch::reg_scratch_br);
+    if (dst.id() != a64::x0.id()) {
+      as->mov(dst, a64::x0);
+    }
+  }
+#else
+  // 3.10: Load from _PyRuntime.gilstate.tstate_current.
+  uint64_t tstate_addr =
+      reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
+  as->mov(dst, tstate_addr);
+  as->ldr(dst, a64::ptr(dst));
+#endif
+
+  if (output->isStack()) {
+    as->str(
+        dst,
+        arch::ptr_resolve(
+            as, arch::fp, output->getStackSlot().loc, arch::reg_scratch_0));
+  }
+
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 void translateYieldInitial(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
 #if PY_VERSION_HEX < 0x030C0000
@@ -1212,57 +1308,6 @@ void translateYieldExitPoint(Environ* env, const Instruction*) {
   env->as->bind(env->exit_for_yield_label);
 }
 
-#if defined(CINDER_AARCH64)
-void restoreCalleeSavedRegsAarch64(
-    arch::Builder* as,
-    PhyRegisterSet saved_regs) {
-  auto gp_regs = saved_regs & ALL_GP_REGISTERS;
-  auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
-
-  // Restore VecD registers first (they were saved last, so they're at the
-  // lowest addresses).
-  if (!vecd_regs.Empty()) {
-    bool odd = vecd_regs.count() % 2 == 1;
-    PhyRegisterSet vecd_pairs = vecd_regs;
-    if (odd) {
-      vecd_pairs.RemoveFirst();
-    }
-    while (!vecd_pairs.Empty()) {
-      auto second = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
-      vecd_pairs.RemoveLast();
-      auto first = a64::d(vecd_pairs.GetLast().loc - VECD_REG_BASE);
-      vecd_pairs.RemoveLast();
-      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
-    }
-    if (odd) {
-      as->ldr(
-          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
-          a64::ptr_post(a64::sp, 16));
-    }
-  }
-
-  // Restore GP registers (they were saved first, so they're at higher
-  // addresses).
-  if (!gp_regs.Empty()) {
-    bool odd = gp_regs.count() % 2 == 1;
-    PhyRegisterSet gp_pairs = gp_regs;
-    if (odd) {
-      gp_pairs.RemoveFirst();
-    }
-    while (!gp_pairs.Empty()) {
-      auto second = a64::x(gp_pairs.GetLast().loc);
-      gp_pairs.RemoveLast();
-      auto first = a64::x(gp_pairs.GetLast().loc);
-      gp_pairs.RemoveLast();
-      as->ldp(first, second, a64::ptr_post(a64::sp, 16));
-    }
-    if (odd) {
-      as->ldr(a64::x(gp_regs.GetFirst().loc), a64::ptr_post(a64::sp, 16));
-    }
-  }
-}
-#endif
-
 void translateLeaLabel(Environ* env, const Instruction* instr) {
   auto* as = env->as;
   auto output = instr->output();
@@ -1327,6 +1372,8 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
     JIT_CHECK(
         env->last_callee_saved_reg_off != -1,
         "offset to callee saved regs not initialized");
+    // Point rsp at the bottom of the callee-saved area, then pop in
+    // reverse push order (GetLast→GetFirst) to restore registers.
     as->lea(x86::rsp, x86::ptr(x86::rbp, -env->last_callee_saved_reg_off));
     while (!saved_regs.Empty()) {
       as->pop(x86::gpq(saved_regs.GetLast().loc));
@@ -1370,9 +1417,62 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
         env->last_callee_saved_reg_off != -1,
         "offset to callee saved regs not initialized");
     JIT_CHECK(env->last_callee_saved_reg_off % kStackAlign == 0, "unaligned");
-    arch::add_signed_immediate(
-        as, a64::sp, arch::fp, -env->last_callee_saved_reg_off);
-    restoreCalleeSavedRegsAarch64(as, saved_regs);
+    // Restore callee-saved registers from fixed offsets below FP.
+    // Use a scratch register as base to avoid large FP-relative offsets
+    // that can exceed arm64 ldp/ldr encoding range.
+    auto gp_regs = saved_regs & ALL_GP_REGISTERS;
+    auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
+
+    int gp_size = (((gp_regs.count() + 1) / 2)) * kStackAlign;
+    int vecd_size = (((vecd_regs.count() + 1) / 2)) * kStackAlign;
+    int header_and_spill_size =
+        env->last_callee_saved_reg_off - gp_size - vecd_size;
+
+    // base = fp - header_and_spill_size (points to start of callee-saved area)
+    arch::sub_immediate(
+        as,
+        arch::reg_scratch_0,
+        arch::fp,
+        static_cast<uint64_t>(header_and_spill_size));
+
+    // Restore GP registers (iterate GetFirst→GetLast, same as save).
+    int offset = 0;
+    if (!gp_regs.Empty()) {
+      if (gp_regs.count() % 2 == 1) {
+        as->ldr(
+            a64::x(gp_regs.GetFirst().loc),
+            a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+        gp_regs.RemoveFirst();
+        offset += 16;
+      }
+      while (!gp_regs.Empty()) {
+        auto first = a64::x(gp_regs.GetFirst().loc);
+        gp_regs.RemoveFirst();
+        auto second = a64::x(gp_regs.GetFirst().loc);
+        gp_regs.RemoveFirst();
+        as->ldp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+        offset += 16;
+      }
+    }
+
+    // Restore VecD registers (iterate GetFirst→GetLast, same as save).
+    if (!vecd_regs.Empty()) {
+      if (vecd_regs.count() % 2 == 1) {
+        as->ldr(
+            a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+            a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+        vecd_regs.RemoveFirst();
+        offset += 16;
+      }
+      while (!vecd_regs.Empty()) {
+        auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+        vecd_regs.RemoveFirst();
+        auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+        vecd_regs.RemoveFirst();
+        as->ldp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+        offset += 16;
+      }
+    }
   }
   as->mov(a64::sp, arch::fp);
   as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
@@ -1762,6 +1862,10 @@ BEGIN_RULES(Instruction::kBitTest)
   GEN("ri", ASM(bt, OP(0), OP(1)))
 END_RULES
 
+BEGIN_RULES(Instruction::kLoadThreadState)
+  GEN(ANY, CALL_C(translateLoadThreadState))
+END_RULES
+
 BEGIN_RULES(Instruction::kYieldInitial)
   GEN(ANY, CALL_C(translateYieldInitial))
 END_RULES
@@ -1967,6 +2071,11 @@ void translateLea(Environ* env, const Instruction* instr) {
     as->mov(AT::getGp(output), address);
   } else if (input->isInd()) {
     leaIndirect(as, AT::getGp(output), input->getMemoryIndirect());
+  } else if (input->isLabel()) {
+    asmjit::Label label = input->getDefine()->hasAsmLabel()
+        ? input->getDefine()->getAsmLabel()
+        : map_get(env->block_label_map, input->getBasicBlock());
+    as->adr(AT::getGp(output), label);
   } else {
     JIT_ABORT("Unsupported operand type for Lea: {}", input->type());
   }
@@ -2728,6 +2837,7 @@ BEGIN_RULE_TABLE
 
 BEGIN_RULES(Instruction::kLea)
   GEN("Rm", CALL_C(translateLea))
+  GEN("Rb", CALL_C(translateLeaLabel))
 END_RULES
 
 BEGIN_RULES(Instruction::kCall)
@@ -3010,6 +3120,10 @@ END_RULES
 
 BEGIN_RULES(Instruction::kBitTest)
   GEN("ri", CALL_C(translateBitTest));
+END_RULES
+
+BEGIN_RULES(Instruction::kLoadThreadState)
+  GEN(ANY, CALL_C(translateLoadThreadState))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldInitial)

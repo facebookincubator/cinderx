@@ -13,6 +13,7 @@ fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v2 = LoadCurrentFunc
+    LoadFrame
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
     Snapshot
@@ -56,6 +57,7 @@ fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v2 = LoadCurrentFunc
+    LoadFrame
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
     Snapshot
@@ -314,6 +316,7 @@ fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v2 = LoadCurrentFunc
+    LoadFrame
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
     Snapshot
@@ -622,6 +625,7 @@ fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
     v2 = LoadCurrentFunc
+    LoadFrame
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
     Snapshot

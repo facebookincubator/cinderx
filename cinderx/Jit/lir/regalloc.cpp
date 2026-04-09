@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/lir/printer.h"
+#include "cinderx/module_state.h"
 
 #include <algorithm>
 #include <iterator>
@@ -494,6 +495,26 @@ void LinearScanAllocator::calculateLiveIntervals() {
           instr_opcode == Instruction::kVarArgCall ||
           instr_opcode == Instruction::kVectorCall) {
         reserveCallerSaveRegisters(instr_id);
+      }
+      // kLoadThreadState needs caller-save reservation when the TLS
+      // offset is unavailable, forcing a function call fallback.
+      // When the TLS offset IS known (or on 3.10 which loads from a
+      // global), translateLoadThreadState may use the return register
+      // (rax/x0) as an implicit scratch when the output is a stack
+      // slot, so we must always reserve it.
+      if (instr_opcode == Instruction::kLoadThreadState) {
+#if PY_VERSION_HEX >= 0x030C0000
+        if (cinderx::getModuleState()->tstate_offset == -1) {
+          reserveCallerSaveRegisters(instr_id);
+        } else {
+          // TLS path still uses rax/x0 as scratch for stack outputs.
+          reserveRegisters(instr_id, PhyRegisterSet(RETURN_REGS[0]));
+        }
+#else
+        // 3.10 loads tstate from a global address and may use rax/x0
+        // as scratch when the output is assigned to a stack slot.
+        reserveRegisters(instr_id, PhyRegisterSet(RETURN_REGS[0]));
+#endif
       }
 
 #if defined(CINDER_X86_64)
@@ -1163,7 +1184,8 @@ void LinearScanAllocator::rewriteInstrOutput(
   // Need a separate pass in HIR to handle the dead code more gracefully.
   if (instr->opcode() == Instruction::kCall ||
       instr->opcode() == Instruction::kVarArgCall ||
-      instr->opcode() == Instruction::kVectorCall) {
+      instr->opcode() == Instruction::kVectorCall ||
+      instr->opcode() == Instruction::kLoadThreadState) {
     output->setNone();
   } else {
     instr->setOpcode(Instruction::kNop);

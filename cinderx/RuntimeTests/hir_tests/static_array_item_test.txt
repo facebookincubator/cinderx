@@ -12,6 +12,7 @@ def test(a: Array[int64]) -> int64:
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
+    LoadFrame
     Snapshot
     v0 = CheckVar<"a"> v0 {
       FrameState {
@@ -196,6 +197,7 @@ def test(a: Array[int64]) -> None:
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
+    LoadFrame
     Snapshot
     v1 = LoadConst<CInt64[3]>
     v0 = CheckVar<"a"> v0 {

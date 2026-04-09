@@ -12,6 +12,7 @@ def test(*x):
 fun jittestmodule:test {
   bb 0 {
     v15:TupleExact = LoadArg<0; "x", TupleExact>
+    LoadFrame
     v16:Nullptr = LoadConst<Nullptr>
     v18:CInt64[0] = LoadConst<CInt64[0]>
     Branch<4>

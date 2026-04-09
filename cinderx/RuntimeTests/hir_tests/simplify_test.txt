@@ -16,6 +16,7 @@ fun jittestmodule:test {
   bb 0 {
     v9:Object = LoadArg<0; "a">
     v10:Object = LoadArg<1; "b">
+    LoadFrame
     v11:Nullptr = LoadConst<Nullptr>
     Snapshot
     v14:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
@@ -221,6 +222,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v4:Nullptr = LoadConst<Nullptr>
     Snapshot
     v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
@@ -373,6 +375,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     Return v1
   }
@@ -467,6 +470,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v2:Nullptr = LoadConst<Nullptr>
     Snapshot
     v3:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -570,6 +574,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:CBool = IsTruthy v4 {
@@ -776,6 +781,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "x">
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v8:CBool = IsTruthy v5 {
@@ -960,6 +966,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
+    LoadFrame
     v7:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:CBool = IsTruthy v6 {
@@ -1218,6 +1225,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:MortalListExact = MakeList<0> {
@@ -1610,6 +1618,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
@@ -1732,6 +1741,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
@@ -1852,6 +1862,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
@@ -1986,6 +1997,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
@@ -2120,6 +2132,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v13:Nullptr = LoadConst<Nullptr>
     Snapshot
     v14:OptObject = LoadGlobalCached<0; "os">
@@ -2670,6 +2683,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v7:Nullptr = LoadConst<Nullptr>
     Snapshot
     v8:NoneType = LoadConst<NoneType>
@@ -2808,6 +2822,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v7:Nullptr = LoadConst<Nullptr>
     Snapshot
     v8:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
@@ -2944,6 +2959,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
@@ -3086,6 +3102,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -3220,6 +3237,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:MortalUnicodeExact[""] = LoadConst<MortalUnicodeExact[""]>
@@ -3360,6 +3378,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
@@ -3491,6 +3510,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "Foo">
     v3:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v2 {
@@ -3690,6 +3710,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "int">
     v3:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v2 {
@@ -3891,6 +3912,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "sys">
     v3:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
@@ -4158,6 +4180,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
     Snapshot
     v9:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
@@ -4290,6 +4313,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v9:Nullptr = LoadConst<Nullptr>
     Snapshot
     v10:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
@@ -5314,6 +5338,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "a">
     v5:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -5858,6 +5883,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "type">
     v5:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v4 {
@@ -6587,6 +6613,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
@@ -6731,6 +6758,7 @@ fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
     v5:Object = LoadArg<1; "y">
+    LoadFrame
     Snapshot
     v8:CBool = PrimitiveCompare<Equal> v4 v5
     v9:Bool = PrimitiveBoxBool v8
@@ -6837,6 +6865,7 @@ fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
     v5:Object = LoadArg<1; "y">
+    LoadFrame
     Snapshot
     v8:CBool = PrimitiveCompare<NotEqual> v4 v5
     v9:Bool = PrimitiveBoxBool v8
@@ -7017,6 +7046,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
@@ -7149,6 +7179,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
@@ -7357,6 +7388,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -7499,6 +7531,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -8551,6 +8584,7 @@ fun jittestmodule:test {
     v7:Object = LoadArg<0; "x">
     v8:Object = LoadArg<1; "y">
     v9:Object = LoadArg<2; "z">
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
     v14:MortalTupleExact = MakeTuple<3> v7 v8 v9 {
@@ -8732,6 +8766,7 @@ fun jittestmodule:test {
     v7:Object = LoadArg<0; "x">
     v8:Object = LoadArg<1; "y">
     v9:Object = LoadArg<2; "z">
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
     v14:MortalTupleExact = MakeTuple<3> v7 v8 v9 {
@@ -8925,6 +8960,7 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0; "x">
     v7:Object = LoadArg<1; "y">
     v8:Object = LoadArg<2; "z">
+    LoadFrame
     v9:Nullptr = LoadConst<Nullptr>
     Snapshot
     Return v7
@@ -9032,6 +9068,7 @@ fun jittestmodule:test {
     v14:Object = LoadArg<0; "x">
     v15:Object = LoadArg<1; "y">
     v16:Object = LoadArg<2; "z">
+    LoadFrame
     v17:Nullptr = LoadConst<Nullptr>
     Snapshot
     v21:MortalTupleExact = MakeTuple<3> v14 v15 v16 {
@@ -9220,6 +9257,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v13:Nullptr = LoadConst<Nullptr>
     Snapshot
     v14:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
@@ -9833,6 +9871,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v8:NoneType = LoadConst<NoneType>
     v9:CBool = PrimitiveCompare<NotEqual> v6 v8
@@ -9959,6 +9998,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v8:NoneType = LoadConst<NoneType>
     v9:CBool = PrimitiveCompare<NotEqual> v6 v8
@@ -10089,6 +10129,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v8:NoneType = LoadConst<NoneType>
     v9:CBool = PrimitiveCompare<NotEqual> v6 v8
@@ -10230,6 +10271,7 @@ fun jittestmodule:test {
     v19:Object = LoadArg<0; "a">
     v20:Object = LoadArg<1; "b">
     v21:Object = LoadArg<2; "c">
+    LoadFrame
     v22:Nullptr = LoadConst<Nullptr>
     Snapshot
     v26:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -10462,6 +10504,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:OptObject = LoadGlobalCached<0; "foo">
     v6:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v5 {
@@ -10617,6 +10660,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -10766,6 +10810,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "foo">
     v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -10935,6 +10980,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v6:OptObject = LoadGlobalCached<0; "Foo">
     v7:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v6 {
@@ -11179,6 +11225,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v6:OptObject = LoadGlobalCached<0; "Foo">
     v7:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v6 {
@@ -11423,6 +11470,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v6:OptObject = LoadGlobalCached<0; "Foo">
     v7:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v6 {
@@ -11662,6 +11710,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v6:OptObject = LoadGlobalCached<0; "int">
     v7:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v6 {
@@ -11903,6 +11952,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:OptObject = LoadGlobalCached<0; "time">
     v5:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
@@ -12067,6 +12117,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:OptObject = LoadGlobalCached<0; "A">
     v6:MortalTypeExact[A:obj] = GuardIs<0xdeadbeef> v5 {
@@ -12482,6 +12533,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v28:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v29:OptObject = LoadGlobalCached<0; "bool">
     v30:ImmortalTypeExact[bool:obj] = GuardIs<0xdeadbeef> v29 {
@@ -13299,6 +13351,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v5:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -13448,6 +13501,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v12:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -13842,6 +13896,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v1:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return v1
@@ -13937,6 +13992,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:OptObject = LoadGlobalCached<0; "X_INST">
     v3:MortalObjectUser[X:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {

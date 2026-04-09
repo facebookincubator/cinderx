@@ -14,6 +14,7 @@ async def test(c: C):
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
+    LoadFrame
     v1 = InitialYield {
       FrameState {
         CurInstrOffset -2
@@ -542,6 +543,7 @@ def test(c: C):
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
+    LoadFrame
     Snapshot
     v0 = CheckVar<"c"> v0 {
       FrameState {
@@ -684,6 +686,7 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadArg<1; "x", Long>
+    LoadFrame
     Snapshot
     v1 = CheckVar<"x"> v1 {
       FrameState {
@@ -810,6 +813,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v0 = MakeList<0> {
       FrameState {
@@ -984,6 +988,7 @@ def test() -> str:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v0 = LoadConst<MortalUnicodeExact["hello"]>
     v1 = LoadConst<ImmortalLongExact[123]>
@@ -1116,6 +1121,7 @@ async def test() -> str:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v0 = InitialYield {
       FrameState {
         CurInstrOffset -2
@@ -1516,6 +1522,7 @@ def test() -> int:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v1 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v0 = Assign v1
@@ -2172,6 +2179,7 @@ def test(it) -> List:
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
+    LoadFrame
     Snapshot
     v1 = LoadGlobalCached<0; "sorted">
     v1 = GuardIs<0xdeadbeef> v1 {
@@ -2334,6 +2342,7 @@ def test() -> int:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2 = TpAlloc<chklist[int]> {
       FrameState {
@@ -2617,6 +2626,7 @@ def test(a: int) -> int:
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
+    LoadFrame
     v2 = MakeCell v0 {
       FrameState {
         CurInstrOffset -2
@@ -2950,6 +2960,7 @@ def test(self : A):
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
+    LoadFrame
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
@@ -3135,6 +3146,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2 = CallStatic<Ci_static_rand@0xdeadbeef, 0>
     Snapshot

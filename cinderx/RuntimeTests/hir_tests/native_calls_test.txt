@@ -18,6 +18,7 @@ def test(i: int) -> int:
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>
+    LoadFrame
     Snapshot
     v0 = CheckVar<"i"> v0 {
       FrameState {

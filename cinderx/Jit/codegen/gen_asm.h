@@ -9,8 +9,6 @@
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
-#include "cinderx/Jit/codegen/frame_asm.h"
-#include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/function.h"
 
@@ -88,7 +86,6 @@ class NativeGenerator {
   void* deopt_trampoline_{nullptr};
   void* deopt_trampoline_generators_{nullptr};
   void* const failed_deferred_compile_trampoline_;
-  FrameAsm frame_asm_;
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
@@ -110,7 +107,7 @@ class NativeGenerator {
 #elif defined(CINDER_AARCH64)
       // GP and VecD registers cannot be paired in the same stp/ldp
       // instruction, so each group must be independently rounded up to
-      // a pair count to match saveCalleeSavedRegsAarch64.
+      // a pair count.
       auto gp_count = (saved_regs & ALL_GP_REGISTERS).count();
       auto vecd_count = (saved_regs & ALL_VECD_REGISTERS).count();
       return (((gp_count + 1) / 2) + ((vecd_count + 1) / 2)) * kStackAlign;
@@ -128,7 +125,7 @@ class NativeGenerator {
   void setupFrameAndSaveCallerRegisters(
       const FrameInfo& frame_info,
       arch::Gp tstate_reg);
-  int allocateHeaderAndSpillSpace(const FrameInfo& frame_info);
+  void allocateHeaderAndSpillSpace(const FrameInfo& frame_info);
   void saveCallerRegisters(const FrameInfo& frame_info, arch::Gp tstate_reg);
 
   int maxInlineStackSize();
@@ -136,7 +133,6 @@ class NativeGenerator {
       const FrameInfo& frame_info,
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
-  bool linkFrameNeedsSpill();
   void generateEpilogue(asmjit::BaseNode* epilogue_cursor);
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);

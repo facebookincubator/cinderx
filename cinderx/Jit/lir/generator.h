@@ -148,6 +148,8 @@ class LIRGenerator {
   void resolvePhiOperands(
       UnorderedMap<const hir::BasicBlock*, TranslatedBlock>& bb_map);
 
+  void emitLoadFrame(BasicBlockBuilder& bbb);
+
   void emitExceptionCheck(
       const jit::hir::DeoptBase& i,
       jit::lir::BasicBlockBuilder& bbb);
