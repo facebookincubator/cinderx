@@ -817,7 +817,9 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
   // Combine all instruction options and also check whether the instruction
   // is valid. All options that require special handling (including invalid
   // instruction) are handled by the next branch.
-  InstOptions options = InstOptions(instId - 1 >= Inst::_kIdCount - 1) | InstOptions((size_t)(_bufferEnd - writer.cursor()) < 4) | instOptions() | forcedInstOptions();
+  // Check for < 8 bytes remaining because branch relaxation (cbz/cbnz,
+  // tbz/tbnz, b.cond, bl/b, adr) may emit two 32-bit words (8 bytes).
+  InstOptions options = InstOptions(instId - 1 >= Inst::_kIdCount - 1) | InstOptions((size_t)(_bufferEnd - writer.cursor()) < 8) | instOptions() | forcedInstOptions();
 
   CondCode instCC = BaseInst::extractARMCondCode(instId);
   instId = instId & uint32_t(InstIdParts::kRealId);
@@ -854,8 +856,9 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
     if (ASMJIT_UNLIKELY(instCC != CondCode::kAL && instId != Inst::kIdB))
       goto InvalidInstruction;
 
-    // Grow request, happens rarely.
-    err = writer.ensureSpace(this, 4);
+    // Grow request, happens rarely. Reserve 8 bytes because branch relaxation
+    // (cbz/cbnz, tbz/tbnz, b.cond, bl/b, adr) may emit two 32-bit words.
+    err = writer.ensureSpace(this, 8);
     if (ASMJIT_UNLIKELY(err))
       goto Failed;
 
