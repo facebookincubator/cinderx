@@ -1,0 +1,5 @@
+# Tests to skip when running cross-platform (e.g. x86_64 binaries on aarch64).
+# These tests compile or inspect stdlib bytecode and fail when the host
+# architecture doesn't match the build architecture.
+test_cinderx.test_compiler_sbs_stdlib*
+test_cinderx.test_compiler.test_sbs_stdlib*
