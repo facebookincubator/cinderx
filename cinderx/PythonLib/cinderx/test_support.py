@@ -8,6 +8,7 @@ import functools
 import importlib
 import multiprocessing
 import os.path
+import platform
 import sys
 import tempfile
 import types
@@ -299,8 +300,10 @@ def is_sanitizer_build() -> bool:
 
 
 # This is long because ASAN + JIT + subprocess + the Python compiler can be
-# pretty slow in CI.
-SUBPROCESS_TIMEOUT_SEC = 100 if is_sanitizer_build() else 5
+# pretty slow in CI. Also we run aarch64 tests in QEMU which is slow too.
+SUBPROCESS_TIMEOUT_SEC = (
+    100 if (is_sanitizer_build() or platform.processor() != platform.machine()) else 5
+)
 
 
 @contextmanager
