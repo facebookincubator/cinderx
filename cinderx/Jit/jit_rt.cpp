@@ -765,6 +765,20 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
             original_frame_pointer) +
         1);
 
+  // Copy any data the register allocator may have spilled to the stack frame
+  // into the generator's data area. After the caller swaps the frame pointer
+  // to point to the footer, spill slot reloads will read from the generator's
+  // memory instead of the stack. This copy ensures those reloads find the
+  // correct values.
+  if (spill_words > 0) {
+    size_t spill_bytes = spill_words * sizeof(uint64_t);
+    auto* src = reinterpret_cast<char*>( // NOLINT performance-no-int-to-ptr
+                    original_frame_pointer) -
+        spill_bytes;
+    auto* dst = reinterpret_cast<char*>(footer) - spill_bytes;
+    memcpy(dst, src, spill_bytes);
+  }
+
   PyObject_GC_Track(gen);
 
   return {tstate, footer};

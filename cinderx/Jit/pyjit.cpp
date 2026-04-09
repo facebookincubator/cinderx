@@ -25,6 +25,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/code_allocator.h"
+#include "cinderx/Jit/codegen/tls.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/config.h"
@@ -3607,6 +3608,11 @@ int initialize() {
   // Create code allocator after jit::Config has been filled out.
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->code_allocator.reset(CodeAllocator::make());
+
+  // Discover the TLS offset for PyThreadState so the JIT can load tstate
+  // directly from the thread-local segment register instead of calling
+  // _PyThreadState_GetCurrent().
+  jit::codegen::initThreadStateOffset();
 
   // Initialize the main compiler object and its context.  This will throw if
   // asmjit cannot initialize.

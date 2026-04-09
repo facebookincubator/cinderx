@@ -10,6 +10,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return v1
   }
@@ -94,6 +95,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
+    LoadFrame
     v8:OptObject = LoadGlobalCached<0; "isinstance">
     v9:MortalObjectUser[builtin_function_or_method:isinstance:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
       Descr 'LOAD_GLOBAL: isinstance'
@@ -389,6 +391,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v3:OptObject = LoadGlobalCached<0; "len">
     v4:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v3 {
       Descr 'LOAD_GLOBAL: len'
@@ -566,6 +569,7 @@ def test(obj):
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "obj">
+    LoadFrame
     v5:OptObject = LoadGlobalCached<0; "hasattr">
     v6:MortalObjectUser[builtin_function_or_method:hasattr:0xdeadbeef] = GuardIs<0xdeadbeef> v5 {
       Descr 'LOAD_GLOBAL: hasattr'
@@ -723,6 +727,7 @@ fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
     v4:Object = LoadArg<1; "y">
+    LoadFrame
     v7:Bool = Compare<In> v3 v4 {
       LiveValues<2> b:v3 b:v4
       FrameState {
@@ -843,6 +848,7 @@ fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
     v4:Object = LoadArg<1; "y">
+    LoadFrame
     v7:Bool = Compare<NotIn> v3 v4 {
       LiveValues<2> b:v3 b:v4
       FrameState {
@@ -962,6 +968,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v7:Nullptr = LoadConst<Nullptr>
     v8:MortalListExact = MakeList<0> {
       LiveValues<1> unc:v7
@@ -1153,6 +1160,7 @@ async def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v15:Nullptr = LoadConst<Nullptr>
     v16:OptNoneType = InitialYield {
       LiveValues<1> unc:v15
@@ -1572,6 +1580,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v14:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v12:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -1700,6 +1709,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v13:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v6
     v14:UnicodeExact = CheckExc v13 {
@@ -1824,6 +1834,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v12:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v11:Object = VectorCall<1, static> v12 v6 {
@@ -1948,6 +1959,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v12:MortalUnicodeExact["a"] = LoadConst<MortalUnicodeExact["a"]>
     v15:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v7 v12

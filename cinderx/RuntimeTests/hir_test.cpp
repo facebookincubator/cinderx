@@ -606,6 +606,7 @@ TEST_F(HIRBuildTest, GetLength) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -691,6 +692,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
 #else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -804,6 +806,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
     v0 = LoadArg<0; "param0">
     v1 = LoadArg<1; "param1">
     v2 = LoadArg<2; "param2">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<3> v0 v1 v2
@@ -928,6 +931,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
 #else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -1014,6 +1018,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
 #else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -1256,6 +1261,82 @@ TEST_F(HIRBuildTest, ROT_N) {
   std::unique_ptr<Function> irfunc =
       build_test(bc, {Py_None, Py_None, Py_None, Py_None});
 
+#if PY_VERSION_HEX >= 0x030A0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    LoadFrame
+    Snapshot {
+      CurInstrOffset 0
+      Locals<4> v0 v1 v2 v3
+    }
+    v0 = CheckVar<"param0"> v0 {
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v0 v1 v2 v3
+      }
+    }
+    v1 = CheckVar<"param1"> v1 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<4> v0 v1 v2 v3
+        Stack<1> v0
+      }
+    }
+    v2 = CheckVar<"param2"> v2 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<4> v0 v1 v2 v3
+        Stack<2> v0 v1
+      }
+    }
+    v3 = CheckVar<"param3"> v3 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<4> v0 v1 v2 v3
+        Stack<3> v0 v1 v2
+      }
+    }
+    v4 = BinaryOp<Or> v1 v2 {
+      FrameState {
+        CurInstrOffset 10
+        Locals<4> v0 v1 v2 v3
+        Stack<2> v0 v3
+      }
+    }
+    Snapshot {
+      CurInstrOffset 12
+      Locals<4> v0 v1 v2 v3
+      Stack<3> v0 v3 v4
+    }
+    v5 = BinaryOp<Or> v3 v4 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<4> v0 v1 v2 v3
+        Stack<1> v0
+      }
+    }
+    Snapshot {
+      CurInstrOffset 14
+      Locals<4> v0 v1 v2 v3
+      Stack<2> v0 v5
+    }
+    v6 = BinaryOp<Or> v0 v5 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<4> v0 v1 v2 v3
+      }
+    }
+    Snapshot {
+      CurInstrOffset 16
+      Locals<4> v0 v1 v2 v3
+      Stack<1> v6
+    }
+    Return v6
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1329,6 +1410,7 @@ TEST_F(HIRBuildTest, ROT_N) {
   }
 }
 )";
+#endif
 
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
@@ -1380,6 +1462,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1468,6 +1551,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1563,6 +1647,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1655,6 +1740,7 @@ TEST_F(HIRBuildTest, ListExtend) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1751,6 +1837,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0

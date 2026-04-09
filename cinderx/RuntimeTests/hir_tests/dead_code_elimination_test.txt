@@ -12,6 +12,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v3:Nullptr = LoadConst<Nullptr>
     Snapshot
     v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
@@ -117,6 +118,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
     v11:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
@@ -415,6 +417,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v6:Nullptr = LoadConst<Nullptr>
     Snapshot
     v7:MortalCode["inner"] = LoadConst<MortalCode["inner"]>

@@ -975,48 +975,6 @@ class ThrowableErrorHandler : public ErrorHandler {
   }
 };
 
-#if defined(CINDER_AARCH64)
-// Save a set of callee-saved registers to the stack, properly handling both
-// GP (x) and VecD (d) registers. GP and VecD registers must not be mixed in
-// a single stp instruction.
-void saveCalleeSavedRegsAarch64(arch::Builder* as, PhyRegisterSet saved_regs) {
-  auto gp_regs = saved_regs & ALL_GP_REGISTERS;
-  auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
-
-  // Save GP registers first (they will be at higher addresses, restored last).
-  if (!gp_regs.Empty()) {
-    if (gp_regs.count() % 2 == 1) {
-      as->str(a64::x(gp_regs.GetFirst().loc), a64::ptr_pre(a64::sp, -16));
-      gp_regs.RemoveFirst();
-    }
-    while (!gp_regs.Empty()) {
-      auto first = a64::x(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
-      auto second = a64::x(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
-      as->stp(first, second, a64::ptr_pre(a64::sp, -16));
-    }
-  }
-
-  // Save VecD registers (they will be at lower addresses, restored first).
-  if (!vecd_regs.Empty()) {
-    if (vecd_regs.count() % 2 == 1) {
-      as->str(
-          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
-          a64::ptr_pre(a64::sp, -16));
-      vecd_regs.RemoveFirst();
-    }
-    while (!vecd_regs.Empty()) {
-      auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-      vecd_regs.RemoveFirst();
-      auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-      vecd_regs.RemoveFirst();
-      as->stp(first, second, a64::ptr_pre(a64::sp, -16));
-    }
-  }
-}
-#endif
-
 } // namespace
 
 NativeGenerator::NativeGenerator(const hir::Function* func)
@@ -1035,7 +993,6 @@ NativeGenerator::NativeGenerator(
       deopt_trampoline_{deopt_trampoline},
       deopt_trampoline_generators_{deopt_trampoline_generators},
       failed_deferred_compile_trampoline_{failed_deferred_compile_trampoline},
-      frame_asm_{func, env_},
       inline_stack_size_{calcInlineStackSize(func)} {
   env_.has_inlined_functions = inline_stack_size_ > 0;
 }
@@ -1086,7 +1043,6 @@ void* NativeGenerator::getVectorcallEntry() {
   }
 
   as_ = new arch::Builder(&code);
-  frame_asm_.setAssembler(as_);
 
   env_.as = as_;
   env_.hard_exit_label = as_->newLabel();
@@ -1175,8 +1131,13 @@ void* NativeGenerator::getVectorcallEntry() {
       "DeadCodeElimination",
       eliminateDeadCode(lir_func.get()))
 
+  int frame_header_size = jit::frameHeaderSize(func_->code);
+#if !defined(ENABLE_SHADOW_FRAMES)
+  frame_header_size += sizeof(void*);
+#endif
+
   LinearScanAllocator lsalloc(
-      lir_func.get(), frame_asm_.frameHeaderSize() + inline_stack_size_);
+      lir_func.get(), frame_header_size + inline_stack_size_);
 
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
@@ -1345,28 +1306,14 @@ NativeGenerator::FrameInfo NativeGenerator::computeFrameInfo() {
   return info;
 }
 
-int NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
+void NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
 #if defined(CINDER_X86_64)
-  int padding = frame_info.header_and_spill_size % kStackAlign;
-  as_->sub(x86::rsp, frame_info.header_and_spill_size + padding);
-  return padding;
+  as_->sub(x86::rsp, frame_info.size());
 #elif defined(CINDER_AARCH64)
-  int modulo = frame_info.header_and_spill_size % kStackAlign;
-  int padding = modulo == 0 ? 0 : kStackAlign - modulo;
   arch::sub_immediate(
-      as_,
-      a64::sp,
-      a64::sp,
-      static_cast<uint64_t>(frame_info.header_and_spill_size + padding));
-
-  // There is a difference here from x86-64, because the aarch64 stack cannot be
-  // misaligned. Here we are returning the amount of space that we have added to
-  // keep the stack aligned, as opposed to the amount of space that we have gone
-  // over the stack alignment.
-  return padding;
+      as_, a64::sp, a64::sp, static_cast<uint64_t>(frame_info.size()));
 #else
   CINDER_UNSUPPORTED
-  return 0;
 #endif
 }
 
@@ -1374,33 +1321,66 @@ void NativeGenerator::saveCallerRegisters(
     const FrameInfo& frame_info,
     [[maybe_unused]] arch::Gp tstate_reg) {
 #if defined(CINDER_X86_64)
-#ifdef ENABLE_SHADOW_FRAMES
-  frame_asm_.initializeFrameHeader(tstate_reg, x86::rax);
-#endif
-  // Push used callee-saved registers.
+  // Save used callee-saved registers at fixed RBP-relative offsets.
   auto saved_regs = frame_info.saved_regs;
+  int offset = frame_info.header_and_spill_size + kPointerSize;
   while (!saved_regs.Empty()) {
-    as_->push(x86::gpq(saved_regs.GetFirst().loc));
+    as_->mov(x86::ptr(x86::rbp, -offset), x86::gpq(saved_regs.GetFirst().loc));
+    offset += kPointerSize;
     saved_regs.RemoveFirst();
   }
-
-  if (frame_info.arg_buffer_size > 0) {
-    as_->sub(x86::rsp, frame_info.arg_buffer_size);
-  }
 #elif defined(CINDER_AARCH64)
-#ifdef ENABLE_SHADOW_FRAMES
-  frame_asm_.initializeFrameHeader(tstate_reg, a64::x0);
-#endif
-  // Push used callee-saved registers.
-  saveCalleeSavedRegsAarch64(as_, frame_info.saved_regs);
+  // Save used callee-saved registers at fixed offsets below FP.
+  // We use a scratch register as base to avoid large FP-relative offsets
+  // that can exceed arm64 stp/str encoding range.
+  auto gp_regs = frame_info.saved_regs & ALL_GP_REGISTERS;
+  auto vecd_regs = frame_info.saved_regs & ALL_VECD_REGISTERS;
 
-  if (frame_info.arg_buffer_size > 0) {
-    JIT_CHECK(frame_info.arg_buffer_size % kStackAlign == 0, "unaligned");
-    arch::sub_immediate(
-        as_,
-        a64::sp,
-        a64::sp,
-        static_cast<uint64_t>(frame_info.arg_buffer_size));
+  // base = fp - header_and_spill_size (points to start of callee-saved area)
+  arch::sub_immediate(
+      as_,
+      arch::reg_scratch_0,
+      arch::fp,
+      static_cast<uint64_t>(frame_info.header_and_spill_size));
+
+  // GP registers are stored first (at higher addresses, right after
+  // header+spill). Offsets are small negatives from the scratch base.
+  int offset = 0;
+  if (!gp_regs.Empty()) {
+    if (gp_regs.count() % 2 == 1) {
+      as_->str(
+          a64::x(gp_regs.GetFirst().loc),
+          a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+      gp_regs.RemoveFirst();
+      offset += 16;
+    }
+    while (!gp_regs.Empty()) {
+      auto first = a64::x(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+      auto second = a64::x(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+      as_->stp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+      offset += 16;
+    }
+  }
+
+  // VecD registers are stored next (at lower addresses).
+  if (!vecd_regs.Empty()) {
+    if (vecd_regs.count() % 2 == 1) {
+      as_->str(
+          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+      vecd_regs.RemoveFirst();
+      offset += 16;
+    }
+    while (!vecd_regs.Empty()) {
+      auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+      vecd_regs.RemoveFirst();
+      auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+      vecd_regs.RemoveFirst();
+      as_->stp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
+      offset += 16;
+    }
   }
 #else
   CINDER_UNSUPPORTED
@@ -1411,14 +1391,11 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(
     const FrameInfo& frame_info,
     arch::Gp tstate_reg) {
 #if defined(CINDER_X86_64)
-  as_->sub(x86::rsp, frame_info.header_and_spill_size);
+  as_->sub(x86::rsp, frame_info.size());
 #elif defined(CINDER_AARCH64)
-  JIT_CHECK(frame_info.header_and_spill_size % kStackAlign == 0, "unaligned");
+  JIT_CHECK(frame_info.size() % kStackAlign == 0, "unaligned");
   arch::sub_immediate(
-      as_,
-      a64::sp,
-      a64::sp,
-      static_cast<uint64_t>(frame_info.header_and_spill_size));
+      as_, a64::sp, a64::sp, static_cast<uint64_t>(frame_info.size()));
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1443,19 +1420,6 @@ arch::Gp get_arg_location(int arg) {
 #endif
 
   JIT_ABORT("should only be used with first six args");
-}
-
-bool NativeGenerator::linkFrameNeedsSpill() {
-  if (!isGen()) {
-    return true;
-  }
-
-  // On 3.12 we link the frame immediately so we need to preserve the
-  // arguments for generators as well.
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    return false;
-  }
-  return true;
 }
 
 void NativeGenerator::generatePrologue(
@@ -1496,27 +1460,19 @@ void NativeGenerator::generatePrologue(
   }
 
   // Args are now validated, setup frame.
-  constexpr auto kFuncPtrReg = x86::gpq(INITIAL_FUNC_REG.loc);
   constexpr auto kArgsReg = x86::gpq(INITIAL_EXTRA_ARGS_REG.loc);
   constexpr auto kArgsPastSixReg = kArgsReg;
 
   asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
-  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
 
-  save_regs.emplace_back(x86::rsi, kArgsReg);
-  if (GetFunction()->uses_runtime_func) {
-    save_regs.emplace_back(x86::rdi, kFuncPtrReg);
-  }
+  // Ensure that rsp is below the stack allocated interpreter frame fields,
+  // preventing the signal handling routine in the kernel from overwriting them.
+  allocateHeaderAndSpillSpace(frame_info);
 
-  // Ensure that rsp is below the fields in the stack allocated interpreter
-  // frame that may be initialized in the `generateLinkFrame` call below,
-  // preventing the signal handling routine in the kernel from overwriting
-  // them.
-  int padding = allocateHeaderAndSpillSpace(frame_info);
-
-  frame_asm_.generateLinkFrame(
-      kFuncPtrReg, x86::gpq(INITIAL_TSTATE_REG.loc), save_regs);
+  // Move the args pointer from the calling convention register (rsi) to the
+  // internal register (r10) used by the rest of the function.
+  as_->mov(kArgsReg, x86::rsi);
 
   env_.addAnnotation("Link frame", frame_cursor);
 
@@ -1544,12 +1500,6 @@ void NativeGenerator::generatePrologue(
         x86::ptr(kArgsReg, (ARGUMENT_REGS.size() - 1) * sizeof(void*)));
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
-
-  // We already allocated stack space for the header and spill data, clean
-  // up any alignment padding we added
-  if (padding) {
-    as_->add(x86::rsp, padding);
-  }
 
   // Finally allocate the saved space required for the actual function.
   auto finish_frame_setup_cursor = as_->cursor();
@@ -1591,28 +1541,19 @@ void NativeGenerator::generatePrologue(
   }
 
   // Args are now validated, setup frame.
-  constexpr auto kFuncPtrReg = a64::x(INITIAL_FUNC_REG.loc);
   constexpr auto kArgsReg = a64::x(INITIAL_EXTRA_ARGS_REG.loc);
   constexpr auto kArgsPastEightReg = kArgsReg;
 
   asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
-  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
 
-  save_regs.emplace_back(a64::x1, kArgsReg);
-  if (GetFunction()->uses_runtime_func) {
-    save_regs.emplace_back(a64::x0, kFuncPtrReg);
-  }
+  // Ensure that sp is below the stack allocated interpreter frame fields,
+  // preventing the signal handling routine in the kernel from overwriting them.
+  allocateHeaderAndSpillSpace(frame_info);
 
-  // Ensure that sp is below the fields in the stack allocated interpreter
-  // frame that may be initialized in the `generateLinkFrame` call below,
-  // preventing the signal handling routine in the kernel from overwriting
-  // them. Note that we do not need to worry about the padding here, as the
-  // stack is already aligned by that allocation function.
-  (void)allocateHeaderAndSpillSpace(frame_info);
-
-  frame_asm_.generateLinkFrame(
-      kFuncPtrReg, a64::x(INITIAL_TSTATE_REG.loc), save_regs);
+  // Move the args pointer from the calling convention register (x1) to the
+  // internal register (x10) used by the rest of the function.
+  as_->mov(kArgsReg, a64::x1);
 
   env_.addAnnotation("Link frame", frame_cursor);
 
@@ -2288,109 +2229,22 @@ void NativeGenerator::generateStaticEntryPoint(
 
   generateFunctionEntry();
 
-  // Save incoming args across link call...
   size_t total_args = (size_t)GetFunction()->numArgs();
-
-  const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
-  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
-
-  if (linkFrameNeedsSpill()) {
-    save_regs.emplace_back(x86::rdi, x86::rdi);
-    for (size_t i = 0, check_index = 0, arg_index = 0, fp_index = 0;
-         i < total_args;
-         i++) {
-      if (check_index < checks.size() &&
-          checks[check_index].locals_idx == static_cast<int>(i)) {
-        if (checks[check_index++].jit_type <= TCDouble &&
-            fp_index < FP_ARGUMENT_REGS.size()) {
-          switch (FP_ARGUMENT_REGS[fp_index++].loc) {
-            case XMM0.loc:
-              save_regs.emplace_back(x86::xmm0, x86::xmm0);
-              break;
-            case XMM1.loc:
-              save_regs.emplace_back(x86::xmm1, x86::xmm1);
-              break;
-            case XMM2.loc:
-              save_regs.emplace_back(x86::xmm2, x86::xmm2);
-              break;
-            case XMM3.loc:
-              save_regs.emplace_back(x86::xmm3, x86::xmm3);
-              break;
-            case XMM4.loc:
-              save_regs.emplace_back(x86::xmm4, x86::xmm4);
-              break;
-            case XMM5.loc:
-              save_regs.emplace_back(x86::xmm5, x86::xmm5);
-              break;
-            case XMM6.loc:
-              save_regs.emplace_back(x86::xmm6, x86::xmm6);
-              break;
-            case XMM7.loc:
-              save_regs.emplace_back(x86::xmm7, x86::xmm7);
-              break;
-            default:
-              break;
-          }
-          continue;
-        }
-      }
-
-      if (arg_index + 1 < ARGUMENT_REGS.size()) {
-        switch (ARGUMENT_REGS[++arg_index].loc) {
-          case RDI.loc:
-            save_regs.emplace_back(x86::rdi, x86::rdi);
-            break;
-          case RSI.loc:
-            save_regs.emplace_back(x86::rsi, x86::rsi);
-            break;
-          case RDX.loc:
-            save_regs.emplace_back(x86::rdx, x86::rdx);
-            break;
-          case RCX.loc:
-            save_regs.emplace_back(x86::rcx, x86::rcx);
-            break;
-          case R8.loc:
-            save_regs.emplace_back(x86::r8, x86::r8);
-            break;
-          case R9.loc:
-            save_regs.emplace_back(x86::r9, x86::r9);
-            break;
-          default:
-            break;
-        }
-      }
-    }
-  }
 
   bool need_extra_args_load = total_args + 1 > ARGUMENT_REGS.size();
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     if (need_extra_args_load && isGen()) {
       // In 3.12 for generators we'll end up replacing rbp with a pointer
       // into the generator object when we link the frame. We need to
-      // capture the incoming arguments first, which will mean we'll
-      // need to save and restore the register.
+      // capture the incoming arguments first.
       as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
-      save_regs.emplace_back(x86::r10, x86::r10);
       need_extra_args_load = false;
     }
   }
 
-  // Ensure that rsp is below the fields in the stack allocated interpreter
-  // frame that may be initialized in the `generateLinkFrame` call below,
-  // preventing the signal handling routine in the kernel from overwriting
-  // them.
-  int padding = allocateHeaderAndSpillSpace(frame_info);
-
-  frame_asm_.generateLinkFrame(
-      x86::gpq(INITIAL_FUNC_REG.loc),
-      x86::gpq(INITIAL_TSTATE_REG.loc),
-      save_regs);
-
-  // We already allocated stack space for the header and spill data, clean
-  // up any alignment padding we added
-  if (padding) {
-    as_->add(x86::rsp, padding);
-  }
+  // Ensure that rsp is below the stack allocated interpreter frame fields,
+  // preventing the signal handling routine in the kernel from overwriting them.
+  allocateHeaderAndSpillSpace(frame_info);
 
   if (need_extra_args_load) {
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
@@ -2413,107 +2267,22 @@ void NativeGenerator::generateStaticEntryPoint(
 
   generateFunctionEntry();
 
-  // Save incoming args across link call...
   size_t total_args = (size_t)GetFunction()->numArgs();
-
-  const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
-  std::vector<std::pair<const arch::Reg&, const arch::Reg&>> save_regs;
-
-  if (linkFrameNeedsSpill()) {
-    save_regs.emplace_back(a64::x0, a64::x0);
-    for (size_t i = 0, check_index = 0, arg_index = 0, fp_index = 0;
-         i < total_args;
-         i++) {
-      if (check_index < checks.size() &&
-          checks[check_index].locals_idx == static_cast<int>(i)) {
-        if (checks[check_index++].jit_type <= TCDouble &&
-            fp_index < FP_ARGUMENT_REGS.size()) {
-          switch (FP_ARGUMENT_REGS[fp_index++].loc) {
-            case D0.loc:
-              save_regs.emplace_back(a64::d0, a64::d0);
-              break;
-            case D1.loc:
-              save_regs.emplace_back(a64::d1, a64::d1);
-              break;
-            case D2.loc:
-              save_regs.emplace_back(a64::d2, a64::d2);
-              break;
-            case D3.loc:
-              save_regs.emplace_back(a64::d3, a64::d3);
-              break;
-            case D4.loc:
-              save_regs.emplace_back(a64::d4, a64::d4);
-              break;
-            case D5.loc:
-              save_regs.emplace_back(a64::d5, a64::d5);
-              break;
-            case D6.loc:
-              save_regs.emplace_back(a64::d6, a64::d6);
-              break;
-            case D7.loc:
-              save_regs.emplace_back(a64::d7, a64::d7);
-              break;
-            default:
-              break;
-          }
-          continue;
-        }
-      }
-
-      if (arg_index + 1 < ARGUMENT_REGS.size()) {
-        switch (ARGUMENT_REGS[++arg_index].loc) {
-          case X0.loc:
-            save_regs.emplace_back(a64::x0, a64::x0);
-            break;
-          case X1.loc:
-            save_regs.emplace_back(a64::x1, a64::x1);
-            break;
-          case X2.loc:
-            save_regs.emplace_back(a64::x2, a64::x2);
-            break;
-          case X3.loc:
-            save_regs.emplace_back(a64::x3, a64::x3);
-            break;
-          case X4.loc:
-            save_regs.emplace_back(a64::x4, a64::x4);
-            break;
-          case X5.loc:
-            save_regs.emplace_back(a64::x5, a64::x5);
-            break;
-          case X6.loc:
-            save_regs.emplace_back(a64::x6, a64::x6);
-            break;
-          case X7.loc:
-            save_regs.emplace_back(a64::x7, a64::x7);
-            break;
-          default:
-            break;
-        }
-      }
-    }
-  }
 
   bool need_extra_args_load = total_args + 1 > ARGUMENT_REGS.size();
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     if (need_extra_args_load && isGen()) {
       // In 3.12 for generators we'll end up replacing fp with a pointer
       // into the generator object when we link the frame. We need to
-      // capture the incoming arguments first, which will mean we'll
-      // need to save and restore the register.
+      // capture the incoming arguments first.
       as_->add(a64::x10, arch::fp, arch::kFrameRecordSize);
-      save_regs.emplace_back(a64::x10, a64::x10);
       need_extra_args_load = false;
     }
   }
 
-  // Ensure that sp is below the fields in the stack allocated interpreter
-  // frame that may be initialized in the `generateLinkFrame` call below,
-  // preventing the signal handling routine in the kernel from overwriting
-  // them.
+  // Ensure that sp is below the stack allocated interpreter frame fields,
+  // preventing the signal handling routine in the kernel from overwriting them.
   allocateHeaderAndSpillSpace(frame_info);
-
-  frame_asm_.generateLinkFrame(
-      a64::x(INITIAL_FUNC_REG.loc), a64::x(INITIAL_TSTATE_REG.loc), save_regs);
 
   if (need_extra_args_load) {
     as_->add(a64::x10, arch::fp, arch::kFrameRecordSize);

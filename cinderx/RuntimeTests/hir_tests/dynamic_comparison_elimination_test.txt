@@ -242,6 +242,7 @@ def test(x):
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
+    LoadFrame
     Snapshot
     v8:OptObject = LoadGlobalCached<0; "isinstance">
     v9:MortalObjectUser[builtin_function_or_method:isinstance:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {

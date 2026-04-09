@@ -13,6 +13,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v9:Nullptr = LoadConst<Nullptr>
     Snapshot
     v10:CInt32 = CallStatic<Ci_static_rand@0xdeadbeef, 0>
@@ -158,6 +159,7 @@ def test() -> double:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v4:Nullptr = LoadConst<Nullptr>
     Snapshot
     v5:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>

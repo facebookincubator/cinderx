@@ -116,6 +116,7 @@ def test():
 #else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
     }
@@ -489,6 +490,7 @@ def test(fs):
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "fs">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -802,6 +804,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1078,6 +1081,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1290,6 +1294,7 @@ def test(f, a):
   bb 0 {
     v0 = LoadArg<0; "f">
     v1 = LoadArg<1; "a">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1460,6 +1465,7 @@ def test(f, a):
   bb 0 {
     v0 = LoadArg<0; "f">
     v1 = LoadArg<1; "a">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -1637,6 +1643,7 @@ def test(f):
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "f">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -1843,6 +1850,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2040,6 +2048,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2249,6 +2258,7 @@ def test(x):
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<1> v0
@@ -2438,6 +2448,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2647,6 +2658,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -2895,6 +2907,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -3111,6 +3124,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -3310,6 +3324,7 @@ def test(x, y):
   bb 0 {
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1
@@ -3565,6 +3580,7 @@ def test(x):
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
+    LoadFrame
     Snapshot {
       CurInstrOffset 0
       Locals<2> v0 v1

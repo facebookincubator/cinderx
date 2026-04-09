@@ -16,6 +16,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
@@ -186,6 +187,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v12:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
@@ -457,6 +459,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v5:MortalUnicodeExact["x"] = LoadConst<MortalUnicodeExact["x"]>
@@ -670,6 +673,7 @@ def test() -> int8:
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:ObjectUser[C:Exact] = TpAlloc<C> {
       FrameState {

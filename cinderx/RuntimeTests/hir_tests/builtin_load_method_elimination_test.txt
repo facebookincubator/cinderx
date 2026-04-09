@@ -10,6 +10,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:MortalUnicodeExact["Hello"] = LoadConst<MortalUnicodeExact["Hello"]>
     UseType<MortalUnicodeExact> v4
@@ -142,6 +143,7 @@ def test(seq):
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "seq">
+    LoadFrame
     Snapshot
     v6:MortalUnicodeExact[","] = LoadConst<MortalUnicodeExact[","]>
     UseType<MortalUnicodeExact> v6
@@ -289,6 +291,7 @@ fun jittestmodule:test {
   bb 0 {
     v9:Object = LoadArg<0; "seq">
     v10:Object = LoadArg<1; "use_comma">
+    LoadFrame
     v11:Nullptr = LoadConst<Nullptr>
     Snapshot
     v13:CBool = IsTruthy v10 {
@@ -548,6 +551,7 @@ def test(name):
 fun jittestmodule:test {
   bb 0 {
     v8:Object = LoadArg<0; "name">
+    LoadFrame
     Snapshot
     v9:MortalUnicodeExact["{}.{}"] = LoadConst<MortalUnicodeExact["{}.{}"]>
     UseType<MortalUnicodeExact> v9
@@ -757,6 +761,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v7:MortalUnicodeExact["x"] = LoadConst<MortalUnicodeExact["x"]>
     UseType<MortalUnicodeExact> v7
@@ -937,6 +942,7 @@ async def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     v14:OptNoneType = InitialYield {
       FrameState {
         CurInstrOffset -2
@@ -1378,6 +1384,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:OptObject = LoadGlobalCached<0; "str">
     v6:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v5 {
@@ -1609,6 +1616,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v4:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v8:Object = LoadMethodCached<0; "unknown"> v4 {
@@ -1752,6 +1760,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:MortalBytesExact[''] = LoadConst<MortalBytesExact['']>
     UseType<MortalBytesExact> v5
@@ -1891,6 +1900,7 @@ def test():
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
+    LoadFrame
     Snapshot
     v5:MortalUnicodeExact["%s"] = LoadConst<MortalUnicodeExact["%s"]>
     UseType<MortalUnicodeExact> v5
