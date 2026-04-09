@@ -401,10 +401,68 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   }
 #endif
 
+#if defined(CINDER_AARCH64)
+  // Compute the caller FrameState and active code object at each block's entry
+  // by walking the CFG. Needed because blocks inside an inlined function may
+  // not contain BeginInlinedFunction themselves (they're reached via branches).
+  struct BlockInlineCtx {
+    const hir::FrameState* caller_fs{nullptr};
+    BorrowedRef<PyCodeObject> code{nullptr};
+  };
+  UnorderedMap<const hir::BasicBlock*, BlockInlineCtx> block_inline_ctx;
+  if (deopt_idx_addr_ != nullptr) {
+    auto hir_entry_block = GetHIRFunction()->cfg.entry_block;
+    std::vector<const hir::BasicBlock*> bfs;
+    bfs.push_back(hir_entry_block);
+    block_inline_ctx[hir_entry_block] = {nullptr, func_->code};
+    for (size_t bi = 0; bi < bfs.size(); ++bi) {
+      const auto* block = bfs[bi];
+      auto ctx = block_inline_ctx[block];
+      for (const auto& instr : *block) {
+        if (instr.opcode() == Opcode::kBeginInlinedFunction) {
+          auto bif = static_cast<const BeginInlinedFunction*>(&instr);
+          ctx.caller_fs = bif->callerFrameState();
+          ctx.code = bif->code();
+        } else if (instr.opcode() == Opcode::kEndInlinedFunction) {
+          if (ctx.caller_fs != nullptr) {
+            ctx.code = ctx.caller_fs->code;
+            ctx.caller_fs = ctx.caller_fs->parent;
+          } else {
+            ctx.code = nullptr;
+          }
+        }
+      }
+      auto term = block->GetTerminator();
+      for (int s = 0, ns = term->numEdges(); s < ns; s++) {
+        auto succ = term->successor(s);
+        auto [it, inserted] = block_inline_ctx.insert({succ, ctx});
+        if (inserted) {
+          bfs.push_back(succ);
+        } else {
+          JIT_DCHECK(
+              block_inline_ctx[succ].caller_fs == ctx.caller_fs &&
+                  block_inline_ctx[succ].code == ctx.code,
+              "inconsistent inline context");
+        }
+      }
+    }
+  }
+#endif
+
   UnorderedMap<const hir::BasicBlock*, TranslatedBlock> bb_map;
   std::vector<const hir::BasicBlock*> translated;
   auto translate_block = [&](const hir::BasicBlock* hir_bb) {
+#if defined(CINDER_AARCH64)
+    auto it = block_inline_ctx.find(hir_bb);
+    const hir::FrameState* entry_fs =
+        it != block_inline_ctx.end() ? it->second.caller_fs : nullptr;
+    BorrowedRef<PyCodeObject> entry_code =
+        it != block_inline_ctx.end() ? it->second.code : nullptr;
+    bb_map.emplace(
+        hir_bb, TranslateOneBasicBlock(hir_bb, entry_fs, entry_code));
+#else
     bb_map.emplace(hir_bb, TranslateOneBasicBlock(hir_bb));
+#endif
     translated.emplace_back(hir_bb);
   };
 
@@ -715,15 +773,17 @@ void LIRGenerator::MakeDecref(
 }
 
 LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
-    const hir::BasicBlock* hir_bb) {
+    const hir::BasicBlock* hir_bb,
+    const jit::hir::FrameState* initial_caller_fs,
+    BorrowedRef<PyCodeObject> initial_inlined_code) {
   BasicBlockBuilder bbb{env_, lir_func_};
   BasicBlock* entry_block = bbb.allocateBlock();
   bbb.switchBlock(entry_block);
 
 #if defined(CINDER_AARCH64)
-  // Track the last line number stored in deopt_idx so we can avoid redundant
-  // updates for Decrefs on the same line.
   int last_deopt_line = -1;
+  const jit::hir::FrameState* caller_fs = initial_caller_fs;
+  BorrowedRef<PyCodeObject> inlined_code = initial_inlined_code;
 #endif
 
   for (auto& i : *hir_bb) {
@@ -731,7 +791,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
     bbb.setCurrentInstr(&i);
 
 #if defined(CINDER_AARCH64)
-    updateDeoptIndex(bbb, i, opcode, last_deopt_line);
+    if (opcode == Opcode::kBeginInlinedFunction) {
+      auto bif = static_cast<const BeginInlinedFunction*>(&i);
+      caller_fs = bif->callerFrameState();
+      inlined_code = bif->code();
+      last_deopt_line = -1;
+    } else if (opcode == Opcode::kEndInlinedFunction) {
+      if (caller_fs != nullptr) {
+        inlined_code = caller_fs->code;
+        caller_fs = caller_fs->parent;
+      } else {
+        inlined_code = nullptr;
+      }
+      last_deopt_line = -1;
+    }
+    updateDeoptIndex(bbb, i, opcode, last_deopt_line, caller_fs, inlined_code);
 #endif
 
     switch (opcode) {
@@ -3716,7 +3790,9 @@ void LIRGenerator::updateDeoptIndex(
     BasicBlockBuilder& bbb,
     const jit::hir::Instr& i,
     jit::hir::Opcode opcode,
-    int& last_deopt_line) {
+    int& last_deopt_line,
+    const jit::hir::FrameState* caller_fs,
+    BorrowedRef<PyCodeObject> inlined_code) {
   // For any instruction that can deopt, store the deopt index in the
   // outermost frame header before the instruction executes. This allows
   // frame introspection (e.g. sys._current_frames) to recover the current
@@ -3727,28 +3803,46 @@ void LIRGenerator::updateDeoptIndex(
         OutInd{deopt_idx_addr_, 0},
         Instruction::kMove,
         Imm{deopt_id, DataType::k64bit});
-    auto code = func_->codeFor(i);
-    last_deopt_line = code != nullptr
-        ? PyCode_Addr2Line(code, i.bytecodeOffset().value())
-        : -1;
+    // Use inlined_code when inside an inlined function, otherwise codeFor().
+    auto code = inlined_code != nullptr ? inlined_code : func_->codeFor(i);
+    int bc_off = i.bytecodeOffset().value();
+    last_deopt_line =
+        (code != nullptr && bc_off >= 0) ? PyCode_Addr2Line(code, bc_off) : -1;
   } else if (
       deopt_idx_addr_ != nullptr &&
       (opcode == Opcode::kDecref || opcode == Opcode::kXDecref ||
        opcode == Opcode::kBatchDecref)) {
     // Decref/XDecref can run arbitrary code via __del__ but don't have
-    // deopt metadata. Create a minimal entry so that frame introspection
+    // deopt metadata. Create an entry so that frame introspection
     // reports the correct bytecode offset / line number, but only when
     // the line differs from the last deopt point in this basic block.
-    auto code = func_->codeFor(i);
-    int decref_line = code != nullptr
-        ? PyCode_Addr2Line(code, i.bytecodeOffset().value())
-        : -1;
+    //
+    // When executing inside an inlined function, we must include entries
+    // for all active frames (not just the innermost) so that
+    // getUnitCallStackFromDeoptIdx returns a stack matching getUnitFrames.
+    // Use inlined_code when inside an inlined function, otherwise codeFor().
+    auto code = inlined_code != nullptr ? inlined_code : func_->codeFor(i);
+    int bc_off = i.bytecodeOffset().value();
+    int decref_line =
+        (code != nullptr && bc_off >= 0) ? PyCode_Addr2Line(code, bc_off) : -1;
     if (decref_line != last_deopt_line) {
       DeoptMetadata meta;
-      DeoptFrameMetadata frame_meta;
-      frame_meta.code = code;
-      frame_meta.cause_instr_idx = i.bytecodeOffset();
-      meta.frame_meta = {frame_meta};
+      int num_callers = 0;
+      for (const auto* f = caller_fs; f != nullptr; f = f->parent) {
+        num_callers++;
+      }
+      int num_frames = num_callers + 1;
+      meta.frame_meta.resize(num_frames);
+      // Innermost frame: the Decref's own code and bytecode offset.
+      meta.frame_meta[num_frames - 1].code = code;
+      meta.frame_meta[num_frames - 1].cause_instr_idx = i.bytecodeOffset();
+      // Caller frames from the FrameState parent chain (outermost first).
+      int idx = num_frames - 2;
+      for (const auto* f = caller_fs; f != nullptr; f = f->parent) {
+        meta.frame_meta[idx].code = f->code;
+        meta.frame_meta[idx].cause_instr_idx = f->instrOffset();
+        idx--;
+      }
       auto deopt_id = env_->code_rt->addDeoptMetadata(std::move(meta));
       bbb.appendInstr(
           OutInd{deopt_idx_addr_, 0},

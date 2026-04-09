@@ -129,14 +129,19 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& i,
       jit::hir::Opcode opcode,
-      int& last_deopt_line);
+      int& last_deopt_line,
+      const jit::hir::FrameState* caller_fs,
+      BorrowedRef<PyCodeObject> inlined_code);
 #endif
 
   bool TranslateSpecializedCall(
       BasicBlockBuilder& bbb,
       const hir::VectorCall& instr);
 
-  TranslatedBlock TranslateOneBasicBlock(const hir::BasicBlock* bb);
+  TranslatedBlock TranslateOneBasicBlock(
+      const hir::BasicBlock* bb,
+      const hir::FrameState* initial_caller_fs = nullptr,
+      BorrowedRef<PyCodeObject> initial_inlined_code = nullptr);
 
   // Fill in operands for phi instructions.  This is executed after LIR
   // instructions have been generated for all values in the control flow graph.
