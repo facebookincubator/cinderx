@@ -796,7 +796,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
           decltype(prepareForDeopt),
           CiPyFrameObjType*(const uint64_t*, CodeRuntime*, std::size_t)>,
       "prepareForDeopt has unexpected signature");
-  a.bl(prepareForDeopt);
+  a.mov(arch::reg_scratch_br, prepareForDeopt);
+  a.blr(arch::reg_scratch_br);
 
   // Clean up saved registers.
   //
@@ -828,7 +829,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
           decltype(resumeInInterpreter),
           PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
       "resumeInInterpreter has unexpected signature");
-  a.bl(resumeInInterpreter);
+  a.mov(arch::reg_scratch_br, resumeInInterpreter);
+  a.blr(arch::reg_scratch_br);
 
   // If we return a primitive and prepareForDeopt returned null, we need that
   // null in w2/d1 to signal error to our caller. Since this trampoline is
@@ -920,7 +922,8 @@ void* generateFailedDeferredCompileTrampoline() {
   annot.add("saveRegisters", &a, annot_cursor);
 
   a.mov(a64::x0, a64::sp);
-  a.bl(JITRT_FailedDeferredCompileShim);
+  a.mov(arch::reg_scratch_br, JITRT_FailedDeferredCompileShim);
+  a.blr(arch::reg_scratch_br);
   a.mov(a64::sp, arch::fp);
   a.ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
   a.ret(arch::lr);
