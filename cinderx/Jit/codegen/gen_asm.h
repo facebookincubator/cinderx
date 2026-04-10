@@ -122,11 +122,9 @@ class NativeGenerator {
     }
   };
   FrameInfo computeFrameInfo();
-  void setupFrameAndSaveCallerRegisters(
-      const FrameInfo& frame_info,
-      arch::Gp tstate_reg);
+  void setupFrameAndSaveCallerRegisters(const FrameInfo& frame_info);
   void allocateHeaderAndSpillSpace(const FrameInfo& frame_info);
-  void saveCallerRegisters(const FrameInfo& frame_info, arch::Gp tstate_reg);
+  void saveCallerRegisters(const FrameInfo& frame_info);
 
   int maxInlineStackSize();
   void generatePrologue(
