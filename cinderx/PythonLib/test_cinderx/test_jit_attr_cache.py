@@ -9,7 +9,7 @@ from textwrap import dedent
 import cinderx
 import cinderx.jit
 import cinderx.test_support as cinder_support
-from cinderx.test_support import passIf, passUnless, skip_module_if_oss
+from cinderx.test_support import passIf, passUnless, skip_if_ft, skip_module_if_oss
 
 skip_module_if_oss()
 
@@ -210,6 +210,7 @@ class LoadMethodCacheTests(unittest.TestCase):
 
 @passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 class LoadModuleMethodCacheTests(unittest.TestCase):
+    @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
     def test_load_method_from_module(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -256,6 +257,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 tmp_b.test()
 
+    @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
     @passUnless(
         cinderx.is_initialized(),
         "Strict Module test code doesn't exist outside of CinderX",
