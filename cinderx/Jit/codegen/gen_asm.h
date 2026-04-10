@@ -122,8 +122,6 @@ class NativeGenerator {
     }
   };
   FrameInfo computeFrameInfo();
-  void setupFrameAndSaveCallerRegisters(const FrameInfo& frame_info);
-  void allocateHeaderAndSpillSpace(const FrameInfo& frame_info);
   void saveCallerRegisters(const FrameInfo& frame_info);
 
   int maxInlineStackSize();
@@ -135,7 +133,6 @@ class NativeGenerator {
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
   Py_ssize_t giJITDataOffset();
-  void generateResumeEntry(const FrameInfo& frame_info);
   void generateStaticMethodTypeChecks(asmjit::Label setup_frame);
   void generateStaticEntryPoint(
       asmjit::Label native_entry_point,

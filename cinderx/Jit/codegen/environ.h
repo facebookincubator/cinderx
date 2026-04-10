@@ -132,6 +132,16 @@ struct Environ {
   // these; gen_asm.cpp emits the pool data after deopt exits.
   UnorderedMap<uint64_t, asmjit::Label> const_pool_labels;
 #endif
+
+  // Frame layout computed after register allocation. Read by the kSetupFrame
+  // autogen translator for both the normal entry and generator resume entry.
+  int resume_frame_total_size{0};
+  int resume_header_and_spill_size{0};
+  PhyRegisterSet resume_saved_regs{0};
+
+  // Byte offset of gi_jit_data within a generator object, computed per
+  // function. Read by the resume entry block builder.
+  Py_ssize_t gi_jit_data_offset{0};
 };
 
 } // namespace jit::codegen
