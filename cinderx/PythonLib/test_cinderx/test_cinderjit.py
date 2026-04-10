@@ -29,6 +29,7 @@ from cinderx.test_support import (
     passIf,
     passUnless,
     run_in_subprocess,
+    skip_if_ft,
     skip_module_if_oss,
     skip_unless_jit,
     subprocess_env,
@@ -168,6 +169,7 @@ class InlineCacheStatsTests(unittest.TestCase):
         not cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "meaningless without inline cache stats collection enabled",
     )
+    @skip_if_ft("T250369692: Inline caches disabled with free-threading")
     def test_load_method_cache_stats(self) -> None:
         # Clear inline cache stats of any collected data from importing
         # builtin modules
@@ -879,6 +881,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             self.load_method_on_maybe_defined_value()
 
     @run_in_subprocess
+    @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
     def test_condbranch_codegen(self) -> None:
         codestr = """
             from __static__ import cbool
@@ -1562,6 +1565,7 @@ class SuperAccessTest(unittest.TestCase):
 class RegressionTests(StaticTestBase):
     # Detects an issue in the backend where the Store instruction generated 32-
     # bit memory writes for 64-bit constants.
+    @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
     def test_store_of_64bit_immediates(self) -> None:
         codestr = """
             from __static__ import int64, box

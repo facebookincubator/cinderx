@@ -13,6 +13,7 @@ from cinderx.test_support import (
     ENCODING,
     has_meta_lazy_imports,
     passUnless,
+    skip_if_ft,
     skip_unless_jit,
     subprocess_env,
 )
@@ -28,6 +29,7 @@ class PreloadTests(unittest.TestCase):
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
+    @skip_if_ft("Batch multi-threaded compile not supported with free threading")
     def test_func_destroyed_during_preload(self) -> None:
         proc = subprocess.run(
             [
