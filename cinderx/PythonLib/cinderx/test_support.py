@@ -10,6 +10,7 @@ import multiprocessing
 import os.path
 import platform
 import sys
+import sysconfig
 import tempfile
 import types
 import unittest
@@ -37,6 +38,8 @@ ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
 
 # Hack to allow subprocesses to find where the cinderx module is.
 CINDERX_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
+
+FREE_THREADING_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
 
 def subprocess_env() -> dict[str, str]:
@@ -164,6 +167,10 @@ def passUnless(condition: object, reason: str) -> Callable[[_FT], _FT]:
 
 def skip_if_jit(reason: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
     return passIf(cinderx.jit.is_enabled(), reason)
+
+
+def skip_if_ft(reason: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return passIf(FREE_THREADING_BUILD, reason)
 
 
 def skip_unless_jit(
