@@ -464,24 +464,6 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   // generate entry block and exit block
   entry_block_ = GenerateEntryBlock();
 
-#if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  // Compute the address of the deopt_idx field once in the entry block.
-  // TranslateOneBasicBlock reuses this for all deopt index stores.
-  // For generators this is deferred to emitLoadFrame, because FP is swapped
-  // to point at the heap-allocated GenDataFooter after the entry block runs.
-  if (func_->code != nullptr &&
-      getConfig().frame_mode == FrameMode::kLightweight &&
-      !(func_->code->co_flags & kCoFlagsAnyGenerator)) {
-    int32_t deopt_idx_offset = static_cast<int32_t>(
-        -(Py_ssize_t)frameHeaderSize(func_->code) +
-        offsetof(FrameHeader, deopt_idx));
-    auto* instr = entry_block_->allocateInstr(Instruction::kLea, nullptr);
-    instr->output()->setVirtualRegister();
-    instr->allocateStackInput(PhyLocation(deopt_idx_offset));
-    deopt_idx_addr_ = instr;
-  }
-#endif
-
 #if defined(CINDER_AARCH64)
   // Compute the caller FrameState and active code object at each block's entry
   // by walking the CFG. Needed because blocks inside an inlined function may
@@ -491,7 +473,8 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     BorrowedRef<PyCodeObject> code{nullptr};
   };
   UnorderedMap<const hir::BasicBlock*, BlockInlineCtx> block_inline_ctx;
-  if (deopt_idx_addr_ != nullptr) {
+  if (func_->code != nullptr &&
+      getConfig().frame_mode == FrameMode::kLightweight) {
     auto hir_entry_block = GetHIRFunction()->cfg.entry_block;
     std::vector<const hir::BasicBlock*> bfs;
     bfs.push_back(hir_entry_block);
@@ -4015,6 +3998,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     // Now that FP points at the heap-allocated GenDataFooter, compute the
     // deopt_idx address.  This must happen after the FP swap above —
     // the kLea uses FP as its base register.
+    // TranslateOneBasicBlock reuses this for all deopt index stores.
     if (getConfig().frame_mode == FrameMode::kLightweight) {
       int32_t deopt_idx_offset = static_cast<int32_t>(
           offsetof(GenDataFooter, frame_header) +
@@ -4039,6 +4023,20 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
   }
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   else if (func_->frameMode == FrameMode::kLightweight) {
+#if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+    // Compute the address of the deopt_idx field once
+    // TranslateOneBasicBlock reuses this for all deopt index stores.
+    if (func_->code != nullptr) {
+      int32_t deopt_idx_offset = static_cast<int32_t>(
+          -(Py_ssize_t)frameHeaderSize(func_->code) +
+          offsetof(FrameHeader, deopt_idx));
+      auto* instr = bbb.appendInstr(Instruction::kLea);
+      instr->output()->setVirtualRegister();
+      instr->allocateStackInput(PhyLocation(deopt_idx_offset));
+      deopt_idx_addr_ = instr;
+    }
+#endif
+
     // Lightweight frame linking: populate all _PyInterpreterFrame
     // fields inline, following the BeginInlinedFunction pattern.
     env_->asm_tstate =
