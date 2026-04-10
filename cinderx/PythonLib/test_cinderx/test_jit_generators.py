@@ -279,7 +279,7 @@ class GeneratorsTest(unittest.TestCase):
         g = self._f10(X)
 
         weak_ref_x = g.send(None)
-        self.assertIn(weak_ref_x(), gc.get_objects())
+        self.assertTrue(any(weak_ref_x() is obj for obj in gc.get_objects()))
         referrers = gc.get_referrers(weak_ref_x())
         self.assertEqual(len(referrers), 1)
         if POST_312 or cinderx.jit.is_enabled():
