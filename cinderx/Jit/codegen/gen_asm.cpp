@@ -1317,9 +1317,7 @@ void NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
 #endif
 }
 
-void NativeGenerator::saveCallerRegisters(
-    const FrameInfo& frame_info,
-    [[maybe_unused]] arch::Gp tstate_reg) {
+void NativeGenerator::saveCallerRegisters(const FrameInfo& frame_info) {
 #if defined(CINDER_X86_64)
   // Save used callee-saved registers at fixed RBP-relative offsets.
   auto saved_regs = frame_info.saved_regs;
@@ -1388,8 +1386,7 @@ void NativeGenerator::saveCallerRegisters(
 }
 
 void NativeGenerator::setupFrameAndSaveCallerRegisters(
-    const FrameInfo& frame_info,
-    arch::Gp tstate_reg) {
+    const FrameInfo& frame_info) {
 #if defined(CINDER_X86_64)
   as_->sub(x86::rsp, frame_info.size());
 #elif defined(CINDER_AARCH64)
@@ -1399,7 +1396,7 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(
 #else
   CINDER_UNSUPPORTED
 #endif
-  saveCallerRegisters(frame_info, tstate_reg);
+  saveCallerRegisters(frame_info);
 }
 
 arch::Gp get_arg_location(int arg) {
@@ -1504,7 +1501,7 @@ void NativeGenerator::generatePrologue(
   // Finally allocate the saved space required for the actual function.
   auto finish_frame_setup_cursor = as_->cursor();
   as_->bind(finish_frame_setup);
-  saveCallerRegisters(frame_info, x86::r11);
+  saveCallerRegisters(frame_info);
 
   env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #elif defined(CINDER_AARCH64)
@@ -1592,7 +1589,7 @@ void NativeGenerator::generatePrologue(
   // Finally allocate the saved space required for the actual function.
   auto finish_frame_setup_cursor = as_->cursor();
   as_->bind(finish_frame_setup);
-  saveCallerRegisters(frame_info, a64::x11);
+  saveCallerRegisters(frame_info);
 
   env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #else
@@ -2101,7 +2098,7 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   as_->bind(env_.gen_resume_entry_label);
 
   generateFunctionEntry();
-  setupFrameAndSaveCallerRegisters(frame_info, x86::rcx);
+  setupFrameAndSaveCallerRegisters(frame_info);
 
   // Setup RBP to use storage in generator rather than stack.
 
@@ -2153,7 +2150,7 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   as_->bind(env_.gen_resume_entry_label);
 
   generateFunctionEntry();
-  setupFrameAndSaveCallerRegisters(frame_info, a64::x3);
+  setupFrameAndSaveCallerRegisters(frame_info);
 
   // Setup X29 (FP) to use storage in generator rather than stack.
 
