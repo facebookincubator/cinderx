@@ -173,4 +173,12 @@ class LIRGenerator {
 #endif
 };
 
+// Build a post-regalloc LIR block for the generator resume entry point.
+// This block uses only physical registers and handles: prologue, frame setup,
+// saving caller state into GenDataFooter, and dispatching to the yield point's
+// resume target.
+BasicBlock* GenerateResumeEntryBlock(
+    Function* lir_func,
+    Py_ssize_t gi_jit_data_offset);
+
 } // namespace jit::lir

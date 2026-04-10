@@ -218,6 +218,11 @@ LIRGenerator::LIRGenerator(
 
 BasicBlock* LIRGenerator::GenerateEntryBlock() {
   auto block = lir_func_->allocateBasicBlock();
+
+  // SetupFrame: allocate stack space and save callee-saved registers.
+  // Translated post-regalloc using frame info from Environ.
+  block->allocateInstr(Instruction::kSetupFrame, nullptr);
+
   auto bindVReg = [&](PhyLocation phy_reg) {
     auto instr = block->allocateInstr(Instruction::kBind, nullptr);
     instr->output()->setVirtualRegister();
@@ -232,6 +237,86 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
   }
 
   return block;
+}
+
+BasicBlock* GenerateResumeEntryBlock(
+    Function* lir_func,
+    Py_ssize_t gi_jit_data_offset) {
+  auto* bb = lir_func->allocateBasicBlock();
+
+  using DT = DataType;
+
+  auto gen_reg = codegen::ARGUMENT_REGS[0];
+  PhyLocation scratch{8, 64}; // r8/x8
+  PhyLocation jit_data_reg{9, 64}; // r9/x9
+  auto fp_reg = codegen::arch::reg_frame_pointer_loc;
+
+  auto gi_off = static_cast<int32_t>(gi_jit_data_offset);
+  auto link_off = static_cast<int32_t>(offsetof(GenDataFooter, linkAddress));
+  auto ret_off = static_cast<int32_t>(offsetof(GenDataFooter, returnAddress));
+  auto orig_fp_off =
+      static_cast<int32_t>(offsetof(GenDataFooter, originalFramePointer));
+  auto yp_off = static_cast<int32_t>(offsetof(GenDataFooter, yieldPoint));
+  auto rt_off = static_cast<int32_t>(GenYieldPoint::resumeTargetOffset());
+
+  // Prologue: push fp, set up frame.
+  bb->allocateInstr(Instruction::kPrologue, nullptr);
+
+  // SetupFrame: allocate stack, save callee-saved regs
+  bb->allocateInstr(Instruction::kSetupFrame, nullptr);
+
+  // jit_data = gen->gi_jit_data
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg(jit_data_reg),
+      Ind(gen_reg, gi_off));
+
+  // scratch = [fp + 0]  (saved frame pointer / link address)
+  bb->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg));
+
+  // footer->linkAddress = scratch
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(jit_data_reg, link_off),
+      PhyReg(scratch));
+
+  // scratch = [fp + 8]  (return address)
+  bb->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg, (int32_t)8));
+
+  // footer->returnAddress = scratch
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(jit_data_reg, ret_off),
+      PhyReg(scratch));
+
+  // footer->originalFramePointer = fp
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(jit_data_reg, orig_fp_off),
+      PhyReg(fp_reg));
+
+  // fp = jit_data  (switch to generator's frame storage)
+  bb->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg(fp_reg), PhyReg(jit_data_reg));
+
+  // scratch = footer->yieldPoint
+  bb->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg, yp_off));
+
+  // footer->yieldPoint = NULL
+  bb->allocateInstr(
+      Instruction::kMove, nullptr, OutInd(fp_reg, yp_off, DT::kObject), Imm(0));
+
+  // Jump to yieldPoint->resumeTarget
+  bb->allocateInstr(Instruction::kIndirectJump, nullptr, Ind(scratch, rt_off));
+
+  return bb;
 }
 
 BasicBlock* LIRGenerator::GenerateExitBlock() {

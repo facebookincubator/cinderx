@@ -1306,99 +1306,6 @@ NativeGenerator::FrameInfo NativeGenerator::computeFrameInfo() {
   return info;
 }
 
-void NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
-#if defined(CINDER_X86_64)
-  as_->sub(x86::rsp, frame_info.size());
-#elif defined(CINDER_AARCH64)
-  arch::sub_immediate(
-      as_, a64::sp, a64::sp, static_cast<uint64_t>(frame_info.size()));
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
-void NativeGenerator::saveCallerRegisters(const FrameInfo& frame_info) {
-#if defined(CINDER_X86_64)
-  // Save used callee-saved registers at fixed RBP-relative offsets.
-  auto saved_regs = frame_info.saved_regs;
-  int offset = frame_info.header_and_spill_size + kPointerSize;
-  while (!saved_regs.Empty()) {
-    as_->mov(x86::ptr(x86::rbp, -offset), x86::gpq(saved_regs.GetFirst().loc));
-    offset += kPointerSize;
-    saved_regs.RemoveFirst();
-  }
-#elif defined(CINDER_AARCH64)
-  // Save used callee-saved registers at fixed offsets below FP.
-  // We use a scratch register as base to avoid large FP-relative offsets
-  // that can exceed arm64 stp/str encoding range.
-  auto gp_regs = frame_info.saved_regs & ALL_GP_REGISTERS;
-  auto vecd_regs = frame_info.saved_regs & ALL_VECD_REGISTERS;
-
-  // base = fp - header_and_spill_size (points to start of callee-saved area)
-  arch::sub_immediate(
-      as_,
-      arch::reg_scratch_0,
-      arch::fp,
-      static_cast<uint64_t>(frame_info.header_and_spill_size));
-
-  // GP registers are stored first (at higher addresses, right after
-  // header+spill). Offsets are small negatives from the scratch base.
-  int offset = 0;
-  if (!gp_regs.Empty()) {
-    if (gp_regs.count() % 2 == 1) {
-      as_->str(
-          a64::x(gp_regs.GetFirst().loc),
-          a64::ptr(arch::reg_scratch_0, -(offset + 16)));
-      gp_regs.RemoveFirst();
-      offset += 16;
-    }
-    while (!gp_regs.Empty()) {
-      auto first = a64::x(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
-      auto second = a64::x(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
-      as_->stp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
-      offset += 16;
-    }
-  }
-
-  // VecD registers are stored next (at lower addresses).
-  if (!vecd_regs.Empty()) {
-    if (vecd_regs.count() % 2 == 1) {
-      as_->str(
-          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
-          a64::ptr(arch::reg_scratch_0, -(offset + 16)));
-      vecd_regs.RemoveFirst();
-      offset += 16;
-    }
-    while (!vecd_regs.Empty()) {
-      auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-      vecd_regs.RemoveFirst();
-      auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-      vecd_regs.RemoveFirst();
-      as_->stp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
-      offset += 16;
-    }
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
-void NativeGenerator::setupFrameAndSaveCallerRegisters(
-    const FrameInfo& frame_info) {
-#if defined(CINDER_X86_64)
-  as_->sub(x86::rsp, frame_info.size());
-#elif defined(CINDER_AARCH64)
-  JIT_CHECK(frame_info.size() % kStackAlign == 0, "unaligned");
-  arch::sub_immediate(
-      as_, a64::sp, a64::sp, static_cast<uint64_t>(frame_info.size()));
-#else
-  CINDER_UNSUPPORTED
-#endif
-  saveCallerRegisters(frame_info);
-}
-
 arch::Gp get_arg_location(int arg) {
 #if defined(CINDER_X86_64)
   auto phyloc = get_arg_location_phy_location(arg);
@@ -1494,12 +1401,7 @@ void NativeGenerator::generatePrologue(
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
 
-  // Finally allocate the saved space required for the actual function.
-  auto finish_frame_setup_cursor = as_->cursor();
   as_->bind(finish_frame_setup);
-  setupFrameAndSaveCallerRegisters(frame_info);
-
-  env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #elif defined(CINDER_AARCH64)
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
@@ -1578,12 +1480,7 @@ void NativeGenerator::generatePrologue(
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
 
-  // Finally allocate the saved space required for the actual function.
-  auto finish_frame_setup_cursor = as_->cursor();
   as_->bind(finish_frame_setup);
-  setupFrameAndSaveCallerRegisters(frame_info);
-
-  env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2075,136 +1972,6 @@ Py_ssize_t NativeGenerator::giJITDataOffset() {
 #endif
 }
 
-void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
-#if defined(CINDER_X86_64)
-  // Arbitrary scratch register for use throughout this function. Can be changed
-  // to pretty much anything which doesn't conflict with arg registers.
-  const auto scratch_r = x86::r8;
-
-  // arg #1 - rdi = PyGenObject/JitGenObject* generator
-  // arg #2 - rsi = PyObject* sent_value
-  // arg #3 - rdx = finish_yield_from
-  // arg #4 - rcx = tstate
-  // Arg regs must not be modified as they may be used by the next resume stage.
-  auto cursor = as_->cursor();
-  as_->bind(env_.gen_resume_entry_label);
-
-  generateFunctionEntry();
-  setupFrameAndSaveCallerRegisters(frame_info);
-
-  // Setup RBP to use storage in generator rather than stack.
-
-  // Pointer to GenDataFooter. Could be any conflict-free register.
-  const auto jit_data_r = x86::r9;
-
-  // jit_data_r = gen->gi_jit_data
-  as_->mov(jit_data_r, x86::ptr(x86::rdi, giJITDataOffset()));
-
-  // Store linked frame address
-  size_t link_address_offset = offsetof(GenDataFooter, linkAddress);
-  as_->mov(scratch_r, x86::ptr(x86::rbp));
-  as_->mov(x86::ptr(jit_data_r, link_address_offset), scratch_r);
-
-  // Store return address
-  size_t return_address_offset = offsetof(GenDataFooter, returnAddress);
-  as_->mov(scratch_r, x86::ptr(x86::rbp, 8));
-  as_->mov(x86::ptr(jit_data_r, return_address_offset), scratch_r);
-
-  // Store "original" RBP
-  size_t original_frame_pointer_offset =
-      offsetof(GenDataFooter, originalFramePointer);
-  as_->mov(x86::ptr(jit_data_r, original_frame_pointer_offset), x86::rbp);
-
-  // RBP = gen->gi_jit_data
-  as_->mov(x86::rbp, jit_data_r);
-
-  // Resume generator execution: load and clear yieldPoint, then jump to the
-  // resume target.
-  size_t yield_point_offset = offsetof(GenDataFooter, yieldPoint);
-  as_->mov(scratch_r, x86::ptr(x86::rbp, yield_point_offset));
-  as_->mov(x86::qword_ptr(x86::rbp, yield_point_offset), 0);
-  size_t resume_target_offset = GenYieldPoint::resumeTargetOffset();
-  as_->jmp(x86::ptr(scratch_r, resume_target_offset));
-
-  env_.addAnnotation("Resume entry point", cursor);
-#elif defined(CINDER_AARCH64)
-  // Arbitrary scratch register for use throughout this function. Can be changed
-  // to pretty much anything which doesn't conflict with arg registers and is
-  // not a callee-saved register.
-  const auto scratch_r = a64::x8;
-
-  // arg #1 - x0 = PyGenObject/JitGenObject* generator
-  // arg #2 - x1 = PyObject* sent_value
-  // arg #3 - x2 = finish_yield_from
-  // arg #4 - x3 = tstate
-  // Arg regs must not be modified as they may be used by the next resume stage.
-  auto cursor = as_->cursor();
-  as_->bind(env_.gen_resume_entry_label);
-
-  generateFunctionEntry();
-  setupFrameAndSaveCallerRegisters(frame_info);
-
-  // Setup X29 (FP) to use storage in generator rather than stack.
-
-  // Pointer to GenDataFooter. Could be any conflict-free register.
-  const auto jit_data_r = a64::x9;
-
-  // jit_data_r = gen->gi_jit_data
-  as_->ldr(
-      jit_data_r,
-      arch::ptr_resolve(as_, a64::x0, giJITDataOffset(), arch::reg_scratch_0));
-
-  // Store linked frame address
-  size_t link_address_offset = offsetof(GenDataFooter, linkAddress);
-  as_->ldr(scratch_r, a64::ptr(arch::fp));
-  as_->str(
-      scratch_r,
-      arch::ptr_resolve(
-          as_, jit_data_r, link_address_offset, arch::reg_scratch_0));
-
-  // Store return address
-  size_t return_address_offset = offsetof(GenDataFooter, returnAddress);
-  as_->ldr(scratch_r, arch::ptr_resolve(as_, arch::fp, 8, arch::reg_scratch_0));
-  as_->str(
-      scratch_r,
-      arch::ptr_resolve(
-          as_, jit_data_r, return_address_offset, arch::reg_scratch_0));
-
-  // Store "original" X29 (FP)
-  size_t original_frame_pointer_offset =
-      offsetof(GenDataFooter, originalFramePointer);
-  as_->str(
-      arch::fp,
-      arch::ptr_resolve(
-          as_, jit_data_r, original_frame_pointer_offset, arch::reg_scratch_0));
-
-  // X29 = gen->gi_jit_data
-  as_->mov(arch::fp, jit_data_r);
-
-  // Resume generator execution: load and clear yieldPoint, then jump to the
-  // resume target.
-  size_t yield_point_offset = offsetof(GenDataFooter, yieldPoint);
-  as_->ldr(
-      scratch_r,
-      arch::ptr_resolve(
-          as_, arch::fp, yield_point_offset, arch::reg_scratch_0));
-  as_->str(
-      a64::xzr,
-      arch::ptr_resolve(
-          as_, arch::fp, yield_point_offset, arch::reg_scratch_0));
-  size_t resume_target_offset = GenYieldPoint::resumeTargetOffset();
-  as_->ldr(
-      arch::reg_scratch_br,
-      arch::ptr_resolve(
-          as_, scratch_r, resume_target_offset, arch::reg_scratch_0));
-  as_->br(arch::reg_scratch_br);
-
-  env_.addAnnotation("Resume entry point", cursor);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
 void NativeGenerator::generateStaticEntryPoint(
     Label finish_frame_setup,
     Label static_jmp_location) {
@@ -2279,6 +2046,25 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   // called.
   auto frame_info = computeFrameInfo();
 
+  // Populate frame layout fields on Environ for the kSetupFrame autogen
+  // translator. These are computed from FrameInfo after register allocation.
+  env_.resume_frame_total_size = frame_info.size();
+  env_.resume_header_and_spill_size = frame_info.header_and_spill_size;
+  env_.resume_saved_regs = frame_info.saved_regs;
+
+  // For generators, build a post-regalloc LIR block for the resume entry
+  // point. This block uses only physical registers and is translated by
+  // autogen alongside the rest of the LIR body.
+  if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
+    env_.gi_jit_data_offset = giJITDataOffset();
+
+    auto* bb =
+        lir::GenerateResumeEntryBlock(lir_func_.get(), env_.gi_jit_data_offset);
+    // Pre-assign gen_resume_entry_label to this block so generateAssemblyBody
+    // binds it at the block's start.
+    env_.block_label_map[bb] = env_.gen_resume_entry_label;
+  }
+
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
 
@@ -2323,10 +2109,6 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   generatePrologue(frame_info, correct_arg_count, finish_frame_setup);
 
   generateEpilogue(epilogue_cursor);
-
-  if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
-    generateResumeEntry(frame_info);
-  }
 
   if (env_.static_arg_typecheck_failed_label.isValid()) {
     auto static_typecheck_cursor = as_->cursor();

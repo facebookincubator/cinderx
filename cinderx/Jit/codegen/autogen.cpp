@@ -1482,6 +1482,122 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
 #endif
 }
 
+// Emit the function entry sequence (push frame pointer, set up new frame).
+void translatePrologue(Environ* env, const Instruction*) {
+  arch::Builder* as = env->as;
+#if defined(CINDER_X86_64)
+  as->push(x86::rbp);
+  as->mov(x86::rbp, x86::rsp);
+#elif defined(CINDER_AARCH64)
+  as->stp(arch::fp, arch::lr, a64::ptr_pre(a64::sp, -arch::kFrameRecordSize));
+  as->mov(arch::fp, a64::sp);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+// Allocate the full stack frame and save callee-saved registers.
+// All frame layout values come from Environ, populated after register
+// allocation.
+void translateSetupFrame(Environ* env, const Instruction*) {
+  arch::Builder* as = env->as;
+
+#if defined(CINDER_X86_64)
+  // Allocate header + spill space, then push callee-saved registers.
+  // Push is 1-2B per register vs 4-7B for movq to a stack slot.
+  as->sub(x86::rsp, env->resume_header_and_spill_size);
+
+  auto saved_regs = env->resume_saved_regs;
+  while (!saved_regs.Empty()) {
+    as->push(x86::gpq(saved_regs.GetFirst().loc));
+    saved_regs.RemoveFirst();
+  }
+  int arg_buffer_size = env->resume_frame_total_size -
+      env->resume_header_and_spill_size -
+      env->resume_saved_regs.count() * kPointerSize;
+  if (arg_buffer_size > 0) {
+    as->sub(x86::rsp, arg_buffer_size);
+  }
+#elif defined(CINDER_AARCH64)
+  // allocateHeaderAndSpillSpace()
+  arch::sub_immediate(
+      as,
+      a64::sp,
+      a64::sp,
+      static_cast<uint64_t>(env->resume_frame_total_size));
+
+  // saveCallerRegisters()
+  auto gp_regs = env->resume_saved_regs & ALL_GP_REGISTERS;
+  auto vecd_regs = env->resume_saved_regs & ALL_VECD_REGISTERS;
+
+  arch::sub_immediate(
+      as,
+      arch::reg_scratch_0,
+      arch::fp,
+      static_cast<uint64_t>(env->resume_header_and_spill_size));
+
+  int reg_offset = 0;
+  if (!gp_regs.Empty()) {
+    if (gp_regs.count() % 2 == 1) {
+      as->str(
+          a64::x(gp_regs.GetFirst().loc),
+          a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
+      gp_regs.RemoveFirst();
+      reg_offset += 16;
+    }
+    while (!gp_regs.Empty()) {
+      auto first = a64::x(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+      auto second = a64::x(gp_regs.GetFirst().loc);
+      gp_regs.RemoveFirst();
+      as->stp(first, second, a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
+      reg_offset += 16;
+    }
+  }
+  if (!vecd_regs.Empty()) {
+    if (vecd_regs.count() % 2 == 1) {
+      as->str(
+          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
+      vecd_regs.RemoveFirst();
+      reg_offset += 16;
+    }
+    while (!vecd_regs.Empty()) {
+      auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+      vecd_regs.RemoveFirst();
+      auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
+      vecd_regs.RemoveFirst();
+      as->stp(first, second, a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
+      reg_offset += 16;
+    }
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+// Emit an indirect jump through a memory location. The instruction's single
+// input is a MemoryIndirect operand specifying [base + offset].
+void translateIndirectJump(Environ* env, const Instruction* instr) {
+  arch::Builder* as = env->as;
+  const OperandBase* input = instr->getInput(0);
+  JIT_CHECK(input->isInd(), "IndirectJump input must be memory indirect");
+
+  const auto* mem = input->getMemoryIndirect();
+  PhyLocation base = mem->getBaseRegOperand()->getPhyRegister();
+  int32_t disp = mem->getOffset();
+
+#if defined(CINDER_X86_64)
+  as->jmp(x86::ptr(x86::gpq(base.loc), disp));
+#elif defined(CINDER_AARCH64)
+  auto ptr = arch::ptr_resolve(as, a64::x(base.loc), disp, arch::reg_scratch_0);
+  as->ldr(arch::reg_scratch_br, ptr);
+  as->br(arch::reg_scratch_br);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 } // namespace
 
 #define ASM(instr, args...)                    \
@@ -1907,6 +2023,18 @@ END_RULES
 BEGIN_RULES(Instruction::kIntToBool)
   GEN("Rr", CALL_C(translateIntToBool))
   GEN("Ri", CALL_C(translateIntToBool))
+END_RULES
+
+BEGIN_RULES(Instruction::kPrologue)
+  GEN(ANY, CALL_C(translatePrologue))
+END_RULES
+
+BEGIN_RULES(Instruction::kSetupFrame)
+  GEN(ANY, CALL_C(translateSetupFrame))
+END_RULES
+
+BEGIN_RULES(Instruction::kIndirectJump)
+  GEN(ANY, CALL_C(translateIndirectJump))
 END_RULES
 
 END_RULE_TABLE
@@ -3164,6 +3292,18 @@ END_RULES
 
 BEGIN_RULES(Instruction::kIntToBool)
   GEN("Rr", CALL_C(translateIntToBool))
+END_RULES
+
+BEGIN_RULES(Instruction::kPrologue)
+  GEN(ANY, CALL_C(translatePrologue))
+END_RULES
+
+BEGIN_RULES(Instruction::kSetupFrame)
+  GEN(ANY, CALL_C(translateSetupFrame))
+END_RULES
+
+BEGIN_RULES(Instruction::kIndirectJump)
+  GEN(ANY, CALL_C(translateIndirectJump))
 END_RULES
 
 END_RULE_TABLE
