@@ -138,7 +138,6 @@ class NativeGenerator {
   void generateResumeEntry(const FrameInfo& frame_info);
   void generateStaticMethodTypeChecks(asmjit::Label setup_frame);
   void generateStaticEntryPoint(
-      const FrameInfo& frame_info,
       asmjit::Label native_entry_point,
       asmjit::Label static_jmp_location);
 

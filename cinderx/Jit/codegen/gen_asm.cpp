@@ -1463,10 +1463,6 @@ void NativeGenerator::generatePrologue(
   asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
 
-  // Ensure that rsp is below the stack allocated interpreter frame fields,
-  // preventing the signal handling routine in the kernel from overwriting them.
-  allocateHeaderAndSpillSpace(frame_info);
-
   // Move the args pointer from the calling convention register (rsi) to the
   // internal register (r10) used by the rest of the function.
   as_->mov(kArgsReg, x86::rsi);
@@ -1501,7 +1497,7 @@ void NativeGenerator::generatePrologue(
   // Finally allocate the saved space required for the actual function.
   auto finish_frame_setup_cursor = as_->cursor();
   as_->bind(finish_frame_setup);
-  saveCallerRegisters(frame_info);
+  setupFrameAndSaveCallerRegisters(frame_info);
 
   env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #elif defined(CINDER_AARCH64)
@@ -1544,10 +1540,6 @@ void NativeGenerator::generatePrologue(
   asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
 
-  // Ensure that sp is below the stack allocated interpreter frame fields,
-  // preventing the signal handling routine in the kernel from overwriting them.
-  allocateHeaderAndSpillSpace(frame_info);
-
   // Move the args pointer from the calling convention register (x1) to the
   // internal register (x10) used by the rest of the function.
   as_->mov(kArgsReg, a64::x1);
@@ -1589,7 +1581,7 @@ void NativeGenerator::generatePrologue(
   // Finally allocate the saved space required for the actual function.
   auto finish_frame_setup_cursor = as_->cursor();
   as_->bind(finish_frame_setup);
-  saveCallerRegisters(frame_info);
+  setupFrameAndSaveCallerRegisters(frame_info);
 
   env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 #else
@@ -2214,7 +2206,6 @@ void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
 }
 
 void NativeGenerator::generateStaticEntryPoint(
-    const FrameInfo& frame_info,
     Label finish_frame_setup,
     Label static_jmp_location) {
 #if defined(CINDER_X86_64)
@@ -2228,24 +2219,12 @@ void NativeGenerator::generateStaticEntryPoint(
 
   size_t total_args = (size_t)GetFunction()->numArgs();
 
-  bool need_extra_args_load = total_args + 1 > ARGUMENT_REGS.size();
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    if (need_extra_args_load && isGen()) {
-      // In 3.12 for generators we'll end up replacing rbp with a pointer
-      // into the generator object when we link the frame. We need to
-      // capture the incoming arguments first.
-      as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
-      need_extra_args_load = false;
-    }
-  }
-
-  // Ensure that rsp is below the stack allocated interpreter frame fields,
-  // preventing the signal handling routine in the kernel from overwriting them.
-  allocateHeaderAndSpillSpace(frame_info);
-
-  if (need_extra_args_load) {
+  if (total_args + 1 > ARGUMENT_REGS.size()) {
+    // Capture the extra args pointer from the stack. For generators on 3.12+
+    // this must happen before frame linking replaces rbp.
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
   }
+
   as_->jmp(finish_frame_setup);
   env_.addAnnotation("StaticLinkFrame", static_link_cursor);
   auto static_entry_point_cursor = as_->cursor();
@@ -2266,24 +2245,14 @@ void NativeGenerator::generateStaticEntryPoint(
 
   size_t total_args = (size_t)GetFunction()->numArgs();
 
-  bool need_extra_args_load = total_args + 1 > ARGUMENT_REGS.size();
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    if (need_extra_args_load && isGen()) {
-      // In 3.12 for generators we'll end up replacing fp with a pointer
-      // into the generator object when we link the frame. We need to
-      // capture the incoming arguments first.
-      as_->add(a64::x10, arch::fp, arch::kFrameRecordSize);
-      need_extra_args_load = false;
-    }
+  if (total_args + 1 > ARGUMENT_REGS.size()) {
+    // Capture the extra args pointer from the stack. For generators on 3.12+
+    // this must happen before frame linking replaces fp.
+    // Extra args are above the 32-byte frame (saved fp, lr, savedReturnIP,
+    // padding), so the offset is 32.
+    as_->add(a64::x10, arch::fp, 32);
   }
 
-  // Ensure that sp is below the stack allocated interpreter frame fields,
-  // preventing the signal handling routine in the kernel from overwriting them.
-  allocateHeaderAndSpillSpace(frame_info);
-
-  if (need_extra_args_load) {
-    as_->add(a64::x10, arch::fp, arch::kFrameRecordSize);
-  }
   as_->b(finish_frame_setup);
   env_.addAnnotation("StaticLinkFrame", static_link_cursor);
   auto static_entry_point_cursor = as_->cursor();
@@ -2325,8 +2294,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   if (has_static_entry) {
     // Setup an entry point for direct static to static
     // calls using the native calling convention
-    generateStaticEntryPoint(
-        frame_info, finish_frame_setup, static_jmp_location);
+    generateStaticEntryPoint(finish_frame_setup, static_jmp_location);
   }
 
   // Setup an entry for when we have the correct number of arguments
