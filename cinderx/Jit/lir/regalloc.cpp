@@ -1549,6 +1549,24 @@ void LinearScanAllocator::rewriteLIREmitCopies(
           instr->output()->setPhyRegOrStackSlot(to);
           instr->output()->setDataType(orig_opnd_size);
         } else {
+#if defined(CINDER_AARCH64)
+          // ARM64: avoid push+pop for stack-to-stack copies. Use scratch x13
+          // (excluded from register allocation via DISALLOWED_REGISTERS) to
+          // mediate the copy directly, saving 2 instructions and 16 bytes of
+          // temporary stack space per copy.
+          auto load =
+              block->allocateInstrBefore(instr_iter, Instruction::kMove);
+          load->allocatePhyRegOrStackInput(from)->setDataType(DataType::k64bit);
+          load->output()->setPhyRegister(arch::reg_scratch_1_loc);
+          load->output()->setDataType(DataType::k64bit);
+
+          auto store =
+              block->allocateInstrBefore(instr_iter, Instruction::kMove);
+          store->allocatePhyRegOrStackInput(arch::reg_scratch_1_loc)
+              ->setDataType(DataType::k64bit);
+          store->output()->setPhyRegOrStackSlot(to);
+          store->output()->setDataType(DataType::k64bit);
+#else
           auto push =
               block->allocateInstrBefore(instr_iter, Instruction::kPush);
           push->allocatePhyRegOrStackInput(from)->setDataType(DataType::k64bit);
@@ -1556,6 +1574,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
           auto pop = block->allocateInstrBefore(instr_iter, Instruction::kPop);
           pop->output()->setPhyRegOrStackSlot(to);
           pop->output()->setDataType(DataType::k64bit);
+#endif
         }
         break;
       }
