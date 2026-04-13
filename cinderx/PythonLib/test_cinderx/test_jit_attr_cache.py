@@ -9,9 +9,8 @@ from textwrap import dedent
 import cinderx
 import cinderx.jit
 import cinderx.test_support as cinder_support
-from cinderx.test_support import passIf, passUnless, skip_if_ft, skip_module_if_oss
+from cinderx.test_support import passIf, passUnless, skip_if_ft
 
-skip_module_if_oss()
 
 from .common import failUnlessHasOpcodes
 

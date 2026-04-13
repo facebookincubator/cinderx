@@ -30,12 +30,10 @@ from cinderx.test_support import (
     passUnless,
     run_in_subprocess,
     skip_if_ft,
-    skip_module_if_oss,
     skip_unless_jit,
     subprocess_env,
 )
 
-skip_module_if_oss()
 
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 

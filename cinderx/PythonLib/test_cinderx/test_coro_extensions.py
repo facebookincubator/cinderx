@@ -6,9 +6,8 @@ import types
 import unittest
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 
-from cinderx.test_support import hasCinderX, passIf, skip_if_jit, skip_module_if_oss
+from cinderx.test_support import hasCinderX, passIf, skip_if_jit
 
-skip_module_if_oss()
 
 # pyre-ignore[21]: can't find test.support
 from test.support import import_helper, maybe_get_event_loop_policy

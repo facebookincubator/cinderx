@@ -6,9 +6,8 @@ import sys
 import sysconfig
 import unittest
 
-from cinderx.test_support import passIf, skip_module_if_oss
+from cinderx.test_support import passIf
 
-skip_module_if_oss()
 
 # pyre-ignore[21]: can't find test.support
 from test.support.os_helper import temp_dir
