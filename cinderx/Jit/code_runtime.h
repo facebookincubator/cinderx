@@ -9,6 +9,8 @@
 
 #include <deque>
 #include <limits>
+#include <optional>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace jit {
@@ -144,6 +146,17 @@ class alignas(16) CodeRuntime {
   std::optional<UnitCallStack> getUnitCallStackFromDeoptIdx(
       std::size_t deopt_idx) const;
 
+  std::optional<uintptr_t> getCallsiteDeoptExit(uintptr_t return_addr) const {
+    auto it = callsite_deopt_exits_.find(return_addr);
+    if (it != callsite_deopt_exits_.end()) {
+      return it->second;
+    }
+    return std::nullopt;
+  }
+  void addCallsiteDeoptExit(uintptr_t return_addr, uintptr_t deopt_exit_addr) {
+    callsite_deopt_exits_[return_addr] = deopt_exit_addr;
+  }
+
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   void setReifier(BorrowedRef<> reifier) {
     ThreadedCompileSerialize guard;
@@ -174,6 +187,10 @@ class alignas(16) CodeRuntime {
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   ThreadedRef<> reifier_;
 #endif
+
+  // Map from call return addresses to post-call guard deopt exits.
+  // Built during codegen, used by deoptAllJitFramesOnStack().
+  std::unordered_map<uintptr_t, uintptr_t> callsite_deopt_exits_;
 
   int frame_size_{-1};
   uint32_t spill_words_{0};

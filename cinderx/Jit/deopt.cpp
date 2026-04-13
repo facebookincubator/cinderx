@@ -10,6 +10,7 @@
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/hir/printer.h"
 
@@ -229,12 +230,25 @@ Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
 static BCIndex getDeoptResumeIndex(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame,
-    bool forced_deopt) {
+    bool forced_deopt,
+    bool is_instrumentation_deopt = false) {
   // We only need to consider guards as the deopt cause in the inner-most
   // inlined location. If we are reifying the conceptual frames for an inlined
   // function's callers then these will be resumed by the interpreter in
   // future and will never be a JIT guard failure.
   bool is_innermost = &frame == &meta.innermostFrame();
+
+  // For instrumentation deopts: kPeriodicTaskFailure means the bytecode
+  // hasn't completed (RunPeriodicTasks) — re-execute. Other reasons mean
+  // the bytecode's C call completed — advance past it.
+  if (is_instrumentation_deopt && is_innermost) {
+    if (meta.reason == DeoptReason::kPeriodicTaskFailure) {
+      return frame.cause_instr_idx;
+    }
+    return BytecodeInstruction(frame.code, frame.cause_instr_idx)
+        .nextInstrOffset();
+  }
+
   if ((is_innermost &&
        (meta.reason == DeoptReason::kGuardFailure ||
         meta.reason == DeoptReason::kRaise)) ||
@@ -303,6 +317,7 @@ bool shouldResumeInterpreterInErrorHandler(DeoptReason reason) {
       return false;
     case jit::DeoptReason::kYieldFrom:
     case jit::DeoptReason::kUnhandledException:
+    case jit::DeoptReason::kPeriodicTaskFailure:
     case jit::DeoptReason::kUnhandledUnboundLocal:
     case jit::DeoptReason::kUnhandledUnboundFreevar:
     case jit::DeoptReason::kUnhandledNullField:
@@ -318,7 +333,8 @@ static void reifyFrameImpl(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     bool forced_deopt,
-    const uint64_t* regs) {
+    const uint64_t* regs,
+    bool is_instrumentation_deopt = false) {
 #if PY_VERSION_HEX >= 0x030E0000
   BorrowedRef<PyCodeObject> code_obj = frameCode(frame);
 #ifdef Py_GIL_DISABLED
@@ -329,7 +345,8 @@ static void reifyFrameImpl(
   frame->instr_ptr = _PyCode_CODE(code_obj);
 #endif
   int cause_instr_idx = frame_meta.cause_instr_idx.value();
-  // Resume with instr_ptr pointing to the cause instruction if we are entering
+
+  // Resume with instr_ptr pointing to the cause instruction
   // the interpreter to re-run a failed instruction, or implement an instruction
   // we don't JIT.
   frame->instr_ptr += cause_instr_idx;
@@ -337,6 +354,15 @@ static void reifyFrameImpl(
     // If we're not the inner most frame then we're always deopting
     // after the instruction that executed
     frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx) + 1;
+  } else if (is_instrumentation_deopt) {
+    // Instrumentation deopt: kPeriodicTaskFailure re-executes the bytecode.
+    // Other reasons advance past the inline cache (or to its end on error).
+    if (meta.reason != DeoptReason::kPeriodicTaskFailure) {
+      frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
+      if (!PyErr_Occurred()) {
+        frame->instr_ptr++;
+      }
+    }
   } else if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
     // Otherwise, have instr_ptr point to the next instruction
     // (minus one _Py_CODEUNIT for some reason).
@@ -347,8 +373,14 @@ static void reifyFrameImpl(
   // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
   // the next instruction to execute. This means it might point to inline-
   // cache data or a negative location.
+  //
+  // For instrumentation deopts, getDeoptResumeIndex re-executes for
+  // kPeriodicTaskFailure and advances for all other reasons.
   int prev_idx =
-      (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
+      (getDeoptResumeIndex(
+           meta, frame_meta, forced_deopt, is_instrumentation_deopt) -
+       1)
+          .value();
   frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx;
 #endif
 
@@ -363,8 +395,19 @@ void reifyFrame(
     CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
-    const uint64_t* regs) {
+    const uint64_t* regs,
+    [[maybe_unused]] bool is_instrumentation_deopt) {
+#if PY_VERSION_HEX >= 0x030C0000
+  reifyFrameImpl(
+      frame,
+      meta,
+      frame_meta,
+      false /* forced_deopt */,
+      regs,
+      is_instrumentation_deopt);
+#else
   reifyFrameImpl(frame, meta, frame_meta, false /* forced_deopt */, regs);
+#endif
 }
 
 void reifyGeneratorFrame(
@@ -426,6 +469,9 @@ static DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
     }
     case jit::hir::Opcode::kRaiseStatic: {
       return DeoptReason::kRaiseStatic;
+    }
+    case jit::hir::Opcode::kRunPeriodicTasks: {
+      return DeoptReason::kPeriodicTaskFailure;
     }
     default: {
       return DeoptReason::kUnhandledException;

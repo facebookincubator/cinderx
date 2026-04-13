@@ -4,6 +4,7 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/hir/hir.h"
 
@@ -70,15 +71,17 @@ struct LiveValue {
   }
 };
 
-#define DEOPT_REASONS(X)     \
-  X(GuardFailure)            \
-  X(YieldFrom)               \
-  X(Raise)                   \
-  X(RaiseStatic)             \
-  X(UnhandledException)      \
-  X(UnhandledUnboundLocal)   \
-  X(UnhandledUnboundFreevar) \
-  X(UnhandledNullField)
+#define DEOPT_REASONS(X)                                                \
+  X(GuardFailure)                                                       \
+  X(YieldFrom)                                                          \
+  X(Raise)                                                              \
+  X(RaiseStatic)                                                        \
+  X(UnhandledException)                                                 \
+  X(UnhandledUnboundLocal)                                              \
+  X(UnhandledUnboundFreevar)                                            \
+  X(UnhandledNullField)                                                 \
+  /* TODO(T262710971): Add a dedicated Instrumentation deopt reason. */ \
+  X(PeriodicTaskFailure)
 
 enum class DeoptReason : char {
 #define REASON(name) k##name,
@@ -226,7 +229,8 @@ void reifyFrame(
     CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
-    const uint64_t* regs);
+    const uint64_t* regs,
+    bool is_instrumentation_deopt = false);
 
 // Like reifyFrame(), but for a suspended generator. Takes a single base
 // pointer for spill data rather than a full set of registers.
