@@ -3436,6 +3436,17 @@ class INSTR_CLASS(HintType, (TObject), Operands<>) {
   ProfiledTypes types_;
 };
 
+// Check if a LongExact is compact (has at most one 30-bit digit).
+DEFINE_SIMPLE_INSTR(
+    IsCompactLong,
+    (TLongExact | TCInt64),
+    HasOutput,
+    Operands<1>);
+
+// Unbox a compact LongExact to CInt64. The caller must have already verified
+// compactness (e.g. via IsCompactLong).
+DEFINE_SIMPLE_INSTR(CompactLongUnbox, (TLongExact), HasOutput, Operands<1>);
+
 // Output 1, 0, if `value` is truthy or not truthy.
 DEFINE_SIMPLE_INSTR(IsTruthy, (TObject), HasOutput, Operands<1>, DeoptBase);
 

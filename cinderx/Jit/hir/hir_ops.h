@@ -35,6 +35,7 @@ namespace jit::hir {
   V(CheckFreevar)                  \
   V(CheckField)                    \
   V(CIntToCBool)                   \
+  V(CompactLongUnbox)              \
   V(Compare)                       \
   V(CompareBool)                   \
   V(ConvertValue)                  \
@@ -84,6 +85,7 @@ namespace jit::hir {
   V(PrimitiveUnaryOp)              \
   V(PrimitiveUnbox)                \
   V(InvokeIterNext)                \
+  V(IsCompactLong)                 \
   V(IsInstance)                    \
   V(InvokeStaticFunction)          \
   V(IsNegativeAndErrOccurred)      \

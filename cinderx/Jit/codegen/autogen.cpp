@@ -1829,6 +1829,11 @@ BEGIN_RULES(Instruction::kFdiv)
   GEN("xx", ASM(divsd, OP(0), OP(1)))
 END_RULES
 
+BEGIN_RULES(Instruction::kInt64ToDouble)
+  GEN("Xr", ASM(cvtsi2sd, OP(0), OP(1)))
+  GEN("Xm", ASM(cvtsi2sd, OP(0), STK(1)))
+END_RULES
+
 BEGIN_RULES(Instruction::kPush)
   GEN("r", ASM(push, OP(0)))
   GEN("m", ASM(push, STK(0)))
@@ -3117,6 +3122,10 @@ END_RULES
 BEGIN_RULES(Instruction::kFdiv)
   GEN("Xxx", ASM(fdiv, OP(0), OP(1), OP(2)))
   GEN("xx", ASM(fdiv, OP(0), OP(0), OP(1)))
+END_RULES
+
+BEGIN_RULES(Instruction::kInt64ToDouble)
+  GEN("Xr", ASM(scvtf, OP(0), OP(1)))
 END_RULES
 
 BEGIN_RULES(Instruction::kPush)

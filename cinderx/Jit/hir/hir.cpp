@@ -368,6 +368,7 @@ bool Instr::isReplayable() const {
     case Opcode::kCheckSequenceBounds:
     case Opcode::kCheckVar:
     case Opcode::kCIntToCBool:
+    case Opcode::kCompactLongUnbox:
     case Opcode::kDoubleBinaryOp:
     case Opcode::kFloatCompare:
     case Opcode::kFormatValue:
@@ -380,6 +381,7 @@ bool Instr::isReplayable() const {
     case Opcode::kIndexUnbox:
     case Opcode::kIntBinaryOp:
     case Opcode::kIntConvert:
+    case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kLoadArg:
     case Opcode::kLoadArrayItem:
@@ -702,6 +704,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kCallStaticRetVoid:
     case Opcode::kCheckSequenceBounds:
     case Opcode::kCIntToCBool:
+    case Opcode::kCompactLongUnbox:
     case Opcode::kCompare:
     case Opcode::kCompareBool:
     case Opcode::kConvertValue:
@@ -732,6 +735,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kIntConvert:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeStaticFunction:
+    case Opcode::kIsCompactLong:
     case Opcode::kIsInstance:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kIsTruthy:

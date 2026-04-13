@@ -265,6 +265,8 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kIncref:
     case Opcode::kInitialYield:
     case Opcode::kInvokeIterNext:
+    case Opcode::kCompactLongUnbox:
+    case Opcode::kIsCompactLong:
     case Opcode::kIsInstance:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kIsTruthy:
