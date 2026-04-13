@@ -673,6 +673,43 @@ ASMJIT_API Error CodeHolder::resolveUnresolvedLinks() noexcept {
           if (!localOF) {
             ASMJIT_ASSERT(size_t(linkOffset) < buf.size());
             ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= link->format.valueSize());
+            ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= 8); // AArch64 branch relaxation
+
+            // AArch64 branch relaxation for cross-section links: same logic
+            // as in bindLabel() for same-section links. The 8-byte region
+            // contains the original conditional branch + NOP placeholder.
+            if (link->format.type() == OffsetType::kAArch64_TestBranch ||
+                link->format.type() == OffsetType::kAArch64_CompBranch ||
+                link->format.type() == OffsetType::kAArch64_CondBranch) {
+              uint8_t* instPtr = buf._data + linkOffset;
+              uint32_t origOpcode = Support::readU32uLE(instPtr);
+              uint32_t immBitCount = link->format.immBitCount();
+              uint32_t immMask = Support::lsbMask<uint32_t>(immBitCount);
+              uint32_t inversionMask = link->format.type() == OffsetType::kAArch64_CondBranch
+                ? 1u : (1u << 24);
+
+              int64_t dispImm = displacement >> 2;
+              if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
+                uint32_t dispBits = (uint32_t(dispImm) & immMask) << 5;
+                Support::writeU32uLE(instPtr, origOpcode | dispBits);
+              } else {
+                uint32_t invertedOpcode = origOpcode ^ inversionMask;
+                invertedOpcode |= (2u << 5);
+                Support::writeU32uLE(instPtr, invertedOpcode);
+
+                int64_t bDisp = (displacement - 4) >> 2;
+                if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26)) {
+                  err = DebugUtils::errored(kErrorInvalidDisplacement);
+                  link.next();
+                  continue;
+                }
+                uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
+                Support::writeU32uLE(instPtr + 4, bOpcode);
+              }
+
+              link.resolveAndNext(this);
+              continue;
+            }
 
             // Overwrite a real displacement in the CodeBuffer.
             if (CodeWriterUtils::writeOffset(buf._data + linkOffset, displacement, link->format)) {
