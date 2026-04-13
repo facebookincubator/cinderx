@@ -45,7 +45,8 @@ struct FrameHeader {
 
 #define JIT_FRAME_RTFS 0x01
 #define JIT_FRAME_INITIALIZED 0x02
-#define JIT_FRAME_MASK 0x03
+#define JIT_FRAME_DEOPT_PATCHED 0x04
+#define JIT_FRAME_MASK 0x07
 
 #endif
 

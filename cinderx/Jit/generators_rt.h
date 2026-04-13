@@ -79,6 +79,12 @@ inline bool deopt_jit_gen(PyGenObject* gen) {
 void init_jit_genobject_type();
 void shutdown_jit_genobject_type();
 
+// Swap am_send on JIT gen/coro types to a wrapper that deopts generators
+// before resuming. Called when the JIT is paused for instrumentation.
+void patchJitGenAmSendForDeopt();
+// Restore the normal JIT am_send. Called when the JIT is re-enabled.
+void unpatchJitGenAmSend();
+
 PyObject* JitGen_AnextAwaitable_New(
     cinderx::ModuleState* moduleState,
     PyObject* awaitable,

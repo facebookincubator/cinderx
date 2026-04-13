@@ -339,6 +339,14 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   // kind, deopt_meta id, guard var, and target.
   fillLiveValueLocations(env->code_rt, index, instr, 4, instr->getNumInputs());
   env->deopt_exits.emplace_back(index, deopt_label, instr);
+
+  // Pair this post-call guard with the preceding call's return-address label
+  // for the callsite->deopt-exit map used by deoptAllJitFramesOnStack().
+  if (!env->pending_debug_locs.empty() && instr->origin() != nullptr &&
+      env->pending_debug_locs.back().instr == instr->origin()) {
+    env->callsite_deopt_pending.emplace_back(
+        env->pending_debug_locs.back().label, deopt_label);
+  }
 }
 
 void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
