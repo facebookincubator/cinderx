@@ -52,8 +52,6 @@ def is_supported_runtime() -> bool:
         return environ.get("PYTHON_GIL") != "0"
     if version == (3, 12):
         return "+meta" in sys.version
-    if version == (3, 10):
-        return "+cinder" in sys.version
     return False
 
 
