@@ -36,6 +36,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kBuildTemplate:
     case Opcode::kCast:
     case Opcode::kCIntToCBool:
+    case Opcode::kCompactLongUnbox:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
     case Opcode::kDoubleBinaryOp:
@@ -45,6 +46,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kIndexUnbox:
     case Opcode::kIntBinaryOp:
     case Opcode::kIntConvert:
+    case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kLoadEvalBreaker:
     case Opcode::kLoadVarObjectSize:
@@ -365,6 +367,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCast:
+    case Opcode::kCompactLongUnbox:
     case Opcode::kCondBranch:
     case Opcode::kCondBranchCheckType:
     case Opcode::kCondBranchIterNotDone:
@@ -380,6 +383,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kInitFrameCellVars:
     case Opcode::kIntBinaryOp:
     case Opcode::kIntConvert:
+    case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kListAppend:
     case Opcode::kListExtend:

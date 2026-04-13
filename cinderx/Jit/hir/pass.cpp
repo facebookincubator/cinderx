@@ -287,6 +287,7 @@ Type outputType(
     case Opcode::kDoubleBinaryOp: {
       return TCDouble;
     }
+    case Opcode::kIsCompactLong:
     case Opcode::kPrimitiveCompare:
       return TCBool;
     case Opcode::kPrimitiveUnaryOp:
@@ -410,7 +411,8 @@ Type outputType(
       }
       return ty;
     }
-    case Opcode::kCheckSequenceBounds: {
+    case Opcode::kCheckSequenceBounds:
+    case Opcode::kCompactLongUnbox: {
       return TCInt64;
     }
 

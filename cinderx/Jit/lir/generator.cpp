@@ -1017,6 +1017,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const IntConvert*>(&i);
         if (instr->type() <= TCBool) {
           bbb.appendInstr(instr->output(), Instruction::kMove, instr->src());
+        } else if (instr->type() <= TCDouble) {
+          bbb.appendInstr(
+              instr->output(), Instruction::kInt64ToDouble, instr->src());
         } else if (instr->type() <= TCUnsigned) {
           bbb.appendInstr(instr->output(), Instruction::kZext, instr->src());
         } else {
@@ -3436,6 +3439,84 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendBlock(done_block);
 #endif
         break;
+      }
+      case Opcode::kCompactLongUnbox: {
+#if PY_VERSION_HEX >= 0x030C0000
+        // Inline _PyLong_CompactValue: sign * (Py_ssize_t)ob_digit[0]
+        // where sign = 1 - (lv_tag & 3).
+        Instruction* obj = bbb.getDefInstr(i.GetOperand(0));
+        int32_t lv_tag_offset =
+            static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
+        int32_t digit_offset =
+            static_cast<int32_t>(offsetof(PyLongObject, long_value.ob_digit));
+        // Load lv_tag
+        Instruction* lv_tag = bbb.appendInstr(
+            OutVReg{DataType::k64bit},
+            Instruction::kMove,
+            Ind{obj, lv_tag_offset});
+        // sign = lv_tag & _PyLong_SIGN_MASK (i.e. & 3)
+        Instruction* sign_bits = bbb.appendInstr(
+            OutVReg{DataType::k64bit},
+            Instruction::kAnd,
+            lv_tag,
+            Imm{_PyLong_SIGN_MASK});
+        // sign = 1 - sign_bits
+        Instruction* one = bbb.appendInstr(
+            OutVReg{DataType::k64bit}, Instruction::kMove, Imm{1});
+        Instruction* sign = bbb.appendInstr(
+            OutVReg{DataType::k64bit}, Instruction::kSub, one, sign_bits);
+        // Load ob_digit[0] as 32-bit unsigned, zero-extend to 64-bit
+        Instruction* digit = bbb.appendInstr(
+            OutVReg{DataType::k32bit},
+            Instruction::kMove,
+            Ind{obj, digit_offset});
+        Instruction* digit64 = bbb.appendInstr(
+            OutVReg{DataType::k64bit}, Instruction::kZext, digit);
+        // result = sign * digit
+        bbb.appendInstr(i.output(), Instruction::kMul, sign, digit64);
+        break;
+#else
+        JIT_ABORT("CompactLongUnbox requires Python 3.12+");
+#endif
+      }
+      case Opcode::kIsCompactLong: {
+#if PY_VERSION_HEX >= 0x030C0000
+        Type operand_type = i.GetOperand(0)->type();
+        if (operand_type <= TCInt64) {
+          // For a raw CInt64, check if the value fits in a single 30-bit
+          // digit: -(2^30-1) <= v <= 2^30-1, i.e.
+          // (unsigned)(v + (2^30-1)) < (2^31-1).
+          Instruction* val = bbb.getDefInstr(i.GetOperand(0));
+          constexpr int64_t kMaxDigit = (int64_t{1} << PyLong_SHIFT) - 1;
+          Instruction* shifted = bbb.appendInstr(
+              OutVReg{DataType::k64bit},
+              Instruction::kAdd,
+              val,
+              Imm{kMaxDigit});
+          bbb.appendInstr(
+              i.output(),
+              Instruction::kLessThanUnsigned,
+              shifted,
+              Imm{2 * kMaxDigit + 1});
+        } else {
+          // Load lv_tag from PyLongObject and check < (2 << 3) i.e. < 16.
+          Instruction* obj = bbb.getDefInstr(i.GetOperand(0));
+          int32_t lv_tag_offset =
+              static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
+          Instruction* lv_tag = bbb.appendInstr(
+              OutVReg{DataType::k64bit},
+              Instruction::kMove,
+              Ind{obj, lv_tag_offset});
+          bbb.appendInstr(
+              i.output(),
+              Instruction::kLessThanUnsigned,
+              lv_tag,
+              Imm{2 << _PyLong_NON_SIZE_BITS});
+        }
+        break;
+#else
+        JIT_ABORT("IsCompactLong requires Python 3.12+");
+#endif
       }
       case Opcode::kIsTruthy: {
         auto is_truthy = static_cast<const IsTruthy*>(&i);
