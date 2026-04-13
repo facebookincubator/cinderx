@@ -71,14 +71,6 @@ struct Environ {
 
   std::vector<PendingDebugLoc> pending_debug_locs;
 
-  // Call return-address -> post-call guard deopt-exit pairings, resolved to
-  // addresses after code finalization.
-  struct CallsiteDeoptPending {
-    asmjit::Label return_addr_label;
-    asmjit::Label deopt_exit_label;
-  };
-  std::vector<CallsiteDeoptPending> callsite_deopt_pending;
-
   // Location of incoming arguments
   std::vector<PhyLocation> arg_locations;
 

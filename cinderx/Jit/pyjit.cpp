@@ -65,7 +65,6 @@
 #include <thread>
 #include <unordered_set>
 #include <utility>
-#include <vector>
 
 using namespace jit;
 
@@ -1341,9 +1340,10 @@ void disable_jit_impl(bool deopt_all) {
   }
 
   if (deopt_all) {
-    auto& funcs = jitCtx()->compiledFuncs();
-    JIT_DLOG("Deopting {} compiled functions", funcs.size());
+    JIT_DLOG(
+        "Deopting {} compiled functions", jitCtx()->compiledFuncs().size());
     size_t success = 0;
+    auto& funcs = jitCtx()->compiledFuncs();
     for (auto it = funcs.begin(); it != funcs.end();) {
       BorrowedRef<PyFunctionObject> func = it->first;
       // Advance before deoptFunc() which erases func from funcs,
@@ -1360,9 +1360,6 @@ void disable_jit_impl(bool deopt_all) {
 
   if (isJitUsable()) {
     getMutableConfig().state = State::kPaused;
-#if PY_VERSION_HEX >= 0x030C0000
-    patchJitGenAmSendForDeopt();
-#endif
     JIT_DLOG("Disabled the JIT");
   }
 }
@@ -1406,9 +1403,6 @@ bool enable_jit_impl() {
   }
 
   getMutableConfig().state = State::kRunning;
-#if PY_VERSION_HEX >= 0x030C0000
-  unpatchJitGenAmSend();
-#endif
 
   JIT_DLOG("Re-enabled the JIT and re-optimized {} functions", count);
 
@@ -1467,10 +1461,7 @@ bool isInstrumentationActive() {
 bool toggleJitBasedOnInstrumentationState() {
   FreeThreadedJITEntrypointGuard guard;
   if (isInstrumentationActive()) {
-    if (!isJitPaused()) {
-      disable_jit_impl(true /* deopt_all */);
-      deoptAllJitFramesOnStack();
-    }
+    disable_jit_impl(true /* deopt_all */);
     return true;
   }
   return enable_jit_impl();
@@ -3703,8 +3694,8 @@ void finalize() {
   // Deopt all compiled functions before releasing references. This ensures
   // that if any JIT Python functions are invoked as side-effects during the
   // remainder of shutdown, they will go through the interpreter.
-  auto& shutdown_funcs = jitCtx()->compiledFuncs();
-  for (auto it = shutdown_funcs.begin(); it != shutdown_funcs.end();) {
+  auto& funcs = jitCtx()->compiledFuncs();
+  for (auto it = funcs.begin(); it != funcs.end();) {
     BorrowedRef<PyFunctionObject> func = it->first;
     // Advance before deoptFuncImpl() which erases func from funcs,
     // invalidating the iterator pointing to it.
@@ -3773,14 +3764,13 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   }
 
   // Attempt to attach already-compiled code even if the JIT is disabled, as
-  // long as it hasn't been finalized and the JIT isn't paused for
-  // instrumentation.
+  // long as it hasn't been finalized.
   //
   // Without this, nested code objects would almost never run their compiled
   // functions if the user had disabled the JIT without selecting to deopt
   // everything.  This is a weird behavior though, to have "new" functions get
   // JIT-compiled code despite the JIT being disabled.
-  if (!isJitPaused() && reoptFunc(func)) {
+  if (reoptFunc(func)) {
     return true;
   }
 

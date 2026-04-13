@@ -9,7 +9,6 @@
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
@@ -240,21 +239,9 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   return result ? PYGEN_RETURN : PYGEN_ERROR;
 }
 
-// Wrapper installed as am_send when the JIT is paused (e.g. instrumentation
-// active). Deopts the generator so it resumes in interpreter mode with proper
-// monitoring support, then delegates to the (now CPython) type's am_send.
-PySendResult
-jitgen_am_send_with_deopt(PyObject* obj, PyObject* arg, PyObject** presult) {
-  if (deopt_jit_gen(obj)) {
-    return Py_TYPE(obj)->tp_as_async->am_send(obj, arg, presult);
-  }
-  // Generator is FRAME_EXECUTING and can't be deopted right now.
-  return jitgen_am_send(obj, arg, presult);
-}
-
 PyObject* jitgen_send(PyObject* obj, PyObject* arg) {
   PyObject* result = nullptr;
-  if (Py_TYPE(obj)->tp_as_async->am_send(obj, arg, &result) == PYGEN_RETURN) {
+  if (jitgen_am_send(obj, arg, &result) == PYGEN_RETURN) {
     if (result == Py_None) {
       PyErr_SetNone(PyExc_StopIteration);
     } else {
@@ -267,8 +254,7 @@ PyObject* jitgen_send(PyObject* obj, PyObject* arg) {
 
 PyObject* jitgen_iternext(PyObject* obj) {
   PyObject* result = nullptr;
-  if (Py_TYPE(obj)->tp_as_async->am_send(obj, nullptr, &result) ==
-      PYGEN_RETURN) {
+  if (jitgen_am_send(obj, nullptr, &result) == PYGEN_RETURN) {
     if (result != Py_None) {
       _PyGen_SetStopIterationValue(result);
     }
@@ -656,22 +642,6 @@ static PyAsyncMethods jitcoro_as_async = {
 #endif
 
 } // namespace
-
-void patchJitGenAmSendForDeopt() {
-  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->gen_type;
-  BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coro_type;
-  gen_type->tp_as_async->am_send =
-      reinterpret_cast<sendfunc>(jitgen_am_send_with_deopt);
-  coro_type->tp_as_async->am_send =
-      reinterpret_cast<sendfunc>(jitgen_am_send_with_deopt);
-}
-
-void unpatchJitGenAmSend() {
-  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->gen_type;
-  BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coro_type;
-  gen_type->tp_as_async->am_send = reinterpret_cast<sendfunc>(jitgen_am_send);
-  coro_type->tp_as_async->am_send = reinterpret_cast<sendfunc>(jitgen_am_send);
-}
 
 PyType_Slot gen_slots[] = {
     {Py_tp_dealloc, reinterpret_cast<void*>(jitgen_dealloc)},
