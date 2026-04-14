@@ -375,6 +375,253 @@ void PopulateEntryBlock(
   }
 }
 
+UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
+    Function* lir_func,
+    BasicBlock* entry_block,
+    const std::vector<hir::TypedArgument>& typed_args,
+    int num_args,
+    CodeRuntime* code_rt,
+    asmjit::Label failure_label) {
+  if (typed_args.empty()) {
+    return {};
+  }
+
+  // Register assignments:
+  //   ARGUMENT_REGS[1] — args array pointer (read-only)
+  //   ARGUMENT_REGS[3] — defaulted arg count (read-only)
+  //   TYPECHECK_SCRATCH_REG — main scratch register (an arg that's not passed)
+  //   INITIAL_EXTRA_ARGS_REG — type pointer for MRO search
+  //   INITIAL_TSTATE_REG — MRO end pointer
+  //   arch::reg_scratch_0_loc — compare scratch
+  auto args_reg = codegen::ARGUMENT_REGS[1];
+  auto defaulted_count_reg = codegen::ARGUMENT_REGS[3];
+  auto tc_scratch = codegen::ARGUMENT_REGS[4];
+  auto mro_type = codegen::INITIAL_EXTRA_ARGS_REG;
+  auto mro_end = codegen::INITIAL_TSTATE_REG;
+  auto scratch = codegen::arch::reg_scratch_0_loc;
+
+  // Keep type objects alive.
+  for (const auto& arg : typed_args) {
+    code_rt->addReference(BorrowedRef(arg.pytype));
+  }
+
+  // --- Build the mapping: defaulted_arg_count → check_block ---
+  // Allocate one check block per typed arg (last-to-first order).
+  // check_blocks[0] corresponds to typed_args[checks.size()-1] (the last arg).
+  std::vector<BasicBlock*> check_blocks;
+  check_blocks.reserve(typed_args.size());
+  for (size_t i = 0; i < typed_args.size(); i++) {
+    check_blocks.push_back(lir_func->allocateBasicBlock());
+  }
+
+  // Allocate MRO loop blocks for checks that need them.
+  std::vector<BasicBlock*> mro_blocks;
+  for (Py_ssize_t i = typed_args.size() - 1; i >= 0; i--) {
+    const auto& arg = typed_args[i];
+    if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
+      mro_blocks.push_back(lir_func->allocateBasicBlock());
+    } else {
+      mro_blocks.push_back(nullptr);
+    }
+  }
+
+  // Build the dispatch block.
+  size_t original_count = lir_func->basicblocks().size();
+  auto* dispatch_block = lir_func->allocateBasicBlock();
+
+  // Build the dispatch mapping: for each defaulted_arg_count value, determine
+  // which check block to jump to (same logic as the original jump table).
+  std::vector<std::pair<int, BasicBlock*>> dispatch_entries;
+  JIT_DCHECK(check_blocks.size() > 0, "allocated above");
+  BasicBlock* next_target = check_blocks[0];
+  Py_ssize_t ci = typed_args.size() - 1;
+  int dac = 0;
+  // dispatch_targets[dac] = block to jump to for that defaulted count
+  // We iterate like the original: for each dac, emit a jump to next_target,
+  // then potentially advance next_target when we hit a checked arg boundary.
+  while (dac < num_args) {
+    dispatch_entries.emplace_back(dac, next_target);
+
+    if (ci >= 0) {
+      long local = typed_args[ci].locals_idx;
+      if (num_args - dac - 1 == local) {
+        if (ci == 0) {
+          next_target = entry_block;
+        } else {
+          ci--;
+          // check_blocks index: typed_args are checked last-to-first,
+          // so check_blocks[k] corresponds to typed_args[size-1-k]
+          JIT_DCHECK(
+              check_blocks.size() > typed_args.size() - 1 - ci,
+              "allocated above");
+          next_target = check_blocks[typed_args.size() - 1 - ci];
+        }
+      }
+    }
+    dac++;
+  }
+
+  // Allocate a jump table in CodeRuntime (num_args + 1 entries for
+  // defaulted_arg_count = 0 through num_args).
+  auto* jump_table = code_rt->allocateTypeCheckJumpTable(num_args + 1);
+  auto table_addr = reinterpret_cast<uint64_t>(jump_table);
+
+  // Build the unresolved jump table for post-codegen resolution.
+  UnresolvedJumpTable result;
+  result.table = jump_table;
+  for (const auto& [count, target] : dispatch_entries) {
+    result.entries.emplace_back(count, target);
+  }
+  // Entry for all-defaulted case (dac == num_args → skip all checks).
+  result.entries.emplace_back(num_args, entry_block);
+
+  // Emit the dispatch block: index into jump table and indirect jump.
+  dispatch_block->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg(tc_scratch), Imm(table_addr));
+  dispatch_block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg(tc_scratch),
+      Ind(tc_scratch, defaulted_count_reg, 8, 0));
+  dispatch_block->allocateInstr(
+      Instruction::kIndirectJump, nullptr, Ind(tc_scratch));
+
+  // --- Emit check blocks ---
+  // check_blocks[k] checks typed_args[typed_args.size()-1-k]
+  // (from last arg to first, matching original order).
+  for (size_t k = 0; k < check_blocks.size(); k++) {
+    Py_ssize_t i = typed_args.size() - 1 - k;
+    auto* bb = check_blocks[k];
+    const auto& arg = typed_args[i];
+
+    // Determine the next_check target: success goes to the next check block,
+    // or entry_block if this is the last check (i == 0).
+    BasicBlock* next_check =
+        (k + 1 < check_blocks.size()) ? check_blocks[k + 1] : entry_block;
+
+    // Load arg value from vectorcall array: tc_scratch = args[locals_idx]
+    bb->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg(tc_scratch),
+        Ind(args_reg, static_cast<int32_t>(arg.locals_idx * 8)));
+
+    // Load type: tc_scratch = tc_scratch->ob_type
+    bb->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg(tc_scratch),
+        Ind(tc_scratch, static_cast<int32_t>(offsetof(PyObject, ob_type))));
+
+    // If optional: check if None
+    if (arg.optional) {
+      auto none_type_val = reinterpret_cast<uint64_t>(Py_TYPE(Py_None));
+      bb->allocateInstr(
+          Instruction::kMove, nullptr, OutPhyReg(scratch), Imm(none_type_val));
+      bb->allocateInstr(
+          Instruction::kCmp, nullptr, PhyReg(tc_scratch), PhyReg(scratch));
+      bb->allocateInstr(Instruction::kBranchE, nullptr, Lbl(next_check));
+      bb->addSuccessor(next_check);
+    }
+
+    // Check exact type match: cmp tc_scratch, arg.pytype
+    auto type_val = reinterpret_cast<uint64_t>(arg.pytype.get());
+    bb->allocateInstr(
+        Instruction::kMove, nullptr, OutPhyReg(scratch), Imm(type_val));
+    bb->allocateInstr(
+        Instruction::kCmp, nullptr, PhyReg(tc_scratch), PhyReg(scratch));
+    bb->allocateInstr(Instruction::kBranchE, nullptr, Lbl(next_check));
+    if (!arg.optional) {
+      // Only add successor once
+      bb->addSuccessor(next_check);
+    }
+
+    if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
+      // Need MRO walk. Branch to the MRO loop block.
+      JIT_DCHECK(mro_blocks.size() > k, "allocated above");
+      auto* mro_bb = mro_blocks[k];
+      JIT_CHECK(mro_bb != nullptr, "Expected MRO block for check {}", k);
+
+      // Setup: mro_type = type pointer
+      bb->allocateInstr(
+          Instruction::kMove, nullptr, OutPhyReg(mro_type), Imm(type_val));
+
+      // tc_scratch = tc_scratch->tp_mro (load MRO tuple)
+      bb->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg(tc_scratch),
+          Ind(tc_scratch,
+              static_cast<int32_t>(offsetof(PyTypeObject, tp_mro))));
+
+      // mro_end = tc_scratch->ob_size (tuple length)
+      bb->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg(mro_end),
+          Ind(tc_scratch,
+              static_cast<int32_t>(offsetof(PyVarObject, ob_size))));
+
+      // tc_scratch = &tc_scratch->ob_item[0]
+      bb->allocateInstr(
+          Instruction::kAdd,
+          nullptr,
+          PhyReg(tc_scratch),
+          Imm(static_cast<uint64_t>(offsetof(PyTupleObject, ob_item))));
+
+      // mro_end = tc_scratch + mro_end * 8 (end pointer)
+      bb->allocateInstr(
+          Instruction::kLea,
+          nullptr,
+          OutPhyReg(mro_end),
+          Ind(tc_scratch, mro_end, 8, 0));
+
+      // Branch to MRO loop
+      bb->allocateInstr(Instruction::kBranch, nullptr, Lbl(mro_bb));
+      bb->addSuccessor(mro_bb);
+
+      // --- MRO loop block ---
+      // Loop: scratch = *tc_scratch; cmp scratch, mro_type; je next_check;
+      //        tc_scratch += 8; cmp tc_scratch, mro_end; jne loop; jmp failure
+      mro_bb->allocateInstr(
+          Instruction::kMove, nullptr, OutPhyReg(scratch), Ind(tc_scratch));
+      mro_bb->allocateInstr(
+          Instruction::kCmp, nullptr, PhyReg(scratch), PhyReg(mro_type));
+      mro_bb->allocateInstr(Instruction::kBranchE, nullptr, Lbl(next_check));
+      mro_bb->addSuccessor(next_check);
+
+      mro_bb->allocateInstr(
+          Instruction::kAdd,
+          nullptr,
+          PhyReg(tc_scratch),
+          Imm(static_cast<uint64_t>(sizeof(PyObject*))));
+      mro_bb->allocateInstr(
+          Instruction::kCmp, nullptr, PhyReg(tc_scratch), PhyReg(mro_end));
+      mro_bb->allocateInstr(Instruction::kBranchNE, nullptr, Lbl(mro_bb));
+      mro_bb->addSuccessor(mro_bb); // self-loop
+
+      // Fall through to failure
+      mro_bb->allocateInstr(
+          Instruction::kBranch, nullptr, AsmLbl(failure_label));
+
+    } else {
+      // No MRO walk needed — type mismatch is a failure.
+      bb->allocateInstr(Instruction::kBranch, nullptr, AsmLbl(failure_label));
+    }
+  }
+
+  // --- Reorder blocks ---
+  // Move dispatch + check + mro blocks to the front of basicblocks(),
+  // before the entry_block. This ensures the prologue falls through to
+  // the dispatch block.
+  auto& blocks = lir_func->basicblocks();
+
+  // Rotate the new blocks from the end to the front.
+  std::rotate(blocks.begin(), blocks.begin() + original_count, blocks.end());
+
+  return result;
+}
+
 BasicBlock* LIRGenerator::GenerateExitBlock() {
   auto* block = lir_func_->allocateBasicBlock();
 

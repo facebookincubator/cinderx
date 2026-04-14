@@ -206,7 +206,7 @@ bool associateFunctionWithCompiled(
 }
 
 void CompiledFunction::disassemble() const {
-  auto start = reinterpret_cast<const char*>(vectorcallEntry());
+  auto start = reinterpret_cast<const char*>(codeBuffer().data());
   Disassembler dis{start, codeSize()};
   dis.disassembleAll(std::cout);
 }

@@ -192,4 +192,29 @@ void PopulateEntryBlock(
     BasicBlock* entry_block,
     const std::vector<PhyLocation>& arg_locations);
 
+// Unresolved jump table for static type check dispatch. After code generation,
+// each entry's BasicBlock* must be resolved to a code address via the block
+// label map and stored in the table array.
+struct UnresolvedJumpTable {
+  void** table{nullptr};
+  // Maps table index → LIR BasicBlock* target.
+  std::vector<std::pair<int, BasicBlock*>> entries;
+};
+
+// Build post-regalloc LIR blocks for validating that arguments passed to a
+// Static Python function via the generic (vectorcall) entry point have the
+// correct types. Creates a dispatch block + per-argument check blocks (with
+// optional MRO walk blocks) and inserts them at the front of the LIR function's
+// block list so the prologue falls through to the dispatch block.
+//
+// Returns an UnresolvedJumpTable whose entries must be resolved after code
+// generation (when block labels have been bound to addresses).
+UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
+    Function* lir_func,
+    BasicBlock* entry_block,
+    const std::vector<hir::TypedArgument>& typed_args,
+    int num_args,
+    CodeRuntime* code_rt,
+    asmjit::Label failure_label);
+
 } // namespace jit::lir

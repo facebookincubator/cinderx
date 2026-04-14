@@ -1346,26 +1346,12 @@ void NativeGenerator::generatePrologue(
   }
   as_->bind(correct_arg_count);
 
-  Label setup_frame = as_->newLabel();
-
-  if (hasStaticEntry()) {
-    if (!func_->has_primitive_args) {
-      // We weren't called statically, but we've now resolved all arguments to
-      // fixed offsets.  Validate that the arguments are correctly typed.
-      generateStaticMethodTypeChecks(setup_frame);
-    } else if (func_->has_primitive_first_arg) {
-      as_->mov(x86::rdx, 0);
-    }
-  }
-
   env_.addAnnotation("Generic entry", generic_entry_cursor);
 
   if (box_entry_cursor) {
     env_.addAnnotation(
         "Generic entry (box primitive return)", box_entry_cursor);
   }
-
-  as_->bind(setup_frame);
 #elif defined(CINDER_AARCH64)
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
@@ -1380,279 +1366,11 @@ void NativeGenerator::generatePrologue(
   }
   as_->bind(correct_arg_count);
 
-  Label setup_frame = as_->newLabel();
-
-  if (hasStaticEntry()) {
-    if (!func_->has_primitive_args) {
-      // We weren't called statically, but we've now resolved all arguments to
-      // fixed offsets.  Validate that the arguments are correctly typed.
-      generateStaticMethodTypeChecks(setup_frame);
-    } else if (func_->has_primitive_first_arg) {
-      as_->mov(a64::x2, 0);
-    }
-  }
-
   env_.addAnnotation("Generic entry", generic_entry_cursor);
 
   if (box_entry_cursor) {
     env_.addAnnotation(
         "Generic entry (box primitive return)", box_entry_cursor);
-  }
-
-  as_->bind(setup_frame);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
-static void
-emitCompare(arch::Builder* as, arch::Gp lhs, void* rhs, arch::Gp scratch) {
-#if defined(CINDER_X86_64)
-  uint64_t rhsi = reinterpret_cast<uint64_t>(rhs);
-
-  if (!fitsSignedInt<32>(rhsi)) {
-    // in shared mode type can be in a high address
-    as->mov(scratch, rhsi);
-    as->cmp(lhs, scratch);
-  } else {
-    as->cmp(lhs, rhsi);
-  }
-#elif defined(CINDER_AARCH64)
-  uint64_t rhsi = reinterpret_cast<uint64_t>(rhs);
-  arch::cmp_immediate(as, lhs, rhsi);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
-void NativeGenerator::generateStaticMethodTypeChecks(Label setup_frame) {
-  // JITRT_CallWithIncorrectArgcount uses the fact that our checks are set up
-  // from last to first argument - we order the jumps so that the common case of
-  // no defaulted arguments comes first, and end up with the following
-  // structure: generic entry: compare defaulted arg count to 0 if zero: go to
-  // first check compare defaulted arg count to 1 if zero: go to second check
-  // ...
-  // This is complicated a bit by the fact that not every argument will have a
-  // check, as we elide the dynamic ones. For that, we do bookkeeping and assign
-  // all defaulted arg counts up to the next local to the same label.
-  const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
-  env_.static_arg_typecheck_failed_label = as_->newLabel();
-  if (!checks.size()) {
-    return;
-  }
-
-#if defined(CINDER_X86_64)
-  // We build a vector of labels corresponding to [first_check, second_check,
-  // ..., setup_frame] which will have |checks| + 1 elements, and the
-  // first_check label will precede the first check.
-  auto table_label = as_->newLabel();
-  as_->lea(x86::r8, x86::ptr(table_label));
-  as_->lea(x86::r8, x86::ptr(x86::r8, x86::rcx, 3));
-  as_->jmp(x86::r8);
-  auto jump_table_cursor = as_->cursor();
-  as_->align(AlignMode::kCode, 8);
-  as_->bind(table_label);
-  std::vector<Label> arg_labels;
-  int defaulted_arg_count = 0;
-  Py_ssize_t check_index = checks.size() - 1;
-  // Each check might be a label that hosts multiple arguments, as dynamic
-  // arguments aren't checked. We need to account for this in our bookkeeping.
-  auto next_arg = as_->newLabel();
-  arg_labels.emplace_back(next_arg);
-  while (defaulted_arg_count < GetFunction()->numArgs()) {
-    as_->align(AlignMode::kCode, 8);
-    as_->jmp(next_arg);
-
-    if (check_index >= 0) {
-      long local = checks.at(check_index).locals_idx;
-      if (GetFunction()->numArgs() - defaulted_arg_count - 1 == local) {
-        if (check_index == 0) {
-          next_arg = setup_frame;
-        } else {
-          check_index--;
-          next_arg = as_->newLabel();
-        }
-        arg_labels.emplace_back(next_arg);
-      }
-    }
-
-    defaulted_arg_count++;
-  }
-  env_.addAnnotation(
-      fmt::format("Jump to first non-defaulted argument"), jump_table_cursor);
-
-  as_->align(AlignMode::kCode, 8);
-  as_->bind(arg_labels[0]);
-  for (Py_ssize_t i = checks.size() - 1; i >= 0; i--) {
-    auto check_cursor = as_->cursor();
-    const TypedArgument& arg = checks.at(i);
-    env_.code_rt->addReference(BorrowedRef(arg.pytype));
-    next_arg = arg_labels[checks.size() - i];
-
-    as_->mov(x86::r8, x86::ptr(x86::rsi, arg.locals_idx * 8)); // load local
-    as_->mov(
-        x86::r8, x86::ptr(x86::r8, offsetof(PyObject, ob_type))); // load type
-    if (arg.optional) {
-      // check if the value is None
-      emitCompare(as_, x86::r8, Py_TYPE(Py_None), x86::rax);
-      as_->je(next_arg);
-    }
-
-    // common case: check if we have the exact right type
-    emitCompare(as_, x86::r8, arg.pytype, x86::rax);
-    as_->je(next_arg);
-
-    if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
-      // We need to check the object's MRO and see if the declared type
-      // is present in it.  Technically we don't need to check the last
-      // entry that will be object but the code gen is a little bit simpler
-      // if we include it.
-      Label arg_loop = as_->newLabel();
-      as_->mov(x86::r10, reinterpret_cast<uint64_t>(arg.pytype.get()));
-
-      // PyObject *r8 = r8->tp_mro;
-      as_->mov(x86::r8, x86::ptr(x86::r8, offsetof(PyTypeObject, tp_mro)));
-      // Py_ssize_t r11 = r8->ob_size;
-      as_->mov(x86::r11, x86::ptr(x86::r8, offsetof(PyVarObject, ob_size)));
-      // PyObject *r8 = &r8->ob_item[0];
-      as_->add(x86::r8, offsetof(PyTupleObject, ob_item));
-      // PyObject *r11 = &r8->ob_item[r11];
-      as_->lea(x86::r11, x86::ptr(x86::r8, x86::r11, 3));
-
-      as_->bind(arg_loop);
-      as_->cmp(x86::ptr(x86::r8), x86::r10);
-      as_->je(next_arg);
-      as_->add(x86::r8, sizeof(PyObject*));
-      as_->cmp(x86::r8, x86::r11);
-      as_->jne(arg_loop);
-    }
-
-    // no args match, bail to normal vector call to report error
-    as_->jmp(env_.static_arg_typecheck_failed_label);
-    bool last_check = i == 0;
-    if (!last_check) {
-      as_->bind(next_arg);
-    }
-    env_.addAnnotation(
-        fmt::format("StaticTypeCheck[{}]", arg.pytype->tp_name), check_cursor);
-  }
-#elif defined(CINDER_AARCH64)
-  // We build a vector of labels corresponding to [first_check, second_check,
-  // ..., setup_frame] which will have |checks| + 1 elements, and the
-  // first_check label will precede the first check.
-  auto table_label = as_->newLabel();
-  as_->adr(a64::x8, table_label);
-  as_->add(a64::x8, a64::x8, a64::x3, a64::lsl(2));
-  as_->br(a64::x8);
-  auto jump_table_cursor = as_->cursor();
-  as_->align(AlignMode::kCode, 8);
-  as_->bind(table_label);
-  std::vector<Label> arg_labels;
-  int defaulted_arg_count = 0;
-  Py_ssize_t check_index = checks.size() - 1;
-  // Each check might be a label that hosts multiple arguments, as dynamic
-  // arguments aren't checked. We need to account for this in our bookkeeping.
-  auto next_arg = as_->newLabel();
-  arg_labels.emplace_back(next_arg);
-  while (defaulted_arg_count < GetFunction()->numArgs()) {
-    as_->b(next_arg);
-
-    if (check_index >= 0) {
-      long local = checks.at(check_index).locals_idx;
-      if (GetFunction()->numArgs() - defaulted_arg_count - 1 == local) {
-        if (check_index == 0) {
-          next_arg = setup_frame;
-        } else {
-          check_index--;
-          next_arg = as_->newLabel();
-        }
-        arg_labels.emplace_back(next_arg);
-      }
-    }
-
-    defaulted_arg_count++;
-  }
-  env_.addAnnotation(
-      fmt::format("Jump to first non-defaulted argument"), jump_table_cursor);
-
-  as_->align(AlignMode::kCode, 8);
-  as_->bind(arg_labels[0]);
-  for (Py_ssize_t i = checks.size() - 1; i >= 0; i--) {
-    auto check_cursor = as_->cursor();
-    const TypedArgument& arg = checks.at(i);
-    env_.code_rt->addReference(BorrowedRef(arg.pytype));
-    next_arg = arg_labels[checks.size() - i];
-
-    as_->ldr(
-        a64::x8,
-        arch::ptr_resolve(
-            as_,
-            a64::x1,
-            arg.locals_idx * 8,
-            arch::reg_scratch_0)); // load local
-    as_->ldr(
-        a64::x8,
-        arch::ptr_resolve(
-            as_,
-            a64::x8,
-            offsetof(PyObject, ob_type),
-            arch::reg_scratch_0)); // load type
-    if (arg.optional) {
-      // check if the value is None
-      emitCompare(as_, a64::x8, Py_TYPE(Py_None), arch::reg_scratch_0);
-      as_->b_eq(next_arg);
-    }
-
-    // common case: check if we have the exact right type
-    emitCompare(as_, a64::x8, arg.pytype, arch::reg_scratch_0);
-    as_->b_eq(next_arg);
-
-    if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
-      // We need to check the object's MRO and see if the declared type
-      // is present in it.  Technically we don't need to check the last
-      // entry that will be object but the code gen is a little bit simpler
-      // if we include it.
-      Label arg_loop = as_->newLabel();
-      as_->mov(a64::x10, reinterpret_cast<uint64_t>(arg.pytype.get()));
-
-      // PyObject *r8 = r8->tp_mro;
-      as_->ldr(
-          a64::x8,
-          arch::ptr_resolve(
-              as_,
-              a64::x8,
-              offsetof(PyTypeObject, tp_mro),
-              arch::reg_scratch_0));
-      // Py_ssize_t r11 = r8->ob_size;
-      as_->ldr(
-          a64::x11,
-          arch::ptr_resolve(
-              as_,
-              a64::x8,
-              offsetof(PyVarObject, ob_size),
-              arch::reg_scratch_0));
-      // PyObject *r8 = &r8->ob_item[0];
-      as_->add(a64::x8, a64::x8, offsetof(PyTupleObject, ob_item));
-      // PyObject *r11 = &r8->ob_item[r11];
-      as_->add(a64::x11, a64::x8, a64::x11, a64::lsl(3));
-
-      as_->bind(arg_loop);
-      as_->ldr(arch::reg_scratch_0, a64::ptr(a64::x8));
-      as_->cmp(arch::reg_scratch_0, a64::x10);
-      as_->b_eq(next_arg);
-      as_->add(a64::x8, a64::x8, sizeof(PyObject*));
-      as_->cmp(a64::x8, a64::x11);
-      as_->b_ne(arg_loop);
-    }
-
-    // no args match, bail to normal vector call to report error
-    as_->b(env_.static_arg_typecheck_failed_label);
-    bool last_check = i == 0;
-    if (!last_check) {
-      as_->bind(next_arg);
-    }
-    env_.addAnnotation(
-        fmt::format("StaticTypeCheck[{}]", arg.pytype->tp_name), check_cursor);
   }
 #else
   CINDER_UNSUPPORTED
@@ -1994,6 +1712,24 @@ void NativeGenerator::generateCode(
   auto* entry_block = lir_func_->basicblocks().front();
   lir::PopulateEntryBlock(entry_block, env_.arg_locations);
 
+  // Build post-regalloc LIR blocks for static argument type checking.
+  // These blocks are inserted at the front of the LIR function so the
+  // prologue falls through to the dispatch chain → checks → entry block.
+  // We skip primitive args because functions w/ primitive args are handled
+  // by a JIT helper in generatePrimitiveArgsPrologue.
+  lir::UnresolvedJumpTable unresolved_jt;
+  if (hasStaticEntry() && !func_->has_primitive_args &&
+      !GetFunction()->typed_args.empty()) {
+    env_.static_arg_typecheck_failed_label = as_->newLabel();
+    unresolved_jt = lir::GenerateStaticTypeCheckBlocks(
+        lir_func_.get(),
+        entry_block,
+        GetFunction()->typed_args,
+        GetFunction()->numArgs(),
+        env_.code_rt,
+        env_.static_arg_typecheck_failed_label);
+  }
+
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
 
@@ -2130,6 +1866,14 @@ void NativeGenerator::generateCode(
     entry.first->setResumeTarget(
         codeholder.labelOffsetFromBase(entry.second) +
         codeholder.baseAddress());
+  }
+
+  // Resolve the static type check jump table entries now that block labels
+  // have been bound to code addresses.
+  for (auto& [index, block] : unresolved_jt.entries) {
+    auto label = map_get(env_.block_label_map, block);
+    unresolved_jt.table[index] = reinterpret_cast<void*>(
+        codeholder.baseAddress() + codeholder.labelOffsetFromBase(label));
   }
 
   // After code generation CodeHolder->codeSize() *should* return the actual

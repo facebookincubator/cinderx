@@ -134,6 +134,14 @@ class alignas(16) CodeRuntime {
 
   DebugInfo* debugInfo();
 
+  // Allocate a jump table for static type check dispatch.
+  // Returns a pointer to the table data (valid for the lifetime of this
+  // CodeRuntime).
+  void** allocateTypeCheckJumpTable(size_t num_entries) {
+    type_check_jump_table_ = std::make_unique<void*[]>(num_entries);
+    return type_check_jump_table_.get();
+  }
+
   // Traverse all GC-reachable objects held by this CodeRuntime.
   int traverse(visitproc visit, void* arg);
 
@@ -174,6 +182,10 @@ class alignas(16) CodeRuntime {
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   ThreadedRef<> reifier_;
 #endif
+
+  // Jump table for static type check dispatch (indexed by defaulted_arg_count).
+  // Entries are resolved to code addresses after code generation.
+  std::unique_ptr<void*[]> type_check_jump_table_;
 
   int frame_size_{-1};
   uint32_t spill_words_{0};

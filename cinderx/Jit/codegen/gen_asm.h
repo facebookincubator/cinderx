@@ -132,7 +132,6 @@ class NativeGenerator {
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
   Py_ssize_t giJITDataOffset();
-  void generateStaticMethodTypeChecks(asmjit::Label setup_frame);
   void generateStaticEntryPoint(
       asmjit::Label native_entry_point,
       asmjit::Label static_jmp_location);
