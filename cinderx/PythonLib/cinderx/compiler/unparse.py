@@ -227,13 +227,14 @@ def _format_boolop(node: ast.BoolOp, level: int) -> str:
 
 def _format_arguments(node: ast.arguments) -> str:
     res = []
+    first_default = len(node.args) - len(node.defaults)
     for i, arg in enumerate(node.args):
         if i:
             res.append(", ")
         res.append(arg.arg)
-        if i < len(node.defaults):
+        if i >= first_default:
             res.append("=")
-            res.append(to_expr(node.defaults[i]))
+            res.append(to_expr(node.defaults[i - first_default]))
 
     if node.vararg or node.kwonlyargs:
         if node.args:
