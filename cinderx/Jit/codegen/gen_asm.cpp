@@ -1613,11 +1613,8 @@ void NativeGenerator::generateStaticEntryPoint(
     Label finish_frame_setup,
     Label static_jmp_location) {
 #if defined(CINDER_X86_64)
-  // Static entry point is the first thing in the method, we'll
-  // jump back to hit it so that we have a fixed offset to jump from
-  auto static_link_cursor = as_->cursor();
-  Label static_entry_point = as_->newLabel();
-  as_->bind(static_entry_point);
+  auto static_entry_cursor = as_->cursor();
+  as_->bind(static_jmp_location);
 
   generateFunctionEntry();
 
@@ -1627,23 +1624,18 @@ void NativeGenerator::generateStaticEntryPoint(
     // Capture the extra args pointer from the stack. For generators on 3.12+
     // this must happen before frame linking replaces rbp.
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
+  } else {
+    for (int i = 0; i < 4; i++) {
+      as_->nop();
+    }
   }
 
   as_->jmp(finish_frame_setup);
-  env_.addAnnotation("StaticLinkFrame", static_link_cursor);
-  auto static_entry_point_cursor = as_->cursor();
-
-  as_->bind(static_jmp_location);
-  // force a long jump even if the static entry point is small so that we get
-  // a consistent offset for the static entry point from the normal entry point.
-  as_->long_().jmp(static_entry_point);
-  env_.addAnnotation("StaticEntryPoint", static_entry_point_cursor);
+  env_.addAnnotation("StaticEntryPoint", static_entry_cursor);
 #elif defined(CINDER_AARCH64)
-  // Static entry point is the first thing in the method, we'll
-  // jump back to hit it so that we have a fixed offset to jump from
-  auto static_link_cursor = as_->cursor();
-  Label static_entry_point = as_->newLabel();
-  as_->bind(static_entry_point);
+  // Emit the static entry point inline at the fixed-offset location.
+  auto static_entry_cursor = as_->cursor();
+  as_->bind(static_jmp_location);
 
   generateFunctionEntry();
 
@@ -1653,15 +1645,12 @@ void NativeGenerator::generateStaticEntryPoint(
     // Capture the extra args pointer from the stack. For generators on 3.12+
     // this must happen before frame linking replaces fp.
     as_->add(a64::x10, arch::fp, arch::kFrameRecordSize);
+  } else {
+    as_->nop();
   }
 
   as_->b(finish_frame_setup);
-  env_.addAnnotation("StaticLinkFrame", static_link_cursor);
-  auto static_entry_point_cursor = as_->cursor();
-
-  as_->bind(static_jmp_location);
-  as_->b(static_entry_point);
-  env_.addAnnotation("StaticEntryPoint", static_entry_point_cursor);
+  env_.addAnnotation("StaticEntryPoint", static_entry_cursor);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1834,7 +1823,7 @@ void NativeGenerator::generateCode(
 
   // ------------- code_start_
   // ^
-  // | JITRT_STATIC_ENTRY_OFFSET (2 bytes, optional)
+  // | JITRT_STATIC_ENTRY_OFFSET
   // | JITRT_CALL_REENTRY_OFFSET (6 bytes)
   // v
   // ------------- vectorcall_entry_

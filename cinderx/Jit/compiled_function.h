@@ -34,9 +34,9 @@ extern "C" {
 // Specifies the offset from a JITed function entry point where the static
 // entry point lives.
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
-#define JITRT_STATIC_ENTRY_OFFSET (-11)
+#define JITRT_STATIC_ENTRY_OFFSET (-19)
 #elif defined(__aarch64__)
-#define JITRT_STATIC_ENTRY_OFFSET (-16)
+#define JITRT_STATIC_ENTRY_OFFSET (-28)
 #else
 // Without JIT support there's no entry offset.
 #define JITRT_STATIC_ENTRY_OFFSET (0)
