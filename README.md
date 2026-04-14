@@ -26,7 +26,7 @@ However these features are not compatible with the stock CPython runtime yet.
 
 ## Requirements
 
-- Python 3.14.3 or later
+- Python 3.14
 - Linux (x86_64)
 - GCC 13+ or Clang 18+
 
