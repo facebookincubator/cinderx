@@ -33,6 +33,10 @@ class LIRGenerator {
     return func_;
   }
 
+  BasicBlock* frameSetupBlock() {
+    return entry_block_;
+  }
+
  private:
   // The result of translating one HIR block: the entry and exit LIR blocks.
   struct TranslatedBlock {

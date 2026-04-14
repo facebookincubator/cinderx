@@ -1187,7 +1187,7 @@ void* NativeGenerator::getVectorcallEntry() {
     COMPILE_TIMER(
         GetFunction()->compilation_phase_timer,
         "Code Generation",
-        generateCode(code))
+        generateCode(code, lirgen.frameSetupBlock()))
   } catch (const AsmJitException& ex) {
     String s;
     FormatOptions formatOptions;
@@ -1331,8 +1331,7 @@ arch::Gp get_arg_location(int arg) {
 
 void NativeGenerator::generatePrologue(
     const FrameInfo& frame_info,
-    Label correct_arg_count,
-    Label finish_frame_setup) {
+    Label correct_arg_count) {
 #if defined(CINDER_X86_64)
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
@@ -1404,7 +1403,6 @@ void NativeGenerator::generatePrologue(
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
 
-  as_->bind(finish_frame_setup);
 #elif defined(CINDER_AARCH64)
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
@@ -1483,7 +1481,6 @@ void NativeGenerator::generatePrologue(
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
 
-  as_->bind(finish_frame_setup);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2040,7 +2037,9 @@ bool NativeGenerator::hasStaticEntry() const {
   return (code->co_flags & CI_CO_STATICALLY_COMPILED);
 }
 
-void NativeGenerator::generateCode(CodeHolder& codeholder) {
+void NativeGenerator::generateCode(
+    CodeHolder& codeholder,
+    lir::BasicBlock* frameSetupBlock) {
   // computeFrameInfo() is called before generateAssemblyBody() so that
   // env_.last_callee_saved_reg_off is available to the exit block's custom
   // translators. All of computeFrameInfo()'s inputs
@@ -2068,6 +2067,11 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
     env_.block_label_map[bb] = env_.gen_resume_entry_label;
   }
 
+  // Pre-assign finish_frame_setup to the LIR entry block so
+  // generateAssemblyBody binds it at the block's start.
+  Label finish_frame_setup = as_->newLabel();
+  env_.block_label_map[frameSetupBlock] = finish_frame_setup;
+
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
 
@@ -2076,7 +2080,6 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   as_->setCursor(prologue_cursor);
 
   Label correct_arg_count = as_->newLabel();
-  Label finish_frame_setup = as_->newLabel();
   Label static_jmp_location = as_->newLabel();
 
   bool has_static_entry = hasStaticEntry();
@@ -2109,7 +2112,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   // vectorcall convention
   Label vectorcall_entry_label = as_->newLabel();
   as_->bind(vectorcall_entry_label);
-  generatePrologue(frame_info, correct_arg_count, finish_frame_setup);
+  generatePrologue(frame_info, correct_arg_count);
 
   generateEpilogue(epilogue_cursor);
 
