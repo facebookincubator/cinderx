@@ -47,9 +47,7 @@ def is_supported_runtime() -> bool:
 
     version = (sys.version_info.major, sys.version_info.minor)
     if version == (3, 14) or version == (3, 15):
-        # Can't load the native extension if the GIL is forcibly being disabled.  The
-        # native extension doesn't support free-threading properly yet.
-        return environ.get("PYTHON_GIL") != "0"
+        return True
     if version == (3, 12):
         return "+meta" in sys.version
     return False
