@@ -65,6 +65,7 @@ class BasicBlock {
     auto instr = instrs_.back().get();
 
     instr->addOperands(std::forward<T>(args)...);
+    applyPendingAnnotation(instr);
     return instr;
   }
 
@@ -135,6 +136,10 @@ class BasicBlock {
   codegen::CodeSection section() const;
   void setSection(codegen::CodeSection section);
 
+  // Set a pending annotation that will be applied to the next instruction
+  // allocated on this block (via applyPendingAnnotation).
+  std::string pending_annotation_;
+
   // Return an iterator to the given instruction. Behavior is undefined if the
   // given Instruction is not in this block.
   //
@@ -143,6 +148,7 @@ class BasicBlock {
   instr_iter_t iterator_to(Instruction* instr);
 
  private:
+  void applyPendingAnnotation(Instruction* instr);
   int id_;
   Function* func_;
 

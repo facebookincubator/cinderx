@@ -215,4 +215,11 @@ BasicBlock::instr_iter_t BasicBlock::iterator_to(Instruction* instr) {
   JIT_ABORT("Instruction not found in list");
 }
 
+void BasicBlock::applyPendingAnnotation(Instruction* instr) {
+  if (!pending_annotation_.empty()) {
+    func_->annotate(instr, std::move(pending_annotation_));
+    pending_annotation_.clear();
+  }
+}
+
 } // namespace jit::lir

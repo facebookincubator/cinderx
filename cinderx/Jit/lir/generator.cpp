@@ -247,6 +247,17 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
   return entry_block_;
 }
 
+namespace {
+
+// Set a pending annotation that labels a section of generated code
+// in PYTHONJITDUMPASM=1 output. The annotation covers all subsequent
+// instructions until the next annotation or end of block.
+void emitAnnotation(BasicBlock* bb, std::string text) {
+  bb->pending_annotation_ = std::move(text);
+}
+
+} // namespace
+
 BasicBlock* GenerateResumeEntryBlock(
     Function* lir_func,
     Py_ssize_t gi_jit_data_offset) {
@@ -331,6 +342,8 @@ void PopulateEntryBlock(
     BasicBlock* entry_block,
     const std::vector<PhyLocation>& arg_locations) {
   auto args_reg = codegen::INITIAL_EXTRA_ARGS_REG;
+
+  emitAnnotation(entry_block, "Load vectorcall arguments");
 
   // Move the args pointer from the calling convention register (rsi) to the
   // internal register (r10) used by the rest of the function.
@@ -476,6 +489,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   result.entries.emplace_back(num_args, entry_block);
 
   // Emit the dispatch block: index into jump table and indirect jump.
+  emitAnnotation(dispatch_block, "Static type check dispatch");
   dispatch_block->allocateInstr(
       Instruction::kMove, nullptr, OutPhyReg(tc_scratch), Imm(table_addr));
   dispatch_block->allocateInstr(
@@ -498,6 +512,16 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
     // or entry_block if this is the last check (i == 0).
     BasicBlock* next_check =
         (k + 1 < check_blocks.size()) ? check_blocks[k + 1] : entry_block;
+
+    // Annotate this check block with the arg index and type name.
+    {
+      std::string label = fmt::format(
+          "Type check: arg[{}] ({})", arg.locals_idx, arg.pytype->tp_name);
+      if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
+        label += " (base type, MRO walk)";
+      }
+      emitAnnotation(bb, std::move(label));
+    }
 
     // Load arg value from vectorcall array: tc_scratch = args[locals_idx]
     bb->allocateInstr(
@@ -583,6 +607,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
       // --- MRO loop block ---
       // Loop: scratch = *tc_scratch; cmp scratch, mro_type; je next_check;
       //        tc_scratch += 8; cmp tc_scratch, mro_end; jne loop; jmp failure
+      emitAnnotation(mro_bb, fmt::format("MRO walk: arg[{}]", arg.locals_idx));
       mro_bb->allocateInstr(
           Instruction::kMove, nullptr, OutPhyReg(scratch), Ind(tc_scratch));
       mro_bb->allocateInstr(
@@ -4359,6 +4384,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
       func_->code != nullptr && (func_->code->co_flags & kCoFlagsAnyGenerator);
   if (is_gen) {
     // Load the resume entry label address.
+    bbb.annotateNext("Allocate generator + interpreter frame");
     Instruction* resume_label = bbb.appendInstr(
         OutVReg{}, Instruction::kLea, AsmLbl{env_->gen_resume_entry_label});
     // spill_words is read from CodeRuntime by the runtime function,
@@ -4374,6 +4400,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         PhyReg{codegen::arch::reg_frame_pointer_loc});
     // GenDataFooter* is returned in auxiliary return register. Swap RBP
     // to point at the generator data so spills go there.
+    bbb.annotateNext("Set frame pointer to GenDataFooter");
     bbb.appendInstr(
         OutPhyReg{codegen::arch::reg_frame_pointer_loc},
         Instruction::kMove,
@@ -4392,6 +4419,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     }
 #endif
   } else if (func_->frameMode == FrameMode::kNormal) {
+    bbb.annotateNext("Allocate and link interpreter frame");
     if (kPyDebug) {
       env_->asm_tstate = bbb.appendCallInstruction(
           OutVReg{},
@@ -4423,6 +4451,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 
     // Lightweight frame linking: populate all _PyInterpreterFrame
     // fields inline, following the BeginInlinedFunction pattern.
+    bbb.annotateNext("Lightweight frame: load thread state");
     env_->asm_tstate =
         bbb.appendInstr(OutVReg{}, Instruction::kLoadThreadState);
 
@@ -4435,6 +4464,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
             static_cast<int32_t>(-fh_size + sizeof(jit::FrameHeader)))});
 
     // Store FrameHeader
+    bbb.annotateNext("Lightweight frame: store frame header");
 #if PY_VERSION_HEX >= 0x030E0000
     // Store rtfs = 0 in FrameHeader
     bbb.appendInstr(
@@ -4459,6 +4489,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
 
     // Store f_executable
+    bbb.annotateNext("Set _PyInterpreterFrame::f_executable/f_code");
 #if PY_VERSION_HEX >= 0x030E0000
     BorrowedRef<> reifier = env_->code_rt->reifier();
     PyObject* executable = reifier.get();
@@ -4479,6 +4510,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     }
 
     // Store f_funcobj
+    bbb.annotateNext("Set _PyInterpreterFrame::f_funcobj");
 #if PY_VERSION_HEX >= 0x030E0000
     // 3.14+: f_funcobj = func (with incref)
     bbb.appendInstr(
@@ -4498,6 +4530,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
 
     // Store previous = tstate->current_frame
+    bbb.annotateNext("Set _PyInterpreterFrame::previous");
 #if PY_VERSION_HEX >= 0x030D0000
     Instruction* prev_frame = bbb.appendInstr(
         OutVReg{},
@@ -4519,6 +4552,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         prev_frame);
 
     // Store prev_instr / instr_ptr
+    bbb.annotateNext("Set _PyInterpreterFrame::prev_instr");
 #if PY_VERSION_HEX >= 0x030E0000
     _Py_CODEUNIT* code_start = _PyCode_CODE(func_->code.get());
 #else
@@ -4530,6 +4564,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         OutInd{frame, FRAME_INSTR_OFFSET}, Instruction::kMove, code_start_reg);
 
 #ifdef Py_GIL_DISABLED
+    bbb.annotateNext("Set _PyInterpreterFrame::store tlbc_index");
     // Store tlbc_index = 0
     bbb.appendInstr(
         OutInd{
@@ -4541,12 +4576,14 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
 
     // Store owner = FRAME_OWNED_BY_THREAD
+    bbb.annotateNext("Set _PyInterpreterFrame::owner");
     bbb.appendInstr(
         OutInd{frame, offsetof(_PyInterpreterFrame, owner), OperandBase::k8bit},
         Instruction::kMove,
         Imm{static_cast<uint8_t>(FRAME_OWNED_BY_THREAD), OperandBase::k8bit});
 
 #if PY_VERSION_HEX >= 0x030E0000
+    bbb.annotateNext("Set _PyInterpreterFrame::localsplus");
     // Store stackpointer = &localsplus[0]
     Instruction* localsplus = bbb.appendInstr(
         OutVReg{},
@@ -4561,6 +4598,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         localsplus);
 
     // Store f_locals = NULL
+    bbb.annotateNext("Set _PyInterpreterFrame::f_locals");
     bbb.appendInstr(
         OutInd{frame, offsetof(_PyInterpreterFrame, f_locals)},
         Instruction::kMove,
@@ -4568,6 +4606,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
 
     // Link frame into tstate
+    bbb.annotateNext("Set _PyInterpreterFrame as topmost frame");
 #if PY_VERSION_HEX >= 0x030D0000
     bbb.appendInstr(
         OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
@@ -4588,11 +4627,12 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
   if (is_gen) {
     // Generators just need tstate loaded; their shadow frame is
     // handled separately in the generator resume path.
+    bbb.annotateNext("Load thread state (generator)");
     env_->asm_tstate =
         bbb.appendInstr(OutVReg{}, Instruction::kLoadThreadState);
   } else if (func_->frameMode == FrameMode::kNormal) {
     // Normal mode: allocate and link a PyFrameObject via runtime call.
-    // This sets tstate->frame to the new PyFrameObject.
+    bbb.annotateNext("Allocate and link PyFrameObject");
     const RuntimeFrameState* fs = env_->code_rt->frameState();
     env_->asm_tstate = bbb.appendCallInstruction(
         OutVReg{},
@@ -4602,15 +4642,16 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         reinterpret_cast<PyObject*>(fs->globals().get()));
   } else {
     // Shadow mode: just need tstate loaded.
+    bbb.annotateNext("Load thread state (shadow frame)");
     env_->asm_tstate =
         bbb.appendInstr(OutVReg{}, Instruction::kLoadThreadState);
   }
 
 #ifdef ENABLE_SHADOW_FRAMES
   // For non-generators, link the on-stack shadow frame into
-  // tstate->shadow_frame. This replaces the assembly-level
-  // linkOnStackShadowFrame in frame_asm.cpp.
+  // tstate->shadow_frame.
   if (!is_gen) {
+    bbb.annotateNext("Link shadow frame into tstate");
     // Get pointer to our shadow frame at the beginning of the
     // stack frame (rbp - kJITShadowFrameSize).
     Instruction* shadow_frame = bbb.appendInstr(
@@ -4680,6 +4721,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif // ENABLE_SHADOW_FRAMES
 #endif // PY_VERSION_HEX >= 0x030C0000
 #if PY_VERSION_HEX >= 0x030D0000
+  bbb.annotateNext("Load current interpreter frame");
   env_->asm_interpreter_frame = bbb.appendInstr(
       OutVReg{},
       Instruction::kMove,

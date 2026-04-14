@@ -442,9 +442,11 @@ void Parser::parseInput(const Token& token, const char* code) {
       break;
     }
     case kStringLiteral: {
+      // Extract the string content (without quotes).
+      std::string str_content(code + 1, token.length - 2);
       ThreadedCompileSerialize guard;
       std::unordered_set<std::string>& v = GetStringLiterals();
-      auto ret = v.emplace(code, 1, token.length - 2);
+      auto ret = v.emplace(std::move(str_content));
       instr_->allocateImmediateInput(
           reinterpret_cast<uint64_t>((*ret.first).c_str()),
           OperandBase::kObject);

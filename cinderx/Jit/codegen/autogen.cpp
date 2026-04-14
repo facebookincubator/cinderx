@@ -1485,6 +1485,7 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
 // Emit the function entry sequence (push frame pointer, set up new frame).
 void translatePrologue(Environ* env, const Instruction*) {
   arch::Builder* as = env->as;
+  asmjit::BaseNode* cursor = as->cursor();
 #if defined(CINDER_X86_64)
   as->push(x86::rbp);
   as->mov(x86::rbp, x86::rsp);
@@ -1494,6 +1495,7 @@ void translatePrologue(Environ* env, const Instruction*) {
 #else
   CINDER_UNSUPPORTED
 #endif
+  env->addAnnotation(std::string("Set up frame pointer"), cursor);
 }
 
 // Allocate the full stack frame and save callee-saved registers.
@@ -1505,8 +1507,11 @@ void translateSetupFrame(Environ* env, const Instruction*) {
 #if defined(CINDER_X86_64)
   // Allocate header + spill space, then push callee-saved registers.
   // Push is 1-2B per register vs 4-7B for movq to a stack slot.
+  asmjit::BaseNode* alloc_cursor = as->cursor();
   as->sub(x86::rsp, env->resume_header_and_spill_size);
+  env->addAnnotation(std::string("Allocate stack frame"), alloc_cursor);
 
+  asmjit::BaseNode* save_cursor = as->cursor();
   auto saved_regs = env->resume_saved_regs;
   while (!saved_regs.Empty()) {
     as->push(x86::gpq(saved_regs.GetFirst().loc));
@@ -1518,15 +1523,19 @@ void translateSetupFrame(Environ* env, const Instruction*) {
   if (arg_buffer_size > 0) {
     as->sub(x86::rsp, arg_buffer_size);
   }
+  env->addAnnotation(std::string("Save callee-saved registers"), save_cursor);
 #elif defined(CINDER_AARCH64)
   // allocateHeaderAndSpillSpace()
+  asmjit::BaseNode* alloc_cursor = as->cursor();
   arch::sub_immediate(
       as,
       a64::sp,
       a64::sp,
       static_cast<uint64_t>(env->resume_frame_total_size));
+  env->addAnnotation(std::string("Allocate stack frame"), alloc_cursor);
 
   // saveCallerRegisters()
+  asmjit::BaseNode* save_cursor = as->cursor();
   auto gp_regs = env->resume_saved_regs & ALL_GP_REGISTERS;
   auto vecd_regs = env->resume_saved_regs & ALL_VECD_REGISTERS;
 
@@ -1571,6 +1580,7 @@ void translateSetupFrame(Environ* env, const Instruction*) {
       reg_offset += 16;
     }
   }
+  env->addAnnotation(std::string("Save callee-saved registers"), save_cursor);
 #else
   CINDER_UNSUPPORTED
 #endif

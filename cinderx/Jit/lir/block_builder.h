@@ -44,6 +44,11 @@ class BasicBlockBuilder {
   // Any predecessor/successor links are expected to be set up already.
   void switchBlock(BasicBlock* block);
 
+  // Set an annotation that will be applied to the next instruction appended.
+  void annotateNext(std::string text) {
+    cur_bb_->pending_annotation_ = std::move(text);
+  }
+
   // Allocate and append a new instruction to the instruction stream.
   template <class... Args>
   Instruction* appendInstr(Instruction::Opcode opcode, Args&&... args) {

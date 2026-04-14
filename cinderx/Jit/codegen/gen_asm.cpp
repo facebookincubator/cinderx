@@ -1927,16 +1927,42 @@ void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
     env_.block_label_map.emplace(basicblock, as->newLabel());
   }
 
+  std::string pending_annotation;
+  asmjit::BaseNode* annotation_cursor = nullptr;
+
   for (lir::BasicBlock* basicblock : blocks) {
     CodeSection section = basicblock->section();
     CodeSectionOverride section_override{as, &code, &metadata_, section};
     as->bind(map_get(env_.block_label_map, basicblock));
     for (auto& instr : basicblock->instructions()) {
       asmjit::BaseNode* cursor = as->cursor();
+
+      // Check for annotation BEFORE translating so cursor captures the
+      // position before the instruction's code is emitted.
+      auto* annot_text = lir_func_->getAnnotation(instr.get());
+      if (annot_text) {
+        // Close any previous pending annotation.
+        if (!pending_annotation.empty()) {
+          JIT_DCHECK(annotation_cursor != nullptr, "should be set");
+          env_.addAnnotation(std::move(pending_annotation), annotation_cursor);
+        }
+        // Start new annotation range from current cursor position.
+        pending_annotation = *annot_text;
+        annotation_cursor = cursor;
+      }
+
       autogen::AutoTranslator::getInstance().translateInstr(&env_, instr.get());
-      if (instr->origin() != nullptr) {
+
+      if (!pending_annotation.empty()) {
+        // Under an active annotation — don't emit per-instruction annotations.
+      } else if (instr->origin() != nullptr) {
         env_.addAnnotation(instr.get(), cursor);
       }
+    }
+    // Close pending annotation at block boundary.
+    if (!pending_annotation.empty()) {
+      env_.addAnnotation(std::move(pending_annotation), annotation_cursor);
+      pending_annotation.clear();
     }
   }
 }

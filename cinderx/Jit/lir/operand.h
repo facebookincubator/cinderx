@@ -68,7 +68,6 @@ class OperandBase {
   virtual void* getMemoryAddress() const = 0;
   virtual MemoryIndirect* getMemoryIndirect() const = 0;
   virtual BasicBlock* getBasicBlock() const = 0;
-
   // Get the value of an integer constant, or the integral cast of a fixed
   // memory address.
   virtual uint64_t getConstantOrAddress() const = 0;

@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/block.h"
 
 #include <deque>
+#include <string>
 #include <vector>
 
 namespace jit::hir {
@@ -62,6 +64,18 @@ class Function {
 
   const hir::Function* hirFunc() const;
 
+  // Associate a debug annotation string with an instruction. The annotation
+  // covers that instruction and all subsequent instructions until the next
+  // annotated instruction or end of block (used by PYTHONJITDUMPASM=1).
+  void annotate(const Instruction* instr, std::string text) {
+    annotations_.emplace(instr, std::move(text));
+  }
+
+  const std::string* getAnnotation(const Instruction* instr) const {
+    auto it = annotations_.find(instr);
+    return it != annotations_.end() ? &it->second : nullptr;
+  }
+
  private:
   const hir::Function* hir_func_;
 
@@ -88,6 +102,9 @@ class Function {
 
   // The next id to assign to a BasicBlock or Instruction.
   int next_id_{0};
+
+  // Debug annotation map: instruction → label string for PYTHONJITDUMPASM.
+  UnorderedMap<const Instruction*, std::string> annotations_;
 };
 
 } // namespace jit::lir
