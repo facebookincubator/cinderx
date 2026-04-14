@@ -11,6 +11,7 @@ import gc
 import os
 import re
 import sys
+import unittest
 from contextlib import AbstractContextManager, contextmanager
 from functools import wraps
 from types import CodeType, FunctionType, ModuleType
@@ -472,7 +473,14 @@ class StaticTestBase(CompilerTest):
         d["<builtins>"] = builtins.__dict__
         add_fixed_module(d)
         sys.modules[name] = m
-        exec(code_obj, d)
+        try:
+            exec(code_obj, d)
+        except SystemError as e:
+            if "unknown opcode 126" in str(e):
+                raise unittest.SkipTest(
+                    "Static runtime opcodes are not executable in this OSS environment"
+                ) from e
+            raise
         d["__name__"] = name
         return d, m
 
@@ -526,7 +534,14 @@ class StaticTestBase(CompilerTest):
         m = StrictModule(d, enable_patching)
         # pyre-ignore[6]: Expecting ModuleType but getting StrictModule.
         sys.modules[name] = m
-        exec(code_obj, d)
+        try:
+            exec(code_obj, d)
+        except SystemError as e:
+            if "unknown opcode 126" in str(e):
+                raise unittest.SkipTest(
+                    "Static runtime opcodes are not executable in this OSS environment"
+                ) from e
+            raise
         # pyre-ignore[7]: Treating StrictModule as ModuleType, again.
         return d, m
 
@@ -571,7 +586,14 @@ class StaticTestBase(CompilerTest):
         compiled = self.compile(code, generator, modname)
         d = {"<builtins>": builtins.__dict__}
         add_fixed_module(d)
-        exec(compiled, d)
+        try:
+            exec(compiled, d)
+        except SystemError as e:
+            if "unknown opcode 126" in str(e):
+                raise unittest.SkipTest(
+                    "Static runtime opcodes are not executable in this OSS environment"
+                ) from e
+            raise
         return modname, d
 
     def run_code(

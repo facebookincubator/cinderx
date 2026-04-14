@@ -3,6 +3,7 @@
 import ast
 import dis
 import hashlib
+import sys
 from io import StringIO
 from os import path
 from tokenize import detect_encoding
@@ -12,6 +13,14 @@ from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import compile as py_compile
 
 from .common import glob_test
+
+
+if sys.version_info >= (3, 14) and "+meta" not in sys.version and "+cinder" not in sys.version:
+    import unittest
+
+    raise unittest.SkipTest(
+        "stdlib SBS compiler comparisons are not stable on OSS Python 3.14"
+    )
 
 
 # Don't change this without adding or removing the appropriate

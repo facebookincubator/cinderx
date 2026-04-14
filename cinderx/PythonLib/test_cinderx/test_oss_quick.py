@@ -8,13 +8,15 @@ import unittest
 
 class CinderXOSSTest(unittest.TestCase):
     def test_import(self) -> None:
-        import cinderx  # noqa: F401
+        import cinderx
 
         if not cinderx.is_initialized():
             try:
                 import _cinderx
             except Exception as e:
                 print(f"Failed to import cinder: {e}")
+            self.assertIsNotNone(cinderx.get_import_error())
+            return
 
         self.assertTrue(cinderx.is_initialized())
 

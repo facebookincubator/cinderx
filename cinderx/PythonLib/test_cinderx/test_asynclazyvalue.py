@@ -9,8 +9,7 @@ from typing import Any, Callable, Coroutine
 try:
     from _cinderx import AsyncLazyValue
 except ImportError:
-    # pyre-fixme[21]: Could not find a name `AsyncLazyValue` in `_asyncio`.
-    from _asyncio import AsyncLazyValue
+    from cinderx._asyncio import AsyncLazyValue
 
 from functools import wraps
 from time import time

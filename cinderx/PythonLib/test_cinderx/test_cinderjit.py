@@ -880,6 +880,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
 
     @run_in_subprocess
     @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
+    @passUnless(cinderx.is_initialized(), "Requires initialized CinderX runtime")
     def test_condbranch_codegen(self) -> None:
         codestr = """
             from __static__ import cbool

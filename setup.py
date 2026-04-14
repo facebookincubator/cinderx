@@ -64,6 +64,23 @@ def compute_package_version() -> str:
     return f"{date_part}.{patch:02}"
 
 
+def should_build_native_extension() -> bool:
+    """
+    Decide whether the native `_cinderx` extension should be built.
+
+    Editable installs are commonly used for running the pure-Python test suite in
+    environments that don't have the full native build toolchain or network access
+    for CMake's FetchContent dependencies. Default those installs to Python-only
+    unless explicitly overridden.
+    """
+
+    override = os.environ.get("CINDERX_BUILD_EXTENSION")
+    if override is not None:
+        return override not in {"", "0", "false", "False"}
+
+    return "editable_wheel" not in sys.argv
+
+
 @lru_cache(maxsize=1)
 def get_compiler() -> tuple[str, str]:
     """
@@ -466,12 +483,16 @@ class BuildExt(build_ext):
 
 
 def main() -> None:
+    ext_modules = []
+    if should_build_native_extension():
+        ext_modules = [CMakeExtension(name="_cinderx")]
+    else:
+        print("Skipping native _cinderx extension build for editable install")
+
     setup(
         name="cinderx",
         version=compute_package_version(),
-        ext_modules=[
-            CMakeExtension(name="_cinderx"),
-        ],
+        ext_modules=ext_modules,
         cmdclass={
             "build": BuildCommand,
             "build_py": BuildPy,

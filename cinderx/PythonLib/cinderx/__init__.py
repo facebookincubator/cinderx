@@ -290,7 +290,7 @@ except ImportError as e:
 
                 return res
 
-            except (Exception, asyncio.CancelledError) as e:
+            except BaseException as e:
                 # pyre-fixme[1001]: Awaitable assigned to `value` is never awaited.
                 for value in futures:
                     if not value.done():
