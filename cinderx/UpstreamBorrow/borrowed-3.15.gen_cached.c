@@ -1492,13 +1492,22 @@ Fail:
     return -1;
 }
 static int
-setitem_take2_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
+setitem_take2_lock_held_known_hash(PyDictObject *mp, PyObject *key, PyObject *value, Py_hash_t hash)
 {
     assert(PyAnyDict_Check(mp));
     assert(can_modify_dict(mp));
     assert(key);
     assert(value);
 
+    if (mp->ma_keys == Py_EMPTY_KEYS) {
+        return insert_to_emptydict(mp, key, hash, value);
+    }
+    /* insertdict() handles any resizing that might be necessary */
+    return insertdict(mp, key, hash, value);
+}
+static int
+setitem_take2_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
+{
     Py_hash_t hash = _PyObject_HashFast(key);
     if (hash == -1) {
         dict_unhashable_type((PyObject*)mp, key);
@@ -1507,11 +1516,7 @@ setitem_take2_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
         return -1;
     }
 
-    if (mp->ma_keys == Py_EMPTY_KEYS) {
-        return insert_to_emptydict(mp, key, hash, value);
-    }
-    /* insertdict() handles any resizing that might be necessary */
-    return insertdict(mp, key, hash, value);
+    return setitem_take2_lock_held_known_hash(mp, key, value, hash);
 }
 static int
 setitem_lock_held(PyDictObject *mp, PyObject *key, PyObject *value)
@@ -3006,6 +3011,12 @@ _PyObject_HasLen(PyObject *o) {
 #ifdef __linux__
 #endif
 #endif
+#if (defined(MS_WINDOWS) && defined(PYMALLOC_USE_HUGEPAGES)) || \
+    (defined(PYMALLOC_USE_HUGEPAGES) && defined(ARENAS_USE_MMAP) && defined(MAP_HUGETLB))
+#endif
+#if defined(MS_WINDOWS) && defined(PYMALLOC_USE_HUGEPAGES)
+#elif defined(PYMALLOC_USE_HUGEPAGES) && defined(ARENAS_USE_MMAP) && defined(MAP_HUGETLB)
+#endif
 #ifdef MS_WINDOWS
 #  ifdef PYMALLOC_USE_HUGEPAGES
 #  endif
@@ -3204,10 +3215,34 @@ _PyObject_HasLen(PyObject *o) {
 #ifdef WITH_MIMALLOC
 #endif
 #endif /* #ifdef WITH_PYMALLOC */
+static size_t
+_pymalloc_virtual_alloc_size(size_t size)
+{
+#if defined(MS_WINDOWS) && defined(PYMALLOC_USE_HUGEPAGES)
+    if (_PyRuntime.allocators.use_hugepages) {
+        SIZE_T large_page_size = GetLargePageMinimum();
+        if (large_page_size > 0) {
+            return _pymalloc_round_up_to_multiple(size, (size_t)large_page_size);
+        }
+    }
+#elif defined(PYMALLOC_USE_HUGEPAGES) && defined(ARENAS_USE_MMAP) && defined(MAP_HUGETLB)
+    if (_PyRuntime.allocators.use_hugepages) {
+        size_t hp_size = _pymalloc_system_hugepage_size();
+        if (hp_size > 0) {
+            return _pymalloc_round_up_to_multiple(size, hp_size);
+        }
+    }
+#endif
+    return size;
+}
 void *
 _PyObject_VirtualAlloc(size_t size)
 {
-    return _PyObject_Arena.alloc(_PyObject_Arena.ctx, size);
+    size_t alloc_size = _pymalloc_virtual_alloc_size(size);
+    if (alloc_size == 0 && size != 0) {
+        return NULL;
+    }
+    return _PyObject_Arena.alloc(_PyObject_Arena.ctx, alloc_size);
 }
 static _PyStackChunk*
 allocate_chunk(int size_in_bytes, _PyStackChunk* previous)
