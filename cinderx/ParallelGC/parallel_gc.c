@@ -1364,8 +1364,8 @@ gc_collect_main(
   genstats->uncollectable += n;
 #endif
 
-  for (int i = 0; i < 3; i++) {
-    validate_list(GEN_HEAD(gcstate, i), collecting_clear_unreachable_clear);
+  for (int gen = 0; gen < 3; gen++) {
+    validate_list(GEN_HEAD(gcstate, gen), collecting_clear_unreachable_clear);
   }
 
   assert(!_PyErr_Occurred(tstate));
