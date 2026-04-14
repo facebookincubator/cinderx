@@ -67,7 +67,7 @@ def error_location(filename: str, node: AST) -> ErrorLocation:
         node.col_offset + 1,
         source_line or None,
         # pyre-fixme[16]: `AST` has no attribute `end_lineno`.
-        node.end_lineno + 1 if node.end_lineno is not None else None,
+        node.end_lineno if node.end_lineno is not None else None,
         # pyre-fixme[16]: `AST` has no attribute `end_col_offset`.
         node.end_col_offset + 1 if node.end_col_offset is not None else None,
     )
