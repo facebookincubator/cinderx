@@ -115,7 +115,6 @@ int loadAttrIndex(int oparg);
 // Get the name index from a LOAD_GLOBAL's oparg.
 int loadGlobalIndex(int oparg);
 
-// Before 3.12, Cinder relies on Shadowcode's call count tracking.
 #define USE_CODE_EXTRA (PY_VERSION_HEX >= 0x030C0000)
 
 // Initialize and finalize the index of the extra data Cinder attaches onto code

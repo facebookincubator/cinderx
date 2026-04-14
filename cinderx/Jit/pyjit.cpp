@@ -45,7 +45,6 @@
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/module_state.h"
 
 #ifndef WIN32
@@ -101,12 +100,8 @@ bool hasRequiredFlags(BorrowedRef<PyCodeObject> code) {
 }
 
 uint64_t countCalls(PyCodeObject* code) {
-#if SHADOWCODE_SUPPORTED
-  return code->co_mutable->ncalls;
-#else
   auto extra = codeExtra(code);
   return extra != nullptr ? Ci_code_extra_get_calls(extra) : 0;
-#endif
 }
 
 // If functions in the cinderx module get compiled, they will somehow keep the
@@ -134,18 +129,6 @@ bool shouldAlwaysScheduleCompile(BorrowedRef<PyCodeObject> code) {
 // Check if a function has been preloaded.
 bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
   return hir::preloaderManager().find(func) != nullptr;
-}
-
-void incrementShadowcodeCall([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
-#if SHADOWCODE_SUPPORTED
-  // The interpreter will only increment up to the shadowcode threshold
-  // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
-  // sets -X jit-auto above the PYSHADOW_INIT_THRESHOLD, we still have to keep
-  // counting.
-  if (code->co_mutable->ncalls > PYSHADOW_INIT_THRESHOLD) {
-    code->co_mutable->ncalls++;
-  }
-#endif
 }
 
 // Like jitVectorcall(), but ignores any call count requirements.
@@ -187,7 +170,6 @@ PyObject* forcedJitVectorcall(
 
   // There's been some kind of compilation error, explicitly call the
   // interpreted entrypoint instead.
-  incrementShadowcodeCall(code);
   return interp_entry(func_obj, stack, nargsf, kwnames);
 }
 
@@ -209,7 +191,6 @@ PyObject* jitVectorcall(
   if (auto limit = getConfig().compile_after_n_calls; limit.has_value()) {
     auto const calls = countCalls(code);
     if (calls < *limit) {
-      incrementShadowcodeCall(code);
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
     }

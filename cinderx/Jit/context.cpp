@@ -426,7 +426,7 @@ void Context::notifyTypeModified(
 
   if (remaining_patchers.empty()) {
     type_deopt_patchers_.erase(it);
-    // don't unwatch type; shadowcode may still be watching it
+    // don't unwatch type; other watchers may still be watching it
   } else {
     it->second = std::move(remaining_patchers);
   }

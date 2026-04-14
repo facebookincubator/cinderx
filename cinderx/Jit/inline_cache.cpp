@@ -40,7 +40,7 @@ struct TypeWatcher {
       return;
     }
     it->second.erase(cache);
-    // don't unwatch type; shadowcode may still be watching it
+    // don't unwatch type; other watchers may still be watching it
   }
 
   void typeChanged(BorrowedRef<PyTypeObject> type) {

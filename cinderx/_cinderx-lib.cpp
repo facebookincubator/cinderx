@@ -19,9 +19,6 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/symbolizer.h"
-#include "cinderx/python_runtime.h"
-// NOLINTNEXTLINE(facebook-unused-include-check)
-#include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -33,6 +30,7 @@
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/async_lazy_value.h"
 #include "cinderx/module_state.h"
+#include "cinderx/python_runtime.h"
 
 #ifdef ENABLE_PARALLEL_GC
 #include "cinderx/ParallelGC/parallel_gc.h"
@@ -87,13 +85,6 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   }
   Py_RETURN_NONE;
 }
-
-#if PY_VERSION_HEX < 0x030C0000
-PyObject* clear_all_shadow_caches(PyObject*, PyObject*) {
-  _PyShadow_FreeAll();
-  Py_RETURN_NONE;
-}
-#endif
 
 PyDoc_STRVAR(
     strict_module_patch_doc,
@@ -708,19 +699,6 @@ void init_already_existing_types() {
   }
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-void shadowcode_code_sizeof(struct _PyShadowCode* shadow, Py_ssize_t* res) {
-  *res += sizeof(_PyShadowCode);
-  *res += sizeof(PyObject*) * shadow->l1_cache.size;
-  *res += sizeof(PyObject*) * shadow->cast_cache.size;
-  *res += sizeof(PyObject**) * shadow->globals_size;
-  *res +=
-      sizeof(_PyShadow_InstanceAttrEntry**) * shadow->polymorphic_caches_size;
-  *res += sizeof(_FieldCache) * shadow->field_cache_size;
-  *res += sizeof(_Py_CODEUNIT) * shadow->len;
-}
-#endif
-
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
 int get_current_code_flags(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000
@@ -923,13 +901,11 @@ void initCinderHooks() {
   Ci_hook_PyCMethod_New = Ci_PyCMethod_New_METH_TYPED;
   Ci_hook_PyDescr_NewMethod = Ci_PyDescr_NewMethod_METH_TYPED;
   Ci_hook_WalkStack = Ci_WalkStack;
-  Ci_hook_code_sizeof_shadowcode = shadowcode_code_sizeof;
   Ci_hook_PyJIT_GenVisitRefs = _PyJIT_GenVisitRefs;
   Ci_hook_PyJIT_GenDealloc = _PyJIT_GenDealloc;
   Ci_hook_PyJIT_GenSend = _PyJIT_GenSend;
   Ci_hook_PyJIT_GenYieldFromValue = _PyJIT_GenYieldFromValue;
   Ci_hook_PyJIT_GenMaterializeFrame = _PyJIT_GenMaterializeFrame;
-  Ci_hook__PyShadow_FreeAll = _PyShadow_FreeAll;
   Ci_hook_MaybeStrictModule_Dict = Ci_MaybeStrictModule_Dict;
   Ci_hook_PyJIT_GetFrame = _PyJIT_GetFrame;
   Ci_hook_PyJIT_GetBuiltins = _PyJIT_GetBuiltins;
@@ -1034,22 +1010,16 @@ void module_free(void* raw_mod) {
   finiCodeExtraIndex();
 
 #if PY_VERSION_HEX < 0x030C0000
-  JIT_CHECK(
-      !Ci_cinderx_initialized || !Ci_hook__PyShadow_FreeAll(),
-      "Failed to free shadowcode data");
-
   Ci_hook_type_destroyed = nullptr;
   Ci_hook_type_name_modified = nullptr;
   Ci_hook_JIT_GetFrame = nullptr;
   Ci_hook_PyDescr_NewMethod = nullptr;
   Ci_hook_WalkStack = nullptr;
-  Ci_hook_code_sizeof_shadowcode = nullptr;
   Ci_hook_PyJIT_GenVisitRefs = nullptr;
   Ci_hook_PyJIT_GenDealloc = nullptr;
   Ci_hook_PyJIT_GenSend = nullptr;
   Ci_hook_PyJIT_GenYieldFromValue = nullptr;
   Ci_hook_PyJIT_GenMaterializeFrame = nullptr;
-  Ci_hook__PyShadow_FreeAll = nullptr;
   Ci_hook_MaybeStrictModule_Dict = nullptr;
   Ci_hook_ShadowFrame_GetCode_JIT = nullptr;
   Ci_hook_ShadowFrame_HasGen_JIT = nullptr;
@@ -1140,12 +1110,6 @@ PyMethodDef _cinderx_methods[] = {
      PyDoc_STR(
          "Clears caches associated with the JIT.  This may have a "
          "negative effect on performance of existing JIT compiled code.")},
-#if PY_VERSION_HEX < 0x030C0000
-    {"clear_all_shadow_caches",
-     clear_all_shadow_caches,
-     METH_NOARGS,
-     PyDoc_STR("")},
-#endif
     {"freeze_type", cinderx_freeze_type, METH_O, freeze_type_doc},
     {"strict_module_patch",
      strict_module_patch,
