@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+from __future__ import annotations
 
 import argparse
 import os

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+from __future__ import annotations
 
 """
 Generic bisection tool to find minimal subset of items that cause a command to fail.
