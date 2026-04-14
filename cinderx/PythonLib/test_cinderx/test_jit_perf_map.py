@@ -23,7 +23,15 @@ class PerfMapTests(unittest.TestCase):
             "perf_fork_helper.py",
         )
         proc: subprocess.CompletedProcess[str] = subprocess.run(
-            [sys.executable, "-X", "jit-perfmap", helper_file],
+            [
+                sys.executable,
+                "-X",
+                "jit-perfmap",
+                "-X",
+                # Disable the inliner as it screws up this test's expectations.
+                "jit-enable-hir-inliner=0",
+                helper_file,
+            ],
             stdout=subprocess.PIPE,
             encoding=ENCODING,
             env=subprocess_env(),

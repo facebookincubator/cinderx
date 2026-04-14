@@ -5620,20 +5620,32 @@ class StaticCompilationTests(StaticTestBase):
 
                     def f3():
                         return 3
+
+                    def f4():
+                        return 4
                     """
                 )
             )
             (d / "main.py").write_text(
                 dedent(
                     """
-                    from staticmod import f1, f2, f3
+                    from staticmod import f1, f2, f3, f4
 
                     assert f1() == 5
 
-                    from cinderx.jit import is_jit_compiled
+                    # Try to trigger JitAuto.
+                    for i in range(4000):
+                        f4()
+
+                    from cinderx.jit import is_hir_inliner_enabled, is_jit_compiled
                     assert is_jit_compiled(f1), "f1 is on jitlist but not jitted"
                     assert not is_jit_compiled(f2), "f2 is not on jitlist but was jitted"
-                    assert is_jit_compiled(f3), "f3 is on jitlist but not jitted"
+
+                    if is_hir_inliner_enabled():
+                        assert not is_jit_compiled(f3), "f3 is on jitlist but should be skipped because it gets inlined in f1"
+                    else:
+                        assert is_jit_compiled(f3), "f3 is on jitlist but not jitted"
+                    assert not is_jit_compiled(f4), "f4 is not on jitlist should not be compiled"
                     """
                 )
             )
