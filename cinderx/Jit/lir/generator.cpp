@@ -217,14 +217,20 @@ LIRGenerator::LIRGenerator(
 }
 
 BasicBlock* LIRGenerator::GenerateEntryBlock() {
-  auto block = lir_func_->allocateBasicBlock();
+  // Entry block: placeholder for argument loading (currently handled by
+  // raw asmjit in generatePrologue).
+  entry_block_ = lir_func_->allocateBasicBlock();
+
+  // Frame setup block: allocate stack space, save callee-saved registers,
+  // and bind initial register values.
+  frame_setup_block_ = lir_func_->allocateBasicBlock();
 
   // SetupFrame: allocate stack space and save callee-saved registers.
   // Translated post-regalloc using frame info from Environ.
-  block->allocateInstr(Instruction::kSetupFrame, nullptr);
+  frame_setup_block_->allocateInstr(Instruction::kSetupFrame, nullptr);
 
   auto bindVReg = [&](PhyLocation phy_reg) {
-    auto instr = block->allocateInstr(Instruction::kBind, nullptr);
+    auto instr = frame_setup_block_->allocateInstr(Instruction::kBind, nullptr);
     instr->output()->setVirtualRegister();
     instr->allocatePhyRegisterInput(phy_reg);
     return instr;
@@ -236,7 +242,9 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
     env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
   }
 
-  return block;
+  entry_block_->addSuccessor(frame_setup_block_);
+
+  return entry_block_;
 }
 
 BasicBlock* GenerateResumeEntryBlock(
@@ -317,6 +325,54 @@ BasicBlock* GenerateResumeEntryBlock(
   bb->allocateInstr(Instruction::kIndirectJump, nullptr, Ind(scratch, rt_off));
 
   return bb;
+}
+
+void PopulateEntryBlock(
+    BasicBlock* entry_block,
+    const std::vector<PhyLocation>& arg_locations) {
+  auto args_reg = codegen::INITIAL_EXTRA_ARGS_REG;
+
+  // Move the args pointer from the calling convention register (rsi) to the
+  // internal register (r10) used by the rest of the function.
+  entry_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{args_reg},
+      PhyReg{codegen::ARGUMENT_REGS[1]});
+
+  auto kPointerSize = static_cast<int32_t>(sizeof(void*));
+
+  bool has_extra_args = false;
+  for (size_t i = 0; i < arg_locations.size(); i++) {
+    PhyLocation arg = arg_locations[i];
+    if (arg == PhyLocation::REG_INVALID) {
+      has_extra_args = true;
+      continue;
+    }
+    if (arg.is_gp_register()) {
+      entry_block->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg(arg),
+          Ind(args_reg, static_cast<int32_t>(i * kPointerSize)));
+    } else {
+      entry_block->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg(arg, OperandBase::kDouble),
+          Ind(args_reg,
+              static_cast<int32_t>(i * kPointerSize),
+              OperandBase::kDouble));
+    }
+  }
+  if (has_extra_args) {
+    // Point extra_args register past the register-bound args to the
+    // start of the overflow args in the vectorcall array.
+    auto offset = static_cast<int32_t>(
+        (codegen::ARGUMENT_REGS.size() - 1) * kPointerSize);
+    entry_block->allocateInstr(
+        Instruction::kLea, nullptr, OutPhyReg(args_reg), Ind(args_reg, offset));
+  }
 }
 
 BasicBlock* LIRGenerator::GenerateExitBlock() {
@@ -548,7 +604,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   exit_block_ = GenerateExitBlock();
 
   // Connect all successors.
-  entry_block_->addSuccessor(bb_map[hir_entry].first);
+  frame_setup_block_->addSuccessor(bb_map[hir_entry].first);
   for (auto hir_bb : translated) {
     auto hir_term = hir_bb->GetTerminator();
     auto last_bb = bb_map[hir_bb].last;

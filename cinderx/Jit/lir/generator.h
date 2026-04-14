@@ -34,7 +34,7 @@ class LIRGenerator {
   }
 
   BasicBlock* frameSetupBlock() {
-    return entry_block_;
+    return frame_setup_block_;
   }
 
  private:
@@ -49,6 +49,7 @@ class LIRGenerator {
   jit::codegen::Environ* env_{nullptr};
 
   BasicBlock* entry_block_{nullptr};
+  BasicBlock* frame_setup_block_{nullptr};
   BasicBlock* exit_block_{nullptr};
 
   std::vector<BasicBlock*> basic_blocks_;
@@ -184,5 +185,11 @@ class LIRGenerator {
 BasicBlock* GenerateResumeEntryBlock(
     Function* lir_func,
     Py_ssize_t gi_jit_data_offset);
+
+// Populate the entry block with post-regalloc LIR instructions that load
+// arguments from the vectorcall args array into their assigned registers.
+void PopulateEntryBlock(
+    BasicBlock* entry_block,
+    const std::vector<PhyLocation>& arg_locations);
 
 } // namespace jit::lir

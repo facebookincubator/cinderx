@@ -528,16 +528,18 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 #if PY_VERSION_HEX >= 0x030E0000
   auto lir_expected = fmt::format(
       R"(Function:
-BB %0 - succs: %5
+BB %0 - succs: %1
+
+BB %1 - preds: %0 - succs: %6
                    SetupFrame
-       %2:Object = Bind {}:Object
        %3:Object = Bind {}:Object
        %4:Object = Bind {}:Object
+       %5:Object = Bind {}:Object
 
-BB %5 - preds: %0
+BB %6 - preds: %1
 
 # v9:Nullptr = LoadConst<Nullptr>
-       %6:Object = Move 0(0x0):Object
+       %7:Object = Move 0(0x0):Object
 
 # v10:Bottom = CheckVar<"a"> v9 {{
 #   LiveValues<1> unc:v9
@@ -546,12 +548,12 @@ BB %5 - preds: %0
 #     Locals<1> v9
 #   }}
 # }}
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
 
 # Unreachable
                    Unreachable
 
-BB %9
+BB %10
 
 
 )",
@@ -566,13 +568,54 @@ BB %9
 #elif PY_VERSION_HEX >= 0x030C0000
   auto lir_expected = fmt::format(
       R"(Function:
-BB %0 - succs: %5
+BB %0 - succs: %1
+
+BB %1 - preds: %0 - succs: %6
                    SetupFrame
-       %2:Object = Bind {}:Object
+       %3:Object = Bind {}:Object
+       %4:Object = Bind {}:Object
+       %5:Object = Bind {}:Object
+
+BB %6 - preds: %1
+
+# v9:Nullptr = LoadConst<Nullptr>
+       %7:Object = Move 0(0x0):Object
+
+# v10:Bottom = CheckVar<"a"> v9 {{
+#   LiveValues<1> unc:v9
+#   FrameState {{
+#     CurInstrOffset 2
+#     Locals<1> v9
+#   }}
+# }}
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
+
+# Unreachable
+                   Unreachable
+
+BB %10
+
+
+)",
+      PhyLocation{10, 64},
+      PhyLocation{11, 64},
+#if defined(CINDER_X86_64)
+      PhyLocation{7, 64}
+#else
+      PhyLocation{0, 64}
+#endif
+  );
+#else
+  auto lir_expected = fmt::format(
+      R"(Function:
+BB %0 - succs: %1
+
+BB %1 - preds: %0 - succs: %5
+                   SetupFrame
        %3:Object = Bind {}:Object
        %4:Object = Bind {}:Object
 
-BB %5 - preds: %0
+BB %5 - preds: %1
 
 # v9:Nullptr = LoadConst<Nullptr>
        %6:Object = Move 0(0x0):Object
@@ -590,43 +633,6 @@ BB %5 - preds: %0
                    Unreachable
 
 BB %9
-
-
-)",
-      PhyLocation{10, 64},
-      PhyLocation{11, 64},
-#if defined(CINDER_X86_64)
-      PhyLocation{7, 64}
-#else
-      PhyLocation{0, 64}
-#endif
-  );
-#else
-  auto lir_expected = fmt::format(
-      R"(Function:
-BB %0 - succs: %4
-                   SetupFrame
-       %2:Object = Bind {}:Object
-       %3:Object = Bind {}:Object
-
-BB %4 - preds: %0
-
-# v9:Nullptr = LoadConst<Nullptr>
-       %5:Object = Move 0(0x0):Object
-
-# v10:Bottom = CheckVar<"a"> v9 {{
-#   LiveValues<1> unc:v9
-#   FrameState {{
-#     CurInstrOffset 2
-#     Locals<1> v9
-#   }}
-# }}
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %5:Object, 0(0x0):64bit, %5:Object
-
-# Unreachable
-                   Unreachable
-
-BB %8
 
 
 )",

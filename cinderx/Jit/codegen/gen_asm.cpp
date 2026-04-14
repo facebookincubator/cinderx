@@ -1365,44 +1365,7 @@ void NativeGenerator::generatePrologue(
         "Generic entry (box primitive return)", box_entry_cursor);
   }
 
-  // Args are now validated, setup frame.
-  constexpr auto kArgsReg = x86::gpq(INITIAL_EXTRA_ARGS_REG.loc);
-  constexpr auto kArgsPastSixReg = kArgsReg;
-
-  asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
-
-  // Move the args pointer from the calling convention register (rsi) to the
-  // internal register (r10) used by the rest of the function.
-  as_->mov(kArgsReg, x86::rsi);
-
-  env_.addAnnotation("Link frame", frame_cursor);
-
-  asmjit::BaseNode* load_args_cursor = as_->cursor();
-  // Move arguments into their expected registers and then set a register as the
-  // base for additional args.
-  bool has_extra_args = false;
-  for (size_t i = 0; i < env_.arg_locations.size(); i++) {
-    PhyLocation arg = env_.arg_locations[i];
-    if (arg == PhyLocation::REG_INVALID) {
-      has_extra_args = true;
-      continue;
-    }
-    if (arg.is_gp_register()) {
-      as_->mov(x86::gpq(arg.loc), x86::ptr(kArgsReg, i * sizeof(void*)));
-    } else {
-      as_->movsd(x86::xmm(arg.loc), x86::ptr(kArgsReg, i * sizeof(void*)));
-    }
-  }
-  if (has_extra_args) {
-    // Load the location of the remaining args, the backend will deal with
-    // loading them from here...
-    as_->lea(
-        kArgsPastSixReg,
-        x86::ptr(kArgsReg, (ARGUMENT_REGS.size() - 1) * sizeof(void*)));
-  }
-  env_.addAnnotation("Load arguments", load_args_cursor);
-
 #elif defined(CINDER_AARCH64)
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
@@ -1436,51 +1399,7 @@ void NativeGenerator::generatePrologue(
         "Generic entry (box primitive return)", box_entry_cursor);
   }
 
-  // Args are now validated, setup frame.
-  constexpr auto kArgsReg = a64::x(INITIAL_EXTRA_ARGS_REG.loc);
-  constexpr auto kArgsPastEightReg = kArgsReg;
-
-  asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
-
-  // Move the args pointer from the calling convention register (x1) to the
-  // internal register (x10) used by the rest of the function.
-  as_->mov(kArgsReg, a64::x1);
-
-  env_.addAnnotation("Link frame", frame_cursor);
-
-  asmjit::BaseNode* load_args_cursor = as_->cursor();
-  // Move arguments into their expected registers and then set a register as the
-  // base for additional args.
-  bool has_extra_args = false;
-  for (size_t i = 0; i < env_.arg_locations.size(); i++) {
-    PhyLocation arg = env_.arg_locations[i];
-    if (arg == PhyLocation::REG_INVALID) {
-      has_extra_args = true;
-      continue;
-    }
-    if (arg.is_gp_register()) {
-      as_->ldr(
-          a64::x(arg.loc),
-          arch::ptr_resolve(
-              as_, kArgsReg, i * sizeof(void*), arch::reg_scratch_0));
-    } else {
-      as_->ldr(
-          a64::d(arg.loc - VECD_REG_BASE),
-          arch::ptr_resolve(
-              as_, kArgsReg, i * sizeof(void*), arch::reg_scratch_0));
-    }
-  }
-  if (has_extra_args) {
-    // Load the location of the remaining args, the backend will deal with
-    // loading them from here...
-    as_->add(
-        kArgsPastEightReg,
-        kArgsReg,
-        (ARGUMENT_REGS.size() - 1) * sizeof(void*));
-  }
-  env_.addAnnotation("Load arguments", load_args_cursor);
-
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2015,9 +1934,7 @@ void NativeGenerator::generateStaticEntryPoint(
   if (total_args + 1 > ARGUMENT_REGS.size()) {
     // Capture the extra args pointer from the stack. For generators on 3.12+
     // this must happen before frame linking replaces fp.
-    // Extra args are above the 32-byte frame (saved fp, lr, savedReturnIP,
-    // padding), so the offset is 32.
-    as_->add(a64::x10, arch::fp, 32);
+    as_->add(a64::x10, arch::fp, arch::kFrameRecordSize);
   }
 
   as_->b(finish_frame_setup);
@@ -2071,6 +1988,11 @@ void NativeGenerator::generateCode(
   // generateAssemblyBody binds it at the block's start.
   Label finish_frame_setup = as_->newLabel();
   env_.block_label_map[frameSetupBlock] = finish_frame_setup;
+
+  // Populate the entry block with arg loading instructions (post-regalloc,
+  // using physical registers from arg_locations).
+  auto* entry_block = lir_func_->basicblocks().front();
+  lir::PopulateEntryBlock(entry_block, env_.arg_locations);
 
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
