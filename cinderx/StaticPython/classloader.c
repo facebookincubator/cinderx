@@ -28,56 +28,6 @@ int used_in_vtable(PyObject* value);
 
 extern int _PyObject_GetMethod(PyObject*, PyObject*, PyObject**);
 
-static int rettype_check_traverse(
-    _PyClassLoader_RetTypeInfo* op,
-    visitproc visit,
-    void* arg) {
-  visit((PyObject*)op->rt_expected, arg);
-  return 0;
-}
-
-static int rettype_check_clear(_PyClassLoader_RetTypeInfo* op) {
-  Py_CLEAR(op->rt_expected);
-  Py_CLEAR(op->rt_name);
-  return 0;
-}
-
-static PyTypeObject* resolve_function_rettype(
-    PyObject* funcobj,
-    int* optional,
-    int* exact,
-    int* func_flags) {
-  assert(PyFunction_Check(funcobj));
-  PyFunctionObject* func = (PyFunctionObject*)funcobj;
-  if (((PyCodeObject*)func->func_code)->co_flags & CO_COROUTINE) {
-    *func_flags |= Ci_FUNC_FLAGS_COROUTINE;
-  }
-  return _PyClassLoader_ResolveType(
-      _PyClassLoader_GetReturnTypeDescr(func), optional, exact);
-}
-
-static int thunktraverse(_Py_StaticThunk* op, visitproc visit, void* arg) {
-  rettype_check_traverse((_PyClassLoader_RetTypeInfo*)op, visit, arg);
-  Py_VISIT(op->thunk_tcs.tcs_value);
-  Py_VISIT((PyObject*)op->thunk_cls);
-  return 0;
-}
-
-static int thunkclear(_Py_StaticThunk* op) {
-  rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
-  Py_CLEAR(op->thunk_tcs.tcs_value);
-  Py_CLEAR(op->thunk_cls);
-  return 0;
-}
-
-static void thunkdealloc(_Py_StaticThunk* op) {
-  PyObject_GC_UnTrack((PyObject*)op);
-  rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
-  Py_XDECREF(op->thunk_tcs.tcs_value);
-  Py_XDECREF(op->thunk_cls);
-  PyObject_GC_Del((PyObject*)op);
-}
-
 int get_func_or_special_callable(
     PyTypeObject* type,
     PyObject* name,
