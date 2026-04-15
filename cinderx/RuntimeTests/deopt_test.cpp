@@ -351,8 +351,11 @@ def test(x, y):
 #elif PY_VERSION_HEX < 0x030E0000
     const int jump_index = 32;
     const int pop_instr_offset = 4;
-#else
+#elif PY_VERSION_HEX < 0x030F0000
     const int jump_index = 42;
+    const int pop_instr_offset = 2;
+#else
+    const int jump_index = 44;
     const int pop_instr_offset = 2;
 #endif
     auto code_bytes = Ref<>::steal(PyCode_GetCode(code));
