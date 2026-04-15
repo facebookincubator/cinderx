@@ -13,89 +13,13 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
-#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/module_state.h"
-
-#include <type_traits>
-#include <vector>
 
 using namespace asmjit;
 using namespace jit::lir;
 using namespace jit::codegen;
 
 namespace jit::codegen::autogen {
-
-#define ANY "*"
-
-namespace {
-// Add a pattern to an existing trie tree. If the trie tree is nullptr, create a
-// new one.
-[[maybe_unused]] std::unique_ptr<PatternNode> addPattern(
-    std::unique_ptr<PatternNode> patterns,
-    const std::string& s,
-    PatternNode::func_t func) {
-  JIT_DCHECK(!s.empty(), "pattern string should not be empty.");
-
-  if (patterns == nullptr) {
-    patterns = std::make_unique<PatternNode>();
-  }
-
-  PatternNode* cur = patterns.get();
-  for (auto& c : s) {
-    auto iter = cur->next.find(c);
-    if (iter == cur->next.end()) {
-      cur = cur->next.emplace(c, std::make_unique<PatternNode>())
-                .first->second.get();
-      continue;
-    }
-    cur = iter->second.get();
-  }
-
-  JIT_DCHECK(cur->func == nullptr, "Found duplicated pattern.");
-  cur->func = func;
-
-  return patterns;
-}
-
-// Find the function associated to the pattern given in s.
-PatternNode::func_t findByPattern(
-    const PatternNode* patterns,
-    const std::string& s) {
-  auto cur = patterns;
-  if (s.empty()) {
-    // handle the special case of matching '*' with an empty string
-    auto iter = cur->next.find('*');
-    if (iter != cur->next.end()) {
-      cur = iter->second.get();
-      return cur->func;
-    }
-  }
-  for (auto& c : s) {
-    auto iter = cur->next.find(c);
-    if (iter != cur->next.end()) {
-      cur = iter->second.get();
-      continue;
-    }
-
-    iter = cur->next.find('?');
-    if (iter != cur->next.end()) {
-      cur = iter->second.get();
-      continue;
-    }
-
-    iter = cur->next.find('*');
-    if (iter != cur->next.end()) {
-      cur = iter->second.get();
-      break;
-    }
-
-    return nullptr;
-  }
-
-  return cur->func;
-}
-
-} // namespace
 
 void translateLeaLabel(Environ* env, const Instruction* instr);
 void TranslateGuard(Environ* env, const Instruction* instr);
@@ -143,8 +67,7 @@ arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
 }
 
 // Resolves the operand size in bits, respecting the instruction's
-// OperandSizeType property. This matches the behavior of LIROperandSizeMapper
-// used by the autogen trie rules.
+// OperandSizeType property.
 int getOperandSize(const Instruction* instr, const OperandBase* operand) {
   auto size_type = InstrProperty::getProperties(instr).opnd_size_type;
   switch (size_type) {
@@ -165,8 +88,7 @@ int getOperandSize(const Instruction* instr, const OperandBase* operand) {
 }
 
 // Returns the appropriately-sized Gp register for a given operand, respecting
-// the instruction's OperandSizeType property. This matches the behavior of the
-// OP() macro used in the autogen trie rules.
+// the instruction's OperandSizeType property.
 arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
   JIT_CHECK(operand->isReg(), "Expected a register for getReg");
   int size = getOperandSize(instr, operand);
@@ -199,9 +121,7 @@ arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
 }
 
 // Returns an arch::Mem for a given memory operand (stack, mem, or indirect),
-// with size set according to the instruction's OperandSizeType property. This
-// matches the behavior of the MEM()/STK() macros used in the autogen trie
-// rules.
+// with size set according to the instruction's OperandSizeType property.
 arch::Mem getMem(const Instruction* instr, const OperandBase* operand) {
 #if defined(CINDER_X86_64)
   int size = getOperandSize(instr, operand) / 8;
@@ -275,9 +195,7 @@ void translateSelect(Environ* env, const Instruction* instr);
 } // namespace
 #endif
 
-// this function generates operand patterns from the inputs and outputs
-// of a given instruction instr and calls the correspoinding code generation
-// functions.
+// Translates a single LIR instruction to machine code.
 void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     const {
   auto opcode = instr->opcode();
@@ -1131,62 +1049,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
 #endif
     default:
-      break;
+      JIT_ABORT(
+          "No handler for opcode {}", InstrProperty::getProperties(instr).name);
   }
-
-  auto& instr_map = map_get(instr_rule_map_, opcode);
-
-  std::string pattern;
-  pattern.reserve(instr->getNumInputs() + instr->getNumOutputs());
-
-  if (instr->getNumOutputs()) {
-    auto operand = instr->output();
-
-    switch (operand->type()) {
-      case OperandBase::kReg:
-        pattern += (operand->isVecD() ? "X" : "R");
-        break;
-      case OperandBase::kStack:
-      case OperandBase::kMem:
-      case OperandBase::kInd:
-        pattern += "M";
-        break;
-      default:
-        JIT_ABORT("Output operand has to be of type register or memory");
-    }
-  }
-
-  instr->foreachInputOperand([&](const OperandBase* operand) {
-    switch (operand->type()) {
-      case OperandBase::kReg:
-        pattern += (operand->isVecD() ? "x" : "r");
-        break;
-      case OperandBase::kStack:
-      case OperandBase::kMem:
-      case OperandBase::kInd:
-        pattern += "m";
-        break;
-      case OperandBase::kImm:
-        pattern += "i";
-        break;
-      case OperandBase::kLabel:
-        pattern += "b";
-        break;
-      default:
-        JIT_ABORT(
-            "Illegal input type {} for instruction {}",
-            operand->type(),
-            *instr);
-    }
-  });
-
-  auto func = findByPattern(instr_map.get(), pattern);
-  JIT_CHECK(
-      func != nullptr,
-      "No pattern found for opcode {}: {}",
-      InstrProperty::getProperties(instr).name,
-      pattern);
-  func(env, instr);
 }
 
 namespace {
@@ -2058,261 +1923,6 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
 #endif
 }
 
-namespace {
-
-// ***********************************************************************
-// The following templates and macros implement the auto generation table.
-// The generator table defines a hash table, whose key is instruction type,
-// and value is another hash table mapping instruction operand pattern and
-// a function carrying out certain Actions for the instruction with the
-// operand pattern.
-// The list of Actions are encoded in the template class RuleActions as its
-// template arguments. Currently, there are two types of Actions:
-//   * AsmAction - generate an asm instruction
-//   * CallAction - call a user defined instruction
-// The Action classes are also templates, whose argument lists encode the
-// parameters for the Action. For example, an AsmAction's argument list has
-// the assembly instruction mnemonic and its operands.
-// ***********************************************************************
-template <int N>
-const OperandBase* LIROperandMapper(const Instruction* instr) {
-  auto num_outputs = instr->getNumOutputs();
-  if (N < num_outputs) {
-    return instr->output();
-  } else {
-    return instr->getInput(N - num_outputs);
-  }
-}
-
-template <int N>
-int LIROperandSizeMapper(const Instruction* instr) {
-  auto size_type = InstrProperty::getProperties(instr).opnd_size_type;
-  switch (size_type) {
-    case kDefault:
-      return LIROperandMapper<N>(instr)->sizeInBits();
-    case kAlways64:
-      return 64;
-    case kOut:
-      return LIROperandMapper<0>(instr)->sizeInBits();
-  }
-
-  JIT_ABORT("Unknown size type");
-}
-
-template <int N>
-struct ImmOperand {
-  using asmjit_type = const asmjit::Imm&;
-
-  static asmjit::Imm GetAsmOperand(Environ*, const Instruction* instr) {
-    return asmjit::Imm(LIROperandMapper<N>(instr)->getConstant());
-  }
-};
-
-template <typename T>
-struct ImmOperandNegate {
-  using asmjit_type = const asmjit::Imm&;
-
-  static asmjit::Imm GetAsmOperand(Environ* env, const Instruction* instr) {
-    return asmjit::Imm(
-        -T::GetAsmOperand(env, instr).template valueAs<int64_t>());
-  }
-};
-
-template <typename T>
-struct ImmOperandInvert {
-  using asmjit_type = const asmjit::Imm&;
-
-  static asmjit::Imm GetAsmOperand(Environ* env, const Instruction* instr) {
-    return asmjit::Imm(
-        ~T::GetAsmOperand(env, instr).template valueAs<uint64_t>());
-  }
-};
-
-template <int N, int Size = -1>
-struct RegOperand {
-  using asmjit_type = const arch::Gp&;
-  static arch::Gp GetAsmOperand(Environ*, const Instruction* instr) {
-    static_assert(
-        Size == -1 || Size == 8 || Size == 16 || Size == 32 || Size == 64,
-        "Invalid Size");
-
-#if defined(CINDER_X86_64)
-    int size = Size == -1 ? LIROperandSizeMapper<N>(instr) : Size;
-
-    PhyLocation reg = LIROperandMapper<N>(instr)->getPhyRegister();
-    switch (size) {
-      case 8:
-        return asmjit::x86::gpb(reg.loc);
-      case 16:
-        return asmjit::x86::gpw(reg.loc);
-      case 32:
-        return asmjit::x86::gpd(reg.loc);
-      case 64:
-        return asmjit::x86::gpq(reg.loc);
-    }
-#elif defined(CINDER_AARCH64)
-    int size = Size == -1 ? LIROperandSizeMapper<N>(instr) : Size;
-
-    PhyLocation reg = LIROperandMapper<N>(instr)->getPhyRegister();
-    switch (size) {
-      case 8:
-      case 16:
-        JIT_ABORT("Currently unsupported size.");
-      case 32:
-        return asmjit::a64::w(reg.loc);
-      case 64:
-        return asmjit::a64::x(reg.loc);
-    }
-#else
-    CINDER_UNSUPPORTED
-#endif
-
-    JIT_ABORT("Incorrect operand size.");
-  }
-};
-
-template <int N>
-struct VecDOperand {
-  using asmjit_type = const arch::VecD&;
-  static arch::VecD GetAsmOperand(Environ*, const Instruction* instr) {
-#if defined(CINDER_X86_64)
-    return asmjit::x86::xmm(
-        LIROperandMapper<N>(instr)->getPhyRegister().loc - VECD_REG_BASE);
-#elif defined(CINDER_AARCH64)
-    return asmjit::a64::d(
-        LIROperandMapper<N>(instr)->getPhyRegister().loc - VECD_REG_BASE);
-#else
-    CINDER_UNSUPPORTED
-    return arch::VecD();
-#endif
-  }
-};
-
-#define OP(v)                                       \
-  typename std::conditional_t<                      \
-      pattern[v] == 'i',                            \
-      ImmOperand<v>,                                \
-      std::conditional_t<                           \
-          (pattern[v] == 'x' || pattern[v] == 'X'), \
-          VecDOperand<v>,                           \
-          RegOperand<v>>>
-
-#define REG_OP(v, size) RegOperand<v, size>
-
-template <int N>
-struct MemOperand {
-  using asmjit_type = const arch::Mem&;
-  static arch::Mem GetAsmOperand(Environ*, const Instruction* instr) {
-#if defined(CINDER_X86_64)
-    const OperandBase* operand = LIROperandMapper<N>(instr);
-    auto size = LIROperandSizeMapper<N>(instr) / 8;
-
-    asmjit::x86::Mem memptr;
-    if (operand->isStack()) {
-      memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
-    } else if (operand->isMem()) {
-      memptr = asmjit::x86::ptr(
-          reinterpret_cast<uint64_t>(operand->getMemoryAddress()));
-    } else if (operand->isInd()) {
-      memptr = AsmIndirectOperandBuilder(operand);
-    } else {
-      JIT_ABORT("Unsupported operand type.");
-    }
-
-    memptr.setSize(size);
-    return memptr;
-#elif defined(CINDER_AARCH64)
-    const OperandBase* operand = LIROperandMapper<N>(instr);
-    if (!operand->isStack()) {
-      JIT_ABORT("Unreachable.");
-    }
-
-    int32_t loc = operand->getStackSlot().loc;
-    JIT_CHECK(loc >= -256 && loc < 256, "Stack slot out of range");
-
-    return arch::ptr_offset(arch::fp, loc);
-#else
-    CINDER_UNSUPPORTED
-    return arch::Mem();
-#endif
-  }
-};
-
-#define MEM(m) MemOperand<m>
-#define STK(v) MemOperand<v>
-
-template <int N>
-struct LabelOperand {
-  using asmjit_type = const asmjit::Label&;
-  static asmjit::Label GetAsmOperand(Environ* env, const Instruction* instr) {
-    auto* operand = LIROperandMapper<N>(instr);
-    if (operand->getDefine()->hasAsmLabel()) {
-      return operand->getDefine()->getAsmLabel();
-    }
-    auto block = operand->getBasicBlock();
-    return map_get(env->block_label_map, block);
-  }
-};
-
-#define LBL(v) LabelOperand<v>
-
-template <typename... Args>
-struct OperandList;
-
-template <typename FuncType, FuncType func, typename OpndList>
-struct AsmAction;
-
-template <typename FuncType, FuncType func, typename... OpndTypes>
-struct AsmAction<FuncType, func, OperandList<OpndTypes...>> {
-  static void eval(Environ* env, const Instruction* instr) {
-    static_cast<void>(instr);
-    (env->as->*func)(OpndTypes::GetAsmOperand(env, instr)...);
-  }
-};
-
-template <typename... Args>
-struct AsminstructionType {
-  using type = asmjit::Error (arch::EmitterExplicitT<arch::Builder>::*)(
-      typename Args::asmjit_type...);
-};
-
-template <void (*func)(Environ*, const Instruction*)>
-struct CallAction {
-  static void eval(Environ* env, const Instruction* instr) {
-    func(env, instr);
-  }
-};
-
-template <typename... Actions>
-struct RuleActions;
-
-template <typename AAction, typename... Actions>
-struct RuleActions<AAction, Actions...> {
-  // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
-  static void eval(Environ* env, const Instruction* instr) {
-    AAction::eval(env, instr);
-    RuleActions<Actions...>::eval(env, instr);
-  }
-};
-
-template <>
-struct RuleActions<> {
-  // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
-  static void eval(Environ*, const Instruction*) {}
-};
-
-struct AddDebugEntryAction {
-  static void eval(Environ* env, const Instruction* instr) {
-    asmjit::Label label = env->as->newLabel();
-    env->as->bind(label);
-    if (instr->origin()) {
-      env->pending_debug_locs.emplace_back(label, instr->origin());
-    }
-  }
-};
-
-} // namespace
-
 void translateYieldExitPoint(Environ* env, const Instruction*) {
   env->as->bind(env->exit_for_yield_label);
 }
@@ -2617,94 +2227,7 @@ void translateIndirectJump(Environ* env, const Instruction* instr) {
 #endif
 }
 
-namespace {} // namespace
-
-#define ASM(instr, args...)                    \
-  AsmAction<                                   \
-      typename AsminstructionType<args>::type, \
-      &arch::Builder::instr,                   \
-      OperandList<args>>
-
-// Can't be named CALL as that conflicts with the opcode.
-#define CALL_C(func) CallAction<func>
-
-#define ADDDEBUGENTRY() AddDebugEntryAction
-
-#define BEGIN_RULE_TABLE void AutoTranslator::initTable() {
-#define END_RULE_TABLE }
-
-#define BEGIN_RULES(__t)                                \
-  {                                                     \
-    auto& __rules = instr_rule_map_                     \
-                        .emplace(                       \
-                            std::piecewise_construct,   \
-                            std::forward_as_tuple(__t), \
-                            std::forward_as_tuple())    \
-                        .first->second;
-
-#define END_RULES }
-#define GEN(s, actions...)                                  \
-  {                                                         \
-    UNUSED constexpr char pattern[] = s;                    \
-    using rule_actions = RuleActions<actions>;              \
-    auto gen = [](Environ* env, const Instruction* instr) { \
-      rule_actions::eval(env, instr);                       \
-    };                                                      \
-    __rules = addPattern(std::move(__rules), s, gen);       \
-  }
-
-// ***********************************************************************
-// Definition of Auto Generation Table
-// The table consisting of multiple rules, and the rules for the same LIR
-// instruction are grouped by BEGIN_RULES(LIR instruction type) and
-// END_RULES.
-// GEN defines a rule for a certain operand pattern of the LIR instruction,
-// and maps it to a list of actions:
-//   GEN(<operand pattern>, action1, action2, ...)
-//
-// The operand pattern is defined by a string, and each character in the string
-// correpsonds to an operand of the instruction. The character can be one
-// of the following:
-//   * 'R' - general purpose register operand output
-//   * 'r' - general purpose register operand input
-//   * 'X' - floating-point register operand output
-//   * 'x' - floating-point register operand input
-//   * 'i' - immediate operand input
-//   * 'M' - memory stack operand output
-//   * 'm' - memory stack operand input
-// Wildcards "?" and "*" can also be used in patterns, where "?" represents any
-// one of the types listed above and "*" represents one or more above types.
-// Please note that while "?" can appear anywhere in a pattern, "*" can only be
-// used at the end of a pattern.
-// The actions can be ASM and CALL_C, meaning generating an assembly instruction
-// and call a user-defined function, respectively. The first argument of ASM
-// action is the mnemonic of the instruction to be generated, and the following
-// arguments are the operands to the instruction. Currently, we have four types
-// of assembly instruction operands:
-//   * OP  - either an immediate operand or register oeprand
-//   * STK - a memory stack location [RBP - ?]
-//   * LBL - a label to a basic block
-//   * MEM - a memory operand. The size of the memory operand will be set to the
-//           size of the LIR instruction operand specified by the first argument
-//           of MEM.
-// The assembly instruction operands are constructed from one or more LIR
-// instruction operands. To specify the LIR operands, we use indices
-// of the pattern string. For example:
-//   GEN("Rri", ASM(mov, OP(0), MEM(0, 1, 2)))
-// means generating a mov instruction, whose first operand is a
-// register/immediate operand, constructed from the only output of the LIR
-// instruction, and the second operand is memory operand, constructed from the
-// register input and the immediate input of the LIR instruction. The size of
-// the memory operand is set to the size of the output of the LIR instruction.
-// ***********************************************************************
-
-#if defined(CINDER_X86_64)
-// clang-format off
-BEGIN_RULE_TABLE
-
-END_RULE_TABLE
-// clang-format on
-#elif defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64)
 
 namespace {
 
@@ -3635,16 +3158,6 @@ void translateSelect(Environ* env, const Instruction* instr) {
 }
 
 } // namespace
-
-// clang-format off
-BEGIN_RULE_TABLE
-
-END_RULE_TABLE
-// clang-format on
-#else
-
-BEGIN_RULE_TABLE
-END_RULE_TABLE
 
 #endif
 

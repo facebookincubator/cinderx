@@ -6,23 +6,9 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 
-#include <memory>
-#include <unordered_map>
-
 namespace jit::codegen::autogen {
 
-// this struct defines a trie tree node to support instruction
-// operand type matching.
-struct PatternNode {
-  using func_t = void (*)(Environ*, const jit::lir::Instruction*);
-
-  std::unordered_map<char, std::unique_ptr<PatternNode>> next;
-  func_t func{nullptr};
-};
-
 // A machine code generator from LIR.
-// This class generates machine code based on a set of user-defined rules.
-// See autogen.cpp file for details.
 class AutoTranslator {
  public:
   static AutoTranslator& getInstance() {
@@ -147,15 +133,7 @@ class AutoTranslator {
   }
 
  private:
-  AutoTranslator() {
-    initTable();
-  }
-
-  std::
-      unordered_map<jit::lir::Instruction::Opcode, std::unique_ptr<PatternNode>>
-          instr_rule_map_;
-
-  void initTable();
+  AutoTranslator() = default;
 
   DISALLOW_COPY_AND_ASSIGN(AutoTranslator);
 };
