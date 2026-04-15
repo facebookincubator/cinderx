@@ -780,6 +780,218 @@ RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
   }
   return kChanged;
 }
+
+// After register allocation, spilled values become stack operands. ARM64 ALU
+// instructions require register operands, so load stack inputs into scratch
+// registers. Move/MovZX/MovSX/etc. natively support memory inputs and are
+// excluded.
+RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
+  auto instr = instr_iter->get();
+
+  // Only rewrite instructions that cannot handle memory operands.
+  switch (instr->opcode()) {
+    case Instruction::kAdd:
+    case Instruction::kSub:
+    case Instruction::kAnd:
+    case Instruction::kOr:
+    case Instruction::kXor:
+    case Instruction::kMul:
+    case Instruction::kDiv:
+    case Instruction::kDivUn:
+    case Instruction::kNegate:
+    case Instruction::kInvert:
+    case Instruction::kInc:
+    case Instruction::kDec:
+    case Instruction::kCmp:
+    case Instruction::kTest:
+    case Instruction::kTest32:
+    case Instruction::kEqual:
+    case Instruction::kNotEqual:
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+    case Instruction::kGreaterThanUnsigned:
+    case Instruction::kGreaterThanEqualUnsigned:
+    case Instruction::kLessThanUnsigned:
+    case Instruction::kLessThanEqualUnsigned:
+    case Instruction::kIntToBool:
+    case Instruction::kBitTest:
+    case Instruction::kExchange:
+    case Instruction::kFadd:
+    case Instruction::kFsub:
+    case Instruction::kFmul:
+    case Instruction::kFdiv:
+      break;
+    // Instructions that natively support memory operands or don't have
+    // register-only constraints — no rewriting needed.
+    case Instruction::kNone:
+    case Instruction::kBind:
+    case Instruction::kNop:
+    case Instruction::kUnreachable:
+    case Instruction::kCall:
+    case Instruction::kVectorCall:
+    case Instruction::kVarArgCall:
+    case Instruction::kGuard:
+    case Instruction::kDeoptPatchpoint:
+    case Instruction::kSelect:
+    case Instruction::kMulAdd:
+    case Instruction::kSext:
+    case Instruction::kZext:
+    case Instruction::kInt64ToDouble:
+    case Instruction::kLShift:
+    case Instruction::kRShift:
+    case Instruction::kRShiftUn:
+    case Instruction::kLea:
+    case Instruction::kLoadArg:
+    case Instruction::kLoadSecondCallResult:
+    case Instruction::kMove:
+    case Instruction::kMoveRelaxed:
+    case Instruction::kMovConstPool:
+    case Instruction::kPush:
+    case Instruction::kPop:
+    case Instruction::kCdq:
+    case Instruction::kCwd:
+    case Instruction::kCqo:
+    case Instruction::kBranch:
+    case Instruction::kBranchNZ:
+    case Instruction::kBranchZ:
+    case Instruction::kBranchA:
+    case Instruction::kBranchB:
+    case Instruction::kBranchAE:
+    case Instruction::kBranchBE:
+    case Instruction::kBranchG:
+    case Instruction::kBranchL:
+    case Instruction::kBranchGE:
+    case Instruction::kBranchLE:
+    case Instruction::kBranchC:
+    case Instruction::kBranchNC:
+    case Instruction::kBranchO:
+    case Instruction::kBranchNO:
+    case Instruction::kBranchS:
+    case Instruction::kBranchNS:
+    case Instruction::kBranchE:
+    case Instruction::kBranchNE:
+    case Instruction::kCondBranch:
+    case Instruction::kPhi:
+    case Instruction::kReturn:
+    case Instruction::kMovZX:
+    case Instruction::kMovSX:
+    case Instruction::kMovSXD:
+    case Instruction::kLoadThreadState:
+    case Instruction::kYieldInitial:
+    case Instruction::kYieldValue:
+    case Instruction::kStoreGenYieldPoint:
+    case Instruction::kStoreGenYieldFromPoint:
+    case Instruction::kBranchToYieldExit:
+    case Instruction::kResumeGenYield:
+    case Instruction::kYieldExitPoint:
+    case Instruction::kEpilogueEnd:
+    case Instruction::kPrologue:
+    case Instruction::kSetupFrame:
+    case Instruction::kIndirectJump:
+      return kUnchanged;
+  }
+
+  auto block = instr->basicblock();
+  bool changed = false;
+  constexpr PhyLocation gp_scratch_locs[] = {
+      arch::reg_scratch_0_loc,
+      arch::reg_scratch_1_loc,
+  };
+  constexpr PhyLocation fp_scratch_locs[] = {
+      arch::reg_fp_scratch_0_loc,
+      arch::reg_fp_scratch_1_loc,
+  };
+  int gp_scratch_idx = 0;
+  int fp_scratch_idx = 0;
+
+  // Signed sub-word operations (signed comparisons, signed division) expect
+  // sign-extended inputs. rewriteSignedSubWordOps (pre-regalloc) inserts kSext
+  // to widen k8bit/k16bit to k32bit, but if that k32bit value gets spilled,
+  // its stack operand may still carry the original k8bit/k16bit data type.
+  // Loading with that narrow type produces a zero-extending load (ldrb/ldrh),
+  // destroying the sign extension. Load as k32bit instead to preserve it.
+  bool needs_sign_preserved = false;
+  switch (instr->opcode()) {
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+    case Instruction::kDiv:
+      needs_sign_preserved = true;
+      break;
+    default:
+      break;
+  }
+
+  // For Inc/Dec, remember the original stack location so we can store back.
+  std::optional<PhyLocation> inc_dec_stack_loc;
+  std::optional<DataType> inc_dec_dt;
+
+  for (size_t i = 0; i < instr->getNumInputs(); i++) {
+    auto input = instr->getInput(i);
+    if (!input->isStack()) {
+      continue;
+    }
+
+    auto loc = input->getStackSlot();
+    auto dt = input->dataType();
+
+    // Pick scratch register from the appropriate pool (GP vs FP).
+    PhyLocation scratch_loc;
+    if (dt == DataType::kDouble) {
+      JIT_CHECK(
+          fp_scratch_idx < 2,
+          "Too many FP stack inputs in instruction: {}",
+          *instr);
+      scratch_loc = fp_scratch_locs[fp_scratch_idx++];
+    } else {
+      JIT_CHECK(
+          gp_scratch_idx < 2,
+          "Too many GP stack inputs in instruction: {}",
+          *instr);
+      scratch_loc = gp_scratch_locs[gp_scratch_idx++];
+    }
+
+    // For signed operations, widen sub-word loads to 32-bit so the
+    // sign-extended value on the stack is preserved through the reload.
+    auto load_dt = dt;
+    if (needs_sign_preserved &&
+        (dt == DataType::k8bit || dt == DataType::k16bit)) {
+      load_dt = DataType::k32bit;
+    }
+
+    if (instr->isInc() || instr->isDec()) {
+      inc_dec_stack_loc = loc;
+      inc_dec_dt = dt;
+    }
+
+    block->allocateInstrBefore(
+        instr_iter,
+        Instruction::kMove,
+        OutPhyReg{scratch_loc, load_dt},
+        Stk{loc, load_dt});
+
+    auto new_input = std::make_unique<Operand>();
+    new_input->setPhyRegister(scratch_loc);
+    new_input->setDataType(load_dt);
+    instr->setInput(i, std::move(new_input));
+    changed = true;
+  }
+
+  // Inc/Dec are read-modify-write: store the result back to the stack slot.
+  if (inc_dec_stack_loc.has_value()) {
+    auto next_iter = std::next(instr_iter);
+    block->allocateInstrBefore(
+        next_iter,
+        Instruction::kMove,
+        OutStk{*inc_dec_stack_loc, *inc_dec_dt},
+        PhyReg{gp_scratch_locs[0], *inc_dec_dt});
+  }
+
+  return changed ? kChanged : kUnchanged;
+}
 #endif
 
 #if defined(CINDER_X86_64)
@@ -1144,6 +1356,7 @@ void PostRegAllocRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteByteMultiply);
 #elif defined(CINDER_AARCH64)
   registerOneRewriteFunction(rewriteSubWordRegMoves);
+  registerOneRewriteFunction(rewriteMemoryInputsToReg);
 #endif
 
   registerOneRewriteFunction(optimizeMoveSequence, 1);

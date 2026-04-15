@@ -79,6 +79,12 @@ constexpr auto reg_scratch_br = asmjit::a64::x16;
 constexpr auto reg_scratch_0_loc = X13;
 constexpr auto reg_scratch_1_loc = X14;
 
+constexpr auto reg_fp_scratch_0 = asmjit::a64::d16;
+constexpr auto reg_fp_scratch_1 = asmjit::a64::d17;
+
+constexpr auto reg_fp_scratch_0_loc = D16;
+constexpr auto reg_fp_scratch_1_loc = D17;
+
 constexpr auto reg_general_return_loc = X0;
 constexpr auto reg_general_auxilary_return_loc = X1;
 constexpr auto reg_double_return_loc = D0;
