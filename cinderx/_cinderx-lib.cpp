@@ -40,11 +40,6 @@
 #include "cinderx/StaticPython/xxclassloader.h"
 #endif
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "internal/pycore_shadow_frame.h"
-#endif
-
 #if PY_VERSION_HEX < 0x030D0000 && defined(ENABLE_EVAL_HOOK)
 #include "cinder/hooks.h"
 #endif
@@ -73,14 +68,12 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   }
   // We replace sys._clear_type_cache with our own function which clears the
   // caches, so we should call this too.
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    BorrowedRef<> sys_clear = state->sys_clear_caches;
-    if (sys_clear != nullptr) {
-      Ref<> res =
-          Ref<>::steal(PyObject_Vectorcall(sys_clear, nullptr, 0, nullptr));
-      if (res == nullptr) {
-        return nullptr;
-      }
+  BorrowedRef<> sys_clear = state->sys_clear_caches;
+  if (sys_clear != nullptr) {
+    Ref<> res =
+        Ref<>::steal(PyObject_Vectorcall(sys_clear, nullptr, 0, nullptr));
+    if (res == nullptr) {
+      return nullptr;
     }
   }
   Py_RETURN_NONE;
@@ -332,7 +325,6 @@ PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
   Py_RETURN_FALSE;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 PyDoc_STRVAR(
     cinder_delay_adaptive_doc,
     "delay_adaptive($module, delay, /)\n"
@@ -383,91 +375,6 @@ PyObject* cinder_get_adaptive_delay(PyObject* mod, PyObject*) {
 #endif
 }
 
-#endif
-
-// In 3.12+ we don't have a shadow-stack so there's no need for our own
-// stack-walking functions.
-#if PY_VERSION_HEX < 0x030C0000
-typedef struct {
-  PyObject* list;
-  int hasError;
-  int collectFrame;
-} StackWalkState;
-
-CiStackWalkDirective frame_data_collector(
-    void* data,
-    PyObject* fqname,
-    PyCodeObject* code,
-    int lineno,
-    PyObject* pyframe) {
-  PyObject* lineNoObj;
-  int failed;
-
-  StackWalkState* state = (StackWalkState*)data;
-  if (fqname == nullptr) {
-    fqname = ((PyCodeObject*)code)->co_qualname;
-    if (!fqname || !PyUnicode_Check(fqname)) {
-      fqname = ((PyCodeObject*)code)->co_name;
-    }
-  }
-  PyObject* t = PyTuple_New(2 + state->collectFrame);
-  if (t == nullptr) {
-    goto fail;
-  }
-  lineNoObj = PyLong_FromLong(lineno);
-  if (lineNoObj == nullptr) {
-    Py_DECREF(t);
-    goto fail;
-  }
-  PyTuple_SET_ITEM(t, 0, fqname);
-  Py_INCREF(fqname);
-
-  // steals ref
-  PyTuple_SET_ITEM(t, 1, lineNoObj);
-
-  if (state->collectFrame) {
-    PyObject* o = pyframe;
-    if (!o) {
-      o = Py_None;
-    }
-    PyTuple_SET_ITEM(t, 2, o);
-    Py_INCREF(o);
-  }
-  failed = PyList_Append(state->list, t);
-  Py_DECREF(t);
-  if (!failed) {
-    return CI_SWD_CONTINUE_STACK_WALK;
-  }
-fail:
-  state->hasError = 1;
-  return CI_SWD_STOP_STACK_WALK;
-}
-
-PyObject* collect_stack(int collectFrame) {
-  PyObject* stack = PyList_New(0);
-  if (stack == nullptr) {
-    return nullptr;
-  }
-  StackWalkState state = {
-      .list = stack, .hasError = 0, .collectFrame = collectFrame};
-  Ci_WalkAsyncStack(PyThreadState_GET(), frame_data_collector, &state);
-  if (state.hasError || (PyList_Reverse(stack) != 0)) {
-    Py_CLEAR(stack);
-  }
-  return stack;
-}
-
-PyObject* get_entire_call_stack_as_qualnames_with_lineno(PyObject*, PyObject*) {
-  return collect_stack(0);
-}
-
-PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
-    PyObject*,
-    PyObject*) {
-  return collect_stack(1);
-}
-#endif
-
 // Capture the default vectorcall entrypoint for functions.
 int ensurePyFunctionVectorcall() {
 #if PY_VERSION_HEX < 0x030F0000
@@ -512,8 +419,8 @@ void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
 }
 
 extern "C" PyObject* PyAnextAwaitable_New(PyObject*, PyObject*);
+
 // Replacement for builtins.anext which is aware of JIT generators
-#if PY_VERSION_HEX >= 0x030C0000
 static PyObject*
 builtin_anext(PyObject* module, PyObject* const* args, Py_ssize_t nargs) {
   if (!_PyArg_CheckPositional("anext", nargs, 1, 2)) {
@@ -555,7 +462,6 @@ builtin_anext(PyObject* module, PyObject* const* args, Py_ssize_t nargs) {
   Py_DECREF(awaitable);
   return new_awaitable;
 }
-#endif
 
 /*
  * (De)initialization functions
@@ -701,23 +607,7 @@ void init_already_existing_types() {
 
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
 int get_current_code_flags(PyThreadState* tstate) {
-#if PY_VERSION_HEX < 0x030C0000
-  PyCodeObject* cur_code = nullptr;
-  Ci_WalkStack(
-      tstate,
-      [](void* ptr, PyCodeObject* code, int) {
-        PyCodeObject** topmost_code = (PyCodeObject**)ptr;
-        *topmost_code = code;
-        return CI_SWD_STOP_STACK_WALK;
-      },
-      &cur_code);
-  if (!cur_code) {
-    return -1;
-  }
-  return cur_code->co_flags;
-#else
   return _PyFrame_GetCode(currentFrame(tstate))->co_flags;
-#endif
 }
 
 int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
@@ -725,9 +615,6 @@ int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
     case PY_CODE_EVENT_CREATE:
       break;
     case PY_CODE_EVENT_DESTROY:
-#if PY_VERSION_HEX < 0x030C0000
-      _PyShadow_ClearCache((PyObject*)co);
-#endif
       jit::codeDestroyed(co);
       break;
     default:
@@ -849,9 +736,6 @@ int cinderx_func_watcher(
 }
 
 int cinderx_type_watcher(PyTypeObject* type) {
-#if PY_VERSION_HEX < 0x030C0000
-  _PyShadow_TypeModified(type);
-#endif
   jit::typeModified(type);
 
   return 0;
@@ -866,17 +750,9 @@ static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
     return nullptr;
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-  PyInterpreterState* interp = _PyInterpreterState_GET();
-  assert(interp != nullptr);
-  if (!interp->config.enable_patching) {
-    ((PyTypeObject*)o)->tp_flags |= Ci_Py_TPFLAGS_FROZEN;
-  }
-#else
   if (!cinderx::getModuleState()->enable_patching) {
     ((PyTypeObject*)o)->tp_flags |= Py_TPFLAGS_IMMUTABLETYPE;
   }
-#endif
   Py_INCREF(o);
   return o;
 }
@@ -886,37 +762,6 @@ PyDoc_STRVAR(
     "freeze_type(t)\n\
 \n\
 Marks a type as being frozen and disallows any future mutations to it.");
-
-// Install hooks into the 3.10.cinder runtime.  Does nothing for newer runtimes.
-void initCinderHooks() {
-#if PY_VERSION_HEX < 0x030C0000
-  // The casts here are safe because BorrowedRef<T> has the same representation
-  // as T*.  It's a little ugly, but it goes away post-3.10.
-  Ci_hook_type_destroyed =
-      reinterpret_cast<Ci_TypeCallback>(jit::typeDestroyed);
-  Ci_hook_type_name_modified =
-      reinterpret_cast<Ci_TypeCallback>(jit::typeNameModified);
-
-  Ci_hook_JIT_GetFrame = _PyJIT_GetFrame;
-  Ci_hook_PyCMethod_New = Ci_PyCMethod_New_METH_TYPED;
-  Ci_hook_PyDescr_NewMethod = Ci_PyDescr_NewMethod_METH_TYPED;
-  Ci_hook_WalkStack = Ci_WalkStack;
-  Ci_hook_PyJIT_GenVisitRefs = _PyJIT_GenVisitRefs;
-  Ci_hook_PyJIT_GenDealloc = _PyJIT_GenDealloc;
-  Ci_hook_PyJIT_GenSend = _PyJIT_GenSend;
-  Ci_hook_PyJIT_GenYieldFromValue = _PyJIT_GenYieldFromValue;
-  Ci_hook_PyJIT_GenMaterializeFrame = _PyJIT_GenMaterializeFrame;
-  Ci_hook_MaybeStrictModule_Dict = Ci_MaybeStrictModule_Dict;
-  Ci_hook_PyJIT_GetFrame = _PyJIT_GetFrame;
-  Ci_hook_PyJIT_GetBuiltins = _PyJIT_GetBuiltins;
-  Ci_hook_PyJIT_GetGlobals = _PyJIT_GetGlobals;
-  Ci_hook_PyJIT_GetCurrentCodeFlags = get_current_code_flags;
-  Ci_hook_ShadowFrame_GetCode_JIT = Ci_ShadowFrame_GetCode_JIT;
-  Ci_hook_ShadowFrame_HasGen_JIT = Ci_ShadowFrame_HasGen_JIT;
-  Ci_hook_ShadowFrame_GetModuleName_JIT = Ci_ShadowFrame_GetModuleName_JIT;
-  Ci_hook_ShadowFrame_WalkAndPopulate = Ci_ShadowFrame_WalkAndPopulate;
-#endif
-}
 
 PyDoc_STRVAR(
     install_frame_evaluator_doc,
@@ -962,9 +807,7 @@ PyObject* is_frame_evaluator_installed(
 // Check if Python code is still being executed.
 bool isCodeRunning() {
   PyThreadState* tstate = PyThreadState_Get();
-#if PY_VERSION_HEX < 0x030C0000
-  return tstate->shadow_frame != nullptr;
-#elif PY_VERSION_HEX < 0x030D0000
+#if PY_VERSION_HEX < 0x030D0000
   return tstate->cframe != &tstate->root_cframe;
 #elif PY_VERSION_HEX < 0x030F0000
   return tstate->current_frame != nullptr;
@@ -1009,44 +852,10 @@ void module_free(void* raw_mod) {
 
   finiCodeExtraIndex();
 
-#if PY_VERSION_HEX < 0x030C0000
-  Ci_hook_type_destroyed = nullptr;
-  Ci_hook_type_name_modified = nullptr;
-  Ci_hook_JIT_GetFrame = nullptr;
-  Ci_hook_PyDescr_NewMethod = nullptr;
-  Ci_hook_WalkStack = nullptr;
-  Ci_hook_PyJIT_GenVisitRefs = nullptr;
-  Ci_hook_PyJIT_GenDealloc = nullptr;
-  Ci_hook_PyJIT_GenSend = nullptr;
-  Ci_hook_PyJIT_GenYieldFromValue = nullptr;
-  Ci_hook_PyJIT_GenMaterializeFrame = nullptr;
-  Ci_hook_MaybeStrictModule_Dict = nullptr;
-  Ci_hook_ShadowFrame_GetCode_JIT = nullptr;
-  Ci_hook_ShadowFrame_HasGen_JIT = nullptr;
-  Ci_hook_ShadowFrame_GetModuleName_JIT = nullptr;
-  Ci_hook_ShadowFrame_WalkAndPopulate = nullptr;
-
-  /* These hooks are not safe to unset, since there may be SP generic types that
-   * outlive finalization of the cinder module, and if we don't have the hooks
-   * in place for their cleanup, we will have leaks. But these hooks also have
-   * no effect for any type other than an SP generic type, so they are generally
-   * harmless to leave in place, even if the runtime is shutdown and
-   * reinitialized. */
-
-  Ci_hook_PyJIT_GetFrame = nullptr;
-  Ci_hook_PyJIT_GetBuiltins = nullptr;
-  Ci_hook_PyJIT_GetGlobals = nullptr;
-  Ci_hook_PyJIT_GetCurrentCodeFlags = nullptr;
-
-  Ci_cinderx_initialized = 0;
-#endif
-
-#if PY_VERSION_HEX >= 0x030C0000
   // This must be done at the point the module is free'd as the free-list uses
   // data backed by the module state. The free-list will use the module refcount
   // to keep the module alive while such uses are outstanding.
   jit::shutdown_jit_genobject_type();
-#endif
 
   // Restore original tp_getset arrays on builtin types before destroying the
   // override arrays in ModuleState.
@@ -1163,19 +972,6 @@ PyMethodDef _cinderx_methods[] = {
      PyDoc_STR(
          "Return whether compile perf-trampoline entries before fork is "
          "enabled or not.")},
-#if PY_VERSION_HEX < 0x030C0000
-    {"_get_entire_call_stack_as_qualnames_with_lineno",
-     get_entire_call_stack_as_qualnames_with_lineno,
-     METH_NOARGS,
-     PyDoc_STR(
-         "Return the current stack as a list of tuples (qualname, lineno).")},
-    {"_get_entire_call_stack_as_qualnames_with_lineno_and_frame",
-     get_entire_call_stack_as_qualnames_with_lineno_and_frame,
-     METH_NOARGS,
-     PyDoc_STR(
-         "Return the current stack as a list of tuples (qualname, "
-         "lineno, PyFrame | None).")},
-#endif
     {"immortalize_heap",
      cinder_immortalize_heap,
      METH_NOARGS,
@@ -1261,8 +1057,6 @@ int _cinderx_exec_impl(PyObject* m) {
   }
   state->builtin_next = Ref<>::create(next);
 
-#if PY_VERSION_HEX >= 0x030C0000
-
   auto async_lazy_value = new (std::nothrow) cinderx::AsyncLazyValueState();
   if (async_lazy_value == nullptr) {
     return -1;
@@ -1328,12 +1122,6 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-#else
-  state->coro_type = Ref<PyTypeObject>::create(&PyCoro_Type);
-  state->gen_type = Ref<PyTypeObject>::create(&PyGen_Type);
-
-#endif
-
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
   Ref<> gc_mod = Ref<>::steal(PyImport_ImportModule("gc"));
   if (gc_mod == nullptr) {
@@ -1354,10 +1142,8 @@ int _cinderx_exec_impl(PyObject* m) {
   }
   state->symbolizer.reset(symbolizer);
 
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    if (!state->initBuiltinMembers()) {
-      return -1;
-    }
+  if (!state->initBuiltinMembers()) {
+    return -1;
   }
 
   auto& watcher_state = state->watcher_state;
@@ -1397,11 +1183,9 @@ int _cinderx_exec_impl(PyObject* m) {
   if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
     return -1;
   }
-#if PY_VERSION_HEX >= 0x030C0000
   if (PyType_Ready(&jit::_JitCoroWrapper_Type) < 0) {
     return -1;
   }
-#endif
 
   PyObject* cached_classproperty =
       PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);
@@ -1426,10 +1210,8 @@ int _cinderx_exec_impl(PyObject* m) {
   ADDITEM("cached_property_with_descr", &PyCachedPropertyWithDescr_Type);
   ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);
   ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
-#if PY_VERSION_HEX >= 0x030C0000
   ADDITEM("AsyncLazyValue", async_lazy_value->asyncLazyValueType());
   ADDITEM("AwaitableValue", async_lazy_value->awaitableValueType());
-#endif
 
 #undef ADDITEM
 
@@ -1456,24 +1238,21 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    // Get the existing cache clear function so we can forward to it.
-    const char* clear_name;
-    if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-      clear_name = "_clear_internal_caches";
-    } else {
-      clear_name = "_clear_type_cache";
-    }
-    BorrowedRef<> clear_type_cache = PySys_GetObject(clear_name);
-    state->sys_clear_caches = Ref<>::create(clear_type_cache);
+  // Get the existing cache clear function so we can forward to it.
+  const char* clear_name;
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    clear_name = "_clear_internal_caches";
+  } else {
+    clear_name = "_clear_type_cache";
+  }
+  BorrowedRef<> clear_type_cache = PySys_GetObject(clear_name);
+  state->sys_clear_caches = Ref<>::create(clear_type_cache);
 
-    // Replace sys._clear_type_cache with our clearing function
-    Ref<> clear_caches =
-        Ref<>::steal(PyObject_GetAttrString(m, "clear_caches"));
-    if (clear_caches == nullptr ||
-        PySys_SetObject(clear_name, clear_caches) < 0) {
-      return -1;
-    }
+  // Replace sys._clear_type_cache with our clearing function
+  Ref<> clear_caches = Ref<>::steal(PyObject_GetAttrString(m, "clear_caches"));
+  if (clear_caches == nullptr ||
+      PySys_SetObject(clear_name, clear_caches) < 0) {
+    return -1;
   }
 
   if (init_upstream_borrow() < 0) {
@@ -1483,8 +1262,6 @@ int _cinderx_exec_impl(PyObject* m) {
   // Initialize the code object extra data index early, before we hook into the
   // interpreter and try to use it.
   initCodeExtraIndex();
-
-  initCinderHooks();
 
   init_already_existing_types();
 
@@ -1504,18 +1281,11 @@ int _cinderx_exec_impl(PyObject* m) {
 
   init_existing_objects();
 
-#if PY_VERSION_HEX < 0x030C0000
-  Ci_cinderx_initialized = 1;
-#endif
-
-#if PY_VERSION_HEX >= 0x030C0000
   char* patching = getenv("PYTHONENABLEPATCHING");
   state->enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
 
 #ifdef ENABLE_INTERPRETER_LOOP
   Ci_InitOpcodes();
-#endif
-
 #endif
 
 #ifdef ENABLE_XXCLASSLOADER
@@ -1547,9 +1317,7 @@ int _cinderx_exec(PyObject* m) {
 
 PyModuleDef_Slot _cinderx_slots[] = {
     {Py_mod_exec, reinterpret_cast<void*>(_cinderx_exec)},
-#if PY_VERSION_HEX >= 0x030C0000
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
-#endif
 #if PY_VERSION_HEX >= 0x030E0000
     {Py_mod_gil, Py_MOD_GIL_NOT_USED},
 #endif
