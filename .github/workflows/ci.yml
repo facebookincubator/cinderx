@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm]
         # Test against multiple patch versions as CinderX references internal
         # CPython functions and structures which can lead to ABI problems.  See
         # cinderx/UpstreamBorrow for more details.
@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm]
 
     steps:
       - name: Checkout CinderX
