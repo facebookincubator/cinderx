@@ -242,6 +242,39 @@ asmjit::Label getLabel(Environ* env, const OperandBase* operand) {
   return map_get(env->block_label_map, operand->getBasicBlock());
 }
 
+#if defined(CINDER_AARCH64)
+namespace {
+void translateLea(Environ* env, const Instruction* instr);
+void translateCall(Environ* env, const Instruction* instr);
+void translateMove(Environ* env, const Instruction* instr);
+void translateMovConstPool(Environ* env, const Instruction* instr);
+void translateMovZX(Environ* env, const Instruction* instr);
+void translateMovSX(Environ* env, const Instruction* instr);
+void translateMovSXD(Environ* env, const Instruction* instr);
+void translateUnreachable(Environ* env, const Instruction* instr);
+void translateNegate(Environ* env, const Instruction* instr);
+void translateInvert(Environ* env, const Instruction* instr);
+void translateAdd(Environ* env, const Instruction* instr);
+void translateSub(Environ* env, const Instruction* instr);
+void translateAnd(Environ* env, const Instruction* instr);
+void translateOr(Environ* env, const Instruction* instr);
+void translateXor(Environ* env, const Instruction* instr);
+void translateMul(Environ* env, const Instruction* instr);
+void translateMulAdd(Environ* env, const Instruction* instr);
+void translateDiv(Environ* env, const Instruction* instr);
+void translateDivUn(Environ* env, const Instruction* instr);
+void translatePush(Environ* env, const Instruction* instr);
+void translatePop(Environ* env, const Instruction* instr);
+void translateExchange(Environ* env, const Instruction* instr);
+void translateCmp(Environ* env, const Instruction* instr);
+void translateTst(Environ* env, const Instruction* instr);
+void translateBitTest(Environ* env, const Instruction* instr);
+void translateInc(Environ* env, const Instruction* instr);
+void translateDec(Environ* env, const Instruction* instr);
+void translateSelect(Environ* env, const Instruction* instr);
+} // namespace
+#endif
+
 // this function generates operand patterns from the inputs and outputs
 // of a given instruction instr and calls the correspoinding code generation
 // functions.
@@ -808,6 +841,290 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kLoadArg:
     case Instruction::kLoadSecondCallResult:
     case Instruction::kMovConstPool:
+    case Instruction::kCondBranch:
+    case Instruction::kPhi:
+    case Instruction::kReturn:
+      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
+#elif defined(CINDER_AARCH64)
+    case Instruction::kLea: {
+      auto* input = instr->getInput(0);
+
+      if (input->isLabel()) {
+        translateLeaLabel(env, instr);
+      } else {
+        translateLea(env, instr);
+      }
+      return;
+    }
+    case Instruction::kMoveRelaxed:
+      translateMove(env, instr);
+      return;
+    case Instruction::kMovZX:
+      translateMovZX(env, instr);
+      return;
+    case Instruction::kMovSX:
+      translateMovSX(env, instr);
+      return;
+    case Instruction::kMovSXD:
+      translateMovSXD(env, instr);
+      return;
+    case Instruction::kUnreachable:
+      translateUnreachable(env, instr);
+      return;
+    case Instruction::kDiv:
+      translateDiv(env, instr);
+      return;
+    case Instruction::kDivUn:
+      translateDivUn(env, instr);
+      return;
+    case Instruction::kPush:
+      translatePush(env, instr);
+      return;
+    case Instruction::kPop:
+      translatePop(env, instr);
+      return;
+    case Instruction::kTest:
+      translateTst(env, instr);
+      return;
+    case Instruction::kBranch:
+      env->as->b(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchZ:
+      env->as->b_eq(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNZ:
+      env->as->b_ne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchA:
+      env->as->b_hi(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchB:
+      env->as->b_lo(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchAE:
+      env->as->b_hs(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchBE:
+      env->as->b_ls(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchG:
+      env->as->b_gt(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchL:
+      env->as->b_lt(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchGE:
+      env->as->b_ge(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchLE:
+      env->as->b_le(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchC:
+      env->as->b_cs(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNC:
+      env->as->b_cc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchO:
+      env->as->b_vs(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNO:
+      env->as->b_vc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchS:
+      env->as->b_mi(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNS:
+      env->as->b_pl(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchE:
+      env->as->b_eq(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNE:
+      env->as->b_ne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kGuard:
+      TranslateGuard(env, instr);
+      return;
+    case Instruction::kDeoptPatchpoint:
+      TranslateDeoptPatchpoint(env, instr);
+      return;
+    case Instruction::kLoadThreadState:
+      translateLoadThreadState(env, instr);
+      return;
+    case Instruction::kYieldInitial:
+      translateYieldInitial(env, instr);
+      return;
+    case Instruction::kYieldValue:
+      translateYieldValue(env, instr);
+      return;
+    case Instruction::kStoreGenYieldPoint:
+      translateStoreGenYieldPoint(env, instr);
+      return;
+    case Instruction::kStoreGenYieldFromPoint:
+      translateStoreGenYieldFromPoint(env, instr);
+      return;
+    case Instruction::kBranchToYieldExit:
+      translateBranchToYieldExit(env, instr);
+      return;
+    case Instruction::kResumeGenYield:
+      translateResumeGenYield(env, instr);
+      return;
+    case Instruction::kYieldExitPoint:
+      translateYieldExitPoint(env, instr);
+      return;
+    case Instruction::kEpilogueEnd:
+      translateEpilogueEnd(env, instr);
+      return;
+    case Instruction::kIntToBool:
+      translateIntToBool(env, instr);
+      return;
+    case Instruction::kPrologue:
+      translatePrologue(env, instr);
+      return;
+    case Instruction::kSetupFrame:
+      translateSetupFrame(env, instr);
+      return;
+    case Instruction::kIndirectJump:
+      translateIndirectJump(env, instr);
+      return;
+    case Instruction::kInc:
+      translateInc(env, instr);
+      return;
+    case Instruction::kDec:
+      translateDec(env, instr);
+      return;
+    case Instruction::kBitTest:
+      translateBitTest(env, instr);
+      return;
+    case Instruction::kSelect:
+      translateSelect(env, instr);
+      return;
+    case Instruction::kEqual:
+    case Instruction::kNotEqual:
+    case Instruction::kGreaterThanUnsigned:
+    case Instruction::kGreaterThanEqualUnsigned:
+    case Instruction::kLessThanUnsigned:
+    case Instruction::kLessThanEqualUnsigned:
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+      TranslateCompare(env, instr);
+      return;
+    case Instruction::kFadd: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fadd(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fadd(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kFsub: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fsub(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fsub(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kFmul: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fmul(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fmul(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kFdiv: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fdiv(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fdiv(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kInt64ToDouble:
+      env->as->scvtf(
+          getVecD(instr->output()), getReg(instr, instr->getInput(0)));
+      return;
+    case Instruction::kExchange:
+      translateExchange(env, instr);
+      return;
+    case Instruction::kCmp:
+      translateCmp(env, instr);
+      return;
+    case Instruction::kNegate:
+      translateNegate(env, instr);
+      return;
+    case Instruction::kInvert:
+      translateInvert(env, instr);
+      return;
+    case Instruction::kAdd:
+      translateAdd(env, instr);
+      return;
+    case Instruction::kSub:
+      translateSub(env, instr);
+      return;
+    case Instruction::kAnd:
+      translateAnd(env, instr);
+      return;
+    case Instruction::kOr:
+      translateOr(env, instr);
+      return;
+    case Instruction::kXor:
+      translateXor(env, instr);
+      return;
+    case Instruction::kMul:
+      translateMul(env, instr);
+      return;
+    case Instruction::kTest32: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->tst(
+          asmjit::a64::w(in0->getPhyRegister().loc),
+          asmjit::a64::w(in1->getPhyRegister().loc));
+      return;
+    }
+    case Instruction::kCall:
+      translateCall(env, instr);
+      return;
+    case Instruction::kMove:
+      translateMove(env, instr);
+      return;
+    case Instruction::kMovConstPool:
+      translateMovConstPool(env, instr);
+      return;
+    case Instruction::kMulAdd:
+      translateMulAdd(env, instr);
+      return;
+    case Instruction::kNone:
+    case Instruction::kNop:
+    case Instruction::kVectorCall:
+    case Instruction::kVarArgCall:
+    case Instruction::kSext:
+    case Instruction::kZext:
+    case Instruction::kCdq:
+    case Instruction::kCwd:
+    case Instruction::kCqo:
+    case Instruction::kLShift:
+    case Instruction::kRShift:
+    case Instruction::kRShiftUn:
+    case Instruction::kLoadArg:
+    case Instruction::kLoadSecondCallResult:
     case Instruction::kCondBranch:
     case Instruction::kPhi:
     case Instruction::kReturn:
@@ -3321,353 +3638,6 @@ void translateSelect(Environ* env, const Instruction* instr) {
 
 // clang-format off
 BEGIN_RULE_TABLE
-
-BEGIN_RULES(Instruction::kLea)
-  GEN("Rm", CALL_C(translateLea))
-  GEN("Rb", CALL_C(translateLeaLabel))
-END_RULES
-
-BEGIN_RULES(Instruction::kCall)
-  GEN("Ri", CALL_C(translateCall))
-  GEN("Rr", CALL_C(translateCall))
-  GEN("i", CALL_C(translateCall))
-  GEN("r", CALL_C(translateCall))
-  GEN("m", CALL_C(translateCall))
-END_RULES
-
-BEGIN_RULES(Instruction::kMove)
-  GEN("Rr", ASM(mov, OP(0), OP(1)))
-  GEN("Ri", CALL_C(translateMove))
-  GEN("Rm", CALL_C(translateMove))
-  GEN("Mr", CALL_C(translateMove))
-  GEN("Mi", CALL_C(translateMove))
-  GEN("Xx", ASM(fmov, OP(0), OP(1)))
-  GEN("Xm", CALL_C(translateMove))
-  GEN("Mx", CALL_C(translateMove))
-  GEN("Xr", ASM(fmov, OP(0), OP(1)))
-  GEN("Rx", ASM(fmov, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kMoveRelaxed)
-  GEN("Rm", CALL_C(translateMove))
-  GEN("Mr", CALL_C(translateMove))
-  GEN("Mi", CALL_C(translateMove))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovConstPool)
-  GEN("Ri", CALL_C(translateMovConstPool))
-END_RULES
-
-BEGIN_RULES(Instruction::kGuard)
-  GEN(ANY, CALL_C(TranslateGuard))
-END_RULES
-
-BEGIN_RULES(Instruction::kDeoptPatchpoint)
-  GEN(ANY, CALL_C(TranslateDeoptPatchpoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kNegate)
-  GEN("r", CALL_C(translateNegate))
-  GEN("Rr", CALL_C(translateNegate))
-END_RULES
-
-BEGIN_RULES(Instruction::kInvert)
-  GEN("Rr", CALL_C(translateInvert))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovZX)
-  GEN("Rr", CALL_C(translateMovZX))
-  GEN("Rm", CALL_C(translateMovZX))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovSX)
-  GEN("Rr", CALL_C(translateMovSX))
-  GEN("Rm", CALL_C(translateMovSX))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovSXD)
-  GEN("Rr", CALL_C(translateMovSXD))
-  GEN("Rm", CALL_C(translateMovSXD))
-END_RULES
-
-BEGIN_RULES(Instruction::kUnreachable)
-  GEN(ANY, CALL_C(translateUnreachable))
-END_RULES
-
-BEGIN_RULES(Instruction::kAdd)
-  GEN("ri", CALL_C(translateAdd))
-  GEN("rr", CALL_C(translateAdd))
-  GEN("Rri", CALL_C(translateAdd))
-  GEN("Rrr", CALL_C(translateAdd))
-END_RULES
-
-BEGIN_RULES(Instruction::kSub)
-  GEN("ri", CALL_C(translateSub))
-  GEN("rr", CALL_C(translateSub))
-  GEN("Rri", CALL_C(translateSub))
-  GEN("Rrr", CALL_C(translateSub))
-END_RULES
-
-BEGIN_RULES(Instruction::kAnd)
-  GEN("ri", CALL_C(translateAnd))
-  GEN("rr", CALL_C(translateAnd))
-  GEN("Rri", CALL_C(translateAnd))
-  GEN("Rrr", CALL_C(translateAnd))
-END_RULES
-
-BEGIN_RULES(Instruction::kOr)
-  GEN("ri", CALL_C(translateOr))
-  GEN("rr", CALL_C(translateOr))
-  GEN("Rri", CALL_C(translateOr))
-  GEN("Rrr", CALL_C(translateOr))
-END_RULES
-
-BEGIN_RULES(Instruction::kXor)
-  GEN("ri", CALL_C(translateXor))
-  GEN("rr", CALL_C(translateXor))
-  GEN("Rri", CALL_C(translateXor))
-  GEN("Rrr", CALL_C(translateXor))
-END_RULES
-
-BEGIN_RULES(Instruction::kMul)
-  GEN("rr", CALL_C(translateMul))
-  GEN("Rrr", CALL_C(translateMul))
-END_RULES
-
-BEGIN_RULES(Instruction::kMulAdd)
-  GEN("Rrrr", CALL_C(translateMulAdd))
-END_RULES
-
-BEGIN_RULES(Instruction::kDiv)
-  GEN("rrr", CALL_C(translateDiv))
-  GEN("rr", CALL_C(translateDiv))
-  GEN("Rirr", CALL_C(translateDiv))
-END_RULES
-
-BEGIN_RULES(Instruction::kDivUn)
-  GEN("rrr", CALL_C(translateDivUn))
-  GEN("rr", CALL_C(translateDivUn))
-  GEN("Rirr", CALL_C(translateDivUn))
-END_RULES
-
-BEGIN_RULES(Instruction::kFadd)
-  GEN("Xxx", ASM(fadd, OP(0), OP(1), OP(2)))
-  GEN("xx", ASM(fadd, OP(0), OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kFsub)
-  GEN("Xxx", ASM(fsub, OP(0), OP(1), OP(2)))
-  GEN("xx", ASM(fsub, OP(0), OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kFmul)
-  GEN("Xxx", ASM(fmul, OP(0), OP(1), OP(2)))
-  GEN("xx", ASM(fmul, OP(0), OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kFdiv)
-  GEN("Xxx", ASM(fdiv, OP(0), OP(1), OP(2)))
-  GEN("xx", ASM(fdiv, OP(0), OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kInt64ToDouble)
-  GEN("Xr", ASM(scvtf, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kPush)
-  GEN("r", CALL_C(translatePush))
-  GEN("m", CALL_C(translatePush))
-END_RULES
-
-BEGIN_RULES(Instruction::kPop)
-  GEN("R", CALL_C(translatePop))
-  GEN("M", CALL_C(translatePop))
-END_RULES
-
-BEGIN_RULES(Instruction::kExchange)
-  GEN("Rr", CALL_C(translateExchange))
-  GEN("Xx", CALL_C(translateExchange))
-END_RULES
-
-BEGIN_RULES(Instruction::kCmp)
-  GEN("rr", CALL_C(translateCmp))
-  GEN("ri", CALL_C(translateCmp))
-  GEN("xx", CALL_C(translateCmp))
-END_RULES
-
-BEGIN_RULES(Instruction::kTest)
-  GEN("rr", CALL_C(translateTst))
-END_RULES
-
-BEGIN_RULES(Instruction::kTest32)
-  GEN("rr", ASM(tst, REG_OP(0, 32), REG_OP(1, 32)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranch)
-  GEN("b", ASM(b, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchZ)
-  GEN("b", ASM(b_eq, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNZ)
-  GEN("b", ASM(b_ne, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchA)
-  GEN("b", ASM(b_hi, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchB)
-  GEN("b", ASM(b_lo, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchAE)
-  GEN("b", ASM(b_hs, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchBE)
-  GEN("b", ASM(b_ls, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchG)
-  GEN("b", ASM(b_gt, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchL)
-  GEN("b", ASM(b_lt, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchGE)
-  GEN("b", ASM(b_ge, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchLE)
-  GEN("b", ASM(b_le, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchC)
-  GEN("b", ASM(b_cs, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNC)
-  GEN("b", ASM(b_cc, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchO)
-  GEN("b", ASM(b_vs, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNO)
-  GEN("b", ASM(b_vc, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchS)
-  GEN("b", ASM(b_mi, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNS)
-  GEN("b", ASM(b_pl, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchE)
-  GEN("b", ASM(b_eq, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNE)
-  GEN("b", ASM(b_ne, LBL(0)))
-END_RULES
-
-#define DEF_COMPARE_OP_RULES(name, fpcomp) \
-BEGIN_RULES(Instruction::name) \
-  GEN("Rrr", CALL_C(TranslateCompare)) \
-  GEN("Rri", CALL_C(TranslateCompare)) \
-  if (fpcomp) { \
-    GEN("Rxx", CALL_C(TranslateCompare)) \
-  } \
-END_RULES
-
-DEF_COMPARE_OP_RULES(kEqual, true)
-DEF_COMPARE_OP_RULES(kNotEqual, true)
-DEF_COMPARE_OP_RULES(kGreaterThanUnsigned, true)
-DEF_COMPARE_OP_RULES(kGreaterThanEqualUnsigned, true)
-DEF_COMPARE_OP_RULES(kLessThanUnsigned, true)
-DEF_COMPARE_OP_RULES(kLessThanEqualUnsigned, true)
-DEF_COMPARE_OP_RULES(kGreaterThanSigned, false)
-DEF_COMPARE_OP_RULES(kGreaterThanEqualSigned, false)
-DEF_COMPARE_OP_RULES(kLessThanSigned, false)
-DEF_COMPARE_OP_RULES(kLessThanEqualSigned, false)
-
-#undef DEF_COMPARE_OP_RULES
-
-BEGIN_RULES(Instruction::kInc)
-  GEN("r", CALL_C(translateInc))
-END_RULES
-
-BEGIN_RULES(Instruction::kDec)
-  GEN("r", CALL_C(translateDec))
-END_RULES
-
-BEGIN_RULES(Instruction::kBitTest)
-  GEN("ri", CALL_C(translateBitTest));
-END_RULES
-
-BEGIN_RULES(Instruction::kLoadThreadState)
-  GEN(ANY, CALL_C(translateLoadThreadState))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldInitial)
-  GEN(ANY, CALL_C(translateYieldInitial))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldValue)
-  GEN(ANY, CALL_C(translateYieldValue))
-END_RULES
-
-BEGIN_RULES(Instruction::kStoreGenYieldPoint)
-  GEN(ANY, CALL_C(translateStoreGenYieldPoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kStoreGenYieldFromPoint)
-  GEN(ANY, CALL_C(translateStoreGenYieldFromPoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchToYieldExit)
-  GEN(ANY, CALL_C(translateBranchToYieldExit))
-END_RULES
-
-BEGIN_RULES(Instruction::kResumeGenYield)
-  GEN(ANY, CALL_C(translateResumeGenYield))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldExitPoint)
-  GEN(ANY, CALL_C(translateYieldExitPoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kEpilogueEnd)
-  GEN(ANY, CALL_C(translateEpilogueEnd))
-END_RULES
-
-BEGIN_RULES(Instruction::kSelect)
-  GEN("Rrrr", CALL_C(translateSelect))
-END_RULES
-
-BEGIN_RULES(Instruction::kIntToBool)
-  GEN("Rr", CALL_C(translateIntToBool))
-END_RULES
-
-BEGIN_RULES(Instruction::kPrologue)
-  GEN(ANY, CALL_C(translatePrologue))
-END_RULES
-
-BEGIN_RULES(Instruction::kSetupFrame)
-  GEN(ANY, CALL_C(translateSetupFrame))
-END_RULES
-
-BEGIN_RULES(Instruction::kIndirectJump)
-  GEN(ANY, CALL_C(translateIndirectJump))
-END_RULES
 
 END_RULE_TABLE
 // clang-format on
