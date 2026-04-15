@@ -2523,14 +2523,25 @@ void translateMovExtOp(
 }
 
 void translateMovZX(Environ* env, const Instruction* instr) {
+  // ARM64 uxtb/uxth/ldrb/ldrh only accept W-register destinations.
+  // Writing to W implicitly zeros the upper 32 bits of the X register,
+  // so this correctly zero-extends to 64 bits even for k64bit outputs.
   translateMovExtOp(
       env,
       instr,
       "MovZX",
-      [](a64::Builder* as, auto... args) { as->uxtb(args...); },
-      [](a64::Builder* as, auto... args) { as->uxth(args...); },
-      [](a64::Builder* as, auto... args) { as->ldrb(args...); },
-      [](a64::Builder* as, auto... args) { as->ldrh(args...); });
+      [](a64::Builder* as, auto output, auto input) {
+        as->uxtb(a64::w(output.id()), input);
+      },
+      [](a64::Builder* as, auto output, auto input) {
+        as->uxth(a64::w(output.id()), input);
+      },
+      [](a64::Builder* as, auto output, auto mem) {
+        as->ldrb(a64::w(output.id()), mem);
+      },
+      [](a64::Builder* as, auto output, auto mem) {
+        as->ldrh(a64::w(output.id()), mem);
+      });
 }
 
 void translateMovSX(Environ* env, const Instruction* instr) {

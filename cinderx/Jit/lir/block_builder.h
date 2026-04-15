@@ -302,6 +302,10 @@ class BasicBlockBuilder {
         instr, std::forward<AppendArgs>(args)...);
   }
 
+  bool usesImmediateInput(hir::Type const& tp);
+
+  void createRegisterInput(Instruction* instr, hir::Register* val);
+
   template <typename T>
   void genericCreateInstrInput(Instruction* instr, const T& val) {
     using CurArgType = std::remove_cv_t<std::remove_reference_t<T>>;
@@ -310,21 +314,7 @@ class BasicBlockBuilder {
         instr->allocateImmediateInput(
             static_cast<uint64_t>(0), DataType::k64bit);
       } else {
-        auto tp = val->type();
-        auto dat = hirTypeToDataType(tp);
-        // We don't turn constant floats into immediates, as we always
-        // need to load these from general purpose registers or memory
-        // anyways.
-        if (tp.hasIntSpec()) {
-          instr->allocateImmediateInput(
-              static_cast<uint64_t>(tp.intSpec()), dat);
-        } else if (tp.hasObjectSpec()) {
-          env_->code_rt->addReference(tp.objectSpec());
-          instr->allocateImmediateInput(
-              reinterpret_cast<uint64_t>(tp.objectSpec()), DataType::kObject);
-        } else {
-          createInstrInput(instr, val);
-        }
+        createRegisterInput(instr, val);
       }
     } else if constexpr (std::is_same_v<CurArgType, Instruction*>) {
       instr->allocateLinkedInput(val);

@@ -3,6 +3,7 @@
 #include "cinderx/Jit/lir/block_builder.h"
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
 
@@ -115,6 +116,44 @@ void BasicBlockBuilder::createInstrOutput(
 
 std::vector<BasicBlock*> BasicBlockBuilder::Generate() {
   return bbs_;
+}
+
+bool BasicBlockBuilder::usesImmediateInput(
+    [[maybe_unused]] hir::Type const& tp) {
+#ifdef CINDER_AARCH64
+  if (tp.hasIntSpec()) {
+    return asmjit::arm::Utils::isAddSubImm(static_cast<uint64_t>(tp.intSpec()));
+  } else if (tp.hasObjectSpec()) {
+    return asmjit::arm::Utils::isAddSubImm(
+        reinterpret_cast<uint64_t>(tp.objectSpec()));
+  }
+  return false;
+#else
+  return true;
+#endif
+}
+
+void BasicBlockBuilder::createRegisterInput(
+    Instruction* instr,
+    hir::Register* val) {
+  auto tp = val->type();
+  auto dat = hirTypeToDataType(tp);
+  // We don't turn constant floats into immediates, as we always
+  // need to load these from general purpose registers or memory
+  // anyways.
+  if (usesImmediateInput(tp)) {
+    if (tp.hasIntSpec()) {
+      instr->allocateImmediateInput(static_cast<uint64_t>(tp.intSpec()), dat);
+      return;
+    } else if (tp.hasObjectSpec()) {
+      env_->code_rt->addReference(tp.objectSpec());
+      instr->allocateImmediateInput(
+          reinterpret_cast<uint64_t>(tp.objectSpec()), DataType::kObject);
+      return;
+    }
+  }
+
+  createInstrInput(instr, val);
 }
 
 } // namespace jit::lir
