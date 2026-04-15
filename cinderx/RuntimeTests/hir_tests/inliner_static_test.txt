@@ -12,22 +12,6 @@ def foo():
 
 def test():
     return foo()
---- Expected 3.10 ---
-fun jittestmodule:test {
-  bb 0 {
-    LoadFrame
-    Snapshot
-    v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 0
-    }
-    Snapshot
-    v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    EndInlinedFunction
-    Snapshot
-    Return v6
-  }
-}
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
@@ -186,30 +170,6 @@ def foo(x: int, y: int) -> int:
 
 def test():
     return foo(1, 2)
---- Expected 3.10 ---
-fun jittestmodule:test {
-  bb 0 {
-    LoadFrame
-    Snapshot
-    v4:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v5:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
-    }
-    Snapshot
-    UseType<LongExact> v4
-    UseType<LongExact> v5
-    UseType<ImmortalLongExact[1]> v4
-    UseType<ImmortalLongExact[2]> v5
-    v22:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    Snapshot
-    Snapshot
-    EndInlinedFunction
-    Snapshot
-    Return v22
-  }
-}
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
@@ -399,22 +359,6 @@ def foo() -> int8:
 
 def test() -> int8:
     return foo()
---- Expected 3.10 ---
-fun jittestmodule:test {
-  bb 0 {
-    LoadFrame
-    Snapshot
-    v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 0
-    }
-    Snapshot
-    v6:CInt8[4] = LoadConst<CInt8[4]>
-    EndInlinedFunction
-    Snapshot
-    Return<CInt8> v6
-  }
-}
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
@@ -572,56 +516,6 @@ def foo(x) -> bool:
 
 def test(x):
     return foo(x)
---- Expected 3.10 ---
-fun jittestmodule:test {
-  bb 0 {
-    v3:Object = LoadArg<0; "x">
-    LoadFrame
-    Snapshot
-    v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-      Locals<1> v3
-    }
-    Snapshot
-    v13:OptObject = LoadGlobalCached<0; "isinstance">
-    v14:MortalObjectUser[builtin_function_or_method:isinstance:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
-      Descr 'LOAD_GLOBAL: isinstance'
-    }
-    Snapshot
-    v16:OptObject = LoadGlobalCached<1; "bool">
-    v17:ImmortalTypeExact[bool:obj] = GuardIs<0xdeadbeef> v16 {
-      Descr 'LOAD_GLOBAL: bool'
-    }
-    Snapshot
-    v21:Type = LoadField<ob_type@8, Type, borrowed> v3
-    v22:CBool = PrimitiveCompare<Equal> v21 v17
-    CondBranch<4, 5> v22
-  }
-
-  bb 4 (preds 0) {
-    Branch<6>
-  }
-
-  bb 5 (preds 0) {
-    v23:CBool = IsInstance v3 v17 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<1> v3
-      }
-    }
-    Branch<6>
-  }
-
-  bb 6 (preds 4, 5) {
-    v24:CBool = Phi<4, 5> v22 v23
-    v25:Bool = PrimitiveBoxBool v24
-    Snapshot
-    EndInlinedFunction
-    Snapshot
-    Return v25
-  }
-}
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
