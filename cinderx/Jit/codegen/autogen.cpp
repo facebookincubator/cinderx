@@ -30,7 +30,7 @@ namespace jit::codegen::autogen {
 namespace {
 // Add a pattern to an existing trie tree. If the trie tree is nullptr, create a
 // new one.
-std::unique_ptr<PatternNode> addPattern(
+[[maybe_unused]] std::unique_ptr<PatternNode> addPattern(
     std::unique_ptr<PatternNode> patterns,
     const std::string& s,
     PatternNode::func_t func) {
@@ -97,15 +97,726 @@ PatternNode::func_t findByPattern(
 
 } // namespace
 
+void translateLeaLabel(Environ* env, const Instruction* instr);
+void TranslateGuard(Environ* env, const Instruction* instr);
+void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr);
+void TranslateCompare(Environ* env, const Instruction* instr);
+void translateLoadThreadState(Environ* env, const Instruction* instr);
+void translateYieldInitial(Environ* env, const Instruction* instr);
+void translateYieldValue(Environ* env, const Instruction* instr);
+void translateStoreGenYieldPoint(Environ* env, const Instruction* instr);
+void translateStoreGenYieldFromPoint(Environ* env, const Instruction* instr);
+void translateBranchToYieldExit(Environ* env, const Instruction*);
+void translateResumeGenYield(Environ* env, const Instruction* instr);
+void translateYieldExitPoint(Environ* env, const Instruction*);
+void translateEpilogueEnd(Environ* env, const Instruction* instr);
+void translateIntToBool(Environ* env, const Instruction* instr);
+void translatePrologue(Environ* env, const Instruction*);
+void translateSetupFrame(Environ* env, const Instruction*);
+void translateIndirectJump(Environ* env, const Instruction* instr);
+
+arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
+  JIT_DCHECK(operand->isInd(), "operand should be an indirect reference");
+
+#if defined(CINDER_X86_64)
+  auto indirect = operand->getMemoryIndirect();
+
+  OperandBase* base = indirect->getBaseRegOperand();
+  OperandBase* index = indirect->getIndexRegOperand();
+
+  if (index == nullptr) {
+    return asmjit::x86::ptr(
+        x86::gpq(base->getPhyRegister().loc), indirect->getOffset());
+  } else {
+    return asmjit::x86::ptr(
+        x86::gpq(base->getPhyRegister().loc),
+        x86::gpq(index->getPhyRegister().loc),
+        indirect->getMultipiler(),
+        indirect->getOffset());
+  }
+#elif defined(CINDER_AARCH64)
+  JIT_ABORT("Unreachable.");
+#else
+  CINDER_UNSUPPORTED
+  return arch::Mem();
+#endif
+}
+
+// Resolves the operand size in bits, respecting the instruction's
+// OperandSizeType property. This matches the behavior of LIROperandSizeMapper
+// used by the autogen trie rules.
+int getOperandSize(const Instruction* instr, const OperandBase* operand) {
+  auto size_type = InstrProperty::getProperties(instr).opnd_size_type;
+  switch (size_type) {
+    case kAlways64:
+      return 64;
+    case kOut: {
+      // Match LIROperandMapper<0> behavior: use the output if present,
+      // otherwise use input 0 (which post-alloc rewrites may have resized).
+      if (instr->getNumOutputs() > 0) {
+        return static_cast<int>(instr->output()->sizeInBits());
+      }
+      return static_cast<int>(instr->getInput(0)->sizeInBits());
+    }
+    case kDefault:
+    default:
+      return static_cast<int>(operand->sizeInBits());
+  }
+}
+
+// Returns the appropriately-sized Gp register for a given operand, respecting
+// the instruction's OperandSizeType property. This matches the behavior of the
+// OP() macro used in the autogen trie rules.
+arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
+  JIT_CHECK(operand->isReg(), "Expected a register for getReg");
+  int size = getOperandSize(instr, operand);
+  auto reg = operand->getPhyRegister().loc;
+#if defined(CINDER_X86_64)
+  switch (size) {
+    case 8:
+      return asmjit::x86::gpb(reg);
+    case 16:
+      return asmjit::x86::gpw(reg);
+    case 32:
+      return asmjit::x86::gpd(reg);
+    case 64:
+      return asmjit::x86::gpq(reg);
+  }
+#elif defined(CINDER_AARCH64)
+  switch (size) {
+    case 8:
+    case 16:
+      JIT_ABORT("Currently unsupported size.");
+    case 32:
+      return asmjit::a64::w(reg);
+    case 64:
+      return asmjit::a64::x(reg);
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
+  JIT_ABORT("Unexpected operand size {}", size);
+}
+
+// Returns an arch::Mem for a given memory operand (stack, mem, or indirect),
+// with size set according to the instruction's OperandSizeType property. This
+// matches the behavior of the MEM()/STK() macros used in the autogen trie
+// rules.
+arch::Mem getMem(const Instruction* instr, const OperandBase* operand) {
+#if defined(CINDER_X86_64)
+  int size = getOperandSize(instr, operand) / 8;
+  asmjit::x86::Mem memptr;
+  if (operand->isStack()) {
+    memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
+  } else if (operand->isMem()) {
+    memptr = asmjit::x86::ptr(
+        reinterpret_cast<uint64_t>(operand->getMemoryAddress()));
+  } else if (operand->isInd()) {
+    memptr = AsmIndirectOperandBuilder(operand);
+  } else {
+    JIT_ABORT("Unsupported operand type for getMem.");
+  }
+  memptr.setSize(size);
+  return memptr;
+#elif defined(CINDER_AARCH64)
+  if (!operand->isStack()) {
+    JIT_ABORT("Unreachable.");
+  }
+  int32_t loc = operand->getStackSlot().loc;
+  JIT_CHECK(loc >= -256 && loc < 256, "Stack slot out of range");
+  return arch::ptr_offset(arch::fp, loc);
+#else
+  CINDER_UNSUPPORTED
+  return arch::Mem();
+#endif
+}
+
+asmjit::Imm getImm(const OperandBase* operand) {
+  return asmjit::Imm(operand->getConstant());
+}
+
+asmjit::Label getLabel(Environ* env, const OperandBase* operand) {
+  if (operand->getDefine()->hasAsmLabel()) {
+    return operand->getDefine()->getAsmLabel();
+  }
+  return map_get(env->block_label_map, operand->getBasicBlock());
+}
+
 // this function generates operand patterns from the inputs and outputs
 // of a given instruction instr and calls the correspoinding code generation
 // functions.
 void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     const {
   auto opcode = instr->opcode();
-  if (opcode == Instruction::kBind) {
-    return;
+  switch (opcode) {
+    case Instruction::kBind:
+      return;
+#if defined(CINDER_X86_64)
+    case Instruction::kLea: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isLabel()) {
+        translateLeaLabel(env, instr);
+      } else {
+        env->as->lea(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kMoveRelaxed: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (output->isReg()) {
+        env->as->mov(getReg(instr, output), getMem(instr, input));
+      } else if (input->isReg()) {
+        env->as->mov(getMem(instr, output), getReg(instr, input));
+      } else {
+        env->as->mov(getMem(instr, output), getImm(input));
+      }
+      return;
+    }
+    case Instruction::kMovZX: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->movzx(getReg(instr, output), getReg(instr, input));
+      } else {
+        env->as->movzx(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kMovSX: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->movsx(getReg(instr, output), getReg(instr, input));
+      } else {
+        env->as->movsx(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kMovSXD: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->movsxd(getReg(instr, output), getReg(instr, input));
+      } else {
+        env->as->movsxd(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kUnreachable:
+      env->as->ud2();
+      return;
+    case Instruction::kDiv: {
+      auto numInputs = instr->getNumInputs();
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (numInputs == 3) {
+        auto* in2 = instr->getInput(2);
+
+        if (in2->isReg()) {
+          env->as->idiv(
+              getReg(instr, in0), getReg(instr, in1), getReg(instr, in2));
+        } else {
+          env->as->idiv(
+              getReg(instr, in0), getReg(instr, in1), getMem(instr, in2));
+        }
+      } else {
+        if (in1->isReg()) {
+          env->as->idiv(getReg(instr, in0), getReg(instr, in1));
+        } else {
+          env->as->idiv(getReg(instr, in0), getMem(instr, in1));
+        }
+      }
+      return;
+    }
+    case Instruction::kDivUn: {
+      auto numInputs = instr->getNumInputs();
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (numInputs == 3) {
+        auto* in2 = instr->getInput(2);
+
+        if (in2->isReg()) {
+          env->as->div(
+              getReg(instr, in0), getReg(instr, in1), getReg(instr, in2));
+        } else {
+          env->as->div(
+              getReg(instr, in0), getReg(instr, in1), getMem(instr, in2));
+        }
+      } else {
+        if (in1->isReg()) {
+          env->as->div(getReg(instr, in0), getReg(instr, in1));
+        } else {
+          env->as->div(getReg(instr, in0), getMem(instr, in1));
+        }
+      }
+      return;
+    }
+    case Instruction::kPush: {
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->push(getReg(instr, input));
+      } else if (input->isImm()) {
+        env->as->push(getImm(input));
+      } else {
+        env->as->push(getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kPop: {
+      auto* output = instr->output();
+
+      if (output->isReg()) {
+        env->as->pop(getReg(instr, output));
+      } else {
+        env->as->pop(getMem(instr, output));
+      }
+      return;
+    }
+    case Instruction::kCdq: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      env->as->cdq(getReg(instr, output), getReg(instr, input));
+      return;
+    }
+    case Instruction::kCwd: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      env->as->cwd(getReg(instr, output), getReg(instr, input));
+      return;
+    }
+    case Instruction::kCqo: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      env->as->cqo(getReg(instr, output), getReg(instr, input));
+      return;
+    }
+    case Instruction::kTest: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->test(getReg(instr, in0), getReg(instr, in1));
+      return;
+    }
+    case Instruction::kBranch:
+      env->as->jmp(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchZ:
+      env->as->jz(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNZ:
+      env->as->jnz(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchA:
+      env->as->ja(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchB:
+      env->as->jb(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchAE:
+      env->as->jae(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchBE:
+      env->as->jbe(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchG:
+      env->as->jg(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchL:
+      env->as->jl(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchGE:
+      env->as->jge(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchLE:
+      env->as->jle(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchC:
+      env->as->jc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNC:
+      env->as->jnc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchO:
+      env->as->jo(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNO:
+      env->as->jno(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchS:
+      env->as->js(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNS:
+      env->as->jns(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchE:
+      env->as->je(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNE:
+      env->as->jne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kGuard:
+      TranslateGuard(env, instr);
+      return;
+    case Instruction::kDeoptPatchpoint:
+      TranslateDeoptPatchpoint(env, instr);
+      return;
+    case Instruction::kLoadThreadState:
+      translateLoadThreadState(env, instr);
+      return;
+    case Instruction::kYieldInitial:
+      translateYieldInitial(env, instr);
+      return;
+    case Instruction::kYieldValue:
+      translateYieldValue(env, instr);
+      return;
+    case Instruction::kStoreGenYieldPoint:
+      translateStoreGenYieldPoint(env, instr);
+      return;
+    case Instruction::kStoreGenYieldFromPoint:
+      translateStoreGenYieldFromPoint(env, instr);
+      return;
+    case Instruction::kBranchToYieldExit:
+      translateBranchToYieldExit(env, instr);
+      return;
+    case Instruction::kResumeGenYield:
+      translateResumeGenYield(env, instr);
+      return;
+    case Instruction::kYieldExitPoint:
+      translateYieldExitPoint(env, instr);
+      return;
+    case Instruction::kEpilogueEnd:
+      translateEpilogueEnd(env, instr);
+      return;
+    case Instruction::kIntToBool:
+      translateIntToBool(env, instr);
+      return;
+    case Instruction::kPrologue:
+      translatePrologue(env, instr);
+      return;
+    case Instruction::kSetupFrame:
+      translateSetupFrame(env, instr);
+      return;
+    case Instruction::kIndirectJump:
+      translateIndirectJump(env, instr);
+      return;
+    case Instruction::kInc: {
+      auto* input = instr->getInput(0);
+
+      if (input->isStack()) {
+        env->as->inc(getMem(instr, input));
+      } else {
+        env->as->inc(getReg(instr, input));
+      }
+      return;
+    }
+    case Instruction::kDec: {
+      auto* input = instr->getInput(0);
+
+      if (input->isStack()) {
+        env->as->dec(getMem(instr, input));
+      } else {
+        env->as->dec(getReg(instr, input));
+      }
+      return;
+    }
+    case Instruction::kBitTest: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->bt(getReg(instr, in0), getImm(in1));
+      return;
+    }
+    case Instruction::kSelect: {
+      auto output = getReg(instr, instr->output());
+      auto condition = getReg(instr, instr->getInput(0));
+
+      env->as->mov(output, getImm(instr->getInput(2)));
+      env->as->test(condition, condition);
+      env->as->cmovnz(output, getReg(instr, instr->getInput(1)));
+      return;
+    }
+    case Instruction::kEqual:
+    case Instruction::kNotEqual:
+    case Instruction::kGreaterThanUnsigned:
+    case Instruction::kGreaterThanEqualUnsigned:
+    case Instruction::kLessThanUnsigned:
+    case Instruction::kLessThanEqualUnsigned:
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+      TranslateCompare(env, instr);
+      return;
+    case Instruction::kFadd: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->addsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->addsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kFsub: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->subsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->subsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kFmul: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->mulsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->mulsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kFdiv: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->divsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->divsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kExchange: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (output->isVecD()) {
+        auto left = getVecD(output);
+        auto right = getVecD(input);
+
+        env->as->pxor(left, right);
+        env->as->pxor(right, left);
+        env->as->pxor(left, right);
+      } else {
+        env->as->xchg(getReg(instr, output), getReg(instr, input));
+      }
+      return;
+    }
+    case Instruction::kCmp: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (in0->isVecD()) {
+        env->as->comisd(getVecD(in0), getVecD(in1));
+      } else if (in1->isImm()) {
+        env->as->cmp(getReg(instr, in0), getImm(in1));
+      } else {
+        env->as->cmp(getReg(instr, in0), getReg(instr, in1));
+      }
+      return;
+    }
+    case Instruction::kNegate: {
+      if (instr->getNumOutputs() == 0) {
+        env->as->neg(getReg(instr, instr->getInput(0)));
+      } else {
+        auto* output = instr->output();
+        auto* input = instr->getInput(0);
+
+        if (input->isImm()) {
+          env->as->mov(
+              getReg(instr, output), asmjit::Imm(-input->getConstant()));
+        } else {
+          if (input->isStack()) {
+            env->as->mov(getReg(instr, output), getMem(instr, input));
+          } else {
+            env->as->mov(getReg(instr, output), getReg(instr, input));
+          }
+          env->as->neg(getReg(instr, output));
+        }
+      }
+      return;
+    }
+    case Instruction::kInvert: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isImm()) {
+        env->as->mov(getReg(instr, output), asmjit::Imm(~input->getConstant()));
+      } else {
+        if (input->isStack()) {
+          env->as->mov(getReg(instr, output), getMem(instr, input));
+        } else {
+          env->as->mov(getReg(instr, output), getReg(instr, input));
+        }
+        env->as->not_(getReg(instr, output));
+      }
+      return;
+    }
+    case Instruction::kAdd:
+    case Instruction::kSub:
+    case Instruction::kAnd:
+    case Instruction::kOr:
+    case Instruction::kXor:
+    case Instruction::kMul: {
+      auto emitOp = [&](const auto& dst, const auto& src) {
+        // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+        switch (opcode) {
+          case Instruction::kAdd:
+            env->as->add(dst, src);
+            break;
+          case Instruction::kSub:
+            env->as->sub(dst, src);
+            break;
+          case Instruction::kAnd:
+            env->as->and_(dst, src);
+            break;
+          case Instruction::kOr:
+            env->as->or_(dst, src);
+            break;
+          case Instruction::kXor:
+            env->as->xor_(dst, src);
+            break;
+          case Instruction::kMul:
+            env->as->imul(dst, src);
+            break;
+          default:
+            JIT_ABORT("unexpected opcode");
+        }
+      };
+
+      if (instr->getNumOutputs() > 0) {
+        auto* output = instr->output();
+        auto* in0 = instr->getInput(0);
+        auto* in1 = instr->getInput(1);
+
+        env->as->mov(getReg(instr, output), getReg(instr, in0));
+        if (in1->isImm()) {
+          emitOp(getReg(instr, output), getImm(in1));
+        } else if (in1->isStack()) {
+          emitOp(getReg(instr, output), getMem(instr, in1));
+        } else {
+          emitOp(getReg(instr, output), getReg(instr, in1));
+        }
+      } else {
+        auto* in0 = instr->getInput(0);
+        auto* in1 = instr->getInput(1);
+
+        if (in1->isImm()) {
+          emitOp(getReg(instr, in0), getImm(in1));
+        } else if (in1->isStack()) {
+          emitOp(getReg(instr, in0), getMem(instr, in1));
+        } else {
+          emitOp(getReg(instr, in0), getReg(instr, in1));
+        }
+      }
+      return;
+    }
+    case Instruction::kTest32: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->test(
+          asmjit::x86::gpd(in0->getPhyRegister().loc),
+          asmjit::x86::gpd(in1->getPhyRegister().loc));
+      return;
+    }
+    case Instruction::kInt64ToDouble: {
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->cvtsi2sd(getVecD(instr->output()), getReg(instr, input));
+      } else {
+        env->as->cvtsi2sd(getVecD(instr->output()), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kCall: {
+      auto* input = instr->getInput(0);
+
+      if (input->isImm()) {
+        env->as->call(getImm(input));
+      } else if (input->isStack()) {
+        env->as->call(getMem(instr, input));
+      } else {
+        env->as->call(getReg(instr, input));
+      }
+
+      asmjit::Label label = env->as->newLabel();
+      env->as->bind(label);
+      if (instr->origin()) {
+        env->pending_debug_locs.emplace_back(label, instr->origin());
+      }
+      return;
+    }
+    case Instruction::kMove: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (output->isReg() && output->isVecD()) {
+        if (input->isReg() && input->isVecD()) {
+          env->as->movsd(getVecD(output), getVecD(input));
+        } else if (input->isReg()) {
+          env->as->movq(getVecD(output), getReg(instr, input));
+        } else {
+          env->as->movsd(getVecD(output), getMem(instr, input));
+        }
+      } else if (output->isReg()) {
+        if (input->isReg() && input->isVecD()) {
+          env->as->movq(getReg(instr, output), getVecD(input));
+        } else if (input->isReg()) {
+          env->as->mov(getReg(instr, output), getReg(instr, input));
+        } else if (input->isImm()) {
+          env->as->mov(getReg(instr, output), getImm(input));
+        } else {
+          env->as->mov(getReg(instr, output), getMem(instr, input));
+        }
+      } else {
+        if (input->isReg() && input->isVecD()) {
+          env->as->movsd(getMem(instr, output), getVecD(input));
+        } else if (input->isReg()) {
+          env->as->mov(getMem(instr, output), getReg(instr, input));
+        } else {
+          env->as->mov(getMem(instr, output), getImm(input));
+        }
+      }
+      return;
+    }
+    case Instruction::kNone:
+    case Instruction::kNop:
+    case Instruction::kVectorCall:
+    case Instruction::kVarArgCall:
+    case Instruction::kSext:
+    case Instruction::kZext:
+    case Instruction::kMulAdd:
+    case Instruction::kLShift:
+    case Instruction::kRShift:
+    case Instruction::kRShiftUn:
+    case Instruction::kLoadArg:
+    case Instruction::kLoadSecondCallResult:
+    case Instruction::kMovConstPool:
+    case Instruction::kCondBranch:
+    case Instruction::kPhi:
+    case Instruction::kReturn:
+      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
+#endif
+    default:
+      break;
   }
+
   auto& instr_map = map_get(instr_rule_map_, opcode);
 
   std::string pattern;
@@ -177,6 +888,8 @@ void fillLiveValueLocations(
     deopt_meta.live_values[i - begin_input].location = loc;
   }
 }
+
+} // namespace
 
 // Translate GUARD instruction
 void TranslateGuard(Environ* env, const Instruction* instr) {
@@ -1028,6 +1741,8 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
 #endif
 }
 
+namespace {
+
 // ***********************************************************************
 // The following templates and macros implement the auto generation table.
 // The generator table defines a hash table, whose key is instruction type,
@@ -1167,33 +1882,6 @@ struct VecDOperand {
 
 #define REG_OP(v, size) RegOperand<v, size>
 
-arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
-  JIT_DCHECK(operand->isInd(), "operand should be an indirect reference");
-
-#if defined(CINDER_X86_64)
-  auto indirect = operand->getMemoryIndirect();
-
-  OperandBase* base = indirect->getBaseRegOperand();
-  OperandBase* index = indirect->getIndexRegOperand();
-
-  if (index == nullptr) {
-    return asmjit::x86::ptr(
-        x86::gpq(base->getPhyRegister().loc), indirect->getOffset());
-  } else {
-    return asmjit::x86::ptr(
-        x86::gpq(base->getPhyRegister().loc),
-        x86::gpq(index->getPhyRegister().loc),
-        indirect->getMultipiler(),
-        indirect->getOffset());
-  }
-#elif defined(CINDER_AARCH64)
-  JIT_ABORT("Unreachable.");
-#else
-  CINDER_UNSUPPORTED
-  return arch::Mem();
-#endif
-}
-
 template <int N>
 struct MemOperand {
   using asmjit_type = const arch::Mem&;
@@ -1283,6 +1971,7 @@ struct RuleActions;
 
 template <typename AAction, typename... Actions>
 struct RuleActions<AAction, Actions...> {
+  // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
   static void eval(Environ* env, const Instruction* instr) {
     AAction::eval(env, instr);
     RuleActions<Actions...>::eval(env, instr);
@@ -1291,6 +1980,7 @@ struct RuleActions<AAction, Actions...> {
 
 template <>
 struct RuleActions<> {
+  // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
   static void eval(Environ*, const Instruction*) {}
 };
 
@@ -1303,6 +1993,8 @@ struct AddDebugEntryAction {
     }
   }
 };
+
+} // namespace
 
 void translateYieldExitPoint(Environ* env, const Instruction*) {
   env->as->bind(env->exit_for_yield_label);
@@ -1608,7 +2300,7 @@ void translateIndirectJump(Environ* env, const Instruction* instr) {
 #endif
 }
 
-} // namespace
+namespace {} // namespace
 
 #define ASM(instr, args...)                    \
   AsmAction<                                   \
@@ -1692,365 +2384,6 @@ void translateIndirectJump(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
 // clang-format off
 BEGIN_RULE_TABLE
-
-BEGIN_RULES(Instruction::kLea)
-  GEN("Rm", ASM(lea, OP(0), MEM(1)))
-  GEN("Rb", CALL_C(translateLeaLabel))
-END_RULES
-
-BEGIN_RULES(Instruction::kCall)
-  GEN("Ri", ASM(call, OP(1)), ADDDEBUGENTRY())
-  GEN("Rr", ASM(call, OP(1)), ADDDEBUGENTRY())
-  GEN("i", ASM(call, OP(0)), ADDDEBUGENTRY())
-  GEN("r", ASM(call, OP(0)), ADDDEBUGENTRY())
-  GEN("m", ASM(call, STK(0)), ADDDEBUGENTRY())
-END_RULES
-
-BEGIN_RULES(Instruction::kMove)
-  GEN("Rr", ASM(mov, OP(0), OP(1)))
-  GEN("Ri", ASM(mov, OP(0), OP(1)))
-  GEN("Rm", ASM(mov, OP(0), MEM(1)))
-  GEN("Mr", ASM(mov, MEM(0), OP(1)))
-  GEN("Mi", ASM(mov, MEM(0), OP(1)))
-  GEN("Xx", ASM(movsd, OP(0), OP(1)))
-  GEN("Xm", ASM(movsd, OP(0), MEM(1)))
-  GEN("Mx", ASM(movsd, MEM(0), OP(1)))
-  GEN("Xr", ASM(movq, OP(0), OP(1)))
-  GEN("Rx", ASM(movq, OP(0), OP(1)))
-END_RULES
-
-// Atomic move with relaxed ordering.
-// On x86-64, relaxed loads/stores are plain mov.
-// This corresponds to the C++/C memory_order_relaxed.
-BEGIN_RULES(Instruction::kMoveRelaxed)
-  GEN("Rm", ASM(mov, OP(0), MEM(1)))
-  GEN("Mr", ASM(mov, MEM(0), OP(1)))
-  GEN("Mi", ASM(mov, MEM(0), OP(1)))
-END_RULES
-
-
-BEGIN_RULES(Instruction::kGuard)
-  GEN(ANY, CALL_C(TranslateGuard));
-END_RULES
-
-BEGIN_RULES(Instruction::kDeoptPatchpoint)
-  GEN(ANY, CALL_C(TranslateDeoptPatchpoint));
-END_RULES
-
-BEGIN_RULES(Instruction::kNegate)
-  GEN("r", ASM(neg, OP(0)))
-  GEN("Ri", ASM(mov, OP(0), ImmOperandNegate<OP(1)>))
-  GEN("Rr", ASM(mov, OP(0), OP(1)), ASM(neg, OP(0)))
-  GEN("Rm", ASM(mov, OP(0), STK(1)), ASM(neg, OP(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kInvert)
-  GEN("Ri", ASM(mov, OP(0), ImmOperandInvert<OP(1)>))
-  GEN("Rr", ASM(mov, OP(0), OP(1)), ASM(not_, OP(0)))
-  GEN("Rm", ASM(mov, OP(0), STK(1)), ASM(not_, OP(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovZX)
-  GEN("Rr", ASM(movzx, OP(0), OP(1)))
-  GEN("Rm", ASM(movzx, OP(0), STK(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovSX)
-  GEN("Rr", ASM(movsx, OP(0), OP(1)))
-  GEN("Rm", ASM(movsx, OP(0), STK(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kMovSXD)
-  GEN("Rr", ASM(movsxd, OP(0), OP(1)))
-  GEN("Rm", ASM(movsxd, OP(0), STK(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kUnreachable)
-  GEN(ANY, ASM(ud2))
-END_RULES
-
-#define DEF_BINARY_OP_RULES(name, instr) \
-  BEGIN_RULES(Instruction::name) \
-    GEN("ri", ASM(instr, OP(0), OP(1))) \
-    GEN("rr", ASM(instr, OP(0), OP(1))) \
-    GEN("rm", ASM(instr, OP(0), STK(1))) \
-    /* rewriteBinaryOpInstrs() makes it safe to write the output before reading
-     * all inputs without inputs_live_across being set for most binary ops; see
-     * postalloc.cpp for details. */ \
-    GEN("Rri", ASM(mov, OP(0), OP(1)), ASM(instr, OP(0), OP(2))) \
-    GEN("Rrr", ASM(mov, OP(0), OP(1)), ASM(instr, OP(0), OP(2))) \
-    GEN("Rrm", ASM(mov, OP(0), OP(1)), ASM(instr, OP(0), STK(2))) \
-  END_RULES
-
-DEF_BINARY_OP_RULES(kAdd, add)
-DEF_BINARY_OP_RULES(kSub, sub)
-DEF_BINARY_OP_RULES(kAnd, and_)
-DEF_BINARY_OP_RULES(kOr, or_)
-DEF_BINARY_OP_RULES(kXor, xor_)
-DEF_BINARY_OP_RULES(kMul, imul)
-
-BEGIN_RULES(Instruction::kDiv)
-  GEN("rrr", ASM(idiv, OP(0), OP(1), OP(2)) )
-  GEN("rrm", ASM(idiv, OP(0), OP(1), STK(2)) )
-  GEN("rr", ASM(idiv, OP(0), OP(1)) )
-  GEN("rm", ASM(idiv, OP(0), STK(1)) )
-END_RULES
-
-BEGIN_RULES(Instruction::kDivUn)
-  GEN("rrr", ASM(div, OP(0), OP(1), OP(2)) )
-  GEN("rrm", ASM(div, OP(0), OP(1), STK(2)) )
-  GEN("rr", ASM(div, OP(0), OP(1)) )
-  GEN("rm", ASM(div, OP(0), STK(1)) )
-END_RULES
-
-#undef DEF_BINARY_OP_RULES
-
-BEGIN_RULES(Instruction::kFadd)
-  /* rewriteBinaryOpInstrs() makes it safe to write the output before reading
-   * all inputs without inputs_live_across being set for Fadd; see
-   * postalloc.cpp for details. */
-  GEN("Xxx", ASM(movsd, OP(0), OP(1)), ASM(addsd, OP(0), OP(2)))
-  GEN("xx", ASM(addsd, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kFsub)
-  GEN("Xxx", ASM(movsd, OP(0), OP(1)), ASM(subsd, OP(0), OP(2)))
-  GEN("xx", ASM(subsd, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kFmul)
-  /* rewriteBinaryOpInstrs() makes it safe to write the output before reading
-   * all inputs without inputs_live_across being set for Fmul; see
-   * postalloc.cpp for details. */
-  GEN("Xxx", ASM(movsd, OP(0), OP(1)), ASM(mulsd, OP(0), OP(2)))
-  GEN("xx", ASM(mulsd, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kFdiv)
-  GEN("Xxx", ASM(movsd, OP(0), OP(1)), ASM(divsd, OP(0), OP(2)))
-  GEN("xx", ASM(divsd, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kInt64ToDouble)
-  GEN("Xr", ASM(cvtsi2sd, OP(0), OP(1)))
-  GEN("Xm", ASM(cvtsi2sd, OP(0), STK(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kPush)
-  GEN("r", ASM(push, OP(0)))
-  GEN("m", ASM(push, STK(0)))
-  GEN("i", ASM(push, OP(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kPop)
-  GEN("R", ASM(pop, OP(0)))
-  GEN("M", ASM(pop, STK(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kCdq)
-  GEN("Rr", ASM(cdq, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kCwd)
-  GEN("Rr", ASM(cwd, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kCqo)
-  GEN("Rr", ASM(cqo, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kExchange)
-  GEN("Rr", ASM(xchg, OP(0), OP(1)))
-  GEN("Xx", ASM(pxor, OP(0), OP(1)),
-            ASM(pxor, OP(1), OP(0)),
-            ASM(pxor, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kCmp)
-  GEN("rr", ASM(cmp, OP(0), OP(1)))
-  GEN("ri", ASM(cmp, OP(0), OP(1)))
-  GEN("xx", ASM(comisd, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kTest)
-  GEN("rr", ASM(test, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kTest32)
-  GEN("rr", ASM(test, REG_OP(0, 32), REG_OP(1, 32)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranch)
-  GEN("b", ASM(jmp, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchZ)
-  GEN("b", ASM(jz, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNZ)
-  GEN("b", ASM(jnz, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchA)
-  GEN("b", ASM(ja, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchB)
-  GEN("b", ASM(jb, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchAE)
-  GEN("b", ASM(jae, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchBE)
-  GEN("b", ASM(jbe, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchG)
-  GEN("b", ASM(jg, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchL)
-  GEN("b", ASM(jl, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchGE)
-  GEN("b", ASM(jge, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchLE)
-  GEN("b", ASM(jle, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchC)
-  GEN("b", ASM(jc, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNC)
-  GEN("b", ASM(jnc, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchO)
-  GEN("b", ASM(jo, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNO)
-  GEN("b", ASM(jno, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchS)
-  GEN("b", ASM(js, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNS)
-  GEN("b", ASM(jns, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchE)
-  GEN("b", ASM(je, LBL(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchNE)
-  GEN("b", ASM(jne, LBL(0)))
-END_RULES
-
-#define DEF_COMPARE_OP_RULES(name, fpcomp) \
-BEGIN_RULES(Instruction::name) \
-  GEN("Rrr", CALL_C(TranslateCompare)) \
-  GEN("Rri", CALL_C(TranslateCompare)) \
-  GEN("Rrm", CALL_C(TranslateCompare)) \
-  if (fpcomp) { \
-    GEN("Rxx", CALL_C(TranslateCompare)) \
-  } \
-END_RULES
-
-DEF_COMPARE_OP_RULES(kEqual, true)
-DEF_COMPARE_OP_RULES(kNotEqual, true)
-DEF_COMPARE_OP_RULES(kGreaterThanUnsigned, true)
-DEF_COMPARE_OP_RULES(kGreaterThanEqualUnsigned, true)
-DEF_COMPARE_OP_RULES(kLessThanUnsigned, true)
-DEF_COMPARE_OP_RULES(kLessThanEqualUnsigned, true)
-DEF_COMPARE_OP_RULES(kGreaterThanSigned, false)
-DEF_COMPARE_OP_RULES(kGreaterThanEqualSigned, false)
-DEF_COMPARE_OP_RULES(kLessThanSigned, false)
-DEF_COMPARE_OP_RULES(kLessThanEqualSigned, false)
-
-#undef DEF_COMPARE_OP_RULES
-
-BEGIN_RULES(Instruction::kInc)
-  GEN("r", ASM(inc, OP(0)))
-  GEN("m", ASM(inc, STK(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kDec)
-  GEN("r", ASM(dec, OP(0)))
-  GEN("m", ASM(dec, STK(0)))
-END_RULES
-
-BEGIN_RULES(Instruction::kBitTest)
-  GEN("ri", ASM(bt, OP(0), OP(1)))
-END_RULES
-
-BEGIN_RULES(Instruction::kLoadThreadState)
-  GEN(ANY, CALL_C(translateLoadThreadState))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldInitial)
-  GEN(ANY, CALL_C(translateYieldInitial))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldValue)
-  GEN(ANY, CALL_C(translateYieldValue))
-END_RULES
-
-BEGIN_RULES(Instruction::kStoreGenYieldPoint)
-  GEN(ANY, CALL_C(translateStoreGenYieldPoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kStoreGenYieldFromPoint)
-  GEN(ANY, CALL_C(translateStoreGenYieldFromPoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kBranchToYieldExit)
-  GEN(ANY, CALL_C(translateBranchToYieldExit))
-END_RULES
-
-BEGIN_RULES(Instruction::kResumeGenYield)
-  GEN(ANY, CALL_C(translateResumeGenYield))
-END_RULES
-
-BEGIN_RULES(Instruction::kYieldExitPoint)
-  GEN(ANY, CALL_C(translateYieldExitPoint))
-END_RULES
-
-BEGIN_RULES(Instruction::kEpilogueEnd)
-  GEN(ANY, CALL_C(translateEpilogueEnd))
-END_RULES
-
-BEGIN_RULES(Instruction::kSelect)
-  GEN("Rrri", ASM(mov, OP(0), OP(3)),
-              ASM(test, OP(1), OP(1)),
-              ASM(cmovnz, OP(0), OP(2)))
-END_RULES
-
-BEGIN_RULES(Instruction::kIntToBool)
-  GEN("Rr", CALL_C(translateIntToBool))
-  GEN("Ri", CALL_C(translateIntToBool))
-END_RULES
-
-BEGIN_RULES(Instruction::kPrologue)
-  GEN(ANY, CALL_C(translatePrologue))
-END_RULES
-
-BEGIN_RULES(Instruction::kSetupFrame)
-  GEN(ANY, CALL_C(translateSetupFrame))
-END_RULES
-
-BEGIN_RULES(Instruction::kIndirectJump)
-  GEN(ANY, CALL_C(translateIndirectJump))
-END_RULES
 
 END_RULE_TABLE
 // clang-format on
