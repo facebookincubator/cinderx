@@ -21,24 +21,6 @@ using namespace jit::codegen;
 
 namespace jit::codegen::autogen {
 
-void translateLeaLabel(Environ* env, const Instruction* instr);
-void TranslateGuard(Environ* env, const Instruction* instr);
-void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr);
-void TranslateCompare(Environ* env, const Instruction* instr);
-void translateLoadThreadState(Environ* env, const Instruction* instr);
-void translateYieldInitial(Environ* env, const Instruction* instr);
-void translateYieldValue(Environ* env, const Instruction* instr);
-void translateStoreGenYieldPoint(Environ* env, const Instruction* instr);
-void translateStoreGenYieldFromPoint(Environ* env, const Instruction* instr);
-void translateBranchToYieldExit(Environ* env, const Instruction*);
-void translateResumeGenYield(Environ* env, const Instruction* instr);
-void translateYieldExitPoint(Environ* env, const Instruction*);
-void translateEpilogueEnd(Environ* env, const Instruction* instr);
-void translateIntToBool(Environ* env, const Instruction* instr);
-void translatePrologue(Environ* env, const Instruction*);
-void translateSetupFrame(Environ* env, const Instruction*);
-void translateIndirectJump(Environ* env, const Instruction* instr);
-
 arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
   JIT_DCHECK(operand->isInd(), "operand should be an indirect reference");
 
@@ -160,898 +142,6 @@ asmjit::Label getLabel(Environ* env, const OperandBase* operand) {
     return operand->getDefine()->getAsmLabel();
   }
   return map_get(env->block_label_map, operand->getBasicBlock());
-}
-
-#if defined(CINDER_AARCH64)
-namespace {
-void translateLea(Environ* env, const Instruction* instr);
-void translateCall(Environ* env, const Instruction* instr);
-void translateMove(Environ* env, const Instruction* instr);
-void translateMovConstPool(Environ* env, const Instruction* instr);
-void translateMovZX(Environ* env, const Instruction* instr);
-void translateMovSX(Environ* env, const Instruction* instr);
-void translateMovSXD(Environ* env, const Instruction* instr);
-void translateUnreachable(Environ* env, const Instruction* instr);
-void translateNegate(Environ* env, const Instruction* instr);
-void translateInvert(Environ* env, const Instruction* instr);
-void translateAdd(Environ* env, const Instruction* instr);
-void translateSub(Environ* env, const Instruction* instr);
-void translateAnd(Environ* env, const Instruction* instr);
-void translateOr(Environ* env, const Instruction* instr);
-void translateXor(Environ* env, const Instruction* instr);
-void translateMul(Environ* env, const Instruction* instr);
-void translateMulAdd(Environ* env, const Instruction* instr);
-void translateDiv(Environ* env, const Instruction* instr);
-void translateDivUn(Environ* env, const Instruction* instr);
-void translatePush(Environ* env, const Instruction* instr);
-void translatePop(Environ* env, const Instruction* instr);
-void translateExchange(Environ* env, const Instruction* instr);
-void translateCmp(Environ* env, const Instruction* instr);
-void translateTst(Environ* env, const Instruction* instr);
-void translateBitTest(Environ* env, const Instruction* instr);
-void translateInc(Environ* env, const Instruction* instr);
-void translateDec(Environ* env, const Instruction* instr);
-void translateSelect(Environ* env, const Instruction* instr);
-} // namespace
-#endif
-
-// Translates a single LIR instruction to machine code.
-void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
-    const {
-  auto opcode = instr->opcode();
-  switch (opcode) {
-    case Instruction::kBind:
-      return;
-#if defined(CINDER_X86_64)
-    case Instruction::kLea: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (input->isLabel()) {
-        translateLeaLabel(env, instr);
-      } else {
-        env->as->lea(getReg(instr, output), getMem(instr, input));
-      }
-      return;
-    }
-    case Instruction::kMoveRelaxed: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (output->isReg()) {
-        env->as->mov(getReg(instr, output), getMem(instr, input));
-      } else if (input->isReg()) {
-        env->as->mov(getMem(instr, output), getReg(instr, input));
-      } else {
-        env->as->mov(getMem(instr, output), getImm(input));
-      }
-      return;
-    }
-    case Instruction::kMovZX: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (input->isReg()) {
-        env->as->movzx(getReg(instr, output), getReg(instr, input));
-      } else {
-        env->as->movzx(getReg(instr, output), getMem(instr, input));
-      }
-      return;
-    }
-    case Instruction::kMovSX: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (input->isReg()) {
-        env->as->movsx(getReg(instr, output), getReg(instr, input));
-      } else {
-        env->as->movsx(getReg(instr, output), getMem(instr, input));
-      }
-      return;
-    }
-    case Instruction::kMovSXD: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (input->isReg()) {
-        env->as->movsxd(getReg(instr, output), getReg(instr, input));
-      } else {
-        env->as->movsxd(getReg(instr, output), getMem(instr, input));
-      }
-      return;
-    }
-    case Instruction::kUnreachable:
-      env->as->ud2();
-      return;
-    case Instruction::kDiv: {
-      auto numInputs = instr->getNumInputs();
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (numInputs == 3) {
-        auto* in2 = instr->getInput(2);
-
-        if (in2->isReg()) {
-          env->as->idiv(
-              getReg(instr, in0), getReg(instr, in1), getReg(instr, in2));
-        } else {
-          env->as->idiv(
-              getReg(instr, in0), getReg(instr, in1), getMem(instr, in2));
-        }
-      } else {
-        if (in1->isReg()) {
-          env->as->idiv(getReg(instr, in0), getReg(instr, in1));
-        } else {
-          env->as->idiv(getReg(instr, in0), getMem(instr, in1));
-        }
-      }
-      return;
-    }
-    case Instruction::kDivUn: {
-      auto numInputs = instr->getNumInputs();
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (numInputs == 3) {
-        auto* in2 = instr->getInput(2);
-
-        if (in2->isReg()) {
-          env->as->div(
-              getReg(instr, in0), getReg(instr, in1), getReg(instr, in2));
-        } else {
-          env->as->div(
-              getReg(instr, in0), getReg(instr, in1), getMem(instr, in2));
-        }
-      } else {
-        if (in1->isReg()) {
-          env->as->div(getReg(instr, in0), getReg(instr, in1));
-        } else {
-          env->as->div(getReg(instr, in0), getMem(instr, in1));
-        }
-      }
-      return;
-    }
-    case Instruction::kPush: {
-      auto* input = instr->getInput(0);
-
-      if (input->isReg()) {
-        env->as->push(getReg(instr, input));
-      } else if (input->isImm()) {
-        env->as->push(getImm(input));
-      } else {
-        env->as->push(getMem(instr, input));
-      }
-      return;
-    }
-    case Instruction::kPop: {
-      auto* output = instr->output();
-
-      if (output->isReg()) {
-        env->as->pop(getReg(instr, output));
-      } else {
-        env->as->pop(getMem(instr, output));
-      }
-      return;
-    }
-    case Instruction::kCdq: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      env->as->cdq(getReg(instr, output), getReg(instr, input));
-      return;
-    }
-    case Instruction::kCwd: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      env->as->cwd(getReg(instr, output), getReg(instr, input));
-      return;
-    }
-    case Instruction::kCqo: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      env->as->cqo(getReg(instr, output), getReg(instr, input));
-      return;
-    }
-    case Instruction::kTest: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      env->as->test(getReg(instr, in0), getReg(instr, in1));
-      return;
-    }
-    case Instruction::kBranch:
-      env->as->jmp(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchZ:
-      env->as->jz(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNZ:
-      env->as->jnz(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchA:
-      env->as->ja(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchB:
-      env->as->jb(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchAE:
-      env->as->jae(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchBE:
-      env->as->jbe(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchG:
-      env->as->jg(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchL:
-      env->as->jl(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchGE:
-      env->as->jge(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchLE:
-      env->as->jle(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchC:
-      env->as->jc(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNC:
-      env->as->jnc(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchO:
-      env->as->jo(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNO:
-      env->as->jno(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchS:
-      env->as->js(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNS:
-      env->as->jns(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchE:
-      env->as->je(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNE:
-      env->as->jne(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kGuard:
-      TranslateGuard(env, instr);
-      return;
-    case Instruction::kDeoptPatchpoint:
-      TranslateDeoptPatchpoint(env, instr);
-      return;
-    case Instruction::kLoadThreadState:
-      translateLoadThreadState(env, instr);
-      return;
-    case Instruction::kYieldInitial:
-      translateYieldInitial(env, instr);
-      return;
-    case Instruction::kYieldValue:
-      translateYieldValue(env, instr);
-      return;
-    case Instruction::kStoreGenYieldPoint:
-      translateStoreGenYieldPoint(env, instr);
-      return;
-    case Instruction::kStoreGenYieldFromPoint:
-      translateStoreGenYieldFromPoint(env, instr);
-      return;
-    case Instruction::kBranchToYieldExit:
-      translateBranchToYieldExit(env, instr);
-      return;
-    case Instruction::kResumeGenYield:
-      translateResumeGenYield(env, instr);
-      return;
-    case Instruction::kYieldExitPoint:
-      translateYieldExitPoint(env, instr);
-      return;
-    case Instruction::kEpilogueEnd:
-      translateEpilogueEnd(env, instr);
-      return;
-    case Instruction::kIntToBool:
-      translateIntToBool(env, instr);
-      return;
-    case Instruction::kPrologue:
-      translatePrologue(env, instr);
-      return;
-    case Instruction::kSetupFrame:
-      translateSetupFrame(env, instr);
-      return;
-    case Instruction::kIndirectJump:
-      translateIndirectJump(env, instr);
-      return;
-    case Instruction::kInc: {
-      auto* input = instr->getInput(0);
-
-      if (input->isStack()) {
-        env->as->inc(getMem(instr, input));
-      } else {
-        env->as->inc(getReg(instr, input));
-      }
-      return;
-    }
-    case Instruction::kDec: {
-      auto* input = instr->getInput(0);
-
-      if (input->isStack()) {
-        env->as->dec(getMem(instr, input));
-      } else {
-        env->as->dec(getReg(instr, input));
-      }
-      return;
-    }
-    case Instruction::kBitTest: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      env->as->bt(getReg(instr, in0), getImm(in1));
-      return;
-    }
-    case Instruction::kSelect: {
-      auto output = getReg(instr, instr->output());
-      auto condition = getReg(instr, instr->getInput(0));
-
-      env->as->mov(output, getImm(instr->getInput(2)));
-      env->as->test(condition, condition);
-      env->as->cmovnz(output, getReg(instr, instr->getInput(1)));
-      return;
-    }
-    case Instruction::kEqual:
-    case Instruction::kNotEqual:
-    case Instruction::kGreaterThanUnsigned:
-    case Instruction::kGreaterThanEqualUnsigned:
-    case Instruction::kLessThanUnsigned:
-    case Instruction::kLessThanEqualUnsigned:
-    case Instruction::kGreaterThanSigned:
-    case Instruction::kGreaterThanEqualSigned:
-    case Instruction::kLessThanSigned:
-    case Instruction::kLessThanEqualSigned:
-      TranslateCompare(env, instr);
-      return;
-    case Instruction::kFadd: {
-      if (instr->getNumOutputs() > 0) {
-        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
-        env->as->addsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
-      } else {
-        env->as->addsd(
-            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
-      }
-      return;
-    }
-    case Instruction::kFsub: {
-      if (instr->getNumOutputs() > 0) {
-        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
-        env->as->subsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
-      } else {
-        env->as->subsd(
-            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
-      }
-      return;
-    }
-    case Instruction::kFmul: {
-      if (instr->getNumOutputs() > 0) {
-        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
-        env->as->mulsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
-      } else {
-        env->as->mulsd(
-            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
-      }
-      return;
-    }
-    case Instruction::kFdiv: {
-      if (instr->getNumOutputs() > 0) {
-        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
-        env->as->divsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
-      } else {
-        env->as->divsd(
-            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
-      }
-      return;
-    }
-    case Instruction::kExchange: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (output->isVecD()) {
-        auto left = getVecD(output);
-        auto right = getVecD(input);
-
-        env->as->pxor(left, right);
-        env->as->pxor(right, left);
-        env->as->pxor(left, right);
-      } else {
-        env->as->xchg(getReg(instr, output), getReg(instr, input));
-      }
-      return;
-    }
-    case Instruction::kCmp: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (in0->isVecD()) {
-        env->as->comisd(getVecD(in0), getVecD(in1));
-      } else if (in1->isImm()) {
-        env->as->cmp(getReg(instr, in0), getImm(in1));
-      } else {
-        env->as->cmp(getReg(instr, in0), getReg(instr, in1));
-      }
-      return;
-    }
-    case Instruction::kNegate: {
-      if (instr->getNumOutputs() == 0) {
-        env->as->neg(getReg(instr, instr->getInput(0)));
-      } else {
-        auto* output = instr->output();
-        auto* input = instr->getInput(0);
-
-        if (input->isImm()) {
-          env->as->mov(
-              getReg(instr, output), asmjit::Imm(-input->getConstant()));
-        } else {
-          if (input->isStack()) {
-            env->as->mov(getReg(instr, output), getMem(instr, input));
-          } else {
-            env->as->mov(getReg(instr, output), getReg(instr, input));
-          }
-          env->as->neg(getReg(instr, output));
-        }
-      }
-      return;
-    }
-    case Instruction::kInvert: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (input->isImm()) {
-        env->as->mov(getReg(instr, output), asmjit::Imm(~input->getConstant()));
-      } else {
-        if (input->isStack()) {
-          env->as->mov(getReg(instr, output), getMem(instr, input));
-        } else {
-          env->as->mov(getReg(instr, output), getReg(instr, input));
-        }
-        env->as->not_(getReg(instr, output));
-      }
-      return;
-    }
-    case Instruction::kAdd:
-    case Instruction::kSub:
-    case Instruction::kAnd:
-    case Instruction::kOr:
-    case Instruction::kXor:
-    case Instruction::kMul: {
-      auto emitOp = [&](const auto& dst, const auto& src) {
-        // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
-        switch (opcode) {
-          case Instruction::kAdd:
-            env->as->add(dst, src);
-            break;
-          case Instruction::kSub:
-            env->as->sub(dst, src);
-            break;
-          case Instruction::kAnd:
-            env->as->and_(dst, src);
-            break;
-          case Instruction::kOr:
-            env->as->or_(dst, src);
-            break;
-          case Instruction::kXor:
-            env->as->xor_(dst, src);
-            break;
-          case Instruction::kMul:
-            env->as->imul(dst, src);
-            break;
-          default:
-            JIT_ABORT("unexpected opcode");
-        }
-      };
-
-      if (instr->getNumOutputs() > 0) {
-        auto* output = instr->output();
-        auto* in0 = instr->getInput(0);
-        auto* in1 = instr->getInput(1);
-
-        env->as->mov(getReg(instr, output), getReg(instr, in0));
-        if (in1->isImm()) {
-          emitOp(getReg(instr, output), getImm(in1));
-        } else if (in1->isStack()) {
-          emitOp(getReg(instr, output), getMem(instr, in1));
-        } else {
-          emitOp(getReg(instr, output), getReg(instr, in1));
-        }
-      } else {
-        auto* in0 = instr->getInput(0);
-        auto* in1 = instr->getInput(1);
-
-        if (in1->isImm()) {
-          emitOp(getReg(instr, in0), getImm(in1));
-        } else if (in1->isStack()) {
-          emitOp(getReg(instr, in0), getMem(instr, in1));
-        } else {
-          emitOp(getReg(instr, in0), getReg(instr, in1));
-        }
-      }
-      return;
-    }
-    case Instruction::kTest32: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      env->as->test(
-          asmjit::x86::gpd(in0->getPhyRegister().loc),
-          asmjit::x86::gpd(in1->getPhyRegister().loc));
-      return;
-    }
-    case Instruction::kInt64ToDouble: {
-      auto* input = instr->getInput(0);
-
-      if (input->isReg()) {
-        env->as->cvtsi2sd(getVecD(instr->output()), getReg(instr, input));
-      } else {
-        env->as->cvtsi2sd(getVecD(instr->output()), getMem(instr, input));
-      }
-      return;
-    }
-    case Instruction::kCall: {
-      auto* input = instr->getInput(0);
-
-      if (input->isImm()) {
-        env->as->call(getImm(input));
-      } else if (input->isStack()) {
-        env->as->call(getMem(instr, input));
-      } else {
-        env->as->call(getReg(instr, input));
-      }
-
-      asmjit::Label label = env->as->newLabel();
-      env->as->bind(label);
-      if (instr->origin()) {
-        env->pending_debug_locs.emplace_back(label, instr->origin());
-      }
-      return;
-    }
-    case Instruction::kMove: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (output->isReg() && output->isVecD()) {
-        if (input->isReg() && input->isVecD()) {
-          env->as->movsd(getVecD(output), getVecD(input));
-        } else if (input->isReg()) {
-          env->as->movq(getVecD(output), getReg(instr, input));
-        } else {
-          env->as->movsd(getVecD(output), getMem(instr, input));
-        }
-      } else if (output->isReg()) {
-        if (input->isReg() && input->isVecD()) {
-          env->as->movq(getReg(instr, output), getVecD(input));
-        } else if (input->isReg()) {
-          env->as->mov(getReg(instr, output), getReg(instr, input));
-        } else if (input->isImm()) {
-          env->as->mov(getReg(instr, output), getImm(input));
-        } else {
-          env->as->mov(getReg(instr, output), getMem(instr, input));
-        }
-      } else {
-        if (input->isReg() && input->isVecD()) {
-          env->as->movsd(getMem(instr, output), getVecD(input));
-        } else if (input->isReg()) {
-          env->as->mov(getMem(instr, output), getReg(instr, input));
-        } else {
-          env->as->mov(getMem(instr, output), getImm(input));
-        }
-      }
-      return;
-    }
-    case Instruction::kNone:
-    case Instruction::kNop:
-    case Instruction::kVectorCall:
-    case Instruction::kVarArgCall:
-    case Instruction::kSext:
-    case Instruction::kZext:
-    case Instruction::kMulAdd:
-    case Instruction::kLShift:
-    case Instruction::kRShift:
-    case Instruction::kRShiftUn:
-    case Instruction::kLoadArg:
-    case Instruction::kLoadSecondCallResult:
-    case Instruction::kMovConstPool:
-    case Instruction::kCondBranch:
-    case Instruction::kPhi:
-    case Instruction::kReturn:
-      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
-#elif defined(CINDER_AARCH64)
-    case Instruction::kLea: {
-      auto* input = instr->getInput(0);
-
-      if (input->isLabel()) {
-        translateLeaLabel(env, instr);
-      } else {
-        translateLea(env, instr);
-      }
-      return;
-    }
-    case Instruction::kMoveRelaxed:
-      translateMove(env, instr);
-      return;
-    case Instruction::kMovZX:
-      translateMovZX(env, instr);
-      return;
-    case Instruction::kMovSX:
-      translateMovSX(env, instr);
-      return;
-    case Instruction::kMovSXD:
-      translateMovSXD(env, instr);
-      return;
-    case Instruction::kUnreachable:
-      translateUnreachable(env, instr);
-      return;
-    case Instruction::kDiv:
-      translateDiv(env, instr);
-      return;
-    case Instruction::kDivUn:
-      translateDivUn(env, instr);
-      return;
-    case Instruction::kPush:
-      translatePush(env, instr);
-      return;
-    case Instruction::kPop:
-      translatePop(env, instr);
-      return;
-    case Instruction::kTest:
-      translateTst(env, instr);
-      return;
-    case Instruction::kBranch:
-      env->as->b(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchZ:
-      env->as->b_eq(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNZ:
-      env->as->b_ne(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchA:
-      env->as->b_hi(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchB:
-      env->as->b_lo(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchAE:
-      env->as->b_hs(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchBE:
-      env->as->b_ls(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchG:
-      env->as->b_gt(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchL:
-      env->as->b_lt(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchGE:
-      env->as->b_ge(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchLE:
-      env->as->b_le(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchC:
-      env->as->b_cs(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNC:
-      env->as->b_cc(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchO:
-      env->as->b_vs(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNO:
-      env->as->b_vc(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchS:
-      env->as->b_mi(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNS:
-      env->as->b_pl(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchE:
-      env->as->b_eq(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kBranchNE:
-      env->as->b_ne(getLabel(env, instr->getInput(0)));
-      return;
-    case Instruction::kGuard:
-      TranslateGuard(env, instr);
-      return;
-    case Instruction::kDeoptPatchpoint:
-      TranslateDeoptPatchpoint(env, instr);
-      return;
-    case Instruction::kLoadThreadState:
-      translateLoadThreadState(env, instr);
-      return;
-    case Instruction::kYieldInitial:
-      translateYieldInitial(env, instr);
-      return;
-    case Instruction::kYieldValue:
-      translateYieldValue(env, instr);
-      return;
-    case Instruction::kStoreGenYieldPoint:
-      translateStoreGenYieldPoint(env, instr);
-      return;
-    case Instruction::kStoreGenYieldFromPoint:
-      translateStoreGenYieldFromPoint(env, instr);
-      return;
-    case Instruction::kBranchToYieldExit:
-      translateBranchToYieldExit(env, instr);
-      return;
-    case Instruction::kResumeGenYield:
-      translateResumeGenYield(env, instr);
-      return;
-    case Instruction::kYieldExitPoint:
-      translateYieldExitPoint(env, instr);
-      return;
-    case Instruction::kEpilogueEnd:
-      translateEpilogueEnd(env, instr);
-      return;
-    case Instruction::kIntToBool:
-      translateIntToBool(env, instr);
-      return;
-    case Instruction::kPrologue:
-      translatePrologue(env, instr);
-      return;
-    case Instruction::kSetupFrame:
-      translateSetupFrame(env, instr);
-      return;
-    case Instruction::kIndirectJump:
-      translateIndirectJump(env, instr);
-      return;
-    case Instruction::kInc:
-      translateInc(env, instr);
-      return;
-    case Instruction::kDec:
-      translateDec(env, instr);
-      return;
-    case Instruction::kBitTest:
-      translateBitTest(env, instr);
-      return;
-    case Instruction::kSelect:
-      translateSelect(env, instr);
-      return;
-    case Instruction::kEqual:
-    case Instruction::kNotEqual:
-    case Instruction::kGreaterThanUnsigned:
-    case Instruction::kGreaterThanEqualUnsigned:
-    case Instruction::kLessThanUnsigned:
-    case Instruction::kLessThanEqualUnsigned:
-    case Instruction::kGreaterThanSigned:
-    case Instruction::kGreaterThanEqualSigned:
-    case Instruction::kLessThanSigned:
-    case Instruction::kLessThanEqualSigned:
-      TranslateCompare(env, instr);
-      return;
-    case Instruction::kFadd: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (instr->getNumOutputs() > 0) {
-        env->as->fadd(getVecD(instr->output()), getVecD(in0), getVecD(in1));
-      } else {
-        env->as->fadd(getVecD(in0), getVecD(in0), getVecD(in1));
-      }
-      return;
-    }
-    case Instruction::kFsub: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (instr->getNumOutputs() > 0) {
-        env->as->fsub(getVecD(instr->output()), getVecD(in0), getVecD(in1));
-      } else {
-        env->as->fsub(getVecD(in0), getVecD(in0), getVecD(in1));
-      }
-      return;
-    }
-    case Instruction::kFmul: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (instr->getNumOutputs() > 0) {
-        env->as->fmul(getVecD(instr->output()), getVecD(in0), getVecD(in1));
-      } else {
-        env->as->fmul(getVecD(in0), getVecD(in0), getVecD(in1));
-      }
-      return;
-    }
-    case Instruction::kFdiv: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      if (instr->getNumOutputs() > 0) {
-        env->as->fdiv(getVecD(instr->output()), getVecD(in0), getVecD(in1));
-      } else {
-        env->as->fdiv(getVecD(in0), getVecD(in0), getVecD(in1));
-      }
-      return;
-    }
-    case Instruction::kInt64ToDouble:
-      env->as->scvtf(
-          getVecD(instr->output()), getReg(instr, instr->getInput(0)));
-      return;
-    case Instruction::kExchange:
-      translateExchange(env, instr);
-      return;
-    case Instruction::kCmp:
-      translateCmp(env, instr);
-      return;
-    case Instruction::kNegate:
-      translateNegate(env, instr);
-      return;
-    case Instruction::kInvert:
-      translateInvert(env, instr);
-      return;
-    case Instruction::kAdd:
-      translateAdd(env, instr);
-      return;
-    case Instruction::kSub:
-      translateSub(env, instr);
-      return;
-    case Instruction::kAnd:
-      translateAnd(env, instr);
-      return;
-    case Instruction::kOr:
-      translateOr(env, instr);
-      return;
-    case Instruction::kXor:
-      translateXor(env, instr);
-      return;
-    case Instruction::kMul:
-      translateMul(env, instr);
-      return;
-    case Instruction::kTest32: {
-      auto* in0 = instr->getInput(0);
-      auto* in1 = instr->getInput(1);
-
-      env->as->tst(
-          asmjit::a64::w(in0->getPhyRegister().loc),
-          asmjit::a64::w(in1->getPhyRegister().loc));
-      return;
-    }
-    case Instruction::kCall:
-      translateCall(env, instr);
-      return;
-    case Instruction::kMove:
-      translateMove(env, instr);
-      return;
-    case Instruction::kMovConstPool:
-      translateMovConstPool(env, instr);
-      return;
-    case Instruction::kMulAdd:
-      translateMulAdd(env, instr);
-      return;
-    case Instruction::kNone:
-    case Instruction::kNop:
-    case Instruction::kVectorCall:
-    case Instruction::kVarArgCall:
-    case Instruction::kSext:
-    case Instruction::kZext:
-    case Instruction::kCdq:
-    case Instruction::kCwd:
-    case Instruction::kCqo:
-    case Instruction::kLShift:
-    case Instruction::kRShift:
-    case Instruction::kRShiftUn:
-    case Instruction::kLoadArg:
-    case Instruction::kLoadSecondCallResult:
-    case Instruction::kCondBranch:
-    case Instruction::kPhi:
-    case Instruction::kReturn:
-      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
-#endif
-    default:
-      JIT_ABORT(
-          "No handler for opcode {}", InstrProperty::getProperties(instr).name);
-  }
 }
 
 namespace {
@@ -3160,5 +2250,864 @@ void translateSelect(Environ* env, const Instruction* instr) {
 } // namespace
 
 #endif
+
+// Translates a single LIR instruction to machine code.
+void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
+    const {
+  auto opcode = instr->opcode();
+  switch (opcode) {
+    case Instruction::kBind:
+      return;
+#if defined(CINDER_X86_64)
+    case Instruction::kLea: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isLabel()) {
+        translateLeaLabel(env, instr);
+      } else {
+        env->as->lea(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kMoveRelaxed: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (output->isReg()) {
+        env->as->mov(getReg(instr, output), getMem(instr, input));
+      } else if (input->isReg()) {
+        env->as->mov(getMem(instr, output), getReg(instr, input));
+      } else {
+        env->as->mov(getMem(instr, output), getImm(input));
+      }
+      return;
+    }
+    case Instruction::kMovZX: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->movzx(getReg(instr, output), getReg(instr, input));
+      } else {
+        env->as->movzx(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kMovSX: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->movsx(getReg(instr, output), getReg(instr, input));
+      } else {
+        env->as->movsx(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kMovSXD: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->movsxd(getReg(instr, output), getReg(instr, input));
+      } else {
+        env->as->movsxd(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kUnreachable:
+      env->as->ud2();
+      return;
+    case Instruction::kDiv: {
+      auto numInputs = instr->getNumInputs();
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (numInputs == 3) {
+        auto* in2 = instr->getInput(2);
+
+        if (in2->isReg()) {
+          env->as->idiv(
+              getReg(instr, in0), getReg(instr, in1), getReg(instr, in2));
+        } else {
+          env->as->idiv(
+              getReg(instr, in0), getReg(instr, in1), getMem(instr, in2));
+        }
+      } else {
+        if (in1->isReg()) {
+          env->as->idiv(getReg(instr, in0), getReg(instr, in1));
+        } else {
+          env->as->idiv(getReg(instr, in0), getMem(instr, in1));
+        }
+      }
+      return;
+    }
+    case Instruction::kDivUn: {
+      auto numInputs = instr->getNumInputs();
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (numInputs == 3) {
+        auto* in2 = instr->getInput(2);
+
+        if (in2->isReg()) {
+          env->as->div(
+              getReg(instr, in0), getReg(instr, in1), getReg(instr, in2));
+        } else {
+          env->as->div(
+              getReg(instr, in0), getReg(instr, in1), getMem(instr, in2));
+        }
+      } else {
+        if (in1->isReg()) {
+          env->as->div(getReg(instr, in0), getReg(instr, in1));
+        } else {
+          env->as->div(getReg(instr, in0), getMem(instr, in1));
+        }
+      }
+      return;
+    }
+    case Instruction::kPush: {
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->push(getReg(instr, input));
+      } else if (input->isImm()) {
+        env->as->push(getImm(input));
+      } else {
+        env->as->push(getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kPop: {
+      auto* output = instr->output();
+
+      if (output->isReg()) {
+        env->as->pop(getReg(instr, output));
+      } else {
+        env->as->pop(getMem(instr, output));
+      }
+      return;
+    }
+    case Instruction::kCdq: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      env->as->cdq(getReg(instr, output), getReg(instr, input));
+      return;
+    }
+    case Instruction::kCwd: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      env->as->cwd(getReg(instr, output), getReg(instr, input));
+      return;
+    }
+    case Instruction::kCqo: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      env->as->cqo(getReg(instr, output), getReg(instr, input));
+      return;
+    }
+    case Instruction::kTest: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->test(getReg(instr, in0), getReg(instr, in1));
+      return;
+    }
+    case Instruction::kBranch:
+      env->as->jmp(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchZ:
+      env->as->jz(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNZ:
+      env->as->jnz(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchA:
+      env->as->ja(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchB:
+      env->as->jb(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchAE:
+      env->as->jae(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchBE:
+      env->as->jbe(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchG:
+      env->as->jg(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchL:
+      env->as->jl(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchGE:
+      env->as->jge(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchLE:
+      env->as->jle(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchC:
+      env->as->jc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNC:
+      env->as->jnc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchO:
+      env->as->jo(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNO:
+      env->as->jno(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchS:
+      env->as->js(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNS:
+      env->as->jns(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchE:
+      env->as->je(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNE:
+      env->as->jne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kGuard:
+      TranslateGuard(env, instr);
+      return;
+    case Instruction::kDeoptPatchpoint:
+      TranslateDeoptPatchpoint(env, instr);
+      return;
+    case Instruction::kLoadThreadState:
+      translateLoadThreadState(env, instr);
+      return;
+    case Instruction::kYieldInitial:
+      translateYieldInitial(env, instr);
+      return;
+    case Instruction::kYieldValue:
+      translateYieldValue(env, instr);
+      return;
+    case Instruction::kStoreGenYieldPoint:
+      translateStoreGenYieldPoint(env, instr);
+      return;
+    case Instruction::kStoreGenYieldFromPoint:
+      translateStoreGenYieldFromPoint(env, instr);
+      return;
+    case Instruction::kBranchToYieldExit:
+      translateBranchToYieldExit(env, instr);
+      return;
+    case Instruction::kResumeGenYield:
+      translateResumeGenYield(env, instr);
+      return;
+    case Instruction::kYieldExitPoint:
+      translateYieldExitPoint(env, instr);
+      return;
+    case Instruction::kEpilogueEnd:
+      translateEpilogueEnd(env, instr);
+      return;
+    case Instruction::kIntToBool:
+      translateIntToBool(env, instr);
+      return;
+    case Instruction::kPrologue:
+      translatePrologue(env, instr);
+      return;
+    case Instruction::kSetupFrame:
+      translateSetupFrame(env, instr);
+      return;
+    case Instruction::kIndirectJump:
+      translateIndirectJump(env, instr);
+      return;
+    case Instruction::kInc: {
+      auto* input = instr->getInput(0);
+
+      if (input->isStack()) {
+        env->as->inc(getMem(instr, input));
+      } else {
+        env->as->inc(getReg(instr, input));
+      }
+      return;
+    }
+    case Instruction::kDec: {
+      auto* input = instr->getInput(0);
+
+      if (input->isStack()) {
+        env->as->dec(getMem(instr, input));
+      } else {
+        env->as->dec(getReg(instr, input));
+      }
+      return;
+    }
+    case Instruction::kBitTest: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->bt(getReg(instr, in0), getImm(in1));
+      return;
+    }
+    case Instruction::kSelect: {
+      auto output = getReg(instr, instr->output());
+      auto condition = getReg(instr, instr->getInput(0));
+
+      env->as->mov(output, getImm(instr->getInput(2)));
+      env->as->test(condition, condition);
+      env->as->cmovnz(output, getReg(instr, instr->getInput(1)));
+      return;
+    }
+    case Instruction::kEqual:
+    case Instruction::kNotEqual:
+    case Instruction::kGreaterThanUnsigned:
+    case Instruction::kGreaterThanEqualUnsigned:
+    case Instruction::kLessThanUnsigned:
+    case Instruction::kLessThanEqualUnsigned:
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+      TranslateCompare(env, instr);
+      return;
+    case Instruction::kFadd: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->addsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->addsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kFsub: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->subsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->subsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kFmul: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->mulsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->mulsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kFdiv: {
+      if (instr->getNumOutputs() > 0) {
+        env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
+        env->as->divsd(getVecD(instr->output()), getVecD(instr->getInput(1)));
+      } else {
+        env->as->divsd(
+            getVecD(instr->getInput(0)), getVecD(instr->getInput(1)));
+      }
+      return;
+    }
+    case Instruction::kExchange: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (output->isVecD()) {
+        auto left = getVecD(output);
+        auto right = getVecD(input);
+
+        env->as->pxor(left, right);
+        env->as->pxor(right, left);
+        env->as->pxor(left, right);
+      } else {
+        env->as->xchg(getReg(instr, output), getReg(instr, input));
+      }
+      return;
+    }
+    case Instruction::kCmp: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (in0->isVecD()) {
+        env->as->comisd(getVecD(in0), getVecD(in1));
+      } else if (in1->isImm()) {
+        env->as->cmp(getReg(instr, in0), getImm(in1));
+      } else {
+        env->as->cmp(getReg(instr, in0), getReg(instr, in1));
+      }
+      return;
+    }
+    case Instruction::kNegate: {
+      if (instr->getNumOutputs() == 0) {
+        env->as->neg(getReg(instr, instr->getInput(0)));
+      } else {
+        auto* output = instr->output();
+        auto* input = instr->getInput(0);
+
+        if (input->isImm()) {
+          env->as->mov(
+              getReg(instr, output), asmjit::Imm(-input->getConstant()));
+        } else {
+          if (input->isStack()) {
+            env->as->mov(getReg(instr, output), getMem(instr, input));
+          } else {
+            env->as->mov(getReg(instr, output), getReg(instr, input));
+          }
+          env->as->neg(getReg(instr, output));
+        }
+      }
+      return;
+    }
+    case Instruction::kInvert: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (input->isImm()) {
+        env->as->mov(getReg(instr, output), asmjit::Imm(~input->getConstant()));
+      } else {
+        if (input->isStack()) {
+          env->as->mov(getReg(instr, output), getMem(instr, input));
+        } else {
+          env->as->mov(getReg(instr, output), getReg(instr, input));
+        }
+        env->as->not_(getReg(instr, output));
+      }
+      return;
+    }
+    case Instruction::kAdd:
+    case Instruction::kSub:
+    case Instruction::kAnd:
+    case Instruction::kOr:
+    case Instruction::kXor:
+    case Instruction::kMul: {
+      auto emitOp = [&](const auto& dst, const auto& src) {
+        // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+        switch (opcode) {
+          case Instruction::kAdd:
+            env->as->add(dst, src);
+            break;
+          case Instruction::kSub:
+            env->as->sub(dst, src);
+            break;
+          case Instruction::kAnd:
+            env->as->and_(dst, src);
+            break;
+          case Instruction::kOr:
+            env->as->or_(dst, src);
+            break;
+          case Instruction::kXor:
+            env->as->xor_(dst, src);
+            break;
+          case Instruction::kMul:
+            env->as->imul(dst, src);
+            break;
+          default:
+            JIT_ABORT("unexpected opcode");
+        }
+      };
+
+      if (instr->getNumOutputs() > 0) {
+        auto* output = instr->output();
+        auto* in0 = instr->getInput(0);
+        auto* in1 = instr->getInput(1);
+
+        env->as->mov(getReg(instr, output), getReg(instr, in0));
+        if (in1->isImm()) {
+          emitOp(getReg(instr, output), getImm(in1));
+        } else if (in1->isStack()) {
+          emitOp(getReg(instr, output), getMem(instr, in1));
+        } else {
+          emitOp(getReg(instr, output), getReg(instr, in1));
+        }
+      } else {
+        auto* in0 = instr->getInput(0);
+        auto* in1 = instr->getInput(1);
+
+        if (in1->isImm()) {
+          emitOp(getReg(instr, in0), getImm(in1));
+        } else if (in1->isStack()) {
+          emitOp(getReg(instr, in0), getMem(instr, in1));
+        } else {
+          emitOp(getReg(instr, in0), getReg(instr, in1));
+        }
+      }
+      return;
+    }
+    case Instruction::kTest32: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->test(
+          asmjit::x86::gpd(in0->getPhyRegister().loc),
+          asmjit::x86::gpd(in1->getPhyRegister().loc));
+      return;
+    }
+    case Instruction::kInt64ToDouble: {
+      auto* input = instr->getInput(0);
+
+      if (input->isReg()) {
+        env->as->cvtsi2sd(getVecD(instr->output()), getReg(instr, input));
+      } else {
+        env->as->cvtsi2sd(getVecD(instr->output()), getMem(instr, input));
+      }
+      return;
+    }
+    case Instruction::kCall: {
+      auto* input = instr->getInput(0);
+
+      if (input->isImm()) {
+        env->as->call(getImm(input));
+      } else if (input->isStack()) {
+        env->as->call(getMem(instr, input));
+      } else {
+        env->as->call(getReg(instr, input));
+      }
+
+      asmjit::Label label = env->as->newLabel();
+      env->as->bind(label);
+      if (instr->origin()) {
+        env->pending_debug_locs.emplace_back(label, instr->origin());
+      }
+      return;
+    }
+    case Instruction::kMove: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+
+      if (output->isReg() && output->isVecD()) {
+        if (input->isReg() && input->isVecD()) {
+          env->as->movsd(getVecD(output), getVecD(input));
+        } else if (input->isReg()) {
+          env->as->movq(getVecD(output), getReg(instr, input));
+        } else {
+          env->as->movsd(getVecD(output), getMem(instr, input));
+        }
+      } else if (output->isReg()) {
+        if (input->isReg() && input->isVecD()) {
+          env->as->movq(getReg(instr, output), getVecD(input));
+        } else if (input->isReg()) {
+          env->as->mov(getReg(instr, output), getReg(instr, input));
+        } else if (input->isImm()) {
+          env->as->mov(getReg(instr, output), getImm(input));
+        } else {
+          env->as->mov(getReg(instr, output), getMem(instr, input));
+        }
+      } else {
+        if (input->isReg() && input->isVecD()) {
+          env->as->movsd(getMem(instr, output), getVecD(input));
+        } else if (input->isReg()) {
+          env->as->mov(getMem(instr, output), getReg(instr, input));
+        } else {
+          env->as->mov(getMem(instr, output), getImm(input));
+        }
+      }
+      return;
+    }
+    case Instruction::kNone:
+    case Instruction::kNop:
+    case Instruction::kVectorCall:
+    case Instruction::kVarArgCall:
+    case Instruction::kSext:
+    case Instruction::kZext:
+    case Instruction::kMulAdd:
+    case Instruction::kLShift:
+    case Instruction::kRShift:
+    case Instruction::kRShiftUn:
+    case Instruction::kLoadArg:
+    case Instruction::kLoadSecondCallResult:
+    case Instruction::kMovConstPool:
+    case Instruction::kCondBranch:
+    case Instruction::kPhi:
+    case Instruction::kReturn:
+      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
+#elif defined(CINDER_AARCH64)
+    case Instruction::kLea: {
+      auto* input = instr->getInput(0);
+
+      if (input->isLabel()) {
+        translateLeaLabel(env, instr);
+      } else {
+        translateLea(env, instr);
+      }
+      return;
+    }
+    case Instruction::kMoveRelaxed:
+      translateMove(env, instr);
+      return;
+    case Instruction::kMovZX:
+      translateMovZX(env, instr);
+      return;
+    case Instruction::kMovSX:
+      translateMovSX(env, instr);
+      return;
+    case Instruction::kMovSXD:
+      translateMovSXD(env, instr);
+      return;
+    case Instruction::kUnreachable:
+      translateUnreachable(env, instr);
+      return;
+    case Instruction::kDiv:
+      translateDiv(env, instr);
+      return;
+    case Instruction::kDivUn:
+      translateDivUn(env, instr);
+      return;
+    case Instruction::kPush:
+      translatePush(env, instr);
+      return;
+    case Instruction::kPop:
+      translatePop(env, instr);
+      return;
+    case Instruction::kTest:
+      translateTst(env, instr);
+      return;
+    case Instruction::kBranch:
+      env->as->b(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchZ:
+      env->as->b_eq(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNZ:
+      env->as->b_ne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchA:
+      env->as->b_hi(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchB:
+      env->as->b_lo(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchAE:
+      env->as->b_hs(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchBE:
+      env->as->b_ls(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchG:
+      env->as->b_gt(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchL:
+      env->as->b_lt(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchGE:
+      env->as->b_ge(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchLE:
+      env->as->b_le(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchC:
+      env->as->b_cs(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNC:
+      env->as->b_cc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchO:
+      env->as->b_vs(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNO:
+      env->as->b_vc(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchS:
+      env->as->b_mi(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNS:
+      env->as->b_pl(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchE:
+      env->as->b_eq(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kBranchNE:
+      env->as->b_ne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kGuard:
+      TranslateGuard(env, instr);
+      return;
+    case Instruction::kDeoptPatchpoint:
+      TranslateDeoptPatchpoint(env, instr);
+      return;
+    case Instruction::kLoadThreadState:
+      translateLoadThreadState(env, instr);
+      return;
+    case Instruction::kYieldInitial:
+      translateYieldInitial(env, instr);
+      return;
+    case Instruction::kYieldValue:
+      translateYieldValue(env, instr);
+      return;
+    case Instruction::kStoreGenYieldPoint:
+      translateStoreGenYieldPoint(env, instr);
+      return;
+    case Instruction::kStoreGenYieldFromPoint:
+      translateStoreGenYieldFromPoint(env, instr);
+      return;
+    case Instruction::kBranchToYieldExit:
+      translateBranchToYieldExit(env, instr);
+      return;
+    case Instruction::kResumeGenYield:
+      translateResumeGenYield(env, instr);
+      return;
+    case Instruction::kYieldExitPoint:
+      translateYieldExitPoint(env, instr);
+      return;
+    case Instruction::kEpilogueEnd:
+      translateEpilogueEnd(env, instr);
+      return;
+    case Instruction::kIntToBool:
+      translateIntToBool(env, instr);
+      return;
+    case Instruction::kPrologue:
+      translatePrologue(env, instr);
+      return;
+    case Instruction::kSetupFrame:
+      translateSetupFrame(env, instr);
+      return;
+    case Instruction::kIndirectJump:
+      translateIndirectJump(env, instr);
+      return;
+    case Instruction::kInc:
+      translateInc(env, instr);
+      return;
+    case Instruction::kDec:
+      translateDec(env, instr);
+      return;
+    case Instruction::kBitTest:
+      translateBitTest(env, instr);
+      return;
+    case Instruction::kSelect:
+      translateSelect(env, instr);
+      return;
+    case Instruction::kEqual:
+    case Instruction::kNotEqual:
+    case Instruction::kGreaterThanUnsigned:
+    case Instruction::kGreaterThanEqualUnsigned:
+    case Instruction::kLessThanUnsigned:
+    case Instruction::kLessThanEqualUnsigned:
+    case Instruction::kGreaterThanSigned:
+    case Instruction::kGreaterThanEqualSigned:
+    case Instruction::kLessThanSigned:
+    case Instruction::kLessThanEqualSigned:
+      TranslateCompare(env, instr);
+      return;
+    case Instruction::kFadd: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fadd(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fadd(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kFsub: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fsub(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fsub(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kFmul: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fmul(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fmul(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kFdiv: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      if (instr->getNumOutputs() > 0) {
+        env->as->fdiv(getVecD(instr->output()), getVecD(in0), getVecD(in1));
+      } else {
+        env->as->fdiv(getVecD(in0), getVecD(in0), getVecD(in1));
+      }
+      return;
+    }
+    case Instruction::kInt64ToDouble:
+      env->as->scvtf(
+          getVecD(instr->output()), getReg(instr, instr->getInput(0)));
+      return;
+    case Instruction::kExchange:
+      translateExchange(env, instr);
+      return;
+    case Instruction::kCmp:
+      translateCmp(env, instr);
+      return;
+    case Instruction::kNegate:
+      translateNegate(env, instr);
+      return;
+    case Instruction::kInvert:
+      translateInvert(env, instr);
+      return;
+    case Instruction::kAdd:
+      translateAdd(env, instr);
+      return;
+    case Instruction::kSub:
+      translateSub(env, instr);
+      return;
+    case Instruction::kAnd:
+      translateAnd(env, instr);
+      return;
+    case Instruction::kOr:
+      translateOr(env, instr);
+      return;
+    case Instruction::kXor:
+      translateXor(env, instr);
+      return;
+    case Instruction::kMul:
+      translateMul(env, instr);
+      return;
+    case Instruction::kTest32: {
+      auto* in0 = instr->getInput(0);
+      auto* in1 = instr->getInput(1);
+
+      env->as->tst(
+          asmjit::a64::w(in0->getPhyRegister().loc),
+          asmjit::a64::w(in1->getPhyRegister().loc));
+      return;
+    }
+    case Instruction::kCall:
+      translateCall(env, instr);
+      return;
+    case Instruction::kMove:
+      translateMove(env, instr);
+      return;
+    case Instruction::kMovConstPool:
+      translateMovConstPool(env, instr);
+      return;
+    case Instruction::kMulAdd:
+      translateMulAdd(env, instr);
+      return;
+    case Instruction::kNone:
+    case Instruction::kNop:
+    case Instruction::kVectorCall:
+    case Instruction::kVarArgCall:
+    case Instruction::kSext:
+    case Instruction::kZext:
+    case Instruction::kCdq:
+    case Instruction::kCwd:
+    case Instruction::kCqo:
+    case Instruction::kLShift:
+    case Instruction::kRShift:
+    case Instruction::kRShiftUn:
+    case Instruction::kLoadArg:
+    case Instruction::kLoadSecondCallResult:
+    case Instruction::kCondBranch:
+    case Instruction::kPhi:
+    case Instruction::kReturn:
+      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
+#endif
+    default:
+      JIT_ABORT(
+          "No handler for opcode {}", InstrProperty::getProperties(instr).name);
+  }
+}
 
 } // namespace jit::codegen::autogen
