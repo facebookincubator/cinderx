@@ -13,7 +13,13 @@
 #include "internal/pycore_runtime.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern struct _Py_static_objects* _static_objects;
+#ifdef __cplusplus
+}
+#endif
 
 #undef _Py_GLOBAL_OBJECT
 #define _Py_GLOBAL_OBJECT(NAME) _static_objects->NAME

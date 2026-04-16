@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/lir/generator.h"
 
+extern "C" {
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
@@ -21,6 +22,7 @@
 #include "internal/pycore_interpolation.h"
 #include "internal/pycore_template.h"
 #endif
+}
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"

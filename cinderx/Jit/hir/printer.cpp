@@ -6,8 +6,10 @@
 #include "cinderx/Jit/symbolizer.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
+extern "C" {
 #include "pycore_ceval.h"
 #include "pycore_intrinsics.h"
+}
 #endif
 
 #include <fmt/format.h>
