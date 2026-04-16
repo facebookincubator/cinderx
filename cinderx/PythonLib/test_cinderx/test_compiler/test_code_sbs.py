@@ -343,8 +343,6 @@ def add_test(modname: str, fname: str) -> None:
     version = sys.version_info[:2]
     if "/cinder/" in fname and "cinder" not in sys.version:
         return
-    elif "/3.10/" in fname and version != (3, 10):
-        return
     elif "/3.12/" in fname and version != (3, 12):
         return
     elif "/3.14/" in fname and version != (3, 14):
@@ -371,8 +369,6 @@ def add_test(modname: str, fname: str) -> None:
         # Parse expected exception table
         exc_table = test.exc_table
         if exc_table is not None:
-            if version < (3, 11):
-                self.fail("No exception table in python 3.10")
             assert isinstance(graph, PyFlowGraph312)
             exc = eval(exc_table)
             for fn, table in exc.items():
