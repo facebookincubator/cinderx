@@ -37,6 +37,7 @@ extern "C" {
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/analysis.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
@@ -493,6 +494,8 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   // Emit the dispatch block: index into jump table and indirect jump.
   emitAnnotation(dispatch_block, "Static type check dispatch");
   dispatch_block->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg(defaulted_count_reg), Imm{0});
+  dispatch_block->allocateInstr(
       Instruction::kMove, nullptr, OutPhyReg(tc_scratch), Imm(table_addr));
   dispatch_block->allocateInstr(
       Instruction::kLea,
@@ -647,6 +650,162 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   std::rotate(blocks.begin(), blocks.begin() + original_count, blocks.end());
 
   return result;
+}
+
+void GenerateArgcountCheckBlocks(
+    Function* lir_func,
+    const hir::Function* func,
+    BasicBlock* next_block,
+    asmjit::Label prologue_exit) {
+  bool returns_primitive_double = func->returnsPrimitiveDouble();
+  BorrowedRef<PyCodeObject> code = func->code;
+  bool have_varargs = code->co_flags & (CO_VARARGS | CO_VARKEYWORDS);
+  bool will_check_argcount = !have_varargs && code->co_kwonlyargcount == 0;
+  int num_args = func->numArgs();
+
+  // Register assignments (vectorcall convention):
+  //   ARGUMENT_REGS[0] — callable (PyObject*)
+  //   ARGUMENT_REGS[1] — args array (PyObject**)
+  //   ARGUMENT_REGS[2] — nargsf (Py_ssize_t, includes
+  //   PY_VECTORCALL_ARGUMENTS_OFFSET) ARGUMENT_REGS[3] — kwnames (PyObject*
+  //   tuple or nullptr)
+  auto kwnames_reg = codegen::ARGUMENT_REGS[3];
+  auto nargsf_reg = codegen::ARGUMENT_REGS[2];
+
+  int num_new_blocks = 0;
+
+  if (will_check_argcount) {
+    // Two blocks:
+    //   kw_dispatch: test kwnames → if null, branch to argcount_check;
+    //                otherwise call JITRT_CallWithKeywordArgs → exit.
+    //   argcount_check: cmp nargsf with numArgs → if equal, branch to
+    //                   next_block; otherwise call incorrect-argcount
+    //                   helper → exit.
+    auto* kw_dispatch = lir_func->allocateBasicBlock();
+    auto* argcount_check = lir_func->allocateBasicBlock();
+    num_new_blocks = 2;
+
+    // --- kw_dispatch ---
+    emitAnnotation(kw_dispatch, "Keyword argument dispatch");
+
+    kw_dispatch->allocateInstr(
+        Instruction::kTest, nullptr, PhyReg{kwnames_reg}, PhyReg{kwnames_reg});
+    kw_dispatch->allocateInstr(
+        Instruction::kBranchZ, nullptr, Lbl{argcount_check});
+    kw_dispatch->addSuccessor(argcount_check);
+
+    kw_dispatch->allocateInstr(
+        Instruction::kCall,
+        nullptr,
+        Imm{reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs)});
+    kw_dispatch->allocateInstr(
+        Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
+
+    // --- argcount_check ---
+    emitAnnotation(argcount_check, "Check if called with correct argcount");
+
+    // Load numArgs into kwnames_reg. After the kBranchZ above we know
+    // kwnames is null so this register is free. This also sets up the
+    // 4th argument for JITRT_CallWithIncorrectArgcount if needed.
+    argcount_check->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{kwnames_reg},
+        Imm{static_cast<uint64_t>(num_args)});
+
+    // 32-bit compare: nargsf (low 32 bits = actual argcount, upper bits
+    // may contain PY_VECTORCALL_ARGUMENTS_OFFSET) vs numArgs.
+    argcount_check->allocateInstr(
+        Instruction::kCmp,
+        nullptr,
+        PhyReg{nargsf_reg, OperandBase::k32bit},
+        PhyReg{kwnames_reg, OperandBase::k32bit});
+    argcount_check->allocateInstr(
+        Instruction::kBranchE, nullptr, Lbl{next_block});
+    argcount_check->addSuccessor(next_block);
+
+    // Wrong argcount: kwnames_reg already holds numArgs for the 4th arg.
+    auto helper = returns_primitive_double
+        ? reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcountFPReturn)
+        : reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcount);
+    argcount_check->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
+    argcount_check->allocateInstr(
+        Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
+
+  } else {
+    // have_varargs or kwonlyargcount > 0: always dispatch through the
+    // keyword helper (it handles *args, **kwargs, keyword-only args, etc.).
+    auto* kw_dispatch = lir_func->allocateBasicBlock();
+    num_new_blocks = 1;
+
+    emitAnnotation(kw_dispatch, "Keyword argument dispatch (varargs/kwonly)");
+
+    kw_dispatch->allocateInstr(
+        Instruction::kCall,
+        nullptr,
+        Imm{reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs)});
+    kw_dispatch->allocateInstr(
+        Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
+  }
+
+  // Rotate the new blocks from the end to the front.
+  auto& blocks = lir_func->basicblocks();
+  std::rotate(
+      blocks.begin(),
+      blocks.end() - static_cast<std::ptrdiff_t>(num_new_blocks),
+      blocks.end());
+}
+
+void GenerateFunctionEntryBlock(Function* lir_func) {
+  auto* block = lir_func->allocateBasicBlock();
+
+  // No annotation needed — translatePrologue adds "Set up frame pointer".
+  block->allocateInstr(Instruction::kPrologue, nullptr);
+
+  // Rotate the new block to the front.
+  auto& blocks = lir_func->basicblocks();
+  std::rotate(blocks.begin(), blocks.end() - 1, blocks.end());
+}
+
+void GeneratePrimitiveArgsPrologueBlock(
+    Function* lir_func,
+    PyObject* prim_args_info,
+    bool returns_primitive_double,
+    asmjit::Label prologue_exit) {
+  // The primitive-args prologue loads the _PyTypedArgsInfo* into the 5th
+  // argument register (ARGUMENT_REGS[4] = R8 on x86-64, x4 on aarch64),
+  // calls the appropriate JITRT_CallStaticallyWithPrimitiveSignature helper,
+  // then exits. If the helper decides the call can proceed statically, it
+  // returns to the reentry point; otherwise it handles the call itself and
+  // the prologue_exit stub tears down the frame and returns.
+  auto arg4_reg = codegen::ARGUMENT_REGS[4];
+
+  auto* block = lir_func->allocateBasicBlock();
+
+  emitAnnotation(block, "Primitive args prologue");
+
+  // Load _PyTypedArgsInfo* into ARGUMENT_REGS[4].
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arg4_reg},
+      Imm{reinterpret_cast<uint64_t>(prim_args_info)});
+
+  // Call the appropriate helper.
+  auto helper = returns_primitive_double
+      ? reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignatureFP)
+      : reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignature);
+  block->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
+
+  // The helper either handled the call (result in return register) and we
+  // exit, or it set up args for the normal path and we fall through.
+  // Since the original code unconditionally calls generateFunctionExit()
+  // after the call, we branch to prologue_exit.
+  block->allocateInstr(Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
+
+  // Rotate the new block to the front.
+  auto& blocks = lir_func->basicblocks();
+  std::rotate(blocks.begin(), blocks.end() - 1, blocks.end());
 }
 
 BasicBlock* LIRGenerator::GenerateExitBlock() {

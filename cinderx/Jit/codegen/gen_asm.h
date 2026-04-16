@@ -125,24 +125,19 @@ class NativeGenerator {
   void saveCallerRegisters(const FrameInfo& frame_info);
 
   int maxInlineStackSize();
-  void generatePrologue(
-      const FrameInfo& frame_info,
-      asmjit::Label correct_arg_count);
+  void generatePrologue(const FrameInfo& frame_info);
   void generateEpilogue(asmjit::BaseNode* epilogue_cursor);
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
   Py_ssize_t giJITDataOffset();
   void generateStaticEntryPoint(
-      asmjit::Label native_entry_point,
+      asmjit::Label finish_frame_setup,
       asmjit::Label static_jmp_location);
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
   friend class BackendTest;
 
   void generateAssemblyBody(const asmjit::CodeHolder& code);
-
-  void generatePrimitiveArgsPrologue();
-  void generateArgcountCheckPrologue(asmjit::Label correct_arg_count);
 
   // If the function returns a primitive, then in the generic (non-static) entry
   // path it needs to box it up.  Do this by generating a small wrapper

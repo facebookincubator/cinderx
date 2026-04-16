@@ -4,6 +4,7 @@
 
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
@@ -216,5 +217,33 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
     int num_args,
     CodeRuntime* code_rt,
     asmjit::Label failure_label);
+
+// Build a post-regalloc LIR block for the function entry prologue
+// (push rbp; mov rbp, rsp on x86-64 / stp fp, lr; mov fp, sp on aarch64).
+// The block is inserted at the front of the LIR function's block list so the
+// vectorcall entry falls through to it.
+void GenerateFunctionEntryBlock(Function* lir_func);
+
+// Build a post-regalloc LIR block for the primitive-args prologue.
+// Loads the _PyTypedArgsInfo pointer into the 5th argument register (R8/x4),
+// calls JITRT_CallStaticallyWithPrimitiveSignature[FP], then branches to
+// prologue_exit. The block is inserted at the front of the LIR function's
+// block list.
+void GeneratePrimitiveArgsPrologueBlock(
+    Function* lir_func,
+    PyObject* prim_args_info,
+    bool returns_primitive_double,
+    asmjit::Label prologue_exit);
+
+// Build post-regalloc LIR blocks for the vectorcall argcount check prologue.
+// Handles three paths: kwnames present (call keyword helper), wrong argcount
+// (call incorrect-argcount helper), correct argcount (fall through to
+// next_block). The created blocks are inserted at the front of the LIR
+// function's block list so the vectorcall entry falls through to them.
+void GenerateArgcountCheckBlocks(
+    Function* lir_func,
+    const hir::Function* func,
+    BasicBlock* next_block,
+    asmjit::Label prologue_exit);
 
 } // namespace jit::lir

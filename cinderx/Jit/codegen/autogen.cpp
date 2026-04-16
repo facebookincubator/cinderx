@@ -1501,6 +1501,9 @@ void translateCall(Environ* env, const Instruction* instr) {
         arch::reg_scratch_br,
         arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0));
     as->blr(arch::reg_scratch_br);
+  } else if (input->isImm()) {
+    as->mov(arch::reg_scratch_br, input->getConstant());
+    as->blr(arch::reg_scratch_br);
   } else {
     JIT_ABORT("Unsupported operand type for Call: {}", input->type());
   }

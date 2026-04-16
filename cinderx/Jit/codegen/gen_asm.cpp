@@ -1329,52 +1329,14 @@ arch::Gp get_arg_location(int arg) {
   JIT_ABORT("should only be used with first six args");
 }
 
-void NativeGenerator::generatePrologue(
-    const FrameInfo& frame_info,
-    Label correct_arg_count) {
-#if defined(CINDER_X86_64)
+void NativeGenerator::generatePrologue(const FrameInfo& frame_info) {
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
-
-  generateFunctionEntry();
-
-  // Verify arguments have been passed in correctly.
-  if (func_->has_primitive_args) {
-    generatePrimitiveArgsPrologue();
-  } else {
-    generateArgcountCheckPrologue(correct_arg_count);
-  }
-  as_->bind(correct_arg_count);
-
-  env_.addAnnotation("Generic entry", generic_entry_cursor);
 
   if (box_entry_cursor) {
     env_.addAnnotation(
         "Generic entry (box primitive return)", box_entry_cursor);
   }
-#elif defined(CINDER_AARCH64)
-  // The boxed return wrapper gets generated first, if it is necessary.
-  auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
-
-  generateFunctionEntry();
-
-  // Verify arguments have been passed in correctly.
-  if (func_->has_primitive_args) {
-    generatePrimitiveArgsPrologue();
-  } else {
-    generateArgcountCheckPrologue(correct_arg_count);
-  }
-  as_->bind(correct_arg_count);
-
-  env_.addAnnotation("Generic entry", generic_entry_cursor);
-
-  if (box_entry_cursor) {
-    env_.addAnnotation(
-        "Generic entry (box primitive return)", box_entry_cursor);
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
 }
 
 void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
@@ -1705,7 +1667,7 @@ void NativeGenerator::generateCode(
   // These blocks are inserted at the front of the LIR function so the
   // prologue falls through to the dispatch chain → checks → entry block.
   // We skip primitive args because functions w/ primitive args are handled
-  // by a JIT helper in generatePrimitiveArgsPrologue.
+  // by a JIT helper in GeneratePrimitiveArgsPrologueBlock.
   lir::UnresolvedJumpTable unresolved_jt;
   if (hasStaticEntry() && !func_->has_primitive_args &&
       !GetFunction()->typed_args.empty()) {
@@ -1719,14 +1681,58 @@ void NativeGenerator::generateCode(
         env_.static_arg_typecheck_failed_label);
   }
 
+  // Build post-regalloc LIR blocks for the vectorcall argcount check
+  // and/or primitive-args prologue. These are inserted at the very front
+  // (before any type check blocks) so the vectorcall entry falls through
+  // to them.
+  Label correct_arg_count = as_->newLabel();
+  asmjit::Label prologue_exit;
+  if (func_->has_primitive_args) {
+    // The block after the primitive prologue is whatever is currently
+    // at the front. The reentry point needs to jump here, past both
+    // the function entry (push rbp) and the primitive prologue (call helper).
+    auto* post_primitive_block = lir_func_->basicblocks().front();
+
+    BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
+    env_.code_rt->addReference(info);
+
+    prologue_exit = as_->newLabel();
+    lir::GeneratePrimitiveArgsPrologueBlock(
+        lir_func_.get(),
+        reinterpret_cast<PyObject*>(info.get()),
+        func_->returnsPrimitiveDouble(),
+        prologue_exit);
+
+    // Pre-assign correct_arg_count so the reentry point jumps past
+    // the primitive prologue and function entry blocks.
+    env_.block_label_map[post_primitive_block] = correct_arg_count;
+  } else {
+    // The block after the argcount check blocks is whatever is currently
+    // at the front (type check dispatch, or entry block if no type checks).
+    auto* post_argcheck_block = lir_func_->basicblocks().front();
+
+    prologue_exit = as_->newLabel();
+    lir::GenerateArgcountCheckBlocks(
+        lir_func_.get(), GetFunction(), post_argcheck_block, prologue_exit);
+
+    // Pre-assign correct_arg_count to the post-argcheck block so the
+    // correct_args reentry point jumps past the argcount check.
+    env_.block_label_map[post_argcheck_block] = correct_arg_count;
+  }
+
+  // Build a post-regalloc LIR block for the function entry prologue
+  // (push rbp / mov rbp, rsp). Inserted at the very front (after the
+  // argcount/primitive blocks, so it ends up first) because the vectorcall
+  // entry falls through to it. The function entry must happen before the
+  // argcount check since the helpers expect a frame.
+  lir::GenerateFunctionEntryBlock(lir_func_.get());
+
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
 
   auto epilogue_cursor = as_->cursor();
 
   as_->setCursor(prologue_cursor);
-
-  Label correct_arg_count = as_->newLabel();
   Label static_jmp_location = as_->newLabel();
 
   bool has_static_entry = hasStaticEntry();
@@ -1759,7 +1765,7 @@ void NativeGenerator::generateCode(
   // vectorcall convention
   Label vectorcall_entry_label = as_->newLabel();
   as_->bind(vectorcall_entry_label);
-  generatePrologue(frame_info, correct_arg_count);
+  generatePrologue(frame_info);
 
   generateEpilogue(epilogue_cursor);
 
@@ -1806,6 +1812,15 @@ void NativeGenerator::generateCode(
 
     env_.addAnnotation(
         "Static argument typecheck failure stub", static_typecheck_cursor);
+  }
+
+  // Prologue exit stub: the argcount-check LIR blocks branch here after
+  // calling the keyword-args or incorrect-argcount helper. The helpers
+  // return the result in the ABI return register; we just tear down the
+  // minimal frame (push rbp / mov rbp, rsp) and return.
+  if (prologue_exit.isValid()) {
+    as_->bind(prologue_exit);
+    generateFunctionExit();
   }
 
   generateDeoptExits(codeholder);
@@ -1956,39 +1971,6 @@ void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
   }
 }
 
-void NativeGenerator::generatePrimitiveArgsPrologue() {
-  JIT_CHECK(
-      hasStaticEntry(),
-      "Functions with primitive arguments must have been statically compiled");
-
-  // If we've been invoked statically we can skip all of the argument checking
-  // because we know our args have been provided correctly.  But if we have
-  // primitives we need to unbox them.  We usually get to avoid this by doing
-  // direct invokes from JITed code.
-#if defined(CINDER_X86_64)
-  BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
-  env_.code_rt->addReference(info);
-  as_->mov(x86::r8, reinterpret_cast<uint64_t>(info.get()));
-  auto helper = func_->returnsPrimitiveDouble()
-      ? reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignatureFP)
-      : reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignature);
-  as_->call(helper);
-#elif defined(CINDER_AARCH64)
-  BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
-  env_.code_rt->addReference(info);
-  as_->mov(a64::x4, reinterpret_cast<uint64_t>(info.get()));
-  if (func_->returnsPrimitiveDouble()) {
-    as_->bl(JITRT_CallStaticallyWithPrimitiveSignatureFP);
-  } else {
-    as_->bl(JITRT_CallStaticallyWithPrimitiveSignature);
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
-
-  generateFunctionExit();
-}
-
 std::pair<asmjit::BaseNode*, asmjit::BaseNode*>
 NativeGenerator::generateBoxedReturnWrapper() {
   asmjit::BaseNode* entry_cursor = as_->cursor();
@@ -2130,110 +2112,6 @@ NativeGenerator::generateBoxedReturnWrapper() {
   // New generic entry is after the boxed wrapper.
   as_->bind(generic_entry);
   return {as_->cursor(), entry_cursor};
-}
-
-void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
-#if defined(CINDER_X86_64)
-  BorrowedRef<PyCodeObject> code = GetFunction()->code;
-
-  Label arg_check = as_->newLabel();
-  bool have_varargs = code->co_flags & (CO_VARARGS | CO_VARKEYWORDS);
-
-  // If the code object expects *args or **kwargs we need to dispatch
-  // through our helper regardless if they are provided to create the *args
-  // tuple and the **kwargs dict and free them on exit.
-  //
-  // Similarly, if the function expects keyword-only args, we dispatch
-  // through the helper to check that they were, in fact, passed via keyword
-  // arguments.
-  //
-  // There's a lot of other things that happen in the helper so there is
-  // potentially a lot of room for optimization here.
-  bool will_check_argcount = !have_varargs && code->co_kwonlyargcount == 0;
-  if (will_check_argcount) {
-    as_->test(x86::rcx, x86::rcx);
-    as_->je(arg_check);
-  }
-
-  // We don't check the length of the kwnames tuple here, normal callers will
-  // never pass the empty tuple.  It is possible for odd callers to still pass
-  // the empty tuple in which case we'll just go through the slow binding
-  // path.
-  as_->call(reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs));
-  generateFunctionExit();
-
-  // Check that we have a valid number of args.
-  if (will_check_argcount) {
-    as_->bind(arg_check);
-    asmjit::BaseNode* arg_check_cursor = as_->cursor();
-    as_->cmp(x86::edx, GetFunction()->numArgs());
-
-    // We don't have the correct number of arguments. Call a helper to either
-    // fix them up with defaults or raise an approprate exception.
-    as_->jz(correct_arg_count);
-    as_->mov(x86::rcx, GetFunction()->numArgs());
-    auto helper = func_->returnsPrimitiveDouble()
-        ? reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcountFPReturn)
-        : reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcount);
-    as_->call(helper);
-    as_->leave();
-    as_->ret();
-    env_.addAnnotation(
-        "Check if called with correct argcount", arg_check_cursor);
-  }
-#elif defined(CINDER_AARCH64)
-  BorrowedRef<PyCodeObject> code = GetFunction()->code;
-
-  Label arg_check = as_->newLabel();
-  bool have_varargs = code->co_flags & (CO_VARARGS | CO_VARKEYWORDS);
-
-  // If the code object expects *args or **kwargs we need to dispatch
-  // through our helper regardless if they are provided to create the *args
-  // tuple and the **kwargs dict and free them on exit.
-  //
-  // Similarly, if the function expects keyword-only args, we dispatch
-  // through the helper to check that they were, in fact, passed via keyword
-  // arguments.
-  //
-  // There's a lot of other things that happen in the helper so there is
-  // potentially a lot of room for optimization here.
-  bool will_check_argcount = !have_varargs && code->co_kwonlyargcount == 0;
-  if (will_check_argcount) {
-    as_->cbz(a64::x3, arg_check);
-  }
-
-  // We don't check the length of the kwnames tuple here, normal callers will
-  // never pass the empty tuple.  It is possible for odd callers to still pass
-  // the empty tuple in which case we'll just go through the slow binding
-  // path.
-  as_->bl(JITRT_CallWithKeywordArgs);
-  generateFunctionExit();
-
-  // Check that we have a valid number of args.
-  if (will_check_argcount) {
-    as_->bind(arg_check);
-    asmjit::BaseNode* arg_check_cursor = as_->cursor();
-    arch::cmp_immediate(as_, a64::w2, GetFunction()->numArgs());
-
-    // We don't have the correct number of arguments. Call a helper to either
-    // fix them up with defaults or raise an approprate exception.
-    as_->b_eq(correct_arg_count);
-    as_->mov(a64::x3, GetFunction()->numArgs());
-    if (func_->returnsPrimitiveDouble()) {
-      as_->bl(JITRT_CallWithIncorrectArgcountFPReturn);
-    } else {
-      as_->bl(JITRT_CallWithIncorrectArgcount);
-    }
-    as_->mov(a64::sp, arch::fp);
-    as_->ldp(
-        arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
-    as_->ret(arch::lr);
-    env_.addAnnotation(
-        "Check if called with correct argcount", arg_check_cursor);
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
 }
 
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid
