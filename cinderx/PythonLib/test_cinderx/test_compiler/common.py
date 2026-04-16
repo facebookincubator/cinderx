@@ -20,7 +20,7 @@ from unittest import TestCase
 from cinderx.compiler.opcodes import STATIC_CONST_OPCODES, STATIC_OPNAMES
 from cinderx.compiler.pyassem import Instruction, PyFlowGraph
 from cinderx.compiler.pycodegen import (
-    CinderCodeGenerator310,
+    CinderCodeGenerator312,
     CodeGenerator,
     CodeGenerator312,
     CodeGenerator314,
@@ -224,7 +224,7 @@ class CompilerTest(TestCase):
         elif sys.version_info >= (3, 12):
             return CodeGenerator312
 
-        return CinderCodeGenerator310
+        return CinderCodeGenerator312
 
     def compile(
         self,

@@ -40,10 +40,8 @@ from ..pyassem import (
     PyFlowGraph312,
     PyFlowGraph314,
     PyFlowGraph315,
-    PyFlowGraphCinder310,
 )
 from ..pycodegen import (
-    CinderCodeGenerator310,
     CinderCodeGenerator312,
     CinderCodeGenerator314,
     CinderCodeGenerator315,
@@ -54,11 +52,7 @@ from ..pycodegen import (
     FuncOrLambda,
     PatternContext,
 )
-from ..strict import (
-    StrictCodeGenerator310,
-    StrictCodeGenerator312,
-    StrictCodeGenerator314,
-)
+from ..strict import StrictCodeGenerator312, StrictCodeGenerator314
 from ..strict.code_gen_base import StrictCodeGenBase
 from ..strict.common import FIXED_MODULES
 from ..symbols import BaseSymbolVisitor, ClassScope, ModuleScope, Scope
@@ -131,10 +125,6 @@ class StaticPatternContext(PatternContext):
         pc.on_top = self.on_top
         pc.type_dict = self.type_dict.copy()
         return pc
-
-
-class PyFlowGraphStatic310(PyFlowGraphCinder310):
-    opcode: Opcode = opcode_static.opcode
 
 
 class PyFlowGraphStatic312(PyFlowGraph312):
@@ -1219,69 +1209,6 @@ class StaticCodeGenBase(StrictCodeGenBase):
             ltype.emit_box(self)
 
 
-class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
-    flow_graph = PyFlowGraphStatic310
-    parent_impl = StrictCodeGenerator310
-
-    def visitBoolOp(self, node: BoolOp) -> None:
-        end = self.newBlock()
-        for child in node.values[:-1]:
-            self.get_type(child).emit_jumpif_pop(
-                child, end, type(node.op) is ast.Or, self
-            )
-            self.nextBlock()
-        self.visit(node.values[-1])
-        self.nextBlock(end)
-
-    def visitCompare(self, node: Compare) -> None:
-        self.set_pos(node)
-        self.visit(node.left)
-        cleanup = self.newBlock("cleanup")
-        left = node.left
-        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
-            optype = self.get_type(op)
-            ltype = self.get_type(left)
-            if ltype != optype:
-                optype.emit_convert(ltype, self)
-            self.emitChainedCompareStep(op, code, cleanup)
-            left = code
-        # now do the last comparison
-        if node.ops:
-            op = node.ops[-1]
-            optype = self.get_type(op)
-            ltype = self.get_type(left)
-            if ltype != optype:
-                self.emit_convert_compare_arg(op, optype, ltype)
-            code = node.comparators[-1]
-            self.visit(code)
-            rtype = self.get_type(code)
-            if rtype != optype:
-                optype.emit_convert(rtype, self)
-            optype.emit_compare(op, self)
-        if len(node.ops) > 1:
-            end = self.newBlock("end")
-            self.emit_jump_forward(end)
-            self.nextBlock(cleanup)
-            self.emit_rotate_stack(2)
-            self.emit("POP_TOP")
-            self.nextBlock(end)
-
-    def emitChainedCompareStep(
-        self, op: cmpop, value: AST, cleanup: Block, always_pop: bool = False
-    ) -> None:
-        optype = self.get_type(op)
-        self.visit(value)
-        rtype = self.get_type(value)
-        if rtype != optype:
-            optype.emit_convert(rtype, self)
-        self.emit_dup()
-        self.emit_rotate_stack(3)
-        optype.emit_compare(op, self)
-        method = optype.emit_jumpif_only if always_pop else optype.emit_jumpif_pop_only
-        method(cleanup, False, self)
-        self.nextBlock(label="compare_or_cleanup")
-
-
 class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
     flow_graph = PyFlowGraph312
     parent_impl = StrictCodeGenerator312
@@ -1404,7 +1331,5 @@ if sys.version_info >= (3, 15):
     StaticCodeGenerator = Static315CodeGenerator
 elif sys.version_info >= (3, 14):
     StaticCodeGenerator = Static314CodeGenerator
-elif sys.version_info >= (3, 12):
-    StaticCodeGenerator = Static312CodeGenerator
 else:
-    StaticCodeGenerator = Static310CodeGenerator
+    StaticCodeGenerator = Static312CodeGenerator

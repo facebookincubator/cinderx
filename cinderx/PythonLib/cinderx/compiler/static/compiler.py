@@ -45,7 +45,7 @@ from .types import (
 
 
 if TYPE_CHECKING:
-    from . import Static310CodeGenerator, StaticCodeGenBase
+    from . import StaticCodeGenBase
 
 try:
     import xxclassloader
@@ -564,7 +564,7 @@ class Compiler:
         # Analyze variable scopes
         future_flags = find_futures(0, tree)
         # TASK(TT209531178): This class still implicitly assumes 3.10
-        code_generator = cast("Static310CodeGenerator", self.code_generator)
+        code_generator = cast("StaticCodeGenBase", self.code_generator)
         s = code_generator._SymbolVisitor(future_flags)
         s.visit(tree)
 
@@ -619,7 +619,7 @@ class Compiler:
         optimize: int,
         enable_patching: bool = False,
         builtins: dict[str, Any] = builtins.__dict__,
-    ) -> Static310CodeGenerator:
+    ) -> StaticCodeGenBase:
         tree, s = self._bind(name, filename, tree, source, optimize, enable_patching)
         if self.error_sink.has_errors:
             raise self.error_sink.errors[0]
@@ -646,7 +646,7 @@ class Compiler:
         )
         code_gen.visit(tree)
         del self.ast_cache[source]
-        return cast("Static310CodeGenerator", code_gen)
+        return cast("StaticCodeGenBase", code_gen)
 
     def import_module(self, name: str, optimize: int) -> ModuleTable | None:
         pass

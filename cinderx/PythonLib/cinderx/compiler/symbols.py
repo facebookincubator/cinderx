@@ -1023,212 +1023,6 @@ class BaseSymbolVisitor(ASTVisitor):
             self.visit_list(node.body, scope)
 
 
-class SymbolVisitor310(BaseSymbolVisitor):
-    def visit_node_with_new_scope(
-        self, node: ast.Expression | ast.Interactive | ast.Module
-    ) -> None:
-        scope = self.module = self.scopes[node] = self.module
-        body = node.body
-        if isinstance(body, list):
-            self.visit_list(body, scope)
-        else:
-            self.visit(body, scope)
-        self.analyze_block(scope, free=set(), global_vars=set())
-
-    def visitModule(self, node: ast.Module) -> None:
-        doc = ast.get_docstring(node)
-        if doc is not None:
-            self.module.has_docstring = True
-        self.visit_node_with_new_scope(node)
-
-    def visitInteractive(self, node: ast.Interactive) -> None:
-        self.visit_node_with_new_scope(node)
-
-    def visitExpression(self, node: ast.Expression) -> None:
-        self.visit_node_with_new_scope(node)
-
-    def analyze_block(
-        self,
-        scope: Scope,
-        free: set[str],
-        global_vars: set[str],
-        bound: set[str] | None = None,
-        implicit_globals: set[str] | None = None,
-    ) -> None:
-        local: set[str] = set()
-        implicit_globals_in_block: set[str] = set()
-        inlinable_comprehensions = []
-        # Allocate new global and bound variable dictionaries.  These
-        # dictionaries hold the names visible in nested blocks.  For
-        # ClassScopes, the bound and global names are initialized
-        # before analyzing names, because class bindings aren't
-        # visible in methods.  For other blocks, they are initialized
-        # after names are analyzed.
-
-        new_global: set[str] = set()
-        new_free: set[str] = set()
-        new_bound: set[str] = set()
-
-        if isinstance(scope, ClassScope):
-            new_global |= global_vars
-            if bound is not None:
-                new_bound |= bound
-
-        scope.analyze_names(bound, local, free, global_vars)
-        # Populate global and bound sets to be passed to children.
-        if not isinstance(scope, ClassScope):
-            if isinstance(scope, FUNCTION_LIKE_SCOPES):
-                new_bound |= local
-            if bound:
-                new_bound |= bound
-
-            new_global |= global_vars
-        else:
-            # Special case __class__/__classdict__
-            new_bound.add("__class__")
-            new_bound.add("__classdict__")
-
-        # create set of names that inlined comprehension should never stomp on
-        # collect all local defs and params
-        local_names = set(scope.defs.keys()) | set(scope.uses.keys())
-
-        # in case comprehension will be inlined, track its set of free locals separately
-        all_free: set[str] = set()
-
-        for child in scope.children:
-            if child.name in scope.explicit_globals:
-                child.global_scope = True
-
-            child_free = all_free
-
-            maybe_inline_comp = (
-                isinstance(scope, FunctionScope)
-                and scope._inline_comprehensions
-                and isinstance(child, GenExprScope)
-                and not child.generator
-            )
-            if maybe_inline_comp:
-                child_free = set()
-
-            self.analyze_child_block(
-                child,
-                new_bound,
-                new_free,
-                new_global,
-                child_free,
-                implicit_globals_in_block,
-            )
-            inline_comp = maybe_inline_comp and not child.child_free
-
-            if inline_comp:
-                # record the comprehension
-                inlinable_comprehensions.append((child, child_free))
-            elif maybe_inline_comp:
-                all_free.update(child_free)
-                child_free = all_free
-
-            local_names |= child_free
-
-        local_names |= implicit_globals_in_block
-
-        if implicit_globals is not None:
-            # merge collected implicit globals into set for the outer scope
-            implicit_globals |= implicit_globals_in_block
-            implicit_globals.update(scope.globals.keys())
-
-        # collect inlinable comprehensions
-        if inlinable_comprehensions:
-            for comp, comp_all_free in reversed(inlinable_comprehensions):
-                exists = comp.local_names_include_defs(local_names)
-                if not exists:
-                    # comprehension can be inlined
-                    self.merge_comprehension_symbols(scope, comp, comp_all_free)
-                    # remove child from parent
-                    scope.children.remove(comp)
-                    for c in comp.children:
-                        c.parent = scope
-                    # mark comprehension as inlined
-                    comp.inlined = True
-                all_free |= comp_all_free
-
-        for child in scope.children:
-            if child.free or child.child_free:
-                scope.child_free = True
-
-        new_free |= all_free
-
-        if isinstance(scope, FUNCTION_LIKE_SCOPES):
-            scope.analyze_cells(new_free)
-        elif isinstance(scope, ClassScope):
-            # drop class free
-            if "__class__" in new_free:
-                new_free.remove("__class__")
-                scope.needs_class_closure = True
-            if "__classdict__" in new_free:
-                new_free.remove("__classdict__")
-                scope.needs_classdict = True
-
-        scope.update_symbols(bound, new_free)
-        free |= new_free
-
-    def analyze_child_block(
-        self,
-        scope: Scope,
-        bound: set[str],
-        free: set[str],
-        global_vars: set[str],
-        child_free: set[str],
-        implicit_globals: set[str],
-    ) -> None:
-        temp_bound = set(bound)
-        temp_free = set(free)
-        temp_global = set(free)
-
-        self.analyze_block(scope, temp_free, temp_global, temp_bound, implicit_globals)
-        child_free |= temp_free
-
-    def merge_comprehension_symbols(
-        self, scope: Scope, comp: Scope, comp_all_free: set[str]
-    ) -> None:
-        # merge defs from comprehension scope into current scope
-        for v in comp.defs:
-            if v != ".0":
-                scope.add_def(v)
-
-        # for names that are free in comprehension
-        # and not present in defs of current scope -
-        # add them as free in current scope
-        for d in comp.uses:
-            if comp.check_name(d) == SC_FREE and d not in scope.defs:
-                sc = scope.check_name(d)
-                if sc == SC_UNKNOWN:
-                    # name is missing in current scope - add it
-                    scope.frees[d] = 1
-            elif comp.check_name(d) == SC_GLOBAL_IMPLICIT:
-                scope.globals[d] = 1
-
-        # go through free names in comprehension
-        # and check if current scope has corresponding def
-        # if yes - name is no longer free after inlining
-        for f in list(comp.frees.keys()):
-            if f in scope.defs:
-                comp_all_free.remove(f)
-
-        # move names uses in comprehension to current scope
-        for u in comp.uses.keys():
-            if u != ".0" or u == "__classdict__":
-                scope.add_use(u)
-
-        # cell vars in comprehension become cells in current scope
-        for c in comp.cells.keys():
-            if c != ".0":
-                scope.cells[c] = 1
-
-
-# Alias for the default 3.10 visitor
-SymbolVisitor = SymbolVisitor310
-
-
 class CinderFunctionScope(FunctionScope):
     def __init__(
         self, name: str, module: ModuleScope, klass: str | None = None, lineno: int = 0
@@ -1245,101 +1039,6 @@ class CinderGenExprScope(GenExprScope, CinderFunctionScope):
 
 class CinderLambdaScope(LambdaScope, CinderFunctionScope):
     pass
-
-
-class CinderSymbolVisitor(SymbolVisitor):
-    _FunctionScope = CinderFunctionScope
-    _GenExprScope = CinderGenExprScope
-    _LambdaScope = CinderLambdaScope
-
-    def visit_gen_impl(
-        self,
-        node: ast.GeneratorExp | ast.ListComp | ast.DictComp | ast.SetComp,
-        parent: Scope,
-    ) -> None:
-        scope = self._GenExprScope(
-            self._scope_names[type(node)],
-            self.module,
-            self.klass,
-            lineno=node.lineno,
-        )
-        scope.parent = parent
-
-        # bpo-37757: For now, disallow *all* assignment expressions in the
-        # outermost iterator expression of a comprehension, even those inside
-        # a nested comprehension or a lambda expression.
-        scope.comp_iter_expr = parent.comp_iter_expr
-        if isinstance(node, ast.GeneratorExp):
-            scope.generator = True
-
-        if (
-            parent.nested
-            or isinstance(parent, FunctionScope)
-            or isinstance(parent, GenExprScope)
-        ):
-            scope.nested = True
-
-        parent.comp_iter_expr += 1
-        self.visit(node.generators[0].iter, parent)
-        parent.comp_iter_expr -= 1
-
-        self.visitcomprehension(node.generators[0], scope, True)
-
-        for comp in node.generators[1:]:
-            self.visit(comp, scope, False)
-
-        if isinstance(node, ast.DictComp):
-            self.visit(node.value, scope)
-            self.visit(node.key, scope)
-        else:
-            self.visit(node.elt, scope)
-
-        self.scopes[node] = scope
-
-        parent.add_child(scope)
-
-    def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
-        scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
-        scope.parent = parent
-        # bpo-37757: For now, disallow *all* assignment expressions in the
-        # outermost iterator expression of a comprehension, even those inside
-        # a nested comprehension or a lambda expression.
-        scope.comp_iter_expr = parent.comp_iter_expr
-        if parent.nested or isinstance(parent, FunctionScope):
-            scope.nested = True
-        self.scopes[node] = scope
-        self._do_args(scope, node.args)
-        self.visit(node.body, scope)
-
-        parent.add_child(scope)
-
-    def visitFunctionDef(self, node: ast.FunctionDef, parent: Scope) -> None:
-        self._visit_func_impl(node, parent)
-
-    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef, parent: Scope) -> None:
-        self._visit_func_impl(node, parent)
-
-    def _visit_func_impl(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef, parent: Scope
-    ) -> None:
-        if node.decorator_list:
-            self.visit_list(node.decorator_list, parent)
-        parent.add_def(node.name)
-        scope = self._FunctionScope(
-            node.name, self.module, self.klass, lineno=node.lineno
-        )
-        scope.coroutine = isinstance(node, ast.AsyncFunctionDef)
-        scope.parent = parent
-        if parent.nested or isinstance(parent, FunctionScope):
-            scope.nested = True
-        self.scopes[node] = scope
-        self._do_args(scope, node.args)
-        if returns := node.returns:
-            if not self.future_annotations:
-                self.visit(returns, parent)
-        self.visit_list(node.body, scope)
-
-        parent.add_child(scope)
 
 
 class SymbolVisitor312(BaseSymbolVisitor):
@@ -1742,3 +1441,101 @@ class SymbolVisitor314(SymbolVisitor312):
 
 class SymbolVisitor315(SymbolVisitor314):
     pass
+
+
+SymbolVisitor = SymbolVisitor312
+
+
+class CinderSymbolVisitor(SymbolVisitor):
+    _FunctionScope = CinderFunctionScope
+    _GenExprScope = CinderGenExprScope
+    _LambdaScope = CinderLambdaScope
+
+    def visit_gen_impl(
+        self,
+        node: ast.GeneratorExp | ast.ListComp | ast.DictComp | ast.SetComp,
+        parent: Scope,
+    ) -> None:
+        scope = self._GenExprScope(
+            self._scope_names[type(node)],
+            self.module,
+            self.klass,
+            lineno=node.lineno,
+        )
+        scope.parent = parent
+
+        # bpo-37757: For now, disallow *all* assignment expressions in the
+        # outermost iterator expression of a comprehension, even those inside
+        # a nested comprehension or a lambda expression.
+        scope.comp_iter_expr = parent.comp_iter_expr
+        if isinstance(node, ast.GeneratorExp):
+            scope.generator = True
+
+        if (
+            parent.nested
+            or isinstance(parent, FunctionScope)
+            or isinstance(parent, GenExprScope)
+        ):
+            scope.nested = True
+
+        parent.comp_iter_expr += 1
+        self.visit(node.generators[0].iter, parent)
+        parent.comp_iter_expr -= 1
+
+        self.visitcomprehension(node.generators[0], scope, True)
+
+        for comp in node.generators[1:]:
+            self.visit(comp, scope, False)
+
+        if isinstance(node, ast.DictComp):
+            self.visit(node.value, scope)
+            self.visit(node.key, scope)
+        else:
+            self.visit(node.elt, scope)
+
+        self.scopes[node] = scope
+
+        parent.add_child(scope)
+
+    def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
+        scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
+        scope.parent = parent
+        # bpo-37757: For now, disallow *all* assignment expressions in the
+        # outermost iterator expression of a comprehension, even those inside
+        # a nested comprehension or a lambda expression.
+        scope.comp_iter_expr = parent.comp_iter_expr
+        if parent.nested or isinstance(parent, FunctionScope):
+            scope.nested = True
+        self.scopes[node] = scope
+        self._do_args(scope, node.args)
+        self.visit(node.body, scope)
+
+        parent.add_child(scope)
+
+    def visitFunctionDef(self, node: ast.FunctionDef, parent: Scope) -> None:
+        self._visit_func_impl(node, parent)
+
+    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef, parent: Scope) -> None:
+        self._visit_func_impl(node, parent)
+
+    def _visit_func_impl(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, parent: Scope
+    ) -> None:
+        if node.decorator_list:
+            self.visit_list(node.decorator_list, parent)
+        parent.add_def(node.name)
+        scope = self._FunctionScope(
+            node.name, self.module, self.klass, lineno=node.lineno
+        )
+        scope.coroutine = isinstance(node, ast.AsyncFunctionDef)
+        scope.parent = parent
+        if parent.nested or isinstance(parent, FunctionScope):
+            scope.nested = True
+        self.scopes[node] = scope
+        self._do_args(scope, node.args)
+        if returns := node.returns:
+            if not self.future_annotations:
+                self.visit(returns, parent)
+        self.visit_list(node.body, scope)
+
+        parent.add_child(scope)

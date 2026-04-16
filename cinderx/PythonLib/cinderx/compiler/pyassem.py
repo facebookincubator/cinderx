@@ -50,7 +50,6 @@ from .debug import dump_graph
 from .flow_graph_optimizer import (
     FlowGraphConstOptimizer314,
     FlowGraphOptimizer,
-    FlowGraphOptimizer310,
     FlowGraphOptimizer312,
     FlowGraphOptimizer314,
 )
@@ -1426,144 +1425,6 @@ class PyFlowGraph(FlowGraph):
         }
 
 
-class PyFlowGraph310(PyFlowGraph):
-    flow_graph_optimizer = FlowGraphOptimizer310
-
-    # pyre-ignore[2] Forwarding all of the arguments up to the super __init__.
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        # Final assembled code objects
-        self.bytecode: bytes | None = None
-        self.line_table: bytes | None = None
-
-    def emit_call_one_arg(self) -> None:
-        self.emit("CALL_FUNCTION", 1)
-
-    def emit_load_method(self, name: str) -> None:
-        self.emit("LOAD_METHOD", name)
-
-    def emit_call_method(self, argcnt: int) -> None:
-        self.emit("CALL_METHOD", argcnt)
-
-    def emit_prologue(self) -> None:
-        pass
-
-    def is_exit_without_line_number(self, target: Block) -> bool:
-        return target.is_exit and target.insts[0].lineno < 0
-
-    def get_duplicate_exit_visitation_order(self) -> Iterable[Block]:
-        return self.blocks_in_reverse_allocation_order()
-
-    def emit_jump_forward(self, target: Block) -> None:
-        self.emit("JUMP_FORWARD", target)
-
-    def emit_jump_forward_noline(self, target: Block) -> None:
-        self.emit_noline("JUMP_FORWARD", target)
-
-    def optimizeCFG(self) -> None:
-        """Optimize a well-formed CFG."""
-        for block in self.blocks_in_reverse_allocation_order():
-            self.extend_block(block)
-
-        assert self.stage == CLOSED, self.stage
-
-        optimizer = self.flow_graph_optimizer(self)
-        for block in self.ordered_blocks:
-            optimizer.optimize_basic_block(block)
-            optimizer.clean_basic_block(block, -1)
-
-        for block in self.blocks_in_reverse_allocation_order():
-            self.extend_block(block)
-
-        self.remove_redundant_nops(optimizer)
-
-        self.eliminate_empty_basic_blocks()
-        self.remove_unreachable_basic_blocks()
-
-        maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
-
-        if maybe_empty_blocks:
-            self.eliminate_empty_basic_blocks()
-
-        self.stage = OPTIMIZED
-
-    def assemble_final_code(self) -> None:
-        """Finish assembling code object components from the final graph."""
-        self.finalize()
-        assert self.stage == FINAL, self.stage
-
-        self.compute_stack_depth()
-        self.flatten_graph()
-
-        assert self.stage == FLAT, self.stage
-        self.bytecode = self.make_byte_code()
-        self.line_table = self.make_line_table()
-
-    def getCode(self) -> CodeType:
-        """Get a Python code object"""
-        self.assemble_final_code()
-        bytecode = self.bytecode
-        assert bytecode is not None
-        line_table = self.line_table
-        assert line_table is not None
-        assert self.stage == DONE, self.stage
-        return self.new_code_object(bytecode, line_table)
-
-    def new_code_object(self, code: bytes, lnotab: bytes) -> CodeType:
-        assert self.stage == DONE, self.stage
-        if (self.flags & CO_NEWLOCALS) == 0:
-            nlocals = len(self.fast_vars)
-        else:
-            nlocals = len(self.varnames)
-
-        firstline = self.firstline
-        # For module, .firstline is initially not set, and should be first
-        # line with actual bytecode instruction (skipping docstring, optimized
-        # out instructions, etc.)
-        if not firstline:
-            firstline = self.first_inst_lineno
-        # If no real instruction, fallback to 1
-        if not firstline:
-            firstline = 1
-
-        consts = self.getConsts()
-        consts = consts + tuple(self.extra_consts)
-        return self.make_code(nlocals, code, consts, firstline, lnotab)
-
-    def make_code(
-        self,
-        nlocals: int,
-        code: bytes,
-        consts: tuple[object, ...],
-        firstline: int,
-        lnotab: bytes,
-    ) -> CodeType:
-        return CodeType(
-            len(self.args),
-            self.posonlyargs,
-            len(self.kwonlyargs),
-            nlocals,
-            self.stacksize,
-            self.flags,
-            code,
-            consts,
-            tuple(self.names),
-            tuple(self.varnames),
-            self.filename,
-            self.name,
-            # pyre-fixme[6]: For 13th argument expected `str` but got `int`.
-            firstline,
-            # pyre-fixme[6]: For 14th argument expected `int` but got `bytes`.
-            lnotab,
-            # pyre-fixme[6]: For 15th argument expected `bytes` but got `tuple[str,
-            #  ...]`.
-            tuple(self.freevars),
-            # pyre-fixme[6]: For 16th argument expected `bytes` but got `tuple[str,
-            #  ...]`.
-            tuple(self.cellvars),
-        )
-
-
 class PyFlowGraphCinderMixin(PyFlowGraph):
     opcode: Opcode = cinder_opcode
 
@@ -1582,10 +1443,6 @@ class PyFlowGraphCinderMixin(PyFlowGraph):
             self.setFlag(CO_SUPPRESS_JIT)
         # pyre-ignore[16]: `PyFlowGraph` has no attribute `make_code`
         return super().make_code(nlocals, code, consts, firstline, lnotab)
-
-
-class PyFlowGraphCinder310(PyFlowGraphCinderMixin, PyFlowGraph310):
-    pass
 
 
 class PyFlowGraph312(PyFlowGraph):

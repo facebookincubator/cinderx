@@ -142,7 +142,8 @@ from .effects import NarrowingEffect, NO_EFFECT, TypeState
 from .visitor import GenericVisitor
 
 if TYPE_CHECKING:
-    from . import PyFlowGraphStatic310, StaticCodeGenBase
+    from ..pyassem import PyFlowGraph
+    from . import StaticCodeGenBase
     from .compiler import Compiler
     from .declaration_visitor import DeclarationVisitor
     from .module_table import ModuleTable
@@ -5914,7 +5915,7 @@ class Dataclass(Class):
         args: tuple[str, ...],
         check_args: tuple[object, ...],
         return_type_descr: TypeDescr,
-    ) -> PyFlowGraphStatic310:
+    ) -> PyFlowGraph:
         # pyre-fixme[6]: Should be passing in ModuleScope as 2nd argument but passing in
         # ModuleTable instead.
         #
@@ -5932,12 +5933,12 @@ class Dataclass(Class):
         )
         graph.setFlag(CI_CO_STATICALLY_COMPILED)
         graph.extra_consts.append((check_args, return_type_descr))
-        return cast("PyFlowGraphStatic310", graph)
+        return cast("PyFlowGraph", graph)
 
     def emit_method(
         self,
         code_gen: StaticCodeGenBase,
-        graph: PyFlowGraphStatic310,
+        graph: PyFlowGraph,
         oparg: int,
     ) -> None:
         code_gen.emit_make_function(
