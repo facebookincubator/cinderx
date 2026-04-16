@@ -7,6 +7,7 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <charconv>
 #include <fstream>
 #include <stdexcept>
 #include <string>

@@ -2980,7 +2980,7 @@ class INSTR_CLASS(
       // insertion pass handles this for us if the container is an input for
       // this instruction.
       Register* array_unused,
-      ssize_t offset,
+      intptr_t offset,
       Type type)
       : InstrT(dst, ob_item, idx, array_unused), offset_(offset), type_(type) {}
 
@@ -2996,7 +2996,7 @@ class INSTR_CLASS(
     return GetOperand(2);
   }
 
-  ssize_t offset() const {
+  intptr_t offset() const {
     return offset_;
   }
 
@@ -3005,7 +3005,7 @@ class INSTR_CLASS(
   }
 
  private:
-  ssize_t offset_;
+  intptr_t offset_;
   Type type_;
 };
 

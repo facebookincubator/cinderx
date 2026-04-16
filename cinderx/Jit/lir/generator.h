@@ -81,7 +81,7 @@ class LIRGenerator {
     auto deopt_id = bbb.makeDeoptMetadata();
     auto instr = bbb.appendInstr(
         Instruction::kGuard,
-        Imm{kind},
+        Imm{static_cast<uint64_t>(kind)},
         Imm{deopt_id},
         std::forward<TOperand>(guard_var));
 
