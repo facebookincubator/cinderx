@@ -7,6 +7,10 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/block.h"
 
+#ifdef max
+#undef max
+#endif
+
 #include <memory>
 #include <ostream>
 

@@ -11,6 +11,14 @@
 #include "cinderx/Common/log.h"
 #include "fmt/ostream.h"
 
+#ifdef max
+#undef max
+#endif
+
+#ifdef min
+#undef min
+#endif
+
 #include <concepts>
 #include <limits>
 #include <ostream>

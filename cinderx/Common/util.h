@@ -278,6 +278,12 @@ class Worklist {
   std::unordered_set<T> set_;
 };
 
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
 template <int N, std::integral T>
 bool fitsSignedInt(T val) {
   static_assert(N > 0 && N <= 64, "N must be between 1 and 64");

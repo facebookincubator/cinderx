@@ -47,6 +47,13 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/module_state.h"
 
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+
 #ifndef WIN32
 #include <dlfcn.h>
 #endif
