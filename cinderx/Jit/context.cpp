@@ -127,10 +127,10 @@ Context::Context()
 #endif
 {
 #if PY_VERSION_HEX >= 0x030E0000
-  PyObject** common_consts = PyThreadState_GET()->interp->common_consts;
   for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
+    JIT_CHECK(Ci_common_consts[i] != nullptr, "common_consts[{}] is null", i);
     common_constant_types_.emplace_back(
-        hir::Type::fromObject(common_consts[i]));
+        hir::Type::fromObject(Ci_common_consts[i]));
   }
 #endif
 }

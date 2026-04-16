@@ -45,6 +45,8 @@
 #include "setobject.h"
 
 
+#include "cinderx/module_c_state.h"
+
 #define USE_COMPUTED_GOTOS 0
 #include "ceval_macros.h"
 
@@ -145,6 +147,13 @@ dummy_func(
     switch (opcode) {
 
 // BEGIN BYTECODES //
+        override inst(LOAD_COMMON_CONSTANT, ( -- value)) {
+            // Use our own copy of common constants to avoid depending on the
+            // offset of interp->common_consts within PyInterpreterState.
+            assert(oparg < NUM_COMMON_CONSTANTS);
+            value = PyStackRef_FromPyObjectNew(Ci_common_consts[oparg]);
+        }
+
         override inst(LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN, (unused/1, type_version/2, func_version/2, getattribute/4, owner -- unused)) {
             PyObject *owner_o = PyStackRef_AsPyObjectBorrow(owner);
 

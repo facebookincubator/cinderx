@@ -114,6 +114,12 @@ void Ci_SetDelayAdaptiveCode(bool delay);
 uint64_t Ci_GetAdaptiveThreshold(void);
 void Ci_SetAdaptiveThreshold(uint64_t threshold);
 
+// Common constants array (Python 3.14+).
+#if PY_VERSION_HEX >= 0x030E0000
+#include "pycore_opcode_utils.h" // NUM_COMMON_CONSTANTS
+extern PyObject* Ci_common_consts[NUM_COMMON_CONSTANTS];
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

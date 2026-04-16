@@ -186,3 +186,11 @@ void setModuleState(BorrowedRef<> mod);
 void removeModuleState();
 
 } // namespace cinderx
+
+// Common constants array (Python 3.14+).
+#if PY_VERSION_HEX >= 0x030E0000
+extern "C" {
+#include "pycore_opcode_utils.h" // NUM_COMMON_CONSTANTS
+extern PyObject* Ci_common_consts[NUM_COMMON_CONSTANTS];
+}
+#endif

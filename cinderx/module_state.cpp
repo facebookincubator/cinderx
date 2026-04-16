@@ -4,6 +4,10 @@
 
 #include "cinderx/Common/log.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "pycore_opcode_utils.h"
+#endif
+
 namespace cinderx {
 
 namespace {
@@ -111,6 +115,28 @@ void setModuleState(BorrowedRef<> mod) {
   auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
   s_cinderx_state = state;
   state->cinderx_module = mod;
+
+#if PY_VERSION_HEX >= 0x030E0000
+  Ci_common_consts[CONSTANT_ASSERTIONERROR] = PyExc_AssertionError;
+  Ci_common_consts[CONSTANT_NOTIMPLEMENTEDERROR] = PyExc_NotImplementedError;
+  Ci_common_consts[CONSTANT_BUILTIN_TUPLE] =
+      reinterpret_cast<PyObject*>(&PyTuple_Type);
+  PyObject* builtins = PyEval_GetBuiltins();
+  Ci_common_consts[CONSTANT_BUILTIN_ALL] =
+      PyDict_GetItemString(builtins, "all");
+  JIT_CHECK(
+      Ci_common_consts[CONSTANT_BUILTIN_ALL] != nullptr, "failed to get all");
+  Ci_common_consts[CONSTANT_BUILTIN_ANY] =
+      PyDict_GetItemString(builtins, "any");
+  JIT_CHECK(
+      Ci_common_consts[CONSTANT_BUILTIN_ANY] != nullptr, "failed to get any");
+#if PY_VERSION_HEX >= 0x030F0000
+  Ci_common_consts[CONSTANT_BUILTIN_LIST] =
+      reinterpret_cast<PyObject*>(&PyList_Type);
+  Ci_common_consts[CONSTANT_BUILTIN_SET] =
+      reinterpret_cast<PyObject*>(&PySet_Type);
+#endif
+#endif
 }
 
 void removeModuleState() {
@@ -118,3 +144,7 @@ void removeModuleState() {
 }
 
 } // namespace cinderx
+
+#if PY_VERSION_HEX >= 0x030E0000
+PyObject* Ci_common_consts[NUM_COMMON_CONSTANTS];
+#endif
