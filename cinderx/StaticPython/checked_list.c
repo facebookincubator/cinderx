@@ -3712,7 +3712,7 @@ chklist_ass_subscript(PyListObject* self, PyObject* item, PyObject* value) {
   return list_ass_subscript(self, item, value);
 }
 
-inline PyObject* Ci_CheckedList_GetItem(PyObject* op, Py_ssize_t i) {
+PyObject* Ci_CheckedList_GetItem(PyObject* op, Py_ssize_t i) {
   return list_item((PyListObject*)op, i);
 }
 

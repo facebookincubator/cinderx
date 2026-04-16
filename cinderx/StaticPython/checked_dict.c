@@ -156,8 +156,7 @@ extern PyTypeObject Ci_CheckedDictRevIterKey_Type;
 extern PyTypeObject Ci_CheckedDictRevIterItem_Type;
 PyTypeObject Ci_CheckedDictRevIterValue_Type;
 
-inline int
-Ci_DictOrChecked_SetItem(PyObject* op, PyObject* key, PyObject* value) {
+int Ci_DictOrChecked_SetItem(PyObject* op, PyObject* key, PyObject* value) {
   if (PyDict_Check(op)) {
     return PyDict_SetItem(op, key, value);
   } else if (Ci_CheckedDict_Check(op)) {
@@ -1240,8 +1239,7 @@ static int dictresize(CiChkDictObject* mp, Py_ssize_t newsize) {
   return 0;
 }
 
-inline int
-Ci_CheckedDict_SetItem(PyObject* op, PyObject* key, PyObject* value) {
+int Ci_CheckedDict_SetItem(PyObject* op, PyObject* key, PyObject* value) {
   CiChkDictObject* mp;
   Py_hash_t hash;
   if (!Ci_CheckedDict_Check(op)) {
