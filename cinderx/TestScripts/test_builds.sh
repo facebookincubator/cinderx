@@ -10,7 +10,6 @@ function test_for_version() {
   buck build @fbcode//mode/opt fbcode//cinderx/RuntimeTests:RuntimeTests_$v
 }
 
-test_for_version 3.10
 test_for_version 3.12
 test_for_version 3.14
 test_for_version 3.14t
