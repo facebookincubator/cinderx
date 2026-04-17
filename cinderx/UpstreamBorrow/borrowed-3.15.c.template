@@ -282,8 +282,27 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
 
 PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
 
+#ifdef WIN32
+// These are global singletons used transitively by _Py_union_type_or.
+// We initialize them in init_upstream_borrow().
+PyTypeObject* Cix_PyUnion_Type = NULL;
+#define _PyUnion_Type (*Cix_PyUnion_Type)
+#endif
+
 int init_upstream_borrow(void) {
-  // Nothing to do here; retained for consistency with 3.10
+#ifdef WIN32
+  // Initialize the Cix_PyUnion_Type global reference.
+  PyObject* unionobj =
+      PyNumber_Or((PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
+  if (unionobj != NULL) {
+    Cix_PyUnion_Type = Py_TYPE(unionobj);
+    Py_DECREF(unionobj);
+  }
+  if (Cix_PyUnion_Type == NULL) {
+    return -1;
+  }
+#endif
+
   PyObject *sys = PyImport_ImportModule("sys");
   if (sys == NULL) {
     return -1;

@@ -715,7 +715,6 @@ static void ctxmgrwrp_dealloc(_Py_ContextManagerWrapper* self) {
 PyTypeObject _PyContextDecoratorWrapper_Type = {
     PyVarObject_HEAD_INIT(NULL, 0) "context_decorator_wrapper",
     sizeof(_Py_ContextManagerWrapper),
-    .tp_base = &_PyWeakref_RefType,
     .tp_dealloc = (destructor)ctxmgrwrp_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_traverse = (traverseproc)ctxmgrwrp_traverse,
@@ -1945,11 +1944,16 @@ static struct PyModuleDef _staticmodule = {
     (freefunc)static_free};
 
 PyObject* _static_init() {
+  Ci_Py_Sig_String_Opt.se_default_value = Py_None;
+  Ci_Py_Sig_Object_Opt.se_default_value = Py_None;
+  Ci_Py_Sig_T1_Opt.se_default_value = Py_None;
+  Ci_Py_Sig_T0_Opt.se_default_value = Py_None;
   return PyModuleDef_Init(&_staticmodule);
 }
 
 int _Ci_CreateStaticModule(void) {
   PyObject* mod = _Ci_CreateBuiltinModule(&_staticmodule, "_static");
+  _PyContextDecoratorWrapper_Type.tp_base = &_PyWeakref_RefType;
   if (mod == NULL) {
     return -1;
   }

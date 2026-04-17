@@ -542,7 +542,6 @@ PyTypeObject PyCachedProperty_Type = {
 
 PyTypeObject PyCachedPropertyWithDescr_Type = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "cached_property_with_descr",
-    .tp_base = &PyCachedProperty_Type,
     .tp_basicsize = sizeof(PyCachedPropertyDescrObject),
     .tp_dealloc = (destructor)cached_property_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,

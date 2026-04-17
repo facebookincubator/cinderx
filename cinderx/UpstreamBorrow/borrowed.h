@@ -203,7 +203,7 @@ Py_ssize_t _PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject* key);
 #define Cix_PyTypeAlias_Type _PyTypeAlias_Type
 #endif
 
-#if PY_VERSION_HEX < 0x030C0000
+#if PY_VERSION_HEX < 0x030C0000 || defined(WIN32)
 // In 3.10 we create a new union object and grab the type and store it here.
 extern PyTypeObject* Cix_PyUnion_Type;
 #else

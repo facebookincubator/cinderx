@@ -1165,6 +1165,7 @@ int _cinderx_exec_impl(PyObject* m) {
   if (PyType_Ready(&PyCachedProperty_Type) < 0) {
     return -1;
   }
+  PyCachedPropertyWithDescr_Type.tp_base = &PyCachedProperty_Type;
   if (PyType_Ready(&PyCachedPropertyWithDescr_Type) < 0) {
     return -1;
   }
