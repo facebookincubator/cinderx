@@ -2512,41 +2512,6 @@ gc_list_set_space(PyGC_Head *list, int space)
 }
 // End internal dependencies.
 
-#define _PyGC_Freeze _CiGC_Freeze
-void
-_PyGC_Freeze(PyInterpreterState *interp)
-{
-    GCState *gcstate = &interp->gc;
-    /* The permanent_generation must be visited */
-    gc_list_set_space(&gcstate->young.head, gcstate->visited_space);
-    gc_list_merge(&gcstate->young.head, &gcstate->permanent_generation.head);
-    gcstate->young.count = 0;
-    PyGC_Head*old0 = &gcstate->old[0].head;
-    PyGC_Head*old1 = &gcstate->old[1].head;
-    if (gcstate->visited_space) {
-        gc_list_set_space(old0, 1);
-    }
-    else {
-        gc_list_set_space(old1, 0);
-    }
-    gc_list_merge(old0, &gcstate->permanent_generation.head);
-    gcstate->old[0].count = 0;
-    gc_list_merge(old1, &gcstate->permanent_generation.head);
-    gcstate->old[1].count = 0;
-    validate_spaces(gcstate);
-}
-static PyObject *
-gc_freeze_impl(PyObject *module)
-/*[clinic end generated code: output=502159d9cdc4c139 input=b602b16ac5febbe5]*/
-{
-    PyInterpreterState *interp = _PyInterpreterState_GET();
-    _PyGC_Freeze(interp);
-    Py_RETURN_NONE;
-}
-PyObject* Cix_gc_freeze_impl(PyObject* mod) {
-  return gc_freeze_impl(mod);
-}
-
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
 
 PyObject* builtin_next_impl(PyObject *it, PyObject* def)

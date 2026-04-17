@@ -235,13 +235,6 @@ uint8_t Cix_GetOriginalOpcode(
 // @Borrow function gc_list_set_space from Python/gc.c
 // End internal dependencies.
 
-#define _PyGC_Freeze _CiGC_Freeze
-// @Borrow function _PyGC_Freeze from Python/gc.c
-// @Borrow function gc_freeze_impl from Modules/gcmodule.c
-PyObject* Cix_gc_freeze_impl(PyObject* mod) {
-  return gc_freeze_impl(mod);
-}
-
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
 
 PyObject* builtin_next_impl(PyObject *it, PyObject* def)

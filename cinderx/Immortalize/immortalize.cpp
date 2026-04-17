@@ -76,7 +76,15 @@ PyObject* immortalize_heap([[maybe_unused]] PyObject* mod) {
   PyGC_Collect();
 
   /* Move all instances into the permanent generation */
-  Cix_gc_freeze_impl(mod);
+  Ref<> gc_mod = Ref<>::steal(PyImport_ImportModule("gc"));
+  if (!gc_mod) {
+    return nullptr;
+  }
+  Ref<> freeze_result =
+      Ref<>::steal(PyObject_CallMethod(gc_mod, "freeze", nullptr));
+  if (!freeze_result) {
+    return nullptr;
+  }
 
   /* Immortalize all instances in the permanent generation */
   struct _gc_runtime_state* gcstate = get_gc_state();

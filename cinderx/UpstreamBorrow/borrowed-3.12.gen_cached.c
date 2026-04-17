@@ -551,20 +551,6 @@ gc_list_merge(PyGC_Head *from, PyGC_Head *to)
 }
 // End internal dependencies.
 
-static PyObject *
-gc_freeze_impl(PyObject *module)
-/*[clinic end generated code: output=502159d9cdc4c139 input=b602b16ac5febbe5]*/
-{
-    GCState *gcstate = get_gc_state();
-    for (int i = 0; i < NUM_GENERATIONS; ++i) {
-        gc_list_merge(GEN_HEAD(gcstate, i), &gcstate->permanent_generation.head);
-        gcstate->generations[i].count = 0;
-    }
-    Py_RETURN_NONE;
-}
-PyObject* Cix_gc_freeze_impl(PyObject* mod) {
-  return gc_freeze_impl(mod);
-}
 
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
 

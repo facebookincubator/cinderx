@@ -311,10 +311,6 @@ void Cix_format_exc_check_arg(
     PyObject* obj);
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000 && !defined(Py_GIL_DISABLED)
-PyObject* Cix_gc_freeze_impl(PyObject* module);
-#endif
-
 #if PY_VERSION_HEX >= 0x030C0000
 PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
 #endif

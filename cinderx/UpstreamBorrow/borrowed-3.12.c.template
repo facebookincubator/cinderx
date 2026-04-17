@@ -94,10 +94,6 @@ void Cix_format_exc_check_arg(
 // @Borrow function gc_list_merge from Modules/gcmodule.c
 // End internal dependencies.
 
-// @Borrow function gc_freeze_impl from Modules/gcmodule.c
-PyObject* Cix_gc_freeze_impl(PyObject* mod) {
-  return gc_freeze_impl(mod);
-}
 
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
 
