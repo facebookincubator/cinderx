@@ -11,6 +11,7 @@ import datetime
 import glob
 import os
 import os.path
+import platform
 import re
 import shutil
 import subprocess
@@ -82,7 +83,7 @@ def get_compiler() -> tuple[str, str]:
     gcc_path = shutil.which("gcc")
     gxx_path = shutil.which("g++")
 
-    if gcc_path and gxx_path:
+    if gcc_path and gxx_path and platform.system() != "Windows":
         try:
             result = subprocess.run(
                 [gcc_path, "--version"],
@@ -113,8 +114,11 @@ def get_compiler() -> tuple[str, str]:
             print(f"Failed to determine GCC version: {e}, checking for Clang")
 
     # Fall back to Clang
-    clang_path = shutil.which("clang")
-    clangxx_path = shutil.which("clang++")
+    if platform.system() != "Windows":
+        clang_path = shutil.which("clang")
+        clangxx_path = shutil.which("clang++")
+    else:
+        clang_path = clangxx_path = shutil.which("clang-cl")
 
     if clang_path and clangxx_path:
         print(f"Using Clang: {clang_path}, {clangxx_path}")
@@ -424,6 +428,7 @@ class BuildExt(build_ext):
 
         meta_python = "+meta" in sys.version
         linux = sys.platform == "linux"
+        mac = sys.platform == "darwin"
         meta_312 = meta_python and py_version == "3.12"
         is_314plus = py_version == "3.14" or py_version == "3.15"
 
@@ -442,6 +447,7 @@ class BuildExt(build_ext):
         set_option("ENABLE_PERF_TRAMPOLINE", meta_312)
         set_option("ENABLE_SYMBOLIZER", linux)
         set_option("ENABLE_USDT", linux)
+        set_option("ENABLE_ZLIB", linux or mac)
 
         for name, value in options.items():
             cmake_args.append(f"-D{name}={value}")
@@ -453,6 +459,9 @@ class BuildExt(build_ext):
             "-j",
             str(os.cpu_count() or 1),
         ]
+
+        if platform.system() == "Windows":
+            cmake_args.extend(["-G", "Ninja"])
 
         # pyre-ignore[16]: No pyre types for build_ext.
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])

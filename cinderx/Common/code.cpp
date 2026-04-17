@@ -11,7 +11,9 @@
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 #include "cinderx/module_state.h"
 
+#ifdef ENABLE_ZLIB
 #include <zlib.h>
+#endif
 
 #if PY_VERSION_HEX >= 0x030C0000
 
@@ -66,8 +68,9 @@ PyObject* getVarname(BorrowedRef<PyCodeObject> code, int idx) {
 }
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
-  uint32_t crc = crc32(0, nullptr, 0);
   auto bc = Ref<>::steal(PyCode_GetCode(code));
+#ifdef ENABLE_ZLIB
+  uint32_t crc = crc32(0, nullptr, 0);
   if (!PyBytes_Check(bc)) {
     return crc;
   }
@@ -79,6 +82,9 @@ uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
   }
 
   return crc32(crc, reinterpret_cast<unsigned char*>(buffer), len);
+#else
+  return PyObject_Hash(bc);
+#endif
 }
 
 std::string codeQualname(BorrowedRef<PyCodeObject> code) {

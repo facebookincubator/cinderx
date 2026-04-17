@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "name": "x64-Clang-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "-DPY_VERSION=3.14",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "clang_cl_x64_x64" ]
+    },
+    {
+      "name": "x64-Clang-Release",
+      "generator": "Ninja",
+      "configurationType": "RelWithDebInfo",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "-DPY_VERSION=3.14",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "clang_cl_x64_x64" ]
+    }
+  ]
+}

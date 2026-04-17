@@ -23,6 +23,10 @@ set(PGO_PROFILE_FILE "" CACHE STRING "Path to PGO profile data")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
+  set(WINDOWS 0)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  set(MACOS 0)
+  set(WINDOWS 1)
 else()
   set(MACOS 0)
 endif()
@@ -34,7 +38,11 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
+if (WINDOWS)
+    set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE")
+else()
+    set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
+endif()
 
 macro(set_flag VAR)
   if (DEFINED ${VAR} AND ${${VAR}})
@@ -56,6 +64,7 @@ set_flag(ENABLE_PEP523_HOOK)
 set_flag(ENABLE_PERF_TRAMPOLINE)
 set_flag(ENABLE_SYMBOLIZER)
 set_flag(ENABLE_USDT)
+set_flag(ENABLE_ZLIB)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SHARED_FLAGS}")
@@ -168,7 +177,9 @@ set(Python_INCLUDE_DIRS ${Python_INCLUDE_DIRS} "${Python_INCLUDE_DIRS}/internal"
 set(ASMJIT_STATIC TRUE)
 set(ASMJIT_NO_CUSTOM_FLAGS TRUE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/ThirdParty/asmjit asmjit)
-target_compile_options(asmjit PRIVATE -Wno-class-memaccess)
+if (NOT WINDOWS)
+    target_compile_options(asmjit PRIVATE -Wno-class-memaccess)
+endif()
 
 ########################################
 # fmt
@@ -208,7 +219,14 @@ file(COPY ${usdt_SOURCE_DIR}/usdt.h DESTINATION ${USDT_DIR})
 ########################################
 # zlib
 
-find_package(ZLIB)
+if (${ENABLE_ZLIB})
+    FetchContent_Declare(
+        zlib
+        GIT_REPOSITORY "https://github.com/madler/zlib.git"
+        FIND_PACKAGE_ARGS NAMES ZLIB
+    )
+    find_package(ZLIB REQUIRED)
+endif()
 
 ########################################
 # capstone (optional, for JIT disassembly)
@@ -242,7 +260,11 @@ include_directories(
 
 file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp)
 add_library(common ${COMMON_SOURCES})
-target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt ZLIB::ZLIB)
+if (${ENABLE_ZLIB})
+    target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt ZLIB::ZLIB)
+else()
+    target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt)
+endif()
 
 ########################################
 # UpstreamBorrow/
@@ -379,4 +401,8 @@ endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX "")
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.so")
+if (WINDOWS)
+    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.dll")
+else()
+    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.so")
+endif()
