@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
@@ -58,7 +59,12 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
   auto h = bb1->allocateInstr(
       Instruction::kAdd, nullptr, OutVReg(), VReg(g), VReg(d));
 
-  bb1->allocateInstr(Instruction::kReturn, nullptr, VReg(h));
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_return_loc},
+      VReg(h));
+  bb1->allocateInstr(Instruction::kReturn, nullptr);
 
   LIRInliner inliner{&caller, call_instr};
   inliner.callee_start_ = 1;
@@ -69,7 +75,8 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
   }
   inliner.resolveArguments();
 
-  auto lir_expected = fmt::format(R"(Function:
+  auto lir_expected = fmt::format(
+      R"(Function:
 BB %0
        %1:Object = Move 2(0x2):64bit
        %2:Object = Move 4(0x4):64bit
@@ -84,8 +91,11 @@ BB %4
       %12:Object = Move [%1:Object + %7:Object]:Object
       %13:Object = Move [%7:Object + %1:Object]:Object
       %14:Object = Add %11:Object, %2:Object
-                   Return %14:Object
-)");
+{0:>16} = Move %14:Object
+                   Return
+)",
+      fmt::format(
+          "{}:Object", codegen::arch::reg_general_return_loc.toString()));
   std::stringstream ss;
   ss << caller << '\n';
   ASSERT_EQ(ss.str().substr(0, lir_expected.size()), lir_expected);
@@ -108,10 +118,20 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
   auto bb2 = caller.allocateBasicBlock();
   auto epilogue = caller.allocateBasicBlock();
   auto r1 = bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(1));
-  bb1->allocateInstr(Instruction::kReturn, nullptr, VReg(r1));
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_return_loc},
+      VReg(r1));
+  bb1->allocateInstr(Instruction::kReturn, nullptr);
   bb1->addSuccessor(epilogue);
   auto r2 = bb2->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(2));
-  bb2->allocateInstr(Instruction::kReturn, nullptr, VReg(r2));
+  bb2->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_return_loc},
+      VReg(r2));
+  bb2->allocateInstr(Instruction::kReturn, nullptr);
   bb2->addSuccessor(epilogue);
 
   LIRInliner inliner{&caller, call_instr};
@@ -121,16 +141,16 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
 
   auto lir_expected = fmt::format(R"(Function:
 BB %0
-       %1:Object = Move %9:Object
+       %1:Object = Move %11:Object
 
 BB %2 - succs: %4
        %5:Object = Move 1(0x1):64bit
 
 BB %3 - succs: %4
-       %7:Object = Move 2(0x2):64bit
+       %8:Object = Move 2(0x2):64bit
 
 BB %4 - preds: %2 %3
-       %9:Object = Phi (BB%2, %5:Object), (BB%3, %7:Object)
+      %11:Object = Phi (BB%2, %5:Object), (BB%3, %8:Object)
 
 )");
   std::stringstream ss;

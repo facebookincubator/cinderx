@@ -722,18 +722,18 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // caller-saved register not used in this scope will do because we're on the
   // exit path now.
   auto scratch_r = x86::r9;
-  asmjit::Label resume_label = as->newLabel();
+  env->pending_yield_resume_label = as->newLabel();
   emitStoreGenYieldPoint(
-      as, env, instr, resume_label, x86::rdx, scratch_r, false);
+      as,
+      env,
+      instr,
+      env->pending_yield_resume_label,
+      x86::rdx,
+      scratch_r,
+      false /* is_yield_from */);
 
-  // Jump to epilogue
-  as->jmp(env->exit_for_yield_label);
-
-  // Resumed execution in this generator begins here
-  as->bind(resume_label);
-
-  // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+  // The jmp to exit and resume label binding are handled by separate
+  // kBranchToYieldExit and kResumeGenYield instructions.
 #elif defined(CINDER_AARCH64)
   arch::Builder* as = env->as;
 
@@ -758,46 +758,18 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // caller-saved register not used in this scope will do because we're on the
   // exit path now.
   auto scratch_r = arch::reg_scratch_0;
-  asmjit::Label resume_label = as->newLabel();
+  env->pending_yield_resume_label = as->newLabel();
   emitStoreGenYieldPoint(
-      as, env, instr, resume_label, a64::x1, scratch_r, false);
+      as,
+      env,
+      instr,
+      env->pending_yield_resume_label,
+      a64::x1,
+      scratch_r,
+      false /* is_yield_from */);
 
-  // Jump to epilogue
-  as->b(env->exit_for_yield_label);
-
-  // Resumed execution in this generator begins here
-  as->bind(resume_label);
-
-  // Sent in value is in X1, and tstate is in X3 from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, X1, a64::x3);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
-void translateYieldValue(Environ* env, const Instruction* instr) {
-#if defined(CINDER_X86_64)
-  arch::Builder* as = env->as;
-
-  // Value to send goes to RAX so it can be yielded (returned) by epilogue.
-  if (instr->getInput(1)->isImm()) {
-    as->mov(x86::rax, instr->getInput(1)->getConstant());
-  } else {
-    PhyLocation value_out = instr->getInput(1)->getStackSlot();
-    as->mov(x86::rax, x86::ptr(x86::rbp, value_out.loc));
-  }
-#elif defined(CINDER_AARCH64)
-  a64::Builder* as = env->as;
-
-  // Value to send goes to x0 so it can be yielded (returned) by epilogue.
-  if (instr->getInput(1)->isImm()) {
-    as->mov(a64::x0, instr->getInput(1)->getConstant());
-  } else {
-    PhyLocation value_out = instr->getInput(1)->getStackSlot();
-    as->ldr(
-        a64::x0,
-        arch::ptr_resolve(as, arch::fp, value_out.loc, arch::reg_scratch_0));
-  }
+  // The jmp to exit and resume label binding are handled by separate
+  // kBranchToYieldExit and kResumeGenYield instructions.
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -863,16 +835,6 @@ void translateStoreGenYieldFromPoint(Environ* env, const Instruction* instr) {
 #endif
 }
 
-void translateBranchToYieldExit(Environ* env, const Instruction*) {
-#if defined(CINDER_X86_64)
-  env->as->jmp(env->exit_for_yield_label);
-#elif defined(CINDER_AARCH64)
-  env->as->b(env->exit_for_yield_label);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
 void translateResumeGenYield(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
   arch::Builder* as = env->as;
@@ -893,10 +855,6 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
 #else
   CINDER_UNSUPPORTED
 #endif
-}
-
-void translateYieldExitPoint(Environ* env, const Instruction*) {
-  env->as->bind(env->exit_for_yield_label);
 }
 
 void translateLeaLabel(Environ* env, const Instruction* instr) {
@@ -2371,9 +2329,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kYieldInitial:
       translateYieldInitial(env, instr);
       return;
-    case Instruction::kYieldValue:
-      translateYieldValue(env, instr);
-      return;
     case Instruction::kStoreGenYieldPoint:
       translateStoreGenYieldPoint(env, instr);
       return;
@@ -2381,13 +2336,10 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       translateStoreGenYieldFromPoint(env, instr);
       return;
     case Instruction::kBranchToYieldExit:
-      translateBranchToYieldExit(env, instr);
+      JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
       return;
     case Instruction::kResumeGenYield:
       translateResumeGenYield(env, instr);
-      return;
-    case Instruction::kYieldExitPoint:
-      translateYieldExitPoint(env, instr);
       return;
     case Instruction::kEpilogueEnd:
       translateEpilogueEnd(env, instr);
@@ -2814,9 +2766,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kYieldInitial:
       translateYieldInitial(env, instr);
       return;
-    case Instruction::kYieldValue:
-      translateYieldValue(env, instr);
-      return;
     case Instruction::kStoreGenYieldPoint:
       translateStoreGenYieldPoint(env, instr);
       return;
@@ -2824,13 +2773,10 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       translateStoreGenYieldFromPoint(env, instr);
       return;
     case Instruction::kBranchToYieldExit:
-      translateBranchToYieldExit(env, instr);
+      JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
       return;
     case Instruction::kResumeGenYield:
       translateResumeGenYield(env, instr);
-      return;
-    case Instruction::kYieldExitPoint:
-      translateYieldExitPoint(env, instr);
       return;
     case Instruction::kEpilogueEnd:
       translateEpilogueEnd(env, instr);

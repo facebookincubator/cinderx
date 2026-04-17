@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 
 namespace jit::lir {
 
@@ -45,13 +46,50 @@ class LIRGenerator {
     BasicBlock* last;
   };
 
+  // Tracks a block that exits to the epilogue, along with the value.
+  // For returns: value is the HIR register (resolved via output_map).
+  // For yields: value is the LIR instruction that defines the yield value.
+  struct ExitEdge {
+    BasicBlock* block;
+    // Either an HIR register (for returns) or a defining LIR instruction
+    // (for yields where the value may be a kBind with no HIR equivalent).
+    Instruction* value;
+  };
+
   const jit::hir::Function* func_{nullptr};
 
   jit::codegen::Environ* env_{nullptr};
 
+  bool is_gen_{false};
+
   BasicBlock* entry_block_{nullptr};
   BasicBlock* frame_setup_block_{nullptr};
+
+  // For non-generators: the single exit block with a phi for returns.
+  // For generators: the block handling return-specific work (gen completion
+  // state), which branches to exit_epilogue_.
   BasicBlock* exit_block_{nullptr};
+
+  // For generators: the shared epilogue block (unlink frame, FP restore,
+  // return). Receives values from both exit_block_ (returns) and yield blocks.
+  // nullptr for non-generators.
+  BasicBlock* exit_epilogue_{nullptr};
+
+  // Phi instruction in exit_block_ for merging return values.
+  Instruction* exit_phi_{nullptr};
+  // Phi instruction in exit_epilogue_ for merging return and yield values.
+  // nullptr for non-generators.
+  Instruction* epilogue_phi_{nullptr};
+
+  // Blocks that exit via kReturn, tracked for wiring up exit_block_ phi.
+  std::vector<ExitEdge> return_edges_;
+  // Blocks that exit via kBranchToYieldExit, tracked for wiring up
+  // exit_epilogue_ phi.
+  std::vector<ExitEdge> yield_exit_edges_;
+
+  // Resume blocks (one per yield point), tracked so the resume entry block
+  // can list them as successors for sortBasicBlocks reachability.
+  std::vector<BasicBlock*> resume_blocks_;
 
   std::vector<BasicBlock*> basic_blocks_;
 
@@ -66,7 +104,7 @@ class LIRGenerator {
 
   void AnalyzeCopies();
   BasicBlock* GenerateEntryBlock();
-  BasicBlock* GenerateExitBlock();
+  void GenerateExitBlocks();
 
   void appendGuardAlwaysFail(
       BasicBlockBuilder& bbb,
@@ -202,13 +240,11 @@ class LIRGenerator {
 #endif
 };
 
-// Build a post-regalloc LIR block for the generator resume entry point.
-// This block uses only physical registers and handles: prologue, frame setup,
-// saving caller state into GenDataFooter, and dispatching to the yield point's
-// resume target.
-BasicBlock* GenerateResumeEntryBlock(
-    Function* lir_func,
-    Py_ssize_t gi_jit_data_offset);
+// Populate the generator resume entry block (allocated during LIR generation)
+// with post-regalloc instructions. This block uses only physical registers and
+// handles: prologue, frame setup, saving caller state into GenDataFooter, and
+// dispatching to the yield point's resume target.
+void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset);
 
 // Populate the entry block with post-regalloc LIR instructions that load
 // arguments from the vectorcall args array into their assigned registers.

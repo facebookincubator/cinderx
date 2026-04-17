@@ -27,9 +27,12 @@ struct SCCBasicBlocks {
 
 class BasicBlockSorter {
  public:
-  // The first entry of blocks is the entry block, and the last entry is the
-  // exit block. The position of both will be maintained after sorting.
-  explicit BasicBlockSorter(const std::vector<BasicBlock*>& blocks);
+  // The first entry of blocks is the entry block. The exit block is specified
+  // explicitly rather than assumed to be back(), since block allocation order
+  // may not match the logical exit.
+  explicit BasicBlockSorter(
+      const std::vector<BasicBlock*>& blocks,
+      BasicBlock* exit_block);
 
   std::vector<BasicBlock*> getSortedBlocks();
 

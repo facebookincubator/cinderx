@@ -1062,7 +1062,6 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.shadow_frames_and_spill_size = lsalloc.getFrameSize();
   env_.changed_regs = lsalloc.getChangedRegs();
   env_.exit_label = as_->newLabel();
-  env_.exit_for_yield_label = as_->newLabel();
   env_.frame_mode = GetFunction()->frameMode;
   if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
     env_.initial_yield_spill_size_ = lsalloc.initialYieldSpillSize();
@@ -1548,17 +1547,30 @@ void NativeGenerator::generateCode(
   env_.resume_header_and_spill_size = frame_info.header_and_spill_size;
   env_.resume_saved_regs = frame_info.saved_regs;
 
-  // For generators, build a post-regalloc LIR block for the resume entry
-  // point. This block uses only physical registers and is translated by
-  // autogen alongside the rest of the LIR body.
+  // For generators, populate the resume entry block (allocated during LIR
+  // generation) with post-regalloc instructions. This block uses only physical
+  // registers and is translated by autogen alongside the rest of the LIR body.
   if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
     env_.gi_jit_data_offset = giJITDataOffset();
 
-    auto* bb =
-        lir::GenerateResumeEntryBlock(lir_func_.get(), env_.gi_jit_data_offset);
+    auto* bb = lir_func_->resumeEntryBlock();
+    JIT_CHECK(
+        bb != nullptr,
+        "Generator must have a resume entry block {}",
+        lir_func_->hirFunc()->fullname);
+    lir::PopulateResumeEntryBlock(bb, env_.gi_jit_data_offset);
     // Pre-assign gen_resume_entry_label to this block so generateAssemblyBody
     // binds it at the block's start.
     env_.block_label_map[bb] = env_.gen_resume_entry_label;
+
+    // The resume entry block was kept out of the block list during regalloc
+    // (it's a placeholder populated post-regalloc). Now that it has
+    // instructions, insert it into the block list for code generation.
+    // Append it at the end — the last block (exit_epilogue) ends with
+    // EpilogueEnd and has no fall-through, so appending is safe and avoids
+    // breaking fall-through relationships established during postalloc.
+    auto& blocks = lir_func_->basicblocks();
+    blocks.push_back(bb);
   }
 
   // Pre-assign finish_frame_setup to the LIR entry block so

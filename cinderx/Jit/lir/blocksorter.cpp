@@ -11,9 +11,11 @@
 
 namespace jit::lir {
 
-BasicBlockSorter::BasicBlockSorter(const std::vector<BasicBlock*>& blocks)
+BasicBlockSorter::BasicBlockSorter(
+    const std::vector<BasicBlock*>& blocks,
+    BasicBlock* exit_block)
     : entry_(blocks.empty() ? nullptr : blocks[0]),
-      exit_(blocks.empty() ? nullptr : blocks.back()),
+      exit_(exit_block),
       basic_blocks_store_(blocks.begin(), blocks.end()),
       basic_blocks_(basic_blocks_store_) {}
 
@@ -198,9 +200,6 @@ void BasicBlockSorter::sortRPO() {
         JIT_CHECK(
             succ_bb->basic_blocks.size() == 1,
             "Exit SCC should have a single block");
-        JIT_CHECK(
-            succ_bb->successors.empty(),
-            "Exit block should have no successors");
         exit_scc = std::move(succ_bb);
         continue;
       }

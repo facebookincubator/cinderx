@@ -282,6 +282,7 @@ bool Instruction::isAnyBranch() const {
 bool Instruction::isTerminator() const {
   switch (opcode_) {
     case kReturn:
+    case kBranchToYieldExit:
     case kEpilogueEnd:
       return true;
     default:
@@ -292,7 +293,6 @@ bool Instruction::isTerminator() const {
 bool Instruction::isAnyYield() const {
   switch (opcode_) {
     case kYieldInitial:
-    case kYieldValue:
     case kStoreGenYieldPoint:
     case kStoreGenYieldFromPoint:
       return true;

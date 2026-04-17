@@ -171,7 +171,6 @@ enum OperandSizeType {
   X(IntToBool, false, FlagEffects::kSet, kDefault, 1, {1})                    \
   X(LoadThreadState, false, FlagEffects::kInvalidate, kDefault, 0, {}, 0)     \
   X(YieldInitial, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)        \
-  X(YieldValue, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)          \
   X(StoreGenYieldPoint, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)  \
   X(StoreGenYieldFromPoint,                                                   \
     false,                                                                    \
@@ -182,7 +181,6 @@ enum OperandSizeType {
     1)                                                                        \
   X(BranchToYieldExit, false, FlagEffects::kNone, kDefault, 0, {}, 1)         \
   X(ResumeGenYield, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)      \
-  X(YieldExitPoint, false, FlagEffects::kNone, kDefault, 0, {}, 1)            \
   X(EpilogueEnd, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)         \
   X(Prologue, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)            \
   X(SetupFrame, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)          \

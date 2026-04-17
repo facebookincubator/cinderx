@@ -554,6 +554,8 @@ BB %6 - preds: %1
                    Unreachable
 
 BB %10
+      %11:Object = Phi
+                   EpilogueEnd %11:Object
 
 
 )",
@@ -594,6 +596,8 @@ BB %6 - preds: %1
                    Unreachable
 
 BB %10
+      %11:Object = Phi
+                   EpilogueEnd %11:Object
 
 
 )",

@@ -39,11 +39,11 @@ struct Environ {
   asmjit::Label static_arg_typecheck_failed_label;
   asmjit::Label hard_exit_label;
   asmjit::Label exit_label;
-  asmjit::Label exit_for_yield_label;
   asmjit::Label gen_resume_entry_label;
 
-  // Resume label shared between StoreGenYieldPoint and ResumeGenYield.
-  // Created by translateStoreGenYieldPoint, bound by translateResumeGenYield.
+  // Resume label shared between StoreGenYieldPoint/YieldInitial and
+  // ResumeGenYield. Created by translateStoreGenYieldPoint or
+  // translateYieldInitial (3.12+), bound by translateResumeGenYield.
   asmjit::Label pending_yield_resume_label;
 
   // Deopt exits. One per guard.

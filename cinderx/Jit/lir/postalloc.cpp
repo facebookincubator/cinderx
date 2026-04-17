@@ -880,12 +880,10 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kMovSXD:
     case Instruction::kLoadThreadState:
     case Instruction::kYieldInitial:
-    case Instruction::kYieldValue:
     case Instruction::kStoreGenYieldPoint:
     case Instruction::kStoreGenYieldFromPoint:
     case Instruction::kBranchToYieldExit:
     case Instruction::kResumeGenYield:
-    case Instruction::kYieldExitPoint:
     case Instruction::kEpilogueEnd:
     case Instruction::kPrologue:
     case Instruction::kSetupFrame:

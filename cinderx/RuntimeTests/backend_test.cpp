@@ -350,7 +350,12 @@ TEST_F(BackendTest, FPArithmetic) {
 
     auto sum = bb->allocateInstr(
         opcode, nullptr, OutVReg(OperandBase::kDouble), VReg(fa), VReg(fb));
-    bb->allocateInstr(Instruction::kReturn, nullptr, VReg(sum));
+    bb->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{arch::reg_double_return_loc, OperandBase::kDouble},
+        VReg(sum));
+    bb->allocateInstr(Instruction::kReturn, nullptr);
 
     // need this because the register allocator assumes the basic blocks
     // end with Return should have one and only one successor.
@@ -394,7 +399,12 @@ TEST_F(BackendTest, FPCompare) {
 
     auto compare =
         bb->allocateInstr(opcode, nullptr, OutVReg(), VReg(fa), VReg(fb));
-    bb->allocateInstr(Instruction::kReturn, nullptr, VReg(compare));
+    bb->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{arch::reg_general_return_loc},
+        VReg(compare));
+    bb->allocateInstr(Instruction::kReturn, nullptr);
 
     // need this because the register allocator assumes the basic blocks
     // end with Return should have one and only one successor.
@@ -503,7 +513,12 @@ TEST_F(BackendTest, ManyArguments) {
 
   std::apply(getAllocateOperand(call, args), args);
 
-  bb->allocateInstr(Instruction::kReturn, nullptr, VReg(call));
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg(call));
+  bb->allocateInstr(Instruction::kReturn, nullptr);
 
   // need this because the register allocator assumes the basic blocks
   // end with Return should have one and only one successor.
@@ -573,7 +588,12 @@ TEST_F(BackendTest, FPMultipleCalls) {
       VReg(sum1),
       VReg(sum2));
 
-  bb->allocateInstr(Instruction::kReturn, nullptr, VReg(sum));
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_double_return_loc, OperandBase::kDouble},
+      VReg(sum));
+  bb->allocateInstr(Instruction::kReturn, nullptr);
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
@@ -712,7 +732,12 @@ TEST_F(BackendTest, CastTest) {
   bb2->addSuccessor(bb4); // false
 
   // BB3 : return object
-  bb3->allocateInstr(Instruction::kReturn, nullptr, VReg(a));
+  bb3->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg(a));
+  bb3->allocateInstr(Instruction::kReturn, nullptr);
   bb3->addSuccessor(epilogue);
 
   // BB4 : return null
@@ -735,7 +760,12 @@ TEST_F(BackendTest, CastTest) {
       VReg(b_name),
       VReg(a_name));
   auto nll = bb4->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(0));
-  bb4->allocateInstr(Instruction::kReturn, nullptr, VReg(nll));
+  bb4->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg(nll));
+  bb4->allocateInstr(Instruction::kReturn, nullptr);
   bb4->addSuccessor(epilogue);
 
   CheckCast(lirfunc.get());
@@ -810,7 +840,12 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
       VReg(r2),
       Lbl(bb3),
       VReg(r4));
-  bb4->allocateInstr(Instruction::kReturn, nullptr, VReg(r5));
+  bb4->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg(r5));
+  bb4->allocateInstr(Instruction::kReturn, nullptr);
   bb4->addSuccessor(epilogue);
 
   // split blocks and then test that function output is still correct
@@ -841,7 +876,12 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
       Imm(reinterpret_cast<uint64_t>(JITRT_Cast)),
       VReg(r1),
       VReg(r2));
-  bb->allocateInstr(Instruction::kReturn, nullptr, VReg(call_instr));
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg(call_instr));
+  bb->allocateInstr(Instruction::kReturn, nullptr);
   auto epilogue = caller.allocateBasicBlock();
   bb->addSuccessor(epilogue);
   LIRInliner inliner{&caller, call_instr};
@@ -850,47 +890,49 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
   // Check that caller LIR is as expected.
   auto expected_caller = fmt::format(
       R"(Function:
-BB %0 - succs: %7
+BB %0 - succs: %8
        %1:Object = LoadArg 0(0x0):64bit
        %2:Object = LoadArg 1(0x1):64bit
 
-BB %7 - preds: %0 - succs: %9 %8
-      %14:Object = Move [%1:Object + 0x8]:Object
-      %15:Object = Equal %14:Object, %2:Object
-                   CondBranch %15:Object
+BB %8 - preds: %0 - succs: %10 %9
+      %15:Object = Move [%1:Object + 0x8]:Object
+      %16:Object = Equal %15:Object, %2:Object
+                   CondBranch %16:Object
 
-BB %8 - preds: %7 - succs: %9 %10
-      %17:Object = Call {0}({0:#x}):Object, %14:Object, %2:Object
-                   CondBranch %17:Object
+BB %9 - preds: %8 - succs: %10 %11
+      %18:Object = Call {0}({0:#x}):Object, %15:Object, %2:Object
+                   CondBranch %18:Object
 
-BB %10 - preds: %8 - succs: %11
-      %20:Object = Move [%14:Object + 0x18]:Object
-      %21:Object = Move [%2:Object + 0x18]:Object
-                   Call {1}({1:#x}):Object, {2}({2:#x}):Object, string_literal, %21:Object, %20:Object
-      %23:Object = Move 0(0x0):Object
+BB %11 - preds: %9 - succs: %12
+      %22:Object = Move [%15:Object + 0x18]:Object
+      %23:Object = Move [%2:Object + 0x18]:Object
+                   Call {1}({1:#x}):Object, {2}({2:#x}):Object, string_literal, %23:Object, %22:Object
+      %25:Object = Move 0(0x0):Object
 
-BB %9 - preds: %7 %8 - succs: %11
+BB %10 - preds: %8 %9 - succs: %12
 
-BB %11 - preds: %9 %10 - succs: %6
-      %25:Object = Phi (BB%9, %1:Object), (BB%10, %23:Object)
+BB %12 - preds: %10 %11 - succs: %7
+      %28:Object = Phi (BB%10, %1:Object), (BB%11, %25:Object)
 
-BB %6 - preds: %11 - succs: %5
-       %3:Object = Move %25:Object
-                   Return %3:Object
+BB %7 - preds: %12 - succs: %6
+       %3:Object = Move %28:Object
+{3:>16} = Move %3:Object
+                   Return
 
-BB %5 - preds: %6
+BB %6 - preds: %7
 
 )",
       reinterpret_cast<uint64_t>(PyType_IsSubtype),
       reinterpret_cast<uint64_t>(PyErr_Format),
-      reinterpret_cast<uint64_t>(PyExc_TypeError));
+      reinterpret_cast<uint64_t>(PyExc_TypeError),
+      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
   std::stringstream ss;
   caller.sortBasicBlocks();
   ss << caller;
   // Replace the string literal address
-  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %21:Object, %20:Object)");
+  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
   std::string caller_str =
-      regex_replace(ss.str(), reg, "string_literal, %21:Object, %20:Object");
+      regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
   ASSERT_EQ(expected_caller, caller_str);
 
   // Test execution of caller
@@ -911,7 +953,12 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
       Imm(reinterpret_cast<uint64_t>(JITRT_Cast)),
       VReg(r1),
       VReg(r2));
-  bb->allocateInstr(Instruction::kReturn, nullptr, VReg(call_instr));
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg(call_instr));
+  bb->allocateInstr(Instruction::kReturn, nullptr);
   auto epilogue = caller->allocateBasicBlock();
   bb->addSuccessor(epilogue);
 
@@ -923,65 +970,67 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
   // Check that caller LIR is as expected.
   auto expected_caller = fmt::format(
       R"(Function:
-BB %0 - succs: %7
+BB %0 - succs: %8
        %1:Object = Bind {0}:Object
        %2:Object = Bind {1}:Object
 
-BB %7 - preds: %0 - succs: %9 %8
-      %14:Object = Move [%1:Object + 0x8]:Object
-      %15:Object = Equal %14:Object, %2:Object
-                   CondBranch %15:Object
+BB %8 - preds: %0 - succs: %10 %9
+      %15:Object = Move [%1:Object + 0x8]:Object
+      %16:Object = Equal %15:Object, %2:Object
+                   CondBranch %16:Object
 
-BB %8 - preds: %7 - succs: %9 %10
+BB %9 - preds: %8 - succs: %10 %11
 )"
 #if defined(CINDER_AARCH64)
       R"(       %26:64bit = Move {2}({2:#x}):64bit
-      %17:Object = Call %26:64bit, %14:Object, %2:Object
+      %18:Object = Call %26:64bit, %15:Object, %2:Object
 )"
 #else
-      R"(      %17:Object = Call {2}({2:#x}):Object, %14:Object, %2:Object
+      R"(      %18:Object = Call {2}({2:#x}):Object, %15:Object, %2:Object
 )"
 #endif
-      R"(                   CondBranch %17:Object
+      R"(                   CondBranch %18:Object
 
-BB %10 - preds: %8 - succs: %11
-      %20:Object = Move [%14:Object + 0x18]:Object
-      %21:Object = Move [%2:Object + 0x18]:Object
+BB %11 - preds: %9 - succs: %12
+      %22:Object = Move [%15:Object + 0x18]:Object
+      %23:Object = Move [%2:Object + 0x18]:Object
 )"
 #if defined(CINDER_AARCH64)
       R"(       %27:64bit = Move {3}({3:#x}):64bit
                    Call %27:64bit, {4}({4:#x}):Object, string_literal, %21:Object, %20:Object
 )"
 #else
-      R"(                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %21:Object, %20:Object
+      R"(                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
 )"
 #endif
-      R"(      %23:Object = Move 0(0x0):Object
+      R"(      %25:Object = Move 0(0x0):Object
 
-BB %9 - preds: %7 %8 - succs: %11
+BB %10 - preds: %8 %9 - succs: %12
 
-BB %11 - preds: %9 %10 - succs: %6
-      %25:Object = Phi (BB%9, %1:Object), (BB%10, %23:Object)
+BB %12 - preds: %10 %11 - succs: %7
+      %28:Object = Phi (BB%10, %1:Object), (BB%11, %25:Object)
 
-BB %6 - preds: %11 - succs: %5
-       %3:Object = Move %25:Object
-                   Return %3:Object
+BB %7 - preds: %12 - succs: %6
+       %3:Object = Move %28:Object
+{5:>16} = Move %3:Object
+                   Return
 
-BB %5 - preds: %6
+BB %6 - preds: %7
 
 )",
       ARGUMENT_REGS[0],
       ARGUMENT_REGS[1],
       reinterpret_cast<uint64_t>(PyType_IsSubtype),
       reinterpret_cast<uint64_t>(PyErr_Format),
-      reinterpret_cast<uint64_t>(PyExc_TypeError));
+      reinterpret_cast<uint64_t>(PyExc_TypeError),
+      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
   std::stringstream ss;
   caller->sortBasicBlocks();
   ss << *caller;
   // Replace the string literal address
-  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %21:Object, %20:Object)");
+  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
   std::string caller_str =
-      regex_replace(ss.str(), reg, "string_literal, %21:Object, %20:Object");
+      regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
   ASSERT_EQ(expected_caller, caller_str);
 }
 

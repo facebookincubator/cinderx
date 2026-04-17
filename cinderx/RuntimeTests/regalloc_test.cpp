@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/regalloc.h"
@@ -308,7 +309,12 @@ TEST_F(LinearScanAllocatorTest, InoutRegTest) {
   auto add = bb->allocateInstr(
       Instruction::kAdd, nullptr, lir::OutVReg(), lir::VReg(a), lir::VReg(b));
 
-  bb->allocateInstr(Instruction::kReturn, nullptr, lir::VReg(add));
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      lir::OutPhyReg{codegen::arch::reg_general_return_loc},
+      lir::VReg(add));
+  bb->allocateInstr(Instruction::kReturn, nullptr);
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
@@ -331,7 +337,12 @@ TEST_F(LinearScanAllocatorTest, CallWithSideEffectTest) {
   auto b =
       bb->allocateInstr(Instruction::kMove, nullptr, lir::OutVReg(), Imm(0));
 
-  bb->allocateInstr(Instruction::kReturn, nullptr, lir::VReg(b));
+  bb->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      lir::OutPhyReg{codegen::arch::reg_general_return_loc},
+      lir::VReg(b));
+  bb->allocateInstr(Instruction::kReturn, nullptr);
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);

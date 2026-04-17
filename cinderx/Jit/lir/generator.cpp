@@ -195,7 +195,11 @@ void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
 LIRGenerator::LIRGenerator(
     const jit::hir::Function* func,
     jit::codegen::Environ* env)
-    : func_(func), env_(env) {
+    : func_(func),
+      env_(env),
+      is_gen_(
+          func->code != nullptr &&
+          (func->code->co_flags & kCoFlagsAnyGenerator)) {
   for (int i = 0, n = func->env.numLoadTypeAttrCaches(); i < n; i++) {
     load_type_attr_caches_.emplace_back(
         getContext()->allocateLoadTypeAttrCache());
@@ -246,11 +250,7 @@ void emitAnnotation(BasicBlock* bb, std::string text) {
 
 } // namespace
 
-BasicBlock* GenerateResumeEntryBlock(
-    Function* lir_func,
-    Py_ssize_t gi_jit_data_offset) {
-  auto* bb = lir_func->allocateBasicBlock();
-
+void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
   using DT = DataType;
 
   auto gen_reg = codegen::ARGUMENT_REGS[0];
@@ -322,8 +322,6 @@ BasicBlock* GenerateResumeEntryBlock(
 
   // Jump to yieldPoint->resumeTarget
   bb->allocateInstr(Instruction::kIndirectJump, nullptr, Ind(scratch, rt_off));
-
-  return bb;
 }
 
 void PopulateEntryBlock(
@@ -793,108 +791,94 @@ void GeneratePrimitiveArgsPrologueBlock(
   std::rotate(blocks.begin(), blocks.end() - 1, blocks.end());
 }
 
-BasicBlock* LIRGenerator::GenerateExitBlock() {
-  auto* block = lir_func_->allocateBasicBlock();
+void LIRGenerator::GenerateExitBlocks() {
+  if (!is_gen_) {
+    auto* block = lir_func_->allocateBasicBlock();
+    exit_block_ = block;
 
-  // func_->code may be null in unit tests that parse HIR directly.
-  if (func_->code == nullptr) {
-    return block;
-  }
+    // func_->code may be null in unit tests that parse HIR directly.
+    if (func_->code == nullptr) {
+      exit_phi_ = block->allocateInstr(
+          Instruction::kPhi, nullptr, OutVReg{DataType::kObject});
+      block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{exit_phi_});
+      return;
+    }
 
-  bool is_gen = func_->code->co_flags & kCoFlagsAnyGenerator;
-  bool is_double = func_->returnsPrimitiveDouble();
+    auto ret_data_type = hirTypeToDataType(func_->return_type);
+    exit_phi_ = block->allocateInstr(
+        Instruction::kPhi, nullptr, OutVReg{ret_data_type});
 
-  auto ret_data_type = hirTypeToDataType(func_->return_type);
-  auto ret_reg = is_double ? codegen::arch::reg_double_return_loc
-                           : codegen::arch::reg_general_return_loc;
-
-  Instruction* save_instr = nullptr;
-
-  // Use kBind to associate ret_reg with a vreg before the GenDataFooter
-  // updates. The register allocator pre-allocates this vreg to ret_reg
-  // and extends its live range through kEpilogueEnd.
-  save_instr = block->allocateInstr(
-      Instruction::kBind,
-      nullptr,
-      OutVReg{ret_data_type},
-      PhyReg{ret_reg, ret_data_type});
-
-  if (is_gen) {
-    // Returning from a generator, it is now complete
-    // 3.12+: load gen pointer from GenDataFooter, then store gi_frame_state
-    auto* gen_ptr = block->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutVReg{},
-        Ind{codegen::arch::reg_frame_pointer_loc,
-            static_cast<int32_t>(offsetof(GenDataFooter, gen))});
-
-    auto* gi_store = block->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutInd{
-            gen_ptr,
-            static_cast<int32_t>(offsetof(PyGenObject, gi_frame_state))},
-        Imm{static_cast<uint64_t>(
-#if PY_VERSION_HEX >= 0x030F0000
-                FRAME_CLEARED
-#else
-                FRAME_COMPLETED
-#endif
-                ),
-            DataType::k8bit});
-    static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
-    gi_store->output()->setDataType(DataType::k8bit);
-
-    block->allocateInstr(Instruction::kYieldExitPoint, nullptr);
-  }
-
-  // Call JITRT_UnlinkFrame BEFORE FP restore. The allocator may need to
-  // spill ret_reg across this call, and spill slots are relative to RBP.
-  // Doing this before FP restore ensures the spill slots are accessible.
-  // The shadow frame itself is accessed via tstate (not RBP), so the order
-  // relative to FP restore doesn't matter for correctness.
-#ifndef ENABLE_SHADOW_FRAMES
-  bool unlink = !is_gen;
-#else
-  bool unlink = true;
-#endif
-
-  if (unlink) {
-#ifdef ENABLE_SHADOW_FRAMES
+    // Unlink frame before epilogue. Non-generators always unlink.
     block->allocateInstr(
         Instruction::kCall,
         nullptr,
-        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)},
-        Imm{is_gen ? 0UL : 1UL});
+        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)});
+
+    block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{exit_phi_});
+    return;
+  }
+
+  // For generators, create exit blocks:
+  //   exit_block_: phi for return value + gen completion state + branch
+  //   exit_epilogue_: phi merging return and yield values + unlink + epilogue
+  auto ret_data_type = hirTypeToDataType(func_->return_type);
+
+  auto* block = lir_func_->allocateBasicBlock();
+  exit_block_ = block;
+
+  // Phi for the return value entering this block.
+  exit_phi_ =
+      block->allocateInstr(Instruction::kPhi, nullptr, OutVReg{ret_data_type});
+
+  // Returning from a generator, it is now complete.
+  // 3.12+: load gen pointer from GenDataFooter, then store gi_frame_state
+  auto* gen_ptr = block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutVReg{},
+      Ind{codegen::arch::reg_frame_pointer_loc,
+          static_cast<int32_t>(offsetof(GenDataFooter, gen))});
+
+  auto* gi_store = block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd{
+          gen_ptr, static_cast<int32_t>(offsetof(PyGenObject, gi_frame_state))},
+      Imm{static_cast<uint64_t>(
+#if PY_VERSION_HEX >= 0x030F0000
+              FRAME_CLEARED
 #else
-    // Use the specialized version for the common case: the function uses
-    // lightweight frames, is not a generator, and has no free variables.
-    bool has_freevars = func_->code != nullptr && func_->code->co_nfreevars > 0;
-    bool uses_lw_frames = getConfig().frame_mode == FrameMode::kLightweight;
-    auto helper = (has_freevars || is_gen || !uses_lw_frames)
-        ? reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)
-        : reinterpret_cast<uint64_t>(JITRT_UnlinkLightweightFrameFast);
-    block->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
+              FRAME_COMPLETED
 #endif
-  }
+              ),
+          DataType::k8bit});
+  static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
+  gi_store->output()->setDataType(DataType::k8bit);
 
-  if (is_gen) {
-    // Restore original frame pointer. Must come after JITRT_UnlinkFrame
-    // (if present) since changing RBP makes regalloc spill slots
-    // inaccessible.
-    block->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutPhyReg{codegen::arch::reg_frame_pointer_loc},
-        Ind{codegen::arch::reg_frame_pointer_loc,
-            static_cast<int32_t>(
-                offsetof(GenDataFooter, originalFramePointer))});
-  }
+  // Branch from exit_block_ to exit_epilogue_.
+  block->allocateInstr(Instruction::kReturn, nullptr);
 
-  block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{save_instr});
+  // Create the shared epilogue block for generators.
+  exit_epilogue_ = lir_func_->allocateBasicBlock();
+  block->addSuccessor(exit_epilogue_);
 
-  return block;
+  // Phi merging return values (from exit_block_) and yield values.
+  epilogue_phi_ = exit_epilogue_->allocateInstr(
+      Instruction::kPhi, nullptr, OutVReg{ret_data_type});
+
+  block = exit_epilogue_;
+
+  // Restore original frame pointer. Must come after JITRT_UnlinkFrame
+  // (if present) since changing RBP makes regalloc spill slots
+  // inaccessible.
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_frame_pointer_loc},
+      Ind{codegen::arch::reg_frame_pointer_loc,
+          static_cast<int32_t>(offsetof(GenDataFooter, originalFramePointer))});
+
+  block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{epilogue_phi_});
 }
 
 void LIRGenerator::AnalyzeCopies() {
@@ -1007,9 +991,14 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     }
   }
 
-  exit_block_ = GenerateExitBlock();
+  GenerateExitBlocks();
+
+  // Track the exit block explicitly so the block sorter doesn't have to
+  // rely on it being basic_blocks_.back().
+  lir_func_->setExitBlock(exit_epilogue_ ? exit_epilogue_ : exit_block_);
 
   // Connect all successors.
+  BasicBlockBuilder phi_bbb{env_, lir_func_};
   frame_setup_block_->addSuccessor(bb_map[hir_entry].first);
   for (auto hir_bb : translated) {
     auto hir_term = hir_bb->GetTerminator();
@@ -1035,6 +1024,9 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
       }
       case Opcode::kReturn: {
         last_bb->addSuccessor(exit_block_);
+        auto* ret = static_cast<const Return*>(hir_term);
+        return_edges_.push_back(
+            {last_bb, phi_bbb.getDefInstr(ret->GetOperand(0))});
         break;
       }
       default:
@@ -1042,7 +1034,67 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     }
   }
 
+  // Wire up exit phis.
+  auto addPhiInput = [&](Instruction* phi, const ExitEdge& edge) {
+    phi->allocateLabelInput(edge.block);
+    phi->allocateLinkedInput(edge.value);
+  };
+
+  // Connect yield exit blocks to the epilogue.
+  BasicBlock* yield_target = exit_epilogue_ ? exit_epilogue_ : exit_block_;
+  for (auto& edge : yield_exit_edges_) {
+    edge.block->addSuccessor(yield_target);
+  }
+
+  // Add resume blocks as phantom successors of their yield blocks.
+  // These must be added AFTER the exit epilogue successors above so that
+  // the exit epilogue is successors.front() — resolveEdges relies on this
+  // ordering to resolve the correct edge.
+  JIT_CHECK(
+      yield_exit_edges_.size() == resume_blocks_.size(),
+      "yield_exit_edges_ and resume_blocks_ must correspond 1:1");
+  for (size_t i = 0; i < yield_exit_edges_.size(); i++) {
+    yield_exit_edges_[i].block->addSuccessor(resume_blocks_[i]);
+  }
+
+  // Populate exit_block_ phi with return values (and yield values if no
+  // epilogue).
+  for (auto& edge : return_edges_) {
+    addPhiInput(exit_phi_, edge);
+  }
+  if (epilogue_phi_ == nullptr) {
+    for (auto& edge : yield_exit_edges_) {
+      addPhiInput(exit_phi_, edge);
+    }
+  }
+
+  // For generators, populate exit_epilogue_ phi with values from both
+  // the return path (exit_block_) and yield exit blocks.
+  if (epilogue_phi_ != nullptr) {
+    epilogue_phi_->allocateLabelInput(exit_block_);
+    epilogue_phi_->allocateLinkedInput(exit_phi_);
+    for (auto& edge : yield_exit_edges_) {
+      addPhiInput(epilogue_phi_, edge);
+    }
+  }
+
   resolvePhiOperands(bb_map);
+
+  // For generators, create a placeholder resume entry block. This block
+  // dispatches to resume targets via indirect jump (populated post-regalloc
+  // by PopulateResumeEntryBlock). Its successors are the resume blocks,
+  // which keeps them reachable during sortBasicBlocks.
+  // We always create this for generators because translateYieldInitial
+  // references gen_resume_entry_label (the label bound to this block).
+  // On pre-3.12, kYieldInitial is monolithic and doesn't add to
+  // resume_blocks_, but still needs the resume entry block to exist.
+  if (is_gen_) {
+    auto* resume_entry = lir_func_->allocateBasicBlock();
+    for (auto* rb : resume_blocks_) {
+      resume_entry->addSuccessor(rb);
+    }
+    lir_func_->setResumeEntryBlock(resume_entry);
+  }
 
   return function;
 }
@@ -2073,7 +2125,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kReturn: {
-        bbb.appendInstr(Instruction::kReturn, i.GetOperand(0));
+        bbb.appendInstr(Instruction::kReturn);
         break;
       }
       case Opcode::kSetCurrentAwaiter: {
@@ -2084,13 +2136,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kYieldValue: {
         auto hir_instr = static_cast<const YieldValue*>(&i);
 
-        // 1. kYieldValue: load tstate and yield value into ABI registers.
-        //    No output — the yielded value goes to the return register in
-        //    codegen.
-        bbb.appendInstr(
-            Instruction::kYieldValue, env_->asm_tstate, hir_instr->reg());
-
-        // 2. kStoreGenYieldPoint / kStoreGenYieldFromPoint: store yield point
+        // 1. kStoreGenYieldPoint / kStoreGenYieldFromPoint: store yield point
         //    metadata and live regs.
         Instruction* store_instr;
         if (hir_instr->isYieldFrom()) {
@@ -2104,8 +2150,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
         finishYield(bbb, store_instr, hir_instr);
 
-        // 3. kBranchToYieldExit: jump to yield exit epilogue.
-        bbb.appendInstr(Instruction::kBranchToYieldExit);
+        // 2. kBranchToYieldExit: terminates this block. The yield value
+        //    flows to the exit epilogue via the CFG (phi + edge resolution).
+        auto* branch = bbb.appendInstr(Instruction::kBranchToYieldExit);
+        yield_exit_edges_.push_back(
+            {branch->basicblock(), bbb.getDefInstr(hir_instr->reg())});
+
+        // 3. Split block: resume path starts in a new basic block.
+        //    The resume block is added as a successor of the yield block
+        //    later in finishFunction (after the exit epilogue successor),
+        //    so that the register allocator can propagate liveness across
+        //    the yield/resume boundary.
+        BasicBlock* resume_block = bbb.allocateBlock();
+        resume_blocks_.push_back(resume_block);
+
+        bbb.switchBlock(resume_block);
 
         // 4. kResumeGenYield: bind resume label, load resumed inputs.
         //    Has output (the sent-in value) and takes tstate as input.
@@ -2117,9 +2176,36 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kInitialYield: {
         auto hir_instr = static_cast<const InitialYield*>(&i);
-        Instruction* instr = bbb.appendInstr(
-            hir_instr->output(), Instruction::kYieldInitial, env_->asm_tstate);
+        // 3.12+: decompose kYieldInitial into setup + branch + resume.
+        // kYieldInitial does the setup and store yield point but does NOT
+        // emit the jmp or bind the resume label.
+        Instruction* instr =
+            bbb.appendInstr(Instruction::kYieldInitial, env_->asm_tstate);
         finishYield(bbb, instr, hir_instr);
+
+        // Capture the gen object from the return register into a vreg.
+        Instruction* gen_obj = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kBind,
+            PhyReg{codegen::arch::reg_general_return_loc});
+
+        // kBranchToYieldExit: terminates this block.
+        auto* branch = bbb.appendInstr(Instruction::kBranchToYieldExit);
+        yield_exit_edges_.push_back({branch->basicblock(), gen_obj});
+
+        // Split block: resume path starts in a new basic block.
+        // Split block: resume path starts in a new basic block.
+        // Resume successor added in finishFunction (see kYieldValue).
+        BasicBlock* resume_block = bbb.allocateBlock();
+        resume_blocks_.push_back(resume_block);
+
+        bbb.switchBlock(resume_block);
+
+        // kResumeGenYield: bind resume label, load resumed inputs.
+        bbb.appendInstr(
+            hir_instr->output(),
+            Instruction::kResumeGenYield,
+            env_->asm_tstate);
         break;
       }
       case Opcode::kAssign: {

@@ -5,6 +5,8 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/blocksorter.h"
 
+#include <algorithm>
+
 namespace jit::lir {
 
 namespace {
@@ -252,7 +254,24 @@ size_t Function::getNumBasicBlocks() const {
 }
 
 void Function::sortBasicBlocks() {
-  BasicBlockSorter sorter(basic_blocks_);
+  // Remove resume_entry_block from the block list before sorting.
+  // It is a placeholder with no instructions during regalloc — populated
+  // post-regalloc by PopulateResumeEntryBlock. If left in the list, the
+  // sorter treats it as the exit block (since it was allocated last),
+  // which breaks liveness propagation in calculateLiveIntervals.
+  //
+  // Resume blocks are reachable from yield blocks via the CFG successor
+  // edges added during LIR generation, so the sorter includes them
+  // naturally. The resume_entry_block is re-inserted into the block list
+  // in generateCode() before code emission.
+  if (resume_entry_block_ != nullptr) {
+    std::erase(basic_blocks_, resume_entry_block_);
+  }
+
+  // Use the explicitly tracked exit block. Fall back to back() for
+  // compatibility with tests that don't call setExitBlock().
+  BasicBlock* exit = exit_block_ ? exit_block_ : basic_blocks_.back();
+  BasicBlockSorter sorter(basic_blocks_, exit);
   basic_blocks_ = sorter.getSortedBlocks();
 }
 

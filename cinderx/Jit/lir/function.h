@@ -62,6 +62,30 @@ class Function {
 
   void sortBasicBlocks();
 
+  // Set/get the exit block — the final block containing the epilogue.
+  // For non-generators this is the single exit block; for generators it is
+  // exit_epilogue_ (the shared epilogue after the return/yield merge).
+  // The block sorter uses this to ensure the exit block is always placed
+  // last, regardless of allocation order.
+  void setExitBlock(BasicBlock* block) {
+    exit_block_ = block;
+  }
+  BasicBlock* exitBlock() const {
+    return exit_block_;
+  }
+
+  // Set/get the generator resume entry block. During block sorting, this
+  // block's successors (resume blocks) are kept in the sorted list for
+  // register allocation, but the resume entry block itself is excluded —
+  // it is a placeholder populated post-regalloc by PopulateResumeEntryBlock.
+  // It is re-inserted into the block list in generateCode() before emission.
+  void setResumeEntryBlock(BasicBlock* block) {
+    resume_entry_block_ = block;
+  }
+  BasicBlock* resumeEntryBlock() const {
+    return resume_entry_block_;
+  }
+
   const hir::Function* hirFunc() const;
 
   // Associate a debug annotation string with an instruction. The annotation
@@ -96,9 +120,18 @@ class Function {
   // unique_ptrs for a pathalogically large function.
   std::deque<BasicBlock> basic_block_store_;
   // NOTE: The first basic block should always be the entry basic block,
-  // where the function starts. The last basic block should be the exit block,
-  // where the function ends.
+  // where the function starts.
   std::vector<BasicBlock*> basic_blocks_;
+
+  // The exit block containing the epilogue. Set explicitly by the LIR
+  // generator so the block sorter doesn't have to rely on positional
+  // assumptions (e.g. back() being the exit block).
+  BasicBlock* exit_block_{nullptr};
+
+  // Generator resume entry block — its successors (resume blocks) are kept
+  // in the block list by sortBasicBlocks, but this block itself is excluded
+  // during regalloc and re-inserted in generateCode() after being populated.
+  BasicBlock* resume_entry_block_{nullptr};
 
   // The next id to assign to a BasicBlock or Instruction.
   int next_id_{0};

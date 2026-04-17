@@ -81,7 +81,6 @@ class LIRABITest : public RuntimeTest {
         break;
       case Instruction::kDeoptPatchpoint:
       case Instruction::kGuard:
-      case Instruction::kYieldValue:
         environ.code_rt->addDeoptMetadata(DeoptMetadata{});
         break;
       case Instruction::kYieldInitial:
@@ -1292,19 +1291,6 @@ TEST_F(LIRABITest, TestkYieldInitial) {
   translateInstrWithOrigin(
       Instruction::kYieldInitial, origin.get(), tstate, live_regs, deopt_idx);
 }
-
-// kYieldValue ANY
-TEST_F(LIRABITest, TestkYieldValue) {
-  auto tstate = makeStk(-16);
-  auto live_regs = Imm{0};
-  auto deopt_idx = Imm{0};
-
-  translateInstr(
-      Instruction::kYieldValue, tstate, Imm{0}, live_regs, deopt_idx);
-  translateInstr(
-      Instruction::kYieldValue, tstate, makeStk(-32), live_regs, deopt_idx);
-}
-
 // kSelect R r r r
 TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_PhyReg_PhyReg) {
 #if defined(CINDER_X86_64)

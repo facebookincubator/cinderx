@@ -1240,6 +1240,7 @@ void LinearScanAllocator::rewriteInstrOneIndirectOperand(
     const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
     const UnorderedSet<const LinkedOperand*>* last_use_vregs) {
   auto base = indirect->getBaseRegOperand();
+  JIT_CHECK(base != nullptr, "MemoryIndirect has null base operand");
   PhyLocation base_phy_reg = shouldReplaceOperand(*base)
       ? map_get(mapping, base->getDefine())->allocated_loc
       : PhyLocation(base->getPhyRegister());
@@ -1353,37 +1354,25 @@ void LinearScanAllocator::resolveEdges() {
     auto last_instr_opcode =
         last_instr != nullptr ? last_instr->opcode() : Instruction::kNone;
 
-    // for unconditional branch
-    if (successors.size() == 1) {
+    // Yield blocks (ending with BranchToYieldExit) have two successors:
+    // the exit epilogue and the resume block. The resume successor is a
+    // "phantom" edge for liveness propagation only — register state is
+    // restored from spills by ResumeGenYield, not carried across the edge.
+    // Treat yield blocks as unconditional for edge resolution purposes.
+    bool is_yield_with_resume =
+        last_instr_opcode == Instruction::kBranchToYieldExit &&
+        successors.size() == 2;
+
+    // for unconditional branch (or yield block with phantom resume edge)
+    if (successors.size() == 1 || is_yield_with_resume) {
       auto succ = successors.front();
       auto copies =
           resolveEdgesGenCopies(basic_block, succ, bb_interval_map[succ]);
 
-      bool is_return = last_instr_opcode == Instruction::kReturn;
-      if (is_return) {
-        // check if the operand is the return register
-        auto ret_opnd = last_instr->getInput(0);
-        if (ret_opnd->isReg() || ret_opnd->isStack()) {
-          auto reg = ret_opnd->getPhyRegOrStackSlot();
-
-          auto target = ret_opnd->isFp() ? arch::reg_double_return_loc
-                                         : arch::reg_general_return_loc;
-
-          target.bitSize = reg.bitSize;
-
-          if (reg != target) {
-            copies->addEdge(reg.loc, target.loc, ret_opnd->dataType());
-          }
-        } else {
-          // return <constant>, we need to shuffle the value into rax here
-          auto instr = basic_block->allocateInstrBefore(
-              std::prev(instrs.end()), Instruction::kMove);
-          JIT_CHECK(!ret_opnd->isFp(), "only integer should be present");
-          instr->allocateImmediateInput(ret_opnd->getConstant());
-          instr->output()->setPhyRegister(arch::reg_general_return_loc);
-          instr->output()->setDataType(ret_opnd->dataType());
-        }
-      }
+      // kReturn and kBranchToYieldExit are pseudo-terminators removed after
+      // edge resolution; postalloc inserts a real branch to the successor.
+      bool is_exit = last_instr_opcode == Instruction::kReturn ||
+          last_instr_opcode == Instruction::kBranchToYieldExit;
 
       JIT_CHECK(
           last_instr_opcode != Instruction::kBranch,
@@ -1393,8 +1382,14 @@ void LinearScanAllocator::resolveEdges() {
       rewriteLIREmitCopies(
           basic_block, basic_block->instructions().end(), std::move(copies));
 
-      if (is_return) {
+      if (is_exit) {
         basic_block->removeInstr(last_instr_iter);
+      }
+
+      // Remove the phantom resume successor now that regalloc is done.
+      // It was only needed for liveness propagation during regalloc.
+      if (is_yield_with_resume) {
+        successors.pop_back();
       }
 
       continue;

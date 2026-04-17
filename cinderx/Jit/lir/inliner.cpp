@@ -334,12 +334,22 @@ void LIRInliner::resolveReturnValue() {
   for (auto pred : epilogue->predecessors()) {
     auto lastInstr = pred->getLastInstr();
     if (lastInstr != nullptr && lastInstr->isReturn()) {
-      phi_instr->allocateLabelInput(pred);
+      auto retIter = pred->getLastInstrIter();
       JIT_CHECK(
-          lastInstr->getNumInputs() > 0,
-          "Return instruction should have at least 1 input operand.");
-      phi_instr->appendInput(lastInstr->releaseInput(0));
-      pred->removeInstr(pred->getLastInstrIter());
+          retIter != pred->instructions().begin(),
+          "Expected a Move before Return");
+      auto moveIter = std::prev(retIter);
+      auto* moveInstr = moveIter->get();
+      JIT_CHECK(
+          moveInstr->isMove(),
+          "Expected Move before Return, got {}",
+          *moveInstr);
+
+      phi_instr->allocateLabelInput(pred);
+      phi_instr->appendInput(moveInstr->releaseInput(0));
+
+      pred->removeInstr(retIter);
+      pred->removeInstr(moveIter);
     }
   }
 
