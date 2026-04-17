@@ -111,25 +111,48 @@ class LIRGenerator {
       Instruction* instr,
       const hir::DeoptBase& hir_instr);
 
-  void MakeIncref(
+  void makeIncref(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
       bool xincref = false,
       bool possible_immortal = true);
-  void MakeIncref(
+  void makeIncref(
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& instr,
       bool xincref);
-  void MakeDecref(
+  void makeDecref(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
       std::optional<destructor> destructor,
       bool xdecref = false,
       bool possible_immortal = true);
-  void MakeDecref(
+  void makeDecref(
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& instr,
       bool xdecref);
+
+#ifdef Py_GIL_DISABLED
+  void makeIncrefFreeThreaded(
+      BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      BasicBlock* end_incref);
+  void makeDecrefFreeThreaded(
+      BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      BasicBlock* end_decref);
+#else
+  void makeIncrefGILEnabled(
+      BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      BasicBlock* end_incref,
+      bool possible_immortal);
+  void makeDecrefGILEnabled(
+      BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      BasicBlock* end_decref,
+      std::optional<destructor> destructor,
+      bool possible_immortal);
+#endif
 #if defined(CINDER_AARCH64)
   void updateDeoptIndex(
       BasicBlockBuilder& bbb,

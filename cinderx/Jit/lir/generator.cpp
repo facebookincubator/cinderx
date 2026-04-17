@@ -1187,7 +1187,7 @@ void LIRGenerator::emitExceptionCheck(
   }
 }
 
-void LIRGenerator::MakeIncref(
+void LIRGenerator::makeIncref(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
     bool xincref,
@@ -1200,9 +1200,82 @@ void LIRGenerator::MakeIncref(
   }
 
 #ifdef Py_GIL_DISABLED
-  // TODO(T250369689): Ideally we'd have a more optimized implementation for FT.
-  bbb.appendInvokeInstruction(Py_IncRef, instr);
+  makeIncrefFreeThreaded(bbb, instr, end_incref);
 #else
+  makeIncrefGILEnabled(bbb, instr, end_incref, possible_immortal);
+#endif
+
+  bbb.appendBlock(end_incref);
+}
+
+#ifdef Py_GIL_DISABLED
+void LIRGenerator::makeIncrefFreeThreaded(
+    BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    BasicBlock* end_incref) {
+  // Inline the common-case incref for free-threading. Check thread ownership
+  // (ob_tid == tstate->thread_id) and use a non-atomic store for thread-owned
+  // objects. Fall back to Py_IncRef for objects owned by other threads.
+  BasicBlock* slow_incref = bbb.allocateBlock();
+
+  // Load ob_ref_local (32-bit thread-local refcount).
+  Instruction* ref_local = bbb.appendInstr(
+      OutVReg{OperandBase::k32bit},
+      Instruction::kMove,
+      Ind{instr,
+          static_cast<int>(offsetof(PyObject, ob_ref_local)),
+          DataType::k32bit});
+
+  // Increment. If result overflows to 0, ob_ref_local was UINT32_MAX
+  // (immortal sentinel) — skip.
+  bbb.appendInstr(Instruction::kInc, ref_local);
+  bbb.appendBranch(Instruction::kBranchE, end_incref);
+
+  // Check thread ownership: ob_tid vs tstate->thread_id.
+  BasicBlock* check_owner = bbb.allocateBlock();
+  bbb.appendBlock(check_owner);
+  Instruction* ob_tid = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
+  Instruction* thread_id = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{env_->asm_tstate,
+          static_cast<int>(offsetof(PyThreadState, thread_id))});
+  bbb.appendInstr(Instruction::kCmp, ob_tid, thread_id);
+  bbb.appendBranch(Instruction::kBranchNE, slow_incref);
+
+  // Fast path: thread-owned, store incremented ob_ref_local non-atomically.
+  BasicBlock* fast_store = bbb.allocateBlock();
+  bbb.appendBlock(fast_store);
+  bbb.appendInstr(
+      OutInd{
+          instr,
+          static_cast<int>(offsetof(PyObject, ob_ref_local)),
+          DataType::k32bit},
+      Instruction::kMove,
+      ref_local);
+  updateRefTotal(bbb, Instruction::kInc);
+  // Jump past the slow path to end_incref.
+  bbb.appendBranch(Instruction::kBranch, end_incref);
+
+  // Slow path: not owned by this thread, use atomic Py_IncRef.
+  // Use switchBlock (not appendBlock) because fast_store's unconditional
+  // branch means slow_incref is not its fallthrough successor.
+  bbb.switchBlock(slow_incref);
+  if (getConfig().multiple_code_sections) {
+    slow_incref->setSection(codegen::CodeSection::kCold);
+  }
+  bbb.appendInvokeInstruction(Py_IncRef, instr);
+  // Falls through to end_incref (appended by caller).
+}
+#else
+void LIRGenerator::makeIncrefGILEnabled(
+    BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    BasicBlock* end_incref,
+    bool possible_immortal) {
   // If this could be an immortal object then we need to load the refcount as a
   // 32-bit integer to see if it overflows on increment, indicating that it's
   // immortal.  For mortal objects the refcount is a regular 64-bit integer.
@@ -1231,12 +1304,10 @@ void LIRGenerator::MakeIncref(
   }
 
   updateRefTotal(bbb, Instruction::kInc);
+}
 #endif
 
-  bbb.appendBlock(end_incref);
-}
-
-void LIRGenerator::MakeIncref(
+void LIRGenerator::makeIncref(
     BasicBlockBuilder& bbb,
     const hir::Instr& instr,
     bool xincref) {
@@ -1247,14 +1318,14 @@ void LIRGenerator::MakeIncref(
     return;
   }
 
-  MakeIncref(
+  makeIncref(
       bbb,
       bbb.getDefInstr(obj),
       xincref,
       kImmortalInstances && obj->type().couldBe(TImmortalObject));
 }
 
-void LIRGenerator::MakeDecref(
+void LIRGenerator::makeDecref(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
     [[maybe_unused]] std::optional<destructor> destructor,
@@ -1268,9 +1339,98 @@ void LIRGenerator::MakeDecref(
   }
 
 #ifdef Py_GIL_DISABLED
-  // TODO(T250369689): Ideally we'd have a more optimized implementation for FT.
-  bbb.appendInvokeInstruction(Py_DecRef, instr);
+  makeDecrefFreeThreaded(bbb, instr, end_decref);
 #else
+  makeDecrefGILEnabled(bbb, instr, end_decref, destructor, possible_immortal);
+#endif
+
+  bbb.appendBlock(end_decref);
+}
+
+#ifdef Py_GIL_DISABLED
+void LIRGenerator::makeDecrefFreeThreaded(
+    BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    BasicBlock* end_decref) {
+  // Inline the common-case decref for free-threading. Check thread ownership
+  // and use a non-atomic decrement for thread-owned objects. When the local
+  // refcount reaches zero, call _Py_MergeZeroLocalRefcount to merge with the
+  // shared refcount. Fall back to Py_DecRef for objects owned by other threads.
+  BasicBlock* slow_decref = bbb.allocateBlock();
+  BasicBlock* merge_refcount = bbb.allocateBlock();
+
+  // Load ob_ref_local (32-bit).
+  Instruction* ref_local = bbb.appendInstr(
+      OutVReg{OperandBase::k32bit},
+      Instruction::kMove,
+      Ind{instr,
+          static_cast<int>(offsetof(PyObject, ob_ref_local)),
+          DataType::k32bit});
+
+  // Check immortal via sign bit. Normal refcounts are well below 2^31,
+  // so a set sign bit indicates an immortal sentinel.
+  bbb.appendInstr(Instruction::kTest32, ref_local, ref_local);
+  bbb.appendBranch(Instruction::kBranchS, end_decref);
+
+  // Check thread ownership: ob_tid vs tstate->thread_id.
+  BasicBlock* check_owner = bbb.allocateBlock();
+  bbb.appendBlock(check_owner);
+  Instruction* ob_tid = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
+  Instruction* thread_id = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{env_->asm_tstate,
+          static_cast<int>(offsetof(PyThreadState, thread_id))});
+  bbb.appendInstr(Instruction::kCmp, ob_tid, thread_id);
+  bbb.appendBranch(Instruction::kBranchNE, slow_decref);
+
+  // Fast path: thread-owned, decrement non-atomically.
+  BasicBlock* fast_dec = bbb.allocateBlock();
+  bbb.appendBlock(fast_dec);
+  updateRefTotal(bbb, Instruction::kDec);
+  bbb.appendInstr(Instruction::kDec, ref_local);
+  bbb.appendInstr(
+      OutInd{
+          instr,
+          static_cast<int>(offsetof(PyObject, ob_ref_local)),
+          DataType::k32bit},
+      Instruction::kMove,
+      ref_local);
+  // Re-test zero flag after the store (the store may clobber flags).
+  bbb.appendInstr(Instruction::kTest32, ref_local, ref_local);
+  // If non-zero, done — branch to end. Zero falls through to merge.
+  bbb.appendBranch(Instruction::kBranchNZ, end_decref);
+
+  // Local refcount reached zero — merge with shared refcount. This may
+  // deallocate the object if the shared refcount is also zero.
+  bbb.appendBlock(merge_refcount);
+  if (getConfig().multiple_code_sections) {
+    merge_refcount->setSection(codegen::CodeSection::kCold);
+  }
+  bbb.appendInvokeInstruction(_Py_MergeZeroLocalRefcount, instr);
+  // Jump past the slow path to end_decref.
+  bbb.appendBranch(Instruction::kBranch, end_decref);
+
+  // Slow path: not owned by this thread, use atomic Py_DecRef.
+  // Use switchBlock (not appendBlock) because merge_refcount's
+  // unconditional branch means slow_decref is not its fallthrough.
+  bbb.switchBlock(slow_decref);
+  if (getConfig().multiple_code_sections) {
+    slow_decref->setSection(codegen::CodeSection::kCold);
+  }
+  bbb.appendInvokeInstruction(Py_DecRef, instr);
+  // Falls through to end_decref (appended by caller).
+}
+#else
+void LIRGenerator::makeDecrefGILEnabled(
+    BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    BasicBlock* end_decref,
+    std::optional<destructor> destructor,
+    bool possible_immortal) {
   Instruction* r1 = bbb.appendInstr(
       OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
 
@@ -1301,12 +1461,10 @@ void LIRGenerator::MakeDecref(
   } else {
     bbb.appendInvokeInstruction(_Py_Dealloc, instr);
   }
+}
 #endif
 
-  bbb.appendBlock(end_decref);
-}
-
-void LIRGenerator::MakeDecref(
+void LIRGenerator::makeDecref(
     BasicBlockBuilder& bbb,
     const jit::hir::Instr& instr,
     bool xdecref) {
@@ -1317,7 +1475,7 @@ void LIRGenerator::MakeDecref(
     return;
   }
 
-  MakeDecref(
+  makeDecref(
       bbb,
       bbb.getDefInstr(obj),
       obj->type().runtimePyTypeDestructor(),
@@ -2558,19 +2716,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kIncref: {
-        MakeIncref(bbb, i, false);
+        makeIncref(bbb, i, false);
         break;
       }
       case Opcode::kXIncref: {
-        MakeIncref(bbb, i, true);
+        makeIncref(bbb, i, true);
         break;
       }
       case Opcode::kDecref: {
-        MakeDecref(bbb, i, false);
+        makeDecref(bbb, i, false);
         break;
       }
       case Opcode::kXDecref: {
-        MakeDecref(bbb, i, true);
+        makeDecref(bbb, i, true);
         break;
       }
       case Opcode::kBatchDecref: {
@@ -3760,13 +3918,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (!_Py_IsImmortal(code.get()))
 #endif
         {
-          MakeIncref(bbb, code_reg, false);
+          makeIncref(bbb, code_reg, false);
         }
 
         // Set our frame as top of stack
 #if PY_VERSION_HEX >= 0x030D0000
         if (!_Py_IsImmortal(func_val)) {
-          MakeIncref(bbb, func_reg, false);
+          makeIncref(bbb, func_reg, false);
         }
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
@@ -3898,7 +4056,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto reifier = inline_code_to_reifier_.at(code.get());
         Instruction* reifier_reg =
             bbb.appendInstr(OutVReg{}, Instruction::kMove, reifier.get());
-        MakeDecref(
+        makeDecref(
             bbb,
             reifier_reg,
             std::optional<destructor>(
@@ -3910,7 +4068,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (!_Py_IsImmortal(func)) {
           Instruction* func_reg =
               bbb.appendInstr(OutVReg{}, Instruction::kMove, func);
-          MakeDecref(
+          makeDecref(
               bbb,
               func_reg,
               std::optional<destructor>(PyFunction_Type.tp_dealloc));
@@ -3920,7 +4078,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (!_Py_IsImmortal(code.get())) {
           Instruction* code_reg =
               bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
-          MakeDecref(
+          makeDecref(
               bbb, code_reg, std::optional<destructor>(PyCode_Type.tp_dealloc));
         }
 #endif
@@ -4646,7 +4804,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
                 static_cast<Py_ssize_t>(sizeof(jit::FrameHeader))},
         Instruction::kMove,
         func_for_header);
-    MakeIncref(bbb, func_for_header, false);
+    makeIncref(bbb, func_for_header, false);
 #endif
 
     // Store f_executable
@@ -4667,7 +4825,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         Instruction::kMove,
         executable_reg);
     if (!_Py_IsImmortal(executable)) {
-      MakeIncref(bbb, executable_reg, false);
+      makeIncref(bbb, executable_reg, false);
     }
 
     // Store f_funcobj
@@ -4678,7 +4836,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         OutInd{frame, offsetof(_PyInterpreterFrame, f_funcobj)},
         Instruction::kMove,
         env_->asm_func);
-    MakeIncref(bbb, env_->asm_func, false);
+    makeIncref(bbb, env_->asm_func, false);
 #else
     // 3.12-3.13: f_funcobj = frame_reifier (immortal)
     PyObject* frame_reifier = cinderx::getModuleState()->frame_reifier;
