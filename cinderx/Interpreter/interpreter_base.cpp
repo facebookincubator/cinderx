@@ -36,6 +36,9 @@ int Ci_InitFrameEvalFunc() {
   }
 
   _PyInterpreterState_SetEvalFrameFunc(interp, Ci_EvalFrame);
+#if PY_VERSION_HEX >= 0x030F0000
+  _PyInterpreterState_SetEvalFrameAllowSpecialization(interp, 1);
+#endif
 #endif
 #endif
 

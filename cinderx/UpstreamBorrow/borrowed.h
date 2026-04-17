@@ -86,6 +86,7 @@
 #define _PyInstruction_GetLength _CiInstruction_GetLength
 #define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
 
+#if PY_VERSION_HEX < 0x030F0000
 #define _Py_Specialize_ContainsOp _Ci_Specialize_ContainsOp
 #define _Py_Specialize_ToBool _Ci_Specialize_ToBool
 #define _Py_Specialize_Send _Ci_Specialize_Send
@@ -100,7 +101,6 @@
 #define _Py_Specialize_StoreAttr _Ci_Specialize_StoreAttr
 #define _Py_Specialize_LoadAttr _Ci_Specialize_LoadAttr
 #define _Py_Specialize_LoadSuperAttr _Ci_Specialize_LoadSuperAttr
-#if PY_VERSION_HEX < 0x030F0000
 #define _PyEval_MonitorRaise _CiEval_MonitorRaise
 #define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
