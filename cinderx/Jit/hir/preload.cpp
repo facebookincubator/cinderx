@@ -185,8 +185,6 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
     target->slot = _PyClassLoader_ResolveMethod(descr);
     JIT_CHECK(target->slot != -1, "method lookup failed: {}", repr(descr));
   } else { // the rest of this only used by INVOKE_FUNCTION currently
-    target->uses_runtime_func =
-        target->is_function && usesRuntimeFunc(target->func()->func_code);
     if (!target->container_is_immutable) {
       target->indirect_ptr = _PyClassLoader_ResolveIndirectPtr(descr);
       if (target->indirect_ptr == nullptr) {
@@ -465,17 +463,6 @@ bool Preloader::preloadStatic() {
   for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
     long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
     if (local < 0) {
-#if PY_VERSION_HEX < 0x030C0000
-      // A negative value for local indicates that it's a cell
-      JIT_CHECK(
-          code_->co_cell2arg != nullptr,
-          "no cell2arg but negative local {}",
-          local);
-      long arg = code_->co_cell2arg[-1 * (local + 1)];
-      JIT_CHECK(
-          arg != CO_CELL_NOT_AN_ARG, "cell not an arg for local {}", local);
-      local = arg;
-#else
       JIT_ABORT(
           "In Static Python function {}, hit negative local {} at index {}, "
           "arguments checks tuple is {}",
@@ -483,7 +470,6 @@ bool Preloader::preloadStatic() {
           local,
           i,
           repr(checks));
-#endif
     }
     OwnedType preloaded_type =
         resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));

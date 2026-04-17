@@ -3,12 +3,9 @@
 
 #include "cinderx/python.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
 
 #include "cpython/genobject.h"
-
-#endif
 
 #ifdef __cplusplus
 
@@ -18,15 +15,6 @@
 #include "cinderx/module_state.h" // @donotremove
 
 namespace jit {
-
-#if PY_VERSION_HEX < 0x030C0000
-
-template <typename PyObjectT>
-int JitGen_CheckAny(PyObjectT*) {
-  return 0;
-}
-
-#else
 
 struct GenDataFooter;
 extern PyType_Spec JitGen_Spec;
@@ -84,12 +72,8 @@ PyObject* JitGen_AnextAwaitable_New(
     PyObject* awaitable,
     PyObject* defaultValue);
 
-#endif // PY_VERSION_HEX >= 0x030C0000
-
 } // namespace jit
 #endif // __cplusplus
-
-#if PY_VERSION_HEX >= 0x030C0000
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,5 +87,3 @@ PyObject* JitGen_yf(PyGenObject* gen);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // PY_VERSION_HEX >= 0x030C0000

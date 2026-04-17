@@ -4,10 +4,6 @@
 
 #include "cinderx/python.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/genobject_jit.h"
-#endif
-
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/Common/util.h"
@@ -65,39 +61,6 @@ class FreeThreadedJITEntrypointGuard {
   FreeThreadedJITEntrypointGuard& operator=(FreeThreadedJITEntrypointGuard&&) =
       delete;
 };
-
-#if PY_VERSION_HEX < 0x030C0000
-// Memory management functions for JIT generator data.
-// In 3.12+ there is no gen->gi_jit_data and this functionality is part of
-// JitGenObject.
-
-jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
-void jitgen_data_free(PyGenObject* gen);
-
-inline GenDataFooter* genDataFooter(PyGenObject* gen) {
-  return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
-}
-
-// The number of words for pre-allocated blocks in the generator suspend data
-// free-list. I chose this based on it covering 99% of the JIT generator
-// spill-sizes needed when running 'make testcinder_jit' at the time I collected
-// this data. For reference:
-//   99.9% coverage came at 256 spill size
-//   99.99% was at 1552
-//   max was 4999
-// There were about ~15k JIT generators in total during the run.
-constexpr size_t kMinGenSpillWords = 89;
-
-// Pre 3.12 these fields needed to be at a fixed offset so they can be quickly
-// accessed from C code in genobject.c.
-static_assert(
-    offsetof(GenDataFooter, state) == Ci_GEN_JIT_DATA_OFFSET_STATE,
-    "Byte offset for state shifted");
-static_assert(
-    offsetof(GenDataFooter, yieldPoint) == Ci_GEN_JIT_DATA_OFFSET_YIELD_POINT,
-    "Byte offset for yieldPoint shifted");
-
-#endif
 
 PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
@@ -459,29 +422,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       BorrowedRef<PyFunctionObject> func,
       CompilationKey& key,
       CompiledFunctionData&& compiled_func);
-
-#if PY_VERSION_HEX < 0x030C0000
-  // In 3.12+ the equivalent of this is in generators_rt.cpp.
-  template <typename F>
-    requires std::is_invocable_r_v<int, F, PyObject*>
-  int forEachOwnedRef(PyGenObject* gen, const DeoptMetadata& meta, F func) {
-    auto base = reinterpret_cast<char*>(genDataFooter(gen));
-    for (const LiveValue& value : meta.live_values) {
-      if (value.ref_kind != hir::RefKind::kOwned) {
-        continue;
-      }
-      codegen::PhyLocation loc = value.location;
-      JIT_CHECK(
-          !loc.is_register(),
-          "DeoptMetadata for Yields should not reference registers");
-      int ret = func(*reinterpret_cast<PyObject**>(base + loc.loc));
-      if (ret != 0) {
-        return ret;
-      }
-    }
-    return 0;
-  }
-#endif
 
   BorrowedRef<> zero() override;
   BorrowedRef<> strBuildClass();

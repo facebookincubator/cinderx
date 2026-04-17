@@ -641,7 +641,6 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
     JIT_ABORT("LoadThreadState output must be a register or stack slot");
   }
 
-#if PY_VERSION_HEX >= 0x030C0000
   if (cinderx::getModuleState()->tstate_offset != -1) {
     // Fast path: load tstate directly from the TLS segment register.
     asmjit::x86::Mem tls(cinderx::getModuleState()->tstate_offset);
@@ -654,17 +653,6 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
       as->mov(dst, x86::rax);
     }
   }
-#else
-  // 3.10: Load from _PyRuntime.gilstate.tstate_current.
-  uint64_t tstate_addr =
-      reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
-  if (fitsSignedInt<32>(tstate_addr)) {
-    as->mov(dst, x86::ptr(tstate_addr));
-  } else {
-    as->mov(dst, tstate_addr);
-    as->mov(dst, x86::ptr(dst));
-  }
-#endif
 
   if (output->isStack()) {
     as->mov(x86::ptr(x86::rbp, output->getStackSlot().loc), dst);
@@ -680,7 +668,6 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
     JIT_ABORT("LoadThreadState output must be a register or stack slot");
   }
 
-#if PY_VERSION_HEX >= 0x030C0000
   if (cinderx::getModuleState()->tstate_offset != -1) {
     // Fast path: load tstate from thread-local storage.
     as->mrs(dst, a64::Predicate::SysReg::kTPIDR_EL0);
@@ -699,13 +686,6 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
       as->mov(dst, a64::x0);
     }
   }
-#else
-  // 3.10: Load from _PyRuntime.gilstate.tstate_current.
-  uint64_t tstate_addr =
-      reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
-  as->mov(dst, tstate_addr);
-  as->ldr(dst, a64::ptr(dst));
-#endif
 
   if (output->isStack()) {
     as->str(
@@ -721,75 +701,6 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
 
 void translateYieldInitial(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
-#if PY_VERSION_HEX < 0x030C0000
-  arch::Builder* as = env->as;
-
-  // Load tstate into RDI for call to JITRT_MakeGenObject*.
-
-  // Consider avoiding reloading the tstate in from memory if it was already in
-  // a register before spilling. Still needs to be in memory though so it can be
-  // recovered after calling JITRT_MakeGenObject* which will trash it.
-  PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
-
-  // Make a generator object to be returned by the epilogue.
-  as->lea(x86::rsi, x86::ptr(env->gen_resume_entry_label));
-  JIT_CHECK(
-      env->shadow_frames_and_spill_size % kPointerSize == 0,
-      "Bad spill alignment");
-  as->mov(x86::rdx, env->shadow_frames_and_spill_size / kPointerSize);
-  as->mov(x86::rcx, reinterpret_cast<uint64_t>(env->code_rt));
-  JIT_CHECK(instr->origin()->IsInitialYield(), "expected InitialYield");
-  PyCodeObject* code = static_cast<const hir::InitialYield*>(instr->origin())
-                           ->frameState()
-                           ->code;
-  as->mov(x86::r8, reinterpret_cast<uint64_t>(code));
-  if (code->co_flags & CO_COROUTINE) {
-    emitCall(*env, reinterpret_cast<uint64_t>(JITRT_MakeGenObjectCoro), instr);
-  } else if (code->co_flags & CO_ASYNC_GENERATOR) {
-    emitCall(
-        *env, reinterpret_cast<uint64_t>(JITRT_MakeGenObjectAsyncGen), instr);
-  } else {
-    emitCall(*env, reinterpret_cast<uint64_t>(JITRT_MakeGenObject), instr);
-  }
-  // Resulting generator is now in RAX for filling in below and epilogue return.
-  const auto gen_reg = x86::rax;
-
-  // Exit early if return from JITRT_MakeGenObject was nullptr.
-  as->test(gen_reg, gen_reg);
-  as->jz(env->hard_exit_label);
-
-  // Set RDI to gen->gi_jit_data for use in emitStoreGenYieldPoint() and data
-  // copy using 'movsq' below.
-  auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
-  as->mov(x86::rdi, x86::ptr(gen_reg, gi_jit_data_offset));
-
-  // Arbitrary scratch register for use in emitStoreGenYieldPoint().
-  auto scratch_r = x86::r9;
-  asmjit::Label resume_label = as->newLabel();
-  emitStoreGenYieldPoint(
-      as, env, instr, resume_label, x86::rdi, scratch_r, false);
-
-  // Store variables spilled by this point to generator.
-  int spill_bytes = env->initial_yield_spill_size_;
-  JIT_CHECK(spill_bytes % kPointerSize == 0, "Bad spill alignment");
-
-  // Point rsi at the bottom word of the current spill space.
-  as->lea(x86::rsi, x86::ptr(x86::rbp, -spill_bytes));
-  // Point rdi at the bottom word of the generator's spill space.
-  as->sub(x86::rdi, spill_bytes);
-  as->mov(x86::rcx, spill_bytes / kPointerSize);
-  as->rep().movsq();
-
-  // Jump to bottom half of epilogue
-  as->jmp(env->hard_exit_label);
-
-  // Resumed execution in this generator begins here
-  as->bind(resume_label);
-
-  // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
-#else
   arch::Builder* as = env->as;
 
   // Load tstate into RDI for call to
@@ -823,11 +734,7 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
-#endif
 #elif defined(CINDER_AARCH64)
-#if PY_VERSION_HEX < 0x030C0000
-  CINDER_UNSUPPORTED
-#else
   arch::Builder* as = env->as;
 
   // Load tstate into X0 for call to
@@ -863,7 +770,6 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Sent in value is in X1, and tstate is in X3 from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, X1, a64::x3);
-#endif
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -974,17 +880,6 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
   // Resumed execution in this generator begins here
   as->bind(env->pending_yield_resume_label);
 
-#if PY_VERSION_HEX < 0x030C0000
-  // On 3.10, for yield-from yield points, store the finish_yield_from arg
-  // (RDX from resume entry) into GenDataFooter so the subsequent Send
-  // instruction can load it.
-  if (instr->origin() &&
-      static_cast<const hir::YieldValue*>(instr->origin())->isYieldFrom()) {
-    auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
-    as->mov(x86::qword_ptr(x86::rbp, fyf_offset), x86::rdx);
-  }
-#endif
-
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 #elif defined(CINDER_AARCH64)
@@ -992,19 +887,6 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
 
   // Resumed execution in this generator begins here
   as->bind(env->pending_yield_resume_label);
-
-#if PY_VERSION_HEX < 0x030C0000
-  // On 3.10, for yield-from yield points, store the finish_yield_from arg
-  // (X2 from resume entry) into GenDataFooter so the subsequent Send
-  // instruction can load it.
-  if (instr->origin() &&
-      static_cast<const hir::YieldValue*>(instr->origin())->isYieldFrom()) {
-    auto fyf_offset = offsetof(GenDataFooter, finishYieldFrom);
-    as->str(
-        a64::x2,
-        arch::ptr_resolve(as, arch::fp, fyf_offset, arch::reg_scratch_0));
-  }
-#endif
 
   // Sent in value is in x1, and tstate is in x3 from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, X1, a64::x3);

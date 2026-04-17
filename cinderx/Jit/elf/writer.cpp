@@ -6,6 +6,8 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 
+#include <fmt/format.h>
+
 #include <ostream>
 #include <sstream>
 
@@ -424,7 +426,8 @@ void writeEntries(std::ostream& os, const std::vector<CodeEntry>& entries) {
   }
   uint64_t text_size = text_end_address - kTextStartAddress;
 
-  elf.libpython_name = elf.dynstr.insert("libpython3.10.so");
+  elf.libpython_name = elf.dynstr.insert(
+      fmt::format("libpython{}.{}.so", PY_MAJOR_VERSION, PY_MINOR_VERSION));
 
   // The headers are all limited to the zeroth page, sections begin on the next
   // page.

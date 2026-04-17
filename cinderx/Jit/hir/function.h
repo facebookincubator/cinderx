@@ -28,17 +28,6 @@ class Function {
   // Fully-qualified name of the function
   std::string fullname;
 
-  // Does this function need its PyFunctionObject* at runtime?
-  // (This is always the case in 3.12 as it is used to quickly access the
-  // _PyInterpreterFrame)
-  bool uses_runtime_func{
-#if PY_VERSION_HEX < 0x030C0000
-      false
-#else
-      true
-#endif
-  };
-
   // Does this function have primitive args?
   bool has_primitive_args{false};
 

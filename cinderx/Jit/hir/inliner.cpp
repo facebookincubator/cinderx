@@ -142,7 +142,6 @@ bool canInline(Function& caller, AbstractCall* call_instr) {
   if (code->co_flags & kCoFlagsAnyGenerator) {
     return fail(InlineFailureType::kIsGenerator);
   }
-#if PY_VERSION_HEX >= 0x030C0000
   // Avoid the allocation that can happen in
   // PyCode_GetCellvars and PyCode_GetFreevars
   for (int offset = 0; offset < code->co_nlocalsplus; offset++) {
@@ -153,21 +152,11 @@ bool canInline(Function& caller, AbstractCall* call_instr) {
       return fail(InlineFailureType::kHasFreevars);
     }
   }
-#else
-  if (numCellvars(code) > 0) {
-    return fail(InlineFailureType::kHasCellvars);
-  }
-  if (numFreevars(code) > 0) {
-    return fail(InlineFailureType::kHasFreevars);
-  }
-#endif
 
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    // This requires access to the frame so we can't inline it.
-    for (auto& bci : BytecodeInstructionBlock{code}) {
-      if (bci.opcode() == EAGER_IMPORT_NAME) {
-        return fail(InlineFailureType::kHasEagerImportName);
-      }
+  // This requires access to the frame so we can't inline it.
+  for (auto& bci : BytecodeInstructionBlock{code}) {
+    if (bci.opcode() == EAGER_IMPORT_NAME) {
+      return fail(InlineFailureType::kHasEagerImportName);
     }
   }
 
@@ -316,15 +305,10 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
       continue;
     }
     // Instructions that either deopt or otherwise materialize a PyFrameObject
-    // need the shadow frames to exist. Everything that materializes a
-    // PyFrameObject should also be marked as deopting.
-
-    if (it->asDeoptBase()
-#if PY_VERSION_HEX >= 0x030C0000
-        // Updating the previous instruction needs the frame too.
-        || hasArbitraryExecution(*it)
-#endif
-    ) {
+    // need the inline frames to exist. Everything that materializes a
+    // PyFrameObject should also be marked as deopting.  Updating the previous
+    // instruction needs the frame too.
+    if (it->asDeoptBase() || hasArbitraryExecution(*it)) {
       return;
     }
   }

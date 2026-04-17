@@ -3,8 +3,6 @@
 
 #include "cinderx/python.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/generators_mm_iface.h"
 
@@ -63,5 +61,3 @@ class JITGenFreeThreadedFreeList : public IJitGenFreeList {
 };
 
 } // namespace jit
-
-#endif // PY_VERSION_HEX >= 0x030C0000

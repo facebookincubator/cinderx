@@ -331,9 +331,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kCallEx: {
       const auto& call = static_cast<const CallEx&>(instr);
       return fmt::format(
-          "{}{}",
-          (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
-          (call.flags() & CallFlags::KwArgs) ? ", kwargs" : "");
+          "{}", (call.flags() & CallFlags::KwArgs) ? ", kwargs" : "");
     }
     case Opcode::kCallInd: {
       const auto& call = static_cast<const CallInd&>(instr);
@@ -354,9 +352,8 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kVectorCall: {
       const auto& call = static_cast<const VectorCall&>(instr);
       return fmt::format(
-          "{}{}{}{}",
+          "{}{}{}",
           call.numArgs(),
-          (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
           (call.flags() & CallFlags::KwArgs) ? ", kwnames" : "",
           (call.flags() & CallFlags::Static) ? ", static" : "");
     }
@@ -381,10 +378,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kCallMethod: {
       const auto& call = static_cast<const CallMethod&>(instr);
-      return fmt::format(
-          "{}{}",
-          call.NumOperands(),
-          (call.flags() & CallFlags::Awaited) ? ", awaited" : "");
+      return fmt::format("{}", call.NumOperands());
     }
     case Opcode::kCallStatic: {
       const auto& call = static_cast<const CallStatic&>(instr);
@@ -526,12 +520,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kLoadAttrSpecial: {
       const auto& load = static_cast<const LoadAttrSpecial&>(instr);
-#if PY_VERSION_HEX < 0x030C0000
-      _Py_Identifier* id = load.id();
-      return fmt::format("\"{}\"", id->string);
-#else
       return fmt::format("\"{}\"", repr(load.id()));
-#endif
     }
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:

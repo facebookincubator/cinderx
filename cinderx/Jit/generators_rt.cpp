@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/generators_rt.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "internal/pycore_frame.h"
 #include "internal/pycore_genobject.h"
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
@@ -943,5 +941,3 @@ PyObject* JitGen_yf(PyGenObject* gen) {
   jit::JitGenObject* jit_gen = jit::JitGenObject::cast(gen);
   return jit_gen == nullptr ? _PyGen_yf(gen) : jit_gen->yieldFrom();
 }
-
-#endif // PY_VERSION_HEX >= 0x030C0000

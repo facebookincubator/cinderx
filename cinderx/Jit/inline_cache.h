@@ -37,12 +37,7 @@ struct SplitMutator {
   bool canInsertToSplitDict(BorrowedRef<PyDictObject> dict, BorrowedRef<> name);
   bool ensureValueOffset(BorrowedRef<> name);
 
-#if PY_VERSION_HEX < 0x030C0000
-  uint32_t dict_offset;
-  int32_t val_offset;
-#else
   Py_ssize_t val_offset;
-#endif
   PyDictKeysObject* keys; // Borrowed
 };
 
@@ -269,9 +264,7 @@ class LoadMethodCache {
   struct Entry {
     BorrowedRef<PyTypeObject> type;
     BorrowedRef<> value;
-#if PY_VERSION_HEX >= 0x030C0000
     uint32_t keys_version;
-#endif
 
     bool isValidKeysVersion(BorrowedRef<> obj);
   };

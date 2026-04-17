@@ -13,7 +13,6 @@
 namespace jit::codegen {
 
 void initThreadStateOffset() {
-#if PY_VERSION_HEX >= 0x030C0000
   auto module_state = cinderx::getModuleState();
   if (module_state->tstate_offset_inited) {
     return;
@@ -68,6 +67,5 @@ void initThreadStateOffset() {
 #endif
 
   module_state->tstate_offset_inited = true;
-#endif // PY_VERSION_HEX >= 0x030C0000
 }
 } // namespace jit::codegen

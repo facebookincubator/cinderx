@@ -199,11 +199,7 @@ struct DeoptMetadata {
   static DeoptMetadata fromInstr(const jit::hir::DeoptBase& instr);
 };
 
-#if PY_VERSION_HEX < 0x030C0000
-using CiPyFrameObjType = PyFrameObject;
-#else
 using CiPyFrameObjType = _PyInterpreterFrame;
-#endif
 
 // Update `frame` so that execution can resume in the interpreter.
 //

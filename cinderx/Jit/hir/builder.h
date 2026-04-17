@@ -146,8 +146,7 @@ class HIRBuilder {
       const jit::BytecodeInstructionBlock& bc_instrs);
   void emitCallEx(
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      CallFlags flags);
+      const jit::BytecodeInstruction& bc_instr);
   void emitCallInstrinsic(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -265,11 +264,10 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  bool emitInvokeFunction(
+  void emitInvokeFunction(
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      CallFlags flags);
-  bool emitInvokeNative(
+      const jit::BytecodeInstruction& bc_instr);
+  void emitInvokeNative(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitGetIter(TranslationContext& tc);
@@ -286,16 +284,14 @@ class HIRBuilder {
       const jit::BytecodeInstruction& bc_instr);
   void emitInvokeMethodVectorCall(
       TranslationContext& tc,
-      bool is_awaited,
       std::vector<Register*>& arg_regs,
       const InvokeTarget& target);
   void emitLoadMethodStatic(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  bool emitInvokeMethod(
+  void emitInvokeMethod(
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
+      const jit::BytecodeInstruction& bc_instr);
   void emitLoadField(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -392,13 +388,8 @@ class HIRBuilder {
   void emitGetANext(TranslationContext& tc);
   Register* emitSetupWithCommon(
       TranslationContext& tc,
-#if PY_VERSION_HEX < 0x030C0000
-      _Py_Identifier* enter_id,
-      _Py_Identifier* exit_id,
-#else
       PyObject* enter_id,
       PyObject* exit_id,
-#endif
       bool is_async);
   void emitBeforeWith(
       TranslationContext& tc,
@@ -501,7 +492,6 @@ class HIRBuilder {
       const FrameState& frame);
   void addInitialYield(TranslationContext& tc);
   void addLoadArgs(TranslationContext& tc, int num_args);
-  void addInitializeCells(TranslationContext& tc);
   void allocateLocalsplus(Environment* env, FrameState& state);
   void moveOverwrittenStackRegisters(TranslationContext& tc, Register* dst);
   bool tryEmitDirectMethodCall(

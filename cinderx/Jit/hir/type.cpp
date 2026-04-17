@@ -44,9 +44,6 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
         {TTuple, &PyTuple_Type},
         {TType, &PyType_Type},
         {TUnicode, &PyUnicode_Type},
-#if PY_VERSION_HEX < 0x030C0000
-        {TWaitHandle, &Ci_PyWaitHandle_Type},
-#endif
         {TNoneType, Py_TYPE(Py_None)},
     };
 
@@ -425,10 +422,7 @@ Type Type::fromObject(PyObject* obj) {
   if (obj == Py_None) {
     // There's only one value of type NoneType, so we don't need the result to
     // be specialized and it's always immortal.
-    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-      return TImmortalNoneType;
-    }
-    return TNoneType;
+    return TImmortalNoneType;
   }
 
   bits_t lifetime = [&]() {

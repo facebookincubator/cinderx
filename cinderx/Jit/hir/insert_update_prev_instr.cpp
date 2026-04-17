@@ -13,8 +13,6 @@ namespace jit::hir {
 
 namespace {
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 class BytecodeIndexToLine {
  public:
   explicit BytecodeIndexToLine(PyCodeObject* co) {
@@ -68,12 +66,9 @@ struct InlineStackState {
   BeginInlinedFunction* parent;
 };
 
-#endif
-
 } // namespace
 
 void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
-#if PY_VERSION_HEX >= 0x030C0000
   // We can have instructions w/ different code objects when we have
   // inlined functions so we maintain multiple BytecodeIndexToLine based upon
   // the code object
@@ -180,7 +175,6 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
       }
     }
   }
-#endif
 }
 
 } // namespace jit::hir

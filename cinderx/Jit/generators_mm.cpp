@@ -1,14 +1,13 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/python.h"
+#include "cinderx/Jit/generators_mm.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
+#include "cinderx/python.h"
 
 #include "internal/pycore_object.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/generators_mm.h"
 #include "cinderx/module_state.h"
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_interpframe.h"
@@ -145,5 +144,3 @@ void JITGenFreeThreadedFreeList::free(PyObject* ptr) {
 }
 
 } // namespace jit
-
-#endif // PY_VERSION_HEX >= 0x030C0000

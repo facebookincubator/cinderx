@@ -119,13 +119,7 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
 
 Context::Context()
     : zero_(Ref<>::steal(PyLong_FromLong(0))),
-#if PY_VERSION_HEX >= 0x030C0000
-      str_build_class_(Ref<>::create(&_Py_ID(__build_class__)))
-#else
-      str_build_class_(
-          Ref<>::steal(PyUnicode_InternFromString("__build_class__")))
-#endif
-{
+      str_build_class_(Ref<>::create(&_Py_ID(__build_class__))) {
 #if PY_VERSION_HEX >= 0x030E0000
   for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
     JIT_CHECK(Ci_common_consts[i] != nullptr, "common_consts[{}] is null", i);
@@ -374,12 +368,10 @@ void Context::watchType(
     TypeDeoptPatcher* patcher) {
   ThreadedCompileSerialize guard;
   type_deopt_patchers_[type].emplace(patcher);
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    // In 3.12 we require the interpreter state in order to watch types
-    if (getThreadedCompileContext().compileRunning()) {
-      pending_watches_.emplace(type);
-      return;
-    }
+  // We require the interpreter state in order to watch types
+  if (getThreadedCompileContext().compileRunning()) {
+    pending_watches_.emplace(type);
+    return;
   }
 
   JIT_CHECK(
@@ -510,55 +502,6 @@ const hir::Type& Context::typeForCommonConstant([[maybe_unused]] int i) const {
 #endif
   JIT_ABORT("Common constants are a feature of 3.14+");
 }
-
-#if PY_VERSION_HEX < 0x030C0000
-// JIT generator data free-list globals
-const size_t kGenDataFreeListMaxSize = 1024;
-static size_t gen_data_free_list_size = 0;
-static void* gen_data_free_list_tail;
-
-jit::GenDataFooter* jitgen_data_allocate(size_t spill_words) {
-  spill_words = std::max(spill_words, jit::kMinGenSpillWords);
-  if (spill_words > jit::kMinGenSpillWords || !gen_data_free_list_size) {
-    auto data =
-        malloc(spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
-    auto footer = reinterpret_cast<jit::GenDataFooter*>(
-        reinterpret_cast<uint64_t*>(data) + spill_words);
-    footer->spillWords = spill_words;
-    return footer;
-  }
-
-  // All free list entries are spill-word size 89, so we don't need to set
-  // footer->spillWords again, it should still be set to 89 from previous use.
-  JIT_DCHECK(spill_words == jit::kMinGenSpillWords, "invalid size");
-
-  gen_data_free_list_size--;
-  void* data = gen_data_free_list_tail;
-  gen_data_free_list_tail = *reinterpret_cast<void**>(gen_data_free_list_tail);
-  return reinterpret_cast<jit::GenDataFooter*>(
-      reinterpret_cast<uint64_t*>(data) + spill_words);
-}
-
-void jitgen_data_free(PyGenObject* gen) {
-  auto gen_data_footer =
-      reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
-  gen->gi_jit_data = nullptr;
-  auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
-      gen_data_footer->spillWords;
-
-  if (gen_data_footer->spillWords != jit::kMinGenSpillWords ||
-      gen_data_free_list_size == kGenDataFreeListMaxSize) {
-    free(gen_data);
-    return;
-  }
-
-  if (gen_data_free_list_size) {
-    *reinterpret_cast<void**>(gen_data) = gen_data_free_list_tail;
-  }
-  gen_data_free_list_size++;
-  gen_data_free_list_tail = gen_data;
-}
-#endif // PY_VERSION_HEX < 0x030C0000
 
 void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
   auto it = compiled_codes_.find(CompilationKey{func});

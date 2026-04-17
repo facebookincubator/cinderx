@@ -4,10 +4,6 @@
 
 #include "cinderx/python.h"
 
-#include "cinderx/Jit/frame_shadow.h"
-
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "internal/pycore_frame.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -93,5 +89,3 @@ size_t jitFrameGetSize(PyCodeObject* code);
 Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code);
 
 } // namespace jit
-
-#endif

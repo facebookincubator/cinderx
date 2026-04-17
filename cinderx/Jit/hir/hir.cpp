@@ -1277,16 +1277,6 @@ const Environment::ReferenceSet& Environment::references() const {
   return references_;
 }
 
-bool usesRuntimeFunc([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
-#if PY_VERSION_HEX < 0x030C0000
-  return numFreevars(code) > 0;
-#else
-  // In 3.12+ we always need the runtime function because we use it to
-  // initialize the _PyInterpreterFrame object.
-  return true;
-#endif
-}
-
 const char* const kFailureTypeMsgs[] = {
 #define FAILURE_TYPE_MSG(failure, msg) msg,
     FOREACH_FAILURE_TYPE(FAILURE_TYPE_MSG)

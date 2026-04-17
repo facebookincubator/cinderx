@@ -29,6 +29,7 @@ extern "C" {
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/module_state.h"
+#include "cinderx/python_runtime.h"
 
 #include <algorithm>
 #include <deque>
@@ -383,46 +384,6 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
   }
 }
 
-// Add a MakeCell for each cellvar and load each freevar from closure.
-//
-// Note: This is only necessary for 3.10.  For 3.12 we have the explicit
-// MAKE_CELL and COPY_FREE_VARS instructions.
-void HIRBuilder::addInitializeCells([[maybe_unused]] TranslationContext& tc) {
-#if PY_VERSION_HEX < 0x030C0000
-  int nlocals = tc.frame.nlocals;
-  int ncellvars = numCellvars(code_);
-  int nfreevars = numFreevars(code_);
-
-  Register* null_reg = ncellvars > 0 ? temps_.AllocateNonStack() : nullptr;
-  for (int i = 0; i < ncellvars; ++i) {
-    int arg = CO_CELL_NOT_AN_ARG;
-    Register* dst = tc.frame.localsplus[i + nlocals];
-    JIT_CHECK(dst != nullptr, "No register for cell {}", i);
-    Register* cell_contents = null_reg;
-    if (code_->co_cell2arg != nullptr &&
-        (arg = code_->co_cell2arg[i]) != CO_CELL_NOT_AN_ARG) {
-      // cell is for argument local number `arg`
-      JIT_CHECK(
-          static_cast<unsigned>(arg) < tc.frame.nlocals,
-          "co_cell2arg says cell {} is local {} but locals size is {}",
-          i,
-          arg,
-          tc.frame.nlocals);
-      cell_contents = tc.frame.localsplus[arg];
-    }
-    tc.emit<MakeCell>(dst, cell_contents, tc.frame);
-    if (arg != CO_CELL_NOT_AN_ARG) {
-      // Clear the local once we have it in a cell.
-      tc.frame.localsplus[arg] = null_reg;
-    }
-  }
-
-  if (nfreevars != 0) {
-    emitCopyFreeVars(tc, nfreevars);
-  }
-#endif
-}
-
 static bool should_snapshot(
     const BytecodeInstruction& bci,
     bool is_in_async_for_header_block) {
@@ -668,10 +629,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   addLoadArgs(entry_tc, preloader_.numArgs());
 
-  // Consider checking if the code object or preloader uses runtime func and
-  // drop the frame_state == nullptr check.  Inlined functions should load a
-  // const instead of using LoadCurrentFunc.
-  if (frame_state == nullptr && irfunc->uses_runtime_func) {
+  if (frame_state == nullptr) {
     func_ = temps_.AllocateNonStack();
     entry_tc.emit<LoadCurrentFunc>(func_);
   }
@@ -682,17 +640,8 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   emitTypeAnnotationGuards(entry_tc);
 
-  addInitializeCells(entry_tc);
-
-  // In 3.12+ "Initial Yield" has an explicit bytecode instruction in
+  // "Initial Yield" has an explicit bytecode instruction in
   // "RETURN_GENERATOR" and so is emitted at the appropriate time.
-  if (PY_VERSION_HEX < 0x030C0000 && code_->co_flags & kCoFlagsAnyGenerator) {
-    // InitialYield must be after args are loaded so they can be spilled to
-    // the suspendable state. It must also come before anything which can
-    // deopt as generator deopt assumes we're running from state stored
-    // in a generator object.
-    addInitialYield(entry_tc);
-  }
 
   BasicBlock* first_block = getBlockAtOff(BCOffset{0});
   if (entry_block != first_block) {
@@ -1016,12 +965,7 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_CLOSURE: {
-          // <3.11, the oparg was the cell index.  >=3.11 it's the same index as
-          // any other local / frame value.
           int idx = bc_instr.oparg();
-          if constexpr (PY_VERSION_HEX < 0x030B0000) {
-            idx += tc.frame.nlocals;
-          }
           tc.frame.stack.push(tc.frame.localsplus[idx]);
           break;
         }
@@ -1485,8 +1429,7 @@ void HIRBuilder::translate(
         }
         case RETURN_GENERATOR: {
           auto out = temps_.AllocateStack();
-          if constexpr (
-              PY_VERSION_HEX < 0x030C0000 || PY_VERSION_HEX >= 0x030E0000) {
+          if constexpr (PY_VERSION_HEX >= 0x030E0000) {
             advancePastYieldInstr(tc);
           }
           tc.emit<InitialYield>(out, tc.frame);
@@ -1887,20 +1830,7 @@ void HIRBuilder::emitAnyCall(
     jit::BytecodeInstructionBlock::Iterator& bc_it,
     const jit::BytecodeInstructionBlock& bc_instrs) {
   BytecodeInstruction bc_instr = *bc_it;
-  bool is_awaited;
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    is_awaited = false;
-  } else {
-    is_awaited = code_->co_flags & CO_COROUTINE &&
-        // We only need to be followed by GET_AWAITABLE to know we are awaited,
-        // but we also need to ensure the following LOAD_CONST and YIELD_FROM
-        // are inside this BytecodeInstructionBlock. This may not be the case if
-        // the 'await' is shared as in 'await (x if y else z)'.
-        bc_it.remainingIndices() >= 3 &&
-        bc_instr.nextInstr().opcode() == GET_AWAITABLE;
-  }
-  auto flags = is_awaited ? CallFlags::Awaited : CallFlags::None;
-  bool call_used_is_awaited = true;
+  auto flags = CallFlags::None;
 
   auto opcode = bc_instr.opcode();
   switch (opcode) {
@@ -1917,7 +1847,7 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     case CALL_FUNCTION_EX: {
-      emitCallEx(tc, bc_instr, flags);
+      emitCallEx(tc, bc_instr);
       break;
     }
     case CALL:
@@ -1956,50 +1886,19 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     case INVOKE_FUNCTION: {
-      call_used_is_awaited = emitInvokeFunction(tc, bc_instr, flags);
+      emitInvokeFunction(tc, bc_instr);
       break;
     }
     case INVOKE_NATIVE: {
-      call_used_is_awaited = emitInvokeNative(tc, bc_instr);
+      emitInvokeNative(tc, bc_instr);
       break;
     }
     case INVOKE_METHOD: {
-      call_used_is_awaited = emitInvokeMethod(tc, bc_instr, is_awaited);
+      emitInvokeMethod(tc, bc_instr);
       break;
     }
     default:
       JIT_ABORT("Unhandled call opcode {} ({})", opcode, opcodeName(opcode));
-  }
-  if (is_awaited && call_used_is_awaited) {
-    Register* out = temps_.AllocateStack();
-    TranslationContext await_block{cfg.AllocateBlock(), tc.frame};
-    TranslationContext post_await_block{cfg.AllocateBlock(), tc.frame};
-
-    emitDispatchEagerCoroResult(
-        cfg, tc, out, await_block.block, post_await_block.block);
-
-    tc.block = await_block.block;
-
-    ++bc_it;
-    JIT_CHECK(
-        bc_it->opcode() == GET_AWAITABLE,
-        "Awaited function call must be followed by GET_AWAITABLE");
-    emitGetAwaitable(cfg, tc, bc_instrs, *bc_it);
-
-    ++bc_it;
-    JIT_CHECK(
-        bc_it->opcode() == LOAD_CONST,
-        "GET_AWAITABLE must be followed by LOAD_CONST");
-    emitLoadConst(tc, *bc_it);
-
-    ++bc_it;
-    JIT_CHECK(
-        bc_it->opcode() == YIELD_FROM,
-        "GET_AWAITABLE should always be followed by LOAD_CONST+YIELD_FROM");
-    emitYieldFrom(cfg, tc, out);
-    tc.emit<Branch>(post_await_block.block);
-
-    tc.block = post_await_block.block;
   }
 }
 
@@ -2012,7 +1911,6 @@ void HIRBuilder::emitCallInstrinsic(
   Register* value = tc.frame.stack.pop();
   Register* res = temps_.AllocateStack();
   std::vector<Register*> args;
-#if PY_VERSION_HEX >= 0x030C0000
   if (bc_instr.opcode() == CALL_INTRINSIC_2) {
     JIT_CHECK(
         oparg <= MAX_INTRINSIC_2,
@@ -2027,7 +1925,6 @@ void HIRBuilder::emitCallInstrinsic(
         "Invalid oparg for unary intrinsic function: {}",
         oparg);
   }
-#endif
   args.push_back(value);
   tc.emit<CallIntrinsic>(num_operands, res, oparg, args);
   tc.frame.stack.push(res);
@@ -2208,13 +2105,13 @@ void HIRBuilder::emitUnaryOp(
 
 void HIRBuilder::emitCallEx(
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    CallFlags flags) {
+    const jit::BytecodeInstruction& bc_instr) {
   Register* dst = temps_.AllocateStack();
   OperandStack& stack = tc.frame.stack;
   // In 3.14+ we always have kwargs on the stack but it may be null.
   bool has_kwargs = (PY_VERSION_HEX >= 0x030E0000) || bc_instr.oparg() & 0x1;
   Register* kwargs = nullptr;
+  auto flags = CallFlags::None;
   if (has_kwargs) {
     kwargs = stack.pop();
     flags |= CallFlags::KwArgs;
@@ -2230,11 +2127,9 @@ void HIRBuilder::emitCallEx(
   if constexpr (PY_VERSION_HEX >= 0x030E0000) {
     stack.pop();
     func = stack.pop();
-  } else if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    func = stack.pop();
-    stack.pop();
   } else {
     func = stack.pop();
+    stack.pop();
   }
   tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
@@ -2412,24 +2307,21 @@ bool HIRBuilder::tryEmitStaticRandCall(
   return true;
 }
 
-bool HIRBuilder::emitInvokeFunction(
+void HIRBuilder::emitInvokeFunction(
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    CallFlags flags) {
+    const jit::BytecodeInstruction& bc_instr) {
   BorrowedRef<> arg = constArg(bc_instr);
   BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
   long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1));
 
   const InvokeTarget& target = preloader_.invokeFunctionTarget(descr);
 
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    // Hack to support a static type signature for __static__.rand(). Since we
-    // don't have typed method defs in 3.12 we special case it here, by ignoring
-    // all the metadata generated by the compiler pipeline and simply checking
-    // that we are calling the Ci_static_rand function.
-    if (isStaticRand(target) && tryEmitStaticRandCall(target, tc, nargs)) {
-      return false;
-    }
+  // Hack to support a static type signature for __static__.rand(). Since we
+  // don't have typed method defs in 3.12 we special case it here, by ignoring
+  // all the metadata generated by the compiler pipeline and simply checking
+  // that we are calling the Ci_static_rand function.
+  if (isStaticRand(target) && tryEmitStaticRandCall(target, tc, nargs)) {
+    return;
   }
 
   Register* funcreg = temps_.AllocateStack();
@@ -2457,10 +2349,10 @@ bool HIRBuilder::emitInvokeFunction(
 
       tc.frame.stack.push(out);
 
-      return false;
+      return;
     } else if (
         target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs)) {
-      return false;
+      return;
     }
     // we couldn't emit an x64 call, but we know what object we'll vectorcall,
     // so load it directly
@@ -2475,6 +2367,7 @@ bool HIRBuilder::emitInvokeFunction(
       setupStaticArgs(tc, target, nargs, false /*statically_invoked*/);
 
   Register* out = temps_.AllocateStack();
+  auto flags = CallFlags::None;
   if (target.container_is_immutable) {
     flags |= CallFlags::Static;
   }
@@ -2489,11 +2382,9 @@ bool HIRBuilder::emitInvokeFunction(
 
   fixStaticReturn(tc, out, target.return_type);
   tc.frame.stack.push(out);
-
-  return true;
 }
 
-bool HIRBuilder::emitInvokeNative(
+void HIRBuilder::emitInvokeNative(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   BorrowedRef<> arg = constArg(bc_instr);
@@ -2515,18 +2406,15 @@ bool HIRBuilder::emitInvokeNative(
   }
 
   tc.frame.stack.push(out);
-  return false;
 }
 
 void HIRBuilder::emitInvokeMethodVectorCall(
     TranslationContext& tc,
-    bool is_awaited,
     std::vector<Register*>& arg_regs,
     const InvokeTarget& target) {
   Register* out = temps_.AllocateStack();
 
-  auto vectorCall = tc.emit<VectorCall>(
-      arg_regs.size(), out, is_awaited ? CallFlags::Awaited : CallFlags::None);
+  auto vectorCall = tc.emit<VectorCall>(arg_regs.size(), out, CallFlags::None);
   for (auto i = 0; i < arg_regs.size(); i++) {
     vectorCall->SetOperand(i, arg_regs.at(i));
   }
@@ -2598,10 +2486,9 @@ void HIRBuilder::emitLoadMethodStatic(
   tc.frame.stack.push(self);
 }
 
-bool HIRBuilder::emitInvokeMethod(
+void HIRBuilder::emitInvokeMethod(
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
+    const jit::BytecodeInstruction& bc_instr) {
   BorrowedRef<> arg = constArg(bc_instr);
   BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
   long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1)) + 2; // thunk, self
@@ -2612,7 +2499,7 @@ bool HIRBuilder::emitInvokeMethod(
     auto res = tc.frame.stack.pop();
     tc.frame.stack.pop(); // pop the thunk
     tc.frame.stack.push(res);
-    return false;
+    return;
   }
 
   std::vector<Register*> arg_regs =
@@ -2631,10 +2518,8 @@ bool HIRBuilder::emitInvokeMethod(
     invoke->setFrameState(tc.frame);
     tc.frame.stack.push(out);
   } else {
-    emitInvokeMethodVectorCall(tc, is_awaited, arg_regs, target);
+    emitInvokeMethodVectorCall(tc, arg_regs, target);
   }
-
-  return true;
 }
 
 void HIRBuilder::emitIsOp(TranslationContext& tc, int oparg) {
@@ -2667,7 +2552,7 @@ void HIRBuilder::emitCompareOp(
 
   if constexpr (PY_VERSION_HEX >= 0x030E0000) {
     compare_op >>= 5;
-  } else if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+  } else {
     compare_op >>= 4;
   }
 
@@ -2795,13 +2680,11 @@ void HIRBuilder::emitLoadAttr(
   int oparg = bc_instr.oparg();
   int name_idx = loadAttrIndex(oparg);
 
-  // In 3.12 LOAD_METHOD has been merged into LOAD_ATTR, and the oparg tells you
+  // LOAD_METHOD has been merged into LOAD_ATTR, and the oparg tells you
   // which one it should be.
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    if (oparg & 1) {
-      emitLoadMethod(tc, name_idx);
-      return;
-    }
+  if (oparg & 1) {
+    emitLoadMethod(tc, name_idx);
+    return;
   }
 
   Register* receiver = tc.frame.stack.pop();
@@ -2844,16 +2727,10 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   Register* global_super = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
 
-#if PY_VERSION_HEX >= 0x030B0000
   int oparg = bc_instr.oparg();
   int name_idx = oparg >> 2;
   load_method = oparg & 1;
   bool no_args_in_super_call = !(oparg & 2);
-#else
-  PyObject* oparg = PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
-  int name_idx = PyLong_AsLong(PyTuple_GET_ITEM(oparg, 0));
-  bool no_args_in_super_call = PyTuple_GET_ITEM(oparg, 1) == Py_True;
-#endif
 
   // This is assumed to be a type object by the rest of the JIT.  Ideally it
   // would be typed by whatever pushes it onto the stack.
@@ -2926,9 +2803,7 @@ void HIRBuilder::emitCopyFreeVars(TranslationContext& tc, int nfreevars) {
     JIT_CHECK(dst != nullptr, "No register for free var {}", i);
     tc.emit<LoadTupleItem>(dst, func_closure, i);
   }
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    tc.emit<InitFrameCellVars>(func_, nfreevars);
-  }
+  tc.emit<InitFrameCellVars>(func_, nfreevars);
 }
 
 void HIRBuilder::emitSwap(TranslationContext& tc, int item_idx) {
@@ -2943,12 +2818,7 @@ void HIRBuilder::emitSwap(TranslationContext& tc, int item_idx) {
 void HIRBuilder::emitLoadDeref(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  // <3.11, the oparg was the cell index.  >=3.11 it's the same index as any
-  // other local / frame value.
   int idx = bc_instr.oparg();
-  if constexpr (PY_VERSION_HEX < 0x030B0000) {
-    idx += tc.frame.nlocals;
-  }
 
   Register* src = tc.frame.localsplus[idx];
   Register* dst = temps_.AllocateStack();
@@ -2956,15 +2826,11 @@ void HIRBuilder::emitLoadDeref(
   tc.emit<LoadCellItem>(dst, src);
 
   BorrowedRef<> name = getVarname(code_, idx);
-#if PY_VERSION_HEX < 0x030C0000
-  tc.emit<CheckVar>(dst, dst, name, tc.frame);
-#else
   if (idx < PyCode_GetFirstFree(code_)) {
     tc.emit<CheckVar>(dst, dst, name, tc.frame);
   } else {
     tc.emit<CheckFreevar>(dst, dst, name, tc.frame);
   }
-#endif
 
   tc.frame.stack.push(dst);
 }
@@ -2972,12 +2838,7 @@ void HIRBuilder::emitLoadDeref(
 void HIRBuilder::emitStoreDeref(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  // <3.11, the oparg was the cell index.  >=3.11 it's the same index as any
-  // other local / frame value.
   int idx = bc_instr.oparg();
-  if constexpr (PY_VERSION_HEX < 0x030B0000) {
-    idx += tc.frame.nlocals;
-  }
 
   Register* old = temps_.AllocateStack();
   Register* dst = tc.frame.localsplus[idx];
@@ -3028,8 +2889,7 @@ void HIRBuilder::emitLoadFast(
     const jit::BytecodeInstruction& bc_instr) {
   int var_idx = bc_instr.oparg();
   Register* var = tc.frame.localsplus[var_idx];
-  // Pre-3.12, LOAD_FAST behaves like LOAD_FAST_CHECK.
-  if (bc_instr.opcode() == LOAD_FAST_CHECK || PY_VERSION_HEX < 0x030C0000) {
+  if (bc_instr.opcode() == LOAD_FAST_CHECK) {
     tc.emit<CheckVar>(var, var, getVarname(code_, var_idx), tc.frame);
   }
   tc.frame.stack.push(var);
@@ -3569,7 +3429,7 @@ void HIRBuilder::emitLoadGlobal(
   int name_idx = loadGlobalIndex(bc_instr.oparg());
   Register* result = temps_.AllocateStack();
 
-  if constexpr (PY_VERSION_HEX >= 0x030B0000 && PY_VERSION_HEX < 0x030E0000) {
+  if constexpr (PY_VERSION_HEX < 0x030E0000) {
     if (bc_instr.oparg() & 1) {
       emitPushNull(tc);
     }
@@ -3610,15 +3470,10 @@ void HIRBuilder::emitMakeFunction(
   int oparg = bc_instr.oparg();
   Register* func = temps_.AllocateStack();
 
-  // In 3.10 the function's qualname is on the stack.  In 3.11+ it's computed
-  // from the code object, so we use a sentinel Nullptr value here.
-  Register* qualname = nullptr;
-  if constexpr (PY_VERSION_HEX < 0x030B0000) {
-    qualname = tc.frame.stack.pop();
-  } else {
-    qualname = temps_.AllocateNonStack();
-    tc.emit<LoadConst>(qualname, TNullptr);
-  }
+  // The function's qualname is computed from the code object, so we use a
+  // sentinel Nullptr value here.
+  Register* qualname = temps_.AllocateNonStack();
+  tc.emit<LoadConst>(qualname, TNullptr);
 
   Register* codeobj = tc.frame.stack.pop();
 
@@ -4012,7 +3867,6 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
   BasicBlock* nop_block = cfg.AllocateBlock();
   BasicBlock* is_coro_block = in_coro ? nop_block : cfg.AllocateBlock();
 
-#if PY_VERSION_HEX >= 0x030C0000
   BasicBlock* check_coro_block = cfg.AllocateBlock();
   tc.emit<CondBranchCheckType>(
       iter_in,
@@ -4021,7 +3875,6 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
       check_coro_block);
 
   tc.block = check_coro_block;
-#endif
   tc.emit<CondBranchCheckType>(
       iter_in, Type::fromTypeExact(&PyCoro_Type), is_coro_block, next_block);
 
@@ -4245,13 +4098,8 @@ void HIRBuilder::emitGetANext(TranslationContext& tc) {
 
 Register* HIRBuilder::emitSetupWithCommon(
     TranslationContext& tc,
-#if PY_VERSION_HEX < 0x030C0000
-    _Py_Identifier* enter_id,
-    _Py_Identifier* exit_id,
-#else
     PyObject* enter_id,
     PyObject* exit_id,
-#endif
     bool is_async) {
   // Load the enter and exit attributes from the manager, push exit, and return
   // the result of calling enter().
@@ -4290,12 +4138,6 @@ Register* HIRBuilder::emitSetupWithCommon(
 void HIRBuilder::emitBeforeWith(
     TranslationContext& tc,
     [[maybe_unused]] const jit::BytecodeInstruction& bc_instr) {
-#if PY_VERSION_HEX < 0x030C0000
-  _Py_IDENTIFIER(__aenter__);
-  _Py_IDENTIFIER(__aexit__);
-  tc.frame.stack.push(
-      emitSetupWithCommon(tc, &PyId___aenter__, &PyId___aexit__, true));
-#else
   if (bc_instr.opcode() == BEFORE_ASYNC_WITH) {
     tc.frame.stack.push(
         emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__), true));
@@ -4303,7 +4145,6 @@ void HIRBuilder::emitBeforeWith(
     tc.frame.stack.push(
         emitSetupWithCommon(tc, &_Py_ID(__enter__), &_Py_ID(__exit__), false));
   }
-#endif
 }
 
 void HIRBuilder::emitSetupAsyncWith(
@@ -4318,15 +4159,8 @@ void HIRBuilder::emitSetupAsyncWith(
 void HIRBuilder::emitSetupWith(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-#if PY_VERSION_HEX < 0x030C0000
-  _Py_IDENTIFIER(__enter__);
-  _Py_IDENTIFIER(__exit__);
-  Register* enter_result =
-      emitSetupWithCommon(tc, &PyId___enter__, &PyId___exit__, false);
-#else
   Register* enter_result =
       emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__), true);
-#endif
   emitSetupFinally(tc, bc_instr);
   tc.frame.stack.push(enter_result);
 }
@@ -4518,10 +4352,7 @@ void HIRBuilder::emitYieldValue(
     in = out;
     out = temps_.AllocateStack();
   }
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    advancePastYieldInstr(tc);
-    tc.emit<YieldValue>(out, in, tc.frame);
-  } else if constexpr (PY_VERSION_HEX < 0x030E0000) {
+  if constexpr (PY_VERSION_HEX < 0x030E0000) {
     auto next_bc =
         BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstr();
 
@@ -4547,29 +4378,6 @@ void HIRBuilder::emitYieldValue(
   stack.push(out);
 }
 
-static std::pair<bool, bool> checkAsyncWithError(
-    const BytecodeInstructionBlock& bc_instrs,
-    BytecodeInstruction bc_instr) {
-  bool error_aenter = false;
-  bool error_aexit = false;
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    BCIndex idx = bc_instr.baseIndex();
-    int prev_prev_op = idx > 1 ? bc_instrs.at(idx - 2).opcode() : 0;
-    int prev_op = idx != 0 ? bc_instrs.at(idx - 1).opcode() : 0;
-    if (prev_op == BEFORE_ASYNC_WITH) {
-      error_aenter = true;
-    } else if (
-        prev_op == WITH_EXCEPT_START ||
-        (prev_op == CALL_FUNCTION && prev_prev_op == DUP_TOP)) {
-      error_aexit = true;
-    }
-  } else {
-    error_aenter = bc_instr.oparg() == 1;
-    error_aexit = bc_instr.oparg() == 2;
-  }
-  return std::make_pair(error_aenter, error_aexit);
-}
-
 void HIRBuilder::emitGetAwaitable(
     CFG& cfg,
     TranslationContext& tc,
@@ -4583,14 +4391,11 @@ void HIRBuilder::emitGetAwaitable(
   tc.emit<CallCFunc>(
       1,
       iter,
-#if PY_VERSION_HEX >= 0x030C0000
       CallCFunc::Func::kJitCoro_GetAwaitableIter,
-#else
-      CallCFunc::Func::kCix_PyCoro_GetAwaitableIter,
-#endif
       std::vector<Register*>{iterable});
 
-  auto [error_aenter, error_aexit] = checkAsyncWithError(bc_instrs, bc_instr);
+  bool error_aenter = bc_instr.oparg() == 1;
+  bool error_aexit = bc_instr.oparg() == 2;
   if (error_aenter || error_aexit) {
     BasicBlock* error_block = cfg.AllocateBlock();
     BasicBlock* ok_block = cfg.AllocateBlock();
@@ -4612,7 +4417,6 @@ void HIRBuilder::emitGetAwaitable(
   // if it has a sub-iterator using *Gen_yf().
   BasicBlock* block_assert_not_awaited_coro = cfg.AllocateBlock();
   BasicBlock* block_done = cfg.AllocateBlock();
-#if PY_VERSION_HEX >= 0x030C0000
   BasicBlock* block_check_coro = cfg.AllocateBlock();
   tc.emit<CondBranchCheckType>(
       iter,
@@ -4620,7 +4424,6 @@ void HIRBuilder::emitGetAwaitable(
       block_assert_not_awaited_coro,
       block_check_coro);
   tc.block = block_check_coro;
-#endif
   tc.emit<CondBranchCheckType>(
       iter,
       Type::fromTypeExact(&PyCoro_Type),
@@ -4629,14 +4432,7 @@ void HIRBuilder::emitGetAwaitable(
   Register* yf = temps_.AllocateStack();
   tc.block = block_assert_not_awaited_coro;
   tc.emit<CallCFunc>(
-      1,
-      yf,
-#if PY_VERSION_HEX >= 0x030C0000
-      CallCFunc::Func::kJitGen_yf,
-#else
-      CallCFunc::Func::kCix_PyGen_yf,
-#endif
-      std::vector<Register*>{iter});
+      1, yf, CallCFunc::Func::kJitGen_yf, std::vector<Register*>{iter});
   BasicBlock* block_coro_already_awaited = cfg.AllocateBlock();
   tc.emit<CondBranch>(yf, block_coro_already_awaited, block_done);
   tc.block = block_coro_already_awaited;
@@ -4822,11 +4618,6 @@ void HIRBuilder::emitMatchClass(
 
   Register* tuple_or_none = temps_.AllocateStack();
   stack.push(tuple_or_none);
-  Register* if_success = nullptr;
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    if_success = temps_.AllocateStack();
-    stack.push(if_success);
-  }
 
   auto true_block = cfg.AllocateBlock();
   auto false_block = cfg.AllocateBlock();
@@ -4835,21 +4626,13 @@ void HIRBuilder::emitMatchClass(
   tc.emit<CondBranch>(attrs_tuple, true_block, false_block);
   tc.block = true_block;
   tc.emit<RefineType>(tuple_or_none, TTupleExact, attrs_tuple);
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    tc.emit<LoadConst>(if_success, Type::fromObject(Py_True));
-  }
   tc.emit<Branch>(done);
 
   tc.block = false_block;
   tc.emit<CheckErrOccurred>(tc.frame);
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    tc.emit<LoadConst>(if_success, Type::fromObject(Py_False));
-    tc.emit<Assign>(tuple_or_none, subject);
-  } else {
-    Register* none = temps_.AllocateNonStack();
-    tc.emit<LoadConst>(none, Type::fromObject(Py_None));
-    tc.emit<Assign>(tuple_or_none, none);
-  }
+  Register* none = temps_.AllocateNonStack();
+  tc.emit<LoadConst>(none, Type::fromObject(Py_None));
+  tc.emit<Assign>(tuple_or_none, none);
   tc.emit<Branch>(done);
 
   tc.block = done;
@@ -4875,26 +4658,13 @@ void HIRBuilder::emitMatchKeys(CFG& cfg, TranslationContext& tc) {
   auto done = cfg.AllocateBlock();
 
   tc.emit<CondBranch>(is_none, true_block, false_block);
-  Register* if_success = nullptr;
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    if_success = temps_.AllocateStack();
-  }
   tc.block = true_block;
   tc.emit<RefineType>(values_or_none, TNoneType, values_or_none);
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    tc.emit<LoadConst>(if_success, Type::fromObject(Py_False));
-  }
   tc.emit<Branch>(done);
 
   tc.block = false_block;
   tc.emit<RefineType>(values_or_none, TTupleExact, values_or_none);
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    tc.emit<LoadConst>(if_success, Type::fromObject(Py_True));
-  }
   tc.emit<Branch>(done);
-  if constexpr (PY_VERSION_HEX < 0x030C0000) {
-    stack.push(if_success);
-  }
   tc.block = done;
 }
 
@@ -5190,17 +4960,15 @@ void HIRBuilder::checkTranslate() {
           opcode,
           opcodeName(opcode))};
     } else if (opcode == LOAD_GLOBAL) {
-      if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-        if ((oparg & 0x01) && name_at(oparg >> 1) == "super") {
-          // LOAD_GLOBAL NULL + super, super isn't being used with a
-          // LOAD_SUPER_ATTR.
-          throw std::runtime_error{fmt::format(
-              "Cannot compile {} to HIR because it uses super() without an "
-              "attribute or method after it",
-              preloader_.fullname())};
-        }
-        oparg = oparg >> 1;
+      if ((oparg & 0x01) && name_at(oparg >> 1) == "super") {
+        // LOAD_GLOBAL NULL + super, super isn't being used with a
+        // LOAD_SUPER_ATTR.
+        throw std::runtime_error{fmt::format(
+            "Cannot compile {} to HIR because it uses super() without an "
+            "attribute or method after it",
+            preloader_.fullname())};
       }
+      oparg = oparg >> 1;
       if (banned_name_ids.contains(oparg)) {
         throw std::runtime_error{fmt::format(
             "Cannot compile {} to HIR because it uses banned global '{}'",

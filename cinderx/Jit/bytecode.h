@@ -147,18 +147,6 @@ class BytecodeInstructionBlock {
       return !(*this == other);
     }
 
-    // Count the number of remaining bytecode indices in the block.
-    //
-    // This isn't useful in 3.11+ as instructions are variable length.  So this
-    // doesn't tell you anything meaningful. Fortunately, we don't need it
-    // beyond 3.10.
-    Py_ssize_t remainingIndices() const {
-      if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-        JIT_ABORT("remainingIndices() not supported in 3.11+");
-      }
-      return end_idx_ - bci_.opcodeIndex() - 1;
-    }
-
    private:
     BytecodeInstruction bci_;
     BCIndex end_idx_;

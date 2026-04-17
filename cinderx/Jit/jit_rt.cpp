@@ -29,12 +29,7 @@
 #include "internal/pycore_unicodeobject.h"
 #endif
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "internal/pycore_shadow_frame.h"
-#else
 #include "internal/pycore_typeobject.h"
-#endif
 
 #ifdef Py_GIL_DISABLED
 #include "internal/pycore_gc.h"
@@ -226,9 +221,6 @@ PyObject* JITRT_CallWithKeywordArgs(
           kwdict,
           varargs)) {
     size_t new_nargsf = total_args;
-#if PY_VERSION_HEX < 0x030C0000
-    new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
-#endif
     return JITRT_GET_REENTRY(func->vectorcall)(
         (PyObject*)func, arg_space.get(), new_nargsf, nullptr);
   }
@@ -284,9 +276,6 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
   }
 
   size_t new_nargsf = argcount;
-#if PY_VERSION_HEX < 0x030C0000
-  new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
-#endif
 
   return reinterpret_cast<staticvectorcallfuncfp>(
       JITRT_GET_REENTRY(func->vectorcall))(
@@ -334,9 +323,6 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
   }
 
   size_t new_nargsf = argcount;
-#if PY_VERSION_HEX < 0x030C0000
-  new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
-#endif
 
   return reinterpret_cast<staticvectorcallfunc>(
       JITRT_GET_REENTRY(func->vectorcall))(
@@ -420,11 +406,7 @@ fail:
 }
 
 static inline Py_ssize_t vectorcall_flags(size_t n) {
-#if PY_VERSION_HEX < 0x030C0000
-  return n & (Ci_Py_VECTORCALL_ARGUMENT_MASK | PY_VECTORCALL_ARGUMENTS_OFFSET);
-#else
   return n & PY_VECTORCALL_ARGUMENTS_OFFSET;
-#endif
 }
 
 // This can either be a static method returning a primitive or a Python object,
@@ -559,42 +541,6 @@ PyObject* JITRT_ReportStaticArgTypecheckErrors(
   Py_ssize_t flags = vectorcall_flags(nargsf);
   return interpVectorcall(func, args, nargs | flags, new_kwnames);
 }
-
-#if PY_VERSION_HEX < 0x030C0000
-static PyFrameObject* allocateFrame(
-    PyThreadState* tstate,
-    PyCodeObject* code,
-    PyObject* builtins,
-    PyObject* globals) {
-  if (code->co_mutable->co_zombieframe != nullptr) {
-    __builtin_prefetch(code->co_mutable->co_zombieframe);
-  }
-  PyFrameConstructor frame_ctor = {};
-  frame_ctor.fc_globals = globals;
-  frame_ctor.fc_builtins = builtins;
-  frame_ctor.fc_code = reinterpret_cast<PyObject*>(code);
-  return _PyFrame_New_NoTrack(tstate, &frame_ctor, nullptr);
-}
-
-PyThreadState* JITRT_AllocateAndLinkFrame(
-    PyCodeObject* code,
-    PyObject* builtins,
-    PyObject* globals) {
-  PyThreadState* tstate = PyThreadState_GET();
-  JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
-
-  PyFrameObject* frame = allocateFrame(tstate, code, builtins, globals);
-  if (frame == nullptr) {
-    return nullptr;
-  }
-
-  frame->f_state = FRAME_EXECUTING;
-
-  tstate->frame = frame;
-
-  return tstate;
-}
-#else // PY_VERSION_HEX >= 0x030C0000
 
 /*
  * The reference for these two functions is _PyEvalFramePushAndInit in ceval.c.
@@ -796,8 +742,6 @@ JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
   return {gen, gen->genDataFooter()};
 }
 
-#endif
-
 void JITRT_DecrefFrame(PyFrameObject* frame) {
   if (Py_REFCNT(frame) > 1) {
     // If the frame escaped it needs to be tracked
@@ -810,29 +754,8 @@ void JITRT_DecrefFrame(PyFrameObject* frame) {
   }
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-void JITRT_UnlinkPyFrame(PyThreadState* tstate) {
-  PyFrameObject* f = tstate->frame;
-
-  f->f_state = FRAME_RETURNED;
-
-  tstate->frame = f->f_back;
-  JITRT_DecrefFrame(f);
-}
-#endif
-
 void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
   PyThreadState* tstate = PyThreadState_GET();
-#if PY_VERSION_HEX < 0x030C0000
-  _PyShadowFrame* frame = tstate->shadow_frame;
-
-  if (unlink_shadow_frame) {
-    tstate->shadow_frame = frame->prev;
-  }
-  if (_PyShadowFrame_GetPtrKind(frame) == PYSF_PYFRAME) {
-    JITRT_UnlinkPyFrame(tstate);
-  }
-#else
   /*
    * The reference for this is _PyEvalFrameClearAndPop in ceval.c.
    */
@@ -857,11 +780,9 @@ void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
   }
 
   // JIT frames are stack allocated so there's nothing to pop.
-#endif
 }
 
 void JITRT_UnlinkLightweightFrameFast() {
-#if PY_VERSION_HEX >= 0x030C0000
   PyThreadState* tstate = PyThreadState_GET();
   _PyInterpreterFrame* frame = currentFrame(tstate);
   setCurrentFrame(tstate, frame->previous);
@@ -904,10 +825,6 @@ void JITRT_UnlinkLightweightFrameFast() {
   }
 
   Py_DECREF(frameExecutable(frame));
-#endif
-#else
-  // PY_VERSION_HEX < 0x030C0000
-  JITRT_UnlinkFrame(false /* unlink_shadow_frame */);
 #endif
 }
 
@@ -952,8 +869,6 @@ PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr) {
   return res;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 static bool is_eval_breaker_set(PyThreadState* tstate) {
   auto value =
 #if PY_VERSION_HEX >= 0x030D0000
@@ -978,11 +893,8 @@ static bool handle_periodic_activities_on_call(
       is_eval_breaker_set(tstate) && _Py_HandlePending(tstate) != 0;
 }
 
-#endif
-
-template <bool is_awaited>
-static inline PyObject*
-call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
+PyObject*
+JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   // Normalize p + kw args to tuple and dict types exactly.
   Ref<> new_pargs;
   // Logically, I don't think this incref of kwargs is needed but not having it
@@ -1038,16 +950,8 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   }
   JIT_DCHECK(PyTuple_CheckExact(pargs), "Expected pargs to be a tuple");
 
-#if PY_VERSION_HEX < 0x030C0000
-  if (_PyVectorcall_Function(func) != nullptr) {
-    return Ci_PyVectorcall_Call_WithFlags(
-        func, pargs, kwargs, is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
-  }
-#endif
-
   PyThreadState* tstate = _PyThreadState_GET();
   PyObject* res = _PyObject_Call(tstate, func, pargs, kwargs);
-#if PY_VERSION_HEX >= 0x030C0000
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
@@ -1055,18 +959,7 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
     Py_DECREF(res);
     return nullptr;
   }
-#endif
   return res;
-}
-
-PyObject*
-JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs) {
-  return call_function_ex<false>(func, pargs, kwargs);
-}
-
-PyObject*
-JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs) {
-  return call_function_ex<true>(func, pargs, kwargs);
 }
 
 PyObject* JITRT_Call(
@@ -1101,7 +994,6 @@ PyObject* JITRT_Call(
   PyThreadState* tstate = _PyThreadState_GET();
   PyObject* res =
       _PyObject_VectorcallTstate(tstate, callable, args, nargsf, kwnames);
-#if PY_VERSION_HEX >= 0x030C0000
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
@@ -1109,7 +1001,6 @@ PyObject* JITRT_Call(
     Py_DECREF(res);
     return nullptr;
   }
-#endif
   return res;
 }
 
@@ -1121,7 +1012,6 @@ PyObject* JITRT_Vectorcall(
   PyThreadState* tstate = _PyThreadState_GET();
   PyObject* res =
       _PyObject_VectorcallTstate(tstate, callable, args, nargsf, kwnames);
-#if PY_VERSION_HEX >= 0x030C0000
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
@@ -1129,7 +1019,6 @@ PyObject* JITRT_Vectorcall(
     Py_DECREF(res);
     return nullptr;
   }
-#endif
   return res;
 }
 
@@ -1188,11 +1077,7 @@ static inline PyObject* super_lookup_method_or_attr(
   if (Py_TYPE(self)->tp_getattro != PyObject_GenericGetAttr) {
     meth_found = nullptr;
   }
-#if PY_VERSION_HEX < 0x030C0000
-  return Ci_Super_Lookup(type, self, name, NULL, meth_found);
-#else
   return _PySuper_Lookup(type, self, name, meth_found);
-#endif
 }
 
 LoadMethodResult JITRT_GetMethodFromSuper(
@@ -1538,113 +1423,9 @@ PyObject* JITRT_ImportName(
       import_func, name, globals, locals, fromlist, level, nullptr);
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-enum class MakeGenObjectMode {
-  kAsyncGenerator,
-  kCoroutine,
-  kGenerator,
-};
-
-template <MakeGenObjectMode mode>
-static inline PyObject* make_gen_object(
-    GenResumeFunc resume_entry,
-    PyThreadState* tstate,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code) {
-  PyGenObject* gen = nullptr;
-  if (jit::getConfig().frame_mode == jit::FrameMode::kShadow) {
-    if (mode == MakeGenObjectMode::kCoroutine) {
-      gen = reinterpret_cast<PyGenObject*>(CiCoro_New_NoFrame(tstate, code));
-    } else if (mode == MakeGenObjectMode::kAsyncGenerator) {
-      gen = reinterpret_cast<PyGenObject*>(CiAsyncGen_New_NoFrame(code));
-    } else {
-      gen = reinterpret_cast<PyGenObject*>(CiGen_New_NoFrame(code));
-    }
-  } else {
-    PyFrameObject* f = allocateFrame(
-        tstate,
-        code,
-        code_rt->frameState()->builtins(),
-        code_rt->frameState()->globals());
-    // This clearing of f_back only when returning a generator matches
-    // CPython's generator handling in _PyEval_EvalCodeWithName; it also avoids
-    // keeping the parent frame alive longer than necessary if the caller
-    // finishes before the genereator is resumed.
-    Py_CLEAR(f->f_back);
-    if (mode == MakeGenObjectMode::kCoroutine) {
-      gen = reinterpret_cast<PyGenObject*>(
-          PyCoro_New(f, code->co_name, code->co_qualname));
-    } else if (mode == MakeGenObjectMode::kAsyncGenerator) {
-      gen = reinterpret_cast<PyGenObject*>(
-          PyAsyncGen_New(f, code->co_name, code->co_qualname));
-    } else {
-      gen = reinterpret_cast<PyGenObject*>(
-          PyGen_NewWithQualName(f, code->co_name, code->co_qualname));
-    }
-  }
-  if (gen == nullptr) {
-    return nullptr;
-  }
-
-  gen->gi_shadow_frame.data = gen->gi_frame == nullptr
-      ? _PyShadowFrame_MakeData(code_rt, PYSF_CODE_RT, PYSF_JIT)
-      : _PyShadowFrame_MakeData(gen->gi_frame, PYSF_PYFRAME, PYSF_JIT);
-
-  jit::GenDataFooter* footer = jit::jitgen_data_allocate(spill_words);
-  footer->resumeEntry = resume_entry;
-  footer->yieldPoint = nullptr;
-  footer->state = Ci_JITGenState_JustStarted;
-#if PY_VERSION_HEX < 0x030C0000
-  footer->finishYieldFrom = 0;
-#endif
-  footer->gen = gen;
-  footer->code_rt = code_rt;
-
-  gen->gi_jit_data = reinterpret_cast<Ci_JITGenData*>(footer);
-
-  return reinterpret_cast<PyObject*>(gen);
-}
-
-PyObject* JITRT_MakeGenObject(
-    PyThreadState* tstate,
-    GenResumeFunc resume_entry,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code) {
-  return make_gen_object<MakeGenObjectMode::kGenerator>(
-      resume_entry, tstate, spill_words, code_rt, code);
-}
-
-PyObject* JITRT_MakeGenObjectAsyncGen(
-    PyThreadState* tstate,
-    GenResumeFunc resume_entry,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code) {
-  return make_gen_object<MakeGenObjectMode::kAsyncGenerator>(
-      resume_entry, tstate, spill_words, code_rt, code);
-}
-
-PyObject* JITRT_MakeGenObjectCoro(
-    PyThreadState* tstate,
-    GenResumeFunc resume_entry,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code) {
-  return make_gen_object<MakeGenObjectMode::kCoroutine>(
-      resume_entry, tstate, spill_words, code_rt, code);
-}
-#endif
-
 void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 #ifdef ENABLE_GENERATOR_AWAITER
 
-#if PY_VERSION_HEX < 0x030C0000
-  _PyShadowFrame* sf = ts->shadow_frame;
-  // This may need to change when we support eager evaluation of coroutines.
-  auto awaiter = reinterpret_cast<PyObject*>(_PyShadowFrame_GetGen(sf));
-#else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(ts);
   // Matches SEND/SEND_GEN's check in bytecodes.c
   if (frame->owner != FRAME_OWNED_BY_GENERATOR ||
@@ -1653,7 +1434,6 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
   }
   auto awaiter =
       reinterpret_cast<PyObject*>(_PyGen_GetGeneratorFromFrame(frame));
-#endif
 
   Ci_PyAwaitable_SetAwaiter(awaitable, awaiter);
 #endif // ENABLE_GENERATOR_AWAITER
@@ -1662,12 +1442,8 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 JITRT_GenSendRes JITRT_GenSend(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from
-#if PY_VERSION_HEX >= 0x030C0000
-    ,
-    _PyInterpreterFrame* frame
-#endif
-) {
+    uint64_t finish_yield_from,
+    _PyInterpreterFrame* frame) {
   if (v == nullptr) {
     return {nullptr, 1};
   }
@@ -1677,7 +1453,7 @@ JITRT_GenSendRes JITRT_GenSend(
   }
   PyObject* retval;
 
-#if PY_VERSION_HEX >= 0x030C0000 && defined(ENABLE_GENERATOR_AWAITER)
+#ifdef ENABLE_GENERATOR_AWAITER
   if (_PyFrame_GetCode(frame)->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
     BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
     Ci_PyAwaitable_SetAwaiter(gen, base_gen);
@@ -1702,21 +1478,9 @@ JITRT_GenSendRes JITRT_GenSend(
 JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from
-#if PY_VERSION_HEX >= 0x030C0000
-    ,
-    _PyInterpreterFrame* frame
-#endif
-) {
-  JITRT_GenSendRes res = JITRT_GenSend(
-      gen,
-      v,
-      finish_yield_from
-#if PY_VERSION_HEX >= 0x030C0000
-      ,
-      frame
-#endif
-  );
+    uint64_t finish_yield_from,
+    _PyInterpreterFrame* frame) {
+  JITRT_GenSendRes res = JITRT_GenSend(gen, v, finish_yield_from, frame);
   if ((res.retval == nullptr) && (res.done == 1) &&
       PyErr_ExceptionMatches(PyExc_StopAsyncIteration)) {
     PyErr_Clear();
@@ -2196,25 +1960,16 @@ void JITRT_FormatAwaitableError(
 
 void JITRT_IncRefTotal() {
 #ifdef Py_REF_DEBUG
-#if PY_VERSION_HEX < 0x030C0000
-  _Py_RefTotal++;
-#else
   _Py_INCREF_IncRefTotal();
-#endif
 #endif
 }
 
 void JITRT_DecRefTotal() {
 #ifdef Py_REF_DEBUG
-#if PY_VERSION_HEX < 0x030C0000
-  _Py_RefTotal--;
-#else
   _Py_DECREF_DecRefTotal();
-#endif
 #endif
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* JITRT_LookupAttrSpecial(
     PyObject* obj,
     PyObject* attr,
@@ -2229,7 +1984,6 @@ PyObject* JITRT_LookupAttrSpecial(
   }
   return res;
 }
-#endif
 
 LoadMethodResult JITRT_LoadSpecial(
     [[maybe_unused]] PyObject* self,
@@ -2290,10 +2044,8 @@ PyObject JITRT_IterDoneSentinel = {
 #endif
 // clang-format on
 
-#elif PY_VERSION_HEX >= 0x030C0000
-    {.ob_refcnt = _Py_IMMORTAL_REFCNT},
 #else
-        _Py_IMMORTAL_REFCNT,
+    {.ob_refcnt = _Py_IMMORTAL_REFCNT},
 #endif
     nullptr};
 

@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/frame.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "internal/pycore_frame.h"
 
 #include "cinderx/Common/code.h"
@@ -667,5 +665,3 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
 }
 
 } // namespace jit
-
-#endif

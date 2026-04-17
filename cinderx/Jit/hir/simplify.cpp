@@ -854,51 +854,48 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   // Mixed float/int binary ops where the int is NOT a known constant: guard
   // that the int is compact (fits in a single 30-bit digit, thus losslessly
   // convertible to double), unbox both to CDouble, and emit DoubleBinaryOp.
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    if ((op == BinaryOpKind::kAdd || op == BinaryOpKind::kSubtract ||
-         op == BinaryOpKind::kMultiply || op == BinaryOpKind::kTrueDivide ||
-         op == BinaryOpKind::kPower)) {
-      Register* float_reg = nullptr;
-      Register* int_reg = nullptr;
-      bool int_on_right = false;
+  if ((op == BinaryOpKind::kAdd || op == BinaryOpKind::kSubtract ||
+       op == BinaryOpKind::kMultiply || op == BinaryOpKind::kTrueDivide ||
+       op == BinaryOpKind::kPower)) {
+    Register* float_reg = nullptr;
+    Register* int_reg = nullptr;
+    bool int_on_right = false;
 
-      if (lhs->isA(TFloatExact) && rhs->isA(TLongExact) &&
-          !rhs->type().hasObjectSpec()) {
-        float_reg = lhs;
-        int_reg = rhs;
-        int_on_right = true;
-      } else if (
-          lhs->isA(TLongExact) && rhs->isA(TFloatExact) &&
-          !lhs->type().hasObjectSpec()) {
-        float_reg = rhs;
-        int_reg = lhs;
-        int_on_right = false;
-      }
+    if (lhs->isA(TFloatExact) && rhs->isA(TLongExact) &&
+        !rhs->type().hasObjectSpec()) {
+      float_reg = lhs;
+      int_reg = rhs;
+      int_on_right = true;
+    } else if (
+        lhs->isA(TLongExact) && rhs->isA(TFloatExact) &&
+        !lhs->type().hasObjectSpec()) {
+      float_reg = rhs;
+      int_reg = lhs;
+      int_on_right = false;
+    }
 
-      if (float_reg != nullptr) {
-        env.emit<UseType>(float_reg, TFloatExact);
-        env.emit<UseType>(int_reg, TLongExact);
-        // Guard that the long is compact (at most one digit, fits in double).
-        Register* is_compact = env.emit<IsCompactLong>(int_reg);
-        env.emitInstr<Guard>(is_compact);
-        // Unbox the compact long to CInt64 and convert to CDouble.
-        Register* unbox_int = env.emit<CompactLongUnbox>(int_reg);
-        Register* int_as_double = env.emit<IntConvert>(unbox_int, TCDouble);
-        // Unbox the float to CDouble.
-        Register* unbox_float = env.emit<PrimitiveUnbox>(float_reg, TCDouble);
-        Register* unbox_left = int_on_right ? unbox_float : int_as_double;
-        Register* unbox_right = int_on_right ? int_as_double : unbox_float;
-        // Need to guard against division by zero.
-        if (op == BinaryOpKind::kTrueDivide) {
-          Register* zero = env.emit<LoadConst>(Type::fromCDouble(0.0));
-          Register* is_nonzero = env.emit<PrimitiveCompare>(
-              PrimitiveCompareOp::kNotEqual, unbox_right, zero);
-          env.emitInstr<Guard>(is_nonzero);
-        }
-        Register* result =
-            env.emit<DoubleBinaryOp>(op, unbox_left, unbox_right);
-        return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
+    if (float_reg != nullptr) {
+      env.emit<UseType>(float_reg, TFloatExact);
+      env.emit<UseType>(int_reg, TLongExact);
+      // Guard that the long is compact (at most one digit, fits in double).
+      Register* is_compact = env.emit<IsCompactLong>(int_reg);
+      env.emitInstr<Guard>(is_compact);
+      // Unbox the compact long to CInt64 and convert to CDouble.
+      Register* unbox_int = env.emit<CompactLongUnbox>(int_reg);
+      Register* int_as_double = env.emit<IntConvert>(unbox_int, TCDouble);
+      // Unbox the float to CDouble.
+      Register* unbox_float = env.emit<PrimitiveUnbox>(float_reg, TCDouble);
+      Register* unbox_left = int_on_right ? unbox_float : int_as_double;
+      Register* unbox_right = int_on_right ? int_as_double : unbox_float;
+      // Need to guard against division by zero.
+      if (op == BinaryOpKind::kTrueDivide) {
+        Register* zero = env.emit<LoadConst>(Type::fromCDouble(0.0));
+        Register* is_nonzero = env.emit<PrimitiveCompare>(
+            PrimitiveCompareOp::kNotEqual, unbox_right, zero);
+        env.emitInstr<Guard>(is_nonzero);
       }
+      Register* result = env.emit<DoubleBinaryOp>(op, unbox_left, unbox_right);
+      return env.emit<PrimitiveBox>(result, TCDouble, *instr->frameState());
     }
   }
 
@@ -1269,17 +1266,9 @@ Register* simplifyLoadAttrSplitDict(
     const LoadAttr* load_attr,
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> name) {
-
-#if PY_VERSION_HEX >= 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
     return nullptr;
   }
-#else
-  if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE) ||
-      type->tp_dictoffset < 0) {
-    return nullptr;
-  }
-#endif
   BorrowedRef<PyHeapTypeObject> ht(type);
   if (ht->ht_cached_keys == nullptr) {
     return nullptr;
@@ -1297,14 +1286,9 @@ Register* simplifyLoadAttrSplitDict(
   patchpoint->setDescr("SplitDictDeoptPatcher");
   env.emit<UseType>(receiver, receiver->type());
 
-#if PY_VERSION_HEX >= 0x030C0000
   // PyDictOrValues is stored at -3 per _PyObject_DictOrValuesPointer
   Register* obj_dict = env.emit<LoadField>(
       receiver, "__dict__", -3 * sizeof(PyObject*), TOptDict);
-#else
-  Register* obj_dict =
-      env.emit<LoadField>(receiver, "__dict__", type->tp_dictoffset, TOptDict);
-#endif
   // We pass the attribute's name to this CheckField (not "__dict__") because
   // ultimately it means that the attribute we're trying to load is missing,
   // and the AttributeError to be raised should contain the attribute's name.
@@ -1312,7 +1296,6 @@ Register* simplifyLoadAttrSplitDict(
       env.emit<CheckField>(obj_dict, name, *load_attr->frameState());
   static_cast<CheckField*>(checked_dict->instr())->setGuiltyReg(receiver);
 
-#if PY_VERSION_HEX >= 0x030C0000
   Register* one = env.emit<LoadConst>(Type::fromCUInt(1, TCUInt64));
   Register* dict_ptr = env.emit<BitCast>(checked_dict, TCUInt64);
   Register* is_values =
@@ -1324,17 +1307,6 @@ Register* simplifyLoadAttrSplitDict(
   Register* values_obj = env.emit<BitCast>(values, TOptObject);
   Register* attr = env.emit<LoadField>(
       values_obj, "attr", attr_idx * sizeof(PyObject*), TOptObject);
-#else
-  Register* dict_keys = env.emit<LoadField>(
-      checked_dict, "ma_keys", offsetof(PyDictObject, ma_keys), TCPtr);
-  Register* expected_keys = env.emit<LoadConst>(Type::fromCPtr(keys));
-  Register* equal = env.emit<PrimitiveCompare>(
-      PrimitiveCompareOp::kEqual, dict_keys, expected_keys);
-  auto guard = env.emitInstr<Guard>(equal);
-  guard->setGuiltyReg(receiver);
-  guard->setDescr("ht_cached_keys comparison");
-  Register* attr = env.emit<LoadSplitDictItem>(checked_dict, attr_idx);
-#endif
 
   Register* checked_attr =
       env.emit<CheckField>(attr, name, *load_attr->frameState());
@@ -1763,10 +1735,6 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
 // Translate VectorCall to CallStatic whenever possible, saving stack
 // manipulation costs (pushing args to stack).
 static Register* trySpecializeCCall(Env& env, const VectorCall* instr) {
-  if (instr->flags() & CallFlags::Awaited) {
-    // We can't pass the awaited flag outside of vectorcall.
-    return nullptr;
-  }
   Register* callable = instr->func();
   Type callable_type = callable->type();
   PyObject* callable_obj = callable_type.asObject();

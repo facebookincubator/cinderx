@@ -167,32 +167,19 @@ bool SplitMutator::canInsertToSplitDict(
   if (dict->ma_keys != keys) {
     return false;
   }
-#if PY_VERSION_HEX >= 0x030C0000
   // In 3.12 we can insert in any order, we just need to update the insertion
   // order
   return (
       val_offset != -1 || (val_offset = getDictKeysIndex(keys, name)) != -1);
-#else
-  return (
-      (dict->ma_used == val_offset) ||
-      (DICT_VALUES(dict.get())[val_offset] != nullptr));
-#endif
 }
 
 bool SplitMutator::ensureValueOffset(BorrowedRef<> name) {
-#if PY_VERSION_HEX >= 0x030C0000
   if (val_offset == -1) {
     val_offset = getDictKeysIndex(keys, name);
     if (val_offset == -1) {
       return false;
     }
   }
-#else
-  JIT_DCHECK(
-      val_offset != -1,
-      "Value offset not set for {} on split dict instance",
-      repr(name));
-#endif
   return true;
 }
 
@@ -340,7 +327,6 @@ int SplitMutator::setAttrKnownOffset(
 #else
 
 int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-#if PY_VERSION_HEX >= 0x030C0000
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
     // Values are stored in a values array not attached to a dictionary.
@@ -370,9 +356,6 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     }
     Py_DECREF(dict);
   }
-#else
-  BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
-#endif
 
   if (dict == nullptr) {
     return -1;
@@ -380,12 +363,10 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 
   if (canInsertToSplitDict(dict, name)) {
     PyObject* old_value = DICT_VALUES(dict.get())[val_offset];
-#if PY_VERSION_HEX >= 0x030C0000
     if (old_value == nullptr) {
       // Track insertion order on 3.12.
       _PyDictValues_AddToInsertionOrder(dict->ma_values, val_offset);
     }
-#endif
     if (!_PyObject_GC_IS_TRACKED(dict.getObj())) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
         PyObject_GC_Track(dict.getObj());
@@ -412,7 +393,6 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
-#if PY_VERSION_HEX >= 0x030C0000
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
     if (!ensureValueOffset(name)) {
@@ -429,9 +409,6 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
 
   PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
-#else
-  PyDictObject* dict = get_dict(obj, dict_offset);
-#endif
   if (dict == nullptr) {
     return raise_attribute_error(obj, name);
   }
@@ -520,11 +497,6 @@ int DescrOrClassVarMutator::setAttr(
   if (st < 0 && PyErr_ExceptionMatches(PyExc_KeyError)) {
     PyErr_SetObject(PyExc_AttributeError, name);
   }
-#if PY_VERSION_HEX < 0x030C0000
-  if (PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES)) {
-    _PyType_ClearNoShadowingInstances(type, descr);
-  }
-#endif
   return st;
 }
 
@@ -547,18 +519,14 @@ PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
 
   // Check instance dict.
   if (dict != nullptr) {
-#if PY_VERSION_HEX >= 0x030C0000
     if (keys_version == 0 ||
         reinterpret_cast<PyDictObject*>(dict.get())->ma_keys->dk_version !=
             keys_version) {
-#endif
       auto res = Ref<>::create(PyDict_GetItem(dict, name));
       if (res != nullptr) {
         return res.release();
       }
-#if PY_VERSION_HEX >= 0x030C0000
     }
-#endif
   }
 
   if (getter != nullptr) {
@@ -618,19 +586,8 @@ void AttributeMutator::set_split(
     [[maybe_unused]] PyDictKeysObject* keys,
     bool inline_values) {
   set_type(type, inline_values ? Kind::kSplitInline : Kind::kSplit);
-#if PY_VERSION_HEX >= 0x030C0000
   split_.val_offset = val_offset;
   split_.keys = keys;
-#else
-  JIT_CHECK(
-      type->tp_dictoffset <= std::numeric_limits<uint32_t>::max(),
-      "Dict offset does not fit into a 32-bit int");
-  split_.dict_offset = static_cast<uint32_t>(type->tp_dictoffset);
-  JIT_CHECK(
-      val_offset <= std::numeric_limits<int32_t>::max(),
-      "Val offset does not fit into a 32-bit int");
-  split_.val_offset = static_cast<int32_t>(val_offset);
-#endif
 }
 
 inline int
@@ -746,13 +703,11 @@ void AttributeCache::fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name) {
 }
 
 bool canCacheType(PyTypeObject* type) {
-#if PY_VERSION_HEX >= 0x030C0000
   if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
     // We can cache values for types which have managed dictionaries on 3.12 or
     // later.
     return true;
   }
-#endif
 
   // We only support the common case for objects - fixed-size instances
   // (tp_dictoffset >= 0) of heap types (Py_TPFLAGS_HEAPTYPE).
@@ -764,12 +719,6 @@ bool canCacheAttribute(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
     uint32_t& keys_version) {
-#if PY_VERSION_HEX < 0x030C0000
-  if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
-      (type->tp_dictoffset != 0)) {
-    return false;
-  }
-#else
   if (type->tp_dictoffset == 0) {
     return true;
   }
@@ -791,7 +740,6 @@ bool canCacheAttribute(
     return false;
   }
   keys_version = keys->dk_version;
-#endif
   return true;
 }
 
@@ -831,9 +779,7 @@ void AttributeCache::fill(
     } else {
       // Non-data descriptor or class var
       uint32_t keys_version = 0;
-#if PY_VERSION_HEX >= 0x030C0000
       canCacheAttribute(type, name, keys_version);
-#endif
       mut->set_descr_or_classvar(type, descr, keys_version);
     }
     ac_watcher.watch(type, this);
@@ -847,7 +793,6 @@ void AttributeCache::fill(
   // Instance attribute with no shadowing. Specialize the lookup based on
   // whether or not the type is using split dictionaries.
   PyDictKeysObject* keys = getSplitKeys(type);
-#if PY_VERSION_HEX >= 0x030C0000
   if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
     JIT_DCHECK(keys != nullptr, "Managed dict should have a split dict");
     bool inline_values = false;
@@ -855,11 +800,6 @@ void AttributeCache::fill(
     inline_values = type->tp_flags & Py_TPFLAGS_INLINE_VALUES;
 #endif
     mut->set_split(type, getDictKeysIndex(keys, name), keys, inline_values);
-#else
-  Py_ssize_t val_offset;
-  if (keys != nullptr && (val_offset = getDictKeysIndex(keys, name)) != -1) {
-    mut->set_split(type, val_offset, keys, false);
-#endif
   } else {
     mut->set_combined(type);
   }
@@ -996,15 +936,13 @@ PyObject* LoadTypeAttrCache::invokeSlowPath(
     meta_attribute.reset();
 
     bool is_cachable = local_get == nullptr;
-    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-      if (PyFunction_Check(attribute)) {
-        // Loading a function from a type returns the type
-        is_cachable = true;
-      } else if (Py_TYPE(attribute) == &PyStaticMethod_Type) {
-        // static method returns the underlying object
-        attribute = Ref<>::create(Ci_PyStaticMethod_GetFunc(attribute));
-        is_cachable = true;
-      }
+    if (PyFunction_Check(attribute)) {
+      // Loading a function from a type returns the type
+      is_cachable = true;
+    } else if (Py_TYPE(attribute) == &PyStaticMethod_Type) {
+      // static method returns the underlying object
+      attribute = Ref<>::create(Ci_PyStaticMethod_GetFunc(attribute));
+      is_cachable = true;
     }
     if (!is_cachable) {
       // nullptr 2nd argument indicates the descriptor was found on the target
@@ -1088,7 +1026,6 @@ LoadMethodResult LoadMethodCache::lookupHelper(
   return cache->lookup(obj, name);
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 // Checks to see if the cached keys version allows a lookup w/o looking in
 // the dictionary. This could be either that we have a match of the keys version
 // or that we have a non-heap type w/ no dictionary.
@@ -1155,7 +1092,6 @@ bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
 
   return dict->ma_keys->dk_version == keys_version;
 }
-#endif
 
 LoadMethodResult LoadMethodCache::lookup(
     BorrowedRef<> obj,
@@ -1164,11 +1100,9 @@ LoadMethodResult LoadMethodCache::lookup(
 
   for (auto& entry : entries_) {
     if (entry.type == tp) {
-#if PY_VERSION_HEX >= 0x030C0000
       if (!isValidKeysVersion(entry.keys_version, obj)) {
         continue;
       }
-#endif
 
       PyObject* result = entry.value;
       Py_INCREF(result);
@@ -1310,9 +1244,7 @@ void LoadMethodCache::fill(
       lm_watcher.watch(type, this);
       entry.type = type;
       entry.value = value;
-#if PY_VERSION_HEX >= 0x030C0000
       entry.keys_version = keys_version;
-#endif
       return;
     }
   }

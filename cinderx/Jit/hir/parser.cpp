@@ -195,9 +195,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       while (peekNextToken() != ">") {
         expect(",");
         std::string_view tok = GetNextToken();
-        if (tok == "awaited") {
-          flags |= CallFlags::Awaited;
-        } else if (tok == "kwnames") {
+        if (tok == "kwnames") {
           flags |= CallFlags::KwArgs;
         } else if (tok == "static") {
           flags |= CallFlags::Static;
@@ -253,9 +251,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
         expect("<");
         while (peekNextToken() != ">") {
           auto tok = GetNextToken();
-          if (tok == "awaited") {
-            flags |= CallFlags::Awaited;
-          } else if (tok == "kwargs") {
+          if (tok == "kwargs") {
             flags |= CallFlags::KwArgs;
           }
           if (peekNextToken() == ",") {
@@ -376,11 +372,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       expect("<");
       int num_args = GetNextInteger();
       auto flags = CallFlags::None;
-      if (peekNextToken() == ",") {
-        expect(",");
-        expect("awaited");
-        flags |= CallFlags::Awaited;
-      }
       expect(">");
       std::vector<Register*> args(num_args);
       std::generate(

@@ -26,13 +26,7 @@ class Instr;
 struct CodeObjLoc {
   explicit CodeObjLoc(BorrowedRef<PyFrameObject> frame)
       : code{Ref<PyCodeObject>::steal(PyFrame_GetCode(frame))} {
-    instr_offset = BCIndex{
-#if PY_VERSION_HEX < 0x030B0000
-        frame->f_lasti
-#else
-        PyFrame_GetLasti(frame)
-#endif
-    };
+    instr_offset = BCIndex{PyFrame_GetLasti(frame)};
   }
 
   CodeObjLoc(BorrowedRef<PyCodeObject> code, BCOffset instr_offset)

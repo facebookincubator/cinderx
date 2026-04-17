@@ -2,16 +2,8 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 
-#include "internal/pycore_pystate.h"
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "internal/pycore_shadow_frame.h"
-#endif
-
-#if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_ceval.h"
-#endif
+#include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
@@ -94,10 +86,9 @@ namespace {
 void raiseUnboundLocalError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
 
-  const char* msg = PY_VERSION_HEX >= 0x030C0000
-      ? "cannot access local variable '%.200s' where it is not associated with "
-        "a value"
-      : "local variable '%.200s' referenced before assignment";
+  const char* msg =
+      "cannot access local variable '%.200s' where it is not associated with "
+      "a value";
 
   _PyEval_FormatExcCheckArg(
       _PyThreadState_GET(), PyExc_UnboundLocalError, msg, name);
@@ -106,11 +97,9 @@ void raiseUnboundLocalError(BorrowedRef<> name) {
 void raiseUnboundFreevarError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
 
-  const char* msg = PY_VERSION_HEX >= 0x030C0000
-      ? "cannot access free variable '%.200s' where it is not associated with a"
-        " value in enclosing scope"
-      : "free variable '%.200s' referenced before assignment in enclosing "
-        "scope";
+  const char* msg =
+      "cannot access free variable '%.200s' where it is not associated with a"
+      " value in enclosing scope";
 
   _PyEval_FormatExcCheckArg(_PyThreadState_GET(), PyExc_NameError, msg, name);
 }
@@ -122,8 +111,6 @@ void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
       Py_TYPE(receiver)->tp_name,
       name);
 }
-
-#if PY_VERSION_HEX >= 0x030C0000
 
 // Helper to recursively reify the lightweight frames. We need to reify the
 // outermost lightweight frame first and work inwards to have the frames
@@ -156,8 +143,6 @@ _PyInterpreterFrame* reifyLightweightFrames(
   return cur_frame;
 }
 
-#endif
-
 CiPyFrameObjType* prepareForDeopt(
     const uint64_t* regs,
     CodeRuntime* code_runtime,
@@ -165,23 +150,6 @@ CiPyFrameObjType* prepareForDeopt(
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
-#if PY_VERSION_HEX < 0x030C0000
-  Ref<PyFrameObject> f = materializePyFrameForDeopt(tstate);
-
-  PyFrameObject* frame = f.release();
-  PyFrameObject* frame_iter = frame;
-  _PyShadowFrame* sf_iter = tstate->shadow_frame;
-  // Iterate one past the inline depth because that is the caller frame.
-  for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
-    // Transfer ownership of shadow frame to the interpreter. The associated
-    // Python frame will be ignored during future attempts to materialize the
-    // stack.
-    _PyShadowFrame_SetOwner(sf_iter, PYSF_INTERP);
-    reifyFrame(frame_iter, deopt_meta, deopt_meta.frame_meta.at(i), regs);
-    frame_iter = frame_iter->f_back;
-    sf_iter = sf_iter->prev;
-  }
-#else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
 
   if (getConfig().frame_mode == FrameMode::kLightweight) {
@@ -204,21 +172,18 @@ CiPyFrameObjType* prepareForDeopt(
     frame_iter = frame_iter->previous;
   }
 
-#endif
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
   Ref<> deopt_obj = profileDeopt(deopt_meta, mem);
   auto ctx = getContext();
   ctx->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
-#if PY_VERSION_HEX >= 0x030C0000
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
     BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
     JitGenObject* gen = JitGenObject::cast(base_gen.get());
     JIT_CHECK(gen != nullptr, "Not a JIT generator");
     deopt_jit_gen_object_only(gen);
   }
-#endif
   if (!PyErr_Occurred()) {
     auto reason = deopt_meta.reason;
     switch (reason) {
@@ -247,68 +212,6 @@ CiPyFrameObjType* prepareForDeopt(
   }
   return frame;
 }
-
-#if PY_VERSION_HEX < 0x030C0000
-PyObject* resumeInInterpreter(
-    PyFrameObject* frame,
-    CodeRuntime* code_runtime,
-    std::size_t deopt_idx) {
-  if (frame->f_gen) {
-    auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
-    // It's safe to call jitgen_data_free directly here, rather than
-    // through _PyJIT_GenDealloc. Ownership of all references have been
-    // transferred to the frame.
-    jitgen_data_free(gen);
-  }
-  PyThreadState* tstate = PyThreadState_Get();
-  PyObject* result = nullptr;
-  // Resume all of the inlined frames and the caller
-  const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
-  int inline_depth = deopt_meta.inline_depth();
-  int err_occurred =
-      (deopt_meta.reason != DeoptReason::kGuardFailure &&
-       deopt_meta.reason != DeoptReason::kRaise);
-  while (inline_depth >= 0) {
-    // Consider skipping resuming frames that do not have try/catch. Will
-    // require re-adding _PyShadowFrame_Pop back for non-generators and
-    // unlinking the frame manually.
-
-    // We need to maintain the invariant that there is at most one shadow frame
-    // on the shadow stack for each frame on the Python stack. Unless we are a
-    // a generator, the interpreter will insert a new entry on the shadow stack
-    // when execution resumes there, so we remove our entry.
-    if (!frame->f_gen) {
-      _PyShadowFrame_Pop(tstate, tstate->shadow_frame);
-    }
-    // Resume one frame.
-    PyFrameObject* prev_frame = frame->f_back;
-    // Delegate management of `tstate->frame` to the interpreter loop. On
-    // entry, it expects that tstate->frame points to the frame for the calling
-    // function.
-    JIT_CHECK(tstate->frame == frame, "unexpected frame at top of stack");
-    tstate->frame = prev_frame;
-    result = PyEval_EvalFrameEx(frame, err_occurred);
-    JITRT_DecrefFrame(frame);
-    frame = prev_frame;
-
-    err_occurred = result == nullptr;
-    // Push the previous frame's result onto the value stack. We can't push
-    // after resuming because f_stacktop is nullptr during execution of a frame.
-    if (!err_occurred) {
-      if (inline_depth > 0) {
-        // The caller is at inline depth 0, so we only attempt to push the
-        // result onto the stack in the deeper (> 0) frames. Otherwise, we
-        // should just return the value from the native code in the way our
-        // native calling convention requires.
-        frame->f_valuestack[frame->f_stackdepth++] = result;
-      }
-    }
-    inline_depth--;
-  }
-  return result;
-}
-
-#else
 
 PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
@@ -404,8 +307,6 @@ PyObject* resumeInInterpreter(
   }
   return result;
 }
-
-#endif
 
 void* finalizeCode(arch::Builder& builder, std::string_view name) {
   if (auto err = builder.finalize(); err != kErrorOk) {
@@ -1572,14 +1473,10 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
 }
 
 Py_ssize_t NativeGenerator::giJITDataOffset() {
-#if PY_VERSION_HEX < 0x030C0000
-  return static_cast<Py_ssize_t>(offsetof(PyGenObject, gi_jit_data));
-#else
   Py_ssize_t python_frame_slots =
       _PyFrame_NumSlotsForCodeObject(GetFunction()->code);
   return _PyObject_VAR_SIZE(
       cinderx::getModuleState()->gen_type, python_frame_slots);
-#endif
 }
 
 void NativeGenerator::generateStaticEntryPoint(
@@ -2141,15 +2038,11 @@ int NativeGenerator::calcInlineStackSize(const hir::Function* func) {
         continue;
       }
       auto bif = dynamic_cast<const BeginInlinedFunction*>(&instr);
-#if PY_VERSION_HEX >= 0x030C0000
       int depth = frameHeaderSize(bif->code());
       for (auto frame = bif->callerFrameState(); frame != nullptr;
            frame = frame->parent) {
         depth += frameHeaderSize(frame->code);
       }
-#else
-      int depth = bif->inlineDepth() * kJITShadowFrameSize;
-#endif
       result = std::max(depth, result);
     }
   }

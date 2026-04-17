@@ -8,8 +8,6 @@
 extern "C" {
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 typedef struct {
   PyObject_HEAD
   PyObject* wrapped;
@@ -26,8 +24,6 @@ PyObject* Ci_anextawaitable_send(anextawaitableobject* obj, PyObject* arg);
 PyObject* Ci_anextawaitable_throw(anextawaitableobject* obj, PyObject* arg);
 
 PyObject* Ci_anextawaitable_close(anextawaitableobject* obj, PyObject* arg);
-
-#endif
 
 #ifdef __cplusplus
 } // extern "C"

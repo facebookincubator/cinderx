@@ -71,7 +71,6 @@ int BytecodeInstruction::uninstrumentedOpcode() const {
 }
 
 int BytecodeInstruction::specializedOpcode() const {
-#if PY_VERSION_HEX >= 0x030C0000
   int opcode = uninstrumentedOpcode();
 
   switch (opcode) {
@@ -97,9 +96,6 @@ int BytecodeInstruction::specializedOpcode() const {
     default:
       return unspecialize(opcode);
   }
-#else
-  return opcode();
-#endif
 }
 
 int BytecodeInstruction::oparg() const {
@@ -176,7 +172,7 @@ BCOffset BytecodeInstruction::getJumpTarget() const {
   // We make this tweak here so it applies both when generating the branching
   // HIR operation, and when creating block boundaries for bytecode. The END_FOR
   // will end up on its own in an unreachable block.
-  if (PY_VERSION_HEX >= 0x030B0000 && opcode() == FOR_ITER) {
+  if (opcode() == FOR_ITER) {
     BytecodeInstruction target_bc{code_, target};
     JIT_CHECK(target_bc.opcode() == END_FOR, "Expected END_FOR");
     return target_bc.nextInstrOffset();
@@ -190,13 +186,9 @@ BCOffset BytecodeInstruction::nextInstrOffset() const {
 }
 
 _Py_CODEUNIT BytecodeInstruction::word() const {
-#if PY_VERSION_HEX >= 0x030C0000
   int opcode = unspecialize(uninstrumentedOpcode());
   int oparg = _Py_OPARG(codeUnit(code_)[opcodeIndex().value()]);
   return _Py_MAKE_CODEUNIT(opcode, oparg);
-#else
-  return codeUnit(code_)[opcodeIndex().value()];
-#endif
 }
 
 bool BytecodeInstruction::isAbsoluteControlFlow() const {
@@ -212,8 +204,7 @@ bool BytecodeInstruction::isAbsoluteControlFlow() const {
     case POP_JUMP_IF_ZERO:
     case POP_JUMP_IF_FALSE:
     case POP_JUMP_IF_TRUE:
-      // These instructions switched from absolute to relative in 3.11.
-      return PY_VERSION_HEX < 0x030B0000;
+      return false;
     default:
       return false;
   }

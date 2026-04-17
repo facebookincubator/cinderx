@@ -2,13 +2,10 @@
 
 #include "cinderx/Jit/generators_core.h"
 
-#include "cinderx/module_state.h"
-
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "internal/pycore_frame.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/module_state.h"
 
 namespace jit {
 
@@ -106,5 +103,3 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
   return nullptr;
 }
 }
-
-#endif

@@ -811,8 +811,7 @@ enum class CallFlags : uint32_t {
   None = 0,
 
   KwArgs = 1 << 0,
-  Awaited = 1 << 1,
-  Static = 1 << 2,
+  Static = 1 << 1,
 };
 
 constexpr uint32_t raw(CallFlags flags) {
@@ -917,18 +916,10 @@ class INSTR_CLASS(
 // set of functions so we can (one day) safely (de)serialize HIR fully.
 class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
  public:
-#if PY_VERSION_HEX >= 0x030C0000
 #define CallCFunc_FUNCS(X)         \
   X(Cix_PyAsyncGenValueWrapperNew) \
   X(JitCoro_GetAwaitableIter)      \
   X(JitGen_yf)
-#else
-// List of allowed functions
-#define CallCFunc_FUNCS(X)         \
-  X(Cix_PyAsyncGenValueWrapperNew) \
-  X(Cix_PyCoro_GetAwaitableIter)   \
-  X(Cix_PyGen_yf)
-#endif
 
   enum class Func {
 #define ENUM_FUNC(name, ...) k##name,
@@ -2358,11 +2349,8 @@ class INSTR_CLASS(
     HasOutput,
     Operands<1>,
     DeoptBase) {
-#if PY_VERSION_HEX >= 0x030C0000
   using IDType = PyObject;
-#else
-  using IDType = _Py_Identifier;
-#endif
+
  public:
   LoadAttrSpecial(
       Register* dst,
@@ -4065,10 +4053,6 @@ struct TypedArgument {
   Type jit_type;
   unsigned long thread_safe_flags;
 };
-
-// Does the given code object need access to its containing PyFunctionObject at
-// runtime?
-bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code);
 
 #define FOREACH_FAILURE_TYPE(V)                                            \
   V(HasDefaults, "it has defaults")                                        \

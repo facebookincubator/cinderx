@@ -17,8 +17,6 @@ struct MethodInvoke {
   CallMethod* call_method{nullptr};
 };
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 BorrowedRef<> immutableMultithreadedTypeLookup(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name) {
@@ -53,8 +51,6 @@ BorrowedRef<> immutableMultithreadedTypeLookup(
   return nullptr;
 }
 
-#endif
-
 // Gets a directly invokable method object from a JIT Type. This only succeeds
 // if we know the type can be directly invoked.
 BorrowedRef<> getMethodObjectFromType(Type receiver_type, BorrowedRef<> name) {
@@ -66,30 +62,6 @@ BorrowedRef<> getMethodObjectFromType(Type receiver_type, BorrowedRef<> name) {
   // loading and invoking methods off an instance (e.g. {}.fromkeys(...)) is
   // resolved and called differently than from the type (e.g.
   // dict.fromkeys(...)). The code below handles the instance case only.
-#if PY_VERSION_HEX < 0x030C0000
-
-  if (!(receiver_type <= TArray || receiver_type <= TBool ||
-        receiver_type <= TBytesExact || receiver_type <= TCode ||
-        receiver_type <= TDictExact || receiver_type <= TFloatExact ||
-        receiver_type <= TListExact || receiver_type <= TLongExact ||
-        receiver_type <= TNoneType || receiver_type <= TSetExact ||
-        receiver_type <= TTupleExact || receiver_type <= TUnicodeExact)) {
-    return nullptr;
-  }
-  PyTypeObject* type = receiver_type.runtimePyType();
-  if (type == nullptr) {
-    // This might happen for a variety of reasons, such as encountering a
-    // method load on a maybe-defined value where the definition occurs in a
-    // block of code that isn't seen by the compiler (e.g. in an except
-    // block).
-    JIT_DCHECK(
-        receiver_type == TBottom,
-        "Type {} expected to have PyTypeObject*",
-        receiver_type);
-    return nullptr;
-  }
-  return _PyType_Lookup(type, name);
-#else
   if (!receiver_type.hasTypeExactSpec()) {
     return nullptr;
   }
@@ -130,7 +102,6 @@ BorrowedRef<> getMethodObjectFromType(Type receiver_type, BorrowedRef<> name) {
     }
   }
   return method_obj;
-#endif
 }
 
 // Returns true if LoadMethod/CallMethod/GetSecondOutput were removed.

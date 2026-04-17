@@ -7,6 +7,8 @@
 #include <link.h>
 #endif
 
+#include <fmt/format.h>
+
 #include <istream>
 #include <sstream>
 

@@ -4,12 +4,10 @@
 
 #include "cinderx/python.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
-#include <utility>
-#endif
-
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/typed-args-info.h"
+
+#include <utility>
 
 namespace jit {
 class CodeRuntime;
@@ -29,20 +27,6 @@ struct JITRT_StaticCallFPReturn {
   double xmm0;
   double xmm1;
 };
-
-#if PY_VERSION_HEX < 0x030C0000
-/*
- * Allocate a new PyFrameObject and link it into the current thread's
- * call stack.
- *
- * Returns the thread state that the freshly allocated frame was linked to
- * (accessible via ->frame) on success or NULL on error.
- */
-PyThreadState* JITRT_AllocateAndLinkFrame(
-    PyCodeObject* code,
-    PyObject* builtins,
-    PyObject* globals);
-#else
 
 PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
     PyFunctionObject* func,
@@ -65,8 +49,6 @@ void JITRT_InitFrameCellVars(
 
 std::pair<jit::JitGenObject*, jit::GenDataFooter*>
 JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
-
-#endif
 
 /*
  * Helper function to decref a frame.
@@ -171,12 +153,6 @@ PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate);
  */
 PyObject*
 JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs);
-
-/*
- * As JITRT_CallFunctionEx but eagerly starts coroutines.
- */
-PyObject*
-JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs);
 
 /*
  * Perform a function or method call.
@@ -377,34 +353,6 @@ PyObject* JITRT_BuildString(
     size_t nargsf,
     void* /*unused*/);
 
-#if PY_VERSION_HEX < 0x030C0000
-/*
- * Create generator instance for use during InitialYield in a JIT generator.
- * There is a variant for each of the different types of generator: iterators,
- * coroutines, and async generators.
- */
-PyObject* JITRT_MakeGenObject(
-    PyThreadState* tstate,
-    GenResumeFunc resume_entry,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code);
-
-PyObject* JITRT_MakeGenObjectAsyncGen(
-    PyThreadState* tstate,
-    GenResumeFunc resume_entry,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code);
-
-PyObject* JITRT_MakeGenObjectCoro(
-    PyThreadState* tstate,
-    GenResumeFunc resume_entry,
-    size_t spill_words,
-    jit::CodeRuntime* code_rt,
-    PyCodeObject* code);
-#endif
-
 // Set the awaiter of the given awaitable to be the coroutine at the top of
 // `ts`.
 void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts);
@@ -422,12 +370,8 @@ struct JITRT_GenSendRes {
 JITRT_GenSendRes JITRT_GenSend(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from
-#if PY_VERSION_HEX >= 0x030C0000
-    ,
-    _PyInterpreterFrame* frame
-#endif
-);
+    uint64_t finish_yield_from,
+    _PyInterpreterFrame* frame);
 
 // Used for the `YIELD_FROM` that appears in the bytecode of the header for
 // an `async for` loop.
@@ -439,12 +383,8 @@ JITRT_GenSendRes JITRT_GenSend(
 JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from
-#if PY_VERSION_HEX >= 0x030C0000
-    ,
-    _PyInterpreterFrame* frame
-#endif
-);
+    uint64_t finish_yield_from,
+    _PyInterpreterFrame* frame);
 
 /* Unpack a sequence as in unpack_iterable(), and save the
  * results in a tuple.
@@ -557,12 +497,10 @@ void JITRT_FormatAwaitableError(
 void JITRT_IncRefTotal();
 void JITRT_DecRefTotal();
 
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* JITRT_LookupAttrSpecial(
     PyObject* obj,
     PyObject* attr,
     const char* failure_fmt_str);
-#endif
 
 LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
 

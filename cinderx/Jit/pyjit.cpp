@@ -2,13 +2,6 @@
 
 #include "cinderx/Jit/pyjit.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "cinder/genobject_jit.h"
-#include "internal/pycore_ceval.h"
-#include "internal/pycore_shadow_frame.h"
-#endif
-
 #include "internal/pycore_pystate.h"
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_interp_structs.h"
@@ -494,14 +487,10 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-shadow-frame",
       "PYTHONJITSHADOWFRAME",
-      [](int val) {
+      [](int /*val*/) {
         // Cinder's shadow frames are not supported in Python versions later
         // than 3.10.
-        if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-          return;
-        }
-        getMutableConfig().frame_mode =
-            val ? FrameMode::kShadow : FrameMode::kNormal;
+        return;
       },
       "enable shadow frame mode");
 
@@ -509,12 +498,6 @@ FlagProcessor initFlagProcessor() {
       "jit-lightweight-frame",
       "PYTHONJITLIGHTWEIGHTFRAME",
       [](int val) {
-        if constexpr (PY_VERSION_HEX < 0x030C0000) {
-          JIT_DLOG(
-              "Lightweight frames are not supported in Python versions earlier "
-              "than 3.12");
-          return;
-        }
         getMutableConfig().frame_mode =
             val ? FrameMode::kLightweight : FrameMode::kNormal;
       },
@@ -737,13 +720,11 @@ FlagProcessor initFlagProcessor() {
       getMutableConfig().specialized_opcodes,
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
-#if PY_VERSION_HEX >= 0x030C0000
   flag_processor.addOption(
       "jit-support-instrumentation",
       "PYTHONJITSUPPORTINSTRUMENTATION",
       getMutableConfig().support_instrumentation,
       "Support instrumentation (e.g. monitoring/tracing/profiling)");
-#endif
 
   flag_processor.setFlags(PySys_GetXOptions());
 
@@ -757,8 +738,7 @@ FlagProcessor initFlagProcessor() {
   // Inlining is only compatible w/ lightweight frames because we need our
   // reifier to cooperate with restoring the frame object into something usable
   // when CPython wants it.
-  if (PY_VERSION_HEX >= 0x030C0000 &&
-      getConfig().frame_mode != FrameMode::kLightweight) {
+  if (getConfig().frame_mode != FrameMode::kLightweight) {
     getMutableConfig().hir_opts.inliner = false;
   }
 
@@ -1404,8 +1384,6 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
   Py_RETURN_NONE;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 // Check if there are any active callback registered through
 // sys.monitoring.register_callback()
 bool hasRegisteredMonitoringCallbacks() {
@@ -1561,8 +1539,6 @@ PyObject* patched_sys_settrace(
 
   return result;
 }
-
-#endif // PY_VERSION_HEX >= 0x030C0000
 
 int compile_after_n_calls_impl(uint32_t calls) {
   if (Ci_InitFrameEvalFunc() < 0) {
@@ -2573,34 +2549,9 @@ PyObject* disable_specialized_opcodes(PyObject* /* self */, PyObject*) {
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
 int deopt_gen_impl(PyGenObject* gen) {
-#if PY_VERSION_HEX >= 0x030C0000
   // deopt_jit_gen optimistically succeeds when the generator isn't a JIT
   // generator.
   return JitGenObject::cast(gen) != nullptr && deopt_jit_gen(gen);
-#else
-  GenDataFooter* footer = genDataFooter(gen);
-  if (footer == nullptr || Ci_GenIsCompleted(gen)) {
-    return 0;
-  }
-  JIT_CHECK(!Ci_GenIsExecuting(gen), "Trying to deopt a running generator");
-  JIT_CHECK(
-      footer->yieldPoint != nullptr,
-      "Suspended JIT generator has nullptr yieldPoint");
-  const DeoptMetadata& deopt_meta =
-      footer->code_rt->getDeoptMetadata(footer->yieldPoint->deoptIdx());
-  JIT_CHECK(
-      deopt_meta.frame_meta.size() == 1,
-      "Generators with inlined calls are not supported (T109706798)");
-
-  _PyJIT_GenMaterializeFrame(gen);
-  _PyShadowFrame_SetOwner(&gen->gi_shadow_frame, PYSF_INTERP);
-  reifyGeneratorFrame(
-      gen->gi_frame, deopt_meta, deopt_meta.outermostFrame(), footer);
-  gen->gi_frame->f_state = FRAME_SUSPENDED;
-  releaseRefs(deopt_meta, footer);
-  jitgen_data_free(gen);
-  return 1;
-#endif
 }
 
 PyObject* deopt_gen(PyObject*, PyObject* op) {
@@ -2613,13 +2564,7 @@ PyObject* deopt_gen(PyObject*, PyObject* op) {
     return nullptr;
   }
   auto gen = reinterpret_cast<PyGenObject*>(op);
-  if (
-#if PY_VERSION_HEX < 0x030C0000
-      gen->gi_frame && _PyFrame_IsExecuting(gen->gi_frame)
-#else
-      gen->gi_frame_state == FRAME_EXECUTING
-#endif
-  ) {
+  if (gen->gi_frame_state == FRAME_EXECUTING) {
     PyErr_SetString(PyExc_RuntimeError, "generator is executing");
     return nullptr;
   }
@@ -2647,8 +2592,6 @@ PyObject* after_fork_child(PyObject*, PyObject*) {
 // Patch sys.monitoring.register_callback to intercept debugger/profiler
 // attachment.
 void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
-#if PY_VERSION_HEX >= 0x030C0000
-
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     JIT_DLOG("sys.monitoring not found, skipping JIT monitoring integration");
@@ -2718,15 +2661,11 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
         "sys.monitoring.free_tool_id not found, skipping free_tool_id "
         "patching");
   }
-
-#endif // PY_VERSION_HEX >= 0x030C0000
 }
 
 // Patch sys.setprofile and sys.settrace to intercept profiler/debugger
 // attachment.
 void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
-#if PY_VERSION_HEX >= 0x030C0000
-
   Ref<> sys = Ref<>::steal(PyImport_ImportModule("sys"));
   if (sys == nullptr) {
     PyErr_Clear();
@@ -2769,12 +2708,9 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
   patchSysFunc("settrace", "patched_sys_settrace", [&](BorrowedRef<> func) {
     mod_state->orig_sys_settrace = Ref<>::create(func);
   });
-
-#endif // PY_VERSION_HEX >= 0x030C0000
 }
 
 void restoreSysMonitoringRegisterCallback() {
-#if PY_VERSION_HEX >= 0x030C0000
   auto mod_state = cinderx::getModuleState();
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
@@ -2797,12 +2733,9 @@ void restoreSysMonitoringRegisterCallback() {
       PyErr_Clear();
     }
   }
-#endif // PY_VERSION_HEX >= 0x030C0000
 }
 
 void restoreSysSetProfileAndSetTrace() {
-#if PY_VERSION_HEX >= 0x030C0000
-
   auto mod_state = cinderx::getModuleState();
 
   if (BorrowedRef<> original_setprofile = mod_state->orig_sys_setprofile) {
@@ -2816,8 +2749,6 @@ void restoreSysSetProfileAndSetTrace() {
       PyErr_Clear();
     }
   }
-
-#endif // PY_VERSION_HEX >= 0x030C0000
 }
 
 PyMethodDef jit_methods[] = {
@@ -2833,7 +2764,6 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Re-enable the JIT and re-attach compiled onto previously "
          "JIT-compiled functions.")},
-#if PY_VERSION_HEX >= 0x030C0000
     {"patched_sys_monitoring_register_callback",
      _PyCFunction_CAST(patched_sys_monitoring_register_callback),
      METH_FASTCALL,
@@ -2858,7 +2788,6 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Patched version of sys.settrace that "
          "disables/enables the JIT when debuggers/profilers attach/detach.")},
-#endif
     {"auto",
      auto_jit,
      METH_NOARGS,
@@ -3386,146 +3315,6 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
 
 } // namespace
 
-#if PY_VERSION_HEX < 0x030C0000
-
-PyObject* _PyJIT_GenSend(
-    PyGenObject* gen,
-    PyObject* arg,
-    int exc,
-    PyFrameObject* f,
-    PyThreadState* tstate,
-    int finish_yield_from) {
-  GenDataFooter* gen_footer = genDataFooter(gen);
-
-  // state should be valid and the generator should not be completed
-  JIT_DCHECK(
-      gen_footer->state == Ci_JITGenState_JustStarted ||
-          gen_footer->state == Ci_JITGenState_Running,
-      "Invalid JIT generator state");
-
-  gen_footer->state = Ci_JITGenState_Running;
-
-  // JIT generators use nullptr arg to indicate an exception
-  if (exc) {
-    JIT_DCHECK(
-        arg == Py_None, "Arg should be None when injecting an exception");
-    arg = nullptr;
-  } else {
-    if (arg == nullptr) {
-      arg = Py_None;
-    }
-  }
-
-  if (f) {
-    // Setup tstate/frame as would be done in PyEval_EvalFrameEx() or
-    // prologue of a JITed function.
-    tstate->frame = f;
-    f->f_state = FRAME_EXECUTING;
-    // This compensates for the decref which occurs in JITRT_UnlinkFrame().
-    Py_INCREF(f);
-    // This satisfies code which uses f_lasti == -1 or < 0 to check if a
-    // generator is not yet started, but still provides a garbage value in case
-    // anything tries to actually use f_lasti.
-    f->f_lasti = std::numeric_limits<int>::max();
-  }
-
-  // Enter generated code.
-  JIT_DCHECK(
-      gen_footer->yieldPoint != nullptr,
-      "Attempting to resume a generator with no yield point");
-  PyObject* result =
-      gen_footer->resumeEntry((PyObject*)gen, arg, finish_yield_from, tstate);
-
-  if (!result && (gen->gi_jit_data != nullptr)) {
-    // Generator jit data (gen_footer) will be freed if the generator
-    // deopts
-    gen_footer->state = Ci_JITGenState_Completed;
-  }
-
-  return result;
-}
-
-PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen) {
-  PyThreadState* tstate = PyThreadState_Get();
-  PyFrameObject* frame = jit::materializePyFrameForGen(tstate, gen);
-  return frame;
-}
-
-int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg) {
-  GenDataFooter* gen_footer = genDataFooter(gen);
-  JIT_DCHECK(gen_footer, "Generator missing JIT data");
-  const GenYieldPoint* yield_point = gen_footer->yieldPoint;
-  if (gen_footer->state != Ci_JITGenState_Completed && yield_point) {
-    size_t deopt_idx = yield_point->deoptIdx();
-    const DeoptMetadata& deopt_meta =
-        gen_footer->code_rt->getDeoptMetadata(deopt_idx);
-    return jitCtx()->forEachOwnedRef(gen, deopt_meta, [&](PyObject* v) {
-      Py_VISIT(v);
-      return 0;
-    });
-  }
-  return 0;
-}
-
-void _PyJIT_GenDealloc(PyGenObject* gen) {
-  GenDataFooter* gen_footer = genDataFooter(gen);
-  JIT_DCHECK(gen_footer, "Generator missing JIT data");
-  const GenYieldPoint* yield_point = gen_footer->yieldPoint;
-  if (gen_footer->state != Ci_JITGenState_Completed && yield_point) {
-    size_t deopt_idx = yield_point->deoptIdx();
-    const DeoptMetadata& deopt_meta =
-        gen_footer->code_rt->getDeoptMetadata(deopt_idx);
-    jitCtx()->forEachOwnedRef(gen, deopt_meta, [](PyObject* v) {
-      Py_DECREF(v);
-      return 0;
-    });
-  }
-  jitgen_data_free(gen);
-}
-
-PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen) {
-  GenDataFooter* gen_footer = genDataFooter(gen);
-  JIT_DCHECK(gen_footer, "Generator missing JIT data");
-  const GenYieldPoint* yield_point = gen_footer->yieldPoint;
-  PyObject* yield_from = nullptr;
-  if (gen_footer->state != Ci_JITGenState_Completed && yield_point) {
-    yield_from = yieldFromValue(gen_footer, yield_point);
-    Py_XINCREF(yield_from);
-  }
-  return yield_from;
-}
-
-PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
-  if (tstate->shadow_frame == nullptr) {
-    JIT_CHECK(
-        tstate->frame == nullptr,
-        "Python frame {} without corresponding shadow frame",
-        static_cast<void*>(tstate->frame));
-    return nullptr;
-  }
-  return runtimeFrameStateFromThreadState(tstate).globals();
-}
-
-PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
-  if (tstate->shadow_frame == nullptr) {
-    JIT_CHECK(
-        tstate->frame == nullptr,
-        "Python frame {} without corresponding shadow frame",
-        static_cast<void*>(tstate->frame));
-    return tstate->interp->builtins;
-  }
-  return runtimeFrameStateFromThreadState(tstate).builtins();
-}
-
-PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
-  if (isJitInitialized()) {
-    return jit::materializeShadowCallStack(tstate);
-  }
-  return tstate->frame;
-}
-
-#endif
-
 namespace jit {
 
 int initialize() {
@@ -3596,9 +3385,7 @@ int initialize() {
     }
   }
 
-#if PY_VERSION_HEX >= 0x030C0000
   jit::init_jit_genobject_type();
-#endif
 
   // Initialize the CompiledFunction type.
   if (jit::initCompiledFunctionType() < 0) {
@@ -3973,8 +3760,7 @@ Result compilePreloaderImpl(
         preloader.fullname());
     return Result::CANNOT_SPECIALIZE;
   }
-  constexpr int forbidden_flags =
-      PY_VERSION_HEX >= 0x030C0000 ? CO_ASYNC_GENERATOR : 0;
+  constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
   if (code->co_flags & forbidden_flags) {
     JIT_DLOG(
         "Cannot JIT compile {} as it has prohibited code flags: 0x{:x}",

@@ -4,10 +4,6 @@
 
 #include "cinderx/python.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/genobject_jit.h"
-#endif
-
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/frame_header.h"
@@ -48,17 +44,6 @@ struct GenDataFooter {
   // suspended.
   GenYieldPoint* yieldPoint{};
 
-#if PY_VERSION_HEX < 0x030C0000
-  // Current overall state of the JIT.
-  // In 3.12+ we use the new PyGenObject::gi_frame_state field instead.
-  CiJITGenState state{};
-
-  // On resume from a yield-from yield point, the resume entry receives a
-  // finish_yield_from flag. translateYieldValue stores it here so that the
-  // subsequent Send instruction can load it.
-  uint64_t finishYieldFrom{0};
-#endif
-
   // Allocated space before this struct in 64-bit words.
   size_t spillWords{};
 
@@ -77,12 +62,10 @@ struct GenDataFooter {
 #endif
 };
 
-#if PY_VERSION_HEX >= 0x030C0000
 GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen, PyCodeObject* gen_code);
 
 GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen);
 
 GenDataFooter* jitGenDataFooter(PyGenObject* gen);
-#endif
 
 } // namespace jit

@@ -27,9 +27,8 @@ Function::~Function() {
   prim_args_info.reset();
 }
 
-void Function::setCode(BorrowedRef<PyCodeObject> code_2) {
-  this->code.reset(code_2);
-  uses_runtime_func = usesRuntimeFunc(code_2);
+void Function::setCode(BorrowedRef<PyCodeObject> new_code) {
+  code.reset(new_code);
   frameMode = getConfig().frame_mode;
 }
 

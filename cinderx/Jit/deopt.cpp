@@ -116,11 +116,7 @@ static void reifyLocalsplus(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
-#if PY_VERSION_HEX < 0x030C0000
-  PyObject** localsplus = &frame->f_localsplus[0];
-#else
   Ci_STACK_TYPE* localsplus = &frame->localsplus[0];
-#endif
 
   BorrowedRef<PyCodeObject> code = frameCode(frame);
   int free_offset = numLocalsplus(code) - numFreevars(code);
@@ -161,9 +157,6 @@ static void reifyStack(
       &frame->localsplus
            [_PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size()];
   _PyStackRef* stack_top = frame->stackpointer - 1;
-#elif PY_VERSION_HEX < 0x030C0000
-  frame->f_stackdepth = frame_meta.stack.size();
-  PyObject** stack_top = &frame->f_valuestack[frame->f_stackdepth - 1];
 #else
   frame->stacktop =
       _PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size();
@@ -246,56 +239,6 @@ static BCIndex getDeoptResumeIndex(
 }
 #endif
 
-#if PY_VERSION_HEX < 0x030C0000
-
-static void reifyBlockStack(
-    PyFrameObject* frame,
-    const jit::hir::BlockStack& block_stack) {
-  std::size_t bs_size = block_stack.size();
-  frame->f_iblock = bs_size;
-  for (std::size_t i = 0; i < bs_size; i++) {
-    const auto& block = block_stack.at(i);
-    frame->f_blockstack[i].b_type = block.opcode;
-    frame->f_blockstack[i].b_handler = block.handler_off.asIndex().value();
-    frame->f_blockstack[i].b_level = block.stack_level;
-  }
-}
-
-static void reifyFrameImpl(
-    PyFrameObject* frame,
-    const DeoptMetadata& meta,
-    const DeoptFrameMetadata& frame_meta,
-    bool forced_deopt,
-    const uint64_t* regs) {
-  frame->f_locals = nullptr;
-  frame->f_trace = nullptr;
-  frame->f_trace_opcodes = 0;
-  frame->f_trace_lines = 1;
-
-  // If we're forcing a deopt leave the frame state as-is.
-  if (!forced_deopt) {
-    frame->f_state = meta.reason == DeoptReason::kGuardFailure
-        ? FRAME_EXECUTING
-        : FRAME_UNWINDING;
-  }
-
-  // Instruction pointer.
-  frame->f_lasti =
-      getDeoptResumeIndex(meta, frame_meta, forced_deopt).value() - 1;
-
-  // Saturate at -1 as some things specifically check for this to see if a
-  // frame is just created but not run yet.
-  frame->f_lasti = std::max(frame->f_lasti, -1);
-
-  MemoryView mem{regs};
-  reifyLocalsplus(frame, meta, frame_meta, mem);
-  reifyStack(frame, meta, frame_meta, mem);
-  reifyBlockStack(frame, frame_meta.block_stack);
-  // Generator/frame linkage happens in `materializePyFrame` in frame.cpp
-}
-
-#else // PY_VERSION_HEX < 0x030C0000
-
 bool shouldResumeInterpreterInErrorHandler(DeoptReason reason) {
   switch (reason) {
     case DeoptReason::kGuardFailure:
@@ -357,8 +300,6 @@ static void reifyFrameImpl(
   reifyStack(frame, meta, frame_meta, mem);
 }
 
-#endif // PY_VERSION_HEX >= 0x030C0000
-
 void reifyFrame(
     CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
@@ -375,7 +316,7 @@ void reifyGeneratorFrame(
   uint64_t regs[codegen::NUM_GP_REGS]{};
   regs[codegen::arch::reg_frame_pointer_loc.loc] =
       reinterpret_cast<uint64_t>(base);
-  constexpr bool force_deopt = PY_VERSION_HEX >= 0x030C0000 ? false : true;
+  constexpr bool force_deopt = false;
   reifyFrameImpl(frame, meta, frame_meta, force_deopt, regs);
 }
 

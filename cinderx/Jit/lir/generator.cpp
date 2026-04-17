@@ -3,13 +3,8 @@
 #include "cinderx/Jit/lir/generator.h"
 
 extern "C" {
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "internal/pycore_shadow_frame.h"
-#else
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_intrinsics.h"
-#endif
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_setobject.h"
@@ -173,24 +168,16 @@ emitSubclassCheck(BasicBlockBuilder& bbb, hir::Register* obj, Type type) {
 #undef FOREACH_FAST_BUILTIN
 
 Py_ssize_t frameOffsetBefore(const BeginInlinedFunction* instr) {
-#if PY_VERSION_HEX < 0x030C0000
-  return -instr->inlineDepth() * Py_ssize_t{kJITShadowFrameSize};
-#else
   Py_ssize_t depth = 0;
   for (auto frame = instr->callerFrameState(); frame != nullptr;
        frame = frame->parent) {
     depth -= frameHeaderSize(frame->code);
   }
   return depth;
-#endif
 }
 
 Py_ssize_t frameOffsetOf(const BeginInlinedFunction* instr) {
-#if PY_VERSION_HEX < 0x030C0000
-  return frameOffsetBefore(instr) - Py_ssize_t{kJITShadowFrameSize};
-#else
   return frameOffsetBefore(instr) - frameHeaderSize(instr->code());
-#endif
 }
 
 // Update the global ref count total after an Inc or Dec operation.
@@ -241,9 +228,7 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
 
   env_->asm_extra_args = bindVReg(codegen::INITIAL_EXTRA_ARGS_REG);
   env_->asm_tstate = bindVReg(codegen::INITIAL_TSTATE_REG);
-  if (func_->uses_runtime_func) {
-    env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
-  }
+  env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
 
   entry_block_->addSuccessor(frame_setup_block_);
 
@@ -836,17 +821,6 @@ BasicBlock* LIRGenerator::GenerateExitBlock() {
 
   if (is_gen) {
     // Returning from a generator, it is now complete
-#if PY_VERSION_HEX < 0x030C0000
-    // Pre-3.12: store Completed state directly into GenDataFooter
-    auto* state_store = block->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutInd{
-            codegen::arch::reg_frame_pointer_loc,
-            static_cast<int32_t>(offsetof(GenDataFooter, state))},
-        Imm{static_cast<uint64_t>(Ci_JITGenState_Completed), DataType::k32bit});
-    state_store->output()->setDataType(DataType::k32bit);
-#else
     // 3.12+: load gen pointer from GenDataFooter, then store gi_frame_state
     auto* gen_ptr = block->allocateInstr(
         Instruction::kMove,
@@ -871,7 +845,6 @@ BasicBlock* LIRGenerator::GenerateExitBlock() {
             DataType::k8bit});
     static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
     gi_store->output()->setDataType(DataType::k8bit);
-#endif
 
     block->allocateInstr(Instruction::kYieldExitPoint, nullptr);
   }
@@ -1602,16 +1575,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kInitFrameCellVars: {
-#if PY_VERSION_HEX >= 0x030C0000
         auto& hir_instr = static_cast<const InitFrameCellVars&>(i);
         bbb.appendInvokeInstruction(
             JITRT_InitFrameCellVars,
             bbb.getDefInstr(hir_instr.func()),
             hir_instr.num_cell_vars(),
             env_->asm_tstate);
-#else
-        JIT_CHECK(false, "kInitFrameCellVars is only 3.12 and later");
-#endif
         break;
       }
       case Opcode::kLoadConst: {
@@ -2008,14 +1977,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kCondBranch, is_not_negative, done, check_err);
         bbb.switchBlock(check_err);
 
-        constexpr int32_t kOffset = offsetof(
-            PyThreadState,
-#if PY_VERSION_HEX >= 0x030C0000
-            current_exception
-#else
-            curexc_type
-#endif
-        );
+        constexpr int32_t kOffset = offsetof(PyThreadState, current_exception);
         Instruction* curexc = bbb.appendInstr(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
 
@@ -2244,19 +2206,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadAttrSpecial*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-#if PY_VERSION_HEX >= 0x030C0000
             JITRT_LookupAttrSpecial,
-#else
-            Cix_special_lookup,
-            env_->asm_tstate,
-#endif
             instr->GetOperand(0),
-            instr->id()
-#if PY_VERSION_HEX >= 0x030C0000
-                ,
-            instr->failureFmtStr()
-#endif
-        );
+            instr->id(),
+            instr->failureFmtStr());
         break;
       }
       case Opcode::kLoadTypeAttrCacheEntryType: {
@@ -2772,14 +2725,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCheckErrOccurred: {
         const auto& instr = static_cast<const DeoptBase&>(i);
-        constexpr int32_t kOffset = offsetof(
-            PyThreadState,
-#if PY_VERSION_HEX >= 0x030C0000
-            current_exception
-#else
-            curexc_type
-#endif
-        );
+        constexpr int32_t kOffset = offsetof(PyThreadState, current_exception);
         Instruction* load = bbb.appendInstr(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
         appendGuard(bbb, InstrGuardKind::kZero, instr, load);
@@ -2896,18 +2842,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
         size_t flags = 0;
         uint64_t func = reinterpret_cast<uint64_t>(_PyObject_Vectorcall);
-#if PY_VERSION_HEX < 0x030C0000
-        flags |= (hir_instr.flags() & CallFlags::Awaited)
-            ? Ci_Py_AWAITED_CALL_MARKER
-            : 0;
-#else
         if (!(hir_instr.func()->type() <= TFunc)) {
           // Calls to things which aren't simple Python functions will
           // need to check the eval breaker. We do this in a helper instead
           // of injecting it after every call.
           func = reinterpret_cast<uint64_t>(JITRT_Vectorcall);
         }
-#endif
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kVectorCall,
@@ -2943,12 +2883,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCallEx: {
         auto& instr = static_cast<const CallEx&>(i);
-        auto rt_helper = (instr.flags() & CallFlags::Awaited)
-            ? JITRT_CallFunctionExAwaited
-            : JITRT_CallFunctionEx;
         bbb.appendCallInstruction(
             instr.output(),
-            rt_helper,
+            JITRT_CallFunctionEx,
             instr.func(),
             instr.pargs(),
             instr.kwargs());
@@ -2987,7 +2924,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kCallIntrinsic: {
-#if PY_VERSION_HEX >= 0x030C0000
         auto& hir_instr = static_cast<const CallIntrinsic&>(i);
         uint64_t func_addr;
         switch (hir_instr.NumOperands()) {
@@ -3024,19 +2960,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
-#else
-        JIT_ABORT("CallIntrinsic is only supported in Python 3.12+");
-#endif
         break;
       }
       case Opcode::kCallMethod: {
         auto& hir_instr = static_cast<const CallMethod&>(i);
         size_t flags = 0;
-#if PY_VERSION_HEX < 0x030C0000
-        flags |= (hir_instr.flags() & CallFlags::Awaited)
-            ? Ci_Py_AWAITED_CALL_MARKER
-            : 0;
-#endif
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kVectorCall,
@@ -3659,7 +3587,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             dest,
             Instruction::kMoveRelaxed,
             Ind{tstate, offsetof(PyThreadState, eval_breaker)});
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
         // eval_breaker is in the runtime, which the code is generated against,
         // load it directly.
         static_assert(
@@ -3671,21 +3599,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMoveRelaxed,
             MemImm{reinterpret_cast<int*>(
                 &ThreadedCompileContext::interpreter()->ceval.eval_breaker)});
-#else
-        Instruction* tstate = env_->asm_tstate;
-        // tstate->interp->ceval.eval_breaker
-        static_assert(
-            sizeof(reinterpret_cast<PyThreadState*>(0)
-                       ->interp->ceval.eval_breaker) == 4,
-            "Eval breaker is not a 4 byte value");
-        Instruction* interp = bbb.appendInstr(
-            Instruction::kMove,
-            OutVReg{OperandBase::k64bit},
-            Ind{tstate, offsetof(PyThreadState, interp)});
-        bbb.appendInstr(
-            dest,
-            Instruction::kMoveRelaxed,
-            Ind{interp, offsetof(PyInterpreterState, ceval.eval_breaker)});
 #endif
         break;
       }
@@ -3696,13 +3609,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kRunPeriodicTasks: {
-        auto helper =
-#if PY_VERSION_HEX < 0x030C0000
-            Cix_eval_frame_handle_pending
-#else
-            _Py_HandlePending
-#endif
-            ;
+        auto helper = _Py_HandlePending;
         bbb.appendCallInstruction(i.output(), helper, env_->asm_tstate);
         break;
       }
@@ -3722,7 +3629,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         JIT_DCHECK(
             getConfig().stable_frame,
             "Inlined code stores references to code objects");
-#if PY_VERSION_HEX < 0x030C0000 || defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
         auto instr = static_cast<const BeginInlinedFunction*>(&i);
         // Set code object data
         BorrowedRef<PyCodeObject> code = instr->code();
@@ -3735,64 +3642,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         env_->code_rt->addReference(func);
         RuntimeFrameState* rtfs = env_->code_rt->allocateRuntimeFrameState(
             code, builtins, globals, func);
-        // TASK(T109706798): Support calling from generators and inlining
-        // generators.
-        //
-        // Consider linking all shadow frame prev pointers in function prologue,
-        // since they need not happen with every call -- just the data pointers
-        // need to be reset with every call.
-        //
-        // If we manage to optimize leaf calls to a series of non-deopting
-        // instructions, we could also remove BeginInlinedFunction and
-        // EndInlinedFunction completely.
 #endif
-#if PY_VERSION_HEX < 0x030C0000
-        if (kPyDebug) {
-          bbb.appendInvokeInstruction(
-              assertShadowCallStackConsistent, env_->asm_tstate);
-        }
-        Instruction* caller_shadow_frame = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kLea,
-            Stk{PhyLocation(static_cast<int32_t>(frameOffsetBefore(instr)))});
-        // There is already a shadow frame for the caller function.
-        Instruction* callee_shadow_frame = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kLea,
-            Stk{PhyLocation(static_cast<int32_t>(frameOffsetOf(instr)))});
-
-        bbb.appendInstr(
-            OutInd{callee_shadow_frame, SHADOW_FRAME_FIELD_OFF(prev)},
-            Instruction::kMove,
-            caller_shadow_frame);
-        uintptr_t data = _PyShadowFrame_MakeData(rtfs, PYSF_RTFS, PYSF_JIT);
-        Instruction* data_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, data);
-        bbb.appendInstr(
-            OutInd{callee_shadow_frame, SHADOW_FRAME_FIELD_OFF(data)},
-            Instruction::kMove,
-            data_reg);
-        // Set orig_data
-        // This is only necessary when in normal-frame mode because the frame
-        // is already materialized on function entry. It is lazily filled when
-        // the frame is materialized in shadow-frame mode.
-        if (func_->frameMode == jit::FrameMode::kNormal) {
-          bbb.appendInstr(
-              OutInd{
-                  callee_shadow_frame, JIT_SHADOW_FRAME_FIELD_OFF(orig_data)},
-              Instruction::kMove,
-              data_reg);
-        }
-        // Set our shadow frame as top of shadow stack
-        bbb.appendInstr(
-            OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
-            Instruction::kMove,
-            callee_shadow_frame);
-        if (kPyDebug) {
-          bbb.appendInvokeInstruction(
-              assertShadowCallStackConsistent, env_->asm_tstate);
-        }
-#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
         // Load the address of our _PyInterpreterFrame and the previous
         // _PyInterpreterFrame we skip past the FrameHeader for this.
         Instruction* caller_frame = bbb.appendInstr(
@@ -3942,55 +3793,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kEndInlinedFunction: {
-#if PY_VERSION_HEX < 0x030C0000
-        // TASK(T109706798): Support calling from generators and inlining
-        // generators.
-        if (kPyDebug) {
-          bbb.appendInvokeInstruction(
-              assertShadowCallStackConsistent, env_->asm_tstate);
-        }
-        // callee_shadow_frame <- tstate.shadow_frame
-        Instruction* callee_shadow_frame = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            Ind{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)});
-
-        // Check if the callee has been materialized into a PyFrame. Use the
-        // flags below.
-        static_assert(
-            PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
-            "Unexpected constants");
-        Instruction* shadow_frame_data = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            Ind{callee_shadow_frame, SHADOW_FRAME_FIELD_OFF(data)});
-        bbb.appendInstr(Instruction::kBitTest, shadow_frame_data, Imm{0});
-
-        // caller_shadow_frame <- callee_shadow_frame.prev
-        Instruction* caller_shadow_frame = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            Ind{callee_shadow_frame, SHADOW_FRAME_FIELD_OFF(prev)});
-        // caller_shadow_frame -> tstate.shadow_frame
-        bbb.appendInstr(
-            OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
-            Instruction::kMove,
-            caller_shadow_frame);
-        // Unlink PyFrame if needed. Someone might have materialized all of the
-        // PyFrames via PyEval_GetFrame or similar.
-        auto done_block = bbb.allocateBlock();
-        bbb.appendBranch(Instruction::kBranchNC, done_block);
-        // TASK(T109445584): Remove this unused block.
-        bbb.appendBlock(bbb.allocateBlock());
-        // We already unlinked the frame up above, this just needs to release
-        // the reified frame.
-        bbb.appendInvokeInstruction(JITRT_UnlinkPyFrame, env_->asm_tstate);
-        bbb.appendBlock(done_block);
-        if (kPyDebug) {
-          bbb.appendInvokeInstruction(
-              assertShadowCallStackConsistent, env_->asm_tstate);
-        }
-#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
         JIT_CHECK(
             getConfig().frame_mode == FrameMode::kLightweight,
             "Can only generate LIR for inlined functions in 3.12+ when "
@@ -4085,7 +3888,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kCompactLongUnbox: {
-#if PY_VERSION_HEX >= 0x030C0000
         // Inline _PyLong_CompactValue: sign * (Py_ssize_t)ob_digit[0]
         // where sign = 1 - (lv_tag & 3).
         Instruction* obj = bbb.getDefInstr(i.GetOperand(0));
@@ -4119,12 +3921,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // result = sign * digit
         bbb.appendInstr(i.output(), Instruction::kMul, sign, digit64);
         break;
-#else
-        JIT_ABORT("CompactLongUnbox requires Python 3.12+");
-#endif
       }
       case Opcode::kIsCompactLong: {
-#if PY_VERSION_HEX >= 0x030C0000
         Type operand_type = i.GetOperand(0)->type();
         if (operand_type <= TCInt64) {
           // For a raw CInt64, check if the value fits in a single 30-bit
@@ -4158,9 +3956,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Imm{2 << _PyLong_NON_SIZE_BITS});
         }
         break;
-#else
-        JIT_ABORT("IsCompactLong requires Python 3.12+");
-#endif
       }
       case Opcode::kIsTruthy: {
         auto is_truthy = static_cast<const IsTruthy*>(&i);
@@ -4229,7 +4024,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             name,
             instr->GetFromList(),
             instr->GetLevel());
-#elif PY_VERSION_HEX >= 0x030C0000 && ENABLE_LAZY_IMPORTS
+#elif ENABLE_LAZY_IMPORTS
         PyObject* globals = instr->frameState()->globals;
         PyObject* builtins = instr->frameState()->builtins;
         PyObject* locals = Py_None; /* see JITRT_ImportName. */
@@ -4312,41 +4107,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kWaitHandleLoadWaiter: {
-#if PY_VERSION_HEX < 0x030C0000
-        const auto& instr = static_cast<const WaitHandleLoadWaiter&>(i);
-        Instruction* base = bbb.getDefInstr(instr.reg());
-        int32_t offset = offsetof(Ci_PyWaitHandleObject, wh_waiter);
-        bbb.appendInstr(instr.output(), Instruction::kMove, Ind{base, offset});
-#endif
         break;
       }
       case Opcode::kWaitHandleLoadCoroOrResult: {
-#if PY_VERSION_HEX < 0x030C0000
-        const auto& instr = static_cast<const WaitHandleLoadCoroOrResult&>(i);
-        Instruction* base = bbb.getDefInstr(instr.reg());
-        int32_t offset = offsetof(Ci_PyWaitHandleObject, wh_coro_or_result);
-        bbb.appendInstr(instr.output(), Instruction::kMove, Ind{base, offset});
-#endif
         break;
       }
       case Opcode::kWaitHandleRelease: {
-#if PY_VERSION_HEX < 0x030C0000
-        const auto& instr = static_cast<const WaitHandleRelease&>(i);
-        bbb.appendInstr(
-            OutInd{
-                bbb.getDefInstr(instr.reg()),
-                static_cast<int32_t>(
-                    offsetof(Ci_PyWaitHandleObject, wh_coro_or_result))},
-            Instruction::kMove,
-            0);
-        bbb.appendInstr(
-            OutInd{
-                bbb.getDefInstr(instr.reg()),
-                static_cast<int32_t>(
-                    offsetof(Ci_PyWaitHandleObject, wh_waiter))},
-            Instruction::kMove,
-            0);
-#endif
         break;
       }
       case Opcode::kDeleteSubscr: {
@@ -4388,7 +4154,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // We are directly referencing co_code_adaptive here rather than using
         // codeUnit() as we need to refer to the code the interpreter would
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
-#if PY_VERSION_HEX >= 0x030C0000
         _Py_CODEUNIT* prev_instr_ptr;
         // We are directly referencing co_code_adaptive here rather than using
         // codeUnit() as we need to refer to the code the interpreter would
@@ -4412,14 +4177,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             OutInd{frame, offsetof(_PyInterpreterFrame, instr_ptr)},
             Instruction::kMove,
             prev_instr_ptr);
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
 
         bbb.appendInstr(
             OutInd{frame, offsetof(_PyInterpreterFrame, prev_instr)},
             Instruction::kMove,
             prev_instr_ptr);
-#else
-#endif
 #endif
         break;
       }
@@ -4431,24 +4194,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 : JITRT_GenSend);
         // Note: asm_interpreter_frame isn't right for inlined functions, but we
         // never inline generators so this is fine for now.
-#if PY_VERSION_HEX < 0x030C0000
-        // On 3.10, finish_yield_from is stashed in GenDataFooter by
-        // translateYieldValue on resume from a yield-from yield point.
-        // Load it for the JITRT_GenSend call.
-        Instruction* fyf_load = bbb.appendInstr(
-            Instruction::kMove,
-            OutVReg{},
-            Ind{codegen::arch::reg_frame_pointer_loc,
-                static_cast<int32_t>(
-                    offsetof(GenDataFooter, finishYieldFrom))});
-        bbb.appendInstr(
-            hir_instr.output(),
-            Instruction::kCall,
-            Imm{func},
-            hir_instr.GetOperand(0),
-            hir_instr.GetOperand(1),
-            VReg{fyf_load});
-#else
         bbb.appendInstr(
             hir_instr.output(),
             Instruction::kCall,
@@ -4457,7 +4202,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.GetOperand(1),
             Imm{0},
             env_->asm_interpreter_frame);
-#endif
         break;
       }
       case Opcode::kBuildInterpolation: {
@@ -4691,7 +4435,6 @@ Instruction* LIRGenerator::getInlinedFrame(
 }
 
 void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
-#if PY_VERSION_HEX >= 0x030C0000
   // For non-generator normal (heavy) frames, allocate and link the
   // interpreter frame via a runtime call. This moves the work that
   // was previously done in frame_asm.cpp's linkNormalFunctionFrame
@@ -4936,113 +4679,13 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
   }
 #endif // ENABLE_LIGHTWEIGHT_FRAMES
-#else // PY_VERSION_HEX < 0x030C0000
-  // 3.10: Load tstate and set up shadow frames.
-  bool is_gen =
-      func_->code != nullptr && (func_->code->co_flags & kCoFlagsAnyGenerator);
-  if (is_gen) {
-    // Generators just need tstate loaded; their shadow frame is
-    // handled separately in the generator resume path.
-    bbb.annotateNext("Load thread state (generator)");
-    env_->asm_tstate =
-        bbb.appendInstr(OutVReg{}, Instruction::kLoadThreadState);
-  } else if (func_->frameMode == FrameMode::kNormal) {
-    // Normal mode: allocate and link a PyFrameObject via runtime call.
-    bbb.annotateNext("Allocate and link PyFrameObject");
-    const RuntimeFrameState* fs = env_->code_rt->frameState();
-    env_->asm_tstate = bbb.appendCallInstruction(
-        OutVReg{},
-        JITRT_AllocateAndLinkFrame,
-        fs->code().get(),
-        reinterpret_cast<PyObject*>(fs->builtins().get()),
-        reinterpret_cast<PyObject*>(fs->globals().get()));
-  } else {
-    // Shadow mode: just need tstate loaded.
-    bbb.annotateNext("Load thread state (shadow frame)");
-    env_->asm_tstate =
-        bbb.appendInstr(OutVReg{}, Instruction::kLoadThreadState);
-  }
-
-#ifdef ENABLE_SHADOW_FRAMES
-  // For non-generators, link the on-stack shadow frame into
-  // tstate->shadow_frame.
-  if (!is_gen) {
-    bbb.annotateNext("Link shadow frame into tstate");
-    // Get pointer to our shadow frame at the beginning of the
-    // stack frame (rbp - kJITShadowFrameSize).
-    Instruction* shadow_frame = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kLea,
-        Stk{PhyLocation(-static_cast<int32_t>(kJITShadowFrameSize))});
-
-    // prev = tstate->shadow_frame (old top of shadow stack)
-    Instruction* prev = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kMove,
-        Ind{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)});
-    bbb.appendInstr(
-        OutInd{shadow_frame, SHADOW_FRAME_FIELD_OFF(prev)},
-        Instruction::kMove,
-        prev);
-
-    // Set data field
-    if (func_->frameMode == FrameMode::kNormal) {
-      // Normal mode: data = tstate->frame | PYSF_PYFRAME
-      // JITRT_AllocateAndLinkFrame already set tstate->frame.
-      static_assert(
-          PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
-          "Unexpected constants");
-      Instruction* py_frame = bbb.appendInstr(
-          OutVReg{},
-          Instruction::kMove,
-          Ind{env_->asm_tstate, offsetof(PyThreadState, frame)});
-      Instruction* data_reg = bbb.appendInstr(
-          OutVReg{}, Instruction::kOr, py_frame, Imm{PYSF_PYFRAME});
-      bbb.appendInstr(
-          OutInd{shadow_frame, SHADOW_FRAME_FIELD_OFF(data)},
-          Instruction::kMove,
-          data_reg);
-      // orig_data = code_rt-based data (for frame materialization)
-      uintptr_t orig_data =
-          _PyShadowFrame_MakeData(env_->code_rt, PYSF_CODE_RT, PYSF_JIT);
-      Instruction* orig_data_reg =
-          bbb.appendInstr(OutVReg{}, Instruction::kMove, orig_data);
-      bbb.appendInstr(
-          OutInd{shadow_frame, JIT_SHADOW_FRAME_FIELD_OFF(orig_data)},
-          Instruction::kMove,
-          orig_data_reg);
-    } else {
-      // Shadow mode: data = _PyShadowFrame_MakeData(code_rt, ...)
-      uintptr_t data =
-          _PyShadowFrame_MakeData(env_->code_rt, PYSF_CODE_RT, PYSF_JIT);
-      Instruction* data_reg =
-          bbb.appendInstr(OutVReg{}, Instruction::kMove, data);
-      bbb.appendInstr(
-          OutInd{shadow_frame, SHADOW_FRAME_FIELD_OFF(data)},
-          Instruction::kMove,
-          data_reg);
-    }
-
-    // Link: tstate->shadow_frame = our shadow frame
-    bbb.appendInstr(
-        OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
-        Instruction::kMove,
-        shadow_frame);
-
-    if (kPyDebug) {
-      bbb.appendInvokeInstruction(
-          assertShadowCallStackConsistent, env_->asm_tstate);
-    }
-  }
-#endif // ENABLE_SHADOW_FRAMES
-#endif // PY_VERSION_HEX >= 0x030C0000
 #if PY_VERSION_HEX >= 0x030D0000
   bbb.annotateNext("Load current interpreter frame");
   env_->asm_interpreter_frame = bbb.appendInstr(
       OutVReg{},
       Instruction::kMove,
       Ind{env_->asm_tstate, offsetof(PyThreadState, current_frame)});
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   auto* cframe = bbb.appendInstr(
       OutVReg{},
       Instruction::kMove,
