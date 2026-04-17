@@ -1240,16 +1240,6 @@ arch::Gp get_arg_location(int arg) {
   JIT_ABORT("should only be used with first six args");
 }
 
-void NativeGenerator::generatePrologue(const FrameInfo& frame_info) {
-  // The boxed return wrapper gets generated first, if it is necessary.
-  auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
-
-  if (box_entry_cursor) {
-    env_.addAnnotation(
-        "Generic entry (box primitive return)", box_entry_cursor);
-  }
-}
-
 void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
   as_->setCursor(epilogue_cursor);
 
@@ -1646,6 +1636,20 @@ void NativeGenerator::generateCode(
   // entry falls through to it. The function entry must happen before the
   // argcount check since the helpers expect a frame.
   lir::GenerateFunctionEntryBlock(lir_func_.get());
+  auto* func_entry_block = lir_func_->basicblocks().front();
+
+  // For functions returning primitive types, generate a boxed-return wrapper
+  // as LIR blocks. The wrapper sets up its own frame, calls the inner
+  // function, boxes the primitive result, and returns. These blocks are
+  // inserted at the very front, before the function entry block.
+  Label wrapper_exit;
+  if (func_->returnsPrimitive()) {
+    Label generic_entry = as_->newLabel();
+    wrapper_exit = as_->newLabel();
+    lir::GenerateBoxedReturnWrapperBlocks(
+        lir_func_.get(), func_->return_type, generic_entry, wrapper_exit);
+    env_.block_label_map[func_entry_block] = generic_entry;
+  }
 
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
@@ -1685,7 +1689,8 @@ void NativeGenerator::generateCode(
   // vectorcall convention
   Label vectorcall_entry_label = as_->newLabel();
   as_->bind(vectorcall_entry_label);
-  generatePrologue(frame_info);
+  // The boxed-return wrapper (if any) and prologue are now LIR blocks
+  // emitted during generateAssemblyBody, so nothing more is needed here.
 
   generateEpilogue(epilogue_cursor);
 
@@ -1740,6 +1745,13 @@ void NativeGenerator::generateCode(
   // minimal frame (push rbp / mov rbp, rsp) and return.
   if (prologue_exit.isValid()) {
     as_->bind(prologue_exit);
+    generateFunctionExit();
+  }
+
+  // Boxed-return wrapper exit stub: the wrapper LIR blocks branch here
+  // after boxing (or on error). Tears down the wrapper's own minimal frame.
+  if (wrapper_exit.isValid()) {
+    as_->bind(wrapper_exit);
     generateFunctionExit();
   }
 
@@ -1891,149 +1903,6 @@ void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
       pending_annotation.clear();
     }
   }
-}
-
-std::pair<asmjit::BaseNode*, asmjit::BaseNode*>
-NativeGenerator::generateBoxedReturnWrapper() {
-  asmjit::BaseNode* entry_cursor = as_->cursor();
-
-  if (!func_->returnsPrimitive()) {
-    return {entry_cursor, nullptr};
-  }
-
-  Label generic_entry = as_->newLabel();
-
-#if defined(CINDER_X86_64)
-  Label box_done = as_->newLabel();
-  Label error = as_->newLabel();
-  hir::Type ret_type = func_->return_type;
-  uint64_t box_func;
-
-  generateFunctionEntry();
-  as_->call(generic_entry);
-
-  // If there was an error, there's nothing to box.
-  bool returns_double = func_->returnsPrimitiveDouble();
-  if (returns_double) {
-    as_->ptest(x86::xmm1, x86::xmm1);
-    as_->je(error);
-  } else {
-    as_->test(x86::edx, x86::edx);
-    as_->je(box_done);
-  }
-
-  if (ret_type <= TCBool) {
-    as_->movzx(x86::edi, x86::al);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
-  } else if (ret_type <= TCInt8) {
-    as_->movsx(x86::edi, x86::al);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-  } else if (ret_type <= TCUInt8) {
-    as_->movzx(x86::edi, x86::al);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-  } else if (ret_type <= TCInt16) {
-    as_->movsx(x86::edi, x86::ax);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-  } else if (ret_type <= TCUInt16) {
-    as_->movzx(x86::edi, x86::ax);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-  } else if (ret_type <= TCInt32) {
-    as_->mov(x86::edi, x86::eax);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-  } else if (ret_type <= TCUInt32) {
-    as_->mov(x86::edi, x86::eax);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-  } else if (ret_type <= TCInt64) {
-    as_->mov(x86::rdi, x86::rax);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
-  } else if (ret_type <= TCUInt64) {
-    as_->mov(x86::rdi, x86::rax);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
-  } else if (returns_double) {
-    // xmm0 already contains the return value
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
-  } else {
-    JIT_ABORT("Unsupported primitive return type {}", ret_type.toString());
-  }
-
-  as_->call(box_func);
-
-  as_->bind(box_done);
-  generateFunctionExit();
-
-  if (returns_double) {
-    as_->bind(error);
-    as_->xor_(x86::rax, x86::rax);
-    as_->leave();
-    as_->ret();
-  }
-#elif defined(CINDER_AARCH64)
-  Label box_done = as_->newLabel();
-  Label error = as_->newLabel();
-  hir::Type ret_type = func_->return_type;
-  uint64_t box_func;
-
-  generateFunctionEntry();
-  as_->bl(generic_entry);
-
-  // If there was an error, there's nothing to box.
-  bool returns_double = func_->returnsPrimitiveDouble();
-  if (returns_double) {
-    as_->fmov(arch::reg_scratch_0, a64::d1);
-    as_->cbz(arch::reg_scratch_0, error);
-  } else {
-    as_->cbz(a64::w1, box_done);
-  }
-
-  if (ret_type <= TCBool) {
-    as_->uxtb(a64::w0, a64::w0);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
-  } else if (ret_type <= TCInt8) {
-    as_->sxtb(a64::w0, a64::w0);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-  } else if (ret_type <= TCUInt8) {
-    as_->uxtb(a64::w0, a64::w0);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-  } else if (ret_type <= TCInt16) {
-    as_->sxth(a64::w0, a64::w0);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-  } else if (ret_type <= TCUInt16) {
-    as_->uxth(a64::w0, a64::w0);
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-  } else if (ret_type <= TCInt32) {
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-  } else if (ret_type <= TCUInt32) {
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-  } else if (ret_type <= TCInt64) {
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
-  } else if (ret_type <= TCUInt64) {
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
-  } else if (returns_double) {
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
-  } else {
-    JIT_ABORT("Unsupported primitive return type {}", ret_type.toString());
-  }
-
-  as_->bl(box_func);
-
-  as_->bind(box_done);
-  generateFunctionExit();
-
-  if (returns_double) {
-    as_->bind(error);
-    as_->mov(a64::x0, 0);
-    as_->mov(a64::sp, arch::fp);
-    as_->ldp(
-        arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
-    as_->ret(arch::lr);
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
-
-  // New generic entry is after the boxed wrapper.
-  as_->bind(generic_entry);
-  return {as_->cursor(), entry_cursor};
 }
 
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid

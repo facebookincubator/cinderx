@@ -1344,6 +1344,11 @@ void translateCall(Environ* env, const Instruction* instr) {
   } else if (input->isImm()) {
     as->mov(arch::reg_scratch_br, input->getConstant());
     as->blr(arch::reg_scratch_br);
+  } else if (input->isLabel()) {
+    asmjit::Label label = input->getDefine()->hasAsmLabel()
+        ? input->getDefine()->getAsmLabel()
+        : map_get(env->block_label_map, input->getBasicBlock());
+    as->bl(label);
   } else {
     JIT_ABORT("Unsupported operand type for Call: {}", input->type());
   }
@@ -2593,6 +2598,8 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
 
       if (input->isImm()) {
         env->as->call(getImm(input));
+      } else if (input->isLabel()) {
+        env->as->call(getLabel(env, input));
       } else if (input->isStack()) {
         env->as->call(getMem(instr, input));
       } else {

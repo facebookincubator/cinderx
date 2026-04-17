@@ -791,6 +791,150 @@ void GeneratePrimitiveArgsPrologueBlock(
   std::rotate(blocks.begin(), blocks.end() - 1, blocks.end());
 }
 
+void GenerateBoxedReturnWrapperBlocks(
+    Function* lir_func,
+    hir::Type return_type,
+    asmjit::Label& generic_entry,
+    asmjit::Label& wrapper_exit) {
+  using codegen::ARGUMENT_REGS;
+  namespace arch = codegen::arch;
+
+  bool returns_double = return_type <= TCDouble;
+  auto aux_return_reg = arch::reg_general_auxilary_return_loc;
+  auto ret64 = arch::reg_general_return_loc;
+
+#if defined(CINDER_X86_64)
+  PhyLocation ret8 = codegen::AL;
+  PhyLocation ret16 = codegen::AX;
+#elif defined(CINDER_AARCH64)
+  PhyLocation ret8 = codegen::W0;
+  PhyLocation ret16 = codegen::W0;
+#endif
+
+  auto* wrapper_entry = lir_func->allocateBasicBlock();
+  auto* box_block = lir_func->allocateBasicBlock();
+
+  // --- wrapper_entry ---
+  emitAnnotation(wrapper_entry, "Boxed return wrapper");
+
+  // Set up a minimal frame for the wrapper itself.
+  wrapper_entry->allocateInstr(Instruction::kPrologue, nullptr);
+
+  // Call the inner JIT function.
+  wrapper_entry->allocateInstr(
+      Instruction::kCall, nullptr, AsmLbl{generic_entry});
+
+  // Check the success flag. For integer returns this is in EDX/W1; for
+  // double returns it is in XMM1/D1 (move it to a GP register first).
+  if (returns_double) {
+    wrapper_entry->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{aux_return_reg},
+        PhyReg{arch::reg_double_auxilary_return_loc, OperandBase::kDouble});
+  }
+
+  wrapper_entry->allocateInstr(
+      Instruction::kTest,
+      nullptr,
+      PhyReg{aux_return_reg, OperandBase::k32bit},
+      PhyReg{aux_return_reg, OperandBase::k32bit});
+  wrapper_entry->allocateInstr(Instruction::kBranchNZ, nullptr, Lbl{box_block});
+  wrapper_entry->addSuccessor(box_block);
+
+  // Error path: for doubles, zero out RAX/X0 (integer error path already
+  // has the correct NULL in RAX from the inner function).
+  if (returns_double) {
+    wrapper_entry->allocateInstr(
+        Instruction::kMove, nullptr, OutPhyReg{ret64}, Imm{0});
+  }
+  wrapper_entry->allocateInstr(
+      Instruction::kBranch, nullptr, AsmLbl{wrapper_exit});
+
+  // --- box_block ---
+  emitAnnotation(box_block, "Box primitive return value");
+
+  // Determine the box function and any sign/zero extension needed to
+  // move the return value into the first argument register.
+  uint64_t box_func;
+
+  if (returns_double) {
+    // XMM0/D0 already holds the double; the box function reads it from there.
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
+  } else {
+    // Move the primitive result from the return register (RAX/X0) to the
+    // first argument register (RDI on x86-64, X0 on aarch64).
+    // On aarch64 return reg == arg reg, so 32/64-bit types need no move.
+    if (return_type <= TCBool) {
+      box_block->allocateInstr(
+          Instruction::kMovZX,
+          nullptr,
+          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
+          PhyReg{ret8, OperandBase::k8bit});
+      box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
+    } else if (return_type <= TCInt8) {
+      box_block->allocateInstr(
+          Instruction::kMovSX,
+          nullptr,
+          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
+          PhyReg{ret8, OperandBase::k8bit});
+      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+    } else if (return_type <= TCUInt8) {
+      box_block->allocateInstr(
+          Instruction::kMovZX,
+          nullptr,
+          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
+          PhyReg{ret8, OperandBase::k8bit});
+      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+    } else if (return_type <= TCInt16) {
+      box_block->allocateInstr(
+          Instruction::kMovSX,
+          nullptr,
+          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
+          PhyReg{ret16, OperandBase::k16bit});
+      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+    } else if (return_type <= TCUInt16) {
+      box_block->allocateInstr(
+          Instruction::kMovZX,
+          nullptr,
+          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
+          PhyReg{ret16, OperandBase::k16bit});
+      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+    } else if (
+        return_type <= TCInt32 || return_type <= TCUInt32 ||
+        return_type <= TCInt64 || return_type <= TCUInt64) {
+      // All 32/64-bit integer types: full-width move from return register
+      // to first argument register. On aarch64 these are the same register
+      // so no move is needed.
+      if (ARGUMENT_REGS[0] != ret64) {
+        box_block->allocateInstr(
+            Instruction::kMove,
+            nullptr,
+            OutPhyReg{ARGUMENT_REGS[0]},
+            PhyReg{ret64});
+      }
+      if (return_type <= TCInt32) {
+        box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+      } else if (return_type <= TCUInt32) {
+        box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+      } else if (return_type <= TCInt64) {
+        box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
+      } else {
+        box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
+      }
+    } else {
+      JIT_ABORT("Unsupported primitive return type {}", return_type.toString());
+    }
+  }
+
+  box_block->allocateInstr(Instruction::kCall, nullptr, Imm{box_func});
+  box_block->allocateInstr(Instruction::kBranch, nullptr, AsmLbl{wrapper_exit});
+
+  // Rotate the two new blocks to the front.
+  auto& blocks = lir_func->basicblocks();
+  std::rotate(blocks.begin(), blocks.end() - 2, blocks.end());
+}
+
 void LIRGenerator::GenerateExitBlocks() {
   if (!is_gen_) {
     auto* block = lir_func_->allocateBasicBlock();

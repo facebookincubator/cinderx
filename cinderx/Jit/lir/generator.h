@@ -305,4 +305,17 @@ void GenerateArgcountCheckBlocks(
     BasicBlock* next_block,
     asmjit::Label prologue_exit);
 
+// Build post-regalloc LIR blocks for the boxed-return wrapper that converts
+// a Static Python primitive return value into a boxed PyObject*. The wrapper
+// sets up its own minimal frame, calls the inner function via generic_entry,
+// checks the success flag (EDX/W1 for integers, XMM1/D1 for doubles), boxes
+// the result by calling the appropriate JITRT_Box* helper, then branches to
+// wrapper_exit (which should be bound to a leave;ret sequence). The created
+// blocks are inserted at the front of the LIR function's block list.
+void GenerateBoxedReturnWrapperBlocks(
+    Function* lir_func,
+    hir::Type return_type,
+    asmjit::Label& generic_entry,
+    asmjit::Label& wrapper_exit);
+
 } // namespace jit::lir

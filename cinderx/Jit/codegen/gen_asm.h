@@ -125,7 +125,6 @@ class NativeGenerator {
   void saveCallerRegisters(const FrameInfo& frame_info);
 
   int maxInlineStackSize();
-  void generatePrologue(const FrameInfo& frame_info);
   void generateEpilogue(asmjit::BaseNode* epilogue_cursor);
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
@@ -138,14 +137,6 @@ class NativeGenerator {
   friend class BackendTest;
 
   void generateAssemblyBody(const asmjit::CodeHolder& code);
-
-  // If the function returns a primitive, then in the generic (non-static) entry
-  // path it needs to box it up.  Do this by generating a small wrapper
-  // "function" here that calls the real function and boxes its result.
-  //
-  // Returns the generic entry cursor and the cursor to the boxed wrapper, if it
-  // was generated.
-  std::pair<asmjit::BaseNode*, asmjit::BaseNode*> generateBoxedReturnWrapper();
 
   std::unique_ptr<lir::Function> lir_func_;
   Environ env_;
