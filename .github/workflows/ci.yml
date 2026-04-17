@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
         # Test against multiple patch versions as CinderX references internal
         # CPython functions and structures which can lead to ABI problems.  See
         # cinderx/UpstreamBorrow for more details.
@@ -33,16 +33,19 @@ jobs:
       run: uv build --wheel --python ${{ matrix.python-version }}
 
     - name: Install CinderX
-      run: uv pip install dist/*.whl
+      run: uv pip install cinderx --find-links dist --no-index
 
     - name: Check CinderX loads successfully
+      if: runner.os != 'Windows'
       run: |
         uv run python -c 'import cinderx ; print(cinderx.get_import_error()) ; assert cinderx.is_initialized()'
 
     - name: Install pytest
+      if: runner.os != 'Windows'
       run: uv pip install pytest
 
     - name: Run Tests
+      if: runner.os != 'Windows'
       run: uv run pytest cinderx/PythonLib/test_cinderx/test*.py
 
   build_wheels:
