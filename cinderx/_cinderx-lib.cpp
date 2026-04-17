@@ -294,7 +294,7 @@ PyObject* cinder_is_immortal(PyObject* /* mod */, PyObject* obj) {
 }
 
 PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
-#if ENABLE_PERF_TRAMPOLINE || PY_VERSION_HEX >= 0x030D0000
+#if !defined(WIN32) && (ENABLE_PERF_TRAMPOLINE || PY_VERSION_HEX >= 0x030D0000)
   if (!jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_NONE;
   }
@@ -319,9 +319,11 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
 }
 
 PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
+#ifndef WIN32
   if (jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_TRUE;
   }
+#endif
   Py_RETURN_FALSE;
 }
 
@@ -411,11 +413,13 @@ int ensurePyFunctionVectorcall() {
 // compiling a perf trampoline for the Python function.
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
   bool scheduled = jit::scheduleJitCompile(func);
+#ifndef WIN32
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
     auto& perf_trampoline_worklist =
         cinderx::getModuleState()->perf_trampoline_worklist;
     perf_trampoline_worklist.emplace(func);
   }
+#endif
 }
 
 extern "C" PyObject* PyAnextAwaitable_New(PyObject*, PyObject*);
@@ -721,6 +725,7 @@ int cinderx_func_watcher(
       break;
 #endif
     case PyFunction_EVENT_DESTROY:
+#ifndef WIN32
       if (jit::perf::isPreforkCompilationEnabled()) {
         auto state = cinderx::getModuleState();
         if (state != nullptr) {
@@ -728,6 +733,7 @@ int cinderx_func_watcher(
           perf_trampoline_worklist.erase(func);
         }
       }
+#endif
       jit::funcDestroyed(func);
       break;
   }

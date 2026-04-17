@@ -7,9 +7,9 @@ namespace jit::hir {
 // Be intentional about HIR structure sizes.  There's no hard limit on what
 // these sizes have to be, but we should be aware when we change them.
 //
-// Ignore it for libc++ for now though, too tricky to track multiple
+// Ignore it for libc++ and Windows for now though, too tricky to track multiple
 // implementations.
-#ifndef _LIBCPP_VERSION
+#if !defined(_LIBCPP_VERSION) && !defined(WIN32)
 static_assert(sizeof(Function) == 48 * kPointerSize);
 static_assert(sizeof(CFG) == 5 * kPointerSize);
 static_assert(sizeof(BasicBlock) == 20 * kPointerSize);

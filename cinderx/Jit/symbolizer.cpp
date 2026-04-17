@@ -223,11 +223,13 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
 }
 
 void Symbolizer::deinit() {
+#ifndef WIN32
   try {
     file_.close();
   } catch (const std::exception& exn) {
     JIT_LOG("{}", exn.what());
   }
+#endif
 
   symtab_ = nullptr;
   strtab_ = nullptr;

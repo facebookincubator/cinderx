@@ -870,6 +870,16 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
   Py_DECREF(res);
   return addr;
 }
+#else
+PyObject* _PyClassloader_InvokeNativeFunction(
+    PyObject* lib_name,
+    PyObject* symbol_name,
+    PyObject* signature,
+    PyObject** args,
+    Py_ssize_t nargs) {
+  PyErr_SetString(PyExc_NotImplementedError, "not supported on windows");
+  return NULL;
+}
 #endif
 
 void _PyClassLoader_ClearValueCache() {

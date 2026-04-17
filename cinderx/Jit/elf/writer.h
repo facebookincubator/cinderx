@@ -11,6 +11,7 @@
 #include "cinderx/Jit/elf/string.h"
 #include "cinderx/Jit/elf/symbol.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>

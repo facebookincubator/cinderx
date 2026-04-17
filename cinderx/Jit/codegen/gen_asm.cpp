@@ -651,7 +651,9 @@ void* generateDeoptTrampoline(bool generator_mode) {
   std::vector<std::pair<void*, std::size_t>> code_sections;
   populateCodeSections(code_sections, code, result);
   code_sections.emplace_back(result, code_size);
+#ifndef WIN32
   perf::registerFunction(code_sections, name);
+#endif
   return result;
 #elif defined(CINDER_AARCH64)
   auto annot_cursor = a.cursor();
@@ -959,7 +961,9 @@ void* generateFailedDeferredCompileTrampoline() {
     code_sections.emplace_back(
         reinterpret_cast<void*>(section_start), asmjit_section->realSize());
   });
+#ifndef WIN32
   perf::registerFunction(code_sections, name);
+#endif
 
   return result;
 }
@@ -1922,7 +1926,9 @@ void NativeGenerator::generateCode(
   // the text sections.
   std::vector<std::pair<void*, std::size_t>> code_sections;
   populateCodeSections(code_sections, codeholder, code_start_);
+#ifndef WIN32
   perf::registerFunction(code_sections, func->fullname, prefix);
+#endif
 }
 
 #ifdef __ASM_DEBUG

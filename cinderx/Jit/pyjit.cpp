@@ -2638,7 +2638,9 @@ int deopt_gen_visitor(PyObject* obj, void*) {
 }
 
 PyObject* after_fork_child(PyObject*, PyObject*) {
+#ifndef WIN32
   perf::afterForkChild();
+#endif
   Py_RETURN_NONE;
 }
 
