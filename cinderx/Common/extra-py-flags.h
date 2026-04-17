@@ -19,7 +19,7 @@
 
 #define Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED (1UL << 21)
 
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
 
 // Lowest bit is unused
 #define Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED (1UL << 2)

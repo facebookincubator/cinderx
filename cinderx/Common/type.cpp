@@ -2,9 +2,7 @@
 
 #include "cinderx/Common/type.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_typeobject.h" // @donotremove
-#endif
 
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
@@ -25,7 +23,6 @@ std::string typeFullname(PyTypeObject* type) {
   return type->tp_name;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
   if (getThreadedCompileContext().compileRunning() &&
       self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
@@ -35,11 +32,6 @@ PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
   }
   return getBorrowedTypeDict(self);
 }
-#else
-PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
-  return getBorrowedTypeDict(self);
-}
-#endif
 
 BorrowedRef<> typeLookupSafe(
     BorrowedRef<PyTypeObject> type,
@@ -62,10 +54,6 @@ BorrowedRef<> typeLookupSafe(
     }
     if (BorrowedRef<> value{PyDict_GetItemWithError(dict, name)}) {
       return value;
-    }
-    if constexpr (PY_VERSION_HEX < 0x030C0000) {
-      JIT_CHECK(
-          !PyErr_Occurred(), "Thread-unsafe exception during type lookup");
     }
   }
   return nullptr;

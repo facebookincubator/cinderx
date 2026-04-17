@@ -6,10 +6,6 @@
 
 #include <stdbool.h>
 
-#if PY_VERSION_HEX < 0x030C0000
-#define _Py_IMMORTAL_REFCNT kImmortalInitialCount
-#endif
-
 /*
  * Immortalizes a Python object but does not check if that makes sense to do so.
  * You probably want to use the `immortalize()` function instead.
@@ -18,7 +14,7 @@
 #define IMMORTALIZE(OBJ) Py_SET_IMMORTAL(OBJ)
 #elif PY_VERSION_HEX >= 0x030E0000
 #define IMMORTALIZE(OBJ) Py_SET_REFCNT((OBJ), _Py_IMMORTAL_INITIAL_REFCNT)
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
 #define IMMORTALIZE(OBJ) Py_SET_REFCNT((OBJ), _Py_IMMORTAL_REFCNT)
 #endif
 

@@ -7,18 +7,10 @@
 namespace jit {
 
 void printPythonException() {
-#if PY_VERSION_HEX < 0x030C0000
-  PyThreadState* tstate = PyThreadState_Get();
-  if (tstate != nullptr && tstate->curexc_type != nullptr) {
-    PyErr_Display(
-        tstate->curexc_type, tstate->curexc_value, tstate->curexc_traceback);
-  }
-#else
   if (PyErr_Occurred()) {
     auto exc = Ref<>::steal(PyErr_GetRaisedException());
     PyErr_DisplayException(exc);
   }
-#endif
 }
 
 std::string repr(BorrowedRef<> obj) {

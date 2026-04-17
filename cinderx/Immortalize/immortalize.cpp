@@ -24,7 +24,7 @@ bool can_immortalize(PyObject* obj) {
   // Python 3.12 will assert that strings that are immortalized are also
   // interned in debug builds.  This is purely a debug check, it's fine to do in
   // optimized builds.
-  if constexpr (PY_VERSION_HEX >= 0x030C0000 && kPyDebug) {
+  if constexpr (kPyDebug) {
     return !PyUnicode_Check(obj);
   }
 
@@ -41,17 +41,8 @@ bool immortalize(PyObject* obj) {
   if (PyCode_Check(obj)) {
     BorrowedRef<PyCodeObject> code{obj};
     codeExtra(code);
-#if PY_VERSION_HEX < 0x030B0000
-    // In 3.11 these changed to have the bytes embedded in the code object and
-    // the names in a unified tuple
-    IMMORTALIZE(code->co_code);
-    IMMORTALIZE(code->co_varnames);
-    IMMORTALIZE(code->co_freevars);
-    IMMORTALIZE(code->co_cellvars);
-#else
     IMMORTALIZE(code->co_localspluskinds);
     IMMORTALIZE(code->co_localsplusnames);
-#endif
     IMMORTALIZE(code->co_consts);
     IMMORTALIZE(code->co_names);
     IMMORTALIZE(code->co_linetable);
@@ -73,7 +64,6 @@ bool immortalize(PyObject* obj) {
   return true;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* immortalize_heap([[maybe_unused]] PyObject* mod) {
 #ifdef Py_GIL_DISABLED
   PyErr_SetString(
@@ -106,20 +96,3 @@ PyObject* immortalize_heap([[maybe_unused]] PyObject* mod) {
 
   Py_RETURN_NONE;
 }
-#else
-PyObject* immortalize_heap(PyObject* /* mod */) {
-  // for 3.10.cinder, we fall back to the implementation that ships in the gc
-  // module NOTE: this isn't a documented API, so I'm mostly adding it for
-  // parity, but it shouldn't actually be used anywhere
-  Ref<> gcmodule = Ref<>::steal(PyImport_ImportModule("gc"));
-  if (!gcmodule) {
-    return nullptr;
-  }
-  Ref<> immortalize =
-      Ref<>::steal(PyObject_GetAttrString(gcmodule, "immortalize_heap"));
-  if (!immortalize) {
-    return nullptr;
-  }
-  return PyObject_CallFunctionObjArgs(immortalize, nullptr);
-}
-#endif

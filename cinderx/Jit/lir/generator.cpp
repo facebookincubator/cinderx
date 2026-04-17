@@ -1314,15 +1314,12 @@ void LIRGenerator::makeIncref(
   Register* obj = instr.GetOperand(0);
 
   // Don't generate anything for immortal objects.
-  if (kImmortalInstances && !obj->type().couldBe(TMortalObject)) {
+  if (!obj->type().couldBe(TMortalObject)) {
     return;
   }
 
   makeIncref(
-      bbb,
-      bbb.getDefInstr(obj),
-      xincref,
-      kImmortalInstances && obj->type().couldBe(TImmortalObject));
+      bbb, bbb.getDefInstr(obj), xincref, obj->type().couldBe(TImmortalObject));
 }
 
 void LIRGenerator::makeDecref(
@@ -1471,7 +1468,7 @@ void LIRGenerator::makeDecref(
   Register* obj = instr.GetOperand(0);
 
   // Don't generate anything for immortal objects.
-  if (kImmortalInstances && !obj->type().couldBe(TMortalObject)) {
+  if (!obj->type().couldBe(TMortalObject)) {
     return;
   }
 
@@ -1480,7 +1477,7 @@ void LIRGenerator::makeDecref(
       bbb.getDefInstr(obj),
       obj->type().runtimePyTypeDestructor(),
       xdecref,
-      kImmortalInstances && obj->type().couldBe(TImmortalObject));
+      obj->type().couldBe(TImmortalObject));
 }
 
 LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(

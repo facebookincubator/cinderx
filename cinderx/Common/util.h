@@ -58,13 +58,6 @@ constexpr bool kPyRefDebug =
     false;
 #endif
 
-constexpr bool kImmortalInstances =
-#if defined(Py_IMMORTAL_INSTANCES) || PY_VERSION_HEX >= 0x030C0000
-    true;
-#else
-    false;
-#endif
-
 struct jit_string_deleter {
   void operator()(jit_string_t* ss) const {
     ss_free(ss);

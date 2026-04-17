@@ -2,9 +2,7 @@
 
 #include "cinderx/Common/util.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_typeobject.h" // @donotremove
-#endif
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"

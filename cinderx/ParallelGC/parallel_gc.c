@@ -44,10 +44,6 @@
 
 #include <stdatomic.h>
 
-#if PY_VERSION_HEX < 0x030C0000
-#include <cinder/exports.h>
-#endif
-
 #if PY_VERSION_HEX >= 0x030E0000
 // Renamed to private export prefix in Meta Python 3.14.
 #define Ci_PyGCImpl _Ci_PyGCImpl

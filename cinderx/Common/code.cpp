@@ -15,11 +15,7 @@
 #include <zlib.h>
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "cpython/code.h"
-
-#endif
 
 namespace jit {
 static std::string fullnameImpl(PyObject* module, PyObject* qualname) {
@@ -59,12 +55,7 @@ PyObject* getVarnameTuple(BorrowedRef<PyCodeObject> code, int* idx) {
 }
 
 PyObject* getVarname(BorrowedRef<PyCodeObject> code, int idx) {
-#if PY_VERSION_HEX >= 0x030C0000
   return PyTuple_GET_ITEM(code->co_localsplusnames, idx);
-#else
-  auto tuple = Ref<>::steal(getVarnameTuple(code, &idx));
-  return PyTuple_GET_ITEM(tuple.get(), idx);
-#endif
 }
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
@@ -109,42 +100,24 @@ const char* codeName(PyCodeObject* code) {
 }
 
 _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
-#if PY_VERSION_HEX >= 0x030C0000
   return _PyCode_CODE(code);
-#else
-  auto bytes_obj = Ref<>::steal(PyCode_GetCode(code));
-  JIT_DCHECK(
-      PyBytes_CheckExact(bytes_obj),
-      "Code object must have its instructions stored as a byte string");
-  return (_Py_CODEUNIT*)PyBytes_AS_STRING(bytes_obj.get());
-#endif
 }
 
 size_t countIndices(PyCodeObject* code) {
-#if PY_VERSION_HEX >= 0x030C0000
   // PyCode_GetCode can allocate to create a copy of the de-opted code
   // which we don't need just to determine the number of indices.
   return _PyCode_NBYTES(code) / sizeof(_Py_CODEUNIT);
-#else
-  auto bytes_obj = Ref<>::steal(PyCode_GetCode(code));
-  return PyBytes_GET_SIZE(bytes_obj.get()) / sizeof(_Py_CODEUNIT);
-#endif
 }
 
 int unspecialize(int opcode) {
-#if PY_VERSION_HEX >= 0x030C0000
   // The deopt table has size 256, and pseudo-opcodes and stubs are by
   // definition unspecialized already.
   return (opcode >= 0 && opcode <= 255) ? _CiOpcode_Deopt[opcode] : opcode;
-#else
-  return opcode;
-#endif
 }
 
 int uninstrument(PyCodeObject* code, int index) {
   int opcode = _Py_OPCODE(codeUnit(code)[index]);
 
-#if PY_VERSION_HEX >= 0x030C0000
   // Check if there's an equivalent opcode without instrumentation.
   uint8_t base_opcode = Cix_DEINSTRUMENT(static_cast<uint8_t>(opcode));
   if (base_opcode != 0) {
@@ -159,7 +132,6 @@ int uninstrument(PyCodeObject* code, int index) {
   if (opcode == INSTRUMENTED_LINE) {
     return Cix_GetOriginalOpcode(code->_co_monitoring->lines, index);
   }
-#endif
 
   return opcode;
 }
@@ -174,34 +146,19 @@ const char* opcodeName(int opcode) {
   return name != nullptr ? name : "<unknown opcode>";
 }
 
-Py_ssize_t inlineCacheSize(
-    [[maybe_unused]] PyCodeObject* code,
-    [[maybe_unused]] int index) {
-#if PY_VERSION_HEX >= 0x030C0000
+Py_ssize_t inlineCacheSize(PyCodeObject* code, int index) {
   return _CiOpcode_Caches[unspecialize(uninstrument(code, index))];
-#else
-  return 0;
-#endif
 }
 
 int loadAttrIndex(int oparg) {
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    return oparg >> 1;
-  }
-  return oparg;
+  return oparg >> 1;
 }
 
 int loadGlobalIndex(int oparg) {
-  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-    return oparg >> 1;
-  }
-  return oparg;
+  return oparg >> 1;
 }
 
 void initCodeExtraIndex() {
-  if constexpr (!USE_CODE_EXTRA) {
-    return;
-  }
   auto state = cinderx::getModuleState();
   JIT_CHECK(
       state != nullptr,
@@ -214,9 +171,6 @@ void initCodeExtraIndex() {
 }
 
 void finiCodeExtraIndex() {
-  if constexpr (!USE_CODE_EXTRA) {
-    return;
-  }
   auto state = cinderx::getModuleState();
   JIT_CHECK(
       state != nullptr,
@@ -229,10 +183,6 @@ void finiCodeExtraIndex() {
 }
 
 CodeExtra* codeExtra(PyCodeObject* code) {
-  if constexpr (!USE_CODE_EXTRA) {
-    return nullptr;
-  }
-
   auto* state = cinderx::getModuleState();
   // On shutdown the module state becomes inaccessible.
   if (state == nullptr) {
@@ -281,29 +231,15 @@ int numLocals(PyCodeObject* code) {
 }
 
 int numCellvars(PyCodeObject* code) {
-#if PY_VERSION_HEX >= 0x030B0000
   return code->co_ncellvars;
-#else
-  auto cellvars = Ref<>::steal(PyCode_GetCellvars(code));
-  return PyTuple_GET_SIZE(cellvars.get());
-#endif
 }
 
 int numFreevars(PyCodeObject* code) {
-#if PY_VERSION_HEX >= 0x030B0000
   return code->co_nfreevars;
-#else
-  auto freevars = Ref<>::steal(PyCode_GetFreevars(code));
-  return PyTuple_GET_SIZE(freevars.get());
-#endif
 }
 
 int numLocalsplus(PyCodeObject* code) {
-#if PY_VERSION_HEX >= 0x030B0000
   return code->co_nlocalsplus;
-#else
-  return numLocals(code) + numCellvars(code) + numFreevars(code);
-#endif
 }
 
 } // extern "C"
