@@ -1,5 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/python.h"
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
@@ -576,7 +578,6 @@ TEST_F(HIRBuildTest, GetLength) {
   uint8_t bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -604,40 +605,6 @@ TEST_F(HIRBuildTest, GetLength) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<1> v0
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v0
-      }
-    }
-    v1 = GetLength v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<1> v0
-        Stack<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 4
-      Locals<1> v0
-      Stack<2> v0 v1
-    }
-    v2 = Assign v1
-    v1 = Assign v0
-    Return v2
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -678,7 +645,6 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadCurrentFunc
@@ -691,19 +657,6 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-    }
-    v0 = LoadConst<ImmortalTypeExact[AssertionError:obj]>
-    Return v0
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 #endif
@@ -726,13 +679,8 @@ TEST_F(HIRBuildTest, SetUpdate) {
       SET_UPDATE,
       1,
 
-#if PY_VERSION_HEX < 0x030B0000
-      ROT_TWO,
-      0,
-#else
       SWAP,
       2,
-#endif
       POP_TOP,
       0,
       RETURN_VALUE,
@@ -774,7 +722,6 @@ TEST_F(HIRBuildTest, SetUpdate) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -802,54 +749,6 @@ TEST_F(HIRBuildTest, SetUpdate) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    v1 = LoadArg<1; "param1">
-    v2 = LoadArg<2; "param2">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<3> v0 v1 v2
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<3> v0 v1 v2
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<3> v0 v1 v2
-        Stack<1> v0
-      }
-    }
-    v2 = CheckVar<"param2"> v2 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<3> v0 v1 v2
-        Stack<2> v0 v1
-      }
-    }
-    v3 = SetUpdate v1 v2 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<3> v0 v1 v2
-        Stack<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 8
-      Locals<3> v0 v1 v2
-      Stack<2> v0 v1
-    }
-    Return v1
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -871,17 +770,12 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
       0,
       RETURN_VALUE,
       0,
-#if PY_VERSION_HEX < 0x030C0000
-      JUMP_ABSOLUTE,
-      4,
-#else
       JUMP_BACKWARD,
       2,
 #if PY_VERSION_HEX >= 0x030E0000
       // inline-cache slot for 3.14+
       0,
       0
-#endif
 #endif
   };
   Ref<> bytecode = toByteString(bc);
@@ -917,7 +811,6 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   ASSERT_NE(func.get(), nullptr);
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadCurrentFunc
@@ -930,19 +823,6 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-    }
-    v0 = LoadConst<NoneType>
-    Return v0
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -962,13 +842,8 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
       0,
       RETURN_VALUE,
       0,
-#if PY_VERSION_HEX < 0x030C0000
-      JUMP_ABSOLUTE,
-      4,
-#else
       JUMP_BACKWARD_NO_INTERRUPT,
       2,
-#endif
   };
   Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
@@ -1004,7 +879,6 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
   ASSERT_NE(irfunc.get(), nullptr);
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadCurrentFunc
@@ -1017,19 +891,6 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-    }
-    v0 = LoadConst<NoneType>
-    Return v0
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -1237,192 +1098,10 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   EXPECT_TRUE(orig->live_regs() == dup->live_regs());
 }
 
-// ROT_N was removed in 3.11.
-#if PY_VERSION_HEX < 0x030B0000
-TEST_F(HIRBuildTest, ROT_N) {
-  uint8_t bc[] = {
-      LOAD_FAST,
-      0,
-      LOAD_FAST,
-      1,
-      LOAD_FAST,
-      2,
-      LOAD_FAST,
-      3,
-      ROT_N,
-      3,
-      BINARY_OR,
-      0,
-      BINARY_OR,
-      0,
-      BINARY_OR,
-      0,
-      RETURN_VALUE,
-      0};
-
-  std::unique_ptr<Function> irfunc =
-      build_test(bc, {Py_None, Py_None, Py_None, Py_None});
-
-#if PY_VERSION_HEX >= 0x030A0000
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<4> v0 v1 v2 v3
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<4> v0 v1 v2 v3
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<4> v0 v1 v2 v3
-        Stack<1> v0
-      }
-    }
-    v2 = CheckVar<"param2"> v2 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<4> v0 v1 v2 v3
-        Stack<2> v0 v1
-      }
-    }
-    v3 = CheckVar<"param3"> v3 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<4> v0 v1 v2 v3
-        Stack<3> v0 v1 v2
-      }
-    }
-    v4 = BinaryOp<Or> v1 v2 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<4> v0 v1 v2 v3
-        Stack<2> v0 v3
-      }
-    }
-    Snapshot {
-      CurInstrOffset 12
-      Locals<4> v0 v1 v2 v3
-      Stack<3> v0 v3 v4
-    }
-    v5 = BinaryOp<Or> v3 v4 {
-      FrameState {
-        CurInstrOffset 12
-        Locals<4> v0 v1 v2 v3
-        Stack<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 14
-      Locals<4> v0 v1 v2 v3
-      Stack<2> v0 v5
-    }
-    v6 = BinaryOp<Or> v0 v5 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<4> v0 v1 v2 v3
-      }
-    }
-    Snapshot {
-      CurInstrOffset 16
-      Locals<4> v0 v1 v2 v3
-      Stack<1> v6
-    }
-    Return v6
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    Snapshot {
-      CurInstrOffset 0
-      Locals<4> v0 v1 v2 v3
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<4> v0 v1 v2 v3
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<4> v0 v1 v2 v3
-        Stack<1> v0
-      }
-    }
-    v2 = CheckVar<"param2"> v2 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<4> v0 v1 v2 v3
-        Stack<2> v0 v1
-      }
-    }
-    v3 = CheckVar<"param3"> v3 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<4> v0 v1 v2 v3
-        Stack<3> v0 v1 v2
-      }
-    }
-    v4 = BinaryOp<Or> v1 v2 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<4> v0 v1 v2 v3
-        Stack<2> v0 v3
-      }
-    }
-    Snapshot {
-      CurInstrOffset 12
-      Locals<4> v0 v1 v2 v3
-      Stack<3> v0 v3 v4
-    }
-    v5 = BinaryOp<Or> v3 v4 {
-      FrameState {
-        CurInstrOffset 12
-        Locals<4> v0 v1 v2 v3
-        Stack<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 14
-      Locals<4> v0 v1 v2 v3
-      Stack<2> v0 v5
-    }
-    v6 = BinaryOp<Or> v0 v5 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<4> v0 v1 v2 v3
-      }
-    }
-    Snapshot {
-      CurInstrOffset 16
-      Locals<4> v0 v1 v2 v3
-      Stack<1> v6
-    }
-    Return v6
-  }
-}
-)";
-#endif
-
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
-}
-#endif
-
 TEST_F(HIRBuildTest, MatchMapping) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1460,50 +1139,6 @@ TEST_F(HIRBuildTest, MatchMapping) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<1> v0
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v0
-      }
-    }
-    v1 = LoadField<ob_type@8, Type, borrowed> v0
-    v2 = LoadField<tp_flags@168, CUInt64, borrowed> v1
-    v3 = LoadConst<CUInt64[64]>
-    v4 = IntBinaryOp<And> v2 v3
-    CondBranch<1, 2> v4
-  }
-
-  bb 1 (preds 0) {
-    v5 = LoadConst<ImmortalBool[True]>
-    Branch<3>
-  }
-
-  bb 2 (preds 0) {
-    v5 = LoadConst<ImmortalBool[False]>
-    Branch<3>
-  }
-
-  bb 3 (preds 1, 2) {
-    Snapshot {
-      CurInstrOffset 4
-      Locals<1> v0
-      Stack<2> v0 v5
-    }
-    v1 = Assign v0
-    Return v5
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -1511,7 +1146,6 @@ TEST_F(HIRBuildTest, MatchSequence) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1549,50 +1183,6 @@ TEST_F(HIRBuildTest, MatchSequence) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<1> v0
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v0
-      }
-    }
-    v1 = LoadField<ob_type@8, Type, borrowed> v0
-    v2 = LoadField<tp_flags@168, CUInt64, borrowed> v1
-    v3 = LoadConst<CUInt64[32]>
-    v4 = IntBinaryOp<And> v2 v3
-    CondBranch<1, 2> v4
-  }
-
-  bb 1 (preds 0) {
-    v5 = LoadConst<ImmortalBool[True]>
-    Branch<3>
-  }
-
-  bb 2 (preds 0) {
-    v5 = LoadConst<ImmortalBool[False]>
-    Branch<3>
-  }
-
-  bb 3 (preds 1, 2) {
-    Snapshot {
-      CurInstrOffset 4
-      Locals<1> v0
-      Stack<2> v0 v5
-    }
-    v1 = Assign v0
-    Return v5
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -1600,7 +1190,6 @@ TEST_F(HIRBuildTest, MatchKeys) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1645,66 +1234,6 @@ TEST_F(HIRBuildTest, MatchKeys) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = MatchKeys v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<2> v0 v1
-      }
-    }
-    v3 = LoadConst<NoneType>
-    v4 = PrimitiveCompare<Equal> v2 v3
-    CondBranch<1, 2> v4
-  }
-
-  bb 1 (preds 0) {
-    v2 = RefineType<NoneType> v2
-    v5 = LoadConst<ImmortalBool[False]>
-    Branch<3>
-  }
-
-  bb 2 (preds 0) {
-    v2 = RefineType<TupleExact> v2
-    v5 = LoadConst<ImmortalBool[True]>
-    Branch<3>
-  }
-
-  bb 3 (preds 1, 2) {
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<4> v0 v1 v2 v5
-    }
-    v4 = Assign v2
-    v2 = Assign v0
-    v3 = Assign v1
-    Return v5
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -1712,7 +1241,6 @@ TEST_F(HIRBuildTest, ListExtend) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, LIST_EXTEND, 1, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1738,61 +1266,12 @@ TEST_F(HIRBuildTest, ListExtend) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = ListExtend v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<1> v0
-    }
-    Return v0
-  }
-}
-)";
-#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, ListToTuple) {
   uint8_t bc[] = {
-      LOAD_FAST,
-      0,
-#if PY_VERSION_HEX < 0x030C0000
-      LIST_TO_TUPLE,
-      0,
-#else
-      CALL_INTRINSIC_1,
-      INTRINSIC_LIST_TO_TUPLE,
-#endif
-      RETURN_VALUE,
-      0};
+      LOAD_FAST, 0, CALL_INTRINSIC_1, INTRINSIC_LIST_TO_TUPLE, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -1815,7 +1294,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1835,42 +1314,11 @@ TEST_F(HIRBuildTest, ListToTuple) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun jittestmodule:funcname {
-  bb 0 {
-    v0 = LoadArg<0; "param0">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<1> v0
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v0
-      }
-    }
-    v1 = MakeTupleFromList v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 4
-      Locals<1> v0
-      Stack<1> v1
-    }
-    Return v1
-  }
-}
-)";
 #endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, LoadFastAndClear) {
-#if PY_VERSION_HEX >= 0x030C0000
   uint8_t bc[] = {
       LOAD_FAST_AND_CLEAR, 1, LOAD_FAST_CHECK, 0, POP_TOP, 0, RETURN_VALUE, 0};
 
@@ -1900,10 +1348,8 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
 )";
 
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
-#endif
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 TEST_F(HIRBuildTest, AtQuiescentStateInEvalBreakerCheck) {
   const char* src = R"(
 def test():
@@ -1936,4 +1382,3 @@ def test():
       << "AtQuiescentState should not be present in non-free-threaded builds";
 #endif
 }
-#endif

@@ -360,7 +360,6 @@ class ModuleScope(Scope):
 class FunctionScope(Scope):
     is_function_scope = True
     is_method = False
-    _inline_comprehensions = False
 
 
 class GenExprScope(FunctionScope):
@@ -1028,9 +1027,6 @@ class CinderFunctionScope(FunctionScope):
         self, name: str, module: ModuleScope, klass: str | None = None, lineno: int = 0
     ) -> None:
         super().__init__(name=name, module=module, klass=klass, lineno=lineno)
-        self._inline_comprehensions: bool = bool(
-            os.getenv("PYTHONINLINECOMPREHENSIONS")
-        )
 
 
 class CinderGenExprScope(GenExprScope, CinderFunctionScope):

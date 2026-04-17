@@ -5,9 +5,6 @@ import inspect
 import sys
 import unittest
 
-import cinderx.jit
-from cinderx.test_support import passIf, passUnless
-
 from .common import CompilerTest
 
 
@@ -172,21 +169,6 @@ class ErrorTests(CompilerTest):
             SyntaxError, "too many expressions in star-unpacking assignment"
         ):
             self.compile(", ".join(("x",) * 256) + ", *x, = range(256)")
-
-    @passIf(cinderx.jit.is_enabled(), "JIT doesn't support recursion checks")
-    @passUnless(sys.version_info < (3, 12), "Interpreter can elide recursion check")
-    def test_recursion_error_when_expression_too_deep(self) -> None:
-        fail_depth = sys.getrecursionlimit() * 3
-
-        def check_limit(prefix, repeated):
-            with self.assertRaisesRegex(
-                RecursionError, "maximum recursion depth exceeded"
-            ):
-                self.compile(f"{prefix}{repeated * fail_depth}")
-
-        check_limit("a", ".b")
-        check_limit("a", "[0]")
-        check_limit("a", "*a")
 
 
 class ErrorTestsBuiltin(ErrorTests):

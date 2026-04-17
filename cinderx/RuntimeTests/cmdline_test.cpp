@@ -35,9 +35,7 @@ int try_flag_and_envvar_effect(
   // Shutdown the JIT so we can start it up again under different conditions.
   jit::finalize();
 
-#if PY_VERSION_HEX >= 0x030C0000
   jit::shutdown_jit_genobject_type();
-#endif
 
   reset_vars(); // reset variable state before and
   // between flag and cmd line param runs
@@ -58,9 +56,7 @@ int try_flag_and_envvar_effect(
     conditions_to_check();
     unsetenv(key.c_str());
     jit::finalize();
-#if PY_VERSION_HEX >= 0x030C0000
     jit::shutdown_jit_genobject_type();
-#endif
     reset_vars();
   }
 
@@ -271,32 +267,6 @@ TEST_F(CmdLineTest, JITEnable) {
                 getConfig().asm_syntax,
                 AsmSyntax::ATT); // default to AT&T syntax
           }),
-      0);
-}
-
-// start of tests associated with flags the setting of which is dependent upon
-// if jit is enabled
-TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-shadow-frame",
-          "PYTHONJITSHADOWFRAME",
-          []() {},
-          []() {
-            // Shadow frames don't exist past 3.10.
-            if constexpr (PY_VERSION_HEX < 0x030C0000) {
-              ASSERT_EQ(getConfig().frame_mode, FrameMode::kShadow);
-            }
-          }),
-      0);
-
-  // Explicitly disable it.
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-shadow-frame=0",
-          "PYTHONJITSHADOWFRAME=0",
-          []() {},
-          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); }),
       0);
 }
 

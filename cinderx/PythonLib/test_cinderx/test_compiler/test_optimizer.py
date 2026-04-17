@@ -371,30 +371,6 @@ class AstOptimizerTests(CompilerTest):
         code = self.compare_graph('x = "fuu"[10]')
         code.assert_both("BINARY_SUBSCR")
 
-    @passIf(sys.version_info >= (3, 12), "needs updating for 3.12")
-    def test_folding_of_unaryops_on_constants(self):
-        for line, elem in (
-            ("x = -0.5", -0.5),  # unary negative
-            ("x = -0.0", -0.0),  # -0.0
-            ("x = -(1.0-1.0)", -0.0),  # -0.0 after folding
-            ("x = -0", 0),  # -0
-            ("x = ~-2", 1),  # unary invert
-            ("x = +1", 1),  # unary positive
-        ):
-            code = self.compare_graph(line)
-            # can't assert added here because -0/0 compares equal
-            code.assert_in_opt("LOAD_CONST", elem)
-            code.assert_all_removed("UNARY_")
-
-        # Verify that unfoldables are skipped
-        for line, elem, opname in (
-            ('-"abc"', "abc", "UNARY_NEGATIVE"),
-            ('~"abc"', "abc", "UNARY_INVERT"),
-        ):
-            code = self.compare_graph(line)
-            code.assert_both("LOAD_CONST", elem)
-            code.assert_both(opname)
-
     def test_enum_format_str_components(self) -> None:
         test_cases = [
             ("%s", ["", FormatInfo("s")]),

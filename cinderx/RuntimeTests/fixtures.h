@@ -39,9 +39,7 @@ class RuntimeTest : public ::testing::Test {
 
   RuntimeTest(Flags flags = kDefaultFlags) : flags_{flags} {
     // TASK(T190613453): Python compiler doesn't work with 3.12 yet.
-    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-      flags_ = static_cast<Flags>(flags_ & ~kCinderCompiler);
-    }
+    flags_ = static_cast<Flags>(flags_ & ~kCinderCompiler);
 
     JIT_CHECK(
         !isCinderCompiler() || !isStaticCompiler(),

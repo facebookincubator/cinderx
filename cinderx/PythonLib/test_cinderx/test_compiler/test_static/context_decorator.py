@@ -7,14 +7,8 @@ from __static__ import ContextDecorator
 import asyncio
 import inspect
 import sys
-from collections.abc import Coroutine
-
-from cinderx.test_support import get_await_stack, passIf
 
 from .common import StaticTestBase
-
-
-AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
 class ContextDecoratorTests(StaticTestBase):
@@ -1021,57 +1015,6 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(e.exception.args, ((1, 2, 3),))
         finally:
             loop.close()
-
-    @passIf(AT_LEAST_312, "No working get_await_stack T201015581")
-    def test_stack_trace(self) -> None:
-        coro: Coroutine | None = None
-        await_stack = []
-
-        class C(ContextDecorator):
-            pass
-
-        @C()
-        async def f() -> int:
-            nonlocal await_stack
-            assert coro is not None
-            await_stack = get_await_stack(coro)
-            return 100
-
-        async def g() -> int:
-            nonlocal coro
-            x = f()
-            coro = x.__coro__
-            return await x
-
-        g_coro = g()
-        asyncio.run(g_coro)
-        self.assertEqual(await_stack, [g_coro])
-
-    @passIf(AT_LEAST_312, "No working get_await_stack T201015581")
-    def test_stack_trace_non_eager(self) -> None:
-        coro: Coroutine | None = None
-        await_stack = []
-
-        class C(ContextDecorator):
-            pass
-
-        @C()
-        async def f() -> int:
-            nonlocal await_stack
-            await asyncio.sleep(0.1)
-            assert coro is not None
-            await_stack = get_await_stack(coro)
-            return 100
-
-        async def g() -> int:
-            nonlocal coro
-            x = f()
-            coro = x.__coro__
-            return await x
-
-        g_coro = g()
-        asyncio.run(g_coro)
-        self.assertEqual(await_stack, [g_coro])
 
     def test_repeated_import_with_contextdecorator(self) -> None:
         codestr = """

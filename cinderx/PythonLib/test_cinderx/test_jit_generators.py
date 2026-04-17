@@ -8,13 +8,10 @@ import threading
 import unittest
 import weakref
 
-import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.jit import _deopt_gen, is_jit_compiled
 
 from .common import with_globals
-
-POST_312 = sys.version_info >= (3, 12)
 
 
 class GeneratorsTest(unittest.TestCase):
@@ -282,10 +279,7 @@ class GeneratorsTest(unittest.TestCase):
         self.assertTrue(any(weak_ref_x() is obj for obj in gc.get_objects()))
         referrers = gc.get_referrers(weak_ref_x())
         self.assertEqual(len(referrers), 1)
-        if POST_312 or cinderx.jit.is_enabled():
-            self.assertIs(referrers[0], g)
-        else:
-            self.assertIs(referrers[0], g.gi_frame)
+        self.assertIs(referrers[0], g)
         with self.assertRaises(StopIteration):
             g.send(None)
 

@@ -4,18 +4,13 @@
 import __future__
 
 import ast
-import inspect
 import re
 import sys
 import unittest
 
 from cinderx.compiler import compile, compile_code
-from cinderx.test_support import passIf
 
 from .common import CompilerTest
-
-PRE_312: bool = sys.version_info < (3, 12)
-POST_312: bool = not PRE_312
 
 
 class ApiTests(CompilerTest):
@@ -88,45 +83,6 @@ class ApiTests(CompilerTest):
         self.assertNotIn("hi", consts["f"].co_consts)
 
 
-@passIf(POST_312, "Python 3.10- only")
-class ApiTests310(CompilerTest):
-    def test_compile_single(self) -> None:
-        code = compile_code("300", "foo", "single")
-        self.assertInBytecode(code, "LOAD_CONST", 300)
-        self.assertInBytecode(code, "PRINT_EXPR")
-
-    def test_compile_eval(self) -> None:
-        code = compile_code("42", "foo", "eval")
-        self.assertInBytecode(code, "LOAD_CONST", 42)
-        self.assertInBytecode(code, "RETURN_VALUE")
-
-    def test_compile_with_barry_as_bdfl_emits_ne(self) -> None:
-        # pyre-fixme[16]: Module `__future__` has no attribute `CO_FUTURE_BARRY_AS_BDFL`
-        code = compile_code("a <> b", "foo", "exec", __future__.CO_FUTURE_BARRY_AS_BDFL)
-        self.assertInBytecode(code, "COMPARE_OP", "!=")
-
-    def test_compile_with_annotation_in_except_handler_emits_store_annotation(
-        self,
-    ) -> None:
-        source = inspect.cleandoc(
-            """
-try:
-    pass
-except:
-    x: int = 1
-"""
-        )
-
-        code = compile_code(
-            source,
-            "foo",
-            "exec",
-            0,
-        )
-        self.assertInBytecode(code, "SETUP_ANNOTATIONS")
-
-
-@passIf(PRE_312, "Python 3.12+ only")
 class ApiTests312(CompilerTest):
     def test_compile_single(self) -> None:
         code = compile_code("256", "foo", "single")

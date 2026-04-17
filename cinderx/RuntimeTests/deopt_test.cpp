@@ -20,15 +20,13 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
+#include "internal/pycore_frame.h"
+
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-
-#if PY_VERSION_HEX >= 0x030C0000
-#include "internal/pycore_frame.h"
-#endif
 
 #include <algorithm>
 
@@ -44,17 +42,6 @@ static inline Ref<> runInInterpreterViaReify(
     const DeoptMetadata& dm,
     const DeoptFrameMetadata& dfm,
     uint64_t regs[NUM_GP_REGS]) {
-#if PY_VERSION_HEX < 0x030C0000
-  PyThreadState* tstate = PyThreadState_Get();
-  PyCodeObject* code =
-      reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
-  auto frame = Ref<PyFrameObject>::steal(
-      PyFrame_New(tstate, code, PyFunction_GetGlobals(func), nullptr));
-
-  reifyFrame(frame, dm, dfm, regs);
-
-  return Ref<>::steal(PyEval_EvalFrame(frame));
-#else
   PyThreadState* tstate = PyThreadState_Get();
   BorrowedRef<PyCodeObject> code = PyFunction_GetCode(func);
   _PyInterpreterFrame* interp_frame =
@@ -89,7 +76,6 @@ static inline Ref<> runInInterpreterViaReify(
   _Py_Instrument(frameCode(interp_frame), tstate->interp);
 #endif
   return Ref<>::steal(PyEval_EvalFrame(frame_obj));
-#endif
 }
 
 TEST_F(ReifyFrameTest, ReifyAtEntry) {
@@ -176,12 +162,9 @@ def test(a, b):
 #elif PY_VERSION_HEX >= 0x030E0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
   dfm.cause_instr_idx = BCOffset{4};
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   // Skip RESUME, LOAD_FAST, LOAD_FAST
   dfm.cause_instr_idx = BCOffset{6};
-#else
-  // Skip LOAD_FAST, LOAD_FAST
-  dfm.cause_instr_idx = BCOffset{4};
 #endif
   dm.frame_meta = {std::move(dfm)};
 
@@ -236,12 +219,9 @@ def test(a, b):
 #elif PY_VERSION_HEX >= 0x030E0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
   dfm.cause_instr_idx = BCOffset{4};
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   // Skip RESUME, LOAD_FAST, LOAD_FAST
   dfm.cause_instr_idx = BCOffset{6};
-#else
-  // Skip LOAD_FAST, LOAD_FAST
-  dfm.cause_instr_idx = BCOffset{4};
 #endif
   dm.frame_meta = {std::move(dfm)};
 
@@ -300,10 +280,8 @@ def test(num):
   dfm.stack = {0, 2};
 #if PY_VERSION_HEX >= 0x030F0000
   dfm.cause_instr_idx = BCOffset{12};
-#elif PY_VERSION_HEX >= 0x030C0000
-  dfm.cause_instr_idx = BCOffset{10};
 #else
-  dfm.cause_instr_idx = BCOffset{8};
+  dfm.cause_instr_idx = BCOffset{10};
 #endif
   dm.frame_meta = {std::move(dfm)};
 
@@ -345,10 +323,7 @@ def test(x, y):
 
     PyCodeObject* code =
         reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
-#if PY_VERSION_HEX <= 0x030C0000
-    const int jump_index = 18;
-    const int pop_instr_offset = 4;
-#elif PY_VERSION_HEX < 0x030E0000
+#if PY_VERSION_HEX < 0x030E0000
     const int jump_index = 32;
     const int pop_instr_offset = 4;
 #elif PY_VERSION_HEX < 0x030F0000

@@ -1710,10 +1710,7 @@ class PrimitivesTests(StaticTestBase):
         """
         with self.in_module(code) as mod:
             f = mod.f
-            if self._inline_comprehensions:
-                self.assertInBytecode(f.__code__, "POP_JUMP_IF_ZERO")
-            else:
-                self.assertNotInBytecode(f.__code__, "POP_JUMP_IF_ZERO")
+            self.assertInBytecode(f.__code__, "POP_JUMP_IF_ZERO")
             self.assertEqual(f([1, 2, 3]), [])
 
     def test_generator_primitive_iter(self):
@@ -3687,18 +3684,6 @@ class PrimitivesTests(StaticTestBase):
                                 f(val)
                         else:
                             self.assertEqual(f(val), val)
-
-    @passIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_emits_convert_primitive_while_boxing(self):
-        codestr = """
-        import __static__
-        from __static__ import rand, RAND_MAX, box, int64
-        def f():
-            x: int64 = rand()
-            return box(x)
-        """
-        with self.in_module(codestr) as mod:
-            self.assertInBytecode(mod.f, "CONVERT_PRIMITIVE")
 
     def test_overflow_while_unboxing(self):
         codestr = """

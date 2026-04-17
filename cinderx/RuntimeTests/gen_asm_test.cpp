@@ -138,20 +138,14 @@ def test(x):
   ASSERT_NE(val.get(), nullptr);
 
   std::string msg;
-  if (PY_VERSION_HEX >= 0x030C0000) {
-    auto sval =
-        Ref<>::steal(PyObject_CallMethod(val, "__str__", nullptr /* format */));
-    ASSERT_TRUE(PyUnicode_Check(sval));
-    msg = PyUnicode_AsUTF8(sval);
-  } else {
-    ASSERT_TRUE(PyUnicode_Check(val));
-    msg = PyUnicode_AsUTF8(val);
-  }
+  auto sval =
+      Ref<>::steal(PyObject_CallMethod(val, "__str__", nullptr /* format */));
+  ASSERT_TRUE(PyUnicode_Check(sval));
+  msg = PyUnicode_AsUTF8(sval);
 
-  const std::string_view kExpected = PY_VERSION_HEX >= 0x030C0000
-      ? "cannot access local variable 'y' where it is not associated with a "
-        "value"
-      : "local variable 'y' referenced before assignment";
+  const std::string_view kExpected =
+      "cannot access local variable 'y' where it is not associated with a "
+      "value";
   ASSERT_EQ(msg, kExpected);
 
   auto tb_frame = Ref<>::steal(PyObject_GetAttrString(tb, "tb_frame"));

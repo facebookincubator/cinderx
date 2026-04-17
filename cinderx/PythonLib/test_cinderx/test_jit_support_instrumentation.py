@@ -7,13 +7,9 @@ import unittest
 from types import CodeType, FrameType
 
 from cinderx.jit import force_compile, is_jit_compiled
-from cinderx.test_support import passUnless, skip_module_if_oss, skip_unless_jit
+from cinderx.test_support import skip_module_if_oss, skip_unless_jit
 
 skip_module_if_oss()
-
-
-# sys.monitoring is only available in Python 3.12+
-AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
 def dummy_callback(
@@ -22,7 +18,6 @@ def dummy_callback(
     return None
 
 
-@passUnless(AT_LEAST_312, "sys.monitoring requires Python 3.12+")
 @skip_unless_jit("Tests functionality on the JIT")
 class JitMonitoringIntegrationTest(unittest.TestCase):
     """
@@ -570,9 +565,6 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         )
 
 
-@passUnless(
-    AT_LEAST_312, "Combined instrumentation requires Python 3.12+ for JIT integration"
-)
 @skip_unless_jit("Tests functionality on the JIT")
 class JitCombinedTracingIntegrationTest(unittest.TestCase):
     """

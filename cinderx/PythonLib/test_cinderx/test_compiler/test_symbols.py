@@ -2,7 +2,6 @@
 
 # pyre-strict
 import ast
-import sys
 import unittest
 from ast import FunctionDef
 from textwrap import dedent
@@ -16,11 +15,8 @@ from cinderx.compiler.symbols import (
     TypeParamScope,
     TypeVarBoundScope,
 )
-from cinderx.test_support import passIf
 
 from .common import CompilerTest
-
-PRE_312: bool = sys.version_info < (3, 12)
 
 
 class SymbolVisitorTests(CompilerTest):
@@ -90,7 +86,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_func_type_param(self) -> None:
         code = """def f[T](): pass"""
         module = ast.parse(code)
@@ -112,7 +107,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_func_type_param_collision(self) -> None:
         code = """def f[T](T): return T"""
         module = ast.parse(code)
@@ -135,7 +129,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_func_dup_type_var(self) -> None:
         code = """def f[T, T](): pass"""
         module = ast.parse(code)
@@ -143,7 +136,6 @@ class SymbolVisitorTests(CompilerTest):
         with self.assertRaisesRegex(SyntaxError, "duplicated type parameter: 'T'"):
             visitor.visit(module)
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_func_type_param_bound(self) -> None:
         code = """def f[T: str](): pass"""
         module = ast.parse(code)
@@ -172,7 +164,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_func_type_var_tuple(self) -> None:
         code = """def f[*T](): pass"""
         module = ast.parse(code)
@@ -194,7 +185,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_func_param_spec(self) -> None:
         code = """def f[**T](): pass"""
         module = ast.parse(code)
@@ -216,7 +206,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_class_type_param(self) -> None:
         code = """class C[T]: pass"""
         module = ast.parse(code)
@@ -237,7 +226,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_type_param_mangled(self) -> None:
         code = dedent("""
         class C:
@@ -253,7 +241,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_use_type_param(self) -> None:
         code = dedent("""
         class C[T]:
@@ -280,7 +267,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_refer_class_scope(self) -> None:
         code = dedent("""
         class C:
@@ -306,7 +292,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_type_alias_global(self) -> None:
         code = dedent("""
         type T = int
@@ -321,7 +306,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_type_alias_class(self) -> None:
         code = dedent("""
         class C:
@@ -342,7 +326,6 @@ class SymbolVisitorTests(CompilerTest):
         else:
             self.fail("scope not found")
 
-    @passIf(PRE_312, "Python 3.12+ only")
     def test_type_alias_generic_class(self) -> None:
         code = dedent("""
         class C[X]:

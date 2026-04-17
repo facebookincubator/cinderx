@@ -289,10 +289,6 @@ class TestErrors:
 
 
 class StaticTestBase(CompilerTest):
-    _inline_comprehensions: bool = bool(
-        os.getenv("PYTHONINLINECOMPREHENSIONS")
-    ) or sys.version_info >= (3, 12)
-
     @classmethod
     def setUpClass(cls) -> None:
         init_static_python()

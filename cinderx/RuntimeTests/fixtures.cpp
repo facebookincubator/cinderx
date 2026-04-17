@@ -2,10 +2,6 @@
 
 #include "cinderx/RuntimeTests/fixtures.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#endif
-
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"

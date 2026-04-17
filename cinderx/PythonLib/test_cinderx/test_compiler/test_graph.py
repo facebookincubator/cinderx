@@ -8,8 +8,6 @@ from cinderx.compiler.pycodegen import CodeGenerator
 
 from .common import CompilerTest
 
-PRE_312: bool = sys.version_info < (3, 12)
-
 
 class Block:
     __slots__ = (
@@ -97,8 +95,6 @@ class GraphTests(CompilerTest):
                 "try_cleanup",
                 "try_end",
             ]
-        elif PRE_312:
-            g = ["entry", "try_body", "try_handlers", "try_cleanup_body0"]
         else:
             g = ["entry", "try_body", "try_except", "try_cleanup_body_0", "try_cleanup"]
         expected = make_linear_graph(g)
@@ -118,22 +114,19 @@ class GraphTests(CompilerTest):
         )
         # graph the graph for f so we can check the async for
         graph = self.get_child_graph(graph, "f")
-        if PRE_312:
-            g = ["entry", "async_for_try", "except", "end"]
-        else:
-            g = [
-                "entry",
-                "start",
-                "async_for_try",
-                "send",
-                "post send",
-                "exit",
-                "fail",
-                "explicit_jump",
-                "except",
-                "end",
-                "handler",
-            ]
+        g = [
+            "entry",
+            "start",
+            "async_for_try",
+            "send",
+            "post send",
+            "exit",
+            "fail",
+            "explicit_jump",
+            "except",
+            "end",
+            "handler",
+        ]
         expected = make_linear_graph(g)
         self.assert_graph_equal(graph, expected)
 

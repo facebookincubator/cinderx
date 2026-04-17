@@ -4,18 +4,12 @@
 
 from __static__ import chkdict, chklist
 
-import sys
 from re import escape
 
 from cinderx import freeze_type
-from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
-from cinderx.test_support import passIf
 
 from .common import bad_ret_type, StaticTestBase
-
-
-AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
 class StaticObjCreationTests(StaticTestBase):
@@ -479,38 +473,6 @@ class StaticObjCreationTests(StaticTestBase):
             f = mod.C.__init__
             self.assertNotInBytecode(f, "INVOKE_METHOD")
 
-    @passIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
-    def test_super_init_no_load_attr_super(self) -> None:
-        codestr = """
-            x = super
-
-            class B:
-                def __init__(self, a):
-                    pass
-
-
-            class D(B):
-                def __init__(self):
-                    # force a non-optimizable super
-                    try:
-                        super(1, 2, 3).__init__(a=2)
-                    except:
-                        pass
-                    # and then use the aliased super, we still
-                    # have __class__ available
-                    x().__init__(a=2)
-
-            def f():
-                return D()
-        """
-        self.compile(codestr)
-        with self.in_module(codestr) as mod:
-            f = mod.f
-            D = mod.D
-            # super call suppresses jit
-            self.assertTrue(D.__init__.__code__.co_flags & CO_SUPPRESS_JIT)
-            self.assertTrue(isinstance(f(), D))
-
     def test_invoke_with_freevars(self) -> None:
         codestr = """
             class C:
@@ -528,19 +490,6 @@ class StaticObjCreationTests(StaticTestBase):
             freeze_type(C)
             self.assertInBytecode(f, "INVOKE_FUNCTION")
             self.assertTrue(isinstance(f(), C))
-
-    @passIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
-    def test_super_redefined_uses_opt(self) -> None:
-        codestr = """
-            super = super
-
-            class C:
-                def __init__(self):
-                    super().__init__()
-        """
-        with self.in_module(codestr) as mod:
-            init = mod.C.__init__
-            self.assertInBytecode(init, "LOAD_METHOD_SUPER")
 
     def test_generic_unknown_type_dict(self) -> None:
         codestr = """

@@ -72,7 +72,7 @@ def test():
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadCurrentFunc
@@ -110,26 +110,6 @@ def test():
       Stack<1> v3
     }
     Return v3
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-    }
-    v0 = LoadGlobal<0; "foo"> {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 2
-      Stack<1> v0
-    }
-    Return v0
   }
 }
 )";
@@ -373,7 +353,7 @@ def test(fs):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "fs">
@@ -483,94 +463,6 @@ def test(fs):
     v8 = LoadConst<ImmortalNoneType>
     v8 = RefineType<ImmortalNoneType> v8
     Return<ImmortalNoneType> v8
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "fs">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v2 = LoadGlobal<0; "xs"> {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 2
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    v3 = GetIter v2 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    v2 = Assign v3
-    Branch<4>
-  }
-
-  bb 4 (preds 0, 2) {
-    v6 = LoadEvalBreaker
-    CondBranch<5, 1> v6
-  }
-
-  bb 5 (preds 4) {
-    Snapshot {
-      CurInstrOffset 4
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    v7 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v2
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 4, 5) {
-    Snapshot {
-      CurInstrOffset 4
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    v4 = InvokeIterNext v2 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v2
-      }
-    }
-    v3 = Assign v4
-    CondBranchIterNotDone<2, 3> v3
-  }
-
-  bb 2 (preds 1) {
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<2> v2 v3
-    }
-    v1 = Assign v3
-    Branch<4>
-  }
-
-  bb 3 (preds 1) {
-    Snapshot {
-      CurInstrOffset 10
-      Locals<2> v0 v1
-    }
-    v5 = LoadConst<NoneType>
-    Return v5
   }
 }
 )";
@@ -734,7 +626,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -792,58 +684,6 @@ def test(x, y):
   bb 2 (preds 1, 3) {
     Snapshot {
       CurInstrOffset 12
-      Locals<2> v0 v1
-      Stack<1> v3
-    }
-    Return v3
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v2 = IsTruthy v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v3 = Assign v0
-    CondBranch<1, 2> v2
-  }
-
-  bb 1 (preds 0) {
-    Snapshot {
-      CurInstrOffset 4
-      Locals<2> v0 v1
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-      }
-    }
-    v3 = Assign v1
-    Branch<2>
-  }
-
-  bb 2 (preds 0, 1) {
-    Snapshot {
-      CurInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v3
     }
@@ -1011,7 +851,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1069,58 +909,6 @@ def test(x, y):
   bb 2 (preds 1, 3) {
     Snapshot {
       CurInstrOffset 12
-      Locals<2> v0 v1
-      Stack<1> v3
-    }
-    Return v3
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v2 = IsTruthy v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v3 = Assign v0
-    CondBranch<2, 1> v2
-  }
-
-  bb 1 (preds 0) {
-    Snapshot {
-      CurInstrOffset 4
-      Locals<2> v0 v1
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-      }
-    }
-    v3 = Assign v1
-    Branch<2>
-  }
-
-  bb 2 (preds 0, 1) {
-    Snapshot {
-      CurInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v3
     }
@@ -1239,7 +1027,7 @@ def test(f, a):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "f">
@@ -1286,44 +1074,6 @@ def test(f, a):
       Stack<1> v6
     }
     Return v6
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "f">
-    v1 = LoadArg<1; "a">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"f"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"a"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = VectorCall<1> v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    Return v2
   }
 }
 )";
@@ -1399,7 +1149,7 @@ def test(f, a):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "f">
@@ -1457,56 +1207,6 @@ def test(f, a):
       Stack<1> v7
     }
     Return v7
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "f">
-    v1 = LoadArg<1; "a">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"f"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v2 = LoadMethod<0; "bar"> v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    v3 = GetSecondOutput<OptObject> v2
-    Snapshot {
-      CurInstrOffset 4
-      Locals<2> v0 v1
-      Stack<2> v2 v3
-    }
-    v1 = CheckVar<"a"> v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<2> v2 v3
-      }
-    }
-    v4 = CallMethod<3> v2 v3 v1 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 8
-      Locals<2> v0 v1
-      Stack<1> v4
-    }
-    Return v4
   }
 }
 )";
@@ -1580,7 +1280,7 @@ def test(f):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "f">
@@ -1636,47 +1336,6 @@ def test(f):
       Stack<1> v5
     }
     Return v5
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "f">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<1> v0
-    }
-    v0 = CheckVar<"f"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v0
-      }
-    }
-    v1 = LoadAttr<0; "a"> v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 4
-      Locals<1> v0
-      Stack<1> v1
-    }
-    v2 = LoadAttr<1; "b"> v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<1> v0
-      Stack<1> v2
-    }
-    Return v2
   }
 }
 )";
@@ -1793,7 +1452,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1842,46 +1501,6 @@ def test(x, y):
     v6 = LoadConst<ImmortalNoneType>
     v6 = RefineType<ImmortalNoneType> v6
     Return<ImmortalNoneType> v6
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = InPlaceOp<Xor> v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    v0 = Assign v2
-    v3 = LoadConst<NoneType>
-    Return v3
   }
 }
 )";
@@ -1994,7 +1613,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -2040,44 +1659,6 @@ def test(x, y):
       Stack<1> v5
     }
     Return v5
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = BinaryOp<Add> v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    Return v2
   }
 }
 )";
@@ -2206,7 +1787,7 @@ def test(x):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -2251,36 +1832,6 @@ def test(x):
       Stack<1> v4
     }
     Return v4
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<1> v0
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v0
-      }
-    }
-    v1 = UnaryOp<Not> v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 4
-      Locals<1> v0
-      Stack<1> v1
-    }
-    Return v1
   }
 }
 )";
@@ -2393,7 +1944,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -2440,44 +1991,6 @@ def test(x, y):
     v5 = LoadConst<ImmortalNoneType>
     v5 = RefineType<ImmortalNoneType> v5
     Return<ImmortalNoneType> v5
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v1
-      }
-    }
-    StoreAttr<0; "foo"> v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-    }
-    v2 = LoadConst<NoneType>
-    Return v2
   }
 }
 )";
@@ -2602,7 +2115,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -2650,45 +2163,6 @@ def test(x, y):
     v6 = LoadConst<ImmortalNoneType>
     v6 = RefineType<ImmortalNoneType> v6
     Return<ImmortalNoneType> v6
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v1
-      }
-    }
-    v2 = LoadConst<ImmortalLongExact[1]>
-    StoreSubscr v0 v2 v1 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 8
-      Locals<2> v0 v1
-    }
-    v3 = LoadConst<NoneType>
-    Return v3
   }
 }
 )";
@@ -2835,7 +2309,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -2899,62 +2373,6 @@ def test(x, y):
       Stack<1> v6
     }
     Return v6
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v3 = MakeDict<2> {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v0 v1
-        Stack<3> v0 v1 v2
-      }
-    }
-    v4 = LoadTupleItem<0> v2
-    v5 = SetDictItem v3 v4 v0 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v0 v1
-        Stack<2> v0 v1
-      }
-    }
-    v6 = LoadTupleItem<1> v2
-    v7 = SetDictItem v3 v6 v1 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v0 v1
-        Stack<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 8
-      Locals<2> v0 v1
-      Stack<1> v3
-    }
-    Return v3
   }
 }
 )";
@@ -3069,7 +2487,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -3116,45 +2534,6 @@ def test(x, y):
       Stack<1> v5
     }
     Return v5
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = MakeList<2> v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    Return v2
   }
 }
 )";
@@ -3269,7 +2648,7 @@ def test(x, y):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -3316,45 +2695,6 @@ def test(x, y):
       Stack<1> v5
     }
     Return v5
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    v1 = LoadArg<1; "y">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"y"> v1 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = MakeTuple<2> v0 v1 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<2> v0 v1
-      }
-    }
-    Snapshot {
-      CurInstrOffset 6
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    Return v2
   }
 }
 )";
@@ -3511,7 +2851,7 @@ def test(x):
   }
 }
 )";
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -3572,59 +2912,6 @@ def test(x):
       Stack<1> v7
     }
     v1 = Assign v7
-    Return v1
-  }
-}
-)";
-#else
-  const char* expected = R"(fun jittestmodule:test {
-  bb 0 {
-    v0 = LoadArg<0; "x">
-    LoadFrame
-    Snapshot {
-      CurInstrOffset 0
-      Locals<2> v0 v1
-    }
-    v0 = CheckVar<"x"> v0 {
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v0 v1
-      }
-    }
-    v2 = MakeTuple<1> v0 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    Snapshot {
-      CurInstrOffset 4
-      Locals<2> v0 v1
-      Stack<1> v2
-    }
-    v3 = LoadConst<MortalCode["foo"]>
-    v4 = LoadConst<MortalUnicodeExact["test.<locals>.foo"]>
-    v5 = MakeFunction v3 v4 {
-      FrameState {
-        CurInstrOffset 8
-        Locals<2> v0 v1
-        Stack<1> v2
-      }
-    }
-    SetFunctionAttr<func_defaults> v2 v5
-    Snapshot {
-      CurInstrOffset 10
-      Locals<2> v0 v1
-      Stack<1> v5
-    }
-    v1 = Assign v5
-    v1 = CheckVar<"foo"> v1 {
-      FrameState {
-        CurInstrOffset 12
-        Locals<2> v0 v1
-      }
-    }
     Return v1
   }
 }

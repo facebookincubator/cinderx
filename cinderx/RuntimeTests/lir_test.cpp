@@ -565,7 +565,7 @@ BB %10
       PhyLocation{0, 64}
 #endif
   );
-#elif PY_VERSION_HEX >= 0x030C0000
+#else
   auto lir_expected = fmt::format(
       R"(Function:
 BB %0 - succs: %1
@@ -605,39 +605,6 @@ BB %10
       PhyLocation{0, 64}
 #endif
   );
-#else
-  auto lir_expected = fmt::format(
-      R"(Function:
-BB %0 - succs: %1
-
-BB %1 - preds: %0 - succs: %5
-                   SetupFrame
-       %3:Object = Bind {}:Object
-       %4:Object = Bind {}:Object
-
-BB %5 - preds: %1
-
-# v9:Nullptr = LoadConst<Nullptr>
-       %6:Object = Move 0(0x0):Object
-
-# v10:Bottom = CheckVar<"a"> v9 {{
-#   LiveValues<1> unc:v9
-#   FrameState {{
-#     CurInstrOffset 2
-#     Locals<1> v9
-#   }}
-# }}
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
-
-# Unreachable
-                   Unreachable
-
-BB %9
-
-
-)",
-      PhyLocation{10, 64},
-      PhyLocation{11, 64});
 #endif
   ASSERT_EQ(ss.str(), lir_expected.c_str());
 }

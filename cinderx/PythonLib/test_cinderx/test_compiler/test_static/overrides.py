@@ -2,14 +2,7 @@
 
 # pyre-strict
 
-import sys
-
-from cinderx.test_support import passIf
-
 from .common import StaticTestBase
-
-
-MISSING_TYPING_OVERRIDE: bool = sys.version_info < (3, 12)
 
 
 class OverridesTests(StaticTestBase):
@@ -84,7 +77,6 @@ class OverridesTests(StaticTestBase):
             self.assertEqual(mod.f(mod.A()), 2)
             self.assertEqual(mod.f(mod.B()), 3)
 
-    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
     def test_typing_override(self) -> None:
         codestr = """
             from typing import override
@@ -104,7 +96,6 @@ class OverridesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.run(), "child")
 
-    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
     def test_typing_override2(self) -> None:
         codestr = """
             from typing import override
@@ -127,7 +118,6 @@ class OverridesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.run(), "grandchild")
 
-    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
     def test_abc_override_init(self) -> None:
         codestr = """
             from typing import override
@@ -140,7 +130,6 @@ class OverridesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             pass
 
-    @passIf(MISSING_TYPING_OVERRIDE, "typing.override is new in 3.12")
     def test_typing_override_property(self) -> None:
         codestr = """
             from typing import override

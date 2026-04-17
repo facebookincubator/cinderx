@@ -1,15 +1,11 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 # pyre-unsafe
-import sys
 import unittest
-
-from cinderx.test_support import passIf
 
 from .common import StaticTestBase
 
 
-@passIf(sys.version_info < (3, 12), "New in 3.12")
 class TypeParameterTests(StaticTestBase):
     def test_function(self):
         codestr = """

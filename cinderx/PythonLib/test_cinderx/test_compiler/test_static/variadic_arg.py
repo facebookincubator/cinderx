@@ -418,8 +418,5 @@ class VariadicArgTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            if self._inline_comprehensions:
-                self.assertInBytecode(f, "LOAD_MAPPING_ARG", 3)
-            else:
-                self.assertNotInBytecode(f, "LOAD_MAPPING_ARG", 3)
+            self.assertInBytecode(f, "LOAD_MAPPING_ARG", 3)
             self.assertEqual(f(), [])

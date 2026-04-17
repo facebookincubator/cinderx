@@ -42,10 +42,6 @@ def traced_caller_list_comprehension():
 
 
 class CinderX_TestLineCounts(unittest.TestCase):
-    _inline_comprehensions = os.getenv(
-        "PYTHONINLINECOMPREHENSIONS"
-    ) or sys.version_info >= (3, 12)
-
     """White-box testing of line-counting, via runfunc"""
 
     def setUp(self):
@@ -60,25 +56,14 @@ class CinderX_TestLineCounts(unittest.TestCase):
 
         firstlineno_calling = get_firstlineno(traced_caller_list_comprehension)
         firstlineno_called = get_firstlineno(traced_doubler)
-        expected = (
-            {
-                (self.my_py_filename, firstlineno_calling + 1): 1,
-                # List comprehensions work differently in 3.x, so the count
-                # below changed compared to 2.x.
-                (self.my_py_filename, firstlineno_calling + 2): 11,
-                (self.my_py_filename, firstlineno_called + 1): 10,
-                (self.my_py_filename, firstlineno_calling + 3): 1,
-            }
-            if self._inline_comprehensions
-            else {
-                (self.my_py_filename, firstlineno_calling + 1): 1,
-                # List comprehensions work differently in 3.x, so the count
-                # below changed compared to 2.x.
-                (self.my_py_filename, firstlineno_calling + 2): 12,
-                (self.my_py_filename, firstlineno_calling + 3): 1,
-                (self.my_py_filename, firstlineno_called + 1): 10,
-            }
-        )
+        expected = {
+            (self.my_py_filename, firstlineno_calling + 1): 1,
+            # List comprehensions work differently in 3.x, so the count
+            # below changed compared to 2.x.
+            (self.my_py_filename, firstlineno_calling + 2): 11,
+            (self.my_py_filename, firstlineno_called + 1): 10,
+            (self.my_py_filename, firstlineno_calling + 3): 1,
+        }
 
         self.assertEqual(self.tracer.results().counts, expected)
 

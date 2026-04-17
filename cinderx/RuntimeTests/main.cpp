@@ -70,9 +70,7 @@ class TestPassRegistry {
     addPass(jit::hir::GuardTypeRemoval::Factory);
     addPass(jit::hir::BeginInlinedFunctionElimination::Factory);
     addPass(jit::hir::BuiltinLoadMethodElimination::Factory);
-    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-      addPass(jit::hir::InsertUpdatePrevInstr::Factory);
-    }
+    addPass(jit::hir::InsertUpdatePrevInstr::Factory);
 
     addPass(AllPasses::Factory);
   }

@@ -37,17 +37,10 @@ from cinderx.test_support import (
 
 skip_module_if_oss()
 
-from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
+from cinderx.compiler.consts import CO_SUPPRESS_JIT
 
 from .common import failUnlessHasOpcodes, with_globals
 from .test_compiler.test_static.common import StaticTestBase
-
-
-AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
-
-if not AT_LEAST_312:
-    # pyre-ignore[21]: Pyre doesn't know about this module.
-    import _testcindercapi
 
 
 class TestException(Exception):
@@ -718,11 +711,7 @@ class ClosureTests(unittest.TestCase):
 
         self.assertEqual(
             str(ctx.exception),
-            (
-                "cannot access local variable 'a' where it is not associated with a value"
-                if AT_LEAST_312
-                else "local variable 'a' referenced before assignment"
-            ),
+            "cannot access local variable 'a' where it is not associated with a value",
         )
 
     def test_freevars(self) -> None:
@@ -2469,23 +2458,6 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
             self.match_keys_and_rest(obj)
 
 
-def builtins_getter():
-    return _testcindercapi._pyeval_get_builtins()
-
-
-@passIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
-class GetBuiltinsTests(unittest.TestCase):
-    def test_get_builtins(self) -> None:
-        new_builtins = {}
-        new_globals = {
-            "_testcindercapi": _testcindercapi,
-            "__builtins__": new_builtins,
-        }
-        func = with_globals(new_globals)(builtins_getter)
-        force_compile(func)
-        self.assertIs(func(), new_builtins)
-
-
 def globals_getter():
     return globals()
 
@@ -2496,64 +2468,6 @@ class GetGlobalsTests(unittest.TestCase):
         func = with_globals(new_globals)(globals_getter)
         force_compile(func)
         self.assertIs(func(), new_globals)
-
-
-@passIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
-class MergeCompilerFlagTests(unittest.TestCase):
-    def make_func(self, src, compile_flags=0):
-        code = compile(src, "<string>", "exec", compile_flags)
-        glbls = {"_testcindercapi": _testcindercapi}
-        exec(code, glbls)
-        return glbls["func"]
-
-    def run_test(self, callee_src):
-        # By default, compile/PyEval_MergeCompilerFlags inherits the compiler
-        # flags from the code object of the calling function. We want to ensure
-        # that this works even if the function calling compile has no
-        # associated Python frame (i.e. it's jitted and we're running in
-        # shadow-frame mode).  We arrange a scenario like the following, where
-        # callee has a compiler flag that caller does not.
-        #
-        #   caller (doesn't have CO_FUTURE_BARRY_AS_BDFL)
-        #     |
-        #     +--- callee (has CO_FUTURE_BARRY_AS_BDFL)
-        #            |
-        #            +--- compile
-        flag = CO_FUTURE_BARRY_AS_BDFL
-        caller_src = """
-def func(callee):
-  return callee()
-"""
-        caller = self.make_func(caller_src)
-        # Force the caller to not be jitted so that it always has a Python
-        # frame
-        caller = jit_suppress(caller)
-        self.assertEqual(caller.__code__.co_flags & flag, 0)
-
-        callee = self.make_func(callee_src, CO_FUTURE_BARRY_AS_BDFL)
-        self.assertEqual(callee.__code__.co_flags & flag, flag)
-        force_compile(callee)
-        flags = caller(callee)
-        # pyrefly: ignore [unsupported-operation]
-        self.assertEqual(flags & flag, flag)
-
-    def test_merge_compiler_flags(self) -> None:
-        """Test that PyEval_MergeCompilerFlags retrieves the compiler flags of the
-        calling function."""
-        src = """
-def func():
-  return _testcindercapi._pyeval_merge_compiler_flags()
-"""
-        self.run_test(src)
-
-    def test_compile_inherits_compiler_flags(self) -> None:
-        """Test that compile inherits the compiler flags of the calling function."""
-        src = """
-def func():
-  code = compile('1 + 1', '<string>', 'eval')
-  return code.co_flags
-"""
-        self.run_test(src)
 
 
 class LoadMethodEliminationTests(unittest.TestCase):

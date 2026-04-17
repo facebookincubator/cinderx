@@ -11,9 +11,8 @@ import unittest
 import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
-from cinderx.test_support import passIf, skip_unless_jit
+from cinderx.test_support import skip_unless_jit
 
-POST_312 = sys.version_info >= (3, 12)
 POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
 
 
@@ -73,26 +72,6 @@ class GetFrameLineNumberTests(unittest.TestCase):
         frame = next(gen)
         self.assert_code_and_lineno(frame, g, 4)
         self.assertEqual(next(gen), 3)
-
-    @passIf(POST_312, "T194022335: gi_frame has lineno=None")
-    def test_line_numbers_for_suspended_generators(self) -> None:
-        """Verify that line numbers are correct for suspended generator functions"""
-
-        @cinder_support.failUnlessJITCompiled
-        def g(x):
-            x = x + 1
-            yield x
-            z = x + 1
-            yield z
-
-        gen = g(0)
-        self.assert_code_and_lineno(gen.gi_frame, g, 0)
-        v = next(gen)
-        self.assertEqual(v, 1)
-        self.assert_code_and_lineno(gen.gi_frame, g, 3)
-        v = next(gen)
-        self.assertEqual(v, 2)
-        self.assert_code_and_lineno(gen.gi_frame, g, 5)
 
     def test_line_numbers_during_gen_throw(self) -> None:
         """Verify that line numbers are correct for suspended generator functions when
@@ -170,10 +149,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
             uncompiled_out = f()
             self.assertFalse(is_jit_compiled(f))
 
-        # 3.10 + JIT is wrong here, it's off by one.  3.12 + JIT matches 3.10 and 3.12
-        # w/o JIT.
-        expected_lineno = 6 if cinderx.jit.is_enabled() and not POST_312 else 7
-        expected_out = f"f:{expected_lineno}"
+        expected_out = "f:7"
 
         self.assertTrue(compiled_out, expected_out)
         self.assertTrue(uncompiled_out, expected_out)
@@ -266,32 +242,6 @@ class GetFrameTests(unittest.TestCase):
         # the exception
         del x
         raise Exception("testing 123")
-
-    @cinder_support.failUnlessJITCompiled
-    def getframe_in_dtor_during_deopt(self):
-        ref = ["notaframe"]
-        try:
-            self.do_raise(self.FrameGetter(ref))
-        except:  # noqa: B001
-            return ref[0]
-
-    @passIf(
-        POST_312,
-        "T194022335: This test can't decide whether to include `do_raise` or not in the stacktrace when run between ctr3.12-jit-all and `buck test`",
-    )
-    def test_getframe_in_dtor_during_deopt(self) -> None:
-        # Test that we can correctly walk the stack in the middle of deopting
-        frame = self.f1(self.getframe_in_dtor_during_deopt)
-        stack = [
-            "__del__",
-            "getframe_in_dtor_during_deopt",
-            "f3",
-            "f2",
-            "f1",
-            "test_getframe_in_dtor_during_deopt",
-        ]
-
-        self.assert_frames(frame, stack)
 
     @cinder_support.failUnlessJITCompiled
     def getframe_in_dtor_after_deopt(self):

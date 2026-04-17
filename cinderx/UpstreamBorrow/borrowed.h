@@ -152,19 +152,17 @@ void _PyTuple_MaybeUntrack(PyObject*);
 #endif
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_dict.h"
 #include "internal/pycore_frame.h"
 #include "internal/pycore_typeobject.h"
 
 #include "cinderx/python_runtime.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000 && PY_VERSION_HEX < 0x030E0000
+#if PY_VERSION_HEX < 0x030E0000
 #define Cix_PyStaticType_GetState _PyStaticType_GetState
 #endif
 
@@ -190,7 +188,6 @@ Py_ssize_t _PyDict_LookupIndex(PyDictObject*, PyObject*);
 Py_ssize_t _PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject* key);
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
 #define Cix_PyGen_yf _PyGen_yf
 #define Cix_PyCoro_GetAwaitableIter _PyCoro_GetAwaitableIter
 #define Cix_Py_union_type_or _Py_union_type_or
@@ -201,26 +198,17 @@ Py_ssize_t _PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject* key);
 #define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
 #define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
 #define Cix_PyTypeAlias_Type _PyTypeAlias_Type
-#endif
 
-#if PY_VERSION_HEX < 0x030C0000 || defined(WIN32)
-// In 3.10 we create a new union object and grab the type and store it here.
-extern PyTypeObject* Cix_PyUnion_Type;
-#else
-// In 3.12 _PyUnion_Type is exported, but it's hidden in an internal header
-// file.
+// _PyUnion_Type is exported, but it's hidden in an internal header file.
 extern PyTypeObject _PyUnion_Type;
 #define Cix_PyUnion_Type &_PyUnion_Type
-#endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
 PyObject* Cix_PyCoro_GetAwaitableIter(PyObject* o);
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject*);
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* Cix_compute_cr_origin(
     int origin_depth,
     _PyInterpreterFrame* current_frame);
-#endif
 
 PyObject* Cix_PyDict_LoadGlobal(
     PyDictObject* globals,
@@ -258,8 +246,6 @@ void Cix_dict_insert_split_value(
 #define Cix_PyTuple_FromArray PyTuple_FromArray
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 // managed_static_type_state was known as static_builtin_state only in 3.12.
 #if PY_VERSION_HEX < 0x030D0000
 typedef static_builtin_state managed_static_type_state;
@@ -268,11 +254,9 @@ typedef static_builtin_state managed_static_type_state;
 managed_static_type_state* Cix_PyStaticType_GetState(
     PyInterpreterState*,
     PyTypeObject*);
-#endif
 
 PyObject* Cix_Py_union_type_or(PyObject*, PyObject*);
 
-#if PY_VERSION_HEX >= 0x030C0000
 _PyInterpreterFrame* Cix_PyThreadState_PushFrame(
     PyThreadState* tstate,
     size_t size);
@@ -287,12 +271,7 @@ uint8_t Cix_DEINSTRUMENT(uint8_t op);
 
 int Cix_PyCode_InitAddressRange(PyCodeObject* co, PyCodeAddressRange* bounds);
 int Cix_PyLineTable_NextAddressRange(PyCodeAddressRange* range);
-#endif
 
-// There's some kind of issue with the borrow script in 3.10.cinder where it
-// fails to copy these out correctly. However, it seems fine in 3.12.
-// For 3.10.cinder we modify ceval.c.
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* Cix_match_class(
     PyThreadState* tstate,
     PyObject* subject,
@@ -309,15 +288,10 @@ void Cix_format_exc_check_arg(
     PyObject* exc,
     const char* format_str,
     PyObject* obj);
-#endif
 
-#if PY_VERSION_HEX >= 0x030C0000
 PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
-#endif
 
-#if PY_VERSION_HEX >= 0x030C0000
 void Cix_gen_dealloc_with_custom_free(PyObject* obj);
-#endif
 
 #if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
 PyObject* Cix_cr_getrunning(PyObject* self, void* ignored);

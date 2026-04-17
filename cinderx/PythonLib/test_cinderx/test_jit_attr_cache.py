@@ -18,8 +18,6 @@ from .common import failUnlessHasOpcodes
 if cinderx.is_initialized():
     from .test_compiler.test_strict.test_loader import base_sandbox, sandbox
 
-AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
-
 
 def nothing():
     return 0
@@ -243,7 +241,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             self.assertEqual(tmp_b.test(), 3)
             self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
             self.assertIn(
-                "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
+                "LoadModuleAttrCached",
                 # pyrefly: ignore [bad-argument-type]
                 cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
             )
@@ -285,7 +283,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         # pyrefly: ignore [missing-attribute]
         self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
         self.assertIn(
-            "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
+            "LoadModuleAttrCached",
             # pyrefly: ignore [bad-argument-type, missing-attribute]
             cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
         )
@@ -433,7 +431,7 @@ class LoadAttrCacheTests(unittest.TestCase):
         self.assertEqual(get_attr(c), "get")
 
     @passIf(
-        cinderx.jit.is_enabled() and AT_LEAST_312,
+        cinderx.jit.is_enabled(),
         "T214641462: Not clear why this is failing, but it is",
     )
     def test_type_destroyed(self):

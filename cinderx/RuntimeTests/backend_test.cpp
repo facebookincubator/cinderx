@@ -314,13 +314,9 @@ for i in range(30):
   BorrowedRef<PyCodeObject> code =
       reinterpret_cast<PyFunctionObject*>(foo.get())->func_code;
 
-#if PY_VERSION_HEX < 0x030C0000
-  uint64_t ncalls = code->co_mutable->ncalls;
-#else
   auto extra = codeExtra(code);
   ASSERT_NE(extra, nullptr) << "Failed to load code object extra data";
   uint64_t ncalls = Ci_code_extra_get_calls(extra);
-#endif
 
   // TASK(T190615535): This is waiting on the 3.12 custom interpreter loop.
   // Once we have that in place, we can start incrementing call counts in 3.12.

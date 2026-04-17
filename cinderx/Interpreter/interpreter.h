@@ -17,15 +17,10 @@ extern "C" {
 /*
  * The CinderX frame evaluator function (interpreter loop).
  */
-#if PY_VERSION_HEX < 0x030C0000
-PyObject* _Py_HOT_FUNCTION
-Ci_EvalFrame(PyThreadState* tstate, PyFrameObject* f, int throwflag);
-#else
 PyObject* _Py_HOT_FUNCTION Ci_EvalFrame(
     PyThreadState* tstate,
     struct _PyInterpreterFrame* f,
     int throwflag);
-#endif
 
 /*
  * General vectorcall entry point to a function compiled by the Static Python

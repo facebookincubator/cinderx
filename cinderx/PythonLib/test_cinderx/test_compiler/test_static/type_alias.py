@@ -2,17 +2,15 @@
 
 # pyre-strict
 
-import sys
 import unittest
 
 from cinderx.compiler.static.module_table import ENABLE_IMPLICIT_TYPE_ALIASES
 from cinderx.compiler.static.types import TypedSyntaxError
-from cinderx.test_support import passIf, passUnless
+from cinderx.test_support import passUnless
 
 from .common import StaticTestBase
 
 
-@passIf(sys.version_info < (3, 12), "New in 3.12")
 class TypeAliasTests(StaticTestBase):
     @passUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_assign(self) -> None:

@@ -53,7 +53,6 @@ def specialize(
 
 
 @passIf(not cinderx.jit.is_enabled(), "Tests functionality on the JIT")
-@passIf(sys.version_info < (3, 12), "Requires the specializing interpreter")
 class SpecializationTests(unittest.TestCase):
     def setUp(self) -> None:
         cinderx.jit.enable_specialized_opcodes()

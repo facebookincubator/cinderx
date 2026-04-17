@@ -20,7 +20,6 @@ from unittest import TestCase
 from cinderx.compiler.opcodes import STATIC_CONST_OPCODES, STATIC_OPNAMES
 from cinderx.compiler.pyassem import Instruction, PyFlowGraph
 from cinderx.compiler.pycodegen import (
-    CinderCodeGenerator312,
     CodeGenerator,
     CodeGenerator312,
     CodeGenerator314,
@@ -61,16 +60,10 @@ def glob_test(target_dir: str, pattern: str, adder: Callable[[str, str], None]) 
 
 
 class CompilerTest(TestCase):
-    if sys.version_info >= (3, 12):
-        SUPER_ATTR = "LOAD_SUPER_ATTR"
-        CALL = "CALL"
-        COMPARE_JUMP_NONZERO = "POP_JUMP_IF_NONZERO"
-        COMPARE_JUMP_ZERO = "POP_JUMP_IF_ZERO"
-    else:
-        SUPER_ATTR = "LOAD_ATTR_SUPER"
-        CALL = "CALL_FUNCTION"
-        COMPARE_JUMP_NONZERO = "JUMP_IF_NONZERO_OR_POP"
-        COMPARE_JUMP_ZERO = "JUMP_IF_ZERO_OR_POP"
+    SUPER_ATTR = "LOAD_SUPER_ATTR"
+    CALL = "CALL"
+    COMPARE_JUMP_NONZERO = "POP_JUMP_IF_NONZERO"
+    COMPARE_JUMP_ZERO = "POP_JUMP_IF_ZERO"
 
     def get_disassembly_as_string(self, co: Disassembleable) -> str:
         s = StringIO()
@@ -183,36 +176,28 @@ class CompilerTest(TestCase):
                     self.fail(msg)
 
     def assertLoadMethodInBytecode(self, x: Disassembleable, name: str) -> None:
-        if sys.version_info >= (3, 12):
-            # We may want to do better here and check the oparg flag in the future.
-            self.assertInBytecode(x, "LOAD_ATTR", name)
-        else:
-            self.assertInBytecode(x, "LOAD_METHOD", name)
+        # We may want to do better here and check the oparg flag in the future.
+        self.assertInBytecode(x, "LOAD_ATTR", name)
 
     def assertBinOpInBytecode(self, x: Disassembleable, binop: str) -> None:
-        if sys.version_info >= (3, 12):
-            binop = "NB_" + binop.removeprefix("BINARY_")
-            # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
-            from opcode import _nb_ops
+        binop = "NB_" + binop.removeprefix("BINARY_")
+        # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
+        from opcode import _nb_ops
 
-            # pyre-fixme[16]: Module `opcode` has no attribute `_nb_ops`.
-            for i, (name, _sign) in enumerate(_nb_ops):
-                if name == binop:
-                    self.assertInBytecode(x, "BINARY_OP", i)
-                    break
-            else:
-                self.fail(f"Couldn't find binary op {binop}")
+        # pyre-fixme[16]: Module `opcode` has no attribute `_nb_ops`.
+        for i, (name, _sign) in enumerate(_nb_ops):
+            if name == binop:
+                self.assertInBytecode(x, "BINARY_OP", i)
+                break
         else:
-            self.assertInBytecode(x, binop)
+            self.fail(f"Couldn't find binary op {binop}")
 
     def assertKwCallInBytecode(self, x: Disassembleable) -> None:
         if sys.version_info >= (3, 14):
             self.assertInBytecode(x, "CALL_KW")
-        elif sys.version_info >= (3, 12):
+        else:
             self.assertInBytecode(x, "KW_NAMES")
             self.assertInBytecode(x, "CALL")
-        else:
-            self.assertInBytecode(x, "CALL_FUNCTION_KW")
 
     def clean_code(self, code: str) -> str:
         return inspect.cleandoc("\n" + code)
@@ -221,10 +206,7 @@ class CompilerTest(TestCase):
     def cinder_codegen(self) -> type[CodeGenerator]:
         if sys.version_info >= (3, 14):
             return CodeGenerator314
-        elif sys.version_info >= (3, 12):
-            return CodeGenerator312
-
-        return CinderCodeGenerator312
+        return CodeGenerator312
 
     def compile(
         self,
