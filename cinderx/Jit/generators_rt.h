@@ -19,7 +19,6 @@ namespace jit {
 struct GenDataFooter;
 extern PyType_Spec JitGen_Spec;
 extern PyType_Spec JitCoro_Spec;
-extern PyType_Spec JitAnextAwaitable_Spec;
 extern PyTypeObject _JitCoroWrapper_Type;
 
 template <typename PyObjectT>
@@ -66,11 +65,6 @@ inline bool deopt_jit_gen(PyGenObject* gen) {
 
 void init_jit_genobject_type();
 void shutdown_jit_genobject_type();
-
-PyObject* JitGen_AnextAwaitable_New(
-    cinderx::ModuleState* moduleState,
-    PyObject* awaitable,
-    PyObject* defaultValue);
 
 } // namespace jit
 #endif // __cplusplus

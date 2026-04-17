@@ -11,6 +11,7 @@
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/anextawaitable.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/frame.h"
