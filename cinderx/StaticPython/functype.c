@@ -11,9 +11,6 @@
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/hooks.h"
-#endif
 
 int _PyClassLoader_IsPropertyName(PyTupleObject* name) {
   if (PyTuple_GET_SIZE(name) != 2) {
@@ -437,24 +434,7 @@ static PyObject* check_coro_return(
     return NULL;
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-  int eager = Ci_PyWaitHandle_CheckExact(coro);
-  if (eager) {
-    Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
-    if (handle->wh_waiter == NULL) {
-      if (_PyClassLoader_CheckReturnType(
-              Py_TYPE(callable),
-              handle->wh_coro_or_result,
-              (_PyClassLoader_RetTypeInfo*)state)) {
-        return coro;
-      }
-      Ci_PyWaitHandle_Release(coro);
-      return NULL;
-    }
-  }
-#else
   int eager = 0;
-#endif
 
   return _PyClassLoader_NewAwaitableWrapper(
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);

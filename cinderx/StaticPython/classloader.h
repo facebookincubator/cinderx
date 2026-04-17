@@ -4,11 +4,6 @@
 
 #include "cinderx/python.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "cinder/hooks.h"
-#endif
-
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"

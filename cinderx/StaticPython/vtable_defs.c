@@ -13,10 +13,6 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#endif
-
 #define _PyClassMethod_Check(op) (Py_TYPE(op) == &PyClassMethod_Type)
 
 // For simple signatures which are the most common that take and return Python
@@ -349,25 +345,7 @@ PyObject* _PyVTable_coroutine_property_vectorcall(
 
   int eager;
 
-#if PY_VERSION_HEX < 0x030C0000
-  PyObject* descr = state->tcs_value;
-  eager = Ci_PyWaitHandle_CheckExact(coro);
-  if (eager) {
-    Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
-    if (handle->wh_waiter == NULL) {
-      if (_PyClassLoader_CheckReturnType(
-              Py_TYPE(descr),
-              handle->wh_coro_or_result,
-              (_PyClassLoader_RetTypeInfo*)state)) {
-        return coro;
-      }
-      Ci_PyWaitHandle_Release(coro);
-      return NULL;
-    }
-  }
-#else
   eager = 0;
-#endif
   return _PyClassLoader_NewAwaitableWrapper(
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
 }

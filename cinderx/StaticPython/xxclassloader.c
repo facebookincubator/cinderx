@@ -183,162 +183,7 @@ static PyObject* spamobj_getstr(spamobject* self) {
   return self->str;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-Ci_Py_TYPED_SIGNATURE(spamobj_getstate, Ci_Py_SIG_TYPE_PARAM_OPT(0), NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setstate, Ci_Py_SIG_VOID, &Ci_Py_Sig_T0, NULL);
-Ci_Py_TYPED_SIGNATURE(
-    spamobj_setstate_optional,
-    Ci_Py_SIG_VOID,
-    &Ci_Py_Sig_T0_Opt,
-    NULL);
-
-Ci_Py_TYPED_SIGNATURE(spamobj_getint, Ci_Py_SIG_SSIZE_T, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setint, Ci_Py_SIG_VOID, &Ci_Py_Sig_SSIZET, NULL);
-
-Ci_Py_TYPED_SIGNATURE(spamobj_getuint64, Ci_Py_SIG_SIZE_T, NULL);
-Ci_Py_TYPED_SIGNATURE(
-    spamobj_setuint64,
-    Ci_Py_SIG_VOID,
-    &Ci_Py_Sig_SIZET,
-    NULL);
-
-Ci_Py_TYPED_SIGNATURE(spamobj_getint8, Ci_Py_SIG_INT8, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setint8, Ci_Py_SIG_VOID, &Ci_Py_Sig_INT8, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_getint16, Ci_Py_SIG_INT16, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setint16, Ci_Py_SIG_VOID, &Ci_Py_Sig_INT16, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_getint32, Ci_Py_SIG_INT32, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setint32, Ci_Py_SIG_VOID, &Ci_Py_Sig_INT32, NULL);
-
-Ci_Py_TYPED_SIGNATURE(spamobj_getuint8, Ci_Py_SIG_UINT8, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setuint8, Ci_Py_SIG_VOID, &Ci_Py_Sig_UINT8, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_getuint16, Ci_Py_SIG_UINT16, NULL);
-Ci_Py_TYPED_SIGNATURE(
-    spamobj_setuint16,
-    Ci_Py_SIG_VOID,
-    &Ci_Py_Sig_UINT16,
-    NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_getuint32, Ci_Py_SIG_UINT32, NULL);
-Ci_Py_TYPED_SIGNATURE(
-    spamobj_setuint32,
-    Ci_Py_SIG_VOID,
-    &Ci_Py_Sig_UINT32,
-    NULL);
-
-Ci_Py_TYPED_SIGNATURE(spamobj_getstr, Ci_Py_SIG_STRING, NULL);
-Ci_Py_TYPED_SIGNATURE(spamobj_setstr, Ci_Py_SIG_VOID, &Ci_Py_Sig_String, NULL);
-
-Ci_Py_TYPED_SIGNATURE(
-    spamobj_twoargs,
-    Ci_Py_SIG_SSIZE_T,
-    &Ci_Py_Sig_SSIZET,
-    &Ci_Py_Sig_SSIZET,
-    NULL);
-
-Ci_Py_TYPED_SIGNATURE(spamobj_error, Ci_Py_SIG_ERROR, &Ci_Py_Sig_SSIZET, NULL);
-#endif
-
 static PyMethodDef spamobj_methods[] = {
-#if PY_VERSION_HEX < 0x030C0000
-    {"error",
-     (PyCFunction)&spamobj_error_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("error() -> raises")},
-    {"getstate",
-     (PyCFunction)&spamobj_getstate_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getstate() -> state")},
-    {"setstate",
-     (PyCFunction)&spamobj_setstate_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setstate(state)")},
-    {"setstate_untyped",
-     (PyCFunction)&spamobj_setstate_untyped,
-     METH_O,
-     PyDoc_STR("setstate(state)")},
-    {"setstateoptional",
-     (PyCFunction)&spamobj_setstate_optional_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setstate(state|None)")},
-    {"getint",
-     (PyCFunction)&spamobj_getint_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getint() -> i")},
-    {"setint",
-     (PyCFunction)&spamobj_setint_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setint(i)")},
-
-    {"getint8",
-     (PyCFunction)&spamobj_getint8_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getint8() -> i")},
-    {"setint8",
-     (PyCFunction)&spamobj_setint8_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setint8(i)")},
-    {"getint16",
-     (PyCFunction)&spamobj_getint16_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getint16() -> i")},
-    {"setint16",
-     (PyCFunction)&spamobj_setint16_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setint16(i)")},
-    {"getint32",
-     (PyCFunction)&spamobj_getint32_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getint32() -> i")},
-    {"setint32",
-     (PyCFunction)&spamobj_setint32_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setint32(i)")},
-
-    {"getuint8",
-     (PyCFunction)&spamobj_getuint8_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getuint8() -> i")},
-    {"setuint8",
-     (PyCFunction)&spamobj_setuint8_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setuint8(i)")},
-    {"getuint16",
-     (PyCFunction)&spamobj_getuint16_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getuint16() -> i")},
-    {"setuint16",
-     (PyCFunction)&spamobj_setuint16_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setuint16(i)")},
-    {"getuint32",
-     (PyCFunction)&spamobj_getuint32_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getuint32() -> i")},
-    {"setuint32",
-     (PyCFunction)&spamobj_setuint32_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setuint32(i)")},
-    {"getuint64",
-     (PyCFunction)&spamobj_getuint64_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getuint64() -> i")},
-    {"setuint64",
-     (PyCFunction)&spamobj_setuint64_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setuint64(i)")},
-
-    {"getstr",
-     (PyCFunction)&spamobj_getstr_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("getstr() -> s")},
-    {"setstr",
-     (PyCFunction)&spamobj_setstr_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("setstr(s)")},
-    {"twoargs",
-     (PyCFunction)&spamobj_twoargs_def,
-     Ci_METH_TYPED,
-     PyDoc_STR("twoargs(s)")},
-#endif
     {"__class_getitem__",
      (PyCFunction)_PyClassLoader_GtdGetItem,
      METH_VARARGS | METH_CLASS,
@@ -435,32 +280,6 @@ static struct PyModuleDef_Slot xxclassloader_slots[] = {
     {0, NULL},
 };
 
-#if PY_VERSION_HEX < 0x030C0000
-
-static int64_t xxclassloader_foo(PyObject* self) {
-  return 42;
-}
-
-Ci_Py_TYPED_SIGNATURE(xxclassloader_foo, Ci_Py_SIG_INT64, NULL);
-
-static int64_t xxclassloader_bar(PyObject* self, int64_t f) {
-  return f;
-}
-
-Ci_Py_TYPED_SIGNATURE(
-    xxclassloader_bar,
-    Ci_Py_SIG_INT64,
-    &Ci_Py_Sig_SIZET,
-    NULL);
-
-static int64_t xxclassloader_neg(PyObject* self) {
-  return -1;
-}
-
-Ci_Py_TYPED_SIGNATURE(xxclassloader_neg, Ci_Py_SIG_INT64, NULL);
-
-#endif
-
 static int no_op_visit(PyObject* obj, PyObject* Py_UNUSED(args)) {
   if (PyObject_IS_GC(obj) && PyObject_GC_IsTracked(obj)) {
     return 0;
@@ -515,11 +334,6 @@ unsafe_change_type(PyObject* self, PyObject** args, Py_ssize_t nargs) {
 }
 
 static PyMethodDef xxclassloader_methods[] = {
-#if PY_VERSION_HEX < 0x030C0000
-    {"foo", (PyCFunction)&xxclassloader_foo_def, Ci_METH_TYPED, ""},
-    {"bar", (PyCFunction)&xxclassloader_bar_def, Ci_METH_TYPED, ""},
-    {"neg", (PyCFunction)&xxclassloader_neg_def, Ci_METH_TYPED, ""},
-#endif
     {"traverse_heap", traverse_heap, METH_NOARGS},
     {"unsafe_change_type",
      (PyCFunction)(void (*)(void))unsafe_change_type,

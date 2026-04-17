@@ -9,10 +9,6 @@
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_c_state.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#endif
-
 void _PyClassLoader_ClearGenericTypes() {
   Ci_ClearGenericInstCache();
 }
@@ -196,21 +192,11 @@ int set_module_name(_PyGenericTypeDef* type, PyTypeObject* new_type) {
 }
 
 PyTypeObject* gtd_make_heap_type(PyTypeObject* type, Py_ssize_t size) {
-#if PY_VERSION_HEX < 0x030C0000
-  Py_ssize_t basicsize = _Py_SIZE_ROUND_UP(size, SIZEOF_VOID_P);
-  PyTypeObject* new_type = (PyTypeObject*)_PyObject_GC_Calloc(basicsize);
-  if (new_type == NULL) {
-    return NULL;
-  }
-
-  PyObject_INIT_VAR(new_type, &PyType_Type, 0);
-#else
   PyTypeObject* new_type =
       (PyTypeObject*)PyUnstable_Object_GC_NewWithExtraData(&PyType_Type, size);
   if (new_type == NULL) {
     return NULL;
   }
-#endif
 
   /* Copy the generic def into the instantiation */
 #define COPY_DATA(name) new_type->name = type->name;
@@ -268,11 +254,7 @@ PyTypeObject* gtd_make_heap_type(PyTypeObject* type, Py_ssize_t size) {
   new_type->tp_new = ((_PyGenericTypeDef*)type)->gtd_new;
 #undef COPY_DATA
 
-#if PY_VERSION_HEX < 0x030C0000
-  new_type->tp_flags |= Py_TPFLAGS_HEAPTYPE | Ci_Py_TPFLAGS_FROZEN;
-#else
   new_type->tp_flags |= Py_TPFLAGS_HEAPTYPE | Py_TPFLAGS_IMMUTABLETYPE;
-#endif
   new_type->tp_flags &= ~Py_TPFLAGS_READY;
   PyObject_GC_Track(new_type);
   return new_type;

@@ -16,10 +16,6 @@
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 #include "cinderx/module_c_state.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#endif
-
 #ifndef WIN32
 #include <dlfcn.h>
 #endif
@@ -47,13 +43,11 @@ int _PyClassLoader_IsPatchedThunk(PyObject* obj) {
 
 static int clear_vtables_recurse(PyTypeObject* type) {
   PyObject* subclasses = type->tp_subclasses;
-#if PY_VERSION_HEX >= 0x030C0000
   if (type->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
     PyInterpreterState* interp = _PyInterpreterState_GET();
     managed_static_type_state* state = Cix_PyStaticType_GetState(interp, type);
     subclasses = state->tp_subclasses;
   }
-#endif
 
   PyObject* ref;
   if (type->tp_cache != NULL) {

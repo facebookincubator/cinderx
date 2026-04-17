@@ -297,11 +297,7 @@ static inline int _PyClassLoader_IsStaticBuiltin(PyObject* obj) {
 
 // Put definition of Ci_static_rand here so that it is accessible from the JIT
 // as well as from _static.c
-#if PY_VERSION_HEX < 0x030C0000
-int64_t Ci_static_rand(PyObject* self);
-#else
 PyObject* Ci_static_rand(PyObject* self);
-#endif
 
 #ifdef __cplusplus
 }

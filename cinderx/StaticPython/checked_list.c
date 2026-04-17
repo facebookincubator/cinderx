@@ -1902,36 +1902,6 @@ static int unsafe_latin_compare(PyObject* v, PyObject* w, MergeState* ms) {
 /* Bounded int compare: compare any two longs that fit in a single machine word.
  */
 
-#if PY_VERSION_HEX < 0x030C0000
-
-static int unsafe_long_compare(PyObject* v, PyObject* w, MergeState* ms) {
-  PyLongObject *vl, *wl;
-  sdigit v0, w0;
-  int res;
-
-  /* Modified from Objects/longobject.c:long_compare, assuming: */
-  assert(Py_IS_TYPE(v, &PyLong_Type));
-  assert(Py_IS_TYPE(w, &PyLong_Type));
-  assert(Py_ABS(Py_SIZE(v)) <= 1);
-  assert(Py_ABS(Py_SIZE(w)) <= 1);
-
-  vl = (PyLongObject*)v;
-  wl = (PyLongObject*)w;
-
-  v0 = Py_SIZE(vl) == 0 ? 0 : (sdigit)vl->ob_digit[0];
-  w0 = Py_SIZE(wl) == 0 ? 0 : (sdigit)wl->ob_digit[0];
-  if (Py_SIZE(vl) < 0)
-    v0 = -v0;
-  if (Py_SIZE(wl) < 0)
-    w0 = -w0;
-
-  res = v0 < w0;
-  assert(res == PyObject_RichCompareBool(v, w, Py_LT));
-  return res;
-}
-
-#else
-
 static int unsafe_long_compare(PyObject* v, PyObject* w, MergeState* ms) {
   PyLongObject *vl, *wl;
   intptr_t v0, w0;
@@ -1953,12 +1923,6 @@ static int unsafe_long_compare(PyObject* v, PyObject* w, MergeState* ms) {
   assert(res == PyObject_RichCompareBool(v, w, Py_LT));
   return res;
 }
-
-#endif
-
-#if PY_VERSION_HEX < 0x030C0000
-#define PyUnstable_Long_IsCompact(x) (Py_ABS(Py_SIZE(key)) <= 1)
-#endif
 
 /* Float compare: compare any two floats. */
 static int unsafe_float_compare(PyObject* v, PyObject* w, MergeState* ms) {
@@ -3275,11 +3239,6 @@ static int chklist_append(PyListObject* self, PyObject* value) {
   return 0;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-
-Ci_Py_TYPED_SIGNATURE(chklist_append, Ci_Py_SIG_ERROR, &Ci_Py_Sig_T0, NULL);
-
-#else
 static PyObject* chklist_append_wrapper(PyListObject* self, PyObject* value) {
   if (_PyClassLoader_CheckOneArg(
           (PyObject*)self, value, "append", 0, &Ci_Py_Sig_T0) < 0) {
@@ -3290,16 +3249,12 @@ static PyObject* chklist_append_wrapper(PyListObject* self, PyObject* value) {
   }
   Py_RETURN_NONE;
 }
-#endif
 
 const Ci_Py_SigElement* const insert_sig[] = {
     &Ci_Py_Sig_SSIZET,
     &Ci_Py_Sig_T0,
     NULL};
 
-#if PY_VERSION_HEX < 0x030C0000
-Ci_PyTypedMethodDef chklist_insert_def = {ins1, insert_sig, Ci_Py_SIG_ERROR};
-#else
 static PyObject* list_insert_wrapper(
     PyListObject* self,
     PyObject* const* args,
@@ -3334,7 +3289,6 @@ static PyObject* list_insert_wrapper(
 exit:
   return NULL;
 }
-#endif
 
 static PyObject* chklist_alloc(PyTypeObject* type, Py_ssize_t nitems) {
   struct _Ci_list_state* state = get_list_state();
@@ -3404,10 +3358,6 @@ chklist_slice(PyListObject* self, Py_ssize_t ilow, Py_ssize_t ihigh) {
 static inline PyObject* chklist_copy(PyListObject* self) {
   return chklist_slice(self, 0, Py_SIZE(self));
 }
-
-#if PY_VERSION_HEX < 0x030C0000
-Ci_Py_TYPED_SIGNATURE(chklist_copy, Ci_Py_SIG_OBJECT, NULL);
-#endif
 
 static inline int chklist_checkitem(PyListObject* list, PyObject* value) {
   if (!_PyClassLoader_CheckParamType((PyObject*)list, value, 0)) {
@@ -3554,23 +3504,6 @@ error:
   return -1;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-
-static PyObject* chklist_pop(PyListObject* self, PyObject* index) {
-  Py_ssize_t index_ssize = -1;
-  if (PyLong_Check(index)) {
-    index_ssize = PyLong_AsLong(index);
-    if (PyErr_Occurred()) {
-      return NULL;
-    }
-  }
-  return list_pop_impl(self, index_ssize);
-}
-
-Ci_Py_TYPED_SIGNATURE(chklist_extend, Ci_Py_SIG_ERROR, &Ci_Py_Sig_Object, NULL);
-
-#else
-
 static PyObject*
 chklist_pop(PyListObject* self, PyObject* const* args, Py_ssize_t nargs) {
   if (!_PyArg_CheckPositional("pop", nargs, 0, 1)) {
@@ -3605,8 +3538,6 @@ static PyObject* chklist_extend_wrapper(
   Py_RETURN_NONE;
 }
 
-#endif
-
 static const Ci_Py_SigElement* const getitem_sig[] = {&Ci_Py_Sig_Object, NULL};
 Ci_PyTypedMethodDef chklist_getitem_def = {
     list_subscript,
@@ -3622,50 +3553,18 @@ Ci_PyTypedMethodDef chklist_setitem_def = {
     setitem_sig,
     Ci_Py_SIG_ERROR};
 
-#if PY_VERSION_HEX < 0x030C0000
-static const Ci_Py_SigElement* const pop_sig[] = {&Ci_Py_Sig_Object_Opt, NULL};
-Ci_PyTypedMethodDef chklist_pop_def = {
-    chklist_pop,
-    pop_sig,
-    Ci_Py_SIG_TYPE_PARAM_IDX(0)};
-#endif
-
 static PyMethodDef chklist_methods[] = {
-#if PY_VERSION_HEX < 0x030C0000
-    {"__getitem__",
-     (PyCFunction)&chklist_getitem_def,
-     Ci_METH_TYPED | METH_COEXIST,
-     "x.__getitem__(y) <==> x[y]"},
-    {"__setitem__",
-     (PyCFunction)&chklist_setitem_def,
-     Ci_METH_TYPED | METH_COEXIST,
-     "Set self[index_or_slice] to value."},
-#else
     {"__getitem__",
      (PyCFunction)&list_subscript,
      METH_O | METH_COEXIST,
      "x.__getitem__(y) <==> x[y]"},
-#endif
     // TASK(T96351329): We should implement a custom reverse iterator for
     // checked lists.
-    LIST___REVERSED___METHODDEF LIST___SIZEOF___METHODDEF LIST_CLEAR_METHODDEF
-#if PY_VERSION_HEX < 0x030C0000
-    {"copy", (PyCFunction)&chklist_copy_def, Ci_METH_TYPED, list_copy__doc__},
-    {"append",
-     (PyCFunction)&chklist_append_def,
-     Ci_METH_TYPED,
-     list_append__doc__},
-    {"insert",
-     (PyCFunction)&chklist_insert_def,
-     Ci_METH_TYPED,
-     list_insert__doc__},
-    {"extend",
-     (PyCFunction)&chklist_extend_def,
-     Ci_METH_TYPED,
-     list_extend__doc__},
-    {"pop", (PyCFunction)&chklist_pop_def, Ci_METH_TYPED, list_pop__doc__},
-#else
-    {"copy", (PyCFunction)&chklist_copy, METH_NOARGS, list_copy__doc__},
+    LIST___REVERSED___METHODDEF LIST___SIZEOF___METHODDEF LIST_CLEAR_METHODDEF{
+        "copy",
+        (PyCFunction)&chklist_copy,
+        METH_NOARGS,
+        list_copy__doc__},
     {"append",
      (PyCFunction)&chklist_append_wrapper,
      METH_O,
@@ -3679,7 +3578,6 @@ static PyMethodDef chklist_methods[] = {
      METH_O,
      list_extend__doc__},
     {"pop", (PyCFunction)&chklist_pop, METH_FASTCALL, list_pop__doc__},
-#endif
     LIST_REMOVE_METHODDEF LIST_INDEX_METHODDEF LIST_COUNT_METHODDEF
         LIST_REVERSE_METHODDEF LIST_SORT_METHODDEF{
             "__class_getitem__",

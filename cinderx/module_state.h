@@ -127,17 +127,6 @@ struct ModuleState {
   // by holding a reference to it.
   BorrowedRef<> cinderx_module;
 
-  // Overridden getset arrays for callable types to include typed signature
-  // getters.  The originals are saved so they can be restored on cleanup.
-  struct GetSetOverride {
-    PyTypeObject* type{nullptr};
-    PyGetSetDef* original{nullptr};
-    std::unique_ptr<PyGetSetDef[]> override;
-  };
-  GetSetOverride func_getset;
-  GetSetOverride class_method_getset;
-  GetSetOverride method_getset;
-
   // Counters for multithreaded compilation diagnostics.
   std::atomic<int> compile_workers_attempted{0};
   std::atomic<int> compile_workers_retries{0};

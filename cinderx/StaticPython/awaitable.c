@@ -118,13 +118,6 @@ static void awaitable_setawaiter(
 
 #ifdef ENABLE_GENERATOR_AWAITER
 
-#if PY_VERSION_HEX < 0x030C0000
-
-#define Ci_AsyncMethodsWithExtra PyAsyncMethodsWithExtra
-#define Ci_TPFLAGS_HAVE_AM_EXTRA Py_TPFLAGS_HAVE_AM_EXTRA
-
-#endif
-
 static Ci_AsyncMethodsWithExtra awaitable_as_async = {
     .ame_async_methods =
         {
@@ -277,17 +270,6 @@ PyObject* _PyClassLoader_NewAwaitableWrapper(
   awaitable->cb = cb;
   awaitable->onsend = onsend;
   awaitable->awaiter = NULL;
-
-#if PY_VERSION_HEX < 0x030C0000
-  if (eager) {
-    Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
-    Py_INCREF(handle->wh_coro_or_result);
-    awaitable->coro = handle->wh_coro_or_result;
-    awaitable->iter = handle->wh_coro_or_result;
-    handle->wh_coro_or_result = (PyObject*)awaitable;
-    return coro;
-  }
-#endif
 
   awaitable->coro = coro;
   awaitable->iter = NULL;

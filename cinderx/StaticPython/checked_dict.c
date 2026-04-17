@@ -9,6 +9,7 @@
 #endif
 
 #include "internal/pycore_bitutils.h" // _Py_bit_length
+#include "internal/pycore_call.h" // _PyObject_CallNoArgs()
 #include "internal/pycore_gc.h" // _PyObject_GC_IS_TRACKED()
 #include "internal/pycore_object.h" // PyObject_GC_Track()
 #include "internal/pycore_pystate.h" // _Py_InterpreterState_GET
@@ -17,10 +18,6 @@
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
-
-#if PY_VERSION_HEX >= 0x030C0000
-#include "internal/pycore_call.h" // _PyObject_CallNoArgs()
-#endif
 
 typedef struct _dictkeysobject ChkDictKeysObject;
 typedef struct _dictkeyentry ChkDictKeyEntry;
@@ -1931,7 +1928,6 @@ dict_get_impl(CiChkDictObject* self, PyObject* key, PyObject* default_value) {
   return val;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 static PyObject*
 dict_get(CiChkDictObject* self, PyObject* const* args, Py_ssize_t nargs) {
   PyObject* key;
@@ -1956,7 +1952,6 @@ dict_get(CiChkDictObject* self, PyObject* const* args, Py_ssize_t nargs) {
 skip_optional:
   return dict_get_impl(self, key, default_value);
 }
-#endif
 
 PyObject*
 Ci_CheckedDict_SetDefault(PyObject* d, PyObject* key, PyObject* defaultobj) {
@@ -2027,18 +2022,6 @@ Ci_CheckedDict_SetDefault(PyObject* d, PyObject* key, PyObject* defaultobj) {
   return value;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-static PyObject* dict_setdefault_impl(
-    CiChkDictObject* self,
-    PyObject* key,
-    PyObject* default_value) {
-  PyObject* val;
-
-  val = Ci_CheckedDict_SetDefault((PyObject*)self, key, default_value);
-  Py_XINCREF(val);
-  return val;
-}
-#else
 PyObject*
 dict_setdefault_impl(PyObject* self, PyObject* const* args, Py_ssize_t nargs) {
   PyObject* return_value = NULL;
@@ -2067,7 +2050,6 @@ skip_optional:
 exit:
   return return_value;
 }
-#endif
 
 static PyObject* dict_clear(CiChkDictObject* mp, PyObject* Py_UNUSED(ignored)) {
   Ci_CheckedDict_Clear((PyObject*)mp);
@@ -2879,12 +2861,6 @@ Ci_PyTypedMethodDef chkdict_get_def = {
     dict_get_impl,
     chkdict_sig,
     Ci_Py_SIG_TYPE_PARAM_OPT(1)};
-#if PY_VERSION_HEX < 0x030C0000
-Ci_PyTypedMethodDef chkdict_setdefault_def = {
-    dict_setdefault_impl,
-    chkdict_sig,
-    Ci_Py_SIG_TYPE_PARAM_OPT(1)};
-#endif
 
 const Ci_Py_SigElement* const getitem_sig[] = {&Ci_Py_Sig_T0, NULL};
 Ci_PyTypedMethodDef chkdict_getitem_def = {
@@ -2902,40 +2878,20 @@ Ci_PyTypedMethodDef chkdict_setitem_def = {
     Ci_Py_SIG_ERROR};
 
 static PyMethodDef chkmapp_methods[] = {
-#if PY_VERSION_HEX < 0x030C0000
-    DICT___CONTAINS___METHODDEF{
-        "__getitem__",
-        (PyCFunction)&chkdict_getitem_def,
-        Ci_METH_TYPED | METH_COEXIST,
-        getitem__doc__},
-    {"__setitem__",
-     (PyCFunction)&chkdict_setitem_def,
-     Ci_METH_TYPED | METH_COEXIST,
-     "Set self[key] to value."},
-#else
     DICT___CONTAINS___METHODDEF{
         "__getitem__",
         (PyCFunction)&dict_subscript,
         METH_O | METH_COEXIST,
         getitem__doc__},
-#endif
     {"__sizeof__",
      (PyCFunction)(void (*)(void))dict_sizeof,
      METH_NOARGS,
      sizeof__doc__},
-#if PY_VERSION_HEX < 0x030C0000
-    {"get", (PyCFunction)&chkdict_get_def, Ci_METH_TYPED, dict_get__doc__},
-    {"setdefault",
-     (PyCFunction)&chkdict_setdefault_def,
-     Ci_METH_TYPED,
-     dict_setdefault__doc__},
-#else
     {"get", (PyCFunction)&dict_get, METH_FASTCALL, dict_get__doc__},
     {"setdefault",
      (PyCFunction)&dict_setdefault_impl,
      METH_FASTCALL,
      dict_setdefault__doc__},
-#endif
     DICT_POP_METHODDEF
         DICT_POPITEM_METHODDEF{"keys", dictkeys_new, METH_NOARGS, keys__doc__},
     {"items", dictitems_new, METH_NOARGS, items__doc__},

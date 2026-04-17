@@ -13,10 +13,7 @@
 #include "cinderx/StaticPython/modulethunks.h"
 
 #ifdef ENABLE_LAZY_IMPORTS
-// This is exported with an underscore on meta Python 3.12, but not Cinder 3.10
-#if PY_VERSION_HEX >= 0x030C0000
 #define PyDict_NextKeepLazy _PyDict_NextKeepLazy
-#endif // PY_VERSION_HEX >= 0x030C0000
 #else
 #define PyDict_NextKeepLazy PyDict_Next
 #endif
@@ -24,17 +21,10 @@
 int _PyClassLoader_IsImmutable(PyObject* container) {
   if (PyType_Check(container)) {
     PyTypeObject* type = (PyTypeObject*)container;
-#if PY_VERSION_HEX < 0x030C0000
-    if (type->tp_flags & Ci_Py_TPFLAGS_FROZEN ||
-        !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
-      return 1;
-    }
-#else
     if (type->tp_flags & Py_TPFLAGS_IMMUTABLETYPE ||
         !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
       return 1;
     }
-#endif
   }
 
   if (Ci_StrictModule_CheckExact(container) &&
@@ -51,12 +41,7 @@ static inline PyObject* Ci_StrictModuleGetDictSetter(PyObject* mod) {
 
 static PyObject* strictmodule_repr(Ci_StrictModuleObject* m) {
   PyInterpreterState* interp = _PyInterpreterState_GET();
-  PyObject* importlib =
-#if PY_VERSION_HEX < 0x030C0000
-      interp->importlib;
-#else
-      interp->imports.importlib;
-#endif
+  PyObject* importlib = interp->imports.importlib;
   return PyObject_CallMethod(importlib, "_module_repr", "O", m);
 }
 

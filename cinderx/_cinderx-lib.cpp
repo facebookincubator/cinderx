@@ -23,8 +23,6 @@
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/StaticPython/descrobject_vectorcall.h"
-#include "cinderx/StaticPython/methodobject_vectorcall.h"
 #include "cinderx/StaticPython/objectkey.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
@@ -509,106 +507,6 @@ size_t getsetLen(PyGetSetDef* getset) {
   return len;
 }
 
-// Override the getset array for a type with a new one that contains an extra
-// typed signature getter.
-void getsetOverride(
-    PyTypeObject* type,
-    cinderx::ModuleState::GetSetOverride& target,
-    getter typeSigGetter) {
-  constexpr std::string_view kGetterName{"__typed_signature__"};
-
-  PyGetSetDef* original = type->tp_getset;
-  size_t len = getsetLen(original);
-
-  // Might be re-initializing CinderX, when that happens the typed signature
-  // getters are already installed.
-  if (original == target.override.get()) {
-    PyGetSetDef* member = &original[len - 1];
-    JIT_CHECK(
-        member->name == kGetterName && member->get == typeSigGetter,
-        "PyTypeObject should already have typed signature getter");
-    return;
-  }
-
-  // Need two extra spots, one for the new getter and another that acts as a
-  // null terminator.
-  size_t newLen = len + 2;
-
-  // Allocate a new array, keeping the original argument array around because it
-  // still needs to be read from.
-  auto newArray = std::make_unique<PyGetSetDef[]>(newLen);
-  memset(newArray.get(), 0, newLen * sizeof(PyGetSetDef));
-  memcpy(newArray.get(), original, len * sizeof(PyGetSetDef));
-
-  // Tack on the signature getter.
-  PyGetSetDef* def = &newArray[len];
-  def->name = kGetterName.data();
-  def->get = typeSigGetter;
-
-  // Save the original array so it can be restored later, then override.
-  target.type = type;
-  target.original = original;
-  target.override = std::move(newArray);
-  type->tp_getset = target.override.get();
-
-  // Assign a descr for the new getter.  Will abort on failure as there's no way
-  // to recover right now.
-  auto descr = Ref<>::steal(PyDescr_NewGetSet(type, def));
-  JIT_CHECK(
-      descr != nullptr, "Failed to create descr for typed signature getter");
-  BorrowedRef<> dict = _PyType_GetDict(type);
-  JIT_CHECK(
-      PyDict_SetDefault(dict, PyDescr_NAME(descr.get()), descr.get()) !=
-          nullptr,
-      "Failed to assign typed signature descr on type");
-
-  PyType_Modified(type);
-}
-
-// Restore the original getset array on a type, undoing getsetOverride.
-void getsetRevert(cinderx::ModuleState::GetSetOverride& target) {
-  if (target.type == nullptr) {
-    return;
-  }
-  target.type->tp_getset = target.original;
-
-  // Remove the __typed_signature__ descriptor that getsetOverride added to the
-  // type's dict.  The descriptor references memory in the override array which
-  // is about to be freed.
-  BorrowedRef<> dict = _PyType_GetDict(target.type);
-  if (dict != nullptr) {
-    PyDict_DelItemString(dict, "__typed_signature__");
-    PyErr_Clear();
-  }
-
-  PyType_Modified(target.type);
-
-  target.override.reset();
-  target.type = nullptr;
-  target.original = nullptr;
-}
-
-void init_already_existing_types() {
-  // Update getset functions for callable types to include typed signature
-  // getters.  The original tp_getset pointers are saved so they can be
-  // restored when CinderX is unloaded (see fini_already_existing_types).
-  if constexpr (PY_VERSION_HEX < 0x030E0000) {
-    auto* ms = cinderx::getModuleState();
-    getsetOverride(
-        &PyCFunction_Type,
-        ms->func_getset,
-        reinterpret_cast<getter>(Ci_meth_get__typed_signature__));
-    getsetOverride(
-        &PyClassMethodDescr_Type,
-        ms->class_method_getset,
-        reinterpret_cast<getter>(Ci_method_get_typed_signature));
-    getsetOverride(
-        &PyMethodDescr_Type,
-        ms->method_getset,
-        reinterpret_cast<getter>(Ci_method_get_typed_signature));
-  }
-}
-
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
 int get_current_code_flags(PyThreadState* tstate) {
   return _PyFrame_GetCode(currentFrame(tstate))->co_flags;
@@ -862,12 +760,6 @@ void module_free(void* raw_mod) {
   // data backed by the module state. The free-list will use the module refcount
   // to keep the module alive while such uses are outstanding.
   jit::shutdown_jit_genobject_type();
-
-  // Restore original tp_getset arrays on builtin types before destroying the
-  // override arrays in ModuleState.
-  getsetRevert(state->func_getset);
-  getsetRevert(state->class_method_getset);
-  getsetRevert(state->method_getset);
 
   // Running the module state's destructor will access the global singleton, so
   // reset the singleton afterwards.
@@ -1269,8 +1161,6 @@ int _cinderx_exec_impl(PyObject* m) {
   // Initialize the code object extra data index early, before we hook into the
   // interpreter and try to use it.
   initCodeExtraIndex();
-
-  init_already_existing_types();
 
   if (watcher_state.init() < 0) {
     return -1;

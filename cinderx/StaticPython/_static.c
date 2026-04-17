@@ -608,12 +608,6 @@ static PyObject* ctxmgrwrp_make_awaitable(
 
 PyTypeObject _PyContextDecoratorWrapper_Type;
 
-#if PY_VERSION_HEX < 0x030C0000
-#define IS_AWAITED(nargsf) (nargsf & Ci_Py_AWAITED_CALL_MARKER)
-#else
-#define IS_AWAITED(nargsf) false
-#endif
-
 static PyObject* ctxmgrwrp_vectorcall(
     PyFunctionObject* func,
     PyObject* const* args,
@@ -637,7 +631,7 @@ static PyObject* ctxmgrwrp_vectorcall(
    * of the coroutine.  Otherwise we're not a co-routine or we're eagerly
    * awaited in which case we'll call __enter__ now and capture __exit__
    * before any possible side effects to match the normal eval loop */
-  if (!self->is_coroutine || IS_AWAITED(nargsf)) {
+  if (!self->is_coroutine) {
     exit = ctxmgrwrp_enter(self, &ctx_mgr);
     if (exit == NULL) {
       return NULL;
@@ -648,32 +642,7 @@ static PyObject* ctxmgrwrp_vectorcall(
   PyObject* res = _PyObject_Vectorcall(self->func, args, nargsf, kwargs);
   /* TASK(T128335015): Enable this when we have async/await support. */
   if (self->is_coroutine && res != NULL) {
-#if PY_VERSION_HEX < 0x030C0000
-    /* If it's a co-routine either pass up the eagerly awaited value or
-     * pass out a wrapping awaitable */
-    int eager = Ci_PyWaitHandle_CheckExact(res);
-    if (eager) {
-      Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)res;
-      if (handle->wh_waiter == NULL) {
-        assert(nargsf & Ci_Py_AWAITED_CALL_MARKER && exit != NULL);
-        // pass in unwrapped result into exit so it could be released in error
-        // case
-        PyObject* result =
-            ctxmgrwrp_exit(1, ctx_mgr, handle->wh_coro_or_result, exit);
-        Py_DECREF(exit);
-        Py_XDECREF(ctx_mgr);
-        if (result == NULL) {
-          // wrapped result is released in ctxmgrwrp_exit, now release the
-          // waithandle itself
-          Ci_PyWaitHandle_Release((PyObject*)handle);
-          return NULL;
-        }
-        return res;
-      }
-    }
-#else
     int eager = 0;
-#endif
     return ctxmgrwrp_make_awaitable(self, ctx_mgr, exit, res, eager);
   }
 
@@ -806,47 +775,6 @@ PyObject* make_context_decorator_wrapper(
   return (PyObject*)wrapper_func;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-
-Ci_Py_TYPED_SIGNATURE(Ci_static_rand, Ci_Py_SIG_INT32, NULL);
-
-static Py_ssize_t static_property_missing_fget(PyObject* mod, PyObject* self) {
-  PyErr_SetString(PyExc_AttributeError, "unreadable attribute");
-  return -1;
-}
-
-Ci_Py_TYPED_SIGNATURE(
-    static_property_missing_fget,
-    Ci_Py_SIG_ERROR,
-    &Ci_Py_Sig_Object,
-    NULL);
-
-static Py_ssize_t
-static_property_missing_fset(PyObject* mod, PyObject* self, PyObject* val) {
-  PyErr_SetString(PyExc_AttributeError, "can't set attribute");
-  return -1;
-}
-
-Ci_Py_TYPED_SIGNATURE(
-    static_property_missing_fset,
-    Ci_Py_SIG_ERROR,
-    &Ci_Py_Sig_Object,
-    &Ci_Py_Sig_Object,
-    NULL);
-
-static Py_ssize_t static_property_missing_fdel(PyObject* mod, PyObject* self) {
-  PyErr_SetString(PyExc_AttributeError, "can't del attribute");
-  return -1;
-}
-
-Ci_Py_TYPED_SIGNATURE(
-    static_property_missing_fdel,
-    Ci_Py_SIG_ERROR,
-    &Ci_Py_Sig_Object,
-    NULL);
-
-#else
-
 static PyObject* static_property_missing_fget(PyObject* mod, PyObject* self) {
   PyErr_SetString(PyExc_AttributeError, "unreadable attribute");
   return NULL;
@@ -862,8 +790,6 @@ static PyObject* static_property_missing_fdel(PyObject* mod, PyObject* self) {
   PyErr_SetString(PyExc_AttributeError, "can't del attribute");
   return NULL;
 }
-
-#endif
 
 static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
   PyObject* mro = type->tp_mro;
@@ -1122,10 +1048,8 @@ error:
   return NULL;
 }
 
-#if PY_VERSION_HEX >= 0x030C0000
 #define PyHeapType_GET_MEMBERS(type) \
   (PyMemberDef*)PyObject_GetItemData((PyObject*)type);
-#endif
 
 static int type_new_descriptors(
     const PyObject* slots,
@@ -1246,10 +1170,7 @@ static int type_new_descriptors(
   /* Round slotoffset up so any child class layouts start properly aligned. */
   slotoffset = _Py_SIZE_ROUND_UP(slotoffset, sizeof(PyObject*));
 
-#if PY_VERSION_HEX >= 0x030C0000
-  if (!PyType_HasFeature(type, Py_TPFLAGS_PREHEADER))
-#endif
-  {
+  if (!PyType_HasFeature(type, Py_TPFLAGS_PREHEADER)) {
     if (type->tp_dictoffset) {
       if (type->tp_base->tp_itemsize == 0) {
         type->tp_dictoffset = slotoffset;
@@ -1263,10 +1184,8 @@ static int type_new_descriptors(
       slotoffset += sizeof(PyObject*);
       needs_gc = 1;
     }
-#if PY_VERSION_HEX >= 0x030C0000
   } else {
     needs_gc = 1;
-#endif
   }
 
   // We should have checked for leakage earlier...
@@ -1811,11 +1730,7 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)(void (*)(void))set_type_code,
      METH_FASTCALL,
      ""},
-#if PY_VERSION_HEX < 0x030C0000
-    {"rand", (PyCFunction)&Ci_static_rand_def, Ci_METH_TYPED, ""},
-#else
     {"rand", (PyCFunction)&Ci_static_rand, METH_NOARGS, ""},
-#endif
     {"is_type_static", (PyCFunction)(void (*)(void))is_type_static, METH_O, ""},
     {"set_type_static",
      (PyCFunction)(void (*)(void))set_type_static,
@@ -1834,20 +1749,6 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)(void (*)(void))make_context_decorator_wrapper,
      METH_FASTCALL,
      ""},
-#if PY_VERSION_HEX < 0x030C0000
-    {"_property_missing_fget",
-     (PyCFunction)&static_property_missing_fget_def,
-     Ci_METH_TYPED,
-     ""},
-    {"_property_missing_fset",
-     (PyCFunction)&static_property_missing_fset_def,
-     Ci_METH_TYPED,
-     ""},
-    {"_property_missing_fdel",
-     (PyCFunction)&static_property_missing_fdel_def,
-     Ci_METH_TYPED,
-     ""},
-#else
     {"_property_missing_fget",
      (PyCFunction)&static_property_missing_fget,
      METH_O,
@@ -1860,7 +1761,6 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)&static_property_missing_fdel,
      METH_O,
      ""},
-#endif
     {"resolve_primitive_descr",
      (PyCFunction)(void (*)(void))resolve_primitive_descr,
      METH_O,

@@ -5,11 +5,7 @@
 #include "internal/pycore_object.h" // @donotremove
 #include "internal/pycore_pystate.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#else
 #include "cinderx/Common/extra-py-flags.h"
-#endif
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_function.h"
@@ -407,13 +403,10 @@ static int _PyVTable_setslot(
       original, &optional, &exact, &func_flags);
 
   if (ret_type == NULL) {
-#if PY_VERSION_HEX >= 0x030C0000
     // T190615686: Include non-typed methods from generic methods in vtable
     if (tp->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) {
       ret_type = (PyObject*)&PyBaseObject_Type;
-    } else
-#endif
-    {
+    } else {
       PyErr_Format(
           PyExc_RuntimeError,
           "missing type annotation on static compiled method %R of %s",
@@ -468,13 +461,11 @@ static int _PyVTable_setslot(
 static PyObject* get_tp_subclasses(PyTypeObject* self, bool create) {
   PyObject** subclasses_addr = (PyObject**)&self->tp_subclasses;
 
-#if PY_VERSION_HEX >= 0x030C0000
   if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
     PyInterpreterState* interp = _PyInterpreterState_GET();
     managed_static_type_state* state = Cix_PyStaticType_GetState(interp, self);
     subclasses_addr = (PyObject**)&state->tp_subclasses;
   }
-#endif
 
   PyObject* subclasses = *subclasses_addr;
   if (subclasses == NULL && create) {
@@ -968,12 +959,9 @@ static int classloader_get_original_static_def(
     // decorated method) we need to keep looking up the MRO for a static base.
     if (*original == NULL || !used_in_vtable(*original)) {
       // T190615686: Include non-typed methods from generic methods in vtable
-#if PY_VERSION_HEX >= 0x030C0000
       if (!(tp->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) &&
           (*original != g_missing_fget && *original != g_missing_fset &&
-           *original != g_missing_fdel))
-#endif
-      {
+           *original != g_missing_fdel)) {
         Py_CLEAR(*original);
       }
     }
@@ -1133,11 +1121,8 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
   i = 0;
   while (PyDict_Next(_PyType_GetDict(self), &i, &key, &value)) {
     if (PyDict_GetItem(slotmap, key) || !used_in_vtable(value)) {
-#if PY_VERSION_HEX >= 0x030C0000
       // T190615686: Include non-typed methods from generic methods in vtable
-      if (!(self->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST))
-#endif
-      {
+      if (!(self->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) {
         /* we either share the same slot, or this isn't a static function,
          * so it doesn't need a slot */
         continue;
