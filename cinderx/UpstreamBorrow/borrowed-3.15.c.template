@@ -33,10 +33,6 @@
 #endif
 #include "opcode.h"
 
-#define _PyOpcode_Caches _CiOpcode_Caches
-#define _PyOpcode_Deopt _CiOpcode_Deopt
-#define _Py_type_getattro PyType_Type.tp_getattro
-
 #undef _PyObject_GC_TRACK
 #define _PyObject_GC_TRACK PyObject_GC_Track
 
@@ -46,37 +42,6 @@ getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;
 #define _Py_slot_tp_getattr_hook Ci_tp_getattr_hook
 // _Py_slot_tp_getattro is used when __getattribute__ is defined
 #define _Py_slot_tp_getattro Ci_tp_getattro
-
-int unicode_eq(PyObject *str1, PyObject *str2)
-{
-    Py_ssize_t len = PyUnicode_GET_LENGTH(str1);
-    if (PyUnicode_GET_LENGTH(str2) != len) {
-        return 0;
-    }
-
-    int kind = PyUnicode_KIND(str1);
-    if (PyUnicode_KIND(str2) != kind) {
-        return 0;
-    }
-
-    const void *data1 = PyUnicode_DATA(str1);
-    const void *data2 = PyUnicode_DATA(str2);
-    return (memcmp(data1, data2, len * kind) == 0);
-}
-
-PyObject *
-_PyType_LookupRefAndVersion(PyTypeObject *type, PyObject *name, unsigned int *version) {
-  // This is a bit much to borrow as the dependency tree goes deep... but the version
-  // is the version at the start before the MRO
-  bool has_version = type->tp_version_tag != 0;
-  if (!has_version && PyUnstable_Type_AssignVersionTag(type)) {
-    has_version = true;
-  }
-  unsigned int start_version = type->tp_version_tag;
-  PyObject *res = _PyType_LookupRef(type, name);
-  *version = has_version ? start_version : 0;
-  return res;
-}
 
 #ifdef ENABLE_PEP523_HOOK
 _PyFrameEvalFunction Ci_EvalFrameFunc;
@@ -95,148 +60,20 @@ PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
 #define _PyGen_CAST(op) \
     _Py_CAST(PyGenObject*, (op))
 
-// @Borrow function compute_cr_origin from Objects/genobject.c
-PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
-  return compute_cr_origin(origin_depth, current_frame);
-}
-
-// @Borrow function _PyFunction_GetVersionForCurrentState from Objects/funcobject.c
-// @Borrow function _PyInterpreterState_GetConfig from Python/pystate.c
-
-
-// @Borrow CPP directives noinclude from Objects/dictobject.c
-// Several functions in dictobject.c check for exact pointer equality on Py_EMPTY_KEYS
-// but the global it points to is only locally visible. Fortunately, we can extract
-// it by making a new empty dictionary and extracting the keys. We do this on CinderX
-// module initialization.
-#undef Py_EMPTY_KEYS
-PyDictKeysObject* ci_dict_empty_keys;
-#define Py_EMPTY_KEYS ci_dict_empty_keys
-
-// This was mostly generated with:
-//   buck run fbcode//cinderx/UpstreamBorrow:callgraph -- --py_version 3.15 <(echo '{"Objects/dictobject.c": ["_PyObjectDict_SetItem", "_PyDict_LookupIndex", "_Py_dict_lookup",  "_PyDictKeys_StringLookup", "_PyDictKeys_StringLookupSplit", "_PyDictKeys_GetVersionForCurrentState", "_PyDictKeys_StringLookupAndVersion", "_PyDict_GetKeysVersionForCurrentState"]}')
-// except compare_unicode_unicode, compare_unicode_generic, compare_generic.
-// These are referred to by value rather than call expression and :callgraph
-// does not handle this.
-// We also had to explicitly remove PyDict_New() because we need the original
-// version to initialize ci_dict_empty_keys.
-//
-// @Borrow function can_modify_dict from Objects/dictobject.c [3.15]
-// @Borrow function values_size_from_count from Objects/dictobject.c [3.15]
-// @Borrow function new_values from Objects/dictobject.c [3.15]
-// @Borrow function dictkeys_incref from Objects/dictobject.c [3.15]
-// @Borrow function free_keys_object from Objects/dictobject.c [3.15]
-// @Borrow function dictkeys_decref from Objects/dictobject.c [3.15]
-// @Borrow function free_values from Objects/dictobject.c [3.15]
-// @Borrow function dictkeys_get_index from Objects/dictobject.c [3.15]
-// @Borrow function unicode_get_hash from Objects/dictobject.c [3.15]
-// @Borrow function compare_unicode_unicode from Objects/dictobject.c [3.15]
-// @Borrow function compare_unicode_generic from Objects/dictobject.c [3.15]
-// @Borrow function compare_generic from Objects/dictobject.c [3.15]
-// @Borrow function get_index_from_order from Objects/dictobject.c [3.15]
-// @Borrow function _PyDict_CheckConsistency from Objects/dictobject.c [3.15]
-// @Borrow function new_dict_impl from Objects/dictobject.c [3.15]
-// @Borrow function new_dict from Objects/dictobject.c [3.15]
-// @Borrow function new_dict_with_shared_keys from Objects/dictobject.c [3.15]
-// @Borrow function ensure_nonmanaged_dict from Objects/dictobject.c [3.15]
-// @Borrow function dict_unhashable_type from Objects/dictobject.c [3.15]
-// @Borrow function do_lookup from Objects/dictobject.c [3.15]
-// @Borrow function unicodekeys_lookup_unicode from Objects/dictobject.c [3.15]
-// @Borrow function unicodekeys_lookup_generic from Objects/dictobject.c [3.15]
-// @Borrow function dictkeys_generic_lookup from Objects/dictobject.c [3.15]
-// @Borrow function lookdict_index from Objects/dictobject.c [3.15]
-// @Borrow function delete_index_from_values from Objects/dictobject.c [3.15]
-// @Borrow function dictkeys_set_index from Objects/dictobject.c [3.15]
-// @Borrow function delitem_common from Objects/dictobject.c [3.15]
-// @Borrow function new_keys_object from Objects/dictobject.c [3.15]
-// @Borrow function insert_to_emptydict from Objects/dictobject.c [3.15]
-// @Borrow function ensure_shared_on_resize from Objects/dictobject.c [3.15]
-// @Borrow function build_indices_generic from Objects/dictobject.c [3.15]
-// @Borrow function build_indices_unicode from Objects/dictobject.c [3.15]
-// @Borrow function set_keys from Objects/dictobject.c [3.15]
-// @Borrow function set_values from Objects/dictobject.c [3.15]
-// @Borrow function invalidate_and_clear_inline_values from Objects/dictobject.c [3.15]
-// @Borrow function dictresize from Objects/dictobject.c [3.15]
-// @Borrow function calculate_log2_keysize from Objects/dictobject.c [3.15]
-// @Borrow function insertion_resize from Objects/dictobject.c [3.15]
-// @Borrow function is_unusable_slot from Objects/dictobject.c [3.15]
-// @Borrow function find_empty_slot from Objects/dictobject.c [3.15]
-// @Borrow function split_keys_entry_added from Objects/dictobject.c [3.15]
-// @Borrow function insert_split_key from Objects/dictobject.c [3.15]
-// @Borrow function insert_split_value from Objects/dictobject.c [3.15]
-// @Borrow function insert_combined_dict from Objects/dictobject.c [3.15]
-// @Borrow function insertdict from Objects/dictobject.c [3.15]
-// @Borrow function setitem_take2_lock_held_known_hash from Objects/dictobject.c [3.15]
-// @Borrow function setitem_take2_lock_held from Objects/dictobject.c [3.15]
-// @Borrow function setitem_lock_held from Objects/dictobject.c [3.15]
-// @Borrow function _PyDict_DelItem_KnownHash_LockHeld from Objects/dictobject.c [3.15]
-// @Borrow function _PyDict_SetItem_LockHeld from Objects/dictobject.c [3.15]
-
-// @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.15]
-// @Borrow function _PyDict_LookupIndexAndValue from Objects/dictobject.c [3.15]
-// @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.15]
-// @Borrow function check_keys_unicode from Objects/dictobject.c [3.15]
-// @Borrow function hash_unicode_key from Objects/dictobject.c [3.15]
-// @Borrow function _PyDictKeys_StringLookup from Objects/dictobject.c [3.15]
-// @Borrow function unicodekeys_lookup_split from Objects/dictobject.c [3.15]
-// @Borrow function _PyDictKeys_StringLookupSplit from Objects/dictobject.c [3.15]
-// @Borrow function get_next_dict_keys_version from Objects/dictobject.c [3.15]
-// @Borrow function _PyDictKeys_GetVersionForCurrentState from Objects/dictobject.c [3.15]
-// @Borrow function _PyDictKeys_StringLookupAndVersion from Objects/dictobject.c [3.15]
-// @Borrow function ensure_shared_on_keys_version_assignment from Objects/dictobject.c [3.15]
-// @Borrow function _PyDict_GetKeysVersionForCurrentState from Objects/dictobject.c [3.15]
-
 void Cix_dict_insert_split_value(
     PyInterpreterState *interp,
     PyDictObject *mp,
     PyObject *key,
     PyObject *value,
     Py_ssize_t ix) {
-#if defined(__clang__)
-  [[clang::always_inline]]
-#elif defined(__GNUC__)
-  [[gnu::always_inline]]
-#endif
-  insert_split_value(mp, key, value, ix);
+  return _PyDict_InsertSplitValue(mp, key, value, ix);
 }
-
-#define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
-// @Borrow function _PyObject_SetAttributeErrorContext from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
   return _PyObject_SetAttributeErrorContext(v, name);
 }
-
-// @Borrow var DE_INSTRUMENT from Python/instrumentation.c
-uint8_t
-Cix_DEINSTRUMENT(uint8_t op) {
-  return DE_INSTRUMENT[op];
-}
-
-
-// @Borrow function get_original_opcode from Python/instrumentation.c
-uint8_t Cix_GetOriginalOpcode(
-    _PyCoLineInstrumentationData* line_data,
-    int index) {
-  return get_original_opcode(line_data, index);
-}
-
-// @Borrow function _PyErr_GetTopmostException from Python/errors.c
-
-// Internal dependencies for gc_freeze_impl.
-// @Borrow CPP directives noinclude from Modules/gcmodule.c
-// @Borrow CPP directives noinclude from Python/gc.c
-// @Borrow typedef GCState from Modules/gcmodule.c
-// @Borrow function gc_list_init from Python/gc.c
-// @Borrow function gc_list_is_empty from Python/gc.c
-// @Borrow function get_gc_state from Modules/gcmodule.c
-// @Borrow function gc_old_space from Python/gc.c
-// @Borrow function gc_list_merge from Python/gc.c
-// @Borrow function gc_set_old_space from Python/gc.c
-// @Borrow function gc_list_set_space from Python/gc.c
-// End internal dependencies.
 
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
 
@@ -318,7 +155,8 @@ int init_upstream_borrow(void) {
     "class GetAttr:\n"
     "    def __getattr__(self, name): pass\n"
     "class GetAttribute:\n"
-    "    def __getattribute__(self, name): pass\n";
+    "    def __getattribute__(self, name): pass\n"
+    "def f(): yield 42\n";
 
   PyObject *code = NULL, *globals = NULL, *inst = NULL;
   PyDictObject* empty_dict = NULL;
@@ -367,11 +205,6 @@ int init_upstream_borrow(void) {
     goto error;
   }
 
-  // Extract the empty keys object which several borrowed functions from
-  // dictobject.c user in pointer equality tests.
-  empty_dict = (PyDictObject*)PyDict_New();
-  ci_dict_empty_keys = empty_dict->ma_keys;
-
   result = 0;
 
 error:
@@ -383,63 +216,11 @@ error:
 }
 
 
-// @Borrow CPP directives noinclude from Objects/typeobject.c
-// @Borrow function managed_static_type_index_is_set from Objects/typeobject.c
-// @Borrow function managed_static_type_index_get from Objects/typeobject.c
-// @Borrow function managed_static_type_state_get from Objects/typeobject.c
-// @Borrow function _PyStaticType_GetState from Objects/typeobject.c
-// @Borrow function _PyType_CacheInitForSpecialization from Objects/typeobject.c
-// @Borrow function _PyType_CacheGetItemForSpecialization from Objects/typeobject.c
-// @Borrow function lookup_tp_bases from Objects/typeobject.c
-// @Borrow function next_global_version_tag from Objects/typeobject.c
-// @Borrow function set_version_unlocked from Objects/typeobject.c
-// @Borrow function assign_version_tag from Objects/typeobject.c
-// @Borrow function _PyType_Validate from Objects/typeobject.c
-
-#define _PyFrame_New_NoTrack _CiFrame_New_NoTrack
-// @Borrow function _PyFrame_New_NoTrack from Objects/frameobject.c
-// @Borrow function _PyFrame_MakeAndSetFrameObject from Python/frame.c
-// @Borrow function _PyFrame_ClearLocals from Python/frame.c
-// @Borrow function take_ownership from Python/frame.c
-// @Borrow function _PyFrame_ClearExceptCode from Python/frame.c
-
-
-// @Borrow function _PyObject_HasLen from Objects/abstract.c
-
-
-// @Borrow CPP directives noinclude from Python/pystate.c
-// @Borrow CPP directives noinclude from Objects/obmalloc.c
-// @Borrow function _pymalloc_virtual_alloc_size from Objects/obmalloc.c
-// @Borrow function _PyObject_VirtualAlloc from Objects/obmalloc.c
-// @Borrow function allocate_chunk from Python/pystate.c
-// @Borrow function push_chunk from Python/pystate.c
-// @Borrow function _PyThreadState_PushFrame from Python/pystate.c
-
 void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
   PyErr_SetObject(type, value);
 }
 
 #define _PyErr_NoMemory(tstate) PyErr_NoMemory()
-
-// @Borrow function _PyStack_UnpackDict_Free from Objects/call.c [3.15]
-
-// @Borrow function _PyExc_CreateExceptionGroup from Objects/exceptions.c [3.15]
-
-
-// @Borrow function _PyBuildSlice_Consume2 from Objects/sliceobject.c [3.15]
-// @Borrow function _PyBuildSlice_ConsumeRefs from Objects/sliceobject.c [3.15]
-
-
-// @Borrow function _PyNumber_PowerNoMod from Objects/abstract.c
-// @Borrow function _PyNumber_InPlacePowerNoMod from Objects/abstract.c
-
-// @Borrow CPP directives noinclude from Python/suggestions.c
-// @Borrow function substitution_cost from Python/suggestions.c [3.15]
-// @Borrow function levenshtein_distance from Python/suggestions.c [3.15]
-// @Borrow function _Py_CalculateSuggestions from Python/suggestions.c [3.15]
-
-// @Borrow function tb_create_raw from Python/traceback.c [3.15]
-// @Borrow function _PyTraceBack_FromFrame from Python/traceback.c [3.15]
 
 // Internal dependencies for gen_dealloc.
 // @Borrow function gen_clear_frame from Objects/genobject.c [3.15]

@@ -308,7 +308,7 @@ fun jittestmodule:test {
     Snapshot
     v36:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
         Locals<3> v21 v34 v35
         Stack<2> v26 v27
       }
@@ -320,7 +320,7 @@ fun jittestmodule:test {
     Snapshot
     v42:Object = InvokeIterNext v26 {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
         Locals<3> v21 v34 v35
         Stack<2> v26 v27
       }

@@ -28,6 +28,22 @@
 #define _Py_AddRefTotal _Ci_AddRefTotal
 #endif
 
+// In 3.15, many of these functions are properly exported by CPython with
+// PyAPI_FUNC, so the renames are only needed for 3.14.
+#define _PyEval_Vector _CiEval_Vector
+// PyObject* _PyExc_CreateExceptionGroup(const char* msg_str, PyObject* excs);
+
+#define _PyFloat_FromDouble_ConsumeInputs _CiFloat_FromDouble_ConsumeInputs
+
+#define _PyErr_SetObject _CiErr_SetObject
+
+#define _PyInstrumentation_MISSING (*Cix_monitoring_missing)
+#define _PyInstrumentation_DISABLE (*Cix_monitoring_disable)
+
+#define _PyInstruction_GetLength _CiInstruction_GetLength
+#define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
+
+#if PY_VERSION_HEX < 0x030F0000
 #define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
 #define _PyObject_HasLen _CiPyObject_HasLen
 #define _PyFrame_ClearLocals _CiFrame_ClearLocals
@@ -36,7 +52,6 @@
 #define _PyObject_VirtualAlloc _CiVirtualAlloc
 #define _PyThreadState_PushFrame _CiThreadState_PushFrame
 #define _PyErr_GetTopmostException _CiErr_GetTopmostException
-#define _PyEval_Vector _CiEval_Vector
 #define _PyType_CacheGetItemForSpecialization \
   _CiType_CacheGetItemForSpecialization
 #define _PyType_CacheInitForSpecialization _CiType_CacheInitForSpecialization
@@ -45,9 +60,6 @@
 #define _PyFunction_GetVersionForCurrentState \
   _CiFunction_GetVersionForCurrentState
 #define _PyExc_CreateExceptionGroup _CiExc_CreateExceptionGroup
-// PyObject* _PyExc_CreateExceptionGroup(const char* msg_str, PyObject* excs);
-
-#define _PyFloat_FromDouble_ConsumeInputs _CiFloat_FromDouble_ConsumeInputs
 #define _PyDict_GetKeysVersionForCurrentState \
   _CiDict_GetKeysVersionForCurrentState
 #define _PyDict_LookupIndex _CiDict_LookupIndex
@@ -58,7 +70,6 @@
 #define _PyDictKeys_StringLookupAndVersion _CiDictKeys_StringLookupAndVersion
 #define _PyDictKeys_StringLookup _CiDictKeys_StringLookup
 #define _PyStack_UnpackDict_Free _CiStack_UnpackDict_Free
-#if PY_VERSION_HEX < 0x030F0000
 #define _PyStack_UnpackDict_FreeNoDecRef _CiStack_UnpackDict_FreeNoDecRef
 #define _PyStack_UnpackDict _CiStack_UnpackDict
 #define _PyCode_InitAddressRange _CiCode_InitAddressRange
@@ -73,20 +84,9 @@
 #define _Py_Instrumentation_GetLine _Ci_Instrumentation_GetLine
 #define _Py_call_instrumentation_line _Ci_call_instrumentation_line
 #define _Py_call_instrumentation_exc2 _Ci_call_instrumentation_exc2
-#endif
 #define _PyNumber_InPlacePowerNoMod _CiNumber_InPlacePowerNoMod
 #define _PyNumber_PowerNoMod _CiNumber_PowerNoMod
-
-#define _PyErr_SetObject _CiErr_SetObject
-
-#define _PyInstrumentation_MISSING (*Cix_monitoring_missing)
-#define _PyInstrumentation_DISABLE (*Cix_monitoring_disable)
-
 #define _PyFrame_MakeAndSetFrameObject _CiFrame_MakeAndSetFrameObject
-#define _PyInstruction_GetLength _CiInstruction_GetLength
-#define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
-
-#if PY_VERSION_HEX < 0x030F0000
 #define _Py_Specialize_ContainsOp _Ci_Specialize_ContainsOp
 #define _Py_Specialize_ToBool _Ci_Specialize_ToBool
 #define _Py_Specialize_Send _Ci_Specialize_Send
@@ -105,27 +105,23 @@
 #define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
 #define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
 #define _PyEvalFramePushAndInit_Ex _CiEvalFramePushAndInit_Ex
-#endif
 #define _PyType_Validate _CiType_Validate
-
-#if PY_VERSION_HEX < 0x030F0000
 #define _Py_Specialize_Call _Ci_Specialize_Call
-#endif
-
 #define _PyTraceBack_FromFrame _CiTraceBack_FromFrame
 #define _Py_CalculateSuggestions _Ci_CalculateSuggestions
-#if PY_VERSION_HEX >= 0x030F0000
-#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
-#define _PyDict_LookupIndexAndValue _CixDict_LookupIndexAndValue
-#else
-#define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
-#endif
-
 #define _PyDict_CheckConsistency _CiDict_CheckConsistency
-#define _Py_dict_lookup_keep_lazy _Ci_dict_lookup_keep_lazy
 #define _PyDict_SetItem_LockHeld _CiDict_SetItem_LockHeld
 #define _PyDict_DelItem_KnownHash_LockHeld _CiDict_DelItem_KnownHash_LockHeld
 #define _PyInterpreterState_GetConfig _CiInterpreterState_GetConfig
+#define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
+#else
+#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
+#define Cix_compute_cr_origin _PyCoro_ComputeOrigin
+#define Cix_DEINSTRUMENT _PyCode_Deinstrument
+#define Cix_GetOriginalOpcode _PyCode_GetOriginalOpcode
+#endif
+
+#define _Py_dict_lookup_keep_lazy _Ci_dict_lookup_keep_lazy
 
 // The 3.14 file is built with 3.14.3, which includes gh-142534 that defines
 // this new macro.  The lack of it on earlier point releases breaks the build.
@@ -140,6 +136,11 @@ PyObject* _PyNumber_InPlacePowerNoMod(PyObject* lhs, PyObject* rhs);
 PyObject* _PyNumber_PowerNoMod(PyObject* lhs, PyObject* rhs);
 #ifdef __cplusplus
 }
+#endif
+
+#if PY_VERSION_HEX >= 0x030F0000
+// Map CinderX wrapper name to real CPython function
+#define Cix_PyStaticType_GetState _PyStaticType_GetState
 #endif
 
 #endif
@@ -267,7 +268,9 @@ void Cix_PyThreadState_PopFrame(
 
 void Cix_PyFrame_ClearExceptCode(_PyInterpreterFrame* frame);
 
+#if PY_VERSION_HEX < 0x030F0000
 uint8_t Cix_DEINSTRUMENT(uint8_t op);
+#endif
 
 int Cix_PyCode_InitAddressRange(PyCodeObject* co, PyCodeAddressRange* bounds);
 int Cix_PyLineTable_NextAddressRange(PyCodeAddressRange* range);

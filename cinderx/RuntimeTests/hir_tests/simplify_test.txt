@@ -11446,7 +11446,7 @@ fun jittestmodule:test {
     Snapshot
     v39:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 30
+        CurInstrOffset 32
         Locals<2> v37 v38
         Stack<2> v30 v31
       }
@@ -11458,7 +11458,7 @@ fun jittestmodule:test {
     Snapshot
     v44:Object = InvokeIterNext v30 {
       FrameState {
-        CurInstrOffset 30
+        CurInstrOffset 32
         Locals<2> v37 v38
         Stack<2> v30 v31
       }
@@ -11474,7 +11474,7 @@ fun jittestmodule:test {
     UseType<LongExact> v47
     v50:LongExact = LongInPlaceOp<Add> v37 v47 {
       FrameState {
-        CurInstrOffset 40
+        CurInstrOffset 42
         Locals<2> v37 v44
         Stack<2> v30 v31
       }

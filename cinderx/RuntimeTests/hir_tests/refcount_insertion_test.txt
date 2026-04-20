@@ -939,7 +939,7 @@ fun jittestmodule:test {
     v45:CInt32 = RunPeriodicTasks {
       LiveValues<7> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v44
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
         Locals<5> v20 v21 v22 v43 v44
         Stack<2> v33 v34
       }
@@ -951,7 +951,7 @@ fun jittestmodule:test {
     v53:Object = InvokeIterNext v33 {
       LiveValues<7> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v44
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
         Locals<5> v20 v21 v22 v43 v44
         Stack<2> v33 v34
       }
@@ -965,7 +965,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<9> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v44 o:v53 b:v56
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
         Locals<5> v20 v21 v22 v43 v44
         Stack<3> v33 v34 v53
       }
@@ -974,7 +974,7 @@ fun jittestmodule:test {
     v65:Object = VectorCall<1> v57 v43 {
       LiveValues<8> b:v20 b:v21 b:v22 o:v33 unc:v34 b:v43 o:v53 b:v57
       FrameState {
-        CurInstrOffset 30
+        CurInstrOffset 32
         Locals<5> v20 v21 v22 v43 v53
         Stack<2> v33 v34
       }
@@ -988,14 +988,14 @@ fun jittestmodule:test {
     v61:Object = LoadGlobal<1; "use"> {
       LiveValues<5> b:v20 b:v21 b:v22 b:v43 o:v44
       FrameState {
-        CurInstrOffset 52
+        CurInstrOffset 54
         Locals<5> v20 v21 v22 v43 v44
       }
     }
     v66:Object = VectorCall<2> v61 v20 v21 {
       LiveValues<6> b:v20 b:v21 b:v22 b:v43 o:v44 o:v61
       FrameState {
-        CurInstrOffset 64
+        CurInstrOffset 66
         Locals<5> v20 v21 v22 v43 v44
       }
     }
@@ -1375,7 +1375,7 @@ fun jittestmodule:test {
     v57:CInt32 = RunPeriodicTasks {
       LiveValues<7> b:v26 o:v45 unc:v46 b:v55 o:v56 o:v79 o:v80
       FrameState {
-        CurInstrOffset 52
+        CurInstrOffset 54
         Locals<5> v26 v79 v80 v55 v56
         Stack<2> v45 v46
       }
@@ -1387,7 +1387,7 @@ fun jittestmodule:test {
     v65:Object = InvokeIterNext v45 {
       LiveValues<7> b:v26 o:v45 unc:v46 b:v55 o:v56 o:v79 o:v80
       FrameState {
-        CurInstrOffset 52
+        CurInstrOffset 54
         Locals<5> v26 v79 v80 v55 v56
         Stack<2> v45 v46
       }
@@ -1401,7 +1401,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<9> b:v26 o:v45 unc:v46 b:v55 o:v56 o:v65 b:v68 o:v79 o:v80
       FrameState {
-        CurInstrOffset 56
+        CurInstrOffset 58
         Locals<5> v26 v79 v80 v55 v56
         Stack<3> v45 v46 v65
       }
@@ -1410,7 +1410,7 @@ fun jittestmodule:test {
     v77:Object = VectorCall<1> v69 v55 {
       LiveValues<8> b:v26 o:v45 unc:v46 b:v55 o:v65 b:v69 o:v79 o:v80
       FrameState {
-        CurInstrOffset 70
+        CurInstrOffset 72
         Locals<5> v26 v79 v80 v55 v65
         Stack<2> v45 v46
       }
@@ -1424,14 +1424,14 @@ fun jittestmodule:test {
     v73:Object = LoadGlobal<3; "use"> {
       LiveValues<5> b:v26 b:v55 o:v56 o:v79 o:v80
       FrameState {
-        CurInstrOffset 92
+        CurInstrOffset 94
         Locals<5> v26 v79 v80 v55 v56
       }
     }
     v78:Object = VectorCall<2> v73 v79 v80 {
       LiveValues<6> b:v26 b:v55 o:v56 o:v73 o:v79 o:v80
       FrameState {
-        CurInstrOffset 104
+        CurInstrOffset 106
         Locals<5> v26 v79 v80 v55 v56
       }
     }
@@ -1767,7 +1767,7 @@ fun jittestmodule:test {
     v43:CInt32 = RunPeriodicTasks {
       LiveValues<5> b:v21 o:v33 unc:v34 o:v41 o:v42
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 30
         Locals<3> v21 v41 v42
         Stack<2> v33 v34
       }
@@ -1779,7 +1779,7 @@ fun jittestmodule:test {
     v49:Object = InvokeIterNext v33 {
       LiveValues<5> b:v21 o:v33 unc:v34 o:v41 o:v42
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 30
         Locals<3> v21 v41 v42
         Stack<2> v33 v34
       }
@@ -1793,7 +1793,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<7> b:v21 o:v33 unc:v34 o:v41 o:v42 o:v49 b:v52
       FrameState {
-        CurInstrOffset 32
+        CurInstrOffset 34
         Locals<3> v21 v41 v42
         Stack<3> v33 v34 v49
       }
@@ -1802,7 +1802,7 @@ fun jittestmodule:test {
     v61:Object = VectorCall<1> v53 v41 {
       LiveValues<6> b:v21 o:v33 unc:v34 o:v41 o:v49 b:v53
       FrameState {
-        CurInstrOffset 46
+        CurInstrOffset 48
         Locals<3> v21 v41 v49
         Stack<2> v33 v34
       }
@@ -1811,7 +1811,7 @@ fun jittestmodule:test {
     v56:Object = LoadGlobal<2; "something_else"> {
       LiveValues<5> b:v21 o:v33 unc:v34 o:v41 o:v49
       FrameState {
-        CurInstrOffset 56
+        CurInstrOffset 58
         Locals<3> v21 v41 v49
         Stack<2> v33 v34
       }
@@ -1819,7 +1819,7 @@ fun jittestmodule:test {
     v62:Object = VectorCall<0> v56 {
       LiveValues<6> b:v21 o:v33 unc:v34 o:v41 o:v49 o:v56
       FrameState {
-        CurInstrOffset 66
+        CurInstrOffset 68
         Locals<3> v21 v41 v49
         Stack<2> v33 v34
       }

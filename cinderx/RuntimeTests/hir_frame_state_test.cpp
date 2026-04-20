@@ -188,13 +188,13 @@ def test(fs):
 
   bb 8 (preds 7) {
     Snapshot {
-      CurInstrOffset 16
+      CurInstrOffset 18
       Locals<2> v0 v1
       Stack<2> v3 v4
     }
     v11 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
         Locals<2> v0 v1
         Stack<2> v3 v4
       }
@@ -204,13 +204,13 @@ def test(fs):
 
   bb 1 (preds 7, 8) {
     Snapshot {
-      CurInstrOffset 16
+      CurInstrOffset 18
       Locals<2> v0 v1
       Stack<2> v3 v4
     }
     v8 = InvokeIterNext v3 {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 18
         Locals<2> v0 v1
         Stack<2> v3 v4
       }
@@ -221,7 +221,7 @@ def test(fs):
 
   bb 2 (preds 1) {
     Snapshot {
-      CurInstrOffset 20
+      CurInstrOffset 22
       Locals<2> v0 v1
       Stack<3> v3 v4 v5
     }
@@ -231,7 +231,7 @@ def test(fs):
 
   bb 4 (preds 1) {
     Snapshot {
-      CurInstrOffset 28
+      CurInstrOffset 30
       Locals<2> v0 v1
       Stack<2> v3 v4
     }
