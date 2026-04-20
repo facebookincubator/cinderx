@@ -63,41 +63,6 @@ PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
 #define _PyGen_CAST(op) \
     _Py_CAST(PyGenObject*, (op))
 
-static PyObject *
-compute_cr_origin(int origin_depth, _PyInterpreterFrame *current_frame)
-{
-    _PyInterpreterFrame *frame = current_frame;
-    /* First count how many frames we have */
-    int frame_count = 0;
-    for (; frame && frame_count < origin_depth; ++frame_count) {
-        frame = _PyFrame_GetFirstComplete(frame->previous);
-    }
-
-    /* Now collect them */
-    PyObject *cr_origin = PyTuple_New(frame_count);
-    if (cr_origin == NULL) {
-        return NULL;
-    }
-    frame = current_frame;
-    for (int i = 0; i < frame_count; ++i) {
-        PyCodeObject *code = _PyFrame_GetCode(frame);
-        int line = PyUnstable_InterpreterFrame_GetLine(frame);
-        PyObject *frameinfo = Py_BuildValue("OiO", code->co_filename, line,
-                                            code->co_name);
-        if (!frameinfo) {
-            Py_DECREF(cr_origin);
-            return NULL;
-        }
-        PyTuple_SET_ITEM(cr_origin, i, frameinfo);
-        frame = _PyFrame_GetFirstComplete(frame->previous);
-    }
-
-    return cr_origin;
-}
-PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
-  return compute_cr_origin(origin_depth, current_frame);
-}
-
 void Cix_dict_insert_split_value(
     PyInterpreterState *interp,
     PyDictObject *mp,
@@ -111,44 +76,6 @@ void Cix_dict_insert_split_value(
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
   return _PyObject_SetAttributeErrorContext(v, name);
-}
-
-static const uint8_t DE_INSTRUMENT[256] = {
-    [INSTRUMENTED_RESUME] = RESUME,
-    [INSTRUMENTED_RETURN_VALUE] = RETURN_VALUE,
-    [INSTRUMENTED_CALL] = CALL,
-    [INSTRUMENTED_CALL_KW] = CALL_KW,
-    [INSTRUMENTED_CALL_FUNCTION_EX] = CALL_FUNCTION_EX,
-    [INSTRUMENTED_YIELD_VALUE] = YIELD_VALUE,
-    [INSTRUMENTED_JUMP_FORWARD] = JUMP_FORWARD,
-    [INSTRUMENTED_JUMP_BACKWARD] = JUMP_BACKWARD,
-    [INSTRUMENTED_POP_JUMP_IF_FALSE] = POP_JUMP_IF_FALSE,
-    [INSTRUMENTED_POP_JUMP_IF_TRUE] = POP_JUMP_IF_TRUE,
-    [INSTRUMENTED_POP_JUMP_IF_NONE] = POP_JUMP_IF_NONE,
-    [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = POP_JUMP_IF_NOT_NONE,
-    [INSTRUMENTED_FOR_ITER] = FOR_ITER,
-    [INSTRUMENTED_POP_ITER] = POP_ITER,
-    [INSTRUMENTED_END_FOR] = END_FOR,
-    [INSTRUMENTED_END_SEND] = END_SEND,
-    [INSTRUMENTED_LOAD_SUPER_ATTR] = LOAD_SUPER_ATTR,
-    [INSTRUMENTED_NOT_TAKEN] = NOT_TAKEN,
-    [INSTRUMENTED_END_ASYNC_FOR] = END_ASYNC_FOR,
-};
-uint8_t
-Cix_DEINSTRUMENT(uint8_t op) {
-  return DE_INSTRUMENT[op];
-}
-
-
-static inline uint8_t
-get_original_opcode(_PyCoLineInstrumentationData *line_data, int index)
-{
-    return line_data->data[index*line_data->bytes_per_entry];
-}
-uint8_t Cix_GetOriginalOpcode(
-    _PyCoLineInstrumentationData* line_data,
-    int index) {
-  return get_original_opcode(line_data, index);
 }
 
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
