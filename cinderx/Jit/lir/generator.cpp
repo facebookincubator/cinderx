@@ -834,11 +834,12 @@ void GenerateBoxedReturnWrapperBlocks(
         PhyReg{arch::reg_double_auxilary_return_loc, OperandBase::kDouble});
   }
 
+  auto test_size = returns_double ? OperandBase::k64bit : OperandBase::k32bit;
   wrapper_entry->allocateInstr(
       Instruction::kTest,
       nullptr,
-      PhyReg{aux_return_reg, OperandBase::k32bit},
-      PhyReg{aux_return_reg, OperandBase::k32bit});
+      PhyReg{aux_return_reg, test_size},
+      PhyReg{aux_return_reg, test_size});
   wrapper_entry->allocateInstr(Instruction::kBranchNZ, nullptr, Lbl{box_block});
   wrapper_entry->addSuccessor(box_block);
 
