@@ -2466,12 +2466,13 @@ PyObject* get_allocator_stats(PyObject*, PyObject*) {
     return nullptr;
   }
 
-  auto used_bytes = Ref<>::steal(PyLong_FromLong(base_allocator->usedBytes()));
+  auto used_bytes =
+      Ref<>::steal(PyLong_FromSize_t(base_allocator->usedBytes()));
   if (used_bytes == nullptr ||
       PyDict_SetItemString(stats, "used_bytes", used_bytes) < 0) {
     return nullptr;
   }
-  auto max_bytes = Ref<>::steal(PyLong_FromLong(getConfig().max_code_size));
+  auto max_bytes = Ref<>::steal(PyLong_FromSize_t(getConfig().max_code_size));
   if (max_bytes == nullptr ||
       PyDict_SetItemString(stats, "max_bytes", max_bytes) < 0) {
     return nullptr;
@@ -2482,18 +2483,18 @@ PyObject* get_allocator_stats(PyObject*, PyObject*) {
     return stats.release();
   }
 
-  auto lost_bytes = Ref<>::steal(PyLong_FromLong(allocator->lostBytes()));
+  auto lost_bytes = Ref<>::steal(PyLong_FromSize_t(allocator->lostBytes()));
   if (lost_bytes == nullptr ||
       PyDict_SetItemString(stats, "lost_bytes", lost_bytes) < 0) {
     return nullptr;
   }
   auto fragmented_allocs =
-      Ref<>::steal(PyLong_FromLong(allocator->fragmentedAllocs()));
+      Ref<>::steal(PyLong_FromSize_t(allocator->fragmentedAllocs()));
   if (fragmented_allocs == nullptr ||
       PyDict_SetItemString(stats, "fragmented_allocs", fragmented_allocs) < 0) {
     return nullptr;
   }
-  auto huge_allocs = Ref<>::steal(PyLong_FromLong(allocator->hugeAllocs()));
+  auto huge_allocs = Ref<>::steal(PyLong_FromSize_t(allocator->hugeAllocs()));
   if (huge_allocs == nullptr ||
       PyDict_SetItemString(stats, "huge_allocs", huge_allocs) < 0) {
     return nullptr;
