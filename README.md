@@ -87,7 +87,7 @@ decided to turn it into a Python extension to improve compatibility with newer
 Python versions.  This extension is now known as CinderX ("the X" is for
 "extension").
 
-For Python versions 3.10 through 3.12, CinderX still depends on patches to
+Historically, for Python versions 3.10 through 3.12, CinderX depended on patches to
 Meta's fork of the Python runtime.  Python 3.14 is the first version of stock
 CPython that CinderX supports.
 

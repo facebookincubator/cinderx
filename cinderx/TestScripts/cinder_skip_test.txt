@@ -1,5 +1,5 @@
 #
-# Skips added for 3.10 start here.
+# CinderX test skips.
 #
 
 test.test_rlcompleter.TestRlcompleter.test_global_matches
@@ -40,7 +40,7 @@ test.test_httplib.test_local_good_hostname
 
 
 #
-# Skips added for 3.12 start here.
+# Skips added for 3.12+.
 #
 
 # All of these tests use sub-interpreters which are incompatible with CinderX.

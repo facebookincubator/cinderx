@@ -1,5 +1,5 @@
 #
-# Skips added for 3.10 start here.
+# CinderX devserver test skips.
 #
 
 # Behavior of import events is different after CinderX initialization.
@@ -58,7 +58,7 @@ test_urllib2net
 
 
 #
-# Skips added for 3.12 start here.
+# Skips added for 3.12+.
 #
 
 # Can't access general Internet hosts from Meta servers.

@@ -1,5 +1,5 @@
-Users Guide for 3.10
-####################
+Users Guide
+###########
 
 Getting Started
 ---------------

@@ -2,18 +2,14 @@ Code to deal with the new opcodes added by cinderx.
 
 Upstream cpython has a script, `generate_opcode_h.py`, which reads opcode
 definitions from `Lib/opcode.py` and generates the public header file
-`Include/opcode.h`. In cinder 3.10 these opcodes were defined in
-`cinderx/PythonLib/cinderx/opcode.py` and read in by `Lib/opcode.py` in our
-fork of the cpython source tree, so that when `generate_opcode_h.py` called
-`Lib/opcode.py` these definitions were picked up as well.
+`Include/opcode.h`.
 
 For cinderx, we build an extension module rather than forking and modifying the
 cpython source code, so make a few changes to the setup:
 
 - We cannot modify `Lib/opcode.py`, so we instead copy `generate_opcode_h.py`
-  into `cinderx/Interpreter` and modify our copy of that. We now have several sets
-  of patches to `generate_opcode_h.py`:
-  - The changes from 3.10 -> 3.10.cinder
+  into `cinderx/Interpreter` and modify our copy of that. We now have several
+  patches to `generate_opcode_h.py`:
   - The patch to read cinderx opcodes as well as `Lib/opcode.py`
   - Separating regular opcodes (emitted as an enum rather than #defines for
      cinderx) and pseudo-opcodes (still emitted as #defines because we don't

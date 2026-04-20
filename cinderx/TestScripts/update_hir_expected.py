@@ -600,7 +600,7 @@ def update_cpp_tests(  # noqa: C901
                 if in_version_block is not None:
                     # #else represents the fallback version (lowest supported version)
                     in_version_block = (
-                        "3.10"  # Assume 3.10 as the lowest supported version
+                        "3.12"  # Assume 3.12 as the lowest supported version
                     )
                     new_lines.append(line)
                     continue
@@ -668,9 +668,9 @@ def update_cpp_tests(  # noqa: C901
                     new_lines.append(CPP_EXPECTED_END)
 
                     # Determine what the fallback block should be
-                    # If py_version > 3.10, use #elif for 3.10/older, otherwise use #else
-                    if version_compare(py_version, "3.10") > 0:
-                        fallback_hex = python_version_to_hex("3.10")
+                    # If py_version > 3.12, use #elif for 3.12/older, otherwise use #else
+                    if version_compare(py_version, "3.12") > 0:
+                        fallback_hex = python_version_to_hex("3.12")
                         new_lines.append(f"#elif PY_VERSION_HEX >= {fallback_hex}")
                     else:
                         new_lines.append("#else")

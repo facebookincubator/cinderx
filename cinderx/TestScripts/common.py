@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# Functionality shared between 3.10 and 3.12 versions of cinder_test_runner*.py
+# Functionality shared between versions of cinder_test_runner*.py
 
 import ctypes
 import io
