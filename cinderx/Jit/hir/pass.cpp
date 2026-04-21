@@ -403,6 +403,7 @@ Type outputType(
     case Opcode::kMakeTuple:
     case Opcode::kMakeTupleFromList:
     case Opcode::kUnpackExToTuple:
+    case Opcode::kUnpackSequenceToTuple:
       return TMortalTupleExact;
     case Opcode::kPhi: {
       auto ty = TBottom;

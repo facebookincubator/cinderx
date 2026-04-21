@@ -1769,6 +1769,66 @@ PyObject* JITRT_UnpackExToTuple(
   return reinterpret_cast<PyObject*>(tuple.release());
 }
 
+PyObject* JITRT_UnpackSequenceToTuple(
+    PyThreadState* tstate,
+    PyObject* iterable,
+    int count) {
+  JIT_DCHECK(iterable != nullptr, "The iterable cannot be null.");
+
+  Ref<> it = Ref<>::steal(PyObject_GetIter(iterable));
+  if (it == nullptr) {
+    if (_PyErr_ExceptionMatches(tstate, PyExc_TypeError) &&
+        iterable->ob_type->tp_iter == nullptr && !PySequence_Check(iterable)) {
+      _PyErr_Format(
+          tstate,
+          PyExc_TypeError,
+          "cannot unpack non-iterable %.200s object",
+          iterable->ob_type->tp_name);
+    }
+    return nullptr;
+  }
+
+  Ref<PyTupleObject> tuple = Ref<PyTupleObject>::steal(PyTuple_New(count));
+  if (tuple == nullptr) {
+    return nullptr;
+  }
+
+  for (int i = 0; i < count; i++) {
+    PyObject* w = PyIter_Next(it);
+    if (w == nullptr) {
+      /* Iterator done, via error or exhaustion. */
+      if (!_PyErr_Occurred(tstate)) {
+        _PyErr_Format(
+            tstate,
+            PyExc_ValueError,
+            "not enough values to unpack "
+            "(expected %d, got %d)",
+            count,
+            i);
+      }
+      return nullptr;
+    }
+    tuple->ob_item[i] = w;
+  }
+
+  /* We should have exhausted the iterator now. */
+  PyObject* w = PyIter_Next(it);
+  if (w != nullptr) {
+    Py_DECREF(w);
+    _PyErr_Format(
+        tstate,
+        PyExc_ValueError,
+        "too many values to unpack (expected %d)",
+        count);
+    return nullptr;
+  }
+  if (_PyErr_Occurred(tstate)) {
+    return nullptr;
+  }
+
+  return reinterpret_cast<PyObject*>(tuple.release());
+}
+
 int JITRT_UnicodeEquals(PyObject* s1, PyObject* s2, int equals) {
   // one of these must be unicode for the quality comparison to be okay
   assert(PyUnicode_CheckExact(s1) || PyUnicode_CheckExact(s2));

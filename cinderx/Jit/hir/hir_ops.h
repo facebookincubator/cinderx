@@ -166,6 +166,7 @@ namespace jit::hir {
   V(UnicodeRepeat)                 \
   V(UnicodeSubscr)                 \
   V(UnpackExToTuple)               \
+  V(UnpackSequenceToTuple)         \
   V(Unreachable)                   \
   V(UpdatePrevInstr)               \
   V(UseType)                       \

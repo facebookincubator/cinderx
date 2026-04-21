@@ -3947,6 +3947,16 @@ void HIRBuilder::emitUnpackSequence(
     }
   }
 
+  int count = bc_instr.oparg();
+
+  // Determine whether the slow path (iterator protocol) is needed.
+  // When the type is statically known to be tuple or list (and list is
+  // not disabled for free-threading), we can skip the slow path entirely.
+  bool needs_slow_path = !seq->isA(TTupleExact);
+#ifndef Py_GIL_DISABLED
+  needs_slow_path = needs_slow_path && !seq->isA(TListExact);
+#endif
+
   TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
   deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
   deopt_path.emitSnapshot();
@@ -3961,41 +3971,29 @@ void HIRBuilder::emitUnpackSequence(
   Register* list_mem = temps_.AllocateStack();
   stack.pop();
 
+  // When the slow path is needed, we pre-allocate output registers shared
+  // between the fast and slow paths. Both paths write to the same items[]
+  // registers (at runtime exactly one path executes), and then branch to
+  // done_path where the items are pushed to the stack.
+  BasicBlock* slow_path = needs_slow_path ? cfg.AllocateBlock() : nullptr;
+  BasicBlock* done_path = needs_slow_path ? cfg.AllocateBlock() : nullptr;
+  std::vector<Register*> items;
+  if (needs_slow_path) {
+    items.resize(count);
+    for (int i = 0; i < count; i++) {
+      items[i] = temps_.AllocateStack();
+    }
+  }
+
   // TODO: The manual type checks and branches should go away once we get
   // PGO support to be able to optimize to known types.
-
-  //---
-  // +-main------------------------------+         +-tuple_fast_path------+
-  // | CondBranchCheckType (TTupleExact) |-truthy->| LoadConst (ob_item)  |
-  // +-----------------------------------+         | LoadFieldAddress     |
-  //    |                                          | Branch               |--+
-  //  falsy                                        +----------------------+  |
-  //    |                                                                    |
-  //    v                                                                    |
-  // +-list_check_path------------------+         +-list_fast_path------+    |
-  // | CondBranchCheckType (TListExact) |-truthy->| LoadField (ob_item) |    |
-  // +----------------------------------+         | Branch              |----+
-  //   |                                          +---------------------+    |
-  //  falsy                                                                  |
-  //   |                                          +-fast_path---------+      |
-  //   |                                          | LoadVarObjectSize |<-----+
-  //   v                                          | LoadConst         |
-  // +-deopt_path-+                               | PrimitiveCompare  |
-  // | Deopt      |<----------falsy---------------| CondBranch        |------+
-  // +------------+                               +-------------------+      |
-  //                                                                         |
-  //                                              +-fast_path-----+          |
-  //                                              | LoadConst     |<-truthy--+
-  //                                              | LoadArrayItem |
-  //                                              +---------------+
-  //---
 
   if (seq->isA(TTupleExact)) {
     tc.emit<Branch>(tuple_fast_path);
   } else if (seq->isA(TListExact)) {
 // TODO(T255264577). Enable this again. See P2169677587.
 #ifdef Py_GIL_DISABLED
-    tc.emit<Branch>(deopt_path.block);
+    tc.emit<Branch>(slow_path);
 #else
     tc.emit<Branch>(list_fast_path);
 #endif
@@ -4006,10 +4004,9 @@ void HIRBuilder::emitUnpackSequence(
     tc.block = list_check_path;
 // TODO(T255264577). Enable this again. See P2169677587.
 #ifdef Py_GIL_DISABLED
-    tc.emit<Branch>(deopt_path.block);
+    tc.emit<Branch>(slow_path);
 #else
-    tc.emit<CondBranchCheckType>(
-        seq, TListExact, list_fast_path, deopt_path.block);
+    tc.emit<CondBranchCheckType>(seq, TListExact, list_fast_path, slow_path);
 #endif
   }
 
@@ -4031,7 +4028,7 @@ void HIRBuilder::emitUnpackSequence(
   Register* target_size = temps_.AllocateStack();
   Register* is_equal = temps_.AllocateStack();
   tc.emit<LoadVarObjectSize>(seq_size, seq);
-  tc.emit<LoadConst>(target_size, Type::fromCInt(bc_instr.oparg(), TCInt64));
+  tc.emit<LoadConst>(target_size, Type::fromCInt(count, TCInt64));
   tc.emit<PrimitiveCompare>(
       is_equal, PrimitiveCompareOp::kEqual, seq_size, target_size);
   fast_path = cfg.AllocateBlock();
@@ -4039,11 +4036,37 @@ void HIRBuilder::emitUnpackSequence(
   tc.block = fast_path;
 
   Register* idx_reg = temps_.AllocateStack();
-  for (int idx = bc_instr.oparg() - 1; idx >= 0; --idx) {
-    Register* item = temps_.AllocateStack();
-    tc.emit<LoadConst>(idx_reg, Type::fromCInt(idx, TCInt64));
-    tc.emit<LoadArrayItem>(item, list_mem, idx_reg, seq, 0, TObject);
-    stack.push(item);
+  if (needs_slow_path) {
+    // Write to pre-allocated items[] registers shared with the slow path.
+    for (int idx = count - 1; idx >= 0; --idx) {
+      tc.emit<LoadConst>(idx_reg, Type::fromCInt(idx, TCInt64));
+      tc.emit<LoadArrayItem>(items[idx], list_mem, idx_reg, seq, 0, TObject);
+    }
+    tc.emit<Branch>(done_path);
+
+    // Slow path: use the iterator protocol for arbitrary iterable types.
+    tc.block = slow_path;
+    Register* tuple = temps_.AllocateStack();
+    tc.emit<UnpackSequenceToTuple>(tuple, seq, count, tc.frame);
+    for (int i = 0; i < count; i++) {
+      tc.emit<LoadTupleItem>(items[i], tuple, i);
+    }
+    tc.emit<Branch>(done_path);
+
+    // Both paths wrote to the same pre-allocated items[] registers.
+    // Push them to the stack in reverse order (TOS = first element).
+    tc.block = done_path;
+    for (int i = count - 1; i >= 0; --i) {
+      stack.push(items[i]);
+    }
+  } else {
+    // No slow path: push items directly to the stack (original behavior).
+    for (int idx = count - 1; idx >= 0; --idx) {
+      Register* item = temps_.AllocateStack();
+      tc.emit<LoadConst>(idx_reg, Type::fromCInt(idx, TCInt64));
+      tc.emit<LoadArrayItem>(item, list_mem, idx_reg, seq, 0, TObject);
+      stack.push(item);
+    }
   }
 }
 

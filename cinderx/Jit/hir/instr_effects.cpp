@@ -158,6 +158,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kSend:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
+    case Opcode::kUnpackSequenceToTuple:
     case Opcode::kVectorCall:
       return commonEffects(inst, AManagedHeapAny);
 
@@ -510,6 +511,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kStoreSubscr:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
+    case Opcode::kUnpackSequenceToTuple:
     case Opcode::kVectorCall:
     case Opcode::kXDecref:
     case Opcode::kYieldValue:

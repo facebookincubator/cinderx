@@ -3650,6 +3650,35 @@ class INSTR_CLASS(
   int after_;
 };
 
+// Unpack a sequence of exactly 'count' items via the iterator protocol
+// (UNPACK_SEQUENCE slow path for non-list/non-tuple types) and save
+// the results in a tuple.
+class INSTR_CLASS(
+    UnpackSequenceToTuple,
+    (TObject),
+    HasOutput,
+    Operands<1>,
+    DeoptBase) {
+ public:
+  UnpackSequenceToTuple(
+      Register* dst,
+      Register* seq,
+      int count,
+      const FrameState& frame)
+      : InstrT(dst, seq, frame), count_(count) {}
+
+  Register* seq() const {
+    return GetOperand(0);
+  }
+
+  int count() const {
+    return count_;
+  }
+
+ private:
+  int count_;
+};
+
 DEFINE_SIMPLE_INSTR(
     WaitHandleLoadCoroOrResult,
     (TObject),

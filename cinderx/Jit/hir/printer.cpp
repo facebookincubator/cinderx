@@ -740,6 +740,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& i = static_cast<const UnpackExToTuple&>(instr);
       return fmt::format("{}, {}", i.before(), i.after());
     }
+    case Opcode::kUnpackSequenceToTuple: {
+      const auto& i = static_cast<const UnpackSequenceToTuple&>(instr);
+      return fmt::format("{}", i.count());
+    }
     case Opcode::kDeoptPatchpoint: {
       const auto& dp = static_cast<const DeoptPatchpoint&>(instr);
       auto patcher = dp.patcher();

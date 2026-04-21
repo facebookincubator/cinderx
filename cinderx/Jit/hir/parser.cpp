@@ -1051,6 +1051,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kStoreField:
     case Opcode::kTpAlloc:
     case Opcode::kUnpackExToTuple:
+    case Opcode::kUnpackSequenceToTuple:
     case Opcode::kUpdatePrevInstr:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:

@@ -4369,6 +4369,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->after());
         break;
       }
+      case Opcode::kUnpackSequenceToTuple: {
+        auto instr = static_cast<const UnpackSequenceToTuple*>(&i);
+        bbb.appendCallInstruction(
+            instr->output(),
+            JITRT_UnpackSequenceToTuple,
+            env_->asm_tstate,
+            instr->seq(),
+            instr->count());
+        break;
+      }
       case Opcode::kGetAIter: {
         auto& instr = static_cast<const GetAIter&>(i);
         bbb.appendCallInstruction(

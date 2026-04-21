@@ -518,6 +518,7 @@ bool Instr::isReplayable() const {
     case Opcode::kUnaryOp:
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnpackExToTuple:
+    case Opcode::kUnpackSequenceToTuple:
     case Opcode::kUnreachable:
     case Opcode::kVectorCall:
     case Opcode::kWaitHandleRelease:
@@ -810,6 +811,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnpackExToTuple:
+    case Opcode::kUnpackSequenceToTuple:
     case Opcode::kVectorCall:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:

@@ -395,6 +395,17 @@ PyObject* JITRT_UnpackExToTuple(
     int before,
     int after);
 
+/* Unpack a sequence of exactly 'count' items via the iterator protocol,
+ * and save the results in a tuple. Used as the slow path for UNPACK_SEQUENCE
+ * when the sequence is not a list or tuple.
+ *
+ * Returns a new tuple of size 'count' on success, or NULL on error.
+ */
+PyObject* JITRT_UnpackSequenceToTuple(
+    PyThreadState* tstate,
+    PyObject* iterable,
+    int count);
+
 /* When compiling a fully-typed JIT static -> static call we sometimes
  * optimistically assume the target will be JIT compiled too. If the target
  * fails to compile we point the call to this function which converts the static
