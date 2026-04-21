@@ -10,6 +10,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
@@ -60,6 +61,13 @@ using namespace jit::util;
 namespace jit::codegen {
 
 namespace {
+
+// Return type for prepareForDeopt: the reified frame and whether this deopt
+// was triggered by instrumentation (setIP patch) rather than a guard failure.
+struct DeoptResult {
+  CiPyFrameObjType* frame;
+  bool is_instrumentation_deopt;
+};
 
 #define ASM_CHECK_THROW(exp)                         \
   {                                                  \
@@ -143,14 +151,28 @@ _PyInterpreterFrame* reifyLightweightFrames(
   return cur_frame;
 }
 
-CiPyFrameObjType* prepareForDeopt(
+DeoptResult prepareForDeopt(
     const uint64_t* regs,
     CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
+  bool is_instrumentation_deopt = false;
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
+
+  // Check JIT_FRAME_DEOPT_PATCHED on the outermost frame's header before
+  // reification destroys it. Walk past inlined frames to find the outer one.
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  {
+    _PyInterpreterFrame* outer = frame;
+    for (size_t i = 0; i < deopt_meta.inline_depth(); i++) {
+      outer = outer->previous;
+    }
+    is_instrumentation_deopt =
+        (jitFrameGetHeader(outer)->rtfs & JIT_FRAME_DEOPT_PATCHED) != 0;
+  }
+#endif
 
   if (getConfig().frame_mode == FrameMode::kLightweight) {
     frame = reifyLightweightFrames(
@@ -168,13 +190,46 @@ CiPyFrameObjType* prepareForDeopt(
     // Transfer ownership of a light weight frame to the interpreter. The
     // associated Python frame will be ignored during future attempts to
     // materialize the stack.
-    reifyFrame(frame_iter, deopt_meta, deopt_meta.frame_meta.at(i), regs);
+    reifyFrame(
+        frame_iter,
+        deopt_meta,
+        deopt_meta.frame_meta.at(i),
+        regs,
+        is_instrumentation_deopt);
     frame_iter = frame_iter->previous;
   }
 
+  // For instrumentation deopts where the bytecode's C call completed
+  // (reason != kPeriodicTaskFailure), push its return value onto the
+  // operand stack on top of the pre-instruction state restored by reifyStack.
+  if (is_instrumentation_deopt) {
+    if (deopt_meta.reason != DeoptReason::kPeriodicTaskFailure &&
+        !PyErr_Occurred()) {
+      PyObject* retval = reinterpret_cast<PyObject*>(
+          regs[codegen::arch::reg_general_return_loc.loc]);
+      if (retval != nullptr) {
+#if PY_VERSION_HEX >= 0x030E0000
+        *(frame->stackpointer) = PyStackRef_FromPyObjectSteal(retval);
+        frame->stackpointer++;
+#else
+        frame->localsplus[frame->stacktop] = Ci_STACK_STEAL(retval);
+        frame->stacktop++;
+#endif
+      } else {
+        PyErr_SetString(
+            PyExc_SystemError,
+            "JIT instrumentation deopt: call returned NULL without "
+            "setting an exception");
+      }
+    }
+  }
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
-  Ref<> deopt_obj = profileDeopt(deopt_meta, mem);
+  Ref<> deopt_obj;
+  if (!is_instrumentation_deopt) {
+    // TODO(T262342844): Add USDT support for instrumentation-related deopts.
+    deopt_obj = profileDeopt(deopt_meta, mem);
+  }
   auto ctx = getContext();
   ctx->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
@@ -184,7 +239,7 @@ CiPyFrameObjType* prepareForDeopt(
     JIT_CHECK(gen != nullptr, "Not a JIT generator");
     deopt_jit_gen_object_only(gen);
   }
-  if (!PyErr_Occurred()) {
+  if (!PyErr_Occurred() && !is_instrumentation_deopt) {
     auto reason = deopt_meta.reason;
     switch (reason) {
       case DeoptReason::kGuardFailure: {
@@ -205,24 +260,51 @@ CiPyFrameObjType* prepareForDeopt(
         raiseUnboundFreevarError(deopt_meta.eh_name);
         break;
       case DeoptReason::kUnhandledException:
+      case DeoptReason::kPeriodicTaskFailure:
         JIT_ABORT("unhandled exception without error set");
       case DeoptReason::kRaiseStatic:
         JIT_ABORT("Lost exception when raising static exception");
     }
   }
-  return frame;
+  return {frame, is_instrumentation_deopt};
+}
+
+// Set up f_trace/f_trace_lines for sys.settrace compatibility on deopted
+// frames. CPython normally sets these during the RESUME opcode at function
+// entry, but deopted frames resume mid-function and skip RESUME.
+void setupTraceForDeoptedFrame(
+    _PyInterpreterFrame* frame,
+    PyThreadState* tstate) {
+  if (tstate->c_tracefunc != nullptr &&
+      frame->owner != FRAME_OWNED_BY_GENERATOR) {
+    PyFrameObject* fobj = _PyFrame_GetFrameObject(frame);
+    if (fobj != nullptr) {
+      fobj->f_trace_lines = 1;
+      if (fobj->f_trace == nullptr && tstate->c_traceobj != nullptr) {
+        fobj->f_trace = Py_NewRef(tstate->c_traceobj);
+      }
+    }
+  }
 }
 
 PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
     CodeRuntime* code_runtime,
-    std::size_t deopt_idx) {
+    std::size_t deopt_idx,
+    bool is_instrumentation_deopt) {
   JIT_CHECK(code_runtime != nullptr, "CodeRuntime cannot be a nullptr");
 
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
-  int err_occurred = shouldResumeInterpreterInErrorHandler(deopt_meta.reason);
+
+  // For instrumentation deopts, only enter error handler if actually excepted.
+  int err_occurred;
+  if (is_instrumentation_deopt) {
+    err_occurred = PyErr_Occurred() ? 1 : 0;
+  } else {
+    err_occurred = shouldResumeInterpreterInErrorHandler(deopt_meta.reason);
+  }
 
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
@@ -277,6 +359,8 @@ PyObject* resumeInInterpreter(
         tstate->exc_info = &gen->gi_exc_state;
       }
     }
+
+    setupTraceForDeoptedFrame(frame, tstate);
 
     result = _PyEval_EvalFrame(tstate, frame, err_occurred);
 
@@ -480,7 +564,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   static_assert(
       std::is_same_v<
           decltype(prepareForDeopt),
-          CiPyFrameObjType*(const uint64_t*, CodeRuntime*, std::size_t)>,
+          DeoptResult(const uint64_t*, CodeRuntime*, std::size_t)>,
       "prepareForDeopt has unexpected signature");
   a.call(reinterpret_cast<uint64_t>(prepareForDeopt));
 
@@ -503,17 +587,30 @@ void* generateDeoptTrampoline(bool generator_mode) {
 
   // First argument: frame returned from prepareForDeopt.
   a.mov(x86::rdi, x86::rax);
+#if PY_VERSION_HEX >= 0x030C0000
+  // Fourth argument: is_instrumentation_deopt returned by
+  // prepareForDeopt.  Save it before being overwritten below.
+  a.mov(x86::rcx, x86::rdx);
+#endif
   // Second argument: CodeRuntime, restored from the stack after
   // prepareForDeopt.
   a.mov(code_rt, code_rt_addr);
   // Third argument: DeoptMetadata index, restored from the stack after
   // prepareForDeopt.
   a.mov(deopt_idx, deopt_idx_addr);
+#if PY_VERSION_HEX >= 0x030C0000
+  static_assert(
+      std::is_same_v<
+          decltype(resumeInInterpreter),
+          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t, bool)>,
+      "resumeInInterpreter has unexpected signature");
+#else
   static_assert(
       std::is_same_v<
           decltype(resumeInInterpreter),
           PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
       "resumeInInterpreter has unexpected signature");
+#endif
   a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
 
   // If we return a primitive and prepareForDeopt returned null, we need that
@@ -704,7 +801,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   static_assert(
       std::is_same_v<
           decltype(prepareForDeopt),
-          CiPyFrameObjType*(const uint64_t*, CodeRuntime*, std::size_t)>,
+          DeoptResult(const uint64_t*, CodeRuntime*, std::size_t)>,
       "prepareForDeopt has unexpected signature");
   a.mov(arch::reg_scratch_br, prepareForDeopt);
   a.blr(arch::reg_scratch_br);
@@ -726,6 +823,11 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // Resume execution in the interpreter.
   annot_cursor = a.cursor();
 
+#if PY_VERSION_HEX >= 0x030C0000
+  // Fourth argument: is_instrumentation_deopt returned by
+  // prepareForDeopt. Save it before being overwritten below.
+  a.mov(a64::x3, a64::x1);
+#endif
   // First argument: frame returned from prepareForDeopt.
   // already in x0
   // Second argument: CodeRuntime, restored from the stack after
@@ -734,11 +836,19 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // Third argument: DeoptMetadata index, restored from the stack after
   // prepareForDeopt.
   a.ldr(deopt_idx, deopt_idx_addr);
+#if PY_VERSION_HEX >= 0x030C0000
+  static_assert(
+      std::is_same_v<
+          decltype(resumeInInterpreter),
+          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t, bool)>,
+      "resumeInInterpreter has unexpected signature");
+#else
   static_assert(
       std::is_same_v<
           decltype(resumeInInterpreter),
           PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
       "resumeInInterpreter has unexpected signature");
+#endif
   a.mov(arch::reg_scratch_br, resumeInInterpreter);
   a.blr(arch::reg_scratch_br);
 
@@ -1794,6 +1904,19 @@ void NativeGenerator::generateCode(
   linkDeoptPatchers(codeholder);
   env_.code_rt->debugInfo()->resolvePending(
       env_.pending_debug_locs, *GetFunction(), codeholder);
+
+  // Resolve callsite->deopt-exit label pairs (recorded in TranslateGuard)
+  // to addresses now that code is finalized.
+  {
+    uint64_t base = codeholder.baseAddress();
+    for (const auto& entry : env_.callsite_deopt_pending) {
+      uintptr_t return_addr =
+          base + codeholder.labelOffsetFromBase(entry.return_addr_label);
+      uintptr_t exit_addr =
+          base + codeholder.labelOffsetFromBase(entry.deopt_exit_label);
+      env_.code_rt->addCallsiteDeoptExit(return_addr, exit_addr);
+    }
+  }
 
   vectorcall_entry_ = static_cast<char*>(code_start_) +
       codeholder.labelOffsetFromBase(vectorcall_entry_label);

@@ -3,11 +3,16 @@
 #include "cinderx/Jit/frame.h"
 
 #include "internal/pycore_frame.h"
+#ifdef Py_GIL_DISABLED
+#include "internal/pycore_ceval.h"
+#endif
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
+#include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/gen_data_footer.h"
 #if defined(CINDER_X86_64)
@@ -128,6 +133,29 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
 #endif
 }
 #endif
+
+void setIP(
+    [[maybe_unused]] _PyInterpreterFrame* frame,
+    [[maybe_unused]] int frame_size,
+    [[maybe_unused]] uintptr_t new_ip) {
+#if defined(__x86_64__) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  JIT_CHECK(
+      getConfig().frame_mode == FrameMode::kLightweight,
+      "setIP requires lightweight frame mode");
+  JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
+  uintptr_t frame_base;
+  if (isGeneratorFrame(frame)) {
+    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
+    auto footer = jitGenDataFooter(gen);
+    frame_base = footer->originalFramePointer;
+  } else {
+    frame_base = getFrameBaseFromOnStackFrame(frame);
+  }
+  auto saved_ip_addr =
+      reinterpret_cast<uintptr_t*>(frame_base - frame_size - kPointerSize);
+  *saved_ip_addr = new_ip;
+#endif
+}
 
 // Collect all the frames in the unit, with the frame for the
 // non-inlined function as the first element in the return vector.
@@ -254,6 +282,10 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
 
 void updatePrevInstr(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  // Skip if IP was already patched to a deopt exit (no debug info there).
+  if (jitFrameGetHeader(frame)->rtfs & JIT_FRAME_DEOPT_PATCHED) {
+    return;
+  }
   auto unit_state = getUnitState(frame);
   for (auto it = unit_state.rbegin(); it != unit_state.rend(); ++it) {
     _PyInterpreterFrame* cur_frame = it->frame;
@@ -662,6 +694,98 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
   return RuntimeFrameState{
       frameCode(frame), frame->f_builtins, frame->f_globals};
+}
+
+void deoptAllJitFramesOnStack() {
+#if defined(__x86_64__) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  if (getConfig().frame_mode != FrameMode::kLightweight) {
+    return;
+  }
+  PyInterpreterState* interp = PyInterpreterState_Get();
+
+  // In free-threaded builds, other threads are actively running and may be
+  // reading/writing the same frame data we're about to patch. Stop all
+  // threads before modifying their stack frames.
+#ifdef Py_GIL_DISABLED
+  _PyEval_StopTheWorld(interp);
+#endif
+
+  PyThreadState* ts = PyInterpreterState_ThreadHead(interp);
+
+  while (ts != nullptr) {
+    _PyInterpreterFrame* frame = currentFrame(ts);
+
+    // Only skip the topmost frame for the current thread — it's the
+    // instrumentation-activation call (e.g. register_callback), not a
+    // frame we need to deopt. Other threads' topmost frames may be
+    // looping JIT code stopped at the eval breaker.
+    if (ts == PyThreadState_Get() && frame != nullptr) {
+      frame = frame->previous;
+    }
+
+    // Track innermost inlined frame. updatePrevInstr must be called on
+    // the innermost frame so it walks back and updates all inlined frames.
+    _PyInterpreterFrame* innermost_inlined = nullptr;
+
+    while (frame != nullptr) {
+      if (isJitFrame(frame)) {
+        // Only patch non-inlined frames — inlined frames share the outer
+        // frame's stack and saved return address.
+        if (!isInlined(frame)) {
+          CodeRuntime* code_rt = getCodeRuntime(frame);
+          if (code_rt != nullptr) {
+            uintptr_t current_ip = getIP(frame, code_rt->frameSize());
+            auto deopt_exit = code_rt->getCallsiteDeoptExit(current_ip);
+            if (deopt_exit.has_value()) {
+              // Set prev_instr/instr_ptr BEFORE patching the IP — after
+              // patching, the IP points to a deopt exit with no debug info.
+              // Use innermost_inlined if present so updatePrevInstr walks
+              // back and updates all inlined frames in this unit.
+              if (innermost_inlined != nullptr) {
+                updatePrevInstr(innermost_inlined);
+                innermost_inlined = nullptr;
+              } else {
+                updatePrevInstr(frame);
+              }
+
+              jitFramePopulateFrame(frame);
+              setIP(frame, code_rt->frameSize(), deopt_exit.value());
+
+              // Mark frame so updatePrevInstr skips it (deopt exit IP
+              // has no debug info entry).
+              jitFrameGetHeader(frame)->rtfs |= JIT_FRAME_DEOPT_PATCHED;
+            } else {
+              JIT_DLOG(
+                  "No callsite deopt exit for JIT frame at IP {:#x}",
+                  current_ip);
+              innermost_inlined = nullptr;
+            }
+          } else {
+            innermost_inlined = nullptr;
+          }
+        } else {
+          // Inlined JIT frame — remember the innermost one for
+          // updatePrevInstr when we reach the outer frame.
+          if (innermost_inlined == nullptr) {
+            innermost_inlined = frame;
+          }
+        }
+      } else {
+        // Non-JIT frame — reset inlined tracking since the next
+        // non-inlined JIT frame belongs to a different unit.
+        innermost_inlined = nullptr;
+      }
+      frame = frame->previous;
+    }
+
+    ts = PyThreadState_Next(ts);
+  }
+
+#ifdef Py_GIL_DISABLED
+  _PyEval_StartTheWorld(interp);
+#endif
+
+#endif
 }
 
 } // namespace jit

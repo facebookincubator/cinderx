@@ -64,6 +64,7 @@
 #include <thread>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 using namespace jit;
 
@@ -1308,10 +1309,9 @@ void disable_jit_impl(bool deopt_all) {
   }
 
   if (deopt_all) {
-    JIT_DLOG(
-        "Deopting {} compiled functions", jitCtx()->compiledFuncs().size());
-    size_t success = 0;
     auto& funcs = jitCtx()->compiledFuncs();
+    JIT_DLOG("Deopting {} compiled functions", funcs.size());
+    size_t success = 0;
     for (auto it = funcs.begin(); it != funcs.end();) {
       BorrowedRef<PyFunctionObject> func = it->first;
       // Advance before deoptFunc() which erases func from funcs,
@@ -1425,11 +1425,15 @@ bool isInstrumentationActive() {
 
 // Returns false only if enable_jit_impl() fails (with Python exception set).
 bool toggleJitBasedOnInstrumentationState() {
-  FreeThreadedJITEntrypointGuard guard;
   if (isInstrumentationActive()) {
-    disable_jit_impl(true /* deopt_all */);
+    if (!isJitPaused()) {
+      disable_jit_impl(true /* deopt_all */);
+      patchJitGenAmSendForDeopt();
+      deoptAllJitFramesOnStack();
+    }
     return true;
   }
+  unpatchJitGenAmSendForDeopt();
   return enable_jit_impl();
 }
 
@@ -3472,8 +3476,8 @@ void finalize() {
   // Deopt all compiled functions before releasing references. This ensures
   // that if any JIT Python functions are invoked as side-effects during the
   // remainder of shutdown, they will go through the interpreter.
-  auto& funcs = jitCtx()->compiledFuncs();
-  for (auto it = funcs.begin(); it != funcs.end();) {
+  auto& shutdown_funcs = jitCtx()->compiledFuncs();
+  for (auto it = shutdown_funcs.begin(); it != shutdown_funcs.end();) {
     BorrowedRef<PyFunctionObject> func = it->first;
     // Advance before deoptFuncImpl() which erases func from funcs,
     // invalidating the iterator pointing to it.
@@ -3542,13 +3546,14 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   }
 
   // Attempt to attach already-compiled code even if the JIT is disabled, as
-  // long as it hasn't been finalized.
+  // long as it hasn't been finalized and instrumentation isn't active.
+  // Reopting during active instrumentation would bypass monitoring events.
   //
   // Without this, nested code objects would almost never run their compiled
   // functions if the user had disabled the JIT without selecting to deopt
   // everything.  This is a weird behavior though, to have "new" functions get
   // JIT-compiled code despite the JIT being disabled.
-  if (reoptFunc(func)) {
+  if (!isInstrumentationActive() && reoptFunc(func)) {
     return true;
   }
 
