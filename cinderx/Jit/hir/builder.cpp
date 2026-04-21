@@ -4045,11 +4045,21 @@ void HIRBuilder::emitUnpackSequence(
     tc.emit<Branch>(done_path);
 
     // Slow path: use the iterator protocol for arbitrary iterable types.
+    // Allocate stack space for the items array and call the runtime helper
+    // to fill it. Then load items from the stack array using LoadArrayItem.
     tc.block = slow_path;
-    Register* tuple = temps_.AllocateStack();
-    tc.emit<UnpackSequenceToTuple>(tuple, seq, count, tc.frame);
+    Register* stack_array = temps_.AllocateStack();
+    tc.emit<ReserveStack>(stack_array, count);
+    Register* result = temps_.AllocateStack();
+    tc.emit<UnpackSequence>(result, seq, stack_array, count);
+    tc.emit<CheckNeg>(result, result, tc.frame);
+    Register* slow_idx = temps_.AllocateStack();
     for (int i = 0; i < count; i++) {
-      tc.emit<LoadTupleItem>(items[i], tuple, i);
+      tc.emit<LoadConst>(slow_idx, Type::fromCInt(i, TCInt64));
+      // Items in the stack array are new references from PyIter_Next,
+      // so we use borrowed=false to indicate the loaded values are owned.
+      tc.emit<LoadArrayItem>(
+          items[i], stack_array, slow_idx, seq, 0, TObject, false);
     }
     tc.emit<Branch>(done_path);
 

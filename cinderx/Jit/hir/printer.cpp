@@ -318,7 +318,17 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       return static_cast<const BeginInlinedFunction&>(instr).fullname();
     case Opcode::kLoadArrayItem: {
       const auto& load = static_cast<const LoadArrayItem&>(instr);
-      return load.offset() == 0 ? "" : fmt::format("Offset[{}]", load.offset());
+      std::string result;
+      if (load.offset() != 0) {
+        result = fmt::format("Offset[{}]", load.offset());
+      }
+      if (!load.borrowed()) {
+        if (!result.empty()) {
+          result += ", ";
+        }
+        result += "owned";
+      }
+      return result;
     }
     case Opcode::kLoadSplitDictItem: {
       const auto& load = static_cast<const LoadSplitDictItem&>(instr);
@@ -740,8 +750,12 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& i = static_cast<const UnpackExToTuple&>(instr);
       return fmt::format("{}, {}", i.before(), i.after());
     }
-    case Opcode::kUnpackSequenceToTuple: {
-      const auto& i = static_cast<const UnpackSequenceToTuple&>(instr);
+    case Opcode::kReserveStack: {
+      const auto& i = static_cast<const ReserveStack&>(instr);
+      return fmt::format("{}", i.num_words());
+    }
+    case Opcode::kUnpackSequence: {
+      const auto& i = static_cast<const UnpackSequence&>(instr);
       return fmt::format("{}", i.count());
     }
     case Opcode::kDeoptPatchpoint: {

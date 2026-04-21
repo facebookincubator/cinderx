@@ -158,7 +158,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kSend:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
-    case Opcode::kUnpackSequenceToTuple:
+    case Opcode::kReserveStack:
+    case Opcode::kUnpackSequence:
     case Opcode::kVectorCall:
       return commonEffects(inst, AManagedHeapAny);
 
@@ -269,8 +270,16 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadTupleItem:
       return borrowFrom(inst, ATupleItem);
 
-    case Opcode::kLoadArrayItem:
-      return borrowFrom(inst, AArrayItem | AListItem);
+    case Opcode::kLoadArrayItem: {
+      auto& load = static_cast<const LoadArrayItem&>(inst);
+      if (load.borrowed()) {
+        return borrowFrom(inst, AArrayItem | AListItem);
+      }
+      // When borrowed=false, the instruction is consuming (stealing) a
+      // reference from the array. Model as a write to AArrayItem to prevent
+      // DCE from removing it, which would leak the stolen reference.
+      return commonEffects(inst, AArrayItem);
+    }
     case Opcode::kStoreArrayItem:
       // we steal a ref to our third operand, the value being stored
       return {
@@ -422,6 +431,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
     case Opcode::kRefineType:
+    case Opcode::kReserveStack:
     case Opcode::kSetCellItem:
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
@@ -511,7 +521,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kStoreSubscr:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
-    case Opcode::kUnpackSequenceToTuple:
+    case Opcode::kUnpackSequence:
     case Opcode::kVectorCall:
     case Opcode::kXDecref:
     case Opcode::kYieldValue:

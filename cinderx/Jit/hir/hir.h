@@ -2969,8 +2969,12 @@ class INSTR_CLASS(
       // this instruction.
       Register* array_unused,
       intptr_t offset,
-      Type type)
-      : InstrT(dst, ob_item, idx, array_unused), offset_(offset), type_(type) {}
+      Type type,
+      bool borrowed = true)
+      : InstrT(dst, ob_item, idx, array_unused),
+        offset_(offset),
+        type_(type),
+        borrowed_(borrowed) {}
 
   Register* ob_item() const {
     return GetOperand(0);
@@ -2992,9 +2996,14 @@ class INSTR_CLASS(
     return type_;
   }
 
+  bool borrowed() const {
+    return borrowed_;
+  }
+
  private:
   intptr_t offset_;
   Type type_;
+  bool borrowed_;
 };
 
 // Load an item from dict->ma_values[item_idx]. Users must ensure that the
@@ -3650,25 +3659,39 @@ class INSTR_CLASS(
   int after_;
 };
 
-// Unpack a sequence of exactly 'count' items via the iterator protocol
-// (UNPACK_SEQUENCE slow path for non-list/non-tuple types) and save
-// the results in a tuple.
-class INSTR_CLASS(
-    UnpackSequenceToTuple,
-    (TObject),
-    HasOutput,
-    Operands<1>,
-    DeoptBase) {
+// Reserve stack space for a temporary array of pointer-sized elements.
+// The output is a pointer (CPtr) to the start of the reserved space.
+// The reserved space is placed at SP+0, below the call argument buffer area,
+// so that function calls cannot clobber the reserved data. Call arguments
+// are placed at SP+reserve_stack_size and above.
+class INSTR_CLASS(ReserveStack, (), HasOutput, Operands<0>) {
  public:
-  UnpackSequenceToTuple(
-      Register* dst,
-      Register* seq,
-      int count,
-      const FrameState& frame)
-      : InstrT(dst, seq, frame), count_(count) {}
+  ReserveStack(Register* dst, int num_words)
+      : InstrT(dst), num_words_(num_words) {}
+
+  int num_words() const {
+    return num_words_;
+  }
+
+ private:
+  int num_words_;
+};
+
+// Unpack a sequence of exactly 'count' items via the iterator protocol
+// (UNPACK_SEQUENCE slow path for non-list/non-tuple types).
+// Fills the items array (pointed to by items_ptr) with the unpacked values.
+// Returns 0 on success, -1 on error (with Python exception set).
+class INSTR_CLASS(UnpackSequence, (TObject, TCPtr), HasOutput, Operands<2>) {
+ public:
+  UnpackSequence(Register* dst, Register* seq, Register* items_ptr, int count)
+      : InstrT(dst, seq, items_ptr), count_(count) {}
 
   Register* seq() const {
     return GetOperand(0);
+  }
+
+  Register* items_ptr() const {
+    return GetOperand(1);
   }
 
   int count() const {

@@ -1316,7 +1316,7 @@ NativeGenerator::FrameInfo NativeGenerator::computeFrameInfo() {
       .header_and_spill_size =
           std::max(env_.shadow_frames_and_spill_size, kPointerSize),
       .saved_regs = env_.changed_regs & CALLEE_SAVE_REGS,
-      .arg_buffer_size = env_.max_arg_buffer_size,
+      .arg_buffer_size = env_.max_arg_buffer_size + env_.reserve_stack_size,
   };
   if ((info.header_and_spill_size + info.saved_regs_size() +
        info.arg_buffer_size) %

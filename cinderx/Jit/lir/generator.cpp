@@ -4369,13 +4369,29 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->after());
         break;
       }
-      case Opcode::kUnpackSequenceToTuple: {
-        auto instr = static_cast<const UnpackSequenceToTuple*>(&i);
+      case Opcode::kReserveStack: {
+        auto instr = static_cast<const ReserveStack*>(&i);
+        // Reserve space in the stack frame for the stack array. The reserved
+        // data is placed above the call argument buffer so that calls don't
+        // clobber it, and call args remain at SP+0 where the callee expects
+        // them per the ABI. The LIR ReserveStack instruction goes through
+        // normal register allocation and is lowered to a LEA in autogen once
+        // max_arg_buffer_size is known.
+        auto aligned_size =
+            static_cast<int>((instr->num_words() * kPointerSize + 15) & ~15);
+        env_->reserve_stack_size =
+            std::max(env_->reserve_stack_size, aligned_size);
+        bbb.appendInstr(instr->output(), Instruction::kReserveStack);
+        break;
+      }
+      case Opcode::kUnpackSequence: {
+        auto instr = static_cast<const UnpackSequence*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_UnpackSequenceToTuple,
+            JITRT_UnpackSequence,
             env_->asm_tstate,
             instr->seq(),
+            instr->items_ptr(),
             instr->count());
         break;
       }

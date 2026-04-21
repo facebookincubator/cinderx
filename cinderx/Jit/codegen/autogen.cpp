@@ -886,6 +886,27 @@ void translateLeaLabel(Environ* env, const Instruction* instr) {
 #endif
 }
 
+// Lower LIR ReserveStack to a LEA (x86-64) or ADD (aarch64) that computes
+// the address of the reserved stack region. The reserved data lives at
+// [SP + max_arg_buffer_size], above the call argument buffer, so that
+// function calls don't clobber it.
+void translateReserveStack(Environ* env, const Instruction* instr) {
+  auto* as = env->as;
+  auto output = instr->output();
+  JIT_CHECK(output->isReg(), "Expected output to be a register");
+
+  int offset = env->max_arg_buffer_size;
+
+#if defined(CINDER_X86_64)
+  as->lea(x86::gpq(output->getPhyRegister().loc), x86::ptr(x86::rsp, offset));
+#elif defined(CINDER_AARCH64)
+  arch::add_signed_immediate(
+      as, a64::x(output->getPhyRegister().loc), a64::sp, offset);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   auto* as = env->as;
 
@@ -2654,6 +2675,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
+    case Instruction::kReserveStack:
+      translateReserveStack(env, instr);
+      return;
     case Instruction::kNone:
     case Instruction::kNop:
     case Instruction::kVectorCall:
@@ -2930,6 +2954,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kMulAdd:
       translateMulAdd(env, instr);
+      return;
+    case Instruction::kReserveStack:
+      translateReserveStack(env, instr);
       return;
     case Instruction::kNone:
     case Instruction::kNop:

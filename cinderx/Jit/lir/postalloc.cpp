@@ -95,7 +95,7 @@ void insertMoveToMemoryLocation(
       PhyReg{temp, scratch_data_type});
 }
 
-int rewriteRegularFunction(instr_iter_t instr_iter) {
+int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
 
@@ -131,7 +131,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
             block,
             instr_iter,
             arch::reg_stack_pointer_loc,
-            stack_arg_size,
+            base_offset + stack_arg_size,
             operand);
         stack_arg_size += sizeof(void*);
       }
@@ -148,7 +148,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
           block,
           instr_iter,
           arch::reg_stack_pointer_loc,
-          stack_arg_size,
+          base_offset + stack_arg_size,
           operand);
       stack_arg_size += sizeof(void*);
     }
@@ -167,7 +167,8 @@ int prepareArgsArray(
     size_t flags,
     size_t first_arg,
     PhyLocation dest,
-    PhyLocation size_dest) {
+    PhyLocation size_dest,
+    int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
   constexpr size_t PTR_SIZE = sizeof(void*);
@@ -177,12 +178,13 @@ int prepareArgsArray(
   auto num_allocs = num_args + kVectorcallArgsOffset;
   int rsp_sub = ((num_allocs % 2) ? num_allocs + 1 : num_allocs) * PTR_SIZE;
 
-  // lea dest, [sp + kVectorcallArgsOffset * PTR_SIZE]
+  // lea dest, [sp + base_offset + kVectorcallArgsOffset * PTR_SIZE]
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kLea,
       OutPhyReg(dest),
-      Ind(arch::reg_stack_pointer_loc, kVectorcallArgsOffset * PTR_SIZE));
+      Ind(arch::reg_stack_pointer_loc,
+          base_offset + static_cast<int>(kVectorcallArgsOffset * PTR_SIZE)));
 
   // mov arg2, num_args
   block->allocateInstrBefore(
@@ -199,7 +201,7 @@ int prepareArgsArray(
   return rsp_sub;
 }
 
-int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
+int rewriteVectorCallFunctions(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
 
   // For vector calls there are 4 fixed arguments:
@@ -226,7 +228,8 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
       flag | PY_VECTORCALL_ARGUMENTS_OFFSET,
       kFirstArg,
       ARGUMENT_REGS[1],
-      ARGUMENT_REGS[2]);
+      ARGUMENT_REGS[2],
+      base_offset);
 
   // check if kwnames is provided
   auto last_input = instr->releaseInput(instr->getNumInputs() - 1);
@@ -260,7 +263,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   return rsp_sub;
 }
 
-int rewriteVarArgCall(instr_iter_t instr_iter) {
+int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   instr->setOpcode(Instruction::kCall);
   auto res = prepareArgsArray(
@@ -269,7 +272,8 @@ int rewriteVarArgCall(instr_iter_t instr_iter) {
       0,
       1,
       ARGUMENT_REGS[0],
-      ARGUMENT_REGS[1]);
+      ARGUMENT_REGS[1],
+      base_offset);
   instr->setNumInputs(1);
   return res;
 }
@@ -280,9 +284,14 @@ int rewriteVarArgCall(instr_iter_t instr_iter) {
 //   JITRT_(Call|Get)Method, etc.
 RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   auto instr = instr_iter->get();
+  // Call arguments are placed at SP+0, which is where the callee expects them
+  // per the ABI. ReserveStack data is placed above (at SP+max_arg_buffer_size)
+  // after all call arg buffer sizes are known.
+  int base_offset = 0;
   if (instr->isVarArgCall()) {
-    int rsp_sub = rewriteVarArgCall(instr_iter);
-    env->max_arg_buffer_size = std::max<int>(env->max_arg_buffer_size, rsp_sub);
+    int rsp_sub = rewriteVarArgCall(instr_iter, base_offset);
+    env->max_arg_buffer_size =
+        std::max<int>(env->max_arg_buffer_size, base_offset + rsp_sub);
     return kChanged;
   } else if (!instr->isCall() && !instr->isVectorCall()) {
     return kUnchanged;
@@ -297,9 +306,9 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   auto block = instr->basicblock();
 
   if (instr->isVectorCall()) {
-    rsp_sub = rewriteVectorCallFunctions(instr_iter);
+    rsp_sub = rewriteVectorCallFunctions(instr_iter, base_offset);
   } else {
-    rsp_sub = rewriteRegularFunction(instr_iter);
+    rsp_sub = rewriteRegularFunction(instr_iter, base_offset);
   }
 
   instr->setNumInputs(1); // leave function self operand only
@@ -307,7 +316,8 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
 
   auto next_iter = std::next(instr_iter);
 
-  env->max_arg_buffer_size = std::max<int>(env->max_arg_buffer_size, rsp_sub);
+  env->max_arg_buffer_size =
+      std::max<int>(env->max_arg_buffer_size, base_offset + rsp_sub);
 
   if (output->isNone()) {
     return kChanged;
@@ -888,6 +898,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kPrologue:
     case Instruction::kSetupFrame:
     case Instruction::kIndirectJump:
+    case Instruction::kReserveStack:
       return kUnchanged;
   }
 

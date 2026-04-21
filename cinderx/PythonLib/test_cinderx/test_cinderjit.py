@@ -1250,6 +1250,23 @@ class UnpackSequenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self._unpack_arg(C(()), "a")
 
+    def test_unpack_sequence_iterable_refcount(self) -> None:
+        """Verify no reference leak when unpacking a custom iterable."""
+        import sys
+
+        class C:
+            def __init__(self, value):
+                self.value = value
+
+            def __iter__(self):
+                return iter(self.value)
+
+        obj = object()
+        base_refcount = sys.getrefcount(obj)
+        # Unpack via the slow path (custom iterable, not tuple/list).
+        self._unpack_arg(C((obj, 2, 3, 4)), "a")
+        self.assertEqual(sys.getrefcount(obj), base_refcount)
+
     def test_unpack_ex_with_iterable(self) -> None:
         class C:
             def __init__(self, value):

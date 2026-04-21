@@ -10,6 +10,8 @@
 
 #include <asmjit/asmjit.h>
 
+#include <vector>
+
 namespace jit::codegen {
 
 struct Environ {
@@ -132,6 +134,15 @@ struct Environ {
   int initial_yield_spill_size_{-1};
 
   int max_arg_buffer_size{0};
+
+  // Size of stack space reserved by ReserveStack instructions. This space
+  // is placed above the call argument buffer (at SP+max_arg_buffer_size),
+  // so that call args remain at SP+0 where the callee expects them per the
+  // ABI, and calls don't clobber the reserved data. The LIR ReserveStack
+  // instruction is lowered to a LEA in autogen using max_arg_buffer_size
+  // as the offset, and reserve_stack_size is added to the frame's arg
+  // buffer in computeFrameInfo.
+  int reserve_stack_size{0};
 
   bool has_inlined_functions{false};
 

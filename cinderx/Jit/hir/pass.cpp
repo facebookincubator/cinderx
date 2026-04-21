@@ -403,8 +403,11 @@ Type outputType(
     case Opcode::kMakeTuple:
     case Opcode::kMakeTupleFromList:
     case Opcode::kUnpackExToTuple:
-    case Opcode::kUnpackSequenceToTuple:
       return TMortalTupleExact;
+    case Opcode::kUnpackSequence:
+      return TCInt32;
+    case Opcode::kReserveStack:
+      return TCPtr;
     case Opcode::kPhi: {
       auto ty = TBottom;
       for (std::size_t i = 0, n = instr.NumOperands(); i < n; ++i) {

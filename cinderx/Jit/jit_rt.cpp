@@ -1769,9 +1769,10 @@ PyObject* JITRT_UnpackExToTuple(
   return reinterpret_cast<PyObject*>(tuple.release());
 }
 
-PyObject* JITRT_UnpackSequenceToTuple(
+int JITRT_UnpackSequence(
     PyThreadState* tstate,
     PyObject* iterable,
+    PyObject** items,
     int count) {
   JIT_DCHECK(iterable != nullptr, "The iterable cannot be null.");
 
@@ -1785,12 +1786,7 @@ PyObject* JITRT_UnpackSequenceToTuple(
           "cannot unpack non-iterable %.200s object",
           iterable->ob_type->tp_name);
     }
-    return nullptr;
-  }
-
-  Ref<PyTupleObject> tuple = Ref<PyTupleObject>::steal(PyTuple_New(count));
-  if (tuple == nullptr) {
-    return nullptr;
+    return -1;
   }
 
   for (int i = 0; i < count; i++) {
@@ -1806,9 +1802,13 @@ PyObject* JITRT_UnpackSequenceToTuple(
             count,
             i);
       }
-      return nullptr;
+      /* Clean up any items already stored. */
+      for (int j = 0; j < i; j++) {
+        Py_DECREF(items[j]);
+      }
+      return -1;
     }
-    tuple->ob_item[i] = w;
+    items[i] = w;
   }
 
   /* We should have exhausted the iterator now. */
@@ -1820,13 +1820,19 @@ PyObject* JITRT_UnpackSequenceToTuple(
         PyExc_ValueError,
         "too many values to unpack (expected %d)",
         count);
-    return nullptr;
+    for (int j = 0; j < count; j++) {
+      Py_DECREF(items[j]);
+    }
+    return -1;
   }
   if (_PyErr_Occurred(tstate)) {
-    return nullptr;
+    for (int j = 0; j < count; j++) {
+      Py_DECREF(items[j]);
+    }
+    return -1;
   }
 
-  return reinterpret_cast<PyObject*>(tuple.release());
+  return 0;
 }
 
 int JITRT_UnicodeEquals(PyObject* s1, PyObject* s2, int equals) {
