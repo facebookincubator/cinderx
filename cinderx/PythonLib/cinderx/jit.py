@@ -25,6 +25,7 @@ try:
         disable_emit_type_annotation_guards,
         disable_hir_inliner,
         disable_specialized_opcodes,
+        disassemble,
         enable,
         enable_emit_type_annotation_guards,
         enable_hir_inliner,
@@ -97,6 +98,9 @@ except ImportError:
         return None
 
     def disable_specialized_opcodes() -> None:
+        return None
+
+    def disassemble(func: FuncAny) -> None:
         return None
 
     def enable() -> None:
