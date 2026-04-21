@@ -754,8 +754,7 @@ void JITRT_DecrefFrame(PyFrameObject* frame) {
   }
 }
 
-void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
-  PyThreadState* tstate = PyThreadState_GET();
+void JITRT_UnlinkFrame(PyThreadState* tstate) {
   /*
    * The reference for this is _PyEvalFrameClearAndPop in ceval.c.
    */
@@ -782,8 +781,7 @@ void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
   // JIT frames are stack allocated so there's nothing to pop.
 }
 
-void JITRT_UnlinkLightweightFrameFast() {
-  PyThreadState* tstate = PyThreadState_GET();
+void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
   setCurrentFrame(tstate, frame->previous);
 

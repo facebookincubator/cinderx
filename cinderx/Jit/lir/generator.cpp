@@ -957,7 +957,8 @@ void LIRGenerator::GenerateExitBlocks() {
     block->allocateInstr(
         Instruction::kCall,
         nullptr,
-        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)});
+        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)},
+        VReg{env_->asm_tstate});
 
     block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{exit_phi_});
     return;
@@ -4052,7 +4053,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         // The frame was materialized, let's use the unlink helper to clean
         // things up.
-        bbb.appendInvokeInstruction(JITRT_UnlinkFrame, false);
+        bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
         bbb.appendBranch(Instruction::kBranch, done_block);
 
         // The frame was not materialized, we just need to update thread state

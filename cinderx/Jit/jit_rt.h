@@ -71,12 +71,12 @@ void JITRT_UnlinkPyFrame(PyThreadState* tstate);
  * Designed to be used in tandem with JITRT_AllocateAndLinkFrame. This checks
  * if the frame has escaped (> 1 refcount) and tracks it if so.
  */
-void JITRT_UnlinkFrame(bool unlink_shadow_frame);
+void JITRT_UnlinkFrame(PyThreadState* tstate);
 
 // Specialized version of JITRT_UnlinkFrame for non-generator functions with no
 // free variables that use lightweight frames. Avoids the expensive
 // jitFrameClearExceptCode path.
-void JITRT_UnlinkLightweightFrameFast();
+void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate);
 
 /*
  * Handles a call that includes kw arguments or excess tuple arguments
