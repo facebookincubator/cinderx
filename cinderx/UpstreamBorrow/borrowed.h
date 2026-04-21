@@ -200,9 +200,13 @@ Py_ssize_t _PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject* key);
 #define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
 #define Cix_PyTypeAlias_Type _PyTypeAlias_Type
 
+#ifndef WIN32
 // _PyUnion_Type is exported, but it's hidden in an internal header file.
 extern PyTypeObject _PyUnion_Type;
 #define Cix_PyUnion_Type &_PyUnion_Type
+#else
+extern PyTypeObject* Cix_PyUnion_Type;
+#endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
 PyObject* Cix_PyCoro_GetAwaitableIter(PyObject* o);
