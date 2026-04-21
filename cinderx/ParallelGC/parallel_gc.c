@@ -37,6 +37,7 @@
 #include "internal/pycore_object.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h" // _PyThreadState_GET()
+#include "internal/pycore_tuple.h"
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/ParallelGC/condvar.h"

@@ -145,12 +145,10 @@ PyObject* _PyNumber_PowerNoMod(PyObject* lhs, PyObject* rhs);
 
 #endif
 
-#if PY_VERSION_HEX >= 0x030D0000
-// _PyTuple_MaybeUntrack stopped being exported in 3.13 but is still extern
+#if PY_VERSION_HEX >= 0x030D0000 && PY_VERSION_HEX < 0x030F0000
+// _PyTuple_MaybeUntrack stopped being exported in 3.13 but is still extern.
+// We export it in 3.15 w/ the parallel GC patch
 #define _PyTuple_MaybeUntrack _CiTuple_MaybeUntrack
-#if PY_VERSION_HEX >= 0x030F0000
-void _PyTuple_MaybeUntrack(PyObject*);
-#endif
 #endif
 
 #include "internal/pycore_dict.h"

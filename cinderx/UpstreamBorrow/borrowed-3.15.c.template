@@ -242,5 +242,3 @@ PyObject * _PyGen_yf(PyGenObject *gen) {
   }
   return res;
 }
-
-// @Borrow function _PyTuple_MaybeUntrack from Objects/tupleobject.c [3.15]
