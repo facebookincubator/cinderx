@@ -1014,18 +1014,21 @@ bool compile_all(size_t workers = 0) {
   // units that were deleted during preloading
   std::unordered_set<BorrowedRef<>> deleted_units;
 
-  auto error_cleanup = [&]() {
-    hir::preloaderManager().clear();
-    cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
-  };
-
-  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
+  auto mod_state = cinderx::getModuleState();
+  auto& jit_reg_units = mod_state->registered_compilation_units;
   JIT_DLOG(
       "Starting compile_all with {} workers for {} registered units",
       workers,
       jit_reg_units.size());
 
   // First we have to preload everything we are going to compile.
+  //
+  // Preloading is done in batches, each preload operation can run arbitrary
+  // code and register more functions for compilation.
+  //
+  // This also needs to save and restore the deletion callback in case the JIT
+  // does get invoked recursively.
+  auto prev_callback = std::move(mod_state->unit_deleted_during_preload);
   while (jit_reg_units.size() > 0) {
     auto preload_units = std::move(jit_reg_units);
     jit_reg_units.clear();
@@ -1036,19 +1039,19 @@ bool compile_all(size_t workers = 0) {
       if (deleted_units.contains(unit)) {
         continue;
       }
-      cinderx::getModuleState()->unit_deleted_during_preload =
-          [&](BorrowedRef<> deleted_unit) {
-            deleted_units.emplace(deleted_unit);
-          };
+      mod_state->unit_deleted_during_preload = [&](BorrowedRef<> deleted_unit) {
+        deleted_units.emplace(deleted_unit);
+      };
       hir::Preloader* preloader = preload(unit);
       if (!preloader) {
-        error_cleanup();
+        hir::preloaderManager().clear();
+        mod_state->unit_deleted_during_preload = std::move(prev_callback);
         return false;
       }
       compilation_units.push_back(unit);
     }
   }
-  cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
+  mod_state->unit_deleted_during_preload = std::move(prev_callback);
 
   // Filter out any units that were deleted as a side effect of preloading.
   std::erase_if(compilation_units, [&](BorrowedRef<> unit) {
@@ -1066,6 +1069,10 @@ bool compile_all(size_t workers = 0) {
     compile_units_preloaded(std::move(compilation_units));
   }
 
+  // Can't use IsolatedPreloaders here because worker threads need to access the
+  // preloader manager via the global (non-TLS) path.  Isolation from re-entrant
+  // compiles during preloading is already handled by compileFunction's own
+  // IsolatedPreloaders.
   hir::preloaderManager().clear();
 
   return true;
@@ -3065,115 +3072,28 @@ void trackEligibleCodeObjects(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<PyCodeObject> func_code,
     JitEligibility eligibility = JitEligibility::Eligible) {
-  // We need to maintain a mapping for all functions which are
-  // eligible for compilation at some point - we track the code
-  // object and their parent function. If we have a JIT list we
-  // also track the registered units.
-  // Map this function's code object to itself.
+  // We need to maintain a mapping for all functions which are eligible for
+  // compilation at some point - we track the code object and their parent
+  // function. If we have a JIT list we also track the registered units.  Map
+  // this function's code object to itself.
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  if (jit_code_outer_funcs.contains(func_code)) {
-    // already registered this code
+  auto [_, inserted] = jit_code_outer_funcs.try_emplace(func_code, func);
+  if (!inserted) {
     return;
   }
 
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
 
-  jit_code_outer_funcs.try_emplace(func_code, func);
-
-  // Scan this function's code object for any nested functions that
-  // might be compiled
-  PyObject* module = func->func_module;
+  // Scan this function's code object for any nested functions that might be
+  // compiled.
+  PyObject* mod = func->func_module;
   BorrowedRef<> top_consts{func_code->co_consts};
-  for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
-    if (jit_code_outer_funcs.contains(code)) {
-      continue;
-    }
-    jit_code_outer_funcs.emplace(code, func);
-    if (eligibility == JitEligibility::JitListEligible) {
+  for (BorrowedRef<PyCodeObject> code : findNestedCodes(mod, top_consts)) {
+    auto [_, nested_inserted] = jit_code_outer_funcs.try_emplace(code, func);
+    if (nested_inserted && eligibility == JitEligibility::JitListEligible) {
       jit_reg_units.emplace(code.getObj());
     }
   }
-}
-
-// Preload a function and its dependencies, then compile them all.
-//
-// Failing to compile a dependent function is a soft failure, and is ignored.
-Result compile_func(BorrowedRef<PyFunctionObject> func) {
-  // isolate preloaders state since batch preloading might trigger a call to a
-  // jitable function, resulting in a single-function compile
-  hir::IsolatedPreloaders ip;
-
-  // We generally track function objects when they are created. But we may need
-  // to re-track here. A function can have nested functions and those nested
-  // functions can out-live the function that created them. When the outer
-  // function is destroyed we need to remove the dangling registrations in
-  // codeOuterFunctions. We will treat whatever remains as new top-level
-  // functions.
-  trackEligibleCodeObjects(func, func->func_code);
-
-  // Collect a list of functions to compile.  If it's empty then there must have
-  // been a Python error during preloading.
-  std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
-  if (targets.empty()) {
-    JIT_CHECK(
-        PyErr_Occurred(), "Expect a Python exception when preloading fails");
-    return Result::PYTHON_EXCEPTION;
-  }
-
-  if (targets.size() > 1) {
-    JIT_DLOG(
-        "Compiling {} along with {} functions it calls",
-        funcFullname(func),
-        targets.size() - 1);
-  }
-
-  // Will return unknown error if none of the targets can find a matching
-  // preloader.
-  auto result = Result::UNKNOWN_ERROR;
-
-  for (BorrowedRef<PyFunctionObject> target : targets) {
-    auto preloader = hir::preloaderManager().find(target);
-    if (preloader == nullptr) {
-      continue;
-    }
-
-    // Don't compile functions that were preloaded purely for inlining.
-    bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
-    if (target != func && !is_static) {
-      continue;
-    }
-
-    result = compilePreloader(*preloader, target);
-    JIT_CHECK(
-        result != Result::PYTHON_EXCEPTION,
-        "Raised a Python exception while JIT-compiling function {}, which is "
-        "not allowed",
-        funcFullname(target));
-    JIT_CHECK(
-        result != Result::NO_PRELOADER,
-        "Cannot find a preloader for function {}, despite it just being "
-        "preloaded",
-        funcFullname(target));
-
-    // If we hit the max code size limit, stop compiling further functions
-    if (result == Result::OVER_MAX_CODE_SIZE) {
-      break;
-    }
-  }
-
-  // This is the common case, where the original function is compiled last.
-  // Return its compilation result.
-  BorrowedRef<PyFunctionObject> last_func = targets.back();
-  if (last_func == func) {
-    return result;
-  }
-
-  // Otherwise the original function was destroyed during preloading, which is
-  // rare but can happen with nested functions.  In that case, we're just going
-  // to pretend everything went okay.  It doesn't make sense to return the
-  // results of any of the other preloaded functions, as the caller never asked
-  // for them in the first place.
-  return Result::OK;
 }
 
 // Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
@@ -3570,6 +3490,9 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   return true;
 }
 
+// Preload a function and its dependencies, then compile them all.
+//
+// Failing to compile a dependent function is a soft failure, and is ignored.
 Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
   if (!isJitInitialized()) {
@@ -3584,7 +3507,84 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
 
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   jit_reg_units.erase(func);
-  return compile_func(func);
+
+  // Isolate preloaders state since batch preloading might trigger a call to a
+  // jitable function, resulting in a single-function compile.
+  hir::IsolatedPreloaders ip;
+
+  // We generally track function objects when they are created. But we may need
+  // to re-track here.
+  //
+  // A function can have nested functions and those nested functions can
+  // out-live the function that created them.  When the outer function is
+  // destroyed we need to remove the dangling registrations in
+  // codeOuterFunctions.  We will treat whatever remains as new top-level
+  // functions.
+  trackEligibleCodeObjects(func, func->func_code);
+
+  // Collect a list of functions to compile.  If it's empty then there must have
+  // been a Python error during preloading.
+  std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
+  if (targets.empty()) {
+    JIT_CHECK(
+        PyErr_Occurred(), "Expect a Python exception when preloading fails");
+    return Result::PYTHON_EXCEPTION;
+  }
+
+  if (targets.size() > 1) {
+    JIT_DLOG(
+        "Compiling {} along with {} functions it calls",
+        funcFullname(func),
+        targets.size() - 1);
+  }
+
+  // Will return unknown error if none of the targets can find a matching
+  // preloader.
+  auto result = Result::UNKNOWN_ERROR;
+
+  for (BorrowedRef<PyFunctionObject> target : targets) {
+    auto preloader = hir::preloaderManager().find(target);
+    if (preloader == nullptr) {
+      continue;
+    }
+
+    // Don't compile functions that were preloaded purely for inlining.
+    bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
+    if (target != func && !is_static) {
+      continue;
+    }
+
+    result = compilePreloader(*preloader, target);
+    JIT_CHECK(
+        result != Result::PYTHON_EXCEPTION,
+        "Raised a Python exception while JIT-compiling function {}, which is "
+        "not allowed",
+        funcFullname(target));
+    JIT_CHECK(
+        result != Result::NO_PRELOADER,
+        "Cannot find a preloader for function {}, despite it just being "
+        "preloaded",
+        funcFullname(target));
+
+    // If we hit the max code size limit, stop compiling further functions
+    if (result == Result::OVER_MAX_CODE_SIZE) {
+      break;
+    }
+  }
+
+  // This is the common case, where the original function is compiled last.
+  // Return its compilation result.
+  BorrowedRef<PyFunctionObject> last_func = targets.back();
+  if (last_func == func) {
+    return result;
+  }
+
+  // Otherwise the original function was destroyed during preloading, which is
+  // rare but can happen with nested functions.  In that case, we're just going
+  // to pretend everything went okay.  It doesn't make sense to return the
+  // results of any of the other preloaded functions, as the caller never asked
+  // for them in the first place.
+  return Result::OK;
 }
 
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
@@ -3612,14 +3612,15 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     worklist.pop_front();
 
     // This needs to be set every time before preload() is kicked off.
-    // Preloading can run arbitrary Python code, which means it can re-enter
-    // the JIT.
-    cinderx::getModuleState()->unit_deleted_during_preload =
-        [&](BorrowedRef<> deleted_unit) {
-          deleted_units.emplace(deleted_unit);
-        };
+    // Preloading can run arbitrary Python code, which means it can re-enter the
+    // JIT.
+    auto mod_state = cinderx::getModuleState();
+    auto prev_callback = std::move(mod_state->unit_deleted_during_preload);
+    mod_state->unit_deleted_during_preload = [&](BorrowedRef<> deleted_unit) {
+      deleted_units.emplace(deleted_unit);
+    };
     hir::Preloader* preloader = preload(f);
-    cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
+    mod_state->unit_deleted_during_preload = std::move(prev_callback);
 
     if (preloader == nullptr) {
       return {};
@@ -3652,15 +3653,10 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
   }
 
   // Prune out all functions that are no longer alive / allocated.
-  result.erase(
-      std::remove_if(
-          result.begin(),
-          result.end(),
-          [&](BorrowedRef<PyFunctionObject> func) {
-            return deleted_units.contains(func.getObj()) ||
-                deleted_units.contains(func->func_code);
-          }),
-      result.end());
+  std::erase_if(result, [&](BorrowedRef<PyFunctionObject> func) {
+    return deleted_units.contains(func.getObj()) ||
+        deleted_units.contains(func->func_code);
+  });
 
   std::reverse(result.begin(), result.end());
   return result;
