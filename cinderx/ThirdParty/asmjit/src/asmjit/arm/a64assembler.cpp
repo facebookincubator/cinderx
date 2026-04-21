@@ -2570,6 +2570,61 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           opcode.reset(uint32_t(opData.literalOp) << 24);
           opcode.xorImm(x, opData.xOffset);
           opcode.addReg(o0, 0);
+
+          // For label-based memory operands (ldr Xd, [label]), use the relocation
+          // mechanism so that large displacements can be relaxed to adrp+ldr.
+          // ldr literal has a 19-bit signed offset (±1MB), which can overflow for
+          // large functions with distant constant pools.
+          if (rmRel->isMem() && rmRel->as<Mem>().hasBaseLabel()) {
+            uint32_t labelId = rmRel->as<Mem>().baseId();
+            LabelEntry* label = _code->labelEntry(labelId);
+            if (ASMJIT_UNLIKELY(!label))
+              goto InvalidLabel;
+
+            size_t codeOffset = writer.offsetFrom(_bufferData);
+
+            if (label->isBoundTo(_section)) {
+              // Backward reference - check if ldr literal fits.
+              int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
+              int64_t dispImm = displacement >> 2;
+              if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 19)) {
+                // Fits in ldr literal - emit normally (4 bytes).
+                uint32_t dispImm19 = uint32_t(dispImm) & 0x7FFFFu;
+                opcode.addImm(dispImm19, 5);
+                writer.emit32uLE(opcode.get());
+                goto EmitDone;
+              }
+            }
+
+            // Forward reference or backward reference that doesn't fit:
+            // create a RelocEntry for resolution at relocateToBase time.
+            RelocEntry* re;
+            err = _code->newRelocEntry(&re, RelocType::kA64LdrLiteralEntry);
+            if (err)
+              goto Failed;
+
+            re->_sourceSectionId = _section->id();
+            re->_sourceOffset = codeOffset;
+
+            if (label->isBound()) {
+              re->_payload = label->offset();
+              re->_targetSectionId = label->section()->id();
+            } else {
+              // Create a LabelLink with the relocId so bindLabel updates the
+              // reloc entry with the label's offset.
+              OffsetFormat fmt{};
+              LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
+              if (ASMJIT_UNLIKELY(!link))
+                goto OutOfMemory;
+              link->relocId = re->id();
+            }
+
+            // Emit ldr Xd, #0 (self-referencing, encodes Rd and size) + NOP placeholder.
+            writer.emit32uLE(opcode.get());
+            writer.emit32uLE(0xD503201Fu); // NOP
+            goto EmitDone;
+          }
+
           offsetFormat.resetToImmValue(OffsetType::kSignedOffset, 4, 5, 19, 2);
           goto EmitOp_Rel;
         }

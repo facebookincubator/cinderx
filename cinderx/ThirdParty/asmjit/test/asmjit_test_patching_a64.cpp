@@ -399,6 +399,74 @@ UNIT(a64_adr_patching_forward_ref) {
 }
 
 // ============================================================================
+// [LDR Literal Patching Tests]
+// ============================================================================
+
+// Test that ldr (PC-relative literal) to a nearby label resolves correctly
+// and stays as ldr literal + NOP after relocation.
+UNIT(a64_ldr_literal_in_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label pool = as.newLabel();
+  as.ldr(a64::x0, a64::ptr(pool));
+  emitNops(as, 4);
+  as.bind(pool);
+  uint64_t value = 0xDEADBEEFCAFEBABEULL;
+  as.embed(&value, sizeof(value));
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.resolveUnresolvedLinks(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0x10000), kErrorOk);
+
+  // ldr x0, +24: displacement = 24, imm19 = 6
+  // 0x58000000 | (6 << 5) = 0x580000C0
+  uint32_t firstWord = Support::readU32uLE(code.textSection()->data());
+  EXPECT_EQ(firstWord, 0x580000C0u)
+    .message("Expected ldr x0, +24, got: 0x%08X", firstWord);
+
+  uint32_t secondWord = Support::readU32uLE(code.textSection()->data() + 4);
+  EXPECT_EQ(secondWord, 0xD503201Fu)
+    .message("Expected NOP after ldr, got: 0x%08X", secondWord);
+}
+
+// Test that ldr (PC-relative literal) to a far label (beyond ±1MB) gets
+// relaxed to adrp+ldr after relocation.
+UNIT(a64_ldr_literal_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCode(code, as);
+
+  Label pool = as.newLabel();
+  as.ldr(a64::x0, a64::ptr(pool));
+  // Emit enough NOPs to exceed 19-bit signed offset range (±1MB = 262144 instructions)
+  emitNops(as, 262200);
+  as.bind(pool);
+  uint64_t value = 0xDEADBEEFCAFEBABEULL;
+  as.embed(&value, sizeof(value));
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.resolveUnresolvedLinks(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0x10000), kErrorOk);
+
+  // Verify relaxed to adrp x0, page + ldr x0, [x0, #off].
+  uint32_t firstWord = Support::readU32uLE(code.textSection()->data());
+  EXPECT_EQ(firstWord & 0x9F000000u, 0x90000000u)
+    .message("Expected adrp instruction, got: 0x%08X", firstWord);
+  EXPECT_EQ(firstWord & 0x1Fu, 0u)
+    .message("Expected Rd=x0 in adrp, got Rd=%u", firstWord & 0x1Fu);
+
+  uint32_t secondWord = Support::readU32uLE(code.textSection()->data() + 4);
+  EXPECT_EQ(secondWord & 0xFFC00000u, 0xF9400000u)
+    .message("Expected ldr x0, [x0, #imm], got: 0x%08X", secondWord);
+  EXPECT_EQ(secondWord & 0x1Fu, 0u)
+    .message("Expected Rd=x0, got Rd=%u", secondWord & 0x1Fu);
+  EXPECT_EQ((secondWord >> 5) & 0x1Fu, 0u)
+    .message("Expected Rn=x0, got Rn=%u", (secondWord >> 5) & 0x1Fu);
+}
+
+// ============================================================================
 // [B (unconditional) Patching Tests]
 // ============================================================================
 

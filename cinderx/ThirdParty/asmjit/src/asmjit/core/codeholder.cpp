@@ -1221,6 +1221,69 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
         continue;
       }
 
+      case RelocType::kA64LdrLiteralEntry: {
+        // AArch64: The source contains 8 bytes (ldr Xd, #0 + NOP as placeholder).
+        // We try to use `ldr Xd, [PC+imm19]` first. If the displacement doesn't fit
+        // in the 19-bit signed offset (±1MB), we use `adrp Xd, page; ldr Xd, [Xd, #off]`.
+        if (ASMJIT_UNLIKELY(!targetSection))
+          return DebugUtils::errored(kErrorInvalidRelocEntry);
+
+        uint64_t targetAddress = baseAddress + targetSection->offset() + re->payload();
+        uint64_t pc = baseAddress + sectionOffset + sourceOffset;
+        int64_t displacement = int64_t(targetAddress - pc);
+
+        // Read the original ldr literal instruction to extract Rd and the size (opc field).
+        uint32_t origLdr = Support::readU32uLE(buffer + sourceOffset);
+        uint32_t rd = origLdr & 0x1Fu;
+        // Extract opc from bits [31:30]: 00=ldr W, 01=ldr X, 10=ldrsw, 11=prfm.
+        uint32_t opc = (origLdr >> 30) & 3u;
+        if (ASMJIT_UNLIKELY(opc == 3u))
+          return DebugUtils::errored(kErrorInvalidRelocEntry);
+        uint32_t loadSizeLog2 = (opc == 1u) ? 3u : 2u;
+
+        int64_t dispImm = displacement >> 2;
+        if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 19)) {
+          // Fits in ldr literal: emit `ldr Xd, [PC+off]; nop`.
+          uint32_t ldrOpcode = (origLdr & ~(0x7FFFFu << 5)) | ((uint32_t(dispImm) & 0x7FFFFu) << 5);
+          Support::writeU32uLE(buffer + sourceOffset, ldrOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
+        } else {
+          // Doesn't fit: emit `adrp Xd, target_page; ldr Xd, [Xd, #page_offset]`.
+          int64_t pageDelta = (int64_t(targetAddress) >> 12) - (int64_t(pc) >> 12);
+          uint32_t pageOffset = uint32_t(targetAddress) & 0xFFFu;
+
+          if (!Support::isEncodableOffset64(pageDelta, 21))
+            return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
+
+          // The page offset must be aligned to the load size.
+          uint32_t scaledOffset = pageOffset >> loadSizeLog2;
+          if ((scaledOffset << loadSizeLog2) != pageOffset)
+            return DebugUtils::errored(kErrorInvalidRelocEntry);
+
+          uint32_t immLo = uint32_t(pageDelta) & 3u;
+          uint32_t immHi = (uint32_t(pageDelta) >> 2) & 0x7FFFFu;
+          // adrp Xd, target_page
+          uint32_t adrpOpcode = 0x90000000u | (immLo << 29) | (immHi << 5) | rd;
+          // ldr Xd, [Xd, #page_offset] — unsigned offset form
+          // For 64-bit (opc=01): size=11, V=0, opc=01 -> 0xF9400000 (shift=3)
+          // For 32-bit (opc=00): size=10, V=0, opc=01 -> 0xB9400000 (shift=2)
+          // For signed 32-bit (opc=10): size=10, V=0, opc=10 -> 0xB9800000 (shift=2)
+          uint32_t ldrBaseOpcode;
+          if (opc == 1u)
+            ldrBaseOpcode = 0xF9400000u; // ldr Xd, [Xn, #imm] (64-bit)
+          else if (opc == 0u)
+            ldrBaseOpcode = 0xB9400000u; // ldr Wd, [Xn, #imm] (32-bit)
+          else
+            ldrBaseOpcode = 0xB9800000u; // ldrsw Xd, [Xn, #imm] (signed 32-bit)
+          uint32_t ldrOpcode = ldrBaseOpcode | (scaledOffset << 10) | (rd << 5) | rd;
+
+          Support::writeU32uLE(buffer + sourceOffset, adrpOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, ldrOpcode);
+        }
+
+        continue;
+      }
+
       default:
         return DebugUtils::errored(kErrorInvalidRelocEntry);
     }
