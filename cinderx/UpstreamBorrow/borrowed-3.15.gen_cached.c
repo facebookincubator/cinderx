@@ -11,40 +11,13 @@
 // clang-format off
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "cinderx/module_c_state.h"
-#include "internal/pycore_intrinsics.h"
-#include "internal/pycore_bitutils.h"
-#include "internal/pycore_call.h"
-#include "internal/pycore_ceval.h"
-#include "internal/pycore_critical_section.h"
-#include "internal/pycore_floatobject.h"
 #include "internal/pycore_genobject.h"
-#include "internal/pycore_interpframe.h"
-#include "internal/pycore_freelist.h"
-#include "internal/pycore_tuple.h"
-#include "internal/pycore_unicodeobject.h"
-#include "internal/pycore_weakref.h"
-#include "cinderx/Interpreter/cinder_opcode.h"
-#include "internal/pycore_function.h"
-#include "internal/pycore_descrobject.h"
-#include "internal/pycore_long.h"
-#include "internal/pycore_optimizer.h"     // _PyExecutorObject
-#include "internal/pycore_lazyimportobject.h"
 #ifdef ENABLE_LAZY_IMPORTS
 #include "pycore_import.h"        // _PyImport_LoadLazyImport()
 #include "pycore_lazyimport.h"    // _PyLazyImport_New(), _PyLazyImport_GetName()
 #endif
-#include "opcode.h"
-
-#undef _PyObject_GC_TRACK
-#define _PyObject_GC_TRACK PyObject_GC_Track
 
 getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;
-
-// _Py_slot_tp_getattr_hook is used when __getattr__ is defined
-#define _Py_slot_tp_getattr_hook Ci_tp_getattr_hook
-// _Py_slot_tp_getattro is used when __getattribute__ is defined
-#define _Py_slot_tp_getattro Ci_tp_getattro
 
 #ifdef ENABLE_PEP523_HOOK
 _PyFrameEvalFunction Ci_EvalFrameFunc;
@@ -52,24 +25,8 @@ _PyFrameEvalFunction Ci_EvalFrameFunc;
 #define Ci_EvalFrameFunc NULL
 #endif
 
-// In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
-// the JIT we could get the value from the thread-state register. This would be
-// slightly more efficient, but quite a bit more work and async-generators are
-// rare. So we just wrap it up here.
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
   return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
-}
-
-#define _PyGen_CAST(op) \
-    _Py_CAST(PyGenObject*, (op))
-
-void Cix_dict_insert_split_value(
-    PyInterpreterState *interp,
-    PyDictObject *mp,
-    PyObject *key,
-    PyObject *value,
-    Py_ssize_t ix) {
-  return _PyDict_InsertSplitValue(mp, key, value, ix);
 }
 
 // Wrapper as set_attribute_error_context is declared "static inline".
@@ -166,7 +123,6 @@ int init_upstream_borrow(void) {
     "def f(): yield 42\n";
 
   PyObject *code = NULL, *globals = NULL, *inst = NULL;
-  PyDictObject* empty_dict = NULL;
   int result = -1;
   code = Py_CompileString(code_str, "cinderx_getattr_init.py", Py_file_input);
   if (code == NULL) {
@@ -231,16 +187,9 @@ error:
   Py_XDECREF(code);
   Py_XDECREF(globals);
   Py_XDECREF(inst);
-  Py_XDECREF(empty_dict);
   return result;
 }
 
-
-void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
-  PyErr_SetObject(type, value);
-}
-
-#define _PyErr_NoMemory(tstate) PyErr_NoMemory()
 
 // Uses the getter looked up in init_upstream_borrow() to get the yield-from
 // value, converting Py_None to NULL to match the _PyGen_yf convention.

@@ -35,8 +35,6 @@
 
 #define _PyFloat_FromDouble_ConsumeInputs _CiFloat_FromDouble_ConsumeInputs
 
-#define _PyErr_SetObject _CiErr_SetObject
-
 #define _PyInstrumentation_MISSING (*Cix_monitoring_missing)
 #define _PyInstrumentation_DISABLE (*Cix_monitoring_disable)
 
@@ -44,6 +42,7 @@
 #define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
 
 #if PY_VERSION_HEX < 0x030F0000
+#define _PyErr_SetObject _CiErr_SetObject
 #define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
 #define _PyObject_HasLen _CiPyObject_HasLen
 #define _PyFrame_ClearLocals _CiFrame_ClearLocals
@@ -234,12 +233,13 @@ void Cix_PyDict_SendEvent(
 
 int Cix_set_attribute_error_context(PyObject* v, PyObject* name);
 
-void Cix_dict_insert_split_value(
-    PyInterpreterState* interp,
+#if PY_VERSION_HEX < 0x030F0000
+void _PyDict_InsertSplitValue(
     PyDictObject* mp,
     PyObject* key,
     PyObject* value,
     Py_ssize_t ix);
+#endif
 
 // TODO: Get rid of this
 #if PY_VERSION_HEX < 0x030F0000

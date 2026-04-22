@@ -208,8 +208,7 @@ PyDictKeysObject* ci_dict_empty_keys;
 // @Borrow function get_tlbc_lock_held from Objects/codeobject.c [3.14]
 // @Borrow function _PyCode_GetTLBC from Objects/codeobject.c [3.14]
 
-void Cix_dict_insert_split_value(
-    PyInterpreterState *interp,
+void _PyDict_InsertSplitValue(
     PyDictObject *mp,
     PyObject *key,
     PyObject *value,
@@ -219,7 +218,7 @@ void Cix_dict_insert_split_value(
 #elif defined(__GNUC__)
   [[gnu::always_inline]]
 #endif
-  insert_split_value(interp, mp, key, value, ix);
+  insert_split_value(_PyInterpreterState_GET(), mp, key, value, ix);
 }
 
 #define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext

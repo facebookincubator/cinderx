@@ -319,8 +319,7 @@ int SplitMutator::setAttrKnownOffset(
     auto strong_ref = Ref<>::create(dict);
     return PyDict_SetItem(dict, name, value);
   }
-  Cix_dict_insert_split_value(
-      _PyInterpreterState_GET(), dict, name, value, val_offset);
+  _PyDict_InsertSplitValue(dict, name, value, val_offset);
   return 0;
 }
 

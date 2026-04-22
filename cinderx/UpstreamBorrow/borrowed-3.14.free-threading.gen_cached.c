@@ -2771,8 +2771,7 @@ _PyCode_GetTLBC(PyCodeObject *co)
     return result;
 }
 
-void Cix_dict_insert_split_value(
-    PyInterpreterState *interp,
+void _PyDict_InsertSplitValue(
     PyDictObject *mp,
     PyObject *key,
     PyObject *value,
@@ -2782,7 +2781,7 @@ void Cix_dict_insert_split_value(
 #elif defined(__GNUC__)
   [[gnu::always_inline]]
 #endif
-  insert_split_value(interp, mp, key, value, ix);
+  insert_split_value(_PyInterpreterState_GET(), mp, key, value, ix);
 }
 
 #define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
