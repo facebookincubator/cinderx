@@ -461,16 +461,10 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
   }
 
   // Guard that both sides are compact longs.
-  //
-  // TODO: Remove the CBool -> CUInt8 conversion.
   Register* is_left_compact = env.emit<IsCompactLong>(left);
   Register* is_right_compact = env.emit<IsCompactLong>(right);
-  Register* is_left_compact_u8 =
-      env.emit<PrimitiveConvert>(is_left_compact, TCUInt8);
-  Register* is_right_compact_u8 =
-      env.emit<PrimitiveConvert>(is_right_compact, TCUInt8);
   Register* both_compact = env.emit<IntBinaryOp>(
-      BinaryOpKind::kAnd, is_left_compact_u8, is_right_compact_u8);
+      BinaryOpKind::kAnd, is_left_compact, is_right_compact);
   env.emitInstr<Guard>(both_compact);
 
   Register* compact_left = env.emit<CompactLongUnbox>(left);
@@ -1150,6 +1144,36 @@ Register* simplifyUnaryOp(Env& env, const UnaryOp* instr) {
     Register* negated =
         env.emit<PrimitiveUnaryOp>(PrimitiveUnaryOpKind::kNotInt, unboxed);
     return env.emit<PrimitiveBoxBool>(negated);
+  }
+
+  return nullptr;
+}
+
+Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
+  Register* lhs = instr->left();
+  Register* rhs = instr->right();
+  BinaryOpKind op = instr->op();
+
+  // CBool & Const.
+  if (op == BinaryOpKind::kAnd && lhs->isA(TCBool) && rhs->isA(TCBool)) {
+    if (lhs->type().hasIntSpec()) {
+      std::swap(lhs, rhs);
+    }
+    if (rhs->type().hasIntSpec()) {
+      env.emit<UseType>(rhs, rhs->type());
+      return rhs->type().intSpec() ? lhs : rhs;
+    }
+  }
+
+  // CBool | Const.
+  if (op == BinaryOpKind::kOr && lhs->isA(TCBool) && rhs->isA(TCBool)) {
+    if (lhs->type().hasIntSpec()) {
+      std::swap(lhs, rhs);
+    }
+    if (rhs->type().hasIntSpec()) {
+      env.emit<UseType>(rhs, rhs->type());
+      return rhs->type().intSpec() ? rhs : lhs;
+    }
   }
 
   return nullptr;
@@ -2142,6 +2166,8 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
           env, static_cast<const FloatBinaryOp*>(instr));
     case Opcode::kUnaryOp:
       return simplifyUnaryOp(env, static_cast<const UnaryOp*>(instr));
+    case Opcode::kIntBinaryOp:
+      return simplifyIntBinaryOp(env, static_cast<const IntBinaryOp*>(instr));
 
     case Opcode::kPrimitiveCompare:
       return simplifyPrimitiveCompare(

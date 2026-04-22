@@ -57,6 +57,8 @@ bool registerTypeMatches(Type op_type, OperandType expected_type) {
       return op_type <= TOptObject || op_type <= TCInt;
     case Constraint::kMatchAllAsCInt:
       return isSingleCInt(op_type);
+    case Constraint::kMatchAllAsCIntOrCBool:
+      return isSingleCInt(op_type) || op_type <= TCBool;
     case Constraint::kMatchAllAsPrimitive:
       return isSingleCInt(op_type) || op_type <= TCBool ||
           op_type <= TCDouble || op_type <= TCPtr;
@@ -67,6 +69,7 @@ bool registerTypeMatches(Type op_type, OperandType expected_type) {
 bool operandsMustMatch(OperandType op_type) {
   switch (op_type.kind) {
     case Constraint::kMatchAllAsCInt:
+    case Constraint::kMatchAllAsCIntOrCBool:
     case Constraint::kMatchAllAsPrimitive:
       return true;
 

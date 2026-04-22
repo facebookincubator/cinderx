@@ -80,6 +80,7 @@ class Edge {
 enum class Constraint {
   kType,
   kMatchAllAsCInt,
+  kMatchAllAsCIntOrCBool,
   kMatchAllAsPrimitive,
   kTupleExactOrCPtr,
   kListOrChkList,
@@ -1466,7 +1467,7 @@ class INSTR_CLASS(TpAlloc, (), HasOutput, Operands<0>, DeoptBase) {
 // Perform a binary operation (e.g. '+', '-') on primitive int operands
 class INSTR_CLASS(
     IntBinaryOp,
-    (Constraint::kMatchAllAsCInt, Constraint::kMatchAllAsCInt),
+    (Constraint::kMatchAllAsCIntOrCBool, Constraint::kMatchAllAsCIntOrCBool),
     HasOutput,
     Operands<2>) {
  public:

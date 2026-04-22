@@ -1982,6 +1982,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             JIT_ABORT("not implemented");
         }
 
+        // Verify CBools.
+        if (instr->left()->isA(TCBool) && instr->right()->isA(TCBool)) {
+          switch (instr->op()) {
+            case BinaryOpKind::kAnd:
+            case BinaryOpKind::kOr:
+            case BinaryOpKind::kXor:
+              break;
+            default:
+              JIT_ABORT(
+                  "Unrecognized binary op {} for bool IntBinaryOp",
+                  GetBinaryOpName(instr->op()));
+          }
+        }
+
         if (helper != 0) {
           Instruction* left = bbb.getDefInstr(instr->left());
           Instruction* right = bbb.getDefInstr(instr->right());

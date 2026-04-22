@@ -1317,6 +1317,8 @@ std::ostream& operator<<(std::ostream& os, OperandType op) {
       return os << "(Dict, chkdict)";
     case Constraint::kMatchAllAsCInt:
       return os << "CInt";
+    case Constraint::kMatchAllAsCIntOrCBool:
+      return os << "(CInt, CBool)";
     case Constraint::kMatchAllAsPrimitive:
       return os << "Primitive";
   }
