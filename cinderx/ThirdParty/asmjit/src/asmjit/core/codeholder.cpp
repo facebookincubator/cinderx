@@ -992,6 +992,37 @@ size_t CodeHolder::codeSize() const noexcept {
   return size_t(offset);
 }
 
+// Tries to encode a PC-relative address load into the 8-byte slot at
+// `buffer + offset` using `adr Rd, target` (±1MB) or `adrp Rd, page;
+// add Rd, Rd, #off` (±4GB). Returns true on success, false if the
+// displacement is too large for either encoding.
+static bool tryEncodeAdrOrAdrpAdd(uint8_t* buffer, size_t offset, uint64_t targetAddress, uint64_t pc, uint32_t rd) noexcept {
+  int64_t displacement = int64_t(targetAddress - pc);
+
+  if (Support::isEncodableOffset64(displacement, 21)) {
+    uint32_t immLo = uint32_t(displacement) & 3u;
+    uint32_t immHi = (uint32_t(displacement) >> 2) & 0x7FFFFu;
+    uint32_t adrOpcode = 0x10000000u | (immLo << 29) | (immHi << 5) | rd;
+    Support::writeU32uLE(buffer + offset, adrOpcode);
+    Support::writeU32uLE(buffer + offset + 4, 0xD503201Fu); // NOP
+    return true;
+  }
+
+  int64_t pageDelta = (int64_t(targetAddress) >> 12) - (int64_t(pc) >> 12);
+  if (Support::isEncodableOffset64(pageDelta, 21)) {
+    uint32_t pageOffset = uint32_t(targetAddress) & 0xFFFu;
+    uint32_t immLo = uint32_t(pageDelta) & 3u;
+    uint32_t immHi = (uint32_t(pageDelta) >> 2) & 0x7FFFFu;
+    uint32_t adrpOpcode = 0x90000000u | (immLo << 29) | (immHi << 5) | rd;
+    uint32_t addOpcode = 0x91000000u | (pageOffset << 10) | (rd << 5) | rd;
+    Support::writeU32uLE(buffer + offset, adrpOpcode);
+    Support::writeU32uLE(buffer + offset + 4, addOpcode);
+    return true;
+  }
+
+  return false;
+}
+
 Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
   // Base address must be provided.
   if (ASMJIT_UNLIKELY(baseAddress == Globals::kNoBaseAddress))
@@ -1181,41 +1212,52 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
 
       case RelocType::kA64AdrEntry: {
         // AArch64: The source contains 8 bytes (adr Rd, #0 + NOP as placeholder).
-        // We try to use `adr Rd, target` first. If the displacement doesn't fit
-        // in the 21-bit signed offset (±1MB), we use `adrp Rd, page; add Rd, Rd, #off`.
+        // Relaxes to `adr` (±1MB) or `adrp+add` (±4GB).
         if (ASMJIT_UNLIKELY(!targetSection))
           return DebugUtils::errored(kErrorInvalidRelocEntry);
 
         uint64_t targetAddress = baseAddress + targetSection->offset() + re->payload();
         uint64_t pc = baseAddress + sectionOffset + sourceOffset;
-        int64_t displacement = int64_t(targetAddress - pc);
+        uint32_t rd = Support::readU32uLE(buffer + sourceOffset) & 0x1Fu;
 
-        // Read the Rd register from the placeholder adr instruction (bits [4:0]).
-        uint32_t origAdr = Support::readU32uLE(buffer + sourceOffset);
-        uint32_t rd = origAdr & 0x1Fu;
+        if (!tryEncodeAdrOrAdrpAdd(buffer, sourceOffset, targetAddress, pc, rd))
+          return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
 
-        if (Support::isEncodableOffset64(displacement, 21)) {
-          // Fits in adr: emit `adr Rd, target; nop`.
-          uint32_t immLo = uint32_t(displacement) & 3u;
-          uint32_t immHi = (uint32_t(displacement) >> 2) & 0x7FFFFu;
-          uint32_t adrOpcode = 0x10000000u | (immLo << 29) | (immHi << 5) | rd;
-          Support::writeU32uLE(buffer + sourceOffset, adrOpcode);
-          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
-        } else {
-          // Doesn't fit: emit `adrp Rd, target_page; add Rd, Rd, #page_offset`.
-          int64_t pageDelta = (int64_t(targetAddress) >> 12) - (int64_t(pc) >> 12);
-          uint32_t pageOffset = uint32_t(targetAddress) & 0xFFFu;
+        continue;
+      }
 
-          if (!Support::isEncodableOffset64(pageDelta, 21))
+      case RelocType::kA64AdrAbsEntry: {
+        // AArch64: absolute address payload. Relaxes to `adr` (±1MB),
+        // `adrp+add` (±4GB), or `ldr Rd, [pc+off]` from the address table.
+        uint64_t targetAddress = re->payload();
+        uint64_t pc = baseAddress + sectionOffset + sourceOffset;
+        uint32_t rd = Support::readU32uLE(buffer + sourceOffset) & 0x1Fu;
+
+        if (!tryEncodeAdrOrAdrpAdd(buffer, sourceOffset, targetAddress, pc, rd)) {
+          // Fall back to ldr from the address table.
+          AddressTableEntry* atEntry = _addressTableEntries.get(targetAddress);
+          if (ASMJIT_UNLIKELY(!atEntry))
+            return DebugUtils::errored(kErrorInvalidRelocEntry);
+
+          ASMJIT_ASSERT(addressTableSection != nullptr);
+
+          if (!atEntry->hasAssignedSlot())
+            atEntry->_slot = addressTableEntryCount++;
+
+          size_t atEntryIndex = size_t(atEntry->slot()) * addressSize;
+          uint64_t addrTableOffset = addressTableSection->offset() + uint64_t(atEntryIndex);
+
+          int64_t ldrDisplacement = int64_t(addrTableOffset - (sectionOffset + sourceOffset));
+          int64_t ldrImm19 = ldrDisplacement >> 2;
+
+          if ((ldrDisplacement & 3) != 0 || !Support::isEncodableOffset64(ldrImm19, 19))
             return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
 
-          uint32_t immLo = uint32_t(pageDelta) & 3u;
-          uint32_t immHi = (uint32_t(pageDelta) >> 2) & 0x7FFFFu;
-          uint32_t adrpOpcode = 0x90000000u | (immLo << 29) | (immHi << 5) | rd;
-          uint32_t addOpcode = 0x91000000u | (pageOffset << 10) | (rd << 5) | rd;
+          uint32_t ldrOpcode = 0x58000000u | ((uint32_t(ldrImm19) & 0x7FFFFu) << 5) | rd;
+          Support::writeU32uLE(buffer + sourceOffset, ldrOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
 
-          Support::writeU32uLE(buffer + sourceOffset, adrpOpcode);
-          Support::writeU32uLE(buffer + sourceOffset + 4, addOpcode);
+          Support::writeU64uLE(addressTableEntryData + atEntryIndex, targetAddress);
         }
 
         continue;

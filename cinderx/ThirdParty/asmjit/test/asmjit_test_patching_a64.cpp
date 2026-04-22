@@ -19,6 +19,14 @@ static void setupCode(CodeHolder& code, a64::Assembler& as) {
   code.attach(&as);
 }
 
+// Helper: Create a CodeHolder + Assembler with no base address (kNoBaseAddress),
+// so relocations are deferred to relocateToBase().
+static void setupCodeNoBase(CodeHolder& code, a64::Assembler& as) {
+  Environment env(Arch::kAArch64);
+  code.init(env);
+  code.attach(&as);
+}
+
 // Helper: Get a hex string of the emitted code buffer.
 static void getHex(const CodeHolder& code, String& out) {
   const Section* text = code.textSection();
@@ -493,4 +501,299 @@ UNIT(a64_b_patching_absolute_addr) {
   // Verify a RelocEntry was created
   EXPECT_GT(code.relocEntries().size(), 0u)
     .message("Expected at least one reloc entry for far b");
+}
+
+// ============================================================================
+// [load_addr Patching Tests]
+// ============================================================================
+
+// Helper: Read a little-endian uint32 from a buffer.
+static uint32_t readU32LE(const uint8_t* p) {
+  return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
+}
+
+// Test that load_addr emits a placeholder (adr Rd, #0 + NOP) and a RelocEntry.
+UNIT(a64_load_addr_placeholder) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  as.load_addr(a64::x1, uint64_t(0xDEADBEEF));
+
+  String hex;
+  getHex(code, hex);
+
+  // adr x1, #0 = 0x10000001 -> LE: 01000010
+  // NOP = 0xD503201F -> LE: 1F2003D5
+  EXPECT_EQ(hex, "010000101F2003D5")
+    .message("Expected adr x1, #0 + NOP placeholder, got: %s", hex.data());
+
+  EXPECT_GT(code.relocEntries().size(), 0u)
+    .message("Expected a reloc entry for load_addr");
+}
+
+// Test that load_addr relaxes to `adr Rd, target; nop` when displacement fits
+// in ±1MB (21-bit signed offset).
+UNIT(a64_load_addr_reloc_adr) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Target address 0x64 (100 bytes from base 0).
+  as.load_addr(a64::x2, uint64_t(0x64));
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // displacement = 0x64, immLo = 0x64 & 3 = 0, immHi = (0x64 >> 2) = 0x19
+  // adr x2: 0x10000000 | (0 << 29) | (0x19 << 5) | 2 = 0x10000322
+  EXPECT_EQ(instr0, 0x10000322u)
+    .message("Expected adr x2, #0x64, got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0xD503201Fu)
+    .message("Expected NOP, got: 0x%08X", instr1);
+}
+
+// Test that load_addr relaxes to `adrp Rd, page; add Rd, Rd, #off` when
+// displacement exceeds ±1MB but fits in ±4GB page range.
+UNIT(a64_load_addr_reloc_adrp_add) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Target 2MB away: beyond ±1MB adr range, within ±4GB adrp range.
+  // Use 0x200ABC to also test non-zero page offset.
+  uint64_t target = 0x200ABC;
+  as.load_addr(a64::x3, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // pageDelta = (0x200ABC >> 12) - (0 >> 12) = 0x200
+  // pageOffset = 0x200ABC & 0xFFF = 0xABC
+  // immLo = 0x200 & 3 = 0, immHi = (0x200 >> 2) = 0x80
+  // adrp x3: 0x90000000 | (0 << 29) | (0x80 << 5) | 3 = 0x90001003
+  // add x3, x3, #0xABC: 0x91000000 | (0xABC << 10) | (3 << 5) | 3 = 0x912AF063
+  EXPECT_EQ(instr0, 0x90001003u)
+    .message("Expected adrp x3, got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0x912AF063u)
+    .message("Expected add x3, x3, #0xABC, got: 0x%08X", instr1);
+}
+
+// Test that load_addr falls back to `ldr Rd, [pc+off]` from the address table
+// when target is beyond ±4GB.
+UNIT(a64_load_addr_reloc_ldr) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Target 256GB away: beyond ±4GB adrp range.
+  uint64_t target = 0x4000000000ULL;
+  as.load_addr(a64::x4, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // Should be ldr x4, [pc+off]: opcode 0x58000000 | (imm19 << 5) | 4
+  // The address table is right after the text section. Text = 8 bytes,
+  // so address table is at offset 8. ldr displacement = 8 - 0 = 8.
+  // imm19 = 8 / 4 = 2
+  // ldr x4, [pc+8]: 0x58000000 | (2 << 5) | 4 = 0x58000044
+  EXPECT_EQ(instr0, 0x58000044u)
+    .message("Expected ldr x4, [pc+off], got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0xD503201Fu)
+    .message("Expected NOP, got: 0x%08X", instr1);
+}
+
+// Test load_addr with negative displacement (target address < PC).
+UNIT(a64_load_addr_reloc_adr_negative) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Target = 0x1000, base = 0x1080. PC = base + 0 = 0x1080.
+  // displacement = 0x1000 - 0x1080 = -0x80 = -128.
+  as.load_addr(a64::x5, uint64_t(0x1000));
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0x1080), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // displacement = -128 = 0xFFFFFF80 (as uint32)
+  // immLo = 0xFFFFFF80 & 3 = 0, immHi = (0xFFFFFF80 >> 2) & 0x7FFFF = 0x7FFE0
+  // adr x5: 0x10000000 | (0 << 29) | (0x7FFE0 << 5) | 5 = 0x10FFFC05
+  EXPECT_EQ(instr0, 0x10FFFC05u)
+    .message("Expected adr x5, #-128, got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0xD503201Fu)
+    .message("Expected NOP, got: 0x%08X", instr1);
+}
+
+// Test load_addr with a non-zero base address that still fits in adr range.
+UNIT(a64_load_addr_reloc_nonzero_base) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Place code at a realistic JIT address, target nearby.
+  uint64_t base = 0x7F0000000000ULL;
+  uint64_t target = base + 0x100;
+  as.load_addr(a64::x0, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(base), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // displacement = 0x100, immLo = 0, immHi = 0x40
+  // adr x0: 0x10000000 | (0 << 29) | (0x40 << 5) | 0 = 0x10000800
+  EXPECT_EQ(instr0, 0x10000800u)
+    .message("Expected adr x0, #0x100, got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0xD503201Fu)
+    .message("Expected NOP, got: 0x%08X", instr1);
+}
+
+// Test that adr to a forward label resolves correctly through relocateToBase.
+UNIT(a64_adr_label_reloc) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  Label target = as.newLabel();
+  as.adr(a64::x1, target);
+  emitNops(as, 4);
+  as.bind(target);
+  as.nop();
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0x10000), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // target is at offset 24 (8 bytes for adr+nop + 4*4 NOPs).
+  // displacement = 24, immLo = 24 & 3 = 0, immHi = (24 >> 2) = 6
+  // adr x1: 0x10000000 | (0 << 29) | (6 << 5) | 1 = 0x100000C1
+  EXPECT_EQ(instr0, 0x100000C1u)
+    .message("Expected adr x1, #24, got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0xD503201Fu)
+    .message("Expected NOP, got: 0x%08X", instr1);
+}
+
+// Test load_addr at adr boundary: displacement of exactly +1MB-4 (max positive
+// for 21-bit signed) should still use adr.
+UNIT(a64_load_addr_reloc_adr_max_positive) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Max positive 21-bit signed value: 2^20 - 1 = 0xFFFFF (1048575).
+  // But must be within the signed range: max positive = (1 << 20) - 1 = 0xFFFFF.
+  uint64_t target = 0xFFFFF;
+  as.load_addr(a64::x6, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+
+  // displacement = 0xFFFFF, immLo = 0xFFFFF & 3 = 3, immHi = (0xFFFFF >> 2) & 0x7FFFF = 0x3FFFF
+  // adr x6: 0x10000000 | (3 << 29) | (0x3FFFF << 5) | 6 = 0x707FFFE6
+  EXPECT_EQ(instr0, 0x707FFFE6u)
+    .message("Expected adr x6, #0xFFFFF, got: 0x%08X", instr0);
+}
+
+// Test load_addr at adr boundary: displacement of exactly -1MB should still
+// use adr (min negative for 21-bit signed = -2^20 = -1048576 = -0x100000).
+UNIT(a64_load_addr_reloc_adr_max_negative) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Place code at 0x200000, target at 0x100000 => displacement = -0x100000.
+  uint64_t target = 0x100000;
+  as.load_addr(a64::x7, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0x200000), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+
+  // displacement = -0x100000, immLo = 0, immHi = 0x40000
+  // adr x7: 0x10000000 | (0x40000 << 5) | 7 = 0x10800007
+  EXPECT_EQ(instr0, 0x10800007u)
+    .message("Expected adr x7 with displacement -0x100000, got: 0x%08X", instr0);
+}
+
+// Test load_addr just past adr range should use adrp+add.
+UNIT(a64_load_addr_reloc_adr_to_adrp_boundary) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // displacement = 0x100000 (1MB exactly) exceeds signed 21-bit max (0xFFFFF).
+  uint64_t target = 0x100000;
+  as.load_addr(a64::x8, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t instr0 = readU32LE(buf);
+
+  uint32_t instr1 = readU32LE(buf + 4);
+
+  // Should be adrp+add, not adr, since 0x100000 = 2^20 exceeds 21-bit signed max.
+  // pageDelta = (0x100000 >> 12) - 0 = 0x100, pageOffset = 0
+  // adrp x8: 0x90000000 | (0x40 << 5) | 8 = 0x90000808
+  // add x8, x8, #0: 0x91000000 | (0 << 10) | (8 << 5) | 8 = 0x91000108
+  EXPECT_EQ(instr0, 0x90000808u)
+    .message("Expected adrp x8 (just past adr range), got: 0x%08X", instr0);
+  EXPECT_EQ(instr1, 0x91000108u)
+    .message("Expected add x8, x8, #0, got: 0x%08X", instr1);
 }

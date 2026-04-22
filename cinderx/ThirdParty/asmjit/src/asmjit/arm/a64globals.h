@@ -800,6 +800,10 @@ struct Inst {
 
 namespace Predicate {
 
+//! Predicate for `load_addr` pseudo-instruction: signals that the Imm operand
+//! of an `adr` instruction is an absolute address, not a PC-relative offset.
+static constexpr uint32_t kAbsoluteAddress = 1;
+
 //! Address translate options (AT).
 namespace AT {
   static ASMJIT_INLINE_NODEBUG constexpr uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {

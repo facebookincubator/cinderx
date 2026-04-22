@@ -981,28 +981,16 @@ BB %8 - preds: %0 - succs: %10 %9
 
 BB %9 - preds: %8 - succs: %10 %11
 )"
-#if defined(CINDER_AARCH64)
-      R"(       %26:64bit = Move {2}({2:#x}):64bit
-      %18:Object = Call %26:64bit, %15:Object, %2:Object
-)"
-#else
       R"(      %18:Object = Call {2}({2:#x}):Object, %15:Object, %2:Object
 )"
-#endif
       R"(                   CondBranch %18:Object
 
 BB %11 - preds: %9 - succs: %12
       %22:Object = Move [%15:Object + 0x18]:Object
       %23:Object = Move [%2:Object + 0x18]:Object
 )"
-#if defined(CINDER_AARCH64)
-      R"(       %27:64bit = Move {3}({3:#x}):64bit
-                   Call %27:64bit, {4}({4:#x}):Object, string_literal, %21:Object, %20:Object
-)"
-#else
       R"(                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
 )"
-#endif
       R"(      %25:Object = Move 0(0x0):Object
 
 BB %10 - preds: %8 %9 - succs: %12

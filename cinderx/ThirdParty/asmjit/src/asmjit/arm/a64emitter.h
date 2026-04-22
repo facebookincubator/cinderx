@@ -112,6 +112,20 @@ struct EmitterExplicitT {
 
   ASMJIT_INST_2x(adr, Adr, Gp, Imm)
   ASMJIT_INST_2x(adr, Adr, Gp, Label)
+
+  //! Load an absolute address into a register using the best available
+  //! PC-relative encoding (adr, adrp+add, or ldr from address table).
+  template<typename T, typename = typename std::enable_if<
+    std::is_pointer<typename std::decay<T>::type>::value ||
+    std::is_function<typename std::decay<T>::type>::value>::type>
+  inline Error load_addr(const Gp& o0, const T& addr) {
+    return _emitter()->_emitI(Inst::kIdAdr, o0, Imm(addr, Predicate::kAbsoluteAddress));
+  }
+
+  //! \overload
+  inline Error load_addr(const Gp& o0, uint64_t addr) {
+    return _emitter()->_emitI(Inst::kIdAdr, o0, Imm(addr, Predicate::kAbsoluteAddress));
+  }
   ASMJIT_INST_2x(adrp, Adrp, Gp, Imm)
   ASMJIT_INST_2x(adrp, Adrp, Gp, Label)
 

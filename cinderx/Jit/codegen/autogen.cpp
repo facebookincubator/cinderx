@@ -1487,6 +1487,13 @@ void translateMove(Environ* env, const Instruction* instr) {
             as->mov(
                 AT::getGpWiden(output),
                 AT::getGpWiden(output->dataType(), a64::xzr.id()));
+          } else if (input->dataType() == OperandBase::kObject) {
+            // Pointer constant: use load_addr which relaxes to adr, adrp+add,
+            // or ldr from address table depending on displacement.
+            // load_addr emits adr which requires a 64-bit x register.
+            as->load_addr(
+                a64::x(output->getPhyRegister().loc),
+                static_cast<uint64_t>(constant));
           } else {
             as->mov(AT::getGpWiden(output), constant);
           }
@@ -1513,7 +1520,7 @@ void translateMove(Environ* env, const Instruction* instr) {
       break;
     }
     case lir::OperandType::kMem:
-      as->mov(scratch0, reinterpret_cast<uint64_t>(output->getMemoryAddress()));
+      as->load_addr(scratch0, output->getMemoryAddress());
 
       if (input->isReg()) {
         // Storing the value of a register to an absolute address.

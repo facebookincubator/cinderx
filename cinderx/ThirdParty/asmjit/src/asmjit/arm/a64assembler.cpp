@@ -1286,6 +1286,31 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           goto EmitDone;
         }
 
+        // load_addr pseudo-instruction: absolute address, relaxed at relocation
+        // time to adr, adrp+add, or ldr from address table.
+        if (isign4 == ENC_OPS2(Reg, Imm) && o1.as<Imm>().predicate() == Predicate::kAbsoluteAddress) {
+          uint64_t targetAddress = o1.as<Imm>().valueAs<uint64_t>();
+
+          err = _code->addAddressToAddressTable(targetAddress);
+          if (err)
+            goto Failed;
+
+          RelocEntry* re;
+          err = _code->newRelocEntry(&re, RelocType::kA64AdrAbsEntry);
+          if (err)
+            goto Failed;
+
+          size_t codeOffset = writer.offsetFrom(_bufferData);
+          re->_sourceSectionId = _section->id();
+          re->_sourceOffset = codeOffset;
+          re->_payload = targetAddress;
+
+          // Emit adr Rd, #0 (encodes Rd in bits [4:0]) + NOP placeholder.
+          writer.emit32uLE(opcode.get());
+          writer.emit32uLE(0xD503201Fu); // NOP
+          goto EmitDone;
+        }
+
         offsetFormat.resetToImmValue(opData.offsetType, 4, 5, 21, 0);
 
         if (instId == Inst::kIdAdrp)
