@@ -13,6 +13,9 @@ import sys
 import time
 import types
 
+import cinderx.jit
+
+
 EXCLUDED = {
     "asyncio_tcp",
     "asyncio_tcp_ssl",
@@ -816,6 +819,9 @@ def record_stats(func):
 
 
 def main(args):
+    if args.cinderx:
+        print("Enabling the CinderX JIT")
+        cinderx.jit.auto()
     print(f"Python {sys.version}")
     benchmarks = args.benchmarks
     if not benchmarks:
@@ -905,6 +911,7 @@ def main(args):
 
 def cli(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument("--cinderx", action="store_true", help="Enable the cinderx JIT")
     parser.add_argument(
         "--scale",
         type=int,
