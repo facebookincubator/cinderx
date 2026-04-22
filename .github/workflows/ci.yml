@@ -7,6 +7,8 @@ jobs:
     name: Run Tests
     runs-on: ${{ matrix.os }}
     strategy:
+      # Don't let test failures on one platform block other platforms.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
         # Test against multiple patch versions as CinderX references internal
@@ -52,6 +54,8 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      # Don't let build failures on one platform block other platforms.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm]
 
