@@ -38,13 +38,6 @@
 
 #include <fmt/format.h>
 
-#ifdef min
-#undef min
-#endif
-#ifdef max
-#undef max
-#endif
-
 #include <algorithm>
 #include <cstdint>
 #include <iostream>

@@ -7,6 +7,12 @@
 
 #pragma once
 
+// Avoid conflicts with `min` and `max` on Windows platforms.
+#ifdef WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030E0000
