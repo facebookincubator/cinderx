@@ -722,6 +722,12 @@ FlagProcessor initFlagProcessor() {
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.addOption(
+      "jit-compact-long-guards",
+      "PYTHONJITCOMPACTLONGGUARDS",
+      getMutableConfig().compact_long_guards,
+      "Guard on long objects being in compact form for arithmetic operations.");
+
+  flag_processor.addOption(
       "jit-support-instrumentation",
       "PYTHONJITSUPPORTINSTRUMENTATION",
       getMutableConfig().support_instrumentation,

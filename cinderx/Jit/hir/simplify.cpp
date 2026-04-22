@@ -444,6 +444,41 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
   return nullptr;
 }
 
+Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
+  Register* left = instr->GetOperand(0);
+  Register* right = instr->GetOperand(1);
+  CompareOp op = instr->op();
+
+  // TODO: Constant folding.
+
+  if (!getConfig().compact_long_guards) {
+    return nullptr;
+  }
+
+  auto prim_op = toPrimitiveCompareOp(op);
+  if (!prim_op.has_value()) {
+    return nullptr;
+  }
+
+  // Guard that both sides are compact longs.
+  //
+  // TODO: Remove the CBool -> CUInt8 conversion.
+  Register* is_left_compact = env.emit<IsCompactLong>(left);
+  Register* is_right_compact = env.emit<IsCompactLong>(right);
+  Register* is_left_compact_u8 = env.emit<IntConvert>(is_left_compact, TCUInt8);
+  Register* is_right_compact_u8 =
+      env.emit<IntConvert>(is_right_compact, TCUInt8);
+  Register* both_compact = env.emit<IntBinaryOp>(
+      BinaryOpKind::kAnd, is_left_compact_u8, is_right_compact_u8);
+  env.emitInstr<Guard>(both_compact);
+
+  Register* compact_left = env.emit<CompactLongUnbox>(left);
+  Register* compact_right = env.emit<CompactLongUnbox>(right);
+  Register* unboxed_result =
+      env.emit<PrimitiveCompare>(*prim_op, compact_left, compact_right);
+  return env.emit<PrimitiveBoxBool>(unboxed_result);
+}
+
 Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
   Register* cond = instr->GetOperand(0);
   Type cond_type = cond->type();
@@ -2047,6 +2082,8 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kCompare:
       return simplifyCompare(env, static_cast<const Compare*>(instr));
+    case Opcode::kLongCompare:
+      return simplifyLongCompare(env, static_cast<const LongCompare*>(instr));
 
     case Opcode::kCondBranch:
       return simplifyCondBranch(env, static_cast<const CondBranch*>(instr));
