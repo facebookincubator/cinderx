@@ -27,15 +27,39 @@ inline Type Type::fromCDouble(double_t d) {
 
 inline bool Type::CIntFitsType(int64_t i, Type t) {
   return t == TCInt64 || (t == TCInt32 && i >= INT32_MIN && i <= INT32_MAX) ||
-      (t == TCInt16 && i >= INT64_MIN && i <= INT16_MAX) ||
+      (t == TCInt16 && i >= INT16_MIN && i <= INT16_MAX) ||
       (i >= INT8_MIN && i <= INT8_MAX);
 }
 
 inline Type Type::fromCInt(int64_t i, Type t) {
   JIT_DCHECK(
       t == TCInt64 || t == TCInt32 || t == TCInt16 || t == TCInt8,
-      "expected signed value");
+      "Expected signed type, got {}",
+      t);
   JIT_DCHECK(CIntFitsType(i, t), "int value out of range");
+  return Type{t.bits_, kLifetimeBottom, kSpecInt, i};
+}
+
+inline Type Type::truncatedCInt(int64_t i, Type t) {
+  JIT_DCHECK(
+      t == TCInt64 || t == TCInt32 || t == TCInt16 || t == TCInt8,
+      "Expected signed type, got {}",
+      t);
+  switch (t.sizeInBytes()) {
+    case 1:
+      i = static_cast<int8_t>(i);
+      break;
+    case 2:
+      i = static_cast<int16_t>(i);
+      break;
+    case 4:
+      i = static_cast<int32_t>(i);
+      break;
+    case 8:
+      break;
+    default:
+      JIT_ABORT("Bad byte size in truncatedCInt: {}", t.sizeInBytes());
+  }
   return Type{t.bits_, kLifetimeBottom, kSpecInt, i};
 }
 
@@ -54,6 +78,28 @@ inline Type Type::fromCUInt(uint64_t i, Type t) {
       t == TCUInt64 || t == TCUInt32 || t == TCUInt16 || t == TCUInt8,
       "expected unsigned value");
   JIT_DCHECK(Type::CUIntFitsType(i, t), "int value out of range");
+  return Type{t.bits_, kLifetimeBottom, kSpecInt, (intptr_t)i};
+}
+
+inline Type Type::truncatedCUInt(uint64_t i, Type t) {
+  JIT_DCHECK(
+      t == TCUInt64 || t == TCUInt32 || t == TCUInt16 || t == TCUInt8,
+      "expected unsigned value");
+  switch (t.sizeInBytes()) {
+    case 1:
+      i = static_cast<uint8_t>(i);
+      break;
+    case 2:
+      i = static_cast<uint16_t>(i);
+      break;
+    case 4:
+      i = static_cast<uint32_t>(i);
+      break;
+    case 8:
+      break;
+    default:
+      JIT_ABORT("Bad byte size in truncatedCUInt: {}", t.sizeInBytes());
+  }
   return Type{t.bits_, kLifetimeBottom, kSpecInt, (intptr_t)i};
 }
 

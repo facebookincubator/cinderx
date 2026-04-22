@@ -68,9 +68,21 @@ class Type {
   static Type fromCPtr(void* p);
 
   static bool CIntFitsType(int64_t i, Type t);
-  static Type fromCInt(int64_t i, Type t);
   static bool CUIntFitsType(uint64_t i, Type t);
+
+  // Convert a signed integer into a primitive Type.  The integer must fit
+  // inside the type's value range.
+  static Type fromCInt(int64_t i, Type t);
+
+  // Like fromCInt(), but allows truncating the value.
+  static Type truncatedCInt(int64_t i, Type t);
+
+  // Convert an unsigned integer into a primitive Type.  The integer must fit
+  // inside the type's value range.
   static Type fromCUInt(uint64_t i, Type t);
+
+  // Like fromCUInt(), but allows truncating the value.
+  static Type truncatedCUInt(uint64_t i, Type t);
 
   // Assuming this Type is a primitive type that can be boxed, return the boxed
   // equivalent (e.g., TCInt32.asBoxed() == TLong).

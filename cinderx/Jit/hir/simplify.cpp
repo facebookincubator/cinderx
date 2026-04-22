@@ -362,13 +362,32 @@ Register* simplifyGetLength(Env& env, const GetLength* instr) {
 
 Register* simplifyIntConvert(Env& env, const IntConvert* instr) {
   Register* src = instr->GetOperand(0);
+  // Source and dest types already match.
   if (src->isA(instr->type())) {
+    // Intentionally widen the source to the destination type, theoretically
+    // this could relax a guard.
     env.emit<UseType>(src, instr->type());
     return instr->GetOperand(0);
   }
+  // Constant CInt --> CDouble.
   if (instr->type() <= TCDouble && src->type().hasIntSpec()) {
+    env.emit<UseType>(src, src->type());
     return env.emit<LoadConst>(
         Type::fromCDouble(static_cast<double>(src->type().intSpec())));
+  }
+  // Constant CInt --> CInt.
+  if (src->type().hasIntSpec()) {
+    int64_t val = src->type().intSpec();
+    Type dst_type = instr->type();
+    if (dst_type <= TCSigned) {
+      env.emit<UseType>(src, src->type());
+      return env.emit<LoadConst>(Type::truncatedCInt(val, dst_type));
+    } else if (dst_type <= TCUnsigned) {
+      env.emit<UseType>(src, src->type());
+      return env.emit<LoadConst>(
+          Type::truncatedCUInt(static_cast<uint64_t>(val), dst_type));
+    }
+    return nullptr;
   }
   return nullptr;
 }
