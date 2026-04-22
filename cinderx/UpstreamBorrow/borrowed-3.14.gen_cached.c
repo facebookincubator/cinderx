@@ -7875,60 +7875,6 @@ _PyStackRef _PyFloat_FromDouble_ConsumeInputs(_PyStackRef left, _PyStackRef righ
     return PyStackRef_FromPyObjectSteal(PyFloat_FromDouble(value));
 }
 
-// Internal dependencies for gen_dealloc.
-static void
-gen_clear_frame(PyGenObject *gen)
-{
-    if (gen->gi_frame_state == FRAME_CLEARED)
-        return;
-
-    gen->gi_frame_state = FRAME_CLEARED;
-    _PyInterpreterFrame *frame = &gen->gi_iframe;
-    frame->previous = NULL;
-    _PyFrame_ClearExceptCode(frame);
-    _PyErr_ClearExcState(&gen->gi_exc_state);
-}
-// End internal dependencies.
-// Use our own memory deallocation which handles generators that might be on
-// our custom free-list.
-#define PyObject_GC_Del(x) Ci_free_jit_list_gen(x)
-static void
-gen_dealloc(PyObject *self)
-{
-    PyGenObject *gen = _PyGen_CAST(self);
-
-    _PyObject_GC_UNTRACK(gen);
-
-    FT_CLEAR_WEAKREFS(self, gen->gi_weakreflist);
-
-    _PyObject_GC_TRACK(self);
-
-    if (PyObject_CallFinalizerFromDealloc(self))
-        return;                     /* resurrected.  :( */
-
-    _PyObject_GC_UNTRACK(self);
-    if (PyAsyncGen_CheckExact(gen)) {
-        /* We have to handle this case for asynchronous generators
-           right here, because this code has to be between UNTRACK
-           and GC_Del. */
-        Py_CLEAR(((PyAsyncGenObject*)gen)->ag_origin_or_finalizer);
-    }
-    if (PyCoro_CheckExact(gen)) {
-        Py_CLEAR(((PyCoroObject *)gen)->cr_origin_or_finalizer);
-    }
-    gen_clear_frame(gen);
-    assert(gen->gi_exc_state.exc_value == NULL);
-    PyStackRef_CLEAR(gen->gi_iframe.f_executable);
-    Py_CLEAR(gen->gi_name);
-    Py_CLEAR(gen->gi_qualname);
-
-    PyObject_GC_Del(gen);
-}
-#undef PyObject_GC_Del
-void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
-    gen_dealloc(obj);
-}
-
 // _PyCoroObject_CAST includes assert(PyCoro_CheckExact(op)) which fails
 // for JIT coroutines that have a different type. Replace with a plain cast.
 #undef _PyCoroObject_CAST

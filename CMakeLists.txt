@@ -258,7 +258,7 @@ include_directories(
 ########################################
 # Common/
 
-file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp)
+file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp ${PROJECT_SOURCE_DIR}/Common/*.c)
 add_library(common ${COMMON_SOURCES})
 if (${ENABLE_ZLIB})
     target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt ZLIB::ZLIB)

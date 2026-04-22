@@ -222,18 +222,6 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 
 #define _PyErr_NoMemory(tstate) PyErr_NoMemory()
 
-// Internal dependencies for gen_dealloc.
-// @Borrow function gen_clear_frame from Objects/genobject.c [3.15]
-// End internal dependencies.
-// Use our own memory deallocation which handles generators that might be on
-// our custom free-list.
-#define PyObject_GC_Del(x) Ci_free_jit_list_gen(x)
-// @Borrow function gen_dealloc from Objects/genobject.c [3.15]
-#undef PyObject_GC_Del
-void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
-    gen_dealloc(obj);
-}
-
 // @Borrow function gen_getyieldfrom from Objects/genobject.c [3.15]
 PyObject * _PyGen_yf(PyGenObject *gen) {
   PyObject *res = gen_getyieldfrom((PyObject *)gen, NULL);

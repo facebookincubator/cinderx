@@ -35,13 +35,62 @@ namespace {
 const destructor original_gen_dealloc = PyGen_Type.tp_dealloc;
 const destructor original_coro_dealloc = PyCoro_Type.tp_dealloc;
 
+// Reimplementation of CPython's gen_dealloc that uses our custom free-list
+// (Ci_free_jit_list_gen) instead of PyObject_GC_Del for memory recycling.
+void gen_dealloc_with_custom_free(PyObject* self) {
+  JIT_DCHECK(
+      PyGen_Check(self) || PyCoro_CheckExact(self),
+      "gen_dealloc_with_custom_free called on a non-generator object");
+
+  auto* gen = reinterpret_cast<PyGenObject*>(self);
+
+  PyObject_GC_UnTrack(gen);
+
+  if (gen->gi_weakreflist != nullptr) {
+    PyObject_ClearWeakRefs(self);
+  }
+
+  // Re-track so the finalizer can run; it may resurrect the object.
+  PyObject_GC_Track(self);
+  if (PyObject_CallFinalizerFromDealloc(self)) {
+    return;
+  }
+  PyObject_GC_UnTrack(self);
+
+  JIT_DCHECK(
+      !PyAsyncGen_CheckExact(gen),
+      "Async generators aren't supported by the JIT");
+
+  if (PyCoro_CheckExact(gen)) {
+    Py_CLEAR(reinterpret_cast<PyCoroObject*>(gen)->cr_origin_or_finalizer);
+  }
+
+  _PyInterpreterFrame* frame = generatorFrame(gen);
+  if (gen->gi_frame_state < FRAME_CLEARED) {
+    gen->gi_frame_state = FRAME_CLEARED;
+    frame->previous = nullptr;
+    _PyFrame_ClearExceptCode(frame);
+    _PyErr_ClearExcState(&gen->gi_exc_state);
+  }
+
+  Ci_STACK_CLEAR(frame->FRAME_EXECUTABLE);
+
+  Py_CLEAR(gen->gi_name);
+  Py_CLEAR(gen->gi_qualname);
+
+#ifdef ENABLE_GENERATOR_AWAITER
+  Py_CLEAR(gen->gi_ci_awaiter);
+#endif
+
+  cinderx::getModuleState()->jit_gen_free_list->free(self);
+}
+
 void jitgen_dealloc(PyObject* self) {
   if (!deopt_jit_gen(self)) {
     JIT_ABORT("Tried to dealloc a running JIT generator");
   }
 
-  // CPython deallocation modified to respect our free-list.
-  Cix_gen_dealloc_with_custom_free(self);
+  gen_dealloc_with_custom_free(self);
 }
 
 int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {

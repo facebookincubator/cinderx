@@ -296,8 +296,6 @@ void Cix_format_exc_check_arg(
 
 PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
 
-void Cix_gen_dealloc_with_custom_free(PyObject* obj);
-
 #if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
 PyObject* Cix_cr_getrunning(PyObject* self, void* ignored);
 PyObject* Cix_cr_getsuspended(PyObject* self, void* ignored);

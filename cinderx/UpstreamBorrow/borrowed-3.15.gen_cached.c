@@ -225,60 +225,6 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 
 #define _PyErr_NoMemory(tstate) PyErr_NoMemory()
 
-// Internal dependencies for gen_dealloc.
-static void
-gen_clear_frame(PyGenObject *gen)
-{
-    assert(FT_ATOMIC_LOAD_INT8_RELAXED(gen->gi_frame_state) == FRAME_CLEARED);
-    _PyInterpreterFrame *frame = &gen->gi_iframe;
-    frame->previous = NULL;
-    _PyFrame_ClearExceptCode(frame);
-    _PyErr_ClearExcState(&gen->gi_exc_state);
-}
-// End internal dependencies.
-// Use our own memory deallocation which handles generators that might be on
-// our custom free-list.
-#define PyObject_GC_Del(x) Ci_free_jit_list_gen(x)
-static void
-gen_dealloc(PyObject *self)
-{
-    PyGenObject *gen = _PyGen_CAST(self);
-
-    _PyObject_GC_UNTRACK(gen);
-
-    FT_CLEAR_WEAKREFS(self, gen->gi_weakreflist);
-
-    _PyObject_GC_TRACK(self);
-
-    if (PyObject_CallFinalizerFromDealloc(self))
-        return;                     /* resurrected.  :( */
-
-    _PyObject_GC_UNTRACK(self);
-    if (PyAsyncGen_CheckExact(gen)) {
-        /* We have to handle this case for asynchronous generators
-           right here, because this code has to be between UNTRACK
-           and GC_Del. */
-        Py_CLEAR(((PyAsyncGenObject*)gen)->ag_origin_or_finalizer);
-    }
-    if (PyCoro_CheckExact(gen)) {
-        Py_CLEAR(((PyCoroObject *)gen)->cr_origin_or_finalizer);
-    }
-    if (gen->gi_frame_state != FRAME_CLEARED) {
-        gen->gi_frame_state = FRAME_CLEARED;
-        gen_clear_frame(gen);
-    }
-    assert(gen->gi_exc_state.exc_value == NULL);
-    PyStackRef_CLEAR(gen->gi_iframe.f_executable);
-    Py_CLEAR(gen->gi_name);
-    Py_CLEAR(gen->gi_qualname);
-
-    PyObject_GC_Del(gen);
-}
-#undef PyObject_GC_Del
-void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
-    gen_dealloc(obj);
-}
-
 static PyObject *
 gen_getyieldfrom(PyObject *self, void *Py_UNUSED(ignored))
 {
@@ -310,26 +256,4 @@ PyObject * _PyGen_yf(PyGenObject *gen) {
     return NULL;
   }
   return res;
-}
-
-void
-_PyTuple_MaybeUntrack(PyObject *op)
-{
-    PyTupleObject *t;
-    Py_ssize_t i, n;
-
-    if (!PyTuple_CheckExact(op) || !_PyObject_GC_IS_TRACKED(op))
-        return;
-    t = (PyTupleObject *) op;
-    n = Py_SIZE(t);
-    for (i = 0; i < n; i++) {
-        PyObject *elt = PyTuple_GET_ITEM(t, i);
-        /* Tuple with NULL elements aren't
-           fully constructed, don't untrack
-           them yet. */
-        if (!elt ||
-            _PyObject_GC_MAY_BE_TRACKED(elt))
-            return;
-    }
-    _PyObject_GC_UNTRACK(op);
 }
