@@ -115,6 +115,10 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
 
 PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
 
+// Cached getter for gi_yieldfrom, looked up from PyGen_Type.tp_getset
+// during init_upstream_borrow().
+static getter gen_yieldfrom_getter;
+
 #ifdef WIN32
 // These are global singletons used transitively by _Py_union_type_or.
 // We initialize them in init_upstream_borrow().
@@ -208,6 +212,19 @@ int init_upstream_borrow(void) {
     goto error;
   }
 
+  // Look up gen_getyieldfrom getter from PyGen_Type instead of borrowing it.
+  for (PyGetSetDef* gs = PyGen_Type.tp_getset; gs->name != NULL; gs++) {
+    if (strcmp(gs->name, "gi_yieldfrom") == 0) {
+      gen_yieldfrom_getter = gs->get;
+      break;
+    }
+  }
+  if (gen_yieldfrom_getter == NULL) {
+    PyErr_SetString(PyExc_RuntimeError,
+                    "failed to find gi_yieldfrom getter on PyGen_Type");
+    goto error;
+  }
+
   result = 0;
 
 error:
@@ -225,33 +242,10 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 
 #define _PyErr_NoMemory(tstate) PyErr_NoMemory()
 
-static PyObject *
-gen_getyieldfrom(PyObject *self, void *Py_UNUSED(ignored))
-{
-    PyGenObject *gen = _PyGen_CAST(self);
-#ifdef Py_GIL_DISABLED
-    int8_t frame_state = _Py_atomic_load_int8_relaxed(&gen->gi_frame_state);
-    do {
-        if (frame_state != FRAME_SUSPENDED_YIELD_FROM &&
-            frame_state != FRAME_SUSPENDED_YIELD_FROM_LOCKED)
-        {
-            Py_RETURN_NONE;
-        }
-    } while (!_Py_GEN_TRY_SET_FRAME_STATE(gen, frame_state, FRAME_SUSPENDED_YIELD_FROM_LOCKED));
-
-    PyObject *result = PyStackRef_AsPyObjectNew(_PyFrame_StackPeek(&gen->gi_iframe, 2));
-    _Py_atomic_store_int8_release(&gen->gi_frame_state, FRAME_SUSPENDED_YIELD_FROM);
-    return result;
-#else
-    int8_t frame_state = gen->gi_frame_state;
-    if (frame_state != FRAME_SUSPENDED_YIELD_FROM) {
-        Py_RETURN_NONE;
-    }
-    return PyStackRef_AsPyObjectNew(_PyFrame_StackPeek(&gen->gi_iframe, 2));
-#endif
-}
+// Uses the getter looked up in init_upstream_borrow() to get the yield-from
+// value, converting Py_None to NULL to match the _PyGen_yf convention.
 PyObject * _PyGen_yf(PyGenObject *gen) {
-  PyObject *res = gen_getyieldfrom((PyObject *)gen, NULL);
+  PyObject *res = gen_yieldfrom_getter((PyObject *)gen, NULL);
   if (res == Py_None) {
     return NULL;
   }
