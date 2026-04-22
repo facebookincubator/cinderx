@@ -144,6 +144,8 @@ Symbolizer::Symbolizer(const char* exe_path) {
 
   const std::byte* exe = file_.data().data();
 
+  // Try to find the symtab and strtab sections from our executable.  This can
+  // fail if the executable has been stripped.
   auto elf = reinterpret_cast<const ElfW(Ehdr)*>(exe);
   auto shdr = reinterpret_cast<const ElfW(Shdr)*>(exe + elf->e_shoff);
   auto str =
@@ -157,15 +159,8 @@ Symbolizer::Symbolizer(const char* exe_path) {
       }
     }
   }
-  if (symtab_ == nullptr) {
-    JIT_LOG("could not find symtab");
+  if (symtab_ == nullptr || strtab_ == nullptr) {
     deinit();
-    return;
-  }
-  if (strtab_ == nullptr) {
-    JIT_LOG("could not find strtab");
-    deinit();
-    return;
   }
 #endif
 }
@@ -185,27 +180,28 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
   if (cached != cache_.end()) {
     return cached->second;
   }
+
   // Then try dladdr. It might be able to find the symbol.
   Dl_info info;
   if (::dladdr(func, &info) != 0 && info.dli_sname != nullptr) {
     return cache(func, info.dli_sname);
   }
-  if (!isInitialized()) {
-    return std::nullopt;
-  }
-  // Fall back to reading our own ELF header.
-  const std::byte* exe = file_.data().data();
 
-  auto symtab = reinterpret_cast<const ElfW(Shdr)*>(symtab_);
-  auto strtab = reinterpret_cast<const ElfW(Shdr)*>(strtab_);
+  // Try reading our own ELF header.
+  if (isInitialized()) {
+    const std::byte* exe = file_.data().data();
+    auto symtab = reinterpret_cast<const ElfW(Shdr)*>(symtab_);
+    auto strtab = reinterpret_cast<const ElfW(Shdr)*>(strtab_);
 
-  auto sym = reinterpret_cast<const ElfW(Sym)*>(exe + symtab->sh_offset);
-  auto str = reinterpret_cast<const char*>(exe + strtab->sh_offset);
-  for (size_t i = 0; i < symtab->sh_size / sizeof(ElfW(Sym)); i++) {
-    if (reinterpret_cast<void*>(sym[i].st_value) == func) {
-      return cache(func, str + sym[i].st_name);
+    auto sym = reinterpret_cast<const ElfW(Sym)*>(exe + symtab->sh_offset);
+    auto str = reinterpret_cast<const char*>(exe + strtab->sh_offset);
+    for (size_t i = 0; i < symtab->sh_size / sizeof(ElfW(Sym)); i++) {
+      if (reinterpret_cast<void*>(sym[i].st_value) == func) {
+        return cache(func, str + sym[i].st_name);
+      }
     }
   }
+
   // Fall back to reading dynamic symbols.
   SymbolResult result = {func, std::nullopt};
   int found = ::dl_iterate_phdr(findSymbolIn, &result);
