@@ -1,3 +1,4 @@
+# pyre-strict
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import itertools
 import os
@@ -6,7 +7,6 @@ import sys
 import tempfile
 from unittest import TestCase
 
-import cinderx
 from cinderx.test_support import subprocess_env
 
 
