@@ -1832,8 +1832,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->descr());
         break;
       }
-      case Opcode::kIntConvert: {
-        auto instr = static_cast<const IntConvert*>(&i);
+      case Opcode::kPrimitiveConvert: {
+        auto instr = static_cast<const PrimitiveConvert*>(&i);
         if (instr->type() <= TCBool) {
           bbb.appendInstr(instr->output(), Instruction::kMove, instr->src());
         } else if (instr->type() <= TCDouble) {
@@ -1844,7 +1844,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         } else {
           JIT_CHECK(
               instr->type() <= TCSigned,
-              "Unexpected IntConvert type {}",
+              "Unexpected PrimitiveConvert type {}",
               instr->type());
           bbb.appendInstr(instr->output(), Instruction::kSext, instr->src());
         }

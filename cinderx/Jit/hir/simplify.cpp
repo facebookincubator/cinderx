@@ -360,7 +360,7 @@ Register* simplifyGetLength(Env& env, const GetLength* instr) {
   return nullptr;
 }
 
-Register* simplifyIntConvert(Env& env, const IntConvert* instr) {
+Register* simplifyPrimitiveConvert(Env& env, const PrimitiveConvert* instr) {
   Register* src = instr->GetOperand(0);
   // Source and dest types already match.
   if (src->isA(instr->type())) {
@@ -465,9 +465,10 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
   // TODO: Remove the CBool -> CUInt8 conversion.
   Register* is_left_compact = env.emit<IsCompactLong>(left);
   Register* is_right_compact = env.emit<IsCompactLong>(right);
-  Register* is_left_compact_u8 = env.emit<IntConvert>(is_left_compact, TCUInt8);
+  Register* is_left_compact_u8 =
+      env.emit<PrimitiveConvert>(is_left_compact, TCUInt8);
   Register* is_right_compact_u8 =
-      env.emit<IntConvert>(is_right_compact, TCUInt8);
+      env.emit<PrimitiveConvert>(is_right_compact, TCUInt8);
   Register* both_compact = env.emit<IntBinaryOp>(
       BinaryOpKind::kAnd, is_left_compact_u8, is_right_compact_u8);
   env.emitInstr<Guard>(both_compact);
@@ -487,12 +488,12 @@ Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
     auto spec = cond_type.intSpec();
     return env.emit<Branch>(spec ? instr->true_bb() : instr->false_bb());
   }
-  // Common pattern of CondBranch getting its condition from an IntConvert,
+  // Common pattern of CondBranch getting its condition from a PrimitiveConvert,
   // which had been simplified down from an IsTruthy.  Can forward the value
   // only if it's being widened.  Narrowing an integer might change it from
   // non-zero to zero.
-  if (cond->instr()->IsIntConvert()) {
-    auto convert = static_cast<IntConvert*>(cond->instr());
+  if (cond->instr()->IsPrimitiveConvert()) {
+    auto convert = static_cast<PrimitiveConvert*>(cond->instr());
     Register* src = convert->src();
     if (convert->type().sizeInBytes() >= src->type().sizeInBytes()) {
       return env.emit<CondBranch>(src, instr->true_bb(), instr->false_bb());
@@ -936,7 +937,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       env.emitInstr<Guard>(is_compact);
       // Unbox the compact long to CInt64 and convert to CDouble.
       Register* unbox_int = env.emit<CompactLongUnbox>(int_reg);
-      Register* int_as_double = env.emit<IntConvert>(unbox_int, TCDouble);
+      Register* int_as_double = env.emit<PrimitiveConvert>(unbox_int, TCDouble);
       // Unbox the float to CDouble.
       Register* unbox_float = env.emit<PrimitiveUnbox>(float_reg, TCDouble);
       Register* unbox_left = int_on_right ? unbox_float : int_as_double;
@@ -2094,8 +2095,9 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kGetLength:
       return simplifyGetLength(env, static_cast<const GetLength*>(instr));
 
-    case Opcode::kIntConvert:
-      return simplifyIntConvert(env, static_cast<const IntConvert*>(instr));
+    case Opcode::kPrimitiveConvert:
+      return simplifyPrimitiveConvert(
+          env, static_cast<const PrimitiveConvert*>(instr));
 
     case Opcode::kIsTruthy:
       return simplifyIsTruthy(env, static_cast<const IsTruthy*>(instr));

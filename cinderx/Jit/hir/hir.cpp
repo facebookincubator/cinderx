@@ -380,7 +380,7 @@ bool Instr::isReplayable() const {
     case Opcode::kHintType:
     case Opcode::kIndexUnbox:
     case Opcode::kIntBinaryOp:
-    case Opcode::kIntConvert:
+    case Opcode::kPrimitiveConvert:
     case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kLoadArg:
@@ -734,7 +734,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kIndexUnbox:
     case Opcode::kInitialYield:
     case Opcode::kIntBinaryOp:
-    case Opcode::kIntConvert:
+    case Opcode::kPrimitiveConvert:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsCompactLong:

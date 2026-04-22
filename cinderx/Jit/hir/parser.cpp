@@ -617,12 +617,12 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(UnicodeSubscr, dst, left, right, FrameState{});
       break;
     }
-    case Opcode::kIntConvert: {
+    case Opcode::kPrimitiveConvert: {
       expect("<");
       Type type = parseType(GetNextToken());
       expect(">");
       auto src = ParseRegister();
-      NEW_INSTR(IntConvert, dst, src, type);
+      NEW_INSTR(PrimitiveConvert, dst, src, type);
       break;
     }
     case Opcode::kPrimitiveCompare: {

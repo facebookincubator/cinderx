@@ -35,7 +35,7 @@ fun jittestmodule:test {
     Snapshot
     v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = IntConvert<CInt64> v16
+    v17:CInt64 = PrimitiveConvert<CInt64> v16
     v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
     v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
     Snapshot
@@ -73,7 +73,7 @@ fun jittestmodule:test {
     Snapshot
     v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = IntConvert<CInt64> v16
+    v17:CInt64 = PrimitiveConvert<CInt64> v16
     v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
     v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
     Snapshot
@@ -111,7 +111,7 @@ fun jittestmodule:test {
     Snapshot
     v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = IntConvert<CInt64> v16
+    v17:CInt64 = PrimitiveConvert<CInt64> v16
     v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
     v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
     Snapshot

@@ -2975,7 +2975,7 @@ void HIRBuilder::emitConvertPrimitive(
   Register* val = tc.frame.stack.pop();
   Register* out = temps_.AllocateStack();
   Type to_type = prim_type_to_type(bc_instr.oparg() >> 4);
-  tc.emit<IntConvert>(out, val, to_type);
+  tc.emit<PrimitiveConvert>(out, val, to_type);
   tc.frame.stack.push(out);
 }
 
@@ -4234,7 +4234,7 @@ void HIRBuilder::emitStoreField(
   if (type <= TPrimitive) {
     Register* converted = temps_.AllocateStack();
     tc.emit<LoadConst>(previous, TNullptr);
-    tc.emit<IntConvert>(converted, value, type);
+    tc.emit<PrimitiveConvert>(converted, value, type);
     value = converted;
   } else {
     tc.emit<LoadField>(previous, receiver, field_name, offset, type, false);

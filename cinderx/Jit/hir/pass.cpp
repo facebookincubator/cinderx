@@ -272,8 +272,8 @@ Type outputType(
       auto& call = static_cast<const CallInd&>(instr);
       return call.ret_type();
     }
-    case Opcode::kIntConvert: {
-      auto& conv = static_cast<const IntConvert&>(instr);
+    case Opcode::kPrimitiveConvert: {
+      auto& conv = static_cast<const PrimitiveConvert&>(instr);
       return conv.type();
     }
     case Opcode::kIntBinaryOp: {

@@ -45,7 +45,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kHintType:
     case Opcode::kIndexUnbox:
     case Opcode::kIntBinaryOp:
-    case Opcode::kIntConvert:
+    case Opcode::kPrimitiveConvert:
     case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kLoadEvalBreaker:
@@ -392,7 +392,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kIndexUnbox:
     case Opcode::kInitFrameCellVars:
     case Opcode::kIntBinaryOp:
-    case Opcode::kIntConvert:
+    case Opcode::kPrimitiveConvert:
     case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kListAppend:

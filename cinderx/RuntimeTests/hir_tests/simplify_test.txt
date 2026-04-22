@@ -12056,13 +12056,13 @@ fun test {
   }
 }
 --- Test Name ---
-IntConvertConstantIntToWiderInt
+PrimitiveConvertConstantIntToWiderInt
 --- Input ---
 # HIR
 fun test {
   bb 0 {
     v0 = LoadConst<CInt32[42]>
-    v1 = IntConvert<CInt64> v0
+    v1 = PrimitiveConvert<CInt64> v0
     Return<CInt64> v1
   }
 }
@@ -12094,13 +12094,13 @@ fun test {
   }
 }
 --- Test Name ---
-IntConvertConstantIntToNarrowerInt
+PrimitiveConvertConstantIntToNarrowerInt
 --- Input ---
 # HIR
 fun test {
   bb 0 {
     v0 = LoadConst<CInt64[7]>
-    v1 = IntConvert<CInt8> v0
+    v1 = PrimitiveConvert<CInt8> v0
     Return<CInt8> v1
   }
 }
@@ -12132,13 +12132,13 @@ fun test {
   }
 }
 --- Test Name ---
-IntConvertConstantIntToDouble
+PrimitiveConvertConstantIntToDouble
 --- Input ---
 # HIR
 fun test {
   bb 0 {
     v0 = LoadConst<CInt64[100]>
-    v1 = IntConvert<CDouble> v0
+    v1 = PrimitiveConvert<CDouble> v0
     Return<CDouble> v1
   }
 }
@@ -12170,13 +12170,13 @@ fun test {
   }
 }
 --- Test Name ---
-IntConvertConstantIntTruncates
+PrimitiveConvertConstantIntTruncates
 --- Input ---
 # HIR
 fun test {
   bb 0 {
     v0 = LoadConst<CInt64[256]>
-    v1 = IntConvert<CInt8> v0
+    v1 = PrimitiveConvert<CInt8> v0
     Return<CInt8> v1
   }
 }
@@ -12208,13 +12208,13 @@ fun test {
   }
 }
 --- Test Name ---
-IntConvertConstantIntTruncatesWithSignChange
+PrimitiveConvertConstantIntTruncatesWithSignChange
 --- Input ---
 # HIR
 fun test {
   bb 0 {
     v0 = LoadConst<CInt64[128]>
-    v1 = IntConvert<CInt8> v0
+    v1 = PrimitiveConvert<CInt8> v0
     Return<CInt8> v1
   }
 }

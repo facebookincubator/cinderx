@@ -496,8 +496,8 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& cmp = static_cast<const Compare&>(instr);
       return std::string{GetCompareOpName(cmp.op())};
     }
-    case Opcode::kIntConvert: {
-      const auto& conv = static_cast<const IntConvert&>(instr);
+    case Opcode::kPrimitiveConvert: {
+      const auto& conv = static_cast<const PrimitiveConvert&>(instr);
       return conv.type().toString();
     }
     case Opcode::kPrimitiveUnaryOp: {

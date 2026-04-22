@@ -81,7 +81,7 @@ namespace jit::hir {
   V(PrimitiveBoxBool)              \
   V(PrimitiveBox)                  \
   V(PrimitiveCompare)              \
-  V(IntConvert)                    \
+  V(PrimitiveConvert)              \
   V(PrimitiveUnaryOp)              \
   V(PrimitiveUnbox)                \
   V(InvokeIterNext)                \

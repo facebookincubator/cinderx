@@ -2033,9 +2033,9 @@ class INSTR_CLASS(
   CompareOp op_;
 };
 
-class INSTR_CLASS(IntConvert, (TPrimitive), HasOutput, Operands<1>) {
+class INSTR_CLASS(PrimitiveConvert, (TPrimitive), HasOutput, Operands<1>) {
  public:
-  IntConvert(Register* dst, Register* src, Type type)
+  PrimitiveConvert(Register* dst, Register* src, Type type)
       : InstrT(dst, src), type_(type) {}
 
   Register* src() const {

@@ -2477,7 +2477,7 @@ fun jittestmodule:test {
     Snapshot
     v4 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v5 = IntConvert<CInt64> v4
+    v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
     v6 = PrimitiveBox<CInt64> v0 {
       FrameState {
@@ -2513,7 +2513,7 @@ fun jittestmodule:test {
     Snapshot
     v4 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v5 = IntConvert<CInt64> v4
+    v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
     v6 = PrimitiveBox<CInt64> v0 {
       FrameState {
@@ -2549,7 +2549,7 @@ fun jittestmodule:test {
     Snapshot
     v4 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v5 = IntConvert<CInt64> v4
+    v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
     v6 = PrimitiveBox<CInt64> v0 {
       FrameState {
