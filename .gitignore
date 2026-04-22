@@ -1,4 +1,5 @@
 scratch
 cinderx.egg-info
 dist
+__pycache__/
 
