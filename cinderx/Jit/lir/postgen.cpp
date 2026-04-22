@@ -857,6 +857,12 @@ RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto block = instr->basicblock();
 
   if (input->isImm()) {
+#if defined(CINDER_AARCH64)
+    // On aarch64, leave immediate call targets as-is so translateCall can
+    // emit bl(imm) which uses asmjit's relaxation to pick the optimal
+    // encoding (direct bl or ldr+blr via address table).
+    return kUnchanged;
+#else
     auto move = block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
@@ -864,6 +870,7 @@ RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
         Imm{input->getConstant(), DataType::k64bit});
     instr->setInput(0, std::make_unique<LinkedOperand>(move));
     return kChanged;
+#endif
   }
 
   if (input->isStack()) {
