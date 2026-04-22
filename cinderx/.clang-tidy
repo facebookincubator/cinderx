@@ -2,6 +2,12 @@ InheritParentConfig: true
 
 # Explaining why some of our options are set:
 #
+# * Disabling enum value exhaustiveness checking.  This lint fires even when
+#   there's a default label set.  In CinderX we have some enums with many many
+#   values and we have many switch statements where we don't want or need to
+#   handle all possible cases explicitly, we want to push them through the
+#   default case.
+#
 # * Tracking nullable returns requires depending on folly, which we don't do.
 #   It is also tedious as we would have to use this excessively due to Python
 #   often using null to propagate exceptions.
@@ -22,6 +28,7 @@ InheritParentConfig: true
 #   to avoid this.
 
 Checks: '
+-clang-diagnostic-switch-enum,
 -facebook-hte-BoostRegexRisky,
 -facebook-hte-GlibcRegexIsAwful,
 -facebook-hte-NullableReturn,
