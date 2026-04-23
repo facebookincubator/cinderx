@@ -275,20 +275,9 @@ class PreloaderManager {
 // Get the global PreloaderManager object.
 PreloaderManager& preloaderManager();
 
-// RAII guard that installs a fresh, empty PreloaderManager for the current
-// thread, saving and restoring the previous one on destruction.  This serves
-// two purposes:
-//
-//  1. Scoped cleanup - preloaders added during a compilation batch are
-//     automatically destroyed when the guard goes out of scope.
-//
-//  2. Isolation - preloading can execute arbitrary Python code, which may call
-//     a JIT-eligible function and trigger a nested compilation.  Without
-//     isolation the nested compile would add its preloaders to the outer
-//     compilation's manager; the inliner would then see those extra entries and
-//     could attempt to inline functions that aren't part of the outer batch.
-//     Conversely, when the nested compile's scope ends its cleanup would
-//     destroy preloaders that the outer batch still needs.
+// RAII device for isolating preloaders state.
+// Uses thread-local storage to give each thread its own PreloaderManager
+// while isolation is active, avoiding race conditions between threads.
 class IsolatedPreloaders {
  public:
   IsolatedPreloaders();
