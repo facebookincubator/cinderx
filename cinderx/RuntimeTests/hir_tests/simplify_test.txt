@@ -12400,4 +12400,80 @@ fun test {
     Return<CBool> v0
   }
 }
+--- Test Name ---
+PrimitiveBoxConstantInt
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadConst<CInt64[42]>
+    v1 = PrimitiveBox<CInt64[42]> v0
+    Return v1
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt64[42] = LoadConst<CInt64[42]>
+    UseType<CInt64[42]> v0
+    v2:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    Return v2
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt64[42] = LoadConst<CInt64[42]>
+    UseType<CInt64[42]> v0
+    v2:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    Return v2
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt64[42] = LoadConst<CInt64[42]>
+    UseType<CInt64[42]> v0
+    v2:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    Return v2
+  }
+}
+--- Test Name ---
+PrimitiveBoxConstantUInt
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadConst<CUInt64[100]>
+    v1 = PrimitiveBox<CUInt64[100]> v0
+    Return v1
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CUInt64[100] = LoadConst<CUInt64[100]>
+    UseType<CUInt64[100]> v0
+    v2:ImmortalLongExact[100] = LoadConst<ImmortalLongExact[100]>
+    Return v2
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CUInt64[100] = LoadConst<CUInt64[100]>
+    UseType<CUInt64[100]> v0
+    v2:ImmortalLongExact[100] = LoadConst<ImmortalLongExact[100]>
+    Return v2
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CUInt64[100] = LoadConst<CUInt64[100]>
+    UseType<CUInt64[100]> v0
+    v2:ImmortalLongExact[100] = LoadConst<ImmortalLongExact[100]>
+    Return v2
+  }
+}
 --- End ---

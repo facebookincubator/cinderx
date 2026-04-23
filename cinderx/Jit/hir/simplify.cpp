@@ -1209,6 +1209,35 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   return nullptr;
 }
 
+Register* simplifyPrimitiveBox(Env& env, const PrimitiveBox* instr) {
+  // This isn't safe in the multi-threaded compilation on 3.12 because
+  // we don't hold the GIL which is required for allocation.
+  RETURN_MULTITHREADED_COMPILE(nullptr);
+
+  Register* input = instr->GetOperand(0);
+  Type ty = instr->type();
+
+  Ref<> boxed;
+  if (ty.hasIntSpec()) {
+    boxed = Ref<>::steal(
+        ty <= TCSigned ? PyLong_FromSsize_t(ty.intSpec())
+                       : PyLong_FromSize_t(static_cast<size_t>(ty.intSpec())));
+  } else if (ty.hasDoubleSpec()) {
+    boxed = Ref<>::steal(PyFloat_FromDouble(ty.doubleSpec()));
+  } else {
+    return nullptr;
+  }
+
+  if (boxed == nullptr) {
+    PyErr_Clear();
+    return nullptr;
+  }
+
+  env.emit<UseType>(input, ty);
+  return env.emit<LoadConst>(
+      Type::fromObject(env.func.env.addReference(std::move(boxed))));
+}
+
 Register* simplifyPrimitiveBoxBool(Env& env, const PrimitiveBoxBool* instr) {
   Register* input = instr->GetOperand(0);
   if (input->type().hasIntSpec()) {
@@ -2172,6 +2201,8 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kPrimitiveCompare:
       return simplifyPrimitiveCompare(
           env, static_cast<const PrimitiveCompare*>(instr));
+    case Opcode::kPrimitiveBox:
+      return simplifyPrimitiveBox(env, static_cast<const PrimitiveBox*>(instr));
     case Opcode::kPrimitiveBoxBool:
       return simplifyPrimitiveBoxBool(
           env, static_cast<const PrimitiveBoxBool*>(instr));
