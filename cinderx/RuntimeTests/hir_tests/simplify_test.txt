@@ -12243,6 +12243,7 @@ fun test {
     UseType<CInt64[128]> v0
     v2:CInt8[-128] = LoadConst<CInt8[-128]>
     Return<CInt8> v2
+  }
 }
 --- Test Name ---
 IntBinaryOpAndCBoolWithTrue
