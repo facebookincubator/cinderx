@@ -6,7 +6,7 @@
       "configurationType": "Debug",
       "buildRoot": "${projectDir}\\out\\build\\${name}",
       "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "-DPY_VERSION=3.14",
+      "cmakeCommandArgs": "-DPY_VERSION=3.14 -DENABLE_ADAPTIVE_STATIC_PYTHON=0 -DENABLE_DISASSEMBLER=0 -DENABLE_ELF_READER=0 -DENABLE_EVAL_HOOK=0 -DENABLE_FUNC_EVENT_MODIFY_QUALNAME=0 -DENABLE_GENERATOR_AWAITER=0 -DENABLE_INTERPRETER_LOOP=1 -DENABLE_LAZY_IMPORTS=0 -DENABLE_LIGHTWEIGHT_FRAMES=0 -DENABLE_PARALLEL_GC=0 -DENABLE_PEP523_HOOK=1 -DENABLE_PERF_TRAMPOLINE=0 -DENABLE_SYMBOLIZER=0 -DENABLE_USDT=0 -DENABLE_ZLIB=0",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
       "inheritEnvironments": [ "clang_cl_x64_x64" ]
@@ -17,7 +17,7 @@
       "configurationType": "RelWithDebInfo",
       "buildRoot": "${projectDir}\\out\\build\\${name}",
       "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "-DPY_VERSION=3.14",
+      "cmakeCommandArgs": "-DPY_VERSION=3.14 -DENABLE_ADAPTIVE_STATIC_PYTHON=0 -DENABLE_DISASSEMBLER=0 -DENABLE_ELF_READER=0 -DENABLE_EVAL_HOOK=0 -DENABLE_FUNC_EVENT_MODIFY_QUALNAME=0 -DENABLE_GENERATOR_AWAITER=0 -DENABLE_INTERPRETER_LOOP=1 -DENABLE_LAZY_IMPORTS=0 -DENABLE_LIGHTWEIGHT_FRAMES=0 -DENABLE_PARALLEL_GC=0 -DENABLE_PEP523_HOOK=1 -DENABLE_PERF_TRAMPOLINE=0 -DENABLE_SYMBOLIZER=0 -DENABLE_USDT=0 -DENABLE_ZLIB=0",
       "ctestCommandArgs": "",
       "inheritEnvironments": [ "clang_cl_x64_x64" ]
     }
