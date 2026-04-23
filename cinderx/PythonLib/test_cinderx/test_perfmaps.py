@@ -5,7 +5,10 @@ import sys
 import unittest
 
 # pyre-ignore[21]: can't find _testinternalcapi
-from _testinternalcapi import perf_map_state_teardown, write_perf_map_entry
+try:
+    from _testinternalcapi import perf_map_state_teardown, write_perf_map_entry
+except ImportError:
+    raise unittest.SkipTest("Python runtime doesn't expose perf map utilities")
 
 if sys.platform != "linux":
     raise unittest.SkipTest("Linux only")
