@@ -1,11 +1,17 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-// Use this include instead of Python.h.  Its purpose is to avoid
-// incompabilities between atomic headers from libgcc and the stdatomic.h header
-// from clang.  The headers must be imported in this specific order.  If not
-// then builds will fail because of symbol collisions.
+// Use this include instead of Python.h.  This file should be imported before
+// any other CPython headers, especially any CPython internal headers used by
+// CinderX.  Its purpose is to address incompatibilities between CPython headers
+// and our C++ code.
 
 #pragma once
+
+// Avoid conflicts with `min` and `max` on Windows platforms.
+#ifdef WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 #include <Python.h>
 
@@ -24,7 +30,11 @@
 
 // clang-format off
 
-// memory also has atomic operations in it.
+// Handle incompatibilities between atomic headers from libgcc and the
+// stdatomic.h header from clang.  The headers must be imported in this specific
+// order.  If not then builds will fail because of symbol collisions.
+
+// The memory header also has atomic operations in it.
 #include <atomic>
 #include <memory>
 
@@ -34,7 +44,7 @@
 
 #endif
 
-// These aren't here because of issues with atomics, but rather because they're
-// also part of the public Python API and we might as well tack them on.
+// These aren't here because of C vs C++ issues, but rather because they're also
+// part of the public Python API and we might as well tack them on.
 #include <frameobject.h>
 #include <structmember.h>

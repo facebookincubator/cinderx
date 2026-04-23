@@ -13,13 +13,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#ifdef min
-#undef min
-#endif
-#ifdef max
-#undef max
-#endif
-
 namespace jit {
 
 constexpr ptrdiff_t kInvalidYieldFromOffset =

@@ -4,10 +4,6 @@
 
 #include "cinderx/Jit/intrusive_list.h"
 
-#ifdef max
-#undef max
-#endif
-
 #include <iterator>
 #include <limits>
 #include <map>
