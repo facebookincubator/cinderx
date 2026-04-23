@@ -4969,4 +4969,225 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
 }
 
+void GenerateDeoptTrampolineBlocks(
+    Function* lir_func,
+    bool generator_mode,
+    void* prepare_for_deopt,
+    void* resume_in_interpreter) {
+  namespace arch = codegen::arch;
+
+  auto* block = lir_func->allocateBasicBlock();
+
+  emitAnnotation(block, "Save registers");
+
+  // Stage 1: Save all GP registers via VariadicPush.
+  // Each architecture saves all GP registers except the deopt scratch register
+  // (already saved by the stage 2 stub).
+#if defined(CINDER_X86_64)
+  constexpr int kStage3SavedRegs = 15;
+  constexpr int kStage2SavedRegs = 1; // r15
+#elif defined(CINDER_AARCH64)
+  constexpr int kStage3SavedRegs = 28;
+  constexpr int kStage2SavedRegs = 2; // x28 + fp
+#endif
+
+  auto* vpush = block->allocateInstr(Instruction::kVariadicPush, nullptr);
+  // Push in descending order so the memory layout is ascending by PhyLocation.
+  // r15 was already saved by stage 2.
+  for (int i = 0; i < kStage3SavedRegs; i++) {
+    vpush->addOperands(PhyReg{PhyLocation{i}});
+  }
+
+  // Shared computation of stack layout constants.
+  constexpr int kMetadataSlots = 4;
+  constexpr int total_gp_regs = kStage3SavedRegs + kStage2SavedRegs;
+  constexpr int frame_offset = (total_gp_regs + kMetadataSlots) * kPointerSize;
+  // cleanup_size skips all stage 3 regs; the stage 2 scratch reg is
+  // loaded separately in stage 4.
+  constexpr int cleanup_size = kStage3SavedRegs * kPointerSize;
+
+  // Stage 2: Set up the deopt frame and shuffle deopt metadata.
+  // All operations use arch-agnostic register refs via codegen::arch.
+  emitAnnotation(block, "Shuffle rip, rbp, and deopt index");
+
+  constexpr auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+  constexpr auto fp_reg = codegen::arch::reg_frame_pointer_loc;
+  // The frame setup doubles as prepareForDeopt's call args: arg0 = &regs,
+  // arg1 = code_rt, arg2 = deopt_idx.  saved_rip_reg is just a scratch.
+  constexpr auto arg0_reg = codegen::ARGUMENT_REGS[0];
+  constexpr auto code_rt_reg = codegen::ARGUMENT_REGS[1];
+  constexpr auto deopt_idx_reg = codegen::ARGUMENT_REGS[2];
+  constexpr auto saved_rip_reg = codegen::ARGUMENT_REGS[3];
+
+  // arg0 = &saved_regs (sp value)
+  block->allocateInstr(
+      Instruction::kLea, nullptr, OutPhyReg{arg0_reg}, Ind(sp_reg, 0));
+
+  // Load saved rip/pc from [sp + frame_offset] into scratch.
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{saved_rip_reg},
+      Ind(sp_reg, frame_offset));
+
+  // For generators, restore original frame pointer while fp still points
+  // to the generator data footer.
+  if (generator_mode) {
+    constexpr auto orig_fp_off =
+        static_cast<int32_t>(offsetof(GenDataFooter, originalFramePointer));
+    block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{fp_reg},
+        Ind(fp_reg, orig_fp_off));
+  }
+
+  // Save fp (now the original for generators) to [sp + frame_offset].
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(sp_reg, frame_offset),
+      PhyReg{fp_reg});
+
+  // Set up our frame: fp = sp + frame_offset.
+  block->allocateInstr(
+      Instruction::kLea, nullptr, OutPhyReg{fp_reg}, Ind(sp_reg, frame_offset));
+
+  // Load deopt_idx from [fp + 8] (the slot above saved_rbp).
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{deopt_idx_reg},
+      Ind(fp_reg, kPointerSize));
+
+  // Store saved rip/pc to [fp + 8] (restoring the real return address).
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(fp_reg, kPointerSize),
+      PhyReg{saved_rip_reg});
+
+  // Store deopt_idx to [fp - 16] (a padding slot for later retrieval).
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(fp_reg, -2 * kPointerSize),
+      PhyReg{deopt_idx_reg});
+
+  // Load code_rt from [fp - 24] (stashed by stage 2).
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{code_rt_reg},
+      Ind(fp_reg, -3 * kPointerSize));
+
+  // Stage 3: Call prepareForDeopt.
+  emitAnnotation(block, "prepareForDeopt");
+
+  block->allocateInstr(
+      Instruction::kCall,
+      nullptr,
+      Imm{reinterpret_cast<uint64_t>(prepare_for_deopt)});
+
+  // Stage 4: Clean up saved registers + restore deopt scratch reg.
+  emitAnnotation(block, "reg cleanup");
+  // Load the deopt scratch register from its saved position on the stack.
+  constexpr auto scratch_deopt_reg = codegen::arch::reg_scratch_deopt_loc;
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{scratch_deopt_reg},
+      Ind(sp_reg, cleanup_size));
+  // Adjust SP past all saved registers (stage 3 regs + stage 2 regs).
+  block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg{sp_reg},
+      Ind(sp_reg, cleanup_size + kStage2SavedRegs * kPointerSize));
+
+  // Stage 5: Call resumeInInterpreter.
+  emitAnnotation(block, "resumeInInterpreter");
+
+  // First argument: frame returned from prepareForDeopt (already in
+  // return register). Only do move if necessary (on arm the registers line up)
+  if (codegen::ARGUMENT_REGS[0] != codegen::arch::reg_general_return_loc) {
+    block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{codegen::ARGUMENT_REGS[0]},
+        PhyReg{codegen::arch::reg_general_return_loc});
+  }
+#if PY_VERSION_HEX >= 0x030C0000
+  // Fourth argument: is_instrumentation_deopt returned by
+  // prepareForDeopt.  Save it before being overwritten below.
+  if (codegen::ARGUMENT_REGS[3] !=
+      codegen::arch::reg_general_auxilary_return_loc) {
+    block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{codegen::ARGUMENT_REGS[3]},
+        PhyReg{codegen::arch::reg_general_auxilary_return_loc});
+  }
+#endif
+  // arg1 = code_rt from stack (fp - 3*8)
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[1]},
+      Ind(fp_reg, -3 * kPointerSize));
+  // arg2 = deopt_idx from stack (fp - 2*8)
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[2]},
+      Ind(fp_reg, -2 * kPointerSize));
+
+  block->allocateInstr(
+      Instruction::kCall,
+      nullptr,
+      Imm{reinterpret_cast<uint64_t>(resume_in_interpreter)});
+
+  // Stage 6: Exit — copy result to error-signal registers, load epilogue
+  // address, tear down frame, jump to real epilogue.
+  emitAnnotation(block, "Jump to real epilogue");
+
+  // Return value register (64-bit) and its 32-bit alias.
+  constexpr auto ret_reg = codegen::arch::reg_general_return_loc;
+  constexpr PhyLocation ret32_reg{ret_reg.loc, 32};
+  // Auxiliary return registers (int32 + double) for primitive error signal.
+  constexpr auto aux_ret_reg = codegen::arch::reg_general_auxilary_return_loc;
+  constexpr PhyLocation err32_reg{aux_ret_reg.loc, 32};
+  constexpr auto err_xmm_reg = codegen::arch::reg_double_auxilary_return_loc;
+#if defined(CINDER_X86_64)
+  constexpr auto jump_target_reg = codegen::ARGUMENT_REGS[0]; // RDI
+#elif defined(CINDER_AARCH64)
+  constexpr auto jump_target_reg = codegen::arch::reg_scratch_br_loc; // X16
+#endif
+
+  // Copy return value to primitive-error signal registers.
+  block->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg{err32_reg}, PhyReg{ret32_reg});
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{err_xmm_reg, OperandBase::kDouble},
+      PhyReg{ret_reg});
+  // Load epilogue address (must be before kLeave which tears down the frame).
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{jump_target_reg},
+      Ind(fp_reg, -4 * kPointerSize));
+  // Tear down the frame.
+  block->allocateInstr(Instruction::kLeave, nullptr);
+#if defined(CINDER_X86_64)
+  // Skip the saved rip slot (normally consumed by ret, but we jump instead).
+  block->allocateInstr(
+      Instruction::kLea, nullptr, OutPhyReg{sp_reg}, Ind(sp_reg, kPointerSize));
+#endif
+  // Jump to the real epilogue.
+  block->allocateInstr(
+      Instruction::kIndirectJump, nullptr, PhyReg{jump_target_reg});
+}
+
 } // namespace jit::lir

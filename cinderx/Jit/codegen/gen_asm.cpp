@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -406,8 +407,68 @@ void* finalizeCode(arch::Builder& builder, std::string_view name) {
   return result.addr;
 }
 
-// Generate the final stage trampoline that is responsible for finishing
-// execution in the interpreter and then returning the result to the caller.
+// Emit machine code from LIR blocks by translating each instruction via the
+// AutoTranslator.  Populates env->block_label_map and records annotations.
+//
+// When |code| and |metadata| are non-null, CodeSectionOverride is applied per
+// block (for multi-section support in normal JIT functions).  When they are
+// null the section override is skipped (standalone trampolines).
+void emitLIRBlocks(
+    Environ* env,
+    lir::Function* lir_func,
+    const asmjit::CodeHolder* code = nullptr,
+    CodeHolderMetadata* metadata = nullptr) {
+  auto* as = env->as;
+  auto& blocks = lir_func->basicblocks();
+
+  for (auto& basicblock : blocks) {
+    env->block_label_map.emplace(basicblock, as->newLabel());
+  }
+
+  std::string pending_annotation;
+  asmjit::BaseNode* annotation_cursor = nullptr;
+
+  for (lir::BasicBlock* basicblock : blocks) {
+    // Optional section override for multi-section code layout.
+    std::optional<CodeSectionOverride> section_override;
+    if (code != nullptr && metadata != nullptr) {
+      section_override.emplace(as, code, metadata, basicblock->section());
+    }
+
+    as->bind(env->block_label_map[basicblock]);
+    for (auto& instr : basicblock->instructions()) {
+      asmjit::BaseNode* cursor = as->cursor();
+
+      // Check for annotation BEFORE translating so cursor captures the
+      // position before the instruction's code is emitted.
+      auto* annot_text = lir_func->getAnnotation(instr.get());
+      if (annot_text) {
+        // Close any previous pending annotation.
+        if (!pending_annotation.empty()) {
+          JIT_DCHECK(annotation_cursor != nullptr, "should be set");
+          env->addAnnotation(std::move(pending_annotation), annotation_cursor);
+        }
+        // Start new annotation range from current cursor position.
+        pending_annotation = *annot_text;
+        annotation_cursor = cursor;
+      }
+
+      autogen::AutoTranslator::getInstance().translateInstr(env, instr.get());
+
+      if (!pending_annotation.empty()) {
+        // Under an active annotation — don't emit per-instruction annotations.
+      } else if (instr->origin() != nullptr) {
+        env->addAnnotation(instr.get(), cursor);
+      }
+    }
+    // Close pending annotation at block boundary.
+    if (!pending_annotation.empty()) {
+      env->addAnnotation(std::move(pending_annotation), annotation_cursor);
+      pending_annotation.clear();
+    }
+  }
+}
+
 void* generateDeoptTrampoline(bool generator_mode) {
   auto mod_state = cinderx::getModuleState();
   if (mod_state == nullptr) {
@@ -422,219 +483,26 @@ void* generateDeoptTrampoline(bool generator_mode) {
   ICodeAllocator* code_allocator = mod_state->code_allocator.get();
   ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
   arch::Builder a(&code);
-  Annotations annot;
 
-#if defined(CINDER_X86_64)
-  auto annot_cursor = a.cursor();
-  // When we get here the stack has the following layout. The space on the
-  // stack for the call arg buffer / LOAD_METHOD scratch space is always safe
-  // to read, but its contents will depend on the function being compiled as
-  // well as the program point at which deopt occurs. We pass a pointer to it
-  // into the frame reification code so that it can properly reconstruct the
-  // interpreter's stack when the the result of a LOAD_METHOD is on the
-  // stack. See the comments in reifyStack in deopt.cpp for more details.
-  //
-  // +-------------------------+
-  // | ...                     |
-  // | ? call arg buffer       |
-  // | ^ LOAD_METHOD scratch   |
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved rip               |
-  // | padding                 |
-  // | padding                 |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | r15                     | <-- rsp
-  // +-------------------------+
-  //
-  // Save registers for use in frame reification. Once these are saved we're
-  // free to clobber any caller-saved registers.
-  //
-  // IF YOU USE CALLEE-SAVED REGISTERS YOU HAVE TO RESTORE THEM MANUALLY BEFORE
-  // THE EXITING THE TRAMPOLINE.
-  a.push(x86::r14);
-  a.push(x86::r13);
-  a.push(x86::r12);
-  a.push(x86::r11);
-  a.push(x86::r10);
-  a.push(x86::r9);
-  a.push(x86::r8);
-  a.push(x86::rdi);
-  a.push(x86::rsi);
-  a.push(x86::rbp);
-  a.push(x86::rsp);
-  a.push(x86::rbx);
-  a.push(x86::rdx);
-  a.push(x86::rcx);
-  a.push(x86::rax);
+  // Build the deopt trampoline as LIR blocks.
+  lir::Function lir_func;
+  lir::GenerateDeoptTrampolineBlocks(
+      &lir_func,
+      generator_mode,
+      reinterpret_cast<void*>(prepareForDeopt),
+      reinterpret_cast<void*>(resumeInInterpreter));
 
-  if (generator_mode) {
-    // Restore the original frame pointer for use in epilogue.
-    RestoreOriginalGeneratorFramePointer(&a);
-  }
-
-  annot.add("Save registers", &a, annot_cursor);
-
-  // Set up a stack frame for the trampoline so that:
-  //
-  // 1. Runtime code in the JIT that is used to update PyFrameObjects can find
-  //    the saved rip at the expected location immediately following the end of
-  //    the JIT's fixed frame.  See getIP().
-  //
-  // 2. The JIT-compiled function shows up in C stack straces when it is
-  //    deopting. Only the deopt trampoline will appear in the trace if
-  //    we don't open a frame.
-  //
-  // Right now the stack has the following layout:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved rip               |
-  // | padding                 |
-  // | padding                 |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | r15                     |
-  // | ...                     |
-  // | rax                     | <-- rsp
-  // +-------------------------+
-  //
-  // We want our frame to look like:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | saved rip               |
-  // | saved rbp               | <-- rbp
-  // | padding                 |
-  // | index of deopt metadata |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | r15                     |
-  // | ...                     |
-  // | rax                     | <-- rsp
-  // +-------------------------+
-
-  annot_cursor = a.cursor();
-
-  // Setting up first argument to prepareForDeopt, the address of the saved
-  // registers.
-  a.mov(x86::rdi, x86::rsp);
-
-  // Load the saved rip passed to us from the JIT-compiled function, which
-  // resides where we're supposed to save rbp.
-  auto saved_rip = x86::rcx;
-  auto saved_rbp_addr = x86::ptr(x86::rsp, (NUM_GP_REGS + 4) * kPointerSize);
-  a.mov(saved_rip, saved_rbp_addr);
-
-  // Save rbp and set up our frame.
-  a.mov(saved_rbp_addr, x86::rbp);
-  a.lea(x86::rbp, saved_rbp_addr);
-
-  // Load the index of the deopt metadata, which resides where we're supposed to
-  // save rip.
-  auto deopt_idx = x86::rdx;
-  auto saved_rip_addr = x86::ptr(x86::rbp, kPointerSize);
-  a.mov(deopt_idx, saved_rip_addr);
-  a.mov(saved_rip_addr, saved_rip);
-
-  // Save the deopt metadata index to the lower padding slot.
-  auto deopt_idx_addr = x86::ptr(x86::rbp, -2 * kPointerSize);
-  a.mov(deopt_idx_addr, deopt_idx);
-
-  // Fetch the CodeRuntime address from the stack.
-  auto code_rt_addr = x86::ptr(x86::rbp, -3 * kPointerSize);
-  auto code_rt = x86::rsi;
-  a.mov(code_rt, code_rt_addr);
-
-  annot.add("Shuffle rip, rbp, and deopt index", &a, annot_cursor);
-
-  // Prep the frame for evaluation in the interpreter.
-  //
-  // We pass the array of saved registers, a pointer to the code runtime, and
-  // the index of the deopt metadata.
-  annot_cursor = a.cursor();
-
-  static_assert(
-      std::is_same_v<
-          decltype(prepareForDeopt),
-          DeoptResult(const uint64_t*, CodeRuntime*, std::size_t)>,
-      "prepareForDeopt has unexpected signature");
-  a.call(reinterpret_cast<uint64_t>(prepareForDeopt));
-
-  // Clean up saved registers.
-  //
-  // This isn't strictly necessary but saves 128 bytes on the stack if we end
-  // up resuming in the interpreter.
-  a.add(x86::rsp, (NUM_GP_REGS - 1) * kPointerSize);
-
-  // We have to restore our scratch register manually since it's callee-saved
-  // and the stage 2 trampoline used it to hold the address of this
-  // trampoline. We can't rely on the JIT epilogue to restore it for us, as the
-  // JIT-compiled code may not have spilled it.
-  a.pop(deopt_scratch_reg);
-
-  annot.add("prepareForDeopt", &a, annot_cursor);
-
-  // Resume execution in the interpreter.
-  annot_cursor = a.cursor();
-
-  // First argument: frame returned from prepareForDeopt.
-  a.mov(x86::rdi, x86::rax);
-#if PY_VERSION_HEX >= 0x030C0000
-  // Fourth argument: is_instrumentation_deopt returned by
-  // prepareForDeopt.  Save it before being overwritten below.
-  a.mov(x86::rcx, x86::rdx);
-#endif
-  // Second argument: CodeRuntime, restored from the stack after
-  // prepareForDeopt.
-  a.mov(code_rt, code_rt_addr);
-  // Third argument: DeoptMetadata index, restored from the stack after
-  // prepareForDeopt.
-  a.mov(deopt_idx, deopt_idx_addr);
-#if PY_VERSION_HEX >= 0x030C0000
-  static_assert(
-      std::is_same_v<
-          decltype(resumeInInterpreter),
-          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t, bool)>,
-      "resumeInInterpreter has unexpected signature");
-#else
-  static_assert(
-      std::is_same_v<
-          decltype(resumeInInterpreter),
-          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
-      "resumeInInterpreter has unexpected signature");
-#endif
-  a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
-
-  // If we return a primitive and prepareForDeopt returned null, we need that
-  // null in edx/xmm1 to signal error to our caller. Since this trampoline is
-  // shared, we do this move unconditionally, but even if not needed, it's
-  // harmless. (To eliminate it, we'd need another trampoline specifically for
-  // deopt of primitive-returning functions, just to do this one move.)
-  a.mov(x86::edx, x86::eax);
-  a.movq(x86::xmm1, x86::eax);
-
-  annot.add("resumeInInterpreter", &a, annot_cursor);
-
-  // Now we're done. Get the address of the epilogue and jump there.
-  annot_cursor = a.cursor();
-
-  auto epilogue_addr = x86::ptr(x86::rbp, -4 * kPointerSize);
-  a.mov(x86::rdi, epilogue_addr);
-  // Remove our frame from the stack
-  a.leave();
-  // Clear the saved rip. Normally this would be handled by a `ret`; we must
-  // clear it manually because we're jumping directly to the epilogue.
-  a.sub(x86::rsp, -kPointerSize);
-  a.jmp(x86::rdi);
-  annot.add("Jump to real epilogue", &a, annot_cursor);
+  // Emit code via the shared LIR emission loop.
+  Environ env;
+  env.as = &a;
+  emitLIRBlocks(&env, &lir_func);
 
   void* result = finalizeCode(a, name);
   JIT_LOGIF(
       getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
       name,
-      annot.disassemble(result, code));
+      env.annotations.disassemble(result, code));
 
   auto code_size = code.codeSize();
   register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
@@ -646,246 +514,6 @@ void* generateDeoptTrampoline(bool generator_mode) {
   perf::registerFunction(code_sections, name);
 #endif
   return result;
-#elif defined(CINDER_AARCH64)
-  auto annot_cursor = a.cursor();
-  // When we get here the stack has the following layout. The space on the
-  // stack for the call arg buffer / LOAD_METHOD scratch space is always safe
-  // to read, but its contents will depend on the function being compiled as
-  // well as the program point at which deopt occurs. We pass a pointer to it
-  // into the frame reification code so that it can properly reconstruct the
-  // interpreter's stack when the the result of a LOAD_METHOD is on the
-  // stack. See the comments in reifyStack in deopt.cpp for more details.
-  //
-  // +-------------------------+
-  // | ...                     |
-  // | ? call arg buffer       |
-  // | ^ LOAD_METHOD scratch   |
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved pc                |
-  // | padding (8 bytes)       |
-  // | padding (8 bytes)       |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | fp                      |
-  // | x28                     | <-- sp
-  // +-------------------------+
-  //
-  // Save registers for use in frame reification. Once these are saved we're
-  // free to clobber any caller-saved registers.
-  //
-  // IF YOU USE CALLEE-SAVED REGISTERS YOU HAVE TO RESTORE THEM MANUALLY BEFORE
-  // THE EXITING THE TRAMPOLINE.
-  a.stp(a64::x0, a64::x1, a64::ptr_pre(a64::sp, -16 * 14));
-  a.stp(a64::x2, a64::x3, a64::ptr(a64::sp, 16 * 1));
-  a.stp(a64::x4, a64::x5, a64::ptr(a64::sp, 16 * 2));
-  a.stp(a64::x6, a64::x7, a64::ptr(a64::sp, 16 * 3));
-  a.stp(a64::x8, a64::x9, a64::ptr(a64::sp, 16 * 4));
-  a.stp(a64::x10, a64::x11, a64::ptr(a64::sp, 16 * 5));
-  a.stp(a64::x12, a64::x13, a64::ptr(a64::sp, 16 * 6));
-  a.stp(a64::x14, a64::x15, a64::ptr(a64::sp, 16 * 7));
-  a.stp(a64::x16, a64::x17, a64::ptr(a64::sp, 16 * 8));
-  a.stp(a64::x18, a64::x19, a64::ptr(a64::sp, 16 * 9));
-  a.stp(a64::x20, a64::x21, a64::ptr(a64::sp, 16 * 10));
-  a.stp(a64::x22, a64::x23, a64::ptr(a64::sp, 16 * 11));
-  a.stp(a64::x24, a64::x25, a64::ptr(a64::sp, 16 * 12));
-  a.stp(a64::x26, a64::x27, a64::ptr(a64::sp, 16 * 13));
-
-  if (generator_mode) {
-    // Restore original frame pointer for use in epilogue.
-    RestoreOriginalGeneratorFramePointer(&a);
-  }
-
-  annot.add("Save registers", &a, annot_cursor);
-
-  // Set up a stack frame for the trampoline so that:
-  //
-  // 1. Runtime code in the JIT that is used to update PyFrameObjects can find
-  //    the saved pc at the expected location immediately following the end of
-  //    the JIT's fixed frame.  See getIP().
-  //
-  // 2. The JIT-compiled function shows up in C stack traces when it is
-  //    deopting. Only the deopt trampoline will appear in the trace if
-  //    we don't open a frame.
-  //
-  // Right now the stack has the following layout:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved pc                |
-  // | padding (8 bytes)       |
-  // | padding (8 bytes)       |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | fp                      |
-  // | x28                     |
-  // | ...                     |
-  // | x0                      | <-- sp
-  // +-------------------------+
-  //
-  // We want our frame to look like:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | saved pc                |
-  // | saved fp                | <-- fp
-  // | padding (8 bytes)       |
-  // | index of deopt metadata |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | fp                      |
-  // | x28                     |
-  // | ...                     |
-  // | x0                      | <-- sp
-  // +-------------------------+
-
-  annot_cursor = a.cursor();
-
-  // Setting up first argument to prepareForDeopt, the address of the saved
-  // registers.
-  a.mov(a64::x0, a64::sp);
-
-  // Load the saved pc passed to us from the JIT-compiled function, which
-  // resides where we're supposed to save the frame pointer.
-  const int saved_regs_slots = 30;
-  const int saved_metadata_slots = 4;
-
-  auto saved_pc = a64::x3;
-  auto saved_fp_offset =
-      (saved_regs_slots + saved_metadata_slots) * kPointerSize;
-  a.ldr(
-      saved_pc,
-      arch::ptr_resolve(&a, a64::sp, saved_fp_offset, arch::reg_scratch_0));
-
-  // Save the frame pointer and set up our frame.
-  a.str(
-      arch::fp,
-      arch::ptr_resolve(&a, a64::sp, saved_fp_offset, arch::reg_scratch_0));
-  a.add(arch::fp, a64::sp, saved_fp_offset);
-
-  // Load the index of the deopt metadata, which resides where we're supposed to
-  // save the pc.
-  auto deopt_idx = a64::x2;
-  a.ldr(
-      deopt_idx,
-      arch::ptr_resolve(&a, arch::fp, kPointerSize, arch::reg_scratch_0));
-  a.str(
-      saved_pc,
-      arch::ptr_resolve(&a, arch::fp, kPointerSize, arch::reg_scratch_0));
-
-  // Save the deopt metadata index to the lower padding slot.
-  auto deopt_idx_addr =
-      arch::ptr_resolve(&a, arch::fp, -2 * kPointerSize, arch::reg_scratch_0);
-  a.str(deopt_idx, deopt_idx_addr);
-
-  // Fetch the CodeRuntime address from the stack.
-  auto code_rt_addr =
-      arch::ptr_resolve(&a, arch::fp, -3 * kPointerSize, arch::reg_scratch_0);
-  auto code_rt = a64::x1;
-  a.ldr(code_rt, code_rt_addr);
-
-  annot.add("Shuffle pc, fp, and deopt index", &a, annot_cursor);
-
-  // Prep the frame for evaluation in the interpreter.
-  //
-  // We pass the array of saved registers, a pointer to the code runtime, and
-  // the index of the deopt metadata.
-  annot_cursor = a.cursor();
-
-  static_assert(
-      std::is_same_v<
-          decltype(prepareForDeopt),
-          DeoptResult(const uint64_t*, CodeRuntime*, std::size_t)>,
-      "prepareForDeopt has unexpected signature");
-  a.mov(arch::reg_scratch_br, prepareForDeopt);
-  a.blr(arch::reg_scratch_br);
-
-  // Clean up saved registers.
-  //
-  // This isn't strictly necessary but saves 128 bytes on the stack if we end
-  // up resuming in the interpreter.
-  a.add(a64::sp, a64::sp, (saved_regs_slots - 2) * kPointerSize);
-
-  // We have to restore our scratch register manually since it's callee-saved
-  // and the stage 2 trampoline used it to hold the address of this
-  // trampoline. We can't rely on the JIT epilogue to restore it for us, as the
-  // JIT-compiled code may not have spilled it.
-  a.ldr(deopt_scratch_reg, a64::ptr(a64::sp));
-
-  annot.add("prepareForDeopt", &a, annot_cursor);
-
-  // Resume execution in the interpreter.
-  annot_cursor = a.cursor();
-
-#if PY_VERSION_HEX >= 0x030C0000
-  // Fourth argument: is_instrumentation_deopt returned by
-  // prepareForDeopt. Save it before being overwritten below.
-  a.mov(a64::x3, a64::x1);
-#endif
-  // First argument: frame returned from prepareForDeopt.
-  // already in x0
-  // Second argument: CodeRuntime, restored from the stack after
-  // prepareForDeopt.
-  a.ldr(code_rt, code_rt_addr);
-  // Third argument: DeoptMetadata index, restored from the stack after
-  // prepareForDeopt.
-  a.ldr(deopt_idx, deopt_idx_addr);
-#if PY_VERSION_HEX >= 0x030C0000
-  static_assert(
-      std::is_same_v<
-          decltype(resumeInInterpreter),
-          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t, bool)>,
-      "resumeInInterpreter has unexpected signature");
-#else
-  static_assert(
-      std::is_same_v<
-          decltype(resumeInInterpreter),
-          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
-      "resumeInInterpreter has unexpected signature");
-#endif
-  a.mov(arch::reg_scratch_br, resumeInInterpreter);
-  a.blr(arch::reg_scratch_br);
-
-  // If we return a primitive and prepareForDeopt returned null, we need that
-  // null in w2/d1 to signal error to our caller. Since this trampoline is
-  // shared, we do this move unconditionally, but even if not needed, it's
-  // harmless. (To eliminate it, we'd need another trampoline specifically for
-  // deopt of primitive-returning functions, just to do this one move.)
-  a.mov(a64::w1, a64::w0);
-  a.fmov(a64::d1, a64::x0);
-
-  annot.add("resumeInInterpreter", &a, annot_cursor);
-
-  // Now we're done. Get the address of the epilogue and jump there.
-  annot_cursor = a.cursor();
-
-  auto epilogue_addr =
-      arch::ptr_resolve(&a, arch::fp, -4 * kPointerSize, arch::reg_scratch_0);
-  a.ldr(arch::reg_scratch_br, epilogue_addr);
-  // Remove our frame from the stack
-  a.mov(a64::sp, arch::fp);
-  a.ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
-  a.br(arch::reg_scratch_br);
-  annot.add("Jump to real epilogue", &a, annot_cursor);
-
-  void* result = finalizeCode(a, name);
-  JIT_LOGIF(
-      getConfig().log.dump_asm,
-      "Disassembly for {}\n{}",
-      name,
-      annot.disassemble(result, code));
-
-  auto code_size = code.codeSize();
-  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
-
-  std::vector<std::pair<void*, std::size_t>> code_sections;
-  populateCodeSections(code_sections, code, result);
-  code_sections.emplace_back(result, code_size);
-  perf::registerFunction(code_sections, name);
-  return result;
-#else
-  CINDER_UNSUPPORTED
-  return nullptr;
-#endif
 }
 
 void* generateFailedDeferredCompileTrampoline() {
@@ -1971,50 +1599,7 @@ const char* NativeGenerator::GetPyFunctionName() const {
 #endif
 
 void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
-  auto as = env_.as;
-  auto& blocks = lir_func_->basicblocks();
-  for (auto& basicblock : blocks) {
-    env_.block_label_map.emplace(basicblock, as->newLabel());
-  }
-
-  std::string pending_annotation;
-  asmjit::BaseNode* annotation_cursor = nullptr;
-
-  for (lir::BasicBlock* basicblock : blocks) {
-    CodeSection section = basicblock->section();
-    CodeSectionOverride section_override{as, &code, &metadata_, section};
-    as->bind(map_get(env_.block_label_map, basicblock));
-    for (auto& instr : basicblock->instructions()) {
-      asmjit::BaseNode* cursor = as->cursor();
-
-      // Check for annotation BEFORE translating so cursor captures the
-      // position before the instruction's code is emitted.
-      auto* annot_text = lir_func_->getAnnotation(instr.get());
-      if (annot_text) {
-        // Close any previous pending annotation.
-        if (!pending_annotation.empty()) {
-          JIT_DCHECK(annotation_cursor != nullptr, "should be set");
-          env_.addAnnotation(std::move(pending_annotation), annotation_cursor);
-        }
-        // Start new annotation range from current cursor position.
-        pending_annotation = *annot_text;
-        annotation_cursor = cursor;
-      }
-
-      autogen::AutoTranslator::getInstance().translateInstr(&env_, instr.get());
-
-      if (!pending_annotation.empty()) {
-        // Under an active annotation — don't emit per-instruction annotations.
-      } else if (instr->origin() != nullptr) {
-        env_.addAnnotation(instr.get(), cursor);
-      }
-    }
-    // Close pending annotation at block boundary.
-    if (!pending_annotation.empty()) {
-      env_.addAnnotation(std::move(pending_annotation), annotation_cursor);
-      pending_annotation.clear();
-    }
-  }
+  emitLIRBlocks(&env_, lir_func_.get(), &code, &metadata_);
 }
 
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid

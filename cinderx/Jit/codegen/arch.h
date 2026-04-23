@@ -33,6 +33,7 @@ using EmitterExplicitT = asmjit::x86::EmitterExplicitT<T>;
 // If you change this register you'll also need to change the deopt
 // trampoline code that saves all registers.
 constexpr auto reg_scratch_deopt = asmjit::x86::r15;
+constexpr auto reg_scratch_deopt_loc = R15;
 
 constexpr auto reg_scratch_0_loc = RAX;
 
@@ -71,10 +72,12 @@ using EmitterExplicitT = asmjit::a64::EmitterExplicitT<T>;
 // If you change this register you'll also need to change the deopt
 // trampoline code that saves all registers.
 constexpr auto reg_scratch_deopt = asmjit::a64::x28;
+constexpr auto reg_scratch_deopt_loc = X28;
 
 constexpr auto reg_scratch_0 = asmjit::a64::x13;
 constexpr auto reg_scratch_1 = asmjit::a64::x14;
 constexpr auto reg_scratch_br = asmjit::a64::x16;
+constexpr auto reg_scratch_br_loc = X16;
 
 constexpr auto reg_scratch_0_loc = X13;
 constexpr auto reg_scratch_1_loc = X14;

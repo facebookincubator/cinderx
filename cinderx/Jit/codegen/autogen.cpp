@@ -1168,7 +1168,20 @@ void translateSetupFrame(Environ* env, const Instruction*) {
 void translateIndirectJump(Environ* env, const Instruction* instr) {
   arch::Builder* as = env->as;
   const OperandBase* input = instr->getInput(0);
-  JIT_CHECK(input->isInd(), "IndirectJump input must be memory indirect");
+
+  if (input->isReg()) {
+#if defined(CINDER_X86_64)
+    as->jmp(AutoTranslator::getGp(input));
+#elif defined(CINDER_AARCH64)
+    as->br(AutoTranslator::getGp(input));
+#else
+    CINDER_UNSUPPORTED
+#endif
+    return;
+  }
+
+  JIT_CHECK(
+      input->isInd(), "IndirectJump input must be memory indirect or register");
 
   const auto* mem = input->getMemoryIndirect();
   PhyLocation base = mem->getBaseRegOperand()->getPhyRegister();
@@ -1185,8 +1198,77 @@ void translateIndirectJump(Environ* env, const Instruction* instr) {
 #endif
 }
 
-#if defined(CINDER_AARCH64)
+// Emit a variadic sequence of GP register pushes (x86) or stp pairs (aarch64).
+// Each input operand is a physical register to save. The registers are stored
+// in input order (first input is the lowest address).
+void translateVariadicPush(Environ* env, const Instruction* instr) {
+  arch::Builder* as = env->as;
+  size_t n = instr->getNumInputs();
 
+#if defined(CINDER_X86_64)
+  for (size_t i = 0; i < n; i++) {
+    as->push(x86::gpq(instr->getInput(n - i - 1)->getPhyRegister().loc));
+  }
+#elif defined(CINDER_AARCH64)
+  // First pair uses pre-index to allocate stack space for all pairs.
+  // Remaining pairs use offset addressing within the allocated region.
+  constexpr int bytes_per_store = 16;
+  int total_pairs = (n + 1) / 2;
+  int alloc = total_pairs * bytes_per_store;
+  size_t i = 0;
+
+  // First pair: pre-index allocation
+  if (n >= 2) {
+    as->stp(
+        a64::x(instr->getInput(0)->getPhyRegister().loc),
+        a64::x(instr->getInput(1)->getPhyRegister().loc),
+        a64::ptr_pre(a64::sp, -alloc));
+    i = 2;
+  } else if (n == 1) {
+    as->str(
+        a64::x(instr->getInput(0)->getPhyRegister().loc),
+        a64::ptr_pre(a64::sp, -alloc));
+    i = 1;
+  }
+
+  // Remaining pairs at positive offsets from sp.
+  int pair_idx = 1;
+  while (i + 1 < n) {
+    as->stp(
+        a64::x(instr->getInput(i)->getPhyRegister().loc),
+        a64::x(instr->getInput(i + 1)->getPhyRegister().loc),
+        a64::ptr(a64::sp, pair_idx * bytes_per_store));
+    i += 2;
+    pair_idx++;
+  }
+  if (i < n) {
+    as->str(
+        a64::x(instr->getInput(i)->getPhyRegister().loc),
+        a64::ptr(a64::sp, pair_idx * bytes_per_store));
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+// Tear down the frame. On x86, this executes 'leave' (mov rsp, rbp; pop rbp).
+// On aarch64, this restores sp from fp and pops the frame record (fp + lr).
+//
+// No inputs.
+void translateLeave(Environ* env) {
+  arch::Builder* as = env->as;
+
+#if defined(CINDER_X86_64)
+  as->leave();
+#elif defined(CINDER_AARCH64)
+  as->mov(a64::sp, arch::fp);
+  as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
+#if defined(CINDER_AARCH64)
 namespace {
 
 using AT = AutoTranslator;
@@ -1339,17 +1421,17 @@ void translateLea(Environ* env, const Instruction* instr) {
 
   if (input->isStack()) {
     arch::add_signed_immediate(
-        as, AT::getGp(output), arch::fp, input->getStackSlot().loc);
+        as, getGpOrSP(output), arch::fp, input->getStackSlot().loc);
   } else if (input->isMem()) {
     auto address = reinterpret_cast<uint64_t>(input->getMemoryAddress());
-    as->mov(AT::getGp(output), address);
+    as->mov(getGpOrSP(output), address);
   } else if (input->isInd()) {
-    leaIndirect(as, AT::getGp(output), input->getMemoryIndirect());
+    leaIndirect(as, getGpOrSP(output), input->getMemoryIndirect());
   } else if (input->isLabel()) {
     asmjit::Label label = input->getDefine()->hasAsmLabel()
         ? input->getDefine()->getAsmLabel()
         : map_get(env->block_label_map, input->getBasicBlock());
-    as->adr(AT::getGp(output), label);
+    as->adr(getGpOrSP(output), label);
   } else {
     JIT_ABORT("Unsupported operand type for Lea: {}", input->type());
   }
@@ -2688,6 +2770,12 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kReserveStack:
       translateReserveStack(env, instr);
       return;
+    case Instruction::kVariadicPush:
+      translateVariadicPush(env, instr);
+      return;
+    case Instruction::kLeave:
+      translateLeave(env);
+      return;
     case Instruction::kNone:
     case Instruction::kNop:
     case Instruction::kVectorCall:
@@ -2967,6 +3055,12 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kReserveStack:
       translateReserveStack(env, instr);
+      return;
+    case Instruction::kVariadicPush:
+      translateVariadicPush(env, instr);
+      return;
+    case Instruction::kLeave:
+      translateLeave(env);
       return;
     case Instruction::kNone:
     case Instruction::kNop:

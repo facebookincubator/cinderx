@@ -318,4 +318,24 @@ void GenerateBoxedReturnWrapperBlocks(
     asmjit::Label& generic_entry,
     asmjit::Label& wrapper_exit);
 
+// Build post-regalloc LIR blocks for the deopt trampoline (stage 3).
+// This is a standalone code generator — it does not operate on a per-function
+// LIR function. It builds LIR blocks that:
+//   1. Save all GP registers (VariadicPush)
+//   2. Set up the deopt frame (kMove/kLea instructions)
+//   3. Call prepareForDeopt
+//   4. Clean up saved registers (kMove/kLea instructions)
+//   5. Call resumeInInterpreter
+//   6. Tear down the frame (kLeave) and jump to the real epilogue (kBranch)
+//
+// The blocks are appended to the given LIR function. |generator_mode|
+// controls whether the original frame pointer is restored for generators.
+// |prepare_for_deopt| and |resume_in_interpreter| are function pointers to
+// the runtime helpers called by the trampoline.
+void GenerateDeoptTrampolineBlocks(
+    Function* lir_func,
+    bool generator_mode,
+    void* prepare_for_deopt,
+    void* resume_in_interpreter);
+
 } // namespace jit::lir
