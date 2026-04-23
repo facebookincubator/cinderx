@@ -1153,12 +1153,8 @@ void exitBlock(Env& env, const Edge* out_edge) {
       continue;
     }
 
-    bool to_owned = [&] {
-      if (!isLiveIn(succ, model, to_regs)) {
-        return false;
-      }
-      return to_regs.getModel(model).isOwned();
-    }();
+    bool to_owned =
+        isLiveIn(succ, model, to_regs) && to_regs.getModel(model).isOwned();
 
     // Start by calculating the number of increfs needed to reconcile the out
     // state to the in state. This may begin as -1 if the out state is Owned
