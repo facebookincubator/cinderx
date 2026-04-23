@@ -1268,6 +1268,21 @@ void translateLeave(Environ* env) {
 #endif
 }
 
+// Return from a function. On x86, this is 'ret'. On aarch64, 'ret lr'.
+//
+// No inputs.
+void translateRet(Environ* env, const Instruction* instr) {
+  arch::Builder* as = env->as;
+
+#if defined(CINDER_X86_64)
+  as->ret();
+#elif defined(CINDER_AARCH64)
+  as->ret(arch::lr);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 #if defined(CINDER_AARCH64)
 namespace {
 
@@ -2776,6 +2791,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kLeave:
       translateLeave(env);
       return;
+    case Instruction::kRet:
+      translateRet(env, instr);
+      return;
     case Instruction::kNone:
     case Instruction::kNop:
     case Instruction::kVectorCall:
@@ -3061,6 +3079,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kLeave:
       translateLeave(env);
+      return;
+    case Instruction::kRet:
+      translateRet(env, instr);
       return;
     case Instruction::kNone:
     case Instruction::kNop:

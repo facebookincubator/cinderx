@@ -901,6 +901,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kReserveStack:
     case Instruction::kVariadicPush:
     case Instruction::kLeave:
+    case Instruction::kRet:
       return kUnchanged;
   }
 

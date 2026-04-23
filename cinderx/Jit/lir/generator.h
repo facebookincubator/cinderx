@@ -338,4 +338,16 @@ void GenerateDeoptTrampolineBlocks(
     void* prepare_for_deopt,
     void* resume_in_interpreter);
 
+// Build post-regalloc LIR blocks for the failed deferred compilation
+// trampoline.  This trampoline is invoked when a lazily-compiled function
+// fails to compile: it saves incoming argument registers, calls
+// JITRT_FailedDeferredCompileShim with a pointer to the saved args, tears
+// down the frame, and returns.
+//
+// |failed_deferred_compile_shim| is the function pointer to
+// JITRT_FailedDeferredCompileShim.
+void GenerateFailedDeferredCompileBlocks(
+    Function* lir_func,
+    void* failed_deferred_compile_shim);
+
 } // namespace jit::lir

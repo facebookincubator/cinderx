@@ -469,33 +469,25 @@ void emitLIRBlocks(
   }
 }
 
-void* generateDeoptTrampoline(bool generator_mode) {
+// Emit LIR blocks to machine code, finalize, register debug/perf symbols, and
+// return the entry address.  Shared by all standalone trampoline generators.
+static void* emitAndRegisterTrampoline(
+    lir::Function* lir_func,
+    const char* name) {
   auto mod_state = cinderx::getModuleState();
   if (mod_state == nullptr) {
     throw std::runtime_error{
-        "CinderX not initialized, cannot generate deopt trampolines"};
+        fmt::format("CinderX not initialized, cannot generate {}", name)};
   }
-
-  auto name =
-      generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
 
   CodeHolder code;
   ICodeAllocator* code_allocator = mod_state->code_allocator.get();
   ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
   arch::Builder a(&code);
 
-  // Build the deopt trampoline as LIR blocks.
-  lir::Function lir_func;
-  lir::GenerateDeoptTrampolineBlocks(
-      &lir_func,
-      generator_mode,
-      reinterpret_cast<void*>(prepareForDeopt),
-      reinterpret_cast<void*>(resumeInInterpreter));
-
-  // Emit code via the shared LIR emission loop.
   Environ env;
   env.as = &a;
-  emitLIRBlocks(&env, &lir_func);
+  emitLIRBlocks(&env, lir_func);
 
   void* result = finalizeCode(a, name);
   JIT_LOGIF(
@@ -516,88 +508,26 @@ void* generateDeoptTrampoline(bool generator_mode) {
   return result;
 }
 
+void* generateDeoptTrampoline(bool generator_mode) {
+  lir::Function lir_func;
+  lir::GenerateDeoptTrampolineBlocks(
+      &lir_func,
+      generator_mode,
+      reinterpret_cast<void*>(prepareForDeopt),
+      reinterpret_cast<void*>(resumeInInterpreter));
+
+  return emitAndRegisterTrampoline(
+      &lir_func,
+      generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline");
+}
+
 void* generateFailedDeferredCompileTrampoline() {
-  auto mod_state = cinderx::getModuleState();
-  if (mod_state == nullptr) {
-    throw std::runtime_error{
-        "CinderX not initialized, cannot generate deopt trampolines"};
-  }
-  CodeHolder code;
-  ICodeAllocator* code_allocator = mod_state->code_allocator.get();
-  code.init(code_allocator->asmJitEnvironment());
-  arch::Builder a(&code);
-  Annotations annot;
+  lir::Function lir_func;
+  lir::GenerateFailedDeferredCompileBlocks(
+      &lir_func, reinterpret_cast<void*>(JITRT_FailedDeferredCompileShim));
 
-#if defined(CINDER_X86_64)
-  auto annot_cursor = a.cursor();
-
-  a.push(x86::rbp);
-  a.mov(x86::rbp, x86::rsp);
-
-  // save incoming arg registers
-  a.push(x86::r9);
-  a.push(x86::r8);
-  a.push(x86::rcx);
-  a.push(x86::rdx);
-  a.push(x86::rsi);
-  a.push(x86::rdi);
-
-  annot.add("saveRegisters", &a, annot_cursor);
-
-  a.mov(x86::rdi, x86::rsp);
-  a.call(reinterpret_cast<uint64_t>(JITRT_FailedDeferredCompileShim));
-  a.leave();
-  a.ret();
-#elif defined(CINDER_AARCH64)
-  auto annot_cursor = a.cursor();
-
-  a.stp(arch::fp, arch::lr, a64::ptr_pre(a64::sp, -arch::kFrameRecordSize));
-  a.mov(arch::fp, a64::sp);
-
-  // save incoming arg registers
-  a.stp(a64::x0, a64::x1, a64::ptr_pre(a64::sp, -64));
-  a.stp(a64::x2, a64::x3, a64::ptr(a64::sp, 16));
-  a.stp(a64::x4, a64::x5, a64::ptr(a64::sp, 32));
-  a.stp(a64::x6, a64::x7, a64::ptr(a64::sp, 48));
-
-  annot.add("saveRegisters", &a, annot_cursor);
-
-  a.mov(a64::x0, a64::sp);
-  a.mov(arch::reg_scratch_br, JITRT_FailedDeferredCompileShim);
-  a.blr(arch::reg_scratch_br);
-  a.mov(a64::sp, arch::fp);
-  a.ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
-  a.ret(arch::lr);
-#else
-  CINDER_UNSUPPORTED
-#endif
-
-  const char* name = "failedDeferredCompileTrampoline";
-  void* result = finalizeCode(a, name);
-
-  JIT_LOGIF(
-      getConfig().log.dump_asm,
-      "Disassembly for {}\n{}",
-      name,
-      annot.disassemble(result, code));
-
-  auto code_size = code.textSection()->realSize();
-  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
-  std::vector<std::pair<void*, std::size_t>> code_sections;
-  forEachSection([&](CodeSection section) {
-    auto asmjit_section = code.sectionByName(codeSectionName(section));
-    if (asmjit_section == nullptr || asmjit_section->realSize() == 0) {
-      return;
-    }
-    auto section_start = static_cast<char*>(result) + asmjit_section->offset();
-    code_sections.emplace_back(
-        reinterpret_cast<void*>(section_start), asmjit_section->realSize());
-  });
-#ifndef WIN32
-  perf::registerFunction(code_sections, name);
-#endif
-
-  return result;
+  return emitAndRegisterTrampoline(
+      &lir_func, "failedDeferredCompileTrampoline");
 }
 
 class AsmJitException : public std::exception {

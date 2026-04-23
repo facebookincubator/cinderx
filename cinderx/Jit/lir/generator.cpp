@@ -1236,6 +1236,13 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   // resume_blocks_, but still needs the resume entry block to exist.
   if (is_gen_) {
     auto* resume_entry = lir_func_->allocateBasicBlock();
+    // Remove from basic_blocks_ immediately — this is a placeholder block
+    // that will be populated post-regalloc by PopulateResumeEntryBlock and
+    // re-inserted in generateCode() before emission.  Leaving it in the
+    // list causes the block sorter to treat it as the exit block and assert
+    // because it has successors.
+    auto& bbs = lir_func_->basicblocks();
+    bbs.erase(std::remove(bbs.begin(), bbs.end(), resume_entry), bbs.end());
     for (auto* rb : resume_blocks_) {
       resume_entry->addSuccessor(rb);
     }
@@ -5188,6 +5195,40 @@ void GenerateDeoptTrampolineBlocks(
   // Jump to the real epilogue.
   block->allocateInstr(
       Instruction::kIndirectJump, nullptr, PhyReg{jump_target_reg});
+}
+
+void GenerateFailedDeferredCompileBlocks(
+    Function* lir_func,
+    void* failed_deferred_compile_shim) {
+  auto* block = lir_func->allocateBasicBlock();
+
+  // Set up a frame.
+  block->allocateInstr(Instruction::kPrologue, nullptr);
+
+  // Save incoming argument registers.
+  emitAnnotation(block, "saveRegisters");
+  auto* vpush = block->allocateInstr(Instruction::kVariadicPush, nullptr);
+  for (int i = 0; i < codegen::ARGUMENT_REGS.size(); i++) {
+    vpush->addOperands(PhyReg{codegen::ARGUMENT_REGS[i]});
+  }
+
+  // arg0 = pointer to saved argument registers on the stack.
+  constexpr auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+  block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[0]},
+      Ind(sp_reg, 0));
+
+  // Call JITRT_FailedDeferredCompileShim.
+  block->allocateInstr(
+      Instruction::kCall,
+      nullptr,
+      Imm{reinterpret_cast<uint64_t>(failed_deferred_compile_shim)});
+
+  // Tear down the frame and return.
+  block->allocateInstr(Instruction::kLeave, nullptr);
+  block->allocateInstr(Instruction::kRet, nullptr);
 }
 
 } // namespace jit::lir
