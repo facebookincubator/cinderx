@@ -281,24 +281,6 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_shadowcode(self) -> None:
-        codestr = """
-            from __static__ import CheckedDict
-
-            class B: pass
-            class D(B): pass
-
-            def testfunc():
-                x = CheckedDict[B, int]({B():42, D():42})
-                return x
-        """
-        with self.in_module(codestr) as mod:
-            test = mod.testfunc
-            B = mod.B
-            for _ in range(200):
-                # pyrefly: ignore [unsupported-operation]
-                self.assertEqual(type(test()), chkdict[B, int])
-
     def test_compile_checked_dict_optional(self) -> None:
         codestr = """
             from __static__ import CheckedDict

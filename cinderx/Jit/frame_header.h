@@ -12,7 +12,7 @@ namespace jit {
 int frameHeaderSize(BorrowedRef<PyCodeObject> code);
 
 // FrameHeader lives at the beginning of the stack frame for JIT-compiled
-// functions. In 3.12+ this will be followed by the _PyInterpreterFrame.
+// functions.  This is followed by the _PyInterpreterFrame.
 struct FrameHeader {
   union {
     PyFunctionObject* func;

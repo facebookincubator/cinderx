@@ -53,8 +53,6 @@ class CountCallsTest(unittest.TestCase):
         def func() -> int:
             return 15
 
-        # Loop many times to check that the shadowcode threshold (50) isn't affecting
-        # call tracking.
         for i in range(2000):
             # Stops counting after it gets compiled.
             call_limit = cinderx.jit.get_compile_after_n_calls()
@@ -68,8 +66,6 @@ class CountCallsTest(unittest.TestCase):
         def func() -> int:
             return 15
 
-        # Loop many times to check that the shadowcode threshold (50) isn't affecting
-        # call tracking.
         for _ in range(2000):
             # Will never count any calls as the function gets compiled immediately.
             self.assertEqual(count_interpreted_calls(func), 0)

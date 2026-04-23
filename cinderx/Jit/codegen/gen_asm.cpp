@@ -1149,10 +1149,8 @@ void* NativeGenerator::getVectorcallEntry() {
       "DeadCodeElimination",
       eliminateDeadCode(lir_func.get()))
 
-  int frame_header_size = jit::frameHeaderSize(func_->code);
-#if !defined(ENABLE_SHADOW_FRAMES)
+  int frame_header_size = frameHeaderSize(func_->code);
   frame_header_size += sizeof(void*);
-#endif
 
   LinearScanAllocator lsalloc(
       lir_func.get(), frame_header_size + inline_stack_size_);
@@ -1954,8 +1952,6 @@ void NativeGenerator::generateCode(
         [[fallthrough]];
       case FrameMode::kLightweight:
         return perf::kFuncSymbolPrefix;
-      case FrameMode::kShadow:
-        return perf::kShadowFrameSymbolPrefix;
     }
     JIT_ABORT("Invalid frame mode");
   }();

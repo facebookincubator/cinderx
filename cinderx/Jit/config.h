@@ -31,7 +31,6 @@ enum class State : uint8_t {
 
 enum class FrameMode : uint8_t {
   kNormal,
-  kShadow,
   kLightweight,
 };
 

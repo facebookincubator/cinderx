@@ -11,7 +11,6 @@ namespace jit::perf {
 
 constexpr std::string_view kDefaultSymbolPrefix{"__CINDER_INFRA_JIT"};
 constexpr std::string_view kFuncSymbolPrefix{"__CINDER_JIT"};
-constexpr std::string_view kShadowFrameSymbolPrefix{"__CINDER_SHDW_FRAME_JIT"};
 
 // Write out perf metadata for the given compiled function, depending on what's
 // enabled in the environment:

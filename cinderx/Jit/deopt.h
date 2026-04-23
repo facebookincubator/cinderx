@@ -93,8 +93,8 @@ bool shouldResumeInterpreterInErrorHandler(DeoptReason reason);
 
 const char* deoptReasonName(DeoptReason reason);
 
-// Deopt metadata that is specific to a particular (shadow) frame whose code
-// may have been inlined.
+// Deopt metadata that is specific to a particular frame whose code may have
+// been inlined.
 struct DeoptFrameMetadata {
   // Locals + cellvars + freevars. This contains an index into live_values or
   // -1 to indicate that a variable is dead. This is somewhat oddly named in

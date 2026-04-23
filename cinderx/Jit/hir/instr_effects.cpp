@@ -79,7 +79,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kPrimitiveBox:
       return commonEffects(inst, AEmpty);
 
-    // These push/pop shadow frames and should not get DCE'd.
+    // These push/pop frames and should not get DCE'd.
     case Opcode::kBeginInlinedFunction:
     case Opcode::kEndInlinedFunction:
     // Updates the _PyInterpreterFrame

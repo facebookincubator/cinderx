@@ -2,12 +2,8 @@
 
 #include "cinderx/Jit/frame_header.h"
 
-#include <cinderx/Common/code.h>
-#include <cinderx/Common/util.h>
-#include <cinderx/Jit/config.h>
-
-#include <unordered_set>
-#include <vector>
+#include "cinderx/Common/util.h"
+#include "cinderx/Jit/config.h"
 
 namespace jit {
 

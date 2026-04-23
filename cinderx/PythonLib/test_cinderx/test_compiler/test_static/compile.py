@@ -3862,28 +3862,6 @@ class StaticCompilationTests(StaticTestBase):
             c = C()
             self.assertEqual(c.x, None)
 
-    def test_invoke_and_raise_shadow_frame_strictmod(self) -> None:
-        codestr = """
-        from __static__.compiler_flags import shadow_frame
-
-        def x():
-            raise TypeError()
-
-        def y():
-            return x()
-        """
-        with self.in_strict_module(codestr) as mod:
-            y = mod.y
-            x = mod.x
-            with self.assertRaises(TypeError):
-                y()
-            self.assert_jitted(x)
-            self.assertInBytecode(
-                y,
-                "INVOKE_FUNCTION",
-                (((mod.__name__,), "x"), 0),
-            )
-
     def test_override_okay(self) -> None:
         codestr = """
         class B:
@@ -4044,36 +4022,6 @@ class StaticCompilationTests(StaticTestBase):
                 TypeError, ".*expected 'str' for argument y, got 'int'"
             ):
                 f(42, 42)
-
-    def test_method_prologue_shadowcode(self) -> None:
-        codestr = """
-        def f(x, y: str):
-            return 42
-        """
-        with self.in_module(codestr) as mod:
-            f = mod.f
-            self.assertEqual(self.get_arg_check_types(f), (1, ("builtins", "str")))
-            for _ in range(100):
-                self.assertEqual(f("abc", "abc"), 42)
-            with self.assertRaisesRegex(
-                TypeError, ".*expected 'str' for argument y, got 'int'"
-            ):
-                f("abc", 42)
-
-    def test_method_prologue_shadowcode_2(self) -> None:
-        codestr = """
-        def f(x: str):
-            return 42
-        """
-        with self.in_module(codestr) as mod:
-            f = mod.f
-            self.assertEqual(self.get_arg_check_types(f), (0, ("builtins", "str")))
-            for _ in range(100):
-                self.assertEqual(f("abc"), 42)
-            with self.assertRaisesRegex(
-                TypeError, ".*expected 'str' for argument x, got 'int'"
-            ):
-                f(42)
 
     def test_method_prologue_no_annotation(self) -> None:
         codestr = """
@@ -5117,33 +5065,6 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(f, "CAST")
             for i in range(100):
                 self.assertEqual(f("AA" if i % 2 == 0 else None), 0)
-
-    def test_cast_exact_shadowcode(self) -> None:
-        codestr = """
-            from typing import Annotated
-            def f(x) -> int:
-                a: Annotated[int, "Exact"] = x
-                return a
-        """
-        with self.in_module(codestr, freeze=True) as mod:
-            f = mod.f
-            self.assertInBytecode(f, "CAST")
-            for i in range(100):
-                self.assertEqual(f(i), i)
-
-    def test_cast_optional_exact_shadowcode(self) -> None:
-        codestr = """
-            from typing import Annotated
-            def f(x) -> int | None:
-                a: Annotated[int | None, "Exact"] = x
-                return a
-        """
-        with self.in_module(codestr, freeze=True) as mod:
-            f = mod.f
-            self.assertInBytecode(f, "CAST")
-            for i in range(100):
-                x = i if i % 2 == 0 else None
-                self.assertEqual(f(x), x)
 
     def test_invoke_with_cell(self) -> None:
         codestr = """

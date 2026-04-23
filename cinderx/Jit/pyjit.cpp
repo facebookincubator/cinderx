@@ -479,16 +479,6 @@ FlagProcessor initFlagProcessor() {
       "disable the JIT");
 
   flag_processor.addOption(
-      "jit-shadow-frame",
-      "PYTHONJITSHADOWFRAME",
-      [](int /*val*/) {
-        // Cinder's shadow frames are not supported in Python versions later
-        // than 3.10.
-        return;
-      },
-      "enable shadow frame mode");
-
-  flag_processor.addOption(
       "jit-lightweight-frame",
       "PYTHONJITLIGHTWEIGHTFRAME",
       [](int val) {
@@ -2872,8 +2862,7 @@ PyMethodDef jit_methods[] = {
      jit_frame_mode,
      METH_NOARGS,
      PyDoc_STR(
-         "Get JIT frame mode (0 = normal frames, 1 = no frames, 2 = "
-         "shadow frames).")},
+         "Get JIT frame mode (0 = normal frames, 1 = lightweight frames).")},
     {"get_jit_list",
      get_jit_list,
      METH_NOARGS,

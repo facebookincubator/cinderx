@@ -106,8 +106,7 @@ class LinearScanAllocator {
 
   codegen::PhyRegisterSet getChangedRegs() const;
 
-  // Return the number of bytes that should be allocated below the base
-  // pointer, including zero or more shadow frames and any needed spill space.
+  // Return the number of bytes that should be allocated below the base pointer.
   int getFrameSize() const;
 
   int initialYieldSpillSize() const;
