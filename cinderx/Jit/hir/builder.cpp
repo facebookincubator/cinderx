@@ -6,13 +6,13 @@
 
 #include "cinderx/python_runtime.h"
 
-#if PY_VERSION_HEX >= 0x030C0000
 extern "C" {
+
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_long.h"
 #include "internal/pycore_runtime.h"
-}
-#endif
+
+} // extern "C"
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/py-portability.h"

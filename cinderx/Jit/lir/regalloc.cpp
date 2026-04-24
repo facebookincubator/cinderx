@@ -496,12 +496,11 @@ void LinearScanAllocator::calculateLiveIntervals() {
           instr_opcode == Instruction::kVectorCall) {
         reserveCallerSaveRegisters(instr_id);
       }
-      // kLoadThreadState needs caller-save reservation when the TLS
-      // offset is unavailable, forcing a function call fallback.
-      // When the TLS offset IS known (or on 3.10 which loads from a
-      // global), translateLoadThreadState may use the return register
-      // (rax/x0) as an implicit scratch when the output is a stack
-      // slot, so we must always reserve it.
+      // kLoadThreadState needs caller-save reservation when the TLS offset is
+      // unavailable, forcing a function call fallback.  When the TLS offset IS
+      // known translateLoadThreadState may use the return register (rax/x0) as
+      // an implicit scratch when the output is a stack slot, so we must always
+      // reserve it.
       if (instr_opcode == Instruction::kLoadThreadState) {
         if (cinderx::getModuleState()->tstate_offset == -1) {
           reserveCallerSaveRegisters(instr_id);

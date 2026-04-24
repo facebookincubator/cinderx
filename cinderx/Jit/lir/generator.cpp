@@ -5124,9 +5124,8 @@ void GenerateDeoptTrampolineBlocks(
         OutPhyReg{codegen::ARGUMENT_REGS[0]},
         PhyReg{codegen::arch::reg_general_return_loc});
   }
-#if PY_VERSION_HEX >= 0x030C0000
-  // Fourth argument: is_instrumentation_deopt returned by
-  // prepareForDeopt.  Save it before being overwritten below.
+  // Fourth argument: is_instrumentation_deopt returned by prepareForDeopt.
+  // Save it before being overwritten below.
   if (codegen::ARGUMENT_REGS[3] !=
       codegen::arch::reg_general_auxilary_return_loc) {
     block->allocateInstr(
@@ -5135,7 +5134,6 @@ void GenerateDeoptTrampolineBlocks(
         OutPhyReg{codegen::ARGUMENT_REGS[3]},
         PhyReg{codegen::arch::reg_general_auxilary_return_loc});
   }
-#endif
   // arg1 = code_rt from stack (fp - 3*8)
   block->allocateInstr(
       Instruction::kMove,

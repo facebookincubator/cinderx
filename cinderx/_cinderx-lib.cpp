@@ -876,7 +876,6 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      cinder_immortalize_heap_doc},
     {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
-#if PY_VERSION_HEX >= 0x030C0000
     {"anext",
      reinterpret_cast<PyCFunction>(builtin_anext),
      METH_FASTCALL,
@@ -899,7 +898,6 @@ PyMethodDef _cinderx_methods[] = {
      cinder_get_adaptive_delay,
      METH_NOARGS,
      cinder_get_adaptive_delay_doc},
-#endif
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
     {"get_threshold",
      cinder_get_threshold,

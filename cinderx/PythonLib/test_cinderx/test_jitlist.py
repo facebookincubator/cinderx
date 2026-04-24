@@ -125,9 +125,7 @@ class JitListTest(unittest.TestCase):
 
         # pyre-ignore[16]: Pyre doesn't know about __code__.
         code_obj = code_func.__code__
-
-        # Cheating a little here, because we don't have a code.co_qualname in 3.10.
-        code_name = code_func.__qualname__
+        code_name = code_obj.co_qualname
 
         py_code_objs = cinderx.jit.get_jit_list()[1]
         thisfile = os.path.basename(__file__)

@@ -74,8 +74,6 @@ SWAPPABLE: set[str] = {"STORE_FAST", "STORE_FAST_MAYBE_NULL", "POP_TOP"}
 class FlowGraphOptimizer:
     """Flow graph optimizer."""
 
-    JUMP_ABS: str = "<INVALID JUMP OPCODE>"  # Set to different opcodes in 3.10 and 3.12
-
     def __init__(self, graph: PyFlowGraph) -> None:
         self.graph = graph
 
@@ -162,7 +160,7 @@ class FlowGraphOptimizer:
             return instr_index + self.jump_thread(
                 block, instr, target, "POP_JUMP_IF_FALSE"
             )
-        elif target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP_IF_FALSE_OR_POP"):
+        elif target.opname in ("JUMP", "JUMP_FORWARD", "JUMP_IF_FALSE_OR_POP"):
             return instr_index + self.jump_thread(
                 block, instr, target, "JUMP_IF_FALSE_OR_POP"
             )
@@ -188,7 +186,7 @@ class FlowGraphOptimizer:
             return instr_index + self.jump_thread(
                 block, instr, target, "POP_JUMP_IF_TRUE"
             )
-        elif target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP_IF_TRUE_OR_POP"):
+        elif target.opname in ("JUMP", "JUMP_FORWARD", "JUMP_IF_TRUE_OR_POP"):
             return instr_index + self.jump_thread(
                 block, instr, target, "JUMP_IF_TRUE_OR_POP"
             )
@@ -210,7 +208,7 @@ class FlowGraphOptimizer:
         block: Block,
     ) -> int | None:
         assert target is not None
-        if target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP"):
+        if target.opname in ("JUMP", "JUMP_FORWARD", "JUMP"):
             return instr_index + self.jump_thread(block, instr, target, instr.opname)
 
     def opt_jump(
@@ -222,8 +220,8 @@ class FlowGraphOptimizer:
         block: Block,
     ) -> int | None:
         assert target is not None
-        if target.opname in (self.JUMP_ABS, "JUMP_FORWARD"):
-            return instr_index + self.jump_thread(block, instr, target, self.JUMP_ABS)
+        if target.opname in ("JUMP", "JUMP_FORWARD"):
+            return instr_index + self.jump_thread(block, instr, target, "JUMP")
 
     def opt_for_iter(
         self,
@@ -307,7 +305,7 @@ class FlowGraphOptimizer:
                 or next_instr.opname == "JUMP_IF_TRUE"
             )
             if is_true == jump_if_true:
-                next_instr.opname = self.JUMP_ABS
+                next_instr.opname = "JUMP"
                 block.has_fallthrough = False
             else:
                 next_instr.target = None
@@ -316,7 +314,7 @@ class FlowGraphOptimizer:
             is_true = bool(const)
             jump_if_true = next_instr.opname == "JUMP_IF_TRUE_OR_POP"
             if is_true == jump_if_true:
-                next_instr.opname = self.JUMP_ABS
+                next_instr.opname = "JUMP"
                 block.has_fallthrough = False
             else:
                 self.set_to_nop(block.insts[instr_index])
@@ -366,8 +364,6 @@ LOAD_CONST_INSTRS = ("LOAD_CONST", "LOAD_SMALL_INT")
 
 class FlowGraphOptimizer312(FlowGraphOptimizer):
     """Python 3.12-specific optimizations."""
-
-    JUMP_ABS = "JUMP"
 
     def set_to_nop(self, instr: Instruction) -> None:
         instr.set_to_nop()
@@ -688,7 +684,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
 
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer.handlers,
-        JUMP_ABS: FlowGraphOptimizer.opt_jump,
+        "JUMP": FlowGraphOptimizer.opt_jump,
         "LOAD_CONST": opt_load_const,
         "PUSH_NULL": opt_push_null,
         "BUILD_TUPLE": opt_build_tuple,

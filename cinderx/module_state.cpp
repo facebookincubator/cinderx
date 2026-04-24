@@ -52,7 +52,6 @@ int ModuleState::clear() {
 }
 
 bool ModuleState::initBuiltinMembers() {
-#if PY_VERSION_HEX >= 0x030C0000
   PyTypeObject* types[] = {
       &PyBool_Type,
       &PyBytes_Type,
@@ -99,7 +98,7 @@ bool ModuleState::initBuiltinMembers() {
 
     builtin_members.emplace(type, std::move(type_members));
   }
-#endif
+
   return true;
 }
 

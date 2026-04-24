@@ -7,10 +7,6 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/async_lazy_value_iface.h"
 
-#include <memory>
-
-#if PY_VERSION_HEX >= 0x030C0000
-
 /*
   Unboxed result of calling _asyncio_future_blocking
   Normally we'd use int with commit convention to indicate:
@@ -18,24 +14,23 @@
   However it is permitted for this property to return None
   we need to represent 4 states so enum fits quite nicely
 */
-typedef enum {
+enum fut_blocking_state {
   BLOCKING_TRUE,
   BLOCKING_FALSE,
   BLOCKING_ERROR,
   BLOCKING_NONE,
-} fut_blocking_state;
+};
 
-typedef PyObject* (*get_source_traceback)(PyObject* fut);
+using get_source_traceback = PyObject* (*)(PyObject * fut);
 
-typedef struct {
+struct PyMethodTableRef {
   PyWeakReference weakref;
   // actual method table
   get_source_traceback source_traceback;
-} PyMethodTableRef;
-
-#ifdef __cplusplus
+};
 
 namespace cinderx {
+
 class AsyncLazyValueState : public IAsyncLazyValueState {
  public:
   AsyncLazyValueState() {}
@@ -110,8 +105,5 @@ class AsyncLazyValueState : public IAsyncLazyValueState {
   // method table for the last used task type
   BorrowedRef<PyMethodTableRef> last_used_task_type_table_ref_;
 };
+
 } // namespace cinderx
-
-#endif
-
-#endif // #if PY_VERSION_HEX >= 0x030C0000

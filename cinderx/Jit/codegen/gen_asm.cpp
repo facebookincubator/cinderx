@@ -59,7 +59,7 @@ namespace {
 // Return type for prepareForDeopt: the reified frame and whether this deopt
 // was triggered by instrumentation (setIP patch) rather than a guard failure.
 struct DeoptResult {
-  CiPyFrameObjType* frame;
+  _PyInterpreterFrame* frame;
   bool is_instrumentation_deopt;
 };
 
