@@ -25,15 +25,10 @@
 
 namespace jit::codegen {
 
+class NativeGeneratorFactory;
 class NativeGenerator {
  public:
-  explicit NativeGenerator(const hir::Function* func);
-
-  NativeGenerator(
-      const hir::Function* func,
-      void* deopt_trampoline,
-      void* deopt_trampoline_generators,
-      void* failed_deferred_compile_trampoline);
+  NativeGenerator(const hir::Function* func, NativeGeneratorFactory& factory);
 
   ~NativeGenerator() {
     if (as_ != nullptr) {
@@ -83,9 +78,6 @@ class NativeGenerator {
   void* vectorcall_entry_{nullptr};
   arch::Builder* as_{nullptr};
   CodeHolderMetadata metadata_{CodeSection::kHot};
-  void* deopt_trampoline_{nullptr};
-  void* deopt_trampoline_generators_{nullptr};
-  void* const failed_deferred_compile_trampoline_;
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
@@ -140,6 +132,7 @@ class NativeGenerator {
 
   std::unique_ptr<lir::Function> lir_func_;
   Environ env_;
+  NativeGeneratorFactory& factory_;
 };
 
 // Factory class for creating instances of NativeGenerator that reuse the same
@@ -148,14 +141,18 @@ class NativeGeneratorFactory {
  public:
   NativeGeneratorFactory();
 
-  std::unique_ptr<NativeGenerator> operator()(const hir::Function* func) const;
+  std::unique_ptr<NativeGenerator> operator()(const hir::Function* func);
 
   DISALLOW_COPY_AND_ASSIGN(NativeGeneratorFactory);
 
+  void* deoptTrampoline();
+  void* deoptTrampolineGenerators();
+  void* failedDeferredCompileTrampoline();
+
  private:
-  void* deopt_trampoline_;
-  void* deopt_trampoline_generators_;
-  void* failed_deferred_compile_trampoline_;
+  void* deopt_trampoline_{nullptr};
+  void* deopt_trampoline_generators_{nullptr};
+  void* failed_deferred_compile_trampoline_{nullptr};
 };
 
 } // namespace jit::codegen

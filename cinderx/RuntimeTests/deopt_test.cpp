@@ -380,7 +380,8 @@ class DeoptStressTest : public RuntimeTest {
     Context* ngen_ctx = getContext();
     auto pyfunc = reinterpret_cast<PyFunctionObject*>(funcobj.get());
     while (!guards.empty()) {
-      NativeGenerator gen(irfunc.get());
+      NativeGeneratorFactory factory;
+      NativeGenerator gen(irfunc.get(), factory);
       auto jitfunc = reinterpret_cast<vectorcallfunc>(gen.getVectorcallEntry());
       ASSERT_NE(jitfunc, nullptr);
       ngen_ctx->setGuardFailureCallback(delete_one_deopt);
@@ -448,7 +449,8 @@ class DeoptStressTest : public RuntimeTest {
     // Recompile so we get the annotated disassembly
     bool old_dump_asm = true;
     std::swap(jit::getMutableConfig().log.dump_asm, old_dump_asm);
-    NativeGenerator gen(&irfunc);
+    NativeGeneratorFactory factory;
+    NativeGenerator gen(&irfunc, factory);
     gen.getVectorcallEntry();
     jit::getMutableConfig().log.dump_asm = old_dump_asm;
     std::cerr << '\n';
