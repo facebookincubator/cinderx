@@ -372,9 +372,9 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #endif
 #ifdef META_PYTHON
 #endif
-#ifdef META_PYTHON
-#endif
 #else   // Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
 #endif
 #ifdef META_PYTHON
 #else
@@ -3004,8 +3004,8 @@ error:
     MCACHE_HASH(FT_ATOMIC_LOAD_UINT32_RELAXED((type)->tp_version_tag),   \
                 ((Py_ssize_t)(name)) >> 3)
 #define MCACHE_CACHEABLE_NAME(name)                             \
-        PyUnicode_CheckExact(name) &&                           \
-        (PyUnicode_GET_LENGTH(name) <= MCACHE_MAX_ATTR_SIZE)
+        (PyUnicode_CheckExact(name) &&                           \
+         (PyUnicode_GET_LENGTH(name) <= MCACHE_MAX_ATTR_SIZE))
 #define NEXT_VERSION_TAG(interp) \
     (interp)->types.next_version_tag
 #ifdef Py_GIL_DISABLED
@@ -3023,6 +3023,10 @@ error:
 #define BEGIN_TYPE_DICT_LOCK(d)
 #define END_TYPE_DICT_LOCK()
 #define ASSERT_TYPE_LOCK_HELD()
+#define types_stop_world()
+#define types_start_world()
+#define type_lock_prevent_release()
+#define type_lock_allow_release()
 #endif
 #define PyTypeObject_CAST(op)   ((PyTypeObject *)(op))
 #ifndef NDEBUG
@@ -3512,7 +3516,7 @@ take_ownership(PyFrameObject *f, _PyInterpreterFrame *frame)
     _PyFrame_Copy(frame, new_frame);
     // _PyFrame_Copy takes the reference to the executable,
     // so we need to restore it.
-    frame->f_executable = PyStackRef_DUP(new_frame->f_executable);
+    new_frame->f_executable = PyStackRef_DUP(new_frame->f_executable);
     f->f_frame = new_frame;
     new_frame->owner = FRAME_OWNED_BY_FRAME_OBJECT;
     if (_PyFrame_IsIncomplete(new_frame)) {
@@ -7822,8 +7826,6 @@ struct _mem_work_chunk {
 #endif
 #ifdef Py_REF_DEBUG
 #endif
-#ifdef Py_DEBUG
-#endif
 #ifdef Py_GIL_DISABLED
 #elif SIZEOF_VOID_P > 4
 #else
@@ -8389,7 +8391,11 @@ _PyStackRef _PyFloat_FromDouble_ConsumeInputs(_PyStackRef left, _PyStackRef righ
 {
     PyStackRef_CLOSE_SPECIALIZED(left, _PyFloat_ExactDealloc);
     PyStackRef_CLOSE_SPECIALIZED(right, _PyFloat_ExactDealloc);
-    return PyStackRef_FromPyObjectSteal(PyFloat_FromDouble(value));
+    PyObject *obj = PyFloat_FromDouble(value);
+    if (obj == NULL) {
+        return PyStackRef_NULL;
+    }
+    return PyStackRef_FromPyObjectSteal(obj);
 }
 
 // _PyCoroObject_CAST includes assert(PyCoro_CheckExact(op)) which fails
