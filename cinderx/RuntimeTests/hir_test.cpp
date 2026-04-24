@@ -17,10 +17,10 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 
 extern "C" {
-#if PY_VERSION_HEX >= 0x030C0000
+
 #include "internal/pycore_intrinsics.h"
-#endif
-}
+
+} // extern "C"
 
 using namespace jit;
 using namespace jit::hir;

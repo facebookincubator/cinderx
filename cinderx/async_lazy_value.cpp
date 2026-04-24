@@ -12,8 +12,6 @@
 #include "cinderx/Common/py-portability.h"
 // clang-format on
 
-#if PY_VERSION_HEX >= 0x030C0000
-
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"
 #include "internal/pycore_object.h"
@@ -244,6 +242,7 @@ Ref<PyMethodTableRef> init_table(PyTypeObject* t) {
   }
   return create_method_table(t);
 }
+
 } // namespace cinderx
 
 extern "C" {
@@ -1493,6 +1492,5 @@ PyType_Spec AwaitableValue_Spec = {
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_IMMUTABLETYPE,
     .slots = awaitabletype_slots,
 };
-}
 
-#endif // PY_VERSION_HEX >= 0x030C0000
+} // extern "C"

@@ -41,6 +41,171 @@ const std::string& internDescr(const std::string& descr) {
   return *s_descrs.emplace(descr).first;
 }
 
+void reifyLocalsplus(
+    _PyInterpreterFrame* frame,
+    const DeoptMetadata& meta,
+    const DeoptFrameMetadata& frame_meta,
+    const MemoryView& mem) {
+  Ci_STACK_TYPE* localsplus = &frame->localsplus[0];
+
+  BorrowedRef<PyCodeObject> code = frameCode(frame);
+  int free_offset = numLocalsplus(code) - numFreevars(code);
+  // Local variables are not initialized in the frame
+  for (std::size_t i = 0; i < free_offset && i < frame_meta.localsplus.size();
+       i++) {
+    const LiveValue* value = meta.getLocalValue(i, frame_meta);
+    if (value == nullptr) {
+      // Value is dead
+      *localsplus = Ci_STACK_NULL;
+    } else {
+      PyObject* obj = mem.readOwned(*value).release();
+      *localsplus = Ci_STACK_STEAL(obj);
+    }
+    localsplus++;
+  }
+
+  // Free variables are initialized
+  for (std::size_t i = free_offset; i < frame_meta.localsplus.size(); i++) {
+    const LiveValue* value = meta.getLocalValue(i, frame_meta);
+    if (value == nullptr) {
+      Ci_STACK_CLEAR(*localsplus);
+    } else {
+      PyObject* obj = mem.readOwned(*value).release();
+      Ci_STACK_XSETREF(*localsplus, obj);
+    }
+    localsplus++;
+  }
+}
+
+void reifyStack(
+    _PyInterpreterFrame* frame,
+    const DeoptMetadata& meta,
+    const DeoptFrameMetadata& frame_meta,
+    const MemoryView& mem) {
+#if PY_VERSION_HEX >= 0x030E0000
+  frame->stackpointer =
+      &frame->localsplus
+           [_PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size()];
+  _PyStackRef* stack_top = frame->stackpointer - 1;
+#else
+  frame->stacktop =
+      _PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size();
+  PyObject** stack_top = &frame->localsplus[frame->stacktop - 1];
+#endif
+  for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
+    const auto& value = meta.getStackValue(i, frame_meta);
+    Ref<> obj = mem.readOwned(value);
+
+    // When we are deoptimizing a JIT-compiled function that contains an
+    // optimizable LoadMethod, we need to be able to know whether or not the
+    // LoadMethod returned a bound method object in order to properly
+    // reconstruct the stack for the interpreter. We use Py_None as the
+    // LoadMethodResult to indicate that it was a non-method like object, which
+    // we need to replace with nullptr to match the interpreter semantics.
+    if (value.isLoadMethodResult() && obj == Py_None) {
+      *stack_top = Ci_STACK_NULL;
+    } else {
+      *stack_top = Ci_STACK_STEAL(obj.release());
+    }
+    stack_top--;
+  }
+}
+
+void reifyFrameImpl(
+    _PyInterpreterFrame* frame,
+    const DeoptMetadata& meta,
+    const DeoptFrameMetadata& frame_meta,
+    bool forced_deopt,
+    const uint64_t* regs,
+    bool is_instrumentation_deopt = false) {
+#if PY_VERSION_HEX >= 0x030E0000
+  BorrowedRef<PyCodeObject> code_obj = frameCode(frame);
+#ifdef Py_GIL_DISABLED
+  PyThreadState* tstate = _PyThreadState_GET();
+  frame->instr_ptr = _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
+  frame->tlbc_index = reinterpret_cast<_PyThreadStateImpl*>(tstate)->tlbc_index;
+#else
+  frame->instr_ptr = _PyCode_CODE(code_obj);
+#endif
+  int cause_instr_idx = frame_meta.cause_instr_idx.value();
+
+  // Resume with instr_ptr pointing to the cause instruction
+  // the interpreter to re-run a failed instruction, or implement an instruction
+  // we don't JIT.
+  frame->instr_ptr += cause_instr_idx;
+  if (&frame_meta != &meta.innermostFrame()) {
+    // If we're not the inner most frame then we're always deopting
+    // after the instruction that executed
+    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx) + 1;
+  } else if (is_instrumentation_deopt) {
+    // Instrumentation deopt: kPeriodicTaskFailure re-executes the bytecode.
+    // Other reasons advance past the inline cache (or to its end on error).
+    if (meta.reason != DeoptReason::kPeriodicTaskFailure) {
+      frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
+      if (!PyErr_Occurred()) {
+        frame->instr_ptr++;
+      }
+    }
+  } else if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
+    // Otherwise, have instr_ptr point to the next instruction
+    // (minus one _Py_CODEUNIT for some reason).
+    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
+  }
+#else
+  // Note frame->prev_instr doesn't point to the previous instruction, it
+  // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
+  // the next instruction to execute. This means it might point to inline-
+  // cache data or a negative location.
+  //
+  // For instrumentation deopts, getDeoptResumeIndex re-executes for
+  // kPeriodicTaskFailure and advances for all other reasons.
+  int prev_idx =
+      (getDeoptResumeIndex(
+           meta, frame_meta, forced_deopt, is_instrumentation_deopt) -
+       1)
+          .value();
+  frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx;
+#endif
+
+  MemoryView mem{regs};
+  reifyLocalsplus(frame, meta, frame_meta, mem);
+  reifyStack(frame, meta, frame_meta, mem);
+}
+
+DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
+  switch (instr.opcode()) {
+    case jit::hir::Opcode::kCheckVar: {
+      return DeoptReason::kUnhandledUnboundLocal;
+    }
+    case jit::hir::Opcode::kCheckFreevar: {
+      return DeoptReason::kUnhandledUnboundFreevar;
+    }
+    case jit::hir::Opcode::kCheckField: {
+      return DeoptReason::kUnhandledNullField;
+    }
+    case jit::hir::Opcode::kDeopt:
+    case jit::hir::Opcode::kDeoptPatchpoint:
+    case jit::hir::Opcode::kGuard:
+    case jit::hir::Opcode::kGuardIs:
+    case jit::hir::Opcode::kGuardType:
+    case jit::hir::Opcode::kLoadSplitDictItem: {
+      return DeoptReason::kGuardFailure;
+    }
+    case jit::hir::Opcode::kRaise: {
+      return DeoptReason::kRaise;
+    }
+    case jit::hir::Opcode::kRaiseStatic: {
+      return DeoptReason::kRaiseStatic;
+    }
+    case jit::hir::Opcode::kRunPeriodicTasks: {
+      return DeoptReason::kPeriodicTaskFailure;
+    }
+    default: {
+      return DeoptReason::kUnhandledException;
+    }
+  }
+}
+
 } // namespace
 
 hir::ValueKind deoptValueKind(hir::Type type) {
@@ -110,76 +275,6 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
       return Ref<>::create(reinterpret_cast<PyObject*>(raw));
   }
   JIT_ABORT("Unhandled ValueKind");
-}
-
-static void reifyLocalsplus(
-    CiPyFrameObjType* frame,
-    const DeoptMetadata& meta,
-    const DeoptFrameMetadata& frame_meta,
-    const MemoryView& mem) {
-  Ci_STACK_TYPE* localsplus = &frame->localsplus[0];
-
-  BorrowedRef<PyCodeObject> code = frameCode(frame);
-  int free_offset = numLocalsplus(code) - numFreevars(code);
-  // Local variables are not initialized in the frame
-  for (std::size_t i = 0; i < free_offset && i < frame_meta.localsplus.size();
-       i++) {
-    const LiveValue* value = meta.getLocalValue(i, frame_meta);
-    if (value == nullptr) {
-      // Value is dead
-      *localsplus = Ci_STACK_NULL;
-    } else {
-      PyObject* obj = mem.readOwned(*value).release();
-      *localsplus = Ci_STACK_STEAL(obj);
-    }
-    localsplus++;
-  }
-
-  // Free variables are initialized
-  for (std::size_t i = free_offset; i < frame_meta.localsplus.size(); i++) {
-    const LiveValue* value = meta.getLocalValue(i, frame_meta);
-    if (value == nullptr) {
-      Ci_STACK_CLEAR(*localsplus);
-    } else {
-      PyObject* obj = mem.readOwned(*value).release();
-      Ci_STACK_XSETREF(*localsplus, obj);
-    }
-    localsplus++;
-  }
-}
-
-static void reifyStack(
-    CiPyFrameObjType* frame,
-    const DeoptMetadata& meta,
-    const DeoptFrameMetadata& frame_meta,
-    const MemoryView& mem) {
-#if PY_VERSION_HEX >= 0x030E0000
-  frame->stackpointer =
-      &frame->localsplus
-           [_PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size()];
-  _PyStackRef* stack_top = frame->stackpointer - 1;
-#else
-  frame->stacktop =
-      _PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size();
-  PyObject** stack_top = &frame->localsplus[frame->stacktop - 1];
-#endif
-  for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
-    const auto& value = meta.getStackValue(i, frame_meta);
-    Ref<> obj = mem.readOwned(value);
-
-    // When we are deoptimizing a JIT-compiled function that contains an
-    // optimizable LoadMethod, we need to be able to know whether or not the
-    // LoadMethod returned a bound method object in order to properly
-    // reconstruct the stack for the interpreter. We use Py_None as the
-    // LoadMethodResult to indicate that it was a non-method like object, which
-    // we need to replace with nullptr to match the interpreter semantics.
-    if (value.isLoadMethodResult() && obj == Py_None) {
-      *stack_top = Ci_STACK_NULL;
-    } else {
-      *stack_top = Ci_STACK_STEAL(obj.release());
-    }
-    stack_top--;
-  }
 }
 
 Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
@@ -271,74 +366,12 @@ bool shouldResumeInterpreterInErrorHandler(DeoptReason reason) {
   }
 }
 
-static void reifyFrameImpl(
-    _PyInterpreterFrame* frame,
-    const DeoptMetadata& meta,
-    const DeoptFrameMetadata& frame_meta,
-    bool forced_deopt,
-    const uint64_t* regs,
-    bool is_instrumentation_deopt = false) {
-#if PY_VERSION_HEX >= 0x030E0000
-  BorrowedRef<PyCodeObject> code_obj = frameCode(frame);
-#ifdef Py_GIL_DISABLED
-  PyThreadState* tstate = _PyThreadState_GET();
-  frame->instr_ptr = _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
-  frame->tlbc_index = reinterpret_cast<_PyThreadStateImpl*>(tstate)->tlbc_index;
-#else
-  frame->instr_ptr = _PyCode_CODE(code_obj);
-#endif
-  int cause_instr_idx = frame_meta.cause_instr_idx.value();
-
-  // Resume with instr_ptr pointing to the cause instruction
-  // the interpreter to re-run a failed instruction, or implement an instruction
-  // we don't JIT.
-  frame->instr_ptr += cause_instr_idx;
-  if (&frame_meta != &meta.innermostFrame()) {
-    // If we're not the inner most frame then we're always deopting
-    // after the instruction that executed
-    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx) + 1;
-  } else if (is_instrumentation_deopt) {
-    // Instrumentation deopt: kPeriodicTaskFailure re-executes the bytecode.
-    // Other reasons advance past the inline cache (or to its end on error).
-    if (meta.reason != DeoptReason::kPeriodicTaskFailure) {
-      frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
-      if (!PyErr_Occurred()) {
-        frame->instr_ptr++;
-      }
-    }
-  } else if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
-    // Otherwise, have instr_ptr point to the next instruction
-    // (minus one _Py_CODEUNIT for some reason).
-    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
-  }
-#else
-  // Note frame->prev_instr doesn't point to the previous instruction, it
-  // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
-  // the next instruction to execute. This means it might point to inline-
-  // cache data or a negative location.
-  //
-  // For instrumentation deopts, getDeoptResumeIndex re-executes for
-  // kPeriodicTaskFailure and advances for all other reasons.
-  int prev_idx =
-      (getDeoptResumeIndex(
-           meta, frame_meta, forced_deopt, is_instrumentation_deopt) -
-       1)
-          .value();
-  frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx;
-#endif
-
-  MemoryView mem{regs};
-  reifyLocalsplus(frame, meta, frame_meta, mem);
-  reifyStack(frame, meta, frame_meta, mem);
-}
-
 void reifyFrame(
-    CiPyFrameObjType* frame,
+    _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs,
     [[maybe_unused]] bool is_instrumentation_deopt) {
-#if PY_VERSION_HEX >= 0x030C0000
   reifyFrameImpl(
       frame,
       meta,
@@ -346,13 +379,10 @@ void reifyFrame(
       false /* forced_deopt */,
       regs,
       is_instrumentation_deopt);
-#else
-  reifyFrameImpl(frame, meta, frame_meta, false /* forced_deopt */, regs);
-#endif
 }
 
 void reifyGeneratorFrame(
-    CiPyFrameObjType* frame,
+    _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base) {
@@ -384,40 +414,6 @@ void releaseRefs(const DeoptMetadata& meta, const void* base) {
   regs[codegen::arch::reg_frame_pointer_loc.loc] =
       reinterpret_cast<uint64_t>(base);
   releaseRefs(meta, MemoryView{regs});
-}
-
-static DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
-  switch (instr.opcode()) {
-    case jit::hir::Opcode::kCheckVar: {
-      return DeoptReason::kUnhandledUnboundLocal;
-    }
-    case jit::hir::Opcode::kCheckFreevar: {
-      return DeoptReason::kUnhandledUnboundFreevar;
-    }
-    case jit::hir::Opcode::kCheckField: {
-      return DeoptReason::kUnhandledNullField;
-    }
-    case jit::hir::Opcode::kDeopt:
-    case jit::hir::Opcode::kDeoptPatchpoint:
-    case jit::hir::Opcode::kGuard:
-    case jit::hir::Opcode::kGuardIs:
-    case jit::hir::Opcode::kGuardType:
-    case jit::hir::Opcode::kLoadSplitDictItem: {
-      return DeoptReason::kGuardFailure;
-    }
-    case jit::hir::Opcode::kRaise: {
-      return DeoptReason::kRaise;
-    }
-    case jit::hir::Opcode::kRaiseStatic: {
-      return DeoptReason::kRaiseStatic;
-    }
-    case jit::hir::Opcode::kRunPeriodicTasks: {
-      return DeoptReason::kPeriodicTaskFailure;
-    }
-    default: {
-      return DeoptReason::kUnhandledException;
-    }
-  }
 }
 
 DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {

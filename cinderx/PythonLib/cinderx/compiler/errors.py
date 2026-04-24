@@ -55,7 +55,7 @@ def error_location(filename: str, node: AST) -> ErrorLocation:
     # pyre-fixme[16]: `AST` has no attribute `lineno`.
     source_line = linecache.getline(filename, node.lineno)
     # The SyntaxError offset field is 1-indexed:
-    # https://docs.python.org/3.10/library/exceptions.html#SyntaxError.offset
+    # https://docs.python.org/3.14/library/exceptions.html#SyntaxError.offset
     # The AST col_offset field is 0-indexed:
     # https://docs.python.org/3/library/ast.html
     return ErrorLocation(
