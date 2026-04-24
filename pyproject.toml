@@ -23,6 +23,13 @@ classifiers = [
 [project.urls]
 Repository = "https://www.github.com/facebookincubator/cinderx"
 
+[tool.pytest.ini_options]
+filterwarnings = [
+     # test_jit_exception intentionally tests return/break/continue inside
+     # finally blocks, which emit noisy SyntaxWarnings at compile time.
+    "ignore::SyntaxWarning:test_cinderx.test_jit_exception",
+]
+
 [tool.cibuildwheel]
 build = ["cp314-manylinux_x86_64", "cp314-musllinux_x86_64", "cp314-manylinux_aarch64", "cp314-musllinux_aarch64"]
 environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
