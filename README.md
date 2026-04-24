@@ -27,11 +27,11 @@ However these features are not compatible with the stock CPython runtime yet.
 ## Requirements
 
 - Python 3.14
-- Linux (x86_64)
+- Linux (x86_64, aarch64)
 - GCC 13+ or Clang 18+
 
-The extension should build and import on macOS but most features will be
-disabled at runtime.  Windows is not yet supported at all.
+The extension should build and import on macOS and Windows but most features
+will be disabled at runtime.
 
 ## Installation
 
