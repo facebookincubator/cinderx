@@ -273,34 +273,34 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-dump-hir-stats",
-      "PYTHONJITDUMPHIRSTATS",
+      "CINDERX_JIT_DUMP_HIR_STATS",
       getMutableConfig().dump_hir_stats,
       "Dump counts of instructions and types per function");
 
   flag_processor.addOption(
       "jit-all",
-      "PYTHONJITALL",
+      "CINDERX_JIT_ALL",
       [](uint32_t) { getMutableConfig().compile_after_n_calls = 0; },
       "Enable the JIT and set it to compile all functions as soon as they are "
       "called");
 
   flag_processor.addOption(
       "jit-auto",
-      "PYTHONJITAUTO",
+      "CINDERX_JIT_AUTO",
       [](uint32_t val) { getMutableConfig().compile_after_n_calls = val; },
       "Enable auto-JIT mode, which compiles functions after the given "
       "threshold");
 
   flag_processor.addOption(
       "jit-debug",
-      "PYTHONJITDEBUG",
+      "CINDERX_JIT_DEBUG",
       getMutableConfig().log.debug,
       "JIT debug and extra logging");
 
   flag_processor
       .addOption(
           "jit-log-file",
-          "PYTHONJITLOGFILE",
+          "CINDERX_JIT_LOG_FILE",
           [](const std::string& log_filename) { setJitLogFile(log_filename); },
           "write log entries to <filename> rather than stderr")
       .withFlagParamName("filename");
@@ -308,7 +308,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor
       .addOption(
           "jit-asm-syntax",
-          "PYTHONJITASMSYNTAX",
+          "CINDERX_JIT_ASM_SYNTAX",
           [](const std::string& asm_syntax) { setASMSyntax(asm_syntax); },
           "set the assembly syntax used in log files")
       .withFlagParamName("intel|att")
@@ -317,27 +317,27 @@ FlagProcessor initFlagProcessor() {
   flag_processor
       .addOption(
           "jit-debug-refcount",
-          "PYTHONJITDEBUGREFCOUNT",
+          "CINDERX_JIT_DEBUG_REFCOUNT",
           getMutableConfig().log.debug_refcount,
           "JIT refcount insertion debug mode")
       .withDebugMessageOverride("Enabling");
 
   flag_processor.addOption(
       "jit-debug-regalloc",
-      "PYTHONJITDEBUGREGALLOC",
+      "CINDERX_JIT_DEBUG_REGALLOC",
       getMutableConfig().log.debug_regalloc,
       "Enable or disable debug logging for the register allocator");
 
   flag_processor.addOption(
       "jit-debug-inliner",
-      "PYTHONJITDEBUGINLINER",
+      "CINDERX_JIT_DEBUG_INLINER",
       getMutableConfig().log.debug_inliner,
       "Enable or disable debug logging for the JIT's HIR inliner");
 
   flag_processor
       .addOption(
           "jit-dump-hir",
-          "PYTHONJITDUMPHIR",
+          "CINDERX_JIT_DUMP_HIR",
           getMutableConfig().log.dump_hir_initial,
           "Log the HIR representation of all functions after initial "
           "lowering from bytecode")
@@ -346,7 +346,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor
       .addOption(
           "jit-dump-hir-passes",
-          "PYTHONJITDUMPHIRPASSES",
+          "CINDERX_JIT_DUMP_HIR_PASSES",
           getMutableConfig().log.dump_hir_passes,
           "Log the HIR after each optimization pass")
       .withDebugMessageOverride(
@@ -356,7 +356,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor
       .addOption(
           "jit-dump-final-hir",
-          "PYTHONJITDUMPFINALHIR",
+          "CINDERX_JIT_DUMP_FINAL_HIR",
           getMutableConfig().log.dump_hir_final,
           "Log the HIR after all optimizations")
       .withDebugMessageOverride(
@@ -365,14 +365,14 @@ FlagProcessor initFlagProcessor() {
   flag_processor
       .addOption(
           "jit-dump-lir",
-          "PYTHONJITDUMPLIR",
+          "CINDERX_JIT_DUMP_LIR",
           getMutableConfig().log.dump_lir,
           "Log the LIR representation of functions after lowering from HIR")
       .withDebugMessageOverride("Dump initial LIR of JITed functions");
 
   flag_processor.addOption(
       "jit-dump-lir-origin",
-      "PYTHONJITDUMPLIRORIGIN",
+      "CINDERX_JIT_DUMP_LIR_ORIGIN",
       [](bool value) {
         getMutableConfig().log.dump_lir = true;
         getMutableConfig().log.lir_origin = value;
@@ -381,20 +381,20 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-symbolize",
-      "PYTHONJITSYMBOLIZE",
+      "CINDERX_JIT_SYMBOLIZE",
       getMutableConfig().log.symbolize_funcs,
       "Enable or disable symbolization of functions called by JIT code");
 
   flag_processor
       .addOption(
           "jit-dump-asm",
-          "PYTHONJITDUMPASM",
+          "CINDERX_JIT_DUMP_ASM",
           [](bool value) {
 #ifndef ENABLE_DISASSEMBLER
             if (value) {
               JIT_LOG(
-                  "Cannot use PYTHONJITDUMPASM, disassembler not supported by "
-                  "this build");
+                  "Cannot use CINDERX_JIT_DUMP_ASM, disassembler not supported "
+                  "by this build");
               return;
             }
 #endif
@@ -405,14 +405,14 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-enable-inline-cache-stats-collection",
-      "PYTHONJITCOLLECTINLINECACHESTATS",
+      "CINDERX_JIT_ENABLE_INLINE_CACHE_STATS",
       getMutableConfig().collect_attr_cache_stats,
       "Collect inline cache stats (supported stats are cache misses for load "
       "method inline caches");
 
   flag_processor.addOption(
       "jit-gdb-support",
-      "PYTHONJITGDBSUPPORT",
+      "CINDERX_JIT_GDB_SUPPORT",
       [](bool value) {
         getMutableConfig().log.debug = value;
         getMutableConfig().gdb.supported = value;
@@ -421,7 +421,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-gdb-write-elf",
-      "PYTHONJITGDBWRITEELF",
+      "CINDERX_JIT_GDB_WRITE_ELF",
       [](bool value) {
         getMutableConfig().log.debug = value;
         getMutableConfig().gdb.supported = value;
@@ -431,45 +431,45 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-dump-stats",
-      "PYTHONJITDUMPSTATS",
+      "CINDERX_JIT_DUMP_STATS",
       getMutableConfig().log.dump_stats,
       "Dump JIT runtime stats at shutdown");
 
   flag_processor.addOption(
       "jit-huge-pages",
-      "PYTHONJITHUGEPAGES",
+      "CINDERX_JIT_HUGE_PAGES",
       getMutableConfig().use_huge_pages,
       "Enable or disable huge pages for compiled functions");
 
   flag_processor.addOption(
       "jit-enable-jit-list-wildcards",
-      "PYTHONJITENABLEJITLISTWILDCARDS",
+      "CINDERX_JIT_ENABLE_JIT_LIST_WILDCARDS",
       getMutableConfig().allow_jit_list_wildcards,
       "allow wildcards in JIT list");
 
   flag_processor.addOption(
       "jit-all-static-functions",
-      "PYTHONJITALLSTATICFUNCTIONS",
+      "CINDERX_JIT_ALL_STATIC_FUNCTIONS",
       getMutableConfig().compile_all_static_functions,
       "JIT-compile all static functions");
 
   flag_processor
       .addOption(
           "jit-list-file",
-          "PYTHONJITLISTFILE",
+          "CINDERX_JIT_LIST_FILE",
           getMutableConfig().jit_list.filename,
           "Load list of functions to compile from <filename>")
       .withFlagParamName("filename");
 
   flag_processor.addOption(
       "jit-list-fail-on-parse-error",
-      "PYTHONJITLISTFAILONPARSEERROR",
+      "CINDERX_JIT_LIST_FAIL_ON_PARSE_ERROR",
       getMutableConfig().jit_list.error_on_parse,
       "Raise a Python exception when a JIT list fails to parse");
 
   flag_processor.addOption(
       "jit-disable",
-      "PYTHONJITDISABLE",
+      "CINDERX_JIT_DISABLE",
       [](int val) {
         // Only update force_init if it wasn't already set.
         if (val && !getConfig().force_init.has_value()) {
@@ -480,7 +480,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-lightweight-frame",
-      "PYTHONJITLIGHTWEIGHTFRAME",
+      "CINDERX_JIT_LIGHTWEIGHT_FRAME",
       [](int val) {
         getMutableConfig().frame_mode =
             val ? FrameMode::kLightweight : FrameMode::kNormal;
@@ -489,14 +489,14 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-stable-frame",
-      "PYTHONJITSTABLEFRAME",
+      "CINDERX_JIT_STABLE_FRAME",
       getMutableConfig().stable_frame,
       "Assume that data found in the Python frame is unchanged across "
       "function calls");
 
   flag_processor.addOption(
       "jit-preload-dependent-limit",
-      "PYTHONJITPRELOADDEPENDENTLIMIT",
+      "CINDERX_JIT_PRELOAD_DEPENDENT_LIMIT",
       getMutableConfig().preload_dependent_limit,
       "When compiling a function, set the number of dependent functions that "
       "can be compiled along with it.");
@@ -514,68 +514,68 @@ FlagProcessor initFlagProcessor() {
       "BeginInlinedFunction elimination",
       begin_inlined_function_elim,
       "jit-begin-inlined-function-elim",
-      "PYTHONJITBEGININLINEDFUNCTIONELIM");
+      "CINDERX_JIT_BEGIN_INLINED_FUNCTION_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "builtin LoadMethod elimination",
       builtin_load_method_elim,
       "jit-builtin-load-method-elim",
-      "PYTHONJITBUILTINLOADMETHODELIM");
+      "CINDERX_JIT_BUILTIN_LOAD_METHOD_ELIM");
   HIR_OPTIMIZATION_OPTION(
-      "CFG cleaning", clean_cfg, "jit-clean-cfg", "PYTHONJITCLEANCFG");
+      "CFG cleaning", clean_cfg, "jit-clean-cfg", "CINDERX_JIT_CLEAN_CFG");
   HIR_OPTIMIZATION_OPTION(
       "dead code elimination",
       dead_code_elim,
       "jit-dead-code-elim",
-      "PYTHONJITDEADCODEELIM");
+      "CINDERX_JIT_DEAD_CODE_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "dynamic comparison elimination",
       dynamic_comparison_elim,
       "jit-dynamic-comparison-elim",
-      "PYTHONJITDYNAMICCOMPARISIONELIM");
+      "CINDERX_JIT_DYNAMIC_COMPARISON_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "guard type removal",
       guard_type_removal,
       "jit-guard-type-removal",
-      "PYTHONJITGUARDTYPEREMOVAL");
+      "CINDERX_JIT_GUARD_TYPE_REMOVAL");
   HIR_OPTIMIZATION_OPTION(
       "inliner",
       inliner,
       "jit-enable-hir-inliner",
-      "PYTHONJITENABLEHIRINLINER");
+      "CINDERX_JIT_ENABLE_HIR_INLINER");
   HIR_OPTIMIZATION_OPTION(
-      "phi elimination", phi_elim, "jit-phi-elim", "PYTHONJITPHIELIM");
+      "phi elimination", phi_elim, "jit-phi-elim", "CINDERX_JIT_PHI_ELIM");
   HIR_OPTIMIZATION_OPTION(
-      "simplify", simplify, "jit-simplify", "PYTHONJITSIMPLIFY");
+      "simplify", simplify, "jit-simplify", "CINDERX_JIT_SIMPLIFY");
 
   flag_processor.addOption(
       "jit-simplify-iteration-limit",
-      "PYTHONJITSIMPLIFYITERATIONLIMIT",
+      "CINDERX_JIT_SIMPLIFY_ITERATION_LIMIT",
       getMutableConfig().simplifier.iteration_limit,
       "Set the maximum number of times the simplifier can run over a "
       "function");
   flag_processor.addOption(
       "jit-simplify-new-block-limit",
-      "PYTHONJITSIMPLIFYNEWBLOCKLIMIT",
+      "CINDERX_JIT_SIMPLIFY_NEW_BLOCK_LIMIT",
       getMutableConfig().simplifier.new_block_limit,
       "Set the maximum number of blocks that can be added by the simplifier "
       "to a function");
   flag_processor.addOption(
       "jit-hir-inliner-cost-limit",
-      "PYTHONJITHIRINLINERCOSTLIMIT",
+      "CINDERX_JIT_HIR_INLINER_COST_LIMIT",
       getMutableConfig().inliner_cost_limit,
       "Limit how much the inliner is able to inline. The number's definition "
       "is only relevant to the inliner itself.");
 
   flag_processor.addOption(
       "jit-lir-inliner",
-      "PYTHONJITLIRINLINER",
+      "CINDERX_JIT_LIR_INLINER",
       getMutableConfig().lir_opts.inliner,
       "Enable the LIR inliner");
 
   flag_processor
       .addOption(
           "jit-batch-compile-workers",
-          "PYTHONJITBATCHCOMPILEWORKERS",
+          "CINDERX_JIT_BATCH_COMPILE_WORKERS",
           getMutableConfig().batch_compile_workers,
           "set the number of batch compile workers to <COUNT>")
       .withFlagParamName("COUNT");
@@ -583,14 +583,14 @@ FlagProcessor initFlagProcessor() {
   flag_processor
       .addOption(
           "jit-multithreaded-compile-test",
-          "PYTHONJITMULTITHREADEDCOMPILETEST",
+          "CINDERX_JIT_MULTITHREADED_COMPILE_TEST",
           getMutableConfig().multithreaded_compile_test,
           "JIT multithreaded compile test")
       .isHiddenFlag(true);
 
   flag_processor.addOption(
       "jit-list-match-line-numbers",
-      "PYTHONJITLISTMATCHLINENUMBERS",
+      "CINDERX_JIT_LIST_MATCH_LINE_NUMBERS",
       getMutableConfig().jit_list.match_line_numbers,
       "JIT list match line numbers");
 
@@ -612,25 +612,25 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-multiple-code-sections",
-      "PYTHONJITMULTIPLECODESECTIONS",
+      "CINDERX_JIT_MULTIPLE_CODE_SECTIONS",
       getMutableConfig().multiple_code_sections,
       "Enable emitting code into multiple code sections.");
 
   flag_processor.addOption(
       "jit-cold-code-huge-pages",
-      "PYTHONJITCOLDCODEHUGEPAGES",
+      "CINDERX_JIT_COLD_CODE_HUGE_PAGES",
       getMutableConfig().cold_code_huge_pages,
       "Use huge pages for cold code sections.");
 
   flag_processor.addOption(
       "jit-attr-caches",
-      "PYTHONJITATTRCACHES",
+      "CINDERX_JIT_ATTR_CACHES",
       getMutableConfig().attr_caches,
       "Use inline caches for attribute access instructions");
 
   flag_processor.addOption(
       "jit-attr-cache-size",
-      "PYTHONJITATTRCACHESIZE",
+      "CINDERX_JIT_ATTR_CACHE_SIZE",
       [](uint32_t entries) {
         JIT_CHECK(
             entries > 0 && entries <= 16,
@@ -644,7 +644,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-refine-static-python",
-      "PYTHONJITREFINESTATICPYTHON",
+      "CINDERX_JIT_REFINE_STATIC_PYTHON",
       getMutableConfig().refine_static_python,
       "Add RefineType instructions to coerce Static Python types to be "
       "valid");
@@ -677,13 +677,13 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-immortalize-compiled-functions",
-      "PYTHONJITIMMORTALIZECOMPILEDFUNCTIONS",
+      "CINDERX_JIT_IMMORTALIZE_COMPILED_FUNCTIONS",
       getMutableConfig().immortalize_compiled_functions,
       "Always immortalize CompiledFunction objects");
 
   flag_processor.addOption(
       "jit-max-code-size",
-      "PYTHONJITMAXCODESIZE",
+      "CINDERX_JIT_MAX_CODE_SIZE",
       [](const std::string& val) {
         getMutableConfig().max_code_size = parse_sized_argument(val);
       },
@@ -693,26 +693,26 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.addOption(
       "jit-emit-type-annotation-guards",
-      "PYTHONJITTYPEANNOTATIONGUARDS",
+      "CINDERX_JIT_EMIT_TYPE_ANNOTATION_GUARDS",
       getMutableConfig().emit_type_annotation_guards,
       "Generate runtime checks that validate type annotations to specialize "
       "generated code.");
 
   flag_processor.addOption(
       "jit-specialized-opcodes",
-      "PYTHONJITSPECIALIZEDOPCODES",
+      "CINDERX_JIT_SPECIALIZED_OPCODES",
       getMutableConfig().specialized_opcodes,
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.addOption(
       "jit-compact-long-guards",
-      "PYTHONJITCOMPACTLONGGUARDS",
+      "CINDERX_JIT_COMPACT_LONG_GUARDS",
       getMutableConfig().compact_long_guards,
       "Guard on long objects being in compact form for arithmetic operations.");
 
   flag_processor.addOption(
       "jit-support-instrumentation",
-      "PYTHONJITSUPPORTINSTRUMENTATION",
+      "CINDERX_JIT_SUPPORT_INSTRUMENTATION",
       getMutableConfig().support_instrumentation,
       "Support instrumentation (e.g. monitoring/tracing/profiling)");
 

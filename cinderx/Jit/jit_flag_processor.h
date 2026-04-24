@@ -130,6 +130,10 @@ struct FlagProcessor {
   // Return true if one or more flags have been registered
   bool hasOptions();
 
+  // Try to resolve an option via its environment variable.  Return true on
+  // success.
+  bool handleEnvVar(const Option& option);
+
   // Return true if the option has been added and false otherwise.
   bool canHandle(std::string_view option_name);
 
@@ -139,4 +143,5 @@ struct FlagProcessor {
  private:
   std::vector<std::unique_ptr<Option>> options_;
 };
+
 } // namespace jit

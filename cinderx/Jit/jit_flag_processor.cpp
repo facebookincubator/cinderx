@@ -157,36 +157,34 @@ bool FlagProcessor::hasHandled(std::string_view option_name) {
 }
 
 void FlagProcessor::setFlags(PyObject* cmdline_args) {
-  assert(cmdline_args != nullptr);
-
   for (auto& option : options_) {
     option->handled = false;
 
     PyObject* key = PyUnicode_FromString(option->cmdline_flag.c_str());
-    assert(key != nullptr);
+    JIT_CHECK(
+        key != nullptr,
+        "Failed to allocate Python string for '{}'",
+        option->cmdline_flag);
 
+    // Check if option is specified in the command line arguments.
+    std::string found;
     PyObject* resolves_to = PyDict_GetItem(cmdline_args, key);
     Py_DECREF(key);
-    std::string found;
-
     if (resolves_to != nullptr) {
       const char* got =
           PyUnicode_Check(resolves_to) ? PyUnicode_AsUTF8(resolves_to) : "";
       option->callback_on_match(got);
       found = option->cmdline_flag;
     }
-    if (found.empty() && !option->environment_variable.empty()) {
-      // check to see if it can be found via an environment variable
-      const char* envval = Py_GETENV(option->environment_variable.c_str());
-      if (envval != nullptr && envval[0] != '\0') {
-        option->callback_on_match(envval);
-        found = option->environment_variable;
-      }
+
+    // Otherwise check to see if it can be found via an environment variable.
+    if (found.empty() && handleEnvVar(*option)) {
+      found = option->environment_variable;
     }
 
     if (!found.empty()) {
       option->handled = true;
-      // use overridden debug message if it's been defined
+      // Use overridden debug message if it's been defined.
       JIT_DLOG(
           "{} has been specified - {}",
           found,
@@ -195,19 +193,50 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
     }
   }
 
+  // Check for unrecognized "-X jit..." options.
   PyObject* key;
   PyObject* value;
   auto jit_str = Ref<>::steal(PyUnicode_FromString("jit"));
   for (Py_ssize_t pos = 0; PyDict_Next(cmdline_args, &pos, &key, &value);) {
     int match = PyUnicode_Tailmatch(
         key, jit_str, /*start=*/0, /*end=*/3, /*direction=*/-1);
-    JIT_DCHECK(match != -1, "An error occurred");
+    JIT_CHECK(match != -1, "Failed to match on unicode object");
     const char* option = PyUnicode_AsUTF8(key);
-    JIT_DCHECK(option != nullptr, "An error occurred");
+    JIT_CHECK(option != nullptr, "Failed to convert unicode object to string");
     if (match && !canHandle(option)) {
       JIT_LOG("Warning: JIT cannot handle X-option {}", option);
     }
   }
+}
+
+bool FlagProcessor::handleEnvVar(const Option& option) {
+  const std::string& var_name = option.environment_variable;
+  if (var_name.empty()) {
+    return false;
+  }
+
+  const char* env_val = Py_GETENV(var_name.c_str());
+  if (env_val != nullptr && env_val[0] != '\0') {
+    option.callback_on_match(env_val);
+    return true;
+  }
+
+  // Didn't find it under the "CINDERX_JIT_..." naming scheme, try the
+  // old-school "PYTHONJIT..." scheme.
+  std::string old_var_name = option.environment_variable;
+  const std::string_view prefix = "CINDERX_JIT";
+  if (old_var_name.starts_with(prefix)) {
+    old_var_name.replace(0, prefix.size(), "PYTHONJIT");
+  }
+  std::erase(old_var_name, '_');
+
+  env_val = Py_GETENV(old_var_name.c_str());
+  if (env_val != nullptr && env_val[0] != '\0') {
+    option.callback_on_match(env_val);
+    return true;
+  }
+
+  return false;
 }
 
 // split long lines into many, but only cut on whitespace
