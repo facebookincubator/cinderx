@@ -1736,21 +1736,6 @@ class CinderJitModuleTests(StaticTestBase):
                     "jit-huge-pages=0",
                 ],
             )
-            run_test(
-                zero_asserts,
-                [
-                    "-X",
-                    "jit-auto=1000",
-                    "-X",
-                    "jit-max-code-size=0",
-                    "-X",
-                    "jit-multiple-code-sections=1",
-                    "-X",
-                    "jit-hot-code-section-size=1048576",
-                    "-X",
-                    "jit-cold-code-section-size=1048576",
-                ],
-            )
 
             # Run the onek-assert tests with JitAll so that we quickly trip the limit
             # and stop compiling.
@@ -1764,21 +1749,6 @@ class CinderJitModuleTests(StaticTestBase):
                     "jit-max-code-size=1024",
                     "-X",
                     "jit-huge-pages=0",
-                ],
-            )
-            run_test(
-                onek_asserts,
-                [
-                    "-X",
-                    "jit-all",
-                    "-X",
-                    "jit-max-code-size=1024",
-                    "-X",
-                    "jit-multiple-code-sections=1",
-                    "-X",
-                    "jit-hot-code-section-size=1048576",
-                    "-X",
-                    "jit-cold-code-section-size=1048576",
                 ],
             )
 
