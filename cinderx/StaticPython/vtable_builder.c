@@ -462,6 +462,13 @@ static PyObject* get_tp_subclasses(PyTypeObject* self, bool create) {
   PyObject** subclasses_addr = (PyObject**)&self->tp_subclasses;
 
   if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
+    _PyRuntimeState* runtime = &_PyRuntime;
+    if (runtime->debug_offsets.runtime_state.size != sizeof(_PyRuntimeState)) {
+      // Binary incompatibility, this isn't safe, active ostrich mode
+      return NULL;
+    }
+#endif
     PyInterpreterState* interp = _PyInterpreterState_GET();
     managed_static_type_state* state = Cix_PyStaticType_GetState(interp, self);
     subclasses_addr = (PyObject**)&state->tp_subclasses;
@@ -1337,6 +1344,14 @@ static int track_subclasses(PyTypeObject* self) {
 
   PyObject* subclasses = get_tp_subclasses(self, true);
   if (subclasses == NULL) {
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
+    _PyRuntimeState* runtime = &_PyRuntime;
+    if (runtime->debug_offsets.runtime_state.size != sizeof(_PyRuntimeState)) {
+      // Binary incompatibility, this isn't safe, active ostrich mode
+      return 0;
+    }
+#endif
+
     return -1;
   }
 
