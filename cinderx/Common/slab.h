@@ -136,7 +136,11 @@ class Slab {
   }
 
  private:
+#ifdef WIN32
+  unique_aligned_ptr<char> base_;
+#else
   unique_c_ptr<char> base_;
+#endif
   char* fill_{nullptr};
   size_t increment_{0};
   size_t mlocks_{0};

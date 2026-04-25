@@ -300,6 +300,16 @@ struct FreeDeleter {
 template <typename T>
 using unique_c_ptr = std::unique_ptr<T, FreeDeleter>;
 
+#ifdef WIN32
+struct AlignedDeleter {
+  void operator()(void* ptr) const {
+    _aligned_free(ptr);
+  }
+};
+template <typename T>
+using unique_aligned_ptr = std::unique_ptr<T, AlignedDeleter>;
+#endif
+
 template <class T>
 class ScopeExit {
  public:
