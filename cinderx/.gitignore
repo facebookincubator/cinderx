@@ -23,3 +23,5 @@ compile_commands.json
 *.a
 *.o
 *.so
+
+local_smoke_tests.md
