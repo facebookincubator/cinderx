@@ -70,16 +70,25 @@ static int _static_exec(PyObject* m) {
     return -1;
   }
 
+  if ((Ci_CheckedDictIterKey_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictIterKey_Spec)) == NULL ||
+      (Ci_CheckedDictIterValue_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictIterValue_Spec)) == NULL ||
+      (Ci_CheckedDictIterItem_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictIterItem_Spec)) == NULL ||
+      (Ci_CheckedDictRevIterKey_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictRevIterKey_Spec)) == NULL ||
+      (Ci_CheckedDictRevIterItem_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictRevIterItem_Spec)) == NULL ||
+      (Ci_CheckedDictRevIterValue_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictRevIterValue_Spec)) == NULL) {
+    return -1;
+  }
+
   if (PyType_Ready(&Ci_CheckedListRevIter_Type) < 0 ||
       PyType_Ready(&Ci_CheckedListIter_Type) < 0 ||
       PyType_Ready(&Ci_CheckedDictItems_Type) < 0 ||
       PyType_Ready(&Ci_CheckedDictValues_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictIterKey_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictIterValue_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictIterItem_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictRevIterKey_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictRevIterItem_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictRevIterValue_Type) < 0 ||
       PyType_Ready(&Ci_CheckedDictKeys_Type) < 0 ||
       PyType_Ready(&_PyType_MethodThunk) < 0 ||
       PyType_Ready(&_PyType_StaticThunk) < 0 ||
@@ -1828,6 +1837,13 @@ static int static_clear(PyObject* mod) {
 
 static void static_free(PyObject* mod) {
   static_clear(mod);
+
+  Py_CLEAR(Ci_CheckedDictIterKey_Type);
+  Py_CLEAR(Ci_CheckedDictIterValue_Type);
+  Py_CLEAR(Ci_CheckedDictIterItem_Type);
+  Py_CLEAR(Ci_CheckedDictRevIterKey_Type);
+  Py_CLEAR(Ci_CheckedDictRevIterItem_Type);
+  Py_CLEAR(Ci_CheckedDictRevIterValue_Type);
 }
 
 static PyModuleDef_Slot _static_slots[] = {{Py_mod_exec, _static_exec}, {}};
