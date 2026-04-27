@@ -174,7 +174,9 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   //   * guard var (physical register) (0 for AlwaysFail)
   //   * target (for GuardIs and GuardType, and 0 for all others)
 
-  auto deopt_label = as->newLabel();
+  auto index = static_cast<size_t>(instr->getInput(1)->getConstant());
+  auto* deopt_block = map_get(env->deopt_exit_blocks, index);
+  auto deopt_label = map_get(env->block_label_map, deopt_block);
   auto kind = instr->getInput(0)->getConstant();
 
   arch::Gp reg = x86::rax;
@@ -247,7 +249,9 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   //   * guard var (physical register) (0 for AlwaysFail)
   //   * target (for GuardIs and GuardType, and 0 for all others)
 
-  auto deopt_label = as->newLabel();
+  auto index = static_cast<size_t>(instr->getInput(1)->getConstant());
+  auto* deopt_block = map_get(env->deopt_exit_blocks, index);
+  auto deopt_label = map_get(env->block_label_map, deopt_block);
   auto kind = instr->getInput(0)->getConstant();
 
   arch::Gp reg = arch::reg_scratch_0;
@@ -319,11 +323,9 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   CINDER_UNSUPPORTED
 #endif
 
-  auto index = instr->getInput(1)->getConstant();
   // skip the first four inputs in Guard, which are
   // kind, deopt_meta id, guard var, and target.
   fillLiveValueLocations(env->code_rt, index, instr, 4, instr->getNumInputs());
-  env->deopt_exits.emplace_back(index, deopt_label, instr);
 
   // Pair this post-call guard with the preceding call's return-address label
   // for the callsite->deopt-exit map used by deoptAllJitFramesOnStack().
@@ -359,11 +361,11 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   as->embed(stored_bytes.data(), stored_bytes.size());
 
   // Fill in deopt metadata
-  auto index = instr->getInput(1)->getConstant();
+  auto index = static_cast<size_t>(instr->getInput(1)->getConstant());
   // skip the first two inputs which are the patcher and deopt metadata id
   fillLiveValueLocations(env->code_rt, index, instr, 2, instr->getNumInputs());
-  auto deopt_label = as->newLabel();
-  env->deopt_exits.emplace_back(index, deopt_label, instr);
+  auto* deopt_block = map_get(env->deopt_exit_blocks, index);
+  auto deopt_label = map_get(env->block_label_map, deopt_block);
 
   // The runtime will link the patcher to the appropriate point in the code
   // once code generation has completed.

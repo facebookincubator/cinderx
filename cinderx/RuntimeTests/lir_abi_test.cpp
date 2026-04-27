@@ -80,9 +80,14 @@ class LIRABITest : public RuntimeTest {
         insn->addOperands(Lbl{&bb});
         break;
       case Instruction::kDeoptPatchpoint:
-      case Instruction::kGuard:
+      case Instruction::kGuard: {
         environ.code_rt->addDeoptMetadata(DeoptMetadata{});
+        // Create a dummy deopt exit block for the translator to look up.
+        auto* deopt_bb = function.allocateBasicBlock();
+        environ.deopt_exit_blocks[0] = deopt_bb;
+        environ.block_label_map.emplace(deopt_bb, as.newLabel());
         break;
+      }
       case Instruction::kYieldInitial:
         environ.code_rt->addDeoptMetadata(DeoptMetadata{});
         environ.initial_yield_spill_size_ = 16;

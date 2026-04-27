@@ -905,187 +905,6 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
 #endif
 }
 
-void NativeGenerator::generateDeoptExits(const asmjit::CodeHolder& code) {
-  if (env_.deopt_exits.empty()) {
-    return;
-  }
-
-#if defined(CINDER_X86_64)
-  // Always place the deopt exit call to the cold section, and revert to the
-  // previous section at the end of this scope.
-  CodeSectionOverride override{as_, &code, &metadata_, CodeSection::kCold};
-
-  auto& deopt_exits = env_.deopt_exits;
-
-  auto deopt_cursor = as_->cursor();
-  auto deopt_exit = as_->newLabel();
-  std::sort(deopt_exits.begin(), deopt_exits.end(), [](auto& a, auto& b) {
-    return a.deopt_meta_index < b.deopt_meta_index;
-  });
-  // Generate stage 1 trampolines (one per guard). These push the index of the
-  // appropriate `DeoptMetadata` and then jump to the stage 2 trampoline.
-  for (const auto& exit : deopt_exits) {
-    as_->bind(exit.label);
-    as_->push(exit.deopt_meta_index);
-    emitCall(env_, deopt_exit, exit.instr);
-  }
-  // Generate the stage 2 trampoline (one per function). This saves the address
-  // of the final part of the JIT-epilogue that is responsible for restoring
-  // callee-saved registers and returning, our scratch register, whose original
-  // contents may be needed during frame reification, and jumps to the final
-  // trampoline.
-  //
-  // Right now the top of the stack looks like:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved rip               |
-  // +-------------------------+
-  //
-  // and we need to pass our scratch register and the address of the epilogue
-  // to the global deopt trampoline. The code below leaves the stack with the
-  // following layout:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved rip               |
-  // | padding                 |
-  // | padding                 |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | r15                     |
-  // +-------------------------+
-  //
-  // The global deopt trampoline expects that our scratch register is at the
-  // top of the stack so that it can save the remaining registers immediately
-  // after it, forming a contiguous array of all registers.
-  //
-  // If you change this make sure you update that code!
-  as_->bind(deopt_exit);
-
-  // Two slots for padding.  One of them will get the deopt metadata index
-  // shuffled in, making space to save RBP before calling prepareForDeopt.
-  as_->push(deopt_scratch_reg);
-  as_->push(deopt_scratch_reg);
-
-  // Save space for the CodeRuntime.
-  as_->push(deopt_scratch_reg);
-
-  // Save space for the epilogue.
-  as_->push(deopt_scratch_reg);
-
-  // Save our scratch register.
-  as_->push(deopt_scratch_reg);
-
-  // Save the address of the CodeRuntime.
-  as_->mov(deopt_scratch_reg, reinterpret_cast<uintptr_t>(env_.code_rt));
-  as_->mov(x86::ptr(x86::rsp, kPointerSize * 2), deopt_scratch_reg);
-
-  // Save the address of the epilogue.
-  as_->lea(deopt_scratch_reg, x86::ptr(env_.hard_exit_label));
-  as_->mov(x86::ptr(x86::rsp, kPointerSize), deopt_scratch_reg);
-
-  auto trampoline = GetFunction()->code->co_flags & kCoFlagsAnyGenerator
-      ? factory_.deoptTrampolineGenerators()
-      : factory_.deoptTrampoline();
-  as_->mov(deopt_scratch_reg, reinterpret_cast<uint64_t>(trampoline));
-  as_->jmp(deopt_scratch_reg);
-
-  env_.addAnnotation("Deoptimization exits", deopt_cursor);
-#elif defined(CINDER_AARCH64)
-  // Always place the deopt exit call to the cold section, and revert to the
-  // previous section at the end of this scope.
-  CodeSectionOverride override{as_, &code, &metadata_, CodeSection::kCold};
-
-  auto& deopt_exits = env_.deopt_exits;
-
-  auto deopt_cursor = as_->cursor();
-  auto deopt_exit = as_->newLabel();
-  std::sort(deopt_exits.begin(), deopt_exits.end(), [](auto& a, auto& b) {
-    return a.deopt_meta_index < b.deopt_meta_index;
-  });
-
-  // Generate stage 1 trampolines (one per guard). These push the index of the
-  // appropriate `DeoptMetadata` and then jump to the stage 2 trampoline.
-  for (const auto& exit : deopt_exits) {
-    // On x86-64, when you emit a call instruction to a label, it pushes the
-    // return address onto the stack. In order to replicate that behavior on
-    // aarch64, we manually add a label and use adr to determine its offset.
-    auto after = as_->newLabel();
-
-    as_->bind(exit.label);
-    as_->mov(arch::reg_scratch_0, exit.deopt_meta_index);
-    as_->adr(arch::reg_scratch_1, after);
-    as_->stp(
-        arch::reg_scratch_1, arch::reg_scratch_0, a64::ptr_pre(a64::sp, -16));
-    emitCall(env_, deopt_exit, exit.instr);
-    as_->bind(after);
-  }
-  // Generate the stage 2 trampoline (one per function). This saves the address
-  // of the final part of the JIT-epilogue that is responsible for restoring
-  // callee-saved registers and returning, our scratch register, whose original
-  // contents may be needed during frame reification, and jumps to the final
-  // trampoline.
-  //
-  // Right now the top of the stack looks like:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved pc                | <-- sp
-  // +-------------------------+
-  //
-  // and we need to pass our scratch register and the address of the epilogue
-  // to the global deopt trampoline. The code below leaves the stack with the
-  // following layout:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved pc                |
-  // | padding (8 bytes)       |
-  // | padding (8 bytes)       |
-  // | address of CodeRuntime  |
-  // | address of epilogue     |
-  // | fp                      |
-  // | x28                     | <-- sp
-  // +-------------------------+
-  //
-  // The global deopt trampoline expects that our scratch register is at the
-  // top of the stack so that it can save the remaining registers immediately
-  // after it, forming a contiguous array of all registers.
-  //
-  // If you change this make sure you update that code!
-  as_->bind(deopt_exit);
-
-  // Two slots for padding, then the address of the CodeRuntime and the address
-  // of the epilogue, then the first of the registers to get stored (fp and
-  // x28). One of the slots of padding will get the deopt metadata index
-  // shuffled in, making space to save fp before calling prepareForDeopt.
-  as_->stp(deopt_scratch_reg, arch::fp, a64::ptr_pre(a64::sp, -0x30));
-
-  // Save the address of the CodeRuntime.
-  as_->mov(deopt_scratch_reg, reinterpret_cast<uintptr_t>(env_.code_rt));
-  as_->str(
-      deopt_scratch_reg,
-      arch::ptr_resolve(as_, a64::sp, kPointerSize * 3, arch::reg_scratch_0));
-
-  // Save the address of the epilogue.
-  as_->adr(deopt_scratch_reg, env_.hard_exit_label);
-  as_->str(
-      deopt_scratch_reg,
-      arch::ptr_resolve(as_, a64::sp, kPointerSize * 2, arch::reg_scratch_0));
-
-  auto trampoline = GetFunction()->code->co_flags & kCoFlagsAnyGenerator
-      ? factory_.deoptTrampolineGenerators()
-      : factory_.deoptTrampoline();
-  as_->mov(deopt_scratch_reg, trampoline);
-  as_->br(deopt_scratch_reg);
-
-  env_.addAnnotation("Deoptimization exits", deopt_cursor);
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
 void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
   JIT_CHECK(code.hasBaseAddress(), "code not generated!");
   uint64_t base = code.baseAddress();
@@ -1299,6 +1118,14 @@ void NativeGenerator::generateCode(
     env_.block_label_map[func_entry_block] = generic_entry;
   }
 
+  // Set deopt trampoline address for the stage 2 translator, and generate
+  // the per-guard (stage 1) and per-function (stage 2) deopt exit LIR blocks.
+  // These are appended to the block list after all other post-regalloc blocks.
+  env_.deopt_trampoline = GetFunction()->code->co_flags & kCoFlagsAnyGenerator
+      ? factory_.deoptTrampolineGenerators()
+      : factory_.deoptTrampoline();
+  lir::GenerateDeoptExitBlocks(lir_func_.get(), &env_);
+
   auto prologue_cursor = as_->cursor();
   generateAssemblyBody(codeholder);
 
@@ -1402,8 +1229,6 @@ void NativeGenerator::generateCode(
     as_->bind(wrapper_exit);
     generateFunctionExit();
   }
-
-  generateDeoptExits(codeholder);
 
 #if defined(CINDER_AARCH64)
   // Emit constant pool data for MovConstPool instructions. Each entry is an

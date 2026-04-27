@@ -350,4 +350,22 @@ void GenerateFailedDeferredCompileBlocks(
     Function* lir_func,
     void* failed_deferred_compile_shim);
 
+// Build post-regalloc LIR blocks for per-function deoptimization exits.
+// Scans |lir_func| for kGuard and kDeoptPatchpoint instructions, creates
+// one cold stage 1 block per deopt point and one shared cold stage 2 block.
+//
+// Stage 1 (per guard): pushes/stores the deopt metadata index, then calls
+// the stage 2 block.  On x86, `call` pushes the return address; on aarch64,
+// `bl` captures it in LR.
+//
+// Stage 2 (per function): saves the deopt scratch register, frame pointer,
+// CodeRuntime address, and epilogue address; then jumps to the global deopt
+// trampoline.
+//
+// The created blocks are appended to |lir_func|'s block list (at the end,
+// after the sorted main blocks).  The deopt_meta_id → stage 1 block mapping
+// is stored in |env->deopt_exit_blocks| so that TranslateGuard can branch
+// directly to the block's label.
+void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env);
+
 } // namespace jit::lir

@@ -45,6 +45,7 @@ extern "C" {
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#include <algorithm>
 #include <functional>
 #include <sstream>
 
@@ -5013,8 +5014,39 @@ void GenerateDeoptTrampolineBlocks(
   // loaded separately in stage 4.
   constexpr int cleanup_size = kStage3SavedRegs * kPointerSize;
 
-  // Stage 2: Set up the deopt frame and shuffle deopt metadata.
-  // All operations use arch-agnostic register refs via codegen::arch.
+  // Generate the stage 2 trampoline (one per function). This saves the address
+  // of the final part of the JIT-epilogue that is responsible for restoring
+  // callee-saved registers and returning, our scratch register, whose original
+  // contents may be needed during frame reification, and jumps to the final
+  // trampoline.
+  //
+  // Right now the top of the stack looks like:
+  //
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | index of deopt metadata |
+  // | saved pc/rip            | <-- sp
+  // +-------------------------+
+  //
+  // and we need to pass our scratch register and the address of the epilogue
+  // to the global deopt trampoline. The code below leaves the stack with the
+  // following layout:
+  //
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | index of deopt metadata |
+  // | saved rip/pc            |
+  // | padding                 |
+  // | padding                 |
+  // | address of CodeRuntime  |
+  // | address of epilogue     |
+  // | [fp on arm]             |
+  // | x28/r15                 |
+  // +-------------------------+
+  //
+  // The global deopt trampoline expects that our scratch register is at the
+  // top of the stack so that it can save the remaining registers immediately
+  // after it, forming a contiguous array of all registers.
+  //
+  // If you change this make sure you update that code!
   emitAnnotation(block, "Shuffle rip, rbp, and deopt index");
 
   constexpr auto sp_reg = codegen::arch::reg_stack_pointer_loc;
@@ -5227,6 +5259,192 @@ void GenerateFailedDeferredCompileBlocks(
   // Tear down the frame and return.
   block->allocateInstr(Instruction::kLeave, nullptr);
   block->allocateInstr(Instruction::kRet, nullptr);
+}
+
+void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
+  // Collect deopt metadata IDs and the HIR origin of each guard/patchpoint
+  // instruction. The origin is needed so the stage 1 call records a debug
+  // entry at the return address (used by deoptAllJitFramesOnStack's IP-based
+  // lookup on x86).
+  struct DeoptEntry {
+    size_t id;
+    const hir::Instr* origin;
+  };
+  std::vector<DeoptEntry> deopt_entries;
+  for (auto* bb : lir_func->basicblocks()) {
+    for (auto& instr : bb->instructions()) {
+      if (instr->isGuard() || instr->isDeoptPatchpoint()) {
+        size_t deopt_id =
+            static_cast<size_t>(instr->getInput(1)->getConstant());
+        deopt_entries.push_back({deopt_id, instr->origin()});
+      }
+    }
+  }
+
+  if (deopt_entries.empty()) {
+    return;
+  }
+
+  // Sort and deduplicate by ID for deterministic code layout.
+  std::sort(deopt_entries.begin(), deopt_entries.end(), [](auto& a, auto& b) {
+    return a.id < b.id;
+  });
+  deopt_entries.erase(
+      std::unique(
+          deopt_entries.begin(),
+          deopt_entries.end(),
+          [](auto& a, auto& b) { return a.id == b.id; }),
+      deopt_entries.end());
+
+  // Create stage 1 blocks first (one per deopt point), then stage 2 last.
+  // This gives the natural layout: stage 1 blocks followed by stage 2.
+
+  // Pre-create the stage 2 block pointer so stage 1 can reference it.
+  // We'll actually allocate it after stage 1 blocks so it appears last.
+  BasicBlock* stage2_block = nullptr;
+
+  // Create stage 1 blocks (per guard, cold section).
+  for (const auto& entry : deopt_entries) {
+    auto* stage1_block = lir_func->allocateBasicBlock();
+    stage1_block->setSection(codegen::CodeSection::kCold);
+
+    // The deopt metadata index is pushed/stored so the global trampoline
+    // can look up the DeoptMetadata.
+#if defined(CINDER_X86_64)
+    // push deopt_meta_index; call stage2
+    // The call pushes the return address (= point after the guard).
+    stage1_block->allocateInstr(Instruction::kPush, nullptr, Imm{entry.id});
+#elif defined(CINDER_AARCH64)
+    // mov x13, deopt_meta_index; bl stage2
+    // bl captures the return address in LR.
+    stage1_block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{codegen::arch::reg_scratch_0_loc},
+        Imm{entry.id});
+#endif
+
+    // The kCall references the stage 2 block (filled in below). The origin
+    // is set so autogen records a debug entry at the return address — needed
+    // by deoptAllJitFramesOnStack's IP-based frame lookup on x86.
+    stage1_block->allocateInstr(Instruction::kCall, entry.origin);
+
+    env->deopt_exit_blocks[entry.id] = stage1_block;
+  }
+
+  // Create stage 2 block (per function, cold section).
+  // Saves the deopt scratch register, frame pointer, CodeRuntime address, and
+  // epilogue address on the stack, then jumps to the global deopt trampoline.
+  stage2_block = lir_func->allocateBasicBlock();
+  stage2_block->setSection(codegen::CodeSection::kCold);
+
+  emitAnnotation(stage2_block, "Deoptimization exits");
+
+  constexpr auto scratch_deopt = codegen::arch::reg_scratch_deopt_loc;
+  constexpr auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+
+  // Stage 2 stack frame layout (low address → high):
+  //   x86:     [r15]      [epilogue] [code_rt] [pad] [pad]            = 5
+  //   aarch64: [x28] [fp] [epilogue] [code_rt] [pad] [pad] [pc] [idx] = 8
+  //
+  // On x86, stage 1 pushes the deopt index and `call` pushes the return
+  // address, so stage 2 only needs 5 slots.  On aarch64, `bl` captures the
+  // return address in LR and the deopt index is in x13, so stage 2 must
+  // store both explicitly in the last 2 slots.
+#if defined(CINDER_X86_64)
+  constexpr int kStage2Slots = 5;
+  constexpr int kCodeRtOffset = 2 * kPointerSize;
+  constexpr int kEpilogueOffset = 1 * kPointerSize;
+#elif defined(CINDER_AARCH64)
+  constexpr int kStage2Slots = 8;
+  constexpr int kCodeRtOffset = 3 * kPointerSize;
+  constexpr int kEpilogueOffset = 2 * kPointerSize;
+  constexpr int kSavedPcOffset = 6 * kPointerSize;
+  constexpr int kDeoptIdxOffset = 7 * kPointerSize;
+#endif
+
+  // --- Platform-specific stack allocation and register saves ---
+#if defined(CINDER_X86_64)
+  // Push 5 slots (saved r15, epilogue, code_rt, padding x2).
+  // One padding slot will get the deopt metadata index shuffled in by the
+  // global trampoline.
+  for (int i = 0; i < kStage2Slots; i++) {
+    stage2_block->allocateInstr(
+        Instruction::kPush, nullptr, PhyReg{scratch_deopt});
+  }
+#elif defined(CINDER_AARCH64)
+  constexpr auto fp_reg = codegen::arch::reg_frame_pointer_loc;
+
+  // Allocate 8 slots. Store x28, fp, and the stage 1 values (LR, x13)
+  // that on x86 would have been pushed by stage 1 / the call instruction.
+  stage2_block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg{sp_reg},
+      Ind(sp_reg, -kStage2Slots * kPointerSize));
+  stage2_block->allocateInstr(
+      Instruction::kMove, nullptr, OutInd(sp_reg, 0), PhyReg{scratch_deopt});
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(sp_reg, kPointerSize),
+      PhyReg{fp_reg});
+  // Store return address (LR) and deopt metadata index (x13) into the
+  // slots that correspond to the stage 1 push on x86.
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(sp_reg, kSavedPcOffset),
+      PhyReg{codegen::X30});
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(sp_reg, kDeoptIdxOffset),
+      PhyReg{codegen::arch::reg_scratch_0_loc});
+#endif
+
+  // --- Shared: store CodeRuntime and epilogue addresses, jump to trampoline
+  // ---
+
+  // Store CodeRuntime address.
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{scratch_deopt},
+      Imm{reinterpret_cast<uint64_t>(env->code_rt)});
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(sp_reg, kCodeRtOffset),
+      PhyReg{scratch_deopt});
+
+  // Store epilogue address.
+  stage2_block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg{scratch_deopt},
+      AsmLbl{env->hard_exit_label});
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd(sp_reg, kEpilogueOffset),
+      PhyReg{scratch_deopt});
+
+  // Jump to the global deopt trampoline.
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{scratch_deopt},
+      Imm{reinterpret_cast<uint64_t>(env->deopt_trampoline)});
+  stage2_block->allocateInstr(
+      Instruction::kIndirectJump, nullptr, PhyReg{scratch_deopt});
+
+  // Now fill in the kCall label operands in each stage 1 block.
+  for (auto& [deopt_id, stage1_block] : env->deopt_exit_blocks) {
+    auto* call_instr = stage1_block->getLastInstr();
+    JIT_CHECK(call_instr->isCall(), "Expected kCall as last instruction");
+    call_instr->allocateLabelInput(stage2_block);
+  }
 }
 
 } // namespace jit::lir

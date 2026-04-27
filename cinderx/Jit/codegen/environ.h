@@ -48,15 +48,14 @@ struct Environ {
   // translateYieldInitial (3.12+), bound by translateResumeGenYield.
   asmjit::Label pending_yield_resume_label;
 
-  // Deopt exits. One per guard.
-  struct DeoptExit {
-    DeoptExit(size_t idx, asmjit::Label lbl, const jit::lir::Instruction* ins)
-        : deopt_meta_index(idx), label(lbl), instr(ins) {}
-    size_t deopt_meta_index;
-    asmjit::Label label;
-    const jit::lir::Instruction* instr;
-  };
-  std::vector<DeoptExit> deopt_exits;
+  // Map from deopt metadata index to the stage 1 deopt exit LIR block.
+  // Populated by GenerateDeoptExitBlocks (post-regalloc), used by
+  // TranslateGuard/TranslateDeoptPatchpoint to branch to the correct block.
+  UnorderedMap<size_t, jit::lir::BasicBlock*> deopt_exit_blocks;
+
+  // Address of the global deopt trampoline for this function.
+  // Set by NativeGenerator before code generation.
+  void* deopt_trampoline{nullptr};
 
   struct PendingDeoptPatcher {
     PendingDeoptPatcher(JumpPatcher* p, asmjit::Label pp, asmjit::Label de)
