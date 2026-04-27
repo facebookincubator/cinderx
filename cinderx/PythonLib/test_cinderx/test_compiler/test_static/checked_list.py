@@ -57,7 +57,7 @@ class CheckedListTests(StaticTestBase):
         x.append(23)
         y = x.__reversed__()
         # TASK(T96351329): This should be a generic CheckedList_reverseiterator[int].
-        self.assertEqual(repr(type(y)), "<class 'list_reverseiterator'>")
+        self.assertEqual(repr(type(y)), "<class '_static.list_reverseiterator'>")
         self.assertEqual(repr(list(y)), "[23, 12]")
 
     def test_checked_list_sizeof(self) -> None:

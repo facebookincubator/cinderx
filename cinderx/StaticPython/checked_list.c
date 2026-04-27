@@ -2659,36 +2659,24 @@ static PyMethodDef listiter_methods[] = {
     {NULL, NULL} /* sentinel */
 };
 
-PyTypeObject Ci_CheckedListIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "list_iterator", /* tp_name */
-    sizeof(listiterobject), /* tp_basicsize */
-    0, /* tp_itemsize */
-    /* methods */
-    (destructor)listiter_dealloc, /* tp_dealloc */
-    0, /* tp_vectorcall_offset */
-    0, /* tp_getattr */
-    0, /* tp_setattr */
-    0, /* tp_as_async */
-    0, /* tp_repr */
-    0, /* tp_as_number */
-    0, /* tp_as_sequence */
-    0, /* tp_as_mapping */
-    0, /* tp_hash */
-    0, /* tp_call */
-    0, /* tp_str */
-    PyObject_GenericGetAttr, /* tp_getattro */
-    0, /* tp_setattro */
-    0, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
-    0, /* tp_doc */
-    (traverseproc)listiter_traverse, /* tp_traverse */
-    0, /* tp_clear */
-    0, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    PyObject_SelfIter, /* tp_iter */
-    (iternextfunc)listiter_next, /* tp_iternext */
-    listiter_methods, /* tp_methods */
-    0, /* tp_members */
+PyTypeObject* Ci_CheckedListIter_Type;
+
+static PyType_Slot Ci_CheckedListIter_Slots[] = {
+    {Py_tp_dealloc, (void*)listiter_dealloc},
+    {Py_tp_getattro, (void*)PyObject_GenericGetAttr},
+    {Py_tp_traverse, (void*)listiter_traverse},
+    {Py_tp_iter, (void*)PyObject_SelfIter},
+    {Py_tp_iternext, (void*)listiter_next},
+    {Py_tp_methods, (void*)listiter_methods},
+    {0, NULL},
+};
+
+PyType_Spec Ci_CheckedListIter_Spec = {
+    .name = "_static.list_iterator",
+    .basicsize = sizeof(listiterobject),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = Ci_CheckedListIter_Slots,
 };
 
 static PyObject* list_iter(PyObject* seq) {
@@ -2698,7 +2686,7 @@ static PyObject* list_iter(PyObject* seq) {
     PyErr_BadInternalCall();
     return NULL;
   }
-  it = PyObject_GC_New(listiterobject, &Ci_CheckedListIter_Type);
+  it = PyObject_GC_New(listiterobject, Ci_CheckedListIter_Type);
   if (it == NULL) {
     return NULL;
   }
@@ -2710,9 +2698,11 @@ static PyObject* list_iter(PyObject* seq) {
 }
 
 static void listiter_dealloc(listiterobject* it) {
+  PyTypeObject* type = Py_TYPE(it);
   _PyObject_GC_UNTRACK(it);
   Py_XDECREF(it->it_seq);
   PyObject_GC_Del(it);
+  Py_DECREF(type);
 }
 
 static int listiter_traverse(listiterobject* it, visitproc visit, void* arg) {
@@ -2803,36 +2793,24 @@ static PyMethodDef listreviter_methods[] = {
     {NULL, NULL} /* sentinel */
 };
 
-PyTypeObject Ci_CheckedListRevIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "list_reverseiterator", /* tp_name */
-    sizeof(listreviterobject), /* tp_basicsize */
-    0, /* tp_itemsize */
-    /* methods */
-    (destructor)listreviter_dealloc, /* tp_dealloc */
-    0, /* tp_vectorcall_offset */
-    0, /* tp_getattr */
-    0, /* tp_setattr */
-    0, /* tp_as_async */
-    0, /* tp_repr */
-    0, /* tp_as_number */
-    0, /* tp_as_sequence */
-    0, /* tp_as_mapping */
-    0, /* tp_hash */
-    0, /* tp_call */
-    0, /* tp_str */
-    PyObject_GenericGetAttr, /* tp_getattro */
-    0, /* tp_setattro */
-    0, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
-    0, /* tp_doc */
-    (traverseproc)listreviter_traverse, /* tp_traverse */
-    0, /* tp_clear */
-    0, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    PyObject_SelfIter, /* tp_iter */
-    (iternextfunc)listreviter_next, /* tp_iternext */
-    listreviter_methods, /* tp_methods */
-    0,
+PyTypeObject* Ci_CheckedListRevIter_Type;
+
+static PyType_Slot Ci_CheckedListRevIter_Slots[] = {
+    {Py_tp_dealloc, (void*)listreviter_dealloc},
+    {Py_tp_getattro, (void*)PyObject_GenericGetAttr},
+    {Py_tp_traverse, (void*)listreviter_traverse},
+    {Py_tp_iter, (void*)PyObject_SelfIter},
+    {Py_tp_iternext, (void*)listreviter_next},
+    {Py_tp_methods, (void*)listreviter_methods},
+    {0, NULL},
+};
+
+PyType_Spec Ci_CheckedListRevIter_Spec = {
+    .name = "_static.list_reverseiterator",
+    .basicsize = sizeof(listreviterobject),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = Ci_CheckedListRevIter_Slots,
 };
 
 /*[clinic input]
@@ -2846,7 +2824,7 @@ static PyObject* list___reversed___impl(PyListObject* self)
 {
   listreviterobject* it;
 
-  it = PyObject_GC_New(listreviterobject, &Ci_CheckedListRevIter_Type);
+  it = PyObject_GC_New(listreviterobject, Ci_CheckedListRevIter_Type);
   if (it == NULL) {
     return NULL;
   }
@@ -2859,9 +2837,11 @@ static PyObject* list___reversed___impl(PyListObject* self)
 }
 
 static void listreviter_dealloc(listreviterobject* it) {
+  PyTypeObject* type = Py_TYPE(it);
   PyObject_GC_UnTrack(it);
   Py_XDECREF(it->it_seq);
   PyObject_GC_Del(it);
+  Py_DECREF(type);
 }
 
 static int

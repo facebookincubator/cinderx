@@ -85,8 +85,10 @@ static int _static_exec(PyObject* m) {
     return -1;
   }
 
-  if (PyType_Ready(&Ci_CheckedListRevIter_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedListIter_Type) < 0 ||
+  if ((Ci_CheckedListRevIter_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedListRevIter_Spec)) == NULL ||
+      (Ci_CheckedListIter_Type =
+           (PyTypeObject*)PyType_FromSpec(&Ci_CheckedListIter_Spec)) == NULL ||
       PyType_Ready(&Ci_CheckedDictItems_Type) < 0 ||
       PyType_Ready(&Ci_CheckedDictValues_Type) < 0 ||
       PyType_Ready(&Ci_CheckedDictKeys_Type) < 0 ||
@@ -1844,6 +1846,9 @@ static void static_free(PyObject* mod) {
   Py_CLEAR(Ci_CheckedDictRevIterKey_Type);
   Py_CLEAR(Ci_CheckedDictRevIterItem_Type);
   Py_CLEAR(Ci_CheckedDictRevIterValue_Type);
+
+  Py_CLEAR(Ci_CheckedListIter_Type);
+  Py_CLEAR(Ci_CheckedListRevIter_Type);
 }
 
 static PyModuleDef_Slot _static_slots[] = {{Py_mod_exec, _static_exec}, {}};
