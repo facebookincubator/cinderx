@@ -519,6 +519,62 @@ dummy_func(
 #endif
         }
 
+        override op(_LOAD_ATTR, (owner -- attr, self_or_null[oparg&1])) {
+#if PY_VERSION_HEX >= 0x030E0400
+            // New version in Python 3.14.4 that uses _Py_LoadAttr_StackRefSteal.
+
+            PyObject *name = GETITEM(FRAME_CO_NAMES, oparg >> 1);
+            if (oparg & 1) {
+                /* Designed to work in tandem with CALL, pushes two values. */
+                attr = _Py_LoadAttr_StackRefSteal(tstate, owner, name, self_or_null);
+                DEAD(owner);
+                ERROR_IF(PyStackRef_IsNull(attr));
+            }
+            else {
+                /* Classic, pushes one value. */
+                PyObject *attr_o = PyObject_GetAttr(PyStackRef_AsPyObjectBorrow(owner), name);
+                PyStackRef_CLOSE(owner);
+                ERROR_IF(attr_o == NULL);
+                attr = PyStackRef_FromPyObjectSteal(attr_o);
+            }
+#else
+            // Older version pre-3.14.4.
+
+            PyObject *name = GETITEM(FRAME_CO_NAMES, oparg >> 1);
+            PyObject *attr_o = NULL;
+            if (oparg & 1) {
+                int is_meth = _PyObject_GetMethod(PyStackRef_AsPyObjectBorrow(owner), name, &attr_o);
+                if (is_meth) {
+                    /* We can bypass temporary bound method object.
+                       meth is unbound method and obj is self.
+                       meth | self | arg1 | ... | argN
+                     */
+                    assert(attr_o != NULL);  // No errors on this branch
+                    self_or_null[0] = owner;  // Transfer ownership
+                    DEAD(owner);
+                }
+                else {
+                    /* meth is not an unbound method (but a regular attr, or
+                       something was returned by a descriptor protocol).  Set
+                       the second element of the stack to NULL, to signal
+                       CALL that it's not a method call.
+                       meth | NULL | arg1 | ... | argN
+                    */
+                    PyStackRef_CLOSE(owner);
+                    ERROR_IF(attr_o == NULL);
+                    self_or_null[0] = PyStackRef_NULL;
+                }
+            }
+            else {
+                /* Classic, pushes one value. */
+                attr_o = PyObject_GetAttr(PyStackRef_AsPyObjectBorrow(owner), name);
+                PyStackRef_CLOSE(owner);
+                ERROR_IF(attr_o == NULL);
+            }
+            attr = PyStackRef_FromPyObjectSteal(attr_o);
+#endif
+        }
+
         override inst(EXTENDED_OPCODE, (args[oparg>>2] -- top[oparg&0x03])) {
             // Decode any extended oparg
             int extop = (int)next_instr->op.code;
