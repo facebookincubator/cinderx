@@ -574,7 +574,6 @@ PhyLocation get_arg_location_phy_location(int arg) {
   }
 
   JIT_ABORT("only six first registers should be used");
-  return 0;
 }
 
 std::span<const std::byte> NativeGenerator::getCodeBuffer() const {
