@@ -14,6 +14,9 @@ race:specialize_py_call_kw
 race:PyDict_Watch
 race:PyDict_Unwatch
 
+# GH-129752: bytecode read/write races during specialization
+race:read_u16
+
 # GH-129068: range iterator races in free-threaded CPython
 race:rangeiter_next
 race:longrangeiter_next
