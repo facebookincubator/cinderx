@@ -8,6 +8,9 @@ InheritParentConfig: true
 #   handle all possible cases explicitly, we want to push them through the
 #   default case.
 #
+# * `facebook-avoid-non-const-global-variables`: CPython C-extension APIs use
+#   non-const global type/spec objects, so this check is noisy here.
+#
 # * Tracking nullable returns requires depending on folly, which we don't do.
 #   It is also tedious as we would have to use this excessively due to Python
 #   often using null to propagate exceptions.
@@ -29,6 +32,7 @@ InheritParentConfig: true
 
 Checks: '
 -clang-diagnostic-switch-enum,
+-facebook-avoid-non-const-global-variables,
 -facebook-hte-BoostRegexRisky,
 -facebook-hte-GlibcRegexIsAwful,
 -facebook-hte-NullableReturn,
