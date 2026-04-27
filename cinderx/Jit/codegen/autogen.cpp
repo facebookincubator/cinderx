@@ -2480,7 +2480,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kBranchToYieldExit:
       JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
-      return;
     case Instruction::kResumeGenYield:
       translateResumeGenYield(env, instr);
       return;
@@ -2931,7 +2930,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kBranchToYieldExit:
       JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
-      return;
     case Instruction::kResumeGenYield:
       translateResumeGenYield(env, instr);
       return;
