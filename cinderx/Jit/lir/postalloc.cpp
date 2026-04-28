@@ -201,66 +201,82 @@ int prepareArgsArray(
   return rsp_sub;
 }
 
-int rewriteVectorCallFunctions(instr_iter_t instr_iter, int base_offset) {
+// Common implementation for kVectorCallTstate rewrites.
+// reg_offset: index into ARGUMENT_REGS where callable goes (0 or 1).
+// callable_input: index of the callable operand in instr's inputs.
+// first_arg: index of the first variadic arg in instr's inputs.
+int rewriteVectorCallCommon(
+    instr_iter_t instr_iter,
+    int base_offset,
+    size_t reg_offset,
+    size_t callable_input,
+    size_t first_arg) {
   auto instr = instr_iter->get();
-
-  // For vector calls there are 4 fixed arguments:
-  // * #0   - runtime helper function
-  // * #1   - flags to be added to nargsf
-  // * #2   - callable
-  // * #n-1 - kwnames
-  constexpr int kFirstArg = 3;
+  auto block = instr->basicblock();
 
   auto flag = instr->getInput(1)->getConstant();
-  auto num_args = instr->getNumInputs() - kFirstArg - 1;
+  auto num_args = instr->getNumInputs() - first_arg - 1;
 
-  // first argument
-  auto block = instr->basicblock();
   auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
-  move->output()->setPhyRegister(ARGUMENT_REGS[0]);
-  move->output()->setDataType(instr->getInput(2)->dataType());
-  move->appendInput(instr->releaseInput(2)); // callable
+  move->output()->setPhyRegister(ARGUMENT_REGS[reg_offset]);
+  move->output()->setDataType(instr->getInput(callable_input)->dataType());
+  move->appendInput(instr->releaseInput(callable_input));
 
   constexpr PhyLocation TMP_REG = arch::reg_scratch_0_loc;
   int rsp_sub = prepareArgsArray(
       instr_iter,
       num_args,
       flag | PY_VECTORCALL_ARGUMENTS_OFFSET,
-      kFirstArg,
-      ARGUMENT_REGS[1],
-      ARGUMENT_REGS[2],
+      first_arg,
+      ARGUMENT_REGS[reg_offset + 1],
+      ARGUMENT_REGS[reg_offset + 2],
       base_offset);
 
-  // check if kwnames is provided
   auto last_input = instr->releaseInput(instr->getNumInputs() - 1);
   if (last_input->isImm()) {
     JIT_DCHECK(last_input->getConstant() == 0, "kwnames must be 0 or variable");
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kXor,
-        PhyReg(ARGUMENT_REGS[3]),
-        PhyReg(ARGUMENT_REGS[3]));
+        PhyReg(ARGUMENT_REGS[reg_offset + 3]),
+        PhyReg(ARGUMENT_REGS[reg_offset + 3]));
   } else {
     auto move_2 = block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(ARGUMENT_REGS[3]));
+        instr_iter,
+        Instruction::kMove,
+        OutPhyReg(ARGUMENT_REGS[reg_offset + 3]));
     move_2->appendInput(std::move(last_input));
 
-    // Subtract the length of kwnames (always a tuple) from nargsf (arg2)
     size_t ob_size_offs = offsetof(PyVarObject, ob_size);
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
         OutPhyReg(TMP_REG),
-        Ind(ARGUMENT_REGS[3], (int32_t)ob_size_offs));
+        Ind(ARGUMENT_REGS[reg_offset + 3], (int32_t)ob_size_offs));
 
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kSub,
-        PhyReg(ARGUMENT_REGS[2]),
+        PhyReg(ARGUMENT_REGS[reg_offset + 2]),
         PhyReg(TMP_REG));
   }
 
   return rsp_sub;
+}
+
+// Rewrite a kVectorCallTstate instruction (with tstate).
+// Fixed inputs: #0 func, #1 flags, #2 tstate, #3 callable.
+// Calling convention: (tstate, callable, args, nargsf, kwnames)
+int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
+  auto instr = instr_iter->get();
+  auto block = instr->basicblock();
+
+  auto move_tstate = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+  move_tstate->output()->setPhyRegister(ARGUMENT_REGS[0]);
+  move_tstate->output()->setDataType(OperandBase::kObject);
+  move_tstate->appendInput(instr->releaseInput(2));
+
+  return rewriteVectorCallCommon(instr_iter, base_offset, 1, 3, 4);
 }
 
 int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
@@ -293,7 +309,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     env->max_arg_buffer_size =
         std::max<int>(env->max_arg_buffer_size, base_offset + rsp_sub);
     return kChanged;
-  } else if (!instr->isCall() && !instr->isVectorCall()) {
+  } else if (!instr->isCall() && !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
 
@@ -305,8 +321,8 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   int rsp_sub = 0;
   auto block = instr->basicblock();
 
-  if (instr->isVectorCall()) {
-    rsp_sub = rewriteVectorCallFunctions(instr_iter, base_offset);
+  if (instr->isVectorCallTstate()) {
+    rsp_sub = rewriteVectorCallTstateFunctions(instr_iter, base_offset);
   } else {
     rsp_sub = rewriteRegularFunction(instr_iter, base_offset);
   }
@@ -840,7 +856,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kNop:
     case Instruction::kUnreachable:
     case Instruction::kCall:
-    case Instruction::kVectorCall:
+    case Instruction::kVectorCallTstate:
     case Instruction::kVarArgCall:
     case Instruction::kGuard:
     case Instruction::kDeoptPatchpoint:

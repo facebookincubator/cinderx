@@ -3,6 +3,7 @@
 #include "cinderx/Jit/lir/generator.h"
 
 extern "C" {
+#include "internal/pycore_call.h"
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_intrinsics.h"
 
@@ -3095,19 +3096,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           break;
         }
         size_t flags = 0;
-        uint64_t func = reinterpret_cast<uint64_t>(_PyObject_Vectorcall);
+        uint64_t func = reinterpret_cast<uint64_t>(_PyObject_VectorcallTstate);
         if (!(hir_instr.func()->type() <= TFunc)) {
           // Calls to things which aren't simple Python functions will
           // need to check the eval breaker. We do this in a helper instead
           // of injecting it after every call.
-          func = reinterpret_cast<uint64_t>(JITRT_Vectorcall);
+          func = reinterpret_cast<uint64_t>(JITRT_VectorcallTstate);
         }
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
-            Instruction::kVectorCall,
+            Instruction::kVectorCallTstate,
             // TASK(T140174965): This should be MemImm.
             Imm{func},
-            Imm{flags});
+            Imm{flags},
+            VReg{env_->asm_tstate});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
@@ -3221,10 +3223,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         size_t flags = 0;
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
-            Instruction::kVectorCall,
+            Instruction::kVectorCallTstate,
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(JITRT_Call)},
-            Imm{flags});
+            Imm{flags},
+            VReg{env_->asm_tstate});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
@@ -4343,15 +4346,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         const auto& instr = static_cast<const BuildString&>(i);
 
         // using vectorcall here although this is not strictly a vector call.
-        // the callable is always null, and all the components to be
-        // concatenated will be in the args argument.
+        // tstate and the callable are always null, and all the components
+        // to be concatenated will be in the args argument.
 
         Instruction* lir = bbb.appendInstr(
             instr.output(),
-            Instruction::kVectorCall,
+            Instruction::kVectorCallTstate,
             JITRT_BuildString,
             nullptr,
             nullptr);
+        lir->addOperands(Imm{0});
         for (size_t operandIdx = 0; operandIdx < instr.NumOperands();
              operandIdx++) {
           lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(operandIdx))});

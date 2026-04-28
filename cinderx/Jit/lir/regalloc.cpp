@@ -493,7 +493,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
       if (instr_opcode == Instruction::kCall ||
           instr_opcode == Instruction::kVarArgCall ||
-          instr_opcode == Instruction::kVectorCall) {
+          instr_opcode == Instruction::kVectorCallTstate) {
         reserveCallerSaveRegisters(instr_id);
       }
       // kLoadThreadState needs caller-save reservation when the TLS offset is
@@ -1177,7 +1177,7 @@ void LinearScanAllocator::rewriteInstrOutput(
   // Need a separate pass in HIR to handle the dead code more gracefully.
   if (instr->opcode() == Instruction::kCall ||
       instr->opcode() == Instruction::kVarArgCall ||
-      instr->opcode() == Instruction::kVectorCall ||
+      instr->opcode() == Instruction::kVectorCallTstate ||
       instr->opcode() == Instruction::kLoadThreadState) {
     output->setNone();
   } else {

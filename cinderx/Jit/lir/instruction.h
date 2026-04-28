@@ -89,7 +89,7 @@ enum OperandSizeType {
   X(Nop)                                                                      \
   X(Unreachable, false, FlagEffects::kNone, kDefault, 0, {}, 1)               \
   X(Call, false, FlagEffects::kInvalidate, kAlways64, 1, {}, 1)               \
-  X(VectorCall, false, FlagEffects::kInvalidate, kAlways64, 1, {1}, 1)        \
+  X(VectorCallTstate, false, FlagEffects::kInvalidate, kAlways64, 1, {1}, 1)  \
   X(VarArgCall, false, FlagEffects::kInvalidate, kDefault, 1, {1})            \
   X(Guard, false, FlagEffects::kInvalidate, kDefault, 1, {0, 0, 1, 1}, 1)     \
   X(DeoptPatchpoint, false, FlagEffects::kInvalidate, kDefault, 0, {1, 1}, 1) \

@@ -840,12 +840,13 @@ RewriteResult rewriteNonBinaryImmediateToVreg(instr_iter_t instr_iter) {
   }
 }
 
-// For Call/VarArgCall/VectorCall instructions with non-register inputs
+// For Call/VarArgCall instructions with non-register inputs
 // (Imm or Stack), insert a Move to load the call target into a vreg so
 // translateCall only needs blr(reg).
 RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isVarArgCall() && !instr->isVectorCall()) {
+  if (!instr->isCall() && !instr->isVarArgCall() &&
+      !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
 
