@@ -89,9 +89,12 @@ static int _static_exec(PyObject* m) {
            &Ci_CheckedListRevIter_Spec)) == NULL ||
       (Ci_CheckedListIter_Type =
            (PyTypeObject*)PyType_FromSpec(&Ci_CheckedListIter_Spec)) == NULL ||
-      PyType_Ready(&Ci_CheckedDictItems_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictValues_Type) < 0 ||
-      PyType_Ready(&Ci_CheckedDictKeys_Type) < 0 ||
+      (Ci_CheckedDictItems_Type =
+           (PyTypeObject*)PyType_FromSpec(&Ci_CheckedDictItems_Spec)) == NULL ||
+      (Ci_CheckedDictValues_Type = (PyTypeObject*)PyType_FromSpec(
+           &Ci_CheckedDictValues_Spec)) == NULL ||
+      (Ci_CheckedDictKeys_Type =
+           (PyTypeObject*)PyType_FromSpec(&Ci_CheckedDictKeys_Spec)) == NULL ||
       PyType_Ready(&_PyType_MethodThunk) < 0 ||
       PyType_Ready(&_PyType_StaticThunk) < 0 ||
       PyType_Ready(&_PyType_PropertyThunk) < 0 ||
@@ -1846,6 +1849,10 @@ static void static_free(PyObject* mod) {
   Py_CLEAR(Ci_CheckedDictRevIterKey_Type);
   Py_CLEAR(Ci_CheckedDictRevIterItem_Type);
   Py_CLEAR(Ci_CheckedDictRevIterValue_Type);
+
+  Py_CLEAR(Ci_CheckedDictKeys_Type);
+  Py_CLEAR(Ci_CheckedDictItems_Type);
+  Py_CLEAR(Ci_CheckedDictValues_Type);
 
   Py_CLEAR(Ci_CheckedListIter_Type);
   Py_CLEAR(Ci_CheckedListRevIter_Type);
