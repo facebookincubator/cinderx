@@ -475,6 +475,14 @@ class BuildExt(build_ext):
         return os.path.join(include_dir, "..", "..")
 
 
+def should_build_native_extension() -> bool:
+    if os.environ.get("CINDERX_BUILD_EXTENSION") == "0":
+        return False
+    if os.environ.get("PYTHON_GIL") == "0":
+        return False
+    return True
+
+
 def main() -> None:
     setup(
         name="cinderx",
