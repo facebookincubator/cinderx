@@ -1674,6 +1674,12 @@ class CinderJitModuleTests(StaticTestBase):
                     j += 2
                 return j*2+{i}
             ''')
+            # Call a handful of functions enough times to exceed the
+            # jit-auto threshold (up to 1000) so the JIT compiles them.
+            # The remaining functions are called once each below.
+            for _rep in range(1100):
+                junk0(0)
+                junk1(1)
             x = 0
             for i in range(2000):
                 exec(f'x *= junk{i}(i)')
