@@ -3077,87 +3077,6 @@ void trackEligibleCodeObjects(
   }
 }
 
-// Preload a function and its dependencies, then compile them all.
-//
-// Failing to compile a dependent function is a soft failure, and is ignored.
-Result compile_func(BorrowedRef<PyFunctionObject> func) {
-  // isolate preloaders state since batch preloading might trigger a call to a
-  // jitable function, resulting in a single-function compile
-  hir::IsolatedPreloaders ip;
-
-  // We generally track function objects when they are created. But we may need
-  // to re-track here. A function can have nested functions and those nested
-  // functions can out-live the function that created them. When the outer
-  // function is destroyed we need to remove the dangling registrations in
-  // codeOuterFunctions. We will treat whatever remains as new top-level
-  // functions.
-  trackEligibleCodeObjects(func, func->func_code);
-
-  // Collect a list of functions to compile.  If it's empty then there must have
-  // been a Python error during preloading.
-  std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
-  if (targets.empty()) {
-    JIT_CHECK(
-        PyErr_Occurred(), "Expect a Python exception when preloading fails");
-    return Result::PYTHON_EXCEPTION;
-  }
-
-  if (targets.size() > 1) {
-    JIT_DLOG(
-        "Compiling {} along with {} functions it calls",
-        funcFullname(func),
-        targets.size() - 1);
-  }
-
-  // Will return unknown error if none of the targets can find a matching
-  // preloader.
-  auto result = Result::UNKNOWN_ERROR;
-
-  for (BorrowedRef<PyFunctionObject> target : targets) {
-    auto preloader = hir::preloaderManager().find(target);
-    if (preloader == nullptr) {
-      continue;
-    }
-
-    // Don't compile functions that were preloaded purely for inlining.
-    bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
-    if (target != func && !is_static) {
-      continue;
-    }
-
-    result = compilePreloader(*preloader, target);
-    JIT_CHECK(
-        result != Result::PYTHON_EXCEPTION,
-        "Raised a Python exception while JIT-compiling function {}, which is "
-        "not allowed",
-        funcFullname(target));
-    JIT_CHECK(
-        result != Result::NO_PRELOADER,
-        "Cannot find a preloader for function {}, despite it just being "
-        "preloaded",
-        funcFullname(target));
-
-    // If we hit the max code size limit, stop compiling further functions
-    if (result == Result::OVER_MAX_CODE_SIZE) {
-      break;
-    }
-  }
-
-  // This is the common case, where the original function is compiled last.
-  // Return its compilation result.
-  BorrowedRef<PyFunctionObject> last_func = targets.back();
-  if (last_func == func) {
-    return result;
-  }
-
-  // Otherwise the original function was destroyed during preloading, which is
-  // rare but can happen with nested functions.  In that case, we're just going
-  // to pretend everything went okay.  It doesn't make sense to return the
-  // results of any of the other preloaded functions, as the caller never asked
-  // for them in the first place.
-  return Result::OK;
-}
-
 // Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
 // exists. Returns 0 on success or if the module/function doesn't exist, and -1
 // on any other errors.
@@ -3552,6 +3471,9 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   return true;
 }
 
+// Preload a function and its dependencies, then compile them all.
+//
+// Failing to compile a dependent function is a soft failure, and is ignored.
 Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
   if (!isJitInitialized()) {
@@ -3566,7 +3488,82 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
 
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   jit_reg_units.erase(func);
-  return compile_func(func);
+
+  // Isolate preloaders state since batch preloading might trigger a call to a
+  // jitable function, resulting in a single-function compile.
+  hir::IsolatedPreloaders ip;
+
+  // We generally track function objects when they are created. But we may need
+  // to re-track here. A function can have nested functions and those nested
+  // functions can out-live the function that created them. When the outer
+  // function is destroyed we need to remove the dangling registrations in
+  // codeOuterFunctions. We will treat whatever remains as new top-level
+  // functions.
+  trackEligibleCodeObjects(func, func->func_code);
+
+  // Collect a list of functions to compile.  If it's empty then there must have
+  // been a Python error during preloading.
+  std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
+  if (targets.empty()) {
+    JIT_CHECK(
+        PyErr_Occurred(), "Expect a Python exception when preloading fails");
+    return Result::PYTHON_EXCEPTION;
+  }
+
+  if (targets.size() > 1) {
+    JIT_DLOG(
+        "Compiling {} along with {} functions it calls",
+        funcFullname(func),
+        targets.size() - 1);
+  }
+
+  // Will return unknown error if none of the targets can find a matching
+  // preloader.
+  auto result = Result::UNKNOWN_ERROR;
+
+  for (BorrowedRef<PyFunctionObject> target : targets) {
+    auto preloader = hir::preloaderManager().find(target);
+    if (preloader == nullptr) {
+      continue;
+    }
+
+    // Don't compile functions that were preloaded purely for inlining.
+    bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
+    if (target != func && !is_static) {
+      continue;
+    }
+
+    result = compilePreloader(*preloader, target);
+    JIT_CHECK(
+        result != Result::PYTHON_EXCEPTION,
+        "Raised a Python exception while JIT-compiling function {}, which is "
+        "not allowed",
+        funcFullname(target));
+    JIT_CHECK(
+        result != Result::NO_PRELOADER,
+        "Cannot find a preloader for function {}, despite it just being "
+        "preloaded",
+        funcFullname(target));
+
+    // If we hit the max code size limit, stop compiling further functions
+    if (result == Result::OVER_MAX_CODE_SIZE) {
+      break;
+    }
+  }
+
+  // This is the common case, where the original function is compiled last.
+  // Return its compilation result.
+  BorrowedRef<PyFunctionObject> last_func = targets.back();
+  if (last_func == func) {
+    return result;
+  }
+
+  // Otherwise the original function was destroyed during preloading, which is
+  // rare but can happen with nested functions.  In that case, we're just going
+  // to pretend everything went okay.  It doesn't make sense to return the
+  // results of any of the other preloaded functions, as the caller never asked
+  // for them in the first place.
+  return Result::OK;
 }
 
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
