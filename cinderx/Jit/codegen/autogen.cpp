@@ -21,6 +21,33 @@ using namespace jit::codegen;
 
 namespace jit::codegen::autogen {
 
+namespace {
+
+bool isMemoryMoveOperand(const OperandBase* operand) {
+  return operand->isStack() || operand->isMem() || operand->isInd();
+}
+
+void checkMoveRelaxedOperandShape(const Instruction* instr) {
+  JIT_DCHECK(
+      instr->isMoveRelaxed(), "Expected kMoveRelaxed, got {}", instr->opname());
+
+  auto* output = instr->output();
+  auto* input = instr->getInput(0);
+
+  bool is_valid_load = output->isReg() && isMemoryMoveOperand(input);
+  bool is_valid_store =
+      isMemoryMoveOperand(output) && (input->isReg() || input->isImm());
+
+  JIT_CHECK(
+      is_valid_load || is_valid_store,
+      "kMoveRelaxed only supports memory->register loads and "
+      "register/immediate->memory stores, got {} <- {}",
+      output->type(),
+      input->type());
+}
+
+} // namespace
+
 arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
   JIT_DCHECK(operand->isInd(), "operand should be an indirect reference");
 
@@ -1524,6 +1551,10 @@ void translateMove(Environ* env, const Instruction* instr) {
   const OperandBase* output = instr->output();
   const OperandBase* input = instr->getInput(0);
 
+  if (instr->isMoveRelaxed()) {
+    checkMoveRelaxedOperandShape(instr);
+  }
+
   switch (output->type()) {
     case lir::OperandType::kReg:
       switch (input->type()) {
@@ -2257,6 +2288,8 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     }
     case Instruction::kMoveRelaxed: {
+      checkMoveRelaxedOperandShape(instr);
+
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 

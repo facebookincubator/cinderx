@@ -1358,4 +1358,11 @@ TEST_F(LIRABITest, TestkMoveRelaxed_Mem_Imm) {
   translateInstr(Instruction::kMoveRelaxed, makeOutInd(1, 16), Imm{0});
 }
 
+// kMoveRelaxed rejects reg <- reg (no memory operand)
+TEST_F(LIRABITest, TestkMoveRelaxed_RejectsRegReg) {
+  EXPECT_DEATH(
+      translateInstr(Instruction::kMoveRelaxed, makeOutPhyReg(), makePhyReg()),
+      "kMoveRelaxed only supports");
+}
+
 } // namespace jit::lir
