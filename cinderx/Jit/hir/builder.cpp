@@ -29,7 +29,6 @@ extern "C" {
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/module_state.h"
-#include "cinderx/python_runtime.h"
 
 #include <algorithm>
 #include <deque>
