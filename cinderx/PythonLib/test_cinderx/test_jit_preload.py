@@ -26,6 +26,44 @@ class PreloadTests(unittest.TestCase):
     SCRIPT_FILE: str = os.path.join(
         os.path.dirname(__file__), "cinder_preload_helper_main.py"
     )
+    RECURSIVE_SCRIPT_FILE: str = os.path.join(
+        os.path.dirname(__file__), "cinder_recursive_preload_helper_main.py"
+    )
+    MP_SCRIPT_FILE: str = os.path.join(
+        os.path.dirname(__file__), "cinder_mp_preload_helper_main.py"
+    )
+
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
+    @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
+    @skip_if_ft("Batch multi-threaded compile not supported with free threading")
+    def test_func_destroyed_during_preload_multiprocessing(self) -> None:
+        """
+        Repro for T266490160 / D101755188 in a multiprocessing setup.
+
+        Forked workers inherit any unit_deleted_during_preload callback the
+        parent left installed, then trigger their own compilations whose
+        preload runs JIT-compiled code that destroys functions.  If the
+        unit-deleted callbacks are referencing invalid memory, they will
+        crash.
+        """
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-batch-compile-workers=2",
+                "-L",
+                self.MP_SCRIPT_FILE,
+            ],
+            cwd=os.path.dirname(__file__),
+            capture_output=True,
+            encoding=ENCODING,
+            env={**subprocess_env(), "DISABLE_LAZY_IMPORTS": "1"},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("ok ", proc.stdout, proc.stdout)
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
