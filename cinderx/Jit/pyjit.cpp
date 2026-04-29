@@ -705,12 +705,6 @@ FlagProcessor initFlagProcessor() {
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.addOption(
-      "jit-compact-long-guards",
-      "CINDERX_JIT_COMPACT_LONG_GUARDS",
-      getMutableConfig().compact_long_guards,
-      "Guard on long objects being in compact form for arithmetic operations.");
-
-  flag_processor.addOption(
       "jit-support-instrumentation",
       "CINDERX_JIT_SUPPORT_INSTRUMENTATION",
       getMutableConfig().support_instrumentation,

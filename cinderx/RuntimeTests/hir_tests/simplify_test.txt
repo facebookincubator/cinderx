@@ -3893,7 +3893,7 @@ fun test {
   }
 }
 --- Test Name ---
-CompareOfTwoLongsTurnsToLongCompare
+CompareOfTwoLongsGuardsOnCompactAndUsesPrimitiveCompare
 --- Input ---
 # HIR
 fun test {
@@ -3937,11 +3937,18 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:Bool = LongCompare<Equal> v2 v3
-    UseType<Bool> v8
+    v11:CBool = IsCompactLong v2
+    v12:CBool = IsCompactLong v3
+    v13:CBool = IntBinaryOp<And> v11 v12
+    Guard v13 {
+    }
+    v14:CInt64 = CompactLongUnbox v2
+    v15:CInt64 = CompactLongUnbox v3
+    v16:CBool = PrimitiveCompare<Equal> v14 v15
+    v17:Bool = PrimitiveBoxBool v16
+    UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    CondBranch<2, 1> v16
   }
 
   bb 2 (preds 0) {
@@ -3969,11 +3976,18 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:Bool = LongCompare<Equal> v2 v3
-    UseType<Bool> v8
+    v11:CBool = IsCompactLong v2
+    v12:CBool = IsCompactLong v3
+    v13:CBool = IntBinaryOp<And> v11 v12
+    Guard v13 {
+    }
+    v14:CInt64 = CompactLongUnbox v2
+    v15:CInt64 = CompactLongUnbox v3
+    v16:CBool = PrimitiveCompare<Equal> v14 v15
+    v17:Bool = PrimitiveBoxBool v16
+    UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    CondBranch<2, 1> v16
   }
 
   bb 2 (preds 0) {
@@ -4001,11 +4015,18 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:Bool = LongCompare<Equal> v2 v3
-    UseType<Bool> v8
+    v11:CBool = IsCompactLong v2
+    v12:CBool = IsCompactLong v3
+    v13:CBool = IntBinaryOp<And> v11 v12
+    Guard v13 {
+    }
+    v14:CInt64 = CompactLongUnbox v2
+    v15:CInt64 = CompactLongUnbox v3
+    v16:CBool = PrimitiveCompare<Equal> v14 v15
+    v17:Bool = PrimitiveBoxBool v16
+    UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    CondBranch<2, 1> v16
   }
 
   bb 2 (preds 0) {

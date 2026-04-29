@@ -162,9 +162,6 @@ struct Config {
   // Whether or not to JIT specialized opcodes or to fall back to their generic
   // counterparts.
   bool specialized_opcodes{true};
-  // Add guards for long objects being compact (not arbitrary-length) as part of
-  // arithmetic operations.
-  bool compact_long_guards{false};
 
   // Support instrumentation (monitoring/tracing/profiling) by falling back to
   // the interpreter

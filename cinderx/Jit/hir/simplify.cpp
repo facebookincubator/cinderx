@@ -451,10 +451,6 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
 
   // TODO: Constant folding.
 
-  if (!getConfig().compact_long_guards) {
-    return nullptr;
-  }
-
   auto prim_op = toPrimitiveCompareOp(op);
   if (!prim_op.has_value()) {
     return nullptr;
