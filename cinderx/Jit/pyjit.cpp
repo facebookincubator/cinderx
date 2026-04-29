@@ -3047,31 +3047,25 @@ void trackEligibleCodeObjects(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<PyCodeObject> func_code,
     JitEligibility eligibility = JitEligibility::Eligible) {
-  // We need to maintain a mapping for all functions which are
-  // eligible for compilation at some point - we track the code
-  // object and their parent function. If we have a JIT list we
-  // also track the registered units.
-  // Map this function's code object to itself.
+  // We need to maintain a mapping for all functions which are eligible for
+  // compilation at some point - we track the code object and their parent
+  // function.  If we have a JIT list we also track the registered units.  Map
+  // this function's code object to itself.
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  if (jit_code_outer_funcs.contains(func_code)) {
-    // already registered this code
+  auto [_, inserted] = jit_code_outer_funcs.try_emplace(func_code, func);
+  if (!inserted) {
     return;
   }
 
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
 
-  jit_code_outer_funcs.try_emplace(func_code, func);
-
-  // Scan this function's code object for any nested functions that
-  // might be compiled
-  PyObject* module = func->func_module;
+  // Scan this function's code object for any nested functions that might be
+  // compiled.
+  PyObject* mod = func->func_module;
   BorrowedRef<> top_consts{func_code->co_consts};
-  for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
-    if (jit_code_outer_funcs.contains(code)) {
-      continue;
-    }
-    jit_code_outer_funcs.emplace(code, func);
-    if (eligibility == JitEligibility::JitListEligible) {
+  for (BorrowedRef<PyCodeObject> code : findNestedCodes(mod, top_consts)) {
+    auto [_, nested_inserted] = jit_code_outer_funcs.try_emplace(code, func);
+    if (nested_inserted && eligibility == JitEligibility::JitListEligible) {
       jit_reg_units.emplace(code.getObj());
     }
   }
