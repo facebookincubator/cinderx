@@ -72,9 +72,20 @@ void JITRT_UnlinkFrame(PyThreadState* tstate);
 void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate);
 
 /*
- * Handles a call that includes kw arguments or excess tuple arguments
+ * Handles a call that includes kw arguments where the target function has
+ * *args, **kwargs, or keyword only args.
  */
 PyObject* JITRT_CallWithKeywordArgs(
+    PyFunctionObject* func,
+    PyObject** args,
+    size_t nargsf,
+    PyObject* kwnames);
+
+/*
+ * Handles a call that includes kw arguments where the target function doesn't
+ * have *args, **kwargs, or keyword only args.
+ */
+PyObject* JITRT_CallWithKeywordArgsSimple(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,

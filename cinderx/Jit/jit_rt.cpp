@@ -37,110 +37,68 @@
 #endif
 
 #include <cmath>
+#include <span>
 
-// This is mostly taken from ceval.c _PyEval_EvalCodeWithName
-// We use the same logic to turn **args, nargsf, and kwnames into
-// **args / nargsf.
-// One significant difference is we don't need to incref the args
-// in the new array.
-static int JITRT_BindKeywordArgs(
-    PyFunctionObject* func,
+static int JITRT_BindKeywords(
     PyObject** args,
-    size_t nargsf,
     PyObject* kwnames,
-    PyObject** arg_space,
-    Py_ssize_t total_args,
-    Ref<PyObject>& kwdict,
-    Ref<PyObject>& varargs) {
-  PyCodeObject* co = (PyCodeObject*)func->func_code;
-  Py_ssize_t argcount = PyVectorcall_NARGS(nargsf);
-
-  for (int i = 0; i < total_args; i++) {
-    arg_space[i] = nullptr;
-  }
-
-  // Create a dictionary for keyword parameters (**kwags)
-  if (co->co_flags & CO_VARKEYWORDS) {
-    kwdict = Ref<>::steal(PyDict_New());
-    if (kwdict == nullptr) {
-      return 0;
-    }
-    arg_space[total_args - 1] = kwdict;
-  }
-
-  // Copy all positional arguments into local variables
-  Py_ssize_t n = std::min<Py_ssize_t>(argcount, co->co_argcount);
-  for (Py_ssize_t j = 0; j < n; j++) {
-    arg_space[j] = args[j];
-  }
-
-  // Pack other positional arguments into the *args argument
-  if (co->co_flags & CO_VARARGS) {
-    varargs = Ref<>::steal(Cix_PyTuple_FromArray(args + n, argcount - n));
-    if (varargs == nullptr) {
-      return 0;
-    }
-
-    Py_ssize_t i = total_args - 1;
-    if (co->co_flags & CO_VARKEYWORDS) {
-      i--;
-    }
-    arg_space[i] = varargs;
-  }
-
+    std::span<PyObject*>& arg_space,
+    Py_ssize_t argcount,
+    PyCodeObject* co,
+    BorrowedRef<PyObject> kwdict) {
   // Handle keyword arguments passed as two strided arrays
-  if (kwnames != nullptr) {
-    for (Py_ssize_t i = 0; i < PyTuple_Size(kwnames); i++) {
-      PyObject* keyword = PyTuple_GET_ITEM(kwnames, i);
-      PyObject* value = args[argcount + i];
-      Py_ssize_t j;
+  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(kwnames); i++) {
+    PyObject* keyword = PyTuple_GET_ITEM(kwnames, i);
+    PyObject* value = args[argcount + i];
+    Py_ssize_t j;
 
-      if (keyword == nullptr || !PyUnicode_Check(keyword)) {
-        return 0;
-      }
-
-      // Speed hack: do raw pointer compares. As names are
-      //    normally interned this should almost always hit.
-      for (j = co->co_posonlyargcount; j < total_args; j++) {
-        PyObject* name = jit::getVarname(co, j);
-        if (name == keyword) {
-          goto kw_found;
-        }
-      }
-
-      // Slow fallback, just in case
-      for (j = co->co_posonlyargcount; j < total_args; j++) {
-        PyObject* name = jit::getVarname(co, j);
-        int cmp = PyObject_RichCompareBool(keyword, name, Py_EQ);
-        if (cmp > 0) {
-          goto kw_found;
-        } else if (cmp < 0) {
-          return 0;
-        }
-      }
-
-      if (kwdict == nullptr || PyDict_SetItem(kwdict, keyword, value) == -1) {
-        return 0;
-      }
-      continue;
-
-    kw_found:
-      if (arg_space[j] != nullptr) {
-        return 0;
-      }
-      arg_space[j] = value;
+    if (keyword == nullptr || !PyUnicode_Check(keyword)) {
+      return 0;
     }
-  }
 
-  // Check the number of positional arguments
-  if ((argcount > co->co_argcount) && !(co->co_flags & CO_VARARGS)) {
-    return 0;
-  }
+    // Speed hack: do raw pointer compares. As names are
+    //    normally interned this should almost always hit.
+    for (j = co->co_posonlyargcount; j < arg_space.size(); j++) {
+      PyObject* name = jit::getVarname(co, j);
+      if (name == keyword) {
+        goto kw_found;
+      }
+    }
 
+    // Slow fallback, just in case
+    for (j = co->co_posonlyargcount; j < arg_space.size(); j++) {
+      PyObject* name = jit::getVarname(co, j);
+      int cmp = PyObject_RichCompareBool(keyword, name, Py_EQ);
+      if (cmp > 0) {
+        goto kw_found;
+      } else if (cmp < 0) {
+        return 0;
+      }
+    }
+
+    if (kwdict == nullptr || PyDict_SetItem(kwdict, keyword, value) == -1) {
+      return 0;
+    }
+    continue;
+
+  kw_found:
+    if (arg_space[j] != nullptr) {
+      return 0;
+    }
+    arg_space[j] = value;
+  }
+  return 1;
+}
+
+static int JITRT_BindDefaults(
+    Py_ssize_t argcount,
+    std::span<PyObject*>& arg_space,
+    PyCodeObject* co,
+    PyFunctionObject* func) {
   // Add missing positional arguments (copy default values from defs)
   if (argcount < co->co_argcount) {
     PyObject* defaults = func->func_defaults;
-    Py_ssize_t defcount = defaults == nullptr ? 0 : PyTuple_Size(defaults);
+    Py_ssize_t defcount = defaults == nullptr ? 0 : PyTuple_GET_SIZE(defaults);
     Py_ssize_t first_default_arg = co->co_argcount - defcount;
 
     // Any unset slot before the defaults region means we are missing
@@ -163,12 +121,79 @@ static int JITRT_BindKeywordArgs(
       }
     }
   }
+  return 1;
+}
+
+// This is mostly taken from ceval.c _PyEval_EvalCodeWithName
+// We use the same logic to turn **args, nargsf, and kwnames into
+// **args / nargsf.
+// One significant difference is we don't need to incref the args
+// in the new array.
+static int JITRT_BindKeywordArgs(
+    PyFunctionObject* func,
+    PyObject** args,
+    size_t nargsf,
+    PyObject* kwnames,
+    std::span<PyObject*>& arg_space,
+    Ref<PyObject>& kwdict,
+    Ref<PyObject>& varargs) {
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  Py_ssize_t argcount = PyVectorcall_NARGS(nargsf);
+
+  for (int i = 0; i < arg_space.size(); i++) {
+    arg_space[i] = nullptr;
+  }
+
+  // Copy all positional arguments into local variables
+  Py_ssize_t n = std::min<Py_ssize_t>(argcount, co->co_argcount);
+  for (Py_ssize_t j = 0; j < n; j++) {
+    arg_space[j] = args[j];
+  }
+
+  // Create a dictionary for keyword parameters (**kwags)
+  if (co->co_flags & CO_VARKEYWORDS) {
+    kwdict = Ref<>::steal(PyDict_New());
+    if (kwdict == nullptr) {
+      return 0;
+    }
+    arg_space[arg_space.size() - 1] = kwdict;
+  }
+
+  // Pack other positional arguments into the *args argument
+  if (co->co_flags & CO_VARARGS) {
+    varargs = Ref<>::steal(Cix_PyTuple_FromArray(args + n, argcount - n));
+    if (varargs == nullptr) {
+      return 0;
+    }
+
+    Py_ssize_t i = arg_space.size() - 1;
+    if (co->co_flags & CO_VARKEYWORDS) {
+      i--;
+    }
+    arg_space[i] = varargs;
+  }
+
+  // Handle keyword arguments passed as two strided arrays
+  if (kwnames != nullptr &&
+      !JITRT_BindKeywords(args, kwnames, arg_space, argcount, co, kwdict)) {
+    return 0;
+  }
+
+  // Check the number of positional arguments
+  if ((argcount > co->co_argcount) && !(co->co_flags & CO_VARARGS)) {
+    return 0;
+  }
+
+  // Add missing positional arguments (copy default values from defs)
+  if (!JITRT_BindDefaults(argcount, arg_space, co, func)) {
+    return 0;
+  }
 
   // Add missing keyword arguments (copy default values from kwdefs)
   if (co->co_kwonlyargcount > 0) {
     Py_ssize_t missing = 0;
     PyObject* kwdefs = func->func_kwdefaults;
-    for (Py_ssize_t i = co->co_argcount; i < total_args; i++) {
+    for (Py_ssize_t i = co->co_argcount; i < arg_space.size(); i++) {
       PyObject* name;
       if (arg_space[i] != nullptr) {
         continue;
@@ -193,6 +218,33 @@ static int JITRT_BindKeywordArgs(
   return 1;
 }
 
+static int JITRT_BindKeywordArgsSimple(
+    PyFunctionObject* func,
+    PyObject** args,
+    size_t nargsf,
+    PyObject* kwnames,
+    std::span<PyObject*>& arg_space) {
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  Py_ssize_t argcount = PyVectorcall_NARGS(nargsf);
+  if (argcount > co->co_argcount) {
+    return 0;
+  }
+
+  for (int i = 0; i < arg_space.size(); i++) {
+    arg_space[i] = nullptr;
+  }
+
+  // Copy all positional arguments into local variables
+  Py_ssize_t n = std::min<Py_ssize_t>(argcount, co->co_argcount);
+  for (Py_ssize_t j = 0; j < n; j++) {
+    arg_space[j] = args[j];
+  }
+
+  // Check the number of positional arguments
+  return JITRT_BindKeywords(args, kwnames, arg_space, argcount, co, nullptr) &&
+      JITRT_BindDefaults(argcount, arg_space, co, func);
+}
+
 // This uses JITRT_BindKeywordArgs to get the newly bound keyword
 // arguments.   We then turn around and dispatch to the
 // JITed function with the newly packed args.
@@ -211,18 +263,45 @@ PyObject* JITRT_CallWithKeywordArgs(
   auto arg_space = std::make_unique<PyObject*[]>(total_args);
   Ref<PyObject> kwdict, varargs;
 
+  std::span<PyObject*> arguments(arg_space.get(), total_args);
   if (JITRT_BindKeywordArgs(
-          func,
-          args,
-          nargsf,
-          kwnames,
-          arg_space.get(),
-          total_args,
-          kwdict,
-          varargs)) {
+          func, args, nargsf, kwnames, arguments, kwdict, varargs)) {
     size_t new_nargsf = total_args;
     return JITRT_GET_REENTRY(func->vectorcall)(
         (PyObject*)func, arg_space.get(), new_nargsf, nullptr);
+  }
+
+  return Ci_PyFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
+}
+
+// This uses JITRT_BindKeywordArgs to get the newly bound keyword
+// arguments.   We then turn around and dispatch to the
+// JITed function with the newly packed args.
+// Rather than copying over all of the error reporting we instead
+// just dispatch to the normal _PyFunction_Vectorcall if anything
+// goes wrong which is indicated by JITRT_BindKeywordArgs returning 0.
+PyObject* JITRT_CallWithKeywordArgsSimple(
+    PyFunctionObject* func,
+    PyObject** args,
+    size_t nargsf,
+    PyObject* kwnames) {
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  JIT_DCHECK(
+      !(co->co_flags & (CO_VARARGS | CO_VARKEYWORDS)),
+      "JITRT_CallWithKeywordArgsSimple doesn't support varargs");
+  JIT_DCHECK(
+      !co->co_kwonlyargcount,
+      "JITRT_CallWithKeywordArgsSimple doesn't support kw only args");
+  const Py_ssize_t total_args = co->co_argcount;
+
+  // This is a relatively hot-path so we want to stack-allocate these.
+  auto arg_space = (PyObject**)alloca(total_args * sizeof(PyObject*));
+
+  std::span<PyObject*> arguments(arg_space, total_args);
+  if (JITRT_BindKeywordArgsSimple(func, args, nargsf, kwnames, arguments)) {
+    size_t new_nargsf = total_args;
+    return JITRT_GET_REENTRY(func->vectorcall)(
+        (PyObject*)func, arg_space, new_nargsf, nullptr);
   }
 
   return Ci_PyFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
@@ -434,15 +513,9 @@ TRetType JITRT_CallStaticallyWithPrimitiveSignatureTemplate(
     auto arg_space = std::make_unique<PyObject*[]>(total_args);
     Ref<PyObject> kwdict, varargs;
 
+    std::span<PyObject*> arguments(arg_space.get(), total_args);
     if (JITRT_BindKeywordArgs(
-            func,
-            args,
-            nargsf,
-            kwnames,
-            arg_space.get(),
-            total_args,
-            kwdict,
-            varargs)) {
+            func, args, nargsf, kwnames, arguments, kwdict, varargs)) {
       return JITRT_CallStaticallyWithPrimitiveSignatureWorker<
           TRetType,
           TVectorcall>(

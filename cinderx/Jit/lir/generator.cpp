@@ -682,7 +682,11 @@ void GenerateArgcountCheckBlocks(
     kw_dispatch->allocateInstr(
         Instruction::kCall,
         nullptr,
-        Imm{reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs)});
+        // Args are stack allocated in the simple version so only
+        // use if we have a reasonable number of arguments.
+        Imm{reinterpret_cast<uint64_t>(
+            num_args < 30 ? JITRT_CallWithKeywordArgsSimple
+                          : JITRT_CallWithKeywordArgs)});
     kw_dispatch->allocateInstr(
         Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
 
