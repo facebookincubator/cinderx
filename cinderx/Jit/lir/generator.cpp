@@ -1421,7 +1421,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
       OutVReg{},
-      Instruction::kMove,
+      Instruction::kMoveRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
       OutVReg{},
@@ -1560,7 +1560,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
       OutVReg{},
-      Instruction::kMove,
+      Instruction::kMoveRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
       OutVReg{},
