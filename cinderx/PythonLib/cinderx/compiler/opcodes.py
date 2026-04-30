@@ -33,7 +33,14 @@ if sys.version_info >= (3, 12):
         _inline_cache_entries = dict(_inline_cache_entries)
         _specializations = dict(_specializations)
 
-    from cinderx import opcode as cinderx_opcode
+    try:
+        from cinderx import opcode as cinderx_opcode
+    except ImportError:
+        # Editable install: opcode.py hasn't been copied by build_py.
+        import importlib
+
+        _ver_name = f"{sys.version_info.major}_{sys.version_info.minor}"
+        cinderx_opcode = importlib.import_module(f"opcodes.{_ver_name}.opcode")
 
     cinderx_opcode.init(
         STATIC_OPNAMES if sys.version_info >= (3, 14) else opname,
