@@ -994,15 +994,11 @@ bool compile_all(size_t workers = 0) {
   }
 
   std::vector<BorrowedRef<>> compilation_units;
-  // units that were deleted during preloading
+  // Units that were deleted during preloading.
   std::unordered_set<BorrowedRef<>> deleted_units;
 
-  auto error_cleanup = [&]() {
-    hir::preloaderManager().clear();
-    cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
-  };
-
-  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
+  auto mod_state = cinderx::getModuleState();
+  auto& jit_reg_units = mod_state->registered_compilation_units;
   JIT_DLOG(
       "Starting compile_all with {} workers for {} registered units",
       workers,
@@ -1019,19 +1015,19 @@ bool compile_all(size_t workers = 0) {
       if (deleted_units.contains(unit)) {
         continue;
       }
-      cinderx::getModuleState()->unit_deleted_during_preload =
-          [&](BorrowedRef<> deleted_unit) {
-            deleted_units.emplace(deleted_unit);
-          };
+      mod_state->unit_deleted_during_preload = [&](BorrowedRef<> deleted_unit) {
+        deleted_units.emplace(deleted_unit);
+      };
       hir::Preloader* preloader = preload(unit);
       if (!preloader) {
-        error_cleanup();
+        hir::preloaderManager().clear();
+        mod_state->unit_deleted_during_preload = nullptr;
         return false;
       }
       compilation_units.push_back(unit);
     }
   }
-  cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
+  mod_state->unit_deleted_during_preload = nullptr;
 
   // Filter out any units that were deleted as a side effect of preloading.
   std::erase_if(compilation_units, [&](BorrowedRef<> unit) {
@@ -1049,6 +1045,10 @@ bool compile_all(size_t workers = 0) {
     compile_units_preloaded(std::move(compilation_units));
   }
 
+  // Can't use IsolatedPreloaders here because worker threads need to access the
+  // preloader manager via the global (non-TLS) path.  Isolation from re-entrant
+  // compiles during preloading is already handled by compileFunction's own
+  // IsolatedPreloaders.
   hir::preloaderManager().clear();
 
   return true;
@@ -3580,19 +3580,20 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
          getCompilationEligibility(f) != JitEligibility::Ineligible);
   };
 
+  auto mod_state = cinderx::getModuleState();
+
   while (worklist.size() > 0 && result.size() < limit) {
     BorrowedRef<PyFunctionObject> f = worklist.front();
     worklist.pop_front();
 
     // This needs to be set every time before preload() is kicked off.
-    // Preloading can run arbitrary Python code, which means it can re-enter
-    // the JIT.
-    cinderx::getModuleState()->unit_deleted_during_preload =
-        [&](BorrowedRef<> deleted_unit) {
-          deleted_units.emplace(deleted_unit);
-        };
+    // Preloading can run arbitrary Python code, which means it can re-enter the
+    // JIT.
+    mod_state->unit_deleted_during_preload = [&](BorrowedRef<> deleted_unit) {
+      deleted_units.emplace(deleted_unit);
+    };
     hir::Preloader* preloader = preload(f);
-    cinderx::getModuleState()->unit_deleted_during_preload = nullptr;
+    mod_state->unit_deleted_during_preload = nullptr;
 
     if (preloader == nullptr) {
       return {};
