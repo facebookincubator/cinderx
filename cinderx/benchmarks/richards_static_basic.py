@@ -8,7 +8,10 @@ import sys
 
 import cinderx.jit
 
-from .richards_static_basic_lib import Richards
+try:
+    from .richards_static_basic_lib import Richards  # buck
+except ImportError:
+    from richards_static_basic_lib import Richards  # OSS standalone script
 
 
 if __name__ == "__main__":

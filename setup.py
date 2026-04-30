@@ -319,12 +319,13 @@ class BuildPy(build_py):
 
         super().run()
 
-        # Copy opcodes/${PY_VERSION}/opcode.py to cinderx/opcode.py.
+        # Copy opcodes/v${PY_VERSION_UNDERSCORED}/opcode.py to cinderx/opcode.py.
         py_version = compute_py_version()
         out_path = self.get_module_outfile(self.build_lib, ["cinderx"], "opcode")
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        ver_dir = f"{py_version.replace('.', '_')}"
         self.copy_file(
-            os.path.join(PYTHON_LIB_DIR, f"opcodes/{py_version}/opcode.py"),
+            os.path.join(PYTHON_LIB_DIR, f"opcodes/{ver_dir}/opcode.py"),
             out_path,
             preserve_mode=False,
         )
@@ -488,7 +489,10 @@ def main() -> None:
         },
         packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
         package_dir={"": PYTHON_LIB_DIR},
-        package_data={"cinderx": [".dev_build"]},
+        package_data={
+            "cinderx": [".dev_build"],
+            "cinderx.compiler.strict": ["stubs/**/*.pys"],
+        },
     )
 
 
