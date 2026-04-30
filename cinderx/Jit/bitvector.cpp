@@ -3,6 +3,7 @@
 #include "cinderx/Jit/bitvector.h"
 
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 
 namespace jit::util {
@@ -253,7 +254,7 @@ bool BitVector::GetBit(size_t bit) const {
 void BitVector::forEachSetBit(std::function<void(size_t)> per_bit_func) const {
   auto forEachBitInChunk = [&](uint64_t chunk, size_t base) {
     while (chunk) {
-      int bit = __builtin_ctzl(chunk);
+      int bit = std::countr_zero(chunk);
       chunk ^= chunk & -chunk;
       per_bit_func(bit + base);
     }
@@ -302,12 +303,12 @@ void BitVector::SetBitChunk(size_t chunk, uint64_t bits) {
 
 size_t BitVector::GetPopCount() const {
   if (IsShortVector()) {
-    return __builtin_popcountll(bits_.bits);
+    return std::popcount(bits_.bits);
   }
 
   size_t count = 0;
   for (auto& b : *bits_.bit_vec) {
-    count += __builtin_popcountll(b);
+    count += std::popcount(b);
   }
   return count;
 }
