@@ -158,6 +158,25 @@ class LIRABITest : public RuntimeTest {
   }
 };
 
+TEST_F(LIRABITest, TestMemImmAndOutMemImmPreserveDataType) {
+  Function function;
+  BasicBlock bb(&function);
+
+  auto* load = bb.allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      makeOutPhyReg(),
+      MemImm{nullptr, DataType::k8bit});
+  EXPECT_EQ(load->getInput(0)->sizeInBits(), bitSize(DataType::k8bit));
+
+  auto* store = bb.allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutMemImm{nullptr, DataType::k8bit},
+      makePhyReg(1, DataType::k8bit));
+  EXPECT_EQ(store->output()->sizeInBits(), bitSize(DataType::k8bit));
+}
+
 // kLea R m
 TEST_F(LIRABITest, TestkLea_OutPhyReg_Mem) {
   translateInstr(Instruction::kLea, makeOutPhyReg(), makeStk());
