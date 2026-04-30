@@ -335,13 +335,13 @@ bool Preloader::preload() {
         // the GlobalCache; otherwise GlobalCache initialization can
         // self-destroy due to side effects of PyDict_GetItem and cause a
         // use-after-free.
-        PyObject* global_value = PyDict_GetItem(globals_, name);
-        if (!global_value) {
+        PyObject* global_value = PyDict_GetItemWithError(globals_, name);
+        if (!global_value && !PyErr_Occurred()) {
           // It's extremely unlikely that builtins dict could ever contain a
           // lazy import that needs warming up, but since it is technically
           // possible, we may as well go ahead and warm that up too if the key
           // isn't in globals.
-          PyDict_GetItem(builtins_, name);
+          PyDict_GetItemWithError(builtins_, name);
         }
         if (PyErr_Occurred()) {
           return false;
