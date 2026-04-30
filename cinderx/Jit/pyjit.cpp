@@ -3626,15 +3626,10 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
   }
 
   // Prune out all functions that are no longer alive / allocated.
-  result.erase(
-      std::remove_if(
-          result.begin(),
-          result.end(),
-          [&](BorrowedRef<PyFunctionObject> func) {
-            return deleted_units.contains(func.getObj()) ||
-                deleted_units.contains(func->func_code);
-          }),
-      result.end());
+  std::erase_if(result, [&](BorrowedRef<PyFunctionObject> func) {
+    return deleted_units.contains(func.getObj()) ||
+        deleted_units.contains(func->func_code);
+  });
 
   std::reverse(result.begin(), result.end());
   return result;
