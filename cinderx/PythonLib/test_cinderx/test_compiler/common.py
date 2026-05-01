@@ -66,42 +66,16 @@ class CompilerTest(TestCase):
     COMPARE_JUMP_ZERO = "POP_JUMP_IF_ZERO"
 
     def get_disassembly_as_string(self, co: Disassembleable) -> str:
-        s = StringIO()
-        if sys.version_info < (3, 14):
-            dis.dis(co, file=s)
-            return s.getvalue()
+        from cinderx.compiler import get_disassembly_as_string
 
-        # pyre-fixme[10]: Name `Formatter` is used but not defined.
-        # pyre-fixme[16]: Module `dis` has no attribute `Formatter`.
-        formatter = Formatter(file=s, offset_width=3)
-        # pyre-fixme[10]: Name `Bytecode` is used but not defined.
-        bc = Bytecode(co)
-        extended = False
-        for instr in bc:
-            if extended and instr.opname != "EXTENDED_ARG":
-                extended = False
-                instr = self.make_static_instr(instr, co)
-            elif instr.opname == "EXTENDED_OPCODE":
-                extended = True
-
-            formatter.print_instruction(instr, False)
-
-        return s.getvalue()
+        return get_disassembly_as_string(co)
 
     def make_static_instr(
         self, instr: dis.Instruction, co: Disassembleable
     ) -> dis.Instruction:
-        if instr.opcode in STATIC_CONST_OPCODES:
-            return dis.Instruction(
-                STATIC_OPNAMES[instr.opcode],
-                instr[1],
-                instr.arg,
-                # pyre-fixme[10]: Name `_get_code_object` is used but not defined.
-                # pyre-fixme[16]: Module `dis` has no attribute `_get_code_object`.
-                _get_code_object(co).co_consts[instr.arg],
-                *instr[4:],
-            )
-        return dis.Instruction(STATIC_OPNAMES[instr.opcode], *instr[1:])
+        from cinderx.compiler import make_static_instr
+
+        return make_static_instr(instr, co)
 
     def assertInBytecode(
         self,

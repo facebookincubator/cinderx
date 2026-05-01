@@ -16,6 +16,7 @@ from dis import dis
 from types import CodeType
 from typing import Pattern, TextIO
 
+from . import get_disassembly_as_string
 from .pycodegen import CinderCodeGenerator, compile_code, make_header
 from .static import FIXED_MODULES, StaticCodeGenerator
 from .static.pyrefly_info import Pyrefly
@@ -236,7 +237,7 @@ def main() -> None:
             )
 
         if args.dis:
-            dis(codeobj)
+            print(get_disassembly_as_string(codeobj, recurse=True), end="")
 
         if args.c:
             if args.output:
