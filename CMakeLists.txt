@@ -41,7 +41,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if (WINDOWS)
     set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE")
 else()
-    set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
+    set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
 endif()
 
 macro(set_flag VAR)
@@ -242,6 +242,10 @@ if (${ENABLE_DISASSEMBLER})
   FetchContent_MakeAvailable(capstone)
   target_compile_options(capstone PRIVATE -w)
   target_compile_options(capstone_static PRIVATE -w)
+  # CAPSTONE_STATIC suppresses CAPSTONE_EXPORT's visibility("default") annotation,
+  # so capstone symbols remain hidden when we build with -fvisibility=hidden.
+  target_compile_definitions(capstone PRIVATE CAPSTONE_STATIC)
+  target_compile_definitions(capstone_static PRIVATE CAPSTONE_STATIC)
 endif()
 
 ##############################################################################
