@@ -1,0 +1,4 @@
+torch>=2.0
+torchrec
+fbgemm-gpu
+click
