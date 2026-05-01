@@ -207,6 +207,61 @@ class BackendTest : public RuntimeTest {
     }
   }
 
+#if defined(CINDER_AARCH64)
+  // Compile pre-allocated LIR (physical registers + stack slots) directly to
+  // machine code, bypassing register allocation.  Used for tests that need
+  // precise control over which registers and stack slots are used.
+  void* CompilePreAllocated(Function* lir_func, int spill_size) {
+    Environ environ;
+    InitEnviron(environ);
+
+    // Skip PostGenerationRewrite and LinearScanAllocator — the instructions
+    // are already in post-alloc form with physical registers and stack slots.
+    environ.shadow_frames_and_spill_size = spill_size;
+    environ.changed_regs = {};
+
+    PostRegAllocRewrite post_rewrite(lir_func, &environ);
+    post_rewrite.run();
+
+    asmjit::CodeHolder code;
+    ICodeAllocator* code_allocator =
+        cinderx::getModuleState()->code_allocator.get();
+    code.init(code_allocator->asmJitEnvironment());
+
+    arch::Builder as(&code);
+    environ.as = &as;
+
+    // Prologue: save frame pointer and link register, set up frame.
+    as.stp(arch::fp, arch::lr, asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
+    as.mov(arch::fp, asmjit::a64::sp);
+
+    // Allocate stack space for spill slots.
+    int allocate_stack = spill_size;
+    if (allocate_stack % kStackAlign != 0) {
+      allocate_stack += kStackAlign - (allocate_stack % kStackAlign);
+    }
+    as.sub(asmjit::a64::sp, asmjit::a64::sp, allocate_stack);
+
+    NativeGeneratorFactory factory;
+    NativeGenerator gen(nullptr, factory);
+    gen.env_ = std::move(environ);
+    gen.lir_func_.reset(lir_func);
+    gen.generateAssemblyBody(code);
+
+    // Epilogue: restore stack and frame pointer, return.
+    as.mov(asmjit::a64::sp, arch::fp);
+    as.ldp(arch::fp, arch::lr, asmjit::a64::ptr_post(asmjit::a64::sp, 16));
+    as.ret(arch::lr);
+
+    as.finalize();
+
+    AllocateResult result = code_allocator->addCode(&code);
+    EXPECT_EQ(result.error, asmjit::kErrorOk);
+    gen.lir_func_.release();
+    return result.addr;
+  }
+#endif
+
   void CheckCast(Function* lir_func) {
     auto func =
         (PyObject * (*)(PyObject*, PyTypeObject*)) SimpleCompile(lir_func);
@@ -1075,5 +1130,151 @@ BB %1
   } catch (ParserException&) {
   }
 }
+
+#if defined(CINDER_AARCH64)
+// This test uses CompilePreAllocated to construct the exact instruction
+// sequence the buggy register allocator would emit:
+//   1. Store a 64-bit pointer in X19 and a 32-bit flag in X21
+//   2. Swap X19↔X21 using X13 as temp with kObject-width moves
+//   3. Return X21 (which should hold the original 64-bit pointer)
+//
+// With the fix (k64bit moves): the pointer is preserved in full.
+// Without the fix (k32bit moves): upper 32 bits are zeroed.
+TEST_F(BackendTest, RegSwapPreserves64BitPointers) {
+  auto lirfunc = std::make_unique<Function>();
+  auto bb1 = lirfunc->allocateBasicBlock();
+  auto bb2 = lirfunc->allocateBasicBlock();
+
+  // Use caller-saved registers that don't clash with argument registers
+  // or the scratch register (X13). X9 and X10 are available.
+  constexpr auto kReg_A = X9;
+  constexpr auto kReg_B = X10;
+
+  // BB1: Move arg0 (64-bit pointer) to X19, arg1 (32-bit flag) to X21.
+  // Then perform a 3-register swap X19↔X21 using X13 (scratch) as temp,
+  // emitting with kObject width — this is what the FIXED regalloc emits.
+  // (The buggy version would use k32bit for the second edge, truncating.)
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_A, DataType::kObject},
+      PhyReg{ARGUMENT_REGS[0], DataType::kObject});
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_B, DataType::k32bit},
+      PhyReg{ARGUMENT_REGS[1], DataType::k32bit});
+
+  // Swap X19↔X21 via X13, using k64bit (the fix) — preserves all 64 bits.
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_scratch_0_loc, DataType::kObject},
+      PhyReg{kReg_A, DataType::kObject});
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_A, DataType::kObject},
+      PhyReg{kReg_B, DataType::kObject});
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_B, DataType::kObject},
+      PhyReg{arch::reg_scratch_0_loc, DataType::kObject});
+
+  bb1->allocateInstr(Instruction::kBranch, nullptr, Lbl{bb2});
+  bb1->addSuccessor(bb2);
+
+  // BB2: Return X21 (should hold the original 64-bit pointer from X19).
+  bb2->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
+      PhyReg{kReg_B, DataType::kObject});
+
+  auto func = (uint64_t (*)(uint64_t, uint64_t))CompilePreAllocated(
+      lirfunc.release(), 16);
+  ASSERT_NE(func, nullptr);
+
+  // The pointer has non-zero upper 32 bits.
+  // If the swap truncated it, upper bits would be zero.
+  constexpr uint64_t kPtr = 0xDEADBEEFCAFEBABEULL;
+  constexpr uint64_t kFlag = 42;
+  uint64_t result = func(kPtr, kFlag);
+  EXPECT_EQ(result, kPtr) << "Register swap truncated 64-bit pointer: got 0x"
+                          << std::hex << result << ", expected 0x" << kPtr;
+
+  // Also verify the upper 32 bits survived.
+  EXPECT_EQ(result & 0xFFFFFFFF00000000ULL, 0xDEADBEEF00000000ULL)
+      << "Upper 32 bits of pointer destroyed during swap: got 0x" << std::hex
+      << result;
+}
+
+// Negative test: verify that k32bit swap moves DO truncate 64-bit values.
+// This confirms the bug pattern — if this test ever passes, the k32bit
+// codegen changed and the fix in rewriteLIREmitCopies may need revisiting.
+TEST_F(BackendTest, RegSwapK32bitTruncates64BitValues) {
+  auto lirfunc = std::make_unique<Function>();
+  auto bb1 = lirfunc->allocateBasicBlock();
+  auto bb2 = lirfunc->allocateBasicBlock();
+
+  constexpr auto kReg_A = X9;
+  constexpr auto kReg_B = X10;
+
+  // Same setup as RegSwapPreserves64BitPointers, but swap uses k32bit
+  // (the buggy data type that the unfixed regalloc would emit).
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_A, DataType::kObject},
+      PhyReg{ARGUMENT_REGS[0], DataType::kObject});
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_B, DataType::k32bit},
+      PhyReg{ARGUMENT_REGS[1], DataType::k32bit});
+
+  // Swap using k32bit — this SHOULD truncate the 64-bit pointer.
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_scratch_0_loc, DataType::k32bit},
+      PhyReg{kReg_A, DataType::k32bit});
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_A, DataType::k32bit},
+      PhyReg{kReg_B, DataType::k32bit});
+  bb1->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{kReg_B, DataType::k32bit},
+      PhyReg{arch::reg_scratch_0_loc, DataType::k32bit});
+
+  bb1->allocateInstr(Instruction::kBranch, nullptr, Lbl{bb2});
+  bb1->addSuccessor(bb2);
+
+  bb2->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
+      PhyReg{kReg_B, DataType::kObject});
+
+  auto func = (uint64_t (*)(uint64_t, uint64_t))CompilePreAllocated(
+      lirfunc.release(), 16);
+  ASSERT_NE(func, nullptr);
+
+  constexpr uint64_t kPtr = 0xDEADBEEFCAFEBABEULL;
+  uint64_t result = func(kPtr, 42);
+
+  // The k32bit swap SHOULD truncate — upper 32 bits should be zero.
+  // This confirms the bug pattern exists in the codegen layer.
+  EXPECT_NE(result, kPtr)
+      << "k32bit swap should NOT preserve full 64-bit value";
+  EXPECT_EQ(result & 0xFFFFFFFF00000000ULL, 0ULL)
+      << "k32bit swap should zero upper 32 bits, got 0x" << std::hex << result;
+}
+
+#endif // CINDER_AARCH64
 
 } // namespace jit::codegen

@@ -1514,7 +1514,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
   for (auto op : copies->process()) {
     PhyLocation from = op.from;
     PhyLocation to = op.to;
-    auto orig_opnd_size = op.type;
+    [[maybe_unused]] auto orig_opnd_size = op.type;
 
     // All push and pop operations have to be 8-bytes in size as that's the size
     // of all stack slots.
@@ -1533,9 +1533,26 @@ void LinearScanAllocator::rewriteLIREmitCopies(
         } else if (to.is_register() || from.is_register()) {
           auto instr =
               block->allocateInstrBefore(instr_iter, Instruction::kMove);
-          instr->allocatePhyRegOrStackInput(from)->setDataType(orig_opnd_size);
+#if defined(CINDER_AARCH64)
+          // ARM64: always use 64-bit moves for edge-resolution copies
+          // involving GP registers.  During a register swap (cycle in the
+          // copy graph), two different virtual registers share the same
+          // physical register.  If one vreg is k32bit and the other is
+          // kObject/k64bit, using the k32bit width truncates the 64-bit
+          // value, zeroing the upper 32 bits.  A 64-bit move is always safe
+          // because ARM64 W-register operations zero-extend into X, so the
+          // upper half is already zero for true 32-bit values.
+          // FP registers must keep kDouble — using k64bit would route
+          // through getGp() instead of getVecD() and abort.
+          auto copy_dt = (from.is_fp_register() || to.is_fp_register())
+              ? orig_opnd_size
+              : DataType::k64bit;
+#else
+          auto copy_dt = orig_opnd_size;
+#endif
+          instr->allocatePhyRegOrStackInput(from)->setDataType(copy_dt);
           instr->output()->setPhyRegOrStackSlot(to);
-          instr->output()->setDataType(orig_opnd_size);
+          instr->output()->setDataType(copy_dt);
         } else {
 #if defined(CINDER_AARCH64)
           // ARM64: avoid push+pop for stack-to-stack copies. Use scratch x13
@@ -1574,9 +1591,20 @@ void LinearScanAllocator::rewriteLIREmitCopies(
             to);
         auto instr =
             block->allocateInstrBefore(instr_iter, Instruction::kExchange);
-        instr->allocatePhyRegisterInput(from)->setDataType(orig_opnd_size);
+#if defined(CINDER_AARCH64)
+        // ARM64: always use 64-bit for GP register exchanges (same
+        // reasoning as the kCopy case above — a narrower exchange
+        // truncates the wider value sharing the physical register).
+        // FP registers must keep kDouble.
+        auto xchg_dt = (from.is_fp_register() || to.is_fp_register())
+            ? orig_opnd_size
+            : DataType::k64bit;
+#else
+        auto xchg_dt = orig_opnd_size;
+#endif
+        instr->allocatePhyRegisterInput(from)->setDataType(xchg_dt);
         instr->output()->setPhyRegOrStackSlot(to);
-        instr->output()->setDataType(orig_opnd_size);
+        instr->output()->setDataType(xchg_dt);
         break;
       }
     }
