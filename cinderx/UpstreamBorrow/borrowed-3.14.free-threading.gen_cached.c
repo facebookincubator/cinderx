@@ -4704,8 +4704,9 @@ _Py_call_instrumentation_exc2(
     call_instrumentation_vector_protected(tstate, event, frame, instr, 4, args);
 }
 int
-_Py_Instrumentation_GetLine(PyCodeObject *code, _PyCoLineInstrumentationData *line_data, int index)
+_Py_Instrumentation_GetLine(PyCodeObject *code, int index)
 {
+    _PyCoLineInstrumentationData *line_data = code->_co_monitoring->lines;
     assert(line_data != NULL);
     assert(index < Py_SIZE(code));
     int line_delta = get_line_delta(line_data, index);
@@ -4724,11 +4725,11 @@ _Py_call_instrumentation_line(PyThreadState *tstate, _PyInterpreterFrame* frame,
     _PyCoMonitoringData *monitoring = code->_co_monitoring;
     _PyCoLineInstrumentationData *line_data = monitoring->lines;
     PyInterpreterState *interp = tstate->interp;
-    int line = _Py_Instrumentation_GetLine(code, line_data, i);
+    int line = _Py_Instrumentation_GetLine(code, i);
     assert(line >= 0);
     assert(prev != NULL);
     int prev_index = (int)(prev - bytecode);
-    int prev_line = _Py_Instrumentation_GetLine(code, line_data, prev_index);
+    int prev_line = _Py_Instrumentation_GetLine(code, prev_index);
     if (prev_line == line) {
         int prev_opcode = bytecode[prev_index].op.code;
         /* RESUME and INSTRUMENTED_RESUME are needed for the operation of
