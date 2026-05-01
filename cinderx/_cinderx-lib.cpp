@@ -252,7 +252,7 @@ PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
 #endif
 }
 
-#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
+#if defined(ENABLE_INCREMENTAL_GC) && defined(ENABLE_PARALLEL_GC)
 PyDoc_STRVAR(
     cinder_get_threshold_doc,
     "get_threshold($module, /)\n"
@@ -898,7 +898,7 @@ PyMethodDef _cinderx_methods[] = {
      cinder_get_adaptive_delay,
      METH_NOARGS,
      cinder_get_adaptive_delay_doc},
-#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
+#if defined(ENABLE_INCREMENTAL_GC) && defined(ENABLE_PARALLEL_GC)
     {"get_threshold",
      cinder_get_threshold,
      METH_NOARGS,
@@ -1019,7 +1019,7 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_PARALLEL_GC)
+#if defined(ENABLE_INCREMENTAL_GC) && defined(ENABLE_PARALLEL_GC)
   Ref<> gc_mod = Ref<>::steal(PyImport_ImportModule("gc"));
   if (gc_mod == nullptr) {
     return -1;

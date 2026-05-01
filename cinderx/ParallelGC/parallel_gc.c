@@ -137,7 +137,7 @@ static inline void gc_decref(PyGC_Head* g) {
 #define DEBUG_SAVEALL (1 << 5) /* save all garbage in gc.garbage */
 #define DEBUG_LEAK DEBUG_COLLECTABLE | DEBUG_UNCOLLECTABLE | DEBUG_SAVEALL
 
-#if PY_VERSION_HEX >= 0x030E0000
+#ifdef ENABLE_INCREMENTAL_GC
 static struct gc_generation* get_generation(GCState* state, int n) {
   switch (n) {
     case 0:
@@ -297,7 +297,7 @@ static inline void gc_list_clear_collecting(PyGC_Head* collectable) {
   }
 }
 
-#if PY_VERSION_HEX >= 0x030E0000
+#ifdef ENABLE_INCREMENTAL_GC
 static inline void gc_list_clear_oldspace(PyGC_Head* collectable) {
   PyGC_Head* gc;
   for (gc = GC_NEXT(collectable); gc != collectable; gc = GC_NEXT(gc)) {
@@ -357,7 +357,7 @@ static void validate_list(PyGC_Head* head, enum flagstates flags) {
   PyGC_Head* gc = GC_NEXT(head);
   while (gc != head) {
     PyGC_Head* trueprev = GC_PREV(gc);
-#if PY_VERSION_HEX >= 0x030E0000
+#if defined(ENABLE_INCREMENTAL_GC)
     PyGC_Head* truenext = GC_NEXT(gc);
 #else
     PyGC_Head* truenext = (PyGC_Head*)(gc->_gc_next & ~NEXT_MASK_UNREACHABLE);
@@ -1151,7 +1151,7 @@ static int Ci_should_use_par_gc(Ci_ParGCState* par_gc, int gen);
 
 /* This is the main function.  Read this to understand how the
  * collection process works. */
-#if PY_VERSION_HEX < 0x030E0000
+#if PY_VERSION_HEX < 0x030F0000
 static Py_ssize_t
 #else
 static void
@@ -1163,7 +1163,7 @@ gc_collect_main(
 #if PY_VERSION_HEX >= 0x030F0000
     struct gc_generation_stats* stats) {
 #elif PY_VERSION_HEX >= 0x030E0000
-    struct gc_collection_stats* stats) {
+    _PyGC_Reason reason) {
 #else
     Py_ssize_t* n_collected,
     Py_ssize_t* n_uncollectable,
@@ -1348,7 +1348,7 @@ gc_collect_main(
   if (n_uncollectable) {
     *n_uncollectable = n;
   }
-#else
+#elif defined(ENABLE_INCREMENTAL_GC)
   stats->collected += m;
   stats->uncollectable += n;
 #endif
@@ -1366,7 +1366,7 @@ gc_collect_main(
   }
 
   assert(!_PyErr_Occurred(tstate));
-#if PY_VERSION_HEX < 0x030E0000
+#if PY_VERSION_HEX < 0x030F0000
   return n + m;
 #endif
 }
@@ -2066,7 +2066,7 @@ static void Ci_ParGCState_Destroy(Ci_ParGCState* par_gc) {
     Ci_cpu_pause();
   }
 
-#if PY_VERSION_HEX >= 0x030E0000
+#ifdef ENABLE_INCREMENTAL_GC
   PyThreadState* tstate = _PyThreadState_GET();
   struct _gc_runtime_state* gc_state = &tstate->interp->gc;
   // we should have flipped this when GC began
@@ -2361,7 +2361,7 @@ int Cinder_EnableParallelGC(size_t min_gen, size_t num_threads) {
 
   par_gc->old_impl = old_impl;
 
-#if PY_VERSION_HEX >= 0x030E0000
+#ifdef ENABLE_INCREMENTAL_GC
   // Transition from the incremental GC into non-incremental parallel mode. We
   // merge the two old generations that the incrementatal flips between and keep
   // the young generator. We also re-init the low space bit on the young

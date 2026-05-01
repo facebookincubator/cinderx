@@ -2400,21 +2400,31 @@ _PyErr_GetTopmostException(PyThreadState *tstate)
 }
 
 // Internal dependencies for gc_freeze_impl.
+#ifndef Py_GIL_DISABLED
+#else
+#endif
+#ifndef Py_GIL_DISABLED
+#else
+#endif
 #ifdef Py_GIL_DISABLED
+#endif
+#ifndef Py_GIL_DISABLED
+#else
 #endif
 #define ADD_INT(NAME) if (PyModule_AddIntConstant(module, #NAME, _PyGC_ ## NAME) < 0) { return -1; }
 #undef ADD_INT
-#ifndef Py_GIL_DISABLED
+#if !defined(Py_GIL_DISABLED)
 #ifdef Py_DEBUG
 #  define GC_DEBUG
 #endif
 #define GC_NEXT _PyGCHead_NEXT
 #define GC_PREV _PyGCHead_PREV
 #define PREV_MASK_COLLECTING   _PyGC_PREV_MASK_COLLECTING
-#define NEXT_MASK_UNREACHABLE  2
+#define NEXT_MASK_UNREACHABLE  (1)
 #define AS_GC(op) _Py_AS_GC(op)
 #define FROM_GC(gc) _Py_FROM_GC(gc)
 #define GENERATION_AUTO (-1)
+#define GEN_HEAD(gcstate, n) (&(gcstate)->generations[n].head)
 #define INIT_HEAD(GEN) \
     do { \
         GEN.head._gc_next = (uintptr_t)&GEN.head; \
@@ -2425,16 +2435,7 @@ _PyErr_GetTopmostException(PyThreadState *tstate)
 #else
 #define validate_list(x, y) do{}while(0)
 #endif
-#ifdef GC_EXTRA_DEBUG
-#else
-#define validate_spaces(g) do{}while(0)
-#define validate_consistent_old_space(l) do{}while(0)
-#define gc_list_validate_space(l, s) do{}while(0)
-#endif
-#define SCAN_RATE_DIVISOR 10
 #ifdef Py_STATS
-#endif
-#ifndef NDEBUG
 #endif
 #ifdef Py_STATS
 #endif
@@ -2444,7 +2445,7 @@ _PyErr_GetTopmostException(PyThreadState *tstate)
 #endif
 #ifdef Py_DEBUG
 #endif
-#endif  // Py_GIL_DISABLED
+#endif  // !Py_GIL_DISABLED
 typedef struct _gc_runtime_state GCState;
 static inline void
 gc_list_init(PyGC_Head *list)
@@ -2465,11 +2466,6 @@ get_gc_state(void)
     PyInterpreterState *interp = _PyInterpreterState_GET();
     return &interp->gc;
 }
-static inline int
-gc_old_space(PyGC_Head *g)
-{
-    return g->_gc_next & _PyGC_NEXT_MASK_OLD_SPACE_1;
-}
 static void
 gc_list_merge(PyGC_Head *from, PyGC_Head *to)
 {
@@ -2480,8 +2476,6 @@ gc_list_merge(PyGC_Head *from, PyGC_Head *to)
         PyGC_Head *from_tail = GC_PREV(from);
         assert(from_head != from);
         assert(from_tail != from);
-        assert(gc_list_is_empty(to) ||
-            gc_old_space(to_tail) == gc_old_space(from_tail));
 
         _PyGCHead_SET_NEXT(to_tail, from_head);
         _PyGCHead_SET_PREV(from_head, to_tail);
@@ -2490,24 +2484,6 @@ gc_list_merge(PyGC_Head *from, PyGC_Head *to)
         _PyGCHead_SET_PREV(to, from_tail);
     }
     gc_list_init(from);
-}
-static inline void
-gc_set_old_space(PyGC_Head *g, int space)
-{
-    assert(space == 0 || space == _PyGC_NEXT_MASK_OLD_SPACE_1);
-    g->_gc_next &= ~_PyGC_NEXT_MASK_OLD_SPACE_1;
-    g->_gc_next |= space;
-}
-static inline Py_ssize_t
-gc_list_set_space(PyGC_Head *list, int space)
-{
-    Py_ssize_t size = 0;
-    PyGC_Head *gc;
-    for (gc = GC_NEXT(list); gc != list; gc = GC_NEXT(gc)) {
-        gc_set_old_space(gc, space);
-        size++;
-    }
-    return size;
 }
 // End internal dependencies.
 
@@ -4875,13 +4851,10 @@ _Py_call_instrumentation_exc2(
     call_instrumentation_vector_protected(tstate, event, frame, instr, 4, args);
 }
 int
-_Py_Instrumentation_GetLine(PyCodeObject *code, int index)
+_Py_Instrumentation_GetLine(PyCodeObject *code, _PyCoLineInstrumentationData *line_data, int index)
 {
-    _PyCoMonitoringData *monitoring = code->_co_monitoring;
-    assert(monitoring != NULL);
-    assert(monitoring->lines != NULL);
+    assert(line_data != NULL);
     assert(index < Py_SIZE(code));
-    _PyCoLineInstrumentationData *line_data = monitoring->lines;
     int line_delta = get_line_delta(line_data, index);
     int line = compute_line(code, line_delta);
     return line;
@@ -4898,11 +4871,11 @@ _Py_call_instrumentation_line(PyThreadState *tstate, _PyInterpreterFrame* frame,
     _PyCoMonitoringData *monitoring = code->_co_monitoring;
     _PyCoLineInstrumentationData *line_data = monitoring->lines;
     PyInterpreterState *interp = tstate->interp;
-    int line = _Py_Instrumentation_GetLine(code, i);
+    int line = _Py_Instrumentation_GetLine(code, line_data, i);
     assert(line >= 0);
     assert(prev != NULL);
     int prev_index = (int)(prev - bytecode);
-    int prev_line = _Py_Instrumentation_GetLine(code, prev_index);
+    int prev_line = _Py_Instrumentation_GetLine(code, line_data, prev_index);
     if (prev_line == line) {
         int prev_opcode = bytecode[prev_index].op.code;
         /* RESUME and INSTRUMENTED_RESUME are needed for the operation of
@@ -5096,11 +5069,9 @@ initialize_tools(PyCodeObject *code)
     }
 }
 static void
-initialize_lines(PyCodeObject *code, int bytes_per_entry)
+initialize_lines(_PyCoLineInstrumentationData *line_data, PyCodeObject *code, int bytes_per_entry)
 {
     ASSERT_WORLD_STOPPED_OR_LOCKED(code);
-    _PyCoLineInstrumentationData *line_data = code->_co_monitoring->lines;
-
     assert(line_data != NULL);
     line_data->bytes_per_entry = bytes_per_entry;
     int code_len = (int)Py_SIZE(code);
@@ -5239,18 +5210,19 @@ allocate_instrumentation_data(PyCodeObject *code)
     ASSERT_WORLD_STOPPED_OR_LOCKED(code);
 
     if (code->_co_monitoring == NULL) {
-        code->_co_monitoring = PyMem_Malloc(sizeof(_PyCoMonitoringData));
-        if (code->_co_monitoring == NULL) {
+        _PyCoMonitoringData *monitoring = PyMem_Malloc(sizeof(_PyCoMonitoringData));
+        if (monitoring == NULL) {
             PyErr_NoMemory();
             return -1;
         }
-        code->_co_monitoring->local_monitors = (_Py_LocalMonitors){ 0 };
-        code->_co_monitoring->active_monitors = (_Py_LocalMonitors){ 0 };
-        code->_co_monitoring->tools = NULL;
-        code->_co_monitoring->lines = NULL;
-        code->_co_monitoring->line_tools = NULL;
-        code->_co_monitoring->per_instruction_opcodes = NULL;
-        code->_co_monitoring->per_instruction_tools = NULL;
+        monitoring->local_monitors = (_Py_LocalMonitors){ 0 };
+        monitoring->active_monitors = (_Py_LocalMonitors){ 0 };
+        monitoring->tools = NULL;
+        monitoring->lines = NULL;
+        monitoring->line_tools = NULL;
+        monitoring->per_instruction_opcodes = NULL;
+        monitoring->per_instruction_tools = NULL;
+        _Py_atomic_store_ptr_release(&code->_co_monitoring, monitoring);
     }
     return 0;
 }
@@ -5314,12 +5286,13 @@ update_instrumentation_data(PyCodeObject *code, PyInterpreterState *interp)
             else {
                 bytes_per_entry = 5;
             }
-            code->_co_monitoring->lines = PyMem_Malloc(1 + code_len * bytes_per_entry);
-            if (code->_co_monitoring->lines == NULL) {
+            _PyCoLineInstrumentationData *lines = PyMem_Malloc(1 + code_len * bytes_per_entry);
+            if (lines == NULL) {
                 PyErr_NoMemory();
                 return -1;
             }
-            initialize_lines(code, bytes_per_entry);
+            initialize_lines(lines, code, bytes_per_entry);
+            _Py_atomic_store_ptr_release(&code->_co_monitoring->lines, lines);
         }
         if (multitools && code->_co_monitoring->line_tools == NULL) {
             code->_co_monitoring->line_tools = PyMem_Malloc(code_len);

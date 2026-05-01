@@ -228,10 +228,7 @@ uint8_t Cix_GetOriginalOpcode(
 // @Borrow function gc_list_init from Python/gc.c
 // @Borrow function gc_list_is_empty from Python/gc.c
 // @Borrow function get_gc_state from Modules/gcmodule.c
-// @Borrow function gc_old_space from Python/gc.c
 // @Borrow function gc_list_merge from Python/gc.c
-// @Borrow function gc_set_old_space from Python/gc.c
-// @Borrow function gc_list_set_space from Python/gc.c
 // End internal dependencies.
 
 // Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
