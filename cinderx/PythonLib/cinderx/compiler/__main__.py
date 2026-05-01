@@ -23,7 +23,7 @@ from .static.pyrefly_info import Pyrefly
 from .strict import StrictCodeGenerator
 
 try:
-    from cinder import StrictModule
+    from cinderx import StrictModule
 except ImportError:
     StrictModule = None
 
@@ -250,7 +250,7 @@ def main() -> None:
                 f.write(hdr)
                 marshal.dump(codeobj, f)
         else:
-            if args.strict and StrictModule is not None:
+            if (args.strict or args.static) and StrictModule is not None:
                 d: dict[str, object] = {"__name__": "__main__"}
                 mod = StrictModule(d, False)
             else:
