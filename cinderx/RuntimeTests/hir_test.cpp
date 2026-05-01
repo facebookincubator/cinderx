@@ -1102,6 +1102,45 @@ TEST_F(HIRBuildTest, MatchMapping) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = LoadField<ob_type@24, Type, borrowed> v0
+    v3 = LoadField<tp_flags@184, CUInt64, borrowed> v2
+    v4 = LoadConst<CUInt64[64]>
+    v5 = IntBinaryOp<And> v3 v4
+    CondBranch<1, 2> v5
+  }
+
+  bb 1 (preds 0) {
+    v6 = LoadConst<ImmortalBool[True]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v6 = LoadConst<ImmortalBool[False]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<2> v0 v6
+    }
+    v2 = Assign v0
+    Return v6
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1139,6 +1178,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
   }
 }
 )";
+#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
@@ -1146,6 +1186,45 @@ TEST_F(HIRBuildTest, MatchSequence) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = LoadField<ob_type@24, Type, borrowed> v0
+    v3 = LoadField<tp_flags@184, CUInt64, borrowed> v2
+    v4 = LoadConst<CUInt64[32]>
+    v5 = IntBinaryOp<And> v3 v4
+    CondBranch<1, 2> v5
+  }
+
+  bb 1 (preds 0) {
+    v6 = LoadConst<ImmortalBool[True]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v6 = LoadConst<ImmortalBool[False]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<2> v0 v6
+    }
+    v2 = Assign v0
+    Return v6
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1183,6 +1262,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
   }
 }
 )";
+#endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
