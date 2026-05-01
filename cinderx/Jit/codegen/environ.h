@@ -101,8 +101,17 @@ struct Environ {
 
   template <typename T>
   void addAnnotation(T&& item, asmjit::BaseNode* start_cursor) {
+    if (suppress_annotations) {
+      return;
+    }
     annotations.add(std::forward<T>(item), as, start_cursor);
   }
+
+  // When true, addAnnotation() calls are suppressed. Set by
+  // generateAssemblyBody() while a text annotation is active so that
+  // translator-internal annotations (e.g. "Set up frame pointer") don't
+  // conflict with the higher-level text annotation.
+  bool suppress_annotations{false};
 
   // Map of GenYieldPoints which need their resume_target_ setting after code-
   // gen is complete.

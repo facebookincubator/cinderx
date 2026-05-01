@@ -453,7 +453,9 @@ void emitLIRBlocks(
         annotation_cursor = cursor;
       }
 
+      env->suppress_annotations = !pending_annotation.empty();
       autogen::AutoTranslator::getInstance().translateInstr(env, instr.get());
+      env->suppress_annotations = false;
 
       if (!pending_annotation.empty()) {
         // Under an active annotation — don't emit per-instruction annotations.

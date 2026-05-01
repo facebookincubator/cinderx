@@ -37,7 +37,11 @@ std::string Annotations::disassembleSection(
     }
     auto inserted =
         annot_bounds.emplace(begin, std::make_pair(&annot, end)).second;
-    JIT_DCHECK(inserted, "Duplicate start address for annotation");
+    JIT_DCHECK(
+        inserted,
+        "Duplicate start address for annotation {} {}",
+        annot.str,
+        annot_bounds[begin].first->str);
   }
 
   Annotation* prev_annot = nullptr;
