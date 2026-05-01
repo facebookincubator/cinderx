@@ -3979,6 +3979,8 @@ _PyBuildSlice_ConsumeRefs(PyObject *start, PyObject *stop)
 }
 
 #define get_line_delta instrumentation_get_line_delta
+#define _Py_Instrumentation_GetLine _Ci_Instrumentation_GetLine
+
 static const int8_t MOST_SIGNIFICANT_BITS[16] = {
     -1, 0, 1, 1,
     2, 2, 2, 2,

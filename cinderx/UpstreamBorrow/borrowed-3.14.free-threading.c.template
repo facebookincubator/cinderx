@@ -425,6 +425,8 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 // @Borrow function _PyBuildSlice_ConsumeRefs from Objects/sliceobject.c [3.14]
 
 #define get_line_delta instrumentation_get_line_delta
+#define _Py_Instrumentation_GetLine _Ci_Instrumentation_GetLine
+
 // @Borrow var MOST_SIGNIFICANT_BITS from Python/instrumentation.c [3.14]
 // @Borrow var INSTRUMENTED_OPCODES from Python/instrumentation.c [3.14]
 // @Borrow var EVENT_FOR_OPCODE from Python/instrumentation.c [3.14]
