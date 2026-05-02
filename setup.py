@@ -376,9 +376,11 @@ class BuildExt(build_ext):
         build_dir = self.build_temp
         os.makedirs(build_dir, exist_ok=True)
 
+        # get_ext_fullpath returns a file path (e.g., "scratch/lib/_cinderx.cp314-win_amd64.pyd").
         # pyre-ignore[16]: No pyre types for build_ext.
-        extension_dir = os.path.abspath(self.get_ext_fullpath(extension.name))
-        os.makedirs(extension_dir, exist_ok=True)
+        ext_fullpath = os.path.abspath(self.get_ext_fullpath(extension.name))
+        ext_dir = os.path.dirname(ext_fullpath)
+        os.makedirs(ext_dir, exist_ok=True)
 
         cc, cxx = get_compiler()
 
@@ -386,7 +388,7 @@ class BuildExt(build_ext):
         verbose_makefile = os.environ.get("CMAKE_VERBOSE_MAKEFILE", "OFF")
         cmake_args = [
             f"-DCMAKE_BUILD_TYPE={build_type}",
-            f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={os.path.dirname(extension_dir)}",
+            f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={ext_dir}",
             f"-DCMAKE_C_COMPILER={cc}",
             f"-DCMAKE_CXX_COMPILER={cxx}",
             f"-DCMAKE_VERBOSE_MAKEFILE:BOOL={verbose_makefile}",
@@ -467,6 +469,18 @@ class BuildExt(build_ext):
         # pyre-ignore[16]: No pyre types for build_ext.
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
         self.spawn(["cmake", "--build", build_dir] + build_args)
+
+        # CMake produces the extension without an ABI tag (e.g., "_cinderx.pyd"
+        # or "_cinderx.so").  Rename to include the tag so the file matches what
+        # setuptools/wheel packaging expects (e.g., "_cinderx.cp314-win_amd64.pyd").
+        if platform.system() == "Windows":
+            cmake_output_name = f"{extension.name}.pyd"
+        else:
+            cmake_output_name = f"{extension.name}.so"
+        cmake_output = os.path.join(self.build_temp, cmake_output_name)
+        if os.path.exists(cmake_output) and cmake_output != ext_fullpath:
+            print(f"Renaming {cmake_output} -> {ext_fullpath}")
+            shutil.copy(cmake_output, ext_fullpath)
 
     def _find_python(self) -> str:
         # Normally this would use "data", but that goes to a temporary build directory
