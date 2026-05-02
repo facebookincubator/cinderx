@@ -17,7 +17,6 @@ from types import CodeType, FunctionType, MethodType
 from typing import Any, Callable, Generator, Iterable
 from unittest import TestCase
 
-from cinderx.compiler.opcodes import STATIC_CONST_OPCODES, STATIC_OPNAMES
 from cinderx.compiler.pyassem import Instruction, PyFlowGraph
 from cinderx.compiler.pycodegen import (
     CodeGenerator,
@@ -26,10 +25,6 @@ from cinderx.compiler.pycodegen import (
     make_compiler,
 )
 
-if sys.version_info >= (3, 14):
-    # pyre-fixme[21]: Could not find name `Formatter` in `dis` (stubbed).
-    # pyre-fixme[21]: Could not find name `_get_code_object` in `dis` (stubbed).
-    from dis import _get_code_object, Bytecode, Formatter
 
 # Any value that can be passed into dis.dis() and dis.get_instructions().
 Disassembleable = Callable[..., Any] | CodeType | FunctionType | MethodType
