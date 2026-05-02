@@ -22,6 +22,33 @@
 
 namespace jit {
 
+namespace {
+
+PyModuleDef* findBuiltinsModule() {
+  // We want to check the exact function address, rather than relying on modules
+  // which can be mutated.  First find builtins, which we have to do a search
+  // for because PyEval_GetBuiltins() returns the module dict.
+  BorrowedRef<> mods =
+      CI_INTERP_IMPORT_FIELD(_PyInterpreterState_GET(), modules_by_index);
+  for (Py_ssize_t i = 0; i < PyList_GET_SIZE(mods); i++) {
+    BorrowedRef<> cur = PyList_GET_ITEM(mods.get(), i);
+    if (Py_IsNone(cur)) {
+      continue;
+    }
+    PyModuleDef* def = PyModule_GetDef(cur);
+    if (def == nullptr) {
+      PyErr_Clear();
+      continue;
+    }
+    if (std::strcmp(def->m_name, "builtins") == 0) {
+      return def;
+    }
+  }
+  return nullptr;
+}
+
+} // namespace
+
 AotContext g_aot_ctx;
 
 #ifdef Py_GIL_DISABLED
@@ -42,33 +69,12 @@ PyObject* yieldFromValue(
 }
 
 void Builtins::init() {
-  ThreadedCompileSerialize guard;
+  auto guard = std::lock_guard{mtx_};
   if (is_initialized_) {
     return;
   }
-  // we want to check the exact function address, rather than relying on
-  // modules which can be mutated.  First find builtins, which we have
-  // to do a search for because PyEval_GetBuiltins() returns the
-  // module dict.
-  PyObject* mods =
-      CI_INTERP_IMPORT_FIELD(_PyInterpreterState_GET(), modules_by_index);
-  PyModuleDef* builtins = nullptr;
-  for (Py_ssize_t i = 0; i < PyList_GET_SIZE(mods); i++) {
-    PyObject* cur = PyList_GET_ITEM(mods, i);
-    if (cur == Py_None) {
-      continue;
-    }
-    PyModuleDef* def = PyModule_GetDef(cur);
-    if (def == nullptr) {
-      PyErr_Clear();
-      continue;
-    }
-    if (std::strcmp(def->m_name, "builtins") == 0) {
-      builtins = def;
-      break;
-    }
-  }
-  JIT_CHECK(builtins != nullptr, "could not find builtins module");
+  PyModuleDef* builtins = findBuiltinsModule();
+  JIT_CHECK(builtins != nullptr, "Could not find builtins module");
 
   auto add = [this](const std::string& name, PyMethodDef* meth) {
     cfunc_to_name_[meth] = name;
