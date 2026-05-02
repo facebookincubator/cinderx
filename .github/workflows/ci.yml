@@ -56,7 +56,7 @@ jobs:
 
     - name: Run Tests
       if: runner.os == 'Linux'
-      run: uv run pytest cinderx/PythonLib/test_cinderx/test*.py
+      run: uv run pytest cinderx/PythonLib/test_cinderx/ --ignore=cinderx/PythonLib/test_cinderx/test_cpython_overrides/test__opcode.py
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
