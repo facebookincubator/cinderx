@@ -138,7 +138,6 @@ fun jittestmodule:Test.__init__ {
   bb 0 {
     v7:User[Test] = LoadArg<0; "self", User[Test]>
     LoadFrame
-    AtQuiescentState
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
   }
@@ -156,8 +155,8 @@ fun jittestmodule:Test.__init__ {
 
   bb 1 (preds 0, 2) {
     v12:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
-    v13:OptObject = LoadField<x@32, OptObject, owned> v7
-    StoreField<x@32> v7 v12 v13
+    v13:OptObject = LoadField<x@16, OptObject, owned> v7
+    StoreField<x@16> v7 v12 v13
     XDecref v13
     v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return<NoneType> v14

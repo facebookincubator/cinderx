@@ -346,7 +346,7 @@ fun jittestmodule:test {
         Locals<3> v15 v16 v18
       }
     }
-    v25:Bool = PrimitiveBoxBool v24
+    v25:ImmortalBool = PrimitiveBoxBool v24
     Snapshot
     v26:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<1, 2> v24
@@ -417,7 +417,7 @@ fun jittestmodule:test {
         Locals<3> v15 v16 v18
       }
     }
-    v25:Bool = PrimitiveBoxBool v24
+    v25:ImmortalBool = PrimitiveBoxBool v24
     Snapshot
     v26:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<1, 2> v24

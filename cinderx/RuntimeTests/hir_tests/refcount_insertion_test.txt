@@ -37,7 +37,6 @@ fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
     LoadFrame
-    AtQuiescentState
     v6:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v6
   }
@@ -790,7 +789,6 @@ fun jittestmodule:test {
     v21:Object = LoadArg<2; "l">
     LoadFrame
     v23:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v24:CInt64 = LoadEvalBreaker
     CondBranch<6, 5> v24
   }
@@ -820,7 +818,6 @@ fun jittestmodule:test {
   bb 7 (preds 2, 5) {
     v39:Object = Phi<2, 5> v20 v19
     v40:OptObject = Phi<2, 5> v48 v23
-    AtQuiescentState
     v34:CInt64 = LoadEvalBreaker
     CondBranch<8, 1> v34
   }
@@ -1171,7 +1168,6 @@ fun jittestmodule:test {
     v25:Object = LoadArg<0; "l">
     LoadFrame
     v27:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v28:CInt64 = LoadEvalBreaker
     CondBranch<6, 5> v28
   }
@@ -1231,7 +1227,6 @@ fun jittestmodule:test {
   bb 7 (preds 2, 5) {
     v51:Object = Phi<2, 5> v75 v74
     v52:OptObject = Phi<2, 5> v60 v27
-    AtQuiescentState
     v46:CInt64 = LoadEvalBreaker
     CondBranch<8, 1> v46
   }
@@ -1591,7 +1586,6 @@ fun jittestmodule:test {
     v20:Object = LoadArg<0; "l">
     LoadFrame
     v22:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v23:CInt64 = LoadEvalBreaker
     CondBranch<6, 5> v23
   }
@@ -1636,7 +1630,6 @@ fun jittestmodule:test {
   bb 7 (preds 2, 5) {
     v37:Object = Phi<2, 5> v57 v58
     v38:OptObject = Phi<2, 5> v44 v22
-    AtQuiescentState
     v34:CInt64 = LoadEvalBreaker
     CondBranch<8, 1> v34
   }
@@ -1888,7 +1881,6 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0; "x">
     v7:Object = LoadArg<1; "val">
     LoadFrame
-    AtQuiescentState
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
   }
@@ -1905,7 +1897,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    StoreAttr<0; "foo"> v6 v7 {
+    StoreAttrCached<0; "foo"> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 4
@@ -1984,7 +1976,6 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    AtQuiescentState
     v5:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v5
   }
@@ -2075,7 +2066,6 @@ fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "a">
     LoadFrame
-    AtQuiescentState
     v7:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v7
   }
@@ -2194,7 +2184,6 @@ fun jittestmodule:test {
     v12:Object = LoadArg<1; "val">
     LoadFrame
     v14:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v15:CInt64 = LoadEvalBreaker
     CondBranch<4, 3> v15
   }
@@ -2312,7 +2301,6 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0; "val">
     LoadFrame
     v8:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
   }
@@ -2460,7 +2448,6 @@ fun jittestmodule:test {
         Locals<2> v14 v16
       }
     }
-    AtQuiescentState
     v19:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v19
   }
@@ -2479,13 +2466,14 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v23:OptObject = LoadCellItem v17
     v24:Object = CheckVar<"a"> v23 {
-      LiveValues<3> unc:v16 o:v17 o:v23
+      LiveValues<3> unc:v16 o:v17 b:v23
       FrameState {
         CurInstrOffset 4
         Locals<2> v17 v16
       }
     }
-    v25:Object = LoadMethod<0; "foo"> v24 {
+    Incref v24
+    v33:Object = LoadMethodCached<0; "foo"> v24 {
       LiveValues<3> unc:v16 o:v17 o:v24
       FrameState {
         CurInstrOffset 6
@@ -2493,17 +2481,17 @@ fun jittestmodule:test {
       }
     }
     Decref v24
-    v26:OptObject = GetSecondOutput<OptObject> v25
-    v27:Object = CallMethod<2> v25 v26 {
-      LiveValues<4> unc:v16 o:v17 o:v25 o:v26
+    v26:OptObject = GetSecondOutput<OptObject> v33
+    v27:Object = CallMethod<2> v33 v26 {
+      LiveValues<4> unc:v16 o:v17 o:v26 o:v33
       FrameState {
         CurInstrOffset 26
         Locals<2> v17 v16
       }
     }
-    Decref v25
     XDecref v26
     Decref v27
+    Decref v33
     v28:MortalTupleExact = MakeTuple<1> v17 {
       LiveValues<2> unc:v16 o:v17
       FrameState {
@@ -2749,7 +2737,6 @@ fun jittestmodule:test {
     v25:Object = LoadArg<0; "timings">
     LoadFrame
     v27:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v28:CInt64 = LoadEvalBreaker
     CondBranch<8, 7> v28
   }
@@ -3144,7 +3131,6 @@ fun jittestmodule:test {
     v29:Object = LoadArg<2; "c">
     LoadFrame
     v31:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v32:CInt64 = LoadEvalBreaker
     CondBranch<6, 5> v32
   }
@@ -3577,7 +3563,6 @@ fun jittestmodule:test {
   bb 0 {
     LoadFrame
     v29:Nullptr = LoadConst<Nullptr>
-    AtQuiescentState
     v30:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v30
   }

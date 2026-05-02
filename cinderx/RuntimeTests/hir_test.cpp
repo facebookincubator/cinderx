@@ -1112,8 +1112,8 @@ TEST_F(HIRBuildTest, MatchMapping) {
       CurInstrOffset 0
       Locals<1> v0
     }
-    v2 = LoadField<ob_type@24, Type, borrowed> v0
-    v3 = LoadField<tp_flags@184, CUInt64, borrowed> v2
+    v2 = LoadField<ob_type@8, Type, borrowed> v0
+    v3 = LoadField<tp_flags@168, CUInt64, borrowed> v2
     v4 = LoadConst<CUInt64[64]>
     v5 = IntBinaryOp<And> v3 v4
     CondBranch<1, 2> v5
@@ -1196,8 +1196,8 @@ TEST_F(HIRBuildTest, MatchSequence) {
       CurInstrOffset 0
       Locals<1> v0
     }
-    v2 = LoadField<ob_type@24, Type, borrowed> v0
-    v3 = LoadField<tp_flags@184, CUInt64, borrowed> v2
+    v2 = LoadField<ob_type@8, Type, borrowed> v0
+    v3 = LoadField<tp_flags@168, CUInt64, borrowed> v2
     v4 = LoadConst<CUInt64[32]>
     v5 = IntBinaryOp<And> v3 v4
     CondBranch<1, 2> v5

@@ -595,7 +595,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v37:CBool = Phi<8, 9> v35 v36
-    v38:Bool = PrimitiveBoxBool v37
+    v38:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     EndInlinedFunction
     Snapshot
@@ -681,7 +681,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v37:CBool = Phi<8, 9> v35 v36
-    v38:Bool = PrimitiveBoxBool v37
+    v38:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     EndInlinedFunction
     Snapshot
@@ -767,7 +767,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v37:CBool = Phi<8, 9> v35 v36
-    v38:Bool = PrimitiveBoxBool v37
+    v38:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     EndInlinedFunction
     Snapshot

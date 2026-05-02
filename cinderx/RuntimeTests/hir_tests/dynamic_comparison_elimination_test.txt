@@ -316,11 +316,11 @@ fun jittestmodule:test {
 
   bb 7 (preds 5, 6) {
     v37:CBool = Phi<5, 6> v35 v36
-    v38:Bool = PrimitiveBoxBool v37
+    v38:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     UseType<Bool> v38
     v32:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v26:Bool = PrimitiveBoxBool v37
+    v26:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<1, 2> v37
@@ -395,11 +395,11 @@ fun jittestmodule:test {
 
   bb 7 (preds 5, 6) {
     v37:CBool = Phi<5, 6> v35 v36
-    v38:Bool = PrimitiveBoxBool v37
+    v38:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     UseType<Bool> v38
     v32:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v26:Bool = PrimitiveBoxBool v37
+    v26:ImmortalBool = PrimitiveBoxBool v37
     Snapshot
     v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<1, 2> v37

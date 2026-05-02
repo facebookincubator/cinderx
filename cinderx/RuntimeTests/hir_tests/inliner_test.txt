@@ -2408,7 +2408,7 @@ fun jittestmodule:test {
         Locals<1> v17
       }
     }
-    v25:Bool = PrimitiveBoxBool v24
+    v25:ImmortalBool = PrimitiveBoxBool v24
     Snapshot
     v26:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<1, 2> v24
@@ -2479,7 +2479,7 @@ fun jittestmodule:test {
         Locals<1> v33
       }
     }
-    v61:Bool = PrimitiveBoxBool v60
+    v61:ImmortalBool = PrimitiveBoxBool v60
     Snapshot
     v62:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<6, 7> v60
@@ -2580,7 +2580,7 @@ fun jittestmodule:test {
         Locals<1> v17
       }
     }
-    v25:Bool = PrimitiveBoxBool v24
+    v25:ImmortalBool = PrimitiveBoxBool v24
     Snapshot
     v26:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<1, 2> v24
@@ -2651,7 +2651,7 @@ fun jittestmodule:test {
         Locals<1> v33
       }
     }
-    v61:Bool = PrimitiveBoxBool v60
+    v61:ImmortalBool = PrimitiveBoxBool v60
     Snapshot
     v62:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<6, 7> v60
