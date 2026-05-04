@@ -1203,10 +1203,9 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   // dispatches to resume targets via indirect jump (populated post-regalloc
   // by PopulateResumeEntryBlock). Its successors are the resume blocks,
   // which keeps them reachable during sortBasicBlocks.
-  // We always create this for generators because translateYieldInitial
-  // references gen_resume_entry_label (the label bound to this block).
-  // On pre-3.12, kYieldInitial is monolithic and doesn't add to
-  // resume_blocks_, but still needs the resume entry block to exist.
+  // We always create this for generators because the codegen for
+  // kStoreGenYieldPoint references gen_resume_entry_label (the label
+  // bound to this block).
   if (is_gen_) {
     auto* resume_entry = lir_func_->allocateBasicBlock();
     // Remove from basic_blocks_ immediately — this is a placeholder block
@@ -2318,18 +2317,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kInitialYield: {
         auto hir_instr = static_cast<const InitialYield*>(&i);
-        // 3.12+: decompose kYieldInitial into setup + branch + resume.
-        // kYieldInitial does the setup and store yield point but does NOT
-        // emit the jmp or bind the resume label.
-        Instruction* instr =
-            bbb.appendInstr(Instruction::kYieldInitial, env_->asm_tstate);
-        finishYield(bbb, instr, hir_instr);
 
-        // Capture the gen object from the return register into a vreg.
-        Instruction* gen_obj = bbb.appendInstr(
+        // Unlink the generator frame and get the gen object back.
+        Instruction* gen_obj = bbb.appendCallInstruction(
             OutVReg{},
-            Instruction::kBind,
-            PhyReg{codegen::arch::reg_general_return_loc});
+            JITRT_UnlinkGenFrameAndReturnGenDataFooter,
+            env_->asm_tstate);
+
+        // Store yield point metadata (same as kYieldValue).
+        Instruction* store = bbb.appendInstr(Instruction::kStoreGenYieldPoint);
+        finishYield(bbb, store, hir_instr);
 
         // kBranchToYieldExit: terminates this block.
         auto* branch = bbb.appendInstr(Instruction::kBranchToYieldExit);

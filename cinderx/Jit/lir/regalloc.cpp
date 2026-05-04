@@ -293,14 +293,6 @@ int LinearScanAllocator::getFrameSize() const {
   return -max_stack_slot_;
 }
 
-int LinearScanAllocator::initialYieldSpillSize() const {
-  JIT_CHECK(
-      initial_yield_spill_size_ != -1,
-      "Don't have InitialYield spill size yet");
-
-  return initial_yield_spill_size_;
-}
-
 bool LinearScanAllocator::isPredefinedUsed(const Operand* operand) const {
   auto& block = func_->basicblocks()[0];
 
@@ -594,22 +586,6 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
 void LinearScanAllocator::spillRegistersForYield(int instr_id) {
   reserveRegisters(instr_id, INIT_REGISTERS);
-}
-
-void LinearScanAllocator::computeInitialYieldSpillSize(
-    const UnorderedMap<const Operand*, const LiveInterval*>& mapping) {
-  JIT_CHECK(
-      initial_yield_spill_size_ == -1,
-      "Already computed InitialYield spill size");
-
-  for (auto& pair : mapping) {
-    const LiveInterval* interval = pair.second;
-    if (interval->allocated_loc.is_register()) {
-      continue;
-    }
-    initial_yield_spill_size_ =
-        std::max(initial_yield_spill_size_, -interval->allocated_loc.loc);
-  }
 }
 
 void LinearScanAllocator::reserveCallerSaveRegisters(int instr_id) {
@@ -1111,9 +1087,6 @@ void LinearScanAllocator::rewriteLIR() {
 
           if (instr->output()->isInd()) {
             rewriteInstrOutput(instr, mapping, &last_use_vregs);
-          }
-          if (instr->isYieldInitial()) {
-            computeInitialYieldSpillSize(mapping);
           }
         }
       } else {
