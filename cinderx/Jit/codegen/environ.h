@@ -52,9 +52,9 @@ struct Environ {
   std::vector<std::pair<int, jit::lir::BasicBlock*>>
       static_typecheck_jt_entries;
 
-  // Resume label shared between StoreGenYieldPoint/YieldInitial and
-  // ResumeGenYield. Created by translateStoreGenYieldPoint or
-  // translateYieldInitial (3.12+), bound by translateResumeGenYield.
+  // Resume label shared between StoreGenYieldPoint and ResumeGenYield.
+  // Created by translateStoreGenYieldPoint, bound by
+  // translateResumeGenYield.
   asmjit::Label pending_yield_resume_label;
 
   // Map from deopt metadata index to the stage 1 deopt exit LIR block.
@@ -148,7 +148,6 @@ struct Environ {
       inline_frame_map;
 
   FrameMode frame_mode;
-  int initial_yield_spill_size_{-1};
 
   int max_arg_buffer_size{0};
 

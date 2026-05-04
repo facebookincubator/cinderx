@@ -88,10 +88,6 @@ class LIRABITest : public RuntimeTest {
         environ.block_label_map.emplace(deopt_bb, as.newLabel());
         break;
       }
-      case Instruction::kYieldInitial:
-        environ.code_rt->addDeoptMetadata(DeoptMetadata{});
-        environ.initial_yield_spill_size_ = 16;
-        break;
       default:
         break;
     }
@@ -1299,22 +1295,6 @@ TEST_F(LIRABITest, TestkBitTest_PhyReg_PhyReg) {
   translateInstr(Instruction::kBitTest, makePhyReg(0), Imm{63});
 }
 
-// kYieldInitial ANY
-TEST_F(LIRABITest, TestkYieldInitial) {
-  PyCodeObject code;
-  hir::FrameState frameState(BorrowedRef(&code), nullptr, nullptr, nullptr);
-
-  hir::Register out(0);
-  auto origin = std::unique_ptr<hir::InitialYield>(
-      hir::InitialYield::create(&out, frameState));
-
-  auto tstate = makeStk(-16);
-  auto live_regs = Imm{0};
-  auto deopt_idx = Imm{0};
-
-  translateInstrWithOrigin(
-      Instruction::kYieldInitial, origin.get(), tstate, live_regs, deopt_idx);
-}
 // kSelect R r r r
 TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_PhyReg_PhyReg) {
 #if defined(CINDER_X86_64)

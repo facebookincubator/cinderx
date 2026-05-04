@@ -109,8 +109,6 @@ class LinearScanAllocator {
   // Return the number of bytes that should be allocated below the base pointer.
   int getFrameSize() const;
 
-  int initialYieldSpillSize() const;
-
   // returns true if the variables defined in the entry block is
   // used in the function.
   bool isPredefinedUsed(const Operand* operand) const;
@@ -142,8 +140,6 @@ class LinearScanAllocator {
   void calculateLiveIntervals();
 
   void spillRegistersForYield(int instr_id);
-  void computeInitialYieldSpillSize(
-      const UnorderedMap<const Operand*, const LiveInterval*>& mapping);
 
   // Reserve all caller-saved registers for a function call.
   void reserveCallerSaveRegisters(int instr_id);
@@ -273,7 +269,6 @@ class LinearScanAllocator {
   std::vector<PhyLocation> free_stack_slots_;
 
   codegen::PhyRegisterSet changed_regs_;
-  int initial_yield_spill_size_{-1};
 
   // record vreg-to-physical-location mapping at the end of each basic block,
   // which is needed for resolve edges.
