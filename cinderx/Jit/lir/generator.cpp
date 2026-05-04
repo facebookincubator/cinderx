@@ -406,18 +406,21 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
     code_rt->addReference(BorrowedRef(arg.pytype));
   }
 
-  // --- Build the mapping: defaulted_arg_count → check_block ---
-  // Allocate one check block per typed arg (last-to-first order).
+  // Allocate the dispatch block first so it is laid out before all type check
+  // blocks. The reentry short jump targets this block and must reach it within
+  // ±127 bytes.
+  auto* dispatch_block = lir_func->allocateBasicBlock();
+
+  // Allocate check blocks and their MRO blocks interleaved so each MRO loop
+  // block immediately follows its corresponding check block in the layout.
   // check_blocks[0] corresponds to typed_args[checks.size()-1] (the last arg).
   std::vector<BasicBlock*> check_blocks;
-  check_blocks.reserve(typed_args.size());
-  for (size_t i = 0; i < typed_args.size(); i++) {
-    check_blocks.push_back(lir_func->allocateBasicBlock());
-  }
-
-  // Allocate MRO loop blocks for checks that need them.
   std::vector<BasicBlock*> mro_blocks;
-  for (Py_ssize_t i = typed_args.size() - 1; i >= 0; i--) {
+  check_blocks.reserve(typed_args.size());
+  mro_blocks.reserve(typed_args.size());
+  for (size_t k = 0; k < typed_args.size(); k++) {
+    check_blocks.push_back(lir_func->allocateBasicBlock());
+    Py_ssize_t i = typed_args.size() - 1 - k;
     const auto& arg = typed_args[i];
     if (!arg.exact && (arg.threadSafeTpFlags() & Py_TPFLAGS_BASETYPE)) {
       mro_blocks.push_back(lir_func->allocateBasicBlock());
@@ -425,10 +428,6 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
       mro_blocks.push_back(nullptr);
     }
   }
-
-  // Build the dispatch block.
-  size_t original_count = lir_func->basicblocks().size();
-  auto* dispatch_block = lir_func->allocateBasicBlock();
 
   // Build the dispatch mapping: for each defaulted_arg_count value, determine
   // which check block to jump to (same logic as the original jump table).
@@ -470,6 +469,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   // Build the unresolved jump table for post-codegen resolution.
   UnresolvedJumpTable result;
   result.table = jump_table;
+  result.dispatch_block = dispatch_block;
   for (const auto& [count, target] : dispatch_entries) {
     result.entries.emplace_back(count, target);
   }
@@ -625,22 +625,13 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
     }
   }
 
-  // --- Reorder blocks ---
-  // Move dispatch + check + mro blocks to the front of basicblocks(),
-  // before the entry_block. This ensures the prologue falls through to
-  // the dispatch block.
-  auto& blocks = lir_func->basicblocks();
-
-  // Rotate the new blocks from the end to the front.
-  std::rotate(blocks.begin(), blocks.begin() + original_count, blocks.end());
-
   return result;
 }
 
 void GenerateArgcountCheckBlocks(
     Function* lir_func,
     const hir::Function* func,
-    BasicBlock* next_block,
+    asmjit::Label correct_args_label,
     asmjit::Label prologue_exit) {
   bool returns_primitive_double = func->returnsPrimitiveDouble();
   BorrowedRef<PyCodeObject> code = func->code;
@@ -657,8 +648,6 @@ void GenerateArgcountCheckBlocks(
   auto kwnames_reg = codegen::ARGUMENT_REGS[3];
   auto nargsf_reg = codegen::ARGUMENT_REGS[2];
 
-  int num_new_blocks = 0;
-
   if (will_check_argcount) {
     // Two blocks:
     //   kw_dispatch: test kwnames → if null, branch to argcount_check;
@@ -668,7 +657,6 @@ void GenerateArgcountCheckBlocks(
     //                   helper → exit.
     auto* kw_dispatch = lir_func->allocateBasicBlock();
     auto* argcount_check = lir_func->allocateBasicBlock();
-    num_new_blocks = 2;
 
     // --- kw_dispatch ---
     emitAnnotation(kw_dispatch, "Keyword argument dispatch");
@@ -710,8 +698,7 @@ void GenerateArgcountCheckBlocks(
         PhyReg{nargsf_reg, OperandBase::k32bit},
         PhyReg{kwnames_reg, OperandBase::k32bit});
     argcount_check->allocateInstr(
-        Instruction::kBranchE, nullptr, Lbl{next_block});
-    argcount_check->addSuccessor(next_block);
+        Instruction::kBranchE, nullptr, AsmLbl{correct_args_label});
 
     // Wrong argcount: kwnames_reg already holds numArgs for the 4th arg.
     auto helper = returns_primitive_double
@@ -725,7 +712,6 @@ void GenerateArgcountCheckBlocks(
     // have_varargs or kwonlyargcount > 0: always dispatch through the
     // keyword helper (it handles *args, **kwargs, keyword-only args, etc.).
     auto* kw_dispatch = lir_func->allocateBasicBlock();
-    num_new_blocks = 1;
 
     emitAnnotation(kw_dispatch, "Keyword argument dispatch (varargs/kwonly)");
 
@@ -736,13 +722,6 @@ void GenerateArgcountCheckBlocks(
     kw_dispatch->allocateInstr(
         Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
   }
-
-  // Rotate the new blocks from the end to the front.
-  auto& blocks = lir_func->basicblocks();
-  std::rotate(
-      blocks.begin(),
-      blocks.end() - static_cast<std::ptrdiff_t>(num_new_blocks),
-      blocks.end());
 }
 
 void GenerateFunctionEntryBlock(Function* lir_func) {
@@ -750,10 +729,6 @@ void GenerateFunctionEntryBlock(Function* lir_func) {
 
   // No annotation needed — translatePrologue adds "Set up frame pointer".
   block->allocateInstr(Instruction::kPrologue, nullptr);
-
-  // Rotate the new block to the front.
-  auto& blocks = lir_func->basicblocks();
-  std::rotate(blocks.begin(), blocks.end() - 1, blocks.end());
 }
 
 void GeneratePrimitiveArgsPrologueBlock(
@@ -791,10 +766,6 @@ void GeneratePrimitiveArgsPrologueBlock(
   // Since the original code unconditionally calls generateFunctionExit()
   // after the call, we branch to prologue_exit.
   block->allocateInstr(Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
-
-  // Rotate the new block to the front.
-  auto& blocks = lir_func->basicblocks();
-  std::rotate(blocks.begin(), blocks.end() - 1, blocks.end());
 }
 
 void GenerateBoxedReturnWrapperBlocks(
@@ -936,10 +907,6 @@ void GenerateBoxedReturnWrapperBlocks(
 
   box_block->allocateInstr(Instruction::kCall, nullptr, Imm{box_func});
   box_block->allocateInstr(Instruction::kBranch, nullptr, AsmLbl{wrapper_exit});
-
-  // Rotate the two new blocks to the front.
-  auto& blocks = lir_func->basicblocks();
-  std::rotate(blocks.begin(), blocks.end() - 2, blocks.end());
 }
 
 void LIRGenerator::GenerateExitBlocks() {
