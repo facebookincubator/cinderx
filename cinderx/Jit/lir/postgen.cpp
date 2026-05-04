@@ -592,7 +592,7 @@ RewriteResult rewriteLeaLargeMultiplier(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  auto mult = ind->getMultipiler();
+  auto mult = ind->getMultiplier();
   if (mult < 4) {
     return kUnchanged;
   }

@@ -146,7 +146,7 @@ void Printer::print(std::ostream& out, const MemoryIndirect& ind) {
   if (index_reg != nullptr) {
     fmt::print(out, " + {}", *index_reg);
 
-    int multiplier = ind.getMultipiler();
+    int multiplier = ind.getMultiplier();
     if (multiplier > 0) {
       fmt::print(out, " * {}", 1 << multiplier);
     }

@@ -109,7 +109,7 @@ class MemoryIndirect {
   OperandBase* getBaseRegOperand() const;
   OperandBase* getIndexRegOperand() const;
 
-  uint8_t getMultipiler() const;
+  uint8_t getMultiplier() const;
   int32_t getOffset() const;
 
  private:
