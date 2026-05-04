@@ -12,9 +12,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dis import dis
-from types import CodeType
-from typing import Pattern, TextIO
+from types import CodeType, ModuleType
+from typing import cast, Pattern, TextIO
 
 from . import get_disassembly_as_string
 from .pycodegen import CinderCodeGenerator, compile_code, make_header
@@ -179,6 +178,11 @@ def main() -> None:
         source = f.read()
 
     pyrefly_cleanup_dir: str | None = None
+    input_path: str = ""
+    input_dir: str = ""
+    types_dir: str = ""
+    modules_list: list[dict[str, str]] = []
+    source_modules: set[str] = set()
     if args.pyrefly:
         input_path = os.path.abspath(args.input)
         input_dir = os.path.dirname(input_path)
@@ -259,7 +263,7 @@ def main() -> None:
             if args.static or args.strict or args.pyrefly:
                 d["<fixed-modules>"] = FIXED_MODULES
             d["<builtins>"] = builtins.__dict__
-            sys.modules["__main__"] = mod
+            sys.modules["__main__"] = cast(ModuleType, mod)
             # don't confuse the script with args meant for us
             sys.argv = sys.argv[:1]
 
