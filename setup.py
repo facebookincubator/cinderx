@@ -488,7 +488,6 @@ class BuildExt(build_ext):
         include_dir = sysconfig.get_path("include")
         return os.path.join(include_dir, "..", "..")
 
-
 def main() -> None:
     setup(
         name="cinderx",
