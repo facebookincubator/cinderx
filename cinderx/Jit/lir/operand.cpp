@@ -84,7 +84,7 @@ OperandBase* MemoryIndirect::getIndexRegOperand() const {
   return index_reg_.get();
 }
 
-uint8_t MemoryIndirect::getMultipiler() const {
+uint8_t MemoryIndirect::getMultiplier() const {
   return multiplier_;
 }
 

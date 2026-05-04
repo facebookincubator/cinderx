@@ -64,7 +64,7 @@ arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
     return asmjit::x86::ptr(
         x86::gpq(base->getPhyRegister().loc),
         x86::gpq(index->getPhyRegister().loc),
-        indirect->getMultipiler(),
+        indirect->getMultiplier(),
         indirect->getOffset());
   }
 #elif defined(CINDER_AARCH64)
@@ -1301,7 +1301,7 @@ void leaIndirect(
         output,
         base,
         AT::getGp(indexRegOperand),
-        indirect->getMultipiler());
+        indirect->getMultiplier());
 
     base = output;
   }
@@ -1325,7 +1325,7 @@ arch::Mem ptrIndirect(
         scratch1,
         base,
         AT::getGp(indexRegOperand),
-        indirect->getMultipiler());
+        indirect->getMultiplier());
 
     base = scratch1;
   }

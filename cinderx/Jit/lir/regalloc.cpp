@@ -1234,7 +1234,7 @@ void LinearScanAllocator::rewriteInstrOneIndirectOperand(
   indirect->setMemoryIndirect(
       base_phy_reg,
       index_phy_reg,
-      indirect->getMultipiler(),
+      indirect->getMultiplier(),
       indirect->getOffset());
 
   if (base_last_use) {

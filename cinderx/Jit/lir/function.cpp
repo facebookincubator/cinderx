@@ -38,7 +38,7 @@ void copyIndirect(
   dest_op->setMemoryIndirect(
       dest_base,
       dest_index,
-      source_op->getMultipiler(),
+      source_op->getMultiplier(),
       source_op->getOffset());
 
   // add linked operands to instr_refs
