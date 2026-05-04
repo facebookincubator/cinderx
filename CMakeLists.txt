@@ -39,9 +39,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (WINDOWS)
-    set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE")
+  set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE")
+  set(CXX_FLAGS "")
 else()
-    set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
+  set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -fvisibility=hidden -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
+  set(CXX_FLAGS "-fvisibility-inlines-hidden")
 endif()
 
 macro(set_flag VAR)
@@ -67,7 +69,7 @@ set_flag(ENABLE_USDT)
 set_flag(ENABLE_ZLIB)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SHARED_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS} ${SHARED_FLAGS}")
 
 ##############################################################################
 # Apply LTO (Link-Time Optimization) if enabled
