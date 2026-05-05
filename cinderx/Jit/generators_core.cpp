@@ -92,14 +92,15 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
     return res;
   }
 
-  PyErr_Format(
-      PyExc_TypeError,
-#if PY_VERSION_HEX >= 0x030E0000
-      "'%.100s' object can't be awaited",
-#else
-      "object %.100s can't be used in 'await' expression",
-#endif
-      ot->tp_name);
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    PyErr_Format(
+        PyExc_TypeError, "'%.100s' object can't be awaited", ot->tp_name);
+  } else {
+    PyErr_Format(
+        PyExc_TypeError,
+        "object %.100s can't be used in 'await' expression",
+        ot->tp_name);
+  }
   return nullptr;
 }
 }

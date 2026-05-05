@@ -912,9 +912,9 @@ JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
         name);
   }
   // PyDict_LoadGlobal returns a new reference on 3.14+
-#if PY_VERSION_HEX < 0x030E0000
-  Py_XINCREF(result);
-#endif
+  if constexpr (PY_VERSION_HEX < 0x030E0000) {
+    Py_XINCREF(result);
+  }
   return result;
 }
 
