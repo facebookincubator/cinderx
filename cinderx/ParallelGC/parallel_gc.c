@@ -1151,16 +1151,16 @@ static int Ci_should_use_par_gc(Ci_ParGCState* par_gc, int gen);
 
 /* This is the main function.  Read this to understand how the
  * collection process works. */
-#if PY_VERSION_HEX < 0x030F0000
-static Py_ssize_t
-#else
+#ifdef ENABLE_INCREMENTAL_GC
 static void
+#else
+static Py_ssize_t
 #endif
 gc_collect_main(
     struct Ci_PyGCImpl* gc_impl,
     PyThreadState* tstate,
     int generation,
-#if PY_VERSION_HEX >= 0x030F0000
+#ifdef ENABLE_INCREMENTAL_GC
     struct gc_generation_stats* stats) {
 #elif PY_VERSION_HEX >= 0x030E0000
     _PyGC_Reason reason) {
@@ -1366,7 +1366,7 @@ gc_collect_main(
   }
 
   assert(!_PyErr_Occurred(tstate));
-#if PY_VERSION_HEX < 0x030F0000
+#ifndef ENABLE_INCREMENTAL_GC
   return n + m;
 #endif
 }
