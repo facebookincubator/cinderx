@@ -547,6 +547,10 @@ enum class BinaryOpKind {
 #undef DEFINE_OP
 };
 
+inline auto format_as(BinaryOpKind kind) {
+  return fmt::underlying(kind);
+}
+
 #define COUNT_OP(NAME) +1
 constexpr size_t kNumBinaryOpKinds = FOREACH_BINARY_OP_KIND(COUNT_OP);
 #undef COUNT_OP
