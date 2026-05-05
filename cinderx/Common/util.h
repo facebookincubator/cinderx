@@ -58,6 +58,17 @@ constexpr bool kPyRefDebug =
     false;
 #endif
 
+// True when CinderX is built against a free-threaded (Py_GIL_DISABLED) Python.
+//
+// When false, code can assume the GIL is held.  When true, it cannot, the GIL
+// might still be held at any given moment but that's no longer guaranteed.
+constexpr bool kFreeThreadedBuild =
+#ifdef Py_GIL_DISABLED
+    true;
+#else
+    false;
+#endif
+
 struct jit_string_deleter {
   void operator()(jit_string_t* ss) const {
     ss_free(ss);
