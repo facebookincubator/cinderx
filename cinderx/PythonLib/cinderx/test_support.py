@@ -258,6 +258,8 @@ def is_oss() -> bool:
     """
     return "+meta" not in sys.version and "+cinder" not in sys.version
 
+def skip_test_if_oss(reason:str) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return passIf(is_oss(), reason)
 
 def skip_module_if_oss() -> None:
     """

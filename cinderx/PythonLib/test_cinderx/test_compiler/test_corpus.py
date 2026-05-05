@@ -10,6 +10,7 @@ from unittest import main, TestCase
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import compile_code
+from cinderx.test_support import skip_test_if_oss
 
 from .common import glob_test
 
@@ -32,7 +33,6 @@ def add_test(modname: str, fname: str) -> None:
             return
         if "/3_14/" in fname and sys.version_info[:2] < (3, 14):
             return
-
         with open(fname, "rb") as inp:
             encoding, _lines = detect_encoding(inp.readline)
             code = b"".join(list(_lines) + inp.readlines()).decode(encoding)
@@ -53,6 +53,7 @@ def add_test(modname: str, fname: str) -> None:
 
     # pyre-ignore[16]: Callable `test_corpus` has no attribute `__name__`.
     test_corpus.__name__ = "test_" + modname.replace("/", "_")[:-3]
+    test_corpus = skip_test_if_oss("test_corpus not supported on OSS builds")(test_corpus)
     setattr(SbsCorpusCompileTests, test_corpus.__name__, test_corpus)
 
 
