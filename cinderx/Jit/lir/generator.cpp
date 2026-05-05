@@ -4036,6 +4036,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Ind{callee_frame,
                 (Py_ssize_t)offsetof(FrameHeader, func) -
                     (Py_ssize_t)sizeof(FrameHeader)});
+
         JIT_DCHECK(
             JIT_FRAME_INITIALIZED == 2,
             "JIT_FRAME_INITIALIZED changed"); // this is the bit we're testing
@@ -4043,7 +4044,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(Instruction::kBitTest, rtfs_reg, Imm{1});
         auto done_block = bbb.allocateBlock();
         auto not_materialized_block = bbb.allocateBlock();
-        bbb.appendBranch(Instruction::kBranchNC, not_materialized_block);
+        // kBitTest lowers differently per architecture:
+        // - x86: BT sets the Carry flag to the tested bit value, so
+        //   kBranchNC (jnc) branches when the bit is NOT set.
+        // - ARM64: BT is lowered to TST which sets the Zero flag, so
+        //   kBranchE (b.eq) branches when the bit is NOT set.
+        bbb.appendBranch(
+            codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64
+                ? Instruction::kBranchE
+                : Instruction::kBranchNC,
+            not_materialized_block);
         bbb.appendBlock(bbb.allocateBlock());
 
         // The frame was materialized, let's use the unlink helper to clean
