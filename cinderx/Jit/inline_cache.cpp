@@ -759,10 +759,6 @@ void AttributeCache::fill(
   }
 
   if (descr != nullptr) {
-    // Not yet working.
-    if (PY_VERSION_HEX >= 0x030E0000) {
-      return;
-    }
     BorrowedRef<PyTypeObject> descr_type(Py_TYPE(descr));
     if (descr_type->tp_descr_get != nullptr &&
         descr_type->tp_descr_set != nullptr) {
