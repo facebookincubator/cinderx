@@ -56,12 +56,12 @@ namespace jit::codegen {
 
 namespace {
 
-// Return type for prepareForDeopt: the reified frame and whether this deopt
-// was triggered by instrumentation (setIP patch) rather than a guard failure.
-struct DeoptResult {
-  _PyInterpreterFrame* frame;
-  bool is_instrumentation_deopt;
-};
+// prepareForDeopt packs both the reified frame pointer and the
+// is_instrumentation_deopt flag into a single uintptr_t returned in RAX/X0.
+// The flag is encoded in bit 0 (frame pointers are always >= 8-byte aligned).
+// This avoids returning a multi-field struct whose Windows x64 ABI
+// hidden-pointer return semantics would conflict with the hand-rolled deopt
+// trampoline.  Callers unpack with: frame = result & ~1, flag = result & 1.
 
 #define ASM_CHECK_THROW(exp)                         \
   {                                                  \
@@ -145,7 +145,7 @@ _PyInterpreterFrame* reifyLightweightFrames(
   return cur_frame;
 }
 
-DeoptResult prepareForDeopt(
+uintptr_t prepareForDeopt(
     const uint64_t* regs,
     CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
@@ -260,7 +260,11 @@ DeoptResult prepareForDeopt(
         JIT_ABORT("Lost exception when raising static exception");
     }
   }
-  return {frame, is_instrumentation_deopt};
+  // Pack the frame pointer and the instrumentation-deopt flag into a single
+  // register-width value.  Bit 0 carries the flag; the remaining bits carry
+  // the pointer (which is always at least 8-byte aligned, so bit 0 is free).
+  return reinterpret_cast<uintptr_t>(frame) |
+      static_cast<uintptr_t>(is_instrumentation_deopt);
 }
 
 // Set up f_trace/f_trace_lines for sys.settrace compatibility on deopted

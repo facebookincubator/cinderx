@@ -5119,12 +5119,36 @@ void GenerateDeoptTrampolineBlocks(
       Ind(fp_reg, -3 * kPointerSize));
 
   // Stage 3: Call prepareForDeopt.
+  // Returns a packed uintptr_t in RAX/X0: frame pointer with
+  // is_instrumentation_deopt encoded in bit 0.
   emitAnnotation(block, "prepareForDeopt");
+
+  // Windows x64: reserve shadow space for the callee.
+  if constexpr (
+      arch::kBuildArch == arch::Arch::kX86_64 &&
+      codegen::kShadowSpaceSize > 0) {
+    block->allocateInstr(
+        Instruction::kLea,
+        nullptr,
+        OutPhyReg{sp_reg},
+        Ind(sp_reg, -codegen::kShadowSpaceSize));
+  }
 
   block->allocateInstr(
       Instruction::kCall,
       nullptr,
       Imm{reinterpret_cast<uint64_t>(prepare_for_deopt)});
+
+  // Windows x64: free shadow space.
+  if constexpr (
+      arch::kBuildArch == arch::Arch::kX86_64 &&
+      codegen::kShadowSpaceSize > 0) {
+    block->allocateInstr(
+        Instruction::kLea,
+        nullptr,
+        OutPhyReg{sp_reg},
+        Ind(sp_reg, codegen::kShadowSpaceSize));
+  }
 
   // Stage 4: Clean up saved registers + restore deopt scratch reg.
   emitAnnotation(block, "reg cleanup");
@@ -5143,26 +5167,44 @@ void GenerateDeoptTrampolineBlocks(
       Ind(sp_reg, cleanup_size + kStage2SavedRegs * kPointerSize));
 
   // Stage 5: Call resumeInInterpreter.
+  //
+  // prepareForDeopt returned a packed uintptr_t in the return register:
+  //   bit 0       = is_instrumentation_deopt  (arg3)
+  //   bits 63..1  = frame pointer             (arg0)
+  // We unpack before setting up the remaining arguments.
   emitAnnotation(block, "resumeInInterpreter");
 
-  // First argument: frame returned from prepareForDeopt (already in
-  // return register). Only do move if necessary (on arm the registers line up)
-  if (codegen::ARGUMENT_REGS[0] != codegen::arch::reg_general_return_loc) {
+  constexpr auto ret_loc = codegen::arch::reg_general_return_loc;
+
+  // Extract is_instrumentation_deopt (bit 0) into arg3 FIRST, before we
+  // mask the return register to get the frame pointer.
+  block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[3]},
+      PhyReg{ret_loc});
+  block->allocateInstr(
+      Instruction::kAnd,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[3]},
+      PhyReg{codegen::ARGUMENT_REGS[3]},
+      Imm{1});
+
+  // Clear bit 0 to recover the frame pointer.
+  block->allocateInstr(
+      Instruction::kAnd,
+      nullptr,
+      OutPhyReg{ret_loc},
+      PhyReg{ret_loc},
+      Imm{~static_cast<uint64_t>(1)});
+
+  // arg0 = frame pointer (now clean in the return register).
+  if (codegen::ARGUMENT_REGS[0] != ret_loc) {
     block->allocateInstr(
         Instruction::kMove,
         nullptr,
         OutPhyReg{codegen::ARGUMENT_REGS[0]},
-        PhyReg{codegen::arch::reg_general_return_loc});
-  }
-  // Fourth argument: is_instrumentation_deopt returned by prepareForDeopt.
-  // Save it before being overwritten below.
-  if (codegen::ARGUMENT_REGS[3] !=
-      codegen::arch::reg_general_auxilary_return_loc) {
-    block->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutPhyReg{codegen::ARGUMENT_REGS[3]},
-        PhyReg{codegen::arch::reg_general_auxilary_return_loc});
+        PhyReg{ret_loc});
   }
   // arg1 = code_rt from stack (fp - 3*8)
   block->allocateInstr(
@@ -5177,10 +5219,23 @@ void GenerateDeoptTrampolineBlocks(
       OutPhyReg{codegen::ARGUMENT_REGS[2]},
       Ind(fp_reg, -2 * kPointerSize));
 
+  // Windows x64: reserve shadow space for the callee.
+  if constexpr (
+      arch::kBuildArch == arch::Arch::kX86_64 &&
+      codegen::kShadowSpaceSize > 0) {
+    block->allocateInstr(
+        Instruction::kLea,
+        nullptr,
+        OutPhyReg{sp_reg},
+        Ind(sp_reg, -codegen::kShadowSpaceSize));
+  }
+
   block->allocateInstr(
       Instruction::kCall,
       nullptr,
       Imm{reinterpret_cast<uint64_t>(resume_in_interpreter)});
+  // Shadow space (if any) is freed by kLeave below which restores RSP
+  // from RBP.
 
   // Stage 6: Exit — copy result to error-signal registers, load epilogue
   // address, tear down frame, jump to real epilogue.
@@ -5194,7 +5249,7 @@ void GenerateDeoptTrampolineBlocks(
   constexpr PhyLocation err32_reg{aux_ret_reg.loc, 32};
   constexpr auto err_xmm_reg = codegen::arch::reg_double_auxilary_return_loc;
 #if defined(CINDER_X86_64)
-  constexpr auto jump_target_reg = codegen::ARGUMENT_REGS[0]; // RDI
+  constexpr auto jump_target_reg = codegen::ARGUMENT_REGS[0]; // scratch
 #elif defined(CINDER_AARCH64)
   constexpr auto jump_target_reg = codegen::arch::reg_scratch_br_loc; // X16
 #endif
