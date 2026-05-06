@@ -3734,6 +3734,10 @@ class INSTR_CLASS(UpdatePrevInstr, (), Operands<0>) {
     return line_no_;
   }
 
+  void setLineNo(int line_no) {
+    line_no_ = line_no;
+  }
+
   // The inlined function which this update belongs to or nullptr if not in an
   // inlined function.
   BeginInlinedFunction* parent() const {

@@ -110,6 +110,29 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assert_code_and_lineno(gen1_frame, f1, 2)
         self.assert_code_and_lineno(gen2_frame, f2, 2)
 
+    def test_line_numbers_consecutive_calls(self) -> None:
+        """Verify line numbers are correct across consecutive calls on different
+        lines. This exercises the UpdatePrevInstr dead store elimination: the
+        JIT eliminates redundant prev_instr stores between consecutive calls,
+        but each call must still see the correct line number."""
+        stacks = []
+
+        def capture():
+            stacks.append(traceback.extract_stack())
+
+        @cinder_support.failUnlessJITCompiled
+        def f():
+            capture()
+            capture()
+            capture()
+            capture()
+
+        f()
+        self.assertEqual(len(stacks), 4)
+        base = firstlineno(f)
+        for i, stack in enumerate(stacks):
+            self.assertEqual(stack[-2].lineno, base + 2 + i)
+
     def test_line_numbers_from_finalizers(self) -> None:
         """Make sure we can get accurate line numbers from finalizers"""
         stack = []
