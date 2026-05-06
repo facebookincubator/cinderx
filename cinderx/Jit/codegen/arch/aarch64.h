@@ -211,9 +211,7 @@ constexpr PhyLocation SP{RegId::SP, 64};
 class PhyRegisterSet {
  public:
   constexpr PhyRegisterSet() = default;
-  explicit constexpr PhyRegisterSet(PhyLocation r) {
-    rs_ |= (1ULL << r.loc);
-  }
+  explicit constexpr PhyRegisterSet(PhyLocation r) : rs_{1ULL << r.loc} {}
 
   constexpr PhyRegisterSet operator|(PhyLocation reg) const {
     PhyRegisterSet set;

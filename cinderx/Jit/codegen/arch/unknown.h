@@ -133,13 +133,11 @@ constexpr PhyLocation SP{RegId::SP, 64};
 class PhyRegisterSet {
  public:
   constexpr PhyRegisterSet() = default;
-  explicit constexpr PhyRegisterSet(PhyLocation r) : rs_(0) {
-    rs_ |= (1 << r.loc);
-  }
+  explicit constexpr PhyRegisterSet(PhyLocation r) : rs_{1U << r.loc} {}
 
   constexpr PhyRegisterSet operator|(PhyLocation reg) const {
     PhyRegisterSet set;
-    set.rs_ = rs_ | (1 << reg.loc);
+    set.rs_ = rs_ | (1U << reg.loc);
     return set;
   }
 
@@ -199,11 +197,11 @@ class PhyRegisterSet {
   }
 
   constexpr void Set(PhyLocation reg) {
-    rs_ |= (1 << reg.loc);
+    rs_ |= (1U << reg.loc);
   }
 
   constexpr void Reset(PhyLocation reg) {
-    rs_ &= ~(1 << reg.loc);
+    rs_ &= ~(1U << reg.loc);
   }
 
   constexpr void ResetAll() {
@@ -211,7 +209,7 @@ class PhyRegisterSet {
   }
 
   constexpr bool Has(PhyLocation reg) const {
-    return rs_ & (1 << reg.loc);
+    return rs_ & (1U << reg.loc);
   }
 
  private:
