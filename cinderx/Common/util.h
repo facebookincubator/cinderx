@@ -133,6 +133,7 @@ namespace jit {
 constexpr int kPointerSize = sizeof(void*);
 
 constexpr size_t kStackAlign = 16;
+constexpr size_t kVecDSize = 16;
 
 constexpr int kKiB = 1024;
 constexpr int kMiB = kKiB * kKiB;

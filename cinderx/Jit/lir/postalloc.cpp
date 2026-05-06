@@ -100,9 +100,56 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   auto block = instr->basicblock();
 
   auto num_inputs = instr->getNumInputs();
+  int stack_arg_size = kShadowSpaceSize;
+
+#ifdef _WIN32
+  // Windows x64: GP and FP arguments share the same 4 positional slots.
+  // Position 0 → RCX or XMM0, position 1 → RDX or XMM1, etc.
+  size_t arg_pos = 0;
+
+  for (size_t i = 1; i < num_inputs; i++) {
+    auto operand = instr->getInput(i);
+    bool operand_imm = operand->isImm();
+
+    if (arg_pos < ARGUMENT_REGS.size()) {
+      if (operand->isFp()) {
+        if (operand_imm) {
+          block->allocateInstrBefore(
+              instr_iter,
+              Instruction::kMove,
+              OutPhyReg(arch::reg_scratch_0_loc),
+              Imm(operand->getConstant()));
+        }
+        auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+        move->output()->setPhyRegister(FP_ARGUMENT_REGS[arg_pos]);
+        move->output()->setDataType(OperandBase::kDouble);
+
+        if (operand_imm) {
+          move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
+        } else {
+          move->appendInput(instr->releaseInput(i));
+        }
+      } else {
+        auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+        move->output()->setPhyRegister(ARGUMENT_REGS[arg_pos]);
+        move->output()->setDataType(operand->dataType());
+        move->appendInput(instr->releaseInput(i));
+      }
+      arg_pos++;
+    } else {
+      insertMoveToMemoryLocation(
+          block,
+          instr_iter,
+          arch::reg_stack_pointer_loc,
+          stack_arg_size,
+          operand);
+      stack_arg_size += sizeof(void*);
+    }
+  }
+#else
+  // System V AMD64: GP and FP arguments use independent register pools.
   size_t arg_reg = 0;
   size_t fp_arg_reg = 0;
-  int stack_arg_size = 0;
 
   for (size_t i = 1; i < num_inputs; i++) {
     auto operand = instr->getInput(i);
@@ -153,6 +200,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
       stack_arg_size += sizeof(void*);
     }
   }
+#endif
 
   // Align to kStackAlign for AArch64 stack pointer alignment requirements.
   if (stack_arg_size % kStackAlign != 0) {

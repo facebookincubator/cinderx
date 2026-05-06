@@ -336,4 +336,6 @@ constexpr PhyLocation INITIAL_TSTATE_REG = X11;
 // This is often provided by the first argument in the vector call protocol.
 constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
 
+constexpr int kShadowSpaceSize = 0;
+
 } // namespace jit::codegen

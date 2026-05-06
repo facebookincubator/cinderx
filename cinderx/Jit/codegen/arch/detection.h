@@ -14,7 +14,7 @@ enum class Arch {
 // This macro is a marker for places that need platform-specific code.
 #define CINDER_UNSUPPORTED
 
-#if defined(__x86_64__)
+#if defined(__x86_64__) || defined(_M_AMD64)
 
 #define CINDER_X86_64
 constexpr Arch kBuildArch = Arch::kX86_64;

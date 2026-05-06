@@ -343,16 +343,44 @@ Instruction* getSecondCallResult(
   Instruction* src_instr = src->instr();
   BasicBlock* src_block = src_instr->basicblock();
   auto src_it = src_block->iterator_to(src_instr);
+
+  // Whether the input is a Call (or Windows struct-return Move) vs a Phi.
+  bool is_call_like = src_instr->isCall();
+
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // On Windows x64, appendCall2RetValues emits struct-return calls as:
+  //   %buf = Lea [rbp + offset]
+  //   %tmp = Call func, %buf, args...
+  //   %dst = Move [%buf + 0]       <-- src_instr (first field, mapped to HIR)
+  //   Move RDX = Move [%buf + 8]   <-- second field already loaded into RDX
+  //
+  // The LoadSecondCallResult input resolves to the first-field Move rather
+  // than the Call itself. Advance src_it past the second-field Move so the
+  // rewritten "Move from RDX" is placed after the value is actually in RDX.
+  if (src_instr->isMove()) {
+    auto next_it = std::next(src_it);
+    JIT_CHECK(
+        next_it != src_block->instructions().end() &&
+            next_it->get()->isMove() && next_it->get()->output()->isReg() &&
+            next_it->get()->output()->getPhyRegister() == RETURN_REGS[1],
+        "Expected second-field Move (into RDX) after Windows struct-return "
+        "first-field Move");
+    src_it = next_it;
+    is_call_like = true;
+  }
+#endif
+
   JIT_CHECK(
-      src_instr->isCall() || src_instr->isPhi(),
+      is_call_like || src_instr->isPhi(),
       "LoadSecondCallResult input must come from Call or Phi, not '{}'",
       *src_instr);
 
-  if (src_instr->isCall()) {
-    // Check that this Call hasn't already been handled on behalf of another
-    // LoadSecondCallResult. If we need to support this pattern in the future,
-    // this rewrite function should probably become a standalone pass, with the
-    // scope of seen_srcs expanded to the whole function.
+  if (is_call_like) {
+    // Check that this Call (or Windows struct-return Move) hasn't already been
+    // handled on behalf of another LoadSecondCallResult. If we need to support
+    // this pattern in the future, this rewrite function should probably become
+    // a standalone pass, with the scope of seen_srcs expanded to the whole
+    // function.
     auto next_it = std::next(src_it);
     if (next_it != src_block->instructions().end()) {
       Instruction* next_instr = next_it->get();
@@ -375,7 +403,7 @@ Instruction* getSecondCallResult(
   }
 
   Instruction::Opcode new_op =
-      src_instr->isCall() ? Instruction::kMove : Instruction::kPhi;
+      is_call_like ? Instruction::kMove : Instruction::kPhi;
   if (instr) {
     instr->setOpcode(new_op);
   } else {

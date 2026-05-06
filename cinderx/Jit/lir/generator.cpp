@@ -256,8 +256,16 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
   using DT = DataType;
 
   auto gen_reg = codegen::ARGUMENT_REGS[0];
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // On Windows, R8 and R9 are ARGUMENT_REGS[2] and [3] (finish_yield_from
+  // and tstate). Use R10/R11 to avoid clobbering them before the resume
+  // target reads them.
+  PhyLocation scratch{10, 64}; // r10
+  PhyLocation jit_data_reg{11, 64}; // r11
+#else
   PhyLocation scratch{8, 64}; // r8/x8
   PhyLocation jit_data_reg{9, 64}; // r9/x9
+#endif
   auto fp_reg = codegen::arch::reg_frame_pointer_loc;
 
   auto gi_off = static_cast<int32_t>(gi_jit_data_offset);

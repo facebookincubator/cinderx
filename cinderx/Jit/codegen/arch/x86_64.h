@@ -303,17 +303,32 @@ constexpr PhyRegisterSet DISALLOWED_REGISTERS = PhyRegisterSet(RSP) | RBP;
 
 constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - DISALLOWED_REGISTERS;
 
+#ifdef _WIN32
+// Windows x64: RDI and RSI are callee-saved; XMM6-XMM15 are callee-saved.
+constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
+    R8 | R9 | R10 | R11 | PhyRegisterSet(XMM0) | XMM1 | XMM2 | XMM3 | XMM4 |
+    XMM5;
+#else
 constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
     RSI | RDI | R8 | R9 | R10 | R11 | ALL_VECD_REGISTERS;
+#endif
 
 constexpr PhyRegisterSet CALLEE_SAVE_REGS = INIT_REGISTERS - CALLER_SAVE_REGS;
 
+#ifdef _WIN32
+constexpr auto ARGUMENT_REGS = std::to_array({RCX, RDX, R8, R9});
+#else
 constexpr auto ARGUMENT_REGS = std::to_array({RDI, RSI, RDX, RCX, R8, R9});
+#endif
 
 constexpr auto RETURN_REGS = std::to_array({RAX, RDX});
 
+#ifdef _WIN32
+constexpr auto FP_ARGUMENT_REGS = std::to_array({XMM0, XMM1, XMM2, XMM3});
+#else
 constexpr auto FP_ARGUMENT_REGS =
     std::to_array({XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7});
+#endif
 
 // This is where the function prologue will initially store this data at entry
 // to the function body. The register allocator may move things around from
@@ -322,5 +337,14 @@ constexpr PhyLocation INITIAL_EXTRA_ARGS_REG = R10;
 constexpr PhyLocation INITIAL_TSTATE_REG = R11;
 // This is often provided by the first argument in the vector call protocol.
 constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
+
+// Shadow space (home space) required by the Windows x64 calling convention.
+// The caller must always reserve 32 bytes above the return address for the
+// callee to spill register arguments.  System V does not use shadow space.
+#ifdef _WIN32
+constexpr int kShadowSpaceSize = 32;
+#else
+constexpr int kShadowSpaceSize = 0;
+#endif
 
 } // namespace jit::codegen

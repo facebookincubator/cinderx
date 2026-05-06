@@ -96,7 +96,20 @@ class NativeGenerator {
 
     int saved_regs_size() const {
 #if defined(CINDER_X86_64)
+#ifdef _WIN32
+      // On Windows, callee-saved XMM registers need 16 bytes each (movaps),
+      // while GP registers need 8 bytes each (push/pop).
+      auto gp_count = (saved_regs & ALL_GP_REGISTERS).count();
+      auto vecd_count = (saved_regs & ALL_VECD_REGISTERS).count();
+      int size = gp_count * kPointerSize + vecd_count * kVecDSize;
+      // Ensure stack alignment for XMM stores.
+      if (vecd_count > 0 && size % kStackAlign != 0) {
+        size += kPointerSize;
+      }
+      return size;
+#else
       return saved_regs.count() * kPointerSize;
+#endif
 #elif defined(CINDER_AARCH64)
       // GP and VecD registers cannot be paired in the same stp/ldp
       // instruction, so each group must be independently rounded up to
