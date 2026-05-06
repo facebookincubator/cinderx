@@ -792,7 +792,7 @@ fun jittestmodule:test {
     v14:Func = LoadCurrentFunc
     LoadFrame
     Snapshot
-    v15:OptNoneType = InitialYield {
+    v15:OptImmortalNoneType = InitialYield {
       FrameState {
         CurInstrOffset 0
       }
@@ -893,7 +893,7 @@ fun jittestmodule:test {
     v14:Func = LoadCurrentFunc
     LoadFrame
     Snapshot
-    v15:OptNoneType = InitialYield {
+    v15:OptImmortalNoneType = InitialYield {
       FrameState {
         CurInstrOffset 2
       }
@@ -994,7 +994,7 @@ fun jittestmodule:test {
     v15:Func = LoadCurrentFunc
     LoadFrame
     Snapshot
-    v16:OptNoneType = InitialYield {
+    v16:OptImmortalNoneType = InitialYield {
       FrameState {
         CurInstrOffset 2
       }

@@ -529,7 +529,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v17:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v18:NoneType = ListExtend v16 v17 {
+    v18:ImmortalNoneType = ListExtend v16 v17 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v12
@@ -619,7 +619,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v17:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v18:NoneType = ListExtend v16 v17 {
+    v18:ImmortalNoneType = ListExtend v16 v17 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v12
@@ -710,7 +710,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v17:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v18:NoneType = ListExtend v16 v17 {
+    v18:ImmortalNoneType = ListExtend v16 v17 {
       FrameState {
         CurInstrOffset 8
         Locals<1> v12

@@ -303,7 +303,7 @@ Type outputType(
     case Opcode::kGetTuple:
       return TTupleExact;
     case Opcode::kInitialYield:
-      return TOptNoneType;
+      return TOptImmortalNoneType;
     case Opcode::kLoadArg: {
       auto& loadarg = static_cast<const LoadArg&>(instr);
       return loadarg.type();
@@ -366,7 +366,7 @@ Type outputType(
     // we should get rid of this extra layer and deal with the int return value
     // directly.
     case Opcode::kListExtend:
-      return TNoneType;
+      return TImmortalNoneType;
 
     case Opcode::kListAppend:
     case Opcode::kMergeSetUnpack:
