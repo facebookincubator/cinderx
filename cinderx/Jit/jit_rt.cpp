@@ -848,7 +848,7 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
 #endif
 
   if (jit::getConfig().frame_mode != jit::FrameMode::kLightweight) {
-    Cix_PyThreadState_PopFrame(tstate, frame);
+    _PyThreadState_PopFrame(tstate, frame);
   }
 
   // JIT frames are stack allocated so there's nothing to pop.
@@ -901,8 +901,8 @@ void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
 
 PyObject*
 JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
-  PyObject* result = Cix_PyDict_LoadGlobal(
-      (PyDictObject*)globals, (PyDictObject*)builtins, name);
+  PyObject* result =
+      _PyDict_LoadGlobal((PyDictObject*)globals, (PyDictObject*)builtins, name);
   if ((result == nullptr) && !PyErr_Occurred()) {
     // name is converted to a `char*` by format_exc_check_arg
     _PyEval_FormatExcCheckArg(

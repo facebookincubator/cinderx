@@ -28,7 +28,7 @@ static void awaitable_dealloc(_PyClassLoader_Awaitable* self) {
 }
 
 static PyObject* awaitable_get_iter(_PyClassLoader_Awaitable* self) {
-  PyObject* iter = Cix_PyCoro_GetAwaitableIter(self->coro);
+  PyObject* iter = _PyCoro_GetAwaitableIter(self->coro);
   if (iter == NULL) {
     return NULL;
   }
@@ -40,7 +40,7 @@ static PyObject* awaitable_get_iter(_PyClassLoader_Awaitable* self) {
 #endif
 
   if (PyCoro_CheckExact(iter)) {
-    PyObject* yf = Cix_PyGen_yf((PyGenObject*)iter);
+    PyObject* yf = _PyGen_yf((PyGenObject*)iter);
     if (yf != NULL) {
       Py_DECREF(yf);
       Py_DECREF(iter);

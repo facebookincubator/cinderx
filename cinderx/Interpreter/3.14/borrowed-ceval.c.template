@@ -73,7 +73,6 @@ int _Py_CheckRecursiveCallPy(PyThreadState* tstate);
 // @Borrow function clear_thread_frame from Python/ceval.c
 // @Borrow function clear_gen_frame from Python/ceval.c
 // @Borrow function _PyEval_FrameClearAndPop from Python/ceval.c
-// @Borrow function _PyEvalFramePushAndInit from Python/ceval.c
 // @Borrow function _PyEvalFramePushAndInit_Ex from Python/ceval.c
 
 // Cinder specific adapted functions

@@ -131,7 +131,7 @@ JITRT_StaticCallFPReturn JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn(
     PyObject* kwnames);
 
 /*
- * Mimics the behavior of Cix_PyDict_LoadGlobal except that it raises an error
+ * Mimics the behavior of _PyDict_LoadGlobal except that it raises an error
  * when the name does not exist.
  */
 PyObject*
