@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 
+import os
 import unittest
 
 import cinderx
@@ -14,12 +15,14 @@ class ImmortalizeTests(unittest.TestCase):
         obj = []
         self.assertFalse(cinderx.is_immortal(obj))
 
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_is_immortal(self) -> None:
         obj = []
         cinderx.immortalize_heap()
         self.assertTrue(cinderx.is_immortal(obj))
 
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_post_immortalize(self) -> None:
         cinderx.immortalize_heap()

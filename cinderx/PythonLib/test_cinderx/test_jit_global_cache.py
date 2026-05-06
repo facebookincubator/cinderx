@@ -5,6 +5,7 @@
 # pyre-unsafe
 
 import builtins
+import os
 import unittest
 from textwrap import dedent
 
@@ -141,6 +142,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
         # pyrefly: ignore [unsupported-operation]
         builtins.__dict__[42] = 42
 
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_unwatch_builtins(self):
         try:

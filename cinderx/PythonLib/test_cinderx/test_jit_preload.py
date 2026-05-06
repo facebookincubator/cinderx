@@ -102,6 +102,9 @@ hello from b_func!
 """
         self.assertEqual(proc.stdout, expected_stdout)
 
+    @unittest.skipIf(
+        sys.platform == "win32", "asyncio is failing to load in subprocess on Windows"
+    )
     def test_preload_error(self) -> None:
         # don't include jit/no-jit in this matrix, decide it based on whether
         # overall test run is jit or no-jit; this avoids the confusion of jit
@@ -146,6 +149,9 @@ hello from b_func!
                 self.assertEqual(proc.returncode, 1, proc.stderr)
                 self.assertIn(b"RuntimeError: boom\n", proc.stderr)
 
+    @unittest.skipIf(
+        sys.platform == "win32", "asyncio is failing to load in subprocess on Windows"
+    )
     def test_error_preloading_inlined(self) -> None:
         root = os.path.join(os.path.dirname(__file__), "data/error_preloading_inlined")
         jitlist = os.path.join(root, "jitlist.txt")
