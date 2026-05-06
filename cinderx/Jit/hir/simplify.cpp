@@ -173,18 +173,21 @@ struct Env {
     block = bb1;
     cursor = bb1->end();
     Register* bb1_reg = do_bb1();
+    // do_bb1() might have created more blocks, use the final one.
+    BasicBlock* bb1_end = block;
     emit<Branch>(tail);
 
     block = bb2;
     cursor = bb2->end();
     Register* bb2_reg = do_bb2();
+    BasicBlock* bb2_end = block;
     emit<Branch>(tail);
 
     block = tail;
     cursor = tail->begin();
     std::unordered_map<BasicBlock*, Register*> phi_srcs{
-        {bb1, bb1_reg},
-        {bb2, bb2_reg},
+        {bb1_end, bb1_reg},
+        {bb2_end, bb2_reg},
     };
     return emit<Phi>(phi_srcs);
   }
