@@ -65,11 +65,11 @@ bool JITList::parseLine(std::string_view line) {
 
   std::string_view name = line.substr(0, atpos);
   std::string_view loc_str = line.substr(atpos + 1);
-  auto cln_pos = loc_str.find(':');
+  auto cln_pos = loc_str.rfind(':');
   if (cln_pos == std::string_view::npos) {
     return false;
   }
-  std::string_view file = line.substr(atpos + 1, cln_pos);
+  std::string_view file = loc_str.substr(0, cln_pos);
   std::string_view file_line = loc_str.substr(cln_pos + 1);
   return addEntryCode(name, file, file_line);
 }
@@ -252,14 +252,24 @@ Ref<> JITList::pathBasename(BorrowedRef<> path) const {
       !getThreadedCompileContext().compileRunning(),
       "unexpected multithreading");
   if (path_sep_ == nullptr) {
-    const wchar_t* sep_str = L"/";
-    auto sep_str_obj = Ref<>::steal(PyUnicode_FromWideChar(&sep_str[0], 1));
-    if (sep_str_obj == nullptr) {
+    path_sep_ = Ref<>::steal(PyUnicode_FromString("/"));
+    if (path_sep_ == nullptr) {
       return nullptr;
     }
-    path_sep_ = std::move(sep_str_obj);
+    backslash_sep_ = Ref<>::steal(PyUnicode_FromString("\\"));
+    if (backslash_sep_ == nullptr) {
+      path_sep_ = nullptr;
+      return nullptr;
+    }
   }
-  auto split_path_obj = Ref<>::steal(PyUnicode_RSplit(path, path_sep_, 1));
+  // Normalize backslashes to forward slashes for Windows paths, then split.
+  auto normalized =
+      Ref<>::steal(PyUnicode_Replace(path, backslash_sep_, path_sep_, -1));
+  if (normalized == nullptr) {
+    return nullptr;
+  }
+  auto split_path_obj =
+      Ref<>::steal(PyUnicode_RSplit(normalized, path_sep_, 1));
   if (split_path_obj == nullptr || !PyList_Check(split_path_obj) ||
       PyList_GET_SIZE(split_path_obj.get()) < 1) {
     return nullptr;

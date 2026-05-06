@@ -65,6 +65,16 @@ TEST_F(JITListTest, LookupFuncCode) {
   ASSERT_EQ(jitlist->lookupCode(code), 0);
 }
 
+TEST_F(JITListTest, ParseLineWithWindowsPath) {
+  auto jitlist = JITList::create();
+  ASSERT_NE(jitlist, nullptr);
+
+  // Windows-style path with drive letter colon — parser must split on the
+  // last colon (before the line number), not the drive letter colon.
+  EXPECT_TRUE(jitlist->parseLine("func@D:/a/cinderx/test.py:42"));
+  EXPECT_TRUE(jitlist->parseLine("func@D:\\a\\cinderx\\test.py:42"));
+}
+
 TEST_F(WildcardJITListTest, ParseLine) {
   auto jitlist = WildcardJITList::create();
   ASSERT_NE(jitlist, nullptr);
