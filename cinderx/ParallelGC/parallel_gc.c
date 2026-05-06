@@ -215,8 +215,8 @@ NEXT_MASK_UNREACHABLE
     move_legacy_finalizers() will remove this flag from "unreachable" set.
 */
 
-#if !defined(ENABLE_INCREMENTAL_GC) && PY_VERSION_HEX >= 0x030E0000 && \
-    PY_VERSION_HEX < 0x030F0000
+#if !defined(ENABLE_INCREMENTAL_GC) && PY_VERSION_HEX >= 0x030E0000
+#define _PyTuple_MaybeUntrack _CiTuple_MaybeUntrack
 void _PyTuple_MaybeUntrack(PyObject* op) {
   PyTupleObject* t;
   Py_ssize_t i, n;
