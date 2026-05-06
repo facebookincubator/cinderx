@@ -1,0 +1,39 @@
+--- Test Suite Name ---
+LeafFunctionTest
+--- Passes ---
+--- Test Name ---
+LeafFunctionSkipsRunPeriodicTasks
+--- Input ---
+def test(x):
+  return x
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    Return v0
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    Return v0
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    Return v0
+  }
+}
+--- End ---

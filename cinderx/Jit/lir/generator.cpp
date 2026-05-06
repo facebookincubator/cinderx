@@ -935,11 +935,18 @@ void LIRGenerator::GenerateExitBlocks() {
         Instruction::kPhi, nullptr, OutVReg{ret_data_type});
 
     // Unlink frame before epilogue. Non-generators always unlink.
+    bool has_freevars = func_->code != nullptr && func_->code->co_nfreevars > 0;
+    bool uses_lw_frames = getConfig().frame_mode == FrameMode::kLightweight;
+    uint64_t helper;
+    if (!env_->can_deopt && uses_lw_frames && !has_freevars) {
+      helper = reinterpret_cast<uint64_t>(JITRT_UnlinkLeafFrame);
+    } else if (!has_freevars && uses_lw_frames) {
+      helper = reinterpret_cast<uint64_t>(JITRT_UnlinkLightweightFrameFast);
+    } else {
+      helper = reinterpret_cast<uint64_t>(JITRT_UnlinkFrame);
+    }
     block->allocateInstr(
-        Instruction::kCall,
-        nullptr,
-        Imm{reinterpret_cast<uint64_t>(JITRT_UnlinkFrame)},
-        VReg{env_->asm_tstate});
+        Instruction::kCall, nullptr, Imm{helper}, VReg{env_->asm_tstate});
 
     block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{exit_phi_});
     return;

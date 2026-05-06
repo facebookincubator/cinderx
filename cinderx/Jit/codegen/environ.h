@@ -170,6 +170,11 @@ struct Environ {
   int win_struct_ret_offset{0};
 #endif
 
+  // True if the function has any DeoptBase instructions in its final HIR.
+  // When false, the interpreter frame can never be materialized, enabling a
+  // cheaper inline frame unlink at exit.
+  bool can_deopt{true};
+
 #if defined(CINDER_AARCH64)
   // Constant pool for large immediate values. translateMovConstPool populates
   // these; gen_asm.cpp emits the pool data after deopt exits.

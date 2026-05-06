@@ -10,76 +10,28 @@ def test(x):
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Object = LoadArg<0; "x">
+    v2:Object = LoadArg<0; "x">
     LoadFrame
-    v6:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v6
-  }
-
-  bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
-      LiveValues<1> b:v4
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v4
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 0, 2) {
-    Incref v4
-    Return v4
+    Incref v2
+    Return v2
   }
 }
 --- Expected 3.14 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Object = LoadArg<0; "x">
+    v2:Object = LoadArg<0; "x">
     LoadFrame
-    v6:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v6
-  }
-
-  bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
-      LiveValues<1> b:v4
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v4
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 0, 2) {
-    Incref v4
-    Return v4
+    Incref v2
+    Return v2
   }
 }
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Object = LoadArg<0; "x">
+    v2:Object = LoadArg<0; "x">
     LoadFrame
-    v6:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v6
-  }
-
-  bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
-      LiveValues<1> b:v4
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v4
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 0, 2) {
-    Incref v4
-    Return v4
+    Incref v2
+    Return v2
   }
 }
 --- Test Name ---
@@ -2272,27 +2224,9 @@ def test(val):
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "val">
     LoadFrame
-    v8:Nullptr = LoadConst<Nullptr>
-    v9:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v9
-  }
-
-  bb 2 (preds 0) {
-    v10:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 unc:v8
-      FrameState {
-        CurInstrOffset 0
-        Locals<2> v6 v8
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 0, 2) {
-    v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return v13
+    v7:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v7
   }
 }
 --- Expected 3.14 ---

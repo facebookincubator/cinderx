@@ -11,23 +11,8 @@ def test():
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v5:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v5
-  }
-
-  bb 2 (preds 0) {
-    v6:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 0, 2) {
-    v7:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return<ImmortalLongExact[1]> v7
+    v3:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return<ImmortalLongExact[1]> v3
   }
 }
 --- Expected 3.14 ---

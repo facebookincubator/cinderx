@@ -727,6 +727,8 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.changed_regs = lsalloc.getChangedRegs();
   env_.exit_label = as_->newLabel();
   env_.frame_mode = GetFunction()->frameMode;
+  env_.can_deopt = GetFunction()->canDeopt();
+
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after register allocation:\n{}",

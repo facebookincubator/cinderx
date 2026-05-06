@@ -13,27 +13,10 @@ def test():
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v7:Nullptr = LoadConst<Nullptr>
+    v5:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v8:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v8
-  }
-
-  bb 2 (preds 0) {
-    Snapshot
-    v9:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-        Locals<1> v7
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 0, 2) {
-    Snapshot
-    v13:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    Return v13
+    v8:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Return v8
   }
 }
 --- Expected 3.14 ---

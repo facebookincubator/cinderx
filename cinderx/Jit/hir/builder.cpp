@@ -515,6 +515,42 @@ BasicBlock* HIRBuilder::getBlockAtOff(BCOffset off) {
   return it->second;
 }
 
+bool HIRBuilder::isSimpleLeafFunction(BorrowedRef<PyCodeObject> code) {
+  if (code->co_flags & kCoFlagsAnyGenerator) {
+    return false;
+  }
+  for (auto& instr : BytecodeInstructionBlock{code}) {
+    switch (instr.opcode()) {
+      case COPY:
+      case LOAD_CONST:
+      case LOAD_FAST:
+      case LOAD_FAST_AND_CLEAR:
+      case LOAD_FAST_BORROW:
+      case LOAD_FAST_BORROW_LOAD_FAST_BORROW:
+      case LOAD_FAST_CHECK:
+      case LOAD_FAST_LOAD_FAST:
+      case NOP:
+      case NOT_TAKEN:
+      case POP_TOP:
+      case PUSH_NULL:
+      case RESUME:
+      case RETURN_CONST:
+      case RETURN_VALUE:
+      case STORE_FAST:
+      case STORE_FAST_LOAD_FAST:
+      case STORE_FAST_STORE_FAST:
+      case SWAP:
+        break;
+      default:
+        return false;
+    }
+    if (instr.isBackwardBranch()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 std::unique_ptr<Function> buildHIR(const Preloader& preloader) {
   return HIRBuilder{preloader}.buildHIR();
 }
@@ -533,6 +569,8 @@ std::unique_ptr<Function> buildHIR(const Preloader& preloader) {
 // with that if we ever want to support compiling them.
 std::unique_ptr<Function> HIRBuilder::buildHIR() {
   checkTranslate();
+
+  is_simple_leaf_function_ = isSimpleLeafFunction(code_);
 
   std::unique_ptr<Function> irfunc = preloader_.makeFunction();
   buildHIRImpl(irfunc.get(), /*frame_state=*/nullptr);
@@ -1090,9 +1128,8 @@ void HIRBuilder::translate(
         }
         case POP_JUMP_IF_FALSE:
         case POP_JUMP_IF_TRUE: {
-          BCOffset target_off = bc_instr.getJumpTarget();
-          BasicBlock* target = getBlockAtOff(target_off);
-          if (target_off <= bc_instr.baseOffset()) {
+          BasicBlock* target = getBlockAtOff(bc_instr.getJumpTarget());
+          if (bc_instr.isBackwardBranch()) {
             loop_headers.emplace(target);
           }
           emitPopJumpIf(tc, bc_instr);
@@ -1100,9 +1137,8 @@ void HIRBuilder::translate(
         }
         case POP_JUMP_IF_NONE:
         case POP_JUMP_IF_NOT_NONE: {
-          BCOffset target_off = bc_instr.getJumpTarget();
-          BasicBlock* target = getBlockAtOff(target_off);
-          if (target_off <= bc_instr.baseOffset()) {
+          BasicBlock* target = getBlockAtOff(bc_instr.getJumpTarget());
+          if (bc_instr.isBackwardBranch()) {
             loop_headers.emplace(target);
           }
           emitPopJumpIfNone(tc, bc_instr);
@@ -1934,6 +1970,9 @@ void HIRBuilder::emitResume(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   if (bc_instr.oparg() >= 2) {
+    return;
+  }
+  if (is_simple_leaf_function_) {
     return;
   }
   TranslationContext succ(cfg.AllocateBlock(), tc.frame);

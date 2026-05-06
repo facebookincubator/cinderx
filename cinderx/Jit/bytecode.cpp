@@ -129,6 +129,10 @@ bool BytecodeInstruction::isBranch() const {
   }
 }
 
+bool BytecodeInstruction::isBackwardBranch() const {
+  return isBranch() && getJumpTarget() <= baseOffset();
+}
+
 bool BytecodeInstruction::isReturn() const {
   switch (opcode()) {
     case RETURN_CONST:

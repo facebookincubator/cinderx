@@ -46,6 +46,7 @@ class BytecodeInstruction {
   // Check if this instruction is a branch, a return, or a general basic block
   // terminator.
   bool isBranch() const;
+  bool isBackwardBranch() const;
   bool isReturn() const;
   bool isTerminator() const;
 

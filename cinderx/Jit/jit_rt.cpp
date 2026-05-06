@@ -854,6 +854,30 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
   // JIT frames are stack allocated so there's nothing to pop.
 }
 
+// Clean up the reifier and decref the executable for a lightweight frame.
+// Shared by JITRT_UnlinkLightweightFrameFast and JITRT_UnlinkLeafFrame.
+static void cleanupLightweightFrameExecutable(
+    _PyInterpreterFrame* frame,
+    [[maybe_unused]] jit::FrameHeader* header) {
+#if PY_VERSION_HEX >= 0x030E0000
+  PyStackRef_CLOSE(frame->f_executable);
+#else
+  // Replace the reifier in f_funcobj with the actual function so that any
+  // escaped references to the frame see a valid function pointer, not a
+  // dangling reifier callback.
+  if (jit::hasRtfsFunction(frame)) {
+    frame->f_funcobj = jit::jitFrameGetRtfs(frame)->func();
+  } else {
+    PyObject* func = jit::jitFrameGetFunction(frame);
+    frame->f_funcobj = func;
+    Py_XDECREF(func);
+    header->rtfs = JIT_FRAME_INITIALIZED;
+  }
+
+  Py_DECREF(frameExecutable(frame));
+#endif
+}
+
 void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
   setCurrentFrame(tstate, frame->previous);
@@ -881,22 +905,19 @@ void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
     Ci_STACK_CLOSE(frame->f_funcobj);
   }
 
-#if PY_VERSION_HEX >= 0x030E0000
-  PyStackRef_CLOSE(frame->f_executable);
-#else
-  // We can't leave our reifier dangling here otherwise we may
-  // continue to get callbacks, instead leave the function dangling.
-  if (jit::hasRtfsFunction(frame)) {
-    frame->f_funcobj = jit::jitFrameGetRtfs(frame)->func();
-  } else {
-    PyObject* func = jit::jitFrameGetFunction(frame);
-    frame->f_funcobj = func;
-    Py_XDECREF(func);
-    header->rtfs = JIT_FRAME_INITIALIZED;
-  }
+  cleanupLightweightFrameExecutable(frame, header);
+}
 
-  Py_DECREF(frameExecutable(frame));
-#endif
+void JITRT_UnlinkLeafFrame(PyThreadState* tstate) {
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  setCurrentFrame(tstate, frame->previous);
+
+  // No deopts means the frame was never materialized — skip the
+  // materialization check and just close funcobj + executable directly.
+  Ci_STACK_CLOSE(frame->f_funcobj);
+
+  auto* header = reinterpret_cast<jit::FrameHeader*>(frame) - 1;
+  cleanupLightweightFrameExecutable(frame, header);
 }
 
 PyObject*

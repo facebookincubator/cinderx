@@ -71,6 +71,11 @@ void JITRT_UnlinkFrame(PyThreadState* tstate);
 // jitFrameClearExceptCode path.
 void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate);
 
+// Specialized version for non-deopting leaf functions with lightweight frames.
+// Since no deopts can occur, the frame is guaranteed to never be materialized,
+// so we skip the materialization check entirely.
+void JITRT_UnlinkLeafFrame(PyThreadState* tstate);
+
 /*
  * Handles a call that includes kw arguments where the target function has
  * *args, **kwargs, or keyword only args.
