@@ -6,8 +6,13 @@
 
 #include <cstddef>
 
-#if defined(__SANITIZE_THREAD__) || \
-    (defined(__has_feature) && __has_feature(thread_sanitizer))
+#if defined(__has_feature)
+#define CINDER_TSAN_HAS_FEATURE(x) __has_feature(x)
+#else
+#define CINDER_TSAN_HAS_FEATURE(x) 0
+#endif
+
+#if defined(__SANITIZE_THREAD__) || CINDER_TSAN_HAS_FEATURE(thread_sanitizer)
 #define CINDER_TSAN_ENABLED 1
 #else
 #define CINDER_TSAN_ENABLED 0
