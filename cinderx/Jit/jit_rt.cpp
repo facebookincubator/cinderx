@@ -366,7 +366,12 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
       (PyObject*)defaulted_args);
 }
 
-JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
+#ifdef _WIN32
+PyObject*
+#else
+JITRT_StaticCallReturn
+#endif
+JITRT_CallWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
@@ -377,7 +382,11 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
     // Fallback to the default _PyFunction_Vectorcall implementation
     // to produce an appropriate exception.
     auto interpVectorcall = getInterpretedVectorcall(func);
+#ifdef _WIN32
+    return interpVectorcall((PyObject*)func, args, nargsf, nullptr);
+#else
     return {interpVectorcall((PyObject*)func, args, nargsf, nullptr), nullptr};
+#endif
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
@@ -387,7 +396,11 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
   if (nargs + defcount < argcount || nargs > argcount) {
     // Not enough args with defaults, or too many args without defaults.
     auto interpVectorcall = getInterpretedVectorcall(func);
+#ifdef _WIN32
+    return interpVectorcall((PyObject*)func, args, nargsf, nullptr);
+#else
     return {interpVectorcall((PyObject*)func, args, nargsf, nullptr), nullptr};
+#endif
   }
 
   Py_ssize_t i;
@@ -403,6 +416,10 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
 
   size_t new_nargsf = argcount;
 
+#ifdef _WIN32
+  return JITRT_GET_REENTRY(func->vectorcall)(
+      (PyObject*)func, arg_space.get(), new_nargsf, (PyObject*)defaulted_args);
+#else
   return reinterpret_cast<staticvectorcallfunc>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
@@ -411,6 +428,7 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
       (PyObject*)defaulted_args);
+#endif
 }
 
 bool JITRT_PackStaticArgs(

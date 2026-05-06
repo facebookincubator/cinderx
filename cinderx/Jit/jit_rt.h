@@ -96,7 +96,15 @@ PyObject* JITRT_CallWithKeywordArgsSimple(
     size_t nargsf,
     PyObject* kwnames);
 
-JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
+// On Windows x64, returning JITRT_StaticCallReturn (16 bytes) would use a
+// hidden first parameter for the return pointer, shifting all visible
+// arguments. Return PyObject* instead to keep register assignments correct.
+#ifdef _WIN32
+PyObject*
+#else
+JITRT_StaticCallReturn
+#endif
+JITRT_CallWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,

@@ -767,6 +767,7 @@ void GeneratePrimitiveArgsPrologueBlock(
   auto helper = returns_primitive_double
       ? reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignatureFP)
       : reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignature);
+
   block->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
 
   // The helper either handled the call (result in return register) and we
@@ -2503,7 +2504,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               PyUnicode_AsUTF8(code->co_filename),
               PyUnicode_AsUTF8(code->co_name));
         }
-        bbb.appendCallInstruction(
+        appendCall2RetValues(
+            bbb,
             instr->output(),
             LoadTypeMethodCache::lookupHelper,
             cache_entry,
