@@ -5,17 +5,22 @@
 Static Python is still under development, and there are a lot of rough
 edges, including probably bugs that can crash the interpreter.
 
-Getting full benefit from Static Python (with cross-module compilation)
-requires a module loader able to detect Static Python modules based on
-some marker (we use the presence of `import __static__`) and compile
-them using the Static Python bytecode compiler. Such a loader is
-included (at
-`compiler.strict.loader.StrictSourceFileLoader`) and you can
-install it by calling `compiler.strict.loader.install()` in
-the `main` module of your program (before anything else is imported.)
-Note this means the main module itself cannot be Static Python. You can
-also just set the `PYTHONINSTALLSTRICTLOADER` environment variable to a
-nonzero value, and the loader will be installed for you.
+The simplest way to run a Static Python script is:
+
+    python -m __static__ script.py
+
+This installs the Static Python loader and executes your script. Both
+the entry script and any modules it imports that use `import __static__`
+will be compiled through the Static Python pipeline.
+
+### Manual loader installation
+
+For more control, you can install the loader yourself by calling
+`cinderx.compiler.strict.loader.install()` in the `main` module of
+your program (before anything else is imported.) Note this means the
+main module itself cannot be Static Python. You can also just set the
+`PYTHONINSTALLSTRICTLOADER` environment variable to a nonzero value,
+and the loader will be installed for you.
 
 Once you've installed the loader, any module with `import __static__`
 as its first line of code (barring optional docstring and optional
@@ -24,6 +29,8 @@ use `import __strict__` if you just want Strict Module semantics --
 immutable modules that can\'t have side effects at import time --
 without Static Python. `import __static__` also implies Strict, so you
 should never use both.)
+
+### Compiling individual files
 
 It is also possible to try out Static Python on simple examples by
 running `./python -m compiler --static somemod.py`. This will compile
