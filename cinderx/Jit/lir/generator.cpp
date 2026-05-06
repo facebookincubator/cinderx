@@ -2327,8 +2327,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto hir_instr = static_cast<const InitialYield*>(&i);
 
         // Unlink the generator frame and get the gen object back.
-        Instruction* gen_obj = bbb.appendCallInstruction(
-            OutVReg{},
+        Instruction* gen_obj;
+        Instruction* footer;
+        appendCall2RetValues(
+            bbb,
+            gen_obj,
+            footer,
             JITRT_UnlinkGenFrameAndReturnGenDataFooter,
             env_->asm_tstate);
 
@@ -2520,7 +2524,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadTypeMethodCacheEntryValue*>(&i);
         LoadTypeMethodCache* cache =
             load_type_method_caches_.at(instr->cache_id());
-        bbb.appendCallInstruction(
+        appendCall2RetValues(
+            bbb,
             instr->output(),
             LoadTypeMethodCache::getValueHelper,
             cache,
@@ -2532,7 +2537,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
-        bbb.appendCallInstruction(dst, JITRT_GetMethod, base, name);
+        appendCall2RetValues(bbb, dst, JITRT_GetMethod, base, name);
         break;
       }
       case Opcode::kLoadMethodCached: {
@@ -2550,8 +2555,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               PyUnicode_AsUTF8(code->co_filename),
               PyUnicode_AsUTF8(code->co_name));
         }
-        bbb.appendCallInstruction(
-            dst, LoadMethodCache::lookupHelper, cache, base, name);
+        appendCall2RetValues(
+            bbb, dst, LoadMethodCache::lookupHelper, cache, base, name);
         break;
       }
       case Opcode::kLoadModuleAttrCached: {
@@ -2576,7 +2581,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadModuleMethodCached*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache_entry = getContext()->allocateLoadModuleMethodCache();
-        bbb.appendCallInstruction(
+        appendCall2RetValues(
+            bbb,
             instr->output(),
             LoadModuleMethodCache::lookupHelper,
             cache_entry,
@@ -2592,7 +2598,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kLoadMethodSuper: {
         auto instr = static_cast<const LoadMethodSuper*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        bbb.appendCallInstruction(
+        appendCall2RetValues(
+            bbb,
             instr->output(),
             JITRT_GetMethodFromSuper,
             instr->global_super(),
@@ -4464,11 +4471,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.handleStopAsyncIteration()
                 ? JITRT_GenSendHandleStopAsyncIteration
                 : JITRT_GenSend);
-        // Note: asm_interpreter_frame isn't right for inlined functions, but we
-        // never inline generators so this is fine for now.
-        bbb.appendInstr(
+        appendCall2RetValues(
+            bbb,
             hir_instr.output(),
-            Instruction::kCall,
             Imm{func},
             hir_instr.GetOperand(0),
             hir_instr.GetOperand(1),
@@ -4503,7 +4508,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kLoadSpecial: {
         auto& load_special = static_cast<const LoadSpecial&>(i);
-        bbb.appendCallInstruction(
+        appendCall2RetValues(
+            bbb,
             load_special.output(),
             JITRT_LoadSpecial,
             load_special.GetOperand(0),
@@ -4720,22 +4726,22 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         OutVReg{}, Instruction::kLea, AsmLbl{env_->gen_resume_entry_label});
     // spill_words is read from CodeRuntime by the runtime function,
     // so we don't need to pass it explicitly.
-    env_->asm_tstate = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kCall,
-        Imm{reinterpret_cast<uint64_t>(
-            JITRT_AllocateAndLinkGenAndInterpreterFrame)},
+    Instruction* footer;
+    appendCall2RetValues(
+        bbb,
+        env_->asm_tstate,
+        footer,
+        JITRT_AllocateAndLinkGenAndInterpreterFrame,
         env_->asm_func,
         Imm{reinterpret_cast<uint64_t>(env_->code_rt)},
         VReg{resume_label},
         PhyReg{codegen::arch::reg_frame_pointer_loc});
-    // GenDataFooter* is returned in auxiliary return register. Swap RBP
-    // to point at the generator data so spills go there.
+    // Swap RBP to point at the generator data so spills go there.
     bbb.annotateNext("Set frame pointer to GenDataFooter");
     bbb.appendInstr(
         OutPhyReg{codegen::arch::reg_frame_pointer_loc},
         Instruction::kMove,
-        PhyReg{codegen::arch::reg_general_auxilary_return_loc});
+        VReg{footer});
 #if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Now that FP points at the heap-allocated GenDataFooter, compute the
     // deopt_idx address.  This must happen after the FP swap above —

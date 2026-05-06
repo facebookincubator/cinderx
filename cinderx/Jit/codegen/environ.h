@@ -162,6 +162,14 @@ struct Environ {
 
   bool has_inlined_functions{false};
 
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // Offset from RBP to a 16-byte buffer used for receiving struct return
+  // values from C++ helper functions via the Windows x64 hidden-pointer ABI.
+  // Computed before LIR generation and reserved in the register allocator's
+  // frame so it doesn't conflict with spill slots.
+  int win_struct_ret_offset{0};
+#endif
+
 #if defined(CINDER_AARCH64)
   // Constant pool for large immediate values. translateMovConstPool populates
   // these; gen_asm.cpp emits the pool data after deopt exits.
