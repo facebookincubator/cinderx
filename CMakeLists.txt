@@ -1,14 +1,5 @@
 # (c) Meta Platforms, Inc. and affiliates.
 
-message("=====================================================================")
-message("=                            WARNING                                =")
-message("=====================================================================")
-message("=                                                                   =")
-message("= This CMake build is not well supported, and is primarily used for =")
-message("= experimentation.  Do not expect this to work on your machine.     =")
-message("=====================================================================")
-message("")
-
 cmake_minimum_required(VERSION 3.12)
 project(_cinderx)
 
