@@ -653,8 +653,6 @@ PyObject* Cix_cr_getsuspended(PyObject* self, void* ignored) {
     return cr_getsuspended(self, ignored);
 }
 
-// @Borrow function _PyTuple_MaybeUntrack from Objects/tupleobject.c [3.14]
-
 // @Borrow typedef _PyListArray from Objects/listobject.c [3.14]
 // @Borrow function valid_index from Objects/listobject.c [3.14]
 // @Borrow function list_capacity from Objects/listobject.c [3.14]

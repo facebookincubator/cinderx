@@ -39,9 +39,9 @@
 #define _PyInstrumentation_DISABLE (*Cix_monitoring_disable)
 
 #define _PyInstruction_GetLength _CiInstruction_GetLength
-#define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
 
 #if PY_VERSION_HEX < 0x030F0000
+#define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
 #define _PyErr_SetObject _CiErr_SetObject
 #define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
 #define _PyObject_HasLen _CiPyObject_HasLen

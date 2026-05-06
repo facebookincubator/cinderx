@@ -134,6 +134,12 @@ void setModuleState(BorrowedRef<> mod) {
       reinterpret_cast<PyObject*>(&PyList_Type);
   Ci_common_consts[CONSTANT_BUILTIN_SET] =
       reinterpret_cast<PyObject*>(&PySet_Type);
+  Ci_common_consts[CONSTANT_NONE] = Py_GetConstantBorrowed(Py_CONSTANT_NONE);
+  Ci_common_consts[CONSTANT_EMPTY_STR] =
+      Py_GetConstantBorrowed(Py_CONSTANT_EMPTY_STR);
+  Ci_common_consts[CONSTANT_TRUE] = Py_GetConstantBorrowed(Py_CONSTANT_TRUE);
+  Ci_common_consts[CONSTANT_FALSE] = Py_GetConstantBorrowed(Py_CONSTANT_FALSE);
+  Ci_common_consts[CONSTANT_MINUS_ONE] = PyLong_FromLong(-1);
 #endif
 #endif
 }

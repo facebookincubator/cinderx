@@ -215,6 +215,27 @@ NEXT_MASK_UNREACHABLE
     move_legacy_finalizers() will remove this flag from "unreachable" set.
 */
 
+#if !defined(ENABLE_INCREMENTAL_GC) && PY_VERSION_HEX >= 0x030E0000 && \
+    PY_VERSION_HEX < 0x030F0000
+void _PyTuple_MaybeUntrack(PyObject* op) {
+  PyTupleObject* t;
+  Py_ssize_t i, n;
+
+  if (!PyTuple_CheckExact(op) || !_PyObject_GC_IS_TRACKED(op))
+    return;
+  t = (PyTupleObject*)op;
+  n = Py_SIZE(t);
+  for (i = 0; i < n; i++) {
+    PyObject* elt = PyTuple_GET_ITEM(t, i);
+    /* Tuple with NULL elements aren't
+       fully constructed, don't untrack
+       them yet. */
+    if (!elt || _PyObject_GC_MAY_BE_TRACKED(elt))
+      return;
+  }
+  _PyObject_GC_UNTRACK(op);
+}
+#endif
 /*** list functions ***/
 
 static inline void gc_list_init(PyGC_Head* list) {

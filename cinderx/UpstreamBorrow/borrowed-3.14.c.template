@@ -668,5 +668,3 @@ PyObject* Cix_cr_getrunning(PyObject* self, void* ignored) {
 PyObject* Cix_cr_getsuspended(PyObject* self, void* ignored) {
     return cr_getsuspended(self, ignored);
 }
-
-// @Borrow function _PyTuple_MaybeUntrack from Objects/tupleobject.c [3.14]

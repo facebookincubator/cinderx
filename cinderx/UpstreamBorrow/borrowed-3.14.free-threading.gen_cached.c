@@ -8426,28 +8426,6 @@ PyObject* Cix_cr_getsuspended(PyObject* self, void* ignored) {
     return cr_getsuspended(self, ignored);
 }
 
-void
-_PyTuple_MaybeUntrack(PyObject *op)
-{
-    PyTupleObject *t;
-    Py_ssize_t i, n;
-
-    if (!PyTuple_CheckExact(op) || !_PyObject_GC_IS_TRACKED(op))
-        return;
-    t = (PyTupleObject *) op;
-    n = Py_SIZE(t);
-    for (i = 0; i < n; i++) {
-        PyObject *elt = PyTuple_GET_ITEM(t, i);
-        /* Tuple with NULL elements aren't
-           fully constructed, don't untrack
-           them yet. */
-        if (!elt ||
-            _PyObject_GC_MAY_BE_TRACKED(elt))
-            return;
-    }
-    _PyObject_GC_UNTRACK(op);
-}
-
 typedef struct {
     Py_ssize_t allocated;
     PyObject *ob_item[];
