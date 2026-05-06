@@ -4,12 +4,8 @@
 from _cinderx import StaticTypeError
 from _static import (
     __build_cinder_class__,
-    _clear_dlopen_cache,
-    _clear_dlsym_cache,
     _property_missing_fget,
     _property_missing_fset,
-    _sizeof_dlopen_cache,
-    _sizeof_dlsym_cache,
     chkdict,
     chklist,
     FAST_LEN_ARRAY,
@@ -24,7 +20,6 @@ from _static import (
     is_static_callable,
     is_static_module,
     is_type_static,
-    lookup_native_symbol,
     make_context_decorator_wrapper,
     make_recreate_cm,
     PRIM_OP_ADD_DBL,
@@ -104,3 +99,16 @@ from _static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
+
+try:
+    # Not available on Windows
+    from _static import (
+        _clear_dlopen_cache,
+        _clear_dlsym_cache,
+        _sizeof_dlopen_cache,
+        _sizeof_dlsym_cache,
+        lookup_native_symbol,
+    )
+
+except ImportError:
+    pass

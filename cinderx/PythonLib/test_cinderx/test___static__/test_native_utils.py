@@ -4,18 +4,25 @@ from __future__ import annotations
 from __static__.native_utils import invoke_native
 
 import _ctypes
+import sys
 import unittest
 from typing import final
 
-from cinderx.static import (
-    _clear_dlopen_cache,
-    _clear_dlsym_cache,
-    _sizeof_dlopen_cache,
-    _sizeof_dlsym_cache,
-    lookup_native_symbol,
-)
+from cinderx.test_support import passIf
+
+try:
+    from cinderx.static import (
+        _clear_dlopen_cache,
+        _clear_dlsym_cache,
+        _sizeof_dlopen_cache,
+        _sizeof_dlsym_cache,
+        lookup_native_symbol,
+    )
+except ImportError:
+    pass
 
 
+@passIf(sys.platform == "win32", "not supported on Windows")
 @final
 class TestNativeInvoke(unittest.TestCase):
     def test_native_invoke(self) -> None:
