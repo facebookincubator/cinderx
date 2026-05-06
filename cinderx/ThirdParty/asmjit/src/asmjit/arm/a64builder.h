@@ -47,6 +47,13 @@ public:
   ASMJIT_API Error finalize() override;
 
   //! \}
+
+  //! \name Branch Relaxation
+  //! \{
+
+  ASMJIT_API Error relaxBranches();
+
+  //! \}
 };
 
 //! \}

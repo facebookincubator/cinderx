@@ -673,11 +673,8 @@ ASMJIT_API Error CodeHolder::resolveUnresolvedLinks() noexcept {
           if (!localOF) {
             ASMJIT_ASSERT(size_t(linkOffset) < buf.size());
             ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= link->format.valueSize());
-            ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= 8); // AArch64 branch relaxation
 
-            // AArch64 branch relaxation for cross-section links: same logic
-            // as in bindLabel() for same-section links. The 8-byte region
-            // contains the original conditional branch + NOP placeholder.
+            // AArch64 conditional branch: patched in place.
             if (link->format.type() == OffsetType::kAArch64_TestBranch ||
                 link->format.type() == OffsetType::kAArch64_CompBranch ||
                 link->format.type() == OffsetType::kAArch64_CondBranch) {
@@ -685,26 +682,15 @@ ASMJIT_API Error CodeHolder::resolveUnresolvedLinks() noexcept {
               uint32_t origOpcode = Support::readU32uLE(instPtr);
               uint32_t immBitCount = link->format.immBitCount();
               uint32_t immMask = Support::lsbMask<uint32_t>(immBitCount);
-              uint32_t inversionMask = link->format.type() == OffsetType::kAArch64_CondBranch
-                ? 1u : (1u << 24);
 
               int64_t dispImm = displacement >> 2;
               if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
                 uint32_t dispBits = (uint32_t(dispImm) & immMask) << 5;
                 Support::writeU32uLE(instPtr, origOpcode | dispBits);
               } else {
-                uint32_t invertedOpcode = origOpcode ^ inversionMask;
-                invertedOpcode |= (2u << 5);
-                Support::writeU32uLE(instPtr, invertedOpcode);
-
-                int64_t bDisp = (displacement - 4) >> 2;
-                if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26)) {
-                  err = DebugUtils::errored(kErrorInvalidDisplacement);
-                  link.next();
-                  continue;
-                }
-                uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
-                Support::writeU32uLE(instPtr + 4, bOpcode);
+                err = DebugUtils::errored(kErrorInvalidDisplacement);
+                link.next();
+                continue;
               }
 
               link.resolveAndNext(this);
@@ -777,9 +763,9 @@ ASMJIT_API Error CodeHolder::bindLabel(const Label& label, uint32_t toSectionId,
       // Size of the value we are going to patch. Only BYTE/DWORD is allowed.
       ASMJIT_ASSERT(buf.size() - size_t(linkOffset) >= link->format.regionSize());
 
-      // AArch64 branch relaxation: 8-byte region with conditional + unconditional branch.
-      // tbz/tbnz and cbz/cbnz use bit 24 to invert the condition; b.cond uses bit 0.
-      // All encode the offset in bits [N:5] with different bit counts (14 or 19).
+      // AArch64 conditional branch: 4-byte instruction patched in place.
+      // The Builder's relaxBranches() pass guarantees all conditional
+      // branches are in range, so out-of-range is an error.
       if (link->format.type() == OffsetType::kAArch64_TestBranch ||
           link->format.type() == OffsetType::kAArch64_CompBranch ||
           link->format.type() == OffsetType::kAArch64_CondBranch) {
@@ -787,31 +773,15 @@ ASMJIT_API Error CodeHolder::bindLabel(const Label& label, uint32_t toSectionId,
         uint32_t origOpcode = Support::readU32uLE(instPtr);
         uint32_t immBitCount = link->format.immBitCount();
         uint32_t immMask = Support::lsbMask<uint32_t>(immBitCount);
-        // b.cond inverts via bit 0; tbz/tbnz and cbz/cbnz invert via bit 24.
-        uint32_t inversionMask = link->format.type() == OffsetType::kAArch64_CondBranch
-          ? 1u : (1u << 24);
 
         int64_t dispImm = displacement >> 2;
         if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
-          // Fits in the original instruction - patch the first word, leave NOP.
           uint32_t dispBits = (uint32_t(dispImm) & immMask) << 5;
           Support::writeU32uLE(instPtr, origOpcode | dispBits);
-          // Second word stays as NOP.
         } else {
-          // Doesn't fit - emit inverted condition branch +8, then unconditional b target.
-          uint32_t invertedOpcode = origOpcode ^ inversionMask;
-          invertedOpcode |= (2u << 5); // imm = +2 words = +8 bytes
-          Support::writeU32uLE(instPtr, invertedOpcode);
-
-          // b target: displacement from the b instruction at linkOffset + 4.
-          int64_t bDisp = (displacement - 4) >> 2;
-          if ((displacement & 3) != 0 || !Support::isEncodableOffset64(bDisp, 26)) {
-            err = DebugUtils::errored(kErrorInvalidDisplacement);
-            link.next();
-            continue;
-          }
-          uint32_t bOpcode = 0x14000000u | (uint32_t(bDisp) & 0x03FFFFFFu);
-          Support::writeU32uLE(instPtr + 4, bOpcode);
+          err = DebugUtils::errored(kErrorInvalidDisplacement);
+          link.next();
+          continue;
         }
 
         link.resolveAndNext(this);

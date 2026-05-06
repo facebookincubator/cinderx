@@ -711,21 +711,25 @@ static inline bool checkValidRegs(const Operand_& o0, const Operand_& o1, const 
               (unsigned(o3.id() < 31) | unsigned(o3.id() == commonHiRegIdOfType[o3.as<Reg>().type()])));
 }
 
-// Emit a conditional branch with relaxation support.
+// b.cond inverts via bit 0; cbz/cbnz and tbz/tbnz invert via bit 24.
+static uint32_t condBranchInversionMask(OffsetType type) noexcept {
+  return type == OffsetType::kAArch64_CondBranch ? 1u : (1u << 24);
+}
+
+// Emit a conditional branch.
 //
 // Handles both backward references (where displacement is known) and forward
-// references (where we emit a placeholder). For backward references that fit
-// in `immBitCount` bits, emits a single 4-byte instruction. Otherwise, emits
-// an 8-byte relaxed sequence: inverted-condition +8, then unconditional b.
-// For forward references, always emits 8 bytes (opcode + NOP placeholder)
-// and creates a label link for later resolution.
-//
-// `inversionMask` controls how to flip the condition: bit 0 for b.cond,
-// bit 24 for tbz/tbnz and cbz/cbnz.
-static Error emitCondBranchRelax(
+// references (where we emit a 4-byte placeholder). For backward references
+// that fit in `immBitCount` bits, emits a single 4-byte instruction.
+// For backward references that don't fit, emits an 8-byte relaxed sequence:
+// inverted-condition +8, then unconditional b.
+// For forward references, emits 4 bytes (opcode without offset) and creates
+// a label link for later resolution. The Builder's relaxBranches() pass
+// guarantees forward references are in range.
+static Error emitCondBranch(
     CodeHolder* code, Section* section, CodeWriter& writer, uint8_t* bufferData,
     Opcode opcode, const Label& label, uint32_t immBitCount,
-    uint32_t inversionMask, OffsetType offsetType) {
+    OffsetType offsetType) {
 
   LabelEntry* labelEntry = code->labelEntry(label.id());
   if (ASMJIT_UNLIKELY(!labelEntry))
@@ -734,21 +738,17 @@ static Error emitCondBranchRelax(
   size_t codeOffset = writer.offsetFrom(bufferData);
 
   if (labelEntry->isBoundTo(section)) {
-    // Backward reference - we know the displacement.
     int64_t displacement = int64_t(labelEntry->offset() - uint64_t(codeOffset));
     int64_t dispImm = displacement >> 2;
 
     if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, immBitCount)) {
-      // Fits - emit normally (4 bytes).
       uint32_t dispImm32 = uint32_t(dispImm) & Support::lsbMask<uint32_t>(immBitCount);
       opcode.addImm(dispImm32, 5);
       writer.emit32uLE(opcode.get());
     } else {
-      // Doesn't fit - emit relaxed sequence (8 bytes):
-      //   inverted-condition +8  (skip over b)
-      //   b target
-      uint32_t invertedOpcode = opcode.get() ^ inversionMask;
-      invertedOpcode |= (2u << 5); // imm = +2 words = +8 bytes
+      // Doesn't fit — emit inverted branch skipping over an unconditional b.
+      uint32_t invertedOpcode = opcode.get() ^ condBranchInversionMask(offsetType);
+      invertedOpcode |= (2u << 5); // imm = +2 words = skip the following b
       writer.emit32uLE(invertedOpcode);
 
       int64_t bDisp = (displacement - 4) >> 2;
@@ -759,17 +759,14 @@ static Error emitCondBranchRelax(
       writer.emit32uLE(bOpcode);
     }
   } else {
-    // Forward reference - emit 8 bytes placeholder, create label link.
     OffsetFormat fmt;
     fmt.resetToImmValue(offsetType, 4, 5, immBitCount, 2);
-    fmt.setRegion(8, 0);
 
     LabelLink* link = code->newLabelLink(labelEntry, section->id(), codeOffset, 0, fmt);
     if (ASMJIT_UNLIKELY(!link))
       return DebugUtils::errored(kErrorOutOfMemory);
 
-    writer.emit32uLE(opcode.get());   // opcode without offset
-    writer.emit32uLE(0xD503201Fu);    // NOP placeholder
+    writer.emit32uLE(opcode.get());
   }
 
   return kErrorOk;
@@ -1244,10 +1241,8 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           size_t codeOffset = writer.offsetFrom(_bufferData);
 
           if (label->isBoundTo(_section)) {
-            // Backward reference - check if adr fits.
             int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
             if (Support::isEncodableOffset64(displacement, 21)) {
-              // Fits in adr - emit normally (4 bytes).
               uint32_t immLo = uint32_t(displacement) & 3u;
               uint32_t immHi = (uint32_t(displacement) >> 2) & 0x7FFFFu;
               opcode.addImm(immLo, 29);
@@ -1271,8 +1266,6 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
             re->_payload = label->offset();
             re->_targetSectionId = label->section()->id();
           } else {
-            // Create a LabelLink with the relocId so bindLabel updates the
-            // reloc entry with the label's offset.
             OffsetFormat fmt{};
             LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
             if (ASMJIT_UNLIKELY(!link))
@@ -1280,7 +1273,6 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
             link->relocId = re->id();
           }
 
-          // Emit adr Rd, #0 (self-referencing, encodes Rd) + NOP placeholder.
           writer.emit32uLE(opcode.get());
           writer.emit32uLE(0xD503201Fu); // NOP
           goto EmitDone;
@@ -2322,11 +2314,9 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           opcode |= B(30);
           opcode.addImm(condCodeToOpcodeCond(uint32_t(instCC)), 0);
 
-          // For label operands, handle b.cond relaxation: emit 8 bytes so we
-          // can relax to `b.inv_cond +8; b target` if 19-bit displacement doesn't fit.
           if (isign4 == ENC_OPS1(Label)) {
-            err = emitCondBranchRelax(_code, _section, writer, _bufferData,
-                opcode, o0.as<Label>(), 19, 1u, OffsetType::kAArch64_CondBranch);
+            err = emitCondBranch(_code, _section, writer, _bufferData,
+                opcode, o0.as<Label>(), 19, OffsetType::kAArch64_CondBranch);
             if (err)
               goto Failed;
             goto EmitDone;
@@ -2359,11 +2349,9 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         opcode.addImm(x, 31);
         opcode.addReg(o0, 0);
 
-        // For label operands, handle cbz/cbnz relaxation: emit 8 bytes so we
-        // can relax to `inverted-branch +8; b target` if 19-bit displacement doesn't fit.
         if (isign4 == ENC_OPS2(Reg, Label)) {
-          err = emitCondBranchRelax(_code, _section, writer, _bufferData,
-              opcode, o1.as<Label>(), 19, 1u << 24, OffsetType::kAArch64_CompBranch);
+          err = emitCondBranch(_code, _section, writer, _bufferData,
+              opcode, o1.as<Label>(), 19, OffsetType::kAArch64_CompBranch);
           if (err)
             goto Failed;
           goto EmitDone;
@@ -2402,11 +2390,9 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         opcode.addReg(o0, 0);
         opcode.addImm(imm, 19);
 
-        // For label operands, handle tbz/tbnz relaxation: emit 8 bytes so we
-        // can relax to `inverted-branch +8; b target` if 14-bit displacement doesn't fit.
         if (isign4 == ENC_OPS3(Reg, Imm, Label)) {
-          err = emitCondBranchRelax(_code, _section, writer, _bufferData,
-              opcode, o2.as<Label>(), 14, 1u << 24, OffsetType::kAArch64_TestBranch);
+          err = emitCondBranch(_code, _section, writer, _bufferData,
+              opcode, o2.as<Label>(), 14, OffsetType::kAArch64_TestBranch);
           if (err)
             goto Failed;
           goto EmitDone;
@@ -2609,11 +2595,9 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
             size_t codeOffset = writer.offsetFrom(_bufferData);
 
             if (label->isBoundTo(_section)) {
-              // Backward reference - check if ldr literal fits.
               int64_t displacement = int64_t(label->offset() - uint64_t(codeOffset));
               int64_t dispImm = displacement >> 2;
               if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 19)) {
-                // Fits in ldr literal - emit normally (4 bytes).
                 uint32_t dispImm19 = uint32_t(dispImm) & 0x7FFFFu;
                 opcode.addImm(dispImm19, 5);
                 writer.emit32uLE(opcode.get());
@@ -2635,8 +2619,6 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
               re->_payload = label->offset();
               re->_targetSectionId = label->section()->id();
             } else {
-              // Create a LabelLink with the relocId so bindLabel updates the
-              // reloc entry with the label's offset.
               OffsetFormat fmt{};
               LabelLink* link = _code->newLabelLink(label, _section->id(), codeOffset, 0, fmt);
               if (ASMJIT_UNLIKELY(!link))
@@ -2644,7 +2626,6 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
               link->relocId = re->id();
             }
 
-            // Emit ldr Xd, #0 (self-referencing, encodes Rd and size) + NOP placeholder.
             writer.emit32uLE(opcode.get());
             writer.emit32uLE(0xD503201Fu); // NOP
             goto EmitDone;

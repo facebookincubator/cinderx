@@ -361,36 +361,20 @@ enum class OffsetType : uint8_t {
   //! in a 32-bit word.
   kAArch32_1To24At0_0At24,
 
-  //! AArch64 test-and-branch (tbz/tbnz) relaxation format.
-  //!
-  //! Emits 8 bytes (two 32-bit words). During label binding, the displacement is checked:
-  //!   - If it fits in 14-bit signed offset: `tbz/tbnz target; nop`
-  //!   - If it doesn't fit: `tbnz/tbz +8; b target` (inverted condition, unconditional branch)
+  //! AArch64 test-and-branch (tbz/tbnz) format: 4-byte instruction with 14-bit signed offset at [18:5].
+  //! The Builder's relaxBranches() pass expands out-of-range branches before serialization.
   kAArch64_TestBranch,
 
-  //! AArch64 compare-and-branch (cbz/cbnz) relaxation format.
-  //!
-  //! Emits 8 bytes (two 32-bit words). During label binding, the displacement is checked:
-  //!   - If it fits in 19-bit signed offset: `cbz/cbnz target; nop`
-  //!   - If it doesn't fit: `cbnz/cbz +8; b target` (inverted condition, unconditional branch)
+  //! AArch64 compare-and-branch (cbz/cbnz) format: 4-byte instruction with 19-bit signed offset at [23:5].
+  //! The Builder's relaxBranches() pass expands out-of-range branches before serialization.
   kAArch64_CompBranch,
 
-  //! AArch64 conditional branch (b.cond) relaxation format.
-  //!
-  //! Emits 8 bytes (two 32-bit words). During label binding, the displacement is checked:
-  //!   - If it fits in 19-bit signed offset: `b.cond target; nop`
-  //!   - If it doesn't fit: `b.inv_cond +8; b target` (inverted condition, unconditional branch)
+  //! AArch64 conditional branch (b.cond) format: 4-byte instruction with 19-bit signed offset at [23:5].
+  //! The Builder's relaxBranches() pass expands out-of-range branches before serialization.
   kAArch64_CondBranch,
 
-  //! AArch64 ADR relaxation format (used via RelocEntry, not OffsetFormat).
-  //!
-  //! At relocation time, the displacement is checked:
-  //!   - If it fits in 21-bit signed offset: `adr Rd, target; nop`
-  //!   - If it doesn't fit: `adrp Rd, target_page; add Rd, Rd, #page_offset`
-  kAArch64_Adr,
-
   //! Maximum value of `OffsetFormatType`.
-  kMaxValue = kAArch64_Adr
+  kMaxValue = kAArch64_CondBranch
 };
 
 //! Provides information about formatting offsets, absolute addresses, or their parts. Offset format is used by both
