@@ -150,4 +150,24 @@ BB %6
   EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
 }
 
+#if defined(CINDER_AARCH64)
+TEST_F(LIRPostGenerationRewriteTest, MoveAbsoluteAddressUsesObjectDataType) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %10:Object = Move [0x12345]
+  Return %10
+)";
+
+  const char* expected_lir_str = R"(Function:
+BB %0
+      %12:Object = Move 74565(0x12345):Object
+      %10:Object = Move [%12:Object]:Object
+                   Return %10:Object
+
+)";
+
+  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str);
+}
+#endif
+
 } // namespace jit::lir

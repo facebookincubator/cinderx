@@ -697,8 +697,8 @@ RewriteResult rewriteMoveAbsoluteAddress(instr_iter_t instr_iter) {
   auto addr_move = block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutVReg{DataType::k64bit},
-      Imm{addr, DataType::k64bit});
+      OutVReg{DataType::kObject},
+      Imm{addr, DataType::kObject});
 
   // Replace the Mem input with Ind{addr_vreg, offset=0}. For a simple
   // Ind with no index and offset 0, ptrIndirect resolves to ptr(base)
