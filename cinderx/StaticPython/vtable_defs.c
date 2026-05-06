@@ -232,17 +232,25 @@ static _PyClassLoader_StaticCallReturn return_to_native_typecode(
 }
 
 // Number of native arguments passed via registers (excluding the state arg).
-// On x86-64: rsi, rdx, rcx, r8, r9 = 5 register args.
+// On x86-64 SysV: rsi, rdx, rcx, r8, r9 = 5 register args.
+// On x86-64 Windows: rdx, r8, r9 = 3 register args.
 // On ARM64: x1-x7 = 7 register args.
 #if defined(__aarch64__) || defined(_M_ARM64)
 #define NATIVE_REG_ARG_COUNT 7
 // The stack arg pointer points directly to the first stack arg.
 #define NATIVE_STACK_ARG_OFFSET 0
 #elif defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+#ifdef _WIN32
+#define NATIVE_REG_ARG_COUNT 3
+// The stack arg pointer points to the saved frame pointer, so we skip
+// the frame pointer, return address, and 4 shadow space slots.
+#define NATIVE_STACK_ARG_OFFSET 6
+#else
 #define NATIVE_REG_ARG_COUNT 5
 // The stack arg pointer points to the saved frame pointer, so we skip
 // the frame pointer and the return address to reach the first stack arg.
 #define NATIVE_STACK_ARG_OFFSET 2
+#endif
 #endif
 
 int _PyClassLoader_HydrateArgsFromSig(
@@ -672,6 +680,47 @@ StaticMethodInfo _PyVTable_load_generic(PyObject* state, PyObject* self) {
 }
 
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+#ifdef _WIN32
+__attribute__((naked))
+PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
+  __asm__(
+      "push %rbp\n"
+      "mov %rsp, %rbp\n"
+      /* Allocate 16 bytes for the struct return buffer. Windows x64 */
+      /* returns structs >8 bytes via a hidden first pointer argument. */
+      "sub $16, %rsp\n"
+      /* Save the frame pointer for overflow arg access */
+      "push %rbp\n"
+      /* Push the Windows x64 register args (RDX, R8, R9) onto the */
+      /* stack so we can recover them in hydrate_args.  RCX holds the */
+      /* state argument which we pass through separately. */
+      "push %r9\n"
+      "push %r8\n"
+      "push %rdx\n"
+      /* Set up call to _PyVTable_thunk_native(thunk, args): */
+      /* RCX = &return_buffer (hidden struct return pointer) */
+      /* RDX = thunk/state (was in RCX on entry) */
+      /* R8  = args array pointer */
+      "mov %rcx, %rax\n"
+      "lea -16(%rbp), %rcx\n"
+      "mov %rax, %rdx\n"
+      "mov %rsp, %r8\n"
+      /* Allocate shadow space for the call */
+      "sub $32, %rsp\n"
+      "call _PyVTable_thunk_native\n"
+      /* Restore the struct return values into RAX/RDX to match the */
+      /* JIT's native calling convention (RAX:RDX pair like SysV) */
+      "mov -16(%rbp), %rax\n"
+      "mov -8(%rbp), %rdx\n"
+      /* We don't know if we're returning a floating point value or not */
+      /* so we assume we are, and always populate the xmm registers */
+      /* even if we don't need to */
+      "movq %rax, %xmm0\n"
+      "movq %rdx, %xmm1\n"
+      "leave\n"
+      "ret\n");
+}
+#else
 __attribute__((naked))
 PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
   __asm__(
@@ -699,6 +748,7 @@ PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
       "leave\n"
       "ret\n");
 }
+#endif
 #elif defined(__aarch64__) || defined(_M_ARM64)
 __attribute__((naked))
 PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
