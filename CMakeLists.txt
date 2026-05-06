@@ -42,7 +42,7 @@ if (WINDOWS)
   set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE")
   set(CXX_FLAGS "")
 else()
-  set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -fvisibility=hidden -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
+  set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -fvisibility=hidden -Wall -Wextra -Wno-attributes -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type -Wno-cast-function-type-mismatch -Wno-comment -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-parentheses -Wno-sign-compare -Wno-unknown-pragmas -Wno-unused-function -Wno-unused-parameter")
   set(CXX_FLAGS "-fvisibility-inlines-hidden")
 endif()
 
