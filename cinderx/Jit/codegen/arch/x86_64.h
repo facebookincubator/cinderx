@@ -291,6 +291,16 @@ class PhyRegisterSet {
   }
 };
 
+template <size_t N>
+constexpr PhyRegisterSet makePhyRegisterSet(
+    const std::array<PhyLocation, N>& regs) {
+  PhyRegisterSet set;
+  for (PhyLocation reg : regs) {
+    set.Set(reg);
+  }
+  return set;
+}
+
 #define ADD_REG(v, ...) | PhyLocation::v
 constexpr PhyRegisterSet ALL_GP_REGISTERS =
     PhyRegisterSet() FOREACH_GP(ADD_REG);
@@ -309,8 +319,11 @@ constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
     R8 | R9 | R10 | R11 | PhyRegisterSet(XMM0) | XMM1 | XMM2 | XMM3 | XMM4 |
     XMM5;
 #else
-constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
-    RSI | RDI | R8 | R9 | R10 | R11 | ALL_VECD_REGISTERS;
+constexpr auto CALLER_SAVE_GP_REGS =
+    std::to_array({RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11});
+
+constexpr PhyRegisterSet CALLER_SAVE_REGS =
+    makePhyRegisterSet(CALLER_SAVE_GP_REGS) | ALL_VECD_REGISTERS;
 #endif
 
 constexpr PhyRegisterSet CALLEE_SAVE_REGS = INIT_REGISTERS - CALLER_SAVE_REGS;

@@ -7,6 +7,7 @@
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
+#include "cinderx/Jit/codegen/tsan.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/instruction.h"
@@ -865,6 +866,135 @@ BB %8 - preds: %0
   std::string ret = func();
   ASSERT_EQ(ret, "hello1");
 }
+
+#if CINDER_JIT_TSAN_ENABLED
+
+TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
+  // Pseudo-code:
+  //   lhs = 1
+  //   rhs = 1
+  //   cmp(1, 1)
+  //   loaded = *src    // TSAN read instrumentation
+  //   dst_addr = &dst
+  //   *dst_addr = loaded    // TSAN write instrumentation
+  //   return zero_flag_is_set ? loaded : 0
+  //
+  // kMove has FlagEffects::kNone, so TSAN instrumentation must preserve the
+  // flags from cmp until BranchZ.
+  constexpr uint64_t expected = 0x1122334455667788ULL;
+  uint64_t src = expected;
+  uint64_t dst = 0;
+
+  auto lirfunc = std::make_unique<Function>();
+  auto bb0 = lirfunc->allocateBasicBlock();
+  auto bb_taken = lirfunc->allocateBasicBlock();
+  auto bb_not_taken = lirfunc->allocateBasicBlock();
+  auto epilogue = lirfunc->allocateBasicBlock();
+
+  auto lhs = bb0->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm{1});
+  auto rhs = bb0->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm{1});
+  bb0->allocateInstr(Instruction::kCmp, nullptr, VReg(lhs), VReg(rhs));
+
+  auto loaded = bb0->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutVReg(OperandBase::k64bit),
+      MemImm{&src, OperandBase::k64bit});
+  bb0->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{R10},
+      Imm{reinterpret_cast<uint64_t>(&dst)});
+  bb0->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutInd{R10, 0, OperandBase::k64bit},
+      VReg{loaded});
+  bb0->allocateInstr(Instruction::kBranchZ, nullptr, Lbl{bb_taken});
+  bb0->addSuccessor(bb_taken);
+  bb0->addSuccessor(bb_not_taken);
+
+  bb_taken->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg{loaded});
+  bb_taken->allocateInstr(Instruction::kReturn, nullptr);
+  bb_taken->addSuccessor(epilogue);
+
+  bb_not_taken->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      Imm{0});
+  bb_not_taken->allocateInstr(Instruction::kReturn, nullptr);
+  bb_not_taken->addSuccessor(epilogue);
+
+  auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
+  EXPECT_EQ(expected, func());
+  EXPECT_EQ(expected, dst);
+}
+
+TEST_F(BackendTest, TsanMoveRelaxedUsesAtomicAccesses) {
+  // Pseudo-code:
+  //   value = 0
+  //   rdi = expected
+  //   atomic_relaxed_store(&value, rdi)
+  //   byte = atomic_relaxed_load(&byte_src)
+  //   atomic_relaxed_store((uint8_t*)&byte_dst, byte)
+  //   return atomic_relaxed_load(&value)
+  //
+  // kMoveRelaxed TSAN helpers replace the memory access, so the original mov
+  // must not run a second load/store.
+  constexpr uint64_t expected = 0x8877665544332211ULL;
+  uint64_t value = 0;
+  uint8_t byte_src = 0x07;
+  uint16_t byte_dst = 0xAA00;
+
+  auto lirfunc = std::make_unique<Function>();
+  auto bb0 = lirfunc->allocateBasicBlock();
+  auto epilogue = lirfunc->allocateBasicBlock();
+
+  // RDI is also TSAN's address argument; the store must still use its value.
+  bb0->allocateInstr(
+      Instruction::kMove, nullptr, OutPhyReg{RDI}, Imm{expected});
+  bb0->allocateInstr(
+      Instruction::kMoveRelaxed,
+      nullptr,
+      OutMemImm{&value, OperandBase::k64bit},
+      PhyReg{RDI});
+
+  auto byte = bb0->allocateInstr(
+      Instruction::kMoveRelaxed,
+      nullptr,
+      OutVReg(OperandBase::k8bit),
+      MemImm{&byte_src, OperandBase::k8bit});
+  bb0->allocateInstr(
+      Instruction::kMoveRelaxed,
+      nullptr,
+      OutMemImm{&byte_dst, OperandBase::k8bit},
+      VReg(byte));
+
+  auto word = bb0->allocateInstr(
+      Instruction::kMoveRelaxed,
+      nullptr,
+      OutVReg(OperandBase::k64bit),
+      MemImm{&value, OperandBase::k64bit});
+  bb0->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg{word});
+  bb0->allocateInstr(Instruction::kReturn, nullptr);
+  bb0->addSuccessor(epilogue);
+
+  auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
+  EXPECT_EQ(func(), expected);
+  EXPECT_EQ(value, expected);
+  EXPECT_EQ(byte_dst, 0xAA00 | 0x0007);
+}
+
+#endif // CINDER_JIT_TSAN_ENABLED
 
 TEST_F(BackendTest, SplitBasicBlockTest) {
   auto lirfunc = std::make_unique<Function>();

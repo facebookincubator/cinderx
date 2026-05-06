@@ -8,6 +8,7 @@
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
+#include "cinderx/Jit/codegen/tsan.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -96,6 +97,12 @@ int getOperandSize(const Instruction* instr, const OperandBase* operand) {
   }
 }
 
+int getOperandSizeInBytes(
+    const Instruction* instr,
+    const OperandBase* operand) {
+  return getOperandSize(instr, operand) / 8;
+}
+
 // Returns the appropriately-sized Gp register for a given operand, respecting
 // the instruction's OperandSizeType property.
 arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
@@ -133,7 +140,7 @@ arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
 // with size set according to the instruction's OperandSizeType property.
 arch::Mem getMem(const Instruction* instr, const OperandBase* operand) {
 #if defined(CINDER_X86_64)
-  int size = getOperandSize(instr, operand) / 8;
+  int size = getOperandSizeInBytes(instr, operand);
   asmjit::x86::Mem memptr;
   if (operand->isStack()) {
     memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
@@ -2278,11 +2285,26 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       auto* input = instr->getInput(0);
 
       if (output->isReg()) {
-        env->as->mov(getReg(instr, output), getMem(instr, input));
+        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        if (!kCinderJitTsanEnabled ||
+            !tryEmitTsanRelaxedAtomicRead(
+                *env, output, input, access_size_in_bytes)) {
+          env->as->mov(getReg(instr, output), getMem(instr, input));
+        }
       } else if (input->isReg()) {
-        env->as->mov(getMem(instr, output), getReg(instr, input));
+        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        if (!kCinderJitTsanEnabled ||
+            !tryEmitTsanRelaxedAtomicWrite(
+                *env, output, input, access_size_in_bytes)) {
+          env->as->mov(getMem(instr, output), getReg(instr, input));
+        }
       } else {
-        env->as->mov(getMem(instr, output), getImm(input));
+        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        if (!kCinderJitTsanEnabled ||
+            !tryEmitTsanRelaxedAtomicWrite(
+                *env, output, input, access_size_in_bytes)) {
+          env->as->mov(getMem(instr, output), getImm(input));
+        }
       }
       return;
     }
@@ -2774,6 +2796,10 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         } else if (input->isReg()) {
           env->as->movq(getVecD(output), getReg(instr, input));
         } else {
+          if constexpr (kCinderJitTsanEnabled) {
+            int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+            emitTsanRead(*env, input, access_size_in_bytes);
+          }
           env->as->movsd(getVecD(output), getMem(instr, input));
         }
       } else if (output->isReg()) {
@@ -2784,9 +2810,17 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         } else if (input->isImm()) {
           env->as->mov(getReg(instr, output), getImm(input));
         } else {
+          if constexpr (kCinderJitTsanEnabled) {
+            int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+            emitTsanRead(*env, input, access_size_in_bytes);
+          }
           env->as->mov(getReg(instr, output), getMem(instr, input));
         }
       } else {
+        if constexpr (kCinderJitTsanEnabled) {
+          int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+          emitTsanWrite(*env, output, access_size_in_bytes);
+        }
         if (input->isReg() && input->isVecD()) {
           env->as->movsd(getMem(instr, output), getVecD(input));
         } else if (input->isReg()) {
