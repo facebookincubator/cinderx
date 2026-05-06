@@ -386,7 +386,15 @@ class BuildExt(build_ext):
 
         build_type = os.environ.get("CMAKE_BUILD_TYPE", "RelWithDebInfo")
         verbose_makefile = os.environ.get("CMAKE_VERBOSE_MAKEFILE", "OFF")
-        cmake_args = [
+
+        cmake_generator = os.environ.get("CMAKE_GENERATOR")
+        if not cmake_generator and shutil.which("ninja"):
+            cmake_generator = "Ninja"
+
+        cmake_args = []
+        if cmake_generator:
+            cmake_args += ["-G", cmake_generator]
+        cmake_args += [
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={ext_dir}",
             f"-DCMAKE_C_COMPILER={cc}",
