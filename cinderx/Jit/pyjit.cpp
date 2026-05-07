@@ -726,6 +726,17 @@ FlagProcessor initFlagProcessor() {
     getMutableConfig().hir_opts.inliner = false;
   }
 
+  // If the inliner is off and the user hasn't explicitly set the preload
+  // dependent limit, set it to zero.  Nothing is going to be inlined so there's
+  // no need to aggressively preload.
+  //
+  // This will reduce the chance that Static Python functions can natively call
+  // each other though.
+  if (!getConfig().hir_opts.inliner
+      && !flag_processor.hasHandled("jit-preload-dependent-limit")) {
+    getMutableConfig().preload_dependent_limit = 0;
+  }
+
   return flag_processor;
 }
 
