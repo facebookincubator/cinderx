@@ -2421,13 +2421,14 @@ def test(x, y):
       CurInstrOffset 4
       Locals<2> v0 v1
     }
-    v5 = MakeList<2> v0 v1 {
+    v5 = MakeList<2> {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
     }
+    InitListElements<2> v5 v0 v1
     Snapshot {
       CurInstrOffset 8
       Locals<2> v0 v1
@@ -2471,13 +2472,14 @@ def test(x, y):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = MakeList<2> v0 v1 {
+    v5 = MakeList<2> {
       FrameState {
         CurInstrOffset 4
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
     }
+    InitListElements<2> v5 v0 v1
     Snapshot {
       CurInstrOffset 6
       Locals<2> v0 v1
@@ -2521,13 +2523,14 @@ def test(x, y):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = MakeList<2> v0 v1 {
+    v5 = MakeList<2> {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
     }
+    InitListElements<2> v5 v0 v1
     Snapshot {
       CurInstrOffset 8
       Locals<2> v0 v1
@@ -2582,13 +2585,14 @@ def test(x, y):
       CurInstrOffset 4
       Locals<2> v0 v1
     }
-    v5 = MakeTuple<2> v0 v1 {
+    v5 = MakeTuple<2> {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
     }
+    InitTupleElements<2> v5 v0 v1
     Snapshot {
       CurInstrOffset 8
       Locals<2> v0 v1
@@ -2632,13 +2636,14 @@ def test(x, y):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = MakeTuple<2> v0 v1 {
+    v5 = MakeTuple<2> {
       FrameState {
         CurInstrOffset 4
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
     }
+    InitTupleElements<2> v5 v0 v1
     Snapshot {
       CurInstrOffset 6
       Locals<2> v0 v1
@@ -2682,13 +2687,14 @@ def test(x, y):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = MakeTuple<2> v0 v1 {
+    v5 = MakeTuple<2> {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
     }
+    InitTupleElements<2> v5 v0 v1
     Snapshot {
       CurInstrOffset 8
       Locals<2> v0 v1
@@ -2744,13 +2750,14 @@ def test(x):
       CurInstrOffset 4
       Locals<2> v0 v1
     }
-    v5 = MakeTuple<1> v0 {
+    v5 = MakeTuple<1> {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
         Stack<1> v0
       }
     }
+    InitTupleElements<1> v5 v0
     Snapshot {
       CurInstrOffset 8
       Locals<2> v0 v1
@@ -2814,13 +2821,14 @@ def test(x):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = MakeTuple<1> v0 {
+    v5 = MakeTuple<1> {
       FrameState {
         CurInstrOffset 4
         Locals<2> v0 v1
         Stack<1> v0
       }
     }
+    InitTupleElements<1> v5 v0
     Snapshot {
       CurInstrOffset 6
       Locals<2> v0 v1
@@ -2884,13 +2892,14 @@ def test(x):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = MakeTuple<1> v0 {
+    v5 = MakeTuple<1> {
       FrameState {
         CurInstrOffset 4
         Locals<2> v0 v1
         Stack<1> v0
       }
     }
+    InitTupleElements<1> v5 v0
     Snapshot {
       CurInstrOffset 6
       Locals<2> v0 v1

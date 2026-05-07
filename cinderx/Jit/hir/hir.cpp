@@ -484,6 +484,8 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadSpecial:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:
+    case Opcode::kInitListElements:
+    case Opcode::kInitTupleElements:
     case Opcode::kMakeCell:
     case Opcode::kMakeCheckedDict:
     case Opcode::kMakeCheckedList:
@@ -837,6 +839,8 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kHintType:
     case Opcode::kIncref:
     case Opcode::kInitFrameCellVars:
+    case Opcode::kInitListElements:
+    case Opcode::kInitTupleElements:
     case Opcode::kRaise:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:

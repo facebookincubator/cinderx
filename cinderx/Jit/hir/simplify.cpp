@@ -651,9 +651,16 @@ Register* simplifyLoadArrayItem(Env& env, const LoadArrayItem* instr) {
   if (src->instr()->IsMakeTuple()) {
     size_t length = static_cast<const MakeTuple*>(src->instr())->nvalues();
     if (idx < length) {
-      env.emit<UseType>(src, TTupleExact);
-      env.emit<UseType>(instr->idx(), instr->idx()->type());
-      return src->instr()->GetOperand(idx);
+      // Find the InitTupleElements that fills this tuple.
+      auto* block = src->instr()->block();
+      for (auto it = block->iterator_to(*src->instr()); it != block->end();
+           ++it) {
+        if (it->IsInitTupleElements() && it->GetOperand(0) == src) {
+          env.emit<UseType>(src, TTupleExact);
+          env.emit<UseType>(instr->idx(), instr->idx()->type());
+          return it->GetOperand(idx + 1);
+        }
+      }
     }
   }
   if (src->type().hasValueSpec(TTupleExact)) {

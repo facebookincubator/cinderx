@@ -1271,6 +1271,46 @@ void translateVariadicPush(Environ* env, const Instruction* instr) {
 #endif
 }
 
+// Store a pair of GP register values at consecutive pointer-sized slots.
+// Input 0: immediate offset. Input 1: base register.
+// Inputs 2, 3: values stored at [base+offset] and [base+offset+8].
+void translateStorePair(Environ* env, const Instruction* instr) {
+  arch::Builder* as = env->as;
+  JIT_DCHECK(
+      instr->getNumInputs() == 4,
+      "StorePair expects exactly 4 inputs (offset, base, val0, val1)");
+  int32_t offset = static_cast<int32_t>(instr->getInput(0)->getConstant());
+
+#if defined(CINDER_X86_64)
+  auto base = x86::gpq(instr->getInput(1)->getPhyRegister().loc);
+  as->mov(
+      x86::qword_ptr(base, offset),
+      x86::gpq(instr->getInput(2)->getPhyRegister().loc));
+  as->mov(
+      x86::qword_ptr(base, offset + kPointerSize),
+      x86::gpq(instr->getInput(3)->getPhyRegister().loc));
+#elif defined(CINDER_AARCH64)
+  auto base = a64::x(instr->getInput(1)->getPhyRegister().loc);
+  // stp signed offset range is -512..504. Fall back to two str instructions
+  // when the offset is out of range.
+  if (Support::isInt7(offset >> 3)) {
+    as->stp(
+        a64::x(instr->getInput(2)->getPhyRegister().loc),
+        a64::x(instr->getInput(3)->getPhyRegister().loc),
+        a64::ptr(base, offset));
+  } else {
+    as->str(
+        a64::x(instr->getInput(2)->getPhyRegister().loc),
+        a64::ptr(base, offset));
+    as->str(
+        a64::x(instr->getInput(3)->getPhyRegister().loc),
+        a64::ptr(base, offset + kPointerSize));
+  }
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 // Tear down the frame. On x86, this executes 'leave' (mov rsp, rbp; pop rbp).
 // On aarch64, this restores sp from fp and pops the frame record (fp + lr).
 //
@@ -2837,6 +2877,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kVariadicPush:
       translateVariadicPush(env, instr);
       return;
+    case Instruction::kStorePair:
+      translateStorePair(env, instr);
+      return;
     case Instruction::kLeave:
       translateLeave(env);
       return;
@@ -3121,6 +3164,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kVariadicPush:
       translateVariadicPush(env, instr);
+      return;
+    case Instruction::kStorePair:
+      translateStorePair(env, instr);
       return;
     case Instruction::kLeave:
       translateLeave(env);

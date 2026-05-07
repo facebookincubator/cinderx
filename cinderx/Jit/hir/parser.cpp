@@ -296,24 +296,35 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       expect("<");
       int nvalues = GetNextInteger();
       expect(">");
-      std::vector<Register*> args(nvalues);
-      std::generate(
-          args.begin(),
-          args.end(),
-          std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-      instruction = newInstr<MakeList>(nvalues, dst, args);
+      instruction = newInstr<MakeList>(dst, static_cast<size_t>(nvalues));
       break;
     }
     case Opcode::kMakeTuple: {
       expect("<");
       int nvalues = GetNextInteger();
       expect(">");
-      std::vector<Register*> args(nvalues);
+      instruction = newInstr<MakeTuple>(dst, static_cast<size_t>(nvalues));
+      break;
+    }
+    case Opcode::kInitListElements:
+    case Opcode::kInitTupleElements: {
+      expect("<");
+      int nvalues = GetNextInteger();
+      expect(">");
+      int total = nvalues + 1;
+      std::vector<Register*> args(total);
       std::generate(
           args.begin(),
           args.end(),
           std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-      instruction = newInstr<MakeTuple>(nvalues, dst, args);
+      if (*result == Opcode::kInitListElements) {
+        instruction = InitListElements::create(total);
+      } else {
+        instruction = InitTupleElements::create(total);
+      }
+      for (int i = 0; i < total; i++) {
+        instruction->SetOperand(i, args[i]);
+      }
       break;
     }
     case Opcode::kMakeSet: {

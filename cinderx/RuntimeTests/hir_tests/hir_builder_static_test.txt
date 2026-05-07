@@ -2076,21 +2076,23 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: int'
     }
     Snapshot
-    v8 = MakeTuple<2> v6 v7 {
+    v8 = MakeTuple<2> {
       FrameState {
         CurInstrOffset 16
         Locals<2> v0 v1
         Stack<2> v6 v7
       }
     }
+    InitTupleElements<2> v8 v6 v7
     Snapshot
-    v9 = MakeTuple<1> v0 {
+    v9 = MakeTuple<1> {
       FrameState {
         CurInstrOffset 20
         Locals<2> v0 v1
         Stack<2> v8 v0
       }
     }
+    InitTupleElements<1> v9 v0
     Snapshot
     v10 = LoadConst<MortalCode["inner"]>
     v12 = LoadConst<Nullptr>
@@ -2165,13 +2167,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v9 = MakeTuple<1> v0 {
+    v9 = MakeTuple<1> {
       FrameState {
         CurInstrOffset 10
         Locals<2> v0 v1
         Stack<2> v7 v0
       }
     }
+    InitTupleElements<1> v9 v0
     Snapshot
     v10 = LoadConst<MortalCode["inner"]>
     v12 = LoadConst<Nullptr>
@@ -2248,13 +2251,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v9 = MakeTuple<1> v0 {
+    v9 = MakeTuple<1> {
       FrameState {
         CurInstrOffset 12
         Locals<2> v0 v1
         Stack<2> v7 v0
       }
     }
+    InitTupleElements<1> v9 v0
     Snapshot
     v10 = LoadConst<MortalCode["inner"]>
     v12 = LoadConst<Nullptr>

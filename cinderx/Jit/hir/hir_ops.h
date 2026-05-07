@@ -73,6 +73,8 @@ namespace jit::hir {
   V(ImportFrom)                    \
   V(ImportName)                    \
   V(InitFrameCellVars)             \
+  V(InitListElements)              \
+  V(InitTupleElements)             \
   V(InPlaceOp)                     \
   V(Incref)                        \
   V(IndexUnbox)                    \

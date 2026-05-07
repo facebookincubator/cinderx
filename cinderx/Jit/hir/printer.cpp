@@ -588,6 +588,14 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& load = static_cast<const LoadGlobal&>(instr);
       return format_name(func, load, load.name_idx());
     }
+    case Opcode::kInitListElements: {
+      const auto& init = static_cast<const InitListElements&>(instr);
+      return fmt::format("{}", init.nvalues());
+    }
+    case Opcode::kInitTupleElements: {
+      const auto& init = static_cast<const InitTupleElements&>(instr);
+      return fmt::format("{}", init.nvalues());
+    }
     case Opcode::kMakeList: {
       const auto& make = static_cast<const MakeList&>(instr);
       return fmt::format("{}", make.nvalues());

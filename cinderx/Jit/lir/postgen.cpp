@@ -1009,6 +1009,7 @@ RewriteResult rewriteMovConstPool(function_rewrite_arg_t func) {
 
   return changed ? kChanged : kUnchanged;
 }
+
 #endif
 
 } // namespace

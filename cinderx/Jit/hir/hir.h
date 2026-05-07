@@ -2878,55 +2878,61 @@ class INSTR_CLASS(LoadArg, (), HasOutput, Operands<0>) {
   Type type_;
 };
 
-// Allocate and fill a list object with the given operands
-class INSTR_CLASS(MakeList, (TObject), HasOutput, Operands<>, DeoptBase) {
+// Allocate an empty list object
+class INSTR_CLASS(MakeList, (TObject), HasOutput, Operands<0>, DeoptBase) {
  public:
-  MakeList(Register* dst, const FrameState& frame) : InstrT(dst, frame) {}
+  MakeList(Register* dst, size_t nvalues, const FrameState& frame)
+      : InstrT(dst, frame), nvalues_(nvalues) {}
 
-  MakeList(
-      Register* dst,
-      const std::vector<Register*>& args,
-      const FrameState& frame)
-      : InstrT(dst, frame) {
-    JIT_CHECK(
-        NumOperands() == args.size(),
-        "Cannot add {} args to instr with {} operands",
-        args.size(),
-        NumOperands());
-    size_t i = 0;
-    for (Register* arg : args) {
-      SetOperand(i++, arg);
-    }
+  size_t nvalues() const {
+    return nvalues_;
+  }
+
+ private:
+  size_t nvalues_;
+};
+
+// Allocate an empty tuple object
+class INSTR_CLASS(MakeTuple, (TObject), HasOutput, Operands<0>, DeoptBase) {
+ public:
+  MakeTuple(Register* dst, size_t nvalues, const FrameState& frame)
+      : InstrT(dst, frame), nvalues_(nvalues) {}
+
+  size_t nvalues() const {
+    return nvalues_;
+  }
+
+ private:
+  size_t nvalues_;
+};
+
+// Fill an already-allocated list's ob_item array.
+// Operand 0 is the list; operands 1..N are the values to store.
+class INSTR_CLASS(InitListElements, (TObject), Operands<>) {
+ public:
+  InitListElements() : InstrT() {}
+
+  Register* list() const {
+    return GetOperand(0);
   }
 
   size_t nvalues() const {
-    return NumOperands();
+    return NumOperands() - 1;
   }
 };
 
-// Allocate and fill a tuple object with the given operands
-class INSTR_CLASS(MakeTuple, (TObject), HasOutput, Operands<>, DeoptBase) {
+// Fill an already-allocated tuple's ob_item array.
+// Operand 0 is the tuple; operands 1..N are the values to store.
+class INSTR_CLASS(InitTupleElements, (TObject), Operands<>) {
  public:
-  MakeTuple(Register* dst, const FrameState& frame) : InstrT(dst, frame) {}
+  InitTupleElements() : InstrT() {}
 
-  MakeTuple(
-      Register* dst,
-      const std::vector<Register*>& args,
-      const FrameState& frame)
-      : InstrT(dst, frame) {
-    JIT_CHECK(
-        NumOperands() == args.size(),
-        "Cannot add {} args to instr with {} operands",
-        args.size(),
-        NumOperands());
-    size_t i = 0;
-    for (Register* arg : args) {
-      SetOperand(i++, arg);
-    }
+  Register* tuple() const {
+    return GetOperand(0);
   }
 
   size_t nvalues() const {
-    return NumOperands();
+    return NumOperands() - 1;
   }
 };
 
@@ -3140,14 +3146,18 @@ class INSTR_CLASS(
     MakeCheckedList,
     (TObject),
     HasOutput,
-    Operands<>,
+    Operands<0>,
     DeoptBase) {
  public:
-  MakeCheckedList(Register* dst, Type list_type, const FrameState& frame)
-      : InstrT(dst, frame), type_(list_type) {}
+  MakeCheckedList(
+      Register* dst,
+      size_t nvalues,
+      Type list_type,
+      const FrameState& frame)
+      : InstrT(dst, frame), nvalues_(nvalues), type_(list_type) {}
 
   size_t nvalues() const {
-    return NumOperands();
+    return nvalues_;
   }
 
   Type type() const {
@@ -3155,6 +3165,7 @@ class INSTR_CLASS(
   }
 
  private:
+  size_t nvalues_;
   Type type_;
 };
 

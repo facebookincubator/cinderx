@@ -949,7 +949,7 @@ TEST_F(HIRTypeTest, ReflowSimpleTypes) {
 
   b1->append<Branch>(b3);
 
-  b2->append<MakeList>(0, v1, FrameState{});
+  b2->append<MakeList>(v1, static_cast<size_t>(0), FrameState{});
   b2->append<Branch>(b3);
 
   std::unordered_map<BasicBlock*, Register*> phi_inputs{{b1, v0}, {b2, v1}};
@@ -974,7 +974,7 @@ TEST_F(HIRTypeTest, ReflowLoopTypes) {
   auto v1 = func.env.AllocateRegister();
   auto v2 = func.env.AllocateRegister();
 
-  b0->append<MakeTuple>(0, v0, FrameState{});
+  b0->append<MakeTuple>(v0, static_cast<size_t>(0), FrameState{});
   b0->append<Branch>(b1);
 
   std::unordered_map<BasicBlock*, Register*> phi_inputs{{b0, v0}, {b1, v2}};

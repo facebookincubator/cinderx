@@ -2002,7 +2002,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v10:MortalTupleExact = MakeTuple<3> v5 v5 v5 {
+    v10:MortalTupleExact = MakeTuple<3> {
       LiveValues<1> b:v5
       FrameState {
         CurInstrOffset 8
@@ -2010,6 +2010,10 @@ fun jittestmodule:test {
         Stack<3> v5 v5 v5
       }
     }
+    Incref v5
+    Incref v5
+    Incref v5
+    InitTupleElements<3> v10 v5 v5 v5
     Return v10
   }
 }
@@ -2034,7 +2038,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v10:MortalTupleExact = MakeTuple<3> v5 v5 v5 {
+    v10:MortalTupleExact = MakeTuple<3> {
       LiveValues<1> b:v5
       FrameState {
         CurInstrOffset 6
@@ -2042,6 +2046,10 @@ fun jittestmodule:test {
         Stack<3> v5 v5 v5
       }
     }
+    Incref v5
+    Incref v5
+    Incref v5
+    InitTupleElements<3> v10 v5 v5 v5
     Return v10
   }
 }
@@ -2066,7 +2074,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v10:MortalTupleExact = MakeTuple<3> v5 v5 v5 {
+    v10:MortalTupleExact = MakeTuple<3> {
       LiveValues<1> b:v5
       FrameState {
         CurInstrOffset 8
@@ -2074,6 +2082,10 @@ fun jittestmodule:test {
         Stack<3> v5 v5 v5
       }
     }
+    Incref v5
+    Incref v5
+    Incref v5
+    InitTupleElements<3> v10 v5 v5 v5
     Return v10
   }
 }
@@ -2346,7 +2358,7 @@ fun jittestmodule:test {
     XDecref v26
     Decref v27
     Decref v33
-    v28:MortalTupleExact = MakeTuple<1> v17 {
+    v28:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
         CurInstrOffset 38
@@ -2354,6 +2366,8 @@ fun jittestmodule:test {
         Stack<1> v17
       }
     }
+    Incref v17
+    InitTupleElements<1> v28 v17
     v29:MortalCode["g"] = LoadConst<MortalCode["g"]>
     v30:Nullptr = LoadConst<Nullptr>
     v31:MortalFunc = MakeFunction v29 v30 {
@@ -2426,7 +2440,7 @@ fun jittestmodule:test {
     XDecref v26
     Decref v27
     Decref v33
-    v28:MortalTupleExact = MakeTuple<1> v17 {
+    v28:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
         CurInstrOffset 38
@@ -2434,6 +2448,8 @@ fun jittestmodule:test {
         Stack<1> v17
       }
     }
+    Incref v17
+    InitTupleElements<1> v28 v17
     v29:MortalCode["g"] = LoadConst<MortalCode["g"]>
     v30:Nullptr = LoadConst<Nullptr>
     v31:MortalFunc = MakeFunction v29 v30 {
@@ -2506,7 +2522,7 @@ fun jittestmodule:test {
     XDecref v26
     Decref v27
     Decref v33
-    v28:MortalTupleExact = MakeTuple<1> v17 {
+    v28:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
         CurInstrOffset 40
@@ -2514,6 +2530,8 @@ fun jittestmodule:test {
         Stack<1> v17
       }
     }
+    Incref v17
+    InitTupleElements<1> v28 v17
     v29:MortalCode["g"] = LoadConst<MortalCode["g"]>
     v30:Nullptr = LoadConst<Nullptr>
     v31:MortalFunc = MakeFunction v29 v30 {
@@ -3318,13 +3336,14 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0; "a">
     v7:Object = LoadArg<1; "b">
     v8:Nullptr = LoadConst<Nullptr>
-    v11:ListExact = MakeList<2> v6 v7 {
+    v11:ListExact = MakeList<2> {
       FrameState {
         CurInstrOffset 6
         Locals<3> v6 v7 v8
         Stack<2> v6 v7
       }
     }
+    InitListElements<2> v11 v6 v7
     v14:NoneType = LoadConst<NoneType>
     Return v14
   }
@@ -3335,9 +3354,7 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0>
     v7:Object = LoadArg<1>
     v8:Nullptr = LoadConst<Nullptr>
-    Incref v6
-    Incref v7
-    v11:MortalListExact = MakeList<2> v6 v7 {
+    v11:MortalListExact = MakeList<2> {
       LiveValues<3> b:v6 b:v7 unc:v8
       FrameState {
         CurInstrOffset 6
@@ -3345,6 +3362,9 @@ fun jittestmodule:test {
         Stack<2> v6 v7
       }
     }
+    Incref v6
+    Incref v7
+    InitListElements<2> v11 v6 v7
     Decref v11
     v14:NoneType = LoadConst<NoneType>
     Incref v14
@@ -3357,9 +3377,7 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0>
     v7:Object = LoadArg<1>
     v8:Nullptr = LoadConst<Nullptr>
-    Incref v6
-    Incref v7
-    v11:MortalListExact = MakeList<2> v6 v7 {
+    v11:MortalListExact = MakeList<2> {
       LiveValues<3> b:v6 b:v7 unc:v8
       FrameState {
         CurInstrOffset 6
@@ -3367,6 +3385,9 @@ fun jittestmodule:test {
         Stack<2> v6 v7
       }
     }
+    Incref v6
+    Incref v7
+    InitListElements<2> v11 v6 v7
     Decref v11
     v14:NoneType = LoadConst<NoneType>
     Incref v14
@@ -3379,9 +3400,7 @@ fun jittestmodule:test {
     v6:Object = LoadArg<0>
     v7:Object = LoadArg<1>
     v8:Nullptr = LoadConst<Nullptr>
-    Incref v6
-    Incref v7
-    v11:MortalListExact = MakeList<2> v6 v7 {
+    v11:MortalListExact = MakeList<2> {
       LiveValues<3> b:v6 b:v7 unc:v8
       FrameState {
         CurInstrOffset 6
@@ -3389,6 +3408,9 @@ fun jittestmodule:test {
         Stack<2> v6 v7
       }
     }
+    Incref v6
+    Incref v7
+    InitListElements<2> v11 v6 v7
     Decref v11
     v14:NoneType = LoadConst<NoneType>
     Incref v14

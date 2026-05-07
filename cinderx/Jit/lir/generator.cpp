@@ -250,6 +250,38 @@ void emitAnnotation(BasicBlock* bb, std::string text) {
   bb->pending_annotation_ = std::move(text);
 }
 
+// Emit StorePair (and individual kMove for an odd remainder) to store
+// `count` consecutive pointer-sized values from `src_instr` operands
+// [src_start .. src_start+count) into [base + base_offset + i*8].
+void emitStorePairs(
+    BasicBlockBuilder& bbb,
+    Instruction* base,
+    int32_t base_offset,
+    const hir::Instr& src_instr,
+    size_t src_start,
+    size_t count) {
+  size_t i = 0;
+  while (i + 1 < count) {
+    Instruction* v0 = bbb.getDefInstr(src_instr.GetOperand(src_start + i));
+    Instruction* v1 = bbb.getDefInstr(src_instr.GetOperand(src_start + i + 1));
+    auto* sp = bbb.appendInstr(
+        Instruction::kStorePair,
+        Imm{static_cast<uint64_t>(
+            base_offset + static_cast<int32_t>(i * kPointerSize))});
+    sp->allocateLinkedInput(base);
+    sp->allocateLinkedInput(v0);
+    sp->allocateLinkedInput(v1);
+    i += 2;
+  }
+  if (i < count) {
+    Instruction* v = bbb.getDefInstr(src_instr.GetOperand(src_start + i));
+    bbb.appendInstr(
+        OutInd{base, base_offset + static_cast<int32_t>(i * kPointerSize)},
+        Instruction::kMove,
+        v);
+  }
+}
+
 } // namespace
 
 void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
@@ -3384,41 +3416,40 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
       case Opcode::kMakeList: {
         auto instr = static_cast<const MakeList*>(&i);
-        Instruction* call = bbb.appendCallInstruction(
+        bbb.appendCallInstruction(
             instr->output(),
             PyList_New,
             static_cast<Py_ssize_t>(instr->nvalues()));
-        if (instr->nvalues() > 0) {
-          // TODO(T174544781): need to check for nullptr before initializing,
-          // currently that check only happens after assigning these values.
-          Instruction* load = bbb.appendInstr(
-              Instruction::kMove,
-              OutVReg{OperandBase::k64bit},
-              Ind{call, offsetof(PyListObject, ob_item)});
-          for (size_t valueIdx = 0; valueIdx < instr->nvalues(); valueIdx++) {
-            bbb.appendInstr(
-                OutInd{load, static_cast<int32_t>(valueIdx * kPointerSize)},
-                Instruction::kMove,
-                instr->GetOperand(valueIdx));
-          }
-        }
         break;
       }
       case Opcode::kMakeTuple: {
         auto instr = static_cast<const MakeTuple*>(&i);
-        Instruction* tuple =
-            bbb.appendInstr(instr->output(), Instruction::kVarArgCall);
-        tuple->addOperands(
-            Imm{reinterpret_cast<uint64_t>(
-#if PY_VERSION_HEX >= 0x030F0000
-                PyTuple_FromArray
-#else
-                _PyTuple_FromArray
-#endif
-                )});
-        for (size_t ix = 0; ix < instr->NumOperands(); ix++) {
-          tuple->addOperands(VReg{bbb.getDefInstr(instr->GetOperand(ix))});
-        }
+        bbb.appendCallInstruction(
+            instr->output(),
+            PyTuple_New,
+            static_cast<Py_ssize_t>(instr->nvalues()));
+        break;
+      }
+      case Opcode::kInitListElements: {
+        auto instr = static_cast<const InitListElements*>(&i);
+        Instruction* ob_item = bbb.appendInstr(
+            Instruction::kMove,
+            OutVReg{OperandBase::k64bit},
+            Ind{bbb.getDefInstr(instr->list()),
+                offsetof(PyListObject, ob_item)});
+        emitStorePairs(bbb, ob_item, 0, *instr, 1, instr->nvalues());
+        break;
+      }
+      case Opcode::kInitTupleElements: {
+        auto instr = static_cast<const InitTupleElements*>(&i);
+        Instruction* tuple = bbb.getDefInstr(instr->tuple());
+        emitStorePairs(
+            bbb,
+            tuple,
+            static_cast<int32_t>(offsetof(PyTupleObject, ob_item)),
+            *instr,
+            1,
+            instr->nvalues());
         break;
       }
       case Opcode::kMatchClass: {
@@ -3527,25 +3558,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMakeCheckedList: {
         auto instr = static_cast<const MakeCheckedList*>(&i);
-        auto capacity = instr->nvalues();
         bbb.appendCallInstruction(
             instr->output(),
             Ci_CheckedList_New,
             instr->type().typeSpec(),
-            static_cast<Py_ssize_t>(capacity));
-        if (instr->nvalues() > 0) {
-          Instruction* ob_item = bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              Ind{bbb.getDefInstr(instr->output()),
-                  static_cast<int32_t>(offsetof(PyListObject, ob_item))});
-          for (size_t valueIdx = 0; valueIdx < instr->nvalues(); valueIdx++) {
-            bbb.appendInstr(
-                OutInd{ob_item, static_cast<int32_t>(valueIdx * kPointerSize)},
-                Instruction::kMove,
-                instr->GetOperand(valueIdx));
-          }
-        }
+            static_cast<Py_ssize_t>(instr->nvalues()));
         break;
       }
       case Opcode::kMakeCheckedDict: {

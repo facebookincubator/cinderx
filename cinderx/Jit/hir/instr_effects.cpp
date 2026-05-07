@@ -221,14 +221,23 @@ MemoryEffects memoryEffects(const Instr& inst) {
       return commonEffects(inst, AOther);
 
     case Opcode::kMakeCheckedList:
-    case Opcode::kMakeList: {
-      // Steal all inputs.
+    case Opcode::kMakeList:
+    case Opcode::kMakeTuple:
+      return commonEffects(inst, AEmpty);
+
+    case Opcode::kInitListElements: {
+      // Steal all value inputs (not the container at index 0).
       util::BitVector inputs{inst.NumOperands()};
       inputs.fill(true);
+      inputs.SetBit(0, false);
       return {false, AEmpty, std::move(inputs), AListItem};
     }
-    case Opcode::kMakeTuple:
-      return commonEffects(inst, ATupleItem);
+    case Opcode::kInitTupleElements: {
+      util::BitVector inputs{inst.NumOperands()};
+      inputs.fill(true);
+      inputs.SetBit(0, false);
+      return {false, AEmpty, std::move(inputs), ATupleItem};
+    }
 
     case Opcode::kStoreField:
       JIT_DCHECK(inst.NumOperands() == 3, "Unexpected number of operands");
@@ -417,6 +426,8 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongCompare:
     case Opcode::kMakeCell:
+    case Opcode::kInitListElements:
+    case Opcode::kInitTupleElements:
     case Opcode::kMakeCheckedDict:
     case Opcode::kMakeCheckedList:
     case Opcode::kMakeDict:

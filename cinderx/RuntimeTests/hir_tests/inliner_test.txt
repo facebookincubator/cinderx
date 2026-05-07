@@ -1763,7 +1763,7 @@ fun jittestmodule:test {
     v23:OptObject = StealCellItem v16
     SetCellItem v16 v22 v23
     Snapshot
-    v24:MortalTupleExact = MakeTuple<1> v16 {
+    v24:MortalTupleExact = MakeTuple<1> {
       FrameState {
         CurInstrOffset 10
         Locals<1> v15
@@ -1771,6 +1771,7 @@ fun jittestmodule:test {
         Stack<1> v16
       }
     }
+    InitTupleElements<1> v24 v16
     Snapshot
     v25:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
     v26:Nullptr = LoadConst<Nullptr>
@@ -1834,7 +1835,7 @@ fun jittestmodule:test {
     v23:OptObject = StealCellItem v16
     SetCellItem v16 v22 v23
     Snapshot
-    v24:MortalTupleExact = MakeTuple<1> v16 {
+    v24:MortalTupleExact = MakeTuple<1> {
       FrameState {
         CurInstrOffset 10
         Locals<1> v15
@@ -1842,6 +1843,7 @@ fun jittestmodule:test {
         Stack<1> v16
       }
     }
+    InitTupleElements<1> v24 v16
     Snapshot
     v25:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
     v26:Nullptr = LoadConst<Nullptr>
@@ -1906,7 +1908,7 @@ fun jittestmodule:test {
     v23:OptObject = StealCellItem v16
     SetCellItem v16 v22 v23
     Snapshot
-    v24:MortalTupleExact = MakeTuple<1> v16 {
+    v24:MortalTupleExact = MakeTuple<1> {
       FrameState {
         CurInstrOffset 12
         Locals<1> v15
@@ -1914,6 +1916,7 @@ fun jittestmodule:test {
         Stack<1> v16
       }
     }
+    InitTupleElements<1> v24 v16
     Snapshot
     v25:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
     v26:Nullptr = LoadConst<Nullptr>

@@ -3543,15 +3543,23 @@ void HIRBuilder::emitMakeListTuple(
     const jit::BytecodeInstruction& bc_instr) {
   auto num_elems = static_cast<size_t>(bc_instr.oparg());
   auto dst = temps_.AllocateStack();
-  Instr* instr;
   if (bc_instr.opcode() == BUILD_TUPLE) {
-    instr = tc.emit<MakeTuple>(num_elems, dst, tc.frame);
+    tc.emit<MakeTuple>(dst, num_elems, tc.frame);
   } else {
-    instr = tc.emit<MakeList>(num_elems, dst, tc.frame);
+    tc.emit<MakeList>(dst, num_elems, tc.frame);
   }
-  for (size_t i = num_elems; i > 0; i--) {
-    auto opnd = tc.frame.stack.pop();
-    instr->SetOperand(i - 1, opnd);
+  if (num_elems > 0) {
+    Instr* fill;
+    if (bc_instr.opcode() == BUILD_TUPLE) {
+      fill = tc.emit<InitTupleElements>(num_elems + 1);
+    } else {
+      fill = tc.emit<InitListElements>(num_elems + 1);
+    }
+    fill->SetOperand(0, dst);
+    for (size_t i = num_elems; i > 0; i--) {
+      auto opnd = tc.frame.stack.pop();
+      fill->SetOperand(i, opnd);
+    }
   }
   tc.frame.stack.push(dst);
 }
@@ -3585,11 +3593,14 @@ void HIRBuilder::emitBuildCheckedList(
       "expected CheckedList type");
 
   Register* list = temps_.AllocateStack();
-  auto instr = tc.emit<MakeCheckedList>(list_size, list, type, tc.frame);
-  // Fill list
-  for (size_t i = list_size; i > 0; i--) {
-    auto operand = tc.frame.stack.pop();
-    instr->SetOperand(i - 1, operand);
+  tc.emit<MakeCheckedList>(list, list_size, type, tc.frame);
+  if (list_size > 0) {
+    auto fill = tc.emit<InitListElements>(list_size + 1);
+    fill->SetOperand(0, list);
+    for (size_t i = list_size; i > 0; i--) {
+      auto operand = tc.frame.stack.pop();
+      fill->SetOperand(i, operand);
+    }
   }
   tc.frame.stack.push(list);
 }
