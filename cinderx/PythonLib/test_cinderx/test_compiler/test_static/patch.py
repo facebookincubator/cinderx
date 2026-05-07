@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import asyncio
 import re
 import sys
@@ -10,8 +11,8 @@ try:
 except ImportError:
     getknobs = setknobs = None
 
-import xxclassloader
 from cinderx.compiler.pycodegen import PythonCodeGenerator
+from cinderx.test_support import skip_test_if_oss
 
 from .common import StaticTestBase
 
@@ -2167,6 +2168,7 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(asyncio.run(awaiter(mod.C())), 131)
 
+    @skip_test_if_oss("Uses xxclassloader")
     def test_thunk_traversal(self) -> None:
         codestr = """
             def f():
@@ -2184,6 +2186,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(g(), 100)
 
             # This triggers a traversal of the thunk using its tp_traverse
+            import xxclassloader
             xxclassloader.traverse_heap()
 
     def test_patch_staticmethod(self) -> None:
