@@ -642,10 +642,6 @@ void jitFrameInit(
       tstate, frame, func, code, null_locals_from, owner, previous);
 }
 
-size_t jitFrameGetSize(PyCodeObject* code) {
-  return code->co_framesize;
-}
-
 void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   /* It is the responsibility of the owning generator/coroutine
    * to have cleared the enclosing generator, if any. */

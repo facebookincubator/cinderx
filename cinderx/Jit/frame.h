@@ -82,10 +82,6 @@ void jitFrameInit(
     _PyInterpreterFrame* previous,
     PyObject* reifier);
 
-// Gets the frame size (in number of words) that's required for the JIT
-// to initialize a frame object.
-size_t jitFrameGetSize(PyCodeObject* code);
-
 Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code);
 
 // Walk all thread stacks and patch JIT frame return addresses to their
