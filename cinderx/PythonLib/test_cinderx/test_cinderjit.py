@@ -15,6 +15,7 @@ from typing import Callable
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
+from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.jit import (
     compile_after_n_calls,
     force_compile,
@@ -26,21 +27,22 @@ from cinderx.jit import (
 from cinderx.test_support import (
     compiles_after_one_call,
     ENCODING,
+    is_oss,
     passIf,
     passUnless,
     run_in_subprocess,
     skip_if_ft,
-    skip_module_if_oss,
+    skip_test_if_oss,
     skip_unless_jit,
     subprocess_env,
 )
 
-skip_module_if_oss()
-
-from cinderx.compiler.consts import CO_SUPPRESS_JIT
-
 from .common import failUnlessHasOpcodes, with_globals
-from .test_compiler.test_static.common import StaticTestBase
+
+if not is_oss():
+    from .test_compiler.test_static.common import StaticTestBase
+else:
+    StaticTestBase = unittest.TestCase
 
 
 class TestException(Exception):
@@ -814,6 +816,7 @@ class TempNameTests(unittest.TestCase):
         self.assertEqual(v0, 5)
 
 
+@skip_test_if_oss("xxclassloader")
 class JITCompileCrasherRegressionTests(StaticTestBase):
     @cinder_support.failUnlessJITCompiled
     def isinstance_optimization(self) -> bool:
@@ -1568,6 +1571,7 @@ class SuperAccessTest(unittest.TestCase):
         self.assertEqual(ClassB().x_2arg, 42)
 
 
+@skip_test_if_oss("xxclassloader")
 class RegressionTests(StaticTestBase):
     # Detects an issue in the backend where the Store instruction generated 32-
     # bit memory writes for 64-bit constants.
@@ -1592,6 +1596,7 @@ class RegressionTests(StaticTestBase):
                 self.assertTrue(is_jit_compiled(testfunc))
 
 
+@skip_test_if_oss("xxclassloader")
 @skip_unless_jit("Requires cinderjit module")
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self) -> None:

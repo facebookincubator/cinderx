@@ -37,7 +37,12 @@ from cinderx.compiler.strict.loader import (
 )
 from cinderx.compiler.strict.runtime import set_freeze_enabled
 from cinderx.static import StaticTypeError
-from cinderx.test_support import passIf, subprocess_env
+from cinderx.test_support import (
+    has_meta_lazy_imports,
+    passIf,
+    passUnless,
+    subprocess_env,
+)
 
 from . import sandbox as base_sandbox
 from .common import init_cached_properties, StrictTestBase
@@ -48,6 +53,8 @@ from .sandbox import (
     restore_strict_modules,
     restore_sys_modules,
 )
+
+META_LAZY_IMPORTS: bool = has_meta_lazy_imports()
 
 try:
     # pyre-ignore[21]: cinder module not typed.
@@ -2282,6 +2289,7 @@ class StrictLoaderTest(StrictTestBase):
             self.sbx.strict_import("b")
 
     @passIf(sys.version_info >= (3, 15), "no lazy imports on 3.15")
+    @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
     def test_strict_loader_lazy_imports_cycle(self) -> None:
         self.sbx.write_file(
             "main.py",
@@ -2472,6 +2480,7 @@ class StrictLoaderTest(StrictTestBase):
             self.assertIs(other.f(c), c)
 
     @passIf(sys.version_info >= (3, 15), "no lazy imports on 3.15")
+    @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
     def test_strict_lazy_import_cycle(self):
         self.sbx.write_file(
             "mod/__init__.py",

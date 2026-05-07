@@ -3,10 +3,6 @@
 
 import sys
 
-from cinderx.test_support import skip_module_if_oss
-
-skip_module_if_oss()
-
 from .test_api import ApiTests
 from .test_code_sbs import CodeTests
 from .test_corpus import SbsCorpusCompileTests
