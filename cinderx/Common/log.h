@@ -81,13 +81,13 @@ std::string repr(BorrowedRef<> obj);
     JIT_ABORT_IMPL(__VA_ARGS__);                                     \
   }
 
+// Continuation of JIT_ABORT_IMPL(), but out-of-line.
+[[noreturn]] void abortImpl();
+
 #define JIT_ABORT_IMPL(...)          \
   {                                  \
     fmt::print(stderr, __VA_ARGS__); \
-    fmt::print(stderr, "\n");        \
-    std::fflush(stderr);             \
-    jit::printPythonException();     \
-    std::abort();                    \
+    jit::abortImpl();                \
   }
 
 #ifdef Py_DEBUG

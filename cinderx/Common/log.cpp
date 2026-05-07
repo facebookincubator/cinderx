@@ -34,4 +34,11 @@ std::string repr(BorrowedRef<> obj) {
   return {str, static_cast<std::string::size_type>(len)};
 }
 
+void abortImpl() {
+  fmt::print(stderr, "\n");
+  std::fflush(stderr);
+  jit::printPythonException();
+  std::abort();
+}
+
 } // namespace jit
