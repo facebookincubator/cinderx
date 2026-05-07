@@ -2,12 +2,13 @@
 from __static__ import StaticTypeError
 
 import cinderx.jit
-from cinderx.test_support import skip_unless_jit
+from cinderx.test_support import skip_test_if_oss, skip_unless_jit
 
 from .common import StaticTestBase
 
 
 class ElideTypeChecksTests(StaticTestBase):
+    @skip_test_if_oss("Uses xxclassloader")
     @skip_unless_jit("Testing Static Python + JIT behavior")
     def test_invoke_function_skips_arg_type_checks(self) -> None:
         codestr = """
@@ -48,6 +49,7 @@ class ElideTypeChecksTests(StaticTestBase):
             # but only because we are using an unsound C extension method.
             self.assertEqual(mod.f(), "B")
 
+    @skip_test_if_oss("Uses xxclassloader")
     @skip_unless_jit("Testing Static Python + JIT behavior")
     def test_invoke_method_skips_arg_type_checks(self) -> None:
         codestr = """

@@ -23,7 +23,6 @@ from unittest import skip
 from unittest.mock import patch
 
 import cinderx.jit
-import xxclassloader
 from cinderx import install_frame_evaluator, StrictModule
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -37,7 +36,7 @@ from cinderx.compiler.static.types import (
     TypeEnvironment,
     Value,
 )
-from cinderx.test_support import passIf, passUnless, skip_unless_jit, subprocess_env
+from cinderx.test_support import passIf, passUnless, skip_test_if_oss, skip_unless_jit, subprocess_env
 
 from .common import (
     add_fixed_module,
@@ -65,6 +64,9 @@ def optional(type: str) -> str:
 
 
 def init_xxclassloader():
+    # Lazily imported here, can fail on OSS builds.
+    import xxclassloader
+
     codestr = """
         from typing import Generic, TypeVar, _tp_cache
         from __static__ import set_type_static
@@ -108,7 +110,6 @@ def init_xxclassloader():
     d = {"<builtins>": builtins.__dict__}
     add_fixed_module(d)
 
-    install_frame_evaluator()
     exec(code, d, d)
 
     # pyrefly: ignore [missing-attribute]
@@ -118,13 +119,25 @@ def init_xxclassloader():
 class StaticCompilationTests(StaticTestBase):
     @classmethod
     def setUpClass(cls):
-        init_xxclassloader()
+        install_frame_evaluator()
+
+        try:
+            init_xxclassloader()
+        except ImportError:
+            pass
+
         cls.type_env = TypeEnvironment()
 
     @classmethod
     def tearDownClass(cls):
-        # pyrefly: ignore [missing-attribute]
-        del xxclassloader.XXGeneric
+        # Already imported by init_xxclassloader(), this should just create the
+        # local binding.  Unless it's OSS and xxclassloader is not available.
+        try:
+            import xxclassloader
+            # pyrefly: ignore [missing-attribute]
+            del xxclassloader.XXGeneric
+        except ImportError:
+            pass
 
     def test_static_import_unknown(self) -> None:
         codestr = """
@@ -1889,6 +1902,7 @@ class StaticCompilationTests(StaticTestBase):
             C = mod.C
             self.assertEqual(C().g(), 42)
 
+    @skip_test_if_oss("Uses xxclassloader")
     def test_multi_generic(self) -> None:
         codestr = """
         from xxclassloader import XXGeneric
@@ -4592,6 +4606,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    @skip_test_if_oss("Uses xxclassloader")
     def test_spamobj_no_params(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4706,6 +4721,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.myfunc
             self.assertNotInBytecode(f, "LOAD_FIELD")
 
+    @skip_test_if_oss("Uses xxclassloader")
     def test_generic_optional_type_param(self) -> None:
         codestr = """
             from xxclassloader import spamobj
@@ -4717,6 +4733,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr)
 
+    @skip_test_if_oss("Uses xxclassloader")
     def test_generic_optional_type_param_2(self) -> None:
         codestr = """
             from xxclassloader import spamobj
