@@ -12331,4 +12331,189 @@ fun test {
     Return v2
   }
 }
+--- Test Name ---
+LoadTypeAttribute
+--- Input ---
+def test(a):
+    return type(a).__name__
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Object = LoadArg<0; "a">
+    v9:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:Nullptr = LoadConst<Nullptr>
+    v14:OptObject = LoadGlobalCached<0; "type">
+    v15:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v14 {
+      Descr 'LOAD_GLOBAL: type'
+    }
+    Snapshot
+    UseType<ImmortalTypeExact[type:obj]> v15
+    v20:Type = LoadField<ob_type@8, Type, borrowed> v8
+    Snapshot
+    UseType<Type> v20
+    v21:OptType = LoadTypeAttrCacheEntryType<0>
+    v22:CBool = PrimitiveCompare<Equal> v21 v20
+    CondBranch<3, 4> v22
+  }
+
+  bb 3 (preds 1) {
+    v23:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v24:Object = FillTypeAttrCache<0, 1> v20 {
+      FrameState {
+        CurInstrOffset 22
+        Locals<1> v8
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v25:Object = Phi<3, 4> v23 v24
+    Snapshot
+    Return v25
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Object = LoadArg<0; "a">
+    v9:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "type">
+    v14:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: type'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    UseType<ImmortalTypeExact[type:obj]> v14
+    v20:Type = LoadField<ob_type@8, Type, borrowed> v8
+    Snapshot
+    UseType<Type> v20
+    v21:OptType = LoadTypeAttrCacheEntryType<0>
+    v22:CBool = PrimitiveCompare<Equal> v21 v20
+    CondBranch<3, 4> v22
+  }
+
+  bb 3 (preds 1) {
+    v23:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v24:Object = FillTypeAttrCache<0, 1> v20 {
+      FrameState {
+        CurInstrOffset 22
+        Locals<1> v8
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v25:Object = Phi<3, 4> v23 v24
+    Snapshot
+    Return v25
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Object = LoadArg<0; "a">
+    v9:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "type">
+    v14:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: type'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    UseType<ImmortalTypeExact[type:obj]> v14
+    v20:Type = LoadField<ob_type@8, Type, borrowed> v8
+    Snapshot
+    UseType<Type> v20
+    v21:OptType = LoadTypeAttrCacheEntryType<0>
+    v22:CBool = PrimitiveCompare<Equal> v21 v20
+    CondBranch<3, 4> v22
+  }
+
+  bb 3 (preds 1) {
+    v23:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v24:Object = FillTypeAttrCache<0, 1> v20 {
+      FrameState {
+        CurInstrOffset 22
+        Locals<1> v8
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v25:Object = Phi<3, 4> v23 v24
+    Snapshot
+    Return v25
+  }
+}
 --- End ---
