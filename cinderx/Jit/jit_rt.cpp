@@ -679,7 +679,7 @@ static inline PyThreadState* allocate_and_link_interpreter_frame(
   // clean-up. Maybe we'll want to change this in future if it limits
   // us from getting something like a stack-trace on this kind of failure.
   _PyInterpreterFrame* frame =
-      Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(co));
+      Cix_PyThreadState_PushFrame(tstate, co->co_framesize);
   JIT_CHECK(frame != nullptr, "Failed to allocate _PyInterpreterFrame");
 
   init_and_link_interpreter_frame(
