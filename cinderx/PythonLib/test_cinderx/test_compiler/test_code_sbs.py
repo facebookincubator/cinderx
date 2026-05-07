@@ -341,11 +341,12 @@ class CodeTests(CompilerTest):
 
 def add_test(modname: str, fname: str) -> None:
     version = sys.version_info[:2]
-    if "/cinder/" in fname and "cinder" not in sys.version:
+    sep = os.sep
+    if f"{sep}cinder{sep}" in fname and "cinder" not in sys.version:
         return
-    elif "/3.12/" in fname and version != (3, 12):
+    elif f"{sep}3.12{sep}" in fname and version != (3, 12):
         return
-    elif "/3.14/" in fname and version != (3, 14):
+    elif f"{sep}3.14{sep}" in fname and version != (3, 14):
         return
     if fname.endswith("/__init__.py"):
         return

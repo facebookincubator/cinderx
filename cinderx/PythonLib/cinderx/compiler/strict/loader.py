@@ -730,7 +730,7 @@ def strict_compile(
             modname = file[len(dir) :]
             break
 
-    modname = modname.replace("/", ".")
+    modname = modname.replace(os.sep, ".").replace("/", ".")
     if modname.endswith("__init__.py"):
         modname = modname[: -len("__init__.py")]
     elif modname.endswith(".py"):
