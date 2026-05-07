@@ -1863,7 +1863,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           case BinaryOpKind::kMultiply:
             op = Instruction::kMul;
             break;
-          case BinaryOpKind::kLShift:
+          case BinaryOpKind::kLShift: {
+            Register* rhs = instr->right();
+
+            // Left shifting by a constant avoids x86-64 register allocation
+            // concerns of putting the RHS in %cl.
+            if (rhs->type().hasIntSpec()) {
+              op = Instruction::kLShift;
+              break;
+            }
+
             switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
               case 1:
               case 2:
@@ -1877,7 +1886,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 break;
             }
             break;
-          case BinaryOpKind::kRShift:
+          }
+          case BinaryOpKind::kRShift: {
+            Register* rhs = instr->right();
+
+            // Right shifting by a constant avoids x86-64 register allocation
+            // concerns of putting the RHS in %cl.
+            if (rhs->type().hasIntSpec()) {
+              op = Instruction::kRShift;
+              break;
+            }
+
             switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
               case 1:
               case 2:
@@ -1891,7 +1910,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 break;
             }
             break;
-          case BinaryOpKind::kRShiftUnsigned:
+          }
+          case BinaryOpKind::kRShiftUnsigned: {
+            Register* rhs = instr->right();
+
+            // Right shifting by a constant avoids x86-64 register allocation
+            // concerns of putting the RHS in %cl.
+            if (rhs->type().hasIntSpec()) {
+              op = Instruction::kRShiftUn;
+              break;
+            }
+
             switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
               case 1:
               case 2:
@@ -1905,6 +1934,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 break;
             }
             break;
+          }
           case BinaryOpKind::kFloorDivide:
             op = Instruction::kDiv;
             break;

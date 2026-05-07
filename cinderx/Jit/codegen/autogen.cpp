@@ -14,6 +14,7 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
+#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/module_state.h"
 
 using namespace asmjit;
@@ -1301,6 +1302,70 @@ void translateRet(Environ* env, const Instruction* instr) {
 #else
   CINDER_UNSUPPORTED
 #endif
+}
+
+void translateShift(Environ* env, const Instruction* instr) {
+  auto opcode = instr->opcode();
+  auto in0_reg = getReg(instr, instr->getInput(0));
+  auto in1 = instr->getInput(1);
+  auto out_reg = (instr->getNumOutputs() > 0)
+    ? getReg(instr, instr->output())
+    : in0_reg;
+  // Currently just a limitation of x86-64 register allocation.
+  JIT_CHECK(
+      arch::kBuildArch != arch::Arch::kX86_64 || in1->isImm(),
+      "Cannot emit non-immediate RHS for instruction '{}'",
+      *instr);
+
+  if (instr->getNumOutputs() > 0) {
+    env->as->mov(out_reg, in0_reg);
+  }
+
+#if defined(CINDER_X86_64)
+  asmjit::Imm shift = getImm(in1);
+  switch (opcode) {
+  case Instruction::kLShift:
+    env->as->shl(out_reg, shift);
+    return;
+  case Instruction::kRShift:
+    env->as->sar(out_reg, shift);
+    return;
+  case Instruction::kRShiftUn:
+    env->as->shr(out_reg, shift);
+    return;
+  default:
+    break;
+  }
+#elif defined(CINDER_AARCH64)
+  switch (opcode) {
+  case Instruction::kLShift:
+    if (in1->isReg()) {
+      env->as->lsl(out_reg, in0_reg, getReg(instr, in1));
+    } else {
+      env->as->lsl(out_reg, in0_reg, getImm(in1));
+    }
+    return;
+  case Instruction::kRShift:
+    if (in1->isReg()) {
+      env->as->asr(out_reg, in0_reg, getReg(instr, in1));
+    } else {
+      env->as->asr(out_reg, in0_reg, getImm(in1));
+    }
+    return;
+  case Instruction::kRShiftUn:
+    if (in1->isReg()) {
+      env->as->lsr(out_reg, in0_reg, getReg(instr, in1));
+    } else {
+      env->as->lsr(out_reg, in0_reg, getImm(in1));
+    }
+    return;
+  default:
+    break;
+  }
+#else
+  JIT_ABORT("Unrecognized architecture for emitting shift instruction");
+#endif
+  JIT_ABORT("Unrecognized shift opcode '{}'", instr->opname());
 }
 
 #if defined(CINDER_AARCH64)
@@ -2747,6 +2812,11 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
+    case Instruction::kLShift:
+    case Instruction::kRShift:
+    case Instruction::kRShiftUn:
+      translateShift(env, instr);
+      return;
     case Instruction::kTest32: {
       auto* in0 = instr->getInput(0);
       auto* in1 = instr->getInput(1);
@@ -2850,9 +2920,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kSext:
     case Instruction::kZext:
     case Instruction::kMulAdd:
-    case Instruction::kLShift:
-    case Instruction::kRShift:
-    case Instruction::kRShiftUn:
     case Instruction::kLoadArg:
     case Instruction::kLoadSecondCallResult:
     case Instruction::kMovConstPool:
