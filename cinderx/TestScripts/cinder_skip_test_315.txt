@@ -7,3 +7,6 @@ test.test_generators.GeneratorTest.test_close_clears_frame
 
 # cinderx extension module is installed so output differs
 test.test_faulthandler.FaultHandlerTests.test_dump_ext_modules
+
+# When run with JIT there's an extra heap object which causes this test to fail.
+test.test_gc.GCTests.test_heap_size

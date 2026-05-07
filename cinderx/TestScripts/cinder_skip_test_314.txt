@@ -9,3 +9,6 @@ test_cinderx.test_parallel_gc.*
 
 # T249123927
 test.test_generators.GeneratorTest.test_close_clears_frame
+
+# When run with JIT there's an extra heap object which causes this test to fail.
+test.test_gc.GCTests.test_heap_size
