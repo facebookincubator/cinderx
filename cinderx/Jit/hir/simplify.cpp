@@ -317,6 +317,22 @@ Register* simplifyCast(const Cast* instr) {
 
 Register* emitGetLengthInt64(Env& env, Register* obj) {
   Type ty = obj->type();
+
+  // Constant folding.
+  if (ty.hasObjectSpec()) {
+    PyObject* spec = ty.objectSpec();
+    if (ty <= TTupleExact) {
+      env.emit<UseType>(obj, ty);
+      Py_ssize_t len = PyTuple_GET_SIZE(spec);
+      return env.emit<LoadConst>(Type::fromCInt(len, TCInt64));
+    }
+    if (ty <= TUnicodeExact) {
+      env.emit<UseType>(obj, ty);
+      Py_ssize_t len = PyUnicode_GET_LENGTH(spec);
+      return env.emit<LoadConst>(Type::fromCInt(len, TCInt64));
+    }
+  }
+
   if (
 // TODO(T255264007). Enable this again. See P2169677410.
 #ifndef Py_GIL_DISABLED
