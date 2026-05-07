@@ -60,7 +60,6 @@ TypeWatcher<AttributeCache> ac_watcher;
 TypeWatcher<LoadTypeAttrCache> ltac_watcher;
 TypeWatcher<LoadMethodCache> lm_watcher;
 TypeWatcher<LoadTypeMethodCache> ltm_watcher;
-
 constexpr uintptr_t kKindMask = 0x07;
 
 // Sentinel PyTypeObject that must never escape into user code.
@@ -76,11 +75,24 @@ inline PyDictObject* get_dict(PyObject* obj, Py_ssize_t dictoffset) {
   return (PyDictObject*)*dictptr;
 }
 
+inline bool is_dict_unmaterialized(PyDictObject* dict) {
+  return
+#if PY_VERSION_HEX < 0x030E0000
+      // On 3.12 if we have values then it means we all of our dict indxes
+      // are in the array. We won't have a combined mutator that has
+      // this index
+      _PyDictOrValues_IsValues(
+          PyDictOrValues{reinterpret_cast<PyObject*>(dict)}) ||
+#endif
+      dict == nullptr;
+}
+
 inline PyDictObject* get_or_allocate_dict(
     PyObject* obj,
     Py_ssize_t dict_offset) {
   PyDictObject* dict = get_dict(obj, dict_offset);
-  if (dict == nullptr) {
+
+  if (is_dict_unmaterialized(dict)) {
     dict =
         reinterpret_cast<PyDictObject*>(PyObject_GenericGetDict(obj, nullptr));
     if (dict == nullptr) {
@@ -144,13 +156,158 @@ void maybeCollectCacheStats(
   stat->misses.insert({key, CacheMiss{0, reason}}).first->second.count++;
 }
 
+// Check whether a type uses the __getattr__ hook as its tp_getattro.
+// CPython installs _Py_slot_tp_getattr_hook (captured as Ci_tp_getattr_hook)
+// when a class defines __getattr__ with the default __getattribute__. This
+// is the fastest and most precise check for __getattr__-eligible types.
+//
+// Returns the __getattr__ method if the type is eligible, or nullptr if not.
+BorrowedRef<> getGetAttrForCaching(BorrowedRef<PyTypeObject> type) {
+  if (type->tp_getattro != Ci_tp_getattr_hook) {
+    return nullptr;
+  }
+
+  // Look up the __getattr__ method on the type. This should always succeed
+  // when tp_getattro == Ci_tp_getattr_hook, but the type could have been
+  // modified between the slot being set and this check.
+  return _PyType_Lookup(type, &_Py_ID(__getattr__));
+}
+
+// Call a __getattr__ method with the given object and attribute name.
+// Replicates CPython's call_attribute() logic from typeobject.c.
+PyObject*
+callGetAttr(BorrowedRef<> getattr_method, PyObject* obj, PyObject* name) {
+  BorrowedRef<PyTypeObject> attr_type = Py_TYPE(getattr_method);
+  if (PyType_HasFeature(attr_type, Py_TPFLAGS_METHOD_DESCRIPTOR)) {
+    PyObject* args[] = {obj, name};
+    return PyObject_Vectorcall(getattr_method, args, 2, nullptr);
+  }
+
+  descrgetfunc f = attr_type->tp_descr_get;
+  if (f != nullptr) {
+    auto descr = Ref<>::steal(f(getattr_method, obj, (PyObject*)Py_TYPE(obj)));
+    if (descr == nullptr) {
+      return nullptr;
+    }
+    return PyObject_CallOneArg(descr, name);
+  }
+
+  return PyObject_CallOneArg(getattr_method, name);
+}
+
+// Try __getattr__ fallback for split dict lookups where the value is missing.
+// If the type has __getattr__ (tp_getattro == Ci_tp_getattr_hook), look it up
+// and call it. Otherwise, raise AttributeError as usual.
+PyObject* getAttrFallback(PyObject* obj, PyObject* name) {
+  BorrowedRef<PyTypeObject> type = Py_TYPE(obj);
+  if (type->tp_getattro == Ci_tp_getattr_hook) {
+    BorrowedRef<> getattr = _PyType_Lookup(type, &_Py_ID(__getattr__));
+    if (getattr != nullptr) {
+      return callGetAttr(getattr, obj, name);
+    }
+  }
+  return raise_attribute_error(obj, name);
+}
+
+// Checks to see if the cached keys version allows a lookup w/o looking in
+// the dictionary. This could be either that we have a match of the keys version
+// or that we have a non-heap type w/ no dictionary.
+//
+// Avoid using _PyObject_GetDictPtr here as it can materialize the dictionary
+// on 3.12+. Instead use version-specific APIs to check the dict state without
+// side effects.
+bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
+  if (keys_version == 0) {
+    // 0 is an invalid keys version and a sentinel value that we'll never
+    // generate a cache for a heap type with. We may have a non-heap type
+    // that is cached w/ a keys_version of 0 that has no dictionary in which
+    // case the cache is always valid.
+    return true;
+  }
+
+#if PY_VERSION_HEX >= 0x030E0000
+  PyTypeObject* tp = Py_TYPE(obj);
+  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
+    if (PyType_HasFeature(tp, Py_TPFLAGS_INLINE_VALUES)) {
+      PyDictValues* values = _PyObject_InlineValues(obj);
+      if (values->valid) {
+        // Inline values are still active but the shared keys may have changed
+        // (e.g., a new instance attribute was added). Check the type's shared
+        // keys version.
+        PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
+        return ht->ht_cached_keys->dk_version == keys_version;
+      }
+    }
+    // Check the managed dict directly.
+    PyDictObject* dict = _PyObject_GetManagedDict(obj);
+    if (dict == nullptr) {
+      return true;
+    }
+    return dict->ma_keys->dk_version == keys_version;
+  }
+#else
+  PyTypeObject* tp = Py_TYPE(obj);
+  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
+    PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
+    if (_PyDictOrValues_IsValues(dorv)) {
+      // Values are still inline but the shared keys may have changed
+      // (e.g., a new instance attribute was added). Check the type's shared
+      // keys version.
+      PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
+      return ht->ht_cached_keys->dk_version == keys_version;
+    }
+    PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
+    if (dict == nullptr) {
+      return true;
+    }
+    return dict->ma_keys->dk_version == keys_version;
+  }
+#endif
+
+  // Non-managed-dict fallback (non-heap types with tp_dictoffset).
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
+  assert(dictptr != nullptr);
+
+  PyDictObject* dict = reinterpret_cast<PyDictObject*>(*dictptr);
+  if (dict == nullptr) {
+    return true;
+  }
+
+  return dict->ma_keys->dk_version == keys_version;
+}
+
+// If the current exception is AttributeError and the type has __getattr__,
+// suppress the error and call __getattr__ as a fallback. Returns the
+// __getattr__ result, or nullptr if __getattr__ was not applicable (in
+// which case the original error remains set).
+PyObject* tryGetAttrFallback(
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> cached_getattr,
+    PyObject* obj,
+    PyObject* name) {
+  if (type->tp_getattro != Ci_tp_getattr_hook) {
+    return nullptr;
+  }
+  if (!PyErr_ExceptionMatches(PyExc_AttributeError)) {
+    return nullptr;
+  }
+  PyErr_Clear();
+  BorrowedRef<> getattr = cached_getattr;
+  if (getattr == nullptr) {
+    getattr = _PyType_Lookup(type, &_Py_ID(__getattr__));
+  }
+  if (getattr == nullptr) {
+    return nullptr;
+  }
+  return callGetAttr(getattr, obj, name);
+}
+
 } // namespace
 
 void AttributeMutator::changeKindFromSplitInline(
     SplitMutator* split,
     Kind new_kind) {
-  AttributeMutator* mutator = reinterpret_cast<AttributeMutator*>(
-      reinterpret_cast<uintptr_t>(split) - offsetof(AttributeMutator, split_));
+  AttributeMutator* mutator = from(split);
   mutator->type_ = reinterpret_cast<uintptr_t>(mutator->type()) |
       static_cast<uintptr_t>(new_kind);
 }
@@ -173,39 +330,19 @@ bool SplitMutator::canInsertToSplitDict(
       val_offset != -1 || (val_offset = getDictKeysIndex(keys, name)) != -1);
 }
 
-bool SplitMutator::ensureValueOffset(BorrowedRef<> name) {
-  if (val_offset == -1) {
-    val_offset = getDictKeysIndex(keys, name);
-    if (val_offset == -1) {
-      return false;
-    }
-  }
-  return true;
-}
-
 #if PY_VERSION_HEX >= 0x030E0000
 PyObject* SplitMutator::getAttrInline(PyObject* obj, PyObject* name) {
-  if (!ensureValueOffset(name)) {
-    return PyObject_GetAttr(obj, name);
-  }
-  AttributeMutator::changeKindFromSplitInline(
-      this, AttributeMutator::Kind::kSplitInlineKnownOffset);
-  return getAttrInlineKnownOffset(obj, name);
-}
-
-PyObject* SplitMutator::getAttrInlineKnownOffset(
-    PyObject* obj,
-    PyObject* name) {
+  JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
   PyDictValues* values = _PyObject_InlineValues(obj);
   if (!values->valid) {
     // Downgrade to the slightly slower path in future
     AttributeMutator::changeKindFromSplitInline(
-        this, AttributeMutator::Kind::kSplitKnownOffset);
+        this, AttributeMutator::Kind::kSplit);
     return getAttr(obj, name);
   }
   PyObject* result = values->values[val_offset];
   if (result == nullptr) {
-    return raise_attribute_error(obj, name);
+    return getAttrFallback(obj, name);
   }
   return Py_NewRef(result);
 }
@@ -220,7 +357,7 @@ PyObject* SplitMutator::getAttrSlowPath(
     return PyDict_GetItemRef(dict, name, &attr_o);
   }();
   if (res == 0) {
-    return raise_attribute_error(obj, name);
+    return getAttrFallback(obj, name);
   }
   if (res == -1) {
     return nullptr;
@@ -236,11 +373,9 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
   JIT_DCHECK(
       PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
-  if (!ensureValueOffset(name)) {
-    return getAttrSlowPath(obj, name, dict);
-  }
+  JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
   AttributeMutator::changeKindFromSplitInline(
-      this, AttributeMutator::Kind::kSplitKnownOffset);
+      this, AttributeMutator::Kind::kSplit);
   return getAttrKnownOffset(obj, name);
 }
 
@@ -260,7 +395,7 @@ PyObject* SplitMutator::getAttrKnownOffset(PyObject* obj, PyObject* name) {
       "Expected dictionary keys object to change");
   PyObject* attr_o = dict->ma_values->values[val_offset];
   if (attr_o == nullptr) {
-    return raise_attribute_error(obj, name);
+    return getAttrFallback(obj, name);
   }
   return Py_NewRef(attr_o);
 }
@@ -269,24 +404,13 @@ int SplitMutator::setAttrInline(
     PyObject* obj,
     PyObject* name,
     PyObject* value) {
-  if (!ensureValueOffset(name)) {
-    return PyObject_SetAttr(obj, name, value);
-  }
-  AttributeMutator::changeKindFromSplitInline(
-      this, AttributeMutator::Kind::kSplitInlineKnownOffset);
-  return setAttrInlineKnownOffset(obj, name, value);
-}
-
-int SplitMutator::setAttrInlineKnownOffset(
-    PyObject* obj,
-    PyObject* name,
-    PyObject* value) {
+  JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
   PyDictValues* values = _PyObject_InlineValues(obj);
   PyDictObject* dict = _PyObject_GetManagedDict(obj);
   if (!values->valid || dict) {
     // Downgrade to the slightly slower path in future
     AttributeMutator::changeKindFromSplitInline(
-        this, AttributeMutator::Kind::kSplitKnownOffset);
+        this, AttributeMutator::Kind::kSplit);
     return setAttr(obj, name, value);
   }
   auto old_value = Ref<>::steal(values->values[val_offset]);
@@ -298,18 +422,7 @@ int SplitMutator::setAttrInlineKnownOffset(
 }
 
 int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  if (!ensureValueOffset(name)) {
-    return PyObject_SetAttr(obj, name, value);
-  }
-  AttributeMutator::changeKindFromSplitInline(
-      this, AttributeMutator::Kind::kSplitKnownOffset);
-  return setAttrKnownOffset(obj, name, value);
-}
-
-int SplitMutator::setAttrKnownOffset(
-    PyObject* obj,
-    PyObject* name,
-    PyObject* value) {
+  JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
   if (dict == nullptr) {
     return PyObject_SetAttr(obj, name, value);
@@ -329,9 +442,7 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
     // Values are stored in a values array not attached to a dictionary.
-    if (!ensureValueOffset(name)) {
-      return PyObject_SetAttr(obj, name, value);
-    }
+    JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
 
     PyDictValues* values = _PyDictOrValues_GetValues(dorv);
     PyObject* old_value = values->values[val_offset];
@@ -394,14 +505,13 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
-    if (!ensureValueOffset(name)) {
-      return raise_attribute_error(obj, name);
-    }
+    JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
+
     // Values are stored in values w/o materialized dictionary
     PyDictValues* values = _PyDictOrValues_GetValues(dorv);
     PyObject* result = values->values[val_offset];
     if (result == nullptr) {
-      return raise_attribute_error(obj, name);
+      return getAttrFallback(obj, name);
     }
     Py_INCREF(result);
     return result;
@@ -409,13 +519,11 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
 
   PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
   if (dict == nullptr) {
-    return raise_attribute_error(obj, name);
+    return getAttrFallback(obj, name);
   }
   PyObject* result = nullptr;
   if (dict->ma_keys == keys) {
-    if (!ensureValueOffset(name)) {
-      return raise_attribute_error(obj, name);
-    }
+    JIT_DCHECK(val_offset != -1, "Shouldn't have no value offset");
     // We are still sharing keys with the inline object.
     result = DICT_VALUES(dict)[val_offset];
   } else {
@@ -425,7 +533,7 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
     Py_DECREF(dictobj);
   }
   if (result == nullptr) {
-    return raise_attribute_error(obj, name);
+    return getAttrFallback(obj, name);
   }
   Py_INCREF(result);
   return result;
@@ -443,15 +551,14 @@ int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 
 PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
   BorrowedRef<PyDictObject> dict = get_dict(obj, dict_offset);
-
-  if (dict == nullptr) {
-    return raise_attribute_error(obj, name);
+  if (is_dict_unmaterialized(dict)) {
+    return getAttrFallback(obj, name);
   }
   Py_INCREF(dict);
   PyObject* result = PyDict_GetItem(dict, name);
   Py_DECREF(dict);
   if (result == nullptr) {
-    return raise_attribute_error(obj, name);
+    return getAttrFallback(obj, name);
   }
   Py_INCREF(result);
   return result;
@@ -557,17 +664,28 @@ bool AttributeMutator::isEmpty() const {
 
 void AttributeMutator::set_combined(PyTypeObject* type) {
   set_type(type, Kind::kCombined);
-  combined_.dict_offset = type->tp_dictoffset;
+  if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
+#if PY_VERSION_HEX >= 0x030E0000
+    combined_.dict_offset = MANAGED_DICT_OFFSET;
+#else
+    combined_.dict_offset = ((Py_ssize_t)sizeof(PyObject*)) * -3;
+#endif
+  } else {
+    combined_.dict_offset = type->tp_dictoffset;
+  }
+  combined_.getattr_method = getGetAttrForCaching(type);
 }
 
 void AttributeMutator::set_data_descr(PyTypeObject* type, PyObject* descr) {
   set_type(type, Kind::kDataDescr);
   data_descr_.descr = descr;
+  data_descr_.getattr_method = getGetAttrForCaching(type);
 }
 
 void AttributeMutator::set_member_descr(PyTypeObject* type, PyObject* descr) {
   set_type(type, Kind::kMemberDescr);
   member_descr_.memberdef = ((PyMemberDescrObject*)descr)->d_member;
+  member_descr_.getattr_method = getGetAttrForCaching(type);
 }
 
 void AttributeMutator::set_descr_or_classvar(
@@ -589,6 +707,15 @@ void AttributeMutator::set_split(
   split_.keys = keys;
 }
 
+void AttributeMutator::set_getattr(
+    PyTypeObject* type,
+    PyObject* getattr_method,
+    uint32_t keys_version) {
+  set_type(type, Kind::kGetAttr);
+  getattr_.getattr_method = getattr_method;
+  getattr_.keys_version = keys_version;
+}
+
 inline int
 AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   JIT_CHECK(
@@ -601,12 +728,8 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     case AttributeMutator::Kind::kSplit:
       return split_.setAttr(obj, name, value);
 #if PY_VERSION_HEX >= 0x030E0000
-    case AttributeMutator::Kind::kSplitKnownOffset:
-      return split_.setAttrKnownOffset(obj, name, value);
     case AttributeMutator::Kind::kSplitInline:
       return split_.setAttrInline(obj, name, value);
-    case AttributeMutator::Kind::kSplitInlineKnownOffset:
-      return split_.setAttrInlineKnownOffset(obj, name, value);
 #endif
     case AttributeMutator::Kind::kCombined:
       return combined_.setAttr(obj, name, value);
@@ -616,6 +739,9 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
       return member_descr_.setAttr(obj, value);
     case AttributeMutator::Kind::kDescrOrClassVar:
       return descr_or_cvar_.setAttr(obj, name, value);
+    case AttributeMutator::Kind::kGetAttr:
+      // __getattr__ only applies to loads, we shouldn't ever populate it for
+      // a set attr cache.
     default:
       JIT_ABORT(
           "Cannot invoke setAttr for attr of kind {}", static_cast<int>(kind));
@@ -633,21 +759,36 @@ inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
     case AttributeMutator::Kind::kSplit:
       return split_.getAttr(obj, name);
 #if PY_VERSION_HEX >= 0x030E0000
-    case AttributeMutator::Kind::kSplitKnownOffset:
-      return split_.getAttrKnownOffset(obj, name);
     case AttributeMutator::Kind::kSplitInline:
       return split_.getAttrInline(obj, name);
-    case AttributeMutator::Kind::kSplitInlineKnownOffset:
-      return split_.getAttrInlineKnownOffset(obj, name);
 #endif
     case AttributeMutator::Kind::kCombined:
       return combined_.getAttr(obj, name);
-    case AttributeMutator::Kind::kDataDescr:
-      return data_descr_.getAttr(obj);
-    case AttributeMutator::Kind::kMemberDescr:
-      return member_descr_.getAttr(obj);
-    case AttributeMutator::Kind::kDescrOrClassVar:
-      return descr_or_cvar_.getAttr(obj, name);
+    case AttributeMutator::Kind::kDataDescr: {
+      PyObject* result = data_descr_.getAttr(obj);
+      if (result == nullptr && data_descr_.getattr_method != nullptr) {
+        result =
+            tryGetAttrFallback(type(), data_descr_.getattr_method, obj, name);
+      }
+      return result;
+    }
+    case AttributeMutator::Kind::kMemberDescr: {
+      PyObject* result = member_descr_.getAttr(obj);
+      if (result == nullptr && member_descr_.getattr_method != nullptr) {
+        result =
+            tryGetAttrFallback(type(), member_descr_.getattr_method, obj, name);
+      }
+      return result;
+    }
+    case AttributeMutator::Kind::kDescrOrClassVar: {
+      PyObject* result = descr_or_cvar_.getAttr(obj, name);
+      if (result == nullptr) {
+        result = tryGetAttrFallback(type(), nullptr, obj, name);
+      }
+      return result;
+    }
+    case AttributeMutator::Kind::kGetAttr:
+      return getattr_.getAttr(obj, name);
     default:
       JIT_ABORT(
           "Cannot invoke getAttr for attr of kind {}", static_cast<int>(kind));
@@ -696,9 +837,9 @@ AttributeMutator* AttributeCache::findEmptyEntry() {
   return it == entries().end() ? nullptr : &*it;
 }
 
-void AttributeCache::fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name) {
-  BorrowedRef<> descr = _PyType_Lookup(type, name);
-  fill(type, name, descr);
+void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
+  BorrowedRef<> descr = _PyType_Lookup(Py_TYPE(obj), name);
+  fill(obj, name, descr, is_set);
 }
 
 bool canCacheType(PyTypeObject* type) {
@@ -709,8 +850,9 @@ bool canCacheType(PyTypeObject* type) {
   }
 
   // We only support the common case for objects - fixed-size instances
-  // (tp_dictoffset >= 0) of heap types (Py_TPFLAGS_HEAPTYPE).
-  return type->tp_dictoffset >= 0 &&
+  // (tp_dictoffset > 0) of heap types (Py_TPFLAGS_HEAPTYPE).
+  // tp_dictoffset == 0 means no instance dict, so nothing to cache.
+  return type->tp_dictoffset > 0 &&
       PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE);
 }
 
@@ -743,13 +885,22 @@ bool canCacheAttribute(
 }
 
 void AttributeCache::fill(
-    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> obj,
     BorrowedRef<> name,
-    BorrowedRef<> descr) {
+    BorrowedRef<> descr,
+    bool is_set) {
+  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
   if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
+    return;
+  }
+
+  if ((is_set && type->tp_setattro != PyObject_GenericSetAttr) ||
+      (!is_set && type->tp_getattro != PyObject_GenericGetAttr &&
+       type->tp_getattro != Ci_tp_getattr_hook)) {
+    // tp_ slot takes precedence
     return;
   }
 
@@ -794,8 +945,42 @@ void AttributeCache::fill(
 #if PY_VERSION_HEX >= 0x030E0000
     inline_values = type->tp_flags & Py_TPFLAGS_INLINE_VALUES;
 #endif
-    mut->set_split(type, getDictKeysIndex(keys, name), keys, inline_values);
+
+    Py_ssize_t index = getDictKeysIndex(keys, name);
+    if (index == -1) {
+      // no index exists, it could have not been set yet, the _shared
+      // keys could be full, or we may have a type with __getattr__
+      // where the attribute will never show up.
+      if (!is_set && type->tp_getattro == Ci_tp_getattr_hook) {
+        // unknown attribute and __getattr__ exists, dispatch to it
+        BorrowedRef<> getattr_method = getGetAttrForCaching(type);
+        if (getattr_method != nullptr) {
+          uint32_t keys_version = 0;
+          if (canCacheAttribute(type, name, keys_version)) {
+            if (!isValidKeysVersion(keys_version, obj)) {
+              // The instance dict is not the shared dict. Set the keys version
+              // to zero and the GetAttrMutator will just check for the
+              // lack of the attribute.
+              keys_version = 0;
+            }
+            mut->set_getattr(type, getattr_method, keys_version);
+            ac_watcher.watch(type, this);
+          }
+        }
+      } else if (keys->dk_nentries == SHARED_KEYS_MAX_SIZE) {
+        // The shared dict is full, fallback to combined dict access.
+        // set_combined computes the correct managed dict offset.
+        mut->set_combined(type);
+        ac_watcher.watch(type, this);
+      }
+
+      return;
+    }
+
+    // set_split handles __getattr__ fallback too
+    mut->set_split(type, index, keys, inline_values);
   } else {
+    // combined handles __getattr__ fallback too
     mut->set_combined(type);
   }
   ac_watcher.watch(type, this);
@@ -830,10 +1015,7 @@ StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
   }
 
   BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
-  if (type->tp_setattro == PyObject_GenericSetAttr) {
-    fill(type, name);
-  }
-
+  fill(obj, name, /* is_set */ true);
   return result;
 }
 
@@ -862,11 +1044,7 @@ PyObject* __attribute__((noinline)) LoadAttrCache::invokeSlowPath(
         "PyObject_GetAttr failed so there should be a Python error");
     return nullptr;
   }
-
-  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
-  if (type->tp_getattro == PyObject_GenericGetAttr) {
-    fill(type, name);
-  }
+  fill(obj, name, /* is_set */ false);
 
   return result.release();
 }
@@ -1021,71 +1199,39 @@ LoadMethodResult LoadMethodCache::lookupHelper(
   return cache->lookup(obj, name);
 }
 
-// Checks to see if the cached keys version allows a lookup w/o looking in
-// the dictionary. This could be either that we have a match of the keys version
-// or that we have a non-heap type w/ no dictionary.
-//
-// Avoid using _PyObject_GetDictPtr here as it can materialize the dictionary
-// on 3.12+. Instead use version-specific APIs to check the dict state without
-// side effects.
-bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
-  if (keys_version == 0) {
-    // 0 is an invalid keys version and a sentinel value that we'll never
-    // generate a cache for a heap type with. We may have a non-heap type
-    // that is cached w/ a keys_version of 0 that has no dictionary in which
-    // case the cache is always valid.
-    return true;
-  }
+PyObject* GetAttrMutator::getAttr(PyObject* obj, PyObject* name) {
+  // Make sure the attribute we're cached against isn't overridden. We can
+  // either have cached against a dictionary which doesn't have split keys
+  // (keys_version == 0) or a dictionary with split keys w/ a valid version
+  // which doesn't include the key.
 
+  if (keys_version == 0) {
+    // dictionary w/o split keys, see if the value has been overridden, if not
+    // call __getattr__.
 #if PY_VERSION_HEX >= 0x030E0000
-  PyTypeObject* tp = Py_TYPE(obj);
-  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
-    if (PyType_HasFeature(tp, Py_TPFLAGS_INLINE_VALUES)) {
-      PyDictValues* values = _PyObject_InlineValues(obj);
-      if (values->valid) {
-        // Inline values are still active but the shared keys may have changed
-        // (e.g., a new instance attribute was added). Check the type's shared
-        // keys version.
-        PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
-        return ht->ht_cached_keys->dk_version == keys_version;
-      }
-    }
-    // Check the managed dict directly.
-    PyDictObject* dict = _PyObject_GetManagedDict(obj);
-    if (dict == nullptr) {
-      return true;
-    }
-    return dict->ma_keys->dk_version == keys_version;
-  }
+    constexpr Py_ssize_t dict_offset = MANAGED_DICT_OFFSET;
 #else
-  PyTypeObject* tp = Py_TYPE(obj);
-  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
-    PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
-    if (_PyDictOrValues_IsValues(dorv)) {
-      // Values are still inline but the shared keys may have changed
-      // (e.g., a new instance attribute was added). Check the type's shared
-      // keys version.
-      PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
-      return ht->ht_cached_keys->dk_version == keys_version;
-    }
-    PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
-    if (dict == nullptr) {
-      return true;
-    }
-    return dict->ma_keys->dk_version == keys_version;
-  }
+    constexpr Py_ssize_t dict_offset = ((Py_ssize_t)sizeof(PyObject*)) * -3;
 #endif
 
-  // Non-managed-dict fallback (non-heap types with tp_dictoffset).
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  assert(dictptr != nullptr);
+    PyDictObject* dict = get_dict(obj, dict_offset);
+    if (dict == nullptr) {
+      return callGetAttr(getattr_method, obj, name);
+    } else if (!is_dict_unmaterialized(dict)) {
+      PyObject* res = PyDict_GetItem(reinterpret_cast<PyObject*>(dict), name);
+      if (res != nullptr) {
+        return Py_NewRef(res);
+      }
 
-  PyDictObject* dict = reinterpret_cast<PyDictObject*>(*dictptr);
-  if (dict == nullptr) {
-    return true;
+      return callGetAttr(getattr_method, obj, name);
+    }
+    // we have inline values, try and reset again.
+  } else if (isValidKeysVersion(keys_version, obj)) {
+    return callGetAttr(getattr_method, obj, name);
   }
 
-  return dict->ma_keys->dk_version == keys_version;
+  AttributeMutator::from(this)->reset();
+  return PyObject_GetAttr(obj, name);
 }
 
 LoadMethodResult LoadMethodCache::lookup(

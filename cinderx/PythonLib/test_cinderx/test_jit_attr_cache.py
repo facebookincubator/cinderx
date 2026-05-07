@@ -473,6 +473,129 @@ class LoadAttrCacheTests(unittest.TestCase):
         d = D()
         self.assertEqual(get_attr(d), "in D")
 
+    def test_property_raises_attr_error_with_getattr_fallback(self):
+        """When a property raises AttributeError on a type with __getattr__,
+        __getattr__ should be invoked as a fallback, matching CPython's
+        _Py_slot_tp_getattr_hook behavior."""
+
+        class C:
+            @property
+            def foo(self):
+                raise AttributeError("nope")
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.foo
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "fallback:foo")
+        # Cached
+        self.assertEqual(get_attr(c), "fallback:foo")
+
+    def test_data_descriptor_raises_attr_error_with_getattr_fallback(self):
+        """When a data descriptor's __get__ raises AttributeError on a type
+        with __getattr__, __getattr__ should be invoked as a fallback."""
+
+        class RaisingDescr:
+            def __get__(self, obj, cls):
+                raise AttributeError("custom descr error")
+
+            def __set__(self, obj, val):
+                pass
+
+        class C:
+            x = RaisingDescr()
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.x
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "fallback:x")
+        # Cached
+        self.assertEqual(get_attr(c), "fallback:x")
+
+    def test_non_data_descriptor_raises_attr_error_with_getattr_fallback(self):
+        """When a non-data descriptor's __get__ raises AttributeError on a type
+        with __getattr__, __getattr__ should be invoked as a fallback."""
+
+        class RaisingDescr:
+            def __get__(self, obj, cls):
+                raise AttributeError("non-data descr error")
+
+        class C:
+            x = RaisingDescr()
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.x
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "fallback:x")
+        # Cached
+        self.assertEqual(get_attr(c), "fallback:x")
+
+    def test_property_no_error_with_getattr(self):
+        """When a property succeeds on a type with __getattr__, the property
+        value should be returned normally (not __getattr__)."""
+
+        class C:
+            @property
+            def foo(self):
+                return "from_property"
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.foo
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "from_property")
+        # Cached
+        self.assertEqual(get_attr(c), "from_property")
+
+    def test_instance_dict_miss_with_getattr_fallback(self):
+        """When an attribute is not in the instance dict on a type with
+        __getattr__, __getattr__ should be invoked."""
+
+        class C:
+            def __init__(self):
+                self.existing = 42
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_existing(o):
+            return o.existing
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        c = C()
+        # Instance dict hit should work normally
+        self.assertEqual(get_existing(c), 42)
+        self.assertEqual(get_existing(c), 42)
+        # Instance dict miss should fall through to __getattr__
+        self.assertEqual(get_missing(c), "fallback:missing")
+        self.assertEqual(get_missing(c), "fallback:missing")
+
 
 @cinder_support.failUnlessJITCompiled
 @failUnlessHasOpcodes("STORE_ATTR")
