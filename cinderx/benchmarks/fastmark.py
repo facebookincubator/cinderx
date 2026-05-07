@@ -33,13 +33,16 @@ def ADD_PATH(path):
     sys.path.append(os.path.join(os.path.dirname(__file__), path))
 
 
-PYPERFORMANCE = os.path.join(os.path.dirname(__file__), "pyperformance")
-
-if not os.path.exists(PYPERFORMANCE):
+try:
+    import pyperformance
+except ImportError:
     print(
-        f"Error: pyperformance directory not found at {PYPERFORMANCE}", file=sys.stderr
+        "Error: pyperformance not found. Install it with: pip install pyperformance==1.14.0",
+        file=sys.stderr,
     )
     sys.exit(1)
+
+PYPERFORMANCE = os.path.dirname(pyperformance.__file__)
 
 BENCHMARKS = os.path.join(PYPERFORMANCE, "data-files", "benchmarks")
 
