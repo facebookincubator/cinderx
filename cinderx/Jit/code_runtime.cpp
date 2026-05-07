@@ -137,6 +137,11 @@ DebugInfo* CodeRuntime::debugInfo() {
   return &debug_info_;
 }
 
+void** CodeRuntime::allocateTypeCheckJumpTable(size_t num_entries) {
+  type_check_jump_table_ = std::make_unique<void*[]>(num_entries);
+  return type_check_jump_table_.get();
+}
+
 bool CodeRuntime::isCleared() const {
   // We always add some references when we first create the CodeRuntime, so we
   // know if no references are left we've been cleared.
@@ -151,12 +156,9 @@ int CodeRuntime::traverse(visitproc visit, void* arg) {
   for (const auto& ref : references_) {
     Py_VISIT(ref.get());
   }
-
-#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  if (reifier_ != nullptr) {
-    Py_VISIT(reifier_.get());
+  if (auto ref = reifier()) {
+    Py_VISIT(ref.get());
   }
-#endif
 
   return 0;
 }
@@ -173,6 +175,38 @@ std::optional<UnitCallStack> CodeRuntime::getUnitCallStackFromDeoptIdx(
     stack.emplace_back(frame.code, frame.cause_instr_idx);
   }
   return stack;
+}
+
+std::optional<uintptr_t> CodeRuntime::getCallsiteDeoptExit(
+  uintptr_t return_addr
+) const {
+  auto it = callsite_deopt_exits_.find(return_addr);
+  if (it != callsite_deopt_exits_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
+}
+
+void CodeRuntime::addCallsiteDeoptExit(
+  uintptr_t return_addr,
+  uintptr_t deopt_exit_addr
+) {
+  callsite_deopt_exits_[return_addr] = deopt_exit_addr;
+}
+
+void CodeRuntime::setReifier([[maybe_unused]] BorrowedRef<> reifier) {
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  ThreadedCompileSerialize guard;
+  reifier_ = ThreadedRef<>::create(reifier);
+#endif
+}
+
+BorrowedRef<> CodeRuntime::reifier() {
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  return reifier_;
+#else
+  return nullptr;
+#endif
 }
 
 } // namespace jit

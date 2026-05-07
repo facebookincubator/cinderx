@@ -139,10 +139,7 @@ class alignas(16) CodeRuntime {
   // Allocate a jump table for static type check dispatch.
   // Returns a pointer to the table data (valid for the lifetime of this
   // CodeRuntime).
-  void** allocateTypeCheckJumpTable(size_t num_entries) {
-    type_check_jump_table_ = std::make_unique<void*[]>(num_entries);
-    return type_check_jump_table_.get();
-  }
+  void** allocateTypeCheckJumpTable(size_t num_entries);
 
   // Traverse all GC-reachable objects held by this CodeRuntime.
   int traverse(visitproc visit, void* arg);
@@ -154,30 +151,14 @@ class alignas(16) CodeRuntime {
   std::optional<UnitCallStack> getUnitCallStackFromDeoptIdx(
       std::size_t deopt_idx) const;
 
-  std::optional<uintptr_t> getCallsiteDeoptExit(uintptr_t return_addr) const {
-    auto it = callsite_deopt_exits_.find(return_addr);
-    if (it != callsite_deopt_exits_.end()) {
-      return it->second;
-    }
-    return std::nullopt;
-  }
-  void addCallsiteDeoptExit(uintptr_t return_addr, uintptr_t deopt_exit_addr) {
-    callsite_deopt_exits_[return_addr] = deopt_exit_addr;
-  }
+  std::optional<uintptr_t> getCallsiteDeoptExit(uintptr_t return_addr) const;
 
-#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  void setReifier(BorrowedRef<> reifier) {
-    ThreadedCompileSerialize guard;
-    reifier_ = ThreadedRef<>::create(reifier);
-  }
-  BorrowedRef<> reifier() {
-    return reifier_;
-  }
-#else
-  BorrowedRef<> reifier() {
-    return nullptr;
-  }
-#endif
+  void addCallsiteDeoptExit(uintptr_t return_addr, uintptr_t deopt_exit_addr);
+
+  void setReifier(BorrowedRef<> reifier);
+
+  BorrowedRef<> reifier();
+
  private:
   RuntimeFrameState frame_state_;
   std::vector<std::unique_ptr<RuntimeFrameState>> inlined_frame_states_;

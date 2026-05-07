@@ -662,9 +662,7 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.ctx = getContext();
   env_.code_rt = env_.ctx->allocateCodeRuntime(
       func->code.get(), func->builtins.get(), func->globals.get());
-#if defined(ENABLE_LIGHTWEIGHT_FRAMES) && PY_VERSION_HEX >= 0x030E0000
   env_.code_rt->setReifier(func->reifier);
-#endif
 
   for (auto& ref : func->env.references()) {
     env_.code_rt->addReference(ref);
