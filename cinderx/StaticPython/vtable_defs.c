@@ -679,6 +679,13 @@ StaticMethodInfo _PyVTable_load_generic(PyObject* state, PyObject* self) {
   return return_to_native_typecode(obj, sig->ta_rettype);
 }
 
+// macOS prefixes all C symbols with an underscore.
+#ifdef __APPLE__
+#define THUNK_NATIVE_NAME "__PyVTable_thunk_native"
+#else
+#define THUNK_NATIVE_NAME "_PyVTable_thunk_native"
+#endif
+
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
 #ifdef _WIN32
 __attribute__((naked))
@@ -707,7 +714,7 @@ PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
       "mov %rsp, %r8\n"
       /* Allocate shadow space for the call */
       "sub $32, %rsp\n"
-      "call _PyVTable_thunk_native\n"
+      "call " THUNK_NATIVE_NAME "\n"
       /* Restore the struct return values into RAX/RDX to match the */
       /* JIT's native calling convention (RAX:RDX pair like SysV) */
       "mov -16(%rbp), %rax\n"
@@ -739,7 +746,7 @@ PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
       "push %rdx\n"
       "push %rsi\n"
       "mov %rsp, %rsi\n"
-      "call _PyVTable_thunk_native\n"
+      "call " THUNK_NATIVE_NAME "\n"
       /* We don't know if we're returning a floating point value or not */
       /* so we assume we are, and always populate the xmm registers */
       /* even if we don't need to */
@@ -770,7 +777,7 @@ PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
       "stp x7, x9, [sp, #48]\n"
       /* Set x1 to point to the args array */
       "mov x1, sp\n"
-      "bl _PyVTable_thunk_native\n"
+      "bl " THUNK_NATIVE_NAME "\n"
       /* We don't know if we're returning a floating point value or not */
       /* so we assume we are, and always populate the FP registers */
       /* even if we don't need to */
