@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-
+#
 # pyre-unsafe
+
 from __future__ import annotations
 
 import _imp
@@ -37,7 +38,7 @@ from cinderx.compiler.strict.loader import (
 )
 from cinderx.compiler.strict.runtime import set_freeze_enabled
 from cinderx.static import StaticTypeError
-from cinderx.test_support import passIf, subprocess_env
+from cinderx.test_support import passIf, skip_unless_lazy_imports, subprocess_env
 
 from . import sandbox as base_sandbox
 from .common import init_cached_properties, StrictTestBase
@@ -338,7 +339,7 @@ class StrictLoaderTest(StrictTestBase):
             # pyrefly: ignore [missing-attribute]
             self.assertEqual(a.f(), 42)
 
-    @passIf(not hasattr(importlib, "set_lazy_imports"), "not supported w/ lazy imports")
+    @skip_unless_lazy_imports
     def test_with_lazy_imports_failed_invoke(self) -> None:
         # pyre-ignore[16]: no such attribute
         enabled = importlib.is_lazy_imports_enabled()
@@ -2281,7 +2282,8 @@ class StrictLoaderTest(StrictTestBase):
         with self.assertRaises(SyntaxError):
             self.sbx.strict_import("b")
 
-    @passIf(sys.version_info >= (3, 15), "no lazy imports on 3.15")
+
+    @skip_unless_lazy_imports
     def test_strict_loader_lazy_imports_cycle(self) -> None:
         self.sbx.write_file(
             "main.py",
@@ -2471,7 +2473,7 @@ class StrictLoaderTest(StrictTestBase):
             # old version of the C class from the failed import
             self.assertIs(other.f(c), c)
 
-    @passIf(sys.version_info >= (3, 15), "no lazy imports on 3.15")
+    @skip_unless_lazy_imports
     def test_strict_lazy_import_cycle(self):
         self.sbx.write_file(
             "mod/__init__.py",
