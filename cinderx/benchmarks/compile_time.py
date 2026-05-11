@@ -11,10 +11,12 @@ eagerly compile all functions on import, then reports per-function and
 aggregate timing statistics.
 
 Usage:
+    python -m cinderx.benchmarks.compile_time
     buck run //cinderx/benchmarks:compile-time
 
 For a per-phase breakdown of each function's compilation, pass the jit-time
 flag via Python's -X option:
+    python -X jit-time='*' -m cinderx.benchmarks.compile_time
     buck run //cinderx/benchmarks:compile-time -- -X jit-time='*'
 """
 

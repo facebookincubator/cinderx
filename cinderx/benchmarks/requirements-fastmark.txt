@@ -1,0 +1,13 @@
+pyperformance==1.14.0
+coverage
+docutils
+dulwich
+genshi
+html5lib
+mako
+pyaes
+sqlalchemy<2.0
+sqlglot
+sympy
+tomli
+websockets
