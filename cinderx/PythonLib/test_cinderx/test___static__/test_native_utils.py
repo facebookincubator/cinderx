@@ -8,7 +8,7 @@ import sys
 import unittest
 from typing import final
 
-from cinderx.test_support import passIf
+from cinderx.test_support import passIf, passUnless
 
 try:
     from cinderx.static import (
@@ -22,7 +22,7 @@ except ImportError:
     pass
 
 
-@passIf(sys.platform == "win32", "not supported on Windows")
+@passUnless(sys.platform == "linux" , "Only supported on Linux currently")
 @final
 class TestNativeInvoke(unittest.TestCase):
     def test_native_invoke(self) -> None:

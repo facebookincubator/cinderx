@@ -37,25 +37,14 @@ jobs:
     - name: Install CinderX
       run: uv pip install cinderx --find-links dist --no-index
 
-    - name: Check CinderX loads successfully (Linux/Windows)
-      if: runner.os == 'Linux' || runner.os == 'Windows'
+    - name: Check CinderX loads successfully
       run: |
         uv run python -c 'import cinderx ; print(cinderx.get_import_error()) ; assert cinderx.is_initialized()'
 
-    # On macOS the _cinderx native extension currently fails to load, so the
-    # cinderx Python package falls back to its pure-Python stubs.  We only
-    # verify that `import cinderx` succeeds.
-    - name: Check CinderX loads successfully (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        uv run python -c 'import cinderx ; print("import_error:", cinderx.get_import_error()) ; print("initialized:", cinderx.is_initialized())'
-
     - name: Install pytest
-      if: runner.os == 'Linux' || runner.os == 'Windows'
       run: uv pip install pytest
 
     - name: Run Tests
-      if: runner.os == 'Linux' || runner.os == 'Windows'
       run: uv run pytest cinderx/PythonLib/test_cinderx/ --ignore=cinderx/PythonLib/test_cinderx/test_cpython_overrides/test__opcode.py
 
   build_wheels:
