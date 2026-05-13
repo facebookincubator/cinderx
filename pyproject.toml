@@ -15,6 +15,8 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Compilers",
@@ -31,7 +33,14 @@ filterwarnings = [
 ]
 
 [tool.cibuildwheel]
-build = ["cp314-manylinux_x86_64", "cp314-musllinux_x86_64", "cp314-manylinux_aarch64", "cp314-musllinux_aarch64"]
+build = [
+    "cp314-manylinux_x86_64",
+    "cp314-musllinux_x86_64",
+    "cp314-manylinux_aarch64",
+    "cp314-musllinux_aarch64",
+    "cp314-macosx_arm64",
+    "cp314-win_amd64",
+]
 environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
 build-verbosity = 3
 # Build using the latest image to try to get the latest Python point release.
@@ -45,4 +54,12 @@ test-command = "pytest {project}/cinderx/PythonLib/test_cinderx/test*.py"
 [tool.cibuildwheel.linux]
 # If it exists, pass through CINDERX_VERSION_PATCH to setuptools to specify the
 # patch version.
+environment-pass = ["CINDERX_VERSION_PATCH"]
+
+[tool.cibuildwheel.macos]
+environment-pass = ["CINDERX_VERSION_PATCH"]
+# Only build for arm64 (aarch64) on macOS
+archs = ["arm64"]
+
+[tool.cibuildwheel.windows]
 environment-pass = ["CINDERX_VERSION_PATCH"]
