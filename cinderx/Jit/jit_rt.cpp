@@ -696,7 +696,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
       "Non-code object for JIT function: {}",
       jit::repr(reinterpret_cast<PyObject*>(func)));
   BorrowedRef<PyCodeObject> co{func->func_code};
-  JIT_DCHECK(co == code_rt->frameState()->code(), "Code object mismatch");
+  JIT_DCHECK(co == code_rt->code(), "Code object mismatch");
 
   uint64_t spill_words = code_rt->spillWords();
   PyThreadState* tstate = PyThreadState_GET();
@@ -838,14 +838,10 @@ static void cleanupLightweightFrameExecutable(
   // Replace the reifier in f_funcobj with the actual function so that any
   // escaped references to the frame see a valid function pointer, not a
   // dangling reifier callback.
-  if (jit::hasRtfsFunction(frame)) {
-    frame->f_funcobj = jit::jitFrameGetRtfs(frame)->func();
-  } else {
-    PyObject* func = jit::jitFrameGetFunction(frame);
-    frame->f_funcobj = func;
-    Py_XDECREF(func);
-    header->rtfs = JIT_FRAME_INITIALIZED;
-  }
+  PyObject* func = jit::jitFrameGetFunction(frame);
+  frame->f_funcobj = func;
+  Py_XDECREF(func);
+  header->frame_status = JIT_FRAME_INITIALIZED;
 
   Py_DECREF(frameExecutable(frame));
 #endif
@@ -869,7 +865,7 @@ void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
   // The frame header is directly before the frame for non-generators.
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   auto* header = reinterpret_cast<jit::FrameHeader*>(frame) - 1;
-  if (header->rtfs & JIT_FRAME_INITIALIZED) {
+  if (header->frame_status & JIT_FRAME_INITIALIZED) {
     // Frame was materialized by the runtime, use the slow path.
     jit::jitFrameClearExceptCode(frame);
   } else {
@@ -928,13 +924,13 @@ JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
 PyObject* JITRT_LoadGlobalFromThreadState(
     PyThreadState* tstate,
     PyObject* name) {
-  jit::RuntimeFrameState rtfs = jit::runtimeFrameStateFromThreadState(tstate);
-  return JITRT_LoadGlobal(rtfs.globals(), rtfs.builtins(), name);
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  return JITRT_LoadGlobal(frame->f_globals, frame->f_builtins, name);
 }
 
 PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate) {
-  jit::RuntimeFrameState rtfs = jit::runtimeFrameStateFromThreadState(tstate);
-  return rtfs.globals();
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  return frame->f_globals;
 }
 
 PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr) {
@@ -2083,8 +2079,8 @@ PyObject* JITRT_CopyDictWithoutKeys(PyObject* subject, PyObject* keys) {
 }
 
 PyObject* JITRT_LoadName(PyThreadState* tstate, int name_idx) {
-  jit::RuntimeFrameState rtfs = jit::runtimeFrameStateFromThreadState(tstate);
-  return PyTuple_GET_ITEM(rtfs.code()->co_names, name_idx);
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  return PyTuple_GET_ITEM(frameCode(frame)->co_names, name_idx);
 }
 
 void JITRT_FormatAwaitableError(

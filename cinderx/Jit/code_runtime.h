@@ -41,65 +41,15 @@ class GenYieldPoint {
   const ptrdiff_t yield_from_offset_;
 };
 
-class alignas(16) RuntimeFrameState {
- public:
-  static constexpr int64_t codeOffset() {
-    return offsetof(RuntimeFrameState, code_);
-  }
-
-  RuntimeFrameState(
-      BorrowedRef<PyCodeObject> code,
-      BorrowedRef<PyDictObject> builtins,
-      BorrowedRef<PyDictObject> globals,
-      BorrowedRef<PyFunctionObject> func = nullptr)
-      : code_{code}, builtins_{builtins}, globals_{globals}, func_{func} {}
-
-  // Check if this is a generator frame.
-  bool isGen() const;
-
-  BorrowedRef<PyCodeObject> code() const;
-  BorrowedRef<PyDictObject> builtins() const;
-  BorrowedRef<PyDictObject> globals() const;
-  BorrowedRef<PyFunctionObject> func() const;
-
- private:
-  // All fields are owned by the CodeRuntime that owns this RuntimeFrameState.
-
-  BorrowedRef<PyCodeObject> code_;
-  BorrowedRef<PyDictObject> builtins_;
-  BorrowedRef<PyDictObject> globals_;
-  // The function is only set for inlined frames.
-  BorrowedRef<PyFunctionObject> func_;
-};
-
 // Runtime data for a PyCodeObject object, containing caches and any other data
 // associated with a JIT-compiled function.
 class alignas(16) CodeRuntime {
  public:
-  static constexpr int64_t frameStateOffset() {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winvalid-offsetof"
-    return offsetof(CodeRuntime, frame_state_);
-#pragma GCC diagnostic pop
-  }
-
-  static constexpr int64_t codeOffset() {
-    return CodeRuntime::frameStateOffset() + RuntimeFrameState::codeOffset();
-  }
-
   explicit CodeRuntime(BorrowedRef<PyFunctionObject> func);
   CodeRuntime(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals);
-
-  template <typename... Args>
-  RuntimeFrameState* allocateRuntimeFrameState(Args&&... args) {
-    return inlined_frame_states_
-        .emplace_back(
-            std::make_unique<RuntimeFrameState>(std::forward<Args>(args)...))
-        .get();
-  }
 
   // Ensure that this CodeRuntime owns a reference to the given borrowed
   // object, keeping it alive for use by the compiled code. Make CodeRuntime a
@@ -123,8 +73,12 @@ class alignas(16) CodeRuntime {
   // Get all deopt metadatas for the given CodeRuntime.
   const std::vector<DeoptMetadata>& deoptMetadatas() const;
 
-  // Get the top-level runtime frame state for this CodeRuntime's PyCodeObject.
-  const RuntimeFrameState* frameState() const;
+  // Check if this is a generator/coroutine/async generator.
+  bool isGen() const;
+
+  BorrowedRef<PyCodeObject> code() const;
+  BorrowedRef<PyDictObject> builtins() const;
+  BorrowedRef<PyDictObject> globals() const;
 
   // Get and set the total size of a stack frame for this compiled code object.
   int frameSize() const;
@@ -160,8 +114,9 @@ class alignas(16) CodeRuntime {
   BorrowedRef<> reifier();
 
  private:
-  RuntimeFrameState frame_state_;
-  std::vector<std::unique_ptr<RuntimeFrameState>> inlined_frame_states_;
+  BorrowedRef<PyCodeObject> code_;
+  BorrowedRef<PyDictObject> builtins_;
+  BorrowedRef<PyDictObject> globals_;
 
   // References owned by this CodeRuntime.
   std::unordered_set<ThreadedRef<PyObject>> references_;

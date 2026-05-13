@@ -164,7 +164,7 @@ uintptr_t prepareForDeopt(
       outer = outer->previous;
     }
     is_instrumentation_deopt =
-        (jitFrameGetHeader(outer)->rtfs & JIT_FRAME_DEOPT_PATCHED) != 0;
+        (jitFrameGetHeader(outer)->frame_status & JIT_FRAME_DEOPT_PATCHED) != 0;
   }
 #endif
 

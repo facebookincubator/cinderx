@@ -238,8 +238,7 @@ void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {
 
 void* CompiledFunction::staticEntry() const {
   if (data_.runtime == nullptr ||
-      !(data_.runtime->frameState()->code()->co_flags &
-        CI_CO_STATICALLY_COMPILED)) {
+      !(data_.runtime->code()->co_flags & CI_CO_STATICALLY_COMPILED)) {
     return nullptr;
   }
 

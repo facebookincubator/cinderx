@@ -23,14 +23,14 @@ struct FrameHeader {
   // current bytecode offset for frame introspection (e.g. sys._current_frames).
   // Updated before each instruction that can deopt. On x86-64, we use the
   // IP-based symbolizer approach instead.
-  // On aarch64 deopt_idx is placed first so that func/rtfs is adjacent to the
-  // _PyInterpreterFrame fields that follow, enabling consecutive stores via
-  // VariadicStore during frame initialization.
+  // On aarch64 deopt_idx is placed first so that func/frame_status is adjacent
+  // to the _PyInterpreterFrame fields that follow, enabling consecutive stores
+  // via StorePair during frame initialization.
   std::size_t deopt_idx;
 #endif
   union {
     PyFunctionObject* func;
-    uintptr_t rtfs;
+    uintptr_t frame_status;
   };
 #endif
 };
@@ -41,7 +41,7 @@ inline constexpr size_t kFrameHeaderOverhead = sizeof(FrameHeader);
 inline constexpr size_t kFrameHeaderOverhead = 0;
 #endif
 
-#define JIT_FRAME_RTFS 0x01
+#define JIT_FRAME_INLINED 0x01
 #define JIT_FRAME_INITIALIZED 0x02
 #define JIT_FRAME_DEOPT_PATCHED 0x04
 #define JIT_FRAME_MASK 0x07

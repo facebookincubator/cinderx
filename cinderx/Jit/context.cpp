@@ -143,7 +143,7 @@ void Context::mlockProfilerDependencies() {
     if (codert.isCleared()) {
       continue;
     }
-    PyCodeObject* code = codert.frameState()->code().get();
+    PyCodeObject* code = codert.code().get();
     if (code == nullptr) {
       continue;
     }
@@ -168,7 +168,7 @@ Ref<> Context::pageInProfilerDependencies() {
     if (code_rt.isCleared()) {
       continue;
     }
-    BorrowedRef<> qualname = code_rt.frameState()->code()->co_qualname;
+    BorrowedRef<> qualname = code_rt.code()->co_qualname;
     if (qualname == nullptr) {
       continue;
     }

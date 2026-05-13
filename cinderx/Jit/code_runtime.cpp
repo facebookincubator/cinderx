@@ -29,24 +29,20 @@ ptrdiff_t GenYieldPoint::yieldFromOffset() const {
   return yield_from_offset_;
 }
 
-bool RuntimeFrameState::isGen() const {
+bool CodeRuntime::isGen() const {
   return code()->co_flags & kCoFlagsAnyGenerator;
 }
 
-BorrowedRef<PyCodeObject> RuntimeFrameState::code() const {
+BorrowedRef<PyCodeObject> CodeRuntime::code() const {
   return code_;
 }
 
-BorrowedRef<PyDictObject> RuntimeFrameState::builtins() const {
+BorrowedRef<PyDictObject> CodeRuntime::builtins() const {
   return builtins_;
 }
 
-BorrowedRef<PyDictObject> RuntimeFrameState::globals() const {
+BorrowedRef<PyDictObject> CodeRuntime::globals() const {
   return globals_;
-}
-
-BorrowedRef<PyFunctionObject> RuntimeFrameState::func() const {
-  return func_;
 }
 
 CodeRuntime::CodeRuntime(BorrowedRef<PyFunctionObject> func)
@@ -59,7 +55,7 @@ CodeRuntime::CodeRuntime(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals)
-    : frame_state_{code, builtins, globals} {
+    : code_{code}, builtins_{builtins}, globals_{globals} {
   // Ensure code, globals, and builtins objects live as long as their compiled
   // functions.
   addReference(code);
@@ -113,10 +109,6 @@ const std::vector<DeoptMetadata>& CodeRuntime::deoptMetadatas() const {
   return deopt_metadatas_;
 }
 
-const RuntimeFrameState* CodeRuntime::frameState() const {
-  return &frame_state_;
-}
-
 int CodeRuntime::frameSize() const {
   return frame_size_;
 }
@@ -151,8 +143,8 @@ bool CodeRuntime::isCleared() const {
 int CodeRuntime::traverse(visitproc visit, void* arg) {
   // Only traverse objects that this CodeRuntime owns strong references to.
   // The references_ set contains ThreadedRef which hold strong references.
-  // The frame_state_ and inlined_frame_states_ contain BorrowedRef which
-  // point to the same objects already in references_ - don't double-count.
+  // code_, builtins_, globals_ are BorrowedRef pointing to the same objects
+  // already in references_ - don't double-count.
   for (const auto& ref : references_) {
     Py_VISIT(ref.get());
   }

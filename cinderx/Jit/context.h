@@ -110,9 +110,9 @@ struct CompilationKey {
         globals{func->func_globals} {}
 
   explicit CompilationKey(const CompiledFunction& func)
-      : code{func.runtime()->frameState()->code()},
-        builtins{func.runtime()->frameState()->builtins()},
-        globals{func.runtime()->frameState()->globals()} {}
+      : code{func.runtime()->code()},
+        builtins{func.runtime()->builtins()},
+        globals{func.runtime()->globals()} {}
 
   CompilationKey(PyObject* code, PyObject* builtins, PyObject* globals)
       : code(code), builtins(builtins), globals(globals) {}
