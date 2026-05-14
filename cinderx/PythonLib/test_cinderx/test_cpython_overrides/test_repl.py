@@ -1,15 +1,19 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import unittest
 from textwrap import dedent
 
-# pyre-ignore[21]: can't find test.support
-from test.support import SuppressCrashReport
+try:
+    # pyre-ignore[21]: can't find test.support
+    from test.support import SuppressCrashReport
 
-# pyre-ignore[21]: can't find test.support
-from test.support.script_helper import kill_python
+    # pyre-ignore[21]: can't find test.support
+    from test.support.script_helper import kill_python
 
-# pyre-ignore[21]: can't find test.test_repl
-from test.test_repl import spawn_repl
+    # pyre-ignore[21]: can't find test.test_repl
+    from test.test_repl import spawn_repl
+except ImportError as e:
+    raise unittest.SkipTest("test modules not installed") from e
 
 
 class CinderX_TestInteractiveInterpreter(unittest.TestCase):

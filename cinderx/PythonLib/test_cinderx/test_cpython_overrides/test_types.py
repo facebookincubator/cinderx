@@ -4,17 +4,13 @@
 import gc
 import sys
 import typing
-import unittest.mock
-
-# pyre-ignore[21]: can't find test.support
-from test.support import cpython_only
+import unittest
 
 
 T = typing.TypeVar("T")
 
 
 class CinderX_UnionTests(unittest.TestCase):
-    @cpython_only
     def test_or_type_operator_reference_cycle(self) -> None:
         if not hasattr(sys, "gettotalrefcount"):
             self.skipTest("Cannot get total reference count.")

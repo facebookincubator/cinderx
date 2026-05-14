@@ -1,17 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import unittest
 
-# pyre-ignore[21]: can't find test.support
-from test.support import gc_collect
-
-# pyre-ignore[21]: can't find test.support
-from test.support.import_helper import import_module
-
-asyncio = import_module("asyncio")
+import asyncio
 import cinderx.jit
 from cinderx.test_support import passIf
-
-_no_default = object()
 
 
 class AwaitException(Exception):
@@ -26,7 +19,6 @@ class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
     def tearDown(self):
         self.loop.close()
         self.loop = None
-        asyncio.set_event_loop_policy(None)
 
     @passIf(cinderx.jit.is_enabled(), "fails under Cinder JIT")
     def test_async_gen_asyncio_gc_aclose_09(self) -> None:
@@ -47,7 +39,10 @@ class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
             await g.__anext__()
             await g.__anext__()
             del g
-            gc_collect()  # For PyPy or other GCs.
+
+            gc.collect()
+            gc_collect()
+            gc_collect()
 
             # CinderX: This is changed from asyncio.sleep(1)
             await asyncio.sleep(0.1)

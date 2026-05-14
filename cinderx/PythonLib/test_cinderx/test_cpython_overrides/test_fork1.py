@@ -9,15 +9,17 @@ import threading
 import time
 import unittest
 
-# pyre-ignore[21]: can't find test.support
-from test import support
+try:
+    # pyre-ignore[21]: can't find test.support
+    from test import support
+    # pyre-ignore[21]: can't find test.fork_wait
+    from test.fork_wait import ForkWait
+except ImportError:
+    raise unittest.SkipTest("test modules not installed")
 
-# pyre-ignore[21]: can't find test.fork_wait
-from test.fork_wait import ForkWait
 
-
-# Skip test if fork does not exist.
-support.get_attribute(os, "fork")
+if not hasattr(os, "fork"):
+    raise unittest.SkipTest("Fork not supported")
 
 
 # pyre-ignore[11]: Invalid type ForkWait
@@ -56,8 +58,7 @@ class CinderX_ForkTest(ForkWait):
                 if m == complete_module:
                     os._exit(exitcode)
                 else:
-                    if support.verbose > 1:
-                        print("Child encountered partial module")
+                    print("Child encountered partial module")
                     os._exit(1)
             else:
                 t.join()
