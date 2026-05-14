@@ -1,8 +1,0 @@
-[manifest]
-name = rdma-core
-
-[debs]
-rdma-core
-
-[rpms]
-rdma-core-devel
