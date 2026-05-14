@@ -9,6 +9,7 @@ import tempfile
 import textwrap
 import traceback
 import unittest
+import warnings
 import weakref
 from pathlib import Path
 from typing import Callable, TYPE_CHECKING
@@ -47,7 +48,7 @@ else:
     StaticTestBase = unittest.TestCase
 
 
-class TestException(Exception):
+class ExampleException(Exception):
     pass
 
 
@@ -2081,10 +2082,10 @@ class StoreSubscrTests(unittest.TestCase):
     def test_store_subscr_deopts_on_exception(self) -> None:
         class C:
             def __setitem__(self, key, value):
-                raise TestException("hello")
+                raise ExampleException("hello")
 
         obj = C()
-        with self.assertRaisesRegex(TestException, "hello"):
+        with self.assertRaisesRegex(ExampleException, "hello"):
             self.doit(obj, 1, 2)
 
 
@@ -2112,9 +2113,9 @@ class FormatValueTests(unittest.TestCase):
     def test_format_value_calls_str_with_exception(self) -> None:
         class C:
             def __str__(self):
-                raise TestException("no")
+                raise ExampleException("no")
 
-        with self.assertRaisesRegex(TestException, "no"):
+        with self.assertRaisesRegex(ExampleException, "no"):
             self.doit(C())
 
     def test_format_value_calls_repr(self) -> None:
@@ -2127,9 +2128,9 @@ class FormatValueTests(unittest.TestCase):
     def test_format_value_calls_repr_with_exception(self) -> None:
         class C:
             def __repr__(self):
-                raise TestException("no")
+                raise ExampleException("no")
 
-        with self.assertRaisesRegex(TestException, "no"):
+        with self.assertRaisesRegex(ExampleException, "no"):
             self.doit_repr(C())
 
 
@@ -2238,15 +2239,15 @@ class ListToTupleTests(unittest.TestCase):
 class CompareTests(unittest.TestCase):
     class Incomparable:
         def __lt__(self, other):
-            raise TestException("no lt")
+            raise ExampleException("no lt")
 
     class NonIterable:
         def __iter__(self):
-            raise TestException("no iter")
+            raise ExampleException("no iter")
 
     class NonIndexable:
         def __getitem__(self, idx):
-            raise TestException("no getitem")
+            raise ExampleException("no getitem")
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("COMPARE_OP")
@@ -2276,21 +2277,21 @@ class CompareTests(unittest.TestCase):
     def test_compare_op(self) -> None:
         self.assertTrue(self.compare_op(3, 4))
         self.assertFalse(self.compare_op(3, 3))
-        with self.assertRaisesRegex(TestException, "no lt"):
+        with self.assertRaisesRegex(ExampleException, "no lt"):
             self.compare_op(self.Incomparable(), 123)
 
     def test_contains_op(self) -> None:
         self.assertTrue(self.compare_in(3, [1, 2, 3]))
         self.assertFalse(self.compare_in(4, [1, 2, 3]))
-        with self.assertRaisesRegex(TestException, "no iter"):
+        with self.assertRaisesRegex(ExampleException, "no iter"):
             self.compare_in(123, self.NonIterable())
-        with self.assertRaisesRegex(TestException, "no getitem"):
+        with self.assertRaisesRegex(ExampleException, "no getitem"):
             self.compare_in(123, self.NonIndexable())
         self.assertTrue(self.compare_not_in(4, [1, 2, 3]))
         self.assertFalse(self.compare_not_in(3, [1, 2, 3]))
-        with self.assertRaisesRegex(TestException, "no iter"):
+        with self.assertRaisesRegex(ExampleException, "no iter"):
             self.compare_not_in(123, self.NonIterable())
-        with self.assertRaisesRegex(TestException, "no getitem"):
+        with self.assertRaisesRegex(ExampleException, "no getitem"):
             self.compare_not_in(123, self.NonIndexable())
 
     def test_is_op(self) -> None:
@@ -2748,15 +2749,19 @@ class CompileTimeTests(unittest.TestCase):
     """
 
     def test_compile_time(self) -> None:
-        # This function is known to have a lengthy compile time.
-        try:
-            # pyre-ignore[21]: Pyre doesn't know about this function.
-            from sre_compile import _compile
-        except ImportError:
-            # sre_compile was removed in 3.15, re._compiler is the same func
-            # as it was before.
-            # pyre-ignore[21]: Pyre doesn't know about this function.
-            from re._compiler import _compile
+        # sre_compile is deprecated.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+            # This function is known to have a lengthy compile time.
+            try:
+                # pyre-ignore[21]: Pyre doesn't know about this function.
+                from sre_compile import _compile
+            except ImportError:
+                # sre_compile was removed in 3.15, re._compiler is the same func
+                # as it was before.
+                # pyre-ignore[21]: Pyre doesn't know about this function.
+                from re._compiler import _compile
 
         # It's probably already compiled as part of regular startup, but just in case
         # let's make sure.

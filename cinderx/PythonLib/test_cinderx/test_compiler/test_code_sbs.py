@@ -80,7 +80,7 @@ def graph_instrs(graph, name=None) -> Generator[Instruction, None, None]:
         yield from block.getInstructions()
 
 
-class TestFile:
+class ParsedTestFile:
     """Parsed test case file."""
 
     _SECTION_HEADERS = {SCRIPT_EXPECTED: "expected", SCRIPT_EXC_TABLE: "exc_table"}
@@ -352,7 +352,7 @@ def add_test(modname: str, fname: str) -> None:
         return
 
     def test_code(self: CodeTests) -> None:
-        test = TestFile(fname)
+        test = ParsedTestFile(fname)
         graph = self.to_graph(test.code)
 
         fixme = "fixup to be a minimal repro and check it in"

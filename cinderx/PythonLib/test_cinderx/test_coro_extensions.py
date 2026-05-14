@@ -1,29 +1,13 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+import asyncio
 import sys
 import types
 import unittest
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 
 from cinderx.test_support import hasCinderX, is_oss, passIf, skip_if_jit
-
-if is_oss():
-    import asyncio.events
-    import importlib
-
-    def event_policy_wrapper():
-        return asyncio.events._event_loop_policy
-
-    maybe_get_event_loop_policy = event_policy_wrapper
-    import_helper = importlib
-else:
-    # pyre-ignore[21]: can't find test.support
-    from test.support import import_helper, maybe_get_event_loop_policy
-
-
-if hasCinderX():
-    import cinder
 
 
 def run_async(
@@ -43,11 +27,6 @@ def run_async(
 
 
 class TestEagerExecution(unittest.TestCase):
-    def setUp(self) -> None:
-        self._asyncio = import_helper.import_module("asyncio")
-        policy = maybe_get_event_loop_policy()
-        self.addCleanup(lambda: self._asyncio.set_event_loop_policy(policy))
-
     async def _raise_IndexError_eager(self, x: object = None) -> None:
         try:
             raise IndexError
@@ -58,7 +37,7 @@ class TestEagerExecution(unittest.TestCase):
         try:
             raise IndexError
         except:  # noqa B001
-            await self._asyncio.sleep(0)
+            await asyncio.sleep(0)
 
     def _check(
         self,
@@ -67,7 +46,7 @@ class TestEagerExecution(unittest.TestCase):
     ) -> None:
         def run(coro: Coroutine[object, None, object]) -> type[BaseException] | None:
             try:
-                self._asyncio.run(coro)
+                asyncio.run(coro)
                 self.fail("Exception expected")
             except RuntimeError as e:
                 if e.__context__ is None:
