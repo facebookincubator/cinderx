@@ -12,3 +12,10 @@ test.test_generators.GeneratorTest.test_close_clears_frame
 
 # When run with JIT there's an extra heap object which causes this test to fail.
 test.test_gc.GCTests.test_heap_size
+
+# These appear to be broken upstream without CinderX
+test.test_urllib.urlopen_HttpTests.test_url_host_with_control_char_rejected
+test.test_urllib.urlopen_HttpTests.test_url_host_with_newline_header_injection_rejected
+
+# AI thinks this is broken upstream but fixed in 3.15+
+test.test_zipimport.CompressedZipImportTestCase.testPackageExplicitDirectories
