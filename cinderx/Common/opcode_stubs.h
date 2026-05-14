@@ -24,6 +24,9 @@
   X(BINARY_MATRIX_MULTIPLY)            \
   X(BINARY_MODULO)                     \
   X(BINARY_MULTIPLY)                   \
+  X(BINARY_OP_SUBSCR_DICT)             \
+  X(BINARY_OP_SUBSCR_LIST_INT)         \
+  X(BINARY_OP_SUBSCR_TUPLE_INT)        \
   X(BINARY_OR)                         \
   X(BINARY_POWER)                      \
   X(BINARY_RSHIFT)                     \

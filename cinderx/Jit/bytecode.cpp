@@ -79,6 +79,9 @@ int BytecodeInstruction::specializedOpcode() const {
     case BINARY_OP_ADD_UNICODE:
     case BINARY_OP_MULTIPLY_FLOAT:
     case BINARY_OP_MULTIPLY_INT:
+    case BINARY_OP_SUBSCR_DICT:
+    case BINARY_OP_SUBSCR_LIST_INT:
+    case BINARY_OP_SUBSCR_TUPLE_INT:
     case BINARY_OP_SUBTRACT_FLOAT:
     case BINARY_OP_SUBTRACT_INT:
     case BINARY_SUBSCR_DICT:
