@@ -75,8 +75,10 @@ if(ENABLE_LTO)
     set(USING_CLANG TRUE)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(USING_GCC TRUE)
+  elseif(MSVC)
+    set(USING_MSVC TRUE)
   else()
-    message(FATAL_ERROR "LTO is only supported with Clang or GCC compilers")
+    message(FATAL_ERROR "LTO is only supported with Clang, GCC, or MSVC compilers")
   endif()
 
   # For Clang, we need llvm-ar instead of regular ar.  On macOS, try to find
@@ -90,6 +92,10 @@ if(ENABLE_LTO)
       message(STATUS
         "LTO: Using system ar (llvm-ar not found,"
         " AppleClang may work with system ar)")
+    elseif(WINDOWS)
+      message(STATUS
+        "LTO: Using system lib (llvm-ar not found, Clang-CL may work with"
+        " system lib)")
     else()
       message(FATAL_ERROR "llvm-ar is required for LTO with Clang but was not found")
     endif()
@@ -105,6 +111,11 @@ if(ENABLE_LTO)
   elseif(USING_GCC)
     set(LTO_FLAG "-flto")
     set(LTO_LINKER_FLAGS "-flto -fuse-linker-plugin -ffat-lto-objects")
+  elseif(USING_MSVC)
+    # MSVC uses /GL for compilation and /LTCG for linking
+    # Alternatively, we can use CMake's INTERPROCEDURAL_OPTIMIZATION
+    set(LTO_FLAG "/GL")
+    set(LTO_LINKER_FLAGS "/LTCG")
   endif()
 
   # Apply flags to all C and C++ compilation
