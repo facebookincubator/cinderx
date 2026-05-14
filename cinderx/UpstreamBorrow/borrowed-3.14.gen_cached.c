@@ -3389,6 +3389,7 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
         &(runtime)->allocators.mutex, \
         &(runtime)->_main_interpreter.types.mutex, \
         &(runtime)->_main_interpreter.code_state.mutex, \
+        &(runtime)->_main_interpreter.dict_state.watcher_mutex, \
         &(runtime)->_main_interpreter.lazy_imports_mutex, \
     }
 #ifdef Py_REF_DEBUG
