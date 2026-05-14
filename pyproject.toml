@@ -74,13 +74,8 @@ test-skip = "*t-*"
 
 [tool.cibuildwheel.environment]
 CINDERX_ENABLE_LTO = "1"
+CINDERX_ENABLE_PGO = "1"
 CMAKE_BUILD_TYPE = "Release"
-
-# PGO is supported on everything except Windows right now.
-[[tool.cibuildwheel.overrides]]
-select = "*-{manylinux,musllinux,macosx}_*"
-inherit.environment = "append"
-environment = { CINDERX_ENABLE_PGO = "1" }
 
 # Not building for macOS x86-64.
 [tool.cibuildwheel.macos]
