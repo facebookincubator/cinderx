@@ -44,6 +44,14 @@ jobs:
             echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
           fi
 
+      # Windows builds may use Clang-CL which needs llvm-profdata for PGO.  MSVC
+      # PGO does not require LLVM.
+      - name: Install LLVM (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install llvm -y
+          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
+
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 

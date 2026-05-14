@@ -66,13 +66,14 @@ def compute_package_version() -> str:
 
 
 @lru_cache(maxsize=1)
-def get_compiler() -> tuple[str, str]:
+def get_compiler() -> tuple[str | None, str | None]:
     """
     Prefers GCC if a new enough version is installed as this is what the
     cibuildwheel environment uses.
 
     Returns:
-        A tuple of (c_compiler, cxx_compiler) paths.
+        A tuple of (c_compiler, cxx_compiler) paths, or (None, None) to use
+        CMake's default compiler detection.
     """
     cc_path = os.environ.get("CC")
     cxx_path = os.environ.get("CXX")
@@ -124,6 +125,12 @@ def get_compiler() -> tuple[str, str]:
         print(f"Using Clang: {clang_path}, {clangxx_path}")
         return (clang_path, clangxx_path)
 
+    # On Windows, if no compiler is explicitly found, let CMake use its default
+    # (which will be MSVC with the appropriate generator)
+    if platform.system() == "Windows":
+        print("No explicit compiler found, using CMake default (MSVC on Windows)")
+        return (None, None)
+
     raise RuntimeError("Cannot find suitable C/C++ compiler (tried gcc and clang)")
 
 
@@ -160,7 +167,9 @@ class BuildCommand(build):
             print(separator)
 
         cc, _ = get_compiler()
-        is_clang = "clang" in cc
+        is_clang = cc and "clang" in cc
+        is_windows = platform.system() == "Windows"
+        is_msvc = is_windows and not is_clang
 
         print_section("PGO STAGE 1/3: Building with profile generation instrumentation")
 
@@ -220,7 +229,7 @@ if __name__ == "__main__":
         }
         if is_clang:
             workload_args["cwd"] = clang_pgo_dir
-        subprocess.run(workload_cmd, **workload_args)
+            subprocess.run(workload_cmd, **workload_args)
 
         if is_clang:
             print_section("PGO STAGE 2b: Merging profile data")
@@ -244,6 +253,9 @@ if __name__ == "__main__":
             ] + profraw_files
             subprocess.run(merge_cmd, check=True)
             print(f"Merged profile written to {clang_merged_profile}")
+        elif is_msvc:
+            print_section("PGO STAGE 2b: MSVC profile data")
+            print("MSVC automatically merges .pgc files into a .pgd database")
 
         print_section("PGO STAGE 3/3: Rebuilding with profile-guided optimizations")
 
@@ -264,20 +276,22 @@ if __name__ == "__main__":
 
         cmake_files = os.path.join(self.build_temp, "CMakeFiles")
         if os.path.exists(cmake_files):
-            print(f"  Cleaning {cmake_files} (preserving .gcda/.gcno for GCC PGO)")
+            print(
+                f"  Cleaning {cmake_files} (preserving .gcda/.gcno for GCC PGO, .pgc/.pgd for MSVC PGO)"
+            )
             for root, _dirs, files in os.walk(cmake_files, topdown=False):
                 for f in files:
                     file_path = os.path.join(root, f)
-                    # Preserve GCC PGO profiling files
-                    if f.endswith((".gcda", ".gcno")):
+                    # Preserve PGO profiling files.
+                    if f.endswith((".gcda", ".gcno", ".pgc", ".pgd")):
                         continue
                     os.remove(file_path)
-                # Remove empty directories, but only if they don't contain
-                # preserved files (the topdown=False walk handles this)
+                    # Remove empty directories, but only if they don't contain
+                    # preserved files (the topdown=False walk handles this)
                 try:
                     os.rmdir(root)  # Only removes if empty
                 except OSError:
-                    pass  # Directory not empty, contains .gcda/.gcno files
+                    pass  # Directory not empty, contains preserved files
 
         # Remove all object files and libraries to force rebuild
         for rm_root in (self.build_temp, self.build_lib):
@@ -287,7 +301,9 @@ if __name__ == "__main__":
                     if "pgo_data" in root:
                         continue
                     for f in files:
-                        if f.endswith((".o", ".so", ".a")):
+                        if f.endswith(
+                                (".o", ".so", ".a", ".obj", ".lib", ".pyd", ".dll", ".exp")
+                        ):
                             file_path = os.path.join(root, f)
                             print(f"  Removing {file_path}")
                             os.remove(file_path)
@@ -391,10 +407,14 @@ class BuildExt(build_ext):
         cmake_args += [
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={ext_dir}",
-            f"-DCMAKE_C_COMPILER={cc}",
-            f"-DCMAKE_CXX_COMPILER={cxx}",
             f"-DCMAKE_VERBOSE_MAKEFILE:BOOL={verbose_makefile}",
         ]
+
+        # Only pass explicit compiler if specified (None means use CMake defaults).
+        if cc:
+            cmake_args.append(f"-DCMAKE_C_COMPILER={cc}")
+        if cxx:
+            cmake_args.append(f"-DCMAKE_CXX_COMPILER={cxx}")
 
         if self.cinderx_pgo_stage == PgoStage.GENERATE:
             cmake_args.append("-DENABLE_PGO_GENERATE=ON")
