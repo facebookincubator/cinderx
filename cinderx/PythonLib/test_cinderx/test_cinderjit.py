@@ -11,7 +11,7 @@ import traceback
 import unittest
 import weakref
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
@@ -39,7 +39,9 @@ from cinderx.test_support import (
 
 from .common import failUnlessHasOpcodes, with_globals
 
-if not is_oss():
+if TYPE_CHECKING:
+    from .test_compiler.test_static.common import StaticTestBase
+elif not is_oss():
     from .test_compiler.test_static.common import StaticTestBase
 else:
     StaticTestBase = unittest.TestCase
