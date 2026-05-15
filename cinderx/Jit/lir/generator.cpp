@@ -744,7 +744,89 @@ void GenerateArgcountCheckBlocks(
     auto helper = returns_primitive_double
         ? reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcountFPReturn)
         : reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcount);
+#ifdef _WIN32
+    // On Windows x64, both helpers return 16-byte structs which causes the
+    // ABI to use a hidden sret pointer in RCX, shifting all visible
+    // arguments by one register position. Allocate temporary stack space,
+    // shuffle arguments, call, then extract the two return values into the
+    // registers that JITed code expects.
+    {
+      // Stack layout (64 bytes, keeps 16-byte alignment):
+      //   [RSP + 0x30] sret struct (16 bytes)
+      //   [RSP + 0x28] padding
+      //   [RSP + 0x20] 5th arg (argcount)
+      //   [RSP + 0x00] shadow space (32 bytes)
+      constexpr int kSretFrameSize = 64;
+      constexpr int kSretStructOffset = 0x30;
+      auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+
+      argcount_check->allocateInstr(
+          Instruction::kLea,
+          nullptr,
+          OutPhyReg{sp_reg},
+          Ind(sp_reg, -kSretFrameSize));
+
+      // Store argcount (5th arg) at [RSP + 0x20].
+      argcount_check->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutInd(sp_reg, 0x20),
+          PhyReg{kwnames_reg});
+
+      // Shuffle args to make room for the sret pointer in RCX.
+      // Before: RCX=func, RDX=args, R8=nargsf, R9=numArgs
+      // After:  RCX=sret, RDX=func, R8=args, R9=nargsf, [RSP+0x20]=numArgs
+      argcount_check->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg{codegen::ARGUMENT_REGS[3]},
+          PhyReg{codegen::ARGUMENT_REGS[2]});
+      argcount_check->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg{codegen::ARGUMENT_REGS[2]},
+          PhyReg{codegen::ARGUMENT_REGS[1]});
+      argcount_check->allocateInstr(
+          Instruction::kMove,
+          nullptr,
+          OutPhyReg{codegen::ARGUMENT_REGS[1]},
+          PhyReg{codegen::ARGUMENT_REGS[0]});
+
+      argcount_check->allocateInstr(
+          Instruction::kLea,
+          nullptr,
+          OutPhyReg{codegen::ARGUMENT_REGS[0]},
+          Ind(sp_reg, kSretStructOffset));
+
+      argcount_check->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
+
+      if (returns_primitive_double) {
+        argcount_check->allocateInstr(
+            Instruction::kMove,
+            nullptr,
+            OutPhyReg{codegen::arch::reg_double_return_loc},
+            Ind(sp_reg, kSretStructOffset));
+        argcount_check->allocateInstr(
+            Instruction::kMove,
+            nullptr,
+            OutPhyReg{codegen::arch::reg_double_auxilary_return_loc},
+            Ind(sp_reg, kSretStructOffset + 8));
+      } else {
+        argcount_check->allocateInstr(
+            Instruction::kMove,
+            nullptr,
+            OutPhyReg{codegen::arch::reg_general_return_loc},
+            Ind(sp_reg, kSretStructOffset));
+        argcount_check->allocateInstr(
+            Instruction::kMove,
+            nullptr,
+            OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
+            Ind(sp_reg, kSretStructOffset + 8));
+      }
+    }
+#else
     argcount_check->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
+#endif
     argcount_check->allocateInstr(
         Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
 
