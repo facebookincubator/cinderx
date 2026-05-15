@@ -191,8 +191,6 @@ void fillLiveValueLocations(
     const Instruction* instr,
     size_t begin_input,
     size_t end_input) {
-  ThreadedCompileSerialize guard;
-
   DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   for (size_t i = begin_input; i < end_input; i++) {
     auto loc = instr->getInput(i)->getPhyRegOrStackSlot();
