@@ -52,6 +52,7 @@ class LIRGeneratorTest : public RuntimeTest {
     env.ctx = getContext();
 
     jit::CodeRuntime runtime{func};
+    runtime.setReifier(irfunc->reifier);
     env.code_rt = &runtime;
 
     LIRGenerator lir_gen(irfunc.get(), &env);
