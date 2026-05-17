@@ -54,9 +54,9 @@ test-requires = ["pytest"]
 test-command = "pytest {project}/cinderx/PythonLib/test_cinderx/ --ignore={project}/cinderx/PythonLib/test_cinderx/test_cpython_overrides/test__opcode.py"
 
 [tool.cibuildwheel.linux]
-# LTO is Linux-only in CMakeLists.txt right now.
 environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
 
 [tool.cibuildwheel.macos]
 # Not building for macOS x86-64.
 archs = ["arm64"]
+environment = { CINDERX_ENABLE_LTO = "1" }

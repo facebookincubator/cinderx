@@ -68,12 +68,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS} ${SHARED_FLAGS}")
 option(ENABLE_LTO "Enable Link-Time Optimization (full)" OFF)
 
 if(ENABLE_LTO)
-  # Only support Linux
-  if(MACOS)
-    message(FATAL_ERROR "LTO is only supported on Linux")
-  endif()
-
-  message(STATUS "LTO: Enabled (full LTO)")
+  message(STATUS "LTO: Enabled")
 
   # Detect compiler type
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -84,17 +79,29 @@ if(ENABLE_LTO)
     message(FATAL_ERROR "LTO is only supported with Clang or GCC compilers")
   endif()
 
-  # For Clang, we need llvm-ar instead of regular ar
+  # For Clang, we need llvm-ar instead of regular ar.  On macOS, try to find
+  # llvm-ar, but it's optional as the system ar may work with AppleClang's LTO.
   if(USING_CLANG)
     find_program(LLVM_AR llvm-ar)
-    if(NOT LLVM_AR)
+    if(LLVM_AR)
+      set(CMAKE_AR ${LLVM_AR})
+      message(STATUS "LTO: Using llvm-ar: ${CMAKE_AR}")
+    elseif(MACOS)
+      message(STATUS
+        "LTO: Using system ar (llvm-ar not found,"
+        " AppleClang may work with system ar)")
+    else()
       message(FATAL_ERROR "llvm-ar is required for LTO with Clang but was not found")
     endif()
-    set(CMAKE_AR ${LLVM_AR})
-    message(STATUS "LTO: Using llvm-ar: ${CMAKE_AR}")
 
-    set(LTO_FLAG "-flto")
-    set(LTO_LINKER_FLAGS "-flto")
+    # Use ThinLTO on macOS for better performance and lower memory usage.
+    if(MACOS)
+      set(LTO_FLAG "-flto=thin")
+      set(LTO_LINKER_FLAGS "-flto=thin")
+    else()
+      set(LTO_FLAG "-flto")
+      set(LTO_LINKER_FLAGS "-flto")
+    endif()
   elseif(USING_GCC)
     set(LTO_FLAG "-flto")
     set(LTO_LINKER_FLAGS "-flto -fuse-linker-plugin -ffat-lto-objects")
