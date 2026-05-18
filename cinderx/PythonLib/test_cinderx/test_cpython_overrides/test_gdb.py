@@ -14,9 +14,6 @@ import unittest
 
 from cinderx.test_support import passIf
 
-# pyre-ignore[21]: can't find test.support
-from test import support
-
 
 def get_gdb_version():
     try:
@@ -261,7 +258,10 @@ class CinderX_DebuggerTests(unittest.TestCase):
         return out
 
 
-@passIf(support.PGO or should_skip(), should_skip() or "not useful for PGO")
+SHOULD_SKIP: str | None = should_skip()
+
+
+@passIf(SHOULD_SKIP, SHOULD_SKIP)
 class CinderX_PrettyPrintTests(CinderX_DebuggerTests):
     def test_frames(self) -> None:
         gdb_output = self.get_stack_trace(
@@ -288,11 +288,10 @@ id(foo.__code__)""",
 
 
 def setUpModule():
-    if support.verbose:
-        gdb_version, gdb_major_version, gdb_minor_version = get_gdb_version()
-        print("GDB version {}.{}:".format(gdb_major_version, gdb_minor_version))
-        for line in gdb_version.splitlines():
-            print(" " * 4 + line)
+    gdb_version, gdb_major_version, gdb_minor_version = get_gdb_version()
+    print("GDB version {}.{}:".format(gdb_major_version, gdb_minor_version))
+    for line in gdb_version.splitlines():
+        print(" " * 4 + line)
 
 
 if __name__ == "__main__":
