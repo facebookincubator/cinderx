@@ -54,30 +54,7 @@ This will configure the CinderX extension to automatically compile Python
 functions to machine code.  It will track what functions are called frequently
 and compile the hottest ones automatically.
 
-For more control over this process, you can pass the call count threshold to use
-for compilation instead of using `auto()`:
-
-```python
-import cinderx.jit
-
-# Compile functions after they are called 10 times.
-cinderx.jit.compile_after_n_calls(10)
-```
-
-If you want to compile individual functions, you can do so manually:
-
-```python
-import cinderx.jit
-
-def foo(): ...
-def bar(): ...
-
-# Compile `foo` immediately.
-cinderx.jit.force_compile(foo)
-
-# Compile `bar` the next time it is called.
-cinderx.jit.lazy_compile(bar)
-```
+See [the JIT README](cinderx/Jit/README.md) for more details.
 
 ## CinderX vs Cinder
 
