@@ -76,9 +76,11 @@ try:
         cached_property_with_descr,
         clear_caches,
         clear_classloader_caches,
+        delay_adaptive,
         disable_parallel_gc,
         enable_parallel_gc,
         freeze_type,
+        get_adaptive_delay,
         get_parallel_gc_settings,
         has_parallel_gc,
         immortalize_heap,
@@ -86,23 +88,13 @@ try:
         is_frame_evaluator_installed,
         is_immortal,
         remove_frame_evaluator,
+        set_adaptive_delay,
         strict_module_patch,
         strict_module_patch_delete,
         strict_module_patch_enabled,
         StrictModule,
         watch_sys_modules,
     )
-
-    if sys.version_info < (3, 11):
-        # In 3.12+ use the versions in the polyfill cinder library instead.
-        from _cinderx import (
-            _get_entire_call_stack_as_qualnames_with_lineno,
-            _get_entire_call_stack_as_qualnames_with_lineno_and_frame,
-            clear_all_shadow_caches,
-        )
-
-    if sys.version_info >= (3, 12):
-        from _cinderx import delay_adaptive, get_adaptive_delay, set_adaptive_delay
 
 except ImportError as e:
     if "undefined symbol:" in str(e):
@@ -474,11 +466,6 @@ except ImportError as e:
                 slot.__delete__(inst)
             else:
                 delattr(inst, self.__name__)
-
-    if sys.version_info < (3, 11):
-
-        def clear_all_shadow_caches() -> None:
-            pass
 
     def clear_caches() -> None:
         pass
