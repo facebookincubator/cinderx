@@ -106,15 +106,10 @@ try:
 
 except ImportError as e:
     if "undefined symbol:" in str(e):
-        # If we're on a dev build report this as an error, otherwise muddle along with alternative definitions
-        # on unsupported Python's.
-        from os.path import dirname, exists, join
-
-        if exists(join(dirname(__file__), ".dev_build")):
-            raise ImportError(
-                "The _cinderx native extension is not available due to a missing symbol. This is likely a bug you introduced.  "
-                "Please ensure that the cinderx kernel is being used."
-            ) from e
+        raise ImportError(
+            "The _cinderx native extension is not available due to a missing symbol. This is likely a bug you introduced.  "
+            "Please ensure that the cinderx kernel is being used."
+        ) from e
     _import_error = e
 
     def _compile_perf_trampoline_pre_fork() -> None:

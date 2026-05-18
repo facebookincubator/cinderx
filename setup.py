@@ -330,12 +330,6 @@ class BuildPy(build_py):
             preserve_mode=False,
         )
 
-        # For OSS builds always surface the CinderX import errors
-        dev_build_file = os.path.join(self.get_package_dir("cinderx"), ".dev_build")
-        print(f"Writing .dev_build file to {dev_build_file}")
-        with open(dev_build_file, "w") as f:
-            f.write("\n")
-
 
 class CMakeExtension(Extension):
     """
@@ -512,7 +506,6 @@ def main() -> None:
         packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
         package_dir={"": PYTHON_LIB_DIR},
         package_data={
-            "cinderx": [".dev_build"],
             "cinderx.compiler.strict": ["stubs/**/*.pys"],
         },
     )
