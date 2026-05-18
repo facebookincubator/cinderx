@@ -9,19 +9,6 @@ import platform
 import sys
 from os import environ
 
-# ============================================================================
-# Note!
-#
-# At Meta, this module is currently loaded as part of Lib/site.py in an attempt
-# to get benefits from using it as soon as possible.  However
-# Lib/test/test_site.py will assert that site.py does not import too many
-# modules.  Be careful with adding import statements here.
-#
-# The plan is to move applications over to using an explicit initialization
-# step rather than Lib/site.py.  Once that is done we can add all the imports
-# we want here.
-# ============================================================================
-
 
 _import_error: ImportError | None = None
 
