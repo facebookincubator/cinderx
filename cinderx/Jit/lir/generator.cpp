@@ -283,6 +283,126 @@ void emitStorePairs(
   }
 }
 
+// Describes a single frame field to be stored during initialization.
+struct FrameFieldEntry {
+  int32_t offset; // Relative to _PyInterpreterFrame pointer
+  DataType data_type; // Size of the store
+  Instruction* value; // VReg producing the value to store
+  const char* name; // Annotation label (for PYTHONJITDUMPASM)
+};
+
+// Unified frame initialization plan.  Walks kFrameInitTable (one shared
+// table of WHICH fields to init) and calls a caller-supplied value
+// provider to resolve WHERE each value comes from.  The plan sorts
+// fields by offset and groups consecutive pointer-sized stores for
+// StorePair emission.
+//
+// Usage:
+//   auto plan = FrameInitPlan::build([&](FrameFieldKind k, DataType dt) {
+//     switch (k) { ... return vreg; }
+//   });
+//   plan.emit(bbb, frame_base);
+class FrameInitPlan {
+ public:
+  static constexpr size_t kMaxFields = 20;
+
+  // Walk kFrameInitTable and call provider(kind, data_type) for each
+  // field to get the Instruction* value.  Sort and group for StorePair.
+  template <typename Provider>
+  static FrameInitPlan build(Provider&& provider) {
+    FrameInitPlan plan;
+    constexpr auto& table = kFrameInitTable;
+    for (size_t i = 0; i < table.num_fields; i++) {
+      const auto& field = table.fields[i];
+      Instruction* val = provider(field.kind, field.data_type);
+      plan.fields_[plan.num_fields_++] = {
+          field.offset,
+          field.data_type,
+          val,
+          frameFieldKindName(field.kind).data()};
+    }
+    // Insertion sort by offset (small N, matches consteval table style).
+    for (size_t i = 1; i < plan.num_fields_; i++) {
+      auto key = plan.fields_[i];
+      size_t j = i;
+      while (j > 0 && plan.fields_[j - 1].offset > key.offset) {
+        plan.fields_[j] = plan.fields_[j - 1];
+        j--;
+      }
+      plan.fields_[j] = key;
+    }
+    // Build groups of consecutive pointer-sized stores for StorePair.
+    size_t i = 0;
+    while (i < plan.num_fields_) {
+      if (plan.fields_[i].data_type != DataType::kObject) {
+        plan.groups_[plan.num_groups_++] = {static_cast<uint8_t>(i), 1};
+        i++;
+        continue;
+      }
+      size_t start = i;
+      int32_t next_offset = plan.fields_[i].offset + kPointerSize;
+      i++;
+      while (i < plan.num_fields_ &&
+             plan.fields_[i].data_type == DataType::kObject &&
+             plan.fields_[i].offset == next_offset) {
+        next_offset += kPointerSize;
+        i++;
+      }
+      plan.groups_[plan.num_groups_++] = {
+          static_cast<uint8_t>(start), static_cast<uint8_t>(i - start)};
+    }
+    return plan;
+  }
+
+  // Emit stores with StorePair grouping for consecutive pointer-sized fields.
+  void emit(BasicBlockBuilder& bbb, Instruction* frame_base) const {
+    for (size_t gi = 0; gi < num_groups_; gi++) {
+      auto& group = groups_[gi];
+      if (group.count > 1) {
+        uint8_t j = 0;
+        while (j + 1 < group.count) {
+          auto& f0 = fields_[group.start + j];
+          auto& f1 = fields_[group.start + j + 1];
+          bbb.annotateNext(fmt::format("Store {}, {}", f0.name, f1.name));
+          bbb.appendInstr(
+              Instruction::kStorePair,
+              Imm{static_cast<uint64_t>(f0.offset)},
+              frame_base,
+              f0.value,
+              f1.value);
+          j += 2;
+        }
+        if (j < group.count) {
+          auto& f = fields_[group.start + j];
+          bbb.annotateNext(fmt::format("Store {}", f.name));
+          bbb.appendInstr(
+              OutInd{frame_base, f.offset, f.data_type},
+              Instruction::kMove,
+              f.value);
+        }
+      } else {
+        auto& f = fields_[group.start];
+        bbb.annotateNext(fmt::format("Store {}", f.name));
+        bbb.appendInstr(
+            OutInd{frame_base, f.offset, f.data_type},
+            Instruction::kMove,
+            f.value);
+      }
+    }
+  }
+
+ private:
+  struct StoreGroup {
+    uint8_t start;
+    uint8_t count;
+  };
+
+  std::array<FrameFieldEntry, kMaxFields> fields_{};
+  size_t num_fields_{0};
+  std::array<StoreGroup, kMaxFields> groups_{};
+  size_t num_groups_{0};
+};
+
 } // namespace
 
 void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
@@ -4009,7 +4129,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inlined code stores references to code objects");
 #if defined(ENABLE_LIGHTWEIGHT_FRAMES)
         auto instr = static_cast<const BeginInlinedFunction*>(&i);
-        // Set code object data
+        // Track references for code, globals, builtins, func.
         BorrowedRef<PyCodeObject> code = instr->code();
         env_->code_rt->addReference(code.getObj());
         PyObject* globals = instr->globals();
@@ -4030,9 +4150,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         // There is already an interpreter frame for the caller function.
         Instruction* callee_frame = getInlinedFrame(bbb, instr);
-        // Store code
+
+        // Resolve executable and funcobj values based on version.
 #if PY_VERSION_HEX >= 0x030E0000
-        // Store frame helper as f_executable
         BorrowedRef<> frame_reifier;
         auto existing_reifier = inline_code_to_reifier_.find(code);
         if (existing_reifier == inline_code_to_reifier_.end()) {
@@ -4042,114 +4162,112 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         } else {
           frame_reifier = existing_reifier->second;
         }
-        Instruction* code_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_reifier.get());
+        PyObject* executable_obj = frame_reifier.get();
+        PyObject* funcobj_val = func;
 #else
-        Instruction* code_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
+        PyObject* executable_obj = code.getObj();
+        PyObject* funcobj_val = cinderx::getModuleState()->frame_reifier;
 #endif
-        bbb.appendInstr(
-            OutInd{callee_frame, FRAME_EXECUTABLE_OFFSET},
-            Instruction::kMove,
-            code_reg);
 
+        // Build frame init plan using the shared table with an inlined
+        // value provider.  The table defines WHICH fields to init; the
+        // lambda defines WHERE each value comes from.
+        Instruction* executable_reg = nullptr;
+        Instruction* funcobj_reg = nullptr;
+        static_assert(
+            FRAME_OWNED_BY_THREAD == 0, "FRAME_OWNED_BY_THREAD has changed");
+        Instruction* zero_reg = nullptr;
+        auto plan = FrameInitPlan::build(
+            [&](FrameFieldKind kind,
+                [[maybe_unused]] DataType dt) -> Instruction* {
+              switch (kind) {
+                case FrameFieldKind::kExecutable:
+                  executable_reg = bbb.appendInstr(
+                      OutVReg{}, Instruction::kMove, executable_obj);
+                  return executable_reg;
+                case FrameFieldKind::kFrameReifier:
+                  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+                    // f_executable field on 3.14
+                    executable_reg = bbb.appendInstr(
+                        OutVReg{}, Instruction::kMove, executable_obj);
+                    return executable_reg;
+                  } else {
+                    // f_funcobj field on 3.12
+                    funcobj_reg = bbb.appendInstr(
+                        OutVReg{}, Instruction::kMove, funcobj_val);
+                    return funcobj_reg;
+                  }
+                case FrameFieldKind::kFuncObj:
+                  funcobj_reg = bbb.appendInstr(
+                      OutVReg{}, Instruction::kMove, funcobj_val);
+                  return funcobj_reg;
+                case FrameFieldKind::kFrameHeaderFunc: {
+                  uintptr_t header;
+                  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+                    header = JIT_FRAME_INLINED;
+                  } else {
+                    header =
+                        reinterpret_cast<uintptr_t>(func) | JIT_FRAME_INLINED;
+                  }
+                  return bbb.appendInstr(OutVReg{}, Instruction::kMove, header);
+                }
+                case FrameFieldKind::kPrevFrame:
+                  return caller_frame;
+                case FrameFieldKind::kInstrPtr: {
+                  _Py_CODEUNIT* code_start;
+                  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+                    code_start = _PyCode_CODE(code.get());
+                  } else {
+                    code_start = _PyCode_CODE(code.get()) - 1;
+                  }
+                  return bbb.appendInstr(
+                      OutVReg{}, Instruction::kMove, code_start);
+                }
+                case FrameFieldKind::kStackPointer:
 #if PY_VERSION_HEX >= 0x030E0000
-        // Store function
-        PyObject* func_val = func;
+                  return bbb.appendInstr(
+                      OutVReg{},
+                      Instruction::kLea,
+                      Stk{PhyLocation(
+                          static_cast<int32_t>(
+                              frameOffsetOf(instr) +
+                              offsetof(_PyInterpreterFrame, localsplus)))});
 #else
-        // Store frame helper as f_funcobj
-        PyObject* func_val = cinderx::getModuleState()->frame_reifier;
+                  JIT_ABORT("kStackPointer unexpected on 3.12 LW");
 #endif
-        Instruction* func_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, func_val);
-        bbb.appendInstr(
-            OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_funcobj)},
-            Instruction::kMove,
-            func_reg);
+                case FrameFieldKind::kBuiltins:
+                case FrameFieldKind::kGlobals:
+                  JIT_ABORT("kBuiltins/kGlobals unexpected in LW frame");
+                case FrameFieldKind::kZero:
+                case FrameFieldKind::kOwnerThread:
+                  if (zero_reg == nullptr) {
+                    zero_reg = bbb.appendInstr(
+                        OutVReg{dt}, Instruction::kMove, Imm{0, dt});
+                  }
+                  return zero_reg;
+              }
+              JIT_ABORT("Unexpected FrameFieldKind");
+            });
+        plan.emit(bbb, callee_frame);
 
-        // Store function pointer tagged with JIT_FRAME_INLINED in FrameHeader
-        // to mark this as an inlined frame.
-        Instruction* frame_status_reg = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            reinterpret_cast<uintptr_t>(func) | JIT_FRAME_INLINED);
-        bbb.appendInstr(
-            OutInd{
-                callee_frame,
-                (Py_ssize_t)offsetof(FrameHeader, func) -
-                    (Py_ssize_t)kFrameHeaderOverhead},
-            Instruction::kMove,
-            frame_status_reg);
-
-        bbb.appendInstr(
-            OutInd{callee_frame, offsetof(_PyInterpreterFrame, previous)},
-            Instruction::kMove,
-            caller_frame);
-
-#if PY_VERSION_HEX >= 0x030E0000
-        Instruction* localsplus = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kLea,
-            Stk{PhyLocation(
-                static_cast<int32_t>(
-                    frameOffsetOf(instr) +
-                    offsetof(_PyInterpreterFrame, localsplus)))});
-
-        bbb.appendInstr(
-            OutInd{callee_frame, offsetof(_PyInterpreterFrame, stackpointer)},
-            Instruction::kMove,
-            localsplus);
-
-        bbb.appendInstr(
-            OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_locals)},
-            Instruction::kMove,
-            Imm{0});
-
-        // Store prev_instr
-        _Py_CODEUNIT* frame_code = _PyCode_CODE(code.get());
-#else
-        // Store prev_instr
-        _Py_CODEUNIT* frame_code = _PyCode_CODE(code.get()) - 1;
-#endif
-
-        Instruction* codeunit_reg =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_code);
-
-        bbb.appendInstr(
-            OutInd{callee_frame, FRAME_INSTR_OFFSET},
-            Instruction::kMove,
-            codeunit_reg);
-
-#ifdef Py_GIL_DISABLED
-        bbb.appendInstr(
-            OutInd{
-                callee_frame,
-                offsetof(_PyInterpreterFrame, tlbc_index),
-                OperandBase::k32bit},
-            Instruction::kMove,
-            Imm{0, OperandBase::k32bit});
-#endif
-
-        bbb.appendInstr(
-            OutInd{
-                callee_frame,
-                offsetof(_PyInterpreterFrame, owner),
-                OperandBase::k8bit},
-            Instruction::kMove,
-            Imm{static_cast<uint8_t>(FRAME_OWNED_BY_THREAD),
-                OperandBase::k8bit});
+        // Incref executable/reifier.
 #if PY_VERSION_HEX < 0x030E0000
-        if (!_Py_IsImmortal(code.get()))
+        if (!_Py_IsImmortal(executable_obj))
 #endif
         {
-          makeIncref(bbb, code_reg, false);
+          bbb.annotateNext("Incref executable/reifier");
+          makeIncref(bbb, executable_reg, false);
         }
-
-        // Set our frame as top of stack
+        // Incref funcobj.
 #if PY_VERSION_HEX >= 0x030D0000
-        if (!_Py_IsImmortal(func_val)) {
-          makeIncref(bbb, func_reg, false);
+        if (!_Py_IsImmortal(funcobj_val)) {
+          bbb.annotateNext("Incref funcobj");
+          makeIncref(bbb, funcobj_reg, false);
         }
+#endif
+
+        // Link frame into tstate.
+#if PY_VERSION_HEX >= 0x030D0000
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
             Instruction::kMove,
@@ -4928,142 +5046,120 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
 
     PyObject* code_obj = reinterpret_cast<PyObject*>(func_->code.get());
-    // On 3.14 the reifier is stored in the executable field, on earlier
-    // versions we store the code object. We only emit one or the other
-    // and that's controlled by the data in interpframe.h which controls
-    // the initialization layout and order.
+
+    // Build frame init plan using the shared table with a top-level
+    // value provider.  The table defines WHICH fields to init; the
+    // lambda defines WHERE each value comes from.
     Instruction* executable_or_reifier = nullptr;
     BorrowedRef<> executable_or_reifier_obj = nullptr;
-
-    // Materialize each field value into a vreg.
     Instruction* zero_reg = nullptr;
-    auto fieldVReg = [&](FrameFieldKind kind, DataType dt) -> Instruction* {
-      switch (kind) {
-        case FrameFieldKind::kExecutable:
-          JIT_DCHECK(
-              executable_or_reifier == nullptr ||
-                  executable_or_reifier_obj == code_obj,
-              "should only be emitted once");
-          executable_or_reifier_obj = code_obj;
-          executable_or_reifier =
-              bbb.appendInstr(OutVReg{}, Instruction::kMove, code_obj);
-          return executable_or_reifier;
-        case FrameFieldKind::kPrevFrame:
-          return prev_frame;
-        case FrameFieldKind::kFuncObj:
-          return env_->asm_func;
-        case FrameFieldKind::kFrameReifier:
-          if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-            JIT_DCHECK(
-                executable_or_reifier == nullptr,
-                "should only be emitted once");
-            executable_or_reifier_obj = env_->code_rt->reifier();
-            executable_or_reifier = bbb.appendInstr(
-                OutVReg{}, Instruction::kMove, executable_or_reifier_obj.get());
-            return executable_or_reifier;
-          } else {
-            // 3.12 the reifier ends up in the f_funcobj field and is immortal
-            JIT_DCHECK(
-                _Py_IsImmortal(cinderx::getModuleState()->frame_reifier),
-                "Reifier must be immortal");
-            return bbb.appendInstr(
-                OutVReg{},
-                Instruction::kMove,
-                cinderx::getModuleState()->frame_reifier.get());
-          }
-        case FrameFieldKind::kInstrPtr:
-          _Py_CODEUNIT* code_start;
-          if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-            code_start = _PyCode_CODE(func_->code.get());
-          } else {
-            code_start = _PyCode_CODE(func_->code.get()) - 1;
-          }
-          return bbb.appendInstr(OutVReg{}, Instruction::kMove, code_start);
-        case FrameFieldKind::kStackPointer:
+
+    auto plan = FrameInitPlan::build(
+        [&](FrameFieldKind kind, DataType dt) -> Instruction* {
+          switch (kind) {
+            case FrameFieldKind::kExecutable:
+              JIT_DCHECK(
+                  executable_or_reifier == nullptr ||
+                      executable_or_reifier_obj == code_obj,
+                  "should only be emitted once");
+              executable_or_reifier_obj = code_obj;
+              executable_or_reifier =
+                  bbb.appendInstr(OutVReg{}, Instruction::kMove, code_obj);
+              return executable_or_reifier;
+            case FrameFieldKind::kPrevFrame:
+              return prev_frame;
+            case FrameFieldKind::kFuncObj:
+              return env_->asm_func;
+            case FrameFieldKind::kFrameReifier:
+              if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+                JIT_DCHECK(
+                    executable_or_reifier == nullptr,
+                    "should only be emitted once");
+                executable_or_reifier_obj = env_->code_rt->reifier();
+                executable_or_reifier = bbb.appendInstr(
+                    OutVReg{},
+                    Instruction::kMove,
+                    executable_or_reifier_obj.get());
+                return executable_or_reifier;
+              } else {
+                JIT_DCHECK(
+                    _Py_IsImmortal(cinderx::getModuleState()->frame_reifier),
+                    "Reifier must be immortal");
+                return bbb.appendInstr(
+                    OutVReg{},
+                    Instruction::kMove,
+                    cinderx::getModuleState()->frame_reifier.get());
+              }
+            case FrameFieldKind::kFrameHeaderFunc:
 #if PY_VERSION_HEX >= 0x030E0000
-          return bbb.appendInstr(
-              OutVReg{},
-              Instruction::kLea,
-              Stk{PhyLocation(
-                  static_cast<int32_t>(
-                      -fh_size + jit::kFrameHeaderOverhead +
-                      offsetof(_PyInterpreterFrame, localsplus)))});
+              // 3.14 top-level: FrameHeader.func is zero
+              if (zero_reg == nullptr) {
+                zero_reg = bbb.appendInstr(
+                    OutVReg{dt}, Instruction::kMove, Imm{0, dt});
+              }
+              return zero_reg;
 #else
-          return bbb.appendInstr(
-              OutVReg{dt},
-              Instruction::kMove,
-              Imm{static_cast<uint64_t>(func_->code->co_nlocalsplus), dt});
+              // 3.12 top-level: FrameHeader.func is the function
+              return env_->asm_func;
 #endif
-        case FrameFieldKind::kBuiltins:
-          return bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              Ind{env_->asm_func, offsetof(PyFunctionObject, func_builtins)});
-        case FrameFieldKind::kGlobals:
-          return bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              Ind{env_->asm_func, offsetof(PyFunctionObject, func_globals)});
-        case FrameFieldKind::kZero:
-        case FrameFieldKind::kOwnerThread:
-          static_assert(
-              FRAME_OWNED_BY_THREAD == 0, "FRAME_OWNED_BY_THREAD has changed");
-          if (zero_reg == nullptr) {
-            zero_reg =
-                bbb.appendInstr(OutVReg{dt}, Instruction::kMove, Imm{0, dt});
+            case FrameFieldKind::kInstrPtr: {
+              _Py_CODEUNIT* code_start;
+              if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+                code_start = _PyCode_CODE(func_->code.get());
+              } else {
+                code_start = _PyCode_CODE(func_->code.get()) - 1;
+              }
+              return bbb.appendInstr(OutVReg{}, Instruction::kMove, code_start);
+            }
+            case FrameFieldKind::kStackPointer:
+#if PY_VERSION_HEX >= 0x030E0000
+              return bbb.appendInstr(
+                  OutVReg{},
+                  Instruction::kLea,
+                  Stk{PhyLocation(
+                      static_cast<int32_t>(
+                          -fh_size + jit::kFrameHeaderOverhead +
+                          offsetof(_PyInterpreterFrame, localsplus)))});
+#else
+              return bbb.appendInstr(
+                  OutVReg{dt},
+                  Instruction::kMove,
+                  Imm{static_cast<uint64_t>(func_->code->co_nlocalsplus), dt});
+#endif
+            case FrameFieldKind::kBuiltins:
+              return bbb.appendInstr(
+                  OutVReg{},
+                  Instruction::kMove,
+                  Ind{env_->asm_func,
+                      offsetof(PyFunctionObject, func_builtins)});
+            case FrameFieldKind::kGlobals:
+              return bbb.appendInstr(
+                  OutVReg{},
+                  Instruction::kMove,
+                  Ind{env_->asm_func,
+                      offsetof(PyFunctionObject, func_globals)});
+            case FrameFieldKind::kZero:
+            case FrameFieldKind::kOwnerThread:
+              static_assert(
+                  FRAME_OWNED_BY_THREAD == 0,
+                  "FRAME_OWNED_BY_THREAD has changed");
+              if (zero_reg == nullptr) {
+                zero_reg = bbb.appendInstr(
+                    OutVReg{dt}, Instruction::kMove, Imm{0, dt});
+              }
+              return zero_reg;
           }
-          return zero_reg;
-      }
-      JIT_ABORT("Unexpected FrameFieldKind");
-    };
-
-    auto emitSingleStore = [&](const FrameFieldInit& field) {
-      bbb.annotateNext(fmt::format("Store {}", frameFieldKindName(field.kind)));
-      auto val = fieldVReg(field.kind, field.data_type);
-      bbb.appendInstr(
-          OutInd{frame, field.offset, field.data_type},
-          Instruction::kMove,
-          val);
-    };
-
-    // Emit stores using the compile-time grouped table.
-    constexpr auto& table = kFrameInitTable;
-    for (size_t gi = 0; gi < table.num_groups; gi++) {
-      auto group = table.groups[gi];
-      if (group.count > 1) {
-        uint8_t j = 0;
-        while (j + 1 < group.count) {
-          auto& f0 = table.fields[group.start + j];
-          auto& f1 = table.fields[group.start + j + 1];
-          bbb.annotateNext(
-              fmt::format(
-                  "Store {}, {}",
-                  frameFieldKindName(f0.kind),
-                  frameFieldKindName(f1.kind)));
-          auto val1 = fieldVReg(f0.kind, f0.data_type);
-          auto val2 = fieldVReg(f1.kind, f1.data_type);
-          bbb.appendInstr(
-              Instruction::kStorePair,
-              Imm{static_cast<uint64_t>(f0.offset)},
-              frame,
-              val1,
-              val2);
-          j += 2;
-        }
-        if (j < group.count) {
-          emitSingleStore(table.fields[group.start + j]);
-        }
-      } else {
-        emitSingleStore(table.fields[group.start]);
-      }
-    }
+          JIT_ABORT("Unexpected FrameFieldKind");
+        });
+    plan.emit(bbb, frame);
 
 #ifndef ENABLE_LIGHTWEIGHT_FRAMES
     // Without lazy reification, zero all localsplus slots so the GC
     // doesn't see garbage pointers.
     {
       int nlocals = func_->code->co_nlocalsplus;
-      Instruction* zero = fieldVReg(FrameFieldKind::kZero, DataType::kObject);
+      Instruction* zero =
+          bbb.appendInstr(OutVReg{}, Instruction::kMove, Imm{0});
       int32_t base_off =
           static_cast<int32_t>(offsetof(_PyInterpreterFrame, localsplus));
       bbb.annotateNext("Zero localsplus");
