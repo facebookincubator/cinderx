@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch/phy_location.h"
 #include "cinderx/Jit/codegen/arch/register_set.h"
 
 #include <fmt/format.h>
@@ -62,8 +63,9 @@ constexpr std::string_view name(RegId id) {
 
 // A physical location (register or stack slot). If this represents a stack
 // slot (is_memory() is true) then `loc` is relative to R3.
-struct PhyLocation {
-  static constexpr int REG_INVALID = -1;
+struct PhyLocation : PhyLocationBase<RegId, VECD_REG_BASE, NUM_REGS> {
+  using Base = PhyLocationBase<RegId, VECD_REG_BASE, NUM_REGS>;
+  using Base::Base;
 
 #define DEFINE_REG(V) static constexpr int V = raw(RegId::V);
   FOREACH_GP(DEFINE_REG)
@@ -76,48 +78,7 @@ struct PhyLocation {
   // support parsing stack slots.
   static PhyLocation parse(std::string_view name);
 
-  int32_t loc{REG_INVALID};
-  uint32_t bitSize{64};
-
-  PhyLocation() = default;
-
-  /* implicit */ constexpr PhyLocation(RegId reg, size_t size = 64)
-      : PhyLocation{static_cast<int>(reg), size} {}
-
-  /* implicit */ constexpr PhyLocation(RegId reg, int size)
-      : PhyLocation{static_cast<int>(reg), static_cast<size_t>(size)} {}
-
-  /* implicit */ constexpr PhyLocation(int loc, size_t size = 64)
-      : loc{loc}, bitSize{static_cast<uint32_t>(size)} {}
-
-  /* implicit */ constexpr PhyLocation(int loc, int size)
-      : PhyLocation{loc, static_cast<size_t>(size)} {}
-
-  bool is_memory() const {
-    return loc < 0;
-  }
-
-  bool is_register() const {
-    return loc >= 0;
-  }
-
-  bool is_gp_register() const {
-    return is_register() && loc < VECD_REG_BASE;
-  }
-
-  bool is_fp_register() const {
-    return is_register() && loc >= VECD_REG_BASE;
-  }
-
   std::string toString() const;
-
-  bool operator==(const PhyLocation& rhs) const {
-    return loc == rhs.loc;
-  }
-
-  bool operator!=(const PhyLocation& rhs) const {
-    return loc != rhs.loc;
-  }
 };
 
 // Define global definitions like `R0` and `D0`.
@@ -127,8 +88,7 @@ FOREACH_GP(DEFINE_PHY_REG)
 FOREACH_VECD(DEFINE_PHY_REG)
 constexpr PhyLocation SP{RegId::SP, 64};
 
-#undef DEFINE_PHY_GP_REG
-#undef DEFINE_PHY_VECD_REG
+#undef DEFINE_PHY_REG
 
 using PhyRegisterSet = RegisterSet<PhyLocation, uint32_t>;
 
