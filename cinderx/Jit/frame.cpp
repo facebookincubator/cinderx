@@ -493,7 +493,7 @@ FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame) {
 #endif
 }
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if PY_VERSION_HEX < 0x030E0000
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
   jitFrameGetHeader(frame)->func = func;
 }

@@ -114,13 +114,11 @@ consteval FrameInitTable buildFrameInitTable() {
   // All offsets are relative to the _PyInterpreterFrame pointer.
   // FrameHeader fields have negative offsets.
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   constexpr int32_t fh = -static_cast<int32_t>(sizeof(jit::FrameHeader));
 
-  add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, func)),
+  add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, frame_status)),
       FrameFieldKind::kFrameHeaderFunc,
       DataType::kObject);
-#endif
   add(FRAME_EXECUTABLE_OFFSET, kExecutableKind, DataType::kObject);
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, previous)),
       FrameFieldKind::kPrevFrame,

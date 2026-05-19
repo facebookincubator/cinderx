@@ -703,20 +703,6 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.setFlags(PySys_GetXOptions());
 
-  // T198250666: Bit of a hack but this makes other things easier.  In 3.12 all
-  // functions need access to the runtime PyFunctionObject, which prevents
-  // inlining.  Our tests check `is_hir_inliner_enabled()` to see if the inliner
-  // is functional and make assumptions based on that.  This is only available
-  // when we have lightweight frames enabled as we need cooperation w/ the
-  // runtime to let us reify the frame.
-  //
-  // Inlining is only compatible w/ lightweight frames because we need our
-  // reifier to cooperate with restoring the frame object into something usable
-  // when CPython wants it.
-#ifndef ENABLE_LIGHTWEIGHT_FRAMES
-  getMutableConfig().hir_opts.inliner = false;
-#endif
-
   // If the inliner is off and the user hasn't explicitly set the preload
   // dependent limit, set it to zero.  Nothing is going to be inlined so there's
   // no need to aggressively preload.

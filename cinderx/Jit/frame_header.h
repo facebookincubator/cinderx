@@ -17,7 +17,6 @@ int frameHeaderSize(BorrowedRef<PyCodeObject> code);
 // FrameHeader lives at the beginning of the stack frame for JIT-compiled
 // functions.  This is followed by the _PyInterpreterFrame.
 struct FrameHeader {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
 #if defined(CINDER_AARCH64)
   // Index into the CodeRuntime's deopt metadata array. Used to recover the
   // current bytecode offset for frame introspection (e.g. sys._current_frames).
@@ -29,17 +28,14 @@ struct FrameHeader {
   std::size_t deopt_idx;
 #endif
   union {
+#if PY_VERSION_HEX < 0x030E0000
     PyFunctionObject* func;
+#endif
     uintptr_t frame_status;
   };
-#endif
 };
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
 inline constexpr size_t kFrameHeaderOverhead = sizeof(FrameHeader);
-#else
-inline constexpr size_t kFrameHeaderOverhead = 0;
-#endif
 
 #define JIT_FRAME_INLINED 0x01
 #define JIT_FRAME_INITIALIZED 0x02
