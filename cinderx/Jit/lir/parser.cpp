@@ -67,7 +67,13 @@ Parser::Token Parser::getNextToken(const char* str) {
     }
 
     if (m.size() > 1) {
-      return {pattern.type, m.length(), strtoll(m.str(1).c_str(), nullptr, 0)};
+      int64_t value;
+      if (pattern.type == kImmediate || pattern.type == kAddress) {
+        value = static_cast<int64_t>(strtoull(m.str(1).c_str(), nullptr, 0));
+      } else {
+        value = strtoll(m.str(1).c_str(), nullptr, 0);
+      }
+      return {pattern.type, m.length(), value};
     }
     return {pattern.type, m.length()};
   }
