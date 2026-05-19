@@ -59,4 +59,4 @@ environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
 [tool.cibuildwheel.macos]
 # Not building for macOS x86-64.
 archs = ["arm64"]
-environment = { CINDERX_ENABLE_LTO = "1" }
+environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }

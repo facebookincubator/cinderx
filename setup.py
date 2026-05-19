@@ -187,7 +187,7 @@ class BuildCommand(build):
         cinderx_so_dir = os.path.join(os.getcwd(), self.build_lib)
         if "PYTHONPATH" in workload_env:
             workload_env["PYTHONPATH"] = (
-                f"{cinderx_so_dir}:{workload_env['PYTHONPATH']}"
+                f"{cinderx_so_dir}{os.pathsep}{workload_env['PYTHONPATH']}"
             )
         else:
             workload_env["PYTHONPATH"] = cinderx_so_dir
