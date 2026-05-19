@@ -111,10 +111,16 @@ _FT = TypeVar("_FT", bound=Callable[..., object])
 # pyre-ignore[34]: Type variable isn't present in parameters
 def passAlways(reason: str) -> Callable[[_FT], _FT]:
     """
-    Force a test to always pass.
-    Useful when `skip` is not desired
-    (e.g. intentionally skipping tests that shouldn't be deleted)
+    Pass a test without running it.
+
+    "Pass" means different things in internal Meta builds and external open
+    source builds.  Internally at Meta this tries to avoid skipping tests
+    because that leads to a lot of test infrastructure logging and noise.
+    Externally this will behave just like skip() as users expect.
     """
+
+    if is_oss():
+        return unittest.skip(reason)
 
     def decorator(test_item: object) -> object:
         if isinstance(test_item, type):
