@@ -738,6 +738,35 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
     // causing the live-out value to be stale. A proper fix requires liveness
     // information from the register allocator.
   } else {
+#if defined(CINDER_AARCH64)
+    // On aarch64, use cbz/cbnz directly instead of test+branch.
+    Instruction::Opcode cbz_opcode;
+    if (true_block == next_block) {
+      cbz_opcode = Instruction::kCmpBranchZero;
+      target_block = false_block;
+      fallthrough_block = true_block;
+    } else {
+      cbz_opcode = Instruction::kCmpBranchNonZero;
+      target_block = true_block;
+      fallthrough_block = false_block;
+    }
+    auto reg = input->getPhyRegister();
+    auto size = input->dataType();
+    if (size == OperandBase::k8bit || size == OperandBase::k16bit) {
+      size = OperandBase::k32bit;
+    }
+    instr->setOpcode(cbz_opcode);
+    instr->setNumInputs(0);
+    instr->addOperands(PhyReg(reg, size));
+    instr->allocateLabelInput(target_block);
+    if (fallthrough_block != next_block ||
+        block->section() != next_block->section()) {
+      auto fallthrough_branch =
+          block->allocateInstr(Instruction::kBranch, instr->origin());
+      fallthrough_branch->allocateLabelInput(fallthrough_block);
+    }
+    return;
+#else
     // No fusible compare found. Insert test Reg, Reg instruction.
     auto size = input->dataType();
     block->allocateInstrBefore(
@@ -746,6 +775,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
         PhyReg(input->getPhyRegister(), size),
         PhyReg(input->getPhyRegister(), size));
     opcode = Instruction::kBranchNZ;
+#endif
   }
 
   if (true_block == next_block) {
@@ -1024,6 +1054,8 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kStorePair:
     case Instruction::kLeave:
     case Instruction::kRet:
+    case Instruction::kCmpBranchZero:
+    case Instruction::kCmpBranchNonZero:
       return kUnchanged;
   }
 

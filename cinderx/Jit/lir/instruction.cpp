@@ -275,8 +275,12 @@ bool Instruction::isBranchCC() const {
   }
 }
 
+bool Instruction::isCmpBranch() const {
+  return opcode_ == kCmpBranchZero || opcode_ == kCmpBranchNonZero;
+}
+
 bool Instruction::isAnyBranch() const {
-  return (opcode_ == kCondBranch) || isBranchCC();
+  return (opcode_ == kCondBranch) || isBranchCC() || isCmpBranch();
 }
 
 bool Instruction::isTerminator() const {

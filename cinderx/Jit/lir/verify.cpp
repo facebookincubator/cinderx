@@ -28,6 +28,15 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
             operand->type() == OperandBase::kLabel,
             "Branch must jump to a label.");
         branched_blocks.insert(operand->getBasicBlock());
+      } else if (instr->isCmpBranch()) {
+        JIT_DCHECK(
+            instr->getNumInputs() == 2,
+            "CmpBranch must have register and label inputs.");
+        auto operand = instr->getInput(1);
+        JIT_DCHECK(
+            operand->type() == OperandBase::kLabel,
+            "CmpBranch second input must be a label.");
+        branched_blocks.insert(operand->getBasicBlock());
       }
     }
 

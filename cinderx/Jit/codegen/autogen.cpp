@@ -2976,6 +2976,8 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kLoadArg:
     case Instruction::kLoadSecondCallResult:
     case Instruction::kMovConstPool:
+    case Instruction::kCmpBranchZero:
+    case Instruction::kCmpBranchNonZero:
     case Instruction::kCondBranch:
     case Instruction::kPhi:
     case Instruction::kReturn:
@@ -3085,6 +3087,14 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kBranchNE:
       env->as->b_ne(getLabel(env, instr->getInput(0)));
+      return;
+    case Instruction::kCmpBranchZero:
+      env->as->cbz(
+          getGpWiden(instr->getInput(0)), getLabel(env, instr->getInput(1)));
+      return;
+    case Instruction::kCmpBranchNonZero:
+      env->as->cbnz(
+          getGpWiden(instr->getInput(0)), getLabel(env, instr->getInput(1)));
       return;
     case Instruction::kGuard:
       TranslateGuard(env, instr);
