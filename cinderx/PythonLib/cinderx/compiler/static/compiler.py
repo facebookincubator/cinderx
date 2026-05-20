@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
-from __static__ import rand, RAND_MAX
-
 import ast
 import builtins
 from ast import AST
 from collections import deque
 from types import CodeType
 from typing import Any, cast, TYPE_CHECKING
+
+from cinderx.static import rand, RAND_MAX
 
 from .. import consts
 from ..errors import ErrorSink

@@ -16,21 +16,10 @@ import types
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Coroutine, Generator, Sequence, TypeVar
+from typing import Callable, Generator, Sequence, TypeVar
 
 import cinderx
 import cinderx.jit
-
-try:
-    import cinder
-
-    def hasCinderX() -> bool:
-        return True
-
-except ImportError:
-
-    def hasCinderX() -> bool:
-        return False
 
 
 # String encoding to use for subprocesses.
@@ -67,35 +56,6 @@ def get_cinderjit_xargs() -> list[str]:
 TYield = TypeVar("TYield")
 TSend = TypeVar("TSend")
 TReturn = TypeVar("TReturn")
-
-
-def get_await_stack(
-    coro: Coroutine[TYield, TSend, TReturn],
-) -> list[Coroutine[TYield, TSend, TReturn]]:
-    """Return the chain of coroutines reachable from coro via its awaiter"""
-
-    stack = []
-    awaiter = cinder._get_coro_awaiter(coro)
-    while awaiter is not None:
-        stack.append(awaiter)
-
-        # pyre-ignore[1001]
-        awaiter = cinder._get_coro_awaiter(awaiter)
-    return stack
-
-
-def verify_stack(
-    testcase: unittest.TestCase, stack: Sequence[str], expected: Sequence[str]
-) -> None:
-    n = len(expected)
-    frames = stack[-n:]
-    testcase.assertEqual(len(frames), n, "Callstack had less frames than expected")
-
-    for actual, exp in zip(frames, expected):
-        testcase.assertTrue(
-            actual.endswith(exp),
-            f"The actual frame {actual} doesn't refer to the expected function {exp}",
-        )
 
 
 def compiles_after_one_call() -> bool:

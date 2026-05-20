@@ -235,12 +235,6 @@ except ImportError:
         pass
 
 
-try:
-    import cinder
-except ImportError:
-    cinder = None
-
-
 pydict = dict
 PyDict = Dict
 
@@ -453,9 +447,6 @@ def _replace_types(
 
     res = type(f"{gen_type.__origin__.__name__}[{param_names}]", bases, new_dict)
     res.__origin__ = gen_type
-
-    if cinder is not None:
-        cinder.freeze_type(res)
 
     gen_type.__origin__.__insts__[subs] = res
     return res

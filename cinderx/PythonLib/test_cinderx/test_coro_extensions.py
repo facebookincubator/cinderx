@@ -2,10 +2,9 @@
 # pyre-strict
 
 import asyncio
-import sys
 import types
 import unittest
-from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
+from collections.abc import Callable, Coroutine, Generator
 
 
 def run_async(

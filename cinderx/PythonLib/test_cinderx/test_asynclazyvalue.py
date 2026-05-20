@@ -15,15 +15,8 @@ except ImportError:
 from functools import wraps
 from time import time
 
-import cinderx.test_support as cinder_support
-from cinderx.test_support import passIf, passUnless
-
 
 POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
-
-
-if cinder_support.hasCinderX():
-    from cinderx.test_support import get_await_stack
 
 
 def async_test(
@@ -177,85 +170,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             next(c1)
         except IndexError as e:
             self.assertTrue(type(e.__context__) is Exc)
-
-    @passUnless(cinder_support.hasCinderX(), "Tests CinderX features")
-    @passIf(sys.version_info >= (3, 14), "no awaiter support")
-    @async_test
-    async def test_get_awaiter(self) -> None:
-        async def g(f: Any) -> Any:
-            return await f
-
-        async def h(f: Any) -> Any:
-            # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
-            return await AsyncLazyValue(g, f)
-
-        coro = None
-        await_stack = None
-
-        async def f() -> int:
-            nonlocal coro, await_stack
-            # Force suspension. Otherwise the entire execution is eager and
-            # awaiter is never set.
-            await asyncio.sleep(0)
-            # pyrefly: ignore [bad-argument-type]
-            await_stack = get_await_stack(coro)
-            return 100
-
-        coro = f()
-        h_coro = h(coro)
-        res = await h_coro
-        self.assertEqual(res, 100)
-        # awaiter of f is the coroutine running g. That's created by the
-        # AsyncLazyValue machinery, so we can't check the awaiter's identity
-        # directly, only that it corresponds to g
-        # pyre-fixme[16]: `None` has no attribute `__getitem__`.
-        self.assertIs(await_stack[0].cr_code, g.__code__)
-        # pyrefly: ignore [unsupported-operation]
-        self.assertIs(await_stack[1], h_coro)
-
-    @passUnless(cinder_support.hasCinderX(), "Tests CinderX features")
-    @passIf(sys.version_info >= (3, 14), "no awaiter support")
-    @async_test
-    async def test_get_awaiter_from_gathered(self) -> None:
-        async def g(f: Any) -> Any:
-            return await f
-
-        async def h(f: Any) -> Any:
-            # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
-            return await AsyncLazyValue(g, f)
-
-        async def gatherer(c0: Any, c1: Any) -> Any:
-            return await asyncio.gather(c0, c1)
-
-        coros: list[Any] = [None, None]
-        await_stacks: list[Any] = [None, None]
-
-        async def f(idx: int, res: int) -> int:
-            nonlocal coros, await_stacks
-            # Force suspension. Otherwise the entire execution is eager and
-            # awaiter is never set.
-            await asyncio.sleep(0)
-            await_stacks[idx] = get_await_stack(coros[idx])
-            return res
-
-        coros[0] = f(0, 10)
-        coros[1] = f(1, 20)
-        h0_coro = h(coros[0])
-        h1_coro = h(coros[1])
-        gatherer_coro = gatherer(h0_coro, h1_coro)
-        results = await gatherer_coro
-        self.assertEqual(results[0], 10)
-        self.assertEqual(results[1], 20)
-        # awaiter of f is the coroutine running g. That's created by the
-        # AsyncLazyValue machinery, so we can't check the awaiter's identity
-        # directly, only that it corresponds to g
-        # pyre-fixme[16]: Callable has no attribute `__code__`.
-        self.assertIs(await_stacks[0][0].cr_code, g.__code__)
-        self.assertIs(await_stacks[0][1], h0_coro)
-        self.assertIs(await_stacks[0][2], gatherer_coro)
-        self.assertIs(await_stacks[1][0].cr_code, g.__code__)
-        self.assertIs(await_stacks[1][1], h1_coro)
-        self.assertIs(await_stacks[1][2], gatherer_coro)
 
     def test_coro_target_is_bound_method(self) -> None:
         class X:
