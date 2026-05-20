@@ -346,6 +346,7 @@ class FlowGraphOptimizer:
     ) -> int | None:
         block.insts = block.insts[: instr_index + 1]
 
+    # pyrefly: ignore [bad-assignment]
     handlers: dict[str, Handler] = {
         "JUMP_IF_FALSE_OR_POP": opt_jump_if_false_or_pop,
         "JUMP_IF_TRUE_OR_POP": opt_jump_if_true_or_pop,

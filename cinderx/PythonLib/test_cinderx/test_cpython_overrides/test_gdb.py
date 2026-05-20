@@ -261,6 +261,7 @@ class CinderX_DebuggerTests(unittest.TestCase):
 SHOULD_SKIP: str | None = should_skip()
 
 
+# pyrefly: ignore [bad-argument-type]
 @passIf(SHOULD_SKIP, SHOULD_SKIP)
 class CinderX_PrettyPrintTests(CinderX_DebuggerTests):
     def test_frames(self) -> None:

@@ -1002,6 +1002,7 @@ class PyFlowGraph(FlowGraph):
         return self.closure.get_index(arg)
 
     # similarly for other opcodes...
+    # pyrefly: ignore [bad-assignment]
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         "LOAD_CLASS": _convert_LOAD_CONST,
         "LOAD_CONST": _convert_LOAD_CONST,
@@ -1057,6 +1058,7 @@ class PyFlowGraph(FlowGraph):
     }
 
     # Converters which add an entry to co_consts
+    # pyrefly: ignore [bad-assignment]
     _const_converters: set[Callable[[PyFlowGraph, object], int]] = {
         _convert_LOAD_CONST,
         _convert_LOAD_LOCAL,

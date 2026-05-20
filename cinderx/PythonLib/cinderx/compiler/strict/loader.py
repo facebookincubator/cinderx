@@ -109,6 +109,7 @@ class StrictModuleTestingPatchProxy:
         object.__setattr__(
             self, "_final_constants", getattr(module, "__final_constants__", ())
         )
+        # pyrefly: ignore [bad-argument-type, missing-attribute]
         if not type(module).__patch_enabled__.__get__(module, type(module)):
             raise ValueError(f"strict module {module} does not allow patching")
 

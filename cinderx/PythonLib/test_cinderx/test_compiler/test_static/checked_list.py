@@ -254,7 +254,7 @@ class CheckedListTests(StaticTestBase):
         self.assertEqual(repr(x), "[1, 2, 3]")
         self.assertEqual(repr(type(x)), "<class '__static__.chklist[int]'>")
         with self.assertRaises(TypeError):
-            # pyrefly: ignore [no-matching-overload, unsupported-operation]
+            # pyrefly: ignore [bad-argument-type, no-matching-overload, unsupported-operation]
             CheckedList[str]([1, 2, 3])
 
         # pyrefly: ignore [unsupported-operation]

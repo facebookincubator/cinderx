@@ -291,7 +291,7 @@ class ScopeStack(Generic[TVar, TScopeData]):
         scope_factory: Callable[
             [SymbolTable, AST, MutableMapping[str, TVar] | None],
             SymbolScope[TVar, TScopeData],
-            # pyrefly: ignore [bad-argument-type]
+            # pyrefly: ignore [bad-argument-type, bad-function-definition]
         ] = lambda symtable, node, vars: SymbolScope(symtable, None),
     ) -> None:
         self.scopes: list[SymbolScope[TVar, TScopeData]] = list(scopes)
