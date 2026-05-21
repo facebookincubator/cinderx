@@ -12,12 +12,6 @@ except ImportError:
     cinder_freeze = None
 
 
-try:
-    from cinder import warn_on_inst_dict
-except ImportError:
-    warn_on_inst_dict = None
-
-
 __all__ = [
     "freeze_type",
     "loose_slots",
@@ -43,8 +37,6 @@ def freeze_type(obj: type[object]) -> type[object]:
     if cinder_freeze is not None:
         if TYPE_FREEZE_ENABLED:
             cinder_freeze(obj)
-        elif warn_on_inst_dict is not None:
-            warn_on_inst_dict(obj)
 
     return obj
 
@@ -52,8 +44,6 @@ def freeze_type(obj: type[object]) -> type[object]:
 def loose_slots(obj: type[object]) -> type[object]:
     """Indicates that a type defined in a strict module should support assigning
     additional variables to __dict__ to support migration."""
-    if warn_on_inst_dict is not None:
-        warn_on_inst_dict(obj)
     return obj
 
 
