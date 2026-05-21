@@ -84,6 +84,8 @@ class LIRABITest : public RuntimeTest {
       case Instruction::kBranchNS:
       case Instruction::kBranchE:
       case Instruction::kBranchNE:
+      case Instruction::kBranchBitSet:
+      case Instruction::kBranchBitNotSet:
         environ.block_label_map.emplace(&bb, as.newLabel());
         insn->addOperands(Lbl{&bb});
         break;
@@ -1309,10 +1311,16 @@ TEST_F(LIRABITest, TestkDec_Mem) {
 }
 #endif
 
-// kBitTest r i
-TEST_F(LIRABITest, TestkBitTest_PhyReg_PhyReg) {
-  translateInstr(Instruction::kBitTest, makePhyReg(0), Imm{0});
-  translateInstr(Instruction::kBitTest, makePhyReg(0), Imm{63});
+// kBranchBitSet r i l
+TEST_F(LIRABITest, TestkBranchBitSet_PhyReg_Imm_Label) {
+  translateInstr(Instruction::kBranchBitSet, makePhyReg(0), Imm{0});
+  translateInstr(Instruction::kBranchBitSet, makePhyReg(0), Imm{63});
+}
+
+// kBranchBitNotSet r i l
+TEST_F(LIRABITest, TestkBranchBitNotSet_PhyReg_Imm_Label) {
+  translateInstr(Instruction::kBranchBitNotSet, makePhyReg(0), Imm{0});
+  translateInstr(Instruction::kBranchBitNotSet, makePhyReg(0), Imm{63});
 }
 
 // kSelect R r r r

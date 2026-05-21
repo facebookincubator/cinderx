@@ -4357,17 +4357,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             JIT_FRAME_INITIALIZED == 2,
             "JIT_FRAME_INITIALIZED changed"); // this is the bit we're testing
                                               // below
-        bbb.appendInstr(Instruction::kBitTest, frame_status_reg, Imm{1});
-        // kBitTest lowers differently per architecture:
-        // - x86: BT sets the Carry flag to the tested bit value, so
-        //   kBranchNC (jnc) branches when the bit is NOT set.
-        // - ARM64: BT is lowered to TST which sets the Zero flag, so
-        //   kBranchE (b.eq) branches when the bit is NOT set.
         bbb.appendBranch(
-            codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64
-                ? Instruction::kBranchE
-                : Instruction::kBranchNC,
-            not_materialized_block);
+            Instruction::kBranchBitNotSet,
+            not_materialized_block,
+            frame_status_reg,
+            Imm{1});
 #else
         auto frame_status_reg = bbb.appendInstr(
             OutVReg{},
@@ -5294,8 +5288,8 @@ void GenerateDeoptTrampolineBlocks(
   emitAnnotation(block, "Save registers");
 
   // Stage 1: Save all GP registers via VariadicPush.
-  // Each architecture saves all GP registers except the deopt scratch register
-  // (already saved by the stage 2 stub).
+  // Each architecture saves all GP registers except the deopt scratch
+  // register (already saved by the stage 2 stub).
 #if defined(CINDER_X86_64)
   constexpr int kStage3SavedRegs = 15;
   constexpr int kStage2SavedRegs = 1; // r15
@@ -5305,8 +5299,8 @@ void GenerateDeoptTrampolineBlocks(
 #endif
 
   auto* vpush = block->allocateInstr(Instruction::kVariadicPush, nullptr);
-  // Push in descending order so the memory layout is ascending by PhyLocation.
-  // r15 was already saved by stage 2.
+  // Push in descending order so the memory layout is ascending by
+  // PhyLocation. r15 was already saved by stage 2.
   for (int i = 0; i < kStage3SavedRegs; i++) {
     vpush->addOperands(PhyReg{PhyLocation{i}});
   }
@@ -5319,11 +5313,11 @@ void GenerateDeoptTrampolineBlocks(
   // loaded separately in stage 4.
   constexpr int cleanup_size = kStage3SavedRegs * kPointerSize;
 
-  // Generate the stage 2 trampoline (one per function). This saves the address
-  // of the final part of the JIT-epilogue that is responsible for restoring
-  // callee-saved registers and returning, our scratch register, whose original
-  // contents may be needed during frame reification, and jumps to the final
-  // trampoline.
+  // Generate the stage 2 trampoline (one per function). This saves the
+  // address of the final part of the JIT-epilogue that is responsible for
+  // restoring callee-saved registers and returning, our scratch register,
+  // whose original contents may be needed during frame reification, and jumps
+  // to the final trampoline.
   //
   // Right now the top of the stack looks like:
   //

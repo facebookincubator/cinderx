@@ -16,10 +16,20 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
     BasicBlock* next_block = iter == blocks.end() ? nullptr : *iter;
     std::unordered_set<BasicBlock*> branched_blocks;
     for (auto& instr : block->instructions()) {
-      if (instr->isBranch() || instr->isBranchCC()) {
-        JIT_DCHECK(
-            instr->getNumInputs() == 1, "Branch must have a single input.");
-        auto operand = instr->getInput(0);
+      if (instr->isBranch() || instr->isBranchCC() || instr->isBranchBitSet() ||
+          instr->isBranchBitNotSet()) {
+        size_t label_input_idx = 0;
+        if (instr->isBranchBitSet() || instr->isBranchBitNotSet()) {
+          JIT_DCHECK(
+              instr->getNumInputs() == 3,
+              "BranchBitSet/BranchBitNotSet must have value, bit, and label "
+              "inputs.");
+          label_input_idx = 2;
+        } else {
+          JIT_DCHECK(
+              instr->getNumInputs() == 1, "Branch must have a single input.");
+        }
+        auto operand = instr->getInput(label_input_idx);
         if (operand->isInd() || operand->isImm()) {
           // Indirect or direct-address branch — no CFG successor to verify.
           continue;

@@ -280,7 +280,8 @@ bool Instruction::isCmpBranch() const {
 }
 
 bool Instruction::isAnyBranch() const {
-  return (opcode_ == kCondBranch) || isBranchCC() || isCmpBranch();
+  return opcode_ == kCondBranch || opcode_ == kBranchBitSet ||
+      opcode_ == kBranchBitNotSet || isBranchCC() || isCmpBranch();
 }
 
 bool Instruction::isTerminator() const {

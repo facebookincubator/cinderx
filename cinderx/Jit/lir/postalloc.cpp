@@ -826,7 +826,44 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   }
 }
 
-// Convert CondBranch and BranchCC instructions.
+Instruction::Opcode negateBranchBit(Instruction::Opcode opcode) {
+  switch (opcode) {
+    case Instruction::kBranchBitSet:
+      return Instruction::kBranchBitNotSet;
+    case Instruction::kBranchBitNotSet:
+      return Instruction::kBranchBitSet;
+    default:
+      JIT_ABORT("Not a bit branch opcode: {}", static_cast<int>(opcode));
+  }
+}
+
+// Negate BranchBit instructions based on the next (fallthrough) basic block.
+void doRewriteBranchBit(instr_iter_t instr_iter, BasicBlock* next_block) {
+  auto instr = instr_iter->get();
+  auto block = instr->basicblock();
+
+  auto true_bb = block->getTrueSuccessor();
+  auto false_bb = block->getFalseSuccessor();
+  BasicBlock* fallthrough_bb = nullptr;
+
+  if (true_bb == next_block) {
+    instr->setOpcode(negateBranchBit(instr->opcode()));
+    instr->allocateLabelInput(false_bb);
+    fallthrough_bb = true_bb;
+  } else {
+    instr->allocateLabelInput(true_bb);
+    fallthrough_bb = false_bb;
+  }
+
+  if (fallthrough_bb != next_block ||
+      block->section() != next_block->section()) {
+    auto fallthrough_branch =
+        block->allocateInstr(Instruction::kBranch, instr->origin());
+    fallthrough_branch->allocateLabelInput(fallthrough_bb);
+  }
+}
+
+// Convert CondBranch, BranchCC, and BranchBit instructions.
 RewriteResult rewriteCondBranch(Function* function) {
   auto& blocks = function->basicblocks();
 
@@ -849,6 +886,11 @@ RewriteResult rewriteCondBranch(Function* function) {
       changed = true;
     } else if (instr->isBranchCC() && instr->getNumInputs() == 0) {
       doRewriteBranchCC(instr_iter, next_block);
+      changed = true;
+    } else if (
+        (instr->isBranchBitSet() || instr->isBranchBitNotSet()) &&
+        instr->getNumInputs() == 2) {
+      doRewriteBranchBit(instr_iter, next_block);
       changed = true;
     }
   }
@@ -978,7 +1020,8 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kLessThanUnsigned:
     case Instruction::kLessThanEqualUnsigned:
     case Instruction::kIntToBool:
-    case Instruction::kBitTest:
+    case Instruction::kBranchBitSet:
+    case Instruction::kBranchBitNotSet:
     case Instruction::kExchange:
     case Instruction::kFadd:
     case Instruction::kFsub:

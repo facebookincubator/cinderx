@@ -134,7 +134,15 @@ class BasicBlockBuilder {
   }
 
   // Allocate and append a new branching instruction which is checking a flag
-  Instruction* appendBranch(Instruction::Opcode opcode, BasicBlock* true_bb);
+  template <class... Args>
+  Instruction* appendBranch(
+      Instruction::Opcode opcode,
+      BasicBlock* true_bb,
+      Args&&... args) {
+    auto instr = appendInstr(opcode, std::forward<Args>(args)...);
+    cur_bb_->addSuccessor(true_bb);
+    return instr;
+  }
 
   template <
       typename FuncReturnType,

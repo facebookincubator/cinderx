@@ -811,7 +811,7 @@ RewriteResult rewriteStackInputToVreg(instr_iter_t instr_iter) {
 //   - Binary ops: rewriteBinaryOpLargeConstant
 //   - Guard: rewriteGuardLargeConstant
 //   - Div/DivUn: rewriteBinaryOpConstantPosition
-//   - BitTest input 1: isLogicalImm(1<<n) always encodes
+//   - BranchBitSet/BranchBitNotSet input 1: isLogicalImm(1<<n) always encodes
 //   - Move "Ri" (load immediate to register): this IS the lowering target
 //   - Inc/Dec: hardcoded constant 1, no immediate operand
 RewriteResult rewriteNonBinaryImmediateToVreg(instr_iter_t instr_iter) {

@@ -63,14 +63,6 @@ void BasicBlockBuilder::switchBlock(BasicBlock* block) {
   cur_bb_ = block;
 }
 
-Instruction* BasicBlockBuilder::appendBranch(
-    Instruction::Opcode opcode,
-    BasicBlock* true_bb) {
-  auto instr = appendInstr(opcode);
-  cur_bb_->addSuccessor(true_bb);
-  return instr;
-}
-
 Instruction* BasicBlockBuilder::createInstr(Instruction::Opcode opcode) {
   return cur_bb_->allocateInstr(opcode, cur_hir_instr_);
 }

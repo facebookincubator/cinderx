@@ -2296,11 +2296,12 @@ void translateDec(Environ* env, const Instruction* instr) {
   });
 }
 
-void translateBitTest(Environ* env, const Instruction* instr) {
+void translateBranchBit(Environ* env, const Instruction* instr, bool is_set) {
   a64::Builder* as = env->as;
 
   auto test_reg = AT::getGpWiden(instr->getInput(0));
   auto bit_pos = instr->getInput(1)->getConstant();
+  auto label = getLabel(env, instr->getInput(2));
 
   uint64_t mask = 1ULL << bit_pos;
   JIT_CHECK(
@@ -2308,6 +2309,11 @@ void translateBitTest(Environ* env, const Instruction* instr) {
       "All single bits should be able to be tested");
 
   as->tst(test_reg, mask);
+  if (is_set) {
+    as->b_ne(label);
+  } else {
+    as->b_eq(label);
+  }
 }
 
 void translateTst(Environ* env, const Instruction* instr) {
@@ -2669,11 +2675,18 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Instruction::kBitTest: {
+    case Instruction::kBranchBitSet:
+    case Instruction::kBranchBitNotSet: {
       auto* in0 = instr->getInput(0);
       auto* in1 = instr->getInput(1);
+      auto label = getLabel(env, instr->getInput(2));
 
       env->as->bt(getReg(instr, in0), getImm(in1));
+      if (instr->isBranchBitSet()) {
+        env->as->jc(label);
+      } else {
+        env->as->jnc(label);
+      }
       return;
     }
     case Instruction::kSelect: {
@@ -3134,8 +3147,11 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kDec:
       translateDec(env, instr);
       return;
-    case Instruction::kBitTest:
-      translateBitTest(env, instr);
+    case Instruction::kBranchBitSet:
+      translateBranchBit(env, instr, true);
+      return;
+    case Instruction::kBranchBitNotSet:
+      translateBranchBit(env, instr, false);
       return;
     case Instruction::kSelect:
       translateSelect(env, instr);
