@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/lir/postgen.h"
 
+#include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
 
@@ -220,7 +221,6 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   return kChanged;
 }
 
-#if defined(CINDER_X86_64)
 // Rewrite storing a large immediate to a memory location in x86-64. Other
 // architectures handle this explicitly in the autogen layer.
 RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
@@ -259,7 +259,6 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
 
   return kChanged;
 }
-#endif
 
 // Most guards involve comparing against a constant immediate. This rewrite
 // ensures those immediates fit into comparison instructions (and if they do
@@ -462,7 +461,6 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   return kRemoved;
 }
 
-#if defined(CINDER_AARCH64)
 // On AArch64, signed operations on sub-32-bit values need sign-extension.
 // LIR DataType doesn't track signedness (both cint8 and cuint8 become k8bit),
 // so values in registers are zero-extended by default (via ldrb/ldrh/cset).
@@ -470,7 +468,8 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 // sign-extension "cmp w0(=255), w1(=1)" with kLT gives false (wrong), but
 // with sign-extension "cmp w0(=-1), w1(=1)" with kLT gives true (correct).
 // Similarly, signed division (sdiv) needs sign-extended inputs for correctness.
-RewriteResult rewriteSignedSubWordOps(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteSignedSubWordOps(
+    instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   switch (instr->opcode()) {
     case Instruction::kGreaterThanSigned:
@@ -506,7 +505,8 @@ RewriteResult rewriteSignedSubWordOps(instr_iter_t instr_iter) {
 // On AArch64, we never are going to produce an output that is less than 32-bits
 // for our comparisons so promote all of these to 32-bits so we don't need to
 // mask them.
-RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewritePromoteOutputSize(
+    instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   switch (instr->opcode()) {
     case Instruction::kEqual:
@@ -536,7 +536,7 @@ RewriteResult rewritePromoteOutputSize(instr_iter_t instr_iter) {
 // moved to a GP register first (ARM64 lacks direct FP-register
 // test-and-branch). Insert Move(VecD → OutVReg{k64bit}) before the Guard so
 // TranslateGuard only sees GP register inputs.
-RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isGuard()) {
     return kUnchanged;
@@ -564,7 +564,7 @@ RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
 // Before:  Guard(kHasType, meta, obj, expected_type, ...)
 // After:   type_vreg = Move([obj + ob_type_offset])
 //          Guard(kIs, meta, type_vreg, expected_type, ...)
-RewriteResult rewriteGuardHasType(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteGuardHasType(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isGuard()) {
     return kUnchanged;
@@ -608,7 +608,8 @@ RewriteResult rewriteGuardHasType(instr_iter_t instr_iter) {
 //   addr  = MulAdd(index, scale, base)
 //   [if offset != 0: addr = Add(addr, Imm(offset))]
 //   Lea -> Move(addr)
-RewriteResult rewriteLeaLargeMultiplier(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteLeaLargeMultiplier(
+    instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isLea()) {
     return kUnchanged;
@@ -684,7 +685,8 @@ RewriteResult rewriteLeaLargeMultiplier(instr_iter_t instr_iter) {
 // input into Move(Imm{addr} → vreg) + Move(Ind{vreg, 0} → output). ARM64
 // cannot encode a 64-bit absolute address inline, so translateMove used a
 // scratch register. This rewrite lets register allocation handle it instead.
-RewriteResult rewriteMoveAbsoluteAddress(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteMoveAbsoluteAddress(
+    instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isMove() && !instr->isMoveRelaxed()) {
     return kUnchanged;
@@ -727,7 +729,8 @@ RewriteResult rewriteMoveAbsoluteAddress(instr_iter_t instr_iter) {
 //   - Call: late-created by PostRegAllocRewrite via setOpcode()
 //   - EpilogueEnd: special return-value handling
 //   - Pop: stack output, not input
-RewriteResult rewriteStackInputToVreg(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteStackInputToVreg(
+    instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
 
@@ -814,7 +817,8 @@ RewriteResult rewriteStackInputToVreg(instr_iter_t instr_iter) {
 //   - BranchBitSet/BranchBitNotSet input 1: isLogicalImm(1<<n) always encodes
 //   - Move "Ri" (load immediate to register): this IS the lowering target
 //   - Inc/Dec: hardcoded constant 1, no immediate operand
-RewriteResult rewriteNonBinaryImmediateToVreg(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteNonBinaryImmediateToVreg(
+    instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
 
@@ -876,7 +880,7 @@ RewriteResult rewriteNonBinaryImmediateToVreg(instr_iter_t instr_iter) {
 // For Call/VarArgCall instructions with non-register inputs
 // (Imm or Stack), insert a Move to load the call target into a vreg so
 // translateCall only needs blr(reg).
-RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
+[[maybe_unused]] RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isCall() && !instr->isVarArgCall() &&
       !instr->isVectorCallTstate()) {
@@ -891,12 +895,12 @@ RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto block = instr->basicblock();
 
   if (input->isImm()) {
-#if defined(CINDER_AARCH64)
-    // On aarch64, leave immediate call targets as-is so translateCall can
-    // emit bl(imm) which uses asmjit's relaxation to pick the optimal
-    // encoding (direct bl or ldr+blr via address table).
-    return kUnchanged;
-#else
+    // On aarch64, leave immediate call targets as-is so translateCall can emit
+    // bl(imm) which uses asmjit's relaxation to pick the optimal encoding
+    // (direct bl or ldr+blr via address table).
+    if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
+      return kUnchanged;
+    }
     auto move = block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
@@ -904,7 +908,6 @@ RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
         Imm{input->getConstant(), DataType::k64bit});
     instr->setInput(0, std::make_unique<LinkedOperand>(move));
     return kChanged;
-#endif
   }
 
   if (input->isStack()) {
@@ -941,7 +944,8 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
 // For Move instructions loading large 64-bit immediates (needing 3-4
 // movz/movk), if the same value appears more than once in the function,
 // rewrite to MovConstPool to load from a constant pool via a single ldr.
-RewriteResult rewriteMovConstPool(function_rewrite_arg_t func) {
+[[maybe_unused]] RewriteResult rewriteMovConstPool(
+    function_rewrite_arg_t func) {
   // Phase 1: Count occurrences of large immediate values.
   std::unordered_map<uint64_t, int> value_counts;
   for (auto& block : func->basicblocks()) {
@@ -1015,8 +1019,6 @@ RewriteResult rewriteMovConstPool(function_rewrite_arg_t func) {
   return changed ? kChanged : kUnchanged;
 }
 
-#endif
-
 } // namespace
 
 void PostGenerationRewrite::registerRewrites() {
@@ -1029,20 +1031,22 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteGuardLargeConstant, 1);
   registerOneRewriteFunction(rewriteLoadArg, 1);
 
-#if defined(CINDER_X86_64)
-  registerOneRewriteFunction(rewriteMoveToMemoryLargeConstant, 1);
-#elif defined(CINDER_AARCH64)
-  registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
-  registerOneRewriteFunction(rewritePromoteOutputSize, 1);
-  registerOneRewriteFunction(rewriteGuardFPInput, 1);
-  registerOneRewriteFunction(rewriteGuardHasType, 1);
-  registerOneRewriteFunction(rewriteLeaLargeMultiplier, 1);
-  registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
-  registerOneRewriteFunction(rewriteStackInputToVreg, 1);
-  registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
-  registerOneRewriteFunction(rewriteCallInput, 1);
-  registerOneRewriteFunction(rewriteMovConstPool, 1);
-#endif
+  if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kX86_64) {
+    registerOneRewriteFunction(rewriteMoveToMemoryLargeConstant, 1);
+  }
+
+  if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
+    registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
+    registerOneRewriteFunction(rewritePromoteOutputSize, 1);
+    registerOneRewriteFunction(rewriteGuardFPInput, 1);
+    registerOneRewriteFunction(rewriteGuardHasType, 1);
+    registerOneRewriteFunction(rewriteLeaLargeMultiplier, 1);
+    registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
+    registerOneRewriteFunction(rewriteStackInputToVreg, 1);
+    registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
+    registerOneRewriteFunction(rewriteCallInput, 1);
+    registerOneRewriteFunction(rewriteMovConstPool, 1);
+  }
 
   registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);
 }
