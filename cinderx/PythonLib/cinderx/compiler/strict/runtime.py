@@ -18,7 +18,6 @@ __all__ = [
     "strict_slots",
     "mutable",
     "extra_slot",
-    "_mark_cached_property",
     "set_freeze_enabled",
 ]
 
@@ -60,8 +59,4 @@ def strict_slots(obj: type[object]) -> type[object]:
 
 def extra_slot(obj: type[object], _name: str) -> type[object]:
     """mark `name` to be part of __slots__ in obj"""
-    return obj
-
-
-def _mark_cached_property(obj: object, is_async: bool, original_dec: object) -> object:
     return obj

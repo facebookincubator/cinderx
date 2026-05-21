@@ -4,7 +4,6 @@
 
 try:
     from cinderx.compiler.strict.runtime import (
-        _mark_cached_property,
         extra_slot,
         freeze_type,
         loose_slots,
@@ -13,9 +12,6 @@ try:
         strict_slots,
     )
 except ImportError:
-
-    def _mark_cached_property(o: object) -> object:
-        return o
 
     def extra_slot(cls: object, o: object) -> object:
         return cls

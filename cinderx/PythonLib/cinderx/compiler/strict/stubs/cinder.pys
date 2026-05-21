@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from abc import ABC
-from __strict__ import _mark_cached_property
 from typing import (
     TYPE_CHECKING,
     Awaitable,
@@ -40,7 +39,6 @@ class cached_property:
     def __init__(
         self, func: Callable[[object], object], slot: Optional[Descriptor] = None
     ) -> None:
-        _mark_cached_property(func, False, cached_property)
         self.func = func
         self.slot = slot
         self.name: str = getattr(slot, "__name__", func.__name__)
@@ -134,7 +132,6 @@ class BaseCachedProperty(Generic[_TClass, _TReturnType]):
 
 class async_cached_property(BaseCachedProperty):
     def __init__(self, func, slot=None):
-        _mark_cached_property(func, True, async_cached_property)
         self.func = func
         self.slot = slot
         self.name: str = getattr(slot, "__name__", func.__name__)
