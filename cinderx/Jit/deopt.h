@@ -4,6 +4,7 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/frozen_list.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/hir/hir.h"

@@ -102,6 +102,7 @@ PyObject* getVarnameTuple(BorrowedRef<PyCodeObject> code, int* idx);
 // containing tuple.
 PyObject* getVarname(BorrowedRef<PyCodeObject> code, int idx);
 
+// Return a crc32 checksum of the bytecode for the given code object.
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code);
 
 // Return the qualname of the given code object, falling back to its name or
