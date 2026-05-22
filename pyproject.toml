@@ -51,7 +51,7 @@ musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2:latest"
 manylinux-aarch64-image = "quay.io/pypa/manylinux_2_28_aarch64:latest"
 musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64:latest"
 test-requires = ["pytest"]
-test-command = "pytest {project}/cinderx/PythonLib/test_cinderx/ --ignore={project}/cinderx/PythonLib/test_cinderx/test_cpython_overrides/test__opcode.py"
+test-command = "pytest {project}/cinderx/PythonLib/test_cinderx/"
 
 [tool.cibuildwheel.linux]
 environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }

@@ -45,7 +45,7 @@ jobs:
       run: uv pip install pytest
 
     - name: Run Tests
-      run: uv run pytest cinderx/PythonLib/test_cinderx/ --ignore=cinderx/PythonLib/test_cinderx/test_cpython_overrides/test__opcode.py
+      run: uv run pytest cinderx/PythonLib/test_cinderx/
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
