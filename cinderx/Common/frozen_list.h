@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 
 namespace jit {
 
