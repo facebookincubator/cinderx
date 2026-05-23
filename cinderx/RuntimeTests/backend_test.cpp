@@ -768,19 +768,34 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   [RBP - 16]:Object = Move RAX:Object
   [RBP - 24]:Object = Move RSI:Object
         RDI:Object = Move RAX:Object
+        RSI:Object = Move [RBP - 24]:Object
         RDX:Object = Move RCX:Object
                      Call Object
+
+  [RBP - 32] is deleted: lastUse with no later stack reads.
+  RSI = Move [RBP - 24] is a self-reload (RSI spilled and loaded back to RSI).
+  It is left intact because reg == out_reg skips the rewrite.
   */
-  ASSERT_EQ(bb->getNumInstrs(), 5);
+  ASSERT_EQ(bb->getNumInstrs(), 6);
   auto& instrs = bb->instructions();
 
   auto iter = instrs.begin();
 
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kCall);
+  auto* spill0 = (*(iter++)).get();
+  auto* spill1 = (*(iter++)).get();
+  auto* arg0 = (*(iter++)).get();
+  auto* arg1 = (*(iter++)).get();
+  auto* arg2 = (*(iter++)).get();
+  auto* call_instr = (*(iter++)).get();
+
+  ASSERT_EQ(spill0->opcode(), Instruction::kMove);
+  ASSERT_EQ(spill1->opcode(), Instruction::kMove);
+  ASSERT_EQ(arg0->opcode(), Instruction::kMove);
+  ASSERT_EQ(arg0->getInput(0)->type(), OperandBase::kReg);
+  ASSERT_EQ(arg1->opcode(), Instruction::kMove);
+  ASSERT_EQ(arg1->getInput(0)->type(), OperandBase::kStack);
+  ASSERT_EQ(arg2->opcode(), Instruction::kMove);
+  ASSERT_EQ(call_instr->opcode(), Instruction::kCall);
 }
 
 TEST_F(BackendTest, MoveSequenceOpt2Test) {
@@ -820,47 +835,47 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   ASSERT_EQ((*iter)->getInput(1)->type(), OperandBase::kStack);
 }
 
-TEST_F(BackendTest, MoveSequenceOptKeepsSharedSpillAliveAcrossSelfMove) {
+TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
   auto lirfunc = std::make_unique<Function>();
   auto bb = lirfunc->allocateBasicBlock();
   auto epilogue = lirfunc->allocateBasicBlock();
 
   const PhyLocation kSharedSlot{-16, 64};
-  const PhyLocation kSelfMoveReg = ARGUMENT_REGS[0];
+  const PhyLocation kReloadReg = ARGUMENT_REGS[0];
   constexpr uint64_t kExpected = 4;
 
-  // Seed the spill slot with a known stale value. If the optimizer later
-  // deletes the real spill by mistake, the final reload reads this zero and the
-  // test fails deterministically instead of depending on uninitialized stack
-  // contents.
+  // Set up the previously failing case:
+  //
+  //   [RBP - 16] = Move RSI
+  //          RSI = Move [RBP - 16]   ; writes RSI, does not consume cached RSI
+  //          RAX = Move [RBP - 16]   ; later stack read still needs the spill
+  //
+  // A bad rewrite would turn the middle instruction into `RSI = Move RSI` and
+  // then conclude the spill is dead. This test checks that we keep both the
+  // spill store and the explicit self-reload in the block.
+  // Make a deleted spill observable instead of reading arbitrary stack data.
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
       OutStk{kSharedSlot, OperandBase::k64bit},
-      Imm{0, OperandBase::k64bit});
+      Imm{kExpected - kExpected, OperandBase::k64bit});
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{kSelfMoveReg, OperandBase::k64bit},
+      OutPhyReg{kReloadReg, OperandBase::k64bit},
       Imm{kExpected, OperandBase::k64bit});
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
       OutStk{kSharedSlot, OperandBase::k64bit},
-      PhyReg{kSelfMoveReg, OperandBase::k64bit});
-  // Reload the same spilled value back into the same physical register. Once
-  // the stack input is rewritten to use the remembered register directly, this
-  // instruction becomes `Move reg, reg` and is dropped later as a no-op.
-  auto self_move = bb->allocateInstr(
+      PhyReg{kReloadReg, OperandBase::k64bit});
+
+  auto self_reload = bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{kSelfMoveReg, OperandBase::k64bit},
+      OutPhyReg{kReloadReg, OperandBase::k64bit},
       Stk{kSharedSlot, OperandBase::k64bit});
-  // Mark the stack operand as a last use to model the exact case that used to
-  // trigger spill deletion inside optimizeMoveSequence().
-  self_move->getInput(0)->setLastUse();
-  // A second reload still needs the shared spill slot after the self-move has
-  // been simplified away. That is what the old optimization missed.
+  self_reload->getInput(0)->setLastUse();
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
@@ -871,30 +886,26 @@ TEST_F(BackendTest, MoveSequenceOptKeepsSharedSpillAliveAcrossSelfMove) {
 
   auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
 
-  bool saw_preserved_spill = false;
-  for (auto iter = bb->instructions().begin(); iter != bb->instructions().end();
-       ++iter) {
-    auto* instr = iter->get();
+  bool saw_spill = false;
+  bool saw_self_reload = false;
+  for (auto& instr : bb->instructions()) {
     if (!instr->isMove()) {
       continue;
     }
     auto* out = instr->output();
     auto* in = instr->getInput(0);
     if (out->isStack() && out->getStackSlot().loc == kSharedSlot.loc &&
-        in->isReg() && in->getPhyRegister() == kSelfMoveReg) {
-      saw_preserved_spill = true;
-      break;
+        in->isReg() && in->getPhyRegister() == kReloadReg) {
+      saw_spill = true;
+    }
+    if (out->isReg() && out->getPhyRegister() == kReloadReg && in->isStack() &&
+        in->getStackSlot().loc == kSharedSlot.loc) {
+      saw_self_reload = true;
     }
   }
 
-  // Check both the internal LIR shape and the final machine-code behavior.
-  // Before the fix, optimizeMoveSequence() treated the self-move's stack input
-  // as the last consumer of the spill, erased the defining store, and relied on
-  // the register value staying live. That was wrong because the later reload
-  // still legitimately reads the stack slot. Keeping the spill is safe: it only
-  // skips the deletion in the self-move case, where the move itself is about to
-  // disappear and therefore cannot serve as the final use of the spilled value.
-  EXPECT_TRUE(saw_preserved_spill);
+  EXPECT_TRUE(saw_spill);
+  EXPECT_TRUE(saw_self_reload);
   EXPECT_EQ(func(), kExpected);
 }
 

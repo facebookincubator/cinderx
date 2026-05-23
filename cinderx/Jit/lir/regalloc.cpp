@@ -468,9 +468,15 @@ void LinearScanAllocator::calculateLiveIntervals() {
         visit_indirect(output_opnd);
       }
 
-      // inputs
-      for (size_t i = 0; i < instr->getNumInputs(); i++) {
-        const OperandBase* opnd = instr->getInput(i);
+      // Inputs are iterated in reverse so that when two operands reference
+      // the same vreg, lastUse lands on the last operand by index. After
+      // call rewriting splits operands into separate Move instructions, the
+      // last operand becomes the chronologically last Move, which is the
+      // correct one to carry lastUse for spill-deletion decisions.
+      size_t num_inputs = instr->getNumInputs();
+      for (size_t i = 0; i < num_inputs; ++i) {
+        size_t idx = num_inputs - i - 1;
+        const OperandBase* opnd = instr->getInput(idx);
         if (!opnd->isVreg() && !opnd->isInd()) {
           continue;
         }
@@ -480,7 +486,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
           continue;
         }
 
-        register_input(opnd, instr->getInputPhyRegUse(i));
+        register_input(opnd, instr->getInputPhyRegUse(idx));
       }
 
       if (instr_opcode == Instruction::kCall ||

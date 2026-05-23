@@ -1480,10 +1480,6 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
       auto out_reg = instr->output()->isReg()
           ? instr->output()->getPhyRegister()
           : PhyLocation::REG_INVALID;
-      // for moves only we can generate A = Move A, which will get optimized out
-      if (instr->isMove()) {
-        out_reg = PhyLocation::REG_INVALID;
-      }
       instr->foreachInputOperand([&](OperandBase* operand) {
         if (!operand->isStack()) {
           return;
@@ -1498,9 +1494,6 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
         auto opnd = static_cast<Operand*>(operand);
         auto data_type = opnd->dataType();
         auto old_opnd = fmt::to_string(*opnd);
-        bool replacement_is_self_move = instr->isMove() &&
-            instr->output()->isReg() &&
-            instr->output()->getPhyRegister() == reg;
         opnd->setPhyRegister(reg);
         JIT_CHECK(
             bitSize(data_type) == bitSize(opnd->dataType()),
@@ -1511,13 +1504,8 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
             *instr);
         changed = kChanged;
 
-        // if the stack location operand can be replaced by the register it came
-        // from and this is the last use of the operand, we can remove the move
-        // instruction moving from the register to the stack location.
-        // Keep the spill alive when the replacement would turn this consumer
-        // into a self-move: later loads from the same stack slot may still
-        // need the spilled value after this move is optimized away.
-        if (opnd->isLastUse() && !replacement_is_self_move) {
+        // If this is the last use of the stack operand, remove the spill.
+        if (opnd->isLastUse()) {
           auto opt_iter = registerMemoryMoves.getInstrFromMemory(stack_slot);
           JIT_CHECK(opt_iter.has_value(), "There must be a def instruction.");
           basicblock->instructions().erase(*opt_iter);
