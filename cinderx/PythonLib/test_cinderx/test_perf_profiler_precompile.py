@@ -16,11 +16,7 @@ from test.support.os_helper import temp_dir
 # pyre-ignore[21]: can't find test.support
 from test.support.script_helper import assert_python_ok, make_script
 
-try:
-    # pyre-ignore[21]: can't find _is_compile_perf_trampoline_pre_fork_enabled
-    from cinder import _is_compile_perf_trampoline_pre_fork_enabled
-except ImportError:  # noqa: B001
-    _is_compile_perf_trampoline_pre_fork_enabled = None
+from cinderx import _is_compile_perf_trampoline_pre_fork_enabled
 
 
 def supports_trampoline_profiling():

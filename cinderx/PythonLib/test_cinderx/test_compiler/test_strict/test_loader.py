@@ -50,21 +50,6 @@ from .sandbox import (
     restore_sys_modules,
 )
 
-try:
-    # pyre-ignore[21]: cinder module not typed.
-    from cinder import cinder_set_warn_handler, get_warn_handler
-
-    HAVE_WARN_HANDLERS: bool = True
-except ImportError:
-
-    def cinder_set_warn_handler(func):
-        pass
-
-    def get_warn_handler():
-        return None
-
-    HAVE_WARN_HANDLERS: bool = False
-
 
 if TYPE_CHECKING:
     # Code that dynamically passes around module objects is hard to type, since
@@ -143,22 +128,6 @@ def ensure_type_patch(enabled: bool = True) -> Generator[None, None, None]:
         yield
     finally:
         set_freeze_enabled(prev)
-
-
-@contextmanager
-def with_warn_handler() -> Generator[Sequence[tuple[object, ...]], None, None]:
-    warnings: list[tuple[object, ...]] = []
-
-    def warn(*args: object) -> None:
-        warnings.append(args)
-
-    prev = get_warn_handler()
-    # pyrefly: ignore [bad-argument-type]
-    cinder_set_warn_handler(warn)
-    try:
-        yield warnings
-    finally:
-        cinder_set_warn_handler(prev)
 
 
 TCallable = TypeVar("TCallable", bound=Callable)
@@ -1948,26 +1917,6 @@ class StrictLoaderTest(StrictTestBase):
             C = self.sbx.strict_import("a").C
             C.foo = 42
             self.assertEqual(C.foo, 42)
-
-    @passIf(
-        HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
-    )
-    def test_class_explicit_dict_no_warning(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-                import __strict__
-
-                class C:
-                    __dict__: object
-            """,
-        )
-        with ensure_type_patch(), with_warn_handler() as warnings:
-            # pyrefly: ignore [missing-attribute]
-            C = self.sbx.strict_import("a").C
-            a = C()
-            a.foo = 42
-            self.assertEqual(warnings, [])
 
     def test_attribute_error(self) -> None:
         self.sbx.write_file("a.py", "import __strict__")

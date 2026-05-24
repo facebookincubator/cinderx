@@ -3,28 +3,12 @@
 import asyncio
 import re
 import sys
-from contextlib import contextmanager
 from unittest.mock import MagicMock, Mock, patch
-
-try:
-    from cinder import getknobs, setknobs
-except ImportError:
-    getknobs = setknobs = None
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.test_support import skip_test_if_oss
 
 from .common import StaticTestBase
-
-
-@contextmanager
-def save_restore_knobs():
-    if getknobs is not None and setknobs is not None:
-        prev = getknobs()
-        yield
-        setknobs(prev)
-    else:
-        yield
 
 
 class StaticPatchTests(StaticTestBase):
@@ -301,7 +285,6 @@ class StaticPatchTests(StaticTestBase):
             with patch(f"{mod.__name__}.C.f", return_value=100):
                 self.assertEqual(g(), 100)
 
-    @save_restore_knobs()
     def test_patch_function_non_autospec(self) -> None:
         codestr = """
             from typing import final
@@ -321,7 +304,6 @@ class StaticPatchTests(StaticTestBase):
                 self.assertEqual(g(c), 100)
                 self.assertEqual(len(p.call_args[0]), 0)
 
-    @save_restore_knobs()
     def test_patch_coro_non_autospec(self) -> None:
         codestr = """
             from typing import final
@@ -373,7 +355,6 @@ class StaticPatchTests(StaticTestBase):
                 self.assertEqual(g2(), 100)
                 self.assertEqual(len(p.call_args[0]), 0)
 
-    @save_restore_knobs()
     def test_patch_function_module_non_autospec(self) -> None:
         codestr = """
             from typing import final
@@ -396,7 +377,6 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(len(p.call_args[0]), 1)
             self.assertEqual(p.call_args[0][0], c)
 
-    @save_restore_knobs()
     def test_patch_function_descriptor(self) -> None:
         class Patch:
             def __init__(self):
