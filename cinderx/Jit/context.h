@@ -91,6 +91,7 @@ class Builtins {
 
  private:
   std::atomic<bool> is_initialized_{false};
+  std::mutex mtx_;
   UnorderedMap<PyMethodDef*, std::string> cfunc_to_name_;
   UnorderedMap<std::string, PyMethodDef*> name_to_cfunc_;
 };
