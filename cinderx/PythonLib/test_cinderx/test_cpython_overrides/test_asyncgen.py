@@ -19,6 +19,7 @@ class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
 
     def tearDown(self):
         self.loop.close()
+        # pyre-fixme[8]: Attribute has type `AbstractEventLoop`; used as `None`.
         self.loop = None
 
     @passIf(cinderx.jit.is_enabled(), "fails under Cinder JIT")
