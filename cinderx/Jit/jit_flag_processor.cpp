@@ -184,12 +184,15 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
 
     if (!found.empty()) {
       option->handled = true;
-      // Use overridden debug message if it's been defined.
-      JIT_DLOG(
-          "{} has been specified - {}",
-          found,
-          option->debug_message.empty() ? option->flag_description
-                                        : option->debug_message);
+
+      // Log everything but skip the debug option itself.
+      if (option->cmdline_flag != "jit-debug") {
+        // Use overridden debug message if it's been defined.
+        std::string_view msg = option->debug_message.empty()
+            ? option->flag_description
+            : option->debug_message;
+        JIT_DLOG("{} has been specified - {}", found, msg);
+      }
     }
   }
 
