@@ -427,7 +427,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   };
 
   DeoptMetadata meta;
-  meta.live_values.resize(instr.live_regs().size());
+  meta.live_values.initialize(instr.live_regs().size());
 
   std::unordered_map<jit::hir::Register*, int> reg_idx;
   int i = 0;
@@ -458,7 +458,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   auto populate_localsplus =
       [get_reg_idx](DeoptFrameMetadata& meta, hir::FrameState* fs) {
         size_t nlocalsplus = fs->localsplus.size();
-        meta.localsplus.resize(nlocalsplus);
+        meta.localsplus.initialize(nlocalsplus);
         for (size_t j = 0; j < nlocalsplus; ++j) {
           meta.localsplus[j] = get_reg_idx(fs->localsplus[j]);
         }
@@ -467,7 +467,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   auto populate_stack = [get_reg_idx](
                             DeoptFrameMetadata& meta, hir::FrameState* fs) {
     std::unordered_set<jit::hir::Register*> lms_on_stack;
-    meta.stack.resize(fs->stack.size());
+    meta.stack.initialize(fs->stack.size());
     int stack_idx = 0;
 
     for (auto& reg : fs->stack) {
@@ -492,7 +492,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
       fs != nullptr, "need FrameState to calculate inline depth of {}", instr);
 
   int num_frames = fs->inlineDepth();
-  meta.frame_meta.resize(num_frames + 1); // +1 for caller
+  meta.frame_meta.initialize(num_frames + 1); // +1 for caller
 
   for (hir::FrameState* frame = fs; frame != nullptr; frame = frame->parent) {
     int frame_idx = num_frames--;

@@ -5,15 +5,17 @@
 #include <algorithm>
 #include <concepts>
 #include <cstddef>
+#include <initializer_list>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 
 namespace jit {
 
 // A frozen list is effectively a vector that is dynamically allocated at
 // runtime, but then can no longer be resized.
 template <typename T>
-  requires std::default_initializable<T> && std::copy_constructible<T>
+  requires std::default_initializable<T> && std::copyable<T>
 class FrozenList {
  public:
   FrozenList() = default;
@@ -21,12 +23,12 @@ class FrozenList {
 
   // Construct a frozen list from the given initializer list.
   /* implicit */ FrozenList(std::initializer_list<T> values) {
-    reserve(values.size());
+    initializeStorage(values.size());
     std::copy(values.begin(), values.end(), ptr_.get());
   }
 
   FrozenList(const FrozenList& other) {
-    reserve(other.size_);
+    initializeStorage(other.size_);
     std::copy(other.begin(), other.end(), ptr_.get());
   }
 
@@ -50,7 +52,7 @@ class FrozenList {
 
   FrozenList& operator=(const FrozenList& other) {
     if (this != &other) {
-      reserve(other.size_);
+      initializeStorage(other.size_);
       std::copy(other.begin(), other.end(), ptr_.get());
     }
 
@@ -62,16 +64,16 @@ class FrozenList {
     return size_;
   }
 
-  // Set the size of the frozen list and build a new pointer to the data, then
-  // fill the data with the default value for the type.
-  void resize(size_t size) {
-    resize(size, T{});
+  // Initialize the frozen list with the given size, then fill the data with the
+  // default value for the type.
+  void initialize(size_t size) {
+    initialize(size, T{});
   }
 
-  // Set the size of the frozen list and build a new pointer to the data, then
-  // fill the data with a copy of the given value.
-  void resize(size_t size, const T& val) {
-    reserve(size);
+  // Initialize the frozen list with the given size, then fill the data with a
+  // copy of the given value.
+  void initialize(size_t size, const T& val) {
+    initializeStorage(size);
     std::fill(ptr_.get(), ptr_.get() + size, val);
   }
 
@@ -86,12 +88,20 @@ class FrozenList {
   }
 
   // Provide the [] operator for accessing elements by index.
-  T& operator[](size_t index) const {
+  T& operator[](size_t index) {
+    return ptr_[index];
+  }
+
+  const T& operator[](size_t index) const {
     return ptr_[index];
   }
 
   // Like the [] operator, but throws an exception if the index is out of range.
-  T& at(size_t index) const {
+  T& at(size_t index) {
+    return const_cast<T&>(std::as_const(*this).at(index));
+  }
+
+  const T& at(size_t index) const {
     if (index >= size_) {
       throw std::out_of_range("Index out of range");
     }
@@ -102,12 +112,12 @@ class FrozenList {
   // Raise an exception if the list has already been initialized.
   void ensureUninitialized() {
     if (ptr_ != nullptr) {
-      throw std::runtime_error("Cannot resize a frozen list twice");
+      throw std::runtime_error("Cannot initialize FrozenList more than once");
     }
   }
 
   // Set the size of the frozen list and build a new pointer to the data.
-  void reserve(size_t size) {
+  void initializeStorage(size_t size) {
     ensureUninitialized();
     size_ = size;
 

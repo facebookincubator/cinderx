@@ -4956,7 +4956,7 @@ void LIRGenerator::updateDeoptIndex(
         num_callers++;
       }
       int num_frames = num_callers + 1;
-      meta.frame_meta.resize(num_frames);
+      meta.frame_meta.initialize(num_frames);
       // Innermost frame: the Decref's own code and bytecode offset.
       meta.frame_meta[num_frames - 1].code = code;
       meta.frame_meta[num_frames - 1].cause_instr_idx = i.bytecodeOffset();
