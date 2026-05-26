@@ -26,6 +26,7 @@ test_cinderx.test_jit_attr_cache.LoadModuleMethodCacheTests.*
 test_cinderx.test_cinderjit.*
 test_cinderx.test_compiler.test_static.elide_type_checks.*
 test_cinderx.test_jit_generators.*
+test_cinderx.test_jit_inliner.*
 
 # This fails because the refleak infra captures all of the ABCs
 # and clears and restores them between runs, but contextvars isn't
