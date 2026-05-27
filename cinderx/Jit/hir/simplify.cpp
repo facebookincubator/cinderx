@@ -508,6 +508,14 @@ Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
       return env.emit<CondBranch>(src, instr->true_bb(), instr->false_bb());
     }
   }
+  if (cond->instr()->IsPrimitiveUnaryOp()) {
+    auto unary = static_cast<PrimitiveUnaryOp*>(cond->instr());
+    auto unary_op = unary->op();
+    if (unary_op == PrimitiveUnaryOpKind::kNotInt) {
+      return env.emit<CondBranch>(
+          unary->GetOperand(0), instr->false_bb(), instr->true_bb());
+    }
+  }
   return nullptr;
 }
 
@@ -1216,13 +1224,16 @@ Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
 Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   Register* left = instr->GetOperand(0);
   Register* right = instr->GetOperand(1);
-  if (instr->op() == PrimitiveCompareOp::kEqual ||
-      instr->op() == PrimitiveCompareOp::kNotEqual) {
+  PrimitiveCompareOp op = instr->op();
+  bool commutative =
+      op == PrimitiveCompareOp::kEqual || op == PrimitiveCompareOp::kNotEqual;
+
+  if (commutative) {
     auto do_cbool = [&](bool value) {
       env.emit<UseType>(left, left->type());
       env.emit<UseType>(right, right->type());
       return env.emit<LoadConst>(Type::fromCBool(
-          instr->op() == PrimitiveCompareOp::kNotEqual ? !value : value));
+          op == PrimitiveCompareOp::kNotEqual ? !value : value));
     };
     if (!left->type().couldBe(right->type())) {
       return do_cbool(false);
@@ -1234,12 +1245,35 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
       return do_cbool(left->type().objectSpec() == right->type().objectSpec());
     }
   }
+
+  // Canonicalize boolean constants to the right for == and !=.
+  if (commutative && left->isA(TBool) && right->isA(TBool) &&
+      left->type().hasObjectSpec() && !right->type().hasObjectSpec()) {
+    return env.emit<PrimitiveCompare>(op, right, left);
+  }
+  if (commutative && left->isA(TCBool) && right->isA(TCBool) &&
+      left->type().hasIntSpec() && !right->type().hasIntSpec()) {
+    return env.emit<PrimitiveCompare>(op, right, left);
+  }
+
   // box(b) == True --> b
-  if (instr->op() == PrimitiveCompareOp::kEqual &&
-      left->instr()->IsPrimitiveBoxBool() &&
+  if (op == PrimitiveCompareOp::kEqual && left->instr()->IsPrimitiveBoxBool() &&
       right->type().asObject() == Py_True) {
     return left->instr()->GetOperand(0);
   }
+  // box(b) == False --> !b
+  if (op == PrimitiveCompareOp::kEqual && left->instr()->IsPrimitiveBoxBool() &&
+      right->type().asObject() == Py_False) {
+    return env.emit<PrimitiveUnaryOp>(
+        PrimitiveUnaryOpKind::kNotInt, left->instr()->GetOperand(0));
+  }
+  // box(b1) CMP box(b2) --> b1 CMP b2
+  if (left->instr()->IsPrimitiveBoxBool() &&
+      right->instr()->IsPrimitiveBoxBool()) {
+    return env.emit<PrimitiveCompare>(
+        op, left->instr()->GetOperand(0), right->instr()->GetOperand(0));
+  }
+
   return nullptr;
 }
 

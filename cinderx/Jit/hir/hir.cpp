@@ -638,8 +638,9 @@ Register* const* Instr::operands() const {
 Register*& Instr::operandAt(std::size_t i) {
   JIT_DCHECK(
       i < NumOperands(),
-      "operand {} out of range (max is {})",
+      "Operand {} out of range for {} (max is {})",
       i,
+      opname(),
       NumOperands() - 1);
   return operands()[i];
 }
