@@ -205,6 +205,10 @@ class BasicBlockBuilder {
 
   std::vector<BasicBlock*> Generate();
 
+  BasicBlock* curBlock() const {
+    return cur_bb_;
+  }
+
  private:
   const hir::Instr* cur_hir_instr_{nullptr};
   std::optional<std::size_t> cur_deopt_metadata_;

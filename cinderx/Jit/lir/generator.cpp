@@ -1208,24 +1208,35 @@ void LIRGenerator::GenerateExitBlocks() {
       return;
     }
 
+    BasicBlockBuilder bbb{env_, lir_func_};
+    bbb.switchBlock(block);
+
     auto ret_data_type = hirTypeToDataType(func_->return_type);
-    exit_phi_ = block->allocateInstr(
-        Instruction::kPhi, nullptr, OutVReg{ret_data_type});
+    exit_phi_ = bbb.appendInstr(OutVReg{ret_data_type}, Instruction::kPhi);
 
     // Unlink frame before epilogue. Non-generators always unlink.
     bool has_freevars = func_->code != nullptr && func_->code->co_nfreevars > 0;
-    uint64_t helper;
-    if (!env_->can_deopt && !has_freevars) {
-      helper = reinterpret_cast<uint64_t>(JITRT_UnlinkLeafFrame);
-    } else if (!has_freevars) {
-      helper = reinterpret_cast<uint64_t>(JITRT_UnlinkLightweightFrameFast);
+    if (has_freevars) {
+      bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+    } else if (!env_->can_deopt) {
+      emitInlineUnlinkLeafFrame(bbb);
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
     } else {
-      helper = reinterpret_cast<uint64_t>(JITRT_UnlinkFrame);
+      emitInlineUnlinkFastFrame(bbb);
+#else
+    } else {
+      bbb.appendInvokeInstruction(
+          JITRT_UnlinkLightweightFrameFast, env_->asm_tstate);
+#endif
     }
-    block->allocateInstr(
-        Instruction::kCall, nullptr, Imm{helper}, VReg{env_->asm_tstate});
 
-    block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{exit_phi_});
+    // EpilogueEnd goes on the builder's current block which may differ
+    // from exit_block_ when inline code created additional blocks.
+    BasicBlock* epilogue_block = bbb.curBlock();
+    bbb.appendInstr(Instruction::kEpilogueEnd, VReg{exit_phi_});
+    if (epilogue_block != exit_block_) {
+      exit_epilogue_ = epilogue_block;
+    }
     return;
   }
 
@@ -4322,23 +4333,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #endif
 
         // Link frame into tstate.
-#if PY_VERSION_HEX >= 0x030D0000
-        bbb.appendInstr(
-            OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
-            Instruction::kMove,
-            callee_frame);
-#else
-        {
-          Instruction* cframe_reg = bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
-          bbb.appendInstr(
-              OutInd{cframe_reg, offsetof(_PyCFrame, current_frame)},
-              Instruction::kMove,
-              callee_frame);
-        }
-#endif
+        makeCurrentFrameAccessor(bbb).store(callee_frame);
         break;
       }
       case Opcode::kEndInlinedFunction: {
@@ -4391,23 +4386,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 static_cast<int32_t>(
                     frameOffsetBefore(instr.matchingBegin()) +
                     kFrameHeaderOverhead))});
-#if PY_VERSION_HEX >= 0x030D0000
-        bbb.appendInstr(
-            OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
-            Instruction::kMove,
-            caller_frame);
-#else
-        {
-          Instruction* cframe_reg = bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
-          bbb.appendInstr(
-              OutInd{cframe_reg, offsetof(_PyCFrame, current_frame)},
-              Instruction::kMove,
-              caller_frame);
-        }
-#endif
+        makeCurrentFrameAccessor(bbb).store(caller_frame);
         {
           auto code = instr.matchingBegin()->code();
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
@@ -5039,6 +5018,51 @@ Instruction* LIRGenerator::getInlinedFrame(
   return it->second;
 }
 
+#if PY_VERSION_HEX < 0x030D0000
+Instruction* CurrentFrameAccessor::loadCFrame() {
+  if (cframe_ == nullptr) {
+    cframe_ = bbb_.appendInstr(
+        OutVReg{},
+        Instruction::kMove,
+        Ind{tstate_, offsetof(PyThreadState, cframe)});
+  }
+  return cframe_;
+}
+#endif
+
+Instruction* CurrentFrameAccessor::load() {
+#if PY_VERSION_HEX >= 0x030D0000
+  return bbb_.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{tstate_, offsetof(PyThreadState, current_frame)});
+#else
+  return bbb_.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{loadCFrame(), offsetof(_PyCFrame, current_frame)});
+#endif
+}
+
+void CurrentFrameAccessor::store(Instruction* frame) {
+#if PY_VERSION_HEX >= 0x030D0000
+  bbb_.appendInstr(
+      OutInd{tstate_, offsetof(PyThreadState, current_frame)},
+      Instruction::kMove,
+      frame);
+#else
+  bbb_.appendInstr(
+      OutInd{loadCFrame(), offsetof(_PyCFrame, current_frame)},
+      Instruction::kMove,
+      frame);
+#endif
+}
+
+CurrentFrameAccessor LIRGenerator::makeCurrentFrameAccessor(
+    BasicBlockBuilder& bbb) {
+  return CurrentFrameAccessor(bbb, env_->asm_tstate);
+}
+
 void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
   // For non-generator normal (heavy) frames, allocate and link the
   // interpreter frame via a runtime call. This moves the work that
@@ -5110,21 +5134,8 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
             static_cast<int32_t>(-fh_size + jit::kFrameHeaderOverhead))});
 
     // Load previous frame from tstate before we overwrite current_frame.
-#if PY_VERSION_HEX >= 0x030D0000
-    Instruction* prev_frame = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kMove,
-        Ind{env_->asm_tstate, offsetof(PyThreadState, current_frame)});
-#else
-    Instruction* cframe_reg = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kMove,
-        Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
-    Instruction* prev_frame = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kMove,
-        Ind{cframe_reg, offsetof(_PyCFrame, current_frame)});
-#endif
+    CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
+    Instruction* prev_frame = cfa.load();
 
     PyObject* code_obj = reinterpret_cast<PyObject*>(func_->code.get());
 
@@ -5246,34 +5257,105 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 
     // Link frame into tstate.
     bbb.annotateNext("Set _PyInterpreterFrame as topmost frame");
-#if PY_VERSION_HEX >= 0x030D0000
-    bbb.appendInstr(
-        OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
-        Instruction::kMove,
-        frame);
-#else
-    bbb.appendInstr(
-        OutInd{cframe_reg, offsetof(_PyCFrame, current_frame)},
-        Instruction::kMove,
-        frame);
-#endif
+    cfa.store(frame);
   }
-#if PY_VERSION_HEX >= 0x030D0000
   bbb.annotateNext("Load current interpreter frame");
-  env_->asm_interpreter_frame = bbb.appendInstr(
-      OutVReg{},
-      Instruction::kMove,
-      Ind{env_->asm_tstate, offsetof(PyThreadState, current_frame)});
+  env_->asm_interpreter_frame = makeCurrentFrameAccessor(bbb).load();
+}
+
+void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
+  PyObject* executable;
+  std::optional<destructor> dtor;
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  executable = env_->code_rt->reifier().get();
+  dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
 #else
-  auto* cframe = bbb.appendInstr(
-      OutVReg{},
-      Instruction::kMove,
-      Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
-  env_->asm_interpreter_frame = bbb.appendInstr(
-      OutVReg{},
-      Instruction::kMove,
-      Ind{cframe, offsetof(_PyCFrame, current_frame)});
+  executable = reinterpret_cast<PyObject*>(func_->code.get());
+  dtor = PyCode_Type.tp_dealloc;
 #endif
+  if (!_Py_IsImmortal(executable)) {
+    Instruction* exec_reg =
+        bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
+    makeDecref(bbb, exec_reg, dtor, false, false);
+  }
+}
+
+void LIRGenerator::emitInlineUnlinkLeafFrame(BasicBlockBuilder& bbb) {
+  // Leaf frame: no deopts means the frame was never materialized.
+  // Inline the operations from JITRT_UnlinkLeafFrame: unlink the frame
+  // from the thread state, then decref func and executable.
+
+  CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
+  Instruction* frame = cfa.load();
+
+  Instruction* prev = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{frame,
+          static_cast<int32_t>(offsetof(_PyInterpreterFrame, previous))});
+
+  cfa.store(prev);
+
+  makeDecref(
+      bbb,
+      env_->asm_func,
+      std::optional<destructor>(PyFunction_Type.tp_dealloc),
+      false,
+      false);
+  emitDecrefExecutable(bbb);
+}
+
+void LIRGenerator::emitInlineUnlinkFastFrame(BasicBlockBuilder& bbb) {
+  // Fast frame: can deopt (may be materialized), no freevars.
+  // Check materialization: if materialized, call JITRT_UnlinkFrame;
+  // otherwise inline the unlink + decrefs.
+
+  CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
+  Instruction* frame = cfa.load();
+
+  auto done_block = bbb.allocateBlock();
+  auto not_materialized = bbb.allocateBlock();
+
+  Instruction* frame_status = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{frame,
+          static_cast<int32_t>(
+              offsetof(FrameHeader, frame_status) - kFrameHeaderOverhead)});
+
+  static_assert(JIT_FRAME_INITIALIZED == 2);
+  bbb.appendBranch(
+      Instruction::kBranchBitNotSet, not_materialized, frame_status, Imm{1});
+
+  {
+    BasicBlock* materialized_block = bbb.allocateBlock();
+    bbb.appendBlock(materialized_block);
+    if (getConfig().multiple_code_sections) {
+      materialized_block->setSection(codegen::CodeSection::kCold);
+    }
+    bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+    bbb.appendBranch(Instruction::kBranch, done_block);
+  }
+
+  bbb.switchBlock(not_materialized);
+
+  Instruction* prev = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{frame,
+          static_cast<int32_t>(offsetof(_PyInterpreterFrame, previous))});
+
+  cfa.store(prev);
+
+  makeDecref(
+      bbb,
+      env_->asm_func,
+      std::optional<destructor>(PyFunction_Type.tp_dealloc),
+      false,
+      false);
+  emitDecrefExecutable(bbb);
+
+  bbb.appendBlock(done_block);
 }
 
 void GenerateDeoptTrampolineBlocks(
