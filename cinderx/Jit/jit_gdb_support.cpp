@@ -8,8 +8,11 @@
 #include "cinderx/Jit/config.h"
 
 #include <fcntl.h>
+#include <fmt/format.h>
 #include <stddef.h>
 #include <stdio.h>
+
+#include <string>
 
 /* Begin GDB hook */
 
@@ -217,19 +220,10 @@ struct ELFObject {
 
 /* Context for generating the ELF object for the GDB JIT API. */
 struct ELFObjectContext {
-  ~ELFObjectContext() {
-    if (filename) {
-      ss_free(filename);
-    }
-    if (function_name) {
-      ss_free(function_name);
-    }
-  }
-
   uint8_t* p{nullptr}; /* Pointer to next address in obj.space. */
   uint8_t* startp{nullptr}; /* Pointer to start address in obj.space. */
-  struct jit_string_t* function_name{nullptr}; /* The python function name */
-  struct jit_string_t* filename{nullptr}; /* File the function came from */
+  std::string function_name; /* The python function name */
+  std::string filename; /* File the function came from */
   int lineno{0}; /* The first line of the python definition */
   uintptr_t code_addr{0}; /* Machine code address. */
   uint32_t code_size{0}; /* Size of machine code. */
@@ -283,16 +277,15 @@ int register_elf_ctx(ELFObjectContext* ctx, const char* type, void* ptr) {
 
   if (jit::getConfig().gdb.write_elf_objects) {
     // Write the ELF object to /tmp
-    struct jit_string_t* filename =
-        ss_sprintf_alloc("/tmp/cinder_%s_%p_elf", type, ptr);
-    int fd;
-    if ((fd = open(ss_get_string(filename), O_CREAT | O_RDWR, 0600))) {
+    std::string filename = fmt::format("/tmp/cinder_{}_{}_elf", type, ptr);
+    if (int fd = open(filename.c_str(), O_CREAT | O_RDWR, 0600); fd >= 0) {
       if (write(fd, elf_object_start, elf_object_size) < 0) {
-        JIT_DLOG("Failed to write to {}", ss_get_string(filename));
+        JIT_DLOG("Failed to write to {}", filename);
       }
       close(fd);
+    } else {
+      JIT_DLOG("Failed to open {}", filename);
     }
-    ss_free(filename);
   }
 
   JITCodeEntry* entry = (JITCodeEntry*)raw;
@@ -421,8 +414,7 @@ void elf_init_symtab(ELFObjectContext* ctx) {
   sym = &ctx->obj.sym[ELF_SYM_FUNC];
   sym->name = elfctx_append_string(
       ctx,
-      ctx->function_name == nullptr ? "<unknown>"
-                                    : ss_get_string(ctx->function_name));
+      ctx->function_name.empty() ? "<unknown>" : ctx->function_name.c_str());
   sym->sectidx = ELF_SECT_text;
   sym->value = 0;
   sym->size = ctx->code_size;
@@ -439,9 +431,7 @@ void elf_init_debuginfo(ELFObjectContext* ctx) {
       DWRF_U8(sizeof(uintptr_t)); /* Pointer size. */
 
       DWRF_UV(1); /* Abbrev #1: DWRF_TAG_compile_unit. */
-      DWRF_STR(
-          ctx->filename == nullptr ? "<unknown>"
-                                   : ss_get_string(ctx->filename));
+      DWRF_STR(ctx->filename.empty() ? "<unknown>" : ctx->filename.c_str());
       DWRF_ADDR(ctx->code_addr); /* DWRF_AT_low_pc. */
       DWRF_ADDR(ctx->code_addr + ctx->code_size); /* DWRF_AT_high_pc. */
       DWRF_U32(0); /* DWRF_AT_stmt_list. */
@@ -494,9 +484,7 @@ void elf_init_debugline(ELFObjectContext* ctx) {
           /* Directory table. */
           DWRF_U8(0);
           /* File name table. */
-          DWRF_STR(
-              ctx->filename == nullptr ? "<unknown>"
-                                       : ss_get_string(ctx->filename));
+          DWRF_STR(ctx->filename.empty() ? "<unknown>" : ctx->filename.c_str());
           DWRF_UV(0);
           DWRF_UV(0);
           DWRF_UV(0);
@@ -585,9 +573,9 @@ int register_raw_debug_symbol(
   ctx.code_addr = reinterpret_cast<uintptr_t>(code_addr);
   ctx.code_size = static_cast<uint32_t>(code_size);
   ctx.stack_size = static_cast<uint32_t>(stack_size);
-  ctx.filename = ss_sprintf_alloc("%s", filename);
+  ctx.filename = filename;
   ctx.lineno = lineno;
-  ctx.function_name = ss_sprintf_alloc("%s", function_name);
+  ctx.function_name = function_name;
 
   if (!register_elf_ctx(&ctx, function_name, code_addr)) {
     return 0;
@@ -646,9 +634,9 @@ int register_pycode_debug_symbol(
   ctx.code_addr = reinterpret_cast<uintptr_t>(code);
   ctx.code_size = static_cast<uint32_t>(code_size);
   ctx.stack_size = static_cast<uint32_t>(stack_size);
-  ctx.filename = ss_sprintf_alloc("%s", filename);
+  ctx.filename = filename;
   ctx.lineno = codeobj->co_firstlineno;
-  ctx.function_name = ss_sprintf_alloc("%s", fullname);
+  ctx.function_name = fullname;
 
   if (!register_elf_ctx(&ctx, "PyFunctionObject", code)) {
     return 0;

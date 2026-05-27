@@ -4,11 +4,6 @@
 
 #include "cinderx/python.h"
 
-#include <cstdint>
-#include <limits>
-#include <type_traits>
-
-#ifdef __cplusplus
 #include "cinderx/Common/log.h"
 
 #include <atomic>
@@ -16,10 +11,13 @@
 #include <concepts>
 #include <cstdarg>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <queue>
 #include <string_view>
+#include <type_traits>
 #include <unordered_set>
 #include <utility>
 
@@ -28,21 +26,6 @@
   klass& operator=(const klass&) = delete
 
 #define UNUSED __attribute__((unused))
-
-extern "C" {
-#endif
-
-struct jit_string_t* ss_alloc(void);
-void ss_free(struct jit_string_t* ss);
-void ss_reset(struct jit_string_t* ss);
-int ss_is_empty(const struct jit_string_t* ss);
-const char* ss_get_string(const struct jit_string_t* ss);
-int ss_vsprintf(struct jit_string_t* ss, const char* format, va_list args);
-int ss_sprintf(struct jit_string_t* ss, const char* format, ...);
-struct jit_string_t* ss_sprintf_alloc(const char* format, ...);
-
-#ifdef __cplusplus
-}
 
 constexpr bool kPyDebug =
 #ifdef Py_DEBUG
@@ -68,16 +51,6 @@ constexpr bool kFreeThreadedBuild =
 #else
     false;
 #endif
-
-struct jit_string_deleter {
-  void operator()(jit_string_t* ss) const {
-    ss_free(ss);
-  }
-};
-
-using auto_jit_string_t = std::unique_ptr<jit_string_t, jit_string_deleter>;
-
-const char* ss_get_string(const auto_jit_string_t& ss);
 
 // Loading a method returns up to 2 items, for one of three possible outcomes:
 // * A callable plus an object instance (self).
@@ -417,8 +390,6 @@ inline constexpr D bit_cast(const S& src) {
   std::memcpy(&dst, &src, sizeof(dst));
   return dst;
 }
-
-#endif
 
 // this is for non-test builds. define FRIEND_TEST here so we don't
 // have to include the googletest header in our headers to be tested.
