@@ -33,6 +33,7 @@ from .types import (
     LenFunction,
     NumClass,
     Object,
+    OverrideDecorator,
     ProdAssertFunction,
     reflect_builtin_function,
     RevealTypeFunction,
@@ -317,6 +318,9 @@ class Compiler:
             "Protocol": self.type_env.protocol,
             "Optional": self.type_env.optional,
             "overload": self.type_env.overload,
+            "override": OverrideDecorator(
+                TypeName("typing", "override"), self.type_env
+            ),
             "Union": self.type_env.union,
             "Tuple": self.type_env.tuple,
             "Type": self.type_env.dynamic,
@@ -327,6 +331,9 @@ class Compiler:
         typing_extensions_children: dict[str, Value] = {
             "Annotated": self.type_env.annotated,
             "NamedTuple": self.type_env.named_tuple,
+            "override": OverrideDecorator(
+                TypeName("typing_extensions", "override"), self.type_env
+            ),
             "Protocol": self.type_env.protocol,
             "TypedDict": self.type_env.typed_dict,
         }

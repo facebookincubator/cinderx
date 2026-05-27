@@ -2,6 +2,8 @@
 
 # pyre-unsafe
 import asyncio
+import sys
+import types
 
 from cinderx import async_cached_property, cached_property
 from cinderx.compiler.errors import TypedSyntaxError
@@ -779,6 +781,20 @@ class CachedPropertyTests(StaticTestBase):
 
 
 class CachedClassPropertyTests(StaticTestBase):
+    def setUp(self) -> None:
+        super().setUp()
+        self._fake_typing_extensions = False
+        if "typing_extensions" not in sys.modules:
+            mod = types.ModuleType("typing_extensions")
+            mod.override = lambda fn: fn  # type: ignore[attr-defined]
+            sys.modules["typing_extensions"] = mod
+            self._fake_typing_extensions = True
+
+    def tearDown(self) -> None:
+        if self._fake_typing_extensions:
+            del sys.modules["typing_extensions"]
+        super().tearDown()
+
     def test_cached_classproperty(self) -> None:
         codestr = """
         from cinderx import cached_classproperty
@@ -812,7 +828,7 @@ class CachedClassPropertyTests(StaticTestBase):
             @cached_classproperty
             def x(self):
                 return 3
-            
+
             @classmethod
             def set_x(cls, value):
                 cls.__dict__['x'].value = value
@@ -828,3 +844,105 @@ class CachedClassPropertyTests(StaticTestBase):
             C.set_x(42)
             self.assertEqual(C.x, 42)
             self.assertEqual(c.get_x_instance(), 42)
+
+    def test_typing_override_with_cached_property(self) -> None:
+        codestr = """
+        from cinderx import cached_property
+        from typing import override
+
+        class Base:
+            @cached_property
+            def x(self) -> int:
+                return 3
+
+        class Child(Base):
+            @override
+            @cached_property
+            def x(self) -> int:
+                return 7
+        """
+        with self.in_strict_module(codestr) as mod:
+            Base = mod.Base
+            Child = mod.Child
+            self.assertEqual(Base().x, 3)
+            self.assertEqual(Child().x, 7)
+
+    def test_typing_extensions_override_with_cached_property(self) -> None:
+        codestr = """
+        from cinderx import cached_property
+        from typing_extensions import override
+
+        class Base:
+            @cached_property
+            def x(self) -> int:
+                return 3
+
+        class Child(Base):
+            @override
+            @cached_property
+            def x(self) -> int:
+                return 7
+        """
+        with self.in_strict_module(codestr) as mod:
+            Base = mod.Base
+            Child = mod.Child
+            self.assertEqual(Base().x, 3)
+            self.assertEqual(Child().x, 7)
+
+    def test_typing_override_with_async_cached_property(self) -> None:
+        codestr = """
+        from cinderx import async_cached_property
+        from typing import override
+
+        class Base:
+            @async_cached_property
+            async def x(self) -> int:
+                return 3
+
+        class Child(Base):
+            @override
+            @async_cached_property
+            async def x(self) -> int:
+                return 7
+        """
+        with self.in_strict_module(codestr) as mod:
+            Base = mod.Base
+            Child = mod.Child
+
+            async def get_base_x():
+                return await Base().x
+
+            async def get_child_x():
+                return await Child().x
+
+            self.assertEqual(asyncio.run(get_base_x()), 3)
+            self.assertEqual(asyncio.run(get_child_x()), 7)
+
+    def test_typing_extensions_override_with_async_cached_property(self) -> None:
+        codestr = """
+        from cinderx import async_cached_property
+        from typing_extensions import override
+
+        class Base:
+            @async_cached_property
+            async def x(self) -> int:
+                return 3
+
+        class Child(Base):
+            @override
+            @async_cached_property
+            async def x(self) -> int:
+                return 7
+        """
+        with self.in_strict_module(codestr) as mod:
+            Base = mod.Base
+            Child = mod.Child
+
+            async def get_base_x():
+                return await Base().x
+
+            async def get_child_x():
+                return await Child().x
+
+            self.assertEqual(asyncio.run(get_base_x()), 3)
+            self.assertEqual(asyncio.run(get_child_x()), 7)

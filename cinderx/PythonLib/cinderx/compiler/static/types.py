@@ -5166,6 +5166,15 @@ class IdentityDecorator(Class):
         return klass
 
 
+class OverrideDecorator(IdentityDecorator):
+    def resolve_decorate_function(
+        self, fn: Function | DecoratedMethod, decorator: expr
+    ) -> Function | DecoratedMethod | None:
+        if isinstance(fn, DecoratedMethod):
+            return fn
+        return None
+
+
 class OverloadDecorator(Class):
     def resolve_decorate_function(
         self, fn: Function | DecoratedMethod, decorator: expr
