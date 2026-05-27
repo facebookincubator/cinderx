@@ -1,8 +1,13 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+import platform
+
+from cinderx.test_support import passUnless
+
 from .common import StaticTestBase
 
 
+@passUnless(platform.system() == "Linux", "@native only available on Linux")
 class NativeDecoratorTests(StaticTestBase):
     def test_native_no_lib(self) -> None:
         codestr = """

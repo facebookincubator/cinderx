@@ -4,6 +4,7 @@
 from __static__ import TYPED_INT64
 
 import itertools
+import platform
 import re
 import string
 import sys
@@ -109,6 +110,14 @@ class PrimitivesTests(StaticTestBase):
                     at="class C",
                 )
 
+    @passIf(
+        (platform.system() == "Linux" and platform.machine != "x86_64") or
+        platform.system() == "Windows",
+        """
+        T273314185: Crashes on Linux aarch64.
+        T273444171: Hits overflow errors on Windows.
+        """,
+    )
     def test_typed_slots_primitives(self):
         slot_types = [
             # signed
@@ -263,6 +272,10 @@ class PrimitivesTests(StaticTestBase):
         f = self.run_code(codestr)["testfunc"]
         self.assertEqual(f(), -40)
 
+    @passIf(
+        platform.system() == "Windows",
+        "T273449543: Windows doing incorrect math with Static Python fields",
+    )
     def test_field_size(self):
         for type in [
             "int8",
@@ -3442,8 +3455,8 @@ class PrimitivesTests(StaticTestBase):
                 x: int64 = rand() // int8(RAND_MAX)
                 return box(x)
         """
-        # RAND_MAX has different values on different platforms, but we expect
-        # it to be greater than INT8_MAX.
+        # RAND_MAX has different values on different platforms, but we expect it
+        # to be greater than INT8_MAX.
         self.type_error(
             codestr,
             r"type mismatch: Literal\[\d+\] cannot be assigned to int8",
@@ -3531,6 +3544,10 @@ class PrimitivesTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    @passIf(
+        platform.system() == "Windows",
+        "T273449543: Windows doing incorrect math with Static Python fields",
+    )
     def test_primitive_stack_spill(self):
         # Create enough locals that some must get spilled to stack, to test
         # shuffling stack-spilled values across basic block transitions, and
