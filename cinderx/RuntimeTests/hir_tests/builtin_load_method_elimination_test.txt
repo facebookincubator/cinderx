@@ -1063,7 +1063,7 @@ fun jittestmodule:test {
   bb 1 (preds 2, 9) {
     v35:Object = Phi<2, 9> v39 v29
     Snapshot
-    v36:Object = Send v28 v35 {
+    v36:Object = Send v24 v35 {
       FrameState {
         CurInstrOffset 44
         Stack<2> v24 v28

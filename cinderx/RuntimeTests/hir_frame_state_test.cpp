@@ -236,6 +236,11 @@ def test(fs):
       Stack<2> v3 v4
     }
     v9 = LoadConst<ImmortalNoneType>
+    Snapshot {
+      CurInstrOffset 34
+      Locals<2> v0 v1
+      Stack<1> v9
+    }
     Return v9
   }
 }
@@ -1397,6 +1402,11 @@ def test(x, y):
     }
     v0 = Assign v5
     v6 = LoadConst<ImmortalNoneType>
+    Snapshot {
+      CurInstrOffset 22
+      Locals<2> v0 v1
+      Stack<1> v6
+    }
     Return v6
   }
 }
@@ -1891,6 +1901,11 @@ def test(x, y):
       Locals<2> v0 v1
     }
     v5 = LoadConst<ImmortalNoneType>
+    Snapshot {
+      CurInstrOffset 18
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
     Return v5
   }
 }
@@ -2056,6 +2071,11 @@ def test(x, y):
       Locals<2> v0 v1
     }
     v6 = LoadConst<ImmortalNoneType>
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<1> v6
+    }
     Return v6
   }
 }

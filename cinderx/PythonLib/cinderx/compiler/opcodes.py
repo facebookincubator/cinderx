@@ -832,11 +832,17 @@ if sys.version_info >= (3, 14):
         opcode.popped.update(
             FOR_ITER=2,
             POP_ITER=2,
+            SEND=3,
+            END_SEND=3,
+            CLEANUP_THROW=4,
         )
         opcode.pushed.update(
             FOR_ITER=3,
             GET_ITER=2,
+            SEND=3,
+            CLEANUP_THROW=3,
         )
+        opcode.stack_effects["END_SEND"] = -2
     for opname, popped in opcode.popped.items():
         pushed = opcode.pushed[opname]
         if isinstance(popped, int) and isinstance(pushed, int):

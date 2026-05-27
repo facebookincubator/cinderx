@@ -6210,6 +6210,25 @@ class CodeGenerator315(CodeGenerator314):
                 self.emit("POP_TOP", 0)
         super().emit_prologue()
 
+    def emit_get_awaitable(self, kind: AwaitableKind) -> None:
+        super().emit_get_awaitable(kind)
+        self.emit("PUSH_NULL")
+
+    def visitYieldFrom(self, node: ast.YieldFrom) -> None:
+        if not isinstance(
+            self.tree,
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
+        ):
+            raise self.syntax_error("'yield' outside function", node)
+        elif self.scope.coroutine:
+            raise self.syntax_error("'yield from' inside async function", node)
+
+        self.visit(node.value)
+        self.emit("GET_YIELD_FROM_ITER")
+        self.emit("PUSH_NULL")
+        self.emit("LOAD_CONST", None)
+        self.emit_yield_from()
+
     SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = (
         "all",
         "any",
@@ -6406,6 +6425,7 @@ class CodeGenerator315(CodeGenerator314):
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
         self.emit("GET_ANEXT")
+        self.emit("PUSH_NULL")
         self.emit("LOAD_CONST", None)
         self.nextBlock(send)
         self.emit_yield_from(await_=True)
@@ -6547,6 +6567,40 @@ class CodeGenerator315(CodeGenerator314):
             self.nextBlock(anchor)
             self.set_pos(comp)
             self.emit_end_for()
+
+    def visitAsyncFor(self, node: ast.AsyncFor) -> None:
+        with self.conditional_block():
+            start = self.newBlock("async_for_try")
+            except_ = self.newBlock("except")
+            end = self.newBlock("end")
+            send = self.newBlock("send")
+
+            self.visit(node.iter)
+            self.graph.emit_with_loc("GET_AITER", 0, node.iter)
+
+            self.nextBlock(start)
+
+            self.push_async_for_loop(start, end)
+            self.emit("SETUP_FINALLY", except_)
+            self.emit("GET_ANEXT")
+            self.emit("PUSH_NULL")
+            self.emit("LOAD_CONST", None)
+            self.nextBlock(send)
+            self.emit_yield_from(await_=True)
+            self.emit("POP_BLOCK")
+            self.emit("NOT_TAKEN")
+            self.visit(node.target)
+            self.visitStatements(node.body)
+            self.set_no_pos()
+            self.emitJump(start)
+            self.pop_async_for_loop()
+
+            self.nextBlock(except_)
+            self.set_pos(node.iter)
+            self.emit("END_ASYNC_FOR", send)
+            if node.orelse:
+                self.visitStatements(node.orelse)
+            self.nextBlock(end)
 
     def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
         self.visit(gen.iter)

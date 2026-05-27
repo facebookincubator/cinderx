@@ -415,6 +415,7 @@ fun jittestmodule:test {
   bb 2 (preds 7) {
     Snapshot
     v30:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v30
   }
 }

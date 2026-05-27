@@ -3307,8 +3307,9 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v29 b:v48 o:v64 o:v66 unc:v67 b:v69
       FrameState {
-        CurInstrOffset 90
+        CurInstrOffset 92
         Locals<4> v48 v64 v29 v66
+        Stack<1> v67
       }
     }
     Incref v48

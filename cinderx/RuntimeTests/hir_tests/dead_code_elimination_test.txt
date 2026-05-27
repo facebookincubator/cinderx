@@ -454,6 +454,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v21:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v21
   }
 }

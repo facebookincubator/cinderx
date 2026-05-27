@@ -2268,7 +2268,9 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v19:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<ImmortalNoneType> v19
     v31:CBool[false] = LoadConst<CBool[false]>
     UseType<CBool[false]> v31
@@ -2280,6 +2282,7 @@ fun jittestmodule:test {
     v33:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v29:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
     Return v29
   }
 }
@@ -2392,7 +2395,9 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v19:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<ImmortalBool[True]> v19
     v31:CBool[true] = LoadConst<CBool[true]>
     UseType<CBool[true]> v31
@@ -2404,6 +2409,7 @@ fun jittestmodule:test {
     v33:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     Return v27
   }
 }
@@ -2519,6 +2525,7 @@ fun jittestmodule:test {
     v18:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
     Snapshot
     v20:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<ImmortalLongExact[0]> v18
     v30:CBool[false] = LoadConst<CBool[false]>
     UseType<CBool[false]> v30
@@ -2530,6 +2537,7 @@ fun jittestmodule:test {
     v32:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v26:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
     Snapshot
     Return v26
   }
@@ -2642,6 +2650,7 @@ fun jittestmodule:test {
     v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v20:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<ImmortalLongExact[1]> v18
     v30:CBool[true] = LoadConst<CBool[true]>
     UseType<CBool[true]> v30
@@ -2764,7 +2773,9 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v18:ImmortalUnicodeExact[""] = LoadConst<ImmortalUnicodeExact[""]>
+    Snapshot
     v20:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<ImmortalUnicodeExact[""]> v18
     v30:CBool[false] = LoadConst<CBool[false]>
     UseType<CBool[false]> v30
@@ -2776,6 +2787,7 @@ fun jittestmodule:test {
     v32:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v26:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
     Snapshot
     Return v26
   }
@@ -2886,6 +2898,7 @@ fun jittestmodule:test {
     Snapshot
     v18:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v20:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<MortalUnicodeExact["hello"]> v18
     v30:CBool[true] = LoadConst<CBool[true]>
     UseType<CBool[true]> v30
@@ -3564,6 +3577,7 @@ fun jittestmodule:test {
     v20:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     v18:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
     Return v18
   }
 }
@@ -3695,6 +3709,7 @@ fun jittestmodule:test {
     v31:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     v28:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
     Return v28
   }
 }
@@ -6349,6 +6364,7 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     v18:Object = BinaryOp<Multiply> v14 v16 {
       FrameState {
         CurInstrOffset 14
@@ -8219,9 +8235,11 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     v15:CBool = PrimitiveCompare<NotEqual> v9 v14
     v16:ImmortalBool = PrimitiveBoxBool v15
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<Bool> v16
     UseType<Bool> v17
     v20:ImmortalBool = PrimitiveBoxBool v15
@@ -8331,9 +8349,11 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     v15:CBool = PrimitiveCompare<NotEqual> v9 v14
     v16:ImmortalBool = PrimitiveBoxBool v15
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     UseType<Bool> v16
     UseType<Bool> v17
     v19:CBool = PrimitiveCompare<NotEqual> v16 v17
@@ -8448,9 +8468,11 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     v15:CBool = PrimitiveCompare<NotEqual> v9 v14
     v16:ImmortalBool = PrimitiveBoxBool v15
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     v18:Object = Compare<LessThan> v16 v17 {
       FrameState {
         CurInstrOffset 12
@@ -11099,6 +11121,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v18:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v18
   }
 }
@@ -11447,11 +11470,28 @@ fun jittestmodule:test {
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
-    v2:Func = LoadCurrentFunc
+    v4:Func = LoadCurrentFunc
     LoadFrame
     Snapshot
-    v3:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    Return v3
+    v5:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v5
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v6:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
+    Return v7
   }
 }
 --- Test Name ---

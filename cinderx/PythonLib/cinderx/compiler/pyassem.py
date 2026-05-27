@@ -2884,11 +2884,18 @@ class PyFlowGraph314(PyFlowGraph312):
                     for _ in range(net_popped):
                         refs.pop()
 
-                elif opcode in ("END_SEND", "SET_FUNCTION_ATTRIBUTE"):
+                elif opcode == "SET_FUNCTION_ATTRIBUTE":
                     assert self.opcode.stack_effect_raw(opcode, oparg, False) == -1
                     tos = refs.pop()
-                    refs.pop()  # Pop the second item
-                    refs.append(Ref(tos.instr, tos.local))  # Push back the top item
+                    refs.pop()
+                    refs.append(Ref(tos.instr, tos.local))
+
+                elif opcode == "END_SEND":
+                    effect = self.opcode.stack_effect_raw(opcode, oparg, False)
+                    tos = refs.pop()
+                    for _ in range(-effect):
+                        refs.pop()
+                    refs.append(Ref(tos.instr, tos.local))
 
                 # Handle opcodes that consume some inputs and push new values
                 elif opcode == "CHECK_EXC_MATCH":
