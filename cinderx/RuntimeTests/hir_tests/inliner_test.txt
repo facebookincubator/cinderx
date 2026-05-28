@@ -569,21 +569,20 @@ fun jittestmodule:test {
 
   bb 4 (preds 1, 5) {
     Snapshot
-    UseType<ListExact> v16
-    UseType<LongExact> v23
-    v42:CInt64[1] = LoadConst<CInt64[1]>
-    v43:CInt64 = CheckSequenceBounds v16 v42 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v16 v23
-      }
+    UseType<MortalListExact> v16
+    UseType<ImmortalLongExact[1]> v23
+    UseType<MortalListExact> v16
+    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v16
+    v43:CInt64[1] = LoadConst<CInt64[1]>
+    v44:CBool = PrimitiveCompare<LessThanUnsigned> v43 v42
+    Guard v44 {
     }
-    v44:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
-    v45:Object = LoadArrayItem v44 v43 v16
+    v45:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
+    v46:Object = LoadArrayItem v45 v43 v16
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v45
+    Return v46
   }
 }
 --- Expected 3.14 ---
@@ -659,21 +658,20 @@ fun jittestmodule:test {
 
   bb 4 (preds 1, 5) {
     Snapshot
-    UseType<ListExact> v16
-    UseType<LongExact> v23
-    v42:CInt64[1] = LoadConst<CInt64[1]>
-    v43:CInt64 = CheckSequenceBounds v16 v42 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v16 v23
-      }
+    UseType<MortalListExact> v16
+    UseType<ImmortalLongExact[1]> v23
+    UseType<MortalListExact> v16
+    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v16
+    v43:CInt64[1] = LoadConst<CInt64[1]>
+    v44:CBool = PrimitiveCompare<LessThanUnsigned> v43 v42
+    Guard v44 {
     }
-    v44:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
-    v45:Object = LoadArrayItem v44 v43 v16
+    v45:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
+    v46:Object = LoadArrayItem v45 v43 v16
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v45
+    Return v46
   }
 }
 --- Expected 3.15 ---
@@ -749,21 +747,20 @@ fun jittestmodule:test {
 
   bb 4 (preds 1, 5) {
     Snapshot
-    UseType<ListExact> v16
-    UseType<LongExact> v23
-    v42:CInt64[1] = LoadConst<CInt64[1]>
-    v43:CInt64 = CheckSequenceBounds v16 v42 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v16 v23
-      }
+    UseType<MortalListExact> v16
+    UseType<ImmortalLongExact[1]> v23
+    UseType<MortalListExact> v16
+    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v16
+    v43:CInt64[1] = LoadConst<CInt64[1]>
+    v44:CBool = PrimitiveCompare<LessThanUnsigned> v43 v42
+    Guard v44 {
     }
-    v44:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
-    v45:Object = LoadArrayItem v44 v43 v16
+    v45:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
+    v46:Object = LoadArrayItem v45 v43 v16
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v45
+    Return v46
   }
 }
 --- Test Name ---

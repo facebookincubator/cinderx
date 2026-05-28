@@ -1008,19 +1008,18 @@ fun jittestmodule:test {
     }
     Snapshot
     v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    UseType<ListExact> v14
-    UseType<LongExact> v18
-    v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CInt64 = CheckSequenceBounds v14 v20 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<1> v14
-      }
+    UseType<MortalListExact> v14
+    UseType<ImmortalLongExact[1]> v18
+    UseType<MortalListExact> v14
+    v20:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v21:CInt64[1] = LoadConst<CInt64[1]>
+    v22:CBool = PrimitiveCompare<LessThanUnsigned> v21 v20
+    Guard v22 {
     }
-    v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v23:Object = LoadArrayItem v22 v21 v14
+    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v24:Object = LoadArrayItem v23 v21 v14
     Snapshot
-    Return v23
+    Return v24
   }
 }
 --- Expected 3.14 ---
@@ -1065,19 +1064,18 @@ fun jittestmodule:test {
     Snapshot
     v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    UseType<ListExact> v14
-    UseType<LongExact> v18
-    v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CInt64 = CheckSequenceBounds v14 v20 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<1> v14
-      }
+    UseType<MortalListExact> v14
+    UseType<ImmortalLongExact[1]> v18
+    UseType<MortalListExact> v14
+    v20:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v21:CInt64[1] = LoadConst<CInt64[1]>
+    v22:CBool = PrimitiveCompare<LessThanUnsigned> v21 v20
+    Guard v22 {
     }
-    v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v23:Object = LoadArrayItem v22 v21 v14
+    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v24:Object = LoadArrayItem v23 v21 v14
     Snapshot
-    Return v23
+    Return v24
   }
 }
 --- Expected 3.15 ---
@@ -1122,19 +1120,18 @@ fun jittestmodule:test {
     Snapshot
     v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    UseType<ListExact> v14
-    UseType<LongExact> v18
-    v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CInt64 = CheckSequenceBounds v14 v20 {
-      FrameState {
-        CurInstrOffset 16
-        Locals<1> v14
-      }
+    UseType<MortalListExact> v14
+    UseType<ImmortalLongExact[1]> v18
+    UseType<MortalListExact> v14
+    v20:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v21:CInt64[1] = LoadConst<CInt64[1]>
+    v22:CBool = PrimitiveCompare<LessThanUnsigned> v21 v20
+    Guard v22 {
     }
-    v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v23:Object = LoadArrayItem v22 v21 v14
+    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v24:Object = LoadArrayItem v23 v21 v14
     Snapshot
-    Return v23
+    Return v24
   }
 }
 --- Test Name ---
@@ -1198,6 +1195,11 @@ fun test {
     v1 = LoadArg<1>
     v2 = RefineType<TupleExact> v0
     v3 = RefineType<LongExact> v1
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+      Stack<2> v2 v3
+    }
     v4 = BinaryOp<Subscript> v2 v3
     Return v4
   }
@@ -1209,19 +1211,37 @@ fun test {
     v1:Object = LoadArg<1>
     v2:TupleExact = RefineType<TupleExact> v0
     v3:LongExact = RefineType<LongExact> v1
+    Snapshot
     UseType<TupleExact> v2
     UseType<LongExact> v3
     v5:CBool = IsCompactLong v3
     Guard v5 {
     }
     v6:CInt64 = CompactLongUnbox v3
-    v7:CInt64 = CheckSequenceBounds v2 v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<TupleExact> v2
+    v7:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v8:CInt64[0] = LoadConst<CInt64[0]>
+    v9:CBool = PrimitiveCompare<LessThan> v6 v8
+    CondBranch<1, 2> v9
+  }
+
+  bb 1 (preds 0) {
+    v10:CInt64 = IntBinaryOp<Add> v6 v7
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v11:CInt64 = Phi<1, 2> v10 v6
+    Snapshot
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
+    Guard v12 {
     }
-    v8:Object = LoadArrayItem<Offset[24]> v2 v7 v2
-    Return v8
+    v13:Object = LoadArrayItem<Offset[24]> v2 v11 v2
+    Return v13
   }
 }
 --- Expected 3.14 ---
@@ -1231,19 +1251,37 @@ fun test {
     v1:Object = LoadArg<1>
     v2:TupleExact = RefineType<TupleExact> v0
     v3:LongExact = RefineType<LongExact> v1
+    Snapshot
     UseType<TupleExact> v2
     UseType<LongExact> v3
     v5:CBool = IsCompactLong v3
     Guard v5 {
     }
     v6:CInt64 = CompactLongUnbox v3
-    v7:CInt64 = CheckSequenceBounds v2 v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<TupleExact> v2
+    v7:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v8:CInt64[0] = LoadConst<CInt64[0]>
+    v9:CBool = PrimitiveCompare<LessThan> v6 v8
+    CondBranch<1, 2> v9
+  }
+
+  bb 1 (preds 0) {
+    v10:CInt64 = IntBinaryOp<Add> v6 v7
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v11:CInt64 = Phi<1, 2> v10 v6
+    Snapshot
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
+    Guard v12 {
     }
-    v8:Object = LoadArrayItem<Offset[32]> v2 v7 v2
-    Return v8
+    v13:Object = LoadArrayItem<Offset[32]> v2 v11 v2
+    Return v13
   }
 }
 --- Expected 3.15 ---
@@ -1253,19 +1291,37 @@ fun test {
     v1:Object = LoadArg<1>
     v2:TupleExact = RefineType<TupleExact> v0
     v3:LongExact = RefineType<LongExact> v1
+    Snapshot
     UseType<TupleExact> v2
     UseType<LongExact> v3
     v5:CBool = IsCompactLong v3
     Guard v5 {
     }
     v6:CInt64 = CompactLongUnbox v3
-    v7:CInt64 = CheckSequenceBounds v2 v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<TupleExact> v2
+    v7:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v8:CInt64[0] = LoadConst<CInt64[0]>
+    v9:CBool = PrimitiveCompare<LessThan> v6 v8
+    CondBranch<1, 2> v9
+  }
+
+  bb 1 (preds 0) {
+    v10:CInt64 = IntBinaryOp<Add> v6 v7
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v11:CInt64 = Phi<1, 2> v10 v6
+    Snapshot
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
+    Guard v12 {
     }
-    v8:Object = LoadArrayItem<Offset[32]> v2 v7 v2
-    Return v8
+    v13:Object = LoadArrayItem<Offset[32]> v2 v11 v2
+    Return v13
   }
 }
 --- Test Name ---
@@ -7151,11 +7207,9 @@ fun jittestmodule:test {
     InitTupleElements<3> v21 v10 v11 v12
     Snapshot
     v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    UseType<TupleExact> v21
-    UseType<LongExact> v23
-    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact> v21
-    UseType<CInt64[1]> v25
+    UseType<ImmortalLongExact[1]> v23
+    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v21
     UseType<CInt64[1]> v25
     Snapshot
@@ -7200,11 +7254,9 @@ fun jittestmodule:test {
     Snapshot
     v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    UseType<TupleExact> v21
-    UseType<LongExact> v23
-    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact> v21
-    UseType<CInt64[1]> v25
+    UseType<ImmortalLongExact[1]> v23
+    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v21
     UseType<CInt64[1]> v25
     Snapshot
@@ -7249,11 +7301,9 @@ fun jittestmodule:test {
     Snapshot
     v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    UseType<TupleExact> v21
-    UseType<LongExact> v23
-    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact> v21
-    UseType<CInt64[1]> v25
+    UseType<ImmortalLongExact[1]> v23
+    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v21
     UseType<CInt64[1]> v25
     Snapshot
@@ -7261,7 +7311,7 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
-LoadArrayItemWithTooBigIndexIntoMakeListTupleKeepsLoadArrayItem
+LoadArrayItemWithTooBigIndexIntoMakeListTupleIsUnoptimized
 --- Input ---
 def test(x, y, z):
   t = (x, y, z)
@@ -7303,18 +7353,14 @@ fun jittestmodule:test {
     InitTupleElements<3> v21 v10 v11 v12
     Snapshot
     v23:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    UseType<TupleExact> v21
-    UseType<LongExact> v23
-    v25:CInt64[3] = LoadConst<CInt64[3]>
-    v26:CInt64 = CheckSequenceBounds v21 v25 {
+    v24:Object = BinaryOp<Subscript> v21 v23 {
       FrameState {
         CurInstrOffset 16
         Locals<4> v10 v11 v12 v21
       }
     }
-    v27:Object = LoadArrayItem<Offset[24]> v21 v26 v21
     Snapshot
-    Return v27
+    Return v24
   }
 }
 --- Expected 3.14 ---
@@ -7355,18 +7401,14 @@ fun jittestmodule:test {
     Snapshot
     v23:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<TupleExact> v21
-    UseType<LongExact> v23
-    v25:CInt64[3] = LoadConst<CInt64[3]>
-    v26:CInt64 = CheckSequenceBounds v21 v25 {
+    v24:Object = BinaryOp<Subscript> v21 v23 {
       FrameState {
         CurInstrOffset 14
         Locals<4> v10 v11 v12 v21
       }
     }
-    v27:Object = LoadArrayItem<Offset[32]> v21 v26 v21
     Snapshot
-    Return v27
+    Return v24
   }
 }
 --- Expected 3.15 ---
@@ -7407,18 +7449,14 @@ fun jittestmodule:test {
     Snapshot
     v23:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<TupleExact> v21
-    UseType<LongExact> v23
-    v25:CInt64[3] = LoadConst<CInt64[3]>
-    v26:CInt64 = CheckSequenceBounds v21 v25 {
+    v24:Object = BinaryOp<Subscript> v21 v23 {
       FrameState {
         CurInstrOffset 16
         Locals<4> v10 v11 v12 v21
       }
     }
-    v27:Object = LoadArrayItem<Offset[32]> v21 v26 v21
     Snapshot
-    Return v27
+    Return v24
   }
 }
 --- Test Name ---
@@ -12394,6 +12432,11 @@ fun jittestmodule:test {
     v3 = LoadArg<2>
     v4 = RefineType<ListExact> v1
     v5 = RefineType<LongExact> v2
+    Snapshot {
+      CurInstrOffset 0
+      Locals<3> v1 v2 v3
+      Stack<3> v4 v5 v3
+    }
     StoreSubscr v4 v5 v3
     Return v3
   }
@@ -12406,21 +12449,39 @@ fun jittestmodule:test {
     v3:Object = LoadArg<2>
     v4:ListExact = RefineType<ListExact> v1
     v5:LongExact = RefineType<LongExact> v2
+    Snapshot
     UseType<ListExact> v4
     UseType<LongExact> v5
     v6:CBool = IsCompactLong v5
     Guard v6 {
     }
     v7:CInt64 = CompactLongUnbox v5
-    v8:CInt64 = CheckSequenceBounds v4 v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<ListExact> v4
+    v8:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v4
+    v9:CInt64[0] = LoadConst<CInt64[0]>
+    v10:CBool = PrimitiveCompare<LessThan> v7 v9
+    CondBranch<1, 2> v10
+  }
+
+  bb 1 (preds 0) {
+    v11:CInt64 = IntBinaryOp<Add> v7 v8
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v12:CInt64 = Phi<1, 2> v11 v7
+    Snapshot
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
+    Guard v13 {
     }
-    v9:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
-    v10:Object = LoadArrayItem<owned> v9 v8 v4
-    StoreArrayItem v9 v8 v3 v4
-    UseObj v10
+    v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
+    v15:Object = LoadArrayItem<owned> v14 v12 v4
+    StoreArrayItem v14 v12 v3 v4
+    UseObj v15
     Return v3
   }
 }
@@ -12432,21 +12493,39 @@ fun jittestmodule:test {
     v3:Object = LoadArg<2>
     v4:ListExact = RefineType<ListExact> v1
     v5:LongExact = RefineType<LongExact> v2
+    Snapshot
     UseType<ListExact> v4
     UseType<LongExact> v5
     v6:CBool = IsCompactLong v5
     Guard v6 {
     }
     v7:CInt64 = CompactLongUnbox v5
-    v8:CInt64 = CheckSequenceBounds v4 v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<ListExact> v4
+    v8:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v4
+    v9:CInt64[0] = LoadConst<CInt64[0]>
+    v10:CBool = PrimitiveCompare<LessThan> v7 v9
+    CondBranch<1, 2> v10
+  }
+
+  bb 1 (preds 0) {
+    v11:CInt64 = IntBinaryOp<Add> v7 v8
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v12:CInt64 = Phi<1, 2> v11 v7
+    Snapshot
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
+    Guard v13 {
     }
-    v9:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
-    v10:Object = LoadArrayItem<owned> v9 v8 v4
-    StoreArrayItem v9 v8 v3 v4
-    UseObj v10
+    v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
+    v15:Object = LoadArrayItem<owned> v14 v12 v4
+    StoreArrayItem v14 v12 v3 v4
+    UseObj v15
     Return v3
   }
 }
@@ -12458,21 +12537,39 @@ fun jittestmodule:test {
     v3:Object = LoadArg<2>
     v4:ListExact = RefineType<ListExact> v1
     v5:LongExact = RefineType<LongExact> v2
+    Snapshot
     UseType<ListExact> v4
     UseType<LongExact> v5
     v6:CBool = IsCompactLong v5
     Guard v6 {
     }
     v7:CInt64 = CompactLongUnbox v5
-    v8:CInt64 = CheckSequenceBounds v4 v7 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<ListExact> v4
+    v8:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v4
+    v9:CInt64[0] = LoadConst<CInt64[0]>
+    v10:CBool = PrimitiveCompare<LessThan> v7 v9
+    CondBranch<1, 2> v10
+  }
+
+  bb 1 (preds 0) {
+    v11:CInt64 = IntBinaryOp<Add> v7 v8
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v12:CInt64 = Phi<1, 2> v11 v7
+    Snapshot
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
+    Guard v13 {
     }
-    v9:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
-    v10:Object = LoadArrayItem<owned> v9 v8 v4
-    StoreArrayItem v9 v8 v3 v4
-    UseObj v10
+    v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
+    v15:Object = LoadArrayItem<owned> v14 v12 v4
+    StoreArrayItem v14 v12 v3 v4
+    UseObj v15
     Return v3
   }
 }

@@ -754,6 +754,46 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
       *load_meth->frameState());
 }
 
+Register*
+checkConstantListOrTupleIndex(Env& env, Register* container, Register* index) {
+  int overflow;
+  Py_ssize_t index_val =
+      PyLong_AsLongAndOverflow(index->type().objectSpec(), &overflow);
+  if (overflow) {
+    return nullptr;
+  }
+
+  if (container->isA(TTupleExact) && container->instr()->IsMakeTuple()) {
+    size_t length =
+        static_cast<const MakeTuple*>(container->instr())->nvalues();
+    if (index_val < 0) {
+      index_val += length;
+    }
+    if (static_cast<size_t>(index_val) < length) {
+      env.emit<UseType>(container, container->type());
+      env.emit<UseType>(index, index->type());
+      return env.emit<LoadConst>(Type::fromCInt(index_val, TCInt64));
+    } else {
+      return nullptr;
+    }
+  }
+
+  env.emit<UseType>(container, container->type());
+  env.emit<UseType>(index, index->type());
+
+  Register* length = emitGetLengthInt64(env, container);
+  if (index_val < 0) {
+    Register* tmp = env.emit<LoadConst>(Type::fromCInt(index_val, TCInt64));
+    index = env.emit<IntBinaryOp>(BinaryOpKind::kAdd, tmp, length);
+  } else {
+    index = env.emit<LoadConst>(Type::fromCInt(index_val, TCInt64));
+  }
+  Register* in_bounds =
+      env.emit<PrimitiveCompare>(PrimitiveCompareOp::kLessThan, index, length);
+  env.emit<Guard>(in_bounds);
+  return index;
+}
+
 Register* unboxAndCheckListOrTupleIndex(
     Env& env,
     const DeoptBase* instr,
@@ -769,30 +809,46 @@ Register* unboxAndCheckListOrTupleIndex(
       rhs->isA(TLongExact), "rhs must be a TLongExact, not a {}", rhs->type());
   JIT_CHECK(!kFreeThreadedBuild, "only valid for the default build");
 
-  Register* index;
-  std::optional<Py_ssize_t> index_val;
-  Type rhs_type = rhs->type();
-  if (rhs_type.hasObjectSpec()) {
-    // Indexing using a constant
-    int overflow;
-    index_val = PyLong_AsLongAndOverflow(rhs_type.objectSpec(), &overflow);
-    if (overflow) {
-      return nullptr;
-    }
+  if (rhs->type().hasObjectSpec()) {
+    return checkConstantListOrTupleIndex(env, lhs, rhs);
   }
 
   env.emit<UseType>(lhs, lhs->isA(TListExact) ? TListExact : TTupleExact);
   env.emit<UseType>(rhs, TLongExact);
 
-  if (index_val.has_value()) {
-    index = env.emit<LoadConst>(Type::fromCInt(*index_val, TCInt64));
-  } else {
-    // Indexing using a variable
-    Register* is_compact_long = env.emit<IsCompactLong>(rhs);
-    env.emit<Guard>(is_compact_long);
-    index = env.emit<CompactLongUnbox>(rhs);
-  }
-  return env.emit<CheckSequenceBounds>(lhs, index, *instr->frameState());
+  // Unbox
+  Register* is_compact_long = env.emit<IsCompactLong>(rhs);
+  env.emit<Guard>(is_compact_long);
+  Register* unboxed_index = env.emit<CompactLongUnbox>(rhs);
+
+  // Normalize
+  Register* length = emitGetLengthInt64(env, lhs);
+  Register* zero = env.emit<LoadConst>(Type::fromCInt(0, TCInt64));
+  Register* is_negative = env.emit<PrimitiveCompare>(
+      PrimitiveCompareOp::kLessThan, unboxed_index, zero);
+  // Capture the dominating FrameState before emitCond splits the block.
+  // The dominating Snapshot has the operands on the stack, matching what the
+  // interpreter expects when re-executing the bytecode on deopt.
+  const FrameState* dominating_fs = instr->getDominatingFrameState();
+  JIT_CHECK(
+      dominating_fs != nullptr,
+      "no dominating FrameState for index bounds check");
+  Register* normalized_index = env.emitCond(
+      [&](BasicBlock* true_bb, BasicBlock* false_bb) {
+        env.emit<CondBranch>(is_negative, true_bb, false_bb);
+      },
+      [&] {
+        return env.emit<IntBinaryOp>(BinaryOpKind::kAdd, unboxed_index, length);
+      },
+      [&] { return unboxed_index; });
+
+  // Check bounds
+  env.emit<Snapshot>(*dominating_fs);
+  Register* in_bounds = env.emit<PrimitiveCompare>(
+      PrimitiveCompareOp::kLessThan, normalized_index, length);
+  env.emit<Guard>(in_bounds);
+
+  return normalized_index;
 }
 
 Register* simplifySubscript(Env& env, const BinaryOp* instr) {

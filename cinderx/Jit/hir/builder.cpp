@@ -2199,8 +2199,7 @@ void HIRBuilder::emitLoadIterableArg(
     CFG& cfg,
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  auto iterable = tc.frame.stack.pop();
-  Register* tuple;
+  auto iterable = tc.frame.stack.top();
   if (iterable->type() != TTupleExact) {
     TranslationContext tuple_path{cfg.AllocateBlock(), tc.frame};
     tuple_path.emitSnapshot();
@@ -2209,19 +2208,18 @@ void HIRBuilder::emitLoadIterableArg(
     tc.emit<CondBranchCheckType>(
         iterable, TTuple, tuple_path.block, non_tuple_path.block);
     tc.block = cfg.AllocateBlock();
+    Register* tuple = temps_.AllocateStack();
+    tc.frame.stack.topPut(0, tuple);
     tc.emitSnapshot();
-
-    tuple = temps_.AllocateStack();
 
     tuple_path.emit<Assign>(tuple, iterable);
     tuple_path.emit<Branch>(tc.block);
 
-    non_tuple_path.emit<GetTuple>(tuple, iterable, tc.frame);
+    non_tuple_path.emit<GetTuple>(tuple, iterable, non_tuple_path.frame);
     non_tuple_path.emit<Branch>(tc.block);
-  } else {
-    tuple = iterable;
   }
 
+  auto tuple = tc.frame.stack.pop();
   auto tmp = temps_.AllocateStack();
   auto tup_idx = temps_.AllocateStack();
   auto element = temps_.AllocateStack();

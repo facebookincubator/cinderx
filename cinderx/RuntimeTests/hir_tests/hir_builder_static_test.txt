@@ -1224,7 +1224,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 12
         Locals<1> v0
-        Stack<2> v5 v6
+        Stack<3> v5 v6 v0
       }
     }
     Branch<5>
@@ -1271,7 +1271,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<3> v5 v6 v11
+        Stack<4> v5 v6 v11 v7
       }
     }
     Branch<8>
@@ -1310,7 +1310,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 26
         Locals<1> v0
-        Stack<4> v5 v6 v11 v15
+        Stack<5> v5 v6 v11 v15 v12
       }
     }
     Branch<11>
@@ -1390,7 +1390,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 12
         Locals<1> v0
-        Stack<2> v5 v6
+        Stack<3> v5 v6 v0
       }
     }
     Branch<5>
@@ -1437,7 +1437,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<3> v5 v6 v11
+        Stack<4> v5 v6 v11 v7
       }
     }
     Branch<8>
@@ -1476,7 +1476,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 28
         Locals<1> v0
-        Stack<4> v5 v6 v11 v15
+        Stack<5> v5 v6 v11 v15 v12
       }
     }
     Branch<11>
@@ -1556,7 +1556,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 14
         Locals<1> v0
-        Stack<2> v5 v6
+        Stack<3> v5 v6 v0
       }
     }
     Branch<5>
@@ -1603,7 +1603,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 26
         Locals<1> v0
-        Stack<3> v5 v6 v11
+        Stack<4> v5 v6 v11 v7
       }
     }
     Branch<8>
@@ -1642,7 +1642,7 @@ fun jittestmodule:test {
       FrameState {
         CurInstrOffset 30
         Locals<1> v0
-        Stack<4> v5 v6 v11 v15
+        Stack<5> v5 v6 v11 v15 v12
       }
     }
     Branch<11>
