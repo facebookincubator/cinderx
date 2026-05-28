@@ -3182,6 +3182,8 @@ class PyFlowGraph314(PyFlowGraph312):
 class PyFlowGraph315(PyFlowGraph314):
     flow_graph_const_optimizer = FlowGraphConstOptimizer315
 
+    END_SEND_OFFSET = 6
+
     def convert_load_const_to_load_common_constant(self) -> None:
         convert_load_const_to_load_common_constant(self.ordered_blocks)
 
