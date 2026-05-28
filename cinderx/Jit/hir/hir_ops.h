@@ -172,6 +172,7 @@ namespace jit::hir {
   V(UnpackSequence)                \
   V(Unreachable)                   \
   V(UpdatePrevInstr)               \
+  V(UseObj)                        \
   V(UseType)                       \
   V(VectorCall)                    \
   V(WaitHandleLoadCoroOrResult)    \

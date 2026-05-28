@@ -2175,6 +2175,28 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
     return nullptr;
   }
 
+  // TODO(T255264263). Enable this for FT builds. See P2169673256.
+  if (!kFreeThreadedBuild && instr->GetOperand(0)->isA(TListExact) &&
+      instr->GetOperand(1)->isA(TLongExact)) {
+    Register* container = instr->GetOperand(0);
+    Register* sub = instr->GetOperand(1);
+    Register* value = instr->GetOperand(2);
+
+    env.emit<UseType>(container, TListExact);
+    env.emit<UseType>(sub, TLongExact);
+    Register* raw_idx = env.emit<IndexUnbox>(sub);
+    env.emit<IsNegativeAndErrOccurred>(raw_idx, *instr->frameState());
+    Register* adjusted_idx =
+        env.emit<CheckSequenceBounds>(container, raw_idx, *instr->frameState());
+    Register* ob_item = env.emit<LoadField>(
+        container, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
+    Register* old_value = env.emit<LoadArrayItem>(
+        ob_item, adjusted_idx, container, 0, TObject, false);
+    env.emit<StoreArrayItem>(ob_item, adjusted_idx, value, container, TObject);
+    env.emit<UseObj>(old_value);
+    return nullptr;
+  }
+
   return nullptr;
 }
 

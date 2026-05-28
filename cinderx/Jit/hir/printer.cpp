@@ -311,6 +311,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnreachable:
+    case Opcode::kUseObj:
     case Opcode::kYieldValue: {
       return "";
     }

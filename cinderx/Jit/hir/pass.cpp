@@ -545,6 +545,7 @@ Type outputType(
     case Opcode::kStoreSubscr:
     case Opcode::kUnreachable:
     case Opcode::kUpdatePrevInstr:
+    case Opcode::kUseObj:
     case Opcode::kUseType:
     case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:

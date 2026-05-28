@@ -2837,6 +2837,10 @@ class INSTR_CLASS(UseType, (), Operands<1>) {
   Type type_;
 };
 
+// Keep an object alive; use this to prevent the refcount insertion pass from
+// inserting a decref prematurely (e.g in between a load/store from an array).
+DEFINE_SIMPLE_INSTR(UseObj, (TTop), Operands<1>);
+
 // Assign one register to another
 DEFINE_SIMPLE_INSTR(Assign, (TTop), HasOutput, Operands<1>);
 

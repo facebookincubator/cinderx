@@ -3877,9 +3877,14 @@ void HIRBuilder::emitStoreSubscr(
   Register* container = stack.pop();
   Register* value = stack.pop();
 
-  if (getConfig().specialized_opcodes &&
-      bc_instr.specializedOpcode() == STORE_SUBSCR_DICT) {
-    tc.emit<GuardType>(container, TDictExact, container, tc.frame);
+  if (getConfig().specialized_opcodes) {
+    int specialized = bc_instr.specializedOpcode();
+    if (specialized == STORE_SUBSCR_DICT) {
+      tc.emit<GuardType>(container, TDictExact, container, tc.frame);
+    } else if (specialized == STORE_SUBSCR_LIST_INT) {
+      tc.emit<GuardType>(container, TListExact, container, tc.frame);
+      tc.emit<GuardType>(sub, TLongExact, sub, tc.frame);
+    }
   }
 
   tc.emit<StoreSubscr>(container, sub, value, tc.frame);

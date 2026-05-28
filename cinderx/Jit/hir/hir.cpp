@@ -415,6 +415,7 @@ bool Instr::isReplayable() const {
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
     case Opcode::kUnicodeSubscr:
+    case Opcode::kUseObj:
     case Opcode::kUseType:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter: {
@@ -687,6 +688,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kGuardIs:
     case Opcode::kGuardType:
     case Opcode::kRefineType:
+    case Opcode::kUseObj:
     case Opcode::kUseType:
       return true;
 

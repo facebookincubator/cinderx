@@ -12398,4 +12398,103 @@ fun test {
     Return v2
   }
 }
+--- Test Name ---
+StoreSubscrListIntIsSpecialized
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = LoadArg<1>
+    v3 = LoadArg<2>
+    v4 = RefineType<ListExact> v1
+    v5 = RefineType<LongExact> v2
+    StoreSubscr v4 v5 v3
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:Object = LoadArg<2>
+    v4:ListExact = RefineType<ListExact> v1
+    v5:LongExact = RefineType<LongExact> v2
+    UseType<ListExact> v4
+    UseType<LongExact> v5
+    v6:CInt64 = IndexUnbox<IndexError> v5
+    v7:CInt64 = IsNegativeAndErrOccurred v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v8:CInt64 = CheckSequenceBounds v4 v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v9:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
+    v10:Object = LoadArrayItem<owned> v9 v8 v4
+    StoreArrayItem v9 v8 v3 v4
+    UseObj v10
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:Object = LoadArg<2>
+    v4:ListExact = RefineType<ListExact> v1
+    v5:LongExact = RefineType<LongExact> v2
+    UseType<ListExact> v4
+    UseType<LongExact> v5
+    v6:CInt64 = IndexUnbox<IndexError> v5
+    v7:CInt64 = IsNegativeAndErrOccurred v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v8:CInt64 = CheckSequenceBounds v4 v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v9:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
+    v10:Object = LoadArrayItem<owned> v9 v8 v4
+    StoreArrayItem v9 v8 v3 v4
+    UseObj v10
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:Object = LoadArg<2>
+    v4:ListExact = RefineType<ListExact> v1
+    v5:LongExact = RefineType<LongExact> v2
+    UseType<ListExact> v4
+    UseType<LongExact> v5
+    v6:CInt64 = IndexUnbox<IndexError> v5
+    v7:CInt64 = IsNegativeAndErrOccurred v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v8:CInt64 = CheckSequenceBounds v4 v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v9:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
+    v10:Object = LoadArrayItem<owned> v9 v8 v4
+    StoreArrayItem v9 v8 v3 v4
+    UseObj v10
+    Return v3
+  }
+}
 --- End ---

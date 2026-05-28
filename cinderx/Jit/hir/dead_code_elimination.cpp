@@ -9,7 +9,7 @@ namespace jit::hir {
 namespace {
 
 bool isUseful(Instr& instr) {
-  return instr.IsTerminator() || instr.IsSnapshot() ||
+  return instr.IsTerminator() || instr.IsSnapshot() || instr.IsUseObj() ||
       (instr.asDeoptBase() != nullptr && !instr.IsPrimitiveBox()) ||
       (!instr.IsPhi() && memoryEffects(instr).may_store != AEmpty);
 }
