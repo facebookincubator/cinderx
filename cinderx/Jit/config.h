@@ -152,8 +152,8 @@ struct Config {
   bool specialized_opcodes{true};
 
   // Support instrumentation (monitoring/tracing/profiling) by falling back to
-  // the interpreter
-  bool support_instrumentation{false};
+  // the interpreter.
+  bool support_instrumentation{true};
 
   // Add RefineType instructions for Static Python values before they get
   // typechecked.  Enabled by default as HIR doesn't pass through Static Python
