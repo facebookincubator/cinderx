@@ -6224,8 +6224,7 @@ class CodeGenerator315(CodeGenerator314):
             raise self.syntax_error("'yield from' inside async function", node)
 
         self.visit(node.value)
-        self.emit("GET_YIELD_FROM_ITER")
-        self.emit("PUSH_NULL")
+        self.emit("GET_ITER", 1)
         self.emit("LOAD_CONST", None)
         self.emit_yield_from()
 
