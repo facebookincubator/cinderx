@@ -473,6 +473,38 @@ class CheckedListTests(StaticTestBase):
             # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
 
+    def test_checked_list_literal_unpack_with_trailing_elements(self) -> None:
+        codestr = """
+            from __static__ import CheckedList
+            def testfunc():
+                a: CheckedList[int] = [1, 2, 3, 4]
+                b: CheckedList[int] = [*a, 5]
+                return b
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.testfunc
+            li = f()
+            self.assertInBytecode(f, "BUILD_CHECKED_LIST")
+            self.assertEqual(repr(li), "[1, 2, 3, 4, 5]")
+            # pyrefly: ignore [unsupported-operation]
+            self.assertEqual(type(li), CheckedList[int])
+
+    def test_checked_list_literal_unpack_with_leading_and_trailing(self) -> None:
+        codestr = """
+            from __static__ import CheckedList
+            def testfunc():
+                a: CheckedList[int] = [1, 2]
+                b: CheckedList[int] = [0, *a, 3, 4]
+                return b
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.testfunc
+            li = f()
+            self.assertInBytecode(f, "BUILD_CHECKED_LIST")
+            self.assertEqual(repr(li), "[0, 1, 2, 3, 4]")
+            # pyrefly: ignore [unsupported-operation]
+            self.assertEqual(type(li), CheckedList[int])
+
     def test_checked_list_literal_comprehension(self) -> None:
         codestr = """
             from __static__ import CheckedList

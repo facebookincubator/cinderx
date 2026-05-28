@@ -918,7 +918,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         # the final dict.  This allows us to not introduce a new opcode, but we should
         # also be able to dispatch the INVOKE_METHOD rather efficiently.
         dict_descr = dict_type.klass.type_descr
-        update_descr = dict_descr + ("update",)
+        update_descr = (dict_descr, "update")
         for i, (k, v) in enumerate(zip(node.keys, node.values)):
             is_unpacking = k is None
             if elements == 0xFFFF or (elements and is_unpacking):
@@ -932,6 +932,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
                     self.emit("BUILD_CHECKED_MAP", (dict_descr, 0))
                     built_final_dict = True
                 self.emit_dup()
+                self.emit_load_static_method(update_descr)
                 self.visit(v)
 
                 self.emit_invoke_method(update_descr, 1)
@@ -942,6 +943,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         if elements or not built_final_dict:
             if built_final_dict:
                 self.emit_dup()
+                self.emit_load_static_method(update_descr)
             self.compile_subgendict(
                 node, len(node.keys) - elements, len(node.keys), dict_descr
             )
@@ -1023,6 +1025,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         if elements or not built_final_list:
             if built_final_list:
                 self.emit_dup()
+                self.emit_load_static_method(extend_descr)
             self.compile_sub_checked_list(
                 node, len(node.elts) - elements, len(node.elts), list_descr
             )

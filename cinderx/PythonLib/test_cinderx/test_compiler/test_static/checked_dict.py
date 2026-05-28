@@ -625,6 +625,49 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    def test_checked_dict_literal_unpack(self) -> None:
+        codestr = """
+        from __static__ import CheckedDict
+        def testfunc():
+            a: CheckedDict[str, int] = {"x": 1, "y": 2}
+            b: CheckedDict[str, int] = {**a}
+            return b
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.testfunc
+            d = f()
+            self.assertInBytecode(f, "BUILD_CHECKED_MAP")
+            self.assertEqual(d, {"x": 1, "y": 2})
+
+    def test_checked_dict_literal_unpack_with_trailing(self) -> None:
+        codestr = """
+        from __static__ import CheckedDict
+        def testfunc():
+            a: CheckedDict[str, int] = {"x": 1}
+            b: CheckedDict[str, int] = {**a, "y": 2, "z": 3}
+            return b
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.testfunc
+            d = f()
+            self.assertInBytecode(f, "BUILD_CHECKED_MAP")
+            self.assertEqual(d, {"x": 1, "y": 2, "z": 3})
+
+    def test_checked_dict_literal_unpack_multiple(self) -> None:
+        codestr = """
+        from __static__ import CheckedDict
+        def testfunc():
+            a: CheckedDict[str, int] = {"x": 1}
+            b: CheckedDict[str, int] = {"y": 2}
+            c: CheckedDict[str, int] = {**a, **b}
+            return c
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.testfunc
+            d = f()
+            self.assertInBytecode(f, "BUILD_CHECKED_MAP")
+            self.assertEqual(d, {"x": 1, "y": 2})
+
     def test_build_checked_dict_cached(self) -> None:
         codestr = """
         from __static__ import CheckedDict
