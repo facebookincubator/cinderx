@@ -226,6 +226,16 @@ if __name__ == "__main__":
             print_section("PGO STAGE 2b: Merging profile data")
 
             llvm_profdata = shutil.which("llvm-profdata")
+            if not llvm_profdata and sys.platform == "darwin":
+                # Apple Clang ships llvm-profdata in the Xcode toolchain but
+                # doesn't put it on PATH; locate it via xcrun.
+                result = subprocess.run(
+                    ["xcrun", "-f", "llvm-profdata"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    llvm_profdata = result.stdout.strip()
             if not llvm_profdata:
                 raise RuntimeError("Cannot find llvm-profdata")
             glob_path = os.path.join(clang_pgo_dir, "*.profraw")

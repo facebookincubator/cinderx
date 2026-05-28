@@ -54,7 +54,7 @@ jobs:
       # Don't let build failures on one platform block other platforms.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
 
     steps:
       - name: Checkout CinderX

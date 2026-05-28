@@ -81,23 +81,32 @@ if(ENABLE_LTO)
     message(FATAL_ERROR "LTO is only supported with Clang, GCC, or MSVC compilers")
   endif()
 
-  # For Clang, we need llvm-ar instead of regular ar.  On macOS, try to find
-  # llvm-ar, but it's optional as the system ar may work with AppleClang's LTO.
+  # For Clang LTO we need an LLVM archiver.  Use llvm-lib on Windows (clang-cl
+  # wants MSVC-style /flags, which llvm-ar rejects), and llvm-ar elsewhere.
+  # Both are optional on macOS since AppleClang may work with the system ar.
   if(USING_CLANG)
-    find_program(LLVM_AR llvm-ar)
-    if(LLVM_AR)
-      set(CMAKE_AR ${LLVM_AR})
-      message(STATUS "LTO: Using llvm-ar: ${CMAKE_AR}")
-    elseif(MACOS)
-      message(STATUS
-        "LTO: Using system ar (llvm-ar not found,"
-        " AppleClang may work with system ar)")
-    elseif(WINDOWS)
-      message(STATUS
-        "LTO: Using system lib (llvm-ar not found, Clang-CL may work with"
-        " system lib)")
+    if(WINDOWS)
+      find_program(LLVM_LIB llvm-lib)
+      if(LLVM_LIB)
+        set(CMAKE_AR ${LLVM_LIB})
+        message(STATUS "LTO: Using llvm-lib: ${CMAKE_AR}")
+      else()
+        message(STATUS
+          "LTO: Using system lib (llvm-lib not found, Clang-CL may work with"
+          " system lib)")
+      endif()
     else()
-      message(FATAL_ERROR "llvm-ar is required for LTO with Clang but was not found")
+      find_program(LLVM_AR llvm-ar)
+      if(LLVM_AR)
+        set(CMAKE_AR ${LLVM_AR})
+        message(STATUS "LTO: Using llvm-ar: ${CMAKE_AR}")
+      elseif(MACOS)
+        message(STATUS
+          "LTO: Using system ar (llvm-ar not found,"
+          " AppleClang may work with system ar)")
+      else()
+        message(FATAL_ERROR "llvm-ar is required for LTO with Clang but was not found")
+      endif()
     endif()
 
     # Use ThinLTO on macOS for better performance and lower memory usage.
