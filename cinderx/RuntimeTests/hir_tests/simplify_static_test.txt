@@ -1057,12 +1057,8 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v19
     UseType<LongExact> v43
-    v56:CInt64 = IsNegativeAndErrOccurred v33 {
-      FrameState {
-        CurInstrOffset 26
-        Locals<3> v19 v33 v34
-        Stack<1> v19
-      }
+    v60:CBool = IsCompactLong v33
+    Guard v60 {
     }
     v57:CInt64 = CheckSequenceBounds v19 v33 {
       FrameState {
@@ -1167,12 +1163,8 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v19
     UseType<LongExact> v43
-    v55:CInt64 = IsNegativeAndErrOccurred v33 {
-      FrameState {
-        CurInstrOffset 42
-        Locals<3> v19 v33 v34
-        Stack<1> v19
-      }
+    v59:CBool = IsCompactLong v33
+    Guard v59 {
     }
     v56:CInt64 = CheckSequenceBounds v19 v33 {
       FrameState {
@@ -1277,12 +1269,8 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v19
     UseType<LongExact> v43
-    v55:CInt64 = IsNegativeAndErrOccurred v33 {
-      FrameState {
-        CurInstrOffset 44
-        Locals<3> v19 v33 v34
-        Stack<1> v19
-      }
+    v59:CBool = IsCompactLong v33
+    Guard v59 {
     }
     v56:CInt64 = CheckSequenceBounds v19 v33 {
       FrameState {

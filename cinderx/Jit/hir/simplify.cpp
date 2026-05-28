@@ -754,6 +754,47 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
       *load_meth->frameState());
 }
 
+Register* unboxAndCheckListOrTupleIndex(
+    Env& env,
+    const DeoptBase* instr,
+    Register* lhs,
+    Register* rhs) {
+  // TASK(T93509109): Replace TCInt64 with a less platform-specific
+  // representation of the type, which should be analagous to Py_ssize_t.
+  JIT_CHECK(
+      lhs->isA(TListExact) || lhs->isA(TTupleExact),
+      "lhs must be a TListExact or TTupleExact, not a {}",
+      lhs->type());
+  JIT_CHECK(
+      rhs->isA(TLongExact), "rhs must be a TLongExact, not a {}", rhs->type());
+  JIT_CHECK(!kFreeThreadedBuild, "only valid for the default build");
+
+  Register* index;
+  std::optional<Py_ssize_t> index_val;
+  Type rhs_type = rhs->type();
+  if (rhs_type.hasObjectSpec()) {
+    // Indexing using a constant
+    int overflow;
+    index_val = PyLong_AsLongAndOverflow(rhs_type.objectSpec(), &overflow);
+    if (overflow) {
+      return nullptr;
+    }
+  }
+
+  env.emit<UseType>(lhs, lhs->isA(TListExact) ? TListExact : TTupleExact);
+  env.emit<UseType>(rhs, TLongExact);
+
+  if (index_val.has_value()) {
+    index = env.emit<LoadConst>(Type::fromCInt(*index_val, TCInt64));
+  } else {
+    // Indexing using a variable
+    Register* is_compact_long = env.emit<IsCompactLong>(rhs);
+    env.emit<Guard>(is_compact_long);
+    index = env.emit<CompactLongUnbox>(rhs);
+  }
+  return env.emit<CheckSequenceBounds>(lhs, index, *instr->frameState());
+}
+
 Register* simplifySubscript(Env& env, const BinaryOp* instr) {
   BinaryOpKind op = instr->op();
   Register* lhs = instr->left();
@@ -793,14 +834,11 @@ Register* simplifySubscript(Env& env, const BinaryOp* instr) {
 
   // TODO(T255264263). Enable this for FT builds. See P2169673256.
   if (!kFreeThreadedBuild && (lhs->isA(TListExact) || lhs->isA(TTupleExact))) {
-    // TASK(T93509109): Replace TCInt64 with a less platform-specific
-    // representation of the type, which should be analagous to Py_ssize_t.
-    env.emit<UseType>(lhs, lhs->isA(TListExact) ? TListExact : TTupleExact);
-    env.emit<UseType>(rhs, TLongExact);
-    Register* right_index = env.emit<IndexUnbox>(rhs);
-    env.emit<IsNegativeAndErrOccurred>(right_index, *instr->frameState());
     Register* adjusted_idx =
-        env.emit<CheckSequenceBounds>(lhs, right_index, *instr->frameState());
+        unboxAndCheckListOrTupleIndex(env, instr, lhs, rhs);
+    if (adjusted_idx == nullptr) {
+      return nullptr;
+    }
     Py_ssize_t offset = offsetof(PyTupleObject, ob_item);
     Register* array = lhs;
     // Lists carry a nested array of ob_item whereas tuples are variable-sized
@@ -2179,21 +2217,20 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
   if (!kFreeThreadedBuild && instr->GetOperand(0)->isA(TListExact) &&
       instr->GetOperand(1)->isA(TLongExact)) {
     Register* container = instr->GetOperand(0);
-    Register* sub = instr->GetOperand(1);
+    Register* raw_idx = instr->GetOperand(1);
     Register* value = instr->GetOperand(2);
-
-    env.emit<UseType>(container, TListExact);
-    env.emit<UseType>(sub, TLongExact);
-    Register* raw_idx = env.emit<IndexUnbox>(sub);
-    env.emit<IsNegativeAndErrOccurred>(raw_idx, *instr->frameState());
     Register* adjusted_idx =
-        env.emit<CheckSequenceBounds>(container, raw_idx, *instr->frameState());
+        unboxAndCheckListOrTupleIndex(env, instr, container, raw_idx);
+    if (adjusted_idx == nullptr) {
+      return nullptr;
+    }
     Register* ob_item = env.emit<LoadField>(
         container, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
     Register* old_value = env.emit<LoadArrayItem>(
         ob_item, adjusted_idx, container, 0, TObject, false);
     env.emit<StoreArrayItem>(ob_item, adjusted_idx, value, container, TObject);
     env.emit<UseObj>(old_value);
+    env.optimized = true;
     return nullptr;
   }
 

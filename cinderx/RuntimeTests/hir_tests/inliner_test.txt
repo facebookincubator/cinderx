@@ -571,20 +571,19 @@ fun jittestmodule:test {
     Snapshot
     UseType<ListExact> v16
     UseType<LongExact> v23
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64[0] = LoadConst<CInt64[0]>
-    v44:CInt64 = CheckSequenceBounds v16 v47 {
+    v42:CInt64[1] = LoadConst<CInt64[1]>
+    v43:CInt64 = CheckSequenceBounds v16 v42 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v16 v23
       }
     }
-    v45:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
-    v46:Object = LoadArrayItem v45 v44 v16
+    v44:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
+    v45:Object = LoadArrayItem v44 v43 v16
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v46
+    Return v45
   }
 }
 --- Expected 3.14 ---
@@ -662,20 +661,19 @@ fun jittestmodule:test {
     Snapshot
     UseType<ListExact> v16
     UseType<LongExact> v23
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64[0] = LoadConst<CInt64[0]>
-    v44:CInt64 = CheckSequenceBounds v16 v47 {
+    v42:CInt64[1] = LoadConst<CInt64[1]>
+    v43:CInt64 = CheckSequenceBounds v16 v42 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v16 v23
       }
     }
-    v45:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
-    v46:Object = LoadArrayItem v45 v44 v16
+    v44:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
+    v45:Object = LoadArrayItem v44 v43 v16
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v46
+    Return v45
   }
 }
 --- Expected 3.15 ---
@@ -753,20 +751,19 @@ fun jittestmodule:test {
     Snapshot
     UseType<ListExact> v16
     UseType<LongExact> v23
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64[0] = LoadConst<CInt64[0]>
-    v44:CInt64 = CheckSequenceBounds v16 v47 {
+    v42:CInt64[1] = LoadConst<CInt64[1]>
+    v43:CInt64 = CheckSequenceBounds v16 v42 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v16 v23
       }
     }
-    v45:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
-    v46:Object = LoadArrayItem v45 v44 v16
+    v44:CPtr = LoadField<ob_item@24, CPtr, borrowed> v16
+    v45:Object = LoadArrayItem v44 v43 v16
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v46
+    Return v45
   }
 }
 --- Test Name ---

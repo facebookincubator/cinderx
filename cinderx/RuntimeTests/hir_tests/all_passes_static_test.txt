@@ -61,12 +61,13 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    v56:CInt64 = IsNegativeAndErrOccurred v33 {
-      LiveValues<3> b:v19 s:v33 o:v34
+    v60:CBool = IsCompactLong v33
+    Guard v60 {
+      LiveValues<4> b:v19 s:v33 o:v34 bool:v60
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 22
         Locals<3> v19 v33 v34
-        Stack<1> v19
+        Stack<2> v19 v19
       }
     }
     v57:CInt64 = CheckSequenceBounds v19 v33 {
@@ -163,12 +164,13 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    v55:CInt64 = IsNegativeAndErrOccurred v33 {
-      LiveValues<3> b:v19 s:v33 o:v34
+    v59:CBool = IsCompactLong v33
+    Guard v59 {
+      LiveValues<4> b:v19 s:v33 o:v34 bool:v59
       FrameState {
-        CurInstrOffset 42
+        CurInstrOffset 34
         Locals<3> v19 v33 v34
-        Stack<1> v19
+        Stack<2> v19 v19
       }
     }
     v56:CInt64 = CheckSequenceBounds v19 v33 {
@@ -266,12 +268,13 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    v55:CInt64 = IsNegativeAndErrOccurred v33 {
-      LiveValues<3> b:v19 s:v33 o:v34
+    v59:CBool = IsCompactLong v33
+    Guard v59 {
+      LiveValues<4> b:v19 s:v33 o:v34 bool:v59
       FrameState {
-        CurInstrOffset 44
+        CurInstrOffset 36
         Locals<3> v19 v33 v34
-        Stack<1> v19
+        Stack<2> v19 v19
       }
     }
     v56:CInt64 = CheckSequenceBounds v19 v33 {

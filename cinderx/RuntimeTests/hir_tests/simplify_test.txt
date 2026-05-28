@@ -1010,18 +1010,17 @@ fun jittestmodule:test {
     v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<ListExact> v14
     UseType<LongExact> v18
-    v25:CInt64[1] = LoadConst<CInt64[1]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = CheckSequenceBounds v14 v25 {
+    v20:CInt64[1] = LoadConst<CInt64[1]>
+    v21:CInt64 = CheckSequenceBounds v14 v20 {
       FrameState {
         CurInstrOffset 14
         Locals<1> v14
       }
     }
-    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v24:Object = LoadArrayItem v23 v22 v14
+    v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v23:Object = LoadArrayItem v22 v21 v14
     Snapshot
-    Return v24
+    Return v23
   }
 }
 --- Expected 3.14 ---
@@ -1068,18 +1067,17 @@ fun jittestmodule:test {
     Snapshot
     UseType<ListExact> v14
     UseType<LongExact> v18
-    v25:CInt64[1] = LoadConst<CInt64[1]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = CheckSequenceBounds v14 v25 {
+    v20:CInt64[1] = LoadConst<CInt64[1]>
+    v21:CInt64 = CheckSequenceBounds v14 v20 {
       FrameState {
         CurInstrOffset 14
         Locals<1> v14
       }
     }
-    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v24:Object = LoadArrayItem v23 v22 v14
+    v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v23:Object = LoadArrayItem v22 v21 v14
     Snapshot
-    Return v24
+    Return v23
   }
 }
 --- Expected 3.15 ---
@@ -1126,18 +1124,17 @@ fun jittestmodule:test {
     Snapshot
     UseType<ListExact> v14
     UseType<LongExact> v18
-    v25:CInt64[1] = LoadConst<CInt64[1]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = CheckSequenceBounds v14 v25 {
+    v20:CInt64[1] = LoadConst<CInt64[1]>
+    v21:CInt64 = CheckSequenceBounds v14 v20 {
       FrameState {
         CurInstrOffset 16
         Locals<1> v14
       }
     }
-    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v24:Object = LoadArrayItem v23 v22 v14
+    v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v23:Object = LoadArrayItem v22 v21 v14
     Snapshot
-    Return v24
+    Return v23
   }
 }
 --- Test Name ---
@@ -1214,13 +1211,11 @@ fun test {
     v3:LongExact = RefineType<LongExact> v1
     UseType<TupleExact> v2
     UseType<LongExact> v3
-    v5:CInt64 = IndexUnbox<IndexError> v3
-    v6:CInt64 = IsNegativeAndErrOccurred v5 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    v5:CBool = IsCompactLong v3
+    Guard v5 {
     }
-    v7:CInt64 = CheckSequenceBounds v2 v5 {
+    v6:CInt64 = CompactLongUnbox v3
+    v7:CInt64 = CheckSequenceBounds v2 v6 {
       FrameState {
         CurInstrOffset -2
       }
@@ -1238,13 +1233,11 @@ fun test {
     v3:LongExact = RefineType<LongExact> v1
     UseType<TupleExact> v2
     UseType<LongExact> v3
-    v5:CInt64 = IndexUnbox<IndexError> v3
-    v6:CInt64 = IsNegativeAndErrOccurred v5 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    v5:CBool = IsCompactLong v3
+    Guard v5 {
     }
-    v7:CInt64 = CheckSequenceBounds v2 v5 {
+    v6:CInt64 = CompactLongUnbox v3
+    v7:CInt64 = CheckSequenceBounds v2 v6 {
       FrameState {
         CurInstrOffset -2
       }
@@ -1262,13 +1255,11 @@ fun test {
     v3:LongExact = RefineType<LongExact> v1
     UseType<TupleExact> v2
     UseType<LongExact> v3
-    v5:CInt64 = IndexUnbox<IndexError> v3
-    v6:CInt64 = IsNegativeAndErrOccurred v5 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    v5:CBool = IsCompactLong v3
+    Guard v5 {
     }
-    v7:CInt64 = CheckSequenceBounds v2 v5 {
+    v6:CInt64 = CompactLongUnbox v3
+    v7:CInt64 = CheckSequenceBounds v2 v6 {
       FrameState {
         CurInstrOffset -2
       }
@@ -7162,12 +7153,11 @@ fun jittestmodule:test {
     v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<TupleExact> v21
     UseType<LongExact> v23
-    v29:CInt64[1] = LoadConst<CInt64[1]>
-    v30:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact> v21
-    UseType<CInt64[1]> v29
+    UseType<CInt64[1]> v25
     UseType<TupleExact> v21
-    UseType<CInt64[1]> v29
+    UseType<CInt64[1]> v25
     Snapshot
     Return v11
   }
@@ -7212,12 +7202,11 @@ fun jittestmodule:test {
     Snapshot
     UseType<TupleExact> v21
     UseType<LongExact> v23
-    v29:CInt64[1] = LoadConst<CInt64[1]>
-    v30:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact> v21
-    UseType<CInt64[1]> v29
+    UseType<CInt64[1]> v25
     UseType<TupleExact> v21
-    UseType<CInt64[1]> v29
+    UseType<CInt64[1]> v25
     Snapshot
     Return v11
   }
@@ -7262,12 +7251,11 @@ fun jittestmodule:test {
     Snapshot
     UseType<TupleExact> v21
     UseType<LongExact> v23
-    v29:CInt64[1] = LoadConst<CInt64[1]>
-    v30:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact> v21
-    UseType<CInt64[1]> v29
+    UseType<CInt64[1]> v25
     UseType<TupleExact> v21
-    UseType<CInt64[1]> v29
+    UseType<CInt64[1]> v25
     Snapshot
     Return v11
   }
@@ -7317,17 +7305,16 @@ fun jittestmodule:test {
     v23:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     UseType<TupleExact> v21
     UseType<LongExact> v23
-    v29:CInt64[3] = LoadConst<CInt64[3]>
-    v30:CInt64[0] = LoadConst<CInt64[0]>
-    v27:CInt64 = CheckSequenceBounds v21 v29 {
+    v25:CInt64[3] = LoadConst<CInt64[3]>
+    v26:CInt64 = CheckSequenceBounds v21 v25 {
       FrameState {
         CurInstrOffset 16
         Locals<4> v10 v11 v12 v21
       }
     }
-    v28:Object = LoadArrayItem<Offset[24]> v21 v27 v21
+    v27:Object = LoadArrayItem<Offset[24]> v21 v26 v21
     Snapshot
-    Return v28
+    Return v27
   }
 }
 --- Expected 3.14 ---
@@ -7370,17 +7357,16 @@ fun jittestmodule:test {
     Snapshot
     UseType<TupleExact> v21
     UseType<LongExact> v23
-    v29:CInt64[3] = LoadConst<CInt64[3]>
-    v30:CInt64[0] = LoadConst<CInt64[0]>
-    v27:CInt64 = CheckSequenceBounds v21 v29 {
+    v25:CInt64[3] = LoadConst<CInt64[3]>
+    v26:CInt64 = CheckSequenceBounds v21 v25 {
       FrameState {
         CurInstrOffset 14
         Locals<4> v10 v11 v12 v21
       }
     }
-    v28:Object = LoadArrayItem<Offset[32]> v21 v27 v21
+    v27:Object = LoadArrayItem<Offset[32]> v21 v26 v21
     Snapshot
-    Return v28
+    Return v27
   }
 }
 --- Expected 3.15 ---
@@ -7423,17 +7409,16 @@ fun jittestmodule:test {
     Snapshot
     UseType<TupleExact> v21
     UseType<LongExact> v23
-    v29:CInt64[3] = LoadConst<CInt64[3]>
-    v30:CInt64[0] = LoadConst<CInt64[0]>
-    v27:CInt64 = CheckSequenceBounds v21 v29 {
+    v25:CInt64[3] = LoadConst<CInt64[3]>
+    v26:CInt64 = CheckSequenceBounds v21 v25 {
       FrameState {
         CurInstrOffset 16
         Locals<4> v10 v11 v12 v21
       }
     }
-    v28:Object = LoadArrayItem<Offset[32]> v21 v27 v21
+    v27:Object = LoadArrayItem<Offset[32]> v21 v26 v21
     Snapshot
-    Return v28
+    Return v27
   }
 }
 --- Test Name ---
@@ -12423,13 +12408,11 @@ fun jittestmodule:test {
     v5:LongExact = RefineType<LongExact> v2
     UseType<ListExact> v4
     UseType<LongExact> v5
-    v6:CInt64 = IndexUnbox<IndexError> v5
-    v7:CInt64 = IsNegativeAndErrOccurred v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    v6:CBool = IsCompactLong v5
+    Guard v6 {
     }
-    v8:CInt64 = CheckSequenceBounds v4 v6 {
+    v7:CInt64 = CompactLongUnbox v5
+    v8:CInt64 = CheckSequenceBounds v4 v7 {
       FrameState {
         CurInstrOffset -2
       }
@@ -12451,13 +12434,11 @@ fun jittestmodule:test {
     v5:LongExact = RefineType<LongExact> v2
     UseType<ListExact> v4
     UseType<LongExact> v5
-    v6:CInt64 = IndexUnbox<IndexError> v5
-    v7:CInt64 = IsNegativeAndErrOccurred v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    v6:CBool = IsCompactLong v5
+    Guard v6 {
     }
-    v8:CInt64 = CheckSequenceBounds v4 v6 {
+    v7:CInt64 = CompactLongUnbox v5
+    v8:CInt64 = CheckSequenceBounds v4 v7 {
       FrameState {
         CurInstrOffset -2
       }
@@ -12479,13 +12460,11 @@ fun jittestmodule:test {
     v5:LongExact = RefineType<LongExact> v2
     UseType<ListExact> v4
     UseType<LongExact> v5
-    v6:CInt64 = IndexUnbox<IndexError> v5
-    v7:CInt64 = IsNegativeAndErrOccurred v6 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    v6:CBool = IsCompactLong v5
+    Guard v6 {
     }
-    v8:CInt64 = CheckSequenceBounds v4 v6 {
+    v7:CInt64 = CompactLongUnbox v5
+    v8:CInt64 = CheckSequenceBounds v4 v7 {
       FrameState {
         CurInstrOffset -2
       }
