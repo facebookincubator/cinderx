@@ -6358,9 +6358,14 @@ class CodeGenerator315(CodeGenerator314):
         else:
             gen = cast(CodeGenerator312, self.make_comprehension_codegen(node, name))
             if isinstance(node, ast.GeneratorExp):
-                # Insert GET_ITER before RETURN_GENERATOR.
+                # Insert RESUME + GET_ITER before RETURN_GENERATOR.
                 # https://docs.python.org/3/reference/expressions.html#generator-expressions
                 gen.graph.entry.insts[0:0] = [
+                    Instruction(
+                        "RESUME",
+                        int(ResumeOparg.GenExprStart),
+                        int(ResumeOparg.GenExprStart),
+                    ),
                     Instruction("LOAD_FAST", 0, 0, outermost.iter),
                     Instruction(
                         "GET_AITER" if outermost.is_async else "GET_ITER",

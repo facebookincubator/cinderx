@@ -69,9 +69,14 @@ class ResumeOparg(IntFlag):
     Yield = 1
     YieldFrom = 2
     Await = 3
+    GenExprStart = 4
 
-    LocationMask = 0x03
-    Depth1Mask = 0x04
+    if sys.version_info >= (3, 15):
+        LocationMask = 0x07
+        Depth1Mask = 0x08
+    else:
+        LocationMask = 0x03
+        Depth1Mask = 0x04
 
 
 def sign(a: float) -> float:
