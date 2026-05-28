@@ -48,7 +48,9 @@ from .consts import (
 )
 from .debug import dump_graph
 from .flow_graph_optimizer import (
+    convert_load_const_to_load_common_constant,
     FlowGraphConstOptimizer314,
+    FlowGraphConstOptimizer315,
     FlowGraphOptimizer,
     FlowGraphOptimizer312,
     FlowGraphOptimizer314,
@@ -2234,6 +2236,7 @@ class PyFlowGraphCinder312(PyFlowGraphCinderMixin, PyFlowGraph312):
 
 class PyFlowGraph314(PyFlowGraph312):
     flow_graph_optimizer = FlowGraphOptimizer314
+    flow_graph_const_optimizer = FlowGraphConstOptimizer314
     _constant_idx: dict[object, int] = {
         AssertionError: 0,
         NotImplementedError: 1,
@@ -3123,6 +3126,10 @@ class PyFlowGraph314(PyFlowGraph312):
             if not removed:
                 break
 
+    def convert_load_const_to_load_common_constant(self) -> None:
+        # This is not done on 3.14, only on 3.15 and later
+        pass
+
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
         self.mark_except_handlers()
@@ -3136,7 +3143,7 @@ class PyFlowGraph314(PyFlowGraph312):
         self.remove_unreachable_basic_blocks()
         self.propagate_line_numbers()
 
-        const_optimizer = FlowGraphConstOptimizer314(self)
+        const_optimizer = self.flow_graph_const_optimizer(self)
         for block in self.ordered_blocks:
             const_optimizer.optimize_basic_block(block)
 
@@ -3154,6 +3161,8 @@ class PyFlowGraph314(PyFlowGraph312):
         self.remove_unreachable_basic_blocks()
         self.remove_redundant_nops_and_jumps(optimizer)
 
+        self.convert_load_const_to_load_common_constant()
+
         self.stage = OPTIMIZED
 
         self.remove_unused_consts()
@@ -3166,6 +3175,25 @@ class PyFlowGraph314(PyFlowGraph312):
 
 
 class PyFlowGraph315(PyFlowGraph314):
+    flow_graph_const_optimizer = FlowGraphConstOptimizer315
+
+    def convert_load_const_to_load_common_constant(self) -> None:
+        convert_load_const_to_load_common_constant(self.ordered_blocks)
+
+    def is_redundant_pair(
+        self, prev_instr: Instruction | None, instr: Instruction
+    ) -> bool:
+        if prev_instr is not None and instr.opname == "POP_TOP":
+            if prev_instr.opname in (
+                "LOAD_CONST",
+                "LOAD_SMALL_INT",
+                "LOAD_COMMON_CONSTANT",
+            ):
+                return True
+            elif prev_instr.opname == "COPY" and prev_instr.oparg == 1:
+                return True
+        return False
+
     def _convert_IMPORT_NAME(self: PyFlowGraph, arg: object) -> int:
         if isinstance(arg, tuple):
             name, flags = arg

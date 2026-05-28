@@ -1202,3 +1202,48 @@ class FlowGraphConstOptimizer314(BaseFlowGraphOptimizer314):
         "LOAD_CONST": opt_load_const,
         "LOAD_SMALL_INT": opt_load_const,
     }
+
+
+# Oparg values for LOAD_COMMON_CONSTANT (from pycore_opcode_utils.h)
+CONSTANT_NONE = 7
+CONSTANT_EMPTY_STR = 8
+CONSTANT_TRUE = 9
+CONSTANT_FALSE = 10
+CONSTANT_MINUS_ONE = 11
+CONSTANT_EMPTY_TUPLE = 13
+
+
+def _common_constant_oparg(const: object) -> int | None:
+    if const is None:
+        return CONSTANT_NONE
+    if const is True:
+        return CONSTANT_TRUE
+    if const is False:
+        return CONSTANT_FALSE
+    if type(const) is str and len(const) == 0:
+        return CONSTANT_EMPTY_STR
+    if type(const) is int and const == -1:
+        return CONSTANT_MINUS_ONE
+    return None
+
+
+class FlowGraphConstOptimizer315(FlowGraphConstOptimizer314):
+    def make_load_const(self, instr: Instruction, const: object) -> None:
+        oparg = _common_constant_oparg(const)
+        if oparg is not None:
+            instr.opname = "LOAD_COMMON_CONSTANT"
+            instr.oparg = oparg
+            instr.ioparg = oparg
+        else:
+            super().make_load_const(instr, const)
+
+
+def convert_load_const_to_load_common_constant(blocks: list[Block]) -> None:
+    for block in blocks:
+        for instr in block.insts:
+            if instr.opname in ("LOAD_CONST", "LOAD_SMALL_INT"):
+                oparg = _common_constant_oparg(instr.oparg)
+                if oparg is not None:
+                    instr.opname = "LOAD_COMMON_CONSTANT"
+                    instr.oparg = oparg
+                    instr.ioparg = oparg
