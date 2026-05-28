@@ -6228,6 +6228,35 @@ class CodeGenerator315(CodeGenerator314):
         self.emit("LOAD_CONST", None)
         self.emit_yield_from()
 
+    def wrap_in_stopiteration_handler(self) -> None:
+        insts = self.graph.entry.insts
+        has_gen_expr_start = any(
+            inst.opname == "RESUME" and inst.ioparg == int(ResumeOparg.GenExprStart)
+            for inst in insts
+        )
+        if not has_gen_expr_start:
+            return super().wrap_in_stopiteration_handler()
+
+        handler = self.newBlock("handler")
+        handler.is_exc_handler = True
+
+        setup = Instruction("SETUP_CLEANUP", handler, target=handler)
+        i = 0
+        while i < len(insts) and insts[i].opname != "RETURN_GENERATOR":
+            i += 1
+        i += 1
+        assert i < len(insts) and insts[i].opname == "POP_TOP"
+        i += 1
+        insts.insert(i, setup)
+
+        self.emit_noline("LOAD_CONST", None)
+        self.emit_noline("RETURN_VALUE")
+
+        self.nextBlock(handler)
+        self.graph.set_pos(NO_LOCATION)
+        self.emit_call_intrinsic_1("INTRINSIC_STOPITERATION_ERROR")
+        self.emit("RERAISE", 1)
+
     SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = (
         "all",
         "any",
