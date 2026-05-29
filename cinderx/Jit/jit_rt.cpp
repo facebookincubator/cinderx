@@ -2160,16 +2160,19 @@ PyObject JITRT_IterDoneSentinel = {
     .ob_gc_bits = _PyGC_BITS_DEFERRED,
     .ob_ref_local = _Py_IMMORTAL_REFCNT_LOCAL,
     .ob_ref_shared = 0,
+    .ob_type = nullptr,
 #else
     {.ob_refcnt = _Py_IMMORTAL_INITIAL_REFCNT,
      .ob_flags = _Py_STATIC_FLAG_BITS},
+    nullptr,
 #endif
 // clang-format on
 
 #else
     {.ob_refcnt = _Py_IMMORTAL_REFCNT},
+    nullptr,
 #endif
-    nullptr};
+};
 
 PyObject* JITRT_InvokeIterNext(PyObject* iterator) {
   iternextfunc iternext_f = Py_TYPE(iterator)->tp_iternext;
