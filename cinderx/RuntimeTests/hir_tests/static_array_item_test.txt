@@ -306,6 +306,7 @@ fun jittestmodule:test {
     StoreArrayItem v9 v8 v4 v0
     Snapshot
     v11 = LoadConst<ImmortalNoneType>
+    Snapshot
     v11 = RefineType<NoneType> v11
     Return<NoneType> v11
   }

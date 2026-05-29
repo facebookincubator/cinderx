@@ -848,6 +848,7 @@ fun jittestmodule:test {
     StoreField<foo@16> v11 v28 v29
     Snapshot
     v31:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     EndInlinedFunction
     Snapshot
     v14:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>

@@ -591,6 +591,7 @@ fun jittestmodule:test {
     StoreField<x@16> v0 v1 v5
     Snapshot
     v6 = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v6
   }
 }
@@ -2449,6 +2450,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v7 = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v7
   }
 }

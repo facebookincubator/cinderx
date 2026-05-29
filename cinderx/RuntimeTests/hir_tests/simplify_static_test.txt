@@ -274,12 +274,14 @@ fun jittestmodule:test {
   bb 1 (preds 3) {
     Snapshot
     v23:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
     Return<Bool> v23
   }
 
   bb 2 (preds 3) {
     Snapshot
     v25:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
     Return<Bool> v25
   }
 }
@@ -779,6 +781,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v8:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     Snapshot
     Return v8
   }
