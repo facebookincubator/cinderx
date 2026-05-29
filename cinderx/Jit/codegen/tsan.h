@@ -27,7 +27,7 @@
 #endif
 
 namespace jit::lir {
-class OperandBase;
+class Operand;
 }
 
 namespace jit::codegen {
@@ -47,14 +47,14 @@ inline constexpr bool kCinderJitTsanEnabled = CINDER_JIT_TSAN_ENABLED;
 // access_size_in_bytes must match the width of the emitted memory access.
 void emitTsanRead(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes);
 
 // Emit TSAN write instrumentation before a memory store.
 // access_size_in_bytes must match the width of the emitted memory access.
 void emitTsanWrite(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes);
 
 // Try to emit a replacement TSAN atomic read for relaxed atomic loads.
@@ -62,8 +62,8 @@ void emitTsanWrite(
 // Returns false when the caller should emit the move.
 bool tryEmitTsanRelaxedAtomicRead(
     Environ& env,
-    const jit::lir::OperandBase* output_operand,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* output_operand,
+    const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes);
 
 // Try to emit a replacement TSAN atomic write for relaxed atomic stores.
@@ -71,28 +71,28 @@ bool tryEmitTsanRelaxedAtomicRead(
 // Returns false when the caller should emit the move.
 bool tryEmitTsanRelaxedAtomicWrite(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
-    const jit::lir::OperandBase* value_operand,
+    const jit::lir::Operand* mem_operand,
+    const jit::lir::Operand* value_operand,
     size_t access_size_in_bytes);
 
 #else
 
-inline void emitTsanRead(Environ&, const jit::lir::OperandBase*, size_t) {}
+inline void emitTsanRead(Environ&, const jit::lir::Operand*, size_t) {}
 
-inline void emitTsanWrite(Environ&, const jit::lir::OperandBase*, size_t) {}
+inline void emitTsanWrite(Environ&, const jit::lir::Operand*, size_t) {}
 
 inline bool tryEmitTsanRelaxedAtomicRead(
     Environ&,
-    const jit::lir::OperandBase*,
-    const jit::lir::OperandBase*,
+    const jit::lir::Operand*,
+    const jit::lir::Operand*,
     size_t) {
   return false;
 }
 
 inline bool tryEmitTsanRelaxedAtomicWrite(
     Environ&,
-    const jit::lir::OperandBase*,
-    const jit::lir::OperandBase*,
+    const jit::lir::Operand*,
+    const jit::lir::Operand*,
     size_t) {
   return false;
 }

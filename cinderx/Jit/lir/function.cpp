@@ -13,7 +13,7 @@ namespace {
 
 // Helper for copyOperand.
 void copyIndirect(
-    UnorderedMap<LinkedOperand*, int>& instr_refs,
+    UnorderedMap<Operand*, int>& instr_refs,
     Operand* dest_op,
     MemoryIndirect* source_op) {
   auto base = source_op->getBaseRegOperand();
@@ -44,59 +44,53 @@ void copyIndirect(
   // add linked operands to instr_refs
   auto memInd = dest_op->getMemoryIndirect();
   if (base->isLinked()) {
-    auto base_linked = static_cast<const LinkedOperand*>(base);
-    auto base_linked_id = base_linked->getLinkedOperand()->instr()->id();
-    instr_refs.emplace(
-        static_cast<LinkedOperand*>(memInd->getBaseRegOperand()),
-        base_linked_id);
+    auto base_linked_id = base->getLinkedOperand()->instr()->id();
+    instr_refs.emplace(memInd->getBaseRegOperand(), base_linked_id);
   }
 
   if (index != nullptr && index->isLinked()) {
-    auto index_linked = static_cast<const LinkedOperand*>(index);
-    auto index_linked_id = index_linked->getLinkedOperand()->instr()->id();
-    instr_refs.emplace(
-        static_cast<LinkedOperand*>(memInd->getIndexRegOperand()),
-        index_linked_id);
+    auto index_linked_id = index->getLinkedOperand()->instr()->id();
+    instr_refs.emplace(memInd->getIndexRegOperand(), index_linked_id);
   }
 }
 
-// Helper for copyOperandBase.
+// Helper for copyOperand.
 // Assume that type and data type are already be set.
 void copyOperand(
     UnorderedMap<int, BasicBlock*>& block_index_map,
-    UnorderedMap<LinkedOperand*, int>& instr_refs,
+    UnorderedMap<Operand*, int>& instr_refs,
     Operand* operand,
     Operand* operand_copy) {
   switch (operand->type()) {
-    case OperandBase::kReg: {
+    case Operand::kReg: {
       operand_copy->setPhyRegister(operand->getPhyRegister());
       operand_copy->setDataType(operand->dataType());
       break;
     }
-    case OperandBase::kStack: {
+    case Operand::kStack: {
       operand_copy->setStackSlot(operand->getStackSlot());
       operand_copy->setDataType(operand->dataType());
       break;
     }
-    case OperandBase::kMem: {
+    case Operand::kMem: {
       operand_copy->setMemoryAddress(operand->getMemoryAddress());
       break;
     }
-    case OperandBase::kImm: {
+    case Operand::kImm: {
       operand_copy->setConstant(operand->getConstant(), operand->dataType());
       break;
     }
-    case OperandBase::kLabel: {
+    case Operand::kLabel: {
       operand_copy->setBasicBlock(
           map_get_strict(block_index_map, operand->getBasicBlock()->id()));
       break;
     }
-    case OperandBase::kInd: {
+    case Operand::kInd: {
       copyIndirect(instr_refs, operand_copy, operand->getMemoryIndirect());
       break;
     }
-    case OperandBase::kNone:
-    case OperandBase::kVreg:
+    case Operand::kNone:
+    case Operand::kVreg:
       // operand_copy should already be type kVreg.
       break;
   }
@@ -105,19 +99,16 @@ void copyOperand(
 // Helper for deepCopyBasicBlocks.
 void copyInput(
     UnorderedMap<int, BasicBlock*>& block_index_map,
-    UnorderedMap<LinkedOperand*, int>& instr_refs,
-    OperandBase* input,
+    UnorderedMap<Operand*, int>& instr_refs,
+    Operand* input,
     Instruction* instr_copy) {
   if (input->isLinked()) {
-    LinkedOperand* linked_opnd = instr_copy->allocateLinkedInput(nullptr);
-    instr_refs.emplace(
-        linked_opnd,
-        static_cast<LinkedOperand*>(input)->getDefine()->instr()->id());
+    auto linked_opnd = instr_copy->allocateLinkedInput(nullptr);
+    instr_refs.emplace(linked_opnd, input->getDefine()->instr()->id());
   } else {
     // Allocate temporary input and set value_ using copyOperand.
-    Operand* input_copy = instr_copy->allocateImmediateInput(0);
-    copyOperand(
-        block_index_map, instr_refs, static_cast<Operand*>(input), input_copy);
+    auto input_copy = instr_copy->allocateImmediateInput(0);
+    copyOperand(block_index_map, instr_refs, input, input_copy);
     input_copy->setDataType(input->dataType());
   }
 }
@@ -125,7 +116,7 @@ void copyInput(
 // Helper for deepCopyBasicBlocks.
 void connectLinkedOperands(
     UnorderedMap<int, Instruction*>& output_index_map_,
-    UnorderedMap<LinkedOperand*, int>& instr_refs_) {
+    UnorderedMap<Operand*, int>& instr_refs_) {
   for (auto& [operand, instr_index] : instr_refs_) {
     auto instr = map_get_strict(output_index_map_, instr_index);
     operand->setLinkedInstr(instr);
@@ -140,7 +131,7 @@ void deepCopyBasicBlocks(
     UnorderedMap<int, BasicBlock*>& block_index_map_,
     const hir::Instr* origin) {
   UnorderedMap<int, Instruction*> output_index_map;
-  UnorderedMap<LinkedOperand*, int> instr_refs;
+  UnorderedMap<Operand*, int> instr_refs;
 
   for (auto bb : src_blocks) {
     BasicBlock* bb_copy = map_get_strict(block_index_map_, bb->id());
@@ -160,7 +151,7 @@ void deepCopyBasicBlocks(
       copyOperand(block_index_map_, instr_refs, output, output_copy);
       // Copy inputs.
       for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
-        OperandBase* input = instr->getInput(i);
+        Operand* input = instr->getInput(i);
         copyInput(block_index_map_, instr_refs, input, instr_copy);
       }
     }

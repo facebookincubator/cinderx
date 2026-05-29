@@ -96,7 +96,7 @@ class Parser {
 
   // basic block and instruction references to be fixed
   UnorderedMap<Operand*, int> basic_block_refs_;
-  UnorderedMap<LinkedOperand*, int> instr_refs_;
+  UnorderedMap<Operand*, int> instr_refs_;
 
   // succesors that need to be linked
   // Note - the order of pairs matters for conditional branching

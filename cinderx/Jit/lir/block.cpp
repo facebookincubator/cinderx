@@ -191,7 +191,7 @@ void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
       auto block = instr->getInput(i);
       if (block->type() == Operand::kLabel) {
         if (block->getBasicBlock() == old_pred) {
-          static_cast<Operand*>(block)->setBasicBlock(new_pred);
+          block->setBasicBlock(new_pred);
         }
       }
     }

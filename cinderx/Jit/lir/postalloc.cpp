@@ -494,7 +494,7 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
     } else {
       mask = 0xffffffffffffffffl;
     }
-    static_cast<Operand*>(in)->setConstant(in->getConstant() & mask, out_size);
+    in->setConstant(in->getConstant() & mask, out_size);
     instr->setOpcode(Instruction::kMove);
     return kChanged;
   }
@@ -606,9 +606,8 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
 
   if constexpr (arch::kBuildArch == arch::Arch::kX86_64) {
     if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
-      auto in_opnd = dynamic_cast<Operand*>(in);
       JIT_CHECK(
-          in_opnd != nullptr,
+          !in->isLinked(),
           "Register allocation should have replaced linked operand {}",
           *in);
       instr->setOpcode(Instruction::kXor);
@@ -662,7 +661,7 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
       OutPhyReg(out->getPhyRegister()),
       Imm(mem_addr, in->dataType()));
 
-  static_cast<Operand*>(in)->setMemoryIndirect(out->getPhyRegister());
+  in->setMemoryIndirect(out->getPhyRegister());
 
   return kChanged;
 }
@@ -980,7 +979,7 @@ RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
   out->setDataType(OperandBase::k32bit);
   if (in->dataType() == OperandBase::k8bit ||
       in->dataType() == OperandBase::k16bit) {
-    static_cast<Operand*>(in)->setDataType(OperandBase::k32bit);
+    in->setDataType(Operand::k32bit);
   }
   return kChanged;
 }
@@ -1212,13 +1211,13 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  Operand* input0 = static_cast<Operand*>(instr->getInput(0));
+  Operand* input0 = instr->getInput(0);
 
   if (input0->dataType() > OperandBase::k8bit) {
     return kUnchanged;
   }
 
-  Operand* output = static_cast<Operand*>(instr->output());
+  Operand* output = instr->output();
   PhyLocation in_reg = input0->getPhyRegister();
   PhyLocation out_reg = in_reg;
 
@@ -1288,17 +1287,17 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
   }
 
   bool changed = false;
-  Operand* output = static_cast<Operand*>(instr->output());
+  Operand* output = instr->output();
 
   BasicBlock* block = instr->basicblock();
 
   Operand* dividend_upper = nullptr;
   Operand* dividend_lower;
   if (instr->getNumInputs() == 3) {
-    dividend_upper = static_cast<Operand*>(instr->getInput(0));
-    dividend_lower = static_cast<Operand*>(instr->getInput(1));
+    dividend_upper = instr->getInput(0);
+    dividend_lower = instr->getInput(1);
   } else {
-    dividend_lower = static_cast<Operand*>(instr->getInput(0));
+    dividend_lower = instr->getInput(0);
   }
 
   PhyLocation out_reg = RAX;
@@ -1491,7 +1490,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
           return;
         }
 
-        auto opnd = static_cast<Operand*>(operand);
+        Operand* opnd = operand;
         auto data_type = opnd->dataType();
         auto old_opnd = fmt::to_string(*opnd);
         opnd->setPhyRegister(reg);

@@ -246,14 +246,14 @@ class Instruction {
   size_t getNumOutputs() const;
 
   // Get an input by index.
-  OperandBase* getInput(size_t i);
-  const OperandBase* getInput(size_t i) const;
+  Operand* getInput(size_t i);
+  const Operand* getInput(size_t i) const;
 
   Operand* allocateImmediateInput(
       uint64_t n,
       DataType data_type = DataType::k64bit);
   Operand* allocateFPImmediateInput(double n);
-  LinkedOperand* allocateLinkedInput(Instruction* def_instr);
+  Operand* allocateLinkedInput(Instruction* def_instr);
   Operand* allocatePhyRegisterInput(PhyLocation loc);
   Operand* allocateStackInput(PhyLocation stack);
   Operand* allocatePhyRegOrStackInput(PhyLocation loc);
@@ -378,29 +378,29 @@ class Instruction {
 
   // Set an input by index, deleting the previous input.  Does not resize the
   // inputs list.
-  void setInput(size_t index, std::unique_ptr<OperandBase> input);
+  void setInput(size_t index, std::unique_ptr<Operand> input);
 
   // Remove an input by index, shifting all other inputs to the left.
-  std::unique_ptr<OperandBase> removeInput(size_t index);
+  std::unique_ptr<Operand> removeInput(size_t index);
 
   // Release the input operand at index from the instruction without
   // deallocating it.  The original input slot will be left with a nullptr,
   // which is meant be removed afterwards.
-  std::unique_ptr<OperandBase> releaseInput(size_t index);
+  std::unique_ptr<Operand> releaseInput(size_t index);
 
   // Add a new input to the end of this instruction's input list.
-  OperandBase* appendInput(std::unique_ptr<OperandBase> operand);
+  Operand* appendInput(std::unique_ptr<Operand> operand);
 
   // Add a new input to the beginning of this instruction's input list.
-  OperandBase* prependInput(std::unique_ptr<OperandBase> operand);
+  Operand* prependInput(std::unique_ptr<Operand> operand);
 
   // get the operand associated to a given predecessor in a phi instruction
   // returns nullptr if not found.
-  OperandBase* getOperandByPredecessor(const BasicBlock* pred);
+  Operand* getOperandByPredecessor(const BasicBlock* pred);
 
   int getOperandIndexByPredecessor(const BasicBlock* pred) const;
 
-  const OperandBase* getOperandByPredecessor(const BasicBlock* pred) const;
+  const Operand* getOperandByPredecessor(const BasicBlock* pred) const;
 
   // Accessors for some of the instruction's attributes. See details in the
   // comment above FOREACH_INSTR_TYPE().
@@ -442,7 +442,7 @@ class Instruction {
   Operand output_;
   BasicBlock* basic_block_;
   const hir::Instr* origin_;
-  std::vector<std::unique_ptr<OperandBase>> inputs_;
+  std::vector<std::unique_ptr<Operand>> inputs_;
 };
 
 // Kind of condition that a Guard instruction will execute.

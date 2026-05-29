@@ -70,20 +70,19 @@ void Instruction::setNumInputs(size_t n) {
 }
 
 size_t Instruction::getNumOutputs() const {
-  return output_.type() == OperandBase::kNone ? 0 : 1;
+  return output_.type() == Operand::kNone ? 0 : 1;
 }
 
-OperandBase* Instruction::getInput(size_t i) {
+Operand* Instruction::getInput(size_t i) {
   return inputs_.at(i).get();
 }
 
-const OperandBase* Instruction::getInput(size_t i) const {
+const Operand* Instruction::getInput(size_t i) const {
   return inputs_.at(i).get();
 }
 
 Operand* Instruction::allocateImmediateInput(uint64_t n, DataType data_type) {
-  auto operand =
-      std::make_unique<Operand>(this, data_type, OperandBase::kImm, n);
+  auto operand = std::make_unique<Operand>(this, data_type, Operand::kImm, n);
   auto opnd = operand.get();
   inputs_.push_back(std::move(operand));
 
@@ -91,16 +90,16 @@ Operand* Instruction::allocateImmediateInput(uint64_t n, DataType data_type) {
 }
 
 Operand* Instruction::allocateFPImmediateInput(double n) {
-  auto operand = std::make_unique<Operand>(this, OperandBase::kImm, n);
+  auto operand = std::make_unique<Operand>(this, Operand::kImm, n);
   auto opnd = operand.get();
   inputs_.push_back(std::move(operand));
 
   return opnd;
 }
 
-LinkedOperand* Instruction::allocateLinkedInput(Instruction* def_instr) {
-  auto operand = std::make_unique<LinkedOperand>(this, def_instr);
-  auto opnd = operand.get();
+Operand* Instruction::allocateLinkedInput(Instruction* def_instr) {
+  auto operand = std::make_unique<Operand>(this, def_instr, Operand::kLinked);
+  Operand* opnd = operand.get();
   inputs_.push_back(std::move(operand));
   return opnd;
 }
@@ -153,39 +152,39 @@ std::string_view Instruction::opname() const {
   return kOpcodeNames[opcode_];
 }
 
-void Instruction::setInput(size_t i, std::unique_ptr<OperandBase> input) {
+void Instruction::setInput(size_t i, std::unique_ptr<Operand> input) {
   inputs_.at(i) = std::move(input);
   inputs_[i]->assignToInstr(this);
 }
 
-std::unique_ptr<OperandBase> Instruction::removeInput(size_t index) {
+std::unique_ptr<Operand> Instruction::removeInput(size_t index) {
   auto operand = releaseInput(index);
   inputs_.erase(inputs_.begin() + index);
   return operand;
 }
 
-std::unique_ptr<OperandBase> Instruction::releaseInput(size_t index) {
+std::unique_ptr<Operand> Instruction::releaseInput(size_t index) {
   auto& operand = inputs_.at(index);
   operand->releaseFromInstr();
   return std::move(inputs_.at(index));
 }
 
-OperandBase* Instruction::appendInput(std::unique_ptr<OperandBase> operand) {
-  auto operand_ptr = operand.get();
+Operand* Instruction::appendInput(std::unique_ptr<Operand> operand) {
+  Operand* operand_ptr = operand.get();
   // Use setInput() to call assignToInstr().
   inputs_.emplace_back();
   setInput(getNumInputs() - 1, std::move(operand));
   return operand_ptr;
 }
 
-OperandBase* Instruction::prependInput(std::unique_ptr<OperandBase> operand) {
-  auto operand_ptr = operand.get();
+Operand* Instruction::prependInput(std::unique_ptr<Operand> operand) {
+  Operand* operand_ptr = operand.get();
   inputs_.insert(inputs_.begin(), nullptr);
   setInput(0, std::move(operand));
   return operand_ptr;
 }
 
-OperandBase* Instruction::getOperandByPredecessor(const BasicBlock* pred) {
+Operand* Instruction::getOperandByPredecessor(const BasicBlock* pred) {
   auto index = getOperandIndexByPredecessor(pred);
   return index == -1 ? nullptr : inputs_.at(index).get();
 }
@@ -201,7 +200,7 @@ int Instruction::getOperandIndexByPredecessor(const BasicBlock* pred) const {
   return -1;
 }
 
-const OperandBase* Instruction::getOperandByPredecessor(
+const Operand* Instruction::getOperandByPredecessor(
     const BasicBlock* pred) const {
   return const_cast<Instruction*>(this)->getOperandByPredecessor(pred);
 }

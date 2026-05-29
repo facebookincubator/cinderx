@@ -261,11 +261,10 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
               instr_->getNumInputs() > 0,
               cur,
               "Expect data type to follow an input.");
-          OperandBase* input_base =
-              instr_->getInput(instr_->getNumInputs() - 1);
-          if (!input_base->isLinked()) {
-            Operand* input = static_cast<Operand*>(input_base);
-            auto data_type = getOperandDataType(std::string(cur, token.length));
+          Operand* input = instr_->getInput(instr_->getNumInputs() - 1);
+          if (!input->isLinked()) {
+            DataType data_type =
+                getOperandDataType(std::string(cur, token.length));
             input->setDataType(data_type);
           }
           state = INSTR_INPUT_COMMA;
@@ -310,11 +309,10 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
               instr_->getNumInputs() > 0,
               cur,
               "Expect data type to follow an input.");
-          OperandBase* input_base =
-              instr_->getInput(instr_->getNumInputs() - 1);
-          if (!input_base->isLinked()) {
-            Operand* input = static_cast<Operand*>(input_base);
-            auto data_type = getOperandDataType(std::string(cur, token.length));
+          Operand* input = instr_->getInput(instr_->getNumInputs() - 1);
+          if (!input->isLinked()) {
+            DataType data_type =
+                getOperandDataType(std::string(cur, token.length));
             input->setDataType(data_type);
           }
           state = PHI_INPUT_PAR;

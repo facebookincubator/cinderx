@@ -62,7 +62,7 @@ RewriteResult rewriteConstantFoldUnaryOps(instr_iter_t instr_iter) {
 
   instr->setOpcode(Instruction::kMove);
   auto dt = input->dataType();
-  static_cast<Operand*>(input)->setConstant(result, dt);
+  input->setConstant(result, dt);
   return kChanged;
 }
 
@@ -93,7 +93,7 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
           OutVReg{constant_size},
           Imm{constant, constant_size});
 
-      instr->setInput(idx, std::make_unique<LinkedOperand>(move));
+      instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
       changed = true;
     }
     return changed ? kChanged : kUnchanged;
@@ -134,7 +134,7 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
       Instruction::kMove,
       OutVReg{constant_size},
       Imm{constant, constant_size});
-  instr->setInput(0, std::make_unique<LinkedOperand>(move));
+  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
 
   return kChanged;
 }
@@ -212,11 +212,11 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
     auto movsx = block->allocateInstrBefore(
         instr_iter, Instruction::kMovSX, OutVReg{in1->dataType()});
     movsx->appendInput(instr->releaseInput(0));
-    instr->setInput(0, std::make_unique<LinkedOperand>(movsx));
+    instr->setInput(0, std::make_unique<Operand>(movsx, Operand::kLinked));
   }
 
   // Replace the constant with the move.
-  instr->setInput(1, std::make_unique<LinkedOperand>(move));
+  instr->setInput(1, std::make_unique<Operand>(move, Operand::kLinked));
 
   return kChanged;
 }
@@ -255,7 +255,7 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
       Imm(constant, input->dataType()));
 
   // Replace the constant input with the move.
-  instr->setInput(0, std::make_unique<LinkedOperand>(move));
+  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
 
   return kChanged;
 }
@@ -295,7 +295,8 @@ RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
       Instruction::kMove,
       OutVReg(),
       Imm(target_imm, target_opnd->dataType()));
-  instr->setInput(kTargetIndex, std::make_unique<LinkedOperand>(move));
+  instr->setInput(
+      kTargetIndex, std::make_unique<Operand>(move, Operand::kLinked));
   return kChanged;
 }
 
@@ -316,8 +317,8 @@ RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
       arg_idx,
       env->arg_locations.size());
   auto loc = env->arg_locations[arg_idx];
-  static_cast<Operand*>(input)->setPhyRegOrStackSlot(loc);
-  static_cast<Operand*>(input)->setDataType(instr->output()->dataType());
+  input->setPhyRegOrStackSlot(loc);
+  input->setDataType(instr->output()->dataType());
   return kChanged;
 }
 
@@ -496,7 +497,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
     auto sext = block->allocateInstrBefore(
         instr_iter, Instruction::kSext, OutVReg{DataType::k32bit});
     sext->appendInput(instr->releaseInput(i));
-    instr->setInput(i, std::make_unique<LinkedOperand>(sext));
+    instr->setInput(i, std::make_unique<Operand>(sext, Operand::kLinked));
     changed = true;
   }
   return changed ? kChanged : kUnchanged;
@@ -552,7 +553,8 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   auto move = block->allocateInstrBefore(
       instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
   move->appendInput(instr->releaseInput(kGuardVarIndex));
-  instr->setInput(kGuardVarIndex, std::make_unique<LinkedOperand>(move));
+  instr->setInput(
+      kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
   return kChanged;
 }
 
@@ -580,7 +582,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 
   auto guard_var = instr->getInput(kGuardVarIndex);
   JIT_CHECK(guard_var->isLinked(), "Expected guard var to be a linked operand");
-  auto guard_var_def = static_cast<LinkedOperand*>(guard_var)->getLinkedInstr();
+  Instruction* guard_var_def = guard_var->getLinkedInstr();
 
   auto block = instr->basicblock();
   constexpr int32_t kObTypeOffset = offsetof(PyObject, ob_type);
@@ -591,8 +593,9 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   type_load->allocateMemoryIndirectInput(guard_var_def, kObTypeOffset);
 
   // Replace guard var with the loaded type and change kind to kIs.
-  instr->setInput(kGuardVarIndex, std::make_unique<LinkedOperand>(type_load));
-  static_cast<Operand*>(instr->getInput(kKindIndex))->setConstant(kIs);
+  instr->setInput(
+      kGuardVarIndex, std::make_unique<Operand>(type_load, Operand::kLinked));
+  instr->getInput(kKindIndex)->setConstant(kIs);
 
   return kChanged;
 }
@@ -637,10 +640,9 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 
   // Create a new reference to the same value as an existing operand from
   // inside a MemoryIndirect.
-  auto cloneRef = [](OperandBase* op) -> std::unique_ptr<OperandBase> {
+  auto cloneRef = [](Operand* op) -> std::unique_ptr<Operand> {
     if (op->isLinked()) {
-      return std::make_unique<LinkedOperand>(
-          static_cast<LinkedOperand*>(op)->getLinkedInstr());
+      return std::make_unique<Operand>(op->getLinkedInstr(), Operand::kLinked);
     }
     auto new_op = std::make_unique<Operand>();
     new_op->setPhyRegister(op->getPhyRegister());
@@ -658,7 +660,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   auto muladd = block->allocateInstrBefore(
       instr_iter, Instruction::kMulAdd, OutVReg{DataType::k64bit});
   muladd->appendInput(cloneRef(index_op));
-  muladd->appendInput(std::make_unique<LinkedOperand>(scale_move));
+  muladd->appendInput(std::make_unique<Operand>(scale_move, Operand::kLinked));
   muladd->appendInput(cloneRef(base_op));
 
   Instruction* final_result = muladd;
@@ -676,7 +678,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 
   // Convert Lea to Move(final_result).
   instr->setOpcode(Instruction::kMove);
-  instr->setInput(0, std::make_unique<LinkedOperand>(final_result));
+  instr->setInput(0, std::make_unique<Operand>(final_result, Operand::kLinked));
 
   return kChanged;
 }
@@ -743,7 +745,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
     auto dt = input->dataType();
     auto move = block->allocateInstrBefore(
         instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
-    instr->setInput(idx, std::make_unique<LinkedOperand>(move));
+    instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
     return true;
   };
 
@@ -783,7 +785,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
           auto dt = input->dataType();
           auto move = block->allocateInstrBefore(
               instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
-          instr->setInput(0, std::make_unique<LinkedOperand>(move));
+          instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
           auto next_iter = std::next(instr_iter);
           block->allocateInstrBefore(
               next_iter, Instruction::kMove, OutStk{loc, dt}, VReg{move});
@@ -834,7 +836,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
           Instruction::kMove,
           OutVReg{input->dataType()},
           Imm{input->getConstant(), input->dataType()});
-      instr->setInput(0, std::make_unique<LinkedOperand>(move));
+      instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
       return kChanged;
     }
     case Instruction::kSelect: {
@@ -848,7 +850,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
           Instruction::kMove,
           OutVReg{input->dataType()},
           Imm{input->getConstant(), input->dataType()});
-      instr->setInput(2, std::make_unique<LinkedOperand>(move));
+      instr->setInput(2, std::make_unique<Operand>(move, Operand::kLinked));
       return kChanged;
     }
     case Instruction::kMove:
@@ -869,7 +871,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
           Instruction::kMove,
           OutVReg{input->dataType()},
           Imm{input->getConstant(), input->dataType()});
-      instr->setInput(0, std::make_unique<LinkedOperand>(move));
+      instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
       return kChanged;
     }
     default:
@@ -906,7 +908,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
         Instruction::kMove,
         OutVReg{DataType::k64bit},
         Imm{input->getConstant(), DataType::k64bit});
-    instr->setInput(0, std::make_unique<LinkedOperand>(move));
+    instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
     return kChanged;
   }
 
@@ -915,7 +917,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
     auto dt = input->dataType();
     auto move = block->allocateInstrBefore(
         instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
-    instr->setInput(0, std::make_unique<LinkedOperand>(move));
+    instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
     return kChanged;
   }
 
@@ -1007,7 +1009,8 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
               Instruction::kMovConstPool,
               OutVReg{input->dataType()},
               Imm{input->getConstant(), input->dataType()});
-          instr->setInput(0, std::make_unique<LinkedOperand>(pool_load));
+          instr->setInput(
+              0, std::make_unique<Operand>(pool_load, Operand::kLinked));
         } else {
           instr->setOpcode(Instruction::kMovConstPool);
         }

@@ -43,7 +43,7 @@ class LIRInliner {
   int callee_start_;
   int callee_end_;
   // List of arguments from call_instr_.
-  std::vector<lir::OperandBase*> arguments_;
+  std::vector<lir::Operand*> arguments_;
 
   // Checks if call instruction and callee are inlineable.
   // Calls checkEntryExitReturn, checkArguments, checkLoadArg.
@@ -77,14 +77,14 @@ class LIRInliner {
   // Assume that instr_it corresponds to a kLoadArg instruction.
   // Assume that arguments are immediate or linked.
   void resolveLoadArg(
-      UnorderedMap<lir::OperandBase*, lir::LinkedOperand*>& vreg_map,
+      UnorderedMap<lir::Operand*, lir::Operand*>& vreg_map,
       lir::BasicBlock* bb,
       instr_iter_t& instr_it);
 
   // For instr_it that aren't kLoadArg,
   // fix up linked arguments that refer to outputs of kLoadArg instructions.
   void resolveLinkedArgumentsUses(
-      UnorderedMap<lir::OperandBase*, lir::LinkedOperand*>& vreg_map,
+      UnorderedMap<lir::Operand*, lir::Operand*>& vreg_map,
       std::list<std::unique_ptr<lir::Instruction>>::iterator& instr_it);
 
   // Expects callee to have one empty epilogue block.

@@ -47,15 +47,14 @@ void eliminateDeadCode(Function* function) {
       }
     }
   }
-  auto add_linked_instruction_to_worklist = [&](OperandBase* operand) {
+  auto add_linked_instruction_to_worklist = [&](Operand* operand) {
     if (operand == nullptr || !operand->isLinked()) {
       return;
     }
-    Instruction* linked_instruction =
-        static_cast<LinkedOperand*>(operand)->getLinkedInstr();
+    Instruction* linked_instruction = operand->getLinkedInstr();
     mark_live(linked_instruction);
   };
-  auto add_all_operand_registers_to_worklist = [&](OperandBase* operand) {
+  auto add_all_operand_registers_to_worklist = [&](Operand* operand) {
     if (operand->isInd()) {
       MemoryIndirect* indirect = operand->getMemoryIndirect();
       add_linked_instruction_to_worklist(indirect->getBaseRegOperand());

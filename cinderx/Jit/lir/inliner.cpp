@@ -240,7 +240,7 @@ lir::Function* LIRInliner::parseFunction(uint64_t addr) {
 
 bool LIRInliner::resolveArguments() {
   // Remove load arg instructions and update virtual registers.
-  UnorderedMap<OperandBase*, LinkedOperand*> vreg_map;
+  UnorderedMap<Operand*, Operand*> vreg_map;
   auto const& caller_blocks = caller_->basicblocks();
   for (int i = callee_start_; i < callee_end_; i++) {
     auto bb = caller_blocks.at(i);
@@ -261,7 +261,7 @@ bool LIRInliner::resolveArguments() {
 }
 
 void LIRInliner::resolveLoadArg(
-    UnorderedMap<OperandBase*, LinkedOperand*>& vreg_map,
+    UnorderedMap<Operand*, Operand*>& vreg_map,
     BasicBlock* bb,
     instr_iter_t& instr_it) {
   auto instr = instr_it->get();
@@ -277,8 +277,7 @@ void LIRInliner::resolveLoadArg(
   if (param->isImm()) {
     // For immediate values, change kLoadArg to kMove.
     instr->setOpcode(Instruction::kMove);
-    auto param_copy =
-        std::make_unique<Operand>(instr, static_cast<Operand*>(param));
+    auto param_copy = std::make_unique<Operand>(instr, param);
     param_copy->setConstant(param->getConstant());
     instr->setInput(0, std::move(param_copy));
     ++instr_it;
@@ -287,19 +286,18 @@ void LIRInliner::resolveLoadArg(
         param->isLinked(), "Inlined arguments must be immediate or linked.");
     // Otherwise, output of kLoadArg should be a virtual register.
     // For virtual registers, delete kLoadArg and replace uses.
-    vreg_map.emplace(instr->output(), static_cast<LinkedOperand*>(param));
+    vreg_map.emplace(instr->output(), param);
     instr_it = bb->instructions().erase(instr_it);
   }
 }
 
 void LIRInliner::resolveLinkedArgumentsUses(
-    UnorderedMap<OperandBase*, LinkedOperand*>& vreg_map,
+    UnorderedMap<Operand*, Operand*>& vreg_map,
     std::list<std::unique_ptr<Instruction>>::iterator& instr_it) {
-  auto setLinkedOperand = [&](OperandBase* opnd) {
-    auto new_def = map_get(vreg_map, opnd->getDefine(), nullptr);
+  auto setLinkedOperand = [&](Operand* opnd) {
+    Operand* new_def = map_get(vreg_map, opnd->getDefine(), nullptr);
     if (new_def != nullptr) {
-      auto opnd_linked = static_cast<LinkedOperand*>(opnd);
-      opnd_linked->setLinkedInstr(new_def->getLinkedOperand()->instr());
+      opnd->setLinkedInstr(new_def->getLinkedInstr());
     }
   };
   auto instr = instr_it->get();

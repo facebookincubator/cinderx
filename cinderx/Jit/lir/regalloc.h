@@ -177,23 +177,23 @@ class LinearScanAllocator {
   void rewriteInstrOutput(
       Instruction* instr,
       const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
-      const UnorderedSet<const LinkedOperand*>* last_use_vregs);
+      const UnorderedSet<const Operand*>* last_use_vregs);
 
   void rewriteInstrInputs(
       Instruction* instr,
       const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
-      const UnorderedSet<const LinkedOperand*>* last_use_vregs);
+      const UnorderedSet<const Operand*>* last_use_vregs);
 
   void rewriteInstrOneInput(
       Instruction* instr,
       size_t i,
       const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
-      const UnorderedSet<const LinkedOperand*>* last_use_vregs);
+      const UnorderedSet<const Operand*>* last_use_vregs);
 
   void rewriteInstrOneIndirectOperand(
       MemoryIndirect* indirect,
       const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
-      const UnorderedSet<const LinkedOperand*>* last_use_vregs);
+      const UnorderedSet<const Operand*>* last_use_vregs);
 
   // update virtual register to physical register mapping.
   // if the mapping is changed for a virtual register and copies is not nullptr,
@@ -258,7 +258,7 @@ class LinearScanAllocator {
   // key: def operand
   // value: a map with key: the use operand
   //                   value: use location
-  UnorderedMap<const Operand*, UnorderedMap<const LinkedOperand*, LIRLocation>>
+  UnorderedMap<const Operand*, UnorderedMap<const Operand*, LIRLocation>>
       vreg_last_use_;
 
   // the global last use of an operand (vreg)

@@ -140,7 +140,7 @@ int alignPadding(int gp_reg_count) {
 
 // Compute the memory operand's effective address into RDI, the first TSAN
 // runtime argument register.
-void emitTsanAddress(Environ& env, const jit::lir::OperandBase* mem_operand) {
+void emitTsanAddress(Environ& env, const jit::lir::Operand* mem_operand) {
   if (mem_operand->isMem()) {
     auto addr = reinterpret_cast<uint64_t>(mem_operand->getMemoryAddress());
     env.as->mov(asmjit::x86::rdi, addr);
@@ -316,7 +316,7 @@ void emitMovArgImm(Environ& env, asmjit::x86::Gp dst, uint64_t imm) {
 
 void emitTsanLoadResult(
     Environ& env,
-    const jit::lir::OperandBase* output_operand,
+    const jit::lir::Operand* output_operand,
     size_t access_size_in_bytes) {
   JIT_CHECK(
       output_operand->isReg(),
@@ -331,7 +331,7 @@ void emitTsanLoadResult(
 
 void emitTsanStoreValue(
     Environ& env,
-    const jit::lir::OperandBase* value_operand,
+    const jit::lir::Operand* value_operand,
     size_t access_size_in_bytes,
     const SavedCallerState& state) {
   auto dst = gpForArgSize(RSI.loc, access_size_in_bytes);
@@ -356,7 +356,7 @@ void emitTsanStoreValue(
 
 void emitTsanCall(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* mem_operand,
     const void* tsan_func) {
   auto state = saveCallerSavedState(env);
   emitTsanAddress(env, mem_operand);
@@ -368,7 +368,7 @@ void emitTsanCall(
 
 void emitTsanRead(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes) {
   if (mem_operand->isStack()) {
     return;
@@ -378,7 +378,7 @@ void emitTsanRead(
 
 void emitTsanWrite(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes) {
   if (mem_operand->isStack()) {
     return;
@@ -388,8 +388,8 @@ void emitTsanWrite(
 
 bool tryEmitTsanRelaxedAtomicRead(
     Environ& env,
-    const jit::lir::OperandBase* output_operand,
-    const jit::lir::OperandBase* mem_operand,
+    const jit::lir::Operand* output_operand,
+    const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes) {
   JIT_CHECK(
       output_operand->isReg(), "Expected register output for TSAN atomic load");
@@ -412,8 +412,8 @@ bool tryEmitTsanRelaxedAtomicRead(
 
 bool tryEmitTsanRelaxedAtomicWrite(
     Environ& env,
-    const jit::lir::OperandBase* mem_operand,
-    const jit::lir::OperandBase* value_operand,
+    const jit::lir::Operand* mem_operand,
+    const jit::lir::Operand* value_operand,
     size_t access_size_in_bytes) {
   if (mem_operand->isStack() ||
       !isSupportedTsanAtomicSize(access_size_in_bytes)) {

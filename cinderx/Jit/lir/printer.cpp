@@ -71,7 +71,7 @@ void Printer::print(std::ostream& out, const BasicBlock& block) {
 
 void Printer::print(std::ostream& out, const Instruction& instr) {
   auto output_opnd = instr.output();
-  if (output_opnd->type() == OperandBase::kNone) {
+  if (output_opnd->type() == Operand::kNone) {
     fmt::print(out, "{:>16}   ", "");
   } else {
     std::stringstream ss;
@@ -91,7 +91,7 @@ void Printer::print(std::ostream& out, const Instruction& instr) {
       out << ")";
     }
   } else {
-    instr.foreachInputOperand([&sep, &out, this](const OperandBase* operand) {
+    instr.foreachInputOperand([&sep, &out, this](const Operand* operand) {
       out << sep;
       print(out, *operand);
       sep = ", ";
@@ -99,37 +99,35 @@ void Printer::print(std::ostream& out, const Instruction& instr) {
   }
 }
 
-void Printer::print(std::ostream& out, const OperandBase& operand) {
+void Printer::print(std::ostream& out, const Operand& operand) {
   if (operand.isLinked()) {
-    auto linked_opnd =
-        static_cast<const LinkedOperand&>(operand).getLinkedOperand();
-    print(out, *linked_opnd);
+    print(out, *operand.getLinkedOperand());
     return;
   }
 
   switch (operand.type()) {
-    case OperandBase::kVreg:
+    case Operand::kVreg:
       out << "%" << operand.instr()->id();
       break;
-    case OperandBase::kReg:
+    case Operand::kReg:
       out << PhyLocation(operand.getPhyRegister());
       break;
-    case OperandBase::kStack:
+    case Operand::kStack:
       out << PhyLocation(operand.getStackSlot());
       break;
-    case OperandBase::kMem:
+    case Operand::kMem:
       out << "[" << std::hex << operand.getMemoryAddress() << "]" << std::dec;
       break;
-    case OperandBase::kInd:
+    case Operand::kInd:
       out << *operand.getMemoryIndirect();
       break;
-    case OperandBase::kImm:
+    case Operand::kImm:
       fmt::print(out, "{0}({0:#x})", operand.getConstant());
       break;
-    case OperandBase::kLabel:
+    case Operand::kLabel:
       out << "BB%" << operand.getBasicBlock()->id();
       break;
-    case OperandBase::kNone:
+    case Operand::kNone:
       out << "<!!!None!!!>";
       break;
   }
