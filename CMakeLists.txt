@@ -311,7 +311,11 @@ endif()
 # UpstreamBorrow/
 
 if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14 OR ${PY_VERSION} EQUAL 3.15)
-  set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-${PY_VERSION}.gen_cached.c)
+  if (ENABLE_FREE_THREADING AND EXISTS ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-${PY_VERSION}.free-threading.gen_cached.c)
+    set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-${PY_VERSION}.free-threading.gen_cached.c)
+  else()
+    set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-${PY_VERSION}.gen_cached.c)
+  endif()
 else()
   set(BORROWED_C "${GENERATED_HEADER_DIR}/dummy-borrowed.c")
   file(WRITE ${BORROWED_C} "")
