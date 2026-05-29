@@ -308,9 +308,25 @@ class LIRGenerator {
   CurrentFrameAccessor makeCurrentFrameAccessor(BasicBlockBuilder& bbb);
 
   void emitLoadFrame(BasicBlockBuilder& bbb);
-  void emitInlineUnlinkLeafFrame(BasicBlockBuilder& bbb);
-  void emitInlineUnlinkFastFrame(BasicBlockBuilder& bbb);
-  void emitDecrefExecutable(BasicBlockBuilder& bbb);
+  void emitUnlinkFrame(
+      BasicBlockBuilder& bbb,
+      bool has_freevars,
+      Instruction* func_reg,
+      PyObject* executable,
+      std::optional<destructor> exec_dtor,
+      Instruction* callee_frame = nullptr);
+  void emitInlineUnlinkLeafFrame(
+      BasicBlockBuilder& bbb,
+      Instruction* func_reg,
+      PyObject* executable,
+      std::optional<destructor> exec_dtor,
+      Instruction* callee_frame = nullptr);
+  void emitInlineUnlinkFastFrame(
+      BasicBlockBuilder& bbb,
+      Instruction* func_reg,
+      PyObject* executable,
+      std::optional<destructor> exec_dtor,
+      Instruction* callee_frame = nullptr);
 
   void emitExceptionCheck(
       const jit::hir::DeoptBase& i,
