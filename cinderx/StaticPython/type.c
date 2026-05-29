@@ -136,13 +136,13 @@ uint64_t _PyClassLoader_Unbox(PyObject* value, int primitive_type) {
     case TYPED_INT16:
     case TYPED_INT32:
     case TYPED_INT64:
-      new_val = (uint64_t)PyLong_AsLong(value);
+      new_val = (uint64_t)PyLong_AsSsize_t(value);
       break;
     case TYPED_UINT8:
     case TYPED_UINT16:
     case TYPED_UINT32:
     case TYPED_UINT64:
-      new_val = (uint64_t)PyLong_AsUnsignedLong(value);
+      new_val = (uint64_t)PyLong_AsSize_t(value);
       break;
     case TYPED_DOUBLE:
       res = PyFloat_AsDouble(value);

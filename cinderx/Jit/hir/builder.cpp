@@ -3042,9 +3042,8 @@ void HIRBuilder::emitPrimitiveLoadConst(
   } else if (size <= TCBool) {
     type = Type::fromCBool(num == Py_True);
   } else {
-    type = (size <= TCUnsigned)
-        ? Type::fromCUInt(PyLong_AsUnsignedLong(num), size)
-        : Type::fromCInt(PyLong_AsLong(num), size);
+    type = (size <= TCUnsigned) ? Type::fromCUInt(PyLong_AsSize_t(num), size)
+                                : Type::fromCInt(PyLong_AsSsize_t(num), size);
   }
   tc.emit<LoadConst>(tmp, type);
   tc.frame.stack.push(tmp);
