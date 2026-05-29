@@ -12,9 +12,10 @@ class CinderXOSSTest(unittest.TestCase):
 
         if not cinderx.is_initialized():
             try:
+                # pyrefly: ignore [missing-import]
                 import _cinderx
             except Exception as e:
-                print(f"Failed to import cinder: {e}")
+                print(f"Failed to import _cinderx: {e}")
 
         self.assertTrue(cinderx.is_initialized())
 

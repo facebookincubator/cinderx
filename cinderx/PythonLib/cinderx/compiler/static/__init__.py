@@ -87,13 +87,6 @@ from .types import (
     Value,
 )
 
-try:
-    from cinder import _set_qualname
-except ImportError:
-
-    def _set_qualname(code: CodeType, qualname: str) -> None:
-        pass
-
 
 def exec_static(
     source: str,
@@ -145,9 +138,7 @@ class InitSubClassGenerator:
         return self.qualname
 
     def getCode(self) -> CodeType:
-        code = self.flow_graph.getCode()
-        _set_qualname(code, self.qualname)
-        return code
+        return self.flow_graph.getCode()
 
 
 class StaticCodeGenBase(StrictCodeGenBase):

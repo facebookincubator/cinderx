@@ -10,15 +10,6 @@ from collections import UserDict
 from types import FunctionType
 from typing import Optional, TypeVar
 
-
-try:
-    from cinder import _get_qualname
-except:  # noqa: B001
-
-    def _get_qualname(code):
-        return code.co_qualname
-
-
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static.types import (
@@ -1928,11 +1919,11 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             C = mod.C
-            self.assertEqual(_get_qualname(f.__code__), "f")
+            self.assertEqual(f.__code__.co_qualname, "f")
 
-            self.assertEqual(_get_qualname(C.x.__code__), "C.x")
-            self.assertEqual(_get_qualname(C.sm.__code__), "C.sm")
-            self.assertEqual(_get_qualname(C.cm.__code__), "C.cm")
+            self.assertEqual(C.x.__code__.co_qualname, "C.x")
+            self.assertEqual(C.sm.__code__.co_qualname, "C.sm")
+            self.assertEqual(C.cm.__code__.co_qualname, "C.cm")
 
     def test_refine_optional_name(self):
         codestr = """

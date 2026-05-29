@@ -91,13 +91,6 @@ try:
 except Exception:
     raise
 
-try:
-    from cinder import _set_qualname as cx_set_qualname
-except ImportError:
-
-    def cx_set_qualname(code: CodeType, qualname: str | None) -> None:
-        pass
-
 
 IS_3_12_8: bool = sys.version_info[:3] >= (3, 12, 8)
 
@@ -5010,12 +5003,6 @@ class CinderCodeGenBase(CodeGenerator):
 
     def set_qual_name(self, qualname: str) -> None:
         self._qual_name = qualname
-
-    def getCode(self) -> CodeType:
-        code = super().getCode()
-        # pyrefly: ignore [bad-argument-type]
-        cx_set_qualname(code, self._qual_name)
-        return code
 
     def visitAttribute(self, node: ast.Attribute) -> None:
         if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
