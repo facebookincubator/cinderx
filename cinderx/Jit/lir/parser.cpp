@@ -375,7 +375,7 @@ void Parser::setSuccessorBlocks(const std::string& bbdef, BasicBlock* bb) {
 DataType Parser::getOperandDataType(const std::string& name) const {
   static const std::unordered_map<std::string, DataType>
       type_name_to_data_type = {
-#define TYPE_NAME_TO_DATA_TYPE(v, ...) {":" #v, OperandBase::k##v},
+#define TYPE_NAME_TO_DATA_TYPE(v, ...) {":" #v, Operand::k##v},
           FOREACH_OPERAND_DATA_TYPE(TYPE_NAME_TO_DATA_TYPE)
 #undef TYPE_NAME_TO_DATA_TYPE
       };
@@ -442,7 +442,7 @@ void Parser::parseInput(const Token& token, const char* code) {
       std::string name(code, token.length);
       const uint64_t* addr = pyFunctionFromName(name);
       expect(addr != nullptr, code, "Can't find such a function");
-      instr_->allocateImmediateInput(*addr, OperandBase::kObject);
+      instr_->allocateImmediateInput(*addr, Operand::kObject);
       break;
     }
     case kStringLiteral: {
@@ -452,8 +452,7 @@ void Parser::parseInput(const Token& token, const char* code) {
       std::unordered_set<std::string>& v = GetStringLiterals();
       auto ret = v.emplace(std::move(str_content));
       instr_->allocateImmediateInput(
-          reinterpret_cast<uint64_t>((*ret.first).c_str()),
-          OperandBase::kObject);
+          reinterpret_cast<uint64_t>((*ret.first).c_str()), Operand::kObject);
       break;
     }
     default:

@@ -25,7 +25,7 @@ namespace jit::codegen::autogen {
 
 namespace {
 
-bool isMemoryMoveOperand(const OperandBase* operand) {
+bool isMemoryMoveOperand(const lir::Operand* operand) {
   return operand->isStack() || operand->isMem() || operand->isInd();
 }
 
@@ -50,14 +50,14 @@ void checkMoveRelaxedOperandShape(const Instruction* instr) {
 
 } // namespace
 
-arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
+arch::Mem AsmIndirectOperandBuilder(const lir::Operand* operand) {
   JIT_DCHECK(operand->isInd(), "operand should be an indirect reference");
 
 #if defined(CINDER_X86_64)
   auto indirect = operand->getMemoryIndirect();
 
-  OperandBase* base = indirect->getBaseRegOperand();
-  OperandBase* index = indirect->getIndexRegOperand();
+  lir::Operand* base = indirect->getBaseRegOperand();
+  lir::Operand* index = indirect->getIndexRegOperand();
 
   if (index == nullptr) {
     return asmjit::x86::ptr(
@@ -79,7 +79,7 @@ arch::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
 
 // Resolves the operand size in bits, respecting the instruction's
 // OperandSizeType property.
-int getOperandSize(const Instruction* instr, const OperandBase* operand) {
+int getOperandSize(const Instruction* instr, const lir::Operand* operand) {
   auto size_type = InstrProperty::getProperties(instr).opnd_size_type;
   switch (size_type) {
     case kAlways64:
@@ -100,13 +100,13 @@ int getOperandSize(const Instruction* instr, const OperandBase* operand) {
 
 int getOperandSizeInBytes(
     const Instruction* instr,
-    const OperandBase* operand) {
+    const lir::Operand* operand) {
   return getOperandSize(instr, operand) / 8;
 }
 
 // Returns the appropriately-sized Gp register for a given operand, respecting
 // the instruction's OperandSizeType property.
-arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
+arch::Gp getReg(const Instruction* instr, const lir::Operand* operand) {
   JIT_CHECK(
       operand->isReg(),
       "Expected a register for getReg '{}' in '{}'",
@@ -143,7 +143,7 @@ arch::Gp getReg(const Instruction* instr, const OperandBase* operand) {
 
 // Returns an arch::Mem for a given memory operand (stack, mem, or indirect),
 // with size set according to the instruction's OperandSizeType property.
-arch::Mem getMem(const Instruction* instr, const OperandBase* operand) {
+arch::Mem getMem(const Instruction* instr, const lir::Operand* operand) {
 #if defined(CINDER_X86_64)
   int size = getOperandSizeInBytes(instr, operand);
   asmjit::x86::Mem memptr;
@@ -172,11 +172,11 @@ arch::Mem getMem(const Instruction* instr, const OperandBase* operand) {
 #endif
 }
 
-asmjit::Imm getImm(const OperandBase* operand) {
+asmjit::Imm getImm(const lir::Operand* operand) {
   return asmjit::Imm(operand->getConstant());
 }
 
-asmjit::Label getLabel(Environ* env, const OperandBase* operand) {
+asmjit::Label getLabel(Environ* env, const lir::Operand* operand) {
   if (operand->getDefine()->hasAsmLabel()) {
     return operand->getDefine()->getAsmLabel();
   }
@@ -219,7 +219,7 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   arch::Gp reg = x86::rax;
   bool is_double = false;
   if (kind != kAlwaysFail) {
-    if (instr->getInput(2)->dataType() == jit::lir::OperandBase::kDouble) {
+    if (instr->getInput(2)->dataType() == jit::lir::Operand::kDouble) {
       JIT_CHECK(kind == kNotZero, "Only NotZero is supported for double");
       auto vecd_reg = AutoTranslator::getVecD(instr->getInput(2));
       as->ptest(vecd_reg, vecd_reg);
@@ -296,12 +296,12 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
   size_t sign_bit = 0;
   if (kind != kAlwaysFail) {
     auto data_type = instr->getInput(2)->dataType();
-    if (data_type == jit::lir::OperandBase::k8bit) {
+    if (data_type == jit::lir::Operand::k8bit) {
       mask = 0xFF;
       sign_bit = 7;
       // aarch64 doesn't have 8-bit registers, use 32-bit w register.
       reg = asmjit::a64::w(instr->getInput(2)->getPhyRegister().loc);
-    } else if (data_type == jit::lir::OperandBase::k16bit) {
+    } else if (data_type == jit::lir::Operand::k16bit) {
       mask = 0xFFFF;
       sign_bit = 15;
       // aarch64 doesn't have 16-bit registers, use 32-bit w register.
@@ -413,8 +413,8 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
 void TranslateCompare(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
   auto as = env->as;
-  const OperandBase* inp0 = instr->getInput(0);
-  const OperandBase* inp1 = instr->getInput(1);
+  const lir::Operand* inp0 = instr->getInput(0);
+  const lir::Operand* inp1 = instr->getInput(1);
 
   if (inp1->isImm() || inp1->isMem()) {
     as->cmp(AutoTranslator::getGp(inp0), inp1->getConstantOrAddress());
@@ -458,15 +458,15 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
     default:
       JIT_ABORT("bad instruction for TranslateCompare");
   }
-  if (instr->output()->dataType() != OperandBase::k8bit) {
+  if (instr->output()->dataType() != lir::Operand::k8bit) {
     as->movzx(
         AutoTranslator::getGp(instr->output()),
         asmjit::x86::gpb(instr->output()->getPhyRegister().loc));
   }
 #elif defined(CINDER_AARCH64)
   auto as = env->as;
-  const OperandBase* inp0 = instr->getInput(0);
-  const OperandBase* inp1 = instr->getInput(1);
+  const lir::Operand* inp0 = instr->getInput(0);
+  const lir::Operand* inp1 = instr->getInput(1);
 
   if (inp1->isMem()) {
     JIT_CHECK(inp1->sizeInBits() == 64, "Only 64-bit memory supported");
@@ -529,10 +529,10 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
 void translateIntToBool(Environ* env, const Instruction* instr) {
 #if defined(CINDER_X86_64)
   x86::Builder* as = env->as;
-  const OperandBase* input = instr->getInput(0);
+  const lir::Operand* input = instr->getInput(0);
   x86::Gp output = AutoTranslator::getGp(instr->output());
   JIT_CHECK(
-      instr->output()->dataType() == OperandBase::k8bit,
+      instr->output()->dataType() == lir::Operand::k8bit,
       "Output should be 8bits, not {}",
       instr->output()->dataType());
   if (input->isImm()) {
@@ -543,10 +543,10 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
   }
 #elif defined(CINDER_AARCH64)
   a64::Builder* as = env->as;
-  const OperandBase* input = instr->getInput(0);
+  const lir::Operand* input = instr->getInput(0);
   a64::Gp output = AutoTranslator::getGpOutput(instr->output());
   JIT_CHECK(
-      instr->output()->dataType() == OperandBase::k8bit,
+      instr->output()->dataType() == lir::Operand::k8bit,
       "Output should be 8bits, not {}",
       instr->output()->dataType());
   as->cmp(AutoTranslator::getGpWiden(input), 0);
@@ -1190,7 +1190,7 @@ void translateSetupFrame(Environ* env, const Instruction*) {
 // Used by kBranch when its input is a MemoryIndirect operand.
 void translateBranchIndirect(Environ* env, const Instruction* instr) {
   arch::Builder* as = env->as;
-  const OperandBase* input = instr->getInput(0);
+  const lir::Operand* input = instr->getInput(0);
 
   if (input->isReg()) {
 #if defined(CINDER_X86_64)
@@ -1418,7 +1418,7 @@ using AT = AutoTranslator;
 // We do not want to extend AT::getGp to support SP because we only want to
 // return SP in very specific circumstances (e.g., building an address relative
 // to SP).
-arch::Gp getGpOrSP(const OperandBase* operand) {
+arch::Gp getGpOrSP(const lir::Operand* operand) {
   if (operand->getPhyRegister() == SP) {
     return a64::sp;
   } else {
@@ -1509,17 +1509,17 @@ arch::Mem ptrIndirect(
 
 void loadToReg(
     arch::Builder* as,
-    const OperandBase* output,
+    const lir::Operand* output,
     const arch::Mem& input) {
   if (output->isVecD()) {
     as->ldr(AT::getVecD(output), input);
   } else {
     switch (output->dataType()) {
-      case OperandBase::k8bit:
+      case lir::Operand::k8bit:
         as->ldrb(
             AT::getGp(DataType::k32bit, output->getPhyRegister().loc), input);
         break;
-      case OperandBase::k16bit:
+      case lir::Operand::k16bit:
         as->ldrh(
             AT::getGp(DataType::k32bit, output->getPhyRegister().loc), input);
         break;
@@ -1532,18 +1532,18 @@ void loadToReg(
 
 void storeFromReg(
     arch::Builder* as,
-    const OperandBase* input,
-    const OperandBase* output_operand,
+    const lir::Operand* input,
+    const lir::Operand* output_operand,
     const arch::Mem& output) {
   if (input->isVecD()) {
     as->str(AT::getVecD(input), output);
   } else {
     switch (output_operand->dataType()) {
-      case OperandBase::k8bit:
+      case lir::Operand::k8bit:
         as->strb(
             AT::getGp(DataType::k32bit, input->getPhyRegister().loc), output);
         break;
-      case OperandBase::k16bit:
+      case lir::Operand::k16bit:
         as->strh(
             AT::getGp(DataType::k32bit, input->getPhyRegister().loc), output);
         break;
@@ -1618,7 +1618,7 @@ void translateCall(Environ* env, const Instruction* instr) {
     env->pending_debug_locs.emplace_back(label, instr->origin());
   }
 
-  if (output->type() != OperandBase::kNone) {
+  if (output->type() != lir::Operand::kNone) {
     if (output->isVecD()) {
       as->mov(AT::getVecD(output), a64::d0);
     } else {
@@ -1649,8 +1649,8 @@ void translateMove(Environ* env, const Instruction* instr) {
   auto scratch0 = arch::reg_scratch_0;
   auto scratch1 = arch::reg_scratch_1;
 
-  const OperandBase* output = instr->output();
-  const OperandBase* input = instr->getInput(0);
+  const lir::Operand* output = instr->output();
+  const lir::Operand* input = instr->getInput(0);
 
   if (instr->isMoveRelaxed()) {
     checkMoveRelaxedOperandShape(instr);
@@ -1683,10 +1683,10 @@ void translateMove(Environ* env, const Instruction* instr) {
             as->ldr(AT::getVecD(output), ptr);
           } else {
             switch (output->dataType()) {
-              case OperandBase::k8bit:
+              case lir::Operand::k8bit:
                 as->ldrb(AT::getGpOutput(output), ptr);
                 break;
-              case OperandBase::k16bit:
+              case lir::Operand::k16bit:
                 as->ldrh(AT::getGpOutput(output), ptr);
                 break;
               default:
@@ -1718,7 +1718,7 @@ void translateMove(Environ* env, const Instruction* instr) {
             as->mov(
                 AT::getGpWiden(output),
                 AT::getGpWiden(output->dataType(), a64::xzr.id()));
-          } else if (input->dataType() == OperandBase::kObject) {
+          } else if (input->dataType() == lir::Operand::kObject) {
             // Pointer constant: use load_addr which relaxes to adr, adrp+add,
             // or ldr from address table depending on displacement.
             // load_addr emits adr which requires a 64-bit x register.
@@ -1784,15 +1784,15 @@ void translateMove(Environ* env, const Instruction* instr) {
 
         // Use the output's data type to determine the store width.
         switch (output->dataType()) {
-          case OperandBase::k8bit:
+          case lir::Operand::k8bit:
             as->mov(a64::w(scratch1.id()), input->getConstant());
             as->strb(a64::w(scratch1.id()), ptr);
             break;
-          case OperandBase::k16bit:
+          case lir::Operand::k16bit:
             as->mov(a64::w(scratch1.id()), input->getConstant());
             as->strh(a64::w(scratch1.id()), ptr);
             break;
-          case OperandBase::k32bit:
+          case lir::Operand::k32bit:
             // Use w register for 4-byte store to avoid overflowing
             // tightly-packed fields.
             as->mov(a64::w(scratch1.id()), input->getConstant());
@@ -1852,7 +1852,7 @@ void translateMovExtOp(
   a64::Builder* as = env->as;
 
   auto output = AT::getGpOutput(instr->output());
-  const OperandBase* input = instr->getInput(0);
+  const lir::Operand* input = instr->getInput(0);
   int input_size = input->sizeInBits();
 
   if (input->isReg()) {
@@ -1940,7 +1940,7 @@ void translateMovSXD(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
   auto output = AT::getGpOutput(instr->output());
-  const OperandBase* input = instr->getInput(0);
+  const lir::Operand* input = instr->getInput(0);
 
   if (input->isReg()) {
     auto input_reg = asmjit::a64::w(input->getPhyRegister().loc);
@@ -1964,9 +1964,9 @@ void translateUnreachable(Environ* env, const Instruction* instr) {
 void translateNegate(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* output =
+  const lir::Operand* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
-  const OperandBase* opnd0 = instr->getInput(0);
+  const lir::Operand* opnd0 = instr->getInput(0);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
 
@@ -1982,9 +1982,9 @@ void translateNegate(Environ* env, const Instruction* instr) {
 void translateInvert(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* output =
+  const lir::Operand* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
-  const OperandBase* opnd0 = instr->getInput(0);
+  const lir::Operand* opnd0 = instr->getInput(0);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
 
@@ -2005,10 +2005,10 @@ void translateAddSubOp(
     EmitFn emit) {
   a64::Builder* as = env->as;
 
-  const OperandBase* output =
+  const lir::Operand* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
-  const OperandBase* opnd0 = instr->getInput(0);
-  const OperandBase* opnd1 = instr->getInput(1);
+  const lir::Operand* opnd0 = instr->getInput(0);
+  const lir::Operand* opnd1 = instr->getInput(1);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
@@ -2048,10 +2048,10 @@ void translateLogicalOp(
     EmitFn emit) {
   a64::Builder* as = env->as;
 
-  const OperandBase* output =
+  const lir::Operand* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
-  const OperandBase* opnd0 = instr->getInput(0);
-  const OperandBase* opnd1 = instr->getInput(1);
+  const lir::Operand* opnd0 = instr->getInput(0);
+  const lir::Operand* opnd1 = instr->getInput(1);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
@@ -2093,10 +2093,10 @@ void translateXor(Environ* env, const Instruction* instr) {
 void translateMul(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* output =
+  const lir::Operand* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
-  const OperandBase* opnd0 = instr->getInput(0);
-  const OperandBase* opnd1 = instr->getInput(1);
+  const lir::Operand* opnd0 = instr->getInput(0);
+  const lir::Operand* opnd1 = instr->getInput(1);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
@@ -2137,7 +2137,7 @@ void translateDivOp(
     EmitFn emit) {
   a64::Builder* as = env->as;
 
-  const OperandBase* output =
+  const lir::Operand* output =
       instr->getNumOutputs() > 0 ? instr->output() : instr->getInput(0);
 
   // Division instructions may have an extra leading Imm{0} input (used by x86
@@ -2146,8 +2146,8 @@ void translateDivOp(
   if (instr->getNumInputs() == 3 && instr->getInput(0)->isImm()) {
     base = 1;
   }
-  const OperandBase* opnd0 = instr->getInput(base);
-  const OperandBase* opnd1 = instr->getInput(base + 1);
+  const lir::Operand* opnd0 = instr->getInput(base);
+  const lir::Operand* opnd1 = instr->getInput(base + 1);
 
   JIT_CHECK(output->isReg(), "Expected output to be a register");
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
@@ -2182,7 +2182,7 @@ void translateDivUn(Environ* env, const Instruction* instr) {
 void translatePush(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* operand = instr->getInput(0);
+  const lir::Operand* operand = instr->getInput(0);
 
   if (operand->isReg()) {
     auto reg = AT::getGpWiden(operand);
@@ -2200,7 +2200,7 @@ void translatePush(Environ* env, const Instruction* instr) {
 void translatePop(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* operand = instr->output();
+  const lir::Operand* operand = instr->output();
 
   if (operand->isReg()) {
     auto reg = AT::getGpWiden(operand);
@@ -2218,8 +2218,8 @@ void translatePop(Environ* env, const Instruction* instr) {
 void translateExchange(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* opnd0 = instr->output();
-  const OperandBase* opnd1 = instr->getInput(0);
+  const lir::Operand* opnd0 = instr->output();
+  const lir::Operand* opnd1 = instr->getInput(0);
 
   JIT_CHECK(opnd0->isReg(), "Expected opnd0 to be a register");
   JIT_CHECK(opnd1->isReg(), "Expected opnd1 to be a register");
@@ -2245,8 +2245,8 @@ void translateExchange(Environ* env, const Instruction* instr) {
 void translateCmp(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
 
-  const OperandBase* inp0 = instr->getInput(0);
-  const OperandBase* inp1 = instr->getInput(1);
+  const lir::Operand* inp0 = instr->getInput(0);
+  const lir::Operand* inp1 = instr->getInput(1);
 
   JIT_CHECK(inp0->isReg(), "Expected first input to be a register");
 
@@ -2327,9 +2327,9 @@ void translateTst(Environ* env, const Instruction* instr) {
   // 32-bit register using LSL so that TST sets the N and Z flags correctly for
   // the sub-register width.
   int shift = 0;
-  if (data_type == jit::lir::OperandBase::k8bit) {
+  if (data_type == jit::lir::Operand::k8bit) {
     shift = 24;
-  } else if (data_type == jit::lir::OperandBase::k16bit) {
+  } else if (data_type == jit::lir::Operand::k16bit) {
     shift = 16;
   }
 
@@ -2351,8 +2351,8 @@ void translateSelect(Environ* env, const Instruction* instr) {
   auto condition_op = instr->getInput(0);
   arch::Gp condition_reg;
   switch (condition_op->dataType()) {
-    case jit::lir::OperandBase::k8bit:
-    case jit::lir::OperandBase::k16bit:
+    case jit::lir::Operand::k8bit:
+    case jit::lir::Operand::k16bit:
       condition_reg =
           AT::getGp(DataType::k32bit, condition_op->getPhyRegister().loc);
       as->and_(

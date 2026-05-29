@@ -37,7 +37,7 @@ void insertMoveToMemoryLocation(
     instr_iter_t instr_iter,
     PhyLocation base,
     int index,
-    const OperandBase* operand,
+    const Operand* operand,
     PhyLocation temp = arch::reg_scratch_0_loc) {
   auto data_type = operand->dataType();
 
@@ -122,7 +122,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
         }
         auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
         move->output()->setPhyRegister(FP_ARGUMENT_REGS[arg_pos]);
-        move->output()->setDataType(OperandBase::kDouble);
+        move->output()->setDataType(Operand::kDouble);
 
         if (operand_imm) {
           move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
@@ -166,7 +166,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
         }
         auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
         move->output()->setPhyRegister(FP_ARGUMENT_REGS[fp_arg_reg++]);
-        move->output()->setDataType(OperandBase::kDouble);
+        move->output()->setDataType(Operand::kDouble);
 
         if (operand_imm) {
           move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
@@ -238,8 +238,8 @@ int prepareArgsArray(
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutPhyReg(size_dest, lir::OperandBase::k64bit),
-      Imm(num_args | flags, lir::OperandBase::k64bit));
+      OutPhyReg(size_dest, lir::Operand::k64bit),
+      Imm(num_args | flags, lir::Operand::k64bit));
 
   for (size_t i = first_arg; i < first_arg + num_args; i++) {
     auto arg = instr->getInput(i);
@@ -379,7 +379,7 @@ int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
 
   auto move_tstate = block->allocateInstrBefore(instr_iter, Instruction::kMove);
   move_tstate->output()->setPhyRegister(ARGUMENT_REGS[0]);
-  move_tstate->output()->setDataType(OperandBase::kObject);
+  move_tstate->output()->setDataType(Operand::kObject);
   move_tstate->appendInput(instr->releaseInput(2));
 
   return rewriteVectorCallCommon(instr_iter, base_offset, 1, 3, 4);
@@ -485,11 +485,11 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
   auto out_size = out->dataType();
   if (in->isImm()) {
     long mask = 0;
-    if (out_size == OperandBase::k32bit) {
+    if (out_size == Operand::k32bit) {
       mask = 0xffffffffl;
-    } else if (out_size == OperandBase::k16bit) {
+    } else if (out_size == Operand::k16bit) {
       mask = 0xffffl;
-    } else if (out_size == OperandBase::k8bit) {
+    } else if (out_size == Operand::k8bit) {
       mask = 0xffl;
     } else {
       mask = 0xffffffffffffffffl;
@@ -506,24 +506,24 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
   }
 
   switch (in_size) {
-    case OperandBase::k8bit:
-    case OperandBase::k16bit:
+    case Operand::k8bit:
+    case Operand::k16bit:
       instr->setOpcode(is_sext ? Instruction::kMovSX : Instruction::kMovZX);
       break;
-    case OperandBase::k32bit:
+    case Operand::k32bit:
       if (is_sext) {
         instr->setOpcode(Instruction::kMovSXD);
       } else {
         // must be unsigned extension from 32 bits to 64 bits.
         // in this case, a 32-bit move will do the work.
         instr->setOpcode(Instruction::kMove);
-        instr->output()->setDataType(lir::OperandBase::k32bit);
+        instr->output()->setDataType(lir::Operand::k32bit);
       }
       break;
-    case OperandBase::k64bit:
-    case OperandBase::kObject:
+    case Operand::k64bit:
+    case Operand::kObject:
       JIT_ABORT("can't be smaller than the maximum size");
-    case OperandBase::kDouble:
+    case Operand::kDouble:
       JIT_ABORT("A float point number cannot be the input of the instruction.");
   }
 
@@ -751,8 +751,8 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
     }
     auto reg = input->getPhyRegister();
     auto size = input->dataType();
-    if (size == OperandBase::k8bit || size == OperandBase::k16bit) {
-      size = OperandBase::k32bit;
+    if (size == Operand::k8bit || size == Operand::k16bit) {
+      size = Operand::k32bit;
     }
     instr->setOpcode(cbz_opcode);
     instr->setNumInputs(0);
@@ -967,7 +967,7 @@ RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
   }
 
   auto size = out->dataType();
-  if (size != OperandBase::k8bit && size != OperandBase::k16bit) {
+  if (size != Operand::k8bit && size != Operand::k16bit) {
     return kUnchanged;
   }
 
@@ -976,9 +976,8 @@ RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  out->setDataType(OperandBase::k32bit);
-  if (in->dataType() == OperandBase::k8bit ||
-      in->dataType() == OperandBase::k16bit) {
+  out->setDataType(Operand::k32bit);
+  if (in->dataType() == Operand::k8bit || in->dataType() == Operand::k16bit) {
     in->setDataType(Operand::k32bit);
   }
   return kChanged;
@@ -1213,7 +1212,7 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
 
   Operand* input0 = instr->getInput(0);
 
-  if (input0->dataType() > OperandBase::k8bit) {
+  if (input0->dataType() > Operand::k8bit) {
     return kUnchanged;
   }
 
@@ -1230,19 +1229,19 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
-        OutPhyReg(AL, OperandBase::k8bit),
-        PhyReg(in_reg, OperandBase::k8bit));
+        OutPhyReg(AL, Operand::k8bit),
+        PhyReg(in_reg, Operand::k8bit));
     input0->setPhyRegister(AL);
   }
   // asmjit only recognizes 8-bit imul if RAX is passed as 16-bit.
-  input0->setDataType(OperandBase::k16bit);
+  input0->setDataType(Operand::k16bit);
   output->setNone(); // no output means first input is also output
   if (out_reg != RAX) {
     block->allocateInstrBefore(
         std::next(instr_iter),
         Instruction::kMove,
-        OutPhyReg(out_reg, OperandBase::k8bit),
-        PhyReg(AL, OperandBase::k8bit));
+        OutPhyReg(out_reg, Operand::k8bit),
+        PhyReg(AL, Operand::k8bit));
   }
   return kChanged;
 }
@@ -1301,14 +1300,14 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
   }
 
   PhyLocation out_reg = RAX;
-  if (output->type() != OperandBase::kNone) {
+  if (output->type() != Operand::kNone) {
     out_reg = output->getPhyRegister();
   } else {
     JIT_CHECK(dividend_lower->isReg(), "input should be in register");
     out_reg = dividend_lower->getPhyRegister();
   }
 
-  if (dividend_lower->dataType() == OperandBase::k8bit) {
+  if (dividend_lower->dataType() == Operand::k8bit) {
     // 8-bit division uses 16-bits from ax instead of using
     // dx as the upper word, so we need to sign extend it to
     // be a 16-bit input (we'll use the size from the divisor
@@ -1325,10 +1324,10 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
         dividend_lower->isImm() ? Instruction::kMove
             : instr->isDiv()    ? Instruction::kMovSX
                                 : Instruction::kMovZX,
-        OutPhyReg(AX, OperandBase::k16bit));
+        OutPhyReg(AX, Operand::k16bit));
 
     if (dividend_lower->isImm()) {
-      dividend_lower->setDataType(OperandBase::k16bit);
+      dividend_lower->setDataType(Operand::k16bit);
     }
 
     auto divisor_removed = instr->removeInput(2);
@@ -1337,7 +1336,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
 
     instr->removeInput(0); // Imm/rdx, no longer used
 
-    instr->addOperands(PhyReg(AX, OperandBase::k16bit));
+    instr->addOperands(PhyReg(AX, Operand::k16bit));
     instr->appendInput(std::move(divisor_removed));
     changed = true;
   } else {
@@ -1479,7 +1478,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
       auto out_reg = instr->output()->isReg()
           ? instr->output()->getPhyRegister()
           : PhyLocation::REG_INVALID;
-      instr->foreachInputOperand([&](OperandBase* operand) {
+      instr->foreachInputOperand([&](Operand* operand) {
         if (!operand->isStack()) {
           return;
         }
@@ -1512,7 +1511,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
       });
     }
 
-    auto invalidateOperand = [&](const OperandBase* opnd) {
+    auto invalidateOperand = [&](const Operand* opnd) {
       if (opnd->isStack() || opnd->isReg()) {
         registerMemoryMoves.invalidate(opnd->getPhyRegOrStackSlot());
       }
@@ -1521,7 +1520,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
     if (instr->isMove() || instr->isPush() || instr->isPop()) {
       if (instr->isMove()) {
         Operand* out = instr->output();
-        OperandBase* in = instr->getInput(0);
+        Operand* in = instr->getInput(0);
         if (out->isStack() && in->isReg()) {
           registerMemoryMoves.addRegisterToMemoryMove(
               in->getPhyRegister(), out->getStackSlot(), instr_iter);

@@ -295,8 +295,7 @@ class Instruction {
     } else if constexpr (std::is_same_v<FT, Imm>) {
       allocateImmediateInput(first_arg.value)->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, FPImm>) {
-      allocateFPImmediateInput(first_arg.value)
-          ->setDataType(OperandBase::kDouble);
+      allocateFPImmediateInput(first_arg.value)->setDataType(Operand::kDouble);
     } else if constexpr (std::is_same_v<FT, MemImm>) {
       allocateAddressInput(first_arg.value)->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, Lbl>) {
@@ -322,7 +321,7 @@ class Instruction {
       output()->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, OutFPImm>) {
       output()->setFPConstant(first_arg.value);
-      output()->setDataType(OperandBase::kDouble);
+      output()->setDataType(Operand::kDouble);
     } else if constexpr (std::is_same_v<FT, OutMemImm>) {
       output()->setMemoryAddress(first_arg.value);
       output()->setDataType(first_arg.data_type);

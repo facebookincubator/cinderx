@@ -35,8 +35,7 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
           continue;
         }
         JIT_DCHECK(
-            operand->type() == OperandBase::kLabel,
-            "Branch must jump to a label.");
+            operand->type() == Operand::kLabel, "Branch must jump to a label.");
         branched_blocks.insert(operand->getBasicBlock());
       } else if (instr->isCmpBranch()) {
         JIT_DCHECK(
@@ -44,7 +43,7 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
             "CmpBranch must have register and label inputs.");
         auto operand = instr->getInput(1);
         JIT_DCHECK(
-            operand->type() == OperandBase::kLabel,
+            operand->type() == Operand::kLabel,
             "CmpBranch second input must be a label.");
         branched_blocks.insert(operand->getBasicBlock());
       }

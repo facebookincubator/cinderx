@@ -405,27 +405,24 @@ TEST_F(BackendTest, ExplicitLIRSubKeepsRhsRegisterLiveAcrossOutputDefine) {
     pressure.push_back(bb->allocateInstr(
         Instruction::kBind,
         nullptr,
-        OutVReg{OperandBase::k64bit},
-        PhyReg{reg, OperandBase::k64bit}));
+        OutVReg{Operand::k64bit},
+        PhyReg{reg, Operand::k64bit}));
   }
 
   bb->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutPhyReg{kLhsReg, OperandBase::k64bit},
-      Imm{7});
+      Instruction::kMove, nullptr, OutPhyReg{kLhsReg, Operand::k64bit}, Imm{7});
   auto rhs = bb->allocateInstr(
-      Instruction::kMove, nullptr, OutVReg{OperandBase::k64bit}, Imm{3});
+      Instruction::kMove, nullptr, OutVReg{Operand::k64bit}, Imm{3});
   auto sub = bb->allocateInstr(
       Instruction::kSub,
       nullptr,
-      OutVReg{OperandBase::k64bit},
-      PhyReg{kLhsReg, OperandBase::k64bit},
+      OutVReg{Operand::k64bit},
+      PhyReg{kLhsReg, Operand::k64bit},
       VReg{rhs});
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{arch::reg_general_return_loc, OperandBase::k64bit},
+      OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
       VReg{sub});
   bb->allocateInstr(Instruction::kReturn, nullptr);
   bb->addSuccessor(epilogue);
@@ -435,7 +432,7 @@ TEST_F(BackendTest, ExplicitLIRSubKeepsRhsRegisterLiveAcrossOutputDefine) {
     epilogue->allocateInstr(
         Instruction::kPhi,
         nullptr,
-        OutVReg{OperandBase::k64bit},
+        OutVReg{Operand::k64bit},
         Lbl{bb},
         VReg{live_out});
   }
@@ -467,7 +464,7 @@ TEST_F(BackendTest, FPArithmetic) {
         OutVReg(),
         Imm(reinterpret_cast<uint64_t>(&a)));
     auto fa = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(OperandBase::kDouble), Ind(pa));
+        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
 
     auto pb = bb->allocateInstr(
         Instruction::kMove,
@@ -475,14 +472,14 @@ TEST_F(BackendTest, FPArithmetic) {
         OutVReg(),
         Imm(reinterpret_cast<uint64_t>(&b)));
     auto fb = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(OperandBase::kDouble), Ind(pb));
+        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
     auto sum = bb->allocateInstr(
-        opcode, nullptr, OutVReg(OperandBase::kDouble), VReg(fa), VReg(fb));
+        opcode, nullptr, OutVReg(Operand::kDouble), VReg(fa), VReg(fb));
     bb->allocateInstr(
         Instruction::kMove,
         nullptr,
-        OutPhyReg{arch::reg_double_return_loc, OperandBase::kDouble},
+        OutPhyReg{arch::reg_double_return_loc, Operand::kDouble},
         VReg(sum));
     bb->allocateInstr(Instruction::kReturn, nullptr);
 
@@ -516,7 +513,7 @@ TEST_F(BackendTest, FPCompare) {
         OutVReg(),
         Imm(reinterpret_cast<uint64_t>(&a)));
     auto fa = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(OperandBase::kDouble), Ind(pa));
+        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
 
     auto pb = bb->allocateInstr(
         Instruction::kMove,
@@ -524,7 +521,7 @@ TEST_F(BackendTest, FPCompare) {
         OutVReg(),
         Imm(reinterpret_cast<uint64_t>(&b)));
     auto fb = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(OperandBase::kDouble), Ind(pb));
+        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
     auto compare =
         bb->allocateInstr(opcode, nullptr, OutVReg(), VReg(fa), VReg(fb));
@@ -685,7 +682,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
         OutVReg(),
         Imm(reinterpret_cast<uint64_t>(n)));
     auto m2 = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(OperandBase::kDouble), Ind(m1));
+        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(m1));
     return m2;
   };
 
@@ -694,7 +691,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
   auto sum1 = bb->allocateInstr(
       Instruction::kCall,
       nullptr,
-      OutVReg(OperandBase::kDouble),
+      OutVReg(Operand::kDouble),
       Imm(reinterpret_cast<uint64_t>(add)),
       VReg(la),
       VReg(lb));
@@ -704,7 +701,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
   auto sum2 = bb->allocateInstr(
       Instruction::kCall,
       nullptr,
-      OutVReg(OperandBase::kDouble),
+      OutVReg(Operand::kDouble),
       Imm(reinterpret_cast<uint64_t>(add)),
       VReg(lc),
       VReg(ld));
@@ -712,7 +709,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
   auto sum = bb->allocateInstr(
       Instruction::kCall,
       nullptr,
-      OutVReg(OperandBase::kDouble),
+      OutVReg(Operand::kDouble),
       Imm(reinterpret_cast<uint64_t>(add)),
       VReg(sum1),
       VReg(sum2));
@@ -720,7 +717,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{arch::reg_double_return_loc, OperandBase::kDouble},
+      OutPhyReg{arch::reg_double_return_loc, Operand::kDouble},
       VReg(sum));
   bb->allocateInstr(Instruction::kReturn, nullptr);
 
@@ -791,9 +788,9 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   ASSERT_EQ(spill0->opcode(), Instruction::kMove);
   ASSERT_EQ(spill1->opcode(), Instruction::kMove);
   ASSERT_EQ(arg0->opcode(), Instruction::kMove);
-  ASSERT_EQ(arg0->getInput(0)->type(), OperandBase::kReg);
+  ASSERT_EQ(arg0->getInput(0)->type(), Operand::kReg);
   ASSERT_EQ(arg1->opcode(), Instruction::kMove);
-  ASSERT_EQ(arg1->getInput(0)->type(), OperandBase::kStack);
+  ASSERT_EQ(arg1->getInput(0)->type(), Operand::kStack);
   ASSERT_EQ(arg2->opcode(), Instruction::kMove);
   ASSERT_EQ(call_instr->opcode(), Instruction::kCall);
 }
@@ -832,7 +829,7 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
 
   ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
   ASSERT_EQ((*iter)->opcode(), Instruction::kAdd);
-  ASSERT_EQ((*iter)->getInput(1)->type(), OperandBase::kStack);
+  ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kStack);
 }
 
 TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
@@ -857,30 +854,30 @@ TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutStk{kSharedSlot, OperandBase::k64bit},
-      Imm{kExpected - kExpected, OperandBase::k64bit});
+      OutStk{kSharedSlot, Operand::k64bit},
+      Imm{kExpected - kExpected, Operand::k64bit});
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{kReloadReg, OperandBase::k64bit},
-      Imm{kExpected, OperandBase::k64bit});
+      OutPhyReg{kReloadReg, Operand::k64bit},
+      Imm{kExpected, Operand::k64bit});
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutStk{kSharedSlot, OperandBase::k64bit},
-      PhyReg{kReloadReg, OperandBase::k64bit});
+      OutStk{kSharedSlot, Operand::k64bit},
+      PhyReg{kReloadReg, Operand::k64bit});
 
   auto self_reload = bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{kReloadReg, OperandBase::k64bit},
-      Stk{kSharedSlot, OperandBase::k64bit});
+      OutPhyReg{kReloadReg, Operand::k64bit},
+      Stk{kSharedSlot, Operand::k64bit});
   self_reload->getInput(0)->setLastUse();
   bb->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{arch::reg_general_return_loc, OperandBase::k64bit},
-      Stk{kSharedSlot, OperandBase::k64bit});
+      OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
+      Stk{kSharedSlot, Operand::k64bit});
   bb->allocateInstr(Instruction::kReturn, nullptr);
   bb->addSuccessor(epilogue);
 
@@ -1057,8 +1054,8 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
   auto loaded = bb0->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutVReg(OperandBase::k64bit),
-      MemImm{&src, OperandBase::k64bit});
+      OutVReg(Operand::k64bit),
+      MemImm{&src, Operand::k64bit});
   bb0->allocateInstr(
       Instruction::kMove,
       nullptr,
@@ -1067,7 +1064,7 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
   bb0->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutInd{R10, 0, OperandBase::k64bit},
+      OutInd{R10, 0, Operand::k64bit},
       VReg{loaded});
   bb0->allocateInstr(Instruction::kBranchZ, nullptr, Lbl{bb_taken});
   bb0->addSuccessor(bb_taken);
@@ -1120,25 +1117,25 @@ TEST_F(BackendTest, TsanMoveRelaxedUsesAtomicAccesses) {
   bb0->allocateInstr(
       Instruction::kMoveRelaxed,
       nullptr,
-      OutMemImm{&value, OperandBase::k64bit},
+      OutMemImm{&value, Operand::k64bit},
       PhyReg{RDI});
 
   auto byte = bb0->allocateInstr(
       Instruction::kMoveRelaxed,
       nullptr,
-      OutVReg(OperandBase::k8bit),
-      MemImm{&byte_src, OperandBase::k8bit});
+      OutVReg(Operand::k8bit),
+      MemImm{&byte_src, Operand::k8bit});
   bb0->allocateInstr(
       Instruction::kMoveRelaxed,
       nullptr,
-      OutMemImm{&byte_dst, OperandBase::k8bit},
+      OutMemImm{&byte_dst, Operand::k8bit},
       VReg(byte));
 
   auto word = bb0->allocateInstr(
       Instruction::kMoveRelaxed,
       nullptr,
-      OutVReg(OperandBase::k64bit),
-      MemImm{&value, OperandBase::k64bit});
+      OutVReg(Operand::k64bit),
+      MemImm{&value, Operand::k64bit});
   bb0->allocateInstr(
       Instruction::kMove,
       nullptr,

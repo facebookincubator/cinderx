@@ -183,7 +183,7 @@ lir::Function* LIRInliner::findCalleeFunction() {
   if (call_instr_->getNumInputs() < 1) {
     return nullptr;
   }
-  OperandBase* dest_operand = call_instr_->getInput(0);
+  Operand* dest_operand = call_instr_->getInput(0);
   if (!dest_operand->isImm()) {
     return nullptr;
   }

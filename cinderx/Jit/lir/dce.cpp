@@ -11,7 +11,7 @@ namespace jit::lir {
 
 // For the purposes of dead code elimination, we consider writes to physical
 // registers as affecting memory.
-static inline bool operandAffectsMemory(const OperandBase* operand) {
+static inline bool operandAffectsMemory(const Operand* operand) {
   return (
       operand->isReg() || operand->isStack() || operand->isMem() ||
       operand->isInd());

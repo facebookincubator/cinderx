@@ -200,29 +200,27 @@ class Operand {
       value_;
 };
 
-using OperandBase = Operand;
-
 // OperandArg reqresents different operand data types, and is used as
 // arguments to BasicBlock::allocateInstr* instructions. The latter
 // will create the operands accordingly for the instructions after
 // allocating them.
 template <typename Type, bool Output>
 struct OperandArg {
-  explicit OperandArg(Type v, DataType dt = OperandBase::kObject)
+  explicit OperandArg(Type v, DataType dt = Operand::kObject)
       : value(v), data_type(dt) {}
 
   Type value;
-  DataType data_type{OperandBase::kObject};
+  DataType data_type{Operand::kObject};
   static constexpr bool is_output = Output;
 };
 
 template <bool Output>
 struct OperandArg<uint64_t, Output> {
-  explicit OperandArg(uint64_t v, DataType dt = OperandBase::k64bit)
+  explicit OperandArg(uint64_t v, DataType dt = Operand::k64bit)
       : value(v), data_type(dt) {}
 
   uint64_t value;
-  DataType data_type{OperandBase::k64bit};
+  DataType data_type{Operand::k64bit};
   static constexpr bool is_output = Output;
 };
 
@@ -239,20 +237,20 @@ template <bool Output>
 struct OperandArg<MemoryIndirect, Output> {
   using Reg = std::variant<Instruction*, PhyLocation>;
 
-  explicit OperandArg(Reg b, DataType dt = OperandBase::kObject)
+  explicit OperandArg(Reg b, DataType dt = Operand::kObject)
       : base(b), data_type(dt) {}
-  explicit OperandArg(Reg b, int32_t off, DataType dt = OperandBase::kObject)
+  explicit OperandArg(Reg b, int32_t off, DataType dt = Operand::kObject)
       : base(b), offset(off), data_type(dt) {}
-  OperandArg(Reg b, Reg i, DataType dt = OperandBase::kObject)
+  OperandArg(Reg b, Reg i, DataType dt = Operand::kObject)
       : base(b), index(i), data_type(dt) {}
-  OperandArg(Reg b, Reg i, int32_t off, DataType dt = OperandBase::kObject)
+  OperandArg(Reg b, Reg i, int32_t off, DataType dt = Operand::kObject)
       : base(b), index(i), offset(off), data_type(dt) {}
   OperandArg(
       Reg b,
       Reg i,
       unsigned int num_bytes,
       int32_t off,
-      DataType dt = OperandBase::kObject)
+      DataType dt = Operand::kObject)
       : base(b), index(i), offset(off), data_type(dt) {
     // x86 encodes scales as size==2**X, so this does log2(num_bytes), but we
     // have a limited set of inputs.
@@ -278,15 +276,15 @@ struct OperandArg<MemoryIndirect, Output> {
   Reg index{PhyLocation::REG_INVALID};
   uint8_t multiplier{0};
   int32_t offset{0};
-  DataType data_type{OperandBase::kObject};
+  DataType data_type{Operand::kObject};
   static constexpr bool is_output = Output;
 };
 
 template <>
 struct OperandArg<void, true> {
-  OperandArg(const DataType& dt = OperandBase::kObject) : data_type(dt) {}
+  OperandArg(const DataType& dt = Operand::kObject) : data_type(dt) {}
 
-  DataType data_type{OperandBase::kObject};
+  DataType data_type{Operand::kObject};
   static constexpr bool is_output = true;
 };
 

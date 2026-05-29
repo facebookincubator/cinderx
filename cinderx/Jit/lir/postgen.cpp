@@ -308,7 +308,7 @@ RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
   }
   instr->setOpcode(Instruction::kBind);
   JIT_CHECK(instr->getNumInputs() == 1, "expected one input");
-  OperandBase* input = instr->getInput(0);
+  Operand* input = instr->getInput(0);
   JIT_CHECK(input->isImm(), "expected constant arg index as input");
   size_t arg_idx = input->getConstant();
   JIT_CHECK(
@@ -491,7 +491,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
       continue;
     }
     auto dt = input->dataType();
-    if (dt != OperandBase::k8bit && dt != OperandBase::k16bit) {
+    if (dt != Operand::k8bit && dt != Operand::k16bit) {
       continue;
     }
     auto sext = block->allocateInstrBefore(

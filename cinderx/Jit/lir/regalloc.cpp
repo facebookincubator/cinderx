@@ -505,7 +505,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
 #if defined(CINDER_X86_64)
       if ((instr_opcode == Instruction::kMul) &&
-          (instr->getInput(0)->dataType() == OperandBase::k8bit)) {
+          (instr->getInput(0)->dataType() == Operand::k8bit)) {
         // see rewriteByteMultiply
         reserveRegisters(instr_id, PhyRegisterSet(RAX));
       } else if (
@@ -513,7 +513,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
           instr_opcode == Instruction::kDivUn) {
         PhyRegisterSet reserved(RAX);
 
-        if (instr->getInput(1)->dataType() != OperandBase::k8bit) {
+        if (instr->getInput(1)->dataType() != Operand::k8bit) {
           reserved = reserved | RDX;
         }
 

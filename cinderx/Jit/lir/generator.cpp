@@ -162,7 +162,7 @@ emitSubclassCheck(BasicBlockBuilder& bbb, hir::Register* obj, Type type) {
 #undef GET_FPTR
   return bbb.appendInstr(
       Instruction::kCall,
-      OutVReg{OperandBase::k8bit},
+      OutVReg{Operand::k8bit},
       // TASK(T140174965): This should be MemImm.
       Imm{fptr},
       obj);
@@ -564,10 +564,10 @@ void PopulateEntryBlock(
       entry_block->allocateInstr(
           Instruction::kMove,
           nullptr,
-          OutPhyReg(arg, OperandBase::kDouble),
+          OutPhyReg(arg, Operand::kDouble),
           Ind(args_reg,
               static_cast<int32_t>(i * kPointerSize),
-              OperandBase::kDouble));
+              Operand::kDouble));
     }
   }
   if (has_extra_args) {
@@ -898,8 +898,8 @@ void GenerateArgcountCheckBlocks(
     argcount_check->allocateInstr(
         Instruction::kCmp,
         nullptr,
-        PhyReg{nargsf_reg, OperandBase::k32bit},
-        PhyReg{kwnames_reg, OperandBase::k32bit});
+        PhyReg{nargsf_reg, Operand::k32bit},
+        PhyReg{kwnames_reg, Operand::k32bit});
     argcount_check->allocateInstr(
         Instruction::kBranchE, nullptr, AsmLbl{correct_args_label});
 
@@ -1094,10 +1094,10 @@ void GenerateBoxedReturnWrapperBlocks(
         Instruction::kMove,
         nullptr,
         OutPhyReg{aux_return_reg},
-        PhyReg{arch::reg_double_auxilary_return_loc, OperandBase::kDouble});
+        PhyReg{arch::reg_double_auxilary_return_loc, Operand::kDouble});
   }
 
-  auto test_size = returns_double ? OperandBase::k64bit : OperandBase::k32bit;
+  auto test_size = returns_double ? Operand::k64bit : Operand::k32bit;
   wrapper_entry->allocateInstr(
       Instruction::kTest,
       nullptr,
@@ -1133,36 +1133,36 @@ void GenerateBoxedReturnWrapperBlocks(
       box_block->allocateInstr(
           Instruction::kMovZX,
           nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
-          PhyReg{ret8, OperandBase::k8bit});
+          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
+          PhyReg{ret8, Operand::k8bit});
       box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
     } else if (return_type <= TCInt8) {
       box_block->allocateInstr(
           Instruction::kMovSX,
           nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
-          PhyReg{ret8, OperandBase::k8bit});
+          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
+          PhyReg{ret8, Operand::k8bit});
       box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
     } else if (return_type <= TCUInt8) {
       box_block->allocateInstr(
           Instruction::kMovZX,
           nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
-          PhyReg{ret8, OperandBase::k8bit});
+          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
+          PhyReg{ret8, Operand::k8bit});
       box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
     } else if (return_type <= TCInt16) {
       box_block->allocateInstr(
           Instruction::kMovSX,
           nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
-          PhyReg{ret16, OperandBase::k16bit});
+          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
+          PhyReg{ret16, Operand::k16bit});
       box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
     } else if (return_type <= TCUInt16) {
       box_block->allocateInstr(
           Instruction::kMovZX,
           nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], OperandBase::k32bit},
-          PhyReg{ret16, OperandBase::k16bit});
+          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
+          PhyReg{ret16, Operand::k16bit});
       box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
     } else if (
         return_type <= TCInt32 || return_type <= TCUInt32 ||
@@ -1673,7 +1673,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
 
   // Load ob_ref_local (32-bit thread-local refcount) with relaxed semantics.
   Instruction* ref_local = bbb.appendInstr(
-      OutVReg{OperandBase::k32bit},
+      OutVReg{Operand::k32bit},
       Instruction::kMoveRelaxed,
       Ind{instr,
           static_cast<int>(offsetof(PyObject, ob_ref_local)),
@@ -1736,7 +1736,7 @@ void LIRGenerator::makeIncrefGILEnabled(
   if (possible_immortal) {
     auto mortal = bbb.allocateBlock();
     Instruction* r1 = bbb.appendInstr(
-        OutVReg{OperandBase::k32bit},
+        OutVReg{Operand::k32bit},
         Instruction::kMove,
         Ind{instr, kRefcountOffset, DataType::k32bit});
     bbb.appendInstr(Instruction::kInc, r1);
@@ -1812,7 +1812,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
 
   // Load ob_ref_local (32-bit) with relaxed semantics.
   Instruction* ref_local = bbb.appendInstr(
-      OutVReg{OperandBase::k32bit},
+      OutVReg{Operand::k32bit},
       Instruction::kMoveRelaxed,
       Ind{instr,
           static_cast<int>(offsetof(PyObject, ob_ref_local)),
@@ -2072,9 +2072,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           // Loads the bits of the double constant into an integer register.
           auto spec_value = bit_cast<uint64_t>(ty.doubleSpec());
           Instruction* double_bits = bbb.appendInstr(
-              Instruction::kMove,
-              OutVReg{OperandBase::k64bit},
-              Imm{spec_value});
+              Instruction::kMove, OutVReg{Operand::k64bit}, Imm{spec_value});
           // Moves the value into a floating point register.
           bbb.appendInstr(instr->output(), Instruction::kMove, double_bits);
           break;
@@ -2087,7 +2085,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->output(),
             Instruction::kMove,
             // Could be integral or pointer, keep as kObject for now.
-            Imm{static_cast<uint64_t>(spec_value), OperandBase::kObject});
+            Imm{static_cast<uint64_t>(spec_value), Operand::kObject});
         break;
       }
       case Opcode::kLoadVarObjectSize: {
@@ -2305,7 +2303,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           Instruction* left = bbb.getDefInstr(instr->left());
           Instruction* right = bbb.getDefInstr(instr->right());
           if (extend.has_value()) {
-            auto dt = OperandBase::k32bit;
+            auto dt = Operand::k32bit;
             left = bbb.appendInstr(*extend, OutVReg{dt}, left);
             right = bbb.appendInstr(*extend, OutVReg{dt}, right);
           }
@@ -2420,7 +2418,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto true_addr = reinterpret_cast<uint64_t>(Py_True);
         auto false_addr = reinterpret_cast<uint64_t>(Py_False);
         Instruction* temp_true = bbb.appendInstr(
-            Instruction::kMove, OutVReg{OperandBase::k64bit}, Imm{true_addr});
+            Instruction::kMove, OutVReg{Operand::k64bit}, Imm{true_addr});
         bbb.appendInstr(
             dest, Instruction::kSelect, src, temp_true, Imm{false_addr});
         break;
@@ -2448,11 +2446,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
         } else if (src_type <= (TCUInt8 | TCUInt16)) {
           src = bbb.appendInstr(
-              Instruction::kZext, OutVReg{OperandBase::k32bit}, src);
+              Instruction::kZext, OutVReg{Operand::k32bit}, src);
           func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
         } else if (src_type <= (TCInt8 | TCInt16)) {
           src = bbb.appendInstr(
-              Instruction::kSext, OutVReg{OperandBase::k32bit}, src);
+              Instruction::kSext, OutVReg{Operand::k32bit}, src);
           func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
         }
 
@@ -2480,7 +2478,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* src = bbb.getDefInstr(instr->reg());
         if (src_type <= (TCBool | TCInt8 | TCUInt8 | TCInt16 | TCUInt16)) {
           src = bbb.appendInstr(
-              Instruction::kSext, OutVReg{OperandBase::k32bit}, src);
+              Instruction::kSext, OutVReg{Operand::k32bit}, src);
         }
 
         // Because a failed unbox to unsigned smuggles the bit pattern for a
@@ -2507,7 +2505,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
 
         Instruction* is_no_err_set = bbb.appendInstr(
-            Instruction::kEqual, OutVReg{OperandBase::k8bit}, curexc, Imm{0});
+            Instruction::kEqual, OutVReg{Operand::k8bit}, curexc, Imm{0});
 
         bbb.appendBranch(
             Instruction::kCondBranch, is_no_err_set, done, set_err);
@@ -2527,7 +2525,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               instr->output(),
               Instruction::kEqual,
               instr->value(),
-              Imm{reinterpret_cast<uint64_t>(Py_True), OperandBase::kObject});
+              Imm{reinterpret_cast<uint64_t>(Py_True), Operand::kObject});
         } else if (ty <= TCDouble) {
           // For doubles, we can directly load the offset into the destination.
           Instruction* value = bbb.getDefInstr(instr->value());
@@ -2699,7 +2697,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               reinterpret_cast<uint64_t>(&JITRT_IterDoneSentinel);
           cond = bbb.appendInstr(
               Instruction::kSub,
-              OutVReg{OperandBase::k64bit},
+              OutVReg{Operand::k64bit},
               cond,
               Imm{iter_done_addr});
         }
@@ -2718,7 +2716,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               bbb.appendInstr(Instruction::kMove, OutVReg{}, Ind{reg, kOffset});
           eq_res_var = bbb.appendInstr(
               Instruction::kEqual,
-              OutVReg{OperandBase::k8bit},
+              OutVReg{Operand::k8bit},
               type_var,
               Imm{reinterpret_cast<uint64_t>(type.uniquePyType()),
                   DataType::kObject});
@@ -2733,7 +2731,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         Instruction* call = bbb.appendInstr(
             Instruction::kCall,
-            OutVReg{OperandBase::k32bit},
+            OutVReg{Operand::k32bit},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(PyObject_SetAttr)},
             instr->GetOperand(0),
@@ -3377,7 +3375,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         hir::Register* value = instr->GetOperand(1);
         Instruction* result = bbb.appendCallInstruction(
-            OutVReg{OperandBase::k32bit}, PyObject_SetAttr, base, name, value);
+            OutVReg{Operand::k32bit}, PyObject_SetAttr, base, name, value);
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }
@@ -3391,7 +3389,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* value = instr->GetOperand(1);
         auto cache = getContext()->allocateStoreAttrCache();
         Instruction* result = bbb.appendCallInstruction(
-            OutVReg{OperandBase::k32bit},
+            OutVReg{Operand::k32bit},
             jit::StoreAttrCache::invoke,
             cache,
             base,
@@ -3557,10 +3555,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           Type src_type = reg_arg->type();
           if (src_type <= (TCBool | TCUInt8 | TCUInt16)) {
             arg = bbb.appendInstr(
-                Instruction::kZext, OutVReg{OperandBase::k64bit}, arg);
+                Instruction::kZext, OutVReg{Operand::k64bit}, arg);
           } else if (src_type <= (TCInt8 | TCInt16)) {
             arg = bbb.appendInstr(
-                Instruction::kSext, OutVReg{OperandBase::k64bit}, arg);
+                Instruction::kSext, OutVReg{Operand::k64bit}, arg);
           }
           args.push_back(arg);
         }
@@ -3604,7 +3602,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           void** indir = env_->ctx->findFunctionEntryCache(func);
           env_->function_indirections.emplace(func, indir);
           Instruction* move = bbb.appendInstr(
-              OutVReg{OperandBase::k64bit}, Instruction::kMove, MemImm{indir});
+              OutVReg{Operand::k64bit}, Instruction::kMove, MemImm{indir});
 
           lir = bbb.appendInstr(instr->output(), Instruction::kCall, move);
         }
@@ -3622,7 +3620,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               *instr,
               PhyReg{
                   codegen::arch::reg_double_auxilary_return_loc,
-                  OperandBase::kDouble});
+                  Operand::kDouble});
         } else if (ret_type <= TPrimitive) {
           appendGuard(
               bbb,
@@ -3630,7 +3628,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               *instr,
               PhyReg{
                   codegen::arch::reg_general_auxilary_return_loc,
-                  OperandBase::k32bit});
+                  Operand::k32bit});
         } else {
           appendGuard(bbb, kind, *instr, instr->output());
         }
@@ -3718,7 +3716,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const InitListElements*>(&i);
         Instruction* ob_item = bbb.appendInstr(
             Instruction::kMove,
-            OutVReg{OperandBase::k64bit},
+            OutVReg{Operand::k64bit},
             Ind{bbb.getDefInstr(instr->list()),
                 offsetof(PyListObject, ob_item)});
         emitStorePairs(bbb, ob_item, 0, *instr, 1, instr->nvalues());
@@ -3946,7 +3944,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kStoreSubscr: {
         auto instr = static_cast<const StoreSubscr*>(&i);
         Instruction* result = bbb.appendCallInstruction(
-            OutVReg{OperandBase::k32bit},
+            OutVReg{Operand::k32bit},
             PyObject_SetItem,
             instr->GetOperand(0),
             instr->GetOperand(1),
@@ -4049,7 +4047,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               OutVReg{},
               Instruction::kMove,
               // TASK(T140174965): This should be MemImm.
-              Imm{reinterpret_cast<uint64_t>(obj.get()), OperandBase::kObject});
+              Imm{reinterpret_cast<uint64_t>(obj.get()), Operand::kObject});
         } else {
           globals = bbb.appendInstr(
               OutVReg{},
@@ -4314,8 +4312,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             },
             code->co_nlocalsplus);
         plan.emit(bbb, callee_frame);
-
-        // Incref executable/reifier.
 #if PY_VERSION_HEX < 0x030E0000
         if (!_Py_IsImmortal(executable_obj))
 #endif
@@ -4682,7 +4678,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         const auto& instr = static_cast<const DeleteSubscr&>(i);
         Instruction* call = bbb.appendInstr(
             Instruction::kCall,
-            OutVReg{OperandBase::k32bit},
+            OutVReg{Operand::k32bit},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(PyObject_DelItem)},
             instr.GetOperand(0),
@@ -4997,7 +4993,7 @@ Instruction* LIRGenerator::getNameFromIdx(
       OutVReg{},
       Instruction::kMove,
       // TASK(T140174965): This should be MemImm.
-      Imm{reinterpret_cast<uint64_t>(name.get()), OperandBase::kObject});
+      Imm{reinterpret_cast<uint64_t>(name.get()), Operand::kObject});
 }
 
 Instruction* LIRGenerator::getInlinedFrame(
@@ -5647,7 +5643,7 @@ void GenerateDeoptTrampolineBlocks(
   block->allocateInstr(
       Instruction::kMove,
       nullptr,
-      OutPhyReg{err_xmm_reg, OperandBase::kDouble},
+      OutPhyReg{err_xmm_reg, Operand::kDouble},
       PhyReg{ret_reg});
   // Load epilogue address (must be before kLeave which tears down the frame).
   block->allocateInstr(
