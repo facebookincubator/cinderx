@@ -686,6 +686,7 @@ fun jittestmodule:A.f {
     }
     Snapshot
     v11 = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v11
   }
 

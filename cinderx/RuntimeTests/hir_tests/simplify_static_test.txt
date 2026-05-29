@@ -1082,7 +1082,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v61:CInt64 = Phi<8, 9> v60 v33
     Snapshot
-    v62:CBool = PrimitiveCompare<LessThanUnsigned> v61 v57
+    v62:CBool = PrimitiveCompare<LessThan> v61 v57
     Guard v62 {
     }
     v63:Object = LoadArrayItem<Offset[24]> v19 v61 v19
@@ -1203,7 +1203,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v60:CInt64 = Phi<8, 9> v59 v33
     Snapshot
-    v61:CBool = PrimitiveCompare<LessThanUnsigned> v60 v56
+    v61:CBool = PrimitiveCompare<LessThan> v60 v56
     Guard v61 {
     }
     v62:Object = LoadArrayItem<Offset[32]> v19 v60 v19
@@ -1324,7 +1324,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v60:CInt64 = Phi<8, 9> v59 v33
     Snapshot
-    v61:CBool = PrimitiveCompare<LessThanUnsigned> v60 v56
+    v61:CBool = PrimitiveCompare<LessThan> v60 v56
     Guard v61 {
     }
     v62:Object = LoadArrayItem<Offset[32]> v19 v60 v19
@@ -1352,6 +1352,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     Snapshot
     v53:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Snapshot
     Return v53
   }
 }
