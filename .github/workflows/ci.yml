@@ -69,6 +69,18 @@ jobs:
     - name: Set up uv
       uses: astral-sh/setup-uv@v7
 
+    # Ubuntu's default GCC 13.3 hits an internal compiler error on
+    # SwapLockGuard's std::atomic_ref::compare_exchange_weak in
+    # cinderx/Jit/code_patcher.cpp, which is only compiled under
+    # Py_GIL_DISABLED. GCC 14 (which is also what manylinux_2_28
+    # ships via gcc-toolset-14) compiles it cleanly.
+    - name: Install GCC 14
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-14 g++-14
+        echo "CC=gcc-14" >> "$GITHUB_ENV"
+        echo "CXX=g++-14" >> "$GITHUB_ENV"
+
     - name: Create venv
       run: uv venv --python ${{ matrix.python-version }}
 
