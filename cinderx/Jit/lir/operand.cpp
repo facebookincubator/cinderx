@@ -86,13 +86,6 @@ void MemoryIndirect::setBaseIndex(
 
 Operand::Operand(Instruction* parent) : parent_instr_{parent} {}
 
-Operand::Operand(const Operand& other)
-    : parent_instr_{other.parent_instr_},
-      def_opnd_{other.def_opnd_},
-      last_use_{other.last_use_},
-      type_{other.type_},
-      data_type_{other.data_type_} {}
-
 // Only copies simple fields (type and data type) from operand.
 // The value_ field is not copied.
 Operand::Operand(Instruction* parent, Operand* operand)
@@ -116,14 +109,14 @@ Operand::Operand(Instruction* parent, Operand::Type type, double data)
 
 Operand::Operand(Instruction* def_instr, LinkedTag) {
   if (def_instr != nullptr) {
-    def_opnd_ = def_instr->output();
+    value_ = def_instr->output();
   }
 }
 
 Operand::Operand(Instruction* parent, Instruction* def_instr, LinkedTag)
     : parent_instr_{parent} {
   if (def_instr != nullptr) {
-    def_opnd_ = def_instr->output();
+    value_ = def_instr->output();
   }
 }
 
@@ -164,8 +157,8 @@ void Operand::setLastUse() {
 }
 
 uint64_t Operand::getConstant() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getConstant();
+  if (const Operand* def = linkedDef()) {
+    return def->getConstant();
   }
   return std::get<uint64_t>(value_);
 }
@@ -177,8 +170,8 @@ void Operand::setConstant(uint64_t n, DataType data_type) {
 }
 
 double Operand::getFPConstant() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getFPConstant();
+  if (const Operand* def = linkedDef()) {
+    return def->getFPConstant();
   }
   uint64_t value = std::get<uint64_t>(value_);
   return bit_cast<double>(value);
@@ -191,8 +184,8 @@ void Operand::setFPConstant(double n) {
 }
 
 PhyLocation Operand::getPhyRegister() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getPhyRegister();
+  if (const Operand* def = linkedDef()) {
+    return def->getPhyRegister();
   }
   JIT_CHECK(
       type_ == kReg,
@@ -208,8 +201,8 @@ void Operand::setPhyRegister(PhyLocation reg) {
 }
 
 PhyLocation Operand::getStackSlot() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getStackSlot();
+  if (const Operand* def = linkedDef()) {
+    return def->getStackSlot();
   }
   JIT_CHECK(
       type_ == kStack,
@@ -225,8 +218,8 @@ void Operand::setStackSlot(PhyLocation slot) {
 }
 
 PhyLocation Operand::getPhyRegOrStackSlot() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getPhyRegOrStackSlot();
+  if (const Operand* def = linkedDef()) {
+    return def->getPhyRegOrStackSlot();
   }
   switch (type_) {
     case kReg:
@@ -252,8 +245,8 @@ void Operand::setPhyRegOrStackSlot(PhyLocation loc) {
 }
 
 void* Operand::getMemoryAddress() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getMemoryAddress();
+  if (const Operand* def = linkedDef()) {
+    return def->getMemoryAddress();
   }
   JIT_CHECK(
       type_ == kMem,
@@ -269,8 +262,8 @@ void Operand::setMemoryAddress(void* addr) {
 }
 
 MemoryIndirect* Operand::getMemoryIndirect() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getMemoryIndirect();
+  if (const Operand* def = linkedDef()) {
+    return def->getMemoryIndirect();
   }
   JIT_CHECK(
       type_ == kInd,
@@ -281,8 +274,8 @@ MemoryIndirect* Operand::getMemoryIndirect() const {
 }
 
 BasicBlock* Operand::getBasicBlock() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getBasicBlock();
+  if (const Operand* def = linkedDef()) {
+    return def->getBasicBlock();
   }
   JIT_CHECK(
       type_ == kLabel,
@@ -299,8 +292,8 @@ void Operand::setBasicBlock(BasicBlock* block) {
 }
 
 asmjit::Label Operand::getAsmLabel() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getAsmLabel();
+  if (const Operand* def = linkedDef()) {
+    return def->getAsmLabel();
   }
   JIT_CHECK(
       type_ == kLabel,
@@ -316,15 +309,15 @@ void Operand::setAsmLabel(const asmjit::Label& label) {
 }
 
 bool Operand::hasAsmLabel() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->hasAsmLabel();
+  if (const Operand* def = linkedDef()) {
+    return def->hasAsmLabel();
   }
   return type_ == kLabel && std::holds_alternative<asmjit::Label>(value_);
 }
 
 uint64_t Operand::getConstantOrAddress() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->getConstantOrAddress();
+  if (const Operand* def = linkedDef()) {
+    return def->getConstantOrAddress();
   }
   if (const uint64_t* v = std::get_if<uint64_t>(&value_)) {
     return *v;
@@ -333,22 +326,22 @@ uint64_t Operand::getConstantOrAddress() const {
 }
 
 const Operand* Operand::getDefine() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_;
+  if (const Operand* def = linkedDef()) {
+    return def;
   }
   return this;
 }
 
 Operand* Operand::getDefine() {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_;
+  if (Operand* def = linkedDef()) {
+    return def;
   }
   return this;
 }
 
 DataType Operand::dataType() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->dataType();
+  if (const Operand* def = linkedDef()) {
+    return def->dataType();
   }
   return data_type_;
 }
@@ -361,8 +354,8 @@ void Operand::setDataType(DataType data_type) {
 }
 
 Operand::Type Operand::type() const {
-  if (def_opnd_ != nullptr) {
-    return def_opnd_->type();
+  if (const Operand* def = linkedDef()) {
+    return def->type();
   }
   return type_;
 }
@@ -376,27 +369,41 @@ void Operand::setVirtualRegister() {
 }
 
 bool Operand::isLinked() const {
-  return def_opnd_ != nullptr;
+  return std::holds_alternative<Operand*>(value_);
 }
 
 Operand* Operand::getLinkedOperand() {
-  return def_opnd_;
+  return std::get<Operand*>(value_);
 }
 
 const Operand* Operand::getLinkedOperand() const {
-  return def_opnd_;
+  return std::get<Operand*>(value_);
 }
 
 Instruction* Operand::getLinkedInstr() {
-  return def_opnd_->instr();
+  return std::get<Operand*>(value_)->instr();
 }
 
 const Instruction* Operand::getLinkedInstr() const {
-  return def_opnd_->instr();
+  return std::get<Operand*>(value_)->instr();
 }
 
 void Operand::setLinkedInstr(Instruction* def) {
-  def_opnd_ = def->output();
+  value_ = def->output();
+}
+
+Operand* Operand::linkedDef() {
+  if (Operand** def = std::get_if<Operand*>(&value_)) {
+    return *def;
+  }
+  return nullptr;
+}
+
+const Operand* Operand::linkedDef() const {
+  if (Operand* const* def = std::get_if<Operand*>(&value_)) {
+    return *def;
+  }
+  return nullptr;
 }
 
 uint64_t Operand::rawValue() const {
@@ -412,6 +419,8 @@ uint64_t Operand::rawValue() const {
     return reinterpret_cast<uint64_t>(mem_ptr->get());
   } else if (const PhyLocation* phy_ptr = std::get_if<PhyLocation>(&value_)) {
     return static_cast<uint64_t>(phy_ptr->loc);
+  } else if (Operand* const* def = std::get_if<Operand*>(&value_)) {
+    return reinterpret_cast<uint64_t>(*def);
   }
 
   JIT_ABORT("Unknown operand value type, has index {}", value_.index());

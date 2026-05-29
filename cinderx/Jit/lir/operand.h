@@ -80,8 +80,6 @@ class Operand {
 
   ~Operand() = default;
 
-  Operand(const Operand& other);
-
   // Copies type and data_type from another operand. Value is not copied.
   Operand(Instruction* parent, Operand* operand);
 
@@ -183,9 +181,10 @@ class Operand {
 
  private:
   uint64_t rawValue() const;
+  Operand* linkedDef();
+  const Operand* linkedDef() const;
 
   Instruction* parent_instr_{nullptr};
-  Operand* def_opnd_{nullptr};
   bool last_use_{false};
   Type type_{kNone};
   DataType data_type_{kObject};
@@ -196,7 +195,8 @@ class Operand {
       BasicBlock*,
       asmjit::Label,
       std::unique_ptr<MemoryIndirect>,
-      PhyLocation>
+      PhyLocation,
+      Operand*>
       value_;
 };
 
