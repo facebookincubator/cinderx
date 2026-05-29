@@ -612,8 +612,10 @@ LONG_FLOAT_ACTION(compactlong_float_true_div, /)
 #undef Py_XNewRef
 #define Py_XNewRef(obj) _Py_XNewRef(_PyObject_CAST(obj))
 
+#ifdef Py_REF_DEBUG
 // @Borrow optional function reftotal_add from Objects/object.c
 // @Borrow optional function _Py_AddRefTotal from Objects/object.c
+#endif
 // @Borrow function _Py_ExplicitMergeRefcount from Objects/object.c
 // @Borrow function _Py_qsbr_advance from Python/qsbr.c
 // @Borrow function _Py_qsbr_shared_next from Python/qsbr.c
