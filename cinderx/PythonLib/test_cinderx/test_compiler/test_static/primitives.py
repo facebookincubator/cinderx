@@ -3442,9 +3442,11 @@ class PrimitivesTests(StaticTestBase):
                 x: int64 = rand() // int8(RAND_MAX)
                 return box(x)
         """
+        # RAND_MAX has different values on different platforms, but we expect
+        # it to be greater than INT8_MAX.
         self.type_error(
             codestr,
-            re.escape("type mismatch: Literal[2147483647] cannot be assigned to int8"),
+            r"type mismatch: Literal\[\d+\] cannot be assigned to int8",
         )
 
     def test_cbool(self):
