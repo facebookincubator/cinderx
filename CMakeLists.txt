@@ -12,6 +12,8 @@ option(ENABLE_PGO_GENERATE "Build with PGO profile generation" OFF)
 option(ENABLE_PGO_USE "Build with PGO profile use" OFF)
 set(PGO_PROFILE_FILE "" CACHE STRING "Path to PGO profile data")
 
+option(BUILD_RUNTIME_TESTS "Build the cinderx/RuntimeTests C++ GoogleTest binary" OFF)
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
   set(WINDOWS 0)
@@ -37,8 +39,28 @@ else()
   set(CXX_FLAGS "-fvisibility-inlines-hidden")
 endif()
 
+function(default_bool_option NAME VALUE DOC)
+  if (NOT DEFINED ${NAME})
+    set(${NAME} ${VALUE} CACHE BOOL ${DOC})
+  endif()
+endfunction()
+
+if (BUILD_RUNTIME_TESTS)
+  default_bool_option(ENABLE_DISASSEMBLER ON "Enable disassembler support")
+  default_bool_option(ENABLE_INTERPRETER_LOOP ON "Enable CinderX interpreter loop")
+  default_bool_option(ENABLE_PEP523_HOOK ON "Enable PEP 523 frame-eval hook")
+  default_bool_option(ENABLE_ZLIB ON "Enable zlib support")
+
+  if (NOT MACOS AND NOT WINDOWS)
+    default_bool_option(ENABLE_ELF_READER ON "Enable ELF reader support")
+    default_bool_option(ENABLE_SYMBOLIZER ON "Enable symbolizer support")
+    default_bool_option(ENABLE_USDT ON "Enable USDT support")
+  endif()
+endif()
+
 macro(set_flag VAR)
-  if (DEFINED ${VAR} AND ${${VAR}})
+  # Undefined feature flags should behave like OFF.
+  if (${VAR})
     set(SHARED_FLAGS "-D${VAR} ${SHARED_FLAGS}")
   endif()
 endmacro()
@@ -186,6 +208,11 @@ include(FetchContent)
 # python
 
 find_package(Python ${PY_VERSION} EXACT COMPONENTS Interpreter Development.Module REQUIRED)
+
+# RuntimeTests embeds Python, so it needs Python::Python.
+if (BUILD_RUNTIME_TESTS)
+  find_package(Python ${PY_VERSION} EXACT COMPONENTS Development.Embed REQUIRED)
+endif()
 
 # Some of our files are partially generated from CPython source, and they
 # expect to be able to include files relative to Include/internal.
@@ -455,4 +482,109 @@ if (WINDOWS)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.pyd")
 else()
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.so")
+endif()
+
+##############################################################################
+# RuntimeTests/ — opt-in C++ GoogleTest binary (T269778952).
+
+if (BUILD_RUNTIME_TESTS)
+  enable_testing()
+
+  ########################################
+  # GoogleTest
+
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest
+    GIT_TAG v1.15.2 # 2024-Jul-31
+  )
+  FetchContent_MakeAvailable(googletest)
+
+  ########################################
+  # RuntimeTests executable
+
+  set(RUNTIME_TESTS_SOURCES
+    # Match cinderx/RuntimeTests/BUCK srcs minus internal-only files.
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/alias_class_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/backend_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/bitvector_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/block_canonicalizer_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/branch_relaxation_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/bytecode_offsets_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/bytecode_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/code_allocator_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/cmdline_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/codegen_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/copy_graph_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/dataflow_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/deopt_patcher_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/deopt_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/fixtures.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/gen_asm_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_analysis_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_copy_propagation_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_frame_state_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_guard_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_insert_update_prev_instr_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_operand_type_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_parser_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_ssa_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_type_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/inline_cache_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/intrusive_list_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_context_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_flag_processor_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_list_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_time_log_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_abi_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_dce_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_inliner_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_postalloc_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_postgen_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_verify_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/main.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/ref_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/regalloc_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/sanity_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/slab_arena_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/testutil.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/type_profiler_test.cpp
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp
+
+    # Provide _cinderx as a built-in module for the embedded interpreter.
+    ${PROJECT_SOURCE_DIR}/_cinderx-lib.cpp
+    ${PROJECT_SOURCE_DIR}/async_lazy_value.cpp
+    ${PROJECT_SOURCE_DIR}/module_c_state.cpp
+    ${PROJECT_SOURCE_DIR}/module_state.cpp
+    ${PROJECT_SOURCE_DIR}/python_runtime.cpp
+  )
+
+  add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
+
+  target_link_libraries(
+    RuntimeTests
+    PRIVATE
+    borrowed cached-properties common immortalize interpreter jit parallel-gc static-python
+    asmjit::asmjit fmt::fmt
+    GTest::gtest
+    Python::Python
+  )
+
+  target_compile_definitions(
+    RuntimeTests
+    PRIVATE
+    CINDERX_RUNTIME_TESTS_STATIC_CINDERX=1
+    # Used by RuntimeTest::SetUp() to import cinderx from PythonLib.
+    CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE=${PROJECT_SOURCE_DIR}/PythonLib
+  )
+
+  add_test(
+    NAME RuntimeTests
+    COMMAND RuntimeTests
+    # RuntimeTests open source-tree test data relative to cwd.
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  )
 endif()

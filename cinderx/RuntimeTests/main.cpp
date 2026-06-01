@@ -2,6 +2,17 @@
 
 #include <gtest/gtest.h>
 
+// Keep BUCK_BUILD as a synonym for the split RuntimeTests features so the
+// internal Buck target keeps its existing behavior.
+#ifdef BUCK_BUILD
+#ifndef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
+#define CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES 1
+#endif
+#ifndef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
+#define CINDERX_RUNTIME_TESTS_STATIC_CINDERX 1
+#endif
+#endif
+
 #ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
 #include "cinderx/_cinderx-lib.h"
 #endif
@@ -27,10 +38,12 @@
 #endif
 
 #include <fmt/format.h>
+
 #include <sys/resource.h>
 
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace {
 
@@ -160,10 +173,15 @@ void register_test(
   }
 }
 
+#define _QUOTE_HELPER(x) #x
+#define _QUOTE(x) _QUOTE_HELPER(x)
+
 #ifdef BAKED_IN_PYTHONPATH
-#define _QUOTE(x) #x
-#define QUOTE(x) _QUOTE(x)
-#define _BAKED_IN_PYTHONPATH QUOTE(BAKED_IN_PYTHONPATH)
+#define _BAKED_IN_PYTHONPATH _QUOTE(BAKED_IN_PYTHONPATH)
+#endif
+
+#ifdef CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE
+#define _CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE _QUOTE(CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE)
 #endif
 
 } // namespace
@@ -205,7 +223,11 @@ void registerCinderX() {
 }
 
 int main(int argc, char* argv[]) {
-#ifdef BAKED_IN_PYTHONPATH
+#ifdef CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE
+  // OSS path: point PYTHONPATH at the in-tree cinderx package so
+  // RuntimeTest::SetUp() can explicitly import cinderx after Py_Initialize().
+  setenv("PYTHONPATH", _CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE, 1);
+#elif defined(BAKED_IN_PYTHONPATH)
   setenv("PYTHONPATH", _BAKED_IN_PYTHONPATH, 1);
 #endif
 
