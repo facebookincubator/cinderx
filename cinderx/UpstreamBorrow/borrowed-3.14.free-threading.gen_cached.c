@@ -7881,6 +7881,7 @@ struct _mem_work_chunk {
 #undef Py_XNewRef
 #define Py_XNewRef(obj) _Py_XNewRef(_PyObject_CAST(obj))
 
+#ifdef Py_REF_DEBUG
 static inline void
 reftotal_add(PyThreadState *tstate, Py_ssize_t n)
 {
@@ -7898,6 +7899,7 @@ _Py_AddRefTotal(PyThreadState *tstate, Py_ssize_t n)
 {
     reftotal_add(tstate, n);
 }
+#endif
 Py_ssize_t
 _Py_ExplicitMergeRefcount(PyObject *op, Py_ssize_t extra)
 {

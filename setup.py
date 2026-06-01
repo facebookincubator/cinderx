@@ -446,8 +446,10 @@ class BuildExt(build_ext):
         mac = sys.platform == "darwin"
         meta_312 = meta_python and py_version == "3.12"
         is_314plus = py_version == "3.14" or py_version == "3.15"
+        free_threading = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
         set_option("META_PYTHON", meta_python)
+        set_option("ENABLE_FREE_THREADING", free_threading)
         set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
         set_option("ENABLE_DISASSEMBLER", True)
         set_option("ENABLE_ELF_READER", linux)
