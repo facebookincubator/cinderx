@@ -207,7 +207,7 @@ endif()
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt
-  GIT_TAG 11.2.0 # 2025-May-03
+  GIT_TAG 12.1.0 # 2025-Oct-29
 )
 FetchContent_MakeAvailable(fmt)
 
