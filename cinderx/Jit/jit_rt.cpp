@@ -832,30 +832,6 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
   cleanupFrameExecutable(frame);
 }
 
-void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
-  _PyInterpreterFrame* frame = currentFrame(tstate);
-  setCurrentFrame(tstate, frame->previous);
-
-  JIT_DCHECK(
-      frameCode(frame) != nullptr && frameCode(frame)->co_nfreevars == 0,
-      "assumes no freevars");
-
-  JIT_DCHECK(
-      frameCode(frame) != nullptr &&
-          !(frameCode(frame)->co_flags & jit::kCoFlagsAnyGenerator),
-      "doesn't work with generators");
-
-  // Fast path for non-generator frames with no freevars.
-  // The frame header is directly before the frame for non-generators.
-  if (frame->frame_obj != nullptr) {
-    // Frame was materialized by the runtime, use the slow path.
-    increfFuncObjForNonGenerator(frame);
-
-    jit::jitFrameClearExceptCode(frame);
-  }
-  cleanupFrameExecutable(frame);
-}
-
 PyObject*
 JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
   PyObject* result =

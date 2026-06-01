@@ -66,11 +66,6 @@ void JITRT_DecrefFrame(PyFrameObject* frame);
  */
 void JITRT_UnlinkFrame(PyThreadState* tstate);
 
-// Specialized version of JITRT_UnlinkFrame for non-generator functions with no
-// free variables that use lightweight frames. Avoids the expensive
-// jitFrameClearExceptCode path.
-void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate);
-
 /*
  * Handles a call that includes kw arguments where the target function has
  * *args, **kwargs, or keyword only args.

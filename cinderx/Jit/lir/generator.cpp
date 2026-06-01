@@ -5191,15 +5191,9 @@ void LIRGenerator::emitUnlinkFrame(
   } else if (!env_->can_deopt) {
     emitInlineUnlinkLeafFrame(
         bbb, is_generator, func_reg, executable, exec_dtor, callee_frame);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   } else {
     emitInlineUnlinkFastFrame(
         bbb, is_generator, func_reg, executable, exec_dtor, callee_frame);
-#else
-  } else {
-    bbb.appendInvokeInstruction(
-        JITRT_UnlinkLightweightFrameFast, env_->asm_tstate);
-#endif
   }
 }
 
@@ -5249,6 +5243,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
   auto done_block = bbb.allocateBlock();
   auto not_materialized = bbb.allocateBlock();
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Instruction* frame_status = bbb.appendInstr(
       OutVReg{},
       Instruction::kMove,
@@ -5259,6 +5254,16 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
   static_assert(JIT_FRAME_INITIALIZED == 2);
   bbb.appendBranch(
       Instruction::kBranchBitNotSet, not_materialized, frame_status, Imm{1});
+#else
+  Instruction* frame_obj_reg = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Ind{frame,
+          static_cast<int32_t>(offsetof(_PyInterpreterFrame, frame_obj))});
+
+  bbb.appendInstr(Instruction::kTest, frame_obj_reg, frame_obj_reg);
+  bbb.appendBranch(Instruction::kBranchZ, not_materialized);
+#endif
 
   {
     BasicBlock* materialized_block = bbb.allocateBlock();
