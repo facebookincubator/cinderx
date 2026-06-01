@@ -832,28 +832,6 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
   cleanupFrameExecutable(frame);
 }
 
-// Clean up the reifier and decref the executable for a lightweight frame.
-// Shared by JITRT_UnlinkLightweightFrameFast and JITRT_UnlinkLeafFrame.
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-static void cleanupLightweightFrameExecutable(
-    _PyInterpreterFrame* frame,
-    [[maybe_unused]] jit::FrameHeader* header) {
-#if PY_VERSION_HEX >= 0x030E0000
-  PyStackRef_CLOSE(frame->f_executable);
-#else
-  // Replace the reifier in f_funcobj with the actual function so that any
-  // escaped references to the frame see a valid function pointer, not a
-  // dangling reifier callback.
-  PyObject* func = jit::jitFrameGetFunction(frame);
-  frame->f_funcobj = func;
-  Py_XDECREF(func);
-  header->frame_status = JIT_FRAME_INITIALIZED;
-
-  Py_DECREF(frameExecutable(frame));
-#endif
-}
-#endif
-
 void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
   setCurrentFrame(tstate, frame->previous);
@@ -876,22 +854,6 @@ void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
     jit::jitFrameClearExceptCode(frame);
   }
   cleanupFrameExecutable(frame);
-}
-
-void JITRT_UnlinkLeafFrame(PyThreadState* tstate) {
-  _PyInterpreterFrame* frame = currentFrame(tstate);
-  setCurrentFrame(tstate, frame->previous);
-
-  // No deopts means the frame was never materialized — skip the
-  // materialization check and just close funcobj + executable directly.
-  Ci_STACK_CLOSE(frame->f_funcobj);
-
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  auto* header = reinterpret_cast<jit::FrameHeader*>(frame) - 1;
-  cleanupLightweightFrameExecutable(frame, header);
-#else
-  cleanupFrameExecutable(frame);
-#endif
 }
 
 PyObject*
