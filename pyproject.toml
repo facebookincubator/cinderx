@@ -62,4 +62,4 @@ archs = ["arm64"]
 environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
 
 [tool.cibuildwheel.windows]
-environment = { CINDERX_ENABLE_LTO = "1" }
+environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
