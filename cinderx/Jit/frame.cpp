@@ -476,6 +476,22 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
   if (new_frame->frame_obj != nullptr) {
     new_frame->frame_obj->f_frame = new_frame;
   }
+
+  // Non-generator frames don't incref f_funcobj during setup. Now that
+  // we're handing the frame to the interpreter (which will decref
+  // f_funcobj via _PyFrame_ClearExceptCode), incref to maintain the
+  // balance. On 3.12+LW, jitFrameRemoveReifier already handles inlined
+  // frames via Py_NewRef, so only non-inlined need the incref there.
+#if PY_VERSION_HEX >= 0x030E0000
+  Py_INCREF(PyStackRef_AsPyObjectBorrow(new_frame->f_funcobj));
+#elif !defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  Py_INCREF(new_frame->f_funcobj);
+#else
+  if (!isInlinedFrame(frame)) {
+    Py_INCREF(new_frame->f_funcobj);
+  }
+#endif
+
   return new_frame;
 }
 

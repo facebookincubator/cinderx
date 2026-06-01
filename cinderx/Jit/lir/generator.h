@@ -311,18 +311,21 @@ class LIRGenerator {
   void emitUnlinkFrame(
       BasicBlockBuilder& bbb,
       bool has_freevars,
+      bool is_generator,
       Instruction* func_reg,
       PyObject* executable,
       std::optional<destructor> exec_dtor,
       Instruction* callee_frame = nullptr);
   void emitInlineUnlinkLeafFrame(
       BasicBlockBuilder& bbb,
+      bool is_generator,
       Instruction* func_reg,
       PyObject* executable,
       std::optional<destructor> exec_dtor,
       Instruction* callee_frame = nullptr);
   void emitInlineUnlinkFastFrame(
       BasicBlockBuilder& bbb,
+      bool is_generator,
       Instruction* func_reg,
       PyObject* executable,
       std::optional<destructor> exec_dtor,

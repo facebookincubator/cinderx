@@ -794,6 +794,28 @@ static void cleanupFrameExecutable(_PyInterpreterFrame* frame) {
 #endif
 }
 
+// Non-generator frames don't incref f_funcobj during setup — the caller
+// keeps the function alive. Incref now to balance the decref that
+// jitFrameClearExceptCode will perform.
+static void increfFuncObjForNonGenerator(_PyInterpreterFrame* frame) {
+  if (frameCode(frame)->co_flags & jit::kCoFlagsAnyGenerator) {
+    return;
+  }
+#if PY_VERSION_HEX >= 0x030E0000
+  Py_INCREF(PyStackRef_AsPyObjectBorrow(frame->f_funcobj));
+#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  // On 3.12+LW, f_funcobj holds the reifier, not the function. The
+  // function lives in FrameHeader.func. For inlined frames,
+  // jitFrameRemoveReifier already handles the incref via Py_NewRef,
+  // so only incref for non-inlined (top-level) frames here.
+  if (!jit::isInlinedFrame(frame)) {
+    Py_XINCREF(jit::jitFrameGetFunction(frame));
+  }
+#else
+  Py_INCREF(frame->f_funcobj);
+#endif
+}
+
 void JITRT_UnlinkFrame(PyThreadState* tstate) {
   /*
    * The reference for this is _PyEvalFrameClearAndPop in ceval.c.
@@ -801,6 +823,8 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
 
   _PyInterpreterFrame* frame = currentFrame(tstate);
   setCurrentFrame(tstate, frame->previous);
+
+  increfFuncObjForNonGenerator(frame);
 
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
@@ -845,27 +869,13 @@ void JITRT_UnlinkLightweightFrameFast(PyThreadState* tstate) {
 
   // Fast path for non-generator frames with no freevars.
   // The frame header is directly before the frame for non-generators.
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  auto* header = reinterpret_cast<jit::FrameHeader*>(frame) - 1;
-  if (header->frame_status & JIT_FRAME_INITIALIZED) {
-    // Frame was materialized by the runtime, use the slow path.
-    jit::jitFrameClearExceptCode(frame);
-  } else {
-    // Common case: just close the function object.
-    Ci_STACK_CLOSE(frame->f_funcobj);
-  }
-
-  cleanupLightweightFrameExecutable(frame, header);
-#else
   if (frame->frame_obj != nullptr) {
     // Frame was materialized by the runtime, use the slow path.
+    increfFuncObjForNonGenerator(frame);
+
     jit::jitFrameClearExceptCode(frame);
-  } else {
-    // Common case: just close the function object.
-    Ci_STACK_CLOSE(frame->f_funcobj);
   }
   cleanupFrameExecutable(frame);
-#endif
 }
 
 void JITRT_UnlinkLeafFrame(PyThreadState* tstate) {
