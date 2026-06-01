@@ -4,6 +4,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/ref.h"
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -129,6 +131,10 @@ struct FlagProcessor {
 
   // Return true if one or more flags have been registered
   bool hasOptions();
+
+  // Try to resolve an option via its command line flag.  Return true on
+  // success.
+  bool handleCliFlag(const Option& option, BorrowedRef<> cmdline_args);
 
   // Try to resolve an option via its environment variable.  Return true on
   // success.

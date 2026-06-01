@@ -37,9 +37,9 @@ running `./python -m compiler --static somemod.py`. This will compile
 and execute `somemod.py` as Static Python. Add `--dis` to also dump a
 disassembly of the emitted bytecode, and add `--strict` to compile the
 module as an immutable StrictModule, which enables some additional
-optimizations. Add `-X jit` to also enable the Cinder JIT to get maximum
-performance. You can also use `-c --output somemod.pyc` to output a
-compiled `.pyc` file instead of executing the module.
+optimizations. Enable the CinderX JIT for improved performance. You
+can also use `-c --output somemod.pyc` to output a compiled `.pyc`
+file instead of executing the module.
 
 ## `__static__` imports reference
 

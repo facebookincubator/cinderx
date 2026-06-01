@@ -102,13 +102,13 @@ examples here include:
 
 Some useful environment variables and CLI options include:
 
-- **`CINDERX_JIT_DEBUG=1` / `-X jit-debug=1`**: Print high-level information
-  about what the JIT is doing.
+- **`CINDERX_JIT_DEBUG=1` / `-X cinderx-jit-debug=1`**: Print high-level
+  information about what the JIT is doing.
 
-- **`CINDERX_JIT_DUMP_ASM=1` / `-X jit-dump-asm=1`**: Print the machine code
-  generated for all functions in a human-readable format.
+- **`CINDERX_JIT_DUMP_ASM=1` / `-X cinderx-jit-dump-asm=1`**: Print the machine
+  code generated for all functions in a human-readable format.
 
-- **`CINDERX_JIT_LOG_FILE=/path/to/file` / `-X jit-log-file=/path/to/file`**:
+- **`CINDERX_JIT_LOG_FILE=/path/to/file` / `-X cinderx-jit-log-file=/path/to/file`**:
   Control which output file the JIT will log to.
 
 ## Controlling the JIT at Runtime

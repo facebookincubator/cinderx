@@ -272,34 +272,34 @@ FlagProcessor initFlagProcessor() {
   // Flags are inspected in order of definition below.
 
   flag_processor.addOption(
-      "jit-dump-hir-stats",
+      "cinderx-jit-dump-hir-stats",
       "CINDERX_JIT_DUMP_HIR_STATS",
       getMutableConfig().dump_hir_stats,
       "Dump counts of instructions and types per function");
 
   flag_processor.addOption(
-      "jit-all",
+      "cinderx-jit-all",
       "CINDERX_JIT_ALL",
       [](uint32_t) { getMutableConfig().compile_after_n_calls = 0; },
       "Enable the JIT and set it to compile all functions as soon as they are "
       "called");
 
   flag_processor.addOption(
-      "jit-auto",
+      "cinderx-jit-auto",
       "CINDERX_JIT_AUTO",
       [](uint32_t val) { getMutableConfig().compile_after_n_calls = val; },
       "Enable auto-JIT mode, which compiles functions after the given "
       "threshold");
 
   flag_processor.addOption(
-      "jit-debug",
+      "cinderx-jit-debug",
       "CINDERX_JIT_DEBUG",
       getMutableConfig().log.debug,
       "JIT debug and extra logging");
 
   flag_processor
       .addOption(
-          "jit-log-file",
+          "cinderx-jit-log-file",
           "CINDERX_JIT_LOG_FILE",
           [](const std::string& log_filename) { setJitLogFile(log_filename); },
           "write log entries to <filename> rather than stderr")
@@ -307,7 +307,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor
       .addOption(
-          "jit-asm-syntax",
+          "cinderx-jit-asm-syntax",
           "CINDERX_JIT_ASM_SYNTAX",
           [](const std::string& asm_syntax) { setASMSyntax(asm_syntax); },
           "set the assembly syntax used in log files")
@@ -316,27 +316,27 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor
       .addOption(
-          "jit-debug-refcount",
+          "cinderx-jit-debug-refcount",
           "CINDERX_JIT_DEBUG_REFCOUNT",
           getMutableConfig().log.debug_refcount,
           "JIT refcount insertion debug mode")
       .withDebugMessageOverride("Enabling");
 
   flag_processor.addOption(
-      "jit-debug-regalloc",
+      "cinderx-jit-debug-regalloc",
       "CINDERX_JIT_DEBUG_REGALLOC",
       getMutableConfig().log.debug_regalloc,
       "Enable or disable debug logging for the register allocator");
 
   flag_processor.addOption(
-      "jit-debug-inliner",
+      "cinderx-jit-debug-inliner",
       "CINDERX_JIT_DEBUG_INLINER",
       getMutableConfig().log.debug_inliner,
       "Enable or disable debug logging for the JIT's HIR inliner");
 
   flag_processor
       .addOption(
-          "jit-dump-hir",
+          "cinderx-jit-dump-hir",
           "CINDERX_JIT_DUMP_HIR",
           getMutableConfig().log.dump_hir_initial,
           "Log the HIR representation of all functions after initial "
@@ -345,7 +345,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor
       .addOption(
-          "jit-dump-hir-passes",
+          "cinderx-jit-dump-hir-passes",
           "CINDERX_JIT_DUMP_HIR_PASSES",
           getMutableConfig().log.dump_hir_passes,
           "Log the HIR after each optimization pass")
@@ -355,7 +355,7 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor
       .addOption(
-          "jit-dump-final-hir",
+          "cinderx-jit-dump-final-hir",
           "CINDERX_JIT_DUMP_FINAL_HIR",
           getMutableConfig().log.dump_hir_final,
           "Log the HIR after all optimizations")
@@ -364,14 +364,14 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor
       .addOption(
-          "jit-dump-lir",
+          "cinderx-jit-dump-lir",
           "CINDERX_JIT_DUMP_LIR",
           getMutableConfig().log.dump_lir,
           "Log the LIR representation of functions after lowering from HIR")
       .withDebugMessageOverride("Dump initial LIR of JITed functions");
 
   flag_processor.addOption(
-      "jit-dump-lir-origin",
+      "cinderx-jit-dump-lir-origin",
       "CINDERX_JIT_DUMP_LIR_ORIGIN",
       [](bool value) {
         getMutableConfig().log.dump_lir = true;
@@ -380,14 +380,14 @@ FlagProcessor initFlagProcessor() {
       "Enable or disable whether LIR is displayed with HIR origin data");
 
   flag_processor.addOption(
-      "jit-symbolize",
+      "cinderx-jit-symbolize",
       "CINDERX_JIT_SYMBOLIZE",
       getMutableConfig().log.symbolize_funcs,
       "Enable or disable symbolization of functions called by JIT code");
 
   flag_processor
       .addOption(
-          "jit-dump-asm",
+          "cinderx-jit-dump-asm",
           "CINDERX_JIT_DUMP_ASM",
           [](bool value) {
 #ifndef ENABLE_DISASSEMBLER
@@ -404,14 +404,14 @@ FlagProcessor initFlagProcessor() {
       .withDebugMessageOverride("Dump asm of JITed functions");
 
   flag_processor.addOption(
-      "jit-enable-inline-cache-stats-collection",
+      "cinderx-jit-enable-inline-cache-stats-collection",
       "CINDERX_JIT_ENABLE_INLINE_CACHE_STATS",
       getMutableConfig().collect_attr_cache_stats,
       "Collect inline cache stats (supported stats are cache misses for load "
       "method inline caches");
 
   flag_processor.addOption(
-      "jit-gdb-support",
+      "cinderx-jit-gdb-support",
       "CINDERX_JIT_GDB_SUPPORT",
       [](bool value) {
         getMutableConfig().log.debug = value;
@@ -420,7 +420,7 @@ FlagProcessor initFlagProcessor() {
       "Enable or disable GDB support and JIT debug mode");
 
   flag_processor.addOption(
-      "jit-gdb-write-elf",
+      "cinderx-jit-gdb-write-elf",
       "CINDERX_JIT_GDB_WRITE_ELF",
       [](bool value) {
         getMutableConfig().log.debug = value;
@@ -430,45 +430,45 @@ FlagProcessor initFlagProcessor() {
       "Debugging aid, GDB support with ELF output");
 
   flag_processor.addOption(
-      "jit-dump-stats",
+      "cinderx-jit-dump-stats",
       "CINDERX_JIT_DUMP_STATS",
       getMutableConfig().log.dump_stats,
       "Dump JIT runtime stats at shutdown");
 
   flag_processor.addOption(
-      "jit-huge-pages",
+      "cinderx-jit-huge-pages",
       "CINDERX_JIT_HUGE_PAGES",
       getMutableConfig().use_huge_pages,
       "Enable or disable huge pages for compiled functions");
 
   flag_processor.addOption(
-      "jit-enable-jit-list-wildcards",
+      "cinderx-jit-enable-jit-list-wildcards",
       "CINDERX_JIT_ENABLE_JIT_LIST_WILDCARDS",
       getMutableConfig().allow_jit_list_wildcards,
       "allow wildcards in JIT list");
 
   flag_processor.addOption(
-      "jit-all-static-functions",
+      "cinderx-jit-all-static-functions",
       "CINDERX_JIT_ALL_STATIC_FUNCTIONS",
       getMutableConfig().compile_all_static_functions,
       "JIT-compile all static functions");
 
   flag_processor
       .addOption(
-          "jit-list-file",
+          "cinderx-jit-list-file",
           "CINDERX_JIT_LIST_FILE",
           getMutableConfig().jit_list.filename,
           "Load list of functions to compile from <filename>")
       .withFlagParamName("filename");
 
   flag_processor.addOption(
-      "jit-list-fail-on-parse-error",
+      "cinderx-jit-list-fail-on-parse-error",
       "CINDERX_JIT_LIST_FAIL_ON_PARSE_ERROR",
       getMutableConfig().jit_list.error_on_parse,
       "Raise a Python exception when a JIT list fails to parse");
 
   flag_processor.addOption(
-      "jit-disable",
+      "cinderx-jit-disable",
       "CINDERX_JIT_DISABLE",
       [](int val) {
         // Only update force_init if it wasn't already set.
@@ -479,14 +479,14 @@ FlagProcessor initFlagProcessor() {
       "disable the JIT");
 
   flag_processor.addOption(
-      "jit-stable-frame",
+      "cinderx-jit-stable-frame",
       "CINDERX_JIT_STABLE_FRAME",
       getMutableConfig().stable_frame,
       "Assume that data found in the Python frame is unchanged across "
       "function calls");
 
   flag_processor.addOption(
-      "jit-preload-dependent-limit",
+      "cinderx-jit-preload-dependent-limit",
       "CINDERX_JIT_PRELOAD_DEPENDENT_LIMIT",
       getMutableConfig().preload_dependent_limit,
       "When compiling a function, set the number of dependent functions that "
@@ -504,68 +504,74 @@ FlagProcessor initFlagProcessor() {
   HIR_OPTIMIZATION_OPTION(
       "BeginInlinedFunction elimination",
       begin_inlined_function_elim,
-      "jit-begin-inlined-function-elim",
+      "cinderx-jit-begin-inlined-function-elim",
       "CINDERX_JIT_BEGIN_INLINED_FUNCTION_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "builtin LoadMethod elimination",
       builtin_load_method_elim,
-      "jit-builtin-load-method-elim",
+      "cinderx-jit-builtin-load-method-elim",
       "CINDERX_JIT_BUILTIN_LOAD_METHOD_ELIM");
   HIR_OPTIMIZATION_OPTION(
-      "CFG cleaning", clean_cfg, "jit-clean-cfg", "CINDERX_JIT_CLEAN_CFG");
+      "CFG cleaning",
+      clean_cfg,
+      "cinderx-jit-clean-cfg",
+      "CINDERX_JIT_CLEAN_CFG");
   HIR_OPTIMIZATION_OPTION(
       "dead code elimination",
       dead_code_elim,
-      "jit-dead-code-elim",
+      "cinderx-jit-dead-code-elim",
       "CINDERX_JIT_DEAD_CODE_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "dynamic comparison elimination",
       dynamic_comparison_elim,
-      "jit-dynamic-comparison-elim",
+      "cinderx-jit-dynamic-comparison-elim",
       "CINDERX_JIT_DYNAMIC_COMPARISON_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "guard type removal",
       guard_type_removal,
-      "jit-guard-type-removal",
+      "cinderx-jit-guard-type-removal",
       "CINDERX_JIT_GUARD_TYPE_REMOVAL");
   HIR_OPTIMIZATION_OPTION(
       "inliner",
       inliner,
-      "jit-enable-hir-inliner",
+      "cinderx-jit-enable-hir-inliner",
       "CINDERX_JIT_ENABLE_HIR_INLINER");
   HIR_OPTIMIZATION_OPTION(
-      "phi elimination", phi_elim, "jit-phi-elim", "CINDERX_JIT_PHI_ELIM");
+      "phi elimination",
+      phi_elim,
+      "cinderx-jit-phi-elim",
+      "CINDERX_JIT_PHI_ELIM");
   HIR_OPTIMIZATION_OPTION(
-      "simplify", simplify, "jit-simplify", "CINDERX_JIT_SIMPLIFY");
+      "simplify", simplify, "cinderx-jit-simplify", "CINDERX_JIT_SIMPLIFY");
 
   flag_processor.addOption(
-      "jit-simplify-iteration-limit",
+      "cinderx-jit-simplify-iteration-limit",
       "CINDERX_JIT_SIMPLIFY_ITERATION_LIMIT",
       getMutableConfig().simplifier.iteration_limit,
       "Set the maximum number of times the simplifier can run over a "
       "function");
   flag_processor.addOption(
-      "jit-simplify-new-block-limit",
+      "cinderx-jit-simplify-new-block-limit",
       "CINDERX_JIT_SIMPLIFY_NEW_BLOCK_LIMIT",
       getMutableConfig().simplifier.new_block_limit,
       "Set the maximum number of blocks that can be added by the simplifier "
       "to a function");
   flag_processor.addOption(
-      "jit-hir-inliner-cost-limit",
+      "cinderx-jit-hir-inliner-cost-limit",
       "CINDERX_JIT_HIR_INLINER_COST_LIMIT",
       getMutableConfig().inliner_cost_limit,
       "Limit how much the inliner is able to inline. The number's definition "
       "is only relevant to the inliner itself.");
 
   flag_processor.addOption(
-      "jit-lir-inliner",
+      "cinderx-jit-lir-inliner",
       "CINDERX_JIT_LIR_INLINER",
       getMutableConfig().lir_opts.inliner,
       "Enable the LIR inliner");
 
   flag_processor
       .addOption(
-          "jit-batch-compile-workers",
+          "cinderx-jit-batch-compile-workers",
           "CINDERX_JIT_BATCH_COMPILE_WORKERS",
           getMutableConfig().batch_compile_workers,
           "set the number of batch compile workers to <COUNT>")
@@ -573,27 +579,27 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor
       .addOption(
-          "jit-multithreaded-compile-test",
+          "cinderx-jit-multithreaded-compile-test",
           "CINDERX_JIT_MULTITHREADED_COMPILE_TEST",
           getMutableConfig().multithreaded_compile_test,
           "JIT multithreaded compile test")
       .isHiddenFlag(true);
 
   flag_processor.addOption(
-      "jit-list-match-line-numbers",
+      "cinderx-jit-list-match-line-numbers",
       "CINDERX_JIT_LIST_MATCH_LINE_NUMBERS",
       getMutableConfig().jit_list.match_line_numbers,
       "JIT list match line numbers");
 
   flag_processor
       .addOption(
-          "jit-time",
+          "cinderx-jit-time",
           "",
           [](const std::string& flag_value) {
             parseAndSetFuncList(flag_value);
           },
           "Measure time taken in compilation phases and output summary to "
-          "stderr or approperiate logfile. Only functions in comma separated "
+          "stderr or appropriate logfile. Only functions in comma separated "
           "<function_list> list will be included. Comma separated list may "
           "include wildcards, * and ?. Wildcards are processed in glob "
           "fashion and not as regex.")
@@ -602,25 +608,25 @@ FlagProcessor initFlagProcessor() {
           "Will capture time taken in compilation phases and output summary");
 
   flag_processor.addOption(
-      "jit-multiple-code-sections",
+      "cinderx-jit-multiple-code-sections",
       "CINDERX_JIT_MULTIPLE_CODE_SECTIONS",
       getMutableConfig().multiple_code_sections,
       "Enable emitting code into multiple code sections.");
 
   flag_processor.addOption(
-      "jit-cold-code-huge-pages",
+      "cinderx-jit-cold-code-huge-pages",
       "CINDERX_JIT_COLD_CODE_HUGE_PAGES",
       getMutableConfig().cold_code_huge_pages,
       "Use huge pages for cold code sections.");
 
   flag_processor.addOption(
-      "jit-attr-caches",
+      "cinderx-jit-attr-caches",
       "CINDERX_JIT_ATTR_CACHES",
       getMutableConfig().attr_caches,
       "Use inline caches for attribute access instructions");
 
   flag_processor.addOption(
-      "jit-attr-cache-size",
+      "cinderx-jit-attr-cache-size",
       "CINDERX_JIT_ATTR_CACHE_SIZE",
       [](uint32_t entries) {
         JIT_CHECK(
@@ -634,7 +640,7 @@ FlagProcessor initFlagProcessor() {
       "caches");
 
   flag_processor.addOption(
-      "jit-refine-static-python",
+      "cinderx-jit-refine-static-python",
       "CINDERX_JIT_REFINE_STATIC_PYTHON",
       getMutableConfig().refine_static_python,
       "Add RefineType instructions to coerce Static Python types to be "
@@ -642,14 +648,14 @@ FlagProcessor initFlagProcessor() {
 
 #ifndef WIN32
   flag_processor.addOption(
-      "jit-perfmap",
+      "cinderx-jit-perfmap",
       "JIT_PERFMAP",
       perf::jit_perfmap,
       "write out /tmp/perf-<pid>.map for JIT symbols");
 
   flag_processor
       .addOption(
-          "jit-perf-dumpdir",
+          "cinderx-jit-perf-dumpdir",
           "JIT_DUMPDIR",
           perf::perf_jitdump_dir,
           "absolute path to a <DIRECTORY> that exists. A perf jitdump file "
@@ -658,7 +664,7 @@ FlagProcessor initFlagProcessor() {
 #endif
 
   flag_processor.addOption(
-      "jit-help", "", [] {}, "print all available JIT flags and exits");
+      "cinderx-jit-help", "", [] {}, "print all available JIT flags and exits");
 
   flag_processor.addOption(
       "perf-trampoline-prefork-compilation",
@@ -667,13 +673,13 @@ FlagProcessor initFlagProcessor() {
       "Compile perf trampoline pre-fork");
 
   flag_processor.addOption(
-      "jit-immortalize-compiled-functions",
+      "cinderx-jit-immortalize-compiled-functions",
       "CINDERX_JIT_IMMORTALIZE_COMPILED_FUNCTIONS",
       getMutableConfig().immortalize_compiled_functions,
       "Always immortalize CompiledFunction objects");
 
   flag_processor.addOption(
-      "jit-max-code-size",
+      "cinderx-jit-max-code-size",
       "CINDERX_JIT_MAX_CODE_SIZE",
       [](const std::string& val) {
         getMutableConfig().max_code_size = parse_sized_argument(val);
@@ -683,20 +689,20 @@ FlagProcessor initFlagProcessor() {
       "Megabytes is m or M and gigabytes is g or G. 0 implies no limit.");
 
   flag_processor.addOption(
-      "jit-emit-type-annotation-guards",
+      "cinderx-jit-emit-type-annotation-guards",
       "CINDERX_JIT_EMIT_TYPE_ANNOTATION_GUARDS",
       getMutableConfig().emit_type_annotation_guards,
       "Generate runtime checks that validate type annotations to specialize "
       "generated code.");
 
   flag_processor.addOption(
-      "jit-specialized-opcodes",
+      "cinderx-jit-specialized-opcodes",
       "CINDERX_JIT_SPECIALIZED_OPCODES",
       getMutableConfig().specialized_opcodes,
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.addOption(
-      "jit-support-instrumentation",
+      "cinderx-jit-support-instrumentation",
       "CINDERX_JIT_SUPPORT_INSTRUMENTATION",
       getMutableConfig().support_instrumentation,
       "Support instrumentation (e.g. monitoring/tracing/profiling)");
@@ -710,7 +716,7 @@ FlagProcessor initFlagProcessor() {
   // This will reduce the chance that Static Python functions can natively call
   // each other though.
   if (!getConfig().hir_opts.inliner &&
-      !flag_processor.hasHandled("jit-preload-dependent-limit")) {
+      !flag_processor.hasHandled("cinderx-jit-preload-dependent-limit")) {
     getMutableConfig().preload_dependent_limit = 0;
   }
 
@@ -3215,7 +3221,7 @@ int initialize() {
   getMutableConfig().use_stable_pointers = use_stable_pointers;
 
   FlagProcessor flag_processor = initFlagProcessor();
-  if (flag_processor.hasHandled("jit-help")) {
+  if (flag_processor.hasHandled("cinderx-jit-help")) {
     std::cout << flag_processor.jitXOptionHelpMessage() << '\n';
     // Return rather than exit here for arg printing test doesn't end early.
     return -2;

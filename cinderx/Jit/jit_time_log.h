@@ -29,10 +29,10 @@ using time_point = Clock::time_point;
 // expected to be captured for such that a breakdown may be presented
 // the individual functions are comma separated and may contain wildcards
 // wildcards will be glob processed (not treated as regex)
-// e.g. -X jit-time=*
-//      -X jit-time=__main__:*
-//      -X jit-time=__main__:foo
-//      -X jit-time=__main__:foo, __main__:bar
+// e.g. -X cinderx-jit-time=*
+//      -X cinderx-jit-time=__main__:*
+//      -X cinderx-jit-time=__main__:foo
+//      -X cinderx-jit-time=__main__:foo, __main__:bar
 void parseAndSetFuncList(const std::string& flag_value);
 
 // check to see if a function_name_ matches any of the specified function

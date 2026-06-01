@@ -9,7 +9,7 @@ def _child(_: int) -> int:
     # Imported lazily *inside* the child so that the lazy-import + JIT preload
     # code path runs after the fork.  Each child:
     #
-    #   1. Boots the JIT (cinderx auto-installs from -X jit-all in args).
+    #   1. Boots the JIT (cinderx auto-installs from -X cinderx-jit-all in args).
     #
     #   2. Triggers compilation on a JIT-eligible function by calling it.
     #

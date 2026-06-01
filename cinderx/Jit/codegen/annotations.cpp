@@ -17,7 +17,7 @@ std::string Annotations::disassembleSection(
     CodeSection section) {
   JIT_CHECK(
       getConfig().log.dump_asm,
-      "Annotations are not recorded without -X jit-dump-asm");
+      "Annotations are not recorded without -X cinderx-jit-dump-asm");
   auto text = code.sectionByName(codeSectionName(section));
   if (text == nullptr) {
     return "";

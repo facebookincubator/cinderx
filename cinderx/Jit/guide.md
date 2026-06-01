@@ -112,8 +112,8 @@ compile hot functions is configurable.
 
 These JIT options are set via `-X` options or environment variables; this
 configuration is initialized in the `initFlagProcessor()` function in
-[Jit/pyjit.cpp](pyjit.cpp). Use the option `-X jit-help` for an explanation of
-the various options.
+[Jit/pyjit.cpp](pyjit.cpp). Use the option `-X cinderx-jit-help` for an
+explanation of the various options.
 
 When a function is first called, if it should be JIT compiled we attempt to
 compile it (see `scheduleJitCompile` and related functions in `Jit/entry.cpp`.)
@@ -198,7 +198,7 @@ and is not idempotent.
 To see the final, optimized HIR for our function `f`, you can run::
 
 ```
-# ./python -X jit-list-file=<(echo "__main__:f") -X jit-dump-final-hir f.py
+# ./python -X cinderx-jit-list-file=<(echo "__main__:f") -X cinderx-jit-dump-final-hir f.py
 JIT: ../../cinder/Jit/jit_list.cpp:33 -- Jit-list file: /proc/self/fd/12
 JIT: ../../cinder/Jit/compiler.cpp:85 -- Optimized HIR for __main__:f:
 fun __main__:f {
@@ -252,7 +252,7 @@ before and some after register allocation) are also implemented in the
 `jit::codegen::NativeGenerator::GetEntryPoint()`.
 
 To see the final LIR for our function, you can run
-`./python -X jit-list-file=<(echo "__main__:f") -X jit-dump-lir f.py`.
+`./python -X cinderx-jit-list-file=<(echo "__main__:f") -X cinderx-jit-dump-lir f.py`.
 
 Because LIR is quite low-level, this output is very long; a short snippet of
 it (implementing the binary-add in our function by calling out to a CPython
@@ -279,7 +279,7 @@ x64 code generation is implemented in
 [Jit/codegen/gen_asm.cpp](codegen/gen_asm.cpp).
 
 To see the final generated code for our function, you can run
-`./python -X jit-list-file=<(echo "__main__:f") -X jit-dump-asm f.py`.
+`./python -X cinderx-jit-list-file=<(echo "__main__:f") -X cinderx-jit-dump-asm f.py`.
 
 Again, the full output is quite long; the binary-add snippet corresponding to
 the above LIR looks like this (HIR instruction context is still preserved):

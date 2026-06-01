@@ -2,13 +2,12 @@
 # pyre-ignore-all-errors
 
 # This script exercises multi-threaded JIT compilation by importing a bunch of
-# things and then calling a magic function on the cinderjit module to do a
+# things and then calling a magic function on the cinderx module to do a
 # multi-threaded (re)-compile every JITable function encountered.
 #
 # To be useful this script must be run with:
-#   -X jit-test-multithreaded-compile
-#   -X jit-batch-compile-workers=<some number > 1>
-#   -X jit
+#   -X cinderx-jit-test-multithreaded-compile
+#   -X cinderx-jit-batch-compile-workers=<some number > 1>
 #
 # To be most useful this script should be run with a TSAN build, in which case
 # it will show up most if not all threading errors. Without TSAN there is still

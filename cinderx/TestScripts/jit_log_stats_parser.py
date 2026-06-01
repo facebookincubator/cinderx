@@ -3,7 +3,7 @@
 JIT Log Stats Parser
 
 This script processes JIT compilation log output and accumulates and formats
-data output when using -X jit-dump-hir-stats.
+data output when using -X cinderx-jit-dump-hir-stats.
 """
 
 import json

@@ -62,12 +62,12 @@ def run_bisect(command: list[str], jit_list_file: str | None) -> None:
 
     prev_arg = ""
     for arg in command:
-        if arg.startswith("-Xjit-log-file") or (
-            prev_arg == "-X" and arg.startswith("jit-log-file")
+        if arg.startswith("-Xcinderx-jit-log-file") or (
+            prev_arg == "-X" and arg.startswith("cinderx-jit-log-file")
         ):
             sys.exit(
-                "Your command includes -X jit-log-file, which is incompatible "
-                "with this script. Please remove it and try again."
+                "Your command includes -X cinderx-jit-log-file, which is "
+                "incompatible with this script. Please remove it and try again."
             )
         prev_arg = arg
 
@@ -102,7 +102,7 @@ def run_bisect(command: list[str], jit_list_file: str | None) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="When given a command that fails with the jit enabled (including -X jit as appropriate), bisects to find a minimal jit-list that preserves the failure"
+        description="When given a command that fails with the jit enabled, bisects to find a minimal jit-list that preserves the failure"
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"

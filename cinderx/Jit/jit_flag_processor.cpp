@@ -160,20 +160,9 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
   for (auto& option : options_) {
     option->handled = false;
 
-    PyObject* key = PyUnicode_FromString(option->cmdline_flag.c_str());
-    JIT_CHECK(
-        key != nullptr,
-        "Failed to allocate Python string for '{}'",
-        option->cmdline_flag);
-
     // Check if option is specified in the command line arguments.
     std::string found;
-    PyObject* resolves_to = PyDict_GetItem(cmdline_args, key);
-    Py_DECREF(key);
-    if (resolves_to != nullptr) {
-      const char* got =
-          PyUnicode_Check(resolves_to) ? PyUnicode_AsUTF8(resolves_to) : "";
-      option->callback_on_match(got);
+    if (handleCliFlag(*option, cmdline_args)) {
       found = option->cmdline_flag;
     }
 
@@ -186,7 +175,7 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
       option->handled = true;
 
       // Log everything but skip the debug option itself.
-      if (option->cmdline_flag != "jit-debug") {
+      if (option->cmdline_flag != "cinderx-jit-debug") {
         // Use overridden debug message if it's been defined.
         std::string_view msg = option->debug_message.empty()
             ? option->flag_description
@@ -196,20 +185,57 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
     }
   }
 
-  // Check for unrecognized "-X jit..." options.
+  // Check for unrecognized "-X cinderx-jit..." options.
   PyObject* key;
   PyObject* value;
-  auto jit_str = Ref<>::steal(PyUnicode_FromString("jit"));
   for (Py_ssize_t pos = 0; PyDict_Next(cmdline_args, &pos, &key, &value);) {
-    int match = PyUnicode_Tailmatch(
-        key, jit_str, /*start=*/0, /*end=*/3, /*direction=*/-1);
-    JIT_CHECK(match != -1, "Failed to match on unicode object");
-    const char* option = PyUnicode_AsUTF8(key);
-    JIT_CHECK(option != nullptr, "Failed to convert unicode object to string");
-    if (match && !canHandle(option)) {
+    const char* raw_option = PyUnicode_AsUTF8(key);
+    JIT_CHECK(
+        raw_option != nullptr,
+        "Failed to convert command line key of type '{}' to a string",
+        Py_TYPE(key)->tp_name);
+    std::string_view option = raw_option;
+    if (option.starts_with("cinderx-jit") && !canHandle(option)) {
       JIT_LOG("Warning: JIT cannot handle X-option {}", option);
     }
   }
+}
+
+bool FlagProcessor::handleCliFlag(
+    const Option& option,
+    BorrowedRef<> cmdline_args) {
+  const char* flag = option.cmdline_flag.c_str();
+  auto key = Ref<>::steal(PyUnicode_FromString(flag));
+  JIT_CHECK(key != nullptr, "Failed to allocate Python string for '{}'", flag);
+
+  // Check if option is specified in the command line arguments.
+  std::string found;
+  BorrowedRef<> resolves_to = PyDict_GetItem(cmdline_args, key);
+
+  // If it wasn't found, try the old school "-X jit-..." scheme.
+  if (resolves_to == nullptr) {
+    constexpr std::string_view prefix = "cinderx-";
+    std::string_view flag_view = flag;
+    if (flag_view.starts_with(prefix)) {
+      flag_view.remove_prefix(prefix.size());
+      // This is safe because the string view is still NUL-terminated.
+      key = Ref<>::steal(PyUnicode_FromString(flag_view.data()));
+      JIT_CHECK(
+          key != nullptr,
+          "Failed to allocate Python string for '{}'",
+          flag_view);
+      resolves_to = PyDict_GetItem(cmdline_args, key);
+    }
+  }
+
+  if (resolves_to != nullptr) {
+    const char* resolved =
+        PyUnicode_Check(resolves_to) ? PyUnicode_AsUTF8(resolves_to) : "";
+    option.callback_on_match(resolved);
+    return true;
+  }
+
+  return false;
 }
 
 bool FlagProcessor::handleEnvVar(const Option& option) {
