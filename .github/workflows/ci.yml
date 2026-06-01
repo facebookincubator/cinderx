@@ -15,6 +15,9 @@ jobs:
         # CPython functions and structures which can lead to ABI problems.  See
         # cinderx/UpstreamBorrow for more details.
         python-version: ['3.14.0', '3.14.1', '3.14.2', '3.14.3', '3.14.4', '3.14.5']
+        include:
+          - os: ubuntu-latest
+            python-version: '3.14t'
 
     steps:
     - name: Checkout CinderX
@@ -27,6 +30,19 @@ jobs:
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v7
+
+    # Ubuntu's default GCC 13.3 hits an internal compiler error on
+    # SwapLockGuard's std::atomic_ref::compare_exchange_weak in
+    # cinderx/Jit/code_patcher.cpp, which is only compiled under
+    # Py_GIL_DISABLED. GCC 14 (which is also what manylinux_2_28
+    # ships via gcc-toolset-14) compiles it cleanly.
+    - name: Install GCC 14
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-14 g++-14
+        echo "CC=gcc-14" >> "$GITHUB_ENV"
+        echo "CXX=g++-14" >> "$GITHUB_ENV"
 
     - name: Create venv
       run: uv venv --python ${{ matrix.python-version }}
