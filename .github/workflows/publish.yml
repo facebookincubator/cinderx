@@ -32,18 +32,6 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
 
-      # macOS builds need to install llvm to get llvm-profdata for PGO builds.
-      # cibuildwheel doesn't build using a container on macOS.
-      - name: Install LLVM (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install llvm
-          if [ -d "/opt/homebrew/opt/llvm/bin" ]; then
-            echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
-          elif [ -d "/usr/local/opt/llvm/bin" ]; then
-            echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
-          fi
-
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 
