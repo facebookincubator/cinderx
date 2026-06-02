@@ -260,8 +260,6 @@ class BackendTest : public RuntimeTest {
 
     AllocateResult result = code_allocator->addCode(&code);
     EXPECT_EQ(result.error, asmjit::kErrorOk);
-    Function* caller_owned_lir_func = gen.lir_func_.release();
-    EXPECT_EQ(caller_owned_lir_func, lir_func);
     return result.addr;
   }
 #endif
