@@ -55,6 +55,7 @@ struct DataDescrMutator {
   int setAttr(PyObject* obj, PyObject* value);
 
   BorrowedRef<> descr;
+  BorrowedRef<PyTypeObject> descr_type;
 };
 
 // Mutator for a member descriptor
@@ -111,6 +112,7 @@ class AttributeMutator {
       Py_ssize_t val_offset,
       PyDictKeysObject* keys,
       bool values_inline);
+  BorrowedRef<PyTypeObject> watchedDescrType() const;
 
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);
@@ -139,6 +141,7 @@ class AttributeCache {
   ~AttributeCache();
 
   void typeChanged(PyTypeObject* type);
+  void descrTypeChanged(PyTypeObject* type);
 
  protected:
   std::span<AttributeMutator> entries();

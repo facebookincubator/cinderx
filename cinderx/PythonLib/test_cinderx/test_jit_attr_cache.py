@@ -430,6 +430,59 @@ class LoadAttrCacheTests(unittest.TestCase):
         C.__dict__["foo"].__class__ = Descr
         self.assertEqual(get_attr(c), "get")
 
+    def test_shared_descr_type_across_cache_entries(self):
+        """Two types share the same descriptor type in the same cache.
+
+        When one type changes and its cache entry is reset, the descriptor
+        type watch must survive for the remaining entry. Otherwise mutating
+        the descriptor type (e.g. removing __set__) won't invalidate the
+        surviving entry.
+        """
+
+        class Descr:
+            def __get__(self, obj, ty):
+                return "descr"
+
+            def __set__(self, obj, val):
+                raise RuntimeError("unimplemented")
+
+        class T1:
+            foo = Descr()
+
+        class T2:
+            foo = Descr()
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.foo
+
+        t1 = T1()
+        t2 = T2()
+
+        # Prime and cache both entries (same descriptor type Descr).
+        self.assertEqual(get_attr(t1), "descr")
+        self.assertEqual(get_attr(t1), "descr")
+        self.assertEqual(get_attr(t2), "descr")
+        self.assertEqual(get_attr(t2), "descr")
+
+        # Both t1 and t2 have instance dict entries shadowed by
+        # the data descriptor.
+        t1.__dict__["foo"] = "t1 attr"
+        t2.__dict__["foo"] = "t2 attr"
+        self.assertEqual(get_attr(t1), "descr")
+        self.assertEqual(get_attr(t2), "descr")
+
+        # Invalidate T1's cache entry by mutating T1. This must NOT
+        # unwatch Descr from the descriptor watcher since T2's entry
+        # still depends on it.
+        T1.bar = 1
+
+        # Now mutate the descriptor type: removing __set__ makes Descr
+        # no longer a data descriptor. T2's entry must be invalidated
+        # so the instance attribute is returned instead.
+        del Descr.__set__
+        self.assertEqual(get_attr(t2), "t2 attr")
+
     @passIf(
         cinderx.jit.is_enabled(),
         "T214641462: Not clear why this is failing, but it is",
