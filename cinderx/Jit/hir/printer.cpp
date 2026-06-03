@@ -60,7 +60,9 @@ void HIRPrinter::Print(std::ostream& os, const Function& func) {
   SCOPE_EXIT(func_ = nullptr);
 
   fmt::print(
-      os, "fun {} {{\n", func.fullname.empty() ? "<unknown>" : func.fullname);
+      os,
+      "fun {} {{\n",
+      func.fullname.empty() ? "<unknown>" : func.fullname.c_str());
   Indent();
   Print(os, func.cfg);
   Dedent();
