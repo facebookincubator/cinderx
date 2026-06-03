@@ -4445,6 +4445,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             env_->asm_tstate,
             instr->module(),
             name);
+#elif PY_VERSION_HEX >= 0x030F0000
+        auto instr = static_cast<const ImportFrom*>(&i);
+        Instruction* name = getNameFromIdx(bbb, instr);
+        bbb.appendCallInstruction(
+            i.output(),
+            JITRT_ImportFrom,
+            env_->asm_tstate,
+            env_->asm_interpreter_frame,
+            instr->module(),
+            name);
 #elif PY_VERSION_HEX >= 0x030E0000
         auto instr = static_cast<const ImportFrom*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);

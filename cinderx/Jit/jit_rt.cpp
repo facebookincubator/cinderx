@@ -29,6 +29,11 @@
 #include "internal/pycore_unicodeobject.h"
 #endif
 
+#if PY_VERSION_HEX >= 0x030F0000
+#include "internal/pycore_import.h" // _PyImport_LoadLazyImportTstate
+#include "internal/pycore_lazyimportobject.h" // PyLazyImport_CheckExact
+#endif
+
 #include "internal/pycore_typeobject.h"
 
 #ifdef Py_GIL_DISABLED
@@ -848,6 +853,13 @@ JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
   if constexpr (PY_VERSION_HEX < 0x030E0000) {
     Py_XINCREF(result);
   }
+#if PY_VERSION_HEX >= 0x030F0000
+  // Resolve lazy imports.
+  if (result != nullptr && PyLazyImport_CheckExact(result)) {
+    Py_SETREF(
+        result, _PyImport_LoadLazyImportTstate(_PyThreadState_GET(), result));
+  }
+#endif
   return result;
 }
 
@@ -1425,6 +1437,19 @@ PyObject* JITRT_ImportName(
   return PyObject_CallFunctionObjArgs(
       import_func, name, globals, locals, fromlist, level, nullptr);
 }
+
+#if PY_VERSION_HEX >= 0x030F0000
+PyObject* JITRT_ImportFrom(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame,
+    PyObject* from,
+    PyObject* name) {
+  if (PyLazyImport_CheckExact(from)) {
+    return _PyEval_LazyImportFrom(tstate, frame, from, name);
+  }
+  return _PyEval_ImportFrom(tstate, from, name);
+}
+#endif
 
 void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 #ifdef ENABLE_GENERATOR_AWAITER

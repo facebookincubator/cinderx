@@ -337,6 +337,21 @@ PyObject* JITRT_ImportName(
     PyObject* fromlist,
     PyObject* level);
 
+#if PY_VERSION_HEX >= 0x030F0000
+/*
+ * Implements IMPORT_FROM for 3.15+. Mirrors the interpreter: if `from` is an
+ * unresolved lazy import, the attribute load goes through the lazy-import path
+ * (which may create a chained lazy import); otherwise it behaves like a normal
+ * import-from. `frame` is only used to record the import location for any
+ * chained lazy import that gets created.
+ */
+PyObject* JITRT_ImportFrom(
+    PyThreadState* tstate,
+    struct _PyInterpreterFrame* frame,
+    PyObject* from,
+    PyObject* name);
+#endif
+
 /*
  * Formats a f-string value
  */

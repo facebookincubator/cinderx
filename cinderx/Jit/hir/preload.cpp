@@ -12,6 +12,10 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/module_state.h"
 
+#if PY_VERSION_HEX >= 0x030F0000
+#include "internal/pycore_lazyimportobject.h" // PyLazyImport_CheckExact
+#endif
+
 #include <utility>
 
 namespace jit::hir {
@@ -341,11 +345,20 @@ bool Preloader::preload() {
           // lazy import that needs warming up, but since it is technically
           // possible, we may as well go ahead and warm that up too if the key
           // isn't in globals.
-          PyDict_GetItemWithError(builtins_, name);
+          global_value = PyDict_GetItemWithError(builtins_, name);
         }
         if (PyErr_Occurred()) {
           return false;
         }
+#if PY_VERSION_HEX >= 0x030F0000
+        // In 3.15+ a name bound by a lazy import is stored in the namespace
+        // dict as an unresolved placeholder that LOAD_GLOBAL resolves on
+        // access. Don't cache it, otherwise the GlobalCache would hand JIT'd
+        // code the placeholder instead of the imported value.
+        if (global_value != nullptr && PyLazyImport_CheckExact(global_value)) {
+          break;
+        }
+#endif
         // The above dict fetches may have had side effects that mean globals
         // are no longer cacheable, so recheck that.
         if (canCacheGlobals()) {
