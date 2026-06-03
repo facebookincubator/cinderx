@@ -48,6 +48,27 @@ static void immortalize_exact_dict_entries(PyObject* obj) {
   }
 }
 
+// Code objects are not GC-traversed in 3.12, so their tuple fields can be
+// immortal leaves with mortal entries. Keep this scoped to direct code tuple
+// entries rather than changing global tuple semantics.
+static void immortalize_code_tuple_field(BorrowedRef<> obj) {
+  PyObject* tuple = obj.get();
+  if (tuple == nullptr) {
+    return;
+  }
+
+  immortalize(tuple);
+
+  if (!PyTuple_CheckExact(tuple)) {
+    return;
+  }
+
+  Py_ssize_t size = PyTuple_GET_SIZE(tuple);
+  for (Py_ssize_t i = 0; i < size; i++) {
+    immortalize(PyTuple_GET_ITEM(tuple, i));
+  }
+}
+
 bool immortalize(PyObject* obj) {
   if (!can_immortalize(obj)) {
     return false;
@@ -63,14 +84,17 @@ bool immortalize(PyObject* obj) {
     BorrowedRef<PyCodeObject> code{obj};
     codeExtra(code);
     IMMORTALIZE(code->co_localspluskinds);
-    IMMORTALIZE(code->co_localsplusnames);
-    IMMORTALIZE(code->co_consts);
-    IMMORTALIZE(code->co_names);
     IMMORTALIZE(code->co_linetable);
+    IMMORTALIZE(code->co_exceptiontable);
+
+    immortalize_code_tuple_field(code->co_localsplusnames);
+    immortalize_code_tuple_field(code->co_consts);
+    immortalize_code_tuple_field(code->co_names);
 
     // These are strings and we need to check if this is safe.
     immortalize(code->co_filename);
     immortalize(code->co_name);
+    immortalize(code->co_qualname);
   }
 
   /* Cache the hash value of unicode object to reduce Copy-on-writes */

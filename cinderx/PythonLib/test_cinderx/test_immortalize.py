@@ -120,3 +120,149 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(value))
         self.assertTrue(cinderx.is_immortal(self_key))
         self.assertIs(mapping[self_key], mapping)
+
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_code_consts_entries(self) -> None:
+        def target() -> None:
+            return None
+
+        const = object()
+        consts = (const,)
+        target.__code__ = target.__code__.replace(co_consts=consts)
+        holder = [target]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(target.__code__))
+        self.assertTrue(cinderx.is_immortal(consts))
+        self.assertTrue(cinderx.is_immortal(const))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_code_consts_tuple_entry(self) -> None:
+        def target() -> None:
+            return None
+
+        const = object()
+        tuple_const = (const,)
+        consts = (tuple_const,)
+        target.__code__ = target.__code__.replace(co_consts=consts)
+        holder = [target]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(target.__code__))
+        self.assertTrue(cinderx.is_immortal(consts))
+        self.assertTrue(cinderx.is_immortal(tuple_const))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_code_consts_nested_exact_dict_entries(self) -> None:
+        def target() -> None:
+            return None
+
+        key = object()
+        value = object()
+        mapping = {key: value}
+        consts = (mapping,)
+        target.__code__ = target.__code__.replace(co_consts=consts)
+        holder = [target]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(target.__code__))
+        self.assertTrue(cinderx.is_immortal(consts))
+        self.assertTrue(cinderx.is_immortal(mapping))
+        self.assertTrue(cinderx.is_immortal(key))
+        self.assertTrue(cinderx.is_immortal(value))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_nested_code_object_consts(self) -> None:
+        def inner() -> None:
+            return None
+
+        def outer() -> None:
+            return None
+
+        const = object()
+        inner_code = inner.__code__.replace(co_consts=(const,))
+        outer.__code__ = outer.__code__.replace(co_consts=(inner_code,))
+        holder = [outer]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(outer.__code__))
+        self.assertTrue(cinderx.is_immortal(inner_code))
+        self.assertTrue(cinderx.is_immortal(inner_code.co_consts))
+        self.assertTrue(cinderx.is_immortal(const))
+
+    @unittest.skipIf(
+        _PY_DEBUG_BUILD,
+        "Python 3.12 debug builds only allow interned immortal unicode",
+    )
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_code_name_tuple_entries(self) -> None:
+        def target() -> None:
+            return None
+
+        name = "".join(("dynamic_", "name"))
+        local_name = "".join(("dynamic_", "local"))
+        target.__code__ = target.__code__.replace(
+            co_names=(name,),
+            co_nlocals=1,
+            co_varnames=(local_name,),
+        )
+        holder = [target]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(target.__code__))
+        self.assertTrue(cinderx.is_immortal(target.__code__.co_names))
+        self.assertTrue(cinderx.is_immortal(name))
+        self.assertTrue(cinderx.is_immortal(local_name))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_code_exceptiontable(self) -> None:
+        def target() -> None:
+            return None
+
+        exceptiontable = bytes(bytearray((1, 2, 3)))
+        target.__code__ = target.__code__.replace(
+            co_exceptiontable=exceptiontable,
+        )
+        holder = [target]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(target.__code__))
+        self.assertTrue(cinderx.is_immortal(exceptiontable))
+
+    @unittest.skipIf(
+        _PY_DEBUG_BUILD,
+        "Python 3.12 debug builds only allow interned immortal unicode",
+    )
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_code_qualname(self) -> None:
+        def target() -> None:
+            return None
+
+        qualname = "".join(("dynamic_", "qualname"))
+        target.__code__ = target.__code__.replace(co_qualname=qualname)
+        holder = [target]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(target.__code__))
+        self.assertTrue(cinderx.is_immortal(qualname))
