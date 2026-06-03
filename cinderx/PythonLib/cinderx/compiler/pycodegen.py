@@ -1112,8 +1112,13 @@ class CodeGenerator(ASTVisitor):
         else:
             self.visitStatements(node.body)
 
-        self.set_with_position_for_exit(node, kind)
         self.pop_fblock(kind)
+        if kind == ASYNC_WITH and IS_3_12_8:
+            self.set_pos(item.context_expr)
+        elif kind == WITH:
+            self.set_no_pos()
+        else:
+            self.set_pos(node)
         self.emit("POP_BLOCK")
 
         if IS_3_12_8:
@@ -5221,6 +5226,10 @@ class CodeGenerator314(CodeGenerator312):
             and isinstance(node.args[0], ast.GeneratorExp)
             and node.func.id in self.SUPPORTED_FUNCTION_CALL_OPS
         ):
+            return False
+
+        genexpr_scope = self.scopes.get(node.args[0])
+        if genexpr_scope and genexpr_scope.coroutine:
             return False
 
         skip_optimization = self.newBlock("skip_optimization")
