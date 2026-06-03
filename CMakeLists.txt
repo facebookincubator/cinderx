@@ -39,25 +39,6 @@ else()
   set(CXX_FLAGS "-fvisibility-inlines-hidden")
 endif()
 
-function(default_bool_option NAME VALUE DOC)
-  if (NOT DEFINED ${NAME})
-    set(${NAME} ${VALUE} CACHE BOOL ${DOC})
-  endif()
-endfunction()
-
-if (BUILD_RUNTIME_TESTS)
-  default_bool_option(ENABLE_DISASSEMBLER ON "Enable disassembler support")
-  default_bool_option(ENABLE_INTERPRETER_LOOP ON "Enable CinderX interpreter loop")
-  default_bool_option(ENABLE_PEP523_HOOK ON "Enable PEP 523 frame-eval hook")
-  default_bool_option(ENABLE_ZLIB ON "Enable zlib support")
-
-  if (NOT MACOS AND NOT WINDOWS)
-    default_bool_option(ENABLE_ELF_READER ON "Enable ELF reader support")
-    default_bool_option(ENABLE_SYMBOLIZER ON "Enable symbolizer support")
-    default_bool_option(ENABLE_USDT ON "Enable USDT support")
-  endif()
-endif()
-
 macro(set_flag VAR)
   # Undefined feature flags should behave like OFF.
   if (${VAR})
@@ -452,9 +433,8 @@ add_library(parallel-gc ${PARALLEL_GC_SOURCES})
 ########################################
 # _cinderx.cpp
 
-set(SOURCES
+set(CINDERX_MODULE_LIB_SOURCES
   # Manually listed out to not accidentally include stuff in .git.
-  ${PROJECT_SOURCE_DIR}/_cinderx.cpp
   ${PROJECT_SOURCE_DIR}/_cinderx-lib.cpp
   ${PROJECT_SOURCE_DIR}/async_lazy_value.cpp
   ${PROJECT_SOURCE_DIR}/module_state.cpp
@@ -462,14 +442,20 @@ set(SOURCES
   ${PROJECT_SOURCE_DIR}/python_runtime.cpp
 )
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
-
+add_library(cinderx-lib STATIC ${CINDERX_MODULE_LIB_SOURCES})
 target_link_libraries(
-  ${PROJECT_NAME}
+  cinderx-lib
   PRIVATE
   Python::Module
   borrowed cached-properties common immortalize interpreter jit parallel-gc static-python
   asmjit::asmjit fmt::fmt)
+
+add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_DIR}/_cinderx.cpp)
+
+target_link_libraries(
+  ${PROJECT_NAME}
+  PRIVATE
+  cinderx-lib)
 
 # macOS doesn't allow depending on other shared libraries by default.
 if (${MACOS})
@@ -519,7 +505,6 @@ if (BUILD_RUNTIME_TESTS)
     ${PROJECT_SOURCE_DIR}/RuntimeTests/dataflow_test.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/deopt_patcher_test.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/deopt_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/fixtures.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/gen_asm_test.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_analysis_test.cpp
@@ -552,22 +537,22 @@ if (BUILD_RUNTIME_TESTS)
     ${PROJECT_SOURCE_DIR}/RuntimeTests/slab_arena_test.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/testutil.cpp
     ${PROJECT_SOURCE_DIR}/RuntimeTests/type_profiler_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp
-
-    # Provide _cinderx as a built-in module for the embedded interpreter.
-    ${PROJECT_SOURCE_DIR}/_cinderx-lib.cpp
-    ${PROJECT_SOURCE_DIR}/async_lazy_value.cpp
-    ${PROJECT_SOURCE_DIR}/module_c_state.cpp
-    ${PROJECT_SOURCE_DIR}/module_state.cpp
-    ${PROJECT_SOURCE_DIR}/python_runtime.cpp
   )
+
+  if (ENABLE_ELF_READER)
+    list(APPEND RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp)
+  endif()
+
+  if (ENABLE_SYMBOLIZER)
+    list(APPEND RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
+  endif()
 
   add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
 
   target_link_libraries(
     RuntimeTests
     PRIVATE
-    borrowed cached-properties common immortalize interpreter jit parallel-gc static-python
+    cinderx-lib
     asmjit::asmjit fmt::fmt
     GTest::gtest
     Python::Python

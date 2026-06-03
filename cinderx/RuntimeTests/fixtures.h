@@ -59,8 +59,8 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_TRUE(Py_IsInitialized());
 
     auto cinderx_mod = Ref<>::steal(PyImport_ImportModule("cinderx"));
-    ASSERT_NE(cinderx_mod, nullptr)
-        << "Could not import cinderx during test setup";
+    JIT_CHECK(
+        cinderx_mod != nullptr, "Could not import cinderx during test setup");
 
     auto mod_state = cinderx::getModuleState();
     ASSERT_NE(mod_state, nullptr) << "Could not load the CinderX module state, "

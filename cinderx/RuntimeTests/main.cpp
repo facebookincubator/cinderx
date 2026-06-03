@@ -2,17 +2,6 @@
 
 #include <gtest/gtest.h>
 
-// Keep BUCK_BUILD as a synonym for the split RuntimeTests features so the
-// internal Buck target keeps its existing behavior.
-#ifdef BUCK_BUILD
-#ifndef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
-#define CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES 1
-#endif
-#ifndef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
-#define CINDERX_RUNTIME_TESTS_STATIC_CINDERX 1
-#endif
-#endif
-
 #ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
 #include "cinderx/_cinderx-lib.h"
 #endif
