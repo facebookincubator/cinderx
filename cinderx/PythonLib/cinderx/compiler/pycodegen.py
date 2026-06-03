@@ -6197,6 +6197,37 @@ class CodeGenerator315(CodeGenerator314):
                 self.emit("POP_TOP", 0)
         super().emit_prologue()
 
+    def emit_function_annotations(
+        self, loc: AST | SrcLocation, args: ast.arguments, returns: ast.expr | None
+    ) -> bool:
+        scope = self.scopes.get(args)
+        if not scope:
+            return False
+        assert isinstance(scope, AnnotationScope)
+        if not scope.annotations_used:
+            return False
+
+        ann_gen = self.setup_annotations(loc, args, scope)
+
+        # CPython 3.15 changed the order: posonlyargs before args
+        count = ann_gen.emit_argannotations(args.posonlyargs, loc)
+        count += ann_gen.emit_argannotations(args.args, loc)
+        if args.vararg and args.vararg.annotation is not None:
+            ann_gen.emit_argannotation(args.vararg.arg, args.vararg.annotation, loc)
+            count += 1
+        count += ann_gen.emit_argannotations(args.kwonlyargs, loc)
+        if args.kwarg and args.kwarg.annotation is not None:
+            ann_gen.emit_argannotation(args.kwarg.arg, args.kwarg.annotation, loc)
+            count += 1
+        if returns is not None:
+            ann_gen.emit_argannotation("return", returns, loc)
+            count += 1
+
+        ann_gen.graph.emit_with_loc("BUILD_MAP", count, loc)
+        ann_gen.graph.emit_with_loc("RETURN_VALUE", 0, loc)
+        self.leave_annotations(ann_gen)
+        return True
+
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
         super().emit_get_awaitable(kind)
         self.emit("PUSH_NULL")
