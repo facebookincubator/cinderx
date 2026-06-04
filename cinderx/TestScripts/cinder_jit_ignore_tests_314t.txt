@@ -1,0 +1,12 @@
+# Test is wrong for 3.14, but fixed in main.
+test.test_capi.test_object.IsUniquelyReferencedTest.test_is_uniquely_referenced
+
+# T243234000 - failing on 3.14.1
+test.test_tuple.TupleTest.test_track_literals
+
+# line numbers aren't accurate during external introspection
+test.test_external_inspection.TestGetStackTrace.test_self_trace
+
+# Flaky under free-threading: test_wave occasionally produces spurious ASAN
+# log entries (empty or trace-only) that trip the CI sanitizer check.
+test.test_wave.*

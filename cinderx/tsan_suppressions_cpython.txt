@@ -20,3 +20,44 @@ race:read_u16
 # GH-129068: range iterator races in free-threaded CPython
 race:rangeiter_next
 race:longrangeiter_next
+
+# CPython store_instance_attr_lock_held race (upstream issue).
+race:store_instance_attr_lock_held
+
+# CPython dict insertion order race (upstream issue).
+race:_PyDictValues_AddToInsertionOrder
+
+# CinderX JIT inline cache races. Caches use a release-acquire guard
+# (type_) to protect data fields, but TSAN can't verify the cross-field
+# ordering between the atomic guard and non-atomic payload fields.
+race:jit::AttributeMutator::
+race:jit::CombinedMutator::
+race:jit::SplitMutator::
+race:jit::StoreAttrCache::
+race:jit::LoadAttrCache::
+race:jit::AttributeCache::fill
+race:jit::LoadMethodCache::
+race:jit::LoadTypeMethodCache::
+race:jit::LoadTypeAttrCache::
+race:JITRT_LoadSpecial
+
+# CinderX JIT compilation tracking: parallel-hashmap races between JIT
+# compilation threads and main-thread lookups in jit::Context maps.
+race:jit::Context::addCompiledFunc
+race:jit::Context::didCompile
+race:jit::Context::finalizeFunc
+race:jit::Context::lookupCode
+race:jit::Context::lookupFunc
+race:jit::Context::codeCompiled
+race:jit::Context::makeCompiledFunction
+race:jit::funcDestroyed
+race:jit::scheduleJitCompile
+race:jit::FreeThreadedJITEntrypointGuard
+race:phmap::priv::raw_hash_set
+
+# CinderX code extra read/write race during JIT compilation.
+race:codeExtraReadOnly
+
+# CinderX JIT signal safety: frame reification allocates memory inside
+# signal handlers, which TSAN flags as signal-unsafe.
+signal:jit::DebugInfo::getUnitCallStack

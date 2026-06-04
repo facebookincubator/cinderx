@@ -25,6 +25,7 @@ import shlex
 import signal
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import threading
 import time
@@ -293,6 +294,8 @@ def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
 
         skip_list_files.append("cinder_jit_ignore_tests.txt")
         skip_list_files.append(f"cinder_jit_ignore_tests_{version}.txt")
+        if sysconfig.get_config_var("Py_GIL_DISABLED"):
+            skip_list_files.append(f"cinder_jit_ignore_tests_{version}t.txt")
     except ImportError:
         pass
 
