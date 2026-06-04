@@ -1686,11 +1686,11 @@ void LIRGenerator::makeIncrefFreeThreaded(
   BasicBlock* check_owner = bbb.allocateBlock();
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
-      OutVReg{},
+      OutVReg{DataType::k64bit},
       Instruction::kMoveRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
-      OutVReg{},
+      OutVReg{DataType::k64bit},
       Instruction::kMove,
       Ind{env_->asm_tstate,
           static_cast<int>(offsetof(PyThreadState, thread_id))});
@@ -1750,7 +1750,9 @@ void LIRGenerator::makeIncrefGILEnabled(
         r1);
   } else {
     Instruction* r1 = bbb.appendInstr(
-        OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
+        OutVReg{DataType::k64bit},
+        Instruction::kMove,
+        Ind{instr, kRefcountOffset});
     bbb.appendInstr(Instruction::kInc, r1);
     bbb.appendInstr(OutInd{instr, kRefcountOffset}, Instruction::kMove, r1);
   }
@@ -1825,11 +1827,11 @@ void LIRGenerator::makeDecrefFreeThreaded(
   BasicBlock* check_owner = bbb.allocateBlock();
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
-      OutVReg{},
+      OutVReg{DataType::k64bit},
       Instruction::kMoveRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
-      OutVReg{},
+      OutVReg{DataType::k64bit},
       Instruction::kMove,
       Ind{env_->asm_tstate,
           static_cast<int>(offsetof(PyThreadState, thread_id))});
@@ -1881,7 +1883,9 @@ void LIRGenerator::makeDecrefGILEnabled(
     std::optional<destructor> destructor,
     bool possible_immortal) {
   Instruction* r1 = bbb.appendInstr(
-      OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
+      OutVReg{DataType::k64bit},
+      Instruction::kMove,
+      Ind{instr, kRefcountOffset});
 
   if (possible_immortal) {
     auto mortal = bbb.allocateBlock();
@@ -3776,7 +3780,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (type <= (TCInt8 | TCInt16 | TCInt32) ||
             type <= (TCUInt8 | TCUInt16 | TCUInt32)) {
           Instruction* lir = bbb.appendInstr(
-              Instruction::kSext, OutVReg{}, instr->GetOperand(1));
+              Instruction::kSext,
+              OutVReg{DataType::k64bit},
+              instr->GetOperand(1));
           bbb.appendCallInstruction(
               instr->output(),
               JITRT_CheckSequenceBounds,
@@ -3832,7 +3838,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // split table, so it's safe to load and access ma_values with no
         // additional checks here.
         Instruction* ma_values = bbb.appendInstr(
-            OutVReg{},
+            OutVReg{DataType::k64bit},
             Instruction::kMove,
             Ind{bbb.getDefInstr(dict),
                 static_cast<int32_t>(offsetof(PyDictObject, ma_values))});
@@ -4210,7 +4216,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         // The caller frame for the previous field.
         Instruction* caller_frame = bbb.appendInstr(
-            OutVReg{},
+            OutVReg{DataType::k64bit},
             Instruction::kLea,
             Stk{PhyLocation(
                 static_cast<int32_t>(
@@ -4296,7 +4302,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 case FrameFieldKind::kStackPointer:
 #if PY_VERSION_HEX >= 0x030E0000
                   return bbb.appendInstr(
-                      OutVReg{},
+                      OutVReg{DataType::k64bit},
                       Instruction::kLea,
                       Stk{PhyLocation(
                           static_cast<int32_t>(
@@ -4947,7 +4953,7 @@ Instruction* LIRGenerator::getInlinedFrame(
              .emplace(
                  instr,
                  bbb.appendInstr(
-                     OutVReg{},
+                     OutVReg{DataType::k64bit},
                      Instruction::kLea,
                      Stk{PhyLocation(
                          static_cast<int32_t>(frameOffsetOf(instr)))}))
@@ -5013,7 +5019,9 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     // Load the resume entry label address.
     bbb.annotateNext("Allocate generator + interpreter frame");
     Instruction* resume_label = bbb.appendInstr(
-        OutVReg{}, Instruction::kLea, AsmLbl{env_->gen_resume_entry_label});
+        OutVReg{DataType::k64bit},
+        Instruction::kLea,
+        AsmLbl{env_->gen_resume_entry_label});
     // spill_words is read from CodeRuntime by the runtime function,
     // so we don't need to pass it explicitly.
     Instruction* footer;
@@ -5041,7 +5049,9 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         offsetof(GenDataFooter, frame_header) +
         offsetof(FrameHeader, deopt_idx));
     deopt_idx_addr_ = bbb.appendInstr(
-        OutVReg{}, Instruction::kLea, Stk{PhyLocation(deopt_idx_offset)});
+        OutVReg{DataType::k64bit},
+        Instruction::kLea,
+        Stk{PhyLocation(deopt_idx_offset)});
 #endif
   } else {
 #if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
@@ -5140,12 +5150,13 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
               } else {
                 code_start = _PyCode_CODE(func_->code.get()) - 1;
               }
-              return bbb.appendInstr(OutVReg{}, Instruction::kMove, code_start);
+              return bbb.appendInstr(
+                  OutVReg{DataType::k64bit}, Instruction::kMove, code_start);
             }
             case FrameFieldKind::kStackPointer:
 #if PY_VERSION_HEX >= 0x030E0000
               return bbb.appendInstr(
-                  OutVReg{},
+                  OutVReg{DataType::k64bit},
                   Instruction::kLea,
                   Stk{PhyLocation(
                       static_cast<int32_t>(
@@ -5271,7 +5282,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Instruction* frame_status = bbb.appendInstr(
-      OutVReg{},
+      OutVReg{DataType::k64bit},
       Instruction::kMove,
       Ind{frame,
           static_cast<int32_t>(
