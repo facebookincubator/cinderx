@@ -522,6 +522,7 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
       break;
     case Operand::k64bit:
     case Operand::kObject:
+    case Operand::kObjectUntagged:
       JIT_ABORT("can't be smaller than the maximum size");
     case Operand::kDouble:
       JIT_ABORT("A float point number cannot be the input of the instruction.");

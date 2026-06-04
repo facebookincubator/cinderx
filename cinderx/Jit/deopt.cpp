@@ -300,7 +300,11 @@ BorrowedRef<> MemoryView::readBorrowed(const LiveValue& value) const {
   JIT_CHECK(
       value.value_kind == jit::hir::ValueKind::kObject,
       "cannot materialize a borrowed primitive value");
-  return reinterpret_cast<PyObject*>(readRaw(value));
+  uint64_t raw = readRaw(value);
+  if constexpr (kFreeThreadedBuild) {
+    raw = stripDeferredRcTag(raw);
+  }
+  return reinterpret_cast<PyObject*>(raw);
 }
 
 Ref<> MemoryView::readOwned(const LiveValue& value) const {
@@ -317,8 +321,12 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
       return Ref<>::steal(PyFloat_FromDouble(raw));
     case jit::hir::ValueKind::kBool:
       return Ref<>::create(raw ? Py_True : Py_False);
-    case jit::hir::ValueKind::kObject:
+    case jit::hir::ValueKind::kObject: {
+      if constexpr (kFreeThreadedBuild) {
+        raw = stripDeferredRcTag(raw);
+      }
       return Ref<>::create(reinterpret_cast<PyObject*>(raw));
+    }
   }
   JIT_ABORT("Unhandled ValueKind");
 }
@@ -401,6 +409,14 @@ void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {
         continue;
       }
       case jit::hir::RefKind::kOwned: {
+        if constexpr (kFreeThreadedBuild) {
+          // If the raw value has the deferred-RC tag, the matching
+          // incref was skipped at function entry, so skip the decref too.
+          if (value.value_kind == hir::ValueKind::kObject &&
+              isDeferredRcTagged(mem.readRaw(value))) {
+            break;
+          }
+        }
         // Read as borrowed then steal to decref.
         Ref<>::steal(mem.readBorrowed(value));
         break;

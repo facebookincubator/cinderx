@@ -479,7 +479,7 @@ int JITRT_NotContainsBool(PyObject* w, PyObject* v);
 int JITRT_RichCompareBool(PyObject* v, PyObject* w, int op);
 
 /* perform a batch decref to the objects in args */
-void JITRT_BatchDecref(PyObject** args, int nargs);
+void JITRT_BatchDecref(jit::TaggedPyObject* args, int nargs);
 
 /* Check that `i` is within the bounds of `seq`.
  *
@@ -541,6 +541,24 @@ LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
  * kFreeThreadedBuild instead of #ifdefs.
  */
 void JITRT_AtQuiescentState(PyThreadState* tstate);
+
+/*
+ * Atomically increment the shared refcount. Called from the inline incref
+ * slow path when ob_tid doesn't match (object not owned by current thread).
+ *
+ * Used by FT builds only.
+ */
+void JITRT_IncRefShared(PyObject* obj);
+
+/*
+ * If the object uses deferred reference counting, return a value with the
+ * deferred stack-ref tag without touching the refcount. Otherwise return an
+ * untagged pointer value. Used for values loaded from caches where the
+ * reference kind isn't statically known.
+ *
+ * Used by FT builds only.
+ */
+jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
 
 #if PY_VERSION_HEX >= 0x030D0000
 

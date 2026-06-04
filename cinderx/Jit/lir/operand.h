@@ -25,6 +25,10 @@ class MemoryIndirect {
 
   void setMemoryIndirect(Instruction* base, int32_t offset);
   void setMemoryIndirect(PhyLocation base, int32_t offset = 0);
+  // Set the base *only*, leaving the offset and index unchanged.
+  void resetMemoryIndirectBase(Instruction* base) {
+    setBaseIndex(base_reg_, base);
+  }
 
   void setMemoryIndirect(
       PhyLocation base,

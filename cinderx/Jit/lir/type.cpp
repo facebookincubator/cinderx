@@ -17,6 +17,7 @@ size_t bitSize(DataType dt) {
     case DataType::k64bit:
     case DataType::kDouble:
     case DataType::kObject:
+    case DataType::kObjectUntagged:
       return 64;
     default:
       break;

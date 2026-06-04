@@ -28,6 +28,7 @@ class AutoTranslator {
       case jit::lir::Operand::k32bit:
         return asmjit::x86::gpd(reg);
       case jit::lir::Operand::kObject:
+      case jit::lir::Operand::kObjectUntagged:
       case jit::lir::Operand::k64bit:
         return asmjit::x86::gpq(reg);
       case jit::lir::Operand::kDouble:
@@ -43,6 +44,7 @@ class AutoTranslator {
       case jit::lir::Operand::k32bit:
         return asmjit::a64::w(reg);
       case jit::lir::Operand::kObject:
+      case jit::lir::Operand::kObjectUntagged:
       case jit::lir::Operand::k64bit:
         return asmjit::a64::x(reg);
       case jit::lir::Operand::kDouble:

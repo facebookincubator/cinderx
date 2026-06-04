@@ -242,7 +242,6 @@ struct MemoryView {
   BorrowedRef<> readBorrowed(const LiveValue& value) const;
   Ref<> readOwned(const LiveValue& value) const;
 
- private:
   uint64_t readRaw(const LiveValue& value) const {
     jit::codegen::PhyLocation loc = value.location;
     if (loc.is_register()) {

@@ -264,6 +264,10 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
       BasicBlock* end_incref);
+  void makeMaterializeRef(
+      BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      hir::Register* output);
   void makeDecrefFreeThreaded(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,

@@ -80,6 +80,7 @@ namespace jit::hir {
   V(IndexUnbox)                    \
   V(InitialYield)                  \
   V(IntBinaryOp)                   \
+  V(MaterializeRef)                \
   V(PrimitiveBoxBool)              \
   V(PrimitiveBox)                  \
   V(PrimitiveCompare)              \

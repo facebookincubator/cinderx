@@ -2,11 +2,14 @@
 
 #include "cinderx/Jit/lir/postgen.h"
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
 
 #include <unordered_map>
+
+void JITRT_BatchDecref(jit::TaggedPyObject* args, int nargs);
 
 using namespace jit::codegen;
 
@@ -310,7 +313,12 @@ RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
   JIT_CHECK(instr->getNumInputs() == 1, "expected one input");
   Operand* input = instr->getInput(0);
   JIT_CHECK(input->isImm(), "expected constant arg index as input");
-  size_t arg_idx = input->getConstant();
+  size_t arg_idx = static_cast<size_t>(input->getConstant());
+  JIT_CHECK(
+      arg_idx < env->arg_locations.size(),
+      "arg index {} out of range for {} arg locations",
+      arg_idx,
+      env->arg_locations.size());
   JIT_CHECK(
       arg_idx < env->arg_locations.size(),
       "arg index {} out of range for {} arg locations",
@@ -1022,6 +1030,143 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
   return changed ? kChanged : kUnchanged;
 }
 
+bool hasHelperTarget(const Instruction& instr, uint64_t helper) {
+  if (!instr.isCall() && !instr.isVarArgCall() && !instr.isVectorCallTstate()) {
+    return false;
+  }
+  if (instr.getNumInputs() == 0) {
+    return false;
+  }
+
+  const Operand* target = instr.getInput(0);
+  if (target->isImm()) {
+    return target->getConstant() == helper;
+  }
+  if (!target->isLinked()) {
+    return false;
+  }
+
+  const Instruction* target_instr = target->getLinkedInstr();
+  if (!target_instr->isMove() || target_instr->getNumInputs() != 1) {
+    return false;
+  }
+
+  const Operand* move_input = target_instr->getInput(0);
+  return move_input->isImm() && move_input->getConstant() == helper;
+}
+
+bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
+  return instr.isVarArgCall() &&
+      hasHelperTarget(instr, reinterpret_cast<uint64_t>(JITRT_BatchDecref));
+}
+
+// Strip deferred-RC tag bits from all kObject values before they
+// are used in memory dereferences, passed to C functions, compared, used
+// in guards, or returned. Since PyObject* is aligned enough for CPython's
+// stack-ref tag bits, this is a no-op for non-tagged pointers. Non-PyObject*
+// pointers must use k64bit to avoid incorrect stripping.
+[[maybe_unused]] RewriteResult rewriteStripObjectPointers(
+    function_rewrite_arg_t func) {
+  bool changed = false;
+  for (auto& block : func->basicblocks()) {
+    std::unordered_map<Instruction*, Instruction*> strip_cache;
+
+    for (auto it = block->instructions().begin();
+         it != block->instructions().end();
+         ++it) {
+      auto* instr = it->get();
+
+      auto getOrCreateStrip = [&](Instruction* base) -> Instruction* {
+        auto found = strip_cache.find(base);
+        if (found != strip_cache.end()) {
+          return found->second;
+        }
+        Instruction* strip = block->allocateInstrBefore(
+            it,
+            Instruction::kAnd,
+            OutVReg{DataType::kObjectUntagged},
+            VReg{base},
+            Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
+                DataType::k64bit});
+        strip_cache[base] = strip;
+        changed = true;
+        return strip;
+      };
+
+      // Strip kObject Ind bases.
+      for (size_t i = 0; i < instr->getNumInputs(); ++i) {
+        Operand* operand = instr->getInput(i);
+        if (!operand->isInd()) {
+          continue;
+        }
+        MemoryIndirect* indirect = operand->getMemoryIndirect();
+        Operand* base = indirect->getBaseRegOperand();
+        if (base == nullptr || !base->isLinked() ||
+            base->dataType() != DataType::kObject) {
+          continue;
+        }
+        indirect->resetMemoryIndirectBase(
+            getOrCreateStrip(base->getLinkedInstr()));
+      }
+
+      // Strip kObject OutInd bases.
+      {
+        auto* out = instr->output();
+        if (out->isInd()) {
+          MemoryIndirect* indirect = out->getMemoryIndirect();
+          Operand* base = indirect->getBaseRegOperand();
+          if (base != nullptr && base->isLinked() &&
+              base->dataType() == DataType::kObject) {
+            indirect->resetMemoryIndirectBase(
+                getOrCreateStrip(base->getLinkedInstr()));
+          }
+        }
+      }
+
+      // Assert that guards were already stripped by the LIR generator.
+      if (instr->isGuard()) {
+        auto kind =
+            static_cast<InstrGuardKind>(instr->getInput(0)->getConstant());
+        if (kind == InstrGuardKind::kIs || kind == InstrGuardKind::kHasType) {
+          JIT_DCHECK(
+              instr->getInput(2)->dataType() != DataType::kObject,
+              "Guard kIs/kHasType input must be stripped to kObjectUntagged "
+              "before reaching the postgen strip pass: {}",
+              *instr);
+        }
+      }
+
+      // Strip kObject call args, compare operands, and return values.
+      // JITRT_BatchDecref needs tagged deferred-RC refs so the helper can
+      // recognize and skip them; every other call should still see untagged
+      // object pointers.
+      bool is_call = instr->isCall() || instr->isVectorCallTstate() ||
+          instr->isVarArgCall();
+      bool strip_call_args = is_call && !shouldPreserveTaggedCallArgs(*instr);
+      bool is_compare = instr->isEqual() || instr->isNotEqual();
+      bool is_epilogue = instr->isEpilogueEnd();
+      if (!strip_call_args && !is_compare && !is_epilogue) {
+        continue;
+      }
+      size_t start = 0;
+      if (strip_call_args) {
+        // VectorCallTstate has fixed inputs for helper, flags, and tstate
+        // before the callable and Python object arguments.
+        start = instr->isVectorCallTstate() ? 3 : 1;
+      }
+      size_t end = instr->getNumInputs();
+      for (size_t i = start; i < end; ++i) {
+        Operand* operand = instr->getInput(i);
+        if (!operand->isLinked() || operand->dataType() != DataType::kObject) {
+          continue;
+        }
+        Instruction* strip = getOrCreateStrip(operand->getLinkedInstr());
+        instr->setInput(i, std::make_unique<Operand>(strip, Operand::kLinked));
+      }
+    }
+  }
+  return changed ? kChanged : kUnchanged;
+}
 } // namespace
 
 void PostGenerationRewrite::registerRewrites() {
@@ -1052,6 +1197,10 @@ void PostGenerationRewrite::registerRewrites() {
   }
 
   registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);
+
+  if constexpr (kFreeThreadedBuild) {
+    registerOneRewriteFunction(rewriteStripObjectPointers, 2);
+  }
 }
 
 } // namespace jit::lir

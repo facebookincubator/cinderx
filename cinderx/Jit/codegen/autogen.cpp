@@ -270,11 +270,10 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
         emit_cmp(reg);
         as->jne(deopt_label);
         break;
-      case kHasType: {
+      case kHasType:
         emit_cmp(x86::qword_ptr(reg, offsetof(PyObject, ob_type)));
         as->jne(deopt_label);
         break;
-      }
     }
   }
 #elif defined(CINDER_AARCH64)
@@ -875,7 +874,8 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   auto* as = env->as;
 
   auto* ret_val = instr->getInput(0);
-  bool is_primitive = ret_val->dataType() != DataType::kObject;
+  bool is_primitive = ret_val->dataType() != DataType::kObject &&
+      ret_val->dataType() != DataType::kObjectUntagged;
   bool is_double = ret_val->isFp();
 
 #if defined(CINDER_X86_64)

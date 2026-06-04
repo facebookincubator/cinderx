@@ -1947,9 +1947,13 @@ int JITRT_RichCompareBool(PyObject* v, PyObject* w, int op) {
 }
 
 /* perform a batch decref to the objects in args */
-void JITRT_BatchDecref(PyObject** args, int nargs) {
+void JITRT_BatchDecref(jit::TaggedPyObject* args, int nargs) {
   for (int i = 0; i < nargs; i++) {
-    Py_DECREF(args[i]);
+    // Deferred-RC stack refs are managed by the GC.
+    if (kFreeThreadedBuild && jit::isDeferredRcTagged(args[i])) {
+      continue;
+    }
+    Py_DECREF(jit::untaggedPyObject(args[i]));
   }
 }
 
@@ -2077,6 +2081,12 @@ PyObject* JITRT_LookupAttrSpecial(
   return res;
 }
 
+#ifdef Py_GIL_DISABLED
+void JITRT_IncRefShared(PyObject* obj) {
+  _Py_atomic_add_ssize(&obj->ob_ref_shared, (1 << _Py_REF_SHARED_SHIFT));
+}
+#endif
+
 LoadMethodResult JITRT_LoadSpecial(
     [[maybe_unused]] PyObject* self,
     [[maybe_unused]] int special_idx) {
@@ -2117,6 +2127,15 @@ void JITRT_AtQuiescentState([[maybe_unused]] PyThreadState* tstate) {
   _Py_qsbr_quiescent_state(
       (reinterpret_cast<_PyThreadStateImpl*>(tstate))->qsbr);
 #endif
+}
+
+jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj) {
+#ifdef Py_GIL_DISABLED
+  if (obj != nullptr && _PyObject_HasDeferredRefcount(obj)) {
+    return jit::addDeferredRcTag(obj);
+  }
+#endif
+  return jit::untaggedPyObjectRef(obj);
 }
 
 PyObject JITRT_IterDoneSentinel = {

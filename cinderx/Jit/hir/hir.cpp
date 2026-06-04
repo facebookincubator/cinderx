@@ -487,6 +487,7 @@ bool Instr::isReplayable() const {
     case Opcode::kLongInPlaceOp:
     case Opcode::kInitListElements:
     case Opcode::kInitTupleElements:
+    case Opcode::kMaterializeRef:
     case Opcode::kMakeCell:
     case Opcode::kMakeCheckedDict:
     case Opcode::kMakeCheckedList:
@@ -777,6 +778,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadTypeMethodCacheEntryType:
     case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
+    case Opcode::kMaterializeRef:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:
     case Opcode::kLongCompare:

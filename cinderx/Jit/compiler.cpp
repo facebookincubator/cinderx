@@ -15,6 +15,7 @@
 #include "cinderx/Jit/hir/hir_stats.h"
 #include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/insert_update_prev_instr.h"
+#include "cinderx/Jit/hir/materialize_steals.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
@@ -109,6 +110,9 @@ void Compiler::runPasses(
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
 
   runPass(jit::hir::RefcountInsertion{}, irfunc, callback);
+  if constexpr (kFreeThreadedBuild) {
+    runPass(jit::hir::MaterializeSteals{}, irfunc, callback);
+  }
 
   if (getConfig().dump_hir_stats) {
     jit::hir::HIRStats stats;

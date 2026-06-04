@@ -280,6 +280,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kLoadCurrentFunc:
     case Opcode::kLoadFrame:
     case Opcode::kLoadEvalBreaker:
+    case Opcode::kMaterializeRef:
     case Opcode::kAtQuiescentState:
     case Opcode::kLoadFieldAddress:
     case Opcode::kLoadVarObjectSize:

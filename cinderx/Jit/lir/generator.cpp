@@ -1665,9 +1665,20 @@ void LIRGenerator::makeIncrefFreeThreaded(
     BasicBlock* end_incref) {
   // Inline the common-case incref for free-threading. Check thread ownership
   // (ob_tid == tstate->thread_id) and use a relaxed atomic store for
-  // thread-owned objects. Fall back to Py_IncRef for objects owned by other
-  // threads.
+  // thread-owned objects. Fall back to JITRT_IncRefShared for objects owned
+  // by other threads.
+
   BasicBlock* slow_incref = bbb.allocateBlock();
+
+  // Deferred-RC stack refs are managed by the GC; skip the incref entirely.
+  bbb.appendBranch(
+      Instruction::kBranchBitSet,
+      end_incref,
+      instr,
+      Imm{jit::kDeferredRcTagBit, DataType::k8bit});
+
+  BasicBlock* do_incref = bbb.allocateBlock();
+  bbb.appendBlock(do_incref);
 
   // Load ob_ref_local (32-bit thread-local refcount) with relaxed semantics.
   Instruction* ref_local = bbb.appendInstr(
@@ -1712,15 +1723,51 @@ void LIRGenerator::makeIncrefFreeThreaded(
   // Jump past the slow path to end_incref.
   bbb.appendBranch(Instruction::kBranch, end_incref);
 
-  // Slow path: not owned by this thread, use atomic Py_IncRef.
+  // Slow path: not owned by this thread, use JITRT_IncRefShared.
   // Use switchBlock (not appendBlock) because fast_store's unconditional
   // branch means slow_incref is not its fallthrough successor.
   bbb.switchBlock(slow_incref);
   if (getConfig().multiple_code_sections) {
     slow_incref->setSection(codegen::CodeSection::kCold);
   }
-  bbb.appendInvokeInstruction(Py_IncRef, instr);
+  // Call JITRT_IncRefShared directly instead of Py_IncRef — we've already
+  // checked immortality and ownership. Avoids redundant checks.
+  updateRefTotal(bbb, Instruction::kInc);
+  bbb.appendInvokeInstruction(JITRT_IncRefShared, instr);
   // Falls through to end_incref (appended by caller).
+}
+
+void LIRGenerator::makeMaterializeRef(
+    BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    hir::Register* output) {
+  // Convert a potentially-tagged pointer to a clean, owned reference.
+  // If the deferred tag is set: strip the tag and incref (inline).
+  // Otherwise return the pointer unchanged (already owned).
+
+  // Unconditionally strip stack-ref tag bits. This is a no-op for PyObject*.
+  Instruction* untagged = bbb.appendInstr(
+      OutVReg{DataType::k64bit},
+      Instruction::kAnd,
+      instr,
+      Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits)});
+  bbb.createInstrOutput(untagged, output);
+
+  auto end = bbb.allocateBlock();
+
+  // If not tagged, skip the incref.
+  bbb.appendBranch(
+      Instruction::kBranchBitNotSet,
+      end,
+      instr,
+      Imm{jit::kDeferredRcTagBit, DataType::k8bit});
+
+  // Tagged path: incref the untagged pointer. The tag is already stripped.
+  BasicBlock* tagged = bbb.allocateBlock();
+  bbb.appendBlock(tagged);
+  makeIncrefFreeThreaded(bbb, untagged, end);
+
+  bbb.appendBlock(end);
 }
 #else
 void LIRGenerator::makeIncrefGILEnabled(
@@ -1807,8 +1854,19 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // and use a relaxed atomic store for thread-owned objects. When the local
   // refcount reaches zero, call _Py_MergeZeroLocalRefcount to merge with the
   // shared refcount. Fall back to Py_DecRef for objects owned by other threads.
+
   BasicBlock* slow_decref = bbb.allocateBlock();
   BasicBlock* merge_refcount = bbb.allocateBlock();
+
+  // Deferred-RC stack refs are managed by the GC; skip the decref entirely.
+  bbb.appendBranch(
+      Instruction::kBranchBitSet,
+      end_decref,
+      instr,
+      Imm{jit::kDeferredRcTagBit, DataType::k8bit});
+
+  BasicBlock* do_decref = bbb.allocateBlock();
+  bbb.appendBlock(do_decref);
 
   // Load ob_ref_local (32-bit) with relaxed semantics.
   Instruction* ref_local = bbb.appendInstr(
@@ -1865,14 +1923,18 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // Jump past the slow path to end_decref.
   bbb.appendBranch(Instruction::kBranch, end_decref);
 
-  // Slow path: not owned by this thread, use atomic Py_DecRef.
+  // Slow path: not owned by this thread. Call _Py_DecRefShared directly
+  // instead of Py_DecRef — we've already checked immortality and ownership,
+  // so Py_DecRef would just repeat those checks. _Py_DecRefShared does the
+  // atomic shared refcount decrement directly.
   // Use switchBlock (not appendBlock) because merge_refcount's
   // unconditional branch means slow_decref is not its fallthrough.
   bbb.switchBlock(slow_decref);
   if (getConfig().multiple_code_sections) {
     slow_decref->setSection(codegen::CodeSection::kCold);
   }
-  bbb.appendInvokeInstruction(Py_DecRef, instr);
+  updateRefTotal(bbb, Instruction::kDec);
+  bbb.appendInvokeInstruction(_Py_DecRefShared, instr);
   // Falls through to end_decref (appended by caller).
 }
 #else
@@ -3245,6 +3307,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         makeIncref(bbb, i, true);
         break;
       }
+      case Opcode::kMaterializeRef: {
+        if constexpr (kFreeThreadedBuild) {
+          makeMaterializeRef(bbb, bbb.getDefInstr(i.GetOperand(0)), i.output());
+        } else {
+          JIT_ABORT("Deferred RC is only used with FT");
+        }
+        break;
+      }
       case Opcode::kDecref: {
         makeDecref(bbb, i, false);
         break;
@@ -3317,12 +3387,33 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         } else if (instr.IsGuardIs()) {
           kind = InstrGuardKind::kIs;
         }
-        appendGuard(bbb, kind, instr, bbb.getDefInstr(instr.GetOperand(0)));
+        Instruction* value = bbb.getDefInstr(instr.GetOperand(0));
+        // Strip dynamic deferred RC tag before comparison.
+        if constexpr (kFreeThreadedBuild) {
+          if (kind == InstrGuardKind::kIs) {
+            value = bbb.appendInstr(
+                OutVReg{DataType::kObjectUntagged},
+                Instruction::kAnd,
+                value,
+                Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
+                    DataType::k64bit});
+          }
+        }
+        appendGuard(bbb, kind, instr, value);
         break;
       }
       case Opcode::kGuardType: {
         const auto& instr = static_cast<const DeoptBase&>(i);
         Instruction* value = bbb.getDefInstr(instr.GetOperand(0));
+        if constexpr (kFreeThreadedBuild) {
+          // Strip dynamic deferred RC tag before comparison.
+          value = bbb.appendInstr(
+              OutVReg{DataType::kObjectUntagged},
+              Instruction::kAnd,
+              value,
+              Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
+                  DataType::k64bit});
+        }
         appendGuard(bbb, InstrGuardKind::kHasType, instr, value);
         break;
       }

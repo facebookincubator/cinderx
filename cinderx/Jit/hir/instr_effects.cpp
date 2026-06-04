@@ -205,6 +205,9 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kXIncref:
       return {false, AEmpty, {inst.NumOperands()}, AOther};
 
+    case Opcode::kMaterializeRef:
+      return commonEffects(inst, AOther);
+
     case Opcode::kBatchDecref:
       return {false, AEmpty, {1, 1}, AManagedHeapAny};
 
@@ -426,6 +429,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongCompare:
+    case Opcode::kMaterializeRef:
     case Opcode::kMakeCell:
     case Opcode::kInitListElements:
     case Opcode::kInitTupleElements:

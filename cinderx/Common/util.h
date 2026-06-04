@@ -4,9 +4,14 @@
 
 #include "cinderx/python.h"
 
+#ifdef Py_GIL_DISABLED
+#include "internal/pycore_stackref.h"
+#endif
+
 #include "cinderx/Common/log.h"
 
 #include <atomic>
+#include <bit>
 #include <charconv>
 #include <concepts>
 #include <cstdarg>
@@ -102,6 +107,75 @@ using GenResumeFunc = PyObject* (*)(PyObject * gen,
                                     PyThreadState* tstate);
 
 namespace jit {
+
+// Tagged PyObject values follow CPython's _PyStackRef tagging scheme in
+// free-threaded builds. GIL builds keep using plain PyObject* values.
+#ifdef Py_GIL_DISABLED
+using TaggedPyObject = _PyStackRef;
+constexpr uintptr_t kDeferredRcTag = Py_TAG_DEFERRED;
+constexpr uintptr_t kPyObjectPtrTag = Py_TAG_PTR;
+constexpr uintptr_t kPyObjectTagBits = Py_TAG_BITS;
+#else
+using TaggedPyObject = PyObject*;
+constexpr uintptr_t kDeferredRcTag = 0;
+constexpr uintptr_t kPyObjectPtrTag = 0;
+constexpr uintptr_t kPyObjectTagBits = 0;
+#endif
+
+// `kPyObjectPtrTag` being zero lets us treat an untagged PyObject* as a
+// TaggedPyObject with no extra masking — see `untaggedPyObjectRef`. The
+// invariants on these tag constants are checked via static_asserts in
+// util.cpp, kept out of the header so a failure spews a single error
+// rather than one per translation unit.
+
+#ifdef Py_GIL_DISABLED
+constexpr uint64_t kDeferredRcTagBit = std::countr_zero(kDeferredRcTag);
+#else
+constexpr uint64_t kDeferredRcTagBit = 0;
+#endif
+
+inline uintptr_t taggedPyObjectBits(TaggedPyObject obj) {
+#ifdef Py_GIL_DISABLED
+  return obj.bits;
+#else
+  return reinterpret_cast<uintptr_t>(obj);
+#endif
+}
+
+inline bool isDeferredRcTagged(uint64_t raw) {
+  return kPyObjectTagBits != 0 && (raw & kPyObjectTagBits) == kDeferredRcTag;
+}
+
+inline bool isDeferredRcTagged(TaggedPyObject obj) {
+  return isDeferredRcTagged(taggedPyObjectBits(obj));
+}
+
+inline uint64_t stripDeferredRcTag(uint64_t raw) {
+  return raw & ~static_cast<uint64_t>(kPyObjectTagBits);
+}
+
+inline PyObject* untaggedPyObject(TaggedPyObject obj) {
+  return reinterpret_cast<PyObject*>(
+      stripDeferredRcTag(taggedPyObjectBits(obj)));
+}
+
+inline TaggedPyObject taggedPyObject(
+    PyObject* obj,
+    [[maybe_unused]] uintptr_t tag) {
+#ifdef Py_GIL_DISABLED
+  return {reinterpret_cast<uintptr_t>(obj) | tag};
+#else
+  return obj;
+#endif
+}
+
+inline TaggedPyObject untaggedPyObjectRef(PyObject* obj) {
+  return taggedPyObject(obj, kPyObjectPtrTag);
+}
+
+inline TaggedPyObject addDeferredRcTag(PyObject* obj) {
+  return taggedPyObject(obj, kDeferredRcTag);
+}
 
 constexpr int kPointerSize = sizeof(void*);
 

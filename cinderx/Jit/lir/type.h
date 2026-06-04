@@ -41,13 +41,16 @@ enum class OperandType : uint8_t {
  * Operand data types.  Includes sized integers, 64-bit doubles, and PyObject*
  * values.
  */
-#define FOREACH_OPERAND_DATA_TYPE(X) \
-  X(8bit)                            \
-  X(16bit)                           \
-  X(32bit)                           \
-  X(64bit)                           \
-  X(Double)                          \
-  X(Object)
+#define FOREACH_OPERAND_DATA_TYPE(X)                                         \
+  X(8bit)                                                                    \
+  X(16bit)                                                                   \
+  X(32bit)                                                                   \
+  X(64bit)                                                                   \
+  X(Double)                                                                  \
+  X(Object)                                                                  \
+  /* Used in free-threaded builds for things of type Object which definitely \
+     had their deferred RC bit stripped. */                                  \
+  X(ObjectUntagged)
 
 enum class DataType : uint8_t {
 #define DECL_DATA_TYPE_ENUM(s, ...) k##s,

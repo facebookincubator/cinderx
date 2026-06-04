@@ -2268,6 +2268,9 @@ DEFINE_SIMPLE_INSTR(Incref, (TObject), Operands<1>);
 // Increment the refrence count of `reg`, if `reg` is not NULL
 DEFINE_SIMPLE_INSTR(XIncref, (TOptObject), Operands<1>);
 
+// Convert a potentially-tagged deferred-RC reference into a materialized one.
+DEFINE_SIMPLE_INSTR(MaterializeRef, (TOptObject), HasOutput, Operands<1>);
+
 // batch decrement references
 DEFINE_SIMPLE_INSTR(BatchDecref, (TObject), Operands<>);
 
