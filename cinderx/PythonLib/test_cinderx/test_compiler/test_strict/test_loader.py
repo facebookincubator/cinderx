@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from importlib.abc import Loader
 from importlib.machinery import SOURCE_SUFFIXES, SourceFileLoader
