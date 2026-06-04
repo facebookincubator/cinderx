@@ -6246,7 +6246,7 @@ class CodeGenerator315(CodeGenerator314):
             self.tree,
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
         ):
-            raise self.syntax_error("'yield' outside function", node)
+            raise self.syntax_error("'yield from' outside function", node)
         elif self.scope.coroutine:
             raise self.syntax_error("'yield from' inside async function", node)
 
