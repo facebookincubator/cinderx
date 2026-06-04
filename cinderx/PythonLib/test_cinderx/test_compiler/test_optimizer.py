@@ -114,13 +114,19 @@ class AstOptimizerTests(CompilerTest):
 
     def test_opt_debug_del(self):
         code = "def f(): del __debug__"
+        if sys.version_info >= (3, 15):
+            load_true_op = "LOAD_COMMON_CONSTANT"
+            load_true_arg = 9
+        else:
+            load_true_op = "LOAD_CONST"
+            load_true_arg = True
         outer_graph = self.to_graph(code)
         for outer_instr in self.graph_to_instrs(outer_graph):
             if outer_instr.opname == "LOAD_CONST" and isinstance(
                 outer_instr.oparg, CodeGenerator
             ):
                 graph = outer_instr.oparg.graph
-                self.assertInGraph(graph, "LOAD_CONST", True)
+                self.assertInGraph(graph, load_true_op, load_true_arg)
                 self.assertNotInGraph(graph, "DELETE_FAST", "__debug__")
 
         outer_graph = self.to_graph_no_opt(code)
@@ -129,7 +135,7 @@ class AstOptimizerTests(CompilerTest):
                 outer_instr.oparg, CodeGenerator
             ):
                 graph = outer_instr.oparg.graph
-                self.assertNotInGraph(graph, "LOAD_CONST", True)
+                self.assertNotInGraph(graph, load_true_op, load_true_arg)
                 self.assertInGraph(graph, "DELETE_FAST", "__debug__")
 
     @passIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
