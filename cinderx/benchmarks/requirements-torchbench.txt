@@ -1,0 +1,10 @@
+# Base packages needed by TorchBench and this benchmark harness.
+pip
+torch
+torchvision
+torchaudio
+numpy
+click
+
+# Install TorchBench itself with:
+#   uv pip install 'git+https://github.com/pytorch/benchmark.git'

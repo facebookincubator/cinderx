@@ -57,6 +57,52 @@ Options:
 - `--cinderx` — enable the CinderX JIT
 - `benchmarks...` — run only specific benchmarks (e.g. `richards chaos`)
 
+### TorchBench benchmark (torchbench)
+
+Runs a real model from [PyTorch's TorchBench suite](https://github.com/pytorch/benchmark), with and without the CinderX JIT.
+
+Most TorchBench models spend almost all their time in fused C++ kernels, leaving
+little for a Python JIT to accelerate. The default model,
+`pyhpc_equation_of_state`, is a small CPU workload where Python optimization is expected to matter. Any TorchBench model can be selected via `--model`.
+
+TorchBench is not vendored here. Install it directly from Git along with the
+base TorchBench packages:
+
+```bash
+uv pip install -r benchmarks/requirements-torchbench.txt
+uv pip install 'git+https://github.com/pytorch/benchmark.git'
+```
+
+```bash
+# Baseline (interpreter):
+uv run python benchmarks/torchbench.py --iterations 30
+
+# With the CinderX JIT:
+uv run python benchmarks/torchbench.py --cinderx --iterations 30
+
+# One-shot comparison (re-execs itself in two subprocesses, prints the speedup):
+uv run python benchmarks/torchbench.py --compare
+
+# Through the runner:
+uv run python benchmarks/runner.py torchbench
+```
+
+Options:
+- `--cinderx` — enable the CinderX JIT
+- `--model NAME` — TorchBench model to run (default `pyhpc_equation_of_state`)
+- `--test {eval,train}` — TorchBench test mode (default `eval`)
+- `--batch-size N` — model input size; smaller keeps the workload Python-bound (default 1024)
+- `--iterations N` — number of timed iterations per run (default 30)
+- `--warmup N` — warmup iterations before timing so the JIT compiles the hot path (default 20)
+- `--repeat N` — number of timed runs (default 3)
+- `--json output.json` — save results as JSON (`-` writes JSON to stdout)
+- `--compare` — run baseline vs JIT in subprocesses and print the speedup ratio
+
+The "Useful Work %" line shows the fraction of wall time spent in the timed
+`model.invoke()` calls; a high value confirms the workload is Python-bound. The
+`compiled_funcs` count is a truthful JIT-active signal (0 in the baseline,
+> 0 with `--cinderx`).
+
 ## Running Without CinderX JIT
 
 To get a baseline comparison without JIT compilation, disable it via environment variable:
@@ -80,6 +126,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `spectral_norm` | Numerical computation of the spectral norm of a matrix |
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |
+| `torchbench` | Run of a real TorchBench model (default `pyhpc_equation_of_state`), kept Python-bound for the JIT |
 
 ## Listing Available Benchmarks
 
