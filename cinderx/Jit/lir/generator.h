@@ -259,7 +259,7 @@ class LIRGenerator {
       const jit::hir::Instr& instr,
       bool xdecref);
 
-#ifdef Py_GIL_DISABLED
+  // Only used in free-threaded builds.
   void makeIncrefFreeThreaded(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
@@ -268,7 +268,7 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
       BasicBlock* end_decref);
-#else
+  // Only used in GIL builds.
   void makeIncrefGILEnabled(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
@@ -280,7 +280,6 @@ class LIRGenerator {
       BasicBlock* end_decref,
       std::optional<destructor> destructor,
       bool possible_immortal);
-#endif
 #if defined(CINDER_AARCH64)
   void updateDeoptIndex(
       BasicBlockBuilder& bbb,

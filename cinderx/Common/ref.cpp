@@ -14,36 +14,30 @@
 #include <atomic>
 #endif
 
-#ifdef Py_GIL_DISABLED
-
-void incref_total(PyThreadState* tstate) {
-#ifdef Py_REF_DEBUG
+void incref_total([[maybe_unused]] PyThreadState* tstate) {
+#if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
   _PyThreadStateImpl* tstate_impl = (_PyThreadStateImpl*)tstate;
   std::atomic_ref<Py_ssize_t>(tstate_impl->reftotal)
       .fetch_add(1, std::memory_order_relaxed);
 #endif
 }
 
-void decref_total(PyThreadState* tstate) {
-#ifdef Py_REF_DEBUG
+void decref_total([[maybe_unused]] PyThreadState* tstate) {
+#if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
   _PyThreadStateImpl* tstate_impl = (_PyThreadStateImpl*)tstate;
   std::atomic_ref<Py_ssize_t>(tstate_impl->reftotal)
       .fetch_sub(1, std::memory_order_relaxed);
 #endif
 }
 
-#else
-
-void incref_total(PyInterpreterState* interp) {
-#ifdef Py_REF_DEBUG
+void incref_total([[maybe_unused]] PyInterpreterState* interp) {
+#if defined(Py_REF_DEBUG) && !defined(Py_GIL_DISABLED)
   interp->object_state.reftotal++;
 #endif
 }
 
-void decref_total(PyInterpreterState* interp) {
-#ifdef Py_REF_DEBUG
+void decref_total([[maybe_unused]] PyInterpreterState* interp) {
+#if defined(Py_REF_DEBUG) && !defined(Py_GIL_DISABLED)
   interp->object_state.reftotal--;
 #endif
 }
-
-#endif

@@ -90,9 +90,7 @@ PyObject** GlobalCacheManager::getGlobalCache(
     BorrowedRef<PyDictObject> globals,
     BorrowedRef<PyUnicodeObject> key) {
   try {
-#ifdef Py_GIL_DISABLED
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-#endif
+    LockGuard lock{*this};
     auto cache = findGlobalCache(builtins, globals, key);
     return cache.valuePtr();
   } catch (std::bad_alloc&) {
@@ -108,9 +106,7 @@ void GlobalCacheManager::notifyDictUpdate(
       PyUnicode_CHECK_INTERNED(key.get()),
       "Dict key must be interned as it'll be compared by pointer value");
 
-#ifdef Py_GIL_DISABLED
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-#endif
+  LockGuard lock{*this};
   auto dict_it = watch_map_.find(dict);
   // Something else in Cinderx could be watching this dict. Return early if no
   // matchers were registered.
@@ -131,9 +127,7 @@ void GlobalCacheManager::notifyDictUpdate(
 }
 
 void GlobalCacheManager::notifyDictClear(BorrowedRef<PyDictObject> dict) {
-#ifdef Py_GIL_DISABLED
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-#endif
+  LockGuard lock{*this};
   auto dict_it = watch_map_.find(dict);
   // Something else in Cinderx could be watching this dict. Return early if no
   // matchers were registered.
@@ -152,9 +146,7 @@ void GlobalCacheManager::notifyDictClear(BorrowedRef<PyDictObject> dict) {
 }
 
 void GlobalCacheManager::notifyDictUnwatch(BorrowedRef<PyDictObject> dict) {
-#ifdef Py_GIL_DISABLED
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-#endif
+  LockGuard lock{*this};
   auto dict_it = watch_map_.find(dict);
   // Something else in Cinderx could be watching this dict. Return early if no
   // matchers were registered.
@@ -186,10 +178,9 @@ void GlobalCacheManager::notifyDictUnwatch(BorrowedRef<PyDictObject> dict) {
 }
 
 void GlobalCacheManager::clear() {
+  LockGuard lock{*this};
   std::vector<PyObject*> keys;
-#ifdef Py_GIL_DISABLED
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-#endif
+  keys.reserve(watch_map_.size());
   for (auto& pair : watch_map_) {
     keys.push_back(pair.first);
   }

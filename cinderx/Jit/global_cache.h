@@ -8,11 +8,10 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/slab_arena.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/global_cache_iface.h"
 
-#ifdef Py_GIL_DISABLED
 #include <mutex>
-#endif
 #include <set>
 #include <unordered_map>
 
@@ -153,13 +152,33 @@ class GlobalCacheManager : public IGlobalCacheManager {
   void disableCaches(const std::vector<GlobalCache>& caches);
   void disableCache(GlobalCache cache);
 
+  class [[nodiscard]] LockGuard {
+   public:
+    explicit LockGuard(GlobalCacheManager& mgr) : mgr_(mgr) {
+      if constexpr (kFreeThreadedBuild) {
+        mgr_.mutex_.lock();
+      }
+    }
+    ~LockGuard() {
+      if constexpr (kFreeThreadedBuild) {
+        mgr_.mutex_.unlock();
+      }
+    }
+    LockGuard(const LockGuard&) = delete;
+    LockGuard& operator=(const LockGuard&) = delete;
+    LockGuard(LockGuard&&) = delete;
+    LockGuard& operator=(LockGuard&&) = delete;
+
+   private:
+    GlobalCacheManager& mgr_;
+  };
+
   // Arena where all the global value caches are allocated.
   SlabArena<PyObject*> arena_;
 
-  // Protects map_ and watch_map_ from concurrent access.
-#ifdef Py_GIL_DISABLED
+  // Only needed in free-threaded builds; kept unconditional so callers can use
+  // kFreeThreadedBuild instead of #ifdefs.
   std::recursive_mutex mutex_;
-#endif
 
   // Map of all global value caches, keyed by (globals, builtins, name).
   GlobalCacheMap map_;

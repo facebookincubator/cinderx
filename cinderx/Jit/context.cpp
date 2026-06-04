@@ -51,12 +51,10 @@ PyModuleDef* findBuiltinsModule() {
 
 AotContext g_aot_ctx;
 
-#ifdef Py_GIL_DISABLED
 std::recursive_mutex& freeThreadedJITEntrypointMutex() {
   static std::recursive_mutex mutex;
   return mutex;
 }
-#endif
 
 PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
@@ -238,14 +236,13 @@ void Context::recordDeopt(
     CodeRuntime* code_runtime,
     std::size_t idx,
     BorrowedRef<> guilty_value) {
-#ifdef Py_GIL_DISABLED
-  std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
-#endif
-  DeoptStat& stat = deopt_stats_[code_runtime][idx];
-  stat.count++;
-  if (guilty_value != nullptr) {
-    stat.types.recordType(Py_TYPE(guilty_value));
-  }
+  withDeoptStatsLock([&]() {
+    DeoptStat& stat = deopt_stats_[code_runtime][idx];
+    stat.count++;
+    if (guilty_value != nullptr) {
+      stat.types.recordType(Py_TYPE(guilty_value));
+    }
+  });
 }
 
 const DeoptStat* Context::deoptStat(
@@ -263,10 +260,7 @@ const DeoptStat* Context::deoptStat(
 }
 
 void Context::clearDeoptStats() {
-#ifdef Py_GIL_DISABLED
-  std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
-#endif
-  deopt_stats_.clear();
+  withDeoptStatsLock([&]() { deopt_stats_.clear(); });
 }
 
 InlineCacheStats Context::getAndClearLoadMethodCacheStats() {

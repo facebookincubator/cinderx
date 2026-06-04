@@ -65,13 +65,10 @@ class RefBase {
   T* ptr_{nullptr};
 };
 
-#if defined(Py_GIL_DISABLED)
 void incref_total(PyThreadState* tstate);
 void decref_total(PyThreadState* tstate);
-#else
 void incref_total(PyInterpreterState* interp);
 void decref_total(PyInterpreterState* interp);
-#endif
 
 /*
  * BorrowedRef owns a borrowed reference to a PyObject.

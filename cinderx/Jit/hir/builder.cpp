@@ -2885,13 +2885,13 @@ void HIRBuilder::emitStoreDeref(
   Register* old = temps_.AllocateStack();
   Register* dst = tc.frame.localsplus[idx];
   Register* src = tc.frame.stack.pop();
-#ifdef Py_GIL_DISABLED
-  // Use atomic swap for thread-safe cell access in FT-Python.
-  tc.emit<SwapCellItem>(old, dst, src);
-#else
-  tc.emit<StealCellItem>(old, dst);
-  tc.emit<SetCellItem>(dst, src, old);
-#endif
+  if constexpr (kFreeThreadedBuild) {
+    // Use atomic swap for thread-safe cell access in FT-Python.
+    tc.emit<SwapCellItem>(old, dst, src);
+  } else {
+    tc.emit<StealCellItem>(old, dst);
+    tc.emit<SetCellItem>(dst, src, old);
+  }
 }
 
 void HIRBuilder::emitLoadAssertionError(
@@ -4009,10 +4009,8 @@ void HIRBuilder::emitUnpackSequence(
   // Determine whether the slow path (iterator protocol) is needed.
   // When the type is statically known to be tuple or list (and list is
   // not disabled for free-threading), we can skip the slow path entirely.
-  bool needs_slow_path = !seq->isA(TTupleExact);
-#ifndef Py_GIL_DISABLED
-  needs_slow_path = needs_slow_path && !seq->isA(TListExact);
-#endif
+  bool needs_slow_path =
+      !seq->isA(TTupleExact) && (kFreeThreadedBuild || !seq->isA(TListExact));
 
   TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
   deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
@@ -4048,23 +4046,23 @@ void HIRBuilder::emitUnpackSequence(
   if (seq->isA(TTupleExact)) {
     tc.emit<Branch>(tuple_fast_path);
   } else if (seq->isA(TListExact)) {
-// TODO(T255264577). Enable this again. See P2169677587.
-#ifdef Py_GIL_DISABLED
-    tc.emit<Branch>(slow_path);
-#else
-    tc.emit<Branch>(list_fast_path);
-#endif
+    // TODO(T255264577). Enable this again. See P2169677587.
+    if constexpr (kFreeThreadedBuild) {
+      tc.emit<Branch>(slow_path);
+    } else {
+      tc.emit<Branch>(list_fast_path);
+    }
   } else {
     tc.emit<CondBranchCheckType>(
         seq, TTupleExact, tuple_fast_path, list_check_path);
 
     tc.block = list_check_path;
-// TODO(T255264577). Enable this again. See P2169677587.
-#ifdef Py_GIL_DISABLED
-    tc.emit<Branch>(slow_path);
-#else
-    tc.emit<CondBranchCheckType>(seq, TListExact, list_fast_path, slow_path);
-#endif
+    // TODO(T255264577). Enable this again. See P2169677587.
+    if constexpr (kFreeThreadedBuild) {
+      tc.emit<Branch>(slow_path);
+    } else {
+      tc.emit<CondBranchCheckType>(seq, TListExact, list_fast_path, slow_path);
+    }
   }
 
   tc.block = tuple_fast_path;
@@ -4985,9 +4983,9 @@ void HIRBuilder::insertRunPeriodicActivites(
     const FrameState& frame) {
   TranslationContext check(check_block, frame);
   TranslationContext body(cfg.AllocateBlock(), frame);
-#ifdef Py_GIL_DISABLED
-  check.emit<AtQuiescentState>();
-#endif
+  if constexpr (kFreeThreadedBuild) {
+    check.emit<AtQuiescentState>();
+  }
   // Check if the eval breaker has been set
   Register* eval_breaker = temps_.AllocateStack();
   check.emit<LoadEvalBreaker>(eval_breaker);

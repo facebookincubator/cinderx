@@ -31,9 +31,9 @@
 
 namespace jit {
 
-#ifdef Py_GIL_DISABLED
+// Only used to serialize FT-only entrypoints, but declared unconditionally so
+// callers can branch on kFreeThreadedBuild instead of the preprocessor.
 std::recursive_mutex& freeThreadedJITEntrypointMutex();
-#endif
 
 // Free-threaded builds can enter top-level JIT operations concurrently:
 // function/code registration, compilation, and destruction hooks.
@@ -42,15 +42,15 @@ std::recursive_mutex& freeThreadedJITEntrypointMutex();
 class FreeThreadedJITEntrypointGuard {
  public:
   FreeThreadedJITEntrypointGuard() {
-#ifdef Py_GIL_DISABLED
-    freeThreadedJITEntrypointMutex().lock();
-#endif
+    if constexpr (kFreeThreadedBuild) {
+      freeThreadedJITEntrypointMutex().lock();
+    }
   }
 
   ~FreeThreadedJITEntrypointGuard() {
-#ifdef Py_GIL_DISABLED
-    freeThreadedJITEntrypointMutex().unlock();
-#endif
+    if constexpr (kFreeThreadedBuild) {
+      freeThreadedJITEntrypointMutex().unlock();
+    }
   }
 
   FreeThreadedJITEntrypointGuard(const FreeThreadedJITEntrypointGuard&) =
@@ -317,15 +317,14 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       const CodeRuntime* code_runtime,
       std::size_t deopt_idx,
       F&& f) const {
-#ifdef Py_GIL_DISABLED
-    std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
-#endif
-    const DeoptStat* stat = deoptStat(code_runtime, deopt_idx);
-    if (stat == nullptr) {
-      return false;
-    }
-    f(*stat);
-    return true;
+    return withDeoptStatsLock([&]() {
+      const DeoptStat* stat = deoptStat(code_runtime, deopt_idx);
+      if (stat == nullptr) {
+        return false;
+      }
+      f(*stat);
+      return true;
+    });
   }
 
   // Record that a deopt of the given index happened at runtime, with an
@@ -457,14 +456,24 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   FunctionEntryCacheMap function_entry_caches_;
 
+  template <typename F>
+  decltype(auto) withDeoptStatsLock(F&& f) const {
+    if constexpr (kFreeThreadedBuild) {
+      std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
+      return f();
+    }
+    return f();
+  }
+
   std::vector<DeoptMetadata> deopt_metadata_;
   DeoptStats deopt_stats_;
-#ifdef Py_GIL_DISABLED
+  // Only needed in free-threaded builds; kept unconditional so callers can use
+  // kFreeThreadedBuild instead of #ifdefs.
   mutable std::mutex deopt_stats_mutex_;
-#endif
 
-  // Get the stat object for a given deopt.  It will not exist if the deopt has
-  // never been hit.  Caller must hold deopt_stats_mutex_ when Py_GIL_DISABLED.
+  // Get the stat object for a given deopt. It will not exist if the deopt has
+  // never been hit. Caller must hold deopt_stats_mutex_ in free-threaded
+  // builds.
   const DeoptStat* deoptStat(
       const CodeRuntime* code_runtime,
       std::size_t deopt_idx) const;

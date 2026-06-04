@@ -535,12 +535,12 @@ PyObject* JITRT_LookupAttrSpecial(
 
 LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
 
-#ifdef Py_GIL_DISABLED
 /*
- * Non-inline wrapper for _Py_qsbr_quiescent_state().
+ * Non-inline wrapper for _Py_qsbr_quiescent_state(). This is only meaningful
+ * in free-threaded builds; GIL builds compile a no-op so callers can branch on
+ * kFreeThreadedBuild instead of #ifdefs.
  */
 void JITRT_AtQuiescentState(PyThreadState* tstate);
-#endif
 
 #if PY_VERSION_HEX >= 0x030D0000
 

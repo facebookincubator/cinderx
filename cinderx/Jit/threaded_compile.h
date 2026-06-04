@@ -36,9 +36,7 @@ class ThreadedCompileContext {
     work_list_ = std::move(work_list);
     compile_running_ = true;
     interpreter_ = PyInterpreterState_Get();
-#ifdef Py_GIL_DISABLED
     tstate_ = PyThreadState_Get();
-#endif
   }
 
   // Stop the current iteration of the multi-threaded compile, and return the
@@ -88,14 +86,12 @@ class ThreadedCompileContext {
     return PyInterpreterState_Get();
   }
 
-#ifdef Py_GIL_DISABLED
   static PyThreadState* tstate() {
     if (getThreadedCompileContext().compileRunning()) {
       return getThreadedCompileContext().tstate_;
     }
     return PyThreadState_Get();
   }
-#endif
 
  private:
   friend class ThreadedCompileSerialize;
@@ -177,11 +173,10 @@ class ThreadedCompileContext {
   // The interpreter state that kicked off the multi-threaded compile.
   PyInterpreterState* interpreter_;
 
-#ifdef Py_GIL_DISABLED
-  // The thread state of the main thread that kicked off the compile.
-  // Used by worker threads to update per-thread reftotal in FT debug builds.
+  // Only used in free-threaded builds to update per-thread reftotal in debug
+  // mode. Kept unconditional so callers can use kFreeThreadedBuild instead of
+  // #ifdefs.
   PyThreadState* tstate_;
-#endif
 };
 
 // RAII device for acquiring the global threaded-compile lock.

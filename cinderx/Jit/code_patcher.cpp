@@ -6,14 +6,10 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch/detection.h"
 
-#include <array>
-#include <cstring>
-#ifdef Py_GIL_DISABLED
-#include <atomic>
-#ifdef CINDER_X86_64
 #include <algorithm>
-#endif
-#endif
+#include <array>
+#include <atomic>
+#include <cstring>
 
 namespace jit {
 
@@ -123,49 +119,52 @@ std::span<const uint8_t> CodePatcher::storedBytes() const {
 }
 
 void CodePatcher::swap() {
-#ifdef Py_GIL_DISABLED
   SwapLockGuard lock{*this};
-#endif
 
-#if defined(CINDER_X86_64) && defined(Py_GIL_DISABLED)
   // On x86 the patchpoint is up to 7 bytes (aligned to 8 bytes by the code
   // generator). However, we work with 8 bytes here as that should be an
   // atomically writable size on x86.
-  static_assert(sizeof(uint64_t) >= sizeof(data_));
-  static_assert(std::atomic_ref<uint64_t>::is_always_lock_free == true);
-  JIT_CHECK(
-      reinterpret_cast<uintptr_t>(patchpoint_) % 8 == 0, "Not 8-byte aligned");
-  uint64_t qword;
-  std::memcpy(&qword, patchpoint_, sizeof(qword));
+  if constexpr (
+      kFreeThreadedBuild &&
+      codegen::arch::kBuildArch == codegen::arch::Arch::kX86_64) {
+    static_assert(sizeof(uint64_t) >= sizeof(data_));
+    static_assert(std::atomic_ref<uint64_t>::is_always_lock_free == true);
+    JIT_CHECK(
+        reinterpret_cast<uintptr_t>(patchpoint_) % 8 == 0,
+        "Not 8-byte aligned");
+    uint64_t qword;
+    std::memcpy(&qword, patchpoint_, sizeof(qword));
 
-  auto* qword_bytes = reinterpret_cast<uint8_t*>(&qword);
-  std::swap_ranges(qword_bytes, qword_bytes + flags_.data_len, data_.data());
+    auto* qword_bytes = reinterpret_cast<uint8_t*>(&qword);
+    std::swap_ranges(qword_bytes, qword_bytes + flags_.data_len, data_.data());
 
-  std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(patchpoint_)}.store(
-      qword, std::memory_order_relaxed);
-#else
-  decltype(data_) temp;
-  std::memcpy(temp.data(), patchpoint_, flags_.data_len);
-  std::memcpy(patchpoint_, data_.data(), flags_.data_len);
-  std::memcpy(data_.data(), temp.data(), flags_.data_len);
-#endif
+    std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(patchpoint_)}.store(
+        qword, std::memory_order_relaxed);
+  } else {
+    decltype(data_) temp;
+    std::memcpy(temp.data(), patchpoint_, flags_.data_len);
+    std::memcpy(patchpoint_, data_.data(), flags_.data_len);
+    std::memcpy(data_.data(), temp.data(), flags_.data_len);
+  }
 
-#ifdef Py_GIL_DISABLED
-  // Flush CPU caches, including the instruction cache, so all cores will see
-  // the update. Note for x86 this is a no-op as caches are coherent.
-  __builtin___clear_cache(
-      reinterpret_cast<char*>(patchpoint_),
-      reinterpret_cast<char*>(patchpoint_) + flags_.data_len);
-#endif
+  if constexpr (kFreeThreadedBuild) {
+    // Flush CPU caches, including the instruction cache, so all cores will see
+    // the update. Note for x86 this is a no-op as caches are coherent.
+    __builtin___clear_cache(
+        reinterpret_cast<char*>(patchpoint_),
+        reinterpret_cast<char*>(patchpoint_) + flags_.data_len);
+  }
 }
 
-#ifdef Py_GIL_DISABLED
 // We use a custom spin-lock implementation as I'm not aware of a generic way of
 // implementing a lock where the mutex is bit-packed with other data. This
 // should be fine as the critical section is a short, slow-path, and should
 // only happen very rarely.
 CodePatcher::SwapLockGuard::SwapLockGuard(CodePatcher& patcher)
     : patcher_(patcher) {
+  if constexpr (!kFreeThreadedBuild) {
+    return;
+  }
   std::atomic_ref<uint8_t> ref{patcher_.flags_byte_};
   while (true) {
     uint8_t expected = ref.load(std::memory_order_relaxed);
@@ -181,10 +180,12 @@ CodePatcher::SwapLockGuard::SwapLockGuard(CodePatcher& patcher)
 }
 
 CodePatcher::SwapLockGuard::~SwapLockGuard() {
+  if constexpr (!kFreeThreadedBuild) {
+    return;
+  }
   std::atomic_ref<uint8_t>{patcher_.flags_byte_}.fetch_and(
       static_cast<uint8_t>(~lockBit()), std::memory_order_release);
 }
-#endif
 
 JumpPatcher::JumpPatcher() {
   // Initializes to a nop.

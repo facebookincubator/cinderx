@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
@@ -1454,11 +1455,6 @@ def test():
     }
   }
 
-#ifdef Py_GIL_DISABLED
-  EXPECT_TRUE(found_at_quiescent_state)
-      << "AtQuiescentState should be present in free-threaded builds";
-#else
-  EXPECT_FALSE(found_at_quiescent_state)
-      << "AtQuiescentState should not be present in non-free-threaded builds";
-#endif
+  EXPECT_EQ(found_at_quiescent_state, kFreeThreadedBuild)
+      << "AtQuiescentState presence should match the build mode";
 }

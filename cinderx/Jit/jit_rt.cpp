@@ -901,10 +901,7 @@ static bool handle_periodic_activities_on_call(
     PyThreadState* tstate,
     PyObject* res,
     PyObject* callable) {
-#ifdef Py_GIL_DISABLED
-  _Py_qsbr_quiescent_state(
-      (reinterpret_cast<_PyThreadStateImpl*>(tstate))->qsbr);
-#endif
+  JITRT_AtQuiescentState(tstate);
   return res != nullptr && !PyFunction_Check(callable) &&
       is_eval_breaker_set(tstate) && _Py_HandlePending(tstate) != 0;
 }
@@ -2115,12 +2112,12 @@ LoadMethodResult JITRT_LoadSpecial(
   JIT_ABORT("JITRT_LoadSpecial not valid with this version of Python");
 }
 
+void JITRT_AtQuiescentState([[maybe_unused]] PyThreadState* tstate) {
 #ifdef Py_GIL_DISABLED
-void JITRT_AtQuiescentState(PyThreadState* tstate) {
   _Py_qsbr_quiescent_state(
       (reinterpret_cast<_PyThreadStateImpl*>(tstate))->qsbr);
-}
 #endif
+}
 
 PyObject JITRT_IterDoneSentinel = {
     _PyObject_EXTRA_INIT

@@ -6,6 +6,7 @@
 #include "cinderx/_cinderx-lib.h"
 #endif
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builtin_load_method_elimination.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
@@ -178,13 +179,11 @@ void registerCinderX() {
   try {
     boost::filesystem::path python_install =
         build::getResourcePath("cinderx/RuntimeTests/python_install");
-#ifdef Py_GIL_DISABLED
-    std::string python_version =
-        fmt::format("python{}.{}t", PY_MAJOR_VERSION, PY_MINOR_VERSION);
-#else
-    std::string python_version =
-        fmt::format("python{}.{}", PY_MAJOR_VERSION, PY_MINOR_VERSION);
-#endif
+    std::string python_version = fmt::format(
+        "python{}.{}{}",
+        PY_MAJOR_VERSION,
+        PY_MINOR_VERSION,
+        kFreeThreadedBuild ? "t" : "");
     boost::filesystem::path lib_path = python_install / "lib" / python_version;
     boost::filesystem::path lib_dynload_path = lib_path / "lib-dynload";
     std::string python_install_str =

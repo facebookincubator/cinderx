@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/hir/instr_effects.h"
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
 
 namespace jit::hir {
@@ -253,13 +254,12 @@ MemoryEffects memoryEffects(const Instr& inst) {
       return borrowFrom(inst, AEmpty);
 
     case Opcode::kLoadCellItem:
-#ifdef Py_GIL_DISABLED
-      // In FT-Python, LoadCellItem calls PyCell_GetRef which returns an
-      // owned (new) reference.
-      return commonEffects(inst, AEmpty);
-#else
+      if constexpr (kFreeThreadedBuild) {
+        // In FT-Python, LoadCellItem calls PyCell_GetRef which returns an
+        // owned (new) reference.
+        return commonEffects(inst, AEmpty);
+      }
       return borrowFrom(inst, ACellItem);
-#endif
 
     case Opcode::kLoadField: {
       auto& ldfld = static_cast<const LoadField&>(inst);

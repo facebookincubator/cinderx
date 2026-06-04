@@ -333,22 +333,16 @@ Register* emitGetLengthInt64(Env& env, Register* obj) {
     }
   }
 
-  if (
-// TODO(T255264007). Enable this again. See P2169677410.
-#ifndef Py_GIL_DISABLED
-      ty <= TListExact || ty <= TArray ||
-#endif
-      ty <= TTupleExact) {
+  if (ty <= TTupleExact ||
+      // TODO(T255264007). Enable this again. See P2169677410.
+      (!kFreeThreadedBuild && (ty <= TListExact || ty <= TArray))) {
     env.emit<UseType>(obj, ty.unspecialized());
     return env.emit<LoadField>(
         obj, "ob_size", offsetof(PyVarObject, ob_size), TCInt64);
   }
-  if (
-// TODO(T255264007). Enable this again. See P2169677410.
-#ifndef Py_GIL_DISABLED
-      ty <= TDictExact || ty <= TSetExact ||
-#endif
-      ty <= TUnicodeExact) {
+  if (ty <= TUnicodeExact ||
+      // TODO(T255264007). Enable this again. See P2169677410.
+      (!kFreeThreadedBuild && (ty <= TDictExact || ty <= TSetExact))) {
     std::size_t offset = 0;
     const char* name = nullptr;
     if (ty <= TDictExact) {
@@ -1465,10 +1459,10 @@ Register* simplifyLoadAttrSplitDict(
     const LoadAttr* load_attr,
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> name) {
-#ifdef Py_GIL_DISABLED
-  // See T255055907.
-  return nullptr;
-#endif
+  if constexpr (kFreeThreadedBuild) {
+    // See T255055907.
+    return nullptr;
+  }
 
   if (!PyType_HasFeature(
           type, Py_TPFLAGS_MANAGED_DICT | Py_TPFLAGS_INLINE_VALUES)) {
@@ -2344,17 +2338,20 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
       return simplifyCompactLongUnbox(
           env, static_cast<const CompactLongUnbox*>(instr));
 
-// TODO(T255262756) - Enable this again. See P2169675076 and P2184559031 (same
-// pattern but applied to simplifyLoadAttrTypeReceiver).
-#ifndef Py_GIL_DISABLED
     case Opcode::kLoadAttr:
+      // TODO(T255262756) - Enable this again. See P2169675076 and
+      // P2184559031 (same pattern but applied to
+      // simplifyLoadAttrTypeReceiver).
+      if constexpr (kFreeThreadedBuild) {
+        return nullptr;
+      }
       return simplifyLoadAttr(env, static_cast<const LoadAttr*>(instr));
-#endif
-// TODO(T255263721) - Enable this again. See P2169673579 and P2184559031.
-#ifndef Py_GIL_DISABLED
     case Opcode::kLoadMethod:
+      // TODO(T255263721) - Enable this again. See P2169673579 and P2184559031.
+      if constexpr (kFreeThreadedBuild) {
+        return nullptr;
+      }
       return simplifyLoadMethod(env, static_cast<const LoadMethod*>(instr));
-#endif
     case Opcode::kLoadField:
       return simplifyLoadField(env, static_cast<const LoadField*>(instr));
     case Opcode::kLoadTupleItem:
