@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+import importlib
 import unittest
 
 # This is just a quick test to see if CinderX works. It's intended purpose is
@@ -12,8 +13,7 @@ class CinderXOSSTest(unittest.TestCase):
 
         if not cinderx.is_initialized():
             try:
-                # pyrefly: ignore [missing-import]
-                import _cinderx
+                importlib.import_module("_cinderx")
             except Exception as e:
                 print(f"Failed to import _cinderx: {e}")
 
