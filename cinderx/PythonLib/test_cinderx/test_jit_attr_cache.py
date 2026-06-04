@@ -2,7 +2,6 @@
 
 # pyre-unsafe
 
-import sys
 import unittest
 from textwrap import dedent
 
