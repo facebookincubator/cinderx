@@ -37,6 +37,19 @@ def _create_getframe_cycle():
     return a
 
 
+@cinder_support.failUnlessJITCompiled
+def _collect_getframe_cycle():
+    cycle = _create_getframe_cycle()
+    del cycle
+    gc.collect()
+    return sys._getframe()
+
+
+@cinder_support.failUnlessJITCompiled
+def _call_collect_getframe_cycle():
+    return _collect_getframe_cycle()
+
+
 class TestException(Exception):
     # Tells pytest that this isn't a test case.
     __test__: bool = False
@@ -291,6 +304,28 @@ class GetFrameTests(unittest.TestCase):
 
         x = g()
         self.assertEqual(x.f_lineno, f.__code__.co_firstlineno + 1)
+
+
+class FreeThreadedGCFrameTests(unittest.TestCase):
+    @jit_suppress
+    @skip_unless_jit("Exercises FT GC reification for JIT frames")
+    @cinder_support.passUnless(
+        cinder_support.FREE_THREADING_BUILD,
+        "Exercises stop-the-world GC reification in free-threaded builds",
+    )
+    @cinder_support.passUnless(
+        cinderx.jit.is_hir_inliner_enabled(),
+        "meaningless without HIR inliner enabled",
+    )
+    def test_gc_collect_in_inlined_function(self) -> None:
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(_call_collect_getframe_cycle),
+            1,
+        )
+        frame = _call_collect_getframe_cycle()
+        self.assertIs(frame.f_code, _collect_getframe_cycle.__code__)
+        self.assertIsNotNone(frame.f_back)
+        self.assertIs(frame.f_back.f_code, _call_collect_getframe_cycle.__code__)
 
 
 class GetGenFrameDuringThrowTest(unittest.TestCase):

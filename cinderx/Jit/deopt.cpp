@@ -432,20 +432,22 @@ void releaseRefs(const DeoptMetadata& meta, const void* base) {
   releaseRefs(meta, MemoryView{regs});
 }
 
-DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
-  auto get_source = [&](jit::hir::Register* reg) {
-    reg = hir::modelReg(reg);
-    auto instr = reg->instr();
-    if (isAnyLoadMethod(*instr)) {
-      return LiveValue::Source::kLoadMethod;
-    }
-    return LiveValue::Source::kUnknown;
-  };
+LiveValue::Source getLiveValueSource(jit::hir::Register* reg) {
+  reg = hir::modelReg(reg);
+  auto instr = reg->instr();
+  if (isAnyLoadMethod(*instr)) {
+    return LiveValue::Source::kLoadMethod;
+  }
+  return LiveValue::Source::kUnknown;
+}
 
+template <typename InstrT>
+DeoptMetadata initDeoptMetadata(
+    const InstrT& instr,
+    std::unordered_map<jit::hir::Register*, int>& reg_idx) {
   DeoptMetadata meta;
   meta.live_values.initialize(instr.live_regs().size());
 
-  std::unordered_map<jit::hir::Register*, int> reg_idx;
   int i = 0;
   for (const auto& reg_state : instr.live_regs()) {
     auto reg = reg_state.reg;
@@ -455,12 +457,19 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
         .location = 0,
         .ref_kind = reg_state.ref_kind,
         .value_kind = reg_state.value_kind,
-        .source = get_source(reg),
+        .source = getLiveValueSource(reg),
     };
     meta.live_values[i] = std::move(lv);
     reg_idx[reg] = i;
     i++;
   }
+
+  return meta;
+}
+
+DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
+  std::unordered_map<jit::hir::Register*, int> reg_idx;
+  DeoptMetadata meta = initDeoptMetadata(instr, reg_idx);
 
   auto get_reg_idx = [&reg_idx](jit::hir::Register* reg) {
     if (reg == nullptr) {
@@ -544,6 +553,50 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   meta.descr = interned.c_str();
 
   return meta;
+}
+
+DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::LiveValuesBase& instr) {
+  std::unordered_map<jit::hir::Register*, int> reg_idx;
+  DeoptMetadata meta = initDeoptMetadata(instr, reg_idx);
+  meta.frame_meta.initialize(1);
+
+  meta.reason = DeoptReason::kUnhandledException;
+  const std::string& interned = internDescr(std::string{instr.opname()});
+  meta.descr = interned.c_str();
+  return meta;
+}
+
+void visitLiveDeferredRefs(
+    [[maybe_unused]] const DeoptMetadata& meta,
+    [[maybe_unused]] uintptr_t frame_base,
+    [[maybe_unused]] gcvisitobjects_t visit) {
+#ifdef Py_GIL_DISABLED
+  uint64_t regs[codegen::NUM_GP_REGS]{};
+  regs[codegen::arch::reg_frame_pointer_loc.loc] = frame_base;
+  MemoryView mem{regs};
+
+  auto visit_live_value = [&](const LiveValue& live_value) {
+    if (live_value.ref_kind != hir::RefKind::kOwned ||
+        live_value.value_kind != hir::ValueKind::kObject) {
+      return;
+    }
+    JIT_CHECK(
+        live_value.location.loc != codegen::PhyLocation::REG_INVALID,
+        "Owned live object has no physical location");
+    uint64_t raw = mem.readRaw(live_value);
+    if (!isDeferredRcTagged(raw)) {
+      return;
+    }
+    PyObject* obj = reinterpret_cast<PyObject*>(stripDeferredRcTag(raw));
+    (void)visit(obj, nullptr);
+  };
+
+  for (const LiveValue& live_value : meta.live_values) {
+    visit_live_value(live_value);
+  }
+#else
+  JIT_ABORT("Only for FT builds.")
+#endif
 }
 
 } // namespace jit

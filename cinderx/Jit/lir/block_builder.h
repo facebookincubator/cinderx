@@ -28,6 +28,9 @@ class BasicBlockBuilder {
   BasicBlockBuilder(jit::codegen::Environ* env, Function* func);
 
   void setCurrentInstr(const hir::Instr* inst);
+  const hir::Instr* currentInstr() const {
+    return cur_hir_instr_;
+  }
 
   // Return the id of a DeoptMetadata for the current instruction, returning
   // the same id if called multiple times for the same instruction.

@@ -7,6 +7,7 @@
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/context.h"
+#include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
@@ -91,7 +92,7 @@ class LIRABITest : public RuntimeTest {
         break;
       case Instruction::kDeoptPatchpoint:
       case Instruction::kGuard: {
-        environ.code_rt->addDeoptMetadata(DeoptMetadata{});
+        environ.code_rt->addRawDeoptMetadata(DeoptMetadata{});
         // Create a dummy deopt exit block for the translator to look up.
         auto* deopt_bb = function.allocateBasicBlock();
         environ.deopt_exit_blocks[0] = deopt_bb;
@@ -213,6 +214,68 @@ TEST_F(LIRABITest, TestkCall_Imm) {
 // kCall r
 TEST_F(LIRABITest, TestkCall_PhyReg) {
   translateInstr(Instruction::kCall, makePhyReg());
+}
+
+TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
+  if constexpr (!kFreeThreadedBuild) {
+    GTEST_SKIP() << "Callsite live-value locations are only filled in "
+                    "free-threaded builds";
+  }
+
+  hir::Function hir_function;
+
+  Environ environ;
+  environ.ctx = getContext();
+  environ.code_rt = environ.ctx->allocateCodeRuntime(
+      hir_function.code.get(),
+      hir_function.builtins.get(),
+      hir_function.globals.get());
+
+  std::unique_ptr<ICodeAllocator> code_allocator{CodeAllocator::make()};
+
+  CodeHolder code;
+  code.init(code_allocator->asmJitEnvironment());
+
+  arch::Builder as(&code);
+  environ.as = &as;
+
+  Function function;
+  BasicBlock bb(&function);
+
+  const PhyLocation kRegisterLocation{ARGUMENT_REGS[0].loc, 64};
+  const PhyLocation kStackLocation{-16, 64};
+
+  Instruction* call = bb.allocateInstr(
+      Instruction::kCall, nullptr, PhyReg{arch::reg_general_return_loc});
+  Instruction* live_values = bb.allocateInstr(
+      Instruction::kCallSiteLiveValues,
+      nullptr,
+      PhyReg{kRegisterLocation, DataType::kObject},
+      Stk{kStackLocation, DataType::kObject});
+
+  DeoptMetadata metadata;
+  metadata.live_values = {
+      LiveValue{
+          PhyLocation{},
+          hir::RefKind::kOwned,
+          hir::ValueKind::kObject,
+          LiveValue::Source::kUnknown},
+      LiveValue{
+          PhyLocation{},
+          hir::RefKind::kOwned,
+          hir::ValueKind::kObject,
+          LiveValue::Source::kUnknown}};
+  std::size_t deopt_idx =
+      environ.code_rt->addRawDeoptMetadata(std::move(metadata));
+  environ.callsite_live_value_metadata.emplace(
+      call, Environ::CallSiteLiveValueMetadata{deopt_idx, live_values});
+
+  autogen::AutoTranslator::getInstance().translateInstr(&environ, call);
+
+  const DeoptMetadata& filled_metadata =
+      environ.code_rt->getDeoptMetadata(deopt_idx);
+  EXPECT_EQ(filled_metadata.live_values[0].location, kRegisterLocation);
+  EXPECT_EQ(filled_metadata.live_values[1].location, kStackLocation);
 }
 
 // kCall m

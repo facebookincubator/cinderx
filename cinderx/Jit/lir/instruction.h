@@ -86,6 +86,8 @@ enum OperandSizeType {
   /* purpose is to associate a physical register with a predefined */         \
   /* value to virtual register for register allocator. */                     \
   X(Bind)                                                                     \
+  /* Carries post-call liveness metadata but emits no code. */                \
+  X(CallSiteLiveValues, false, FlagEffects::kNone, kDefault, 0, {}, 1)        \
   X(Nop)                                                                      \
   X(Unreachable, false, FlagEffects::kNone, kDefault, 0, {}, 1)               \
   X(Call, false, FlagEffects::kInvalidate, kAlways64, 1, {}, 1)               \

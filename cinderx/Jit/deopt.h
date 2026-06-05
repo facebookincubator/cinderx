@@ -201,6 +201,7 @@ struct DeoptMetadata {
 
   // Construct a `DeoptMetadata` instance from the information in `instr`.
   static DeoptMetadata fromInstr(const jit::hir::DeoptBase& instr);
+  static DeoptMetadata fromInstr(const jit::hir::LiveValuesBase& instr);
 };
 
 // Update `frame` so that execution can resume in the interpreter.
@@ -260,5 +261,10 @@ void releaseRefs(const DeoptMetadata& meta, const void* base);
 
 // Call once per deopt.
 Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem);
+
+void visitLiveDeferredRefs(
+    const DeoptMetadata& meta,
+    uintptr_t frame_base,
+    gcvisitobjects_t visit);
 
 } // namespace jit

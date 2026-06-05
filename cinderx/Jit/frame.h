@@ -87,4 +87,9 @@ Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code);
 // are used.
 void deoptAllJitFramesOnStack();
 
+#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
+void registerJitGCDeferredRefVisitor(PyInterpreterState* interp);
+void clearJitGCDeferredRefVisitor(PyInterpreterState* interp);
+#endif
+
 } // namespace jit

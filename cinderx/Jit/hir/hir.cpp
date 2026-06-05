@@ -9,29 +9,62 @@
 
 namespace jit::hir {
 
-DeoptBase::DeoptBase(Opcode op) : Instr(op) {}
+LiveValuesBase::LiveValuesBase(Opcode op) : Instr(op) {}
 
-DeoptBase::DeoptBase(Opcode op, const FrameState& frame) : Instr(op) {
+LiveValuesBase::LiveValuesBase(const LiveValuesBase& other)
+    : Instr(other), live_regs_{other.live_regs()} {}
+
+const std::vector<RegState>& LiveValuesBase::live_regs() const {
+  return live_regs_;
+}
+
+std::vector<RegState>& LiveValuesBase::live_regs() {
+  return live_regs_;
+}
+
+bool LiveValuesBase::visitUses(const std::function<bool(Register*&)>& func) {
+  if (!Instr::visitUses(func)) {
+    return false;
+  }
+  for (RegState& reg_state : live_regs_) {
+    if (!func(reg_state.reg)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void LiveValuesBase::sortLiveRegs() {
+  std::sort(
+      live_regs_.begin(),
+      live_regs_.end(),
+      [](const RegState& a, const RegState& b) {
+        return a.reg->id() < b.reg->id();
+      });
+
+  if constexpr (kPyDebug) {
+    auto it = std::adjacent_find(
+        live_regs_.begin(),
+        live_regs_.end(),
+        [](const RegState& a, const RegState& b) { return a.reg == b.reg; });
+    JIT_DCHECK(it == live_regs_.end(), "Register {} is live twice", *it->reg);
+  }
+}
+
+DeoptBase::DeoptBase(Opcode op) : LiveValuesBase(op) {}
+
+DeoptBase::DeoptBase(Opcode op, const FrameState& frame) : LiveValuesBase(op) {
   setFrameState(frame);
 }
 
 DeoptBase::DeoptBase(const DeoptBase& other)
-    : Instr(other),
-      live_regs_{other.live_regs()},
+    : LiveValuesBase(other),
       guilty_reg_{other.guiltyReg()},
       nonce_{other.nonce()},
       descr_{other.descr()} {
   if (FrameState* copy_fs = other.frameState()) {
     setFrameState(std::make_unique<FrameState>(*copy_fs));
   }
-}
-
-const std::vector<RegState>& DeoptBase::live_regs() const {
-  return live_regs_;
-}
-
-std::vector<RegState>& DeoptBase::live_regs() {
-  return live_regs_;
 }
 
 DeoptBase* DeoptBase::asDeoptBase() {
@@ -42,17 +75,28 @@ const DeoptBase* DeoptBase::asDeoptBase() const {
   return this;
 }
 
+CallSiteLiveValuesBase::CallSiteLiveValuesBase(Opcode op)
+    : LiveValuesBase(op) {}
+
+CallSiteLiveValuesBase::CallSiteLiveValuesBase(
+    const CallSiteLiveValuesBase& other)
+    : LiveValuesBase(other) {}
+
+CallSiteLiveValuesBase* CallSiteLiveValuesBase::asCallSiteLiveValuesBase() {
+  return this;
+}
+
+const CallSiteLiveValuesBase* CallSiteLiveValuesBase::asCallSiteLiveValuesBase()
+    const {
+  return this;
+}
+
 bool DeoptBase::visitUses(const std::function<bool(Register*&)>& func) {
-  if (!Instr::visitUses(func)) {
+  if (!LiveValuesBase::visitUses(func)) {
     return false;
   }
   if (auto fs = frameState()) {
     if (!fs->visitUses(func)) {
-      return false;
-    }
-  }
-  for (auto& reg_state : live_regs_) {
-    if (!func(reg_state.reg)) {
       return false;
     }
   }
@@ -62,26 +106,6 @@ bool DeoptBase::visitUses(const std::function<bool(Register*&)>& func) {
     }
   }
   return true;
-}
-
-void DeoptBase::sortLiveRegs() {
-  std::sort(
-      live_regs_.begin(),
-      live_regs_.end(),
-      [](const RegState& a, const RegState& b) {
-        return a.reg->id() < b.reg->id();
-      });
-
-  if (kPyDebug) {
-    // Check for uniqueness after sorting rather than inside the predicate
-    // passed to std::sort(), in case sort() performs extra comparisons to
-    // sanity-check our predicate.
-    auto it = std::adjacent_find(
-        live_regs_.begin(),
-        live_regs_.end(),
-        [](const RegState& a, const RegState& b) { return a.reg == b.reg; });
-    JIT_DCHECK(it == live_regs_.end(), "Register {} is live twice", *it->reg);
-  }
 }
 
 void DeoptBase::setFrameState(std::unique_ptr<FrameState> state) {
@@ -621,6 +645,14 @@ DeoptBase* Instr::asDeoptBase() {
 }
 
 const DeoptBase* Instr::asDeoptBase() const {
+  return nullptr;
+}
+
+CallSiteLiveValuesBase* Instr::asCallSiteLiveValuesBase() {
+  return nullptr;
+}
+
+const CallSiteLiveValuesBase* Instr::asCallSiteLiveValuesBase() const {
   return nullptr;
 }
 

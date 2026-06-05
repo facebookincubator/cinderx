@@ -108,6 +108,21 @@ struct Environ {
   // Runtime data for this function.
   jit::CodeRuntime* code_rt{nullptr};
 
+  // Codegen-lifetime cache mapping live-value instructions to their deopt
+  // metadata index. Avoids duplicate CodeRuntime entries when multiple passes
+  // register the same instruction.
+  UnorderedMap<const hir::LiveValuesBase*, std::size_t> deopt_instr_cache;
+
+  template <typename InstrT>
+  std::size_t addDeoptMetadata(const InstrT& instr) {
+    auto [it, inserted] = deopt_instr_cache.emplace(&instr, 0);
+    if (!inserted) {
+      return it->second;
+    }
+    it->second = code_rt->addRawDeoptMetadata(DeoptMetadata::fromInstr(instr));
+    return it->second;
+  }
+
   template <typename T>
   void addAnnotation(T&& item, asmjit::BaseNode* start_cursor) {
     if (suppress_annotations) {
@@ -146,6 +161,13 @@ struct Environ {
 
   UnorderedMap<const hir::BeginInlinedFunction*, lir::Instruction*>
       inline_frame_map;
+
+  struct CallSiteLiveValueMetadata {
+    std::size_t deopt_meta_index{};
+    jit::lir::Instruction* live_values_instr{nullptr};
+  };
+  UnorderedMap<const jit::lir::Instruction*, CallSiteLiveValueMetadata>
+      callsite_live_value_metadata;
 
   int max_arg_buffer_size{0};
 

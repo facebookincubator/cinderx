@@ -2,7 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch.h"
+#include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/regalloc.h"
@@ -60,6 +62,18 @@ class LinearScanAllocatorTest : public ::testing::Test {
   void runAllocator(Function* func) {
     LinearScanAllocator allocator{func};
     allocator.run();
+  }
+
+  codegen::PhyRegisterSet fixedRegisterIntervals(
+      const LinearScanAllocator& allocator) {
+    codegen::PhyRegisterSet result;
+    for (const auto& pair : allocator.intervalMap()) {
+      const LiveInterval& interval = pair.second;
+      if (interval.fixed && interval.allocated_loc.is_register()) {
+        result.Set(interval.allocated_loc);
+      }
+    }
+    return result;
   }
 };
 
@@ -294,6 +308,31 @@ BB %28
       }
     }
   }
+}
+
+TEST_F(
+    LinearScanAllocatorTest,
+    ArbitraryExecutionCallReservesAllRegistersInFreeThreadedBuild) {
+  hir::Function hir_func;
+  hir::Register* dst = hir_func.env.AllocateRegister();
+  std::unique_ptr<hir::Instr> origin(
+      hir::CallInd::create(0, dst, "call_ind", hir::TObject));
+
+  auto lir_func = std::make_unique<Function>();
+  BasicBlock* block = lir_func->allocateBasicBlock();
+  block->allocateInstr(Instruction::kCall, origin.get(), OutVReg());
+  BasicBlock* epilogue = lir_func->allocateBasicBlock();
+  block->addSuccessor(epilogue);
+
+  LinearScanAllocator allocator(lir_func.get());
+  lir_func->sortBasicBlocks();
+  allocator.calculateLiveIntervals();
+
+  codegen::PhyRegisterSet expected = codegen::CALLER_SAVE_REGS;
+  if constexpr (kFreeThreadedBuild) {
+    expected = codegen::INIT_REGISTERS;
+  }
+  EXPECT_EQ(fixedRegisterIntervals(allocator), expected);
 }
 
 TEST_F(LinearScanAllocatorTest, InoutRegTest) {

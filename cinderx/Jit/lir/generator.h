@@ -238,6 +238,17 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       Instruction* instr,
       const hir::DeoptBase& hir_instr);
+  struct CallSiteLiveValueData {
+    std::size_t deopt_meta_index;
+    Instruction* live_values_instr;
+  };
+  Instruction* createCallSiteLiveValuesInstr(
+      BasicBlockBuilder& bbb,
+      const hir::CallSiteLiveValuesBase& hir_instr);
+  void storeActiveDeoptIndex(BasicBlockBuilder& bbb, std::size_t deopt_idx);
+  void registerCallSiteLiveValues(
+      Instruction* call_instr,
+      const CallSiteLiveValueData& data);
 
   void makeIncref(
       BasicBlockBuilder& bbb,
@@ -251,6 +262,7 @@ class LIRGenerator {
   void makeDecref(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
+      const hir::CallSiteLiveValuesBase* callsite_live_values,
       std::optional<destructor> destructor,
       bool xdecref = false,
       bool possible_immortal = true);
@@ -271,6 +283,7 @@ class LIRGenerator {
   void makeDecrefFreeThreaded(
       BasicBlockBuilder& bbb,
       lir::Instruction* instr,
+      const hir::CallSiteLiveValuesBase* callsite_live_values,
       BasicBlock* end_decref);
   // Only used in GIL builds.
   void makeIncrefGILEnabled(
@@ -284,7 +297,7 @@ class LIRGenerator {
       BasicBlock* end_decref,
       std::optional<destructor> destructor,
       bool possible_immortal);
-#if defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
   void updateDeoptIndex(
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& i,
@@ -311,6 +324,7 @@ class LIRGenerator {
   CurrentFrameAccessor makeCurrentFrameAccessor(BasicBlockBuilder& bbb);
 
   void emitLoadFrame(BasicBlockBuilder& bbb);
+  void emitDecrefExecutable(BasicBlockBuilder& bbb);
   void emitUnlinkFrame(
       BasicBlockBuilder& bbb,
       bool has_freevars,
@@ -349,7 +363,7 @@ class LIRGenerator {
 
   Function* lir_func_{nullptr};
 
-#if defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
   // Address of the deopt_idx field in the FrameHeader, computed once per
   // function in the entry block. Used by TranslateOneBasicBlock to store the
   // deopt index before each deoptable instruction.

@@ -104,7 +104,9 @@ inline std::vector<OperandType> makeTypeVec(Args&&... args) {
   return {args...};
 }
 
+class LiveValuesBase;
 class DeoptBase;
+class CallSiteLiveValuesBase;
 
 // Base class that all concrete HIR instructions must derive from.
 //
@@ -244,6 +246,11 @@ class Instr {
   virtual DeoptBase* asDeoptBase();
   virtual const DeoptBase* asDeoptBase() const;
 
+  // Downcast the Instr to a CallSiteLiveValuesBase, returning nullptr if it
+  // isn't one.
+  virtual CallSiteLiveValuesBase* asCallSiteLiveValuesBase();
+  virtual const CallSiteLiveValuesBase* asCallSiteLiveValuesBase() const;
+
  protected:
   // Allocate a block of memory suitable to house an `Instr`. This function is
   // intended to be used by the various `create` functions that are defined on
@@ -285,12 +292,11 @@ class Instr {
 
 using InstrPredicate = std::function<bool(const Instr&)>;
 
-// Subclass of Instr that is able to deopt back to the interpreter.
-class DeoptBase : public Instr {
+// Subclass of Instr for instructions that carry logical live-value metadata.
+class LiveValuesBase : public Instr {
  public:
-  explicit DeoptBase(Opcode op);
-  DeoptBase(Opcode op, const FrameState& frame);
-  DeoptBase(const DeoptBase& other);
+  explicit LiveValuesBase(Opcode op);
+  LiveValuesBase(const LiveValuesBase& other);
 
   template <typename... Args>
   void emplaceLiveReg(Args&&... args) {
@@ -301,6 +307,19 @@ class DeoptBase : public Instr {
   std::vector<RegState>& live_regs();
 
   void sortLiveRegs();
+
+  bool visitUses(const std::function<bool(Register*&)>& func) override;
+
+ private:
+  std::vector<RegState> live_regs_;
+};
+
+// Subclass of Instr that is able to deopt back to the interpreter.
+class DeoptBase : public LiveValuesBase {
+ public:
+  explicit DeoptBase(Opcode op);
+  DeoptBase(Opcode op, const FrameState& frame);
+  DeoptBase(const DeoptBase& other);
 
   // Set/get the metadata needed to reconstruct the state of the interpreter
   // after this instruction executes.
@@ -328,7 +347,6 @@ class DeoptBase : public Instr {
   void setGuiltyReg(Register* reg);
 
  private:
-  std::vector<RegState> live_regs_;
   std::unique_ptr<FrameState> frame_state_{nullptr};
   // If set and this instruction deopts at runtime, this value is made
   // conveniently available in the deopt machinery.
@@ -336,6 +354,18 @@ class DeoptBase : public Instr {
   int nonce_{-1};
   // A human-readable description of why this instruction might deopt.
   std::string descr_;
+};
+
+// Subclass of Instr for instructions that may lower to helper calls capable of
+// arbitrary Python execution. Carries logical live-value metadata so codegen
+// can record physical locations for GC-visible values at the callsite.
+class CallSiteLiveValuesBase : public LiveValuesBase {
+ public:
+  explicit CallSiteLiveValuesBase(Opcode op);
+  CallSiteLiveValuesBase(const CallSiteLiveValuesBase& other);
+
+  CallSiteLiveValuesBase* asCallSiteLiveValuesBase() override;
+  const CallSiteLiveValuesBase* asCallSiteLiveValuesBase() const override;
 };
 
 // This pile of template metaprogramming provides a convenient way to define
@@ -2257,10 +2287,10 @@ class INSTR_CLASS(CondBranchCheckType, (TObject), Operands<1>, CondBranchBase) {
 };
 
 // Decrement the reference count of `reg`
-DEFINE_SIMPLE_INSTR(Decref, (TObject), Operands<1>);
+DEFINE_SIMPLE_INSTR(Decref, (TObject), Operands<1>, CallSiteLiveValuesBase);
 
 // Decrement the reference count of `reg`, if `reg` is not NULL
-DEFINE_SIMPLE_INSTR(XDecref, (TOptObject), Operands<1>);
+DEFINE_SIMPLE_INSTR(XDecref, (TOptObject), Operands<1>, CallSiteLiveValuesBase);
 
 // Increment the reference count of `reg`
 DEFINE_SIMPLE_INSTR(Incref, (TObject), Operands<1>);
@@ -2272,7 +2302,7 @@ DEFINE_SIMPLE_INSTR(XIncref, (TOptObject), Operands<1>);
 DEFINE_SIMPLE_INSTR(MaterializeRef, (TOptObject), HasOutput, Operands<1>);
 
 // batch decrement references
-DEFINE_SIMPLE_INSTR(BatchDecref, (TObject), Operands<>);
+DEFINE_SIMPLE_INSTR(BatchDecref, (TObject), Operands<>, CallSiteLiveValuesBase);
 
 class DeoptBaseWithNameIdx : public DeoptBase {
  public:

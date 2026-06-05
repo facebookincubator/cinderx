@@ -753,6 +753,10 @@ void module_free(void* raw_mod) {
 
   Ci_FiniFrameEvalFunc();
 
+#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
+  jit::clearJitGCDeferredRefVisitor(PyInterpreterState_Get());
+#endif
+
   jit::finalize();
 
   finiCodeExtraIndex();
@@ -1193,6 +1197,10 @@ int _cinderx_exec_impl(PyObject* m) {
   if (_Ci_CreateStaticModule() < 0) {
     return -1;
   }
+
+#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
+  jit::registerJitGCDeferredRefVisitor(interp);
+#endif
 
   state->fully_initialized = true;
   return 0;

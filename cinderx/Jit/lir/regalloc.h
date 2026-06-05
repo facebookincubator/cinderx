@@ -144,6 +144,10 @@ class LinearScanAllocator {
   // Reserve all caller-saved registers for a function call.
   void reserveCallerSaveRegisters(int instr_id);
 
+  // Reserve registers for a function call, spilling all allocatable registers
+  // when free-threaded stack scanning needs every live value in spill data.
+  void reserveRegistersForCall(const Instruction& instr, int instr_id);
+
   // Reserve an arbitrary set of registers for an instruction, spilling them if
   // they are in use.
   void reserveRegisters(int instr_id, codegen::PhyRegisterSet phy_regs);
@@ -282,6 +286,9 @@ class LinearScanAllocator {
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocationNoSpill);
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
+  FRIEND_TEST(
+      LinearScanAllocatorTest,
+      ArbitraryExecutionCallReservesAllRegistersInFreeThreadedBuild);
 };
 
 std::ostream& operator<<(std::ostream& out, const LiveRange& rhs);

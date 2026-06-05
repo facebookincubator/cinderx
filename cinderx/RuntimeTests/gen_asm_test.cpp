@@ -105,6 +105,50 @@ def func2(x):
   ASSERT_EQ(PyObject_IsTrue(res2), 0);
 }
 
+TEST_F(ASMGeneratorTest, SimpleEnumConvertClassKeepsSimpleKeyword) {
+  const char* pycode = R"(
+from enum import Enum, _simple_enum
+
+class Synthetic:
+    A = 1
+
+convert_class = _simple_enum(Enum)
+)";
+
+  runCode(pycode);
+  Ref<PyObject> pyfunc(getGlobal("convert_class"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed loading convert_class";
+  Ref<PyObject> synthetic(getGlobal("Synthetic"));
+  ASSERT_NE(synthetic.get(), nullptr) << "Failed loading Synthetic";
+
+  auto compiled = GenerateCode(pyfunc);
+  ASSERT_NE(compiled, nullptr);
+
+  PyObject* args[] = {synthetic.get()};
+  auto res = Ref<>::steal(compiled->invoke(pyfunc, args, 1));
+  ASSERT_NE(res, nullptr);
+
+  // This compiles and invokes a small decorator function whose body builds an
+  // enum class via a keyword vectorcall.  The key operation inside
+  // convert_class is:
+  //
+  //   type(cls_name, (etype,), body, boundary=boundary, _simple=True)
+  //
+  // On free-threaded builds the JIT strips deferred-RC tag bits from object
+  // operands before entering C.  The `_simple=True` keyword is a tagged
+  // PyObject* call operand, so the JIT must pass the untagged value derived
+  // from `True`.  If register allocation rewrites the strip to read a stale
+  // reused register, EnumType.__new__ does not see `_simple=True` and takes the
+  // normal enum-construction path.  That path expects an enum namespace object,
+  // not the plain dict created by _simple_enum, and raises:
+  //
+  //   AttributeError: 'dict' object has no attribute '_member_names'
+  //
+  // Returning a type here proves the keyword vectorcall received the correct
+  // untagged `True` object after postgen and register allocation.
+  ASSERT_TRUE(PyType_Check(res));
+}
+
 TEST_F(ASMGeneratorTest, UnboundLocalError) {
   const char* pycode = R"(
 def test(x):

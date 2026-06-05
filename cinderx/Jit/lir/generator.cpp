@@ -183,13 +183,26 @@ Py_ssize_t frameOffsetOf(const BeginInlinedFunction* instr) {
   return frameOffsetBefore(instr) - frameHeaderSize(instr->code());
 }
 
+int lineForBytecodeOffset(BorrowedRef<PyCodeObject> code, int bc_off) {
+  if (code == nullptr || bc_off < 0 || bc_off >= _PyCode_NBYTES(code)) {
+    return -1;
+  }
+  return PyCode_Addr2Line(code, bc_off);
+}
+
 // Update the global ref count total after an Inc or Dec operation.
 void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
   if (kPyRefDebug) {
     auto helper = reinterpret_cast<uint64_t>(
         op == Instruction::Opcode::kInc ? JITRT_IncRefTotal
                                         : JITRT_DecRefTotal);
+    // Py_REF_DEBUG bookkeeping is inserted while lowering refcount HIR, but
+    // these helper calls do not execute arbitrary Python code and do not need
+    // callsite live-value metadata for the surrounding HIR instruction.
+    const hir::Instr* current_instr = bbb.currentInstr();
+    bbb.setCurrentInstr(nullptr);
     bbb.appendInstr(Instruction::kCall, Imm{helper});
+    bbb.setCurrentInstr(current_instr);
   }
 }
 
@@ -1548,6 +1561,48 @@ void LIRGenerator::addLiveRegOperands(
   }
 }
 
+Instruction* LIRGenerator::createCallSiteLiveValuesInstr(
+    BasicBlockBuilder& bbb,
+    const hir::CallSiteLiveValuesBase& hir_instr) {
+  Instruction* live_values_instr =
+      bbb.appendInstr(Instruction::kCallSiteLiveValues);
+  for (const auto& reg_state : hir_instr.live_regs()) {
+    Instruction* def = bbb.getDefInstr(reg_state.reg);
+    JIT_CHECK(
+        def != nullptr,
+        "No LIR definition for callsite live reg {}",
+        reg_state.reg->name());
+    live_values_instr->addOperands(VReg{def});
+  }
+  return live_values_instr;
+}
+
+void LIRGenerator::storeActiveDeoptIndex(
+    BasicBlockBuilder& bbb,
+    std::size_t deopt_idx) {
+#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+  if (deopt_idx_addr_ != nullptr) {
+    bbb.appendInstr(
+        OutInd{deopt_idx_addr_, 0},
+        Instruction::kMove,
+        Imm{deopt_idx, DataType::k64bit});
+  }
+#else
+  (void)bbb;
+  (void)deopt_idx;
+#endif
+}
+
+void LIRGenerator::registerCallSiteLiveValues(
+    Instruction* call_instr,
+    const CallSiteLiveValueData& data) {
+  auto [it, inserted] = env_->callsite_live_value_metadata.emplace(
+      call_instr,
+      codegen::Environ::CallSiteLiveValueMetadata{
+          data.deopt_meta_index, data.live_values_instr});
+  JIT_CHECK(inserted, "Callsite live-value metadata registered twice");
+}
+
 // Attempt to emit a type-specialized call, returning true if successful.
 bool LIRGenerator::TranslateSpecializedCall(
     BasicBlockBuilder& bbb,
@@ -1826,6 +1881,7 @@ void LIRGenerator::makeIncref(
 void LIRGenerator::makeDecref(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
+    const hir::CallSiteLiveValuesBase* callsite_live_values,
     [[maybe_unused]] std::optional<destructor> destructor,
     bool xdecref,
     [[maybe_unused]] bool possible_immortal) {
@@ -1837,7 +1893,7 @@ void LIRGenerator::makeDecref(
   }
 
   if constexpr (kFreeThreadedBuild) {
-    makeDecrefFreeThreaded(bbb, instr, end_decref);
+    makeDecrefFreeThreaded(bbb, instr, callsite_live_values, end_decref);
   } else {
     makeDecrefGILEnabled(bbb, instr, end_decref, destructor, possible_immortal);
   }
@@ -1849,6 +1905,7 @@ void LIRGenerator::makeDecref(
 void LIRGenerator::makeDecrefFreeThreaded(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
+    const hir::CallSiteLiveValuesBase* callsite_live_values,
     BasicBlock* end_decref) {
   // Inline the common-case decref for free-threading. Check thread ownership
   // and use a relaxed atomic store for thread-owned objects. When the local
@@ -1919,7 +1976,19 @@ void LIRGenerator::makeDecrefFreeThreaded(
   if (getConfig().multiple_code_sections) {
     merge_refcount->setSection(codegen::CodeSection::kCold);
   }
-  bbb.appendInvokeInstruction(_Py_MergeZeroLocalRefcount, instr);
+  if (callsite_live_values != nullptr) {
+    std::size_t deopt_idx = env_->addDeoptMetadata(*callsite_live_values);
+    storeActiveDeoptIndex(bbb, deopt_idx);
+    Instruction* merge_call =
+        bbb.appendInvokeInstruction(_Py_MergeZeroLocalRefcount, instr);
+    registerCallSiteLiveValues(
+        merge_call,
+        CallSiteLiveValueData{
+            deopt_idx,
+            createCallSiteLiveValuesInstr(bbb, *callsite_live_values)});
+  } else {
+    bbb.appendInvokeInstruction(_Py_MergeZeroLocalRefcount, instr);
+  }
   // Jump past the slow path to end_decref.
   bbb.appendBranch(Instruction::kBranch, end_decref);
 
@@ -1934,7 +2003,19 @@ void LIRGenerator::makeDecrefFreeThreaded(
     slow_decref->setSection(codegen::CodeSection::kCold);
   }
   updateRefTotal(bbb, Instruction::kDec);
-  bbb.appendInvokeInstruction(_Py_DecRefShared, instr);
+  if (callsite_live_values != nullptr) {
+    std::size_t deopt_idx = env_->addDeoptMetadata(*callsite_live_values);
+    storeActiveDeoptIndex(bbb, deopt_idx);
+    Instruction* slow_call =
+        bbb.appendInvokeInstruction(_Py_DecRefShared, instr);
+    registerCallSiteLiveValues(
+        slow_call,
+        CallSiteLiveValueData{
+            deopt_idx,
+            createCallSiteLiveValuesInstr(bbb, *callsite_live_values)});
+  } else {
+    bbb.appendInvokeInstruction(_Py_DecRefShared, instr);
+  }
   // Falls through to end_decref (appended by caller).
 }
 #else
@@ -1984,15 +2065,23 @@ void LIRGenerator::makeDecref(
     const jit::hir::Instr& instr,
     bool xdecref) {
   Register* obj = instr.GetOperand(0);
+  const auto* callsite_live_values = instr.asCallSiteLiveValuesBase();
 
   // Don't generate anything for immortal objects.
   if (!obj->type().couldBe(TMortalObject)) {
     return;
   }
 
+  if constexpr (kFreeThreadedBuild) {
+    JIT_CHECK(
+        callsite_live_values != nullptr,
+        "Free-threaded Decref missing callsite live-value metadata");
+  }
+
   makeDecref(
       bbb,
       bbb.getDefInstr(obj),
+      callsite_live_values,
       obj->type().runtimePyTypeDestructor(),
       xdecref,
       obj->type().couldBe(TImmortalObject));
@@ -2006,7 +2095,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
   BasicBlock* entry_block = bbb.allocateBlock();
   bbb.switchBlock(entry_block);
 
-#if defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
   int last_deopt_line = -1;
   const jit::hir::FrameState* caller_fs = initial_caller_fs;
   BorrowedRef<PyCodeObject> inlined_code = initial_inlined_code;
@@ -2016,7 +2105,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
     auto opcode = i.opcode();
     bbb.setCurrentInstr(&i);
 
-#if defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
     if (opcode == Opcode::kBeginInlinedFunction) {
       auto bif = static_cast<const BeginInlinedFunction*>(&i);
       caller_fs = bif->callerFrameState();
@@ -3325,11 +3414,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kBatchDecref: {
         auto instr = static_cast<const BatchDecref*>(&i);
-
+        [[maybe_unused]] std::size_t deopt_idx = 0;
+        if constexpr (kFreeThreadedBuild) {
+          deopt_idx = env_->addDeoptMetadata(*instr);
+          storeActiveDeoptIndex(bbb, deopt_idx);
+        }
         Instruction* lir = bbb.appendInstr(Instruction::kVarArgCall);
         lir->addOperands(Imm{reinterpret_cast<uint64_t>(JITRT_BatchDecref)});
         for (hir::Register* arg : instr->GetOperands()) {
           lir->addOperands(VReg{bbb.getDefInstr(arg)});
+        }
+        if constexpr (kFreeThreadedBuild) {
+          registerCallSiteLiveValues(
+              lir,
+              CallSiteLiveValueData{
+                  deopt_idx, createCallSiteLiveValuesInstr(bbb, *instr)});
         }
 
         break;
@@ -4924,7 +5023,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
   return {bbs.front(), bbs.back()};
 }
 
-#if defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
 void LIRGenerator::updateDeoptIndex(
     BasicBlockBuilder& bbb,
     const jit::hir::Instr& i,
@@ -4938,15 +5037,11 @@ void LIRGenerator::updateDeoptIndex(
   // bytecode offset without needing to walk the native stack.
   if (deopt_idx_addr_ != nullptr && i.asDeoptBase() != nullptr) {
     auto deopt_id = bbb.makeDeoptMetadata();
-    bbb.appendInstr(
-        OutInd{deopt_idx_addr_, 0},
-        Instruction::kMove,
-        Imm{deopt_id, DataType::k64bit});
+    storeActiveDeoptIndex(bbb, deopt_id);
     // Use inlined_code when inside an inlined function, otherwise codeFor().
     auto code = inlined_code != nullptr ? inlined_code : func_->codeFor(i);
     int bc_off = i.bytecodeOffset().value();
-    last_deopt_line =
-        (code != nullptr && bc_off >= 0) ? PyCode_Addr2Line(code, bc_off) : -1;
+    last_deopt_line = lineForBytecodeOffset(code, bc_off);
   } else if (
       deopt_idx_addr_ != nullptr &&
       (opcode == Opcode::kDecref || opcode == Opcode::kXDecref ||
@@ -4962,8 +5057,7 @@ void LIRGenerator::updateDeoptIndex(
     // Use inlined_code when inside an inlined function, otherwise codeFor().
     auto code = inlined_code != nullptr ? inlined_code : func_->codeFor(i);
     int bc_off = i.bytecodeOffset().value();
-    int decref_line =
-        (code != nullptr && bc_off >= 0) ? PyCode_Addr2Line(code, bc_off) : -1;
+    int decref_line = lineForBytecodeOffset(code, bc_off);
     if (decref_line != last_deopt_line) {
       DeoptMetadata meta;
       int num_callers = 0;
@@ -4982,11 +5076,8 @@ void LIRGenerator::updateDeoptIndex(
         meta.frame_meta[idx].cause_instr_idx = f->instrOffset();
         idx--;
       }
-      auto deopt_id = env_->code_rt->addDeoptMetadata(std::move(meta));
-      bbb.appendInstr(
-          OutInd{deopt_idx_addr_, 0},
-          Instruction::kMove,
-          Imm{deopt_id, DataType::k64bit});
+      auto deopt_id = env_->code_rt->addRawDeoptMetadata(std::move(meta));
+      storeActiveDeoptIndex(bbb, deopt_id);
       last_deopt_line = decref_line;
     }
   }
@@ -5131,7 +5222,8 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         OutPhyReg{codegen::arch::reg_frame_pointer_loc},
         Instruction::kMove,
         VReg{footer});
-#if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
+    defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Now that FP points at the heap-allocated GenDataFooter, compute the
     // deopt_idx address.  This must happen after the FP swap above —
     // the kLea uses FP as its base register.
@@ -5145,7 +5237,8 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         Stk{PhyLocation(deopt_idx_offset)});
 #endif
   } else {
-#if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
+    defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Compute the address of the deopt_idx field once
     // TranslateOneBasicBlock reuses this for all deopt index stores.
     if (func_->code != nullptr) {
@@ -5306,6 +5399,23 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
   env_->asm_interpreter_frame = makeCurrentFrameAccessor(bbb).load();
 }
 
+void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
+  PyObject* executable;
+  std::optional<destructor> dtor;
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  executable = env_->code_rt->reifier().get();
+  dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
+#else
+  executable = reinterpret_cast<PyObject*>(func_->code.get());
+  dtor = PyCode_Type.tp_dealloc;
+#endif
+  if (!_Py_IsImmortal(executable)) {
+    Instruction* exec_reg =
+        bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
+    makeDecref(bbb, exec_reg, nullptr, dtor, false, false);
+  }
+}
+
 void LIRGenerator::emitUnlinkFrame(
     BasicBlockBuilder& bbb,
     bool has_freevars,
@@ -5347,6 +5457,7 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
     makeDecref(
         bbb,
         func_reg,
+        nullptr,
         std::optional<destructor>(PyFunction_Type.tp_dealloc),
         false,
         false);
@@ -5354,7 +5465,7 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
   if (!_Py_IsImmortal(executable)) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
-    makeDecref(bbb, exec_reg, exec_dtor, false, false);
+    makeDecref(bbb, exec_reg, nullptr, exec_dtor, false, false);
   }
 }
 
@@ -5417,6 +5528,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
     makeDecref(
         bbb,
         func_reg,
+        nullptr,
         std::optional<destructor>(PyFunction_Type.tp_dealloc),
         false,
         false);
@@ -5424,7 +5536,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
   if (!_Py_IsImmortal(executable)) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
-    makeDecref(bbb, exec_reg, exec_dtor, false, false);
+    makeDecref(bbb, exec_reg, nullptr, exec_dtor, false, false);
   }
 
   bbb.appendBlock(done_block);

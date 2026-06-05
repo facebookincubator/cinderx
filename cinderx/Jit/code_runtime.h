@@ -62,9 +62,10 @@ class alignas(16) CodeRuntime {
   // Store meta-data about generator yield point.
   GenYieldPoint* addGenYieldPoint(GenYieldPoint&& gen_yield_point);
 
-  // Add metadata used during a deopt.  Return an ID that can be used to fetch
-  // the metadata from generated code.
-  std::size_t addDeoptMetadata(DeoptMetadata&& deopt_meta);
+  // Add raw deopt metadata that was constructed without a DeoptBase, such as
+  // callsite live-value metadata for helper calls. This bypasses the
+  // instruction-based dedup cache.
+  std::size_t addRawDeoptMetadata(DeoptMetadata&& deopt_meta);
 
   // Get a reference to the DeoptMetadata with the given ID.
   DeoptMetadata& getDeoptMetadata(std::size_t id);

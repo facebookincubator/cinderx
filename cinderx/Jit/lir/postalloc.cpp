@@ -1098,6 +1098,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kRet:
     case Instruction::kCmpBranchZero:
     case Instruction::kCmpBranchNonZero:
+    case Instruction::kCallSiteLiveValues:
       return kUnchanged;
   }
 

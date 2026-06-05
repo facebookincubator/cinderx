@@ -198,6 +198,42 @@ void fillLiveValueLocations(
   }
 }
 
+void fillCallSiteLiveValueLocations(Environ* env, const Instruction* instr) {
+  if constexpr (!kFreeThreadedBuild) {
+    return;
+  }
+  auto it = env->callsite_live_value_metadata.find(instr);
+  if (it == env->callsite_live_value_metadata.end()) {
+    const hir::Instr* hir_instr = instr->origin();
+    // Assume if there is no HIR instruction then this site does not allow
+    // arbitrary execution.
+    if (hir_instr != nullptr && hir_instr->asDeoptBase() == nullptr) {
+      JIT_CHECK(
+          hir_instr->asCallSiteLiveValuesBase() == nullptr,
+          "Missing callsite live-value metadata for '{}'",
+          *hir_instr);
+    }
+    return;
+  }
+
+  const Environ::CallSiteLiveValueMetadata& metadata = it->second;
+  JIT_CHECK(
+      metadata.live_values_instr != nullptr,
+      "Missing callsite live-value instruction");
+  DeoptMetadata& deopt_meta =
+      env->code_rt->getDeoptMetadata(metadata.deopt_meta_index);
+  JIT_CHECK(
+      deopt_meta.live_values.size() ==
+          metadata.live_values_instr->getNumInputs(),
+      "Callsite live-value count mismatch");
+  fillLiveValueLocations(
+      env->code_rt,
+      metadata.deopt_meta_index,
+      metadata.live_values_instr,
+      0,
+      metadata.live_values_instr->getNumInputs());
+}
+
 } // namespace
 
 // Translate GUARD instruction
@@ -2381,6 +2417,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
   auto opcode = instr->opcode();
   switch (opcode) {
     case Instruction::kBind:
+    case Instruction::kCallSiteLiveValues:
       return;
 #if defined(CINDER_X86_64)
     case Instruction::kLea: {
@@ -2917,6 +2954,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       if (instr->origin()) {
         env->pending_debug_locs.emplace_back(label, instr->origin());
       }
+      fillCallSiteLiveValueLocations(env, instr);
       return;
     }
     case Instruction::kMove: {
@@ -3262,6 +3300,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     }
     case Instruction::kCall:
       translateCall(env, instr);
+      fillCallSiteLiveValueLocations(env, instr);
       return;
     case Instruction::kMove:
       translateMove(env, instr);

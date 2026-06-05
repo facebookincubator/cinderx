@@ -5,6 +5,8 @@
 #include "internal/pycore_frame.h"
 #ifdef Py_GIL_DISABLED
 #include "internal/pycore_ceval.h"
+#include "internal/pycore_interp_structs.h"
+#include "internal/pycore_pystate.h"
 #endif
 
 #include "cinderx/Common/code.h"
@@ -20,6 +22,8 @@
 #endif
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
+
+#include <optional>
 
 namespace jit {
 
@@ -47,7 +51,9 @@ CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
 
 void updatePrevInstr(_PyInterpreterFrame* frame);
 
-int reifyRunningFrame(_PyInterpreterFrame* frame, PyObject* reifier) {
+int reifyRunningFrame(
+    _PyInterpreterFrame* frame,
+    [[maybe_unused]] PyObject* reifier) {
   jitFramePopulateFrame(frame);
   updatePrevInstr(frame);
   return 0;
@@ -175,12 +181,6 @@ std::vector<_PyInterpreterFrame*> getUnitFrames(_PyInterpreterFrame* frame) {
 UnitState getUnitState(_PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   std::vector<_PyInterpreterFrame*> unit_frames = getUnitFrames(frame);
-  auto logUnitFrames = [&unit_frames] {
-    JIT_LOG("Unit frames (increasing order of inline depth):");
-    for (_PyInterpreterFrame* sf : unit_frames) {
-      JIT_LOG("code={}", codeName(_PyFrame_GetCode(sf)));
-    }
-  };
   // Look up bytecode offsets for the frames in the unit.
   //
   // This is accomplished by combining a few different things:
@@ -203,10 +203,17 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
   JIT_CHECK(code_rt != nullptr, "failed to find code runtime");
 
+  auto logUnitFrames = [&unit_frames] {
+    JIT_LOG("Unit frames (increasing order of inline depth):");
+    for (_PyInterpreterFrame* sf : unit_frames) {
+      JIT_LOG("code={}", codeName(_PyFrame_GetCode(sf)));
+    }
+  };
+
 #if defined(CINDER_AARCH64)
-  // On ARM64, look up bytecode offsets using the deopt index stored in the
-  // frame header. The JIT updates this index before each instruction that
-  // can deopt, so it always reflects the current position in the bytecode.
+  // Look up bytecode offsets using the deopt index stored in the frame header.
+  // The JIT updates this index before each instruction that can deopt, so it
+  // always reflects the current position in the bytecode.
   std::size_t deopt_idx = jitFrameGetHeader(non_inlined_sf)->deopt_idx;
   std::optional<UnitCallStack> locs =
       code_rt->getUnitCallStackFromDeoptIdx(deopt_idx);
@@ -301,6 +308,81 @@ void updatePrevInstr(_PyInterpreterFrame* frame) {
 #endif
 }
 
+CodeRuntime* lookupCodeRuntimeForOwningFrame(_PyInterpreterFrame* frame) {
+  JIT_CHECK(
+      !isInlinedFrame(frame),
+      "owning frame unexpectedly refers to an inlined frame");
+  return getCodeRuntime(frame);
+}
+
+struct ActiveDeoptMetadata {
+  const DeoptMetadata* meta;
+  uintptr_t frame_base;
+};
+
+std::optional<ActiveDeoptMetadata> getActiveDeoptMetadata(
+    _PyInterpreterFrame* owning_frame,
+    CodeRuntime* code_rt = nullptr) {
+  if (code_rt == nullptr) {
+    code_rt = lookupCodeRuntimeForOwningFrame(owning_frame);
+  }
+  if (code_rt == nullptr || code_rt->frameSize() < 0) {
+    return std::nullopt;
+  }
+
+#if defined(Py_GIL_DISABLED)
+  std::size_t deopt_idx = jitFrameGetHeader(owning_frame)->deopt_idx;
+  if (deopt_idx >= code_rt->deoptMetadatas().size()) {
+    return std::nullopt;
+  }
+  uintptr_t frame_base;
+  if (isGeneratorFrame(owning_frame)) {
+    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(owning_frame);
+    auto footer = jitGenDataFooter(gen);
+    frame_base = reinterpret_cast<uintptr_t>(footer);
+  } else {
+#if defined(CINDER_X86_64)
+    frame_base = getFrameBaseFromOnStackFrame(owning_frame);
+#else
+    frame_base = reinterpret_cast<uintptr_t>(owning_frame) +
+        sizeof(PyObject*) * _PyFrame_GetCode(owning_frame)->co_framesize;
+#endif
+  }
+  return ActiveDeoptMetadata{
+      .meta = &code_rt->getDeoptMetadata(deopt_idx),
+      .frame_base = frame_base,
+  };
+#else
+  return std::nullopt;
+#endif
+}
+
+#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
+int visitJitDeferredRefs(PyInterpreterState* interp, gcvisitobjects_t visit) {
+  _Py_FOR_EACH_TSTATE_BEGIN(interp, p) {
+    for (_PyInterpreterFrame* frame = p->current_frame; frame != nullptr;
+         frame = frame->previous) {
+      if (frame->owner >= FRAME_OWNED_BY_INTERPRETER) {
+        continue;
+      }
+
+      if (!isJitFrame(frame) || isInlined(frame)) {
+        continue;
+      }
+
+      std::optional<ActiveDeoptMetadata> active = getActiveDeoptMetadata(frame);
+      if (!active.has_value()) {
+        JIT_ABORT("no active deopt metadata");
+      }
+
+      visitLiveDeferredRefs(*active->meta, active->frame_base, visit);
+    }
+  }
+  _Py_FOR_EACH_TSTATE_END(interp);
+  return 0;
+}
+#endif
+
 #if PY_VERSION_HEX < 0x030E0000
 
 const PyMemberDef framereifier_members[] = {
@@ -349,6 +431,16 @@ Ref<> makeFrameReifier([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
 #endif
   return nullptr;
 }
+
+#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
+void registerJitGCDeferredRefVisitor(PyInterpreterState* interp) {
+  CiUnstable_GC_SetJITDeferredRefVisitor(interp, visitJitDeferredRefs);
+}
+
+void clearJitGCDeferredRefVisitor(PyInterpreterState* interp) {
+  CiUnstable_GC_SetJITDeferredRefVisitor(interp, nullptr);
+}
+#endif
 
 #if PY_VERSION_HEX < 0x030E0000
 

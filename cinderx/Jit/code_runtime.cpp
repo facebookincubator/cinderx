@@ -92,7 +92,7 @@ GenYieldPoint* CodeRuntime::addGenYieldPoint(GenYieldPoint&& gen_yield_point) {
   return &gen_yield_points_.back();
 }
 
-std::size_t CodeRuntime::addDeoptMetadata(DeoptMetadata&& deopt_meta) {
+std::size_t CodeRuntime::addRawDeoptMetadata(DeoptMetadata&& deopt_meta) {
   deopt_metadatas_.emplace_back(std::move(deopt_meta));
   return deopt_metadatas_.size() - 1;
 }

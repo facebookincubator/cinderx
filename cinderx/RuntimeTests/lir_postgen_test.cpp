@@ -7,6 +7,7 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
+#include "cinderx/Jit/lir/regalloc.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 namespace jit::lir {
@@ -16,6 +17,13 @@ static std::string runPostGenRewrite(const char* lir_input_str) {
   auto func = Parser().parse(lir_input_str);
   codegen::Environ env;
   PostGenerationRewrite(func.get(), &env).run();
+  return fmt::format("{}", *func);
+}
+
+static std::string runRegAlloc(const char* lir_input_str) {
+  auto func = Parser().parse(lir_input_str);
+  LinearScanAllocator allocator{func.get()};
+  allocator.run();
   return fmt::format("{}", *func);
 }
 
@@ -148,6 +156,88 @@ BB %6
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32});
 
   EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
+}
+
+TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
+#ifndef Py_GIL_DISABLED
+  GTEST_SKIP() << "Object pointer stripping is only enabled in free-threaded "
+                  "builds";
+#else
+  const char* lir_input_str = R"(Function:
+BB %0
+  %10:Object = Call 1
+  %20:Object = Move 4369
+  %30:Object = Move 8738
+  %40:Object = Move 13107
+  %50:Object = Call 3, %20
+  %60:Object = Move 4661
+  %70:Object = Move 17477
+  %80:Object = VectorCallTstate 2, 0, %30, %10, %20, %40, %50, %60, %70
+  Return %80
+)";
+
+  std::string pre_alloc_lir = runPostGenRewrite(lir_input_str);
+  std::string allocated_lir = runRegAlloc(pre_alloc_lir.c_str());
+
+  // This constructs the postgen/regalloc hazard directly.  VectorCallTstate
+  // receives PyObject* operands that must have deferred-RC tag bits stripped
+  // before entering C.  The original rewrite built each strip directly from
+  // the operand's defining instruction:
+  //
+  //   %strip:ObjectUntagged = And %base:Object, ~tagbits
+  //   %call:Object = VectorCallTstate ..., %strip, ...
+  //
+  // That is valid LIR before register allocation, but it is fragile when
+  // `%base` is a long-lived tagged Python object.  Calls can force regalloc to
+  // split/spill long-lived object intervals and reuse their physical registers
+  // while preparing the call.  If the strip remains tied directly to `%base`,
+  // regalloc can rewrite the strip to read a physical register after that
+  // register has been reused for a different value.
+  //
+  // A representative bad post-allocation shape is:
+  //
+  //   RCX:Object = Move <original tagged object>
+  //   ...
+  //   [RBP(-2456)]:Object = Move RCX:Object
+  //   RCX:Object = Move <different object>
+  //   RAX:ObjectUntagged = And RCX:Object, ~tagbits
+  //   [RBP(-2464)]:ObjectUntagged = Move RAX:ObjectUntagged
+  //   RAX:Object = VectorCallTstate ..., [RBP(-2464)], ...
+  //
+  // The call receives an untagged value derived from the different object
+  // instead of the original tagged object.  The fix inserts an adjacent copy
+  // before stripping:
+  //
+  //   %copy:Object = Move %base:Object
+  //   %strip:ObjectUntagged = And %copy:Object, ~tagbits
+  //
+  // This test checks both phases: pre-allocation LIR has the local
+  // copy-then-strip shape, and post-allocation LIR strips from the register
+  // assigned to that adjacent copy.
+  EXPECT_NE(pre_alloc_lir.find(":Object = Move %10:Object"), std::string::npos);
+  EXPECT_NE(pre_alloc_lir.find(":ObjectUntagged = And %"), std::string::npos);
+  EXPECT_NE(
+      allocated_lir.find("RCX:Object = Move RBX:Object"), std::string::npos);
+  EXPECT_NE(
+      allocated_lir.find("RBX:ObjectUntagged = And RCX:Object"),
+      std::string::npos);
+
+  // Immediate PyObject* constants also flow through call-operand stripping.
+  // They do not need a register-producing strip: the tag can be removed while
+  // materializing the immediate as an ObjectUntagged value.
+  EXPECT_NE(
+      pre_alloc_lir.find(":ObjectUntagged = Move 4660(0x1234):64bit"),
+      std::string::npos);
+  EXPECT_NE(
+      allocated_lir.find("RAX:ObjectUntagged = Move 4660(0x1234):64bit"),
+      std::string::npos);
+
+  // The fragile shape is an `And` that directly consumes an older, non-local
+  // tagged object definition.  The call-result operand and immediate-like
+  // operand in this input used to keep that shape.
+  EXPECT_EQ(pre_alloc_lir.find("= And %10:Object"), std::string::npos);
+  EXPECT_EQ(pre_alloc_lir.find("= And %60:Object"), std::string::npos);
+#endif
 }
 
 #if defined(CINDER_AARCH64)

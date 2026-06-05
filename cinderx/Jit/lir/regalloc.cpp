@@ -3,6 +3,8 @@
 #include "cinderx/Jit/lir/regalloc.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
+#include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/lir/printer.h"
 #include "cinderx/module_state.h"
 
@@ -487,7 +489,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       if (instr_opcode == Instruction::kCall ||
           instr_opcode == Instruction::kVarArgCall ||
           instr_opcode == Instruction::kVectorCallTstate) {
-        reserveCallerSaveRegisters(instr_id);
+        reserveRegistersForCall(*instr, instr_id);
       }
       // kLoadThreadState needs caller-save reservation when the TLS offset is
       // unavailable, forcing a function call fallback.  When the TLS offset IS
@@ -591,6 +593,23 @@ void LinearScanAllocator::spillRegistersForYield(int instr_id) {
 
 void LinearScanAllocator::reserveCallerSaveRegisters(int instr_id) {
   reserveRegisters(instr_id, CALLER_SAVE_REGS);
+}
+
+void LinearScanAllocator::reserveRegistersForCall(
+    const Instruction& instr,
+    int instr_id) {
+  if constexpr (kFreeThreadedBuild) {
+    const hir::Instr* origin = instr.origin();
+    if (origin != nullptr && hir::hasArbitraryExecution(*origin)) {
+      // Free-threaded GC must be able to read every live value for active JIT
+      // frames, so arbitrary-execution calls cannot keep values in registers
+      // that the callee may clobber.
+      reserveRegisters(instr_id, INIT_REGISTERS);
+      return;
+    }
+  }
+
+  reserveCallerSaveRegisters(instr_id);
 }
 
 void LinearScanAllocator::reserveRegisters(

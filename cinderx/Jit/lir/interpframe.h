@@ -141,6 +141,11 @@ consteval FrameInitTable buildFrameInitTable() {
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, tlbc_index)),
       FrameFieldKind::kZero,
       DataType::k32bit);
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, frame_obj)),
+      FrameFieldKind::kZero,
+      DataType::kObject);
+#endif
 #endif
 
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner)),

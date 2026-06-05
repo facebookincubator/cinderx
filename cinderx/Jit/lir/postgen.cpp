@@ -1081,11 +1081,41 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
         if (found != strip_cache.end()) {
           return found->second;
         }
+        // Call operands must be passed to C without deferred-RC tag bits.  If
+        // the object value is a tagged immediate, strip it while materializing
+        // the immediate and avoid creating a virtual-register dependency.
+        if (base->isMove() && base->getNumInputs() == 1 &&
+            base->getInput(0)->isImm()) {
+          uint64_t value = base->getInput(0)->getConstant() &
+              ~static_cast<uint64_t>(jit::kPyObjectTagBits);
+          Instruction* strip = block->allocateInstrBefore(
+              it,
+              Instruction::kMove,
+              OutVReg{DataType::kObjectUntagged},
+              Imm{value, DataType::k64bit});
+          strip_cache[base] = strip;
+          changed = true;
+          return strip;
+        }
+        // Do not build the strip directly from `base`.  `base` can be a
+        // long-lived Python object that remains live for deopt metadata or
+        // later decref/incref work across the same callsite.  Around calls,
+        // register allocation may split and spill that long-lived interval
+        // while also reusing its physical register for call setup.  A strip
+        // inserted here is a short-lived derived call operand, not another use
+        // of the long-lived tagged object.  Materialize an adjacent copy first
+        // so regalloc sees a local copy-then-strip def-use and cannot rewrite
+        // the strip to read a stale reused register.
+        Instruction* copy = block->allocateInstrBefore(
+            it,
+            Instruction::kMove,
+            OutVReg{base->output()->dataType()},
+            VReg{base});
         Instruction* strip = block->allocateInstrBefore(
             it,
             Instruction::kAnd,
             OutVReg{DataType::kObjectUntagged},
-            VReg{base},
+            VReg{copy},
             Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
                 DataType::k64bit});
         strip_cache[base] = strip;
