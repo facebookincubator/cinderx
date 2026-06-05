@@ -5,6 +5,7 @@
 extern "C" {
 #include "internal/pycore_call.h"
 #include "internal/pycore_ceval.h"
+#include "internal/pycore_gc.h"
 #include "internal/pycore_intrinsics.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
@@ -1792,6 +1793,31 @@ void LIRGenerator::makeIncrefFreeThreaded(
   // Falls through to end_incref (appended by caller).
 }
 
+void LIRGenerator::makeTagIfDeferred(
+    BasicBlockBuilder& bbb,
+    hir::Register* input,
+    hir::Register* output) {
+  Instruction* src = bbb.getDefInstr(input);
+  Instruction* gc_bits = bbb.appendInstr(
+      OutVReg{DataType::k8bit},
+      Instruction::kMoveRelaxed,
+      Ind{src,
+          static_cast<int>(offsetof(PyObject, ob_gc_bits)),
+          DataType::k8bit});
+  Instruction* has_deferred = bbb.appendInstr(
+      Instruction::kAnd,
+      OutVReg{DataType::k8bit},
+      gc_bits,
+      Imm{static_cast<uint64_t>(_PyGC_BITS_DEFERRED), DataType::k8bit});
+
+  Instruction* tagged = bbb.appendInstr(
+      OutVReg{DataType::kObject},
+      Instruction::kOr,
+      src,
+      Imm{static_cast<uint64_t>(jit::kDeferredRcTag), DataType::k64bit});
+  bbb.appendInstr(output, Instruction::kSelect, has_deferred, tagged, src);
+}
+
 void LIRGenerator::makeMaterializeRef(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
@@ -1825,6 +1851,13 @@ void LIRGenerator::makeMaterializeRef(
   bbb.appendBlock(end);
 }
 #else
+void LIRGenerator::makeTagIfDeferred(
+    BasicBlockBuilder& bbb,
+    hir::Register* input,
+    hir::Register* output) {
+  bbb.appendInstr(output, Instruction::kMove, bbb.getDefInstr(input));
+}
+
 void LIRGenerator::makeIncrefGILEnabled(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
@@ -2148,6 +2181,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* dest = i.output();
         Instruction* func = env_->asm_func;
         bbb.appendInstr(dest, Instruction::kMove, func);
+        break;
+      }
+      case Opcode::kTagIfDeferred: {
+        auto instr = static_cast<const TagIfDeferred*>(&i);
+        makeTagIfDeferred(bbb, instr->GetOperand(0), instr->output());
         break;
       }
       case Opcode::kLoadFrame: {

@@ -2729,8 +2729,13 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kSelect: {
       auto output = getReg(instr, instr->output());
       auto condition = getReg(instr, instr->getInput(0));
+      auto false_val = instr->getInput(2);
 
-      env->as->mov(output, getImm(instr->getInput(2)));
+      if (false_val->isImm()) {
+        env->as->mov(output, getImm(false_val));
+      } else {
+        env->as->mov(output, getReg(instr, false_val));
+      }
       env->as->test(condition, condition);
       env->as->cmovnz(output, getReg(instr, instr->getInput(1)));
       return;

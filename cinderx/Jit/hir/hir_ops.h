@@ -155,6 +155,7 @@ namespace jit::hir {
   V(SetSetItem)                    \
   V(SetUpdate)                     \
   V(Snapshot)                      \
+  V(TagIfDeferred)                 \
   V(StealCellItem)                 \
   V(SwapCellItem)                  \
   V(StoreArrayItem)                \

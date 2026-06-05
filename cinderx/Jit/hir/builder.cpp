@@ -383,6 +383,27 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
   }
 }
 
+void HIRBuilder::addTagIfDeferredArgs(TranslationContext& tc, int num_args) {
+  if constexpr (!kFreeThreadedBuild) {
+    return;
+  }
+  PyCodeObject* code = tc.frame.code;
+  int starargs_idx = (code->co_flags & CO_VARARGS)
+      ? code->co_argcount + code->co_kwonlyargcount
+      : -1;
+  for (int i = 0; i < num_args; i++) {
+    Type type = i == starargs_idx ? TTupleExact : preloader_.checkArgType(i);
+    if (!type.couldBe(TObject)) {
+      continue;
+    }
+    Register* src = tc.frame.localsplus[i];
+    JIT_CHECK(src != nullptr, "No register for argument {}", i);
+    Register* dst = temps_.AllocateNonStack();
+    tc.emit<TagIfDeferred>(dst, src);
+    tc.frame.localsplus[i] = dst;
+  }
+}
+
 static bool should_snapshot(
     const BytecodeInstruction& bci,
     bool is_in_async_for_header_block) {
@@ -673,6 +694,11 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   if (frame_state == nullptr) {
     entry_tc.emit<LoadFrame>();
+  }
+
+  // Generators tag their args after GEN_START.
+  if ((code_->co_flags & kCoFlagsAnyGenerator) == 0) {
+    addTagIfDeferredArgs(entry_tc, preloader_.numArgs());
   }
 
   emitTypeAnnotationGuards(entry_tc);
@@ -1452,6 +1478,7 @@ void HIRBuilder::translate(
           // function is started but before GEN_START. This check ensures this.
           JIT_DCHECK(
               bc_instr.baseIndex() == 0, "GEN_START must be first instruction");
+          addTagIfDeferredArgs(tc, preloader_.numArgs());
           break;
         }
         case DICT_UPDATE: {

@@ -308,6 +308,8 @@ Type outputType(
       auto& loadarg = static_cast<const LoadArg&>(instr);
       return loadarg.type();
     }
+    case Opcode::kTagIfDeferred:
+      return get_op_type(0);
     case Opcode::kLoadCurrentFunc:
       return TFunc;
     case Opcode::kLoadEvalBreaker:

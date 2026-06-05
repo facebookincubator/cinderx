@@ -270,6 +270,10 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& instr,
       bool xdecref);
+  void makeTagIfDeferred(
+      BasicBlockBuilder& bbb,
+      hir::Register* input,
+      hir::Register* output);
 
   // Only used in free-threaded builds.
   void makeIncrefFreeThreaded(

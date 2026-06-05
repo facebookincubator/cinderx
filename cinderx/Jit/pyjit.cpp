@@ -61,6 +61,8 @@
 
 using namespace jit;
 
+jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
+
 namespace {
 
 // RAII device for disabling GIL checking.
@@ -2189,6 +2191,16 @@ PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
   return dict.release();
 }
 
+PyObject* would_tag_if_deferred(PyObject* /* self */, PyObject* arg) {
+#ifdef Py_GIL_DISABLED
+  if (jit::taggedPyObjectBits(JITRT_TagIfDeferred(arg)) !=
+      reinterpret_cast<uintptr_t>(arg)) {
+    Py_RETURN_TRUE;
+  }
+#endif
+  Py_RETURN_FALSE;
+}
+
 PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
   if (jitCtx() == nullptr) {
     Py_RETURN_NONE;
@@ -2983,6 +2995,12 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Return a map from HIR opcode name to the count of that opcode in the "
          "JIT-compiled version of this function.")},
+    {"_would_tag_if_deferred",
+     would_tag_if_deferred,
+     METH_O,
+     PyDoc_STR(
+         "Return whether JITRT_TagIfDeferred() would tag this object in the "
+         "current runtime.")},
     {"mlock_profiler_dependencies",
      mlock_profiler_dependencies,
      METH_NOARGS,

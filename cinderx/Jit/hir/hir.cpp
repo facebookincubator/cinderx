@@ -434,6 +434,7 @@ bool Instr::isReplayable() const {
     case Opcode::kRaise:
     case Opcode::kRaiseStatic:
     case Opcode::kRefineType:
+    case Opcode::kTagIfDeferred:
     case Opcode::kStealCellItem:
     case Opcode::kUpdatePrevInstr:
     case Opcode::kUnicodeCompare:
@@ -721,6 +722,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kGuardIs:
     case Opcode::kGuardType:
     case Opcode::kRefineType:
+    case Opcode::kTagIfDeferred:
     case Opcode::kUseObj:
     case Opcode::kUseType:
       return true;

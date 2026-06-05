@@ -2877,6 +2877,9 @@ DEFINE_SIMPLE_INSTR(UseObj, (TTop), Operands<1>);
 // Assign one register to another
 DEFINE_SIMPLE_INSTR(Assign, (TTop), HasOutput, Operands<1>);
 
+// Return the same object with the deferred-RC tag applied when needed.
+DEFINE_SIMPLE_INSTR(TagIfDeferred, (TObject), HasOutput, Operands<1>);
+
 // Assign one register to another with a new type (unchecked!)
 class INSTR_CLASS(BitCast, (TTop), HasOutput, Operands<1>) {
  public:

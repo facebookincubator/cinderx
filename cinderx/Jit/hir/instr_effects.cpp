@@ -62,6 +62,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kPrimitiveUnbox:
     case Opcode::kRefineType:
     case Opcode::kSnapshot:
+    case Opcode::kTagIfDeferred:
     case Opcode::kTpAlloc:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
@@ -451,6 +452,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kSetCellItem:
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
+    case Opcode::kTagIfDeferred:
     case Opcode::kStealCellItem:
     case Opcode::kSwapCellItem:
     case Opcode::kStoreArrayItem:

@@ -1027,7 +1027,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kFmul:
     case Instruction::kFdiv:
       break;
-      break;
     // Instructions that natively support memory operands or don't have
     // register-only constraints — no rewriting needed.
     case Instruction::kNone:

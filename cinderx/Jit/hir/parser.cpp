@@ -529,6 +529,11 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(Assign, dst, src);
       break;
     }
+    case Opcode::kTagIfDeferred: {
+      auto src = ParseRegister();
+      NEW_INSTR(TagIfDeferred, dst, src);
+      break;
+    }
     case Opcode::kBinaryOp: {
       expect("<");
       BinaryOpKind op = ParseBinaryOpName(GetNextToken());

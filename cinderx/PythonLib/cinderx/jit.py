@@ -16,6 +16,7 @@ FuncAny = Callable[..., Any]
 try:
     from cinderjit import (
         _deopt_gen,
+        _would_tag_if_deferred,
         append_jit_list,
         auto,
         clear_runtime_stats,
@@ -71,6 +72,9 @@ except ImportError:
         | AsyncGenerator[TDeoptGenYield, TDeoptGenSend]
         | Coroutine[TDeoptGenYield, TDeoptGenSend, TDeoptGenReturn],
     ) -> bool:
+        return False
+
+    def _would_tag_if_deferred(obj: object) -> bool:
         return False
 
     def append_jit_list(entry: str) -> None:
