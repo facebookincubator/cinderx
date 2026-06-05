@@ -6,5 +6,5 @@ torchaudio
 numpy
 click
 
-# Install TorchBench itself with:
-#   uv pip install 'git+https://github.com/pytorch/benchmark.git'
+# TorchBench itself is not vendored here. Clone pytorch/benchmark, run its
+# install.py for the model you want, and add that checkout to PYTHONPATH.

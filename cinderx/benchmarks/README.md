@@ -65,26 +65,37 @@ Most TorchBench models spend almost all their time in fused C++ kernels, leaving
 little for a Python JIT to accelerate. The default model,
 `pyhpc_equation_of_state`, is a small CPU workload where Python optimization is expected to matter. Any TorchBench model can be selected via `--model`.
 
-TorchBench is not vendored here. Install it directly from Git along with the
-base TorchBench packages:
+TorchBench is not vendored here and is intended to be installed from a source
+checkout. From the repository root, install the base packages, clone TorchBench,
+and install the default model's requirements:
 
 ```bash
-uv pip install -r benchmarks/requirements-torchbench.txt
-uv pip install 'git+https://github.com/pytorch/benchmark.git'
+uv venv
+uv pip install setuptools
+uv pip install -e . --no-build-isolation --reinstall
+uv pip install -r cinderx/benchmarks/requirements-torchbench.txt
+git clone https://github.com/pytorch/benchmark.git ../pytorch-benchmark
+cd ../pytorch-benchmark
+../cinderx/.venv/bin/python install.py pyhpc_equation_of_state
+cd ../cinderx
 ```
 
+Run this benchmark with the TorchBench checkout on `PYTHONPATH`:
+
 ```bash
+export PYTHONPATH="$(pwd)/../pytorch-benchmark:${PYTHONPATH}"
+
 # Baseline (interpreter):
-uv run python benchmarks/torchbench.py --iterations 30
+uv run python cinderx/benchmarks/torchbench.py --iterations 30
 
 # With the CinderX JIT:
-uv run python benchmarks/torchbench.py --cinderx --iterations 30
+uv run python cinderx/benchmarks/torchbench.py --cinderx --iterations 30
 
 # One-shot comparison (re-execs itself in two subprocesses, prints the speedup):
-uv run python benchmarks/torchbench.py --compare
+uv run python cinderx/benchmarks/torchbench.py --compare
 
 # Through the runner:
-uv run python benchmarks/runner.py torchbench
+uv run python cinderx/benchmarks/runner.py torchbench
 ```
 
 Options:

@@ -28,10 +28,9 @@ except ImportError:
     print(
         "Error: torch / torchbenchmark not found. Install torch with:\n"
         "  pip install -r benchmarks/requirements-torchbench.txt\n"
-        "TorchBench itself is not pip-installable: clone\n"
-        "  https://github.com/pytorch/benchmark\n"
-        "and run `python install.py --models <name>` (or add an existing\n"
-        "TorchBench checkout to PYTHONPATH).",
+        "Then clone https://github.com/pytorch/benchmark, run\n"
+        "  python install.py pyhpc_equation_of_state\n"
+        "from that checkout, and add the checkout to PYTHONPATH.",
         file=sys.stderr,
     )
     sys.exit(1)
