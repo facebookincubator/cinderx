@@ -924,7 +924,9 @@ def main():
     # Limit the amount of RAM per process by default to cause a quick OOM on
     # runaway loops. This 8GiB number is arbitrary but seems to be enough at
     # the time of writing.
-    mem_limit_default = -1 if is_sanitizer_build() else 8192 * 1024 * 1024
+    mem_limit_default = (
+        resource.RLIM_INFINITY if is_sanitizer_build() else 8192 * 1024 * 1024
+    )
 
     # Increase default stack size for threads in ASAN builds as this can use
     # a lot more stack space.
@@ -934,7 +936,7 @@ def main():
     parser.add_argument(
         "--memory-limit",
         type=int,
-        help="Memory limit in bytes per worker or -1",
+        help="Memory limit in bytes per worker",
         default=mem_limit_default,
     )
 
@@ -1056,7 +1058,10 @@ def main():
     multiplier = 4 if is_sanitizer_build() else 2
     resource.setrlimit(
         resource.RLIMIT_STACK,
-        (resource.getrlimit(resource.RLIMIT_STACK)[0] * multiplier, -1),
+        (
+            resource.getrlimit(resource.RLIMIT_STACK)[0] * multiplier,
+            resource.RLIM_INFINITY,
+        ),
     )
 
     # Equivalent of 'ulimit -n <COUNT>'.  Needed because the
@@ -1065,7 +1070,7 @@ def main():
     open_fd_limit = 0x1FFFF
     resource.setrlimit(resource.RLIMIT_NOFILE, (open_fd_limit, open_fd_limit))
 
-    if args.memory_limit != -1:
+    if args.memory_limit != resource.RLIM_INFINITY:
         resource.setrlimit(resource.RLIMIT_AS, (args.memory_limit, args.memory_limit))
 
     if hasattr(args, "func"):
