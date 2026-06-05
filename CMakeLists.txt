@@ -471,7 +471,7 @@ else()
 endif()
 
 ##############################################################################
-# RuntimeTests/ — opt-in C++ GoogleTest binary (T269778952).
+# RuntimeTests/ — opt-in C++ GoogleTest binary.
 
 if (BUILD_RUNTIME_TESTS)
   enable_testing()
@@ -489,62 +489,17 @@ if (BUILD_RUNTIME_TESTS)
   ########################################
   # RuntimeTests executable
 
-  set(RUNTIME_TESTS_SOURCES
-    # Match cinderx/RuntimeTests/BUCK srcs minus internal-only files.
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/alias_class_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/backend_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/bitvector_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/block_canonicalizer_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/branch_relaxation_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/bytecode_offsets_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/bytecode_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/code_allocator_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/cmdline_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/codegen_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/copy_graph_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/dataflow_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/deopt_patcher_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/deopt_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/fixtures.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/gen_asm_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_analysis_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_copy_propagation_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_frame_state_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_guard_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_insert_update_prev_instr_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_operand_type_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_parser_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_ssa_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/hir_type_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/inline_cache_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/intrusive_list_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_context_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_flag_processor_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_list_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/jit_time_log_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_abi_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_dce_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_inliner_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_postalloc_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_postgen_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/lir_verify_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/main.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/ref_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/regalloc_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/sanity_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/slab_arena_test.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/testutil.cpp
-    ${PROJECT_SOURCE_DIR}/RuntimeTests/type_profiler_test.cpp
+  file(GLOB RUNTIME_TESTS_SOURCES
+    CONFIGURE_DEPENDS
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/*.cpp
   )
 
-  if (ENABLE_ELF_READER)
-    list(APPEND RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp)
+  if (NOT ENABLE_ELF_READER)
+    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp)
   endif()
 
-  if (ENABLE_SYMBOLIZER)
-    list(APPEND RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
+  if (NOT ENABLE_SYMBOLIZER)
+    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
   endif()
 
   add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})

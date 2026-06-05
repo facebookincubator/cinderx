@@ -47,7 +47,15 @@ jobs:
     - name: Create venv
       run: uv venv --python ${{ matrix.python-version }}
 
+    - name: Install native test build tools
+      if: runner.os != 'Windows' && matrix.python-version != '3.14t'
+      run: uv pip install ninja cmake
+
     - name: Build CinderX
+      # RuntimeTests do not support Windows or free-threaded builds yet.
+      env:
+        CINDERX_BUILD_RUNTIME_TESTS: ${{ runner.os != 'Windows' && matrix.python-version != '3.14t' && '1' || '' }}
+        CINDERX_RUNTIME_TESTS_OUTPUT_DIR: ${{ github.workspace }}/build/runtime-tests
       run: uv build --wheel --python ${{ matrix.python-version }}
 
     - name: Install CinderX
@@ -63,30 +71,6 @@ jobs:
     - name: Run Tests
       run: uv run pytest cinderx/PythonLib/test_cinderx/
 
-    - name: Install native test build tools
-      if: runner.os != 'Windows' && matrix.python-version != '3.14t'
-      run: uv pip install ninja cmake
-
-    - name: Configure native tests
-      if: runner.os != 'Windows' && matrix.python-version != '3.14t'
-      run: |
-        uv run cmake \
-          -S . \
-          -B build \
-          -G Ninja \
-          -DBUILD_RUNTIME_TESTS=ON \
-          -DENABLE_DISASSEMBLER=ON \
-          -DENABLE_INTERPRETER_LOOP=ON \
-          -DENABLE_PEP523_HOOK=ON \
-          -DENABLE_ZLIB=ON \
-          -DENABLE_ELF_READER=$([[ "$RUNNER_OS" == "Linux" ]] && echo ON || echo OFF) \
-          -DENABLE_SYMBOLIZER=$([[ "$RUNNER_OS" == "Linux" ]] && echo ON || echo OFF) \
-          -DENABLE_USDT=$([[ "$RUNNER_OS" == "Linux" ]] && echo ON || echo OFF) \
-          -DPY_VERSION=3.14
-
-    - name: Build native tests
-      if: runner.os != 'Windows' && matrix.python-version != '3.14t'
-      run: uv run cmake --build build -j
 
     - name: Run native tests
       if: runner.os != 'Windows' && matrix.python-version != '3.14t'
@@ -105,8 +89,10 @@ jobs:
         if [[ "$RUNNER_OS" == "macOS" ]]; then
           filter="${filter}:${macos}"
         fi
+        package_parent="$(uv run python -c 'import pathlib, cinderx; print(pathlib.Path(cinderx.__file__).resolve().parent.parent)')"
+        export PYTHONPATH="$package_parent"
         export GTEST_FILTER="$filter"
-        uv run ctest --test-dir build --output-on-failure
+        (cd cinderx && ../build/runtime-tests/RuntimeTests)
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}

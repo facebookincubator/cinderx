@@ -415,6 +415,10 @@ class BuildExt(build_ext):
             if self.cinderx_pgo_profile_path:
                 cmake_args.append(f"-DPGO_PROFILE_FILE={self.cinderx_pgo_profile_path}")
 
+        build_runtime_tests = os.environ.get("CINDERX_BUILD_RUNTIME_TESTS") == "1"
+        if build_runtime_tests:
+            cmake_args.append("-DBUILD_RUNTIME_TESTS=ON")
+
         # LTO configuration
         enable_lto = os.environ.get("CINDERX_ENABLE_LTO", None)
         if enable_lto is not None:
@@ -484,6 +488,9 @@ class BuildExt(build_ext):
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
         self.spawn(["cmake", "--build", build_dir] + build_args)
 
+        if build_runtime_tests:
+            self._copy_runtime_tests(build_dir)
+
         # CMake produces the extension without an ABI tag (e.g., "_cinderx.pyd"
         # or "_cinderx.so").  Rename to include the tag so the file matches what
         # setuptools/wheel packaging expects (e.g., "_cinderx.cp314-win_amd64.pyd").
@@ -495,6 +502,23 @@ class BuildExt(build_ext):
         if os.path.exists(cmake_output) and cmake_output != ext_fullpath:
             print(f"Renaming {cmake_output} -> {ext_fullpath}")
             shutil.copy(cmake_output, ext_fullpath)
+
+    def _copy_runtime_tests(self, build_dir: str) -> None:
+        output_dir = os.environ.get("CINDERX_RUNTIME_TESTS_OUTPUT_DIR")
+        if output_dir is None:
+            return
+
+        runtime_tests_name = (
+            "RuntimeTests.exe" if platform.system() == "Windows" else "RuntimeTests"
+        )
+        runtime_tests_path = os.path.join(build_dir, runtime_tests_name)
+        if not os.path.exists(runtime_tests_path):
+            raise RuntimeError(f"RuntimeTests binary not found: {runtime_tests_path}")
+
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, runtime_tests_name)
+        print(f"Copying {runtime_tests_path} -> {output_path}")
+        shutil.copy(runtime_tests_path, output_path)
 
     def _find_python(self) -> str:
         # Normally this would use "data", but that goes to a temporary build directory
