@@ -26,7 +26,7 @@ fi
 function run_workload() {
     # Run through cinder_test_runner to skip tests known to break in JIT
     PYTHONJITDUMPHIRSTATS=1 PYTHONJITALL=1 PYTHONJITDEBUG=1 \
-        buck run @//mode/opt "fbcode//cinderx:python$PYTHON_VERSION" -- cinder_test_runner312.py test "$@"  -- --randseed=1
+        buck run @//mode/opt "fbcode//cinderx:python$PYTHON_VERSION" -- cinder_test_runner.py test "$@"  -- --randseed=1
 }
 
 # Cache tests to run as they may have changed in this revision
