@@ -95,13 +95,11 @@ Options:
 - `--iterations N` — number of timed iterations per run (default 30)
 - `--warmup N` — warmup iterations before timing so the JIT compiles the hot path (default 20)
 - `--repeat N` — number of timed runs (default 3)
-- `--json output.json` — save results as JSON (`-` writes JSON to stdout)
 - `--compare` — run baseline vs JIT in subprocesses and print the speedup ratio
 
 The "Useful Work %" line shows the fraction of wall time spent in the timed
 `model.invoke()` calls; a high value confirms the workload is Python-bound. The
-`compiled_funcs` count is a truthful JIT-active signal (0 in the baseline,
-> 0 with `--cinderx`).
+`compiled_funcs` count reports how many functions the JIT compiled during the run.
 
 ## Running Without CinderX JIT
 
