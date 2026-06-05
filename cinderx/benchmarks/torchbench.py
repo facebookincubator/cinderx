@@ -215,9 +215,6 @@ def cli(
                 f"found {compiled_before}"
             )
 
-    # Single-threaded keeps the workload Python-bound and reduces noise.
-    torch.set_num_threads(1)
-
     print("Setting up model...", file=sys.stderr)
     torchbench_model = build_model(model, test_mode, batch_size)
 
