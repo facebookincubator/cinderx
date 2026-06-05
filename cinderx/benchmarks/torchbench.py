@@ -55,45 +55,27 @@ def build_model(name: str, test: str, batch_size: int | None) -> Any:
     )
 
 
-def run_iterations(model: Any, iterations: int) -> tuple[float, float]:
-    """Run one timed sample.
-
-    Returns ``(core_seconds, wall_seconds)`` where ``core_seconds`` is the time
-    spent inside ``model.invoke()`` and ``wall_seconds`` is the wall time around
-    the timed loop (used to report the "Useful Work %").
-    """
-    core_seconds = 0.0
-    wall_start = time.perf_counter()
+def run_iterations(model: Any, iterations: int) -> float:
+    """Run one timed sample and return elapsed seconds."""
+    start = time.perf_counter()
     for _ in range(iterations):
-        t0 = time.perf_counter()
         model.invoke()
-        core_seconds += time.perf_counter() - t0
-    wall_seconds = time.perf_counter() - wall_start
-
-    return core_seconds, wall_seconds
+    return time.perf_counter() - start
 
 
-def run(model: Any, iterations: int, warmup: int, repeat: int) -> tuple[list[float], float]:
+def run(model: Any, iterations: int, warmup: int, repeat: int) -> list[float]:
     """Warm up once, then collect repeated per-iteration timing samples."""
     for _ in range(warmup):
         model.invoke()
 
     samples_ms: list[float] = []
-    useful_work_pcts: list[float] = []
     for i in range(repeat):
-        core_seconds, wall_seconds = run_iterations(model, iterations)
-        mean_ms = core_seconds / iterations * 1000
-        pct = (core_seconds / wall_seconds) * 100 if wall_seconds else 0.0
+        elapsed = run_iterations(model, iterations)
+        mean_ms = elapsed / iterations * 1000
         samples_ms.append(mean_ms)
-        useful_work_pcts.append(pct)
-        print(
-            f"  Run {i + 1}/{repeat}: {mean_ms:.2f} ms/iter "
-            f"({pct:.0f}% useful work)",
-            file=sys.stderr,
-        )
+        print(f"  Run {i + 1}/{repeat}: {mean_ms:.2f} ms/iter", file=sys.stderr)
 
-    avg_useful_work_pct = sum(useful_work_pcts) / len(useful_work_pcts)
-    return samples_ms, avg_useful_work_pct
+    return samples_ms
 
 
 def run_compare(argv: list[str]) -> None:
@@ -241,7 +223,7 @@ def cli(
 
     print(f"Warmup ({warmup} iterations)...", file=sys.stderr)
     print(f"Timed runs ({repeat} x {iterations} iterations)...", file=sys.stderr)
-    samples_ms, useful_work_pct = run(torchbench_model, iterations, warmup, repeat)
+    samples_ms = run(torchbench_model, iterations, warmup, repeat)
 
     compiled_after = len(cinderx.jit.get_compiled_functions())
     if enable_cinderx:
@@ -259,7 +241,6 @@ def cli(
     print(f"  run times: {[f'{sample:.2f}ms' for sample in samples_ms]}", file=sys.stderr)
     print(f"  mean: {mean_ms:.2f} ms/iter", file=sys.stderr)
     print(f"  median: {median_ms:.2f} ms/iter", file=sys.stderr)
-    print(f"  useful work: {useful_work_pct:.0f}%", file=sys.stderr)
     print(
         f"  JIT requested={'yes' if enable_cinderx else 'no'} "
         f"compiled_funcs={compiled_after}",

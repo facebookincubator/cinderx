@@ -97,9 +97,7 @@ Options:
 - `--repeat N` — number of timed runs (default 3)
 - `--compare` — run baseline vs JIT in subprocesses and print the speedup ratio
 
-The "Useful Work %" line shows the fraction of wall time spent in the timed
-`model.invoke()` calls; a high value confirms the workload is Python-bound. The
-`compiled_funcs` count reports how many functions the JIT compiled during the run.
+The `compiled_funcs` count reports how many functions the JIT compiled during the run.
 
 ## Running Without CinderX JIT
 
