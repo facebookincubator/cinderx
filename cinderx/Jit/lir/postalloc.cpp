@@ -1054,9 +1054,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kMovConstPool:
     case Instruction::kPush:
     case Instruction::kPop:
-    case Instruction::kCdq:
-    case Instruction::kCwd:
-    case Instruction::kCqo:
     case Instruction::kBranch:
     case Instruction::kBranchNZ:
     case Instruction::kBranchZ:
@@ -1099,6 +1096,12 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kCmpBranchNonZero:
     case Instruction::kCallSiteLiveValues:
       return kUnchanged;
+#if defined(CINDER_X86_64)
+    case Instruction::kX64Cdq:
+    case Instruction::kX64Cwd:
+    case Instruction::kX64Cqo:
+      return kUnchanged;
+#endif
   }
 
   auto block = instr->basicblock();
@@ -1357,13 +1360,13 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
         Instruction::Opcode extend;
         switch (dividend_lower->sizeInBits()) {
           case 16:
-            extend = Instruction::kCwd;
+            extend = Instruction::kX64Cwd;
             break;
           case 32:
-            extend = Instruction::kCdq;
+            extend = Instruction::kX64Cdq;
             break;
           case 64:
-            extend = Instruction::kCqo;
+            extend = Instruction::kX64Cqo;
             break;
           default:
             Py_UNREACHABLE();

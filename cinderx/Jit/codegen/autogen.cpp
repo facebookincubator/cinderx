@@ -2567,21 +2567,21 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Instruction::kCdq: {
+    case Instruction::kX64Cdq: {
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
       env->as->cdq(getReg(instr, output), getReg(instr, input));
       return;
     }
-    case Instruction::kCwd: {
+    case Instruction::kX64Cwd: {
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
       env->as->cwd(getReg(instr, output), getReg(instr, input));
       return;
     }
-    case Instruction::kCqo: {
+    case Instruction::kX64Cqo: {
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
@@ -3337,9 +3337,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kVarArgCall:
     case Instruction::kSext:
     case Instruction::kZext:
-    case Instruction::kCdq:
-    case Instruction::kCwd:
-    case Instruction::kCqo:
     case Instruction::kLoadArg:
     case Instruction::kLoadSecondCallResult:
     case Instruction::kCondBranch:

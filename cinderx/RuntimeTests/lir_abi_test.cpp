@@ -898,19 +898,19 @@ TEST_F(LIRABITest, TestkPop_Mem) {
 }
 
 #if defined(CINDER_X86_64)
-// kCdq R r
+// kX64Cdq R r
 TEST_F(LIRABITest, TestkCdq_OutPhyReg_PhyReg) {
-  translateInstr(Instruction::kCdq, makeOutPhyReg(), makePhyReg());
+  translateInstr(Instruction::kX64Cdq, makeOutPhyReg(), makePhyReg());
 }
 
-// kCwd R r
+// kX64Cwd R r
 TEST_F(LIRABITest, TestkCwd_OutPhyReg_PhyReg) {
-  translateInstr(Instruction::kCwd, makeOutPhyReg(), makePhyReg());
+  translateInstr(Instruction::kX64Cwd, makeOutPhyReg(), makePhyReg());
 }
 
-// kCqo R r
+// kX64Cqo R r
 TEST_F(LIRABITest, TestkCqo_OutPhyReg_PhyReg) {
-  translateInstr(Instruction::kCqo, makeOutPhyReg(), makePhyReg());
+  translateInstr(Instruction::kX64Cqo, makeOutPhyReg(), makePhyReg());
 }
 #endif
 

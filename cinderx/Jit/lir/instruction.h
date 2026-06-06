@@ -106,9 +106,6 @@ enum OperandSizeType {
   X(MovConstPool, false, FlagEffects::kNone, kOut)                            \
   X(Push, false, FlagEffects::kNone, kDefault, 1, {}, 1)                      \
   X(Pop, false, FlagEffects::kNone, kDefault, 0, {}, 1)                       \
-  X(Cdq, false, FlagEffects::kNone, kDefault, 1, {}, 1)                       \
-  X(Cwd, false, FlagEffects::kNone, kDefault, 1, {}, 1)                       \
-  X(Cqo, false, FlagEffects::kNone, kDefault, 1, {}, 1)                       \
   X(Branch)                                                                   \
   X(BranchNZ)                                                                 \
   X(BranchZ)                                                                  \
@@ -196,7 +193,11 @@ enum OperandSizeType {
  *   do?).
  */
 #if defined(CINDER_X86_64)
-#define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
+#define FOREACH_INSTR_TYPE(X)                              \
+  FOREACH_COMMON_INSTR_TYPE(X)                             \
+  X(X64Cdq, false, FlagEffects::kNone, kDefault, 1, {}, 1) \
+  X(X64Cwd, false, FlagEffects::kNone, kDefault, 1, {}, 1) \
+  X(X64Cqo, false, FlagEffects::kNone, kDefault, 1, {}, 1)
 #elif defined(CINDER_AARCH64)
 #define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
 #else
