@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/operand.h"
 
 #include <memory>
@@ -47,41 +48,7 @@ enum OperandSizeType {
   kOut,
 };
 
-/*
- * FOREACH_INSTR_TYPE defines all LIR instructions and their attributes. Every
- * argument after the name is optional, and each call to X expects:
- * X(name, inputs_live_across, flag_effects, opnd_size_type, out_phy_use,
- *   in_phy_uses, is_essential)
- *
- * - inputs_live_across: bool, default false. When false, the instruction's
- *   operands will only be considered live until the beginning of the
- *   instruction, meaning the output may be assigned to the same register as
- *   one of the inputs (if no other instruction keeps them alive longer). When
- *   true, the operands will be considered live until the end of the
- *   instruction, which allows codegen for the instruction to read its inputs
- *   after writing to its output, at the expense of slightly increased register
- *   pressure.
- *
- * - flag_effects: FlagEffects, default kNone. Specifies the instruction's
- *   effects on the processor's status flags. See FlagEffects for details.
- *
- * - opnd_size_type: OperandSizeType, default kDefault. Specifies the size of
- *   operands. See OperandSizeType for details.
- *
- * - out_phy_use: bool, default true. When true, the output must be allocated
- *   to a physical register. When false, it may be allocated to a stack slot.
- *
- * - in_phy_uses: vector<bool>, default {false, ...}. Any true slots indicate
- *   inputs that must be allocated to physical registers (as opposed to stack
- *   slots).
- *
- * - is_essential: bool, default false. When true, indicates that the
- *   instruction has side-effects and should never be removed by dead code
- *   elimination. Any instruction with no output must be marked as essential
- *   (if it doesn't define an output and has no side-effects, what does it
- *   do?).
- */
-#define FOREACH_INSTR_TYPE(X)                                                 \
+#define FOREACH_COMMON_INSTR_TYPE(X)                                          \
   /* Bind is not used to generate any machine code. Its sole      */          \
   /* purpose is to associate a physical register with a predefined */         \
   /* value to virtual register for register allocator. */                     \
@@ -193,6 +160,48 @@ enum OperandSizeType {
   X(Ret, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)                 \
   X(CmpBranchZero, false, FlagEffects::kNone, kDefault, 0, {1}, 1)            \
   X(CmpBranchNonZero, false, FlagEffects::kNone, kDefault, 0, {1}, 1)
+
+/*
+ * FOREACH_INSTR_TYPE defines all LIR instructions and their attributes. Every
+ * argument after the name is optional, and each call to X expects:
+ * X(name, inputs_live_across, flag_effects, opnd_size_type, out_phy_use,
+ *   in_phy_uses, is_essential)
+ *
+ * - inputs_live_across: bool, default false. When false, the instruction's
+ *   operands will only be considered live until the beginning of the
+ *   instruction, meaning the output may be assigned to the same register as
+ *   one of the inputs (if no other instruction keeps them alive longer). When
+ *   true, the operands will be considered live until the end of the
+ *   instruction, which allows codegen for the instruction to read its inputs
+ *   after writing to its output, at the expense of slightly increased register
+ *   pressure.
+ *
+ * - flag_effects: FlagEffects, default kNone. Specifies the instruction's
+ *   effects on the processor's status flags. See FlagEffects for details.
+ *
+ * - opnd_size_type: OperandSizeType, default kDefault. Specifies the size of
+ *   operands. See OperandSizeType for details.
+ *
+ * - out_phy_use: bool, default true. When true, the output must be allocated
+ *   to a physical register. When false, it may be allocated to a stack slot.
+ *
+ * - in_phy_uses: vector<bool>, default {false, ...}. Any true slots indicate
+ *   inputs that must be allocated to physical registers (as opposed to stack
+ *   slots).
+ *
+ * - is_essential: bool, default false. When true, indicates that the
+ *   instruction has side-effects and should never be removed by dead code
+ *   elimination. Any instruction with no output must be marked as essential
+ *   (if it doesn't define an output and has no side-effects, what does it
+ *   do?).
+ */
+#if defined(CINDER_X86_64)
+#define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
+#elif defined(CINDER_AARCH64)
+#define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
+#else
+#define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
+#endif
 
 // Instruction class defines instructions in LIR.
 // Every instruction can have no more than one output, but arbitrary
