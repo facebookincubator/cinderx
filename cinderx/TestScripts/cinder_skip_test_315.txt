@@ -13,3 +13,9 @@ test.test_faulthandler.FaultHandlerTests.test_dump_ext_modules
 
 # When run with JIT there's an extra heap object which causes this test to fail.
 test.test_gc.GCTests.test_heap_size
+
+# CinderX's dict watcher gets ID 3 (FIRST_AVAILABLE_WATCHER on 3.15).
+# These tests hard-code ID 3 as expected-unassigned, but CinderX occupies it.
+test.test_capi.test_watchers.TestDictWatchers.test_clear_unassigned_watcher_id
+test.test_capi.test_watchers.TestDictWatchers.test_watch_unassigned_watcher_id
+test.test_capi.test_watchers.TestDictWatchers.test_unwatch_unassigned_watcher_id
