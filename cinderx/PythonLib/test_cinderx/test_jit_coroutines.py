@@ -12,7 +12,7 @@ from cinderx.test_support import failUnlessJITCompiled, skip_unless_jit
 class CoroutinesTest(unittest.TestCase):
     def tearDown(self):
         # This is needed to avoid an "environment changed" error
-        asyncio.set_event_loop_policy(None)
+        asyncio.set_event_loop(None)
 
     @failUnlessJITCompiled
     async def _f1(self):

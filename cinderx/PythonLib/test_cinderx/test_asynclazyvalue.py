@@ -16,9 +16,6 @@ from functools import wraps
 from time import time
 
 
-POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
-
-
 def async_test(
     f: Callable[..., Coroutine[Any, Any, Any]],
 ) -> Callable[..., None]:
@@ -39,8 +36,7 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.loop.close()
-        if not POLICY_DEPRECATED:
-            asyncio.set_event_loop_policy(None)
+        asyncio.set_event_loop(None)
 
     @async_test
     async def test_close_not_started(self) -> None:
@@ -197,8 +193,7 @@ class AsyncLazyValueTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.loop.close()
-        if not POLICY_DEPRECATED:
-            asyncio.set_event_loop_policy(None)
+        asyncio.set_event_loop(None)
 
     def log(self, msg: str) -> None:
         self.events.append(msg)

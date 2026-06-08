@@ -13,8 +13,6 @@ import cinderx.test_support as cinder_support
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
 from cinderx.test_support import skip_unless_jit
 
-POLICY_DEPRECATED: bool = sys.version_info[:2] >= (3, 14)
-
 
 def firstlineno(func):
     return func.__code__.co_firstlineno
@@ -336,8 +334,7 @@ class GetGenFrameDuringThrowTest(unittest.TestCase):
 
     def tearDown(self):
         self.loop.close()
-        if not POLICY_DEPRECATED:
-            asyncio.set_event_loop_policy(None)
+        asyncio.set_event_loop(None)
 
     @cinder_support.failUnlessJITCompiled
     async def outer_propagates_exc(self, inner):
