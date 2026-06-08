@@ -23,9 +23,16 @@ def _reassemble_for_jit(ops, shell_function):
     and fail_if_deopt. The shell function is modified.
     """
     code_list = []
+    cache_op = opcode.opmap["CACHE"]
     for op, arg in ops:
         code_list.append(opcode.opmap[op])
         code_list.append(arg)
+        # Emit the inline-cache (CACHE) code units the runtime expects after
+        # this opcode. The count is version-dependent (e.g. RESUME gained an
+        # inline cache in 3.15), so query it dynamically rather than hardcoding.
+        for _ in range(dis._get_cache_size(op)):
+            code_list.append(cache_op)
+            code_list.append(0)
     co = shell_function.__code__
     new_code = types.CodeType(
         co.co_argcount,
