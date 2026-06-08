@@ -63,11 +63,12 @@ PyObject *
 _PyType_LookupRefAndVersion(PyTypeObject *type, PyObject *name, unsigned int *version) {
   // This is a bit much to borrow as the dependency tree goes deep... but the version
   // is the version at the start before the MRO
-  bool has_version = type->tp_version_tag != 0;
+  unsigned int start_version = FT_ATOMIC_LOAD_UINT_RELAXED(type->tp_version_tag);
+  bool has_version = start_version != 0;
   if (!has_version && PyUnstable_Type_AssignVersionTag(type)) {
-    has_version = true;
+    start_version = FT_ATOMIC_LOAD_UINT_RELAXED(type->tp_version_tag);
+    has_version = start_version != 0;
   }
-  unsigned int start_version = type->tp_version_tag;
   PyObject *res = _PyType_LookupRef(type, name);
   *version = has_version ? start_version : 0;
   return res;
