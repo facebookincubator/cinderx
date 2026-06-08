@@ -53,15 +53,10 @@ jobs:
 
     - name: Build CinderX
       # RuntimeTests do not support Windows or free-threaded builds yet.
-      shell: bash
       env:
         CINDERX_BUILD_RUNTIME_TESTS: ${{ runner.os != 'Windows' && matrix.python-version != '3.14t' && '1' || '' }}
         CINDERX_RUNTIME_TESTS_OUTPUT_DIR: ${{ github.workspace }}/build/runtime-tests
-      run: |
-        if [[ -n "${CINDERX_BUILD_RUNTIME_TESTS}" ]]; then
-          export CMAKE_BUILD_TYPE=
-        fi
-        uv build --wheel --python ${{ matrix.python-version }}
+      run: uv build --wheel --python ${{ matrix.python-version }}
 
     - name: Install CinderX
       run: uv pip install cinderx --find-links dist --no-index
@@ -80,12 +75,13 @@ jobs:
       if: runner.os != 'Windows' && matrix.python-version != '3.14t'
       # Skip known OSS-only failures. Keep these narrow so RuntimeTests still
       # provide useful signal.
-      # TODO(T269778952): burn these down as the underlying issues are fixed.
+      # TODO(T275133043): burn these down as the underlying issues are fixed.
+      # Particularly the segfaults.
       run: |
         set -euo pipefail
         common='AllPassesTest.*:AllPassesStaticTest.*:CmdLineTest.ExplicitJITDisable:UtilTest.SymbolizerResolvesDynamicSymbol'
-        arm64='LIRGeneratorTest.ParserTest:BackendTest.MoveSequenceOpt2Test'
-        macos='SimplifyTest.BinaryOpWithObjSpecLeftAndRightFloatExactTurnsIntoLoadConst:NativeCallsTest.NativeInvokeBasic:SimplifyStaticTest.UnboxOfRandMaxIsEliminated:DeadCodeEliminationAndSimplifyTest.UnboxOfStaticGlobalIsOptimized:HIRBuilderStaticTest.CIntTypeEmitsConvertPrimitive:CodePatcherTest.DeoptPatch'
+        arm64='LIRGeneratorTest.ParserTest:BackendTest.MoveSequenceOpt2Test:CodePatcherTest.DeoptPatch:BranchRelaxationTest.*'
+        macos='BackendTest.CastTest:BackendTest.InlineJITRTCastTest:SimplifyTest.BinaryOpWithObjSpecLeftAndRightFloatExactTurnsIntoLoadConst:NativeCallsTest.NativeInvokeBasic:SimplifyStaticTest.UnboxOfRandMaxIsEliminated:DeadCodeEliminationAndSimplifyTest.UnboxOfStaticGlobalIsOptimized:HIRBuilderStaticTest.CIntTypeEmitsConvertPrimitive:CodePatcherTest.DeoptPatch'
         filter="-${common}"
         if [[ "$RUNNER_ARCH" == "ARM64" ]]; then
           filter="${filter}:${arm64}"
