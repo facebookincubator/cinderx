@@ -19,3 +19,6 @@ test.test_gc.GCTests.test_heap_size
 test.test_capi.test_watchers.TestDictWatchers.test_clear_unassigned_watcher_id
 test.test_capi.test_watchers.TestDictWatchers.test_watch_unassigned_watcher_id
 test.test_capi.test_watchers.TestDictWatchers.test_unwatch_unassigned_watcher_id
+
+# Need to port lightweight frames to 3.15
+test_cinderx.test_jit_support_instrumentation.*
