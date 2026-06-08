@@ -15,8 +15,12 @@
 
 #include <cstdio>
 #include <iterator>
+#include <string_view>
 
 namespace jit {
+
+// Trim file paths to be rooted at "cinderx/" for cleaner log output.
+std::string_view trimSourcePath(std::string_view path);
 
 template <typename... Args>
 auto format_to(
@@ -36,14 +40,15 @@ void printPythonException();
 // "<failed to get UTF8 from Python string>"
 std::string repr(BorrowedRef<> obj);
 
-#define JIT_LOG(...)                                           \
-  {                                                            \
-    FILE* _output = jit::getConfig().log.output_file;          \
-    jit::ThreadedCompileSerialize guard;                       \
-    fmt::print(_output, "JIT: {}:{} -- ", __FILE__, __LINE__); \
-    fmt::print(_output, __VA_ARGS__);                          \
-    fmt::print(_output, "\n");                                 \
-    std::fflush(_output);                                      \
+#define JIT_LOG(...)                                                         \
+  {                                                                          \
+    FILE* _output = jit::getConfig().log.output_file;                        \
+    jit::ThreadedCompileSerialize guard;                                     \
+    fmt::print(                                                              \
+        _output, "JIT: {}:{} -- ", jit::trimSourcePath(__FILE__), __LINE__); \
+    fmt::print(_output, __VA_ARGS__);                                        \
+    fmt::print(_output, "\n");                                               \
+    std::fflush(_output);                                                    \
   }
 
 #define JIT_LOGIF(PRED, ...) \
@@ -59,7 +64,7 @@ std::string repr(BorrowedRef<> obj);
       fmt::print(                                 \
           stderr,                                 \
           "JIT: {}:{} -- Assertion failed: {}\n", \
-          __FILE__,                               \
+          jit::trimSourcePath(__FILE__),          \
           __LINE__,                               \
           #COND);                                 \
       JIT_ABORT_IMPL(__VA_ARGS__);                \
@@ -75,10 +80,14 @@ std::string repr(BorrowedRef<> obj);
     }                               \
   }
 
-#define JIT_ABORT(...)                                               \
-  {                                                                  \
-    fmt::print(stderr, "JIT: {}:{} -- Abort\n", __FILE__, __LINE__); \
-    JIT_ABORT_IMPL(__VA_ARGS__);                                     \
+#define JIT_ABORT(...)                 \
+  {                                    \
+    fmt::print(                        \
+        stderr,                        \
+        "JIT: {}:{} -- Abort\n",       \
+        jit::trimSourcePath(__FILE__), \
+        __LINE__);                     \
+    JIT_ABORT_IMPL(__VA_ARGS__);       \
   }
 
 // Continuation of JIT_ABORT_IMPL(), but out-of-line.

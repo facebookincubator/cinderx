@@ -6,6 +6,16 @@
 
 namespace jit {
 
+std::string_view trimSourcePath(std::string_view path) {
+#ifdef _WIN32
+  constexpr std::string_view pattern = "cinderx\\";
+#else
+  constexpr std::string_view pattern = "cinderx/";
+#endif
+  size_t pos = path.rfind(pattern);
+  return pos != std::string_view::npos ? path.substr(pos) : path;
+}
+
 void printPythonException() {
   if (PyErr_Occurred()) {
     auto exc = Ref<>::steal(PyErr_GetRaisedException());
