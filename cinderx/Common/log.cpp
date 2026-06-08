@@ -4,6 +4,8 @@
 
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <stdexcept>
+
 namespace jit {
 
 namespace {
@@ -21,7 +23,7 @@ std::string_view trimSourcePath(std::string_view path) {
   return pos != std::string_view::npos ? path.substr(pos) : path;
 }
 
-[[noreturn]] void abortImpl() {
+[[noreturn]] JIT_COLD void abortImpl() {
   fmt::print(stderr, "\n");
   std::fflush(stderr);
   jit::printPythonException();
@@ -30,7 +32,7 @@ std::string_view trimSourcePath(std::string_view path) {
 
 } // namespace
 
-void logImplV(
+JIT_COLD void logImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
@@ -43,7 +45,7 @@ void logImplV(
   std::fflush(output);
 }
 
-void abortImplV(
+[[noreturn]] JIT_COLD void abortImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
@@ -53,7 +55,7 @@ void abortImplV(
   abortImpl();
 }
 
-void checkFailedImplV(
+[[noreturn]] JIT_COLD void checkFailedImplV(
     std::string_view file,
     int line,
     std::string_view cond_str,
@@ -67,6 +69,16 @@ void checkFailedImplV(
       cond_str);
   fmt::vprint(stderr, format, args);
   abortImpl();
+}
+
+[[noreturn]] JIT_COLD void throwImplV(
+    std::string_view file,
+    int line,
+    fmt::string_view format,
+    fmt::format_args args) {
+  std::string msg = fmt::format("{}:{} ", trimSourcePath(file), line);
+  fmt::vformat_to(std::back_inserter(msg), format, args);
+  throw std::runtime_error{msg};
 }
 
 void printPythonException() {

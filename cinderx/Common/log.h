@@ -16,6 +16,22 @@
 #include <iterator>
 #include <string_view>
 
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(gnu::cold)
+#define JIT_COLD [[gnu::cold]]
+#endif
+#endif
+
+#if !defined(JIT_COLD) && defined(__has_attribute)
+#if __has_attribute(cold)
+#define JIT_COLD __attribute__((cold))
+#endif
+#endif
+
+#ifndef JIT_COLD
+#define JIT_COLD
+#endif
+
 namespace jit {
 
 template <typename... Args>
@@ -37,25 +53,30 @@ void printPythonException();
 std::string repr(BorrowedRef<> obj);
 
 // Outlined logging implementations to reduce code size on hot paths.
-void logImplV(
+JIT_COLD void logImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
     fmt::format_args args);
-[[noreturn]] void abortImplV(
+[[noreturn]] JIT_COLD void abortImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
     fmt::format_args args);
-[[noreturn]] void checkFailedImplV(
+[[noreturn]] JIT_COLD void checkFailedImplV(
     std::string_view file,
     int line,
     std::string_view cond_str,
     fmt::string_view format,
     fmt::format_args args);
+[[noreturn]] JIT_COLD void throwImplV(
+    std::string_view file,
+    int line,
+    fmt::string_view format,
+    fmt::format_args args);
 
 template <typename... Args>
-void logImpl(
+JIT_COLD void logImpl(
     std::string_view file,
     int line,
     fmt::format_string<Args...> format,
@@ -64,7 +85,7 @@ void logImpl(
 }
 
 template <typename... Args>
-[[noreturn]] void abortImpl(
+[[noreturn]] JIT_COLD void abortImpl(
     std::string_view file,
     int line,
     fmt::format_string<Args...> format,
@@ -73,7 +94,7 @@ template <typename... Args>
 }
 
 template <typename... Args>
-[[noreturn]] void checkFailedImpl(
+[[noreturn]] JIT_COLD void checkFailedImpl(
     std::string_view file,
     int line,
     std::string_view cond_str,
@@ -81,6 +102,15 @@ template <typename... Args>
     Args&&... args) {
   checkFailedImplV(
       file, line, cond_str, format, fmt::make_format_args(args...));
+}
+
+template <typename... Args>
+[[noreturn]] JIT_COLD void throwImpl(
+    std::string_view file,
+    int line,
+    fmt::format_string<Args...> format,
+    Args&&... args) {
+  throwImplV(file, line, format, fmt::make_format_args(args...));
 }
 
 #define JIT_LOG(...) jit::logImpl(__FILE__, __LINE__, __VA_ARGS__)
@@ -109,6 +139,8 @@ template <typename... Args>
   }
 
 #define JIT_ABORT(...) jit::abortImpl(__FILE__, __LINE__, __VA_ARGS__)
+
+#define JIT_THROW(...) jit::throwImpl(__FILE__, __LINE__, __VA_ARGS__)
 
 #ifdef Py_DEBUG
 #define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)

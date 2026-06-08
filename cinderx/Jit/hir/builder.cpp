@@ -39,6 +39,14 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+// Variant of JIT_THROW() that will log the name of the code object and the
+// current offset.
+#define BUILDER_THROW(MSG, ...)                         \
+  JIT_THROW(                                            \
+      MSG " in {} at offset {}",                        \
+      __VA_ARGS__ __VA_OPT__(, ) preloader_.fullname(), \
+      bc_instr.opcodeOffset())
+
 namespace jit::hir {
 
 namespace {
@@ -462,7 +470,7 @@ static bool should_snapshot(
     case JUMP_IF_NOT_EXC_MATCH:
     case RERAISE:
     case WITH_EXCEPT_START: {
-      JIT_ABORT(
+      JIT_THROW(
           "Should not be compiling except blocks (opcode {}, {})\n",
           bci.opcode(),
           opcodeName(bci.opcode()));
@@ -1217,7 +1225,7 @@ void HIRBuilder::translate(
           // generator. As we use unspecialized bytecode only, we modify
           // BytecodeInstruction::getJumpTarget() to always skip the END_FOR so
           // that block should never be processed.
-          JIT_ABORT("We should never cross an END_FOR in the HIR builder");
+          BUILDER_THROW("We should never cross an END_FOR in the HIR builder");
         }
         case SETUP_FINALLY: {
           emitSetupFinally(tc, bc_instr);
@@ -1533,12 +1541,10 @@ void HIRBuilder::translate(
         case CHECK_EXC_MATCH:
         case CLEANUP_THROW:
         case PUSH_EXC_INFO:
-          JIT_ABORT(
-              "Opcode {} ({}) should only appear in exception handlers",
-              opcode,
-              opcodeName(opcode));
+          BUILDER_THROW(
+              "{} appearing outside of exception handler", opcodeName(opcode));
         default: {
-          JIT_ABORT("Unhandled opcode {} ({})", opcode, opcodeName(opcode));
+          BUILDER_THROW("Unhandled opcode {} ({})", opcodeName(opcode), opcode);
         }
       }
     }
@@ -1947,7 +1953,8 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     default:
-      JIT_ABORT("Unhandled call opcode {} ({})", opcode, opcodeName(opcode));
+      BUILDER_THROW(
+          "Unhandled call opcode {} ({})", opcodeName(opcode), opcode);
   }
 }
 
@@ -2133,7 +2140,7 @@ static inline UnaryOpKind get_unary_op_kind(
     default:
       break;
   }
-  JIT_ABORT("Unhandled unary op {} ({})", opcode, opcodeName(opcode));
+  JIT_THROW("Unhandled unary op {} ({})", opcodeName(opcode), opcode);
 }
 
 void HIRBuilder::emitUnaryNot(TranslationContext& tc) {
@@ -2697,11 +2704,10 @@ void HIRBuilder::emitJumpIf(
       break;
     }
     default: {
-      // NOTREACHED
-      JIT_ABORT(
+      BUILDER_THROW(
           "Trying to translate non-jump-if bytecode {} ({})",
-          opcode,
-          opcodeName(opcode));
+          opcodeName(opcode),
+          opcode);
     }
   }
 
@@ -2996,7 +3002,7 @@ void HIRBuilder::emitLoadSmallInt(
               &_PyLong_SMALL_INTS[_PY_NSMALLNEGINTS + bc_instr.oparg()])));
   tc.frame.stack.push(tmp);
 #else
-  JIT_ABORT("LOAD_SMALL_INT not supported on this Python version");
+  BUILDER_THROW("LOAD_SMALL_INT not supported on this Python version");
 #endif
 }
 
@@ -3160,8 +3166,7 @@ static inline BinaryOpKind get_primitive_bin_op_kind(
       return BinaryOpKind::kPower;
     }
     default: {
-      JIT_ABORT("Unhandled binary op {}", bc_instr.oparg());
-      // NOTREACHED
+      JIT_THROW("Unhandled binary op {}", bc_instr.oparg());
     }
   }
 }
@@ -3193,8 +3198,7 @@ static inline bool is_double_binop(int oparg) {
       return true;
     }
     default: {
-      JIT_ABORT("Invalid binary op {}", oparg);
-      // NOTREACHED
+      JIT_THROW("Invalid binary op {}", oparg);
     }
   }
 }
@@ -3209,8 +3213,7 @@ static inline Type element_type_from_seq_type(int seq_type) {
     case SEQ_ARRAY_INT64:
       return TCInt64;
     default:
-      JIT_ABORT("Invalid sequence type: ({})", seq_type);
-      // NOTREACHED
+      JIT_THROW("Invalid sequence type: ({})", seq_type);
   }
 }
 
@@ -3279,7 +3282,7 @@ void HIRBuilder::emitPrimitiveCompare(
       op = PrimitiveCompareOp::kGreaterThanEqualUnsigned;
       break;
     default:
-      JIT_ABORT("unsupported comparison");
+      BUILDER_THROW("Unsupported comparison oparg {}", bc_instr.oparg());
   }
   tc.emit<PrimitiveCompare>(result, op, left, right);
   stack.push(result);
@@ -3316,7 +3319,7 @@ void HIRBuilder::emitPrimitiveUnaryOp(
       break;
     }
     default: {
-      JIT_ABORT("unsupported unary op");
+      BUILDER_THROW("Unsupported unary op oparg {}", bc_instr.oparg());
     }
   }
   tc.frame.stack.push(result);
@@ -3428,7 +3431,7 @@ void HIRBuilder::emitSequenceGet(
         Type::fromCInt(offsetof(PyStaticArrayObject, ob_item), TCInt64));
     tc.emit<LoadFieldAddress>(ob_item, sequence, offset_reg);
   } else {
-    JIT_ABORT("Unsupported oparg for SEQUENCE_GET: {}", oparg);
+    BUILDER_THROW("Unsupported oparg for SEQUENCE_GET: {}", oparg);
   }
 
   auto type = element_type_from_seq_type(oparg);
@@ -3465,7 +3468,7 @@ void HIRBuilder::emitSequenceSet(
     int offset = offsetof(PyListObject, ob_item);
     tc.emit<LoadField>(ob_item, sequence, "ob_item", offset, TCPtr);
   } else {
-    JIT_ABORT("Unsupported oparg for SEQUENCE_SET: {}", oparg);
+    BUILDER_THROW("Unsupported oparg for SEQUENCE_SET: {}", oparg);
   }
   tc.emit<StoreArrayItem>(
       ob_item,
@@ -3726,11 +3729,10 @@ void HIRBuilder::emitPopJumpIf(
       break;
     }
     default: {
-      // NOTREACHED
-      JIT_ABORT(
+      BUILDER_THROW(
           "Trying to translate non pop-jump bytecode {} ({})",
-          opcode,
-          opcodeName(opcode));
+          opcodeName(opcode),
+          opcode);
     }
   }
 
@@ -4951,7 +4953,7 @@ void HIRBuilder::emitSetFunctionAttribute(
       break;
 #endif
     default:
-      JIT_ABORT(
+      BUILDER_THROW(
           "Unsupported SET_FUNCTION_ATTRIBUTE oparg: {}", bc_instr.oparg());
   }
 
