@@ -75,6 +75,8 @@ struct JitListOptions {
 struct LogOptions {
   // Log general debug messages from the JIT.
   bool debug{false};
+  // Log debug messages in the guard removal pass.
+  bool debug_guard_removal{false};
   // Log debug messages in the inlining pass.
   bool debug_inliner{false};
   // Log debug messages in the refcount insertion pass.

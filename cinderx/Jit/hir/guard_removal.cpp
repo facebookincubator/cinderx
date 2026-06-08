@@ -2,9 +2,12 @@
 
 #include "cinderx/Jit/hir/guard_removal.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/printer.h"
+
+#define TRACE(...) JIT_LOGIF(getConfig().log.debug_guard_removal, __VA_ARGS__)
 
 namespace jit::hir {
 
@@ -55,12 +58,12 @@ bool guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
           // GuardType adds an unnecessary refinement. Since we cannot guard on
           // primitive types yet, this should never happen
           if (operandsMustMatch(expected_type)) {
-            JIT_DLOG(
+            TRACE(
                 "'{}' kept alive by primitive '{}'", *new_reg->instr(), *instr);
             return true;
           }
           if (!registerTypeMatches(relaxed_type, expected_type)) {
-            JIT_DLOG("'{}' kept alive by '{}'", *new_reg->instr(), *instr);
+            TRACE("'{}' kept alive by '{}'", *new_reg->instr(), *instr);
             return true;
           }
         }

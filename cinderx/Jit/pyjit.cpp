@@ -316,6 +316,18 @@ FlagProcessor initFlagProcessor() {
       .withFlagParamName("intel|att")
       .withDebugMessageOverride("Sets the assembly syntax used in log files");
 
+  flag_processor.addOption(
+      "cinderx-jit-debug-guard-removal",
+      "CINDERX_JIT_DEBUG_GUARD_REMOVAL",
+      getMutableConfig().log.debug_guard_removal,
+      "Enable or disable debug logging for the JIT's guard removal pass");
+
+  flag_processor.addOption(
+      "cinderx-jit-debug-inliner",
+      "CINDERX_JIT_DEBUG_INLINER",
+      getMutableConfig().log.debug_inliner,
+      "Enable or disable debug logging for the JIT's HIR inliner");
+
   flag_processor
       .addOption(
           "cinderx-jit-debug-refcount",
@@ -329,12 +341,6 @@ FlagProcessor initFlagProcessor() {
       "CINDERX_JIT_DEBUG_REGALLOC",
       getMutableConfig().log.debug_regalloc,
       "Enable or disable debug logging for the register allocator");
-
-  flag_processor.addOption(
-      "cinderx-jit-debug-inliner",
-      "CINDERX_JIT_DEBUG_INLINER",
-      getMutableConfig().log.debug_inliner,
-      "Enable or disable debug logging for the JIT's HIR inliner");
 
   flag_processor
       .addOption(
