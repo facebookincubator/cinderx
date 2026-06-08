@@ -1219,7 +1219,7 @@ fun jittestmodule:test {
     v17:OptImmortalNoneType = InitialYield {
       LiveValues<1> unc:v16
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v16
       }
     }
@@ -1310,7 +1310,7 @@ fun jittestmodule:test {
     v42:Object = YieldValue v39 {
       LiveValues<3> unc:v21 o:v27 b:v39
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 48
         Locals<1> v21
         Stack<1> v27
       }
@@ -1323,11 +1323,11 @@ fun jittestmodule:test {
   bb 0 {
     LoadFrame
     v17:Nullptr = LoadConst<Nullptr>
-    UpdatePrevInstr<idx:1 line_no:1: no parent>
+    UpdatePrevInstr<idx:0 line_no:1: no parent>
     v18:OptImmortalNoneType = InitialYield {
       LiveValues<1> unc:v17
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v17
       }
     }
@@ -1420,11 +1420,11 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    UpdatePrevInstr<idx:27 line_no:3: no parent>
+    UpdatePrevInstr<idx:26 line_no:3: no parent>
     v46:Object = YieldValue v43 {
       LiveValues<4> unc:v22 o:v28 unc:v34 b:v43
       FrameState {
-        CurInstrOffset 54
+        CurInstrOffset 52
         Locals<1> v22
         Stack<2> v28 v34
       }

@@ -783,19 +783,6 @@ InlineResult HIRBuilder::inlineHIR(
   return {entry_block, exit_block};
 }
 
-void HIRBuilder::advancePastYieldInstr(TranslationContext& tc) {
-  // A YIELD_VALUE/RETURN_GENERATOR doesn't directly fail, however we may want
-  // to throw into the generator which means we'd deopt. In this case we need
-  // bytecode pointer to the following instruction which is where the
-  // interpreter should pick-up execution.
-  BCOffset next_bc_offs{
-      BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstrOffset()};
-  tc.frame.cur_instr_offs = next_bc_offs;
-  JIT_DCHECK(
-      next_bc_offs.asIndex().value() < countIndices(code_),
-      "Yield should not be end of instruction stream");
-}
-
 void HIRBuilder::translate(
     Function& irfunc,
     const jit::BytecodeInstructionBlock& bc_instrs,
@@ -1491,9 +1478,6 @@ void HIRBuilder::translate(
         }
         case RETURN_GENERATOR: {
           auto out = temps_.AllocateStack();
-          if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-            advancePastYieldInstr(tc);
-          }
           tc.emit<InitialYield>(out, tc.frame);
           tc.frame.stack.push(out);
           break;
@@ -4481,10 +4465,15 @@ void HIRBuilder::emitYieldValue(
       tc.emit<YieldValue>(out, in, tc.frame);
     }
   } else {
-    advancePastYieldInstr(tc);
     if (bc_instr.oparg() == 1) {
       auto* yv = tc.emit<YieldValue>(out, in, tc.frame);
-      yv->setYieldFromIter(stack.top());
+      // In 3.15, PUSH_NULL adds a loop index between the sub-iterator and
+      // the yield value. The sub-iterator is one below the top.
+      if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+        yv->setYieldFromIter(stack.top(1));
+      } else {
+        yv->setYieldFromIter(stack.top());
+      }
     } else {
       JIT_CHECK(bc_instr.oparg() == 0, "Invalid oparg {}", bc_instr.oparg());
       tc.emit<YieldValue>(out, in, tc.frame);

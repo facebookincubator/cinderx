@@ -540,8 +540,6 @@ class HIRBuilder {
   // Check that a code object can be compiled into HIR.
   void checkTranslate();
 
-  void advancePastYieldInstr(TranslationContext& tc);
-
   BorrowedRef<PyCodeObject> code_;
   BlockMap block_map_;
   const Preloader& preloader_;

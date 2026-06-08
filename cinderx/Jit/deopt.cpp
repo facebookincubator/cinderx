@@ -111,7 +111,6 @@ void reifyStack(
   }
 }
 
-#if PY_VERSION_HEX < 0x030E0000
 // This function handles all computation of the index to resume at for a given
 // deopt.
 //
@@ -152,10 +151,22 @@ BCIndex getDeoptResumeIndex(
       forced_deopt) {
     return frame.cause_instr_idx;
   }
+
+#if PY_VERSION_HEX >= 0x030E0000
+  if (PyErr_Occurred() && is_innermost) {
+    // On 3.14+ the traceback is going to be generated based on instr_ptr
+    // and then we'll dispatch to the error handler. We're never going to
+    // execute the instruction but we need the instr_ptr to point at the
+    // faulting instruction for stack traces to show up correctly.
+    return BytecodeInstruction(frame.code, frame.cause_instr_idx)
+               .nextInstrOffset()
+               .asIndex() -
+        1;
+  }
+#endif
   return BytecodeInstruction(frame.code, frame.cause_instr_idx)
       .nextInstrOffset();
 }
-#endif
 
 void reifyFrameImpl(
     _PyInterpreterFrame* frame,
@@ -164,40 +175,6 @@ void reifyFrameImpl(
     bool forced_deopt,
     const uint64_t* regs,
     bool is_instrumentation_deopt = false) {
-#if PY_VERSION_HEX >= 0x030E0000
-  BorrowedRef<PyCodeObject> code_obj = frameCode(frame);
-#ifdef Py_GIL_DISABLED
-  PyThreadState* tstate = _PyThreadState_GET();
-  frame->instr_ptr = _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
-  frame->tlbc_index = reinterpret_cast<_PyThreadStateImpl*>(tstate)->tlbc_index;
-#else
-  frame->instr_ptr = _PyCode_CODE(code_obj);
-#endif
-  int cause_instr_idx = frame_meta.cause_instr_idx.value();
-
-  // Resume with instr_ptr pointing to the cause instruction
-  // the interpreter to re-run a failed instruction, or implement an instruction
-  // we don't JIT.
-  frame->instr_ptr += cause_instr_idx;
-  if (&frame_meta != &meta.innermostFrame()) {
-    // If we're not the inner most frame then we're always deopting
-    // after the instruction that executed
-    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx) + 1;
-  } else if (is_instrumentation_deopt) {
-    // Instrumentation deopt: kPeriodicTaskFailure re-executes the bytecode.
-    // Other reasons advance past the inline cache (or to its end on error).
-    if (meta.reason != DeoptReason::kPeriodicTaskFailure) {
-      frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
-      if (!PyErr_Occurred()) {
-        frame->instr_ptr++;
-      }
-    }
-  } else if (shouldResumeInterpreterInErrorHandler(meta.reason)) {
-    // Otherwise, have instr_ptr point to the next instruction
-    // (minus one _Py_CODEUNIT for some reason).
-    frame->instr_ptr += inlineCacheSize(code_obj, cause_instr_idx);
-  }
-#else
   // Note frame->prev_instr doesn't point to the previous instruction, it
   // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
   // the next instruction to execute. This means it might point to inline-
@@ -210,6 +187,17 @@ void reifyFrameImpl(
            meta, frame_meta, forced_deopt, is_instrumentation_deopt) -
        1)
           .value();
+
+#if PY_VERSION_HEX >= 0x030E0000
+#ifdef Py_GIL_DISABLED
+  PyThreadState* tstate = _PyThreadState_GET();
+  frame->instr_ptr =
+      _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame)) + prev_idx + 1;
+  frame->tlbc_index = reinterpret_cast<_PyThreadStateImpl*>(tstate)->tlbc_index;
+#else
+  frame->instr_ptr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx + 1;
+#endif
+#else
   frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx;
 #endif
 
@@ -354,24 +342,6 @@ Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
 
   const LiveValue* live_val = meta.getGuiltyValue();
   return live_val == nullptr ? nullptr : mem.readOwned(*live_val);
-}
-
-bool shouldResumeInterpreterInErrorHandler(DeoptReason reason) {
-  switch (reason) {
-    case DeoptReason::kGuardFailure:
-    case DeoptReason::kRaise:
-      return false;
-    case jit::DeoptReason::kYieldFrom:
-    case jit::DeoptReason::kUnhandledException:
-    case jit::DeoptReason::kPeriodicTaskFailure:
-    case jit::DeoptReason::kUnhandledUnboundLocal:
-    case jit::DeoptReason::kUnhandledUnboundFreevar:
-    case jit::DeoptReason::kUnhandledNullField:
-    case jit::DeoptReason::kRaiseStatic:
-      return true;
-    default:
-      JIT_ABORT("Unrecognized deopt reason {}", static_cast<int>(reason));
-  }
 }
 
 void reifyFrame(

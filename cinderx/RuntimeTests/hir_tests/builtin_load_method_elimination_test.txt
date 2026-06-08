@@ -895,7 +895,7 @@ fun jittestmodule:test {
     Snapshot
     v15:OptImmortalNoneType = InitialYield {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Snapshot
@@ -980,7 +980,7 @@ fun jittestmodule:test {
     Snapshot
     v35:Object = YieldValue v32 {
       FrameState {
-        CurInstrOffset 46
+        CurInstrOffset 44
         Stack<1> v23
       }
     }
@@ -996,7 +996,7 @@ fun jittestmodule:test {
     Snapshot
     v16:OptImmortalNoneType = InitialYield {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Snapshot
@@ -1082,7 +1082,7 @@ fun jittestmodule:test {
     Snapshot
     v39:Object = YieldValue v36 {
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 48
         Stack<2> v24 v28
       }
     }

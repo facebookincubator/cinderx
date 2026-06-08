@@ -295,12 +295,7 @@ PyObject* resumeInInterpreter(
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
 
   // For instrumentation deopts, only enter error handler if actually excepted.
-  int err_occurred;
-  if (is_instrumentation_deopt) {
-    err_occurred = PyErr_Occurred() ? 1 : 0;
-  } else {
-    err_occurred = shouldResumeInterpreterInErrorHandler(deopt_meta.reason);
-  }
+  int err_occurred = PyErr_Occurred() != nullptr;
 
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
