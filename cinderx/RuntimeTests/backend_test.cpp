@@ -22,7 +22,7 @@
 #include <regex>
 #include <sstream>
 
-#ifdef BUCK_BUILD
+#ifdef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
 #include "tools/cxx/Resources.h"
 #endif
 

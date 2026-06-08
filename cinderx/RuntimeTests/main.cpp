@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#ifdef BUCK_BUILD
+#ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
 #include "cinderx/_cinderx-lib.h"
 #endif
 
@@ -22,7 +22,7 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
-#ifdef BUCK_BUILD
+#ifdef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
 #include "tools/cxx/Resources.h"
 #endif
 
@@ -100,7 +100,7 @@ class SkipFixture : public ::testing::Test {
 };
 
 void remap_txt_path(std::string& path) {
-#ifdef BUCK_BUILD
+#ifdef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
   boost::filesystem::path hir_tests_path =
       build::getResourcePath("cinderx/RuntimeTests/hir_tests");
   path = (hir_tests_path / path).string();
@@ -168,14 +168,14 @@ void register_test(
 
 } // namespace
 
-#ifdef BUCK_BUILD
+#ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
 PyMODINIT_FUNC PyInit__cinderx() {
   return _cinderx_lib_init();
 }
 #endif
 
 void registerCinderX() {
-#ifdef BUCK_BUILD
+#ifdef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
   try {
     boost::filesystem::path python_install =
         build::getResourcePath("cinderx/RuntimeTests/python_install");
@@ -194,7 +194,9 @@ void registerCinderX() {
                  "build, re-running usually fixes the issue\n";
     throw;
   }
+#endif
 
+#ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
   if (PyImport_AppendInittab("_cinderx", PyInit__cinderx) != 0) {
     PyErr_Print();
     throw std::runtime_error{"Could not add cinderx to inittab"};

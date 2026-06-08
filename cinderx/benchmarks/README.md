@@ -57,6 +57,57 @@ Options:
 - `--cinderx` — enable the CinderX JIT
 - `benchmarks...` — run only specific benchmarks (e.g. `richards chaos`)
 
+### TorchBench benchmark (torchbench)
+
+Runs a real model from [PyTorch's TorchBench suite](https://github.com/pytorch/benchmark), with and without the CinderX JIT.
+
+Most TorchBench models spend almost all their time in fused C++ kernels, leaving
+little for a Python JIT to accelerate. The default model,
+`pyhpc_equation_of_state`, is a small CPU workload where Python optimization is expected to matter. Any TorchBench model can be selected via `--model`.
+
+TorchBench is not vendored here and is intended to be installed from a source
+checkout. From the repository root, install the base packages, clone TorchBench,
+and install the default model's requirements:
+
+```bash
+uv venv
+uv pip install -r cinderx/benchmarks/requirements-torchbench.txt
+uv pip install -e . --no-build-isolation --reinstall
+git clone https://github.com/pytorch/benchmark.git ../pytorch-benchmark
+cd ../pytorch-benchmark
+../cinderx/.venv/bin/python install.py pyhpc_equation_of_state
+cd ../cinderx
+```
+
+Run this benchmark with the TorchBench checkout on `PYTHONPATH`:
+
+```bash
+export PYTHONPATH="$(pwd)/../pytorch-benchmark:${PYTHONPATH}"
+
+# Baseline (interpreter):
+uv run python cinderx/benchmarks/torchbench.py --iterations 30
+
+# With the CinderX JIT:
+uv run python cinderx/benchmarks/torchbench.py --cinderx --iterations 30
+
+# One-shot comparison (re-execs itself in two subprocesses, prints the speedup):
+uv run python cinderx/benchmarks/torchbench.py --compare
+
+# Through the runner:
+uv run python cinderx/benchmarks/runner.py torchbench
+```
+
+Options:
+- `--cinderx` — enable the CinderX JIT
+- `--model NAME` — TorchBench model to run (default `pyhpc_equation_of_state`)
+- `--test {eval,train}` — TorchBench test mode (default `eval`)
+- `--batch-size N` — model input size; smaller keeps the workload Python-bound (default 1024)
+- `--iterations N` — number of timed iterations per run (default 30)
+- `--warmup N` — warmup iterations before timing so the JIT compiles the hot path (default 20)
+- `--repeat N` — number of timed runs (default 3)
+- `--compile-after-n-calls N` — override the JIT call-count threshold when `--cinderx` is enabled
+- `--compare` — run baseline vs JIT in subprocesses and print the speedup ratio
+
 ## Running Without CinderX JIT
 
 To get a baseline comparison without JIT compilation, disable it via environment variable:
@@ -80,6 +131,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `spectral_norm` | Numerical computation of the spectral norm of a matrix |
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |
+| `torchbench` | Run of a real TorchBench model (default `pyhpc_equation_of_state`), kept Python-bound for the JIT |
 
 ## Listing Available Benchmarks
 

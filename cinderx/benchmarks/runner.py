@@ -36,6 +36,7 @@ JIT_COMPILATION_BENCHMARKS: list[str] = [
 # Heavyweight benchmarks with extra dependencies.
 HEAVYWEIGHT_BENCHMARKS: dict[str, str] = {
     "fastmark": "requirements-fastmark.txt",
+    "torchbench": "requirements-torchbench.txt",
 }
 
 ALL_BENCHMARK_NAMES: list[str] = (
@@ -67,6 +68,9 @@ def run_benchmark(
     elif name == "fastmark":
         script = os.path.join(benchmarks_dir, "fastmark.py")
         cmd = [sys.executable, script, "--cinderx", *extra_args]
+    elif name == "torchbench":
+        script = os.path.join(benchmarks_dir, "torchbench.py")
+        cmd = [sys.executable, script, "--cinderx", *extra_args]
     else:
         print(f"Unknown benchmark: {name}", file=sys.stderr)
         return False, None
@@ -93,6 +97,8 @@ def check_deps(name: str) -> bool:
         return True
     elif name == "fastmark":
         return importlib.util.find_spec("pyperformance") is not None
+    elif name == "torchbench":
+        return importlib.util.find_spec("torchbenchmark") is not None
     return True
 
 

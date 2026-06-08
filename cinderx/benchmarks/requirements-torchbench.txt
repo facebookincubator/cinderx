@@ -1,0 +1,11 @@
+# Base packages needed by TorchBench and this benchmark harness.
+pip
+setuptools
+torch
+torchvision
+torchaudio
+numpy
+click
+
+# TorchBench itself is not vendored here. Clone pytorch/benchmark, run its
+# install.py for the model you want, and add that checkout to PYTHONPATH.
