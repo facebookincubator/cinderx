@@ -9,6 +9,7 @@
 #include "cinderx/Common/opcode_stubs.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
+#include "cinderx/Jit/threaded_compile.h"
 
 #include <iterator>
 #include <limits>

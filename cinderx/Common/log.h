@@ -6,7 +6,6 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/threaded_compile.h"
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -18,9 +17,6 @@
 #include <string_view>
 
 namespace jit {
-
-// Trim file paths to be rooted at "cinderx/" for cleaner log output.
-std::string_view trimSourcePath(std::string_view path);
 
 template <typename... Args>
 auto format_to(
@@ -40,16 +36,54 @@ void printPythonException();
 // "<failed to get UTF8 from Python string>"
 std::string repr(BorrowedRef<> obj);
 
-#define JIT_LOG(...)                                                         \
-  {                                                                          \
-    FILE* _output = jit::getConfig().log.output_file;                        \
-    jit::ThreadedCompileSerialize guard;                                     \
-    fmt::print(                                                              \
-        _output, "JIT: {}:{} -- ", jit::trimSourcePath(__FILE__), __LINE__); \
-    fmt::print(_output, __VA_ARGS__);                                        \
-    fmt::print(_output, "\n");                                               \
-    std::fflush(_output);                                                    \
-  }
+// Outlined logging implementations to reduce code size on hot paths.
+void logImplV(
+    std::string_view file,
+    int line,
+    fmt::string_view format,
+    fmt::format_args args);
+[[noreturn]] void abortImplV(
+    std::string_view file,
+    int line,
+    fmt::string_view format,
+    fmt::format_args args);
+[[noreturn]] void checkFailedImplV(
+    std::string_view file,
+    int line,
+    std::string_view cond_str,
+    fmt::string_view format,
+    fmt::format_args args);
+
+template <typename... Args>
+void logImpl(
+    std::string_view file,
+    int line,
+    fmt::format_string<Args...> format,
+    Args&&... args) {
+  logImplV(file, line, format, fmt::make_format_args(args...));
+}
+
+template <typename... Args>
+[[noreturn]] void abortImpl(
+    std::string_view file,
+    int line,
+    fmt::format_string<Args...> format,
+    Args&&... args) {
+  abortImplV(file, line, format, fmt::make_format_args(args...));
+}
+
+template <typename... Args>
+[[noreturn]] void checkFailedImpl(
+    std::string_view file,
+    int line,
+    std::string_view cond_str,
+    fmt::format_string<Args...> format,
+    Args&&... args) {
+  checkFailedImplV(
+      file, line, cond_str, format, fmt::make_format_args(args...));
+}
+
+#define JIT_LOG(...) jit::logImpl(__FILE__, __LINE__, __VA_ARGS__)
 
 #define JIT_LOGIF(PRED, ...) \
   if (PRED) {                \
@@ -58,17 +92,11 @@ std::string repr(BorrowedRef<> obj);
 
 #define JIT_DLOG(...) JIT_LOGIF(jit::getConfig().log.debug, __VA_ARGS__)
 
-#define JIT_CHECK(COND, ...)                      \
-  {                                               \
-    if (!(COND)) {                                \
-      fmt::print(                                 \
-          stderr,                                 \
-          "JIT: {}:{} -- Assertion failed: {}\n", \
-          jit::trimSourcePath(__FILE__),          \
-          __LINE__,                               \
-          #COND);                                 \
-      JIT_ABORT_IMPL(__VA_ARGS__);                \
-    }                                             \
+#define JIT_CHECK(COND, ...)                                        \
+  {                                                                 \
+    if (!(COND)) {                                                  \
+      jit::checkFailedImpl(__FILE__, __LINE__, #COND, __VA_ARGS__); \
+    }                                                               \
   }
 
 #define JIT_CHECK_ONCE(COND, ...)   \
@@ -80,24 +108,7 @@ std::string repr(BorrowedRef<> obj);
     }                               \
   }
 
-#define JIT_ABORT(...)                 \
-  {                                    \
-    fmt::print(                        \
-        stderr,                        \
-        "JIT: {}:{} -- Abort\n",       \
-        jit::trimSourcePath(__FILE__), \
-        __LINE__);                     \
-    JIT_ABORT_IMPL(__VA_ARGS__);       \
-  }
-
-// Continuation of JIT_ABORT_IMPL(), but out-of-line.
-[[noreturn]] void abortImpl();
-
-#define JIT_ABORT_IMPL(...)          \
-  {                                  \
-    fmt::print(stderr, __VA_ARGS__); \
-    jit::abortImpl();                \
-  }
+#define JIT_ABORT(...) jit::abortImpl(__FILE__, __LINE__, __VA_ARGS__)
 
 #ifdef Py_DEBUG
 #define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)

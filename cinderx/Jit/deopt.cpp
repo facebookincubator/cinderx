@@ -565,7 +565,7 @@ void visitLiveDeferredRefs(
     visit_live_value(live_value);
   }
 #else
-  JIT_ABORT("Only for FT builds.")
+  JIT_ABORT("Only for FT builds.");
 #endif
 }
 

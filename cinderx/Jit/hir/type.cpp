@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/hir/type.h"
 
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/type_code.h"
 
