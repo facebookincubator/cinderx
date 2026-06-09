@@ -44,7 +44,7 @@ extern "C" {
 #define BUILDER_THROW(MSG, ...)                         \
   JIT_THROW(                                            \
       MSG " in {} at offset {}",                        \
-      __VA_ARGS__ __VA_OPT__(, ) preloader_.fullname(), \
+      ##__VA_ARGS__, preloader_.fullname(),              \
       bc_instr.opcodeOffset())
 
 namespace jit::hir {
