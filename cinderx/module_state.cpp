@@ -2,6 +2,8 @@
 
 #include "cinderx/module_state.h"
 
+#include "internal/pycore_object.h"
+
 #include "cinderx/Common/log.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -30,6 +32,7 @@ int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(weakref_callback);
   Py_VISIT(indexerr);
   Py_VISIT(builtin_next);
+  Py_VISIT(object_getattribute);
   return 0;
 }
 
@@ -48,6 +51,7 @@ int ModuleState::clear() {
   indexerr.reset();
   sys_clear_caches.reset();
   builtin_next.reset();
+  object_getattribute.reset();
   return 0;
 }
 
@@ -98,6 +102,9 @@ bool ModuleState::initBuiltinMembers() {
 
     builtin_members.emplace(type, std::move(type_members));
   }
+
+  object_getattribute = Ref<>::create(
+      _PyType_Lookup(&PyBaseObject_Type, &_Py_ID(__getattribute__)));
 
   return true;
 }

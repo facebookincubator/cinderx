@@ -301,6 +301,11 @@ extern _PyFrameEvalFunction Ci_EvalFrameFunc;
 
 int init_upstream_borrow(void);
 
+// Function pointer for CPython's _Py_slot_tp_getattr_hook, which is installed
+// as tp_getattro when a class defines __getattr__. Discovered at init time
+// by creating a temporary class with __getattr__.
+extern getattrofunc Ci_tp_getattr_hook;
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -94,6 +94,9 @@ struct ModuleState {
   // Cached IndexError message for Static Python checked list access.
   Ref<PyUnicodeObject> indexerr;
 
+  // object.__getattribute__
+  Ref<> object_getattribute;
+
   // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
   // so the JIT optimizer can look up methods during multithreaded compilation
   // without calling PyType_Lookup (which isn't safe off the main thread).

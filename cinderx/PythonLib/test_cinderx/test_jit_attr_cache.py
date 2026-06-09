@@ -482,6 +482,37 @@ class LoadAttrCacheTests(unittest.TestCase):
         del Descr.__set__
         self.assertEqual(get_attr(t2), "t2 attr")
 
+    def test_non_data_descr_becomes_data_descr(self):
+        """When __set__ is added to a non-data descriptor type, it becomes a
+        data descriptor and should take priority over instance dict entries."""
+
+        class NonDataDescr:
+            def __get__(self, obj, ty):
+                return "from_descr"
+
+        class C:
+            foo = NonDataDescr()
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.foo
+
+        c = C()
+        # Non-data descriptor: instance dict takes priority
+        c.__dict__["foo"] = "from_dict"
+        self.assertEqual(get_attr(c), "from_dict")
+        self.assertEqual(get_attr(c), "from_dict")
+
+        # Add __set__ to make it a data descriptor: descriptor now takes
+        # priority over instance dict
+        NonDataDescr.__set__ = lambda self, obj, val: None
+        self.assertEqual(get_attr(c), "from_descr")
+        self.assertEqual(get_attr(c), "from_descr")
+
+        # Remove __set__ again: back to non-data descriptor
+        del NonDataDescr.__set__
+        self.assertEqual(get_attr(c), "from_dict")
+
     @passIf(
         cinderx.jit.is_enabled(),
         "T214641462: Not clear why this is failing, but it is",
@@ -524,6 +555,129 @@ class LoadAttrCacheTests(unittest.TestCase):
 
         d = D()
         self.assertEqual(get_attr(d), "in D")
+
+    def test_property_raises_attr_error_with_getattr_fallback(self):
+        """When a property raises AttributeError on a type with __getattr__,
+        __getattr__ should be invoked as a fallback, matching CPython's
+        _Py_slot_tp_getattr_hook behavior."""
+
+        class C:
+            @property
+            def foo(self):
+                raise AttributeError("nope")
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.foo
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "fallback:foo")
+        # Cached
+        self.assertEqual(get_attr(c), "fallback:foo")
+
+    def test_data_descriptor_raises_attr_error_with_getattr_fallback(self):
+        """When a data descriptor's __get__ raises AttributeError on a type
+        with __getattr__, __getattr__ should be invoked as a fallback."""
+
+        class RaisingDescr:
+            def __get__(self, obj, cls):
+                raise AttributeError("custom descr error")
+
+            def __set__(self, obj, val):
+                pass
+
+        class C:
+            x = RaisingDescr()
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.x
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "fallback:x")
+        # Cached
+        self.assertEqual(get_attr(c), "fallback:x")
+
+    def test_non_data_descriptor_raises_attr_error_with_getattr_fallback(self):
+        """When a non-data descriptor's __get__ raises AttributeError on a type
+        with __getattr__, __getattr__ should be invoked as a fallback."""
+
+        class RaisingDescr:
+            def __get__(self, obj, cls):
+                raise AttributeError("non-data descr error")
+
+        class C:
+            x = RaisingDescr()
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.x
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "fallback:x")
+        # Cached
+        self.assertEqual(get_attr(c), "fallback:x")
+
+    def test_property_no_error_with_getattr(self):
+        """When a property succeeds on a type with __getattr__, the property
+        value should be returned normally (not __getattr__)."""
+
+        class C:
+            @property
+            def foo(self):
+                return "from_property"
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_attr(o):
+            return o.foo
+
+        c = C()
+        # Uncached
+        self.assertEqual(get_attr(c), "from_property")
+        # Cached
+        self.assertEqual(get_attr(c), "from_property")
+
+    def test_instance_dict_miss_with_getattr_fallback(self):
+        """When an attribute is not in the instance dict on a type with
+        __getattr__, __getattr__ should be invoked."""
+
+        class C:
+            def __init__(self):
+                self.existing = 42
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_existing(o):
+            return o.existing
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        c = C()
+        # Instance dict hit should work normally
+        self.assertEqual(get_existing(c), 42)
+        self.assertEqual(get_existing(c), 42)
+        # Instance dict miss should fall through to __getattr__
+        self.assertEqual(get_missing(c), "fallback:missing")
+        self.assertEqual(get_missing(c), "fallback:missing")
 
 
 @cinder_support.failUnlessJITCompiled
@@ -641,3 +795,435 @@ class StoreAttrCacheTests(unittest.TestCase):
 
         set_foo(obj, 400)
         self.assertEqual(obj1.foo, 300)
+
+
+class MetaclassGetAttrCacheTests(unittest.TestCase):
+    """Tests for inline cache behavior with metaclass __getattr__.
+
+    Regression tests for a bug where the JIT inline cache for LOAD_ATTR
+    incorrectly cached a __getattr__ dispatch for class objects whose metaclass
+    defines __getattr__, skipping MRO lookup for inherited class attributes.
+
+    The correct behavior is:
+    1. Inherited attributes should be found via MRO (type_getattro), NOT via
+       metaclass __getattr__.
+    2. Truly missing attributes should call metaclass __getattr__.
+    """
+
+    def test_metaclass_getattr_inherited_attr(self):
+        """Inherited class attributes must be found via MRO, not metaclass
+        __getattr__, even after the IC is populated."""
+
+        class MyMeta(type):
+            def __getattr__(cls, item):
+                raise AttributeError(item)
+
+        class Base(metaclass=MyMeta):
+            inherited_attr = False
+
+        class Child(Base):
+            pass
+
+        @cinder_support.failUnlessJITCompiled
+        def get_inherited(cls):
+            return cls.inherited_attr
+
+        # Uncached - should find via MRO
+        self.assertFalse(get_inherited(Child))
+        # Cached - should still find via MRO, not call MyMeta.__getattr__
+        self.assertFalse(get_inherited(Child))
+        # Run enough iterations to thoroughly exercise the IC
+        for _ in range(100):
+            self.assertFalse(get_inherited(Child))
+
+    def test_metaclass_getattr_missing_attr(self):
+        """Truly missing attributes should call metaclass __getattr__."""
+
+        class MyMeta(type):
+            def __getattr__(cls, item):
+                return f"meta_fallback:{item}"
+
+        class Base(metaclass=MyMeta):
+            existing = True
+
+        class Child(Base):
+            pass
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(cls):
+            return cls.nonexistent
+
+        # Should call MyMeta.__getattr__
+        self.assertEqual(get_missing(Child), "meta_fallback:nonexistent")
+        self.assertEqual(get_missing(Child), "meta_fallback:nonexistent")
+        for _ in range(100):
+            self.assertEqual(get_missing(Child), "meta_fallback:nonexistent")
+
+    def test_metaclass_getattr_pydantic_pattern(self):
+        """Reproduces the Pydantic pattern that triggered the production
+        outage: metaclass with __getattr__ + inherited boolean class attribute.
+
+        This mimics Pydantic's ModelMetaclass and BaseModel pattern where
+        __pydantic_root_model__ is defined on BaseModel and inherited by
+        child models."""
+
+        class ModelMeta(type):
+            def __getattr__(cls, item):
+                raise AttributeError(item)
+
+        class BaseModel(metaclass=ModelMeta):
+            __pydantic_root_model__ = False
+
+        class UserModel(BaseModel):
+            pass
+
+        class RootModel(BaseModel):
+            __pydantic_root_model__ = True
+
+        @cinder_support.failUnlessJITCompiled
+        def is_root_model(cls):
+            return cls.__pydantic_root_model__
+
+        # UserModel inherits __pydantic_root_model__ = False from BaseModel
+        self.assertFalse(is_root_model(UserModel))
+        self.assertFalse(is_root_model(UserModel))
+
+        # RootModel overrides it to True
+        self.assertTrue(is_root_model(RootModel))
+        self.assertTrue(is_root_model(RootModel))
+
+        # After IC is populated for one type, the other should still work
+        for _ in range(100):
+            self.assertFalse(is_root_model(UserModel))
+            self.assertTrue(is_root_model(RootModel))
+
+    def test_metaclass_getattr_mixed_access(self):
+        """Test that the IC correctly handles a mix of inherited and missing
+        attributes when a metaclass defines __getattr__."""
+
+        class MyMeta(type):
+            def __getattr__(cls, item):
+                return f"meta:{item}"
+
+        class Base(metaclass=MyMeta):
+            class_attr = 42
+
+        class Child(Base):
+            own_attr = 100
+
+        @cinder_support.failUnlessJITCompiled
+        def get_class_attr(cls):
+            return cls.class_attr
+
+        @cinder_support.failUnlessJITCompiled
+        def get_own_attr(cls):
+            return cls.own_attr
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing_attr(cls):
+            return cls.totally_missing
+
+        # Inherited attribute via MRO
+        for _ in range(100):
+            self.assertEqual(get_class_attr(Child), 42)
+
+        # Own attribute
+        for _ in range(100):
+            self.assertEqual(get_own_attr(Child), 100)
+
+        # Missing attribute -> metaclass __getattr__
+        for _ in range(100):
+            self.assertEqual(get_missing_attr(Child), "meta:totally_missing")
+
+    def test_metaclass_getattr_does_not_affect_instances(self):
+        """Metaclass __getattr__ should not interfere with instance attribute
+        access on instances of the class."""
+
+        class MyMeta(type):
+            def __getattr__(cls, item):
+                return f"meta:{item}"
+
+        class MyClass(metaclass=MyMeta):
+            class_val = "from_class"
+
+            def __init__(self):
+                self.inst_val = "from_instance"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_inst_val(obj):
+            return obj.inst_val
+
+        @cinder_support.failUnlessJITCompiled
+        def get_class_val(obj):
+            return obj.class_val
+
+        obj = MyClass()
+        # Instance attribute lookup should work normally
+        for _ in range(100):
+            self.assertEqual(get_inst_val(obj), "from_instance")
+            self.assertEqual(get_class_val(obj), "from_class")
+
+
+class GetAttrMutationTests(unittest.TestCase):
+    """Tests that the IC correctly handles mutations to __getattr__ after
+    the cache has been populated.
+
+    The type watcher system should invalidate IC entries when __getattr__
+    is added or removed, ensuring correct behavior even after mutation.
+    """
+
+    def test_add_getattr_after_ic_populated(self):
+        """Adding __getattr__ to a class after the IC has cached attribute
+        lookups should not break anything. The IC should be invalidated and
+        subsequent lookups should use __getattr__ for missing attributes."""
+
+        class C:
+            def __init__(self):
+                self.x = 42
+
+        @cinder_support.failUnlessJITCompiled
+        def get_x(o):
+            return o.x
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        c = C()
+        # Populate IC
+        self.assertEqual(get_x(c), 42)
+        self.assertEqual(get_x(c), 42)
+        # Missing attr raises AttributeError
+        with self.assertRaises(AttributeError):
+            get_missing(c)
+
+        # Now add __getattr__ to the class
+        C.__getattr__ = lambda self, name: f"fallback:{name}"
+
+        # Existing attribute should still work
+        self.assertEqual(get_x(c), 42)
+        # Missing attribute should now use __getattr__
+        self.assertEqual(get_missing(c), "fallback:missing")
+
+    def test_remove_getattr_after_ic_populated(self):
+        """Removing __getattr__ from a class after the IC has cached lookups
+        that used __getattr__ should invalidate the cache. Subsequent lookups
+        for missing attributes should raise AttributeError."""
+
+        class C:
+            def __init__(self):
+                self.x = 42
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_x(o):
+            return o.x
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        c = C()
+        # Populate IC with __getattr__ active
+        self.assertEqual(get_x(c), 42)
+        self.assertEqual(get_x(c), 42)
+        self.assertEqual(get_missing(c), "fallback:missing")
+        self.assertEqual(get_missing(c), "fallback:missing")
+
+        # Remove __getattr__
+        del C.__getattr__
+
+        # Existing attribute should still work
+        self.assertEqual(get_x(c), 42)
+        # Missing attribute should now raise
+        with self.assertRaises(AttributeError):
+            get_missing(c)
+
+    def test_replace_getattr_after_ic_populated(self):
+        """Replacing __getattr__ with a different implementation after the IC
+        has cached should use the new implementation."""
+
+        class C:
+            def __init__(self):
+                self.x = 42
+
+            def __getattr__(self, name):
+                return f"old:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        c = C()
+        # Populate IC
+        self.assertEqual(get_missing(c), "old:missing")
+        self.assertEqual(get_missing(c), "old:missing")
+
+        # Replace __getattr__
+        C.__getattr__ = lambda self, name: f"new:{name}"
+
+        self.assertEqual(get_missing(c), "new:missing")
+
+    def test_add_getattr_to_base_after_ic_populated(self):
+        """Adding __getattr__ to a base class after the IC has cached lookups
+        on a derived class should invalidate the cache."""
+
+        class Base:
+            pass
+
+        class Derived(Base):
+            def __init__(self):
+                self.x = 42
+
+        @cinder_support.failUnlessJITCompiled
+        def get_x(o):
+            return o.x
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        d = Derived()
+        # Populate IC
+        self.assertEqual(get_x(d), 42)
+        self.assertEqual(get_x(d), 42)
+        with self.assertRaises(AttributeError):
+            get_missing(d)
+
+        # Add __getattr__ on the base class
+        Base.__getattr__ = lambda self, name: f"base_fallback:{name}"
+
+        # Existing attribute should still work
+        self.assertEqual(get_x(d), 42)
+        # Missing attribute should now use Base.__getattr__
+        self.assertEqual(get_missing(d), "base_fallback:missing")
+
+    def test_add_getattr_with_data_descriptor(self):
+        """Adding __getattr__ to a class that has a data descriptor cached
+        in the IC should work correctly. If the descriptor raises
+        AttributeError, __getattr__ should be used as fallback."""
+
+        class RaisingDescr:
+            def __get__(self, obj, cls):
+                raise AttributeError("descr error")
+
+            def __set__(self, obj, val):
+                pass
+
+        class C:
+            x = RaisingDescr()
+
+        @cinder_support.failUnlessJITCompiled
+        def get_x(o):
+            return o.x
+
+        c = C()
+        # Without __getattr__, descriptor error propagates
+        with self.assertRaises(AttributeError):
+            get_x(c)
+
+        # Add __getattr__
+        C.__getattr__ = lambda self, name: f"fallback:{name}"
+
+        # Now the descriptor error should be caught and __getattr__ called
+        self.assertEqual(get_x(c), "fallback:x")
+        self.assertEqual(get_x(c), "fallback:x")
+
+    def test_remove_getattr_with_data_descriptor(self):
+        """Removing __getattr__ from a class that has a data descriptor that
+        raises AttributeError. After removal, the error should propagate."""
+
+        class RaisingDescr:
+            def __get__(self, obj, cls):
+                raise AttributeError("descr error")
+
+            def __set__(self, obj, val):
+                pass
+
+        class C:
+            x = RaisingDescr()
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_x(o):
+            return o.x
+
+        c = C()
+        # With __getattr__, descriptor error is caught
+        self.assertEqual(get_x(c), "fallback:x")
+        self.assertEqual(get_x(c), "fallback:x")
+
+        # Remove __getattr__
+        del C.__getattr__
+
+        # Now the descriptor error should propagate
+        with self.assertRaises(AttributeError):
+            get_x(c)
+
+    def test_add_getattr_with_instance_dict_miss(self):
+        """Adding __getattr__ after the IC has cached split dict lookups
+        where the attribute may not be in the instance dict."""
+
+        class C:
+            pass
+
+        @cinder_support.failUnlessJITCompiled
+        def get_foo(o):
+            return o.foo
+
+        c = C()
+        # Populate IC - attribute is missing, raises
+        with self.assertRaises(AttributeError):
+            get_foo(c)
+
+        # Add the attribute to the instance
+        # pyrefly: ignore  no foo
+        c.foo = 100
+        self.assertEqual(get_foo(c), 100)
+
+        # Remove instance attribute and add __getattr__
+        # pyrefly: ignore  no foo
+        del c.foo
+        C.__getattr__ = lambda self, name: f"dynamic:{name}"
+
+        self.assertEqual(get_foo(c), "dynamic:foo")
+
+    def test_add_getattribute_invalidates_getattr_ic(self):
+        """Adding a custom __getattribute__ to a class that has __getattr__
+        cached in the IC should invalidate the cache. The hookUsesGenericGetAttr
+        check at fill time should reject re-caching with the custom
+        __getattribute__."""
+
+        class C:
+            def __init__(self):
+                self.x = 42
+
+            def __getattr__(self, name):
+                return f"fallback:{name}"
+
+        @cinder_support.failUnlessJITCompiled
+        def get_x(o):
+            return o.x
+
+        @cinder_support.failUnlessJITCompiled
+        def get_missing(o):
+            return o.missing
+
+        c = C()
+        # Populate IC
+        self.assertEqual(get_x(c), 42)
+        self.assertEqual(get_missing(c), "fallback:missing")
+
+        # Add custom __getattribute__ - this changes the semantics
+        def custom_getattribute(self, name):
+            return f"custom:{name}"
+
+        C.__getattribute__ = custom_getattribute
+
+        # Now all attribute access should go through custom __getattribute__
+        self.assertEqual(get_x(c), "custom:x")
+        self.assertEqual(get_missing(c), "custom:missing")
