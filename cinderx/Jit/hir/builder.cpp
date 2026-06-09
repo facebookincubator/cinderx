@@ -41,10 +41,11 @@ extern "C" {
 
 // Variant of JIT_THROW() that will log the name of the code object and the
 // current offset.
-#define BUILDER_THROW(MSG, ...)                         \
-  JIT_THROW(                                            \
-      MSG " in {} at offset {}",                        \
-      __VA_ARGS__ __VA_OPT__(, ) preloader_.fullname(), \
+#define BUILDER_THROW(MSG, ...)  \
+  JIT_THROW(                     \
+      MSG " in {} at offset {}", \
+      ##__VA_ARGS__,             \
+      preloader_.fullname(),     \
       bc_instr.opcodeOffset())
 
 namespace jit::hir {
