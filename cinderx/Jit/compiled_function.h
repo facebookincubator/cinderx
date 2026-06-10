@@ -88,6 +88,7 @@ namespace jit {
 // allocating Python memory. This struct is used to pass around the data before
 // we get the full object constructed.
 struct CompiledFunctionData {
+  PyObject_HEAD
   std::span<const std::byte> code;
   vectorcallfunc vectorcall_entry{nullptr};
   int stack_size{0};
@@ -142,36 +143,36 @@ class CompiledFunction {
   // Get the buffer containing the compiled machine code.  The start of this
   // buffer is not guaranteed to be a valid entry point.
   std::span<const std::byte> codeBuffer() const {
-    return data_.code;
+    return data_->code;
   }
 
   vectorcallfunc vectorcallEntry() const {
-    return data_.vectorcall_entry;
+    return data_->vectorcall_entry;
   }
 
   void* staticEntry() const;
 
   CodeRuntime* runtime() const {
-    return data_.runtime;
+    return data_->runtime;
   }
 
   PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const {
-    return data_.vectorcall_entry(func, args, nargs, nullptr);
+    return data_->vectorcall_entry(func, args, nargs, nullptr);
   }
 
   void printHIR() const;
   void disassemble() const;
 
   size_t codeSize() const {
-    return data_.code.size();
+    return data_->code.size();
   }
 
   int stackSize() const {
-    return data_.stack_size;
+    return data_->stack_size;
   }
 
   int spillStackSize() const {
-    return data_.spill_stack_size;
+    return data_->spill_stack_size;
   }
 
   std::chrono::nanoseconds compileTime() const;
@@ -183,11 +184,11 @@ class CompiledFunction {
   void setHirFunc(std::unique_ptr<hir::Function>&& irfunc);
 
   const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const {
-    return data_.inline_function_stats;
+    return data_->inline_function_stats;
   }
 
   const hir::OpcodeCounts& hirOpcodeCounts() const {
-    return data_.hir_opcode_counts;
+    return data_->hir_opcode_counts;
   }
 
   // Associate a function with this CompiledFunction. The function will be
@@ -213,15 +214,16 @@ class CompiledFunction {
   void clear(bool context_finalizing = false);
 
  private:
-  explicit CompiledFunction(CompiledFunctionData&& data)
-      : data_(std::move(data)) {}
+  explicit CompiledFunction(CompiledFunctionData* data, bool contiguous)
+      : data_(data), contiguous_data_(contiguous) {}
 
   friend Ref<CompiledFunction>;
 
   DISALLOW_COPY_AND_ASSIGN(CompiledFunction);
 
   CompiledFunctionOwner* owner_{};
-  CompiledFunctionData data_;
+  CompiledFunctionData* data_{nullptr};
+  bool contiguous_data_{false};
   // Set of functions that are using this CompiledFunction.
   // These are borrowed references - the functions are responsible for removing
   // themselves via funcDestroyed() when they are deallocated.

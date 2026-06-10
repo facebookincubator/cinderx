@@ -14,6 +14,7 @@
 #include "cinderx/module_state.h"
 
 #include <iostream>
+#include <new>
 
 extern "C" {
 
@@ -68,6 +69,35 @@ static PyTypeObject _CiCompiledFunction_Type = {
     .tp_clear = jit::compiledfunc_clear,
 };
 
+void compiledfuncdata_dealloc(PyObject* self) {
+  CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
+  PyObject_GC_UnTrack(self);
+  cfd->~CompiledFunctionData();
+  Py_TYPE(self)->tp_free(self);
+}
+
+int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
+  CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
+  if (cfd->runtime != nullptr) {
+    return cfd->runtime->traverse(visit, arg);
+  }
+
+  return 0;
+}
+
+int compiledfuncdata_clear(PyObject* /*self*/) {
+  return 0;
+}
+
+static PyTypeObject _CiCompiledFunctionData_Type = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "CompiledFunctionData",
+    .tp_basicsize = sizeof(jit::CompiledFunctionData),
+    .tp_dealloc = jit::compiledfuncdata_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_traverse = jit::compiledfuncdata_traverse,
+    .tp_clear = jit::compiledfuncdata_clear,
+};
+
 } // namespace
 
 } // namespace jit
@@ -75,6 +105,9 @@ static PyTypeObject _CiCompiledFunction_Type = {
 namespace jit {
 
 int initCompiledFunctionType() {
+  if (PyType_Ready(&_CiCompiledFunctionData_Type) < 0) {
+    return -1;
+  }
   if (PyType_Ready(&_CiCompiledFunction_Type) < 0) {
     return -1;
   }
@@ -102,21 +135,41 @@ BorrowedRef<PyTypeObject> getCompiledFunctionType() {
 Ref<CompiledFunction> CompiledFunction::create(
     CompiledFunctionData&& compiled_func,
     bool immortal) {
-  // Allocate the Python object.
   CompiledFunction* cf;
+  // If the CompiledFunction is not being allocated as immortal we need a second
+  // object to properly track the lifetime and free the underlying code. If it
+  // is immortal we'll just never free the code anyway.
   if (!immortal) {
+    // Allocate CompiledFunctionData as a separate GC-tracked Python object.
+    CompiledFunctionData* cfd =
+        PyObject_GC_New(CompiledFunctionData, &_CiCompiledFunctionData_Type);
+    if (cfd == nullptr) {
+      return nullptr;
+    }
+    PyObject saved_base = cfd->ob_base;
+    new (cfd) CompiledFunctionData(std::move(compiled_func));
+    cfd->ob_base = saved_base;
+    PyObject_GC_Track(reinterpret_cast<PyObject*>(cfd));
+
     cf = PyObject_GC_New(CompiledFunction, &_CiCompiledFunction_Type);
     if (cf == nullptr) {
+      Py_DECREF(cfd);
       return nullptr;
     }
-    // Use placement new to construct C++ members in-place.
-    new (cf) CompiledFunction(std::move(compiled_func));
+    new (cf) CompiledFunction(cfd, false);
     PyObject_GC_Track(reinterpret_cast<PyObject*>(cf));
   } else {
-    cf = new CompiledFunction(std::move(compiled_func));
-    if (cf == nullptr) {
-      return nullptr;
-    }
+    // Single contiguous allocation for CompiledFunction + CompiledFunctionData.
+    constexpr size_t cf_size = sizeof(CompiledFunction);
+    constexpr size_t cfd_align = alignof(CompiledFunctionData);
+    constexpr size_t cfd_offset = (cf_size + cfd_align - 1) & ~(cfd_align - 1);
+    size_t total_size = cfd_offset + sizeof(CompiledFunctionData);
+
+    char* raw = static_cast<char*>(::operator new(total_size));
+    CompiledFunctionData* cfd =
+        new (raw + cfd_offset) CompiledFunctionData(std::move(compiled_func));
+    cf = new (raw) CompiledFunction(cfd, true);
+
     PyObject_Init(&cf->ob_base, &_CiCompiledFunction_Type);
 #if PY_VERSION_HEX >= 0x030E0000
     _Py_SetImmortalUntracked(&cf->ob_base);
@@ -125,20 +178,30 @@ Ref<CompiledFunction> CompiledFunction::create(
 #endif
   }
 
-  // Return a stolen reference - the caller owns it.
   return Ref<CompiledFunction>::steal(cf);
 }
 
 CompiledFunction::~CompiledFunction() {
   clear();
 
+  if (data_ == nullptr) {
+    return;
+  }
+
   auto mod_state = cinderx::getModuleState();
-  if (mod_state != nullptr && data_.code.data() != nullptr) {
+  if (mod_state != nullptr && data_->code.data() != nullptr) {
     auto code_allocator = mod_state->code_allocator.get();
     if (code_allocator != nullptr) {
-      code_allocator->releaseCode(const_cast<std::byte*>(data_.code.data()));
+      code_allocator->releaseCode(const_cast<std::byte*>(data_->code.data()));
     }
   }
+
+  if (contiguous_data_) {
+    data_->~CompiledFunctionData();
+  } else {
+    Py_DECREF(data_);
+  }
+  data_ = nullptr;
 }
 
 bool associateFunctionWithCompiled(
@@ -213,37 +276,37 @@ void CompiledFunction::disassemble() const {
 
 void CompiledFunction::printHIR() const {
   JIT_CHECK(
-      data_.irfunc != nullptr,
+      data_->irfunc != nullptr,
       "Can only call CompiledFunction::printHIR() from a debug build");
   jit::hir::HIRPrinter printer;
-  printer.Print(std::cout, *data_.irfunc);
+  printer.Print(std::cout, *data_->irfunc);
 }
 
 std::chrono::nanoseconds CompiledFunction::compileTime() const {
-  return data_.compile_time;
+  return data_->compile_time;
 }
 
 void CompiledFunction::setCompileTime(std::chrono::nanoseconds time) {
-  data_.compile_time = time;
+  data_->compile_time = time;
 }
 
 void CompiledFunction::setCodePatchers(
     std::vector<std::unique_ptr<CodePatcher>>&& code_patchers) {
-  data_.code_patchers = std::move(code_patchers);
+  data_->code_patchers = std::move(code_patchers);
 }
 
 void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {
-  data_.irfunc = std::move(irfunc);
+  data_->irfunc = std::move(irfunc);
 }
 
 void* CompiledFunction::staticEntry() const {
-  if (data_.runtime == nullptr ||
-      !(data_.runtime->code()->co_flags & CI_CO_STATICALLY_COMPILED)) {
+  if (data_->runtime == nullptr ||
+      !(data_->runtime->code()->co_flags & CI_CO_STATICALLY_COMPILED)) {
     return nullptr;
   }
 
   return reinterpret_cast<void*>(
-      JITRT_GET_STATIC_ENTRY(data_.vectorcall_entry));
+      JITRT_GET_STATIC_ENTRY(data_->vectorcall_entry));
 }
 
 void CompiledFunction::addFunction(BorrowedRef<PyFunctionObject> func) {
@@ -265,9 +328,14 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
   // funcDestroyed() when they are deallocated. Not traversing them allows
   // functions to be garbage collected independently of this CompiledFunction.
 
-  // Traverse all references held by the CodeRuntime.
-  if (data_.runtime != nullptr) {
-    return data_.runtime->traverse(visit, arg);
+  if (data_ == nullptr) {
+    return 0;
+  }
+
+  if (!contiguous_data_) {
+    Py_VISIT(data_);
+  } else if (data_->runtime != nullptr) {
+    return data_->runtime->traverse(visit, arg);
   }
 
   return 0;
@@ -277,13 +345,16 @@ void CompiledFunction::clear(bool context_finalizing) {
   // Copy function pointers before clearing the set.
   if (owner_ != nullptr) {
     if (!context_finalizing) {
-      // These will be cleared on their own if we're finaling the context,
-      // let's not complicate the iteration.
       owner_->forgetCompiledFunction(*this);
     }
-    for (auto& patcher : data_.code_patchers) {
-      if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(patcher.get())) {
-        owner_->unwatch(typed_patcher);
+    if (data_ != nullptr) {
+      // These will be cleared on their own if we're finalizing the context,
+      // let's not complicate the iteration.
+      for (auto& patcher : data_->code_patchers) {
+        if (auto typed_patcher =
+                dynamic_cast<TypeDeoptPatcher*>(patcher.get())) {
+          owner_->unwatch(typed_patcher);
+        }
       }
     }
 
@@ -302,9 +373,9 @@ void CompiledFunction::clear(bool context_finalizing) {
   }
 
   // Clear all references held by the CodeRuntime.
-  if (data_.runtime != nullptr) {
-    data_.runtime->releaseReferences();
-    data_.runtime = nullptr;
+  if (data_ != nullptr && data_->runtime != nullptr) {
+    data_->runtime->releaseReferences();
+    data_->runtime = nullptr;
   }
 }
 
