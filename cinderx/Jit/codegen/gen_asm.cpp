@@ -32,6 +32,7 @@
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/regalloc.h"
+#include "cinderx/Jit/lir/target_select.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
@@ -698,6 +699,17 @@ void* NativeGenerator::getVectorcallEntry() {
       GetFunction()->compilation_phase_timer,
       "DeadCodeElimination",
       eliminateDeadCode(lir_func.get()))
+
+  COMPILE_TIMER(
+      GetFunction()->compilation_phase_timer,
+      "Target Opcode Selection",
+      selectTargetOpcodes(lir_func.get()))
+
+  JIT_LOGIF(
+      getConfig().log.dump_lir,
+      "LIR for {} after target opcode selection:\n{}",
+      GetFunction()->fullname,
+      *lir_func);
 
   int frame_header_size = frameHeaderSize(func_->code);
   frame_header_size += sizeof(void*);
