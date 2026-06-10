@@ -84,8 +84,22 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 
+      # On Linux, build the musllinux wheels first (free-threaded first) so a
+      # musllinux/FT failure surfaces quickly instead of only after all the
+      # manylinux wheels have built.  cibuildwheel builds in a fixed order
+      # (manylinux before musllinux), so the order is forced here with --only.
+      - name: Build musllinux wheels first (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          arch=$(uname -m)
+          python -m cibuildwheel --only "cp314t-musllinux_${arch}" --output-dir wheelhouse
+          python -m cibuildwheel --only "cp314-musllinux_${arch}" --output-dir wheelhouse
+
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          # musllinux already built above on Linux; build everything else here.
+          CIBW_SKIP: ${{ runner.os == 'Linux' && '*-musllinux_*' || '' }}
 
   build_sdist:
     name: Build source distribution
