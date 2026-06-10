@@ -97,6 +97,10 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
   JitGenObject* jit_gen = JitGenObject::cast(obj);
   if (jit_gen != nullptr) {
     const GenDataFooter* gen_footer = jit_gen->genDataFooter();
+    if (!_Py_IsImmortal(gen_footer->compiled_func)) {
+      // If we immortalized it then we didn't allocate the GC header either.
+      Py_VISIT(gen_footer->compiled_func);
+    }
     // Only visit JIT-specific live values if we have a valid yield point.
     // If yieldPoint is null, the generator hasn't yielded yet or has completed,
     // but we still need to call PyGen_Type.tp_traverse below to visit standard
@@ -104,7 +108,7 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
     if (gen_footer->yieldPoint != nullptr) {
       size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
       const DeoptMetadata& meta =
-          gen_footer->code_rt->getDeoptMetadata(deopt_idx);
+          gen_footer->compiled_func->runtime()->getDeoptMetadata(deopt_idx);
       for (const LiveValue& value : meta.live_values) {
         if (value.ref_kind != hir::RefKind::kOwned) {
           continue;
@@ -780,6 +784,10 @@ PyType_Spec JitCoro_Spec = {
 };
 
 void deopt_jit_gen_object_only(JitGenObject* gen) {
+  // Release the strong reference to the CompiledFunction that was taken
+  // when the generator was allocated.
+  GenDataFooter* footer = gen->genDataFooter();
+
   PyTypeObject* old_type = Py_TYPE(gen);
 
   PyTypeObject* type = Py_TYPE(gen) == cinderx::getModuleState()->gen_type
@@ -800,6 +808,7 @@ void deopt_jit_gen_object_only(JitGenObject* gen) {
     Py_XDECREF(jitFrameGetFunction(frame));
   }
 #endif
+  Py_CLEAR(footer->compiled_func);
 }
 
 bool deopt_jit_gen(PyObject* obj) {
@@ -818,8 +827,9 @@ bool deopt_jit_gen(PyObject* obj) {
     // missing deopt logging here. Although if we used the existing stuff
     // for this it might be misleading as the "cause" will not be an
     // executed instruction.
-    const DeoptMetadata& deopt_meta = gen_footer->code_rt->getDeoptMetadata(
-        gen_footer->yieldPoint->deoptIdx());
+    const DeoptMetadata& deopt_meta =
+        gen_footer->compiled_func->runtime()->getDeoptMetadata(
+            gen_footer->yieldPoint->deoptIdx());
     JIT_CHECK(
         deopt_meta.inline_depth() == 0,
         "inline functions not supported for generators");

@@ -145,6 +145,118 @@ class DeferredCleanupTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("OK", proc.stdout, proc)
 
+    def test_deopt_generator_keeps_code_alive_while_suspended(self) -> None:
+        """
+        A suspended generator keeps its JIT-compiled code alive.
+
+        Unlike a plain function, a generator can be suspended at a yield point
+        with a JIT frame that is NOT on any thread's stack -- so the deferred
+        cleanup stack-walk cannot protect it.  Instead the suspended generator
+        holds a strong reference to the CompiledFunction, so dropping the
+        function dict's reference does NOT free the code.  Resuming the
+        generator afterwards must run the still-live code and produce correct
+        results without crashing.
+        """
+        proc = self._run_subprocess("""
+            import gc
+
+            import cinderx.jit
+
+            COMPILED_KEY = "__cinderx_compiled_func__"
+
+            def gen(n):
+                acc = 0
+                for i in range(n):
+                    acc += i
+                    yield acc
+
+            cinderx.jit.force_compile(gen)
+            assert cinderx.jit.is_jit_compiled(gen)
+            assert COMPILED_KEY in gen.__dict__
+
+            # Suspend the generator mid-execution: it now has a live JIT frame
+            # holding the loop state across the yield.
+            g = gen(5)
+            assert next(g) == 0
+
+            # Drop the function dict's reference to the CompiledFunction.  The
+            # suspended generator keeps it (and its machine code) alive, so the
+            # function is NOT deopted while the generator is live -- this is the
+            # guarantee that makes resuming safe.
+            del gen.__dict__[COMPILED_KEY]
+            assert COMPILED_KEY not in gen.__dict__
+            assert cinderx.jit.is_jit_compiled(gen)
+
+            # A generation-2 GC reclaims deferred code whose frames are gone.
+            # The suspended frame is not on any stack, so only the generator's
+            # strong reference keeps the code from being freed here.
+            gc.collect()
+            assert cinderx.jit.is_jit_compiled(gen)
+
+            # Resuming the suspended JIT frame must not crash and must produce
+            # the right values, proving the code stayed alive.
+            assert list(g) == [1, 3, 6, 10]
+
+            # Once the generator is gone the CompiledFunction is released and
+            # the function finally deopts -- still no crash.
+            del g
+            gc.collect()
+            assert not cinderx.jit.is_jit_compiled(gen)
+
+            print("OK")
+        """)
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertIn("OK", proc.stdout, proc)
+
+    def test_many_suspended_generators_survive_gc(self) -> None:
+        """
+        Many generators suspended at once all share a single CompiledFunction.
+        After dropping the function dict's reference, repeated full collections
+        must not free the code out from under any of the live suspended frames,
+        and every generator must resume to completion without crashing.
+        """
+        proc = self._run_subprocess("""
+            import gc
+
+            import cinderx.jit
+
+            COMPILED_KEY = "__cinderx_compiled_func__"
+
+            def gen(n):
+                acc = 0
+                for i in range(n):
+                    acc += i
+                    yield acc
+
+            cinderx.jit.force_compile(gen)
+            assert cinderx.jit.is_jit_compiled(gen)
+
+            gens = [gen(5) for _ in range(10)]
+            for g in gens:
+                assert next(g) == 0
+
+            # The suspended generators are now the only thing keeping the
+            # compiled code alive.
+            del gen.__dict__[COMPILED_KEY]
+
+            for _ in range(3):
+                gc.collect()
+                assert cinderx.jit.is_jit_compiled(gen)
+
+            # Resume every generator to completion, interleaving collections.
+            for g in gens:
+                assert list(g) == [1, 3, 6, 10]
+                gc.collect()
+
+            del gens, g
+            gc.collect()
+            assert not cinderx.jit.is_jit_compiled(gen)
+
+            print("OK")
+        """)
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertIn("OK", proc.stdout, proc)
+
 
 if __name__ == "__main__":
     unittest.main()

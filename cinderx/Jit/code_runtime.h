@@ -15,6 +15,8 @@
 
 namespace jit {
 
+class CompiledFunction;
+
 constexpr ptrdiff_t kInvalidYieldFromOffset =
     std::numeric_limits<ptrdiff_t>::max();
 
@@ -114,6 +116,10 @@ class alignas(16) CodeRuntime {
 
   BorrowedRef<> reifier();
 
+  void setCompiledFunction(BorrowedRef<CompiledFunction> compiled_func);
+
+  BorrowedRef<CompiledFunction> compiledFunction() const;
+
  private:
   BorrowedRef<PyCodeObject> code_;
   BorrowedRef<PyDictObject> builtins_;
@@ -140,6 +146,10 @@ class alignas(16) CodeRuntime {
   // Map from call return addresses to post-call guard deopt exits.
   // Built during codegen, used by deoptAllJitFramesOnStack().
   std::unordered_map<uintptr_t, uintptr_t> callsite_deopt_exits_;
+
+  // Backpointer to the CompiledFunction that owns this CodeRuntime.
+  // Set after CompiledFunction::create() in makeCompiledFunction().
+  BorrowedRef<CompiledFunction> compiled_function_;
 
   int frame_size_{-1};
   uint32_t spill_words_{0};

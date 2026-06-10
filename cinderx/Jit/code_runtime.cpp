@@ -199,4 +199,13 @@ BorrowedRef<> CodeRuntime::reifier() {
 #endif
 }
 
+void CodeRuntime::setCompiledFunction(
+    BorrowedRef<CompiledFunction> compiled_func) {
+  compiled_function_ = compiled_func;
+}
+
+BorrowedRef<CompiledFunction> CodeRuntime::compiledFunction() const {
+  return compiled_function_;
+}
+
 } // namespace jit

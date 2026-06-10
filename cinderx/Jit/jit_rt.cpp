@@ -738,7 +738,14 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
   footer->gen = static_cast<PyGenObject*>(gen);
-  footer->code_rt = code_rt;
+  BorrowedRef<jit::CompiledFunction> compiled_func =
+      code_rt->compiledFunction();
+  JIT_DCHECK(
+      compiled_func != nullptr,
+      "CodeRuntime has no associated CompiledFunction: {}",
+      PyUnicode_AsUTF8(co->co_qualname));
+  Py_INCREF(compiled_func.get());
+  footer->compiled_func = compiled_func.get();
   footer->originalFramePointer = original_frame_pointer;
   footer->linkAddress =
       *reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr

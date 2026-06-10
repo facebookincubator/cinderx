@@ -726,6 +726,10 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     return nullptr;
   }
 
+  if (compiled->runtime() != nullptr) {
+    compiled->runtime()->setCompiledFunction(compiled);
+  }
+
   // If the registered outer func for the code is different than the func we
   // will register the CompiledCode on the outer most function.
   if (outer != nullptr && outer->func_globals == key.globals &&
