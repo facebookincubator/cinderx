@@ -12,6 +12,8 @@ option(ENABLE_PGO_GENERATE "Build with PGO profile generation" OFF)
 option(ENABLE_PGO_USE "Build with PGO profile use" OFF)
 set(PGO_PROFILE_FILE "" CACHE STRING "Path to PGO profile data")
 
+option(BUILD_RUNTIME_TESTS "Build the cinderx/RuntimeTests C++ GoogleTest binary" OFF)
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
   set(WINDOWS 0)
@@ -38,7 +40,8 @@ else()
 endif()
 
 macro(set_flag VAR)
-  if (DEFINED ${VAR} AND ${${VAR}})
+  # Undefined feature flags should behave like OFF.
+  if (${VAR})
     set(SHARED_FLAGS "-D${VAR} ${SHARED_FLAGS}")
   endif()
 endmacro()
@@ -186,6 +189,11 @@ include(FetchContent)
 # python
 
 find_package(Python ${PY_VERSION} EXACT COMPONENTS Interpreter Development.Module REQUIRED)
+
+# RuntimeTests embeds Python, so it needs Python::Python.
+if (BUILD_RUNTIME_TESTS)
+  find_package(Python ${PY_VERSION} EXACT COMPONENTS Development.Embed REQUIRED)
+endif()
 
 # Some of our files are partially generated from CPython source, and they
 # expect to be able to include files relative to Include/internal.
@@ -425,9 +433,8 @@ add_library(parallel-gc ${PARALLEL_GC_SOURCES})
 ########################################
 # _cinderx.cpp
 
-set(SOURCES
+set(CINDERX_MODULE_LIB_SOURCES
   # Manually listed out to not accidentally include stuff in .git.
-  ${PROJECT_SOURCE_DIR}/_cinderx.cpp
   ${PROJECT_SOURCE_DIR}/_cinderx-lib.cpp
   ${PROJECT_SOURCE_DIR}/async_lazy_value.cpp
   ${PROJECT_SOURCE_DIR}/module_state.cpp
@@ -435,14 +442,20 @@ set(SOURCES
   ${PROJECT_SOURCE_DIR}/python_runtime.cpp
 )
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
-
+add_library(cinderx-lib STATIC ${CINDERX_MODULE_LIB_SOURCES})
 target_link_libraries(
-  ${PROJECT_NAME}
+  cinderx-lib
   PRIVATE
   Python::Module
   borrowed cached-properties common immortalize interpreter jit parallel-gc static-python
   asmjit::asmjit fmt::fmt)
+
+add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_DIR}/_cinderx.cpp)
+
+target_link_libraries(
+  ${PROJECT_NAME}
+  PRIVATE
+  cinderx-lib)
 
 # macOS doesn't allow depending on other shared libraries by default.
 if (${MACOS})
@@ -455,4 +468,63 @@ if (WINDOWS)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.pyd")
 else()
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "_cinderx.so")
+endif()
+
+##############################################################################
+# RuntimeTests/ — opt-in C++ GoogleTest binary.
+
+if (BUILD_RUNTIME_TESTS)
+  enable_testing()
+
+  ########################################
+  # GoogleTest
+
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest
+    GIT_TAG v1.15.2 # 2024-Jul-31
+  )
+  FetchContent_MakeAvailable(googletest)
+
+  ########################################
+  # RuntimeTests executable
+
+  file(GLOB RUNTIME_TESTS_SOURCES
+    CONFIGURE_DEPENDS
+    ${PROJECT_SOURCE_DIR}/RuntimeTests/*.cpp
+  )
+
+  if (NOT ENABLE_ELF_READER)
+    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp)
+  endif()
+
+  if (NOT ENABLE_SYMBOLIZER)
+    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
+  endif()
+
+  add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
+
+  target_link_libraries(
+    RuntimeTests
+    PRIVATE
+    cinderx-lib
+    asmjit::asmjit fmt::fmt
+    GTest::gtest
+    Python::Python
+  )
+
+  target_compile_definitions(
+    RuntimeTests
+    PRIVATE
+    CINDERX_RUNTIME_TESTS_STATIC_CINDERX=1
+    # Used by RuntimeTest::SetUp() to import cinderx from PythonLib.
+    CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE=${PROJECT_SOURCE_DIR}/PythonLib
+  )
+
+  add_test(
+    NAME RuntimeTests
+    COMMAND RuntimeTests
+    # RuntimeTests open source-tree test data relative to cwd.
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  )
 endif()

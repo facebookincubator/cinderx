@@ -31,6 +31,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace {
 
@@ -160,10 +161,16 @@ void register_test(
   }
 }
 
+#define _QUOTE_HELPER(x) #x
+#define _QUOTE(x) _QUOTE_HELPER(x)
+
 #ifdef BAKED_IN_PYTHONPATH
-#define _QUOTE(x) #x
-#define QUOTE(x) _QUOTE(x)
-#define _BAKED_IN_PYTHONPATH QUOTE(BAKED_IN_PYTHONPATH)
+#define _BAKED_IN_PYTHONPATH _QUOTE(BAKED_IN_PYTHONPATH)
+#endif
+
+#ifdef CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE
+#define _CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE \
+  _QUOTE(CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE)
 #endif
 
 } // namespace
@@ -205,7 +212,11 @@ void registerCinderX() {
 }
 
 int main(int argc, char* argv[]) {
-#ifdef BAKED_IN_PYTHONPATH
+#ifdef CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE
+  // OSS path: point PYTHONPATH at the in-tree cinderx package so
+  // RuntimeTest::SetUp() can explicitly import cinderx after Py_Initialize().
+  setenv("PYTHONPATH", _CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE, 1);
+#elif defined(BAKED_IN_PYTHONPATH)
   setenv("PYTHONPATH", _BAKED_IN_PYTHONPATH, 1);
 #endif
 

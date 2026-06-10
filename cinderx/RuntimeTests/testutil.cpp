@@ -194,7 +194,7 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
         fmt::format("Failed opening test data file: {}", strerror(errno))};
   }
   FileGuard g(file);
-  Reader reader(file, path);
+  Reader reader(file, path.string());
 
   auto suite = initTestSuite(reader);
 

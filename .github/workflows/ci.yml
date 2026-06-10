@@ -48,6 +48,10 @@ jobs:
       run: uv venv --python ${{ matrix.python-version }}
 
     - name: Build CinderX
+      # RuntimeTests do not support Windows or free-threaded builds yet.
+      env:
+        CINDERX_BUILD_RUNTIME_TESTS: ${{ runner.os != 'Windows' && matrix.python-version != '3.14t' && '1' || '' }}
+        CINDERX_RUNTIME_TESTS_OUTPUT_DIR: ${{ github.workspace }}/build/runtime-tests
       run: uv build --wheel --python ${{ matrix.python-version }}
 
     - name: Install CinderX
@@ -62,6 +66,29 @@ jobs:
 
     - name: Run Tests
       run: uv run pytest cinderx/PythonLib/test_cinderx/
+
+    - name: Run native tests
+      if: runner.os != 'Windows' && matrix.python-version != '3.14t'
+      # Skip known OSS-only failures. Keep these narrow so RuntimeTests still
+      # provide useful signal.
+      # TODO(T275133043): burn these down as the underlying issues are fixed.
+      # Particularly the segfaults.
+      run: |
+        set -euo pipefail
+        common='AllPassesTest.*:AllPassesStaticTest.*:CmdLineTest.ExplicitJITDisable:UtilTest.SymbolizerResolvesDynamicSymbol'
+        arm64='LIRGeneratorTest.ParserTest:BackendTest.MoveSequenceOpt2Test:CodePatcherTest.DeoptPatch:BranchRelaxationTest.*'
+        macos='BackendTest.CastTest:BackendTest.InlineJITRTCastTest:SimplifyTest.BinaryOpWithObjSpecLeftAndRightFloatExactTurnsIntoLoadConst:NativeCallsTest.NativeInvokeBasic:SimplifyStaticTest.UnboxOfRandMaxIsEliminated:DeadCodeEliminationAndSimplifyTest.UnboxOfStaticGlobalIsOptimized:HIRBuilderStaticTest.CIntTypeEmitsConvertPrimitive:CodePatcherTest.DeoptPatch'
+        filter="-${common}"
+        if [[ "$RUNNER_ARCH" == "ARM64" ]]; then
+          filter="${filter}:${arm64}"
+        fi
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          filter="${filter}:${macos}"
+        fi
+        package_parent="$(uv run python -c 'import pathlib, cinderx; print(pathlib.Path(cinderx.__file__).resolve().parent.parent)')"
+        export PYTHONPATH="$package_parent"
+        export GTEST_FILTER="$filter"
+        (cd cinderx && ../build/runtime-tests/RuntimeTests)
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
