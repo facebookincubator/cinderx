@@ -2150,7 +2150,7 @@ static void Ci_ParGCWorker_MarkReachable(Ci_ParGCWorker* worker) {
 static void Ci_ParGCWorker_Run(Ci_ParGCWorker* worker) {
   Ci_ParGCState* par_gc = worker->par_gc;
 #if PY_VERSION_HEX >= 0x030E0000
-  Ci_SetTStateForGC(par_gc->tstate);
+  _Ci_PySetTStateForGC(par_gc->tstate);
 #endif
 
   atomic_fetch_add(&par_gc->num_workers_active, 1);
