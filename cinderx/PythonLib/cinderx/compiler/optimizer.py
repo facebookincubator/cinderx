@@ -33,6 +33,7 @@ INVERSE_OPS: Mapping[type[cmpop], type[cmpop]] = {
     ast.NotIn: ast.In,
 }
 
+# pyrefly: ignore [bad-assignment]
 BIN_OPS: Mapping[type[ast.operator], Callable[[object, object], object]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,

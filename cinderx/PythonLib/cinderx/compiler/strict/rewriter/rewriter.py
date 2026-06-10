@@ -276,6 +276,7 @@ class StrictModuleRewriter:
         )
 
     def transform_body(self) -> Iterable[stmt]:
+        # pyrefly: ignore [bad-argument-type]
         scopes = ScopeStack(
             SymbolScope(self.table, ScopeData()), symbol_map=self.symbol_map
         )

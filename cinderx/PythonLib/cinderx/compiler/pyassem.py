@@ -1369,6 +1369,7 @@ class PyFlowGraph(FlowGraph):
                 worklist.append(next)
                 next.num_predecessors += 1
 
+        # pyrefly: ignore [bad-argument-type]
         self.unlink_unreachable_basic_blocks(reachable_blocks)
 
     def normalize_basic_block(self, block: Block) -> None:
@@ -2377,6 +2378,7 @@ class PyFlowGraph314(PyFlowGraph312):
                     if target not in warm and target not in visited:
                         # pyrefly: ignore [bad-argument-type]
                         stack.append(target)
+                        # pyrefly: ignore [bad-argument-type]
                         visited.add(target)
         return cold
 
@@ -2463,7 +2465,7 @@ class PyFlowGraph314(PyFlowGraph312):
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         **PyFlowGraph312._converters,
         "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],
-        # pyrefly: ignore [bad-typed-dict-key]
+        # pyrefly: ignore [bad-index, bad-typed-dict-key]
         "LOAD_SPECIAL": lambda self, val: PyFlowGraph314._load_special_idx[val],
         "COMPARE_OP": _convert_compare_op,
     }
