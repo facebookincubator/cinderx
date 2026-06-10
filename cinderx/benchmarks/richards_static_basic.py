@@ -7,12 +7,7 @@ static_python_loader.install()
 import sys
 
 import cinderx.jit
-
-try:
-    from .richards_static_basic_lib import Richards  # buck
-except ImportError:
-    # pyre-ignore[21]: Undefined import
-    from richards_static_basic_lib import Richards  # OSS standalone script
+from richards_static_basic_lib import Richards
 
 
 if __name__ == "__main__":
