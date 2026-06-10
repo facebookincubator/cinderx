@@ -373,6 +373,10 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #endif
 #ifdef META_PYTHON
 #endif
+#ifdef META_PYTHON
+#endif
+#ifdef META_PYTHON
+#endif
 #else   // Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
