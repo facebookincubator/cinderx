@@ -999,6 +999,26 @@ bool compile_all(size_t workers = 0) {
   // Units that were deleted during preloading.
   std::unordered_set<BorrowedRef<>> deleted_units;
 
+  // Own every unit we are about to process for the whole preload+compile
+  // region.
+  //
+  // registered_compilation_units only holds *borrowed* references, and the JIT
+  // learns a unit went away via the function-destroyed watcher, which fires
+  // only on *deallocation*.  A cyclic gen-2 GC that runs mid-preload
+  // (preloading executes Python) can instead run func_clear() on a queued
+  // function that is part of a garbage cycle -- nulling its
+  // func_builtins/func_globals (or freeing it) without firing the watcher --
+  // and the preloader then dereferences the cleared/freed function and crashes.
+  // D107311077 ("Free code via GC") made this far more likely by releasing the
+  // deferred-cleanup map's references (often a cycle's last anchor) from a
+  // gen-2 GC callback.
+  //
+  // Holding a strong reference makes the cyclic GC treat each unit (and its
+  // reachable globals/builtins) as externally reachable, so it is never
+  // collected or cleared while queued.  The references drop when compile_all
+  // returns.
+  std::vector<Ref<>> owned_units;
+
   auto mod_state = cinderx::getModuleState();
   auto& jit_reg_units = mod_state->registered_compilation_units;
   JIT_DLOG(
@@ -1010,6 +1030,15 @@ bool compile_all(size_t workers = 0) {
   while (jit_reg_units.size() > 0) {
     auto preload_units = std::move(jit_reg_units);
     jit_reg_units.clear();
+
+    // Take a strong reference to every unit in this batch before preloading (or
+    // a GC) can run, so the cyclic GC can't clear or collect a queued unit out
+    // from under the preloader.
+    owned_units.reserve(owned_units.size() + preload_units.size());
+    for (auto unit : preload_units) {
+      owned_units.push_back(Ref<>::create(unit));
+    }
+
     JIT_DLOG(
         "compile_all preloading a batch of {} units", preload_units.size());
 
@@ -3222,6 +3251,55 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
   notifyUnitDeletedDuringPreload(mod_state, func.getObj());
 }
 
+PyObject* gc_callback(PyObject* /*self*/, PyObject* args) {
+  const char* phase = nullptr;
+  PyObject* info = nullptr;
+  if (!PyArg_ParseTuple(args, "sO", &phase, &info)) {
+    return nullptr;
+  } else if (phase == nullptr || info == nullptr) {
+    PyErr_SetString(PyExc_ValueError, "expected GC info");
+    return nullptr;
+  }
+  if (strcmp(phase, "start") == 0 && PyDict_Check(info)) {
+    PyObject* generation = PyDict_GetItemString(info, "generation");
+    if (generation != nullptr && PyLong_CheckExact(generation) &&
+        PyLong_AsLong(generation) == 2) {
+      auto* ctx = jitCtx();
+      if (ctx != nullptr) {
+        ctx->processDeferredCleanup();
+      }
+    }
+  }
+  Py_RETURN_NONE;
+}
+
+PyMethodDef gc_callback_method = {
+    "cinderjit_gc_callback",
+    gc_callback,
+    METH_VARARGS,
+    nullptr,
+};
+
+int register_gc_callback() {
+  Ref<> gc_mod = Ref<>::steal(PyImport_ImportModule("gc"));
+  if (gc_mod == nullptr) {
+    return -1;
+  }
+  Ref<> callbacks = Ref<>::steal(PyObject_GetAttrString(gc_mod, "callbacks"));
+  if (callbacks == nullptr) {
+    return -1;
+  }
+  Ref<> callback_func =
+      Ref<>::steal(PyCFunction_New(&gc_callback_method, nullptr));
+  if (callback_func == nullptr) {
+    return -1;
+  }
+  if (PyList_Append(callbacks, callback_func) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
 } // namespace
 
 namespace jit {
@@ -3327,7 +3405,8 @@ int initialize() {
 
   jitCtx()->setCinderJitModule(Ref<>::steal(mod));
 
-  if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0) {
+  if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0 ||
+      register_gc_callback() < 0) {
     return -1;
   }
 

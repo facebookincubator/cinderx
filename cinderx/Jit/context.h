@@ -134,6 +134,39 @@ struct std::hash<jit::CompilationKey> {
 
 namespace jit {
 
+struct OwnedCompilationKey {
+  Ref<> code;
+  Ref<> builtins;
+  Ref<> globals;
+
+  explicit OwnedCompilationKey(BorrowedRef<PyFunctionObject> func)
+      : code{Ref<>::create(func->func_code)},
+        builtins{Ref<>::create(func->func_builtins)},
+        globals{Ref<>::create(func->func_globals)} {}
+
+  OwnedCompilationKey(Ref<> code, Ref<> builtins, Ref<> globals)
+      : code{std::move(code)},
+        builtins{std::move(builtins)},
+        globals{std::move(globals)} {}
+
+  bool operator==(const OwnedCompilationKey& other) const = default;
+};
+
+} // namespace jit
+
+template <>
+struct std::hash<jit::OwnedCompilationKey> {
+  std::size_t operator()(const jit::OwnedCompilationKey& key) const {
+    std::hash<PyObject*> hasher;
+    return jit::combineHash(
+        hasher(key.code.get()),
+        hasher(key.globals.get()),
+        hasher(key.builtins.get()));
+  }
+};
+
+namespace jit {
+
 /*
  * A jit::Context encapsulates all the state managed by an instance of the JIT.
  */
@@ -317,7 +350,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       const CodeRuntime* code_runtime,
       std::size_t deopt_idx,
       F&& f) const {
-    return withDeoptStatsLock([&]() {
+    return withLock(deopt_stats_mutex_, [&]() {
       const DeoptStat* stat = deoptStat(code_runtime, deopt_idx);
       if (stat == nullptr) {
         return false;
@@ -431,6 +464,19 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   const hir::Type& typeForCommonConstant(int i) const;
 
+  // Accept a CompiledFunctionData for deferred cleanup.  The data will be
+  // kept alive until processDeferredCleanup() determines no thread is
+  // executing the associated code.
+  void deferCompiledData(
+      Ref<> code,
+      Ref<> builtins,
+      Ref<> globals,
+      CompiledFunctionData* data) override;
+
+  // Walk all thread stacks and free deferred CompiledFunctionData entries
+  // whose code is no longer executing on any thread.
+  void processDeferredCleanup();
+
   // Map of all code objects to the functions that they were found in.
   // Needed for printing the name of the code object and for preloading.
   UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>&
@@ -457,9 +503,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   FunctionEntryCacheMap function_entry_caches_;
 
   template <typename F>
-  decltype(auto) withDeoptStatsLock(F&& f) const {
+  decltype(auto) withLock(std::mutex& lock, F&& f) const {
     if constexpr (kFreeThreadedBuild) {
-      std::lock_guard<std::mutex> lock(deopt_stats_mutex_);
+      std::lock_guard<std::mutex> guard(lock);
       return f();
     }
     return f();
@@ -470,6 +516,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Only needed in free-threaded builds; kept unconditional so callers can use
   // kFreeThreadedBuild instead of #ifdefs.
   mutable std::mutex deopt_stats_mutex_;
+  mutable std::mutex deferred_compile_data_mutex_;
 
   // Get the stat object for a given deopt. It will not exist if the deopt has
   // never been hit. Caller must hold deopt_stats_mutex_ in free-threaded
@@ -552,6 +599,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Map of all code objects to the functions that they were found in.
   UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
       code_outer_funcs_;
+
+  std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>
+      deferred_compiled_data_;
 };
 
 // A CompilerContext is like a Context but it also holds a compiler object
@@ -566,6 +616,15 @@ class CompilerContext : public Context {
  private:
   T compiler_;
 };
+
+// Walk all thread stacks and move entries from `pending` whose code is still
+// executing back into `still_active`.  Uses jitFrameGetFunction to correctly
+// identify JIT frames across all Python versions.  Defined in frame.cpp
+// because it needs access to frame internals that context.cpp cannot include.
+void retainActiveDeferredData(
+    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>& pending,
+    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>&
+        still_active);
 
 /*
  * An AotContext is like the JIT context, but it holds onto state for

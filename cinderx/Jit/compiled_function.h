@@ -121,6 +121,12 @@ class CompiledFunctionOwner {
   virtual void forgetCompiledFunction(CompiledFunction& function) = 0;
 
   virtual void unwatch(TypeDeoptPatcher*) = 0;
+
+  virtual void deferCompiledData(
+      Ref<> code,
+      Ref<> builtins,
+      Ref<> globals,
+      CompiledFunctionData* data) = 0;
 };
 
 // CompiledFunction is a Python GC object that contains a pointer to the native
@@ -212,6 +218,22 @@ class CompiledFunction {
   // Clear all references held by this CompiledFunction and deopt all
   // associated functions.
   void clear(bool context_finalizing = false);
+
+  bool isContiguous() const {
+    return contiguous_data_;
+  }
+
+  CompiledFunctionData* data() const {
+    return data_;
+  }
+
+  // Transfer ownership of the CompiledFunctionData out of this object.
+  // After this call, the CF no longer owns or references the data.
+  CompiledFunctionData* stealData() {
+    CompiledFunctionData* d = data_;
+    data_ = nullptr;
+    return d;
+  }
 
  private:
   explicit CompiledFunction(CompiledFunctionData* data, bool contiguous)

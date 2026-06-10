@@ -768,6 +768,67 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
 #endif
 }
 
+// If the frame is JITed returns the function object. Returns null otherwise.
+// On the OSS build we can't distinguish between JITed and non-JITed frames
+// because we don't have the reifier so always returns the function object.
+BorrowedRef<PyFunctionObject> getFrameFunctionIfJitted(
+    _PyInterpreterFrame* frame) {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (isJitFrame(frame)) {
+    return jitFrameGetFunction(frame);
+  }
+  return nullptr;
+#else
+  // In the OSS build we can't distinguish between JITed and non-JITed frames
+  return frameFunction(frame);
+#endif
+}
+
+void retainActiveDeferredData(
+    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>& pending,
+    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>&
+        still_active) {
+  PyInterpreterState* interp = PyInterpreterState_Get();
+
+#ifdef Py_GIL_DISABLED
+  _PyEval_StopTheWorld(interp);
+#endif
+
+  PyThreadState* ts = PyInterpreterState_ThreadHead(interp);
+  while (ts != nullptr) {
+    _PyInterpreterFrame* frame = currentFrame(ts);
+    while (frame != nullptr) {
+      // Skip incomplete frames (interpreter/C-stack entry frames). Their
+      // f_executable can spuriously satisfy isJitFrame() on 3.14+ while
+      // f_funcobj still holds sentinel garbage, so treating them as JIT frames
+      // would dereference an invalid function. Matches visitJitDeferredRefs().
+#if PY_VERSION_HEX >= 0x030E0000
+      if (frame->owner >= FRAME_OWNED_BY_INTERPRETER) {
+#else
+      if (frame->owner >= FRAME_OWNED_BY_CSTACK) {
+#endif
+        frame = frame->previous;
+        continue;
+      }
+      BorrowedRef<PyFunctionObject> func = getFrameFunctionIfJitted(frame);
+      if (func != nullptr) {
+        OwnedCompilationKey key{func};
+        auto it = pending.find(key);
+        if (it != pending.end()) {
+          still_active.emplace(std::move(key), std::move(it->second));
+          pending.erase(it);
+        }
+      }
+      frame = frame->previous;
+    }
+    ts = PyThreadState_Next(ts);
+  }
+
+#ifdef Py_GIL_DISABLED
+  _PyEval_StartTheWorld(interp);
+#endif
+}
+
 void deoptAllJitFramesOnStack() {
 #if defined(__x86_64__) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   PyInterpreterState* interp = PyInterpreterState_Get();

@@ -139,6 +139,33 @@ Context::~Context() {
   for (auto& code : compiled_codes_) {
     code.second->clear(true /* context_finalizing */);
   }
+
+  // Also clear orphaned CFs (from clearForMultithreadedCompileTest) whose
+  // data_ still references CodeRuntimes in our slab.
+  for (auto& cf : orphaned_compiled_codes_) {
+    if (cf->data() != nullptr && cf->data()->runtime != nullptr) {
+      cf->data()->runtime = nullptr;
+    }
+  }
+
+  // The deferred map holds owning references to module dicts (the code's
+  // globals/builtins captured in OwnedCompilationKey) as well as the
+  // CompiledFunctionData objects.  During interpreter finalization those dicts
+  // may already have been GC-untracked by the runtime while our map still holds
+  // the last reference.  Letting the map's destructor decref them would re-run
+  // PyObject_GC_UnTrack on an already-untracked object and crash.  Since the
+  // process is exiting, intentionally leak these references instead of
+  // releasing them.  Outside of finalization the normal map destruction
+  // releases them.
+  if (Py_IsFinalizing()) {
+    for (auto& entry : deferred_compiled_data_) {
+      OwnedCompilationKey& key = const_cast<OwnedCompilationKey&>(entry.first);
+      key.code.release();
+      key.builtins.release();
+      key.globals.release();
+      entry.second.release();
+    }
+  }
 }
 
 void Context::mlockProfilerDependencies() {
@@ -236,7 +263,7 @@ void Context::recordDeopt(
     CodeRuntime* code_runtime,
     std::size_t idx,
     BorrowedRef<> guilty_value) {
-  withDeoptStatsLock([&]() {
+  withLock(deopt_stats_mutex_, [&]() {
     DeoptStat& stat = deopt_stats_[code_runtime][idx];
     stat.count++;
     if (guilty_value != nullptr) {
@@ -260,7 +287,7 @@ const DeoptStat* Context::deoptStat(
 }
 
 void Context::clearDeoptStats() {
-  withDeoptStatsLock([&]() { deopt_stats_.clear(); });
+  withLock(deopt_stats_mutex_, [&]() { deopt_stats_.clear(); });
 }
 
 InlineCacheStats Context::getAndClearLoadMethodCacheStats() {
@@ -721,6 +748,35 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
       "CompilationKey already present {}",
       PyUnicode_AsUTF8(reinterpret_cast<PyCodeObject*>(key.code)->co_qualname));
   return compiled;
+}
+
+void Context::deferCompiledData(
+    Ref<> code,
+    Ref<> builtins,
+    Ref<> globals,
+    CompiledFunctionData* data) {
+  OwnedCompilationKey key{
+      std::move(code), std::move(builtins), std::move(globals)};
+  withLock(deferred_compile_data_mutex_, [&]() {
+    deferred_compiled_data_.emplace(
+        std::move(key), Ref<CompiledFunctionData>::steal(data));
+  });
+}
+
+void Context::processDeferredCleanup() {
+  // Move the deferred map into a local.  retainActiveDeferredData walks
+  // all thread stacks (using jitFrameGetFunction for correct JIT frame
+  // access) and moves entries that are still executing back into the
+  // member map.  When the local destructs the remaining entries are freed.
+  withLock(deferred_compile_data_mutex_, [&]() {
+    if (deferred_compiled_data_.empty()) {
+      return;
+    }
+
+    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>> pending =
+        std::move(deferred_compiled_data_);
+    retainActiveDeferredData(pending, deferred_compiled_data_);
+  });
 }
 
 #ifndef WIN32

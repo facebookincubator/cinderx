@@ -72,6 +72,18 @@ static PyTypeObject _CiCompiledFunction_Type = {
 void compiledfuncdata_dealloc(PyObject* self) {
   CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
   PyObject_GC_UnTrack(self);
+
+  // Release the code buffer back to the allocator.  For the contiguous
+  // (immortal) case this is handled by the CompiledFunction destructor
+  // instead.
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  if (mod_state != nullptr && cfd->code.data() != nullptr) {
+    jit::ICodeAllocator* code_allocator = mod_state->code_allocator.get();
+    if (code_allocator != nullptr) {
+      code_allocator->releaseCode(const_cast<std::byte*>(cfd->code.data()));
+    }
+  }
+
   cfd->~CompiledFunctionData();
   Py_TYPE(self)->tp_free(self);
 }
@@ -79,7 +91,13 @@ void compiledfuncdata_dealloc(PyObject* self) {
 int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
   CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
   if (cfd->runtime != nullptr) {
-    return cfd->runtime->traverse(visit, arg);
+    // During shutdown the Context (and its CodeRuntime slab) may be destroyed
+    // while CFs still exist in function dicts.  Skip traversal if the JIT
+    // context is gone.
+    cinderx::ModuleState* mod_state = cinderx::getModuleState();
+    if (mod_state != nullptr && mod_state->jit_context != nullptr) {
+      return cfd->runtime->traverse(visit, arg);
+    }
   }
 
   return 0;
@@ -182,22 +200,47 @@ Ref<CompiledFunction> CompiledFunction::create(
 }
 
 CompiledFunction::~CompiledFunction() {
+  // Capture owner and owning refs to the compilation identity before clear()
+  // nullifies them.  Only safe when the JIT context is still alive — during
+  // shutdown the CodeRuntime slab may already be freed.
+  CompiledFunctionOwner* saved_owner = owner_;
+  Ref<> saved_code;
+  Ref<> saved_builtins;
+  Ref<> saved_globals;
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  if (saved_owner != nullptr && data_ != nullptr && data_->runtime != nullptr &&
+      mod_state != nullptr && mod_state->jit_context != nullptr) {
+    saved_code = Ref<>::create(data_->runtime->code());
+    saved_builtins = Ref<>::create(data_->runtime->builtins());
+    saved_globals = Ref<>::create(data_->runtime->globals());
+  }
+
   clear();
 
   if (data_ == nullptr) {
     return;
   }
 
-  auto mod_state = cinderx::getModuleState();
-  if (mod_state != nullptr && data_->code.data() != nullptr) {
-    auto code_allocator = mod_state->code_allocator.get();
-    if (code_allocator != nullptr) {
-      code_allocator->releaseCode(const_cast<std::byte*>(data_->code.data()));
-    }
-  }
-
   if (contiguous_data_) {
+    if (mod_state != nullptr && data_->code.data() != nullptr) {
+      auto code_allocator = mod_state->code_allocator.get();
+      if (code_allocator != nullptr) {
+        code_allocator->releaseCode(const_cast<std::byte*>(data_->code.data()));
+      }
+    }
     data_->~CompiledFunctionData();
+  } else if (saved_owner != nullptr && saved_code) {
+    // Check that the Context is still alive via module state rather than
+    // dereferencing saved_owner which may dangle after Context destruction.
+    if (mod_state != nullptr && mod_state->jit_context != nullptr) {
+      saved_owner->deferCompiledData(
+          std::move(saved_code),
+          std::move(saved_builtins),
+          std::move(saved_globals),
+          data_);
+    } else {
+      Py_DECREF(data_);
+    }
   } else {
     Py_DECREF(data_);
   }
@@ -335,14 +378,31 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
   if (!contiguous_data_) {
     Py_VISIT(data_);
   } else if (data_->runtime != nullptr) {
-    return data_->runtime->traverse(visit, arg);
+    // During shutdown the Context (and its CodeRuntime slab) may be destroyed
+    // while CFs still exist in function dicts.  Skip traversal if the JIT
+    // context is gone.
+    cinderx::ModuleState* mod_state = cinderx::getModuleState();
+    if (mod_state != nullptr && mod_state->jit_context != nullptr) {
+      return data_->runtime->traverse(visit, arg);
+    }
   }
 
   return 0;
 }
 
 void CompiledFunction::clear(bool context_finalizing) {
-  // Copy function pointers before clearing the set.
+  // During shutdown the Context (and its CodeRuntime slab) may be destroyed
+  // while CFs still exist in function dicts.  Null out owner_ and runtime
+  // to avoid dereferencing dangling pointers.
+  if (owner_ != nullptr) {
+    cinderx::ModuleState* mod_state = cinderx::getModuleState();
+    if (mod_state == nullptr || mod_state->jit_context == nullptr) {
+      owner_ = nullptr;
+      if (data_ != nullptr) {
+        data_->runtime = nullptr;
+      }
+    }
+  }
   if (owner_ != nullptr) {
     if (!context_finalizing) {
       owner_->forgetCompiledFunction(*this);
