@@ -95,11 +95,6 @@ bool hasRequiredFlags(BorrowedRef<PyCodeObject> code) {
   return (code->co_flags & required_code_flags) == required_code_flags;
 }
 
-uint64_t countCalls(PyCodeObject* code) {
-  auto extra = codeExtra(code);
-  return extra != nullptr ? Ci_code_extra_get_calls(extra) : 0;
-}
-
 // If functions in the cinderx module get compiled, they will somehow keep the
 // module alive forever and the module will never get finalized on shutdown.
 // This breaks many assumptions and has a high chance of use-after-frees or ASAN
@@ -185,7 +180,7 @@ PyObject* jitVectorcall(
   // If there's a call count limit, interpret the function as usual until the
   // limit is reached.
   if (auto limit = getConfig().compile_after_n_calls; limit.has_value()) {
-    auto const calls = countCalls(code);
+    auto const calls = codeCallCount(code);
     if (calls < *limit) {
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
@@ -570,6 +565,12 @@ FlagProcessor initFlagProcessor() {
       getMutableConfig().inliner_cost_limit,
       "Limit how much the inliner is able to inline. The number's definition "
       "is only relevant to the inliner itself.");
+  flag_processor.addOption(
+      "cinderx-jit-hir-inliner-cold-call-threshold",
+      "CINDERX_JIT_HIR_INLINER_COLD_CALL_THRESHOLD",
+      getMutableConfig().inliner_cold_call_threshold,
+      "Prune an inlining candidate when the caller's call count is at least "
+      "this many times the callee's call count.");
 
   flag_processor.addOption(
       "cinderx-jit-lir-inliner",
@@ -1862,7 +1863,7 @@ PyObject* count_interpreted_calls(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
   BorrowedRef<PyCodeObject> code{func->func_code};
-  return PyLong_FromLong(static_cast<long>(countCalls(code)));
+  return PyLong_FromSize_t(codeCallCount(code));
 }
 
 PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {

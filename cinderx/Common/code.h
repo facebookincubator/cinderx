@@ -59,6 +59,10 @@ void finiCodeExtraIndex();
 // Python error set.
 CodeExtra* codeExtra(PyCodeObject* code);
 
+// Get the number of times a code object has been called by the interpreter.
+// Calls to JIT-compiled code objects are currently uncounted.
+size_t codeCallCount(PyCodeObject* code);
+
 // Count the various frame variables that a code object will use.
 int numLocals(PyCodeObject* code);
 int numCellvars(PyCodeObject* code);

@@ -4,12 +4,16 @@
 
 #include "internal/pycore_code.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/preload.h"
+
+#include <algorithm>
+#include <utility>
 
 namespace jit::hir {
 
@@ -317,30 +321,16 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
   }
 }
 
-} // namespace
-
-void InlineFunctionCalls::Run(Function& irfunc) {
-  if (irfunc.code == nullptr) {
-    // In tests, irfunc may not have bytecode.
-    return;
-  }
-  if (irfunc.code->co_flags & kCoFlagsAnyGenerator) {
-    // TASK(T109706798): Support inlining into generators
-    LOG_INLINER(
-        "Refusing to inline functions into {}: function is a generator",
-        irfunc.fullname);
-    return;
-  }
-
-  // Scan through all function calls in `irfunc` and mark the ones that are
-  // suitable for inlining.
+// Scan through all calls in a function and collect the ones that could be
+// inlined.
+std::vector<AbstractCall> findCandidates(Function& caller) {
   std::vector<AbstractCall> calls;
-  for (auto& block : irfunc.cfg.blocks) {
+  for (auto& block : caller.cfg.blocks) {
     for (auto& instr : block) {
       if (instr.IsVectorCall()) {
         auto call = static_cast<VectorCall*>(&instr);
         Register* target = call->func();
-        const std::string& caller_name = irfunc.fullname;
+        const std::string& caller_name = caller.fullname;
         if (!target->isA(TFunc)) {
           LOG_INLINER(
               "Can't inline non-function {}:{} into {}",
@@ -374,6 +364,87 @@ void InlineFunctionCalls::Run(Function& irfunc) {
       }
     }
   }
+  return calls;
+}
+
+// Select candidate callsites for inlining.  Rank callsites by the call count of
+// the callee, which is an estimate as to how hot the specific callsite will be.
+// When the call count of the caller is significantly larger than that of the
+// callee, that's a sign that the callsite is cold so prune it from the
+// candidate list entirely.
+//
+// If the caller has never been called, select every callsite as a candidate to
+// match previous behavior.
+void selectCandidates(Function& caller, std::vector<AbstractCall>& calls) {
+  size_t caller_count = codeCallCount(caller.code);
+  size_t cold_threshold = getConfig().inliner_cold_call_threshold;
+
+  // Decorate each surviving candidate with a precomputed importance score so we
+  // don't recompute call counts on every comparison during sorting.
+  std::vector<std::pair<size_t, AbstractCall>> scored;
+  scored.reserve(calls.size());
+  for (const AbstractCall& call : calls) {
+    BorrowedRef<PyCodeObject> callee_code{call.func->func_code};
+    size_t callee_count = codeCallCount(callee_code);
+
+    // If the caller has never been called, assume all callsites are valid
+    // candidates.
+    if (caller_count == 0) {
+      scored.emplace_back(callee_count, call);
+      continue;
+    }
+
+    // Prune call sites that must be cold, when the caller is called N times
+    // more than the callee.
+    if (callee_count == 0 || caller_count / callee_count >= cold_threshold) {
+      LOG_INLINER(
+          "Pruning cold call to {} from {}: callee called {} times vs caller's "
+          "{}",
+          funcFullname(call.func),
+          caller.fullname,
+          callee_count,
+          caller_count);
+      continue;
+    }
+
+    // Clamp to the caller's count so a callee at least as hot as the caller is
+    // treated as equally important.
+    scored.emplace_back(std::min(callee_count, caller_count), call);
+  }
+
+  // Stable sort by descending importance, preserving source order (top-down)
+  // among calls of equal importance.
+  std::stable_sort(
+      scored.begin(),
+      scored.end(),
+      [](const std::pair<size_t, AbstractCall>& a,
+         const std::pair<size_t, AbstractCall>& b) {
+        return a.first > b.first;
+      });
+
+  calls.clear();
+  for (std::pair<size_t, AbstractCall>& entry : scored) {
+    calls.push_back(entry.second);
+  }
+}
+
+} // namespace
+
+void InlineFunctionCalls::Run(Function& irfunc) {
+  if (irfunc.code == nullptr) {
+    // In tests, irfunc may not have bytecode.
+    return;
+  }
+  if (irfunc.code->co_flags & kCoFlagsAnyGenerator) {
+    // TASK(T109706798): Support inlining into generators
+    LOG_INLINER(
+        "Refusing to inline functions into {}: function is a generator",
+        irfunc.fullname);
+    return;
+  }
+
+  std::vector<AbstractCall> calls = findCandidates(irfunc);
+  selectCandidates(irfunc, calls);
 
   if (calls.empty()) {
     return;

@@ -17,8 +17,28 @@
 
 #include "cpython/code.h"
 
-namespace jit {
-static std::string fullnameImpl(PyObject* module, PyObject* qualname) {
+namespace {
+
+// Read the existing CodeExtra for a code object without allocating one, unlike
+// codeExtra(). Returns nullptr if none has been created yet.
+CodeExtra* codeExtraIfPresent(BorrowedRef<PyCodeObject> code) {
+  auto state = cinderx::getModuleState();
+  if (state == nullptr) {
+    return nullptr;
+  }
+  Py_ssize_t extra_index = state->code_extra_index;
+  if (extra_index == -1) {
+    return nullptr;
+  }
+  void* data_ptr = nullptr;
+  if (PyUnstable_Code_GetExtra(code.getObj(), extra_index, &data_ptr) < 0) {
+    PyErr_Clear();
+    return nullptr;
+  }
+  return reinterpret_cast<CodeExtra*>(data_ptr);
+}
+
+std::string fullnameImpl(PyObject* module, PyObject* qualname) {
   auto safe_str = [](BorrowedRef<> str) {
     if (str == nullptr || !PyUnicode_Check(str)) {
       return "<invalid>";
@@ -27,6 +47,10 @@ static std::string fullnameImpl(PyObject* module, PyObject* qualname) {
   };
   return fmt::format("{}:{}", safe_str(module), safe_str(qualname));
 }
+
+} // namespace
+
+namespace jit {
 
 std::string codeFullname(
     BorrowedRef<PyObject> module,
@@ -224,6 +248,13 @@ CodeExtra* codeExtra(PyCodeObject* code) {
   }
 
   return extra;
+}
+
+size_t codeCallCount(PyCodeObject* code) {
+  // Don't allocate the CodeExtra if it doesn't exist, to allow for running this
+  // from within the multithreaded compile pipeline where the GIL doesn't exist.
+  CodeExtra* extra = codeExtraIfPresent(code);
+  return extra != nullptr ? Ci_code_extra_get_calls(extra) : 0;
 }
 
 int numLocals(PyCodeObject* code) {

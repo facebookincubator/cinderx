@@ -171,6 +171,12 @@ struct Config {
   // the inliner, doesn't have any specific meaning, and can change as the
   // inliner's algorithm changes.
   size_t inliner_cost_limit{2000};
+  // Prune an inlining candidate when the caller's call count is at least this
+  // many times the callee's call count.  A callee's total call count is an
+  // upper bound on the calls made from any single call site, so a callee called
+  // far less often than the caller must be a cold call site that isn't worth
+  // inlining.  Only applied when the caller has a non-zero call count.
+  size_t inliner_cold_call_threshold{20};
   // Number of workers to use for batch compilation, like in precompile_all().
   // If this number isn't configured then batch compilation will happen inline
   // on the calling thread.
