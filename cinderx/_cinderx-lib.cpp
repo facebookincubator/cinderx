@@ -1207,16 +1207,32 @@ int _cinderx_exec_impl(PyObject* m) {
 }
 
 int _cinderx_exec(PyObject* m) {
-  int result = _cinderx_exec_impl(m);
-  // Initialization can fail and leave things partially initialized. The main
-  // item we want to restore immediately is the interpreter loop function,
-  // otherwise Ci_EvalFrame will still try to access CinderX data.
-  //
-  // Everything else will be handled by module_free() when there's an error.
-  if (result < 0) {
+  try {
+    int result = _cinderx_exec_impl(m);
+    // Initialization can fail and leave things partially initialized.  The main
+    // item we want to restore immediately is the interpreter loop function,
+    // otherwise Ci_EvalFrame will still try to access CinderX data.
+    //
+    // Everything else will be handled by module_free() when there's an error.
+    if (result < 0) {
+      Ci_FiniFrameEvalFunc();
+    }
+    return result;
+  } catch (const std::exception& exn) {
+    // Same as above error case, but hold onto a C++ exception object and
+    // convert it to a Python exception.
     Ci_FiniFrameEvalFunc();
+
+    // Shouldn't happen, but in case we doubled up on Python and C++ exceptions,
+    // make sure to log the Python exception first, then override it with the
+    // C++ exception.  Otherwise it would just be lost.
+    if (auto err = Ref<>::steal(PyErr_GetRaisedException())) {
+      PyErr_DisplayException(err);
+    }
+
+    PyErr_SetString(PyExc_RuntimeError, exn.what());
+    return -1;
   }
-  return result;
 }
 
 PyModuleDef_Slot _cinderx_slots[] = {
