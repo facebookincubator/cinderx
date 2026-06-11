@@ -18,7 +18,7 @@ from cinderx.compiler.static.pyrefly_info import (
 from .common import StaticTestBase
 
 
-class TestPyrefly(Pyrefly):
+class PyreflyHarness(Pyrefly):
     def __init__(self, info: PyreflyTypeInfo):
         self.info = info
 
@@ -26,7 +26,7 @@ class TestPyrefly(Pyrefly):
         return self.info
 
 
-EMPTY_PYREFLY = TestPyrefly(EMPTY_TYPE_INFO)
+EMPTY_PYREFLY = PyreflyHarness(EMPTY_TYPE_INFO)
 
 
 class PyreBinderTests(StaticTestBase):
@@ -142,7 +142,7 @@ class PyreBinderTests(StaticTestBase):
         ast_optimizer_enabled: bool = True,
         enable_patching: bool = False,
     ) -> CodeType:
-        compiler = PyreflyCompiler(pyrefly=TestPyrefly(type_info))
+        compiler = PyreflyCompiler(pyrefly=PyreflyHarness(type_info))
         tree = ast.parse(self.clean_code(code))
         return compiler.compile(
             modname,
