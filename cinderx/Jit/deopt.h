@@ -14,11 +14,25 @@
 #include <fmt/ranges.h>
 
 #include <cstdint>
+#include <unordered_set>
 
 namespace jit {
 
 // Return the ValueKind to use for a value with the given Type.
 hir::ValueKind deoptValueKind(hir::Type type);
+
+// Filters HIR live registers down to the values needed to recreate the
+// interpreter frame, release owned references, or report a guilty value.
+class DeoptLiveRegFilter {
+ public:
+  explicit DeoptLiveRegFilter(const hir::DeoptBase& instr);
+
+  bool isUsed(const hir::RegState& reg_state) const;
+
+ private:
+  const hir::DeoptBase& instr_;
+  std::unordered_set<hir::Register*> frame_state_regs_;
+};
 
 // LiveValue contains metadata about a live value at a specific point in a
 // JIT-compiled function.

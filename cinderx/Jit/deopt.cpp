@@ -41,6 +41,23 @@ const std::string& internDescr(const std::string& descr) {
   return *s_descrs.emplace(descr).first;
 }
 
+std::unordered_set<hir::Register*> collectFrameStateRegs(hir::FrameState* fs) {
+  std::unordered_set<hir::Register*> regs;
+  for (; fs != nullptr; fs = fs->parent) {
+    for (hir::Register* local : fs->localsplus) {
+      if (local != nullptr) {
+        regs.insert(local);
+      }
+    }
+    for (hir::Register* stack : fs->stack) {
+      if (stack != nullptr) {
+        regs.insert(stack);
+      }
+    }
+  }
+  return regs;
+}
+
 void reifyLocalsplus(
     _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
@@ -242,6 +259,23 @@ DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
 
 } // namespace
 
+DeoptLiveRegFilter::DeoptLiveRegFilter(const hir::DeoptBase& instr)
+    : instr_(instr),
+      frame_state_regs_(collectFrameStateRegs(instr.frameState())) {}
+
+bool DeoptLiveRegFilter::isUsed(const hir::RegState& reg_state) const {
+  if (reg_state.ref_kind == hir::RefKind::kOwned) {
+    return true;
+  }
+
+  hir::Register* reg = reg_state.reg;
+  if (instr_.guiltyReg() == reg) {
+    return true;
+  }
+
+  return frame_state_regs_.contains(reg);
+}
+
 hir::ValueKind deoptValueKind(hir::Type type) {
   if (type <= jit::hir::TCBool) {
     return jit::hir::ValueKind::kBool;
@@ -411,22 +445,45 @@ LiveValue::Source getLiveValueSource(jit::hir::Register* reg) {
   return LiveValue::Source::kUnknown;
 }
 
+std::vector<const hir::RegState*> usedLiveRegs(
+    const hir::LiveValuesBase& instr) {
+  std::vector<const hir::RegState*> live_regs;
+  live_regs.reserve(instr.live_regs().size());
+  for (const auto& reg_state : instr.live_regs()) {
+    live_regs.push_back(&reg_state);
+  }
+  return live_regs;
+}
+
+std::vector<const hir::RegState*> usedLiveRegs(const hir::DeoptBase& instr) {
+  DeoptLiveRegFilter live_reg_filter{instr};
+  std::vector<const hir::RegState*> live_regs;
+  live_regs.reserve(instr.live_regs().size());
+  for (const auto& reg_state : instr.live_regs()) {
+    if (live_reg_filter.isUsed(reg_state)) {
+      live_regs.push_back(&reg_state);
+    }
+  }
+  return live_regs;
+}
+
 template <typename InstrT>
 DeoptMetadata initDeoptMetadata(
     const InstrT& instr,
     std::unordered_map<jit::hir::Register*, int>& reg_idx) {
   DeoptMetadata meta;
-  meta.live_values.initialize(instr.live_regs().size());
+  std::vector<const hir::RegState*> live_regs = usedLiveRegs(instr);
+  meta.live_values.initialize(live_regs.size());
 
   int i = 0;
-  for (const auto& reg_state : instr.live_regs()) {
-    auto reg = reg_state.reg;
+  for (const hir::RegState* reg_state : live_regs) {
+    auto reg = reg_state->reg;
 
     LiveValue lv = {
         // location will be filled in once we've generated code
         .location = 0,
-        .ref_kind = reg_state.ref_kind,
-        .value_kind = reg_state.value_kind,
+        .ref_kind = reg_state->ref_kind,
+        .value_kind = reg_state->value_kind,
         .source = getLiveValueSource(reg),
     };
     meta.live_values[i] = std::move(lv);

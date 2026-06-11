@@ -31,6 +31,7 @@ extern "C" {
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
+#include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/analysis.h"
@@ -96,10 +97,16 @@ void finishYield(
     BasicBlockBuilder& bbb,
     Instruction* instr,
     const DeoptBase* hir_instr) {
+  DeoptLiveRegFilter live_reg_filter{*hir_instr};
+  size_t num_live_regs = 0;
   for (const RegState& rs : hir_instr->live_regs()) {
+    if (!live_reg_filter.isUsed(rs)) {
+      continue;
+    }
     instr->addOperands(VReg{bbb.getDefInstr(rs.reg)});
+    num_live_regs++;
   }
-  instr->addOperands(Imm{hir_instr->live_regs().size()});
+  instr->addOperands(Imm{num_live_regs});
   instr->addOperands(Imm{bbb.makeDeoptMetadata()});
 }
 
@@ -1555,8 +1562,12 @@ void LIRGenerator::addLiveRegOperands(
     BasicBlockBuilder& bbb,
     Instruction* instr,
     const hir::DeoptBase& hir_instr) {
+  DeoptLiveRegFilter live_reg_filter{hir_instr};
   auto& regstates = hir_instr.live_regs();
   for (const auto& reg_state : regstates) {
+    if (!live_reg_filter.isUsed(reg_state)) {
+      continue;
+    }
     hir::Register* reg = reg_state.reg;
     instr->addOperands(VReg{bbb.getDefInstr(reg)});
   }
@@ -3487,7 +3498,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kDeoptPatchpoint,
             MemImm{instr.patcher()},
             Imm{deopt_id});
+        DeoptLiveRegFilter live_reg_filter{instr};
         for (const auto& reg_state : regstates) {
+          if (!live_reg_filter.isUsed(reg_state)) {
+            continue;
+          }
           lir->addOperands(VReg{bbb.getDefInstr(reg_state.reg)});
         }
         break;
