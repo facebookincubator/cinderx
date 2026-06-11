@@ -68,6 +68,18 @@ namespace {
 constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
 #endif
 
+bool instructionHasDeoptExit(const Instruction* instr) {
+  if (instr->isGuard() || instr->isDeoptPatchpoint()) {
+    return true;
+  }
+#if defined(CINDER_AARCH64)
+  if (instr->isA64GuardCC()) {
+    return true;
+  }
+#endif
+  return false;
+}
+
 // These functions call their counterparts and convert its output from int (32
 // bits) to uint64_t (64 bits). This is solely because the code generator cannot
 // support an operand size other than 64 bits at this moment. A future diff will
@@ -5945,7 +5957,7 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
   std::vector<DeoptEntry> deopt_entries;
   for (auto* bb : lir_func->basicblocks()) {
     for (auto& instr : bb->instructions()) {
-      if (instr->isGuard() || instr->isDeoptPatchpoint()) {
+      if (instructionHasDeoptExit(instr.get())) {
         size_t deopt_id =
             static_cast<size_t>(instr->getInput(1)->getConstant());
         deopt_entries.push_back({deopt_id, instr->origin()});

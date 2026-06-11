@@ -123,6 +123,70 @@ void selectA64CondBranch(
   branch->setNumInputs(0);
 }
 
+/* Convert from:
+ *
+ *     cmp x0, x1
+ *     cset w2, lt
+ *     cbz w2, deopt
+ *
+ * to:
+ *
+ *     cmp x0, x1
+ *     b.ge deopt
+ */
+void selectA64Guard(
+    BasicBlock* block,
+    instr_iter_t instr_iter,
+    const UseCounts& use_counts) {
+  Instruction* guard = instr_iter->get();
+  JIT_DCHECK(guard->isGuard(), "Expected Guard, got {}", guard->opname());
+
+  /* Check that the guard kind is a zero or not zero check. */
+  InstrGuardKind kind =
+      static_cast<InstrGuardKind>(guard->getInput(0)->getConstant());
+  if (kind != InstrGuardKind::kNotZero && kind != InstrGuardKind::kZero) {
+    return;
+  }
+
+  /* Check that the input to this guard is not a def. */
+  Operand* input = guard->getInput(2);
+  if (!input->isLinked()) {
+    return;
+  }
+
+  /* Check that the input to this guard is a compare in the same block and that
+   * it is not used by any other instruction. */
+  Instruction* compare = input->getLinkedInstr();
+  if (!compare->isCompare() || compare->basicblock() != block ||
+      use_counts.at(compare) != 1) {
+    return;
+  }
+
+  /* Check that the instructions between the compare and the guard do not
+   * modify flags. */
+  instr_iter_t compare_iter = block->iterator_to(compare);
+  if (!flagsPreservedBetween(std::next(compare_iter), instr_iter)) {
+    return;
+  }
+
+  /* Convert to a conditional compare and branch instruction. */
+  Instruction::Opcode branch_opcode =
+      Instruction::compareToBranchCC(compare->opcode());
+  if (kind == InstrGuardKind::kNotZero) {
+    branch_opcode = Instruction::negateBranchCC(branch_opcode);
+  }
+
+  compare->setOpcode(Instruction::kCmp);
+  compare->output()->setNone();
+
+  guard->setOpcode(Instruction::kA64GuardCC);
+  guard->getInput(0)->setConstant(static_cast<uint64_t>(branch_opcode));
+  // A64GuardCC branches using the condition encoded above. The original Guard
+  // variable and target operands are no longer needed.
+  guard->removeInput(3);
+  guard->removeInput(2);
+}
+
 void selectA64Opcodes(Function* func) {
   UseCounts use_counts = countUses(func);
   for (BasicBlock* block : func->basicblocks()) {
@@ -132,6 +196,9 @@ void selectA64Opcodes(Function* func) {
       switch (cur_iter->get()->opcode()) {
         case Instruction::kCondBranch:
           selectA64CondBranch(block, cur_iter, use_counts);
+          break;
+        case Instruction::kGuard:
+          selectA64Guard(block, cur_iter, use_counts);
           break;
         default:
           break;

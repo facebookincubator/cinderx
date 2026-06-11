@@ -199,7 +199,9 @@ enum OperandSizeType {
   X(X64Cwd, false, FlagEffects::kNone, kDefault, 1, {}, 1) \
   X(X64Cqo, false, FlagEffects::kNone, kDefault, 1, {}, 1)
 #elif defined(CINDER_AARCH64)
-#define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
+#define FOREACH_INSTR_TYPE(X)  \
+  FOREACH_COMMON_INSTR_TYPE(X) \
+  X(A64GuardCC, false, FlagEffects::kInvalidate, kDefault, 0, {0, 0}, 1)
 #else
 #define FOREACH_INSTR_TYPE(X) FOREACH_COMMON_INSTR_TYPE(X)
 #endif

@@ -1036,6 +1036,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kCall:
     case Instruction::kVectorCallTstate:
     case Instruction::kVarArgCall:
+    case Instruction::kA64GuardCC:
     case Instruction::kGuard:
     case Instruction::kDeoptPatchpoint:
     case Instruction::kSelect:
@@ -1096,12 +1097,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kCmpBranchNonZero:
     case Instruction::kCallSiteLiveValues:
       return kUnchanged;
-#if defined(CINDER_X86_64)
-    case Instruction::kX64Cdq:
-    case Instruction::kX64Cwd:
-    case Instruction::kX64Cqo:
-      return kUnchanged;
-#endif
   }
 
   auto block = instr->basicblock();

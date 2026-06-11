@@ -159,6 +159,43 @@ BB %2 - preds: %0
   EXPECT_EQ(runTargetSelect(lir_input_str), expected_lir_str);
 }
 
+TEST_F(LIRTargetSelectTest, SelectsA64GuardCCForSingleUseCompareGuard) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:8bit = LessThanUnsigned %1, %2
+  Guard 4, 0, %3, 0
+  Return %1
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find("Cmp "), std::string::npos) << lir_str;
+  EXPECT_NE(lir_str.find("A64GuardCC"), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("LessThanUnsigned"), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("Guard "), std::string::npos) << lir_str;
+}
+
+TEST_F(LIRTargetSelectTest, SelectsA64GuardCCThroughFlagPreservingInstrs) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:8bit = LessThanUnsigned %1, %2
+  %4:64bit = Move 8
+  Guard 4, 0, %3, 0
+  Return %1
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find("Cmp "), std::string::npos) << lir_str;
+  EXPECT_NE(lir_str.find("A64GuardCC"), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("LessThanUnsigned"), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("Guard "), std::string::npos) << lir_str;
+}
+
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForPythonCompareBranch) {
   const char* src = R"(
 def func(x, y):
