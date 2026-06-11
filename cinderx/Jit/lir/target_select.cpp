@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/lir/target_select.h"
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
@@ -16,8 +17,65 @@ namespace jit::lir {
 namespace {
 
 #if defined(CINDER_X86_64)
+/* x86-64 can materialize an imm64 in a register, but cannot encode an imm64
+ * directly as the source of a store to memory. Convert from:
+ *
+ *     mov [base + offset], imm64
+ *
+ * to:
+ *
+ *     movabs tmp, imm64
+ *     mov [base + offset], tmp
+ */
+void selectX64MoveToMemoryLargeConstant(
+    BasicBlock* block,
+    instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(
+      instr->isMove() || instr->isMoveRelaxed(),
+      "Expected Move or MoveRelaxed, got {}",
+      instr->opname());
+
+  Operand* out = instr->output();
+
+  if (!out->isInd()) {
+    return;
+  }
+
+  Operand* input = instr->getInput(0);
+  if (!input->isImm() && !input->isMem()) {
+    return;
+  }
+
+  uint64_t constant = input->getConstantOrAddress();
+  if (fitsSignedInt<32>(constant)) {
+    return;
+  }
+
+  auto move = block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kMove,
+      OutVReg(),
+      Imm(constant, input->dataType()));
+
+  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
+}
+
 void selectX64Opcodes(Function* func) {
-  (void)func;
+  for (BasicBlock* block : func->basicblocks()) {
+    BasicBlock::InstrList& instrs = block->instructions();
+    for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {
+      instr_iter_t cur_iter = iter++;
+      switch (cur_iter->get()->opcode()) {
+        case Instruction::kMove:
+        case Instruction::kMoveRelaxed:
+          selectX64MoveToMemoryLargeConstant(block, cur_iter);
+          break;
+        default:
+          break;
+      }
+    }
+  }
 }
 #elif defined(CINDER_AARCH64)
 using UseCounts = std::unordered_map<const Instruction*, size_t>;

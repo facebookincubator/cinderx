@@ -13,6 +13,7 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <memory>
+#include <regex>
 #include <sstream>
 #include <string>
 
@@ -53,13 +54,42 @@ class LIRTargetSelectTest : public RuntimeTest {
   }
 };
 
-#if defined(CINDER_AARCH64)
+#if defined(CINDER_AARCH64) || defined(CINDER_X86_64)
 static std::string runTargetSelect(const char* lir_input_str) {
   std::unique_ptr<Function> func = Parser().parse(lir_input_str);
   selectTargetOpcodes(func.get());
   return fmt::format("{}", *func);
 }
+#endif
 
+#if defined(CINDER_X86_64)
+TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantMemoryMove) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:Object = Move 1
+  [%1:Object + 0x8]:Object = Move 4294967296
+  Return %1
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(
+      lir_str.find(":Object = Move 4294967296(0x100000000):64bit"),
+      std::string::npos)
+      << lir_str;
+  EXPECT_TRUE(
+      std::regex_search(
+          lir_str,
+          std::regex{R"(\[%1:Object \+ 0x8\]:Object = Move %\d+:Object)"}))
+      << lir_str;
+  EXPECT_EQ(
+      lir_str.find("[%1:Object + 0x8]:Object = Move 4294967296(0x100000000)"),
+      std::string::npos)
+      << lir_str;
+}
+#endif
+
+#if defined(CINDER_AARCH64)
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForSingleUseCompare) {
   const char* lir_input_str = R"(Function:
 BB %0 - succs: %1 %2

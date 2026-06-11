@@ -224,45 +224,6 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   return kChanged;
 }
 
-// Rewrite storing a large immediate to a memory location in x86-64. Other
-// architectures handle this explicitly in the autogen layer.
-RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
-  // rewrite
-  //     [Vreg0 + offset] = Imm64
-  // to
-  //     Vreg1 = Mov Imm64
-  //     [Vreg0 + offset] = Vreg1
-
-  auto instr = instr_iter->get();
-  auto out = instr->output();
-
-  if (!(instr->isMove() || instr->isMoveRelaxed()) || !out->isInd()) {
-    return kUnchanged;
-  }
-
-  auto input = instr->getInput(0);
-  if (!input->isImm() && !input->isMem()) {
-    return kUnchanged;
-  }
-
-  auto constant = input->getConstantOrAddress();
-  if (fitsSignedInt<32>(constant)) {
-    return kUnchanged;
-  }
-
-  auto block = instr->basicblock();
-  auto move = block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kMove,
-      OutVReg(),
-      Imm(constant, input->dataType()));
-
-  // Replace the constant input with the move.
-  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
-
-  return kChanged;
-}
-
 // Most guards involve comparing against a constant immediate. This rewrite
 // ensures those immediates fit into comparison instructions (and if they do
 // not it splits them).
@@ -1208,10 +1169,6 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteBinaryOpLargeConstant, 1);
   registerOneRewriteFunction(rewriteGuardLargeConstant, 1);
   registerOneRewriteFunction(rewriteLoadArg, 1);
-
-  if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kX86_64) {
-    registerOneRewriteFunction(rewriteMoveToMemoryLargeConstant, 1);
-  }
 
   if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
     registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
