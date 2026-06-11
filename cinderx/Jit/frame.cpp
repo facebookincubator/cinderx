@@ -811,7 +811,10 @@ void retainActiveDeferredData(
         continue;
       }
       BorrowedRef<PyFunctionObject> func = getFrameFunctionIfJitted(frame);
-      if (func != nullptr) {
+      // We can have trampoline frame pushed by _PyFrame_PushTrampolineUnchecked
+      // whose funcobj is Py_None. Ignore these as they have no code to keep
+      // alive.
+      if (func != nullptr && func != Py_None) {
         OwnedCompilationKey key{func};
         auto it = pending.find(key);
         if (it != pending.end()) {
