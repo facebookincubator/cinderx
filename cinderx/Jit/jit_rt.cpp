@@ -43,6 +43,13 @@
 
 #include <cmath>
 #include <span>
+#include <type_traits>
+
+namespace jit::codegen {
+// Defined in Jit/codegen/gen_asm.cpp.  Windows x64 only ABI bridge for the
+// struct-returning reentry helpers (see invokeStaticReentry below).
+void* getStaticReentryTrampoline(bool fp);
+} // namespace jit::codegen
 
 static int JITRT_BindKeywords(
     PyObject** args,
@@ -324,6 +331,43 @@ using staticvectorcallfuncfp = JITRT_StaticCallFPReturn (*)(
     size_t nargsf,
     PyObject* kwnames);
 
+// Dispatch to a JITed function's reentry point for a function that returns the
+// 16-byte JITRT_StaticCallReturn / JITRT_StaticCallFPReturn struct.
+//
+// The reentry point uses the JIT-internal convention: plain vectorcall args
+// (callable, args, nargsf, kwnames in the first four arg registers) and two
+// return values in RAX:RDX (or XMM0:XMM1).  On most ABIs a 16-byte struct is
+// also returned in those register pairs, so we can call the reentry directly.
+//
+// On the Microsoft x64 ABI, however, a struct larger than 8 bytes is returned
+// via a hidden sret pointer passed in the first argument register, which shifts
+// every real argument by one register.  Calling the reentry directly there
+// makes it read the callable as its args array (crashing in the callee).  Route
+// through an asmjit trampoline that restores the plain vectorcall ABI and
+// copies the result back into the sret buffer.
+template <typename TRetType, typename TVectorcall>
+static inline TRetType invokeStaticReentry(
+    PyFunctionObject* func,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames) {
+  void* reentry = reinterpret_cast<void*>(JITRT_GET_REENTRY(func->vectorcall));
+#if defined(_WIN32) && defined(CINDER_X86_64)
+  constexpr bool kFp = std::is_same_v<TRetType, JITRT_StaticCallFPReturn>;
+  using Trampoline = TRetType (*)(
+      void* reentry,
+      PyObject* callable,
+      PyObject* const* args,
+      size_t nargsf,
+      PyObject* kwnames);
+  return reinterpret_cast<Trampoline>(jit::codegen::getStaticReentryTrampoline(
+      kFp))(reentry, (PyObject*)func, args, nargsf, kwnames);
+#else
+  return reinterpret_cast<TVectorcall>(reentry)(
+      (PyObject*)func, args, nargsf, kwnames);
+#endif
+}
+
 JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
     PyFunctionObject* func,
     PyObject** args,
@@ -361,9 +405,8 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
 
   size_t new_nargsf = argcount;
 
-  return reinterpret_cast<staticvectorcallfuncfp>(
-      JITRT_GET_REENTRY(func->vectorcall))(
-      (PyObject*)func,
+  return invokeStaticReentry<JITRT_StaticCallFPReturn, staticvectorcallfuncfp>(
+      func,
       arg_space.get(),
       new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
@@ -408,9 +451,8 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
 
   size_t new_nargsf = argcount;
 
-  return reinterpret_cast<staticvectorcallfunc>(
-      JITRT_GET_REENTRY(func->vectorcall))(
-      (PyObject*)func,
+  return invokeStaticReentry<JITRT_StaticCallReturn, staticvectorcallfunc>(
+      func,
       arg_space.get(),
       new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
@@ -479,8 +521,8 @@ TRetType JITRT_CallStaticallyWithPrimitiveSignatureWorker(
     goto fail;
   }
 
-  return reinterpret_cast<TVectorcall>(JITRT_GET_REENTRY(func->vectorcall))(
-      (PyObject*)func, (PyObject**)arg_space.get(), nargsf, nullptr);
+  return invokeStaticReentry<TRetType, TVectorcall>(
+      func, (PyObject**)arg_space.get(), nargsf, nullptr);
 
 fail:
   auto interpVectorcall = getInterpretedVectorcall(func);

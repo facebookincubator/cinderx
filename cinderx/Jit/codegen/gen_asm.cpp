@@ -530,6 +530,65 @@ void* generateFailedDeferredCompileTrampoline() {
       &lir_func, "failedDeferredCompileTrampoline");
 }
 
+#if defined(_WIN32) && defined(CINDER_X86_64)
+// Bridges the Microsoft x64 sret ABI to the JIT's internal reentry ABI.
+//
+// The JIT "reentry with processed args" entry point expects the plain
+// vectorcall convention (RCX=callable, RDX=args, R8=nargsf, R9=kwnames) and
+// returns its two result values in RAX:RDX (or XMM0:XMM1 for functions which
+// return a primitive double).  The C++ runtime helpers that re-dispatch through
+// the reentry (e.g. JITRT_CallWithIncorrectArgcount) are typed to return the
+// 16-byte JITRT_StaticCallReturn / JITRT_StaticCallFPReturn structs.  On the MS
+// x64 ABI a struct larger than 8 bytes is returned via a hidden sret pointer in
+// RCX, which shifts every argument by one register -- so without this bridge
+// the reentry would read the callable (in RDX) as its args array and crash.
+//
+// This trampoline is itself invoked as a 16-byte-struct-returning function, so
+// at entry the registers are:
+//   RCX        = hidden sret buffer pointer
+//   RDX        = reentry entry point
+//   R8         = callable (PyObject*)
+//   R9         = args (PyObject**)
+//   [RSP+0x28] = nargsf
+//   [RSP+0x30] = kwnames
+// It rearranges these into the plain vectorcall ABI, calls the reentry, stores
+// the two return values into the sret buffer, and returns the buffer in RAX (as
+// required for an sret return on the MS x64 ABI).
+void* generateStaticReentryTrampoline(bool fp) {
+  CodeHolder code;
+  ICodeAllocator* code_allocator =
+      cinderx::getModuleState()->code_allocator.get();
+  const char* name =
+      fp ? "static_reentry_trampoline_fp" : "static_reentry_trampoline";
+  ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
+  arch::Builder a(&code);
+
+  a.push(x86::rbx); // preserve callee-saved RBX; holds the sret buffer
+  a.mov(x86::rbx, x86::rcx); // RBX = sret buffer (survives the call)
+  a.mov(x86::rax, x86::rdx); // RAX = reentry target (scratch)
+  a.mov(x86::rcx, x86::r8); // RCX = callable (vectorcall arg 0)
+  a.mov(x86::rdx, x86::r9); // RDX = args (vectorcall arg 1)
+  // The two stack args are 8 bytes higher than at entry due to the pushed RBX.
+  a.mov(x86::r8, x86::ptr(x86::rsp, 0x30)); // R8 = nargsf (vectorcall arg 2)
+  a.mov(x86::r9, x86::ptr(x86::rsp, 0x38)); // R9 = kwnames (vectorcall arg 3)
+  a.sub(x86::rsp, 0x20); // shadow space (keeps RSP 16-byte aligned at the call)
+  a.call(x86::rax);
+  a.add(x86::rsp, 0x20);
+  if (fp) {
+    a.movsd(x86::ptr(x86::rbx, 0), x86::xmm0);
+    a.movsd(x86::ptr(x86::rbx, 8), x86::xmm1);
+  } else {
+    a.mov(x86::ptr(x86::rbx, 0), x86::rax);
+    a.mov(x86::ptr(x86::rbx, 8), x86::rdx);
+  }
+  a.mov(x86::rax, x86::rbx); // return the sret buffer pointer in RAX
+  a.pop(x86::rbx);
+  a.ret();
+
+  return finalizeCode(a, name);
+}
+#endif
+
 class AsmJitException : public std::exception {
  public:
   AsmJitException(Error err, std::string expr, std::string message) noexcept
@@ -552,6 +611,23 @@ class ThrowableErrorHandler : public ErrorHandler {
 };
 
 } // namespace
+
+void* getStaticReentryTrampoline(bool fp) {
+#if defined(_WIN32) && defined(CINDER_X86_64)
+  // Lazily generate and cache once.  Magic-static initialization is
+  // thread-safe, and the code allocator is always ready by the time
+  // JIT-compiled code (which is the only caller) runs.
+  if (fp) {
+    static void* trampoline = generateStaticReentryTrampoline(true);
+    return trampoline;
+  }
+  static void* trampoline = generateStaticReentryTrampoline(false);
+  return trampoline;
+#else
+  (void)fp;
+  JIT_ABORT("static reentry trampoline is only needed on Windows x64");
+#endif
+}
 
 NativeGenerator::NativeGenerator(
     const hir::Function* func,

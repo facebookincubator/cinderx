@@ -25,6 +25,13 @@
 
 namespace jit::codegen {
 
+// Returns a cached trampoline (Windows x64 only) that bridges the Microsoft x64
+// sret ABI used by the struct-returning C++ reentry helpers (e.g.
+// JITRT_CallWithIncorrectArgcount) to the JIT reentry point's plain-vectorcall
+// + RAX:RDX convention.  |fp| selects the variant that captures XMM0:XMM1 for
+// functions returning a primitive double.  Aborts if called on other platforms.
+void* getStaticReentryTrampoline(bool fp);
+
 class NativeGeneratorFactory;
 class NativeGenerator {
  public:

@@ -1,12 +1,11 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-import platform
 import traceback
 import unittest
 
 import cinderx.jit
 from cinderx.jit import jit_suppress
-from cinderx.test_support import failUnlessJITCompiled, passIf, passUnless
+from cinderx.test_support import failUnlessJITCompiled, passUnless
 
 INLINER: bool = cinderx.jit.is_hir_inliner_enabled()
 
@@ -99,7 +98,6 @@ def func_that_change_defaults():
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
     @jit_suppress
-    @passIf(platform.system() == "Windows", "Currently crashing on Windows")
     def test_deopt_when_func_defaults_change(self) -> None:
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(func_that_change_defaults), 2
