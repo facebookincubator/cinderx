@@ -95,7 +95,6 @@ WORKER_PATH = os.path.abspath(__file__)
 CINDERX_SPLIT_TEST_DIRS = {
     "test_cinderx.test_cpython_overrides",
     "test_cinderx.test_compiler",
-    "test_cinderx.test_compiler.test_static",
 }
 
 
@@ -333,18 +332,20 @@ def _select_tests(exclude: Set[str]) -> List[str]:
         split_test_dirs={"test." + d for d in libregrtest_findtests.SPLITTESTDIRS},
     )
 
-    # Add CinderX tests
+    # Add CinderX tests.  The Static Python tests live under
+    # test_compiler/test_static; they're listed individually by
+    # get_cinderx_static_tests() below, so exclude that directory from findtests
+    # here.  This both avoids duplicate entries and keeps the static tests out of
+    # the CPython-oriented skip filter (their basenames can otherwise collide
+    # with bare skip-list entries, e.g. test_compile).
     cinderx_tests = libregrtest_findtests.findtests(
         testdir=get_test_cinderx_dir(),
-        exclude=exclude,
+        exclude=exclude | {"test_static"},
         split_test_dirs=CINDERX_SPLIT_TEST_DIRS,
         base_mod="test_cinderx",
     )
     tests.extend(cinderx_tests)
 
-    # findtests won't discover the static tests that don't start with test_, so manually
-    # add those (it would find just test_static if we didn't split on that, but we want
-    # to parallelize all of the static tests)
     testdir = libregrtest_findtests.findtestdir(
         get_test_cinderx_dir() / Path("test_compiler/test_static")
     )

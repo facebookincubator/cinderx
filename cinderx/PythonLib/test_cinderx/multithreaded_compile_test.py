@@ -22,7 +22,7 @@ import cinderx
 def run_static_tests():
     import test_cinderx.test_compiler.test_static as test_static
     from test_cinderx.test_compiler.test_static.common import StaticTestBase
-    from test_cinderx.test_compiler.test_static.compile import init_xxclassloader
+    from test_cinderx.test_compiler.test_static.test_compile import init_xxclassloader
 
     CODE_SAMPLES_IN_MODULE = []
     CODE_SAMPLES_IN_STRICT_MODULE = []

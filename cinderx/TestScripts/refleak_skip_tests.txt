@@ -24,7 +24,7 @@ test_cinderx.test_jit_attr_cache.LoadModuleMethodCacheTests.*
 
 # Mysterious JIT leaks and test failures.
 test_cinderx.test_cinderjit.*
-test_cinderx.test_compiler.test_static.elide_type_checks.*
+test_cinderx.test_compiler.test_static.test_elide_type_checks.*
 test_cinderx.test_jit_generators.*
 test_cinderx.test_jit_inliner.*
 

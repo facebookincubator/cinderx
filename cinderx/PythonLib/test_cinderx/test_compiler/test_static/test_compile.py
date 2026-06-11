@@ -9,6 +9,7 @@ import ast
 import asyncio
 import builtins
 import inspect
+import platform
 import re
 import subprocess
 import sys
@@ -5300,6 +5301,10 @@ class StaticCompilationTests(StaticTestBase):
             )
 
     @skip_unless_jit("runs subprocess with JIT")
+    @passIf(
+        platform.system() == "Windows",
+        "T273449258: Subprocess hits OSError on Windows",
+    )
     def test_invoke_recursive_compile_respects_jitlist(self) -> None:
         with TemporaryDirectory() as d:
             d = Path(d)

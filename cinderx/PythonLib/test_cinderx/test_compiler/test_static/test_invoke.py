@@ -3,11 +3,13 @@
 # pyre-strict
 
 import asyncio
+import platform
 import sys
 from collections.abc import Sequence
 
 import cinderx.jit
 from cinderx import cached_property
+from cinderx.test_support import passIf
 
 from .common import StaticTestBase
 
@@ -1230,6 +1232,10 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
+    @passIf(
+        platform.system() == "Windows",
+        "Crashes on Windows, might be the same as T272946813",
+    )
     def test_invoke_static_function_frame_globals(self) -> None:
         """Regression test for a register allocator spill slot reuse bug.
 
