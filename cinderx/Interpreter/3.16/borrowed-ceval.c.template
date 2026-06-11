@@ -1,0 +1,38 @@
+
+#include "internal/pycore_ceval.h"
+#include "internal/pycore_stackref.h"
+#include "internal/pycore_unicodeobject.h"
+#include "internal/pycore_list.h"
+#include "internal/pycore_long.h"
+#include "internal/pycore_sliceobject.h"
+#include "internal/pycore_stackref.h"
+#include "internal/pycore_interpolation.h"
+#include "internal/pycore_emscripten_signal.h"
+#include "internal/pycore_template.h"
+#include "internal/pycore_setobject.h"
+#include "internal/pycore_intrinsics.h"
+#include "internal/pycore_cell.h"
+#include "internal/pycore_import.h"
+#include "internal/pycore_range.h"
+#include "internal/pycore_genobject.h"
+#include "internal/pycore_function.h"
+#include "internal/pycore_call.h"
+#include "internal/pycore_floatobject.h"
+#include "internal/pycore_tuple.h"
+#include "Python/ceval_macros.h"
+
+#define _PyCoro_GetAwaitableIter JitCoro_GetAwaitableIter
+#define _PyEval_GetAwaitable Ci_PyEval_GetAwaitable
+#define _PyEval_GetANext Ci_PyEval_GetANext
+
+// @Borrow function _PyEval_GetANext from Python/ceval.c
+// @Borrow function _PyEval_GetAwaitable from Python/ceval.c
+
+#undef _PyCoro_GetAwaitableIter
+#undef _PyEval_GetAwaitable
+#undef _PyEval_GetANext
+
+#if Py_TAIL_CALL_INTERP
+#include "cinderx/Interpreter/cinderx_opcode_targets.h"
+#include "cinderx/Interpreter/3.16/Includes/generated_cases.c.h"
+#endif
