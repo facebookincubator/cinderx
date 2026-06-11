@@ -8,9 +8,8 @@ import unittest
 from types import ModuleType
 from typing import Callable, TypeVar
 
-import cinderx
 import cinderx.jit
-from cinderx.test_support import passIf
+from cinderx.test_support import passUnless
 
 
 TCallableRet = TypeVar("TCallableRet")
@@ -52,7 +51,7 @@ def specialize(
     cinderx.jit.force_compile(func)
 
 
-@passIf(not cinderx.jit.is_enabled(), "Tests functionality on the JIT")
+@passUnless(cinderx.jit.is_enabled(), "Tests functionality on the JIT")
 class SpecializationTests(unittest.TestCase):
     def setUp(self) -> None:
         cinderx.jit.enable_specialized_opcodes()
@@ -260,3 +259,70 @@ class SpecializationTests(unittest.TestCase):
         self.assertNotIn("UNPACK_SEQUENCE", opnames(f))
         self.assertIn("UNPACK_SEQUENCE_TWO_TUPLE", opnames(f))
         self.assertEqual(f(("c", "d")), "c")
+
+    def test_load_attr_slot(self) -> None:
+        class C:
+            __slots__ = ("x", "y")
+
+            def __init__(self, x: int, y: int) -> None:
+                self.x = x
+                self.y = y
+
+        c = C(1, 2)
+
+        def f() -> int:
+            return c.x
+
+        specialize(f, lambda: f())
+
+        self.assertNotIn("LOAD_ATTR", opnames(f))
+        self.assertIn("LOAD_ATTR_SLOT", opnames(f))
+        self.assertEqual(f(), 1)
+
+    def test_load_attr_slot_second_attr(self) -> None:
+        """Test accessing the second slot attribute."""
+
+        class C:
+            __slots__ = ("x", "y")
+
+            def __init__(self, x: int, y: int) -> None:
+                self.x = x
+                self.y = y
+
+        c = C(10, 20)
+
+        def f() -> int:
+            return c.y
+
+        specialize(f, lambda: f())
+
+        self.assertNotIn("LOAD_ATTR", opnames(f))
+        self.assertIn("LOAD_ATTR_SLOT", opnames(f))
+        self.assertEqual(f(), 20)
+
+    def test_load_attr_slot_uninitialized(self) -> None:
+        """Test that accessing an uninitialized slot raises AttributeError."""
+
+        class C:
+            __slots__ = ("x",)
+
+            def __init__(self, val: object = None) -> None:
+                if val is not None:
+                    self.x = val
+
+        c = C(42)
+
+        def f() -> object:
+            return c.x
+
+        # First warm up and specialize with initialized slot
+        specialize(f, lambda: f())
+
+        self.assertNotIn("LOAD_ATTR", opnames(f))
+        self.assertIn("LOAD_ATTR_SLOT", opnames(f))
+        self.assertEqual(f(), 42)
+
+        # Now test with an uninitialized instance.
+        c = C()
+        with self.assertRaises(AttributeError):
+            f()

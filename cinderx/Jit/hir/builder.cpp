@@ -31,6 +31,7 @@ extern "C" {
 #include "cinderx/module_state.h"
 
 #include <algorithm>
+#include <cstring>
 #include <deque>
 #include <memory>
 #include <optional>
@@ -2750,11 +2751,64 @@ void HIRBuilder::emitLoadAttr(
   Register* receiver = tc.frame.stack.pop();
 
   if (getConfig().specialized_opcodes) {
-    switch (bc_instr.specializedOpcode()) {
+    int specialized_opcode = bc_instr.specializedOpcode();
+    switch (specialized_opcode) {
       case LOAD_ATTR_MODULE: {
         Type type = Type::fromTypeExact(&PyModule_Type);
         tc.emit<GuardType>(receiver, type, receiver, tc.frame);
         break;
+      }
+      case LOAD_ATTR_SLOT: {
+        // Fetch type version and slot index from the inline cache.
+        // The cache layout for LOAD_ATTR_SLOT is:
+        // - Entry 0: counter
+        // - Entries 1-2: type version (uint32_t)
+        // - Entry 3: slot index (uint16_t)
+        _Py_CODEUNIT* code_units = codeUnit(code_.get());
+        BCIndex cache_idx = bc_instr.opcodeIndex() + 1;
+        // Read version from cache entries 1-2.
+        uint32_t type_version = 0;
+        memcpy(&type_version, &code_units[cache_idx.value() + 2].cache,
+               sizeof(uint32_t));
+        // Read index from cache entry 3.
+        uint16_t slot_index = code_units[cache_idx.value() + 4].cache;
+
+        // If type_version is 0, the cache is not valid (instruction not
+        // specialized or deoptimized).  Fall back to generic LoadAttr.
+        if (type_version == 0) {
+          break;
+        }
+
+        // Verify the type version is what we expect.
+        Register* type = temps_.AllocateNonStack();
+        tc.emit<LoadField>(
+            type, receiver, "ob_type", offsetof(PyObject, ob_type), TType);
+        Register* tp_version = temps_.AllocateNonStack();
+        tc.emit<LoadField>(
+            tp_version, type, "tp_version",
+            offsetof(PyTypeObject, tp_version_tag), TCUInt32);
+        Register* expected_version = temps_.AllocateNonStack();
+        tc.emit<LoadConst>(
+            expected_version, Type::fromCInt(type_version, TCUInt32));
+        Register* compare = temps_.AllocateNonStack();
+        tc.emit<PrimitiveCompare>(
+            compare, PrimitiveCompareOp::kEqual, tp_version, expected_version);
+        auto guard_version = tc.emit<Guard>(compare);
+        guard_version->setDescr(fmt::format("{}: tp_version modified",
+            opcodeName(specialized_opcode)));
+
+        BorrowedRef<> slot_name = getVarname(code_, name_idx);
+
+        // Do a load from the slot offset.
+        Register* result = temps_.AllocateStack();
+        tc.emit<LoadField>(
+            result, receiver, PyUnicode_AsUTF8(slot_name), slot_index,
+            TOptObject);
+        CheckField* cf = tc.emit<CheckField>(
+            result, result, slot_name, tc.frame);
+        cf->setGuiltyReg(receiver);
+        tc.frame.stack.push(result);
+        return;
       }
       default:
         break;
