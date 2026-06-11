@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/lir/type.h"
 
+#include <bit>
 #include <ostream>
 
 namespace jit::lir {
@@ -23,6 +24,10 @@ size_t bitSize(DataType dt) {
       break;
   }
   throw std::runtime_error{fmt::format("Unrecognized LIR DataType: {}", dt)};
+}
+
+size_t byteShift(DataType dt) {
+  return std::bit_width(bitSize(dt) / 8) - 1;
 }
 
 std::ostream& operator<<(std::ostream& os, OperandType ty) {

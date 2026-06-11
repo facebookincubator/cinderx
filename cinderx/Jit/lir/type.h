@@ -60,6 +60,10 @@ enum class DataType : uint8_t {
 
 size_t bitSize(DataType dt);
 
+/* The shift amount used when accessing an element of the given datatype within
+ * a vector. */
+size_t byteShift(DataType dt);
+
 std::ostream& operator<<(std::ostream& os, DataType dt);
 std::ostream& operator<<(std::ostream& os, OperandType ty);
 

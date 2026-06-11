@@ -26,6 +26,15 @@ using namespace asmjit;
 using namespace jit;
 using namespace jit::lir;
 
+TEST(LIRTypeTest, DataTypeByteShift) {
+  EXPECT_EQ(byteShift(DataType::k8bit), 0);
+  EXPECT_EQ(byteShift(DataType::k16bit), 1);
+  EXPECT_EQ(byteShift(DataType::k32bit), 2);
+  EXPECT_EQ(byteShift(DataType::k64bit), 3);
+  EXPECT_EQ(byteShift(DataType::kDouble), 3);
+  EXPECT_EQ(byteShift(DataType::kObject), 3);
+}
+
 class LIRGeneratorTest : public RuntimeTest {
  public:
   std::string getLIRString(PyObject* func_obj) {
@@ -736,4 +745,29 @@ def func():
   auto lir_str = getLIRString(pyfunc.get());
   EXPECT_NE(lir_str.find("MoveRelaxed"), std::string::npos)
       << "LoadEvalBreaker should lower to MoveRelaxed";
+}
+
+TEST_F(LIRGeneratorTest, ListDynamicIndexLoadStoreUsesScaledArrayLIR) {
+  const char* src = R"(
+import os
+
+def func(value):
+  xs = [1, 2, 3]
+  i = 1 if os.argv else 2
+  old = xs[i]
+  xs[i] = value
+  return old
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_str = getLIRString(pyfunc.get());
+  const std::regex scaled_array_load{
+      R"(:Object = Move \[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object)"};
+  const std::regex scaled_array_store{
+      R"(\[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object = Move %\d+:Object)"};
+
+  EXPECT_TRUE(std::regex_search(lir_str, scaled_array_load)) << lir_str;
+  EXPECT_TRUE(std::regex_search(lir_str, scaled_array_store)) << lir_str;
 }

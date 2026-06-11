@@ -1581,18 +1581,25 @@ arch::Mem ptrIndirect(
     arch::Builder* as,
     arch::Gp scratch0,
     arch::Gp scratch1,
-    const MemoryIndirect* indirect) {
+    const MemoryIndirect* indirect,
+    DataType data_type) {
   auto base = getGpOrSP(indirect->getBaseRegOperand());
   auto indexRegOperand = indirect->getIndexRegOperand();
   auto offset = indirect->getOffset();
 
   if (indexRegOperand != nullptr) {
-    leaIndex(
-        as,
-        scratch1,
-        base,
-        AT::getGp(indexRegOperand),
-        indirect->getMultiplier());
+    auto index = AT::getGp(indexRegOperand);
+    auto multiplier = indirect->getMultiplier();
+
+    if (offset == 0) {
+      if (multiplier == 0) {
+        return a64::ptr(base, index);
+      } else if (multiplier == byteShift(data_type)) {
+        return a64::ptr(base, index, a64::lsl(multiplier));
+      }
+    }
+
+    leaIndex(as, scratch1, base, index, multiplier);
 
     base = scratch1;
   }
@@ -1796,7 +1803,8 @@ void translateMove(Environ* env, const Instruction* instr) {
               as,
               arch::reg_scratch_0,
               arch::reg_scratch_1,
-              input->getMemoryIndirect());
+              input->getMemoryIndirect(),
+              output->dataType());
 
           loadToReg(as, output, ptr);
           break;
@@ -1865,15 +1873,23 @@ void translateMove(Environ* env, const Instruction* instr) {
       if (input->isReg()) {
         // Storing the value of a register to an address relative to another
         // register.
-        auto ptr =
-            ptrIndirect(as, scratch0, scratch1, output->getMemoryIndirect());
+        auto ptr = ptrIndirect(
+            as,
+            scratch0,
+            scratch1,
+            output->getMemoryIndirect(),
+            output->dataType());
 
         storeFromReg(as, input, output, ptr);
       } else if (input->isImm()) {
         // Storing a constant immediate to an address relative to another
         // register.
-        auto ptr =
-            ptrIndirect(as, scratch0, scratch1, output->getMemoryIndirect());
+        auto ptr = ptrIndirect(
+            as,
+            scratch0,
+            scratch1,
+            output->getMemoryIndirect(),
+            output->dataType());
 
         // Use the output's data type to determine the store width.
         switch (output->dataType()) {
