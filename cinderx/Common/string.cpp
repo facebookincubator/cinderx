@@ -17,7 +17,7 @@ extern "C" PyObject* Ci_InitStaticStringImpl(const char* s) {
   obj->ob_ref_local = _Py_IMMORTAL_REFCNT_LOCAL;
   obj->ob_ref_shared = 0;
   _Py_atomic_or_uint8(&obj->ob_gc_bits, _PyGC_BITS_DEFERRED);
-  _PyASCIIObject_CAST(obj)->state.statically_allocated = 1;
+  _PyASCIIObject_CAST(obj)->state.statically_allocated = 0;
 #else
   obj->ob_refcnt = 0x3fffffff;
 #endif
