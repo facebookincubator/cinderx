@@ -13,3 +13,8 @@ test.test_multiprocessing_main_handling.SpawnCmdLineTest
 
 # Uses excessive memory with ASAN
 test.test_io.PyBufferedReaderTest.test_recursive_repr
+
+# Attempts to trigger MemoryErrors using excessively large allocations. The
+# test passes under ASAN but ASAN emits a warning about the allocation size,
+# causing jobs that check for ASAN warnings to fail.
+test.test_io.test_bufferedio.CBufferedReaderTest.test_read1_error_does_not_cause_reentrant_failure
