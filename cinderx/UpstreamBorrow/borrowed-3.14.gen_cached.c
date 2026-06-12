@@ -304,6 +304,9 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
+#ifdef META_PYTHON
+#else
+#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
@@ -405,6 +408,8 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef META_PYTHON
 #endif
 #ifdef Py_GIL_DISABLED
+#endif
+#ifdef META_PYTHON
 #endif
 #ifdef META_PYTHON
 #endif
@@ -676,7 +681,11 @@ free_keys_object(PyDictKeysObject *keys, bool use_qsbr)
     size_t size = _PyDict_KeysSize(keys);
 #endif
     if (DK_KIND(keys) == DICT_KEYS_SPLIT) {
+#ifdef META_PYTHON
         ptr = _PyDictKeys_AsSharedKeys(keys);
+#else
+        ptr = keys;
+#endif
 #ifdef Py_GIL_DISABLED
         size += offsetof(struct _instancekeysobject, dsk_keys);
 #endif
@@ -1808,7 +1817,9 @@ insert_split_key(PyDictKeysObject *keys, PyObject *key, Py_hash_t hash)
     if (ix == DKIX_EMPTY && keys->dk_usable > 0) {
         // Insert into new slot
         FT_ATOMIC_STORE_UINT32_RELAXED(keys->dk_version, 0);
+#ifdef META_PYTHON
         _PyDict_SplitKeysInvalidated(keys);
+#endif
         Py_ssize_t hashpos = find_empty_slot(keys, hash);
         ix = keys->dk_nentries;
         dictkeys_set_index(keys, hashpos, ix);
@@ -5761,6 +5772,8 @@ do { \
 #endif   // Py_STATS
 #ifdef Py_STATS
 #endif
+#ifndef META_PYTHON
+#endif
 #ifdef Py_STATS
 #endif
 #ifdef Py_STATS
@@ -6205,6 +6218,9 @@ specialize_attr_loadclassattr(PyObject *owner, _Py_CODEUNIT *instr,
             SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
             return 0;
         }
+#ifndef META_PYTHON
+        write_u32(cache->keys_version, shared_keys_version);
+#endif
         specialize(instr, is_method ? LOAD_ATTR_METHOD_WITH_VALUES : LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES);
     }
     else {
