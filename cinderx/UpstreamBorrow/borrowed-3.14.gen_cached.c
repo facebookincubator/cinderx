@@ -287,14 +287,22 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef META_PYTHON
 #endif
 #undef CHECK
-#ifdef META_PYTHON
-#else
-#endif
 #if SIZEOF_VOID_P > 4
+#endif
+#ifdef META_PYTHON
 #endif
 #ifdef Py_REF_DEBUG
 #endif
 #ifdef META_PYTHON
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef META_PYTHON
+#else
+#endif
+#ifdef META_PYTHON
+#endif
+#ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -570,7 +578,6 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef META_PYTHON
 #endif
 #ifdef META_PYTHON
-#else
 #endif
 #ifdef Py_GIL_DISABLED
 #else
@@ -664,9 +671,19 @@ dictkeys_incref(PyDictKeysObject *dk)
 static void
 free_keys_object(PyDictKeysObject *keys, bool use_qsbr)
 {
+    void *ptr = keys;
+#ifdef Py_GIL_DISABLED
+    size_t size = _PyDict_KeysSize(keys);
+#endif
+    if (DK_KIND(keys) == DICT_KEYS_SPLIT) {
+        ptr = _PyDictKeys_AsSharedKeys(keys);
+#ifdef Py_GIL_DISABLED
+        size += offsetof(struct _instancekeysobject, dsk_keys);
+#endif
+    }
 #ifdef Py_GIL_DISABLED
     if (use_qsbr) {
-        _PyMem_FreeDelayed(keys, _PyDict_KeysSize(keys));
+        _PyMem_FreeDelayed(ptr, size);
         return;
     }
 #endif
@@ -674,7 +691,7 @@ free_keys_object(PyDictKeysObject *keys, bool use_qsbr)
         _Py_FREELIST_FREE(dictkeys, keys, PyMem_Free);
     }
     else {
-        PyMem_Free(keys);
+        PyMem_Free(ptr);
     }
 }
 static inline void
@@ -1285,20 +1302,12 @@ _PyDict_DelItem_KnownHash_LockHeld(PyObject *op, PyObject *key, Py_hash_t hash)
     delitem_common(mp, hash, ix, old_value);
     return 0;
 }
-static PyDictKeysObject*
-#ifdef META_PYTHON
-new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode, bool lazy_imports)
-#else
-new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
-#endif
+static inline int
+get_log2_bytes(uint8_t log2_size)
 {
-    Py_ssize_t usable;
     int log2_bytes;
-    size_t entry_size = unicode ? sizeof(PyDictUnicodeEntry) : sizeof(PyDictKeyEntry);
-
     assert(log2_size >= PyDict_LOG_MINSIZE);
 
-    usable = USABLE_FRACTION((size_t)1<<log2_size);
     if (log2_size < 8) {
         log2_bytes = log2_size;
     }
@@ -1314,26 +1323,23 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
         log2_bytes = log2_size + 2;
     }
 
-    PyDictKeysObject *dk = NULL;
-    if (log2_size == PyDict_LOG_MINSIZE && unicode) {
-        dk = _Py_FREELIST_POP_MEM(dictkeys);
-    }
-    if (dk == NULL) {
-        dk = PyMem_Malloc(sizeof(PyDictKeysObject)
-                          + ((size_t)1 << log2_bytes)
-                          + entry_size * usable);
-        if (dk == NULL) {
-            PyErr_NoMemory();
-            return NULL;
-        }
-    }
+    return log2_bytes;
+}
+static inline void
+init_keys_object(PyDictKeysObject* dk, uint8_t log2_size, int log2_bytes, int kind,
+                 Py_ssize_t usable, Py_ssize_t entry_size
+#ifdef META_PYTHON
+                 , bool lazy_imports
+#endif
+                 )
+{
 #ifdef Py_REF_DEBUG
     _Py_IncRefTotal(_PyThreadState_GET());
 #endif
     dk->dk_refcnt = 1;
     dk->dk_log2_size = log2_size;
     dk->dk_log2_index_bytes = log2_bytes;
-    dk->dk_kind = unicode ? DICT_KEYS_UNICODE : DICT_KEYS_GENERAL;
+    dk->dk_kind = kind;
 #ifdef META_PYTHON
     if (lazy_imports) {
         dk->dk_kind |= DICT_KEYS_LAZY_IMPORTS_MASK;
@@ -1347,6 +1353,39 @@ new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
     dk->dk_version = 0;
     memset(&dk->dk_indices[0], 0xff, ((size_t)1 << log2_bytes));
     memset(&dk->dk_indices[(size_t)1 << log2_bytes], 0, entry_size * usable);
+}
+static PyDictKeysObject*
+#ifdef META_PYTHON
+new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode, bool lazy_imports)
+#else
+new_keys_object(PyInterpreterState *interp, uint8_t log2_size, bool unicode)
+#endif
+{
+    Py_ssize_t usable = USABLE_FRACTION((size_t)1<<log2_size);
+    size_t entry_size = unicode ? sizeof(PyDictUnicodeEntry) : sizeof(PyDictKeyEntry);
+
+    int log2_bytes = get_log2_bytes(log2_size);
+
+    PyDictKeysObject *dk = NULL;
+    if (log2_size == PyDict_LOG_MINSIZE && unicode) {
+        dk = _Py_FREELIST_POP_MEM(dictkeys);
+    }
+    if (dk == NULL) {
+        dk = PyMem_Malloc(sizeof(PyDictKeysObject)
+                          + ((size_t)1 << log2_bytes)
+                          + entry_size * usable);
+        if (dk == NULL) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+    }
+    init_keys_object(dk, log2_size, log2_bytes,
+                     unicode ? DICT_KEYS_UNICODE : DICT_KEYS_GENERAL,
+                     usable, entry_size
+#ifdef META_PYTHON
+                     , lazy_imports
+#endif
+                     );
     return dk;
 }
 #ifdef META_PYTHON
@@ -1769,6 +1808,7 @@ insert_split_key(PyDictKeysObject *keys, PyObject *key, Py_hash_t hash)
     if (ix == DKIX_EMPTY && keys->dk_usable > 0) {
         // Insert into new slot
         FT_ATOMIC_STORE_UINT32_RELAXED(keys->dk_version, 0);
+        _PyDict_SplitKeysInvalidated(keys);
         Py_ssize_t hashpos = find_empty_slot(keys, hash);
         ix = keys->dk_nentries;
         dictkeys_set_index(keys, hashpos, ix);
@@ -6165,7 +6205,6 @@ specialize_attr_loadclassattr(PyObject *owner, _Py_CODEUNIT *instr,
             SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
             return 0;
         }
-        write_u32(cache->keys_version, shared_keys_version);
         specialize(instr, is_method ? LOAD_ATTR_METHOD_WITH_VALUES : LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES);
     }
     else {
