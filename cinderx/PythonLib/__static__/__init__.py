@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import functools
 import random
-from asyncio import iscoroutinefunction
+from inspect import iscoroutinefunction
 from types import UnionType as typesUnion
 
 # pyre-ignore[21]: No _GenericAlias, _tp_cache

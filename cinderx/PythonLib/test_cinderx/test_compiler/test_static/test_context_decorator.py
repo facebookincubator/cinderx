@@ -5,8 +5,10 @@
 from __static__ import ContextDecorator
 
 import asyncio
+import gc
 import inspect
 import sys
+import warnings
 
 from .common import StaticTestBase
 
@@ -677,9 +679,18 @@ class ContextDecoratorTests(StaticTestBase):
         async def f() -> int:
             return 42
 
-        # just checking to make sure this doesn't leak
-        # in ref leak tests
-        x = f()  # noqa: F841
+        # Collecting the coroutine without awaiting it triggers a
+        # RuntimeWarning.  Capture and ignore it, the point of this test is to
+        # test for ref leaks.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="coroutine .* was never awaited",
+                category=RuntimeWarning,
+            )
+            x = f()
+            del x
+            gc.collect()
 
     def test_nonstatic_override(self) -> None:
         class C(ContextDecorator):
@@ -961,7 +972,7 @@ class ContextDecoratorTests(StaticTestBase):
         async def f() -> None:
             pass
 
-        self.assertTrue(asyncio.iscoroutinefunction(f))
+        self.assertTrue(inspect.iscoroutinefunction(f))
 
     def test_nonstatic_signature(self) -> None:
         class C(ContextDecorator):
@@ -988,8 +999,14 @@ class ContextDecoratorTests(StaticTestBase):
         async def f() -> None:
             pass
 
-        x = f()  # noqa: F841
+        # __enter__ is not called immediately.
+        x = f()
         self.assertFalse(enter_called)
+
+        # Driving `x` directly will call it.
+        with self.assertRaises(StopIteration):
+            x.send(None)
+        self.assertTrue(enter_called)
 
     def test_nonstatic_async_return_tuple_on_throw(self) -> None:
         class C(ContextDecorator):
