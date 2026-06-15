@@ -57,7 +57,7 @@ from .flow_graph_optimizer import (
 )
 from .opcode_cinder import opcode as cinder_opcode
 from .opcodebase import Opcode
-from .opcodes import opcode as opcodes_opcode, STATIC_OPCODES
+from .opcodes import opcode as opcodes_opcode, STATIC_OPCODES, STATIC_OPMAP
 from .symbols import ClassScope, Scope
 
 
@@ -195,7 +195,7 @@ class Instruction:
         return f"Instruction({', '.join(args)})"
 
     def is_jump(self, opcode: Opcode) -> bool:
-        op = opcode.opmap[self.opname]
+        op = STATIC_OPMAP[self.opname]
         return opcode.has_jump(op)
 
     def set_to_nop(self) -> None:

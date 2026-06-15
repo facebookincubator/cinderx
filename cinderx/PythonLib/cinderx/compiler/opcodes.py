@@ -17,7 +17,7 @@ from opcode import (
 
 from .opcodebase import Opcode
 
-STATIC_OPMAP: dict[str, int] = {}
+STATIC_OPMAP: dict[str, int] = {**opmap}
 STATIC_OPNAMES: list[str] = [f"<{i}>" for i in range(256)]
 STATIC_CONST_OPCODES: list[int] = []
 
@@ -61,8 +61,8 @@ if sys.version_info >= (3, 12):
         opname[126] = "EXTENDED_OPCODE"
         opmap["EXTENDED_OPCODE"] = 126
         hasarg.append(126)
-
-    opmap.update(STATIC_OPMAP)
+    else:
+        opmap.update(STATIC_OPMAP)
 
     if "dis" in sys.modules:
         # Fix up dis module to use the CinderX opcodes
@@ -83,7 +83,7 @@ if sys.version_info >= (3, 12):
 
 opcode: Opcode = Opcode()
 # pyrefly: ignore [bad-assignment]
-for opname, opnum in opmap.items():
+for opname, opnum in STATIC_OPMAP.items():
     if opnum in hasname:
         opcode.name_op(opname, opnum)
     elif opnum in hasjrel:
