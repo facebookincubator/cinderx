@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import sys
 
 from cinderx.compiler.strict import loader as static_python_loader

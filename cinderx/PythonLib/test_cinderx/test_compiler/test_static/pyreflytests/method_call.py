@@ -1,3 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
+
 class C:
     def f(self) -> None:
         return None

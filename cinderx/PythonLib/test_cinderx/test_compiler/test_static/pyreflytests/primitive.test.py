@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 from types import CodeType
 
 from test_cinderx.test_compiler.test_static.test_pyrefly_binder import PyreBinderTests

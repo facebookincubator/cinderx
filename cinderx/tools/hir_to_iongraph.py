@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 
 """Convert CinderX HIR text dumps to iongraph JSON format.
 

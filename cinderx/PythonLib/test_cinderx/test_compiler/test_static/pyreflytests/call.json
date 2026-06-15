@@ -17,36 +17,36 @@
   "locations": [
     {
       "loc": {
-        "start_line": 1,
+        "start_line": 4,
         "start_col": 11,
-        "end_line": 1,
+        "end_line": 4,
         "end_col": 15
       },
       "type": 0
     },
     {
       "loc": {
-        "start_line": 5,
+        "start_line": 8,
         "start_col": 11,
-        "end_line": 5,
+        "end_line": 8,
         "end_col": 15
       },
       "type": 0
     },
     {
       "loc": {
-        "start_line": 6,
+        "start_line": 9,
         "start_col": 11,
-        "end_line": 6,
+        "end_line": 9,
         "end_col": 14
       },
       "type": 0
     },
     {
       "loc": {
-        "start_line": 6,
+        "start_line": 9,
         "start_col": 11,
-        "end_line": 6,
+        "end_line": 9,
         "end_col": 12
       },
       "type": 1

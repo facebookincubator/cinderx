@@ -48,54 +48,54 @@
   "locations": [
     {
       "loc": {
-        "start_line": 1,
+        "start_line": 4,
         "start_col": 11,
-        "end_line": 1,
+        "end_line": 4,
         "end_col": 14
       },
       "type": 1
     },
     {
       "loc": {
-        "start_line": 2,
+        "start_line": 5,
         "start_col": 4,
-        "end_line": 2,
+        "end_line": 5,
         "end_col": 5
       },
       "type": 3
     },
     {
       "loc": {
-        "start_line": 2,
+        "start_line": 5,
         "start_col": 8,
-        "end_line": 2,
+        "end_line": 5,
         "end_col": 10
       },
       "type": 3
     },
     {
       "loc": {
-        "start_line": 3,
+        "start_line": 6,
         "start_col": 11,
-        "end_line": 3,
+        "end_line": 6,
         "end_col": 17
       },
       "type": 0
     },
     {
       "loc": {
-        "start_line": 3,
+        "start_line": 6,
         "start_col": 11,
-        "end_line": 3,
+        "end_line": 6,
         "end_col": 14
       },
       "type": 5
     },
     {
       "loc": {
-        "start_line": 3,
+        "start_line": 6,
         "start_col": 15,
-        "end_line": 3,
+        "end_line": 6,
         "end_col": 16
       },
       "type": 3
