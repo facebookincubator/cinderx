@@ -25,7 +25,7 @@ class ResolveRelativeImportTests(unittest.TestCase):
 
     These test the name manipulation logic directly, without needing the full
     static compiler infrastructure. This lets us test __init__.py handling
-    which the TestCompiler infra can't exercise (its _get_filename never
+    which the CompilerHarness infra can't exercise (its _get_filename never
     produces __init__.py filenames).
     """
 

@@ -109,7 +109,7 @@ def get_child(mod: ModuleTable, name: str) -> Value | None:
     return mod.get_child(name, TEST_OPT_OUT)
 
 
-class TestCompiler(Compiler):
+class CompilerHarness(Compiler):
     def __init__(
         self,
         source_by_name: Mapping[str, str],
@@ -190,13 +190,13 @@ class TestCompiler(Compiler):
 
     def type_error(
         self, name: str, pattern: str, at: str | None = None
-    ) -> TestCompiler:
+    ) -> CompilerHarness:
         source = self.source_by_name[name]
         with self.test_case.type_error_ctx(source, pattern, at):
             self.compile_module(name)
         return self
 
-    def revealed_type(self, name: str, type: str) -> TestCompiler:
+    def revealed_type(self, name: str, type: str) -> CompilerHarness:
         source = self.source_by_name[name]
         with self.test_case.revealed_type_ctx(source, type):
             self.compile_module(name)
@@ -428,14 +428,14 @@ class StaticTestBase(CompilerTest):
     def _clean_sources(self, sources: dict[str, str]) -> dict[str, str]:
         return {name: self.clean_code(code) for name, code in sources.items()}
 
-    def compiler(self, **sources: str) -> TestCompiler:
-        return TestCompiler(self._clean_sources(sources), self)
+    def compiler(self, **sources: str) -> CompilerHarness:
+        return CompilerHarness(self._clean_sources(sources), self)
 
-    def strict_compiler(self, **sources: str) -> TestCompiler:
-        return TestCompiler(self._clean_sources(sources), self, strict_modules=True)
+    def strict_compiler(self, **sources: str) -> CompilerHarness:
+        return CompilerHarness(self._clean_sources(sources), self, strict_modules=True)
 
-    def strict_patch_compiler(self, **sources: str) -> TestCompiler:
-        return TestCompiler(
+    def strict_patch_compiler(self, **sources: str) -> CompilerHarness:
+        return CompilerHarness(
             self._clean_sources(sources),
             self,
             strict_modules=True,

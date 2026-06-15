@@ -7,7 +7,7 @@ from unittest import TestCase
 
 from cinderx.compiler.static.module_table import find_transitive_deps
 
-from .common import StaticTestBase, TestCompiler
+from .common import CompilerHarness, StaticTestBase
 
 
 class DependencyTrackingTests(StaticTestBase):
@@ -429,7 +429,7 @@ class DependencyTrackingTests(StaticTestBase):
 
 
 class GetDependenciesTests(StaticTestBase):
-    def assertDeps(self, compiler: TestCompiler, mod: str, deps: set[str]) -> None:
+    def assertDeps(self, compiler: CompilerHarness, mod: str, deps: set[str]) -> None:
         self.assertEqual(
             deps,
             {mod.name for mod in compiler.modules[mod].get_dependencies()},

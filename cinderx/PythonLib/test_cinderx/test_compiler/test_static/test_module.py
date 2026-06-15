@@ -5,11 +5,11 @@
 from cinderx.compiler.static.module_table import ModuleTableException
 from cinderx.compiler.static.types import Class, ModuleInstance, TypedSyntaxError
 
-from .common import get_child, StaticTestBase, TestCompiler
+from .common import CompilerHarness, get_child, StaticTestBase
 
 
 class ModuleTests(StaticTestBase):
-    def decl_visit(self, **modules: str) -> TestCompiler:
+    def decl_visit(self, **modules: str) -> CompilerHarness:
         compiler = self.compiler(**modules)
         for name in modules.keys():
             compiler.import_module(name, optimize=0)
