@@ -68,6 +68,9 @@ jobs:
       run: uv pip install pytest
 
     - name: Run Tests
+      # Free-threaded builds aren't stable yet, so don't run the test suite
+      # against them.
+      if: matrix.python-version != '3.14t'
       run: uv run pytest cinderx/PythonLib/test_cinderx/
 
     - name: Run native tests
