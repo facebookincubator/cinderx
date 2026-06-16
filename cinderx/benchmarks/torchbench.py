@@ -100,7 +100,7 @@ def build_subprocess_env(extra: dict[str, str]) -> dict[str, str]:
 def run_compare(argv: list[str]) -> None:
     """Re-exec this script twice (baseline vs JIT) and print the speedup.
 
-    One subprocess runs with ``CINDERJIT_DISABLE=1`` (interpreter baseline), the
+    One subprocess runs with ``CINDERX_DISABLE=1`` (interpreter baseline), the
     other with ``--cinderx``.  All other args (``--model``, ``--test``,
     ``--batch-size``, ``--iterations``, ``--warmup``) are forwarded so both runs
     measure the same workload.
@@ -130,9 +130,7 @@ def run_compare(argv: list[str]) -> None:
             sys.exit(1)
         return mean_ms
 
-    baseline_ms = measure(
-        "Baseline (CINDERJIT_DISABLE=1)", {"CINDERJIT_DISABLE": "1"}, []
-    )
+    baseline_ms = measure("Baseline (CINDERX_DISABLE=1)", {"CINDERX_DISABLE": "1"}, [])
     jit_ms = measure("CinderX JIT", {}, ["--cinderx"])
 
     speedup = baseline_ms / jit_ms if jit_ms else float("nan")
@@ -201,21 +199,21 @@ def print_results(
 @click.option(
     "--iterations",
     type=click.IntRange(min=1),
-    default=30,
+    default=2000,
     show_default=True,
     help="Number of timed iterations per run",
 )
 @click.option(
     "--warmup",
     type=click.IntRange(min=0),
-    default=20,
+    default=1500,
     show_default=True,
     help="Number of warmup iterations before timing",
 )
 @click.option(
     "--repeat",
     type=click.IntRange(min=1),
-    default=3,
+    default=5,
     show_default=True,
     help="Number of timed runs",
 )
