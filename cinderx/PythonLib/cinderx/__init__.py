@@ -229,7 +229,6 @@ except ImportError as e:
             # pyre-fixme[11]: Annotation `kwargs` is not defined as a type.
             **kwargs: _TParams.kwargs,
         ) -> None:
-            global asyncio
             # pyre-fixme[31]: Expression `typing.Optional[typing.Callable[(_TParams,
             #  typing.Awaitable[_T])]]` is not a valid type.
             self.coro_func: Optional[Callable[_TParams, Awaitable[_T]]] = coro_func
@@ -273,7 +272,7 @@ except ImportError as e:
 
         def _get_future(self, loop: Optional[AbstractEventLoop]) -> Future:
             if loop is None:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
             f = asyncio.Future(loop=loop)
             self._futures.append(f)
             self._awaiting_tasks += 1
@@ -307,7 +306,7 @@ except ImportError as e:
                 return self._get_future(loop)
             else:
                 if loop is None:
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
                 t = loop.create_task(self._async_compute())
                 self.state = _AsyncLazyValueState.Running
                 # pyre-ignore[16]: Undefined attribute `asyncio.tasks.Task`
