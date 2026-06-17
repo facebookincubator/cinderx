@@ -49,6 +49,15 @@ fun test {
     Return v2
   }
 }
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:NoneType = LoadConst<NoneType>
+    v1:NoneType = LoadConst<NoneType>
+    v2:NoneType = LoadConst<NoneType>
+    Return v2
+  }
+}
 --- Test Name ---
 DoesNotMergeBranchToSelf
 --- Input ---
@@ -74,6 +83,13 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 (preds 0) {
+    v0:NoneType = LoadConst<NoneType>
+    Branch<0>
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 (preds 0) {
     v0:NoneType = LoadConst<NoneType>
@@ -189,6 +205,39 @@ fun jittestmodule:test {
     Unreachable
   }
 }
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v14:Func = LoadCurrentFunc
+    LoadFrame
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v16:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v16
+  }
+
+  bb 4 (preds 0) {
+    Snapshot
+    v17:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v15
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v19:Bottom = CheckVar<"a"> v15 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v15
+      }
+    }
+    Unreachable
+  }
+}
 --- Test Name ---
 ReplaceNonDeoptingBottomValueWithUnreachable
 --- Input ---
@@ -244,6 +293,25 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:Tuple = GuardType<Tuple> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseType<Tuple> v4
+    Unreachable
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -328,6 +396,18 @@ fun test {
     Return v3
   }
 }
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v3:ImmortalBool = UnaryOp<Not> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v3
+  }
+}
 --- Test Name ---
 CleanupBlocksDominatedByBottomValue
 --- Input ---
@@ -361,6 +441,12 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    Unreachable
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     Unreachable
@@ -403,6 +489,14 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:NoneType = LoadConst<NoneType>
+    Return v1
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -470,6 +564,19 @@ fun test {
     Unreachable
   }
 }
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseType<Tuple> v1
+    Unreachable
+  }
+}
 --- Test Name ---
 CleanUpExistingUnreachable
 --- Input ---
@@ -521,6 +628,19 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v6:NoneType = LoadConst<NoneType>
+    Return v6
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -617,6 +737,29 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:NoneType = LoadConst<NoneType>
+    v3:Object = BinaryOp<Add> v0 v2 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:Object = BinaryOp<Add> v0 v3 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Unreachable
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -759,6 +902,36 @@ fun test {
     Return v1
   }
 }
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v6:Tuple = RefineType<Tuple> v0
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 4) {
+    v1:Object = BinaryOp<Add> v6 v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<3, 4> v1
+  }
+
+  bb 4 (preds 1) {
+    v5:Object = BinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 3> v5
+  }
+
+  bb 3 (preds 1, 4) {
+    Return v1
+  }
+}
 --- Test Name ---
 CleanUpFalseBranchOfCondBranchCheckType
 --- Input ---
@@ -806,6 +979,19 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v3:{Array|BaseException|Bytes|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle} = RefineType<{Array|BaseException|Bytes|CBool|CDouble|CInt|CPtr|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|Nullptr|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle}> v0
+    v1:Object = BinaryOp<Add> v3 v3 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v1
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>

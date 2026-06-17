@@ -178,6 +178,56 @@ fun test {
     Return v6
   }
 }
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:ListExact = GuardType<ListExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:LongExact = GuardType<LongExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Snapshot
+    UseType<ListExact> v2
+    UseType<LongExact> v3
+    v7:CBool = IsCompactLong v3
+    Guard v7 {
+    }
+    v8:CInt64 = CompactLongUnbox v3
+    UseType<ListExact> v2
+    v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v10:CInt64[0] = LoadConst<CInt64[0]>
+    v11:CBool = PrimitiveCompare<LessThan> v8 v10
+    CondBranch<1, 2> v11
+  }
+
+  bb 1 (preds 0) {
+    v12:CInt64 = IntBinaryOp<Add> v8 v9
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v13:CInt64 = Phi<1, 2> v12 v8
+    Snapshot
+    v14:CBool = PrimitiveCompare<LessThan> v13 v9
+    Guard v14 {
+    }
+    v15:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
+    v16:Object = LoadArrayItem v15 v13 v2
+    v6:NoneType = LoadConst<NoneType>
+    Return v6
+  }
+}
 --- Test Name ---
 IsTruthyUsesGuardTypes
 --- Input ---
@@ -234,6 +284,19 @@ fun test {
   }
 }
 --- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v7:ImmortalNoneType = GuardIs<0xdeadbeef> v0 {
+    }
+    UseType<ImmortalNoneType> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+}
+--- Expected 3.16 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
