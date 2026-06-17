@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-from asyncio import iscoroutinefunction
+from inspect import iscoroutinefunction
 from typing import Dict, Generic, List, TypeVar
 
 RAND_MAX = (1 << 31) - 1
