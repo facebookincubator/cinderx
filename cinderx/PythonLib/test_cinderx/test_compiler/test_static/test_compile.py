@@ -20,7 +20,6 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 from types import ModuleType
 from typing import Callable, cast
-from unittest import skip
 from unittest.mock import patch
 
 import cinderx.jit
