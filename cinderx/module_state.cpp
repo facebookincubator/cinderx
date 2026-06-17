@@ -148,6 +148,12 @@ void setModuleState(BorrowedRef<> mod) {
   Ci_common_consts[CONSTANT_FALSE] = Py_GetConstantBorrowed(Py_CONSTANT_FALSE);
   Ci_common_consts[CONSTANT_MINUS_ONE] = PyLong_FromLong(-1);
 #endif
+#if PY_VERSION_HEX >= 0x03100000
+  Ci_common_consts[CONSTANT_BUILTIN_FROZENSET] =
+      reinterpret_cast<PyObject*>(&PyFrozenSet_Type);
+  Ci_common_consts[CONSTANT_EMPTY_TUPLE] =
+      Py_GetConstantBorrowed(Py_CONSTANT_EMPTY_TUPLE);
+#endif
 #endif
 }
 
