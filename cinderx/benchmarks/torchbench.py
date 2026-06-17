@@ -38,7 +38,17 @@ except ImportError:
 
 
 DEFAULT_MODEL: str = "pyhpc_equation_of_state"
-DEFAULT_BATCH_SIZE: int = 1024
+
+# Per-model default batch sizes set by this benchmark runner.  A model absent from this
+# table falls back to its own ``DEFAULT_EVAL_BSIZE``.
+#
+# ``pyhpc_equation_of_state``'s own default (1048576) is dominated by torch C++ kernels
+# and shows no meaningful CinderX signal, so we override it with a small
+# Python-dispatch-bound size.
+DEFAULT_BATCH_SIZES: dict[str, int] = {
+    "pyhpc_equation_of_state": 1024,
+}
+
 SUBPROCESS_ENV_KEYS: tuple[str, ...] = (
     "HOME",
     "LANG",
@@ -144,7 +154,7 @@ def run_compare(argv: list[str]) -> None:
 def print_results(
     model: str,
     test_mode: str,
-    batch_size: int,
+    batch_size: int | None,
     warmup: int,
     iterations: int,
     repeat: int,
@@ -191,10 +201,13 @@ def print_results(
 )
 @click.option(
     "--batch-size",
-    type=int,
-    default=DEFAULT_BATCH_SIZE,
-    show_default=True,
-    help="Model input/batch size; smaller keeps the workload Python-bound",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Model input/batch size; smaller keeps the workload Python-bound. "
+        "If omitted, uses the per-model default (see DEFAULT_BATCH_SIZES), "
+        "falling back to the model's own default batch size."
+    ),
 )
 @click.option(
     "--iterations",
@@ -232,7 +245,7 @@ def cli(
     enable_cinderx: bool,
     model: str,
     test_mode: str,
-    batch_size: int,
+    batch_size: int | None,
     iterations: int,
     warmup: int,
     repeat: int,
@@ -242,6 +255,11 @@ def cli(
     if compare:
         run_compare(sys.argv[1:])
         return
+
+    # An explicit --batch-size wins; otherwise fall back to the per-model
+    # default, then to the model's own default (None).
+    if batch_size is None:
+        batch_size = DEFAULT_BATCH_SIZES.get(model)
 
     print(
         f"Python {sys.version.split()[0]}  torch {torch.__version__}", file=sys.stderr

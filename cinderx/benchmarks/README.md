@@ -101,10 +101,10 @@ Options:
 - `--cinderx` — enable the CinderX JIT
 - `--model NAME` — TorchBench model to run (default `pyhpc_equation_of_state`)
 - `--test {eval,train}` — TorchBench test mode (default `eval`)
-- `--batch-size N` — model input size; smaller keeps the workload Python-bound (default 1024)
-- `--iterations N` — number of timed iterations per run (default 30)
-- `--warmup N` — warmup iterations before timing so the JIT compiles the hot path (default 20)
-- `--repeat N` — number of timed runs (default 3)
+- `--batch-size N` — model input size; smaller keeps the workload Python-bound.
+- `--iterations N` — number of timed iterations per run
+- `--warmup N` — warmup iterations before timing so the JIT compiles the hot path
+- `--repeat N` — number of timed runs
 - `--compile-after-n-calls N` — override the JIT call-count threshold when `--cinderx` is enabled
 - `--compare` — run baseline vs JIT in subprocesses and print the speedup ratio
 
