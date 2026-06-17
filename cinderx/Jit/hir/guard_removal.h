@@ -6,7 +6,7 @@
 
 namespace jit::hir {
 
-class GuardTypeRemoval : public Pass {
+class GuardTypeRemoval final : public Pass {
  public:
   GuardTypeRemoval() : Pass("GuardTypeRemoval") {}
 

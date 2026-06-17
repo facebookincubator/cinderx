@@ -6,7 +6,7 @@
 
 namespace jit::hir {
 
-class MaterializeSteals : public Pass {
+class MaterializeSteals final : public Pass {
  public:
   MaterializeSteals() : Pass("MaterializeSteals") {}
 

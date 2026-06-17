@@ -8,7 +8,7 @@ namespace jit::hir {
 
 // Inline function calls and add in BeginInlinedFunction and EndInlinedFunction
 // instructions.
-class InlineFunctionCalls : public Pass {
+class InlineFunctionCalls final : public Pass {
  public:
   InlineFunctionCalls() : Pass("InlineFunctionCalls") {}
 
@@ -21,7 +21,7 @@ class InlineFunctionCalls : public Pass {
 
 // Try to elide {Begin,End}InlinedFunction instructions for simple functions
 // that will never need a Python frame.
-class BeginInlinedFunctionElimination : public Pass {
+class BeginInlinedFunctionElimination final : public Pass {
  public:
   BeginInlinedFunctionElimination() : Pass("BeginInlinedFunctionElimination") {}
 

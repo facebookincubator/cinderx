@@ -6,7 +6,7 @@
 
 namespace jit::hir {
 
-class BuiltinLoadMethodElimination : public Pass {
+class BuiltinLoadMethodElimination final : public Pass {
  public:
   BuiltinLoadMethodElimination() : Pass("BuiltinLoadMethodElimination") {}
 

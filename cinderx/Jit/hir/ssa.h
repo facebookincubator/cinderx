@@ -35,7 +35,7 @@ struct SSABasicBlock {
       : block(b), unsealed_preds(0) {}
 };
 
-class SSAify : public Pass {
+class SSAify final : public Pass {
  public:
   SSAify() : Pass("SSAify"), env_(nullptr) {}
 

@@ -7,7 +7,7 @@
 namespace jit::hir {
 
 // Eliminate Assign instructions by propagating copies.
-class CopyPropagation : public Pass {
+class CopyPropagation final : public Pass {
  public:
   CopyPropagation() : Pass("CopyPropagation") {}
 

@@ -7,7 +7,7 @@
 namespace jit::hir {
 
 // Combination of passes to generally clean up the entire CFG.
-class CleanCFG : public Pass {
+class CleanCFG final : public Pass {
  public:
   CleanCFG() : Pass("CleanCFG") {}
 

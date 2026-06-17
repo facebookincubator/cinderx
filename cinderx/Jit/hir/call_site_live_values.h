@@ -8,7 +8,7 @@ namespace jit::hir {
 
 // Populates live-value metadata for HIR instructions that lower to helper calls
 // requiring deferred-RC GC root recovery.
-class CallSiteLiveValues : public Pass {
+class CallSiteLiveValues final : public Pass {
  public:
   CallSiteLiveValues() : Pass("CallSiteLiveValues") {}
 

@@ -6,7 +6,7 @@
 
 namespace jit::hir {
 
-class InsertUpdatePrevInstr : public Pass {
+class InsertUpdatePrevInstr final : public Pass {
  public:
   InsertUpdatePrevInstr() : Pass("InsertUpdatePrevInstr") {}
 

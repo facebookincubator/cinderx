@@ -12,7 +12,7 @@ namespace jit::hir {
 // If your optimization requires no global analysis or state and operates on
 // one instruction at a time by inspecting its inputs (and anything reachable
 // from them), it may be a good fit for Simplify.
-class Simplify : public Pass {
+class Simplify final : public Pass {
  public:
   Simplify() : Pass("Simplify") {}
 

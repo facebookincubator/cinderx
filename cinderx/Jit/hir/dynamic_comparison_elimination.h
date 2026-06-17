@@ -6,7 +6,7 @@
 
 namespace jit::hir {
 
-class DynamicComparisonElimination : public Pass {
+class DynamicComparisonElimination final : public Pass {
  public:
   DynamicComparisonElimination() : Pass("DynamicComparisonElimination") {}
 

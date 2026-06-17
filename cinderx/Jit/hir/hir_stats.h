@@ -9,7 +9,7 @@
 
 namespace jit::hir {
 
-class HIRStats : public Pass {
+class HIRStats final : public Pass {
  public:
   HIRStats() : Pass("HIRStats") {}
 

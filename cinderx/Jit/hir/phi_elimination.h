@@ -7,7 +7,7 @@
 namespace jit::hir {
 
 // Remove Phis that only have one unique input value (other than their output).
-class PhiElimination : public Pass {
+class PhiElimination final : public Pass {
  public:
   PhiElimination() : Pass("PhiElimination") {}
 

@@ -7,7 +7,7 @@
 namespace jit::hir {
 
 // Inserts incref/decref instructions.
-class RefcountInsertion : public Pass {
+class RefcountInsertion final : public Pass {
  public:
   RefcountInsertion() : Pass("RefcountInsertion") {}
 
