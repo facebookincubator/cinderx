@@ -316,9 +316,9 @@ class FreeThreadedGCFrameTests(unittest.TestCase):
         "meaningless without HIR inliner enabled",
     )
     def test_gc_collect_in_inlined_function(self) -> None:
-        self.assertEqual(
+        self.assertGreater(
             cinderx.jit.get_num_inlined_functions(_call_collect_getframe_cycle),
-            1,
+            0,
         )
         frame = _call_collect_getframe_cycle()
         self.assertIs(frame.f_code, _collect_getframe_cycle.__code__)

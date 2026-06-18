@@ -177,6 +177,14 @@ struct Config {
   // far less often than the caller must be a cold call site that isn't worth
   // inlining.  Only applied when the caller has a non-zero call count.
   size_t inliner_cold_call_threshold{20};
+  // Maximum depth for transitive (recursive) inlining.  When the inliner
+  // inlines a function it also considers that function's own callees as
+  // candidates; this bounds how many levels deep that can go.  A top-level
+  // call site is at depth 0, so a function inlined there lands at depth 1.
+  //
+  // A limit of 1 will disable transitive inlining entirely, and only allow
+  // inlining direct function calls.
+  size_t inliner_depth_limit{10};
   // Number of workers to use for batch compilation, like in precompile_all().
   // If this number isn't configured then batch compilation will happen inline
   // on the calling thread.

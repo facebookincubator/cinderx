@@ -4469,13 +4469,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         PyObject* func = instr->func();
         env_->code_rt->addReference(func);
 
-        // The caller frame for the previous field.
+        // The caller frame for the `previous` field.  `frameOffsetBefore` lands
+        // on the start of the caller's frame slot.  The non-inlined root
+        // frame's interpreter frame sits kFrameHeaderOverhead into its slot, so
+        // we add the overhead in that case.  When the caller is itself an
+        // inlined frame, its interpreter frame pointer *is* frameOffsetOf (==
+        // frameOffsetBefore here, see getInlinedFrame), so the overhead must
+        // not be added.
+        bool caller_is_root = instr->callerFrameState()->parent == nullptr;
+        Py_ssize_t caller_frame_offset = frameOffsetBefore(instr) +
+            (caller_is_root ? static_cast<Py_ssize_t>(kFrameHeaderOverhead)
+                            : 0);
         Instruction* caller_frame = bbb.appendInstr(
             OutVReg{DataType::k64bit},
             Instruction::kLea,
-            Stk{PhyLocation(
-                static_cast<int32_t>(
-                    frameOffsetBefore(instr) + kFrameHeaderOverhead))});
+            Stk{PhyLocation(static_cast<int32_t>(caller_frame_offset))});
 
         // There is already an interpreter frame for the caller function.
         Instruction* callee_frame = getInlinedFrame(bbb, instr);

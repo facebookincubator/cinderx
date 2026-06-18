@@ -12,8 +12,13 @@
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/preload.h"
 
-#include <algorithm>
+#include <cstdint>
+#include <deque>
+#include <optional>
+#include <queue>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace jit::hir {
 
@@ -38,6 +43,10 @@ struct AbstractCall {
       auto f = static_cast<VectorCall*>(instr);
       return f->arg(i);
     }
+    if (instr->IsCallMethod()) {
+      auto f = static_cast<CallMethod*>(instr);
+      return f->arg(i);
+    }
     JIT_THROW("Unsupported call type {}", instr->opname());
   }
 
@@ -45,6 +54,10 @@ struct AbstractCall {
   size_t nargs{0};
   DeoptBase* instr{nullptr};
   Register* target{nullptr};
+  // Score for ranking callsites as inlining candidates.  Lower is better.
+  size_t score{0};
+  // Discover order, used to break ranking ties in a stable manner.
+  uint64_t seq{0};
 };
 
 void logInlineFailure(
@@ -184,9 +197,14 @@ bool canInlineWithPreloader(
   return true;
 }
 
-void inlineFunctionCall(Function& caller, const AbstractCall& call_instr) {
+// Attempt to inline a single call.  On success returns the spliced-in callee
+// region (entry/exit blocks) so the caller can re-scan it for nested calls; on
+// failure returns nullopt (the reason is logged into the caller's stats).
+std::optional<InlineResult> inlineFunctionCall(
+    Function& caller,
+    const AbstractCall& call_instr) {
   if (!canInline(caller, call_instr)) {
-    return;
+    return std::nullopt;
   }
 
   auto caller_frame_state =
@@ -204,11 +222,11 @@ void inlineFunctionCall(Function& caller, const AbstractCall& call_instr) {
   Preloader* preloader = preloaderManager().find(callee);
   if (!preloader) {
     logInlineFailure(caller, callee, InlineFailureType::kNeedsPreload);
-    return;
+    return std::nullopt;
   }
 
   if (!canInlineWithPreloader(caller, call_instr, *preloader)) {
-    return;
+    return std::nullopt;
   }
 
   HIRBuilder hir_builder(*preloader);
@@ -223,7 +241,7 @@ void inlineFunctionCall(Function& caller, const AbstractCall& call_instr) {
         callee_name,
         caller.fullname,
         exn.what());
-    return;
+    return std::nullopt;
   }
 
   // This logging is parsed by jitlist_bisect.py to find inlined functions.
@@ -289,6 +307,132 @@ void inlineFunctionCall(Function& caller, const AbstractCall& call_instr) {
 
   delete call_instr.instr;
   caller.inline_function_stats.num_inlined_functions++;
+  return result;
+}
+
+// Validate a dynamic call's function target and, if it names a concrete
+// function we can inline, append it as a candidate.  `target` is the register
+// holding the callee, `nargs` the number of positional arguments.
+void maybeAddDynamicCall(
+    Function& irfunc,
+    DeoptBase* instr,
+    Register* target,
+    size_t nargs,
+    CallFlags flags,
+    std::vector<AbstractCall>& calls) {
+  const std::string& caller_name = irfunc.fullname;
+  if (!target->isA(TFunc)) {
+    LOG_INLINER(
+        "Can't inline non-function {}:{} into {}",
+        *target,
+        target->type(),
+        caller_name);
+    return;
+  }
+  if (!target->type().hasValueSpec(TFunc)) {
+    LOG_INLINER(
+        "Can't inline unknown function {}:{} into {}",
+        *target,
+        target->type(),
+        caller_name);
+    return;
+  }
+  if (flags & CallFlags::KwArgs) {
+    LOG_INLINER(
+        "Can't inline {}:{} into {} because it has kwargs",
+        *target,
+        target->type(),
+        caller_name);
+    return;
+  }
+
+  BorrowedRef<PyFunctionObject> callee{target->type().objectSpec()};
+  calls.emplace_back(callee, nargs, instr, target);
+}
+
+// Scan a single block for calls that the inliner can potentially handle and
+// append them to `calls`.  The actual inlinability of a candidate is decided
+// later by canInline()/inlineFunctionCall().
+void collectCalls(
+    Function& irfunc,
+    BasicBlock& block,
+    std::vector<AbstractCall>& calls) {
+  for (auto& instr : block) {
+    if (instr.IsVectorCall()) {
+      auto call = static_cast<VectorCall*>(&instr);
+      maybeAddDynamicCall(
+          irfunc, call, call->func(), call->numArgs(), call->flags(), calls);
+    } else if (instr.IsCallMethod()) {
+      // A CallMethod is a plain (inlinable) function call only when its
+      // receiver is null; with a real receiver it's a method dispatch we can't
+      // turn into a direct call.  Which operand holds the callable vs. the null
+      // receiver differs by Python version (mirrors simplifyCallMethod()).  In
+      // the pipeline Simplify rewrites these into VectorCalls before the
+      // inliner runs, but freshly inlined callee bodies have not been through
+      // Simplify yet, so we must recognize the CallMethod form directly to
+      // inline transitively.
+      auto call = static_cast<CallMethod*>(&instr);
+      Register* target = nullptr;
+      if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+        if (call->self()->type() <= TNullptr) {
+          target = call->func();
+        }
+      } else {
+        if (call->func()->type() <= TNullptr) {
+          target = call->self();
+        }
+      }
+      if (target != nullptr) {
+        maybeAddDynamicCall(
+            irfunc, call, target, call->NumArgs(), call->flags(), calls);
+      }
+    } else if (instr.IsInvokeStaticFunction()) {
+      auto call = static_cast<InvokeStaticFunction*>(&instr);
+      calls.emplace_back(call->func(), call->NumArgs() - 1, call);
+    }
+  }
+}
+
+// Report whether `code` already appears among the functions inlined on the path
+// to a call site, walking the FrameState parent chain.  The outermost frame
+// (parent == nullptr) is the function being compiled, not an inlined frame, so
+// it is excluded: this still allows a directly recursive function to be inlined
+// once into itself, but prevents that inlined copy (or a mutual recursion
+// cycle) from being unrolled again and again.
+bool inlineStackContains(
+    const FrameState* frame,
+    BorrowedRef<PyCodeObject> code) {
+  for (; frame != nullptr && frame->parent != nullptr; frame = frame->parent) {
+    if (frame->code == code) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Collect the blocks that make up a freshly inlined callee, from its entry
+// block up to (and including) its single merged return block.  Traversal stops
+// at `exit` so we don't walk back out into the caller's code.
+std::vector<BasicBlock*> inlinedBlocks(BasicBlock* entry, BasicBlock* exit) {
+  std::vector<BasicBlock*> blocks;
+  std::unordered_set<BasicBlock*> seen{entry};
+  std::deque<BasicBlock*> queue{entry};
+  while (!queue.empty()) {
+    BasicBlock* block = queue.front();
+    queue.pop_front();
+    blocks.push_back(block);
+    if (block == exit) {
+      continue;
+    }
+    Instr* terminator = block->GetTerminator();
+    for (std::size_t i = 0, n = terminator->numEdges(); i < n; i++) {
+      BasicBlock* succ = block->successor(i);
+      if (seen.insert(succ).second) {
+        queue.push_back(succ);
+      }
+    }
+  }
+  return blocks;
 }
 
 void tryEliminateBeginEnd(EndInlinedFunction* end) {
@@ -308,7 +452,7 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
       continue;
     }
     // Instructions that either deopt or otherwise materialize a PyFrameObject
-    // need the inline frames to exist. Everything that materializes a
+    // need the inline frames to exist.  Everything that materializes a
     // PyFrameObject should also be marked as deopting.  Updating the previous
     // instruction needs the frame too.
     if (it->asDeoptBase() || hasArbitraryExecution(*it)) {
@@ -318,113 +462,6 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
   for (Instr* instr : to_delete) {
     instr->unlink();
     delete instr;
-  }
-}
-
-// Scan through all calls in a function and collect the ones that could be
-// inlined.
-std::vector<AbstractCall> findCandidates(Function& caller) {
-  std::vector<AbstractCall> calls;
-  for (auto& block : caller.cfg.blocks) {
-    for (auto& instr : block) {
-      if (instr.IsVectorCall()) {
-        auto call = static_cast<VectorCall*>(&instr);
-        Register* target = call->func();
-        const std::string& caller_name = caller.fullname;
-        if (!target->isA(TFunc)) {
-          LOG_INLINER(
-              "Can't inline non-function {}:{} into {}",
-              *target,
-              target->type(),
-              caller_name);
-          continue;
-        }
-        if (!target->type().hasValueSpec(TFunc)) {
-          LOG_INLINER(
-              "Can't inline unknown function {}:{} into {}",
-              *target,
-              target->type(),
-              caller_name);
-          continue;
-        }
-        if (call->flags() & CallFlags::KwArgs) {
-          LOG_INLINER(
-              "Can't inline {}:{} into {} because it has kwargs",
-              *target,
-              target->type(),
-              caller_name);
-          continue;
-        }
-
-        BorrowedRef<PyFunctionObject> callee{target->type().objectSpec()};
-        calls.emplace_back(callee, call->numArgs(), call, target);
-      } else if (instr.IsInvokeStaticFunction()) {
-        auto call = static_cast<InvokeStaticFunction*>(&instr);
-        calls.emplace_back(call->func(), call->NumArgs() - 1, call);
-      }
-    }
-  }
-  return calls;
-}
-
-// Select candidate callsites for inlining.  Rank callsites by the call count of
-// the callee, which is an estimate as to how hot the specific callsite will be.
-// When the call count of the caller is significantly larger than that of the
-// callee, that's a sign that the callsite is cold so prune it from the
-// candidate list entirely.
-//
-// If the caller has never been called, select every callsite as a candidate to
-// match previous behavior.
-void selectCandidates(Function& caller, std::vector<AbstractCall>& calls) {
-  size_t caller_count = codeCallCount(caller.code);
-  size_t cold_threshold = getConfig().inliner_cold_call_threshold;
-
-  // Decorate each surviving candidate with a precomputed importance score so we
-  // don't recompute call counts on every comparison during sorting.
-  std::vector<std::pair<size_t, AbstractCall>> scored;
-  scored.reserve(calls.size());
-  for (const AbstractCall& call : calls) {
-    BorrowedRef<PyCodeObject> callee_code{call.func->func_code};
-    size_t callee_count = codeCallCount(callee_code);
-
-    // If the caller has never been called, assume all callsites are valid
-    // candidates.
-    if (caller_count == 0) {
-      scored.emplace_back(callee_count, call);
-      continue;
-    }
-
-    // Prune call sites that must be cold, when the caller is called N times
-    // more than the callee.
-    if (callee_count == 0 || caller_count / callee_count >= cold_threshold) {
-      LOG_INLINER(
-          "Pruning cold call to {} from {}: callee called {} times vs caller's "
-          "{}",
-          funcFullname(call.func),
-          caller.fullname,
-          callee_count,
-          caller_count);
-      continue;
-    }
-
-    // Clamp to the caller's count so a callee at least as hot as the caller is
-    // treated as equally important.
-    scored.emplace_back(std::min(callee_count, caller_count), call);
-  }
-
-  // Stable sort by descending importance, preserving source order (top-down)
-  // among calls of equal importance.
-  std::stable_sort(
-      scored.begin(),
-      scored.end(),
-      [](const std::pair<size_t, AbstractCall>& a,
-         const std::pair<size_t, AbstractCall>& b) {
-        return a.first > b.first;
-      });
-
-  calls.clear();
-  for (std::pair<size_t, AbstractCall>& entry : scored) {
-    calls.push_back(entry.second);
   }
 }
 
@@ -443,44 +480,134 @@ void InlineFunctionCalls::Run(Function& irfunc) {
     return;
   }
 
-  std::vector<AbstractCall> calls = findCandidates(irfunc);
-  selectCandidates(irfunc, calls);
-
-  if (calls.empty()) {
-    return;
-  }
-
-  size_t cost_limit = getConfig().inliner_cost_limit;
+  const size_t cost_limit = getConfig().inliner_cost_limit;
+  const size_t depth_limit = getConfig().inliner_depth_limit;
+  const size_t cold_threshold = getConfig().inliner_cold_call_threshold;
   size_t cost = codeCost(irfunc.code);
 
-  // Inline as many calls as possible, starting from the top of the function and
-  // working down.
-  for (const AbstractCall& call : calls) {
+  // Priority queue of candidate calls, ordered so that smaller callees are
+  // inlined first.  Preferring small callees lets us fit more of them under the
+  // cost limit, which matters once a large function starts hitting it.  Ties
+  // are broken by discovery order to keep inlining stable and source-ordered.
+  auto lowerPriority = [](const AbstractCall& a, const AbstractCall& b) {
+    if (a.score != b.score) {
+      return a.score > b.score;
+    }
+    return a.seq > b.seq;
+  };
+  std::priority_queue<
+      AbstractCall,
+      std::vector<AbstractCall>,
+      decltype(lowerPriority)>
+      queue{lowerPriority};
+  uint64_t seq = 0;
+
+  // Process the calls found in the caller's code and push the ones worth
+  // inlining onto the queue.
+  auto enqueueCandidates = [&](PyCodeObject* caller_code,
+                               const std::string& caller_name,
+                               const std::vector<AbstractCall>& candidates) {
+    size_t caller_count = codeCallCount(caller_code);
+    for (AbstractCall call : candidates) {
+      BorrowedRef<PyCodeObject> callee_code{call.func->func_code};
+
+      // Prune out callees that are substantially colder than the caller.  Don't
+      // prune anything when a caller hasn't been run yet (e.g. compiled via
+      // cinderx.jit.force_compile(), or via a JIT list).
+      if (caller_count != 0) {
+        size_t callee_count = codeCallCount(callee_code);
+        if (callee_count == 0 ||
+            caller_count / callee_count >= cold_threshold) {
+          LOG_INLINER(
+              "Pruning cold call to {} from {}: callee called {} times vs "
+              "caller's {}",
+              funcFullname(call.func),
+              caller_name,
+              callee_count,
+              caller_count);
+          continue;
+        }
+      }
+
+      // Rank callees by their size, smaller calls are cheaper to inline.
+      call.score = codeCost(callee_code);
+      call.seq = seq++;
+      queue.push(call);
+    }
+  };
+
+  // Seed the queue with the top-level function's callsites.  We grow it
+  // transitively: whenever we splice in a callee we re-scan its body so that
+  // the callee's own calls become candidates too.
+  {
+    std::vector<AbstractCall> candidates;
+    for (auto& block : irfunc.cfg.blocks) {
+      collectCalls(irfunc, block, candidates);
+    }
+    enqueueCandidates(irfunc.code, irfunc.fullname, candidates);
+  }
+
+  while (!queue.empty()) {
+    AbstractCall call = queue.top();
+    queue.pop();
+
     BorrowedRef<PyCodeObject> call_code{call.func->func_code};
+    const FrameState* call_site = call.instr->frameState();
+    // Inline depth of the call site.  A top-level call site is at depth 0, so
+    // the function we'd inline there lands at depth 1.
+    const size_t inline_depth = call_site->inlineDepth();
+
+    // Don't unroll directly or mutually recursive calls.
+    if (inlineStackContains(call_site, call_code)) {
+      logInlineFailure(irfunc, call.func, InlineFailureType::kIsRecursive);
+      continue;
+    }
+
+    // Bound how deep transitive inlining can go.
+    if (inline_depth >= depth_limit) {
+      logInlineFailure(
+          irfunc, call.func, InlineFailureType::kExceedsDepthLimit);
+      continue;
+    }
+
+    // Charge the callee's size against the budget.
     size_t new_cost = cost + codeCost(call_code);
     if (new_cost > cost_limit) {
       LOG_INLINER(
           "Inliner reached cost limit of {} when trying to inline {} into {}, "
-          "inlining stopping early",
+          "skipping",
           new_cost,
           funcFullname(call.func),
           irfunc.fullname);
-      break;
+      continue;
+    }
+
+    std::optional<InlineResult> result = inlineFunctionCall(irfunc, call);
+    if (!result.has_value()) {
+      // Inlining failed; the reason has been logged.  Don't charge its cost.
+      continue;
     }
     cost = new_cost;
 
-    inlineFunctionCall(irfunc, call);
-
     // We need to reflow types after every inline to propagate new type
-    // information from the callee.
+    // information from the callee.  This also gives the newly inlined call
+    // targets the value specs that collectCalls() relies on.
     reflowTypes(irfunc);
+
+    // Re-scan the just-inlined body so calls it makes become candidates too,
+    // ranking and pruning them relative to the callee we just inlined.
+    std::vector<AbstractCall> nested;
+    for (BasicBlock* block : inlinedBlocks(result->entry, result->exit)) {
+      collectCalls(irfunc, *block, nested);
+    }
+    enqueueCandidates(call_code, funcFullname(call.func), nested);
   }
 
-  // The inliner will make some blocks unreachable and we need to remove them
-  // to make the CFG valid again. While inlining might make some blocks
-  // unreachable and therefore make less work (less to inline), we cannot
-  // remove unreachable blocks in the above loop. It might delete instructions
-  // pointed to by `calls`.
+  // The inliner will make some blocks unreachable and we need to remove them to
+  // make the CFG valid again.  While inlining might make some blocks
+  // unreachable and therefore make less work (less to inline), we cannot remove
+  // unreachable blocks in the above loop.  It might delete instructions pointed
+  // to by `calls`.
   CopyPropagation{}.Run(irfunc);
   CleanCFG{}.Run(irfunc);
 }

@@ -571,6 +571,12 @@ FlagProcessor initFlagProcessor() {
       getMutableConfig().inliner_cold_call_threshold,
       "Prune an inlining candidate when the caller's call count is at least "
       "this many times the callee's call count.");
+  flag_processor.addOption(
+      "cinderx-jit-hir-inliner-depth-limit",
+      "CINDERX_JIT_HIR_INLINER_DEPTH_LIMIT",
+      getMutableConfig().inliner_depth_limit,
+      "Maximum depth for transitive (recursive) inlining. A limit of 1 only "
+      "inlines direct callees; higher values also inline callees of callees.");
 
   flag_processor.addOption(
       "cinderx-jit-lir-inliner",
