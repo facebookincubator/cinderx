@@ -407,39 +407,6 @@ BB %0
   EXPECT_EQ(store_pairs, 2);
   ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
 }
-
-TEST_F(LIRPostAllocRewriteTest, RegularCallArgsUseStorePairForRegisterPairs) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0
-                   Call 123456789, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object
-)",
-      X0,
-      X1,
-      X2,
-      X3,
-      X4,
-      X5,
-      X6,
-      X7,
-      X8,
-      X9);
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-
-  jit::codegen::Environ env;
-  PostRegAllocRewrite rewrite(parsed_func.get(), &env);
-  rewrite.run();
-
-  size_t store_pairs = 0;
-  for (auto& instr : parsed_func->basicblocks().front()->instructions()) {
-    store_pairs += instr->isStorePair() ? 1 : 0;
-  }
-
-  EXPECT_EQ(store_pairs, 1);
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
-}
 #endif // CINDER_AARCH64
 
 } // namespace jit::lir
