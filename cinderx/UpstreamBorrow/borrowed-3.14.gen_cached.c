@@ -163,6 +163,31 @@ PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_f
   return compute_cr_origin(origin_depth, current_frame);
 }
 
+#ifndef Py_GIL_DISABLED
+// Set to a bogus value so that we'll likely read
+// invalid memory if we use it by accident.
+Py_ssize_t freelists_offset = 0xdeadbeef;
+#endif
+
+static inline struct _Py_freelists *
+_Ci_freelists_get(void)
+{
+    PyThreadState *tstate = _PyThreadState_GET();
+#ifdef Py_DEBUG
+    _Py_EnsureTstateNotNULL(tstate);
+#endif
+
+#ifdef Py_GIL_DISABLED
+    return &((_PyThreadStateImpl*)tstate)->freelists;
+#else
+    return (struct _Py_freelists *)((char *)tstate->interp + freelists_offset);
+#endif
+}
+
+#define _Py_freelists_GET _Ci_freelists_get
+
+
+
 uint32_t
 _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 {
@@ -2600,6 +2625,12 @@ int init_upstream_borrow(void) {
   }
 #endif
 
+  // Compute the free list offset from something close that we have a debug offset for
+  _PyRuntimeState* runtime = &_PyRuntime;
+  freelists_offset = runtime->debug_offsets.interpreter_state.code_object_generation -
+                     offsetof(PyInterpreterState, _code_object_generation) +
+                     offsetof(PyInterpreterState, object_state) +
+                     offsetof(struct _py_object_state, freelists);
   PyObject *sys = PyImport_ImportModule("sys");
   if (sys == NULL) {
     return -1;
