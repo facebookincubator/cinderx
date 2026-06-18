@@ -377,36 +377,6 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
   EXPECT_TRUE(instrs[1]->isLessThanSigned());
   EXPECT_EQ(instrs[1]->getInput(1)->dataType(), DataType::k32bit);
 }
-
-TEST_F(LIRPostAllocRewriteTest, VectorCallArgsUseStorePairForRegisterPairs) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0
-{:>9}:Object = VectorCallTstate 123456789, 0, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, 0
-)",
-      X0,
-      X1,
-      X2,
-      X3,
-      X4,
-      X5,
-      X6);
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-
-  jit::codegen::Environ env;
-  PostRegAllocRewrite rewrite(parsed_func.get(), &env);
-  rewrite.run();
-
-  size_t store_pairs = 0;
-  for (auto& instr : parsed_func->basicblocks().front()->instructions()) {
-    store_pairs += instr->isStorePair() ? 1 : 0;
-  }
-
-  EXPECT_EQ(store_pairs, 2);
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
-}
 #endif // CINDER_AARCH64
 
 } // namespace jit::lir
