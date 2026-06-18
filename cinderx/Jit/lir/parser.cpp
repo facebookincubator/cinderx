@@ -40,13 +40,14 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"E[A-DS][IPX]", kPhyReg},
       {"[A-D]L", kPhyReg},
       {"[A-DS][IPX]L?", kPhyReg},
+      {R"(\[RBP\((-?\d+)\)\])", kStack},
 #elif defined(CINDER_AARCH64)
       {"[XWD][0-9]+", kPhyReg},
+      {R"(\[X29\((-?\d+)\)\])", kStack},
 #else
       {"[RD][0-9]+", kPhyReg},
 #endif
       {"XMM[0-9]+", kPhyReg},
-      {R"(\[RBP\((-?\d+)\)\])", kStack},
       {"\\[(0x[0-9a-fA-F]+)\\]", kAddress},
       {R"((\d+)(\(0x[0-9a-fA-F]+\))?)", kImmediate},
       {"BB%(\\d+)", kBasicBlockRef},
