@@ -100,8 +100,10 @@ struct OperandType {
 std::ostream& operator<<(std::ostream& os, OperandType kind);
 
 template <typename... Args>
-inline std::vector<OperandType> makeTypeVec(Args&&... args) {
-  return {args...};
+inline auto makeTypeArray(Args&&... args) {
+  return std::array<OperandType, sizeof...(Args)>{
+      OperandType{std::forward<Args>(args)}...,
+  };
 }
 
 class LiveValuesBase;
@@ -527,25 +529,21 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
   }
 };
 
-// TASK(T105350013): Add a compile-time op_types size check
-#define INSTR_CLASS(name, types, ...)                                          \
-  name##                                                                       \
-  _OperandTypes{public : OperandType GetOperandTypeImpl(std::size_t i) const { \
-      static const std::vector<OperandType> op_types = makeTypeVec types;      \
-  std::size_t num_ops = op_types.size();                                       \
-  if (i >= num_ops) {                                                          \
-    return op_types[num_ops - 1];                                              \
-  } else {                                                                     \
-    return op_types[i];                                                        \
-  }                                                                            \
-  }                                                                            \
-  }                                                                            \
-  ;                                                                            \
-  class name final : public InstrT<name, Opcode::k##name, __VA_ARGS__>,        \
-                     public name##_OperandTypes
+// TASK(T105350013): Add a compile-time op_types size check.
+template <auto GetOperandTypes>
+struct OperandTypes {
+  OperandType GetOperandTypeImpl(std::size_t i) const {
+    static const auto op_types = GetOperandTypes();
+    return i < op_types.size() ? op_types[i] : op_types.back();
+  }
+};
 
-#define DEFINE_SIMPLE_INSTR(name, types, ...)   \
-  class INSTR_CLASS(name, types, __VA_ARGS__) { \
+#define INSTR_CLASS(NAME, TYPES, ...)                             \
+  NAME final : public InstrT<NAME, Opcode::k##NAME, __VA_ARGS__>, \
+               public OperandTypes<[] { return makeTypeArray TYPES; }>
+
+#define DEFINE_SIMPLE_INSTR(NAME, TYPES, ...)   \
+  class INSTR_CLASS(NAME, TYPES, __VA_ARGS__) { \
    private:                                     \
     friend InstrT;                              \
     using InstrT::InstrT;                       \
