@@ -55,6 +55,18 @@ class SymbolVisitorTests(CompilerTest):
             gen = module.body[0].value
             self.assertIn("foo", visitor.scopes[gen].defs)
 
+    def test_class_comprehension_nested_class_closure(self) -> None:
+        # A class-body comprehension whose nested function captures __class__
+        # must keep __class__ free so the class allocates the closure cell;
+        # otherwise LOAD_CLOSURE __class__ gets an out-of-range offset.
+        d = self.run_code(
+            """
+            class _C:
+                res = [lambda: __class__ for _ in [1]]
+            """
+        )
+        self.assertIs(d["_C"].res[0](), d["_C"])
+
     def test_class_kwarg_in_nested_scope(self) -> None:
         code = """def f():
             def g():
@@ -227,10 +239,12 @@ class SymbolVisitorTests(CompilerTest):
             self.fail("scope not found")
 
     def test_type_param_mangled(self) -> None:
-        code = dedent("""
+        code = dedent(
+            """
         class C:
             def f[__T](): pass
-        """)
+        """
+        )
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
@@ -242,10 +256,12 @@ class SymbolVisitorTests(CompilerTest):
             self.fail("scope not found")
 
     def test_use_type_param(self) -> None:
-        code = dedent("""
+        code = dedent(
+            """
         class C[T]:
             def f(): return T
-        """)
+        """
+        )
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
@@ -268,11 +284,13 @@ class SymbolVisitorTests(CompilerTest):
             self.fail("scope not found")
 
     def test_refer_class_scope(self) -> None:
-        code = dedent("""
+        code = dedent(
+            """
         class C:
             class Nested: pass
             def f[T](self, x: Nested): pass
-        """)
+        """
+        )
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
@@ -293,9 +311,11 @@ class SymbolVisitorTests(CompilerTest):
             self.fail("scope not found")
 
     def test_type_alias_global(self) -> None:
-        code = dedent("""
+        code = dedent(
+            """
         type T = int
-        """)
+        """
+        )
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
@@ -307,10 +327,12 @@ class SymbolVisitorTests(CompilerTest):
             self.fail("scope not found")
 
     def test_type_alias_class(self) -> None:
-        code = dedent("""
+        code = dedent(
+            """
         class C:
             type T = int
-        """)
+        """
+        )
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
@@ -327,10 +349,12 @@ class SymbolVisitorTests(CompilerTest):
             self.fail("scope not found")
 
     def test_type_alias_generic_class(self) -> None:
-        code = dedent("""
+        code = dedent(
+            """
         class C[X]:
             type T[X] = int
-        """)
+        """
+        )
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)

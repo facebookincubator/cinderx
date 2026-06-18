@@ -1232,9 +1232,14 @@ class SymbolVisitor312(BaseSymbolVisitor):
                 ):
                     comp_free.remove(f)
             elif isinstance(scope, ClassScope) and f == "__class__":
+                # __class__ is not allowed to be free through a class scope (see
+                # drop_class_free) UNLESS a nested scope inside the comprehension
+                # captures it -- in that case it must stay free so the class
+                # provides the __class__ closure cell.
                 scope.globals[f] = 1
                 remove_dunder_class = True
-                comp_free.remove(f)
+                if not self.is_free_in_any_child(comp, f):
+                    comp_free.remove(f)
 
         # move names uses in comprehension to current scope
         for u in comp.uses.keys():
