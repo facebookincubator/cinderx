@@ -967,7 +967,29 @@ AttributeMutator* AttributeCache::findEmptyEntry() {
 }
 
 void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
-  BorrowedRef<> descr = _PyType_Lookup(Py_TYPE(obj), name);
+  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
+  if (!Ci_Type_HasValidVersionTag(type)) {
+    // The type must have a valid version tag in order for us to be able to
+    // invalidate the cache when the type is modified. See the comment at
+    // the top of `PyType_Modified` for more details.
+    return;
+  }
+
+  if ((is_set && type->tp_setattro != PyObject_GenericSetAttr) ||
+      (!is_set && type->tp_getattro != PyObject_GenericGetAttr &&
+       (type->tp_getattro != Ci_tp_getattr_hook ||
+        !hookUsesGenericGetAttr(type)))) {
+    // tp_ slot takes precedence. When tp_getattro is the __getattr__ hook,
+    // we can only cache if the hook wraps PyObject_GenericGetAttr. For
+    // metaclasses, the hook wraps type_getattro which does MRO search,
+    // and our IC cannot replicate that.
+    return;
+  }
+
+  // Only walk the MRO once we know the type is cacheable. For uncacheable
+  // types this lookup would be wasted, and these types never populate the
+  // cache so they reach this slow path on every access.
+  BorrowedRef<> descr = _PyType_Lookup(type, name);
   fill(obj, name, descr, is_set);
 }
 
@@ -1018,24 +1040,11 @@ void AttributeCache::fill(
     BorrowedRef<> name,
     BorrowedRef<> descr,
     bool is_set) {
+  // Precondition (checked by the sole caller, the 3-arg fill above): `type`
+  // has a valid version tag and is cacheable for this access kind (its
+  // tp_getattro/tp_setattro slot is the generic one, or the __getattr__ hook
+  // wrapping PyObject_GenericGetAttr).
   BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
-  if (!Ci_Type_HasValidVersionTag(type)) {
-    // The type must have a valid version tag in order for us to be able to
-    // invalidate the cache when the type is modified. See the comment at
-    // the top of `PyType_Modified` for more details.
-    return;
-  }
-
-  if ((is_set && type->tp_setattro != PyObject_GenericSetAttr) ||
-      (!is_set && type->tp_getattro != PyObject_GenericGetAttr &&
-       (type->tp_getattro != Ci_tp_getattr_hook ||
-        !hookUsesGenericGetAttr(type)))) {
-    // tp_ slot takes precedence. When tp_getattro is the __getattr__ hook,
-    // we can only cache if the hook wraps PyObject_GenericGetAttr. For
-    // metaclasses, the hook wraps type_getattro which does MRO search,
-    // and our IC cannot replicate that.
-    return;
-  }
 
   AttributeMutator* mut = findEmptyEntry();
   if (mut == nullptr) {
