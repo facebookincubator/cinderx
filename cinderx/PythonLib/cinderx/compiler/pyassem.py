@@ -2252,6 +2252,8 @@ class PyFlowGraph314(PyFlowGraph312):
         any: 4,
         list: 5,
         set: 6,
+        # CONSTANT_BUILTIN_FROZENSET; only emitted by the 3.16 code generator.
+        frozenset: 12,
     }
     _load_special_idx = {
         "__enter__": 0,

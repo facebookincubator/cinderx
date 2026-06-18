@@ -481,6 +481,15 @@ class AstOptimizerTests(CompilerTest):
             self.assertInGraph(graph, "LOAD_CONST", ())
             self.assertNotInGraph(graph, "LOAD_COMMON_CONSTANT", CONSTANT_EMPTY_TUPLE)
 
+    def test_frozenset_call_optimization(self) -> None:
+        # 3.16 (gh-150027) optimizes frozenset({...}) into a guarded
+        # INTRINSIC_BUILD_FROZENSET build; earlier versions emit a plain call.
+        graph = self.to_graph("x = frozenset({a, b})")
+        if sys.version_info >= (3, 16):
+            self.assertInGraph(graph, "CALL_INTRINSIC_1")
+        else:
+            self.assertNotInGraph(graph, "CALL_INTRINSIC_1")
+
 
 class _FakeInstr:
     __slots__ = ("opname", "oparg", "ioparg")

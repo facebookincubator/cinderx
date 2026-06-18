@@ -5251,6 +5251,8 @@ class CodeGenerator314(CodeGenerator312):
                 const = list
             elif attr.id == "set":
                 const = set
+            elif attr.id == "frozenset":
+                const = frozenset
             else:
                 assert attr.id == "tuple"
                 const = tuple
@@ -5269,7 +5271,7 @@ class CodeGenerator314(CodeGenerator312):
 
         if const is tuple or const is list:
             self.emit("BUILD_LIST", 0)
-        elif const is set:
+        elif const is set or const is frozenset:
             self.emit("BUILD_SET", 0)
         self.visit(node.args[0])
         loop = self.newBlock("loop")
@@ -5279,7 +5281,7 @@ class CodeGenerator314(CodeGenerator312):
         if const is tuple or const is list:
             self.emit_opt_function_loop_append()
             self.emit("JUMP", loop)
-        elif const is set:
+        elif const is set or const is frozenset:
             self.emit("SET_ADD", 3)
             self.emit("JUMP", loop)
         else:
@@ -5289,7 +5291,7 @@ class CodeGenerator314(CodeGenerator312):
         self.nextBlock()
 
         self.emit_noline("POP_ITER")
-        if const not in (tuple, list, set):
+        if const not in (tuple, list, set, frozenset):
             self.emit("LOAD_CONST", not initial_res)
         self.emit("JUMP", end)
 
@@ -5298,6 +5300,8 @@ class CodeGenerator314(CodeGenerator312):
         self.emit("POP_ITER")
         if const is tuple:
             self.emit_call_intrinsic_1("INTRINSIC_LIST_TO_TUPLE")
+        elif const is frozenset:
+            self.emit_call_intrinsic_1("INTRINSIC_BUILD_FROZENSET")
         elif const is list or const is set:
             # already the right type
             pass
@@ -6687,6 +6691,49 @@ class CodeGenerator315(CodeGenerator314):
 
 class CodeGenerator316(CodeGenerator315):
     flow_graph = PyFlowGraph316
+
+    # 3.16 also optimizes frozenset(...) calls (gh-150027).
+    SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = (
+        CodeGenerator315.SUPPORTED_FUNCTION_CALL_OPS + ("frozenset",)
+    )
+
+    def maybe_optimize_function_call(self, node: ast.Call) -> bool:
+        # frozenset({...}) / frozenset({... comprehension}) builds the set then
+        # converts it via INTRINSIC_BUILD_FROZENSET, guarded by an identity check
+        # that `frozenset` is still the builtin. The genexpr form is handled by
+        # the shared implementation via SUPPORTED_FUNCTION_CALL_OPS.
+        if (
+            isinstance(node.func, ast.Name)
+            and node.func.id == "frozenset"
+            and len(node.args) == 1
+            and not node.keywords
+            and isinstance(node.args[0], (ast.Set, ast.SetComp))
+        ):
+            return self.optimize_frozenset_literal_call(node)
+        return super().maybe_optimize_function_call(node)
+
+    def optimize_frozenset_literal_call(self, node: ast.Call) -> bool:
+        end = self.newBlock("end")
+        skip_optimization = self.newBlock("skip_optimization")
+        loc = self.graph.loc
+        self.visit(node.func)
+        self.set_pos(node.func)
+        self.emit("COPY", 1)
+        self.emit("LOAD_COMMON_CONSTANT", frozenset)
+        self.emit("IS_OP", 0)
+        self.emit("POP_JUMP_IF_FALSE", skip_optimization)
+        self.nextBlock()
+        self.emit("POP_TOP")
+        self.visit(node.args[0])
+        self.emit_call_intrinsic_1("INTRINSIC_BUILD_FROZENSET")
+        self.emit("JUMP", end)
+
+        self.nextBlock(skip_optimization)
+        self.set_pos(loc)
+        self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
+        self._call_helper(0, node, node.args, node.keywords)
+        self.nextBlock(end)
+        return True
 
 
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
