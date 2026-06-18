@@ -1405,7 +1405,8 @@ void translateStorePair(Environ* env, const Instruction* instr) {
       x86::qword_ptr(base, offset + kPointerSize),
       x86::gpq(instr->getInput(3)->getPhyRegister().loc));
 #elif defined(CINDER_AARCH64)
-  auto base = a64::x(instr->getInput(1)->getPhyRegister().loc);
+  auto base_reg = instr->getInput(1)->getPhyRegister();
+  auto base = base_reg == SP ? a64::sp : a64::x(base_reg.loc);
   // stp signed offset range is -512..504. Fall back to two str instructions
   // when the offset is out of range.
   if (Support::isInt7(offset >> 3)) {

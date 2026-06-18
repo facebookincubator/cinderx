@@ -216,6 +216,42 @@ TEST_F(LIRABITest, TestkCall_PhyReg) {
   translateInstr(Instruction::kCall, makePhyReg());
 }
 
+#if defined(CINDER_AARCH64)
+TEST_F(LIRABITest, TestkStorePair_SPBase) {
+  hir::Function hir_function;
+
+  Environ environ;
+  environ.ctx = getContext();
+  environ.code_rt = environ.ctx->allocateCodeRuntime(
+      hir_function.code.get(),
+      hir_function.builtins.get(),
+      hir_function.globals.get());
+
+  auto code_allocator = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+
+  CodeHolder code;
+  code.init(code_allocator->asmJitEnvironment());
+
+  arch::Builder as(&code);
+  environ.as = &as;
+
+  Function function;
+  BasicBlock bb(&function);
+  auto* instr = bb.allocateInstr(
+      Instruction::kStorePair,
+      nullptr,
+      Imm{24},
+      PhyReg{arch::reg_stack_pointer_loc, DataType::k64bit},
+      PhyReg{X25, DataType::k64bit},
+      PhyReg{X20, DataType::k64bit});
+
+  autogen::AutoTranslator::getInstance().translateInstr(&environ, instr);
+
+  EXPECT_EQ(as.finalize(), asmjit::kErrorOk);
+  EXPECT_EQ(code.textSection()->bufferSize(), 4);
+}
+#endif
+
 TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
   if constexpr (!kFreeThreadedBuild) {
     GTEST_SKIP() << "Callsite live-value locations are only filled in "

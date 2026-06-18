@@ -220,6 +220,24 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
       move->output()->setDataType(operand->dataType());
       move->appendInput(instr->releaseInput(i));
     } else {
+#if defined(CINDER_AARCH64)
+      if (i + 1 < num_inputs) {
+        auto next_arg = instr->getInput(i + 1);
+        if (canStorePairOperand(operand) && canStorePairOperand(next_arg)) {
+          insertStorePairToMemoryLocation(
+              block,
+              instr_iter,
+              arch::reg_stack_pointer_loc,
+              base_offset + stack_arg_size,
+              operand,
+              next_arg);
+          ++i;
+          stack_arg_size += 2 * sizeof(void*);
+          continue;
+        }
+      }
+#endif
+
       insertMoveToMemoryLocation(
           block,
           instr_iter,
