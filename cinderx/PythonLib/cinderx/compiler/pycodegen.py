@@ -67,6 +67,7 @@ try:
         PyFlowGraph312,
         PyFlowGraph314,
         PyFlowGraph315,
+        PyFlowGraph316,
         ResumeOparg,
         SrcLocation,
     )
@@ -4578,9 +4579,11 @@ class CodeGenerator312(CodeGenerator):
             elt,
             val,
             type(node),
-            IterStackState.IterableOnStack
-            if scope.inlined
-            else IterStackState.IterableInLocal,
+            (
+                IterStackState.IterableOnStack
+                if scope.inlined
+                else IterStackState.IterableInLocal
+            ),
         )
         if inlined_state is not None:
             self.pop_fblock(STOP_ITERATION)
@@ -6050,9 +6053,11 @@ class CodeGenerator314(CodeGenerator312):
 
         self._nameOp(
             "STORE",
-            "__annotate_func__"
-            if isinstance(self.scope, ClassScope)
-            else "__annotate__",
+            (
+                "__annotate_func__"
+                if isinstance(self.scope, ClassScope)
+                else "__annotate__"
+            ),
         )
 
         if need_separate_block:
@@ -6680,6 +6685,10 @@ class CodeGenerator315(CodeGenerator314):
         self.emit("LIST_APPEND", 3)
 
 
+class CodeGenerator316(CodeGenerator315):
+    flow_graph = PyFlowGraph316
+
+
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
     flow_graph = PyFlowGraph312
 
@@ -6701,7 +6710,13 @@ class CinderCodeGenerator315(CinderCodeGenerator312, CodeGenerator315):
     flow_graph = PyFlowGraph315
 
 
+class CinderCodeGenerator316(CinderCodeGenerator312, CodeGenerator316):
+    flow_graph = PyFlowGraph316
+
+
 def get_default_cinder_generator() -> type[CodeGenerator]:
+    if sys.version_info >= (3, 16):
+        return CinderCodeGenerator316
     if sys.version_info >= (3, 15):
         return CinderCodeGenerator315
     if sys.version_info >= (3, 14):
@@ -6710,6 +6725,8 @@ def get_default_cinder_generator() -> type[CodeGenerator]:
 
 
 def get_default_cpython_generator() -> type[CodeGenerator]:
+    if sys.version_info >= (3, 16):
+        return CodeGenerator316
     if sys.version_info >= (3, 15):
         return CodeGenerator315
     if sys.version_info >= (3, 14):

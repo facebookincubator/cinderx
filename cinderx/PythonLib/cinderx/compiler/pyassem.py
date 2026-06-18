@@ -3256,6 +3256,10 @@ class PyFlowGraph315(PyFlowGraph314):
                     self.maybe_propagate_location(target.insts[0], prev_loc)
 
 
+class PyFlowGraph316(PyFlowGraph315):
+    pass
+
+
 # Constants for reference tracking flags
 SUPPORT_KILLED = (
     1  # The loaded reference is still on the stack when the local is killed
