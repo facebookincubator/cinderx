@@ -239,97 +239,24 @@ void selectA64Guard(
 
   guard->setOpcode(Instruction::kA64GuardCC);
   guard->getInput(0)->setConstant(static_cast<uint64_t>(branch_opcode));
-
-  /* A64GuardCC branches using the condition encoded above. The original Guard
-   * variable and target operands are no longer needed. */
+  // A64GuardCC branches using the condition encoded above. The original Guard
+  // variable and target operands are no longer needed.
   guard->removeInput(3);
   guard->removeInput(2);
 }
 
-/* Convert from:
- *
- *     tst w0, w0
- *     b.mi label
- *
- * to:
- *
- *     tbnz w0, #31, label
- */
-void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
-  Instruction* branch = instr_iter->get();
-  JIT_DCHECK(
-      branch->isBranchS() || branch->isBranchNS(),
-      "Expected BranchS or BranchNS, got {}",
-      branch->opname());
-
-  /* Find the flag producer that this conditional branch is implicitly relying
-   * on. */
-  instr_iter_t cursor = instr_iter;
-  bool match = false;
-  while (cursor != block->instructions().begin()) {
-    --cursor;
-    Instruction* instr = cursor->get();
-    if (InstrProperty::getProperties(instr->opcode()).flag_effects ==
-        FlagEffects::kNone) {
-      continue;
-    }
-
-    if (!instr->isTest32()) {
-      return;
-    }
-
-    /* Make sure that the branch producer is testing a register against itself
-     * so that we can replace with the branch bit set instruction. */
-    auto* left = instr->getInput(0);
-    auto* right = instr->getInput(1);
-    if (!left->isLinked() || !right->isLinked() ||
-        left->getLinkedInstr() != right->getLinkedInstr()) {
-      return;
-    }
-
-    match = true;
-    break;
-  }
-
-  if (!match) {
-    return;
-  }
-
-  branch->setOpcode(
-      branch->isBranchS() ? Instruction::kBranchBitSet
-                          : Instruction::kBranchBitNotSet);
-
-  /* Test the sign bit of the register. */
-  auto bit = std::make_unique<Operand>();
-  bit->setConstant(31);
-  branch->prependInput(std::move(bit));
-
-  /* Take the register that the test is operating on and put it on branch. */
-  auto value = cursor->get()->removeInput(0);
-  branch->prependInput(std::move(value));
-
-  block->removeInstr(cursor);
-}
-
 void selectA64Opcodes(Function* func) {
   UseCounts use_counts = countUses(func);
-
   for (BasicBlock* block : func->basicblocks()) {
     BasicBlock::InstrList& instrs = block->instructions();
-
     for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {
       instr_iter_t cur_iter = iter++;
-
       switch (cur_iter->get()->opcode()) {
         case Instruction::kCondBranch:
           selectA64CondBranch(block, cur_iter, use_counts);
           break;
         case Instruction::kGuard:
           selectA64Guard(block, cur_iter, use_counts);
-          break;
-        case Instruction::kBranchS:
-        case Instruction::kBranchNS:
-          selectA64BranchSigned(block, cur_iter);
           break;
         default:
           break;
