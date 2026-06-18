@@ -13,9 +13,23 @@ from .optimizer import PyLimits, safe_lshift, safe_mod, safe_multiply, safe_powe
 
 TYPE_CHECKING = False
 if TYPE_CHECKING:
-    from typing import Callable
+    from typing import Callable, Protocol, Sequence
 
     from .pyassem import Block, Instruction, PyFlowGraph
+
+    class _RewritableInstr(Protocol):
+        # Minimal interface needed to rewrite an instruction into a
+        # LOAD_COMMON_CONSTANT. Both pyassem.Instruction and the lightweight
+        # fakes used in tests satisfy this structurally.
+        opname: str
+        oparg: object
+        ioparg: int
+
+    class _RewritableBlock(Protocol):
+        # Read-only property so the element type is matched covariantly: any
+        # block whose instructions satisfy _RewritableInstr is accepted.
+        @property
+        def insts(self) -> Sequence[_RewritableInstr]: ...
 
     Handler = Callable[
         [
@@ -1213,7 +1227,9 @@ CONSTANT_MINUS_ONE = 11
 CONSTANT_EMPTY_TUPLE = 13
 
 
-def _common_constant_oparg(const: object) -> int | None:
+def _common_constant_oparg(
+    const: object, *, allow_empty_tuple: bool = False
+) -> int | None:
     if const is None:
         return CONSTANT_NONE
     if const is True:
@@ -1224,12 +1240,19 @@ def _common_constant_oparg(const: object) -> int | None:
         return CONSTANT_EMPTY_STR
     if type(const) is int and const == -1:
         return CONSTANT_MINUS_ONE
+    if allow_empty_tuple and type(const) is tuple and len(const) == 0:
+        return CONSTANT_EMPTY_TUPLE
     return None
 
 
 class FlowGraphConstOptimizer315(FlowGraphConstOptimizer314):
+    # Whether the empty tuple is part of the LOAD_COMMON_CONSTANT table.
+    _allow_empty_tuple_const: bool = False
+
     def make_load_const(self, instr: Instruction, const: object) -> None:
-        oparg = _common_constant_oparg(const)
+        oparg = _common_constant_oparg(
+            const, allow_empty_tuple=self._allow_empty_tuple_const
+        )
         if oparg is not None:
             instr.opname = "LOAD_COMMON_CONSTANT"
             instr.oparg = oparg
@@ -1238,11 +1261,19 @@ class FlowGraphConstOptimizer315(FlowGraphConstOptimizer314):
             super().make_load_const(instr, const)
 
 
-def convert_load_const_to_load_common_constant(blocks: list[Block]) -> None:
+class FlowGraphConstOptimizer316(FlowGraphConstOptimizer315):
+    _allow_empty_tuple_const = True
+
+
+def convert_load_const_to_load_common_constant(
+    blocks: Sequence[_RewritableBlock], *, allow_empty_tuple: bool = False
+) -> None:
     for block in blocks:
         for instr in block.insts:
             if instr.opname in ("LOAD_CONST", "LOAD_SMALL_INT"):
-                oparg = _common_constant_oparg(instr.oparg)
+                oparg = _common_constant_oparg(
+                    instr.oparg, allow_empty_tuple=allow_empty_tuple
+                )
                 if oparg is not None:
                     instr.opname = "LOAD_COMMON_CONSTANT"
                     instr.oparg = oparg

@@ -5,6 +5,18 @@ import ast
 import math
 import sys
 
+from cinderx.compiler.flow_graph_optimizer import (
+    _common_constant_oparg,
+    CONSTANT_EMPTY_STR,
+    CONSTANT_EMPTY_TUPLE,
+    CONSTANT_FALSE,
+    CONSTANT_MINUS_ONE,
+    CONSTANT_NONE,
+    CONSTANT_TRUE,
+    convert_load_const_to_load_common_constant,
+    FlowGraphConstOptimizer315,
+    FlowGraphConstOptimizer316,
+)
 from cinderx.compiler.optimizer import (
     AstOptimizer,
     enum_format_str_components,
@@ -457,3 +469,88 @@ class AstOptimizerTests(CompilerTest):
             ).value,
             "10",
         )
+
+    def test_empty_tuple_load_common_constant(self) -> None:
+        # The empty tuple was added to the LOAD_COMMON_CONSTANT table in 3.16
+        # (magic 3701); on earlier versions it stays a plain LOAD_CONST.
+        graph = self.to_graph("x = ()")
+        if sys.version_info >= (3, 16):
+            self.assertInGraph(graph, "LOAD_COMMON_CONSTANT", CONSTANT_EMPTY_TUPLE)
+            self.assertNotInGraph(graph, "LOAD_CONST", ())
+        else:
+            self.assertInGraph(graph, "LOAD_CONST", ())
+            self.assertNotInGraph(graph, "LOAD_COMMON_CONSTANT", CONSTANT_EMPTY_TUPLE)
+
+
+class _FakeInstr:
+    __slots__ = ("opname", "oparg", "ioparg")
+
+    def __init__(self, opname: str, oparg: object) -> None:
+        self.opname = opname
+        self.oparg = oparg
+        self.ioparg = 0
+
+
+class _FakeBlock:
+    __slots__ = ("insts",)
+
+    def __init__(self, insts: list[_FakeInstr]) -> None:
+        self.insts = insts
+
+
+class LoadCommonConstantTest(CompilerTest):
+    """Version-independent tests for the LOAD_COMMON_CONSTANT mapping.
+
+    These exercise the optimizer logic directly so they run under any
+    interpreter, without needing a 3.16 runtime.
+    """
+
+    def test_common_constant_oparg_shared_values(self) -> None:
+        # The 3.15 set is unaffected by the empty-tuple flag.
+        for allow in (False, True):
+            self.assertEqual(
+                _common_constant_oparg(None, allow_empty_tuple=allow), CONSTANT_NONE
+            )
+            self.assertEqual(
+                _common_constant_oparg(True, allow_empty_tuple=allow), CONSTANT_TRUE
+            )
+            self.assertEqual(
+                _common_constant_oparg(False, allow_empty_tuple=allow), CONSTANT_FALSE
+            )
+            self.assertEqual(
+                _common_constant_oparg("", allow_empty_tuple=allow), CONSTANT_EMPTY_STR
+            )
+            self.assertEqual(
+                _common_constant_oparg(-1, allow_empty_tuple=allow), CONSTANT_MINUS_ONE
+            )
+
+    def test_common_constant_oparg_empty_tuple_gated(self) -> None:
+        # Empty tuple only maps when explicitly allowed (3.16+).
+        self.assertIsNone(_common_constant_oparg(()))
+        self.assertIsNone(_common_constant_oparg((), allow_empty_tuple=False))
+        self.assertEqual(
+            _common_constant_oparg((), allow_empty_tuple=True), CONSTANT_EMPTY_TUPLE
+        )
+        # Non-empty tuples are never common constants.
+        self.assertIsNone(_common_constant_oparg((1,), allow_empty_tuple=True))
+
+    def test_convert_pass_respects_flag(self) -> None:
+        def make_blocks() -> list[_FakeBlock]:
+            return [_FakeBlock([_FakeInstr("LOAD_CONST", ())])]
+
+        # Default (3.15 behavior): empty tuple left as LOAD_CONST.
+        blocks = make_blocks()
+        convert_load_const_to_load_common_constant(blocks)
+        self.assertEqual(blocks[0].insts[0].opname, "LOAD_CONST")
+
+        # 3.16 behavior: rewritten to LOAD_COMMON_CONSTANT with the right oparg.
+        blocks = make_blocks()
+        convert_load_const_to_load_common_constant(blocks, allow_empty_tuple=True)
+        instr = blocks[0].insts[0]
+        self.assertEqual(instr.opname, "LOAD_COMMON_CONSTANT")
+        self.assertEqual(instr.oparg, CONSTANT_EMPTY_TUPLE)
+        self.assertEqual(instr.ioparg, CONSTANT_EMPTY_TUPLE)
+
+    def test_const_optimizer_flag_wiring(self) -> None:
+        self.assertFalse(FlowGraphConstOptimizer315._allow_empty_tuple_const)
+        self.assertTrue(FlowGraphConstOptimizer316._allow_empty_tuple_const)

@@ -51,6 +51,7 @@ from .flow_graph_optimizer import (
     convert_load_const_to_load_common_constant,
     FlowGraphConstOptimizer314,
     FlowGraphConstOptimizer315,
+    FlowGraphConstOptimizer316,
     FlowGraphOptimizer,
     FlowGraphOptimizer312,
     FlowGraphOptimizer314,
@@ -3257,7 +3258,12 @@ class PyFlowGraph315(PyFlowGraph314):
 
 
 class PyFlowGraph316(PyFlowGraph315):
-    pass
+    flow_graph_const_optimizer = FlowGraphConstOptimizer316
+
+    def convert_load_const_to_load_common_constant(self) -> None:
+        convert_load_const_to_load_common_constant(
+            self.ordered_blocks, allow_empty_tuple=True
+        )
 
 
 # Constants for reference tracking flags
