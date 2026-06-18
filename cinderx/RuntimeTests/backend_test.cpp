@@ -815,6 +815,7 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   PostRegAllocRewrite post_rewrite(lirfunc.get(), &env);
   post_rewrite.run();
 
+#if defined(CINDER_X86_64)
   /*
   BB %0
   [RBP - 16]:Object = Move RAX:Object
@@ -828,6 +829,19 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
   ASSERT_EQ((*iter)->opcode(), Instruction::kAdd);
   ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kStack);
+#elif defined(CINDER_AARCH64)
+  ASSERT_EQ(bb->getNumInstrs(), 3);
+  auto& instrs = bb->instructions();
+
+  auto iter = instrs.begin();
+
+  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
+  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
+  ASSERT_EQ((*iter)->opcode(), Instruction::kAdd);
+  ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kReg);
+  ASSERT_NE(
+      (*iter)->getInput(1)->getPhyRegister(), arch::reg_general_return_loc);
+#endif
 }
 
 TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
