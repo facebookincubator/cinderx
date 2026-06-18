@@ -95,6 +95,35 @@ void insertMoveToMemoryLocation(
       PhyReg{temp, scratch_data_type});
 }
 
+#if defined(CINDER_AARCH64)
+/* Here we are looking for candidates for an stp instruction. Specifically we
+ * want general-purpose 64-bit registers. */
+bool canStorePairOperand(const Operand* operand) {
+  return operand->isReg() && !operand->isFp() && operand->sizeInBits() == 64;
+}
+
+/* Instead of storing an individual argument to a function on the stack using
+ * an str instruction, store two arguments on the stack at a time using stp. */
+void insertStorePairToMemoryLocation(
+    BasicBlock* block,
+    instr_iter_t instr_iter,
+    PhyLocation base,
+    int index,
+    const Operand* first,
+    const Operand* second) {
+  JIT_DCHECK(canStorePairOperand(first), "invalid first StorePair operand");
+  JIT_DCHECK(canStorePairOperand(second), "invalid second StorePair operand");
+
+  block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kStorePair,
+      Imm{static_cast<uint64_t>(index)},
+      PhyReg{base, DataType::k64bit},
+      PhyReg{first->getPhyRegister(), DataType::k64bit},
+      PhyReg{second->getPhyRegister(), DataType::k64bit});
+}
+#endif
+
 int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
@@ -244,6 +273,19 @@ int prepareArgsArray(
   for (size_t i = first_arg; i < first_arg + num_args; i++) {
     auto arg = instr->getInput(i);
     int arg_offset = (i - first_arg) * PTR_SIZE;
+
+#if defined(CINDER_AARCH64)
+    if (i + 1 < first_arg + num_args) {
+      auto next_arg = instr->getInput(i + 1);
+      if (canStorePairOperand(arg) && canStorePairOperand(next_arg)) {
+        insertStorePairToMemoryLocation(
+            block, instr_iter, dest, arg_offset, arg, next_arg);
+        ++i;
+        continue;
+      }
+    }
+#endif
+
     insertMoveToMemoryLocation(block, instr_iter, dest, arg_offset, arg);
   }
   return rsp_sub;
