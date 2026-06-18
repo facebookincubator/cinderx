@@ -1,0 +1,30 @@
+# CinderX's dict watcher gets ID 3 on 3.16 (CPython 3.16's own startup watchers
+# occupy IDs 0-2, CinderX's dict watcher takes the next free ID, 3).
+# These tests hard-code ID 3 as expected-unassigned, but CinderX occupies it.
+# test_clear_unassigned_watcher_id additionally clears CinderX's real watcher and
+# corrupts the test module's watcher count, cascading into the other DictWatchers
+# tests, so all three ID-3 tests are skipped (matching cinder_skip_test_315.txt).
+test.test_capi.test_watchers.TestDictWatchers.test_clear_unassigned_watcher_id
+test.test_capi.test_watchers.TestDictWatchers.test_watch_unassigned_watcher_id
+test.test_capi.test_watchers.TestDictWatchers.test_unwatch_unassigned_watcher_id
+
+# cinderx extension modules are installed (cinderjit, xxclassloader, _static,
+# _cinderx), so faulthandler lists them under "Extension modules:" -- this test
+# expects that line to be absent when only stdlib extensions are loaded.
+test.test_faulthandler.FaultHandlerTests.test_dump_ext_modules
+
+# Perf profiler conflicts w/ frame evaluation API
+test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
+test.test_perf_profiler.TestPerfProfiler.test_pre_fork_compile
+
+test.test_threading.ThreadTests.test_native_id_after_fork
+test.test_traceback.MiscTest.test_windows_only_module_error
+
+# T249123927
+test.test_generators.GeneratorTest.test_close_clears_frame
+
+# When run with JIT there's an extra heap object which causes this test to fail.
+test.test_gc.GCTests.test_heap_size
+
+# Need to port lightweight frames to 3.15
+test_cinderx.test_jit_support_instrumentation.*
