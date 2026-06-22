@@ -114,6 +114,7 @@
   X(STORE_FAST_STORE_FAST)             \
   X(STORE_FAST_LOAD_FAST)              \
   X(TO_BOOL)                           \
+  X(TO_BOOL_BOOL)                      \
   X(UNARY_POSITIVE)                    \
   X(YIELD_FROM)
 

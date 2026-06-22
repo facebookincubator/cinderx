@@ -983,7 +983,7 @@ void HIRBuilder::translate(
           break;
         }
         case TO_BOOL: {
-          emitToBool(tc);
+          emitToBool(tc, bc_instr);
           break;
         }
         case COPY_DICT_WITHOUT_KEYS: {
@@ -2647,12 +2647,27 @@ void HIRBuilder::emitCompareOp(
   tc.emit<Compare>(result, op, left, right, tc.frame);
   stack.push(result);
   if (PY_VERSION_HEX >= 0x030E0000 && bc_instr.oparg() & 0x10) {
-    emitToBool(tc);
+    emitToBool(tc, bc_instr);
   }
 }
 
-void HIRBuilder::emitToBool(TranslationContext& tc) {
+void HIRBuilder::emitToBool(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
   Register* operand = tc.frame.stack.pop();
+
+  if (getConfig().specialized_opcodes) {
+    switch (bc_instr.specializedOpcode()) {
+      case TO_BOOL_BOOL:
+        // The operand is already a bool, so it is also the result.
+        tc.emit<GuardType>(operand, TBool, operand, tc.frame);
+        tc.frame.stack.push(operand);
+        return;
+      default:
+        break;
+    }
+  }
+
   Register* truthy_result = temps_.AllocateStack();
   tc.emit<IsTruthy>(truthy_result, operand, tc.frame);
 

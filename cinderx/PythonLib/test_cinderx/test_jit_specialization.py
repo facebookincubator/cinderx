@@ -250,6 +250,20 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("UNPACK_SEQUENCE_TUPLE", opnames(f))
         self.assertEqual(f(("c", "d", "e")), "c")
 
+    @unittest.skipUnless(
+        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
+    )
+    def test_to_bool_bool(self) -> None:
+        def f(a: bool) -> str:
+            return "y" if a else "n"
+
+        specialize(f, lambda: f(True))
+
+        self.assertNotIn("TO_BOOL", opnames(f))
+        self.assertIn("TO_BOOL_BOOL", opnames(f))
+        self.assertEqual(f(True), "y")
+        self.assertEqual(f(False), "n")
+
     def test_unpack_sequence_two_tuple(self) -> None:
         def f(li: tuple[str, str]) -> str:
             (a, _b) = li
