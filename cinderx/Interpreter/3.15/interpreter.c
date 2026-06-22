@@ -22,6 +22,10 @@
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_interpframe.h"
 
+#ifndef _PyThreadState_UpdateLastProfiledFrame
+#define _PyThreadState_UpdateLastProfiledFrame(tstate, frame, previous)
+#endif
+
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
