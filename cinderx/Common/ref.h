@@ -126,7 +126,7 @@ class BorrowedRef : public RefBase<T> {
 
 template <typename T>
 struct std::hash<BorrowedRef<T>> {
-  size_t operator()(const BorrowedRef<T>& ref) const {
+  size_t operator()(const BorrowedRef<T>& ref) const noexcept {
     std::hash<T*> hasher;
     return hasher(ref.get());
   }
