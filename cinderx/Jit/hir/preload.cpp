@@ -253,6 +253,11 @@ const InvokeTarget& Preloader::invokeMethodTarget(BorrowedRef<> descr) const {
   return *(map_get(meth_targets_, descr));
 }
 
+const DescrMap<std::unique_ptr<InvokeTarget>>&
+Preloader::invokeFunctionTargets() const {
+  return func_targets_;
+}
+
 const NativeTarget& Preloader::invokeNativeTarget(BorrowedRef<> target) const {
   return *(map_get(native_targets_, target));
 }

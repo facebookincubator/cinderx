@@ -21,6 +21,10 @@ namespace jit::hir {
 using ArgToType = std::map<long, Type>;
 using GlobalNamesMap = std::unordered_map<int, BorrowedRef<>>;
 
+// A map keyed by type descr tuples.
+template <class T>
+using DescrMap = std::unordered_map<BorrowedRef<>, T>;
+
 struct FieldInfo {
   Py_ssize_t offset;
   Type type;
@@ -58,9 +62,6 @@ struct InvokeTarget {
   // is a METH_TYPED builtin that returns integer error code
   bool builtin_returns_error_code{false};
 };
-
-using InvokeTargetMap =
-    std::unordered_map<PyObject*, std::unique_ptr<InvokeTarget>>;
 
 // The target of an INVOKE_NATIVE
 struct NativeTarget {
@@ -127,9 +128,7 @@ class Preloader {
   const InvokeTarget& invokeMethodTarget(BorrowedRef<> descr) const;
   const NativeTarget& invokeNativeTarget(BorrowedRef<> target) const;
 
-  const InvokeTargetMap& invokeFunctionTargets() const {
-    return func_targets_;
-  }
+  const DescrMap<std::unique_ptr<InvokeTarget>>& invokeFunctionTargets() const;
 
   const GlobalNamesMap& globalNames() const {
     return global_names_;
@@ -225,12 +224,11 @@ class Preloader {
   const std::string fullname_;
   Ref<> reifier_;
 
-  // keyed by type descr tuple identity (they are interned in code objects)
-  std::unordered_map<PyObject*, OwnedType> types_;
-  std::unordered_map<PyObject*, FieldInfo> fields_;
-  InvokeTargetMap func_targets_;
-  InvokeTargetMap meth_targets_;
-  std::unordered_map<PyObject*, std::unique_ptr<NativeTarget>> native_targets_;
+  DescrMap<OwnedType> types_;
+  DescrMap<FieldInfo> fields_;
+  DescrMap<std::unique_ptr<InvokeTarget>> func_targets_;
+  DescrMap<std::unique_ptr<InvokeTarget>> meth_targets_;
+  DescrMap<std::unique_ptr<NativeTarget>> native_targets_;
   // keyed by locals index
   std::unordered_map<long, Type> check_arg_types_;
   std::map<long, OwnedType> check_arg_pytypes_;
