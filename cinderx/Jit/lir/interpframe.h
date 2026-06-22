@@ -31,6 +31,11 @@ enum class FrameFieldKind : uint8_t {
   kZero,
   kOwnerThread,
   kFrameHeaderFunc,
+  // The debug-only byte holding the visited/stackpointer_valid/lltrace
+  // bitfields. Initialized so that stackpointer_valid=1 (others 0), matching
+  // _PyFrame_Initialize, so the interpreter's first StackPointerInvalidate on a
+  // JIT-built frame does not assert. Only emitted on Py_DEBUG 3.16+ builds.
+  kDebugFrameByte,
 };
 
 constexpr const std::string_view frameFieldKindName(FrameFieldKind kind) {
@@ -57,6 +62,8 @@ constexpr const std::string_view frameFieldKindName(FrameFieldKind kind) {
       return "owner";
     case FrameFieldKind::kFrameHeaderFunc:
       return "frame_header_func";
+    case FrameFieldKind::kDebugFrameByte:
+      return "debug_frame_byte";
   }
   return "unknown";
 }
@@ -171,9 +178,18 @@ consteval FrameInitTable buildFrameInitTable() {
 #if PY_VERSION_HEX >= 0x030E0000
   // ugly, visited is a bitfield on debug builds and we can't use offset of on
   // it.
+#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
+  // On 3.16+ debug builds this byte also holds stackpointer_valid, which the
+  // interpreter asserts is 1 on a freshly-spilled frame. Zeroing it (as below)
+  // would trip _PyFrame_StackPointerInvalidate, so set stackpointer_valid=1.
+  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner) + 1),
+      FrameFieldKind::kDebugFrameByte,
+      DataType::k8bit);
+#else
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner) + 1),
       FrameFieldKind::kZero,
       DataType::k8bit);
+#endif
 #else
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, stacktop)),
       FrameFieldKind::kStackPointer,

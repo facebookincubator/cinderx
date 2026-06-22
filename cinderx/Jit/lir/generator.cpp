@@ -4590,6 +4590,22 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                         OutVReg{dt}, Instruction::kMove, Imm{0, dt});
                   }
                   return zero_reg;
+                case FrameFieldKind::kDebugFrameByte: {
+#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
+                  // See the top-level frame path: set stackpointer_valid=1 in
+                  // the visited/stackpointer_valid/lltrace bitfield byte.
+                  _PyInterpreterFrame tmp;
+                  uint8_t* byte = reinterpret_cast<uint8_t*>(&tmp) +
+                      offsetof(_PyInterpreterFrame, owner) + 1;
+                  *byte = 0;
+                  tmp.stackpointer_valid = 1;
+                  return bbb.appendInstr(
+                      OutVReg{dt}, Instruction::kMove, Imm{*byte, dt});
+#else
+                  JIT_ABORT(
+                      "kDebugFrameByte only valid on Py_DEBUG 3.16+ builds");
+#endif
+                }
               }
               JIT_ABORT("Unexpected FrameFieldKind");
             },
@@ -5447,6 +5463,22 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
                     OutVReg{dt}, Instruction::kMove, Imm{0, dt});
               }
               return zero_reg;
+            case FrameFieldKind::kDebugFrameByte: {
+#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
+              // Compute the visited/stackpointer_valid/lltrace bitfield byte
+              // with stackpointer_valid=1 and the rest 0, without assuming the
+              // compiler's bitfield bit order.
+              _PyInterpreterFrame tmp;
+              uint8_t* byte = reinterpret_cast<uint8_t*>(&tmp) +
+                  offsetof(_PyInterpreterFrame, owner) + 1;
+              *byte = 0;
+              tmp.stackpointer_valid = 1;
+              return bbb.appendInstr(
+                  OutVReg{dt}, Instruction::kMove, Imm{*byte, dt});
+#else
+              JIT_ABORT("kDebugFrameByte only valid on Py_DEBUG 3.16+ builds");
+#endif
+            }
           }
           JIT_ABORT("Unexpected FrameFieldKind");
         },

@@ -154,13 +154,12 @@ pop_1_error:
       assert(!IS_PEP523_HOOKED(tstate));
       _PyInterpreterFrame *temp = PyStackRef_Unwrap(new_frame);
       DEAD(new_frame);
-      SYNC_SP();
-      _PyFrame_SetStackPointer(frame, stack_pointer);
+      SAVE_STACK();
       assert(temp->previous == frame || temp->previous->previous == frame);
       CALL_STAT_INC(inlined_py_calls);
       frame = tstate->current_frame = temp;
       tstate->py_recursion_remaining--;
-      LOAD_SP();
+      RELOAD_STACK();
       LOAD_IP(0);
 
       CI_UPDATE_CALL_COUNT

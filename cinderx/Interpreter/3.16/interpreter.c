@@ -493,6 +493,7 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
   #define DISPATCH_INLINED(NEW_FRAME)                     \
     do {                                                \
         _PyFrame_SetStackPointer(frame, stack_pointer); \
+        _PyFrame_StackPointerValidate(frame);           \
         assert((NEW_FRAME)->previous == frame);         \
         frame = tstate->current_frame = (NEW_FRAME);     \
         CALL_STAT_INC(inlined_py_calls);                \
@@ -557,6 +558,7 @@ void **opcode_targets = opcode_targets_table;
     entry.frame.return_offset = 0;
 #ifdef Py_DEBUG
     entry.frame.lltrace = 0;
+    entry.frame.stackpointer_valid = 1;
 #endif
     /* Push frame */
     entry.frame.previous = tstate->current_frame;
@@ -599,6 +601,7 @@ void **opcode_targets = opcode_targets_table;
         next_instr = frame->instr_ptr;
         monitor_throw(tstate, frame, next_instr);
         stack_pointer = _PyFrame_GetStackPointer(frame);
+        _PyFrame_StackPointerInvalidate(frame);
 #if Py_TAIL_CALL_INTERP
 #   if Py_STATS
         return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, lastopcode, adaptive_enabled);
