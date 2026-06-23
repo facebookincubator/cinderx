@@ -72,13 +72,11 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/hir/function.h"
-#include "cinderx/Jit/hir/hir.h"
 
 #include <chrono>
 #include <cstddef>
 #include <span>
 #include <unordered_set>
-#include <utility>
 
 namespace jit {
 
@@ -88,40 +86,70 @@ namespace jit {
 // allocating Python memory. This struct is used to pass around the data before
 // we get the full object constructed.
 struct CompiledFunctionData {
+  // If the resulting CompiledFunction object is immortal, then this data object
+  // will be reallocated inline to the CompiledFunction and we will not use it
+  // as a PyObject.
+  //
+  // If the CompiledFunction is not immortal, then this data object will be
+  // refcounted and have its lifetime managed by the Python runtime.  This is
+  // set up at the same time the CompiledFunction is created.
   PyObject_HEAD
+  // The generated machine code for the code object.  Memory is owned by the
+  // CodeAllocator.
   std::span<const std::byte> code;
+  // Entry point for calling this code object with the vectorcall API.
   vectorcallfunc vectorcall_entry{nullptr};
+  // The total stack size used by the code object.
   int stack_size{0};
+  // The amount of stack used for spilled values.
   int spill_stack_size{0};
+  // Time taken to compile this code object.  Doesn't include preloading time.
   std::chrono::nanoseconds compile_time{};
+  // Stats about the functions inlined into this code object.
   hir::Function::InlineFunctionStats inline_function_stats;
+  // Counts of the HIR opcodes emitted while compiling this code object.
   hir::OpcodeCounts hir_opcode_counts{};
   // All the code patchers pointing to patch points in this function.
   std::vector<std::unique_ptr<CodePatcher>> code_patchers;
+  // The HIR representation of this code object.  Optional, only used when debug
+  // logging.
   std::unique_ptr<hir::Function> irfunc;
+  // Runtime state (code object, globals, builtins) shared with the code.  Owned
+  // by the JIT Context's CodeRuntime slab, not by this struct.
   CodeRuntime* runtime{nullptr};
 
   CompiledFunctionData() = default;
 };
 
 // The key used to store the CompiledFunction in a function's __dict__.
-extern PyObject*
-    kCompiledFunctionKey; // NOLINT(facebook-avoid-non-const-global-variables)
+extern PyObject* kCompiledFunctionKey;
 // The key used to store nested compiled functions in a function's __dict__.
-extern PyObject*
-    kNestedCompiledFunctionsKey; // NOLINT(facebook-avoid-non-const-global-variables)
+extern PyObject* kNestedCompiledFunctionsKey;
 
 class CompiledFunction;
 
+// Interface for the owner of a CompiledFunction.  The owner holds the
+// bookkeeping that maps Python functions and compilation keys to their
+// CompiledFunction, plus a type-watcher registry, and is notified as a
+// CompiledFunction is torn down.
+//
+// Currently implemented by jit::Context.
 class CompiledFunctionOwner {
  public:
   virtual ~CompiledFunctionOwner() = default;
 
-  // Provides a notification to our owner when we are about to be destroyed
+  // Notify the owner that a CompiledFunction is about to be destroyed.
   virtual void forgetCompiledFunction(CompiledFunction& function) = 0;
 
-  virtual void unwatch(TypeDeoptPatcher*) = 0;
+  // Unwatch a single TypeDeoptPatcher from a CompiledFunction.  The watched
+  // Python type itself is left watched for any other patchers.
+  virtual void unwatch(TypeDeoptPatcher* patcher) = 0;
 
+  // Hand off a CompiledFunctionData for deferred destruction instead of freeing
+  // it inline, since the machine code may still be executing on some thread's
+  // stack.  The (code, builtins, globals) triple keys the deferred entry and
+  // keeps the compilation data alive until cleanup determines no thread is
+  // running the code.
   virtual void deferCompiledData(
       Ref<> code,
       Ref<> builtins,
@@ -148,38 +176,32 @@ class CompiledFunction {
 
   // Get the buffer containing the compiled machine code.  The start of this
   // buffer is not guaranteed to be a valid entry point.
-  std::span<const std::byte> codeBuffer() const {
-    return data_->code;
-  }
+  std::span<const std::byte> codeBuffer() const;
 
-  vectorcallfunc vectorcallEntry() const {
-    return data_->vectorcall_entry;
-  }
+  // Entry point for calling the function via the vectorcall API.
+  vectorcallfunc vectorcallEntry() const;
 
+  // Entry point for Static Python calls that skips argument boxing.  Returns
+  // nullptr if the function was not statically compiled.
   void* staticEntry() const;
 
-  CodeRuntime* runtime() const {
-    return data_->runtime;
-  }
+  // Runtime state (code object, globals, builtins) backing this function.
+  CodeRuntime* runtime() const;
 
-  PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const {
-    return data_->vectorcall_entry(func, args, nargs, nullptr);
-  }
+  // Call the compiled code directly through its vectorcall entry point.
+  PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const;
 
   void printHIR() const;
   void disassemble() const;
 
-  size_t codeSize() const {
-    return data_->code.size();
-  }
+  // Size of the compiled machine code in bytes.
+  size_t codeSize() const;
 
-  int stackSize() const {
-    return data_->stack_size;
-  }
+  // Total stack size used by the compiled code.
+  int stackSize() const;
 
-  int spillStackSize() const {
-    return data_->spill_stack_size;
-  }
+  // Stack size used for spilled values.
+  int spillStackSize() const;
 
   std::chrono::nanoseconds compileTime() const;
   void setCompileTime(std::chrono::nanoseconds time);
@@ -189,13 +211,9 @@ class CompiledFunction {
 
   void setHirFunc(std::unique_ptr<hir::Function>&& irfunc);
 
-  const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const {
-    return data_->inline_function_stats;
-  }
+  const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const;
 
-  const hir::OpcodeCounts& hirOpcodeCounts() const {
-    return data_->hir_opcode_counts;
-  }
+  const hir::OpcodeCounts& hirOpcodeCounts() const;
 
   // Associate a function with this CompiledFunction. The function will be
   // tracked and deopted if the CompiledFunction is cleared.
@@ -204,13 +222,11 @@ class CompiledFunction {
   // Remove a function from the set of associated functions.
   void removeFunction(BorrowedRef<PyFunctionObject> func);
 
-  void setOwner(CompiledFunctionOwner* owner) {
-    owner_ = owner;
-  }
+  // Set the owner that is notified when this CompiledFunction is destroyed.
+  void setOwner(CompiledFunctionOwner* owner);
 
-  std::unordered_set<BorrowedRef<PyFunctionObject>>& functions() {
-    return functions_;
-  }
+  // The set of functions currently using this CompiledFunction.
+  std::unordered_set<BorrowedRef<PyFunctionObject>>& functions();
 
   // Traverse all GC-reachable objects for the GC.
   int traverse(visitproc visit, void* arg);
@@ -219,25 +235,18 @@ class CompiledFunction {
   // associated functions.
   void clear(bool context_finalizing = false);
 
-  bool isContiguous() const {
-    return contiguous_data_;
-  }
+  // Whether the data object is allocated contiguously with this object, which
+  // is the case for immortal CompiledFunction objects.
+  bool isContiguous() const;
 
-  CompiledFunctionData* data() const {
-    return data_;
-  }
+  CompiledFunctionData* data() const;
 
   // Transfer ownership of the CompiledFunctionData out of this object.
   // After this call, the CF no longer owns or references the data.
-  CompiledFunctionData* stealData() {
-    CompiledFunctionData* d = data_;
-    data_ = nullptr;
-    return d;
-  }
+  CompiledFunctionData* stealData();
 
  private:
-  explicit CompiledFunction(CompiledFunctionData* data, bool contiguous)
-      : data_(data), contiguous_data_(contiguous) {}
+  explicit CompiledFunction(CompiledFunctionData* data, bool contiguous);
 
   friend Ref<CompiledFunction>;
 

@@ -150,6 +150,72 @@ BorrowedRef<PyTypeObject> getCompiledFunctionType() {
   return &_CiCompiledFunction_Type;
 }
 
+CompiledFunction::CompiledFunction(CompiledFunctionData* data, bool contiguous)
+    : data_(data), contiguous_data_(contiguous) {}
+
+std::span<const std::byte> CompiledFunction::codeBuffer() const {
+  return data_->code;
+}
+
+vectorcallfunc CompiledFunction::vectorcallEntry() const {
+  return data_->vectorcall_entry;
+}
+
+CodeRuntime* CompiledFunction::runtime() const {
+  return data_->runtime;
+}
+
+PyObject* CompiledFunction::invoke(
+    PyObject* func,
+    PyObject** args,
+    Py_ssize_t nargs) const {
+  return data_->vectorcall_entry(func, args, nargs, nullptr);
+}
+
+size_t CompiledFunction::codeSize() const {
+  return data_->code.size();
+}
+
+int CompiledFunction::stackSize() const {
+  return data_->stack_size;
+}
+
+int CompiledFunction::spillStackSize() const {
+  return data_->spill_stack_size;
+}
+
+const hir::Function::InlineFunctionStats&
+CompiledFunction::inlinedFunctionsStats() const {
+  return data_->inline_function_stats;
+}
+
+const hir::OpcodeCounts& CompiledFunction::hirOpcodeCounts() const {
+  return data_->hir_opcode_counts;
+}
+
+void CompiledFunction::setOwner(CompiledFunctionOwner* owner) {
+  owner_ = owner;
+}
+
+std::unordered_set<BorrowedRef<PyFunctionObject>>&
+CompiledFunction::functions() {
+  return functions_;
+}
+
+bool CompiledFunction::isContiguous() const {
+  return contiguous_data_;
+}
+
+CompiledFunctionData* CompiledFunction::data() const {
+  return data_;
+}
+
+CompiledFunctionData* CompiledFunction::stealData() {
+  CompiledFunctionData* d = data_;
+  data_ = nullptr;
+  return d;
+}
+
 Ref<CompiledFunction> CompiledFunction::create(
     CompiledFunctionData&& compiled_func,
     bool immortal) {
