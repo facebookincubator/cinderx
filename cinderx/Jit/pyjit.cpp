@@ -445,6 +445,12 @@ FlagProcessor initFlagProcessor() {
       "Enable or disable huge pages for compiled functions");
 
   flag_processor.addOption(
+      "cinderx-jit-hinted-code-allocation",
+      "CINDERX_JIT_HINTED_CODE_ALLOCATION",
+      getMutableConfig().hinted_code_allocation,
+      "Allocate JIT code near JITRT_Call to keep helper calls in branch range");
+
+  flag_processor.addOption(
       "cinderx-jit-enable-jit-list-wildcards",
       "CINDERX_JIT_ENABLE_JIT_LIST_WILDCARDS",
       getMutableConfig().allow_jit_list_wildcards,

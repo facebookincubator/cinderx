@@ -28,6 +28,7 @@ namespace jit {
 */
 class CodeAllocator : public ICodeAllocator {
  public:
+  CodeAllocator();
   ~CodeAllocator() override = default;
 
   // To be called once by JIT initialization after enough configuration has been

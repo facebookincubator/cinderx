@@ -5,6 +5,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/jit_rt.h"
 
 #ifdef WIN32
 #include <Windows.h>
@@ -59,8 +60,114 @@ void jitEnableExecuting(
 #endif
 }
 
+bool setHugePages([[maybe_unused]] void* ptr, [[maybe_unused]] size_t size) {
+#ifdef MADV_HUGEPAGE
+  if (madvise(ptr, size, MADV_HUGEPAGE) == 0) {
+    return true;
+  }
+
+  auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
+  JIT_LOG(
+      "Failed to madvise [{}, {}) with MADV_HUGEPAGE, errno={}",
+      ptr,
+      end,
+      errno);
+#endif
+
+  return false;
+}
+
+#if defined(__linux__)
+// The linker script (instagram/server/native_python/linker_script.ld) reserves
+// a region of address space immediately after .text for JIT code, delimited by
+// these symbols. They are declared weak so that binaries built without the
+// linker script (where the region doesn't exist) still link, with both symbols
+// resolving to nullptr.
+extern "C" {
+extern char __cinder_jit_start[] __attribute__((weak));
+extern char __cinder_jit_end[] __attribute__((weak));
+}
+
+// Bump-allocator state for the linker-reserved __cinder_jit region. It's global
+// process data so it's protected by cinder_jit_region_mutex_.
+bool s_cinder_jit_region_checked = false;
+std::atomic<uint8_t*> s_cinder_jit_cur = nullptr;
+size_t s_cinder_jit_free = 0;
+std::mutex cinder_jit_region_mutex_;
+
+// Prepare the linker-reserved __cinder_jit region for use. Called once on the
+// first allocation. On success s_cinder_jit_cur points at the region with
+// s_cinder_jit_free bytes remaining; on failure s_cinder_jit_cur stays nullptr
+// and callers fall back to hinted allocation.
+//
+// The region comes from a `.cinder_jit (NOLOAD)` section in the linker script.
+// Because that section is allocatable (SHF_ALLOC), the linker places it in a
+// PT_LOAD segment, so the dynamic loader has *already mapped* this address
+// range (as demand-zero anonymous pages) by the time we get here -- typically
+// read-only, since the section carries no write/execute flags. We need to
+// we upgrade the existing mapping's protection to RWX with mprotect.
+void initCinderJitRegion() {
+  // Read the weak symbols into locals so the nullptr checks are on a pointer
+  // value (a weak undefined symbol resolves to nullptr) rather than the address
+  // of an array, which compilers would otherwise fold to always-true.
+  char* start = __cinder_jit_start;
+  char* end = __cinder_jit_end;
+  if (start == nullptr || end == nullptr || end <= start) {
+    // Binary wasn't linked with the linker script that reserves the region.
+    return;
+  }
+
+  size_t region_size = static_cast<size_t>(end - start);
+
+  // The loader maps the region's PT_LOAD segment; make it writable and
+  // executable so we can emit and run JIT code from it.
+  if (mprotect(start, region_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+    JIT_LOG(
+        "Failed to mprotect cinder_jit region [{}, {}) as RWX, errno={}; "
+        "falling back to hinted allocation",
+        static_cast<void*>(start),
+        static_cast<void*>(end),
+        errno);
+    return;
+  }
+
+  setHugePages(start, region_size);
+
+  s_cinder_jit_cur.store(
+      reinterpret_cast<uint8_t*>(start), std::memory_order_relaxed);
+  s_cinder_jit_free = region_size;
+}
+
+// Bump-allocate `size` bytes from the linker-reserved __cinder_jit region.
+// Returns nullptr if the region is unavailable or exhausted, in which case the
+// caller falls back to hinted allocation. The returned memory is already mapped
+// PROT_READ | PROT_WRITE | PROT_EXEC.
+uint8_t* allocFromCinderJitRegion(size_t size) {
+  if (s_cinder_jit_cur.load(std::memory_order_relaxed) == nullptr) {
+    return nullptr;
+  }
+
+  std::lock_guard lock{cinder_jit_region_mutex_};
+  uint8_t* res = s_cinder_jit_cur;
+  s_cinder_jit_cur.fetch_add(size, std::memory_order_relaxed);
+  s_cinder_jit_free -= size;
+  return res;
+}
+#endif // __linux__
+
 // Allocate memory for JIT'd code.
 uint8_t* allocPages(size_t size) {
+#if defined(__linux__)
+  if (getConfig().hinted_code_allocation) {
+    // Prefer the linker-reserved region near .text when it is
+    // present. This region was reserved by the linker and it's up to the
+    // build system to reserve this near hot code.
+    if (uint8_t* region = allocFromCinderJitRegion(size); region != nullptr) {
+      return region;
+    }
+  }
+#endif
+
 #ifndef WIN32
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #ifdef __APPLE__
@@ -81,24 +188,15 @@ uint8_t* allocPages(size_t size) {
   return static_cast<uint8_t*>(res);
 }
 
-bool setHugePages([[maybe_unused]] void* ptr, [[maybe_unused]] size_t size) {
-#ifdef MADV_HUGEPAGE
-  if (madvise(ptr, size, MADV_HUGEPAGE) == 0) {
-    return true;
-  }
-
-  auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
-  JIT_LOG(
-      "Failed to madvise [{}, {}) with MADV_HUGEPAGE, errno={}",
-      ptr,
-      end,
-      errno);
-#endif
-
-  return false;
-}
-
 } // namespace
+
+CodeAllocator::CodeAllocator() {
+  std::lock_guard lock{cinder_jit_region_mutex_};
+  if (!s_cinder_jit_region_checked) {
+    s_cinder_jit_region_checked = true;
+    initCinderJitRegion();
+  }
+}
 
 ICodeAllocator* CodeAllocator::make() {
   if (getConfig().use_huge_pages) {
