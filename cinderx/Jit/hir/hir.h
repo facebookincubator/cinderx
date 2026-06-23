@@ -659,6 +659,11 @@ class INSTR_CLASS(UnaryOp, (TObject), HasOutput, Operands<1>, DeoptBase) {
   UnaryOpKind op_;
 };
 
+// Logical negation of a boolean, producing Py_True or Py_False. This is the
+// deopt-free, typed counterpart to UnaryOp<Not>, analogous to how
+// PrimitiveBoxBool relates to PrimitiveBox.
+DEFINE_SIMPLE_INSTR(UnaryNot, (TBool), HasOutput, Operands<1>);
+
 #define FOREACH_INPLACE_OP_KIND(V) \
   V(Add)                           \
   V(And)                           \

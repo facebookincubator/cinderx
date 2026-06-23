@@ -8800,7 +8800,7 @@ fun test {
   }
 }
 --- Test Name ---
-BooleanNotTurnsIntoPrimitive
+BooleanNotTurnsIntoUnaryNot
 --- Input ---
 # HIR
 fun jittestmodule:test {
@@ -8815,10 +8815,8 @@ fun jittestmodule:test {
   bb 0 {
     v1:Bool = LoadArg<0, Bool>
     UseType<Bool> v1
-    v3:CBool = PrimitiveUnbox<CBool> v1
-    v4:CBool = PrimitiveUnaryOp<NotInt> v3
-    v5:ImmortalBool = PrimitiveBoxBool v4
-    Return v5
+    v3:ImmortalBool = UnaryNot v1
+    Return v3
   }
 }
 --- Expected 3.14 ---
@@ -8826,10 +8824,8 @@ fun jittestmodule:test {
   bb 0 {
     v1:Bool = LoadArg<0, Bool>
     UseType<Bool> v1
-    v3:CBool = PrimitiveUnbox<CBool> v1
-    v4:CBool = PrimitiveUnaryOp<NotInt> v3
-    v5:ImmortalBool = PrimitiveBoxBool v4
-    Return v5
+    v3:ImmortalBool = UnaryNot v1
+    Return v3
   }
 }
 --- Expected 3.15 ---
@@ -8837,10 +8833,8 @@ fun jittestmodule:test {
   bb 0 {
     v1:Bool = LoadArg<0, Bool>
     UseType<Bool> v1
-    v3:CBool = PrimitiveUnbox<CBool> v1
-    v4:CBool = PrimitiveUnaryOp<NotInt> v3
-    v5:ImmortalBool = PrimitiveBoxBool v4
-    Return v5
+    v3:ImmortalBool = UnaryNot v1
+    Return v3
   }
 }
 --- Expected 3.16 ---
@@ -8848,10 +8842,8 @@ fun jittestmodule:test {
   bb 0 {
     v1:Bool = LoadArg<0, Bool>
     UseType<Bool> v1
-    v3:CBool = PrimitiveUnbox<CBool> v1
-    v4:CBool = PrimitiveUnaryOp<NotInt> v3
-    v5:ImmortalBool = PrimitiveBoxBool v4
-    Return v5
+    v3:ImmortalBool = UnaryNot v1
+    Return v3
   }
 }
 --- Test Name ---

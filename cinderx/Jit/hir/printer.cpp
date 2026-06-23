@@ -292,6 +292,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kMatchKeys:
     case Opcode::kMergeSetUnpack:
     case Opcode::kPrimitiveBoxBool:
+    case Opcode::kUnaryNot:
     case Opcode::kRaise:
     case Opcode::kRunPeriodicTasks:
     case Opcode::kSend:

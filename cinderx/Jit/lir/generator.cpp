@@ -2644,6 +2644,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             dest, Instruction::kSelect, src, temp_true, Imm{false_addr});
         break;
       }
+      case Opcode::kUnaryNot: {
+        // Negating a boxed boolean is a matter of flipping Py_True and
+        // Py_False, which differ by a constant. XOR-ing with that constant
+        // maps each singleton to the other.
+        Register* dest = i.output();
+        Register* src = i.GetOperand(0);
+        uint64_t flip = reinterpret_cast<uint64_t>(Py_True) ^
+            reinterpret_cast<uint64_t>(Py_False);
+        bbb.appendInstr(dest, Instruction::kXor, src, Imm{flip});
+        break;
+      }
       case Opcode::kPrimitiveBox: {
         auto instr = static_cast<const PrimitiveBox*>(&i);
         Instruction* src = bbb.getDefInstr(instr->value());
@@ -2803,6 +2814,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 instr->output(), Instruction::kInvert, instr->value());
             break;
           case PrimitiveUnaryOpKind::kNotInt: {
+            // Flipping a boolean can be done cheaply with an XOR.
+            if (instr->value()->isA(TCBool)) {
+              bbb.appendInstr(
+                  instr->output(),
+                  Instruction::kXor,
+                  instr->value(),
+                  Imm{1, DataType::k8bit});
+              break;
+            }
+
             bbb.appendInstr(
                 instr->output(),
                 Instruction::kEqual,

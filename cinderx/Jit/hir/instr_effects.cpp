@@ -77,6 +77,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
 
     // If boxing a bool, we return a borrowed reference to Py_True or Py_False.
     case Opcode::kPrimitiveBoxBool:
+    // UnaryNot likewise returns a borrowed reference to Py_True or Py_False.
+    case Opcode::kUnaryNot:
       return borrowFrom(inst, AEmpty);
 
     case Opcode::kPrimitiveBox:
@@ -447,6 +449,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kPrimitiveCompare:
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
+    case Opcode::kUnaryNot:
     case Opcode::kRefineType:
     case Opcode::kReserveStack:
     case Opcode::kSetCellItem:

@@ -164,6 +164,7 @@ namespace jit::hir {
   V(StoreField)                    \
   V(StoreSubscr)                   \
   V(TpAlloc)                       \
+  V(UnaryNot)                      \
   V(UnaryOp)                       \
   V(UnicodeCompare)                \
   V(UnicodeConcat)                 \

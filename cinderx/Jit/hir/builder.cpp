@@ -895,10 +895,6 @@ void HIRBuilder::translate(
           break;
         }
         case UNARY_NOT:
-#if PY_VERSION_HEX >= 0x030E0000
-          emitUnaryNot(tc);
-          break;
-#endif
         case UNARY_NEGATIVE:
         case UNARY_POSITIVE:
         case UNARY_INVERT: {
@@ -2142,18 +2138,6 @@ static inline UnaryOpKind get_unary_op_kind(
       break;
   }
   JIT_THROW("Unhandled unary op {} ({})", opcodeName(opcode), opcode);
-}
-
-void HIRBuilder::emitUnaryNot(TranslationContext& tc) {
-  Register* operand = tc.frame.stack.pop();
-  Register* is_false = temps_.AllocateNonStack();
-  Register* const_false = temps_.AllocateNonStack();
-  Register* result = temps_.AllocateStack();
-  tc.emit<LoadConst>(const_false, Type::fromObject(Py_False));
-  tc.emit<PrimitiveCompare>(
-      is_false, PrimitiveCompareOp::kEqual, const_false, operand);
-  tc.emit<PrimitiveBoxBool>(result, is_false);
-  tc.frame.stack.push(result);
 }
 
 void HIRBuilder::emitUnaryOp(

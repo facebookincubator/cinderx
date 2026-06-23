@@ -135,7 +135,6 @@ class HIRBuilder {
   void emitBinaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitUnaryNot(TranslationContext& tc);
   void emitUnaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

@@ -1728,15 +1728,18 @@ def test(x):
       Locals<1> v0
       Stack<1> v5
     }
-    v7 = LoadConst<ImmortalBool[False]>
-    v6 = PrimitiveCompare<Equal> v7 v5
-    v8 = PrimitiveBoxBool v6
+    v6 = UnaryOp<Not> v5 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v0
+      }
+    }
     Snapshot {
       CurInstrOffset 16
       Locals<1> v0
-      Stack<1> v8
+      Stack<1> v6
     }
-    Return v8
+    Return v6
   }
 }
 )";
@@ -1785,15 +1788,18 @@ def test(x):
       Locals<1> v0
       Stack<1> v5
     }
-    v7 = LoadConst<ImmortalBool[False]>
-    v6 = PrimitiveCompare<Equal> v7 v5
-    v8 = PrimitiveBoxBool v6
+    v6 = UnaryOp<Not> v5 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<1> v0
+      }
+    }
     Snapshot {
       CurInstrOffset 14
       Locals<1> v0
-      Stack<1> v8
+      Stack<1> v6
     }
-    Return v8
+    Return v6
   }
 }
 )";

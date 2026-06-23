@@ -435,7 +435,8 @@ Type outputType(
       return TObject;
     }
 
-    case Opcode::kPrimitiveBoxBool: {
+    case Opcode::kPrimitiveBoxBool:
+    case Opcode::kUnaryNot: {
       return TImmortalBool;
     }
 

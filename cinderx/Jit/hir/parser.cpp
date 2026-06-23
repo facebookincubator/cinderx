@@ -671,6 +671,11 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(PrimitiveBoxBool, dst, operand);
       break;
     }
+    case Opcode::kUnaryNot: {
+      auto operand = ParseRegister();
+      NEW_INSTR(UnaryNot, dst, operand);
+      break;
+    }
     case Opcode::kPrimitiveBox: {
       expect("<");
       Type type = parseType(GetNextToken());

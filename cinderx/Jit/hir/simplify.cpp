@@ -1269,11 +1269,14 @@ Register* simplifyUnaryOp(Env& env, const UnaryOp* instr) {
   Register* operand = instr->operand();
 
   if (instr->op() == UnaryOpKind::kNot && operand->isA(TBool)) {
+    if (operand->type().hasObjectSpec()) {
+      env.emit<UseType>(operand, operand->type());
+      return env.emit<LoadConst>(Type::fromObject(
+          Py_IsTrue(operand->type().objectSpec()) ? Py_False : Py_True));
+    }
+
     env.emit<UseType>(operand, TBool);
-    Register* unboxed = env.emit<PrimitiveUnbox>(operand, TCBool);
-    Register* negated =
-        env.emit<PrimitiveUnaryOp>(PrimitiveUnaryOpKind::kNotInt, unboxed);
-    return env.emit<PrimitiveBoxBool>(negated);
+    return env.emit<UnaryNot>(operand);
   }
 
   return nullptr;

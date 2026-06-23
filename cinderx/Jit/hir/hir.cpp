@@ -431,6 +431,7 @@ bool Instr::isReplayable() const {
     case Opcode::kPrimitiveCompare:
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
+    case Opcode::kUnaryNot:
     case Opcode::kRaise:
     case Opcode::kRaiseStatic:
     case Opcode::kRefineType:
@@ -834,6 +835,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kPrimitiveCompare:
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
+    case Opcode::kUnaryNot:
     case Opcode::kRunPeriodicTasks:
     case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:
