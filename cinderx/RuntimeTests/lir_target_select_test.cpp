@@ -346,19 +346,23 @@ BB %2 - preds: %0
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForPythonRefcountSignTest) {
-  const char* src = R"(
-def func(f):
-  y = f()
-  return None
+  const char* lir_input_str = R"(Function:
+BB %0 - succs: %1 %2
+  %1:Object = Move 1
+  %2:32bit = Move [%1:Object]:Object
+  Test32 %2, %2
+  BranchS BB%1
+BB %1 - preds: %0
+  Return %1
+BB %2 - preds: %0
+  Return %1
 )";
 
-  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
-  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
-
-  std::string lir_str = getSelectedLIRString(pyfunc.get());
+  std::string lir_str = runTargetSelect(lir_input_str);
 
   EXPECT_NE(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
   EXPECT_NE(lir_str.find("31(0x1f)"), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("Test32"), std::string::npos) << lir_str;
   EXPECT_EQ(lir_str.find("BranchS"), std::string::npos) << lir_str;
 }
 
