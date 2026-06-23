@@ -94,6 +94,10 @@ int BytecodeInstruction::specializedOpcode() const {
     case STORE_SUBSCR_DICT:
     case STORE_SUBSCR_LIST_INT:
     case TO_BOOL_BOOL:
+    case TO_BOOL_INT:
+    case TO_BOOL_LIST:
+    case TO_BOOL_NONE:
+    case TO_BOOL_STR:
     case UNPACK_SEQUENCE_LIST:
     case UNPACK_SEQUENCE_TUPLE:
     case UNPACK_SEQUENCE_TWO_TUPLE:

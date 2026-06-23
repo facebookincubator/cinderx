@@ -264,6 +264,61 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(True), "y")
         self.assertEqual(f(False), "n")
 
+    @unittest.skipUnless(
+        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
+    )
+    def test_to_bool_int(self) -> None:
+        def f(a: int) -> str:
+            return "y" if a else "n"
+
+        specialize(f, lambda: f(5))
+
+        self.assertNotIn("TO_BOOL", opnames(f))
+        self.assertIn("TO_BOOL_INT", opnames(f))
+        self.assertEqual(f(5), "y")
+        self.assertEqual(f(0), "n")
+
+    @unittest.skipUnless(
+        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
+    )
+    def test_to_bool_list(self) -> None:
+        def f(a: list[int]) -> str:
+            return "y" if a else "n"
+
+        specialize(f, lambda: f([1]))
+
+        self.assertNotIn("TO_BOOL", opnames(f))
+        self.assertIn("TO_BOOL_LIST", opnames(f))
+        self.assertEqual(f([1]), "y")
+        self.assertEqual(f([]), "n")
+
+    @unittest.skipUnless(
+        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
+    )
+    def test_to_bool_none(self) -> None:
+        def f(a: object) -> str:
+            return "y" if a else "n"
+
+        specialize(f, lambda: f(None))
+
+        self.assertNotIn("TO_BOOL", opnames(f))
+        self.assertIn("TO_BOOL_NONE", opnames(f))
+        self.assertEqual(f(None), "n")
+
+    @unittest.skipUnless(
+        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
+    )
+    def test_to_bool_str(self) -> None:
+        def f(a: str) -> str:
+            return "y" if a else "n"
+
+        specialize(f, lambda: f("x"))
+
+        self.assertNotIn("TO_BOOL", opnames(f))
+        self.assertIn("TO_BOOL_STR", opnames(f))
+        self.assertEqual(f("x"), "y")
+        self.assertEqual(f(""), "n")
+
     def test_unpack_sequence_two_tuple(self) -> None:
         def f(li: tuple[str, str]) -> str:
             (a, _b) = li

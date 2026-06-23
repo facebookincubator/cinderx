@@ -115,6 +115,10 @@
   X(STORE_FAST_LOAD_FAST)              \
   X(TO_BOOL)                           \
   X(TO_BOOL_BOOL)                      \
+  X(TO_BOOL_INT)                       \
+  X(TO_BOOL_LIST)                      \
+  X(TO_BOOL_NONE)                      \
+  X(TO_BOOL_STR)                       \
   X(UNARY_POSITIVE)                    \
   X(YIELD_FROM)
 

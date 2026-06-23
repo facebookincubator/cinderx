@@ -2647,6 +2647,18 @@ void HIRBuilder::emitToBool(
         tc.emit<GuardType>(operand, TBool, operand, tc.frame);
         tc.frame.stack.push(operand);
         return;
+      case TO_BOOL_INT:
+        tc.emit<GuardType>(operand, TLongExact, operand, tc.frame);
+        break;
+      case TO_BOOL_LIST:
+        tc.emit<GuardType>(operand, TListExact, operand, tc.frame);
+        break;
+      case TO_BOOL_NONE:
+        tc.emit<GuardType>(operand, TNoneType, operand, tc.frame);
+        break;
+      case TO_BOOL_STR:
+        tc.emit<GuardType>(operand, TUnicodeExact, operand, tc.frame);
+        break;
       default:
         break;
     }
