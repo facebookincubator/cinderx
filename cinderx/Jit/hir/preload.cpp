@@ -228,8 +228,9 @@ const OwnedType* Preloader::preloadedType(BorrowedRef<> descr) const {
   return it != types_.end() ? &it->second : nullptr;
 }
 
-const FieldInfo& Preloader::fieldInfo(BorrowedRef<> descr) const {
-  return map_get(fields_, descr);
+const FieldInfo* Preloader::fieldInfo(BorrowedRef<> descr) const {
+  auto it = fields_.find(descr);
+  return it != fields_.end() ? &it->second : nullptr;
 }
 
 const InvokeTarget& Preloader::invokeFunctionTarget(BorrowedRef<> descr) const {

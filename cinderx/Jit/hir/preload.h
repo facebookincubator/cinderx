@@ -122,7 +122,7 @@ class Preloader {
   // Fetch the type represented by a type descr tuple.
   const OwnedType* preloadedType(BorrowedRef<> descr) const;
 
-  const FieldInfo& fieldInfo(BorrowedRef<> descr) const;
+  const FieldInfo* fieldInfo(BorrowedRef<> descr) const;
 
   const InvokeTarget& invokeFunctionTarget(BorrowedRef<> descr) const;
   const InvokeTarget& invokeMethodTarget(BorrowedRef<> descr) const;

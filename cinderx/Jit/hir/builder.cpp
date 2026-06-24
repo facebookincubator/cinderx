@@ -4303,7 +4303,12 @@ void HIRBuilder::emitSetupWith(
 void HIRBuilder::emitLoadField(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  auto& [offset, type, name] = preloader_.fieldInfo(constArg(bc_instr));
+  BorrowedRef<> descr = constArg(bc_instr);
+  const FieldInfo* field = preloader_.fieldInfo(descr);
+  if (field == nullptr) {
+    BUILDER_THROW("LOAD_FIELD: Can't find field for descr {}", repr(descr));
+  }
+  auto& [offset, type, name] = *field;
 
   Register* receiver = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
@@ -4323,7 +4328,12 @@ void HIRBuilder::emitLoadField(
 void HIRBuilder::emitStoreField(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  auto& [offset, type, name] = preloader_.fieldInfo(constArg(bc_instr));
+  BorrowedRef<> descr = constArg(bc_instr);
+  const FieldInfo* field = preloader_.fieldInfo(descr);
+  if (field == nullptr) {
+    BUILDER_THROW("STORE_FIELD: Can't find field for descr {}", repr(descr));
+  }
+  auto& [offset, type, name] = *field;
   const char* field_name = PyUnicode_AsUTF8(name);
   if (field_name == nullptr) {
     PyErr_Clear();
