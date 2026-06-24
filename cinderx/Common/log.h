@@ -148,6 +148,11 @@ template <typename... Args>
 
 #define JIT_THROW(...) jit::throwImpl(__FILE__, __LINE__, __VA_ARGS__)
 
+#define JIT_THROW_IF(COND, ...) \
+  if (COND) {                   \
+    JIT_THROW(__VA_ARGS__);     \
+  }
+
 #ifdef Py_DEBUG
 #define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)
 #define JIT_DCHECK(COND, ...) JIT_CHECK((COND), __VA_ARGS__)

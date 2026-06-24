@@ -36,7 +36,7 @@ FieldInfo resolve_field_descr(BorrowedRef<PyTupleObject> descr) {
   int field_type;
   Py_ssize_t offset = _PyClassLoader_ResolveFieldOffset(descr, &field_type);
 
-  JIT_CHECK(offset != -1, "failed to resolve field {}", repr(descr));
+  JIT_THROW_IF(offset == -1, "Failed to resolve field {}", repr(descr));
 
   return {
       offset,
@@ -75,7 +75,10 @@ void fill_primitive_arg_types_thunk(
 
 void fill_primitive_arg_types_builtin(BorrowedRef<> callable, ArgTypeMap& map) {
   Ci_PyTypedMethodDef* def = _PyClassLoader_GetTypedMethodDef(callable);
-  JIT_CHECK(def != nullptr, "expected typed method def");
+  JIT_THROW_IF(
+      def == nullptr,
+      "Failed to load typed method def from {} object",
+      Py_TYPE(callable)->tp_name);
   for (Py_ssize_t i = 0; def->tmd_sig[i] != nullptr; i++) {
     const Ci_Py_SigElement* elem = def->tmd_sig[i];
     int code = Ci_Py_SIG_TYPE_MASK(elem->se_argtype);
@@ -95,8 +98,11 @@ std::unique_ptr<NativeTarget> resolve_native_target(
       PyTuple_GET_ITEM(native_descr.get(), 0),
       PyTuple_GET_ITEM(native_descr.get(), 1));
 
-  JIT_CHECK(
-      raw_ptr != nullptr, "invalid address for native function: {}", raw_ptr);
+  JIT_THROW_IF(
+      raw_ptr == nullptr,
+      "Invalid address {} for native function descr {}",
+      raw_ptr,
+      repr(native_descr));
 
   target->callable = raw_ptr;
 
@@ -104,9 +110,10 @@ std::unique_ptr<NativeTarget> resolve_native_target(
   auto return_type_code = _PyClassLoader_ResolvePrimitiveType(
       PyTuple_GET_ITEM(signature.get(), siglen - 1));
   target->return_type = prim_type_to_type(return_type_code);
-  JIT_DCHECK(
-      target->return_type <= TCInt,
-      "native function return type must be a primitive");
+  JIT_THROW_IF(
+      !(target->return_type <= TCInt),
+      "Native function return type must be a primitive int, got {}",
+      target->return_type);
 
   // Fill in the primitive arg type map in the target (index -> Type)
   ArgTypeMap& primitive_arg_types = target->primitive_arg_types;
@@ -114,8 +121,11 @@ std::unique_ptr<NativeTarget> resolve_native_target(
     int arg_type_code = _PyClassLoader_ResolvePrimitiveType(
         PyTuple_GET_ITEM(signature.get(), i));
     Type typ = prim_type_to_type(arg_type_code);
-    JIT_DCHECK(typ <= TCInt, "native function arg type must be a primitive");
-
+    JIT_THROW_IF(
+        !(typ <= TCInt),
+        "Native function argument {} must be a primitive int, got {}",
+        i,
+        typ);
     primitive_arg_types.emplace(i, typ);
   }
 
@@ -155,8 +165,8 @@ std::unique_ptr<Preloader> Preloader::make(
       fullname,
       std::move(reifier)));
   bool success = preloader->preload();
-  JIT_DCHECK(
-      success != static_cast<bool>(PyErr_Occurred()),
+  JIT_THROW_IF(
+      success == static_cast<bool>(PyErr_Occurred()),
       "Expecting Python exception only when preloading fails, preloading "
       "result: {}",
       success);
@@ -164,7 +174,7 @@ std::unique_ptr<Preloader> Preloader::make(
 }
 
 BorrowedRef<PyFunctionObject> InvokeTarget::func() const {
-  JIT_CHECK(isFunction(), "not a PyFunctionObject");
+  JIT_THROW_IF(!isFunction(), "InvokeTarget is not a PyFunctionObject");
   return reinterpret_cast<PyFunctionObject*>(callable.get());
 }
 
@@ -213,10 +223,15 @@ Type Preloader::checkArgType(int local_idx) const {
 }
 
 PyObject** Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
-  JIT_DCHECK(
-      canCacheGlobals(),
-      "trying to get a globals cache with unwatchable builtins and/or globals");
-  JIT_CHECK(PyUnicode_CheckExact(name_obj), "Name must be a str");
+  JIT_THROW_IF(
+      !canCacheGlobals(),
+      "Trying to get a globals cache with unwatchable builtins and/or globals "
+      "for {}",
+      fullname());
+  JIT_THROW_IF(
+      !PyUnicode_CheckExact(name_obj),
+      "Name must be a str, got {}",
+      Py_TYPE(name_obj)->tp_name);
   BorrowedRef<PyUnicodeObject> name{name_obj};
   return cinderx::getModuleState()->cache_manager->getGlobalCache(
       builtins_, globals_, name);
@@ -332,14 +347,14 @@ bool Preloader::preload() {
         PyObject* names = code_->co_names;
         Py_ssize_t names_len = PyTuple_Size(names);
         int name_idx = loadGlobalIndex(bc_instr.oparg());
-        JIT_CHECK(
-            name_idx < names_len,
+        JIT_THROW_IF(
+            name_idx >= names_len,
             "Preloaded LOAD_GLOBAL with index {} for names tuple of length {}",
             name_idx,
             names_len);
 
         BorrowedRef<> name = PyTuple_GET_ITEM(names, name_idx);
-        JIT_CHECK(name != nullptr, "name cannot be null");
+        JIT_THROW_IF(name == nullptr, "Name cannot be null");
         // Make sure the cached value has been loaded and any side effects of
         // loading it (e.g. lazy imports) have been exercised before we create
         // the GlobalCache; otherwise GlobalCache initialization can
@@ -380,13 +395,11 @@ bool Preloader::preload() {
       case BUILD_CHECKED_MAP: {
         BorrowedRef<> descr = PyTuple_GetItem(constArg(bc_instr), 0);
         OwnedType collection_type = resolve_type_descr(descr);
-        if (collection_type.type == nullptr) {
-          JIT_LOG(
-              "unknown collection type descr {} during preloading of {}",
-              repr(descr),
-              fullname());
-          return false;
-        }
+        JIT_THROW_IF(
+            collection_type.type == nullptr,
+            "Unknown collection type descr {} during preloading of {}",
+            repr(descr),
+            fullname());
         types_.emplace(descr, std::move(collection_type));
         break;
       }
@@ -396,14 +409,12 @@ bool Preloader::preload() {
       case TP_ALLOC: {
         BorrowedRef<> descr = constArg(bc_instr);
         OwnedType alloc_type = resolve_type_descr(descr);
-        if (alloc_type.type == nullptr) {
-          JIT_LOG(
-              "unknown {} type descr {} during preloading of {}",
-              bc_instr.opcode(),
-              repr(descr),
-              fullname());
-          return false;
-        }
+        JIT_THROW_IF(
+            alloc_type.type == nullptr,
+            "Unknown {} type descr {} during preloading of {}",
+            bc_instr.opcode(),
+            repr(descr),
+            fullname());
         types_.emplace(descr, std::move(alloc_type));
         break;
       }
@@ -453,22 +464,19 @@ bool Preloader::preloadStatic() {
       return true;
     }
 
-    JIT_LOG(
+    JIT_THROW(
         "Statically typed function {} has no return type descr, co_consts "
         "is {}",
         fullname(),
         repr(code_->co_consts));
-    return false;
   }
 
   OwnedType ret_type = resolve_type_descr(ret_type_descr);
-  if (ret_type.type == nullptr) {
-    JIT_LOG(
-        "unknown return type descr {} during preloading of {}",
-        repr(ret_type_descr),
-        fullname());
-    return false;
-  }
+  JIT_THROW_IF(
+      ret_type.type == nullptr,
+      "Unknown return type descr {} during preloading of {}",
+      repr(ret_type_descr),
+      fullname());
 
   return_type_ = ret_type.toHir();
 
@@ -479,27 +487,28 @@ bool Preloader::preloadStatic() {
   constexpr Py_ssize_t kMaxLocals = 16384;
   for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
     Py_ssize_t local = PyLong_AsSsize_t(PyTuple_GET_ITEM(checks, i));
-    if (local < 0 || local >= kMaxLocals) {
-      JIT_THROW(
-          "In Static Python function {}, hit bad local {} at index {}, "
-          "arguments checks tuple is {}",
-          fullname(),
-          local,
-          i,
-          repr(checks));
-    }
+    JIT_THROW_IF(
+        local < 0 || local >= kMaxLocals,
+        "In Static Python function {}, hit bad local {} at index {}, "
+        "arguments checks tuple is {}",
+        fullname(),
+        local,
+        i,
+        repr(checks));
     OwnedType preloaded_type =
         resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
-    if (preloaded_type.type == nullptr) {
-      JIT_LOG(
-          "unknown type descr {} during preloading of {}",
-          repr(PyTuple_GET_ITEM(checks, i + 1)),
-          fullname());
-      return false;
-    }
-    JIT_CHECK(
-        preloaded_type.type != reinterpret_cast<PyTypeObject*>(&PyObject_Type),
-        "shouldn't generate type checks for object");
+    JIT_THROW_IF(
+        preloaded_type.type == nullptr,
+        "Unknown type descr {} during preloading of {}",
+        repr(PyTuple_GET_ITEM(checks, i + 1)),
+        fullname());
+    JIT_THROW_IF(
+        preloaded_type.type == reinterpret_cast<PyTypeObject*>(&PyObject_Type),
+        "Shouldn't generate type checks for object type, in {} for local {} at "
+        "index {}",
+        fullname(),
+        local,
+        i);
     Type type = preloaded_type.toHir();
     check_arg_types_.emplace(local, std::move(preloaded_type));
     if (type <= TPrimitive) {
@@ -527,13 +536,11 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
   PyObject* container;
   auto callable =
       Ref<>::steal(_PyClassLoader_ResolveFunction(descr, &container));
-  if (callable == nullptr) {
-    JIT_LOG(
-        "unknown invoke target {} during preloading {}",
-        repr(descr),
-        fullname());
-    return nullptr;
-  }
+  JIT_THROW_IF(
+      callable == nullptr,
+      "Unknown invoke target {} during preloading {}",
+      repr(descr),
+      fullname());
 
   int optional, exact, func_flags;
   auto return_pytype =
@@ -575,16 +582,19 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
 
   if (opcode == LOAD_METHOD_STATIC) {
     target->slot = _PyClassLoader_ResolveMethod(descr);
-    JIT_CHECK(target->slot != -1, "method lookup failed: {}", repr(descr));
+    JIT_THROW_IF(
+        target->slot == -1,
+        "Method lookup failed for descr {} in function {}",
+        repr(descr),
+        fullname());
   } else { // the rest of this only used by INVOKE_FUNCTION currently
     if (!target->container_is_immutable) {
       target->indirect_ptr = _PyClassLoader_ResolveIndirectPtr(descr);
-      if (target->indirect_ptr == nullptr) {
-        if (PyErr_Occurred()) {
-          PyErr_WriteUnraisable(descr);
-        }
-        JIT_ABORT("indirect_ptr null for {} (stale bytecode?)", repr(descr));
-      }
+      JIT_THROW_IF(
+          target->indirect_ptr == nullptr,
+          "Indirect ptr null for {} in {} (stale bytecode?)",
+          repr(descr),
+          fullname());
     }
   }
 
