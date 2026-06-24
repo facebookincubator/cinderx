@@ -37,28 +37,27 @@ struct FieldInfo {
 struct InvokeTarget {
   BorrowedRef<PyFunctionObject> func() const;
 
+  bool isBuiltin() const;
+  bool isFunction() const;
+
   // Vector-callable Python object
   Ref<> callable;
   // python-level return type (None for void/error-code builtins)
   Type return_type{TObject};
   // map argnum to primitive type code for primitive args only
   ArgToType primitive_arg_types;
-  // container is immutable (target is not patchable)
-  bool container_is_immutable{false};
   // patching indirection, nullptr if container_is_immutable
   PyObject** indirect_ptr{nullptr};
   // vtable slot number (LOAD_METHOD_STATIC only)
   Py_ssize_t slot{-1};
-  // is a CI_CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
-  bool is_statically_typed{false};
-  // is PyFunctionObject
-  bool is_function{false};
-  // is PyMethodDescrObject or PyCFunction (has a PyMethodDef)
-  bool is_builtin{false};
   // underlying C function implementation for builtins
   void* builtin_c_func{nullptr};
   // expected nargs for builtin; if matched, can x64 invoke even if untyped
-  long builtin_expected_nargs{-1};
+  int builtin_expected_nargs{-1};
+  // container is immutable (target is not patchable)
+  bool container_is_immutable{false};
+  // is a CI_CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
+  bool is_statically_typed{false};
   // is a METH_TYPED builtin that returns void
   bool builtin_returns_void{false};
   // is a METH_TYPED builtin that returns integer error code

@@ -3694,7 +3694,7 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     // Preload all invoked Static Python functions because then the JIT can
     // compile them and emit direct calls to them from the original function.
     for (const auto& [descr, target] : preloader->invokeFunctionTargets()) {
-      if (!target->is_function || !target->is_statically_typed) {
+      if (!target->isFunction() || !target->is_statically_typed) {
         continue;
       }
       BorrowedRef<PyFunctionObject> target_func = target->func();

@@ -166,12 +166,9 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
   PyMethodDef* def;
   Ci_PyTypedMethodDef* tmd;
   bool is_thunk = false;
-  if (PyFunction_Check(callable)) {
-    target->is_function = true;
-  } else if (_PyClassLoader_IsPatchedThunk(callable)) {
+  if (_PyClassLoader_IsPatchedThunk(callable)) {
     is_thunk = true;
   } else if ((def = _PyClassLoader_GetMethodDef(callable)) != nullptr) {
-    target->is_builtin = true;
     target->builtin_c_func = reinterpret_cast<void*>(def->ml_meth);
     if (def->ml_flags == METH_NOARGS) {
       target->builtin_expected_nargs = 1;
@@ -201,7 +198,7 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
   }
 
   if (target->is_statically_typed) {
-    if (target->is_function) {
+    if (target->isFunction()) {
       fill_primitive_arg_types_func(
           target->func(), target->primitive_arg_types);
     } else {
@@ -219,8 +216,16 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
 }
 
 BorrowedRef<PyFunctionObject> InvokeTarget::func() const {
-  JIT_CHECK(is_function, "not a PyFunctionObject");
+  JIT_CHECK(isFunction(), "not a PyFunctionObject");
   return reinterpret_cast<PyFunctionObject*>(callable.get());
+}
+
+bool InvokeTarget::isBuiltin() const {
+  return builtin_c_func != nullptr;
+}
+
+bool InvokeTarget::isFunction() const {
+  return PyFunction_Check(callable);
 }
 
 const OwnedType* Preloader::preloadedType(BorrowedRef<> descr) const {

@@ -2374,7 +2374,7 @@ void HIRBuilder::emitInvokeFunction(
   if (target.container_is_immutable) {
     // try to emit a direct x64 call (InvokeStaticFunction/CallStatic) if we can
 
-    if (target.is_function && target.is_statically_typed) {
+    if (target.isFunction() && target.is_statically_typed) {
       // Direct invoke is safe whether we succeeded in JIT-compiling or not,
       // it'll just have an extra indirection if not JIT compiled.
       Register* out = temps_.AllocateStack();
@@ -2396,7 +2396,7 @@ void HIRBuilder::emitInvokeFunction(
 
       return;
     } else if (
-        target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs)) {
+        target.isBuiltin() && tryEmitDirectMethodCall(target, tc, nargs)) {
       return;
     }
     // we couldn't emit an x64 call, but we know what object we'll vectorcall,
@@ -2540,7 +2540,7 @@ void HIRBuilder::emitInvokeMethod(
 
   const InvokeTarget& target = preloader_.invokeMethodTarget(descr);
 
-  if (target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs - 1)) {
+  if (target.isBuiltin() && tryEmitDirectMethodCall(target, tc, nargs - 1)) {
     auto res = tc.frame.stack.pop();
     tc.frame.stack.pop(); // pop the thunk
     tc.frame.stack.push(res);
