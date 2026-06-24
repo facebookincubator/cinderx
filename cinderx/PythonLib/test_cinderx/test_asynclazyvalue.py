@@ -2,7 +2,6 @@
 
 import asyncio
 import inspect
-import sys
 import unittest
 from typing import Any, Callable, Coroutine
 
