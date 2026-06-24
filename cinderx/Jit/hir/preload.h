@@ -6,20 +6,22 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/sorted_vec_map.h"
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
-#include <map>
 #include <unordered_map>
 #include <utility>
 
 namespace jit::hir {
 
-using ArgToType = std::map<long, Type>;
-using GlobalNamesMap = std::unordered_map<int, BorrowedRef<>>;
+// Maps keyed on local indices or name indices.  Keys are small dense integers,
+// so a sorted vector is cheaper than a hash table or tree.
+using ArgToType = SortedVecMap<int, Type>;
+using GlobalNamesMap = SortedVecMap<int, BorrowedRef<>>;
 
 // A map keyed by type descr tuples.
 template <class T>
@@ -136,7 +138,7 @@ class Preloader {
 
   // get the type from argument check info for the given locals index, or
   // TObject
-  Type checkArgType(long local_idx) const;
+  Type checkArgType(int local_idx) const;
 
   // get value for global at given name index
   BorrowedRef<> global(int name_idx) const;
@@ -230,8 +232,8 @@ class Preloader {
   DescrMap<std::unique_ptr<InvokeTarget>> meth_targets_;
   DescrMap<std::unique_ptr<NativeTarget>> native_targets_;
   // keyed by locals index
-  std::unordered_map<long, Type> check_arg_types_;
-  std::map<long, OwnedType> check_arg_pytypes_;
+  SortedVecMap<int, Type> check_arg_types_;
+  SortedVecMap<int, OwnedType> check_arg_pytypes_;
   // keyed by name index, names borrowed from code object
   GlobalNamesMap global_names_;
   Type return_type_{TObject};
