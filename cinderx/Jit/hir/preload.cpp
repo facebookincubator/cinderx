@@ -223,22 +223,9 @@ BorrowedRef<PyFunctionObject> InvokeTarget::func() const {
   return reinterpret_cast<PyFunctionObject*>(callable.get());
 }
 
-Type Preloader::type(BorrowedRef<> descr) const {
-  return preloadedType(descr).toHir();
-}
-
-int Preloader::primitiveTypecode(BorrowedRef<> descr) const {
-  return _PyClassLoader_GetTypeCode(pyType(descr));
-}
-
-BorrowedRef<PyTypeObject> Preloader::pyType(BorrowedRef<> descr) const {
-  auto const& preloader_type = preloadedType(descr);
-  JIT_CHECK(!preloader_type.optional, "unexpected optional type");
-  return preloader_type.type;
-}
-
-const OwnedType& Preloader::preloadedType(BorrowedRef<> descr) const {
-  return map_get(types_, descr);
+const OwnedType* Preloader::preloadedType(BorrowedRef<> descr) const {
+  auto it = types_.find(descr);
+  return it != types_.end() ? &it->second : nullptr;
 }
 
 const FieldInfo& Preloader::fieldInfo(BorrowedRef<> descr) const {
