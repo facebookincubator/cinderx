@@ -3,7 +3,6 @@
 import asyncio
 import re
 import sys
-from contextlib import contextmanager
 from unittest.mock import MagicMock, Mock, patch
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
