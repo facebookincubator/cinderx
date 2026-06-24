@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "cinderx/Common/define.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -142,14 +144,9 @@ struct Config {
   // dictionaries (but not their contents).
   bool stable_frame{true};
   // Use inline caches for attribute accesses.
-  bool attr_caches{
-#ifdef Py_GIL_DISABLED
-      // TODO(T250369692): FT support for inline-caches.
-      false
-#else
-      true
-#endif
-  };
+  //
+  // TODO(T250369692): FT support for inline-caches.
+  bool attr_caches{!kFreeThreadedBuild};
   // Collect stats information about attribute caches.
   bool collect_attr_cache_stats{false};
   // Use type annotations to create runtime checks.

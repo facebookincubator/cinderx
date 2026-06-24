@@ -8,6 +8,7 @@
 #include "internal/pycore_stackref.h"
 #endif
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 
 #include <atomic>
@@ -31,31 +32,6 @@
   klass& operator=(const klass&) = delete
 
 #define UNUSED __attribute__((unused))
-
-constexpr bool kPyDebug =
-#ifdef Py_DEBUG
-    true;
-#else
-    false;
-#endif
-
-constexpr bool kPyRefDebug =
-#ifdef Py_REF_DEBUG
-    true;
-#else
-    false;
-#endif
-
-// True when CinderX is built against a free-threaded (Py_GIL_DISABLED) Python.
-//
-// When false, code can assume the GIL is held.  When true, it cannot, the GIL
-// might still be held at any given moment but that's no longer guaranteed.
-constexpr bool kFreeThreadedBuild =
-#ifdef Py_GIL_DISABLED
-    true;
-#else
-    false;
-#endif
 
 // Loading a method returns up to 2 items, for one of three possible outcomes:
 // * A callable plus an object instance (self).
@@ -123,16 +99,10 @@ constexpr uintptr_t kPyObjectTagBits = 0;
 #endif
 
 // `kPyObjectPtrTag` being zero lets us treat an untagged PyObject* as a
-// TaggedPyObject with no extra masking — see `untaggedPyObjectRef`. The
-// invariants on these tag constants are checked via static_asserts in
-// util.cpp, kept out of the header so a failure spews a single error
-// rather than one per translation unit.
+// TaggedPyObject with no extra masking — see `untaggedPyObjectRef`.
 
-#ifdef Py_GIL_DISABLED
-constexpr uint64_t kDeferredRcTagBit = std::countr_zero(kDeferredRcTag);
-#else
-constexpr uint64_t kDeferredRcTagBit = 0;
-#endif
+constexpr uint64_t kDeferredRcTagBit =
+    kFreeThreadedBuild ? std::countr_zero(kDeferredRcTag) : 0;
 
 inline uintptr_t taggedPyObjectBits(TaggedPyObject obj) {
 #ifdef Py_GIL_DISABLED
