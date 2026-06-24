@@ -109,4 +109,14 @@ std::string repr(BorrowedRef<> obj) {
   return {str, static_cast<std::string::size_type>(len)};
 }
 
+void setRuntimeError(const std::exception& exn) {
+  // Shouldn't happen, but in case we doubled up on Python and C++ exceptions,
+  // make sure to log the Python exception first, then override it with the C++
+  // exception.  Otherwise it would just be lost.
+  if (auto err = Ref<>::steal(PyErr_GetRaisedException())) {
+    PyErr_DisplayException(err);
+  }
+  PyErr_SetString(PyExc_RuntimeError, exn.what());
+}
+
 } // namespace jit

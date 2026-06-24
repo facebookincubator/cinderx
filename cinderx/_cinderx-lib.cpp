@@ -1222,15 +1222,7 @@ int _cinderx_exec(PyObject* m) {
     // Same as above error case, but hold onto a C++ exception object and
     // convert it to a Python exception.
     Ci_FiniFrameEvalFunc();
-
-    // Shouldn't happen, but in case we doubled up on Python and C++ exceptions,
-    // make sure to log the Python exception first, then override it with the
-    // C++ exception.  Otherwise it would just be lost.
-    if (auto err = Ref<>::steal(PyErr_GetRaisedException())) {
-      PyErr_DisplayException(err);
-    }
-
-    PyErr_SetString(PyExc_RuntimeError, exn.what());
+    jit::setRuntimeError(exn);
     return -1;
   }
 }

@@ -135,7 +135,16 @@ PyObject* forcedJitVectorcall(
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
 
-  auto result = compileFunction(func);
+  // Compile the function.
+  Result result;
+  try {
+    result = compileFunction(func);
+  } catch (const std::exception& exn) {
+    // Gently fall back to the interpreter when C++ exceptions happen.
+    JIT_DLOG("{}", exn.what());
+    result = Result::UNKNOWN_ERROR;
+  }
+
   if (result == Result::OK) {
     JIT_DCHECK(
         isJitCompiled(func),
@@ -1679,7 +1688,16 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  auto result = compileFunction(func);
+  // Compile the function.
+  Result result;
+  try {
+    result = compileFunction(func);
+  } catch (const std::exception& exn) {
+    // Surface C++ exceptions to the caller immediately.
+    setRuntimeError(exn);
+    return nullptr;
+  }
+
   switch (result) {
     case Result::OK:
       Py_RETURN_TRUE;
