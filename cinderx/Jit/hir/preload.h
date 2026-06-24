@@ -231,9 +231,8 @@ class Preloader {
   DescrMap<std::unique_ptr<InvokeTarget>> func_targets_;
   DescrMap<std::unique_ptr<InvokeTarget>> meth_targets_;
   DescrMap<std::unique_ptr<NativeTarget>> native_targets_;
-  // keyed by locals index
-  SortedVecMap<int, Type> check_arg_types_;
-  SortedVecMap<int, OwnedType> check_arg_pytypes_;
+  // Keyed by locals index.
+  SortedVecMap<int, OwnedType> check_arg_types_;
   // keyed by name index, names borrowed from code object
   GlobalNamesMap global_names_;
   Type return_type_{TObject};
