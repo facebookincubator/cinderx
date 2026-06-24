@@ -107,8 +107,23 @@ def build_subprocess_env(extra: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def reexec_prefix() -> list[str]:
+    """Command prefix that re-runs this benchmark in a fresh process.
+
+    When packaged (a PAR/XAR from ``buck run``/``buck build``) ``__file__`` lives
+    under an extracted mount and only the binary itself has the bundled deps on
+    ``sys.path``, so re-exec the binary.  A plain ``python script.py`` invocation
+    re-execs the interpreter with the script.
+    """
+    if "/xarfuse/" in os.path.abspath(__file__) or sys.argv[0].endswith(
+        (".par", ".xar")
+    ):
+        return [sys.argv[0]]
+    return [sys.executable, os.path.abspath(__file__)]
+
+
 def run_compare(argv: list[str]) -> None:
-    """Re-exec this script twice (baseline vs JIT) and print the speedup.
+    """Re-exec this benchmark twice (baseline vs JIT) and print the speedup.
 
     One subprocess runs with ``CINDERX_DISABLE=1`` (interpreter baseline), the
     other with ``--cinderx``.  All other args (``--model``, ``--test``,
@@ -116,11 +131,11 @@ def run_compare(argv: list[str]) -> None:
     measure the same workload.
     """
     forwarded = [a for a in argv if a not in ("--compare", "--cinderx")]
-    script = os.path.abspath(__file__)
+    prefix = reexec_prefix()
 
     def measure(label: str, env_extra: dict[str, str], extra_args: list[str]) -> float:
         env = build_subprocess_env(env_extra)
-        cmd = [sys.executable, script, *forwarded, *extra_args]
+        cmd = [*prefix, *forwarded, *extra_args]
         print(f"\n--- {label} ---")
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
         sys.stdout.write(result.stderr)
