@@ -191,11 +191,13 @@ uint8_t* allocPages(size_t size) {
 } // namespace
 
 CodeAllocator::CodeAllocator() {
+#if defined(__linux__)
   std::lock_guard lock{cinder_jit_region_mutex_};
   if (!s_cinder_jit_region_checked) {
     s_cinder_jit_region_checked = true;
     initCinderJitRegion();
   }
+#endif
 }
 
 ICodeAllocator* CodeAllocator::make() {
