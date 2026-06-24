@@ -139,7 +139,7 @@ std::optional<CompiledFunctionData> Compiler::Compile(
       !getThreadedCompileContext().compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
-      hir::Preloader::makePreloader(func, makeFrameReifier(func->func_code));
+      hir::Preloader::make(func, makeFrameReifier(func->func_code));
   return preloader ? Compile(*preloader) : std::nullopt;
 }
 

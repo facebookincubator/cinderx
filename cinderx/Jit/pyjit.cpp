@@ -846,8 +846,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
   // assumptions are broken after this.
   std::unique_ptr<hir::Preloader> preloader;
   if (func != nullptr) {
-    preloader =
-        hir::Preloader::makePreloader(func, makeFrameReifier(func->func_code));
+    preloader = hir::Preloader::make(func, makeFrameReifier(func->func_code));
   } else {
     auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
     auto it = jit_code_outer_funcs.find(code);
@@ -873,11 +872,11 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         "Unexpected type for globals ({}) on function {}",
         Py_TYPE(outer_func->func_globals)->tp_name,
         funcFullname(outer_func));
-    preloader = hir::Preloader::makePreloader(
+    preloader = hir::Preloader::make(
         code,
         outer_func->func_builtins,
         outer_func->func_globals,
-        nullptr,
+        nullptr /* annotations */,
         codeFullname(outer_func->func_module, code),
         makeFrameReifier(code));
   }

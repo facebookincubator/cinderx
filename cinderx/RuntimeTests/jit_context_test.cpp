@@ -46,8 +46,7 @@ foo = "hello"
 
   Ref<PyFunctionObject> func(compileAndGet(py_src, "func"));
   std::unique_ptr<jit::hir::Preloader> preloader(
-      jit::hir::Preloader::makePreloader(
-          func, jit::makeFrameReifier(func->func_code)));
+      jit::hir::Preloader::make(func, jit::makeFrameReifier(func->func_code)));
 
   auto comp_result =
       jit::compilePreloaderImpl(jit_ctx_.get(), *preloader, func);
