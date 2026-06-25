@@ -11,12 +11,13 @@ vendored here; see ``benchmarks/requirements-torchbench.txt`` for setup.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import statistics
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 
 import cinderx.jit
 import click
@@ -25,6 +26,7 @@ import click
 try:
     import torch
     from torchbenchmark import load_model_by_name
+    from torchbenchmark.util.extra_args import is_staged_train_test
 except ImportError:
     print(
         "Error: torch / torchbenchmark not found. Install torch with:\n"
@@ -75,27 +77,68 @@ def build_model(name: str, test: str, batch_size: int | None) -> Any:
     )
 
 
-def run_iterations(model: Any, iterations: int) -> float:
+def resolve_step(model: Any) -> tuple[Callable[[], Any], list[Any]]:
+    """Return ``(step, contexts)`` where ``step()`` runs one model iteration.
+
+    The model's per-call ``run_contexts`` (grad mode + JIT profiling executor) are
+    hoisted out of the timed loop and the model's ``eval``/``train`` step is called
+    directly.  ``BenchmarkModel.invoke`` otherwise rebuilds an ``ExitStack`` plus
+    fresh context-manager and closure objects on every call; that churn adds
+    eager-Python overhead and keeps CinderX recompiling/cleaning up short-lived
+    functions in steady state, neither of which reflects a real serving loop that
+    wraps grad mode once around many requests.
+
+    Staged train manages its own per-stage contexts, so it falls back to ``invoke()``
+    with no externally-held contexts.
+    """
+    is_train = model.test == "train"
+    if (
+        is_train
+        and is_staged_train_test(model)
+        and getattr(model, "train", None) is None
+    ):
+        return model.invoke, []
+    # Staged train is the only path that loops over ``num_batch``; for every other
+    # path ``invoke()`` asserts a single batch per call.  Calling ``eval``/``train``
+    # directly once per timed iteration would silently undercount ``num_batch > 1``
+    # configs, so keep invoke()'s fail-fast guard.
+    assert model.num_batch == 1, (
+        "Only staged_train_test supports multiple-batch testing at this time."
+    )
+    step = model.train if is_train else model.eval
+    return step, list(getattr(model, "run_contexts", []))
+
+
+def run_iterations(step: Callable[[], Any], iterations: int) -> float:
     """Run one timed sample and return elapsed seconds."""
     start = time.perf_counter()
     for _ in range(iterations):
-        model.invoke()
+        step()
     return time.perf_counter() - start
 
 
 def run(model: Any, iterations: int, warmup: int, repeat: int) -> list[float]:
-    """Warm up once, then collect repeated per-iteration timing samples."""
-    print(f"Warmup ({warmup} iterations)...", file=sys.stderr)
-    for _ in range(warmup):
-        model.invoke()
+    """Warm up, then collect repeated per-iteration timing samples.
 
-    print(f"Timed runs ({repeat} x {iterations} iterations)...", file=sys.stderr)
-    samples_ms: list[float] = []
-    for i in range(repeat):
-        elapsed = run_iterations(model, iterations)
-        mean_ms = elapsed / iterations * 1000
-        samples_ms.append(mean_ms)
-        print(f"  Run {i + 1}/{repeat}: {mean_ms:.2f} ms/iter", file=sys.stderr)
+    The model's run-contexts are entered once around the whole measurement rather
+    than per iteration (see ``resolve_step``).
+    """
+    step, contexts = resolve_step(model)
+    with contextlib.ExitStack() as stack:
+        for make_context in contexts:
+            stack.enter_context(make_context())
+
+        print(f"Warmup ({warmup} iterations)...", file=sys.stderr)
+        for _ in range(warmup):
+            step()
+
+        print(f"Timed runs ({repeat} x {iterations} iterations)...", file=sys.stderr)
+        samples_ms: list[float] = []
+        for i in range(repeat):
+            elapsed = run_iterations(step, iterations)
+            mean_ms = elapsed / iterations * 1000
+            samples_ms.append(mean_ms)
+            print(f"  Run {i + 1}/{repeat}: {mean_ms:.2f} ms/iter", file=sys.stderr)
 
     return samples_ms
 
