@@ -3956,6 +3956,14 @@ class CodeGenerator312(CodeGenerator):
     def emit_type_alias_set_func_defaults(self, code_gen: CodeGenerator) -> None:
         pass
 
+    def make_annotations_code_holder(self, code_gen: CodeGenerator) -> CodeHolder:
+        # Hook for the typevar-bound/default and type-alias-value scopes, which
+        # carry a synthetic ".format" parameter on 3.14+. Only CPython 3.16
+        # renames it back to "format" for these scopes (3.14/3.15 rename it for
+        # the __annotate__ scope only), so the default is to emit the code
+        # generator unchanged. See CodeGenerator316 for the override.
+        return code_gen
+
     def visitTypeAlias(self, node: ast.TypeAlias) -> None:
         outer_gen: CodeGenerator312 = self
         if node.type_params:
@@ -3995,7 +4003,7 @@ class CodeGenerator312(CodeGenerator):
         code_gen.graph.emit_with_loc("RETURN_VALUE", 0, loc=node)
 
         outer_gen.set_pos(node)
-        outer_gen.emit_closure(code_gen, 0)
+        outer_gen.emit_closure(outer_gen.make_annotations_code_holder(code_gen), 0)
         self.emit_type_alias_set_func_defaults(outer_gen)
         outer_gen.emit("BUILD_TUPLE", 3)
         outer_gen.emit_call_intrinsic_1("INTRINSIC_TYPEALIAS")
@@ -5160,7 +5168,7 @@ class CodeGenerator314(CodeGenerator312):
 
         loc = self.graph.loc
         self.set_pos(bound)
-        self.emit_closure(outer_gen, 0)
+        self.emit_closure(self.make_annotations_code_holder(outer_gen), 0)
         self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_DEFAULTS)
         self.set_pos(loc)
 
@@ -5944,6 +5952,8 @@ class CodeGenerator314(CodeGenerator312):
         return outer_gen
 
     def leave_annotations(self, gen: CodeGenerator) -> None:
+        # The __annotate__ scope's ".format" parameter is renamed back to
+        # "format" in every version that defers annotations (3.14+).
         self.emit_closure(AnnotationsCodeHolder(gen), 0)
 
     def emit_argannotation(
@@ -6692,6 +6702,13 @@ class CodeGenerator315(CodeGenerator314):
 class CodeGenerator316(CodeGenerator315):
     flow_graph = PyFlowGraph316
 
+    def make_annotations_code_holder(self, code_gen: CodeGenerator) -> CodeHolder:
+        # 3.16 extended the ".format" -> "format" rename to the
+        # typevar-bound/default and type-alias-value scopes (CPython's
+        # codegen_rename_annotations_format_param is now also called from
+        # codegen_type_param_bound_or_default and codegen_typealias_body).
+        return AnnotationsCodeHolder(code_gen)
+
     # 3.16 also optimizes frozenset(...) calls (gh-150027).
     SUPPORTED_FUNCTION_CALL_OPS: tuple[str, ...] = (
         CodeGenerator315.SUPPORTED_FUNCTION_CALL_OPS + ("frozenset",)
@@ -6835,7 +6852,10 @@ class AnnotationsCodeHolder(CodeHolder):
         # different name (.format) in the symtable; if the name
         # "format" appears in the annotations, it doesn't get clobbered
         # by this name.
-        return code.replace(co_varnames=("format",))
+        varnames = code.co_varnames
+        if varnames and varnames[0] == ".format":
+            code = code.replace(co_varnames=("format",) + varnames[1:])
+        return code
 
 
 if __name__ == "__main__":
