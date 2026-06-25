@@ -201,9 +201,7 @@ def main() -> int:
     if old_lines and old_lines[-1] == "":
         old_lines.pop()
 
-    # A few legacy files (e.g. call_optimization_test.txt) use the old
-    # version-agnostic bare-`---` format and have no `--- Expected X.Y ---`
-    # blocks to seed from. Skip them rather than failing.
+    # Skip files that aren't in the labeled format rather than failing.
     if not old_lines or old_lines[0] != "--- Test Suite Name ---":
         logger.warning(
             "Skipping %s: not in the labeled '--- Expected X.Y ---' format",
