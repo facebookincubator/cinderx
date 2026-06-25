@@ -4,9 +4,20 @@
 
 """Run a TorchBench eager CPU workload with and without the CinderX JIT.
 
-The default model is ``pyhpc_equation_of_state``, which is a small eager CPU
-workload where Python op dispatch is expected to matter.  TorchBench is not
-vendored here; see ``benchmarks/requirements-torchbench.txt`` for setup.
+The default model is ``pyhpc_equation_of_state``, a small eager CPU workload
+chosen because Python op dispatch is about as visible here as it gets in
+TorchBench.  TorchBench is not vendored here; see
+``benchmarks/requirements-torchbench.txt`` for setup.
+
+What this measures, and its limits: eager PyTorch on CPU is *dispatch-bound*,
+not interpreter-bound.  Profiling shows ~95% of the time goes to ATen C++ per-op
+overhead -- GIL / thread-state handoff, ``TensorIterator`` setup, and tensor
+allocation/refcounting -- which no Python JIT can touch; only the few percent
+spent interpreting the dispatch bytecode is addressable.  Measured CinderX
+speedups are therefore small (~1.0x), even on free-threaded 3.14t where the GIL
+cost disappears.  This still makes torchbench a useful, realistic guardrail --
+it confirms the JIT stays neutral-to-positive on real eager PyTorch and does not
+regress it -- but it is a poor place to look for large wins.
 """
 
 from __future__ import annotations
