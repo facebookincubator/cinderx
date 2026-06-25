@@ -9,7 +9,7 @@
 SECTIONS {
   .cinder_jit (NOLOAD) : ALIGN(2097152) {
     PROVIDE_HIDDEN(__cinder_jit_start = .);
-    . = . + 75 * 1024 * 1024;
+    . = . + 85 * 1024 * 1024;
     PROVIDE_HIDDEN(__cinder_jit_end = .);
   }
 } INSERT BEFORE .text;
