@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class Item:
     def __init__(self, v: int, next: Item | None = None) -> None:
         self.v = v

@@ -76,8 +76,6 @@ RUN apt-get update; \
 
 RUN git clone -b meta/3.12 https://github.com/facebookincubator/cinder.git
 
-COPY . "$CINDERX_ROOT/"
-
 WORKDIR $CINDER_ROOT
 
 # Build a bootstrap interpreter first. CinderX needs a working meta/3.12 Python
@@ -90,6 +88,8 @@ RUN make install
 WORKDIR /root
 
 WORKDIR $CINDERX_ROOT
+
+COPY . "$CINDERX_ROOT/"
 
 RUN test -f "$NETWORKBENCH_JITLIST"
 
@@ -106,7 +106,7 @@ RUN PYTHONJITLISTFILE="$NETWORKBENCH_JITLIST" \
     CINDERX_PGO_PROFILE_TASK="$PROFILE_TASK" \
     CC=clang \
     CXX=clang++ \
-    "$CINDERX_VENV/bin/pip" install --ignore-requires-python --no-build-isolation --no-clean .
+    "$CINDERX_VENV/bin/pip" -vvv install --ignore-requires-python --no-build-isolation --no-clean .
 
 # CMake's setuptools build produces a shared _cinderx extension. For the final
 # benchmark image, fold the PGO/LTO object files from that build into one static
@@ -148,4 +148,4 @@ WORKDIR $CINDERX_ROOT
 RUN find "$CINDERX_VENV" -name '_cinderx*.so' -delete; \
     "$CINDERX_VENV/bin/python" -c 'import importlib.util; spec = importlib.util.find_spec("_cinderx"); assert spec is not None and spec.origin == "built-in", spec; import cinderx; assert cinderx.is_initialized(), cinderx.get_import_error()'
 
-ENTRYPOINT ["bash", "-c", "source $CINDERX_VENV/bin/activate && python cinderx/benchmarks/networkbench/run_bench.py"]
+ENTRYPOINT ["bash", "-c", "source $CINDERX_VENV/bin/activate && python cinderx/benchmarks/networkbench/run_bench.py -n 1"]
