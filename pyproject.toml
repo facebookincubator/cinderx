@@ -33,14 +33,15 @@ filterwarnings = [
 ]
 
 [tool.cibuildwheel]
-# TODO(D107415749): muxllinux still has issues with FT.
 build = [
     "cp314-manylinux_x86_64",
     "cp314t-manylinux_x86_64",
     "cp314-musllinux_x86_64",
+    "cp314t-musllinux_x86_64",
     "cp314-manylinux_aarch64",
     "cp314t-manylinux_aarch64",
     "cp314-musllinux_aarch64",
+    "cp314t-musllinux_aarch64",
     "cp314-macosx_arm64",
     "cp314-win_amd64",
 ]
