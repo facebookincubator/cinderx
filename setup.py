@@ -13,6 +13,7 @@ import os
 import os.path
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -192,11 +193,15 @@ class BuildCommand(build):
         else:
             workload_env["PYTHONPATH"] = cinderx_so_dir
 
-        # Uses the same default workload as CPython's PGO
-        workload_cmd = [
-            sys.executable,
-            "-c",
-            """
+        profile_task = os.environ.get("CINDERX_PGO_PROFILE_TASK")
+        if profile_task:
+            workload_cmd = [sys.executable, *shlex.split(profile_task)]
+        else:
+            # Uses the same default workload as CPython's PGO.
+            workload_cmd = [
+                sys.executable,
+                "-c",
+                """
 import cinderx
 
 import sys
@@ -210,8 +215,8 @@ def main():
 
 if __name__ == "__main__":
     main()
-            """,
-        ]
+                """,
+            ]
 
         print(f"Running workload with PYTHONPATH={workload_env['PYTHONPATH']}")
         workload_args = {

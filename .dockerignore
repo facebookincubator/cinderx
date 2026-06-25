@@ -1,0 +1,48 @@
+# VCS and local editor state
+.git
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+
+# Docker build files are not part of the source tree copied into the image.
+Dockerfile
+.dockerignore
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*venv*/
+
+# Native and package build outputs
+scratch/
+build/
+dist/
+*.egg-info/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+*.o
+*.a
+*.so
+*.dylib
+*.dSYM/
+
+# Profiling, benchmark, and local log artifacts
+*.profraw
+*.profdata
+*.profclangd
+*.fdata
+*.bolt
+perf.data*
+*.log
+
+# Misc
+assets/
