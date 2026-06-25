@@ -199,9 +199,6 @@ class BuildCommand(build):
             """
 import cinderx
 
-import sys
-sys.argv.append("--pgo")
-
 def main():
     # This import must not be in the module body as it will start the tests
     # running, and those using multiprocessing will fail because the initial
@@ -211,6 +208,7 @@ def main():
 if __name__ == "__main__":
     main()
             """,
+            "--pgo",
         ]
 
         print(f"Running workload with PYTHONPATH={workload_env['PYTHONPATH']}")
@@ -220,6 +218,14 @@ if __name__ == "__main__":
         }
         if is_clang:
             workload_args["cwd"] = clang_pgo_dir
+
+        subprocess.run(workload_cmd, **workload_args)
+        workload_env["CINDERX_JIT_ALL"] = "1"
+
+        # Not everything passes w/ the JIT but we still want the coverage
+        workload_args["check"] = False
+        # pickle crashes due to lack of recursion enforcement
+        workload_cmd += ["-x", "test_pickle"]
         subprocess.run(workload_cmd, **workload_args)
 
         if is_clang:
