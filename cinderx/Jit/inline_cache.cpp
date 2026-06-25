@@ -1456,7 +1456,6 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
     if (res != nullptr) {
       maybeCollectCacheStats(
           cache_stats_, tp, name, CacheMissReason::kWrongTpGetAttro);
-      Py_INCREF(Py_None);
       return {Py_None, res};
     }
     return {nullptr, nullptr};
@@ -1477,7 +1476,6 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
             cache_stats_, tp, name, CacheMissReason::kPyDescrIsData);
         PyObject* result = f(descr, obj, (PyObject*)obj->ob_type);
         Py_DECREF(descr);
-        Py_INCREF(Py_None);
         return {Py_None, result};
       }
     }
@@ -1493,7 +1491,6 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
       Py_INCREF(attr);
       Py_DECREF(dict);
       Py_XDECREF(descr);
-      Py_INCREF(Py_None);
       return {Py_None, attr};
     }
     Py_DECREF(dict);
@@ -1510,14 +1507,12 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
         cache_stats_, tp, name, CacheMissReason::kUncategorized);
     PyObject* result = f(descr, obj, (PyObject*)Py_TYPE(obj));
     Py_DECREF(descr);
-    Py_INCREF(Py_None);
     return {Py_None, result};
   }
 
   if (descr != nullptr) {
     maybeCollectCacheStats(
         cache_stats_, tp, name, CacheMissReason::kUncategorized);
-    Py_INCREF(Py_None);
     return {Py_None, descr};
   }
 
@@ -1574,7 +1569,6 @@ LoadMethodResult LoadTypeMethodCache::getValueHelper(
     Py_INCREF(obj);
     return {result, obj};
   }
-  Py_INCREF(Py_None);
   return {Py_None, result};
 }
 
@@ -1587,7 +1581,6 @@ LoadMethodResult LoadTypeMethodCache::lookup(
     maybeCollectCacheStats(
         cache_stats_, metatype, name, CacheMissReason::kWrongTpGetAttro);
     PyObject* res = PyObject_GetAttr(obj, name);
-    Py_INCREF(Py_None);
     return {Py_None, res};
   }
   if (_PyType_GetDict(obj) == nullptr) {
@@ -1612,7 +1605,6 @@ LoadMethodResult LoadTypeMethodCache::lookup(
       PyObject* res =
           meta_get(meta_attribute, obj, reinterpret_cast<PyObject*>(metatype));
       Py_DECREF(meta_attribute);
-      Py_INCREF(Py_None);
       return {Py_None, res};
     }
   }
@@ -1639,7 +1631,6 @@ LoadMethodResult LoadTypeMethodCache::lookup(
         // user code. Do not cache in this instance.
         maybeCollectCacheStats(
             cache_stats_, metatype, name, CacheMissReason::kUncategorized);
-        Py_INCREF(Py_None);
         return {
             Py_None, Py_TYPE(cm_callable)->tp_descr_get(cm_callable, obj, obj)};
       } else {
@@ -1648,20 +1639,17 @@ LoadMethodResult LoadTypeMethodCache::lookup(
         maybeCollectCacheStats(
             cache_stats_, metatype, name, CacheMissReason::kUncategorized);
         BorrowedRef<> py_meth = PyMethod_New(cm_callable, obj);
-        Py_INCREF(Py_None);
         return {Py_None, py_meth};
       }
     }
     if (attribute_type == &PyStaticMethod_Type) {
       BorrowedRef<> cm_callable = Ci_PyStaticMethod_GetFunc(attribute);
       Py_INCREF(cm_callable);
-      Py_INCREF(Py_None);
       fill(obj, cm_callable, false);
       return {Py_None, cm_callable};
     }
     if (PyFunction_Check(attribute)) {
       Py_INCREF(attribute);
-      Py_INCREF(Py_None);
       fill(obj, attribute, false);
       return {Py_None, attribute};
     }
@@ -1675,12 +1663,10 @@ LoadMethodResult LoadTypeMethodCache::lookup(
           cache_stats_, metatype, name, CacheMissReason::kUncategorized);
       PyObject* res = local_get(attribute, nullptr, obj);
       Py_DECREF(attribute);
-      Py_INCREF(Py_None);
       return {Py_None, res};
     }
     maybeCollectCacheStats(
         cache_stats_, metatype, name, CacheMissReason::kUncategorized);
-    Py_INCREF(Py_None);
     return {Py_None, attribute};
   }
 
@@ -1692,7 +1678,6 @@ LoadMethodResult LoadTypeMethodCache::lookup(
     PyObject* res;
     res = meta_get(meta_attribute, obj, reinterpret_cast<PyObject*>(metatype));
     Py_DECREF(meta_attribute);
-    Py_INCREF(Py_None);
     return {Py_None, res};
   }
 
@@ -1700,7 +1685,6 @@ LoadMethodResult LoadTypeMethodCache::lookup(
   if (meta_attribute != nullptr) {
     maybeCollectCacheStats(
         cache_stats_, metatype, name, CacheMissReason::kUncategorized);
-    Py_INCREF(Py_None);
     return {Py_None, meta_attribute};
   }
 
