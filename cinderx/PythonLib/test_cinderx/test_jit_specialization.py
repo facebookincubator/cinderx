@@ -10,7 +10,7 @@ from typing import Callable, TypeVar
 
 import cinderx
 import cinderx.jit
-from cinderx.test_support import passIf
+from cinderx.test_support import passIf, passUnless
 
 
 TCallableRet = TypeVar("TCallableRet")
@@ -250,9 +250,7 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("UNPACK_SEQUENCE_TUPLE", opnames(f))
         self.assertEqual(f(("c", "d", "e")), "c")
 
-    @unittest.skipUnless(
-        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
-    )
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_bool(self) -> None:
         def f(a: bool) -> str:
             return "y" if a else "n"
@@ -264,9 +262,7 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(True), "y")
         self.assertEqual(f(False), "n")
 
-    @unittest.skipUnless(
-        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
-    )
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_int(self) -> None:
         def f(a: int) -> str:
             return "y" if a else "n"
@@ -278,9 +274,7 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(5), "y")
         self.assertEqual(f(0), "n")
 
-    @unittest.skipUnless(
-        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
-    )
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_list(self) -> None:
         def f(a: list[int]) -> str:
             return "y" if a else "n"
@@ -292,9 +286,7 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f([1]), "y")
         self.assertEqual(f([]), "n")
 
-    @unittest.skipUnless(
-        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
-    )
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_none(self) -> None:
         def f(a: object) -> str:
             return "y" if a else "n"
@@ -305,9 +297,7 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("TO_BOOL_NONE", opnames(f))
         self.assertEqual(f(None), "n")
 
-    @unittest.skipUnless(
-        sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13"
-    )
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_str(self) -> None:
         def f(a: str) -> str:
             return "y" if a else "n"
