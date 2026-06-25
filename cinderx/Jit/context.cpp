@@ -718,8 +718,9 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {
     outer = outer_it->second;
   }
-  bool immortal = getConfig().immortalize_compiled_functions ||
-      (func != nullptr && _Py_IsImmortal(func)) ||
+  // In the prefork model JIT-compiled functions are always immortalized (see
+  // kPreforkModel); otherwise they're only immortal if the owning function is.
+  bool immortal = kPreforkModel || (func != nullptr && _Py_IsImmortal(func)) ||
       (outer != nullptr && _Py_IsImmortal(outer));
   auto compiled = CompiledFunction::create(std::move(compiled_func), immortal);
   if (compiled == nullptr) {

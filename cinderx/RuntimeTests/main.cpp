@@ -210,6 +210,16 @@ void registerCinderX() {
 #endif
 }
 
+// In the prefork-model build CinderX intentionally immortalizes JIT-compiled
+// objects, so they are never freed and LeakSanitizer reports them as leaks at
+// exit, failing the test binary even though every gtest passes. Turn leak
+// checking off for that build only; non-prefork builds keep leak detection.
+// kPreforkModel is a constexpr, so this folds to a constant return as required
+// by __lsan_is_turned_off().
+extern "C" __attribute__((used)) int __lsan_is_turned_off() {
+  return int{kPreforkModel};
+}
+
 int main(int argc, char* argv[]) {
 #ifdef CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE
   // OSS path: point PYTHONPATH at the in-tree cinderx package so

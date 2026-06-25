@@ -9,7 +9,12 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from cinderx.test_support import ENCODING, skip_unless_jit, subprocess_env
+from cinderx.test_support import (
+    ENCODING,
+    skip_if_prefork,
+    skip_unless_jit,
+    subprocess_env,
+)
 
 
 # Each subprocess must use the allocator that actually unmaps freed code
@@ -24,6 +29,10 @@ _HUGE_PAGES_OFF: dict[str, str] = {
 
 
 @skip_unless_jit("Exercises JIT-compiled code lifetime")
+@skip_if_prefork(
+    "Prefork builds always immortalize compiled functions, so the mortal "
+    "deferred-cleanup/deopt lifecycle these tests exercise does not apply"
+)
 class DeferredCleanupTest(unittest.TestCase):
     """
     Tests for the deferred freeing of JIT-compiled code (the

@@ -274,7 +274,9 @@ def manage_worker(
     worker.wait()
 
 
-def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
+def _computeSkipTests(
+    huntrleaks, use_rr=False, extra_skip_files=None
+) -> Tuple[Set[str], Set[str]]:
     skip_list_files = ["devserver_skip_tests.txt", "cinder_skip_test.txt"]
 
     version = "".join(str(v) for v in sys.version_info[:2])
@@ -287,6 +289,9 @@ def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
 
     if use_rr:
         skip_list_files.append("rr_skip_tests.txt")
+
+    if extra_skip_files:
+        skip_list_files.extend(extra_skip_files)
 
     try:
         import cinderjit  # noqa: F401
@@ -354,8 +359,10 @@ def _select_tests(exclude: Set[str]) -> List[str]:
     return tests
 
 
-def list_tests(huntrleaks, use_rr):
-    skip_modules, skip_patterns = _computeSkipTests(huntrleaks, use_rr)
+def list_tests(huntrleaks, use_rr, extra_skip_files=None):
+    skip_modules, skip_patterns = _computeSkipTests(
+        huntrleaks, use_rr, extra_skip_files
+    )
 
     return _select_tests(skip_modules)
 
@@ -376,6 +383,7 @@ class MultiWorkerCinderRegrtest:
         json_summary_file: str | None,
         failfast: bool,
         expected_failures: list[str],
+        skip_lists: list[str] | None = None,
     ):
         self._cinder_regr_runner_logfile = logfile
         self._success_on_test_errors = success_on_test_errors
@@ -403,7 +411,9 @@ class MultiWorkerCinderRegrtest:
         # False, False => quiet, pgo
         self._logger = libregrtest_logger.Logger(self._results, False, False)
 
-        skip_modules, skip_patterns = _computeSkipTests(self._huntrleaks, self._use_rr)
+        skip_modules, skip_patterns = _computeSkipTests(
+            self._huntrleaks, self._use_rr, skip_lists
+        )
 
         if tests is None:
             tests = _select_tests(skip_modules)
@@ -866,7 +876,7 @@ def worker_main(args):
 
 def dispatcher_main(args):
     if args.list:
-        tests = list_tests(args.huntrleaks, args.use_rr)
+        tests = list_tests(args.huntrleaks, args.use_rr, args.skip_list)
         tests.sort()
         print(json.dumps(tests, indent=0))
         sys.exit(0)
@@ -901,6 +911,7 @@ def dispatcher_main(args):
                 args.json_summary_file,
                 args.failfast,
                 args.expected_failures,
+                args.skip_list,
             )
             print(f"Spawning {num_workers} workers")
             test_runner.run()
@@ -1032,6 +1043,14 @@ def main():
         "--expected-failures",
         action="append",
         help="A file which specifies expected failures for this test run.",
+    )
+    dispatcher_parser.add_argument(
+        "--skip-list",
+        action="append",
+        help="A file listing extra tests to skip for this run, in the same "
+        "format as the checked-in *_skip_tests.txt files. Use to skip tests "
+        "for a specific build configuration (e.g. prefork-model) without "
+        "affecting other builds. Can be supplied multiple times.",
     )
     dispatcher_parser.add_argument("rest", nargs=argparse.REMAINDER)
     dispatcher_parser.set_defaults(func=dispatcher_main)

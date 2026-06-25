@@ -135,6 +135,12 @@ def skip_if_jit(reason: str) -> Callable[[Callable[..., None]], Callable[..., No
     return passIf(cinderx.jit.is_enabled(), reason)
 
 
+def skip_if_prefork(
+    reason: str = "Behavior intentionally differs in prefork builds (e.g. compiled functions are always immortalized)",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return passIf(cinderx.is_prefork_build(), reason)
+
+
 def skip_if_ft(reason: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
     return passIf(FREE_THREADING_BUILD, reason)
 

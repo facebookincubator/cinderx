@@ -294,6 +294,20 @@ PyObject* cinder_is_immortal(PyObject* /* mod */, PyObject* obj) {
   return PyBool_FromLong(_Py_IsImmortal(obj));
 }
 
+PyDoc_STRVAR(
+    cinder_is_prefork_build_doc,
+    "is_prefork_build($module, /)\n"
+    "--\n"
+    "\n"
+    "Return True if CinderX was built for the prefork (fork-and-exec) process "
+    "model, i.e. with the ENABLE_PREFORK_MODEL build flag.  In this mode some "
+    "behaviors that would otherwise be runtime options are forced on at "
+    "compile "
+    "time -- e.g. JIT-compiled functions are always immortalized.");
+PyObject* cinder_is_prefork_build(PyObject* /* mod */, PyObject*) {
+  return PyBool_FromLong(kPreforkModel);
+}
+
 PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
 #if !defined(WIN32) && (ENABLE_PERF_TRAMPOLINE || PY_VERSION_HEX >= 0x030D0000)
   if (!jit::perf::isPreforkCompilationEnabled()) {
@@ -882,6 +896,10 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      cinder_immortalize_heap_doc},
     {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
+    {"is_prefork_build",
+     cinder_is_prefork_build,
+     METH_NOARGS,
+     cinder_is_prefork_build_doc},
     {"anext",
      reinterpret_cast<PyCFunction>(builtin_anext),
      METH_FASTCALL,

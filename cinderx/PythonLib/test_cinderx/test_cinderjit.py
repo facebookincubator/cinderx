@@ -32,6 +32,7 @@ from cinderx.test_support import (
     passUnless,
     run_in_subprocess,
     skip_if_ft,
+    skip_if_prefork,
     skip_test_if_oss,
     skip_unless_jit,
     subprocess_env,
@@ -2541,6 +2542,10 @@ class BadArgumentTests(unittest.TestCase):
             jit_unsuppress(is_jit_compiled)
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    @skip_if_prefork(
+        "Prefork builds immortalize compiled functions and do not publish "
+        "__cinderx_compiled_func__, so the function never deopts"
+    )
     def test_compiled_code_ref(self):
         self.assertNotIn("__cinderx_compiled_func__", compiled_code_func.__dict__)
         cinder_support.failUnlessJITCompiled(compiled_code_func)
@@ -2553,6 +2558,10 @@ class BadArgumentTests(unittest.TestCase):
         self.assertFalse(cinderx.jit.is_jit_compiled(compiled_code_func))
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    @skip_if_prefork(
+        "Prefork builds immortalize compiled functions and do not publish "
+        "__cinderx_compiled_func__, so the function never deopts"
+    )
     def test_nested_compiled_code_ref(self):
         # CompiledCode should be re-used for nested functions, even if the outer
         # function is never compiled.
@@ -2573,6 +2582,10 @@ class BadArgumentTests(unittest.TestCase):
         )
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    @skip_if_prefork(
+        "Prefork builds immortalize compiled functions and do not publish "
+        "__cinderx_compiled_func__, so the function never deopts"
+    )
     def test_nested_compiled_code_ref_outer_destroyed(self):
         d = {}
         exec(

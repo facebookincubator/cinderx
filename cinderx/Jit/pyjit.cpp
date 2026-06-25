@@ -704,12 +704,6 @@ FlagProcessor initFlagProcessor() {
       "Compile perf trampoline pre-fork");
 
   flag_processor.addOption(
-      "cinderx-jit-immortalize-compiled-functions",
-      "CINDERX_JIT_IMMORTALIZE_COMPILED_FUNCTIONS",
-      getMutableConfig().immortalize_compiled_functions,
-      "Always immortalize CompiledFunction objects");
-
-  flag_processor.addOption(
       "cinderx-jit-max-code-size",
       "CINDERX_JIT_MAX_CODE_SIZE",
       [](const std::string& val) {

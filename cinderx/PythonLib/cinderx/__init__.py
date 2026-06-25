@@ -74,6 +74,7 @@ try:
         install_frame_evaluator,
         is_frame_evaluator_installed,
         is_immortal,
+        is_prefork_build,
         remove_frame_evaluator,
         set_adaptive_delay,
         strict_module_patch,
@@ -484,6 +485,9 @@ except ImportError as e:
         raise RuntimeError(
             "Can't answer whether an object is mortal or immortal from Python code"
         )
+
+    def is_prefork_build() -> bool:
+        return False
 
     def remove_frame_evaluator() -> None:
         pass

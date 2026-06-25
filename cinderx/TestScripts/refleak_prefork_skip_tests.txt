@@ -1,0 +1,19 @@
+# Tests skipped only for prefork-model refleak runs.
+#
+# In prefork-model builds CinderX unconditionally immortalizes JIT-compiled
+# functions (see kPreforkModel in Common/define.h).  Immortal objects are never
+# freed and never deopt, so their reference counts do not return to baseline
+# between the warmup/measured runs of refleak hunting (-R), which the leak
+# detector reports as a leak.  These tests pass under non-prefork refleak runs,
+# so they are skipped here via --skip-list rather than refleak_skip_tests.txt.
+#
+# Entries are patterns (they contain "."/"*") so they are applied as match
+# filters and take effect even when the module is named explicitly with -t.
+
+# Asserts JIT disable/deopt/uncompile semantics that prefork immortalization
+# changes, and accumulates immortal compiled functions across refleak runs.
+test_cinderx.test_jit_disable.*
+
+# Static Python invoke tests compile many functions that prefork immortalizes,
+# leaking references across refleak runs.
+test_cinderx.test_compiler.test_static.test_invoke.*

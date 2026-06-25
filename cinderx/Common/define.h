@@ -31,3 +31,18 @@ constexpr bool kFreeThreadedBuild =
 #else
     false;
 #endif
+
+// True when CinderX is built for the prefork (fork-and-exec) process model,
+// i.e. with the ENABLE_PREFORK_MODEL build flag.  In this mode some behaviors
+// that would otherwise be runtime options are forced on at compile time -- e.g.
+// JIT-compiled functions are always immortalized, avoiding refcount churn that
+// would otherwise be copied-on-write across forked worker processes.
+//
+// Prefer branching on this constexpr over #ifdef ENABLE_PREFORK_MODEL so the
+// guarded code still gets type-checked in every build configuration.
+constexpr bool kPreforkModel =
+#ifdef ENABLE_PREFORK_MODEL
+    true;
+#else
+    false;
+#endif
