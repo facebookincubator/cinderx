@@ -148,6 +148,9 @@ uint8_t* allocFromCinderJitRegion(size_t size) {
   }
 
   std::lock_guard lock{cinder_jit_region_mutex_};
+  if (size > s_cinder_jit_free) {
+    return nullptr;
+  }
   uint8_t* res = s_cinder_jit_cur;
   s_cinder_jit_cur.fetch_add(size, std::memory_order_relaxed);
   s_cinder_jit_free -= size;

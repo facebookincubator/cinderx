@@ -18,6 +18,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 using namespace cinderx::jit;
 
@@ -87,6 +88,49 @@ TEST_F(HintedCodeAllocationTest, AllocatesWithinCinderJitRegion) {
   char* addr = static_cast<char*>(result.addr);
   EXPECT_GE(addr, region_start);
   EXPECT_LT(addr, region_end);
+#else
+  GTEST_SKIP() << "cinder_jit region allocation is only supported on Linux";
+#endif
+}
+
+// A request the linker-reserved region can't satisfy must fall back to mmap
+// rather than handing back a pointer past the end of the region.
+TEST_F(HintedCodeAllocationTest, FallsBackWhenRequestExceedsRegion) {
+#if defined(__linux__)
+  char* region_start = __cinder_jit_start;
+  char* region_end = __cinder_jit_end;
+
+  if (region_start == nullptr) {
+    GTEST_SKIP() << "binary not linked with the .cinder_jit linker script";
+  }
+  ASSERT_NE(region_end, nullptr)
+      << "binary not linked with the .cinder_jit linker script";
+  ASSERT_LT(region_start, region_end);
+
+  // Build a code blob larger than the whole region so the bump allocator can
+  // never satisfy it, forcing the mmap fallback. 0x90 is a nop on x86-64; the
+  // exact bytes don't matter, only that they're really copied into the
+  // allocation (exercising the memcpy that crashed in production).
+  size_t region_size = static_cast<size_t>(region_end - region_start);
+  std::vector<uint8_t> blob(region_size + 4096, 0x90);
+  blob.back() = 0xc3; // ret
+
+  asmjit::CodeHolder code;
+  code.init(code_allocator_->asmJitEnvironment());
+
+  cinderx::jit::codegen::arch::Builder as(&code);
+  ASSERT_EQ(as.section(code.textSection()), asmjit::kErrorOk);
+  ASSERT_EQ(as.embed(blob.data(), blob.size()), asmjit::kErrorOk);
+  ASSERT_EQ(as.finalize(), asmjit::kErrorOk);
+
+  AllocateResult result = code_allocator_->addCode(&code);
+  ASSERT_EQ(result.error, asmjit::kErrorOk);
+  ASSERT_NE(result.addr, nullptr);
+
+  // The allocation must have come from the mmap fallback, outside the region.
+  char* addr = static_cast<char*>(result.addr);
+  EXPECT_TRUE(addr < region_start || addr >= region_end)
+      << "oversized request was satisfied from inside the reserved region";
 #else
   GTEST_SKIP() << "cinder_jit region allocation is only supported on Linux";
 #endif
