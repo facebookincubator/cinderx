@@ -12,7 +12,7 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
-namespace cinderx::jit {
+namespace cinderx {
 
 std::string typeFullname(PyTypeObject* type) {
   PyObject* dict = _PyType_GetDict(type);
@@ -25,9 +25,9 @@ std::string typeFullname(PyTypeObject* type) {
 }
 
 PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
-  if (getThreadedCompileContext().compileRunning() &&
+  if (jit::getThreadedCompileContext().compileRunning() &&
       self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
-    PyInterpreterState* interp = getThreadedCompileContext().interpreter();
+    PyInterpreterState* interp = jit::getThreadedCompileContext().interpreter();
     managed_static_type_state* state = Cix_PyStaticType_GetState(interp, self);
     return state->tp_dict;
   }
@@ -41,7 +41,7 @@ BorrowedRef<> typeLookupSafe(
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
   // This flag should never change during compilation although other
   // flags may.
-  ThreadedCompileSerialize guard;
+  jit::ThreadedCompileSerialize guard;
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
@@ -62,7 +62,7 @@ BorrowedRef<> typeLookupSafe(
 
 bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
   JIT_CHECK(
-      getThreadedCompileContext().canAccessSharedData(),
+      jit::getThreadedCompileContext().canAccessSharedData(),
       "Accessing type object needs lock");
   if (Ci_Type_HasValidVersionTag(type)) {
     return true;
@@ -70,4 +70,4 @@ bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
   return PyUnstable_Type_AssignVersionTag(type);
 }
 
-} // namespace cinderx::jit
+} // namespace cinderx
