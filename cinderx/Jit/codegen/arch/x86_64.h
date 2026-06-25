@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 #define FOREACH_GP(X)      \
   X(RAX, EAX, AX, AL)      \
@@ -216,4 +216,4 @@ constexpr int kShadowSpaceSize = 32;
 constexpr int kShadowSpaceSize = 0;
 #endif
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

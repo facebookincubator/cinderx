@@ -6,7 +6,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
 
-namespace jit::codegen::autogen {
+namespace cinderx::jit::codegen::autogen {
 
 // A machine code generator from LIR.
 class AutoTranslator {
@@ -140,4 +140,4 @@ class AutoTranslator {
   DISALLOW_COPY_AND_ASSIGN(AutoTranslator);
 };
 
-} // namespace jit::codegen::autogen
+} // namespace cinderx::jit::codegen::autogen

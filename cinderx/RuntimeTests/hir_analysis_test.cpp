@@ -13,7 +13,7 @@
 
 class LivenessAnalysisTest : public RuntimeTest {};
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 TEST_F(LivenessAnalysisTest, SingleBlockHasNoLiveInOut) {
   Function func;

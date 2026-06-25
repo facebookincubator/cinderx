@@ -13,7 +13,7 @@
 
 #include <system_error>
 
-namespace jit {
+namespace cinderx::jit {
 
 std::string strerrorSafe(int errnum) {
   return std::system_category().message(errnum);
@@ -92,6 +92,6 @@ std::span<const std::byte> MmapFile::data() {
   return std::span{data_, size_};
 }
 
-} // namespace jit
+} // namespace cinderx::jit
 
 #endif

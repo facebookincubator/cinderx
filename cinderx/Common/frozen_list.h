@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace jit {
+namespace cinderx::jit {
 
 // A frozen list is effectively a vector that is dynamically allocated at
 // runtime, but then can no longer be resized.
@@ -130,4 +130,4 @@ class FrozenList {
   std::unique_ptr<T[]> ptr_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

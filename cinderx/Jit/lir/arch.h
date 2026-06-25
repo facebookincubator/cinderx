@@ -4,8 +4,8 @@
 
 #include "cinderx/Jit/codegen/arch.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 using PhyLocation = jit::codegen::PhyLocation;
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

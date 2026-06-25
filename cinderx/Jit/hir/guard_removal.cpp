@@ -9,7 +9,7 @@
 
 #define TRACE(...) JIT_LOGIF(getConfig().log.debug_guard_removal, __VA_ARGS__)
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -102,4 +102,4 @@ void GuardTypeRemoval::Run(Function& func) {
   reflowTypes(func);
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

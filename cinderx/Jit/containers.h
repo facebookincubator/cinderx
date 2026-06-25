@@ -33,7 +33,7 @@
 #include <parallel_hashmap/phmap.h>
 #endif
 
-namespace jit {
+namespace cinderx::jit {
 
 #define SET_TEMPLATE_PARAMS <Key, Hash, KeyEqual, Allocator>
 #define SET_ORDERED_TEMPLATE_PARAMS <Key, Compare, Allocator>
@@ -158,4 +158,4 @@ MAP_ORDERED_TEMPLATE_ARGS using OrderedMultimap =
 #undef MAP_TEMPLATE_ARGS
 #undef MAP_ORDERED_TEMPLATE_ARGS
 
-} // namespace jit
+} // namespace cinderx::jit

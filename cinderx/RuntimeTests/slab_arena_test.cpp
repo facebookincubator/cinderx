@@ -8,7 +8,8 @@
 
 namespace {
 
-using namespace jit;
+using namespace cinderx;
+using namespace cinderx::jit;
 
 // Simple struct that only fits 3 to a page.
 struct BigArray {

@@ -9,7 +9,7 @@
 #include <array>
 #include <utility>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 #define COUNT_INSTR(...) +1
 constexpr size_t kNumOpcodes = FOREACH_INSTR_TYPE(COUNT_INSTR);
@@ -405,4 +405,4 @@ BEGIN_INSTR_PROPERTY
 END_INSTR_PROPERTY
 // clang-format on
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

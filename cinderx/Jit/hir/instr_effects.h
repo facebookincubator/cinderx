@@ -5,7 +5,7 @@
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/hir/alias_class.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class Instr;
 
@@ -36,4 +36,4 @@ MemoryEffects memoryEffects(const Instr& inst);
 // Return true if the instruction may call arbitrary (Python) code.
 bool hasArbitraryExecution(const Instr& inst);
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

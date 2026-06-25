@@ -6,7 +6,7 @@
 
 #include "cinderx/module_state.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 extern PyType_Spec JitAnextAwaitable_Spec;
 
@@ -15,4 +15,4 @@ PyObject* JitGen_AnextAwaitable_New(
     PyObject* awaitable,
     PyObject* defaultValue);
 
-} // namespace jit
+} // namespace cinderx::jit

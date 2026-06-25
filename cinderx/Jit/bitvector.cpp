@@ -6,7 +6,7 @@
 #include <bit>
 #include <cstdint>
 
-namespace jit::util {
+namespace cinderx::jit::util {
 
 BitVector::~BitVector() {
   if (!IsShortVector()) {
@@ -338,4 +338,4 @@ std::ostream& operator<<(std::ostream& os, const BitVector& bv) {
   return os;
 }
 
-} // namespace jit::util
+} // namespace cinderx::jit::util

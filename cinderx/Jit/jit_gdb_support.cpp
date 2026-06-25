@@ -60,6 +60,8 @@ struct JITDescriptor {
 
 /* End GDB hook */
 
+namespace cinderx::jit {
+
 namespace {
 
 /* In-memory ELF object generation -- largely borrowed from LuaJIT's
@@ -652,3 +654,5 @@ int register_pycode_debug_symbol(
 
   return 1;
 }
+
+} // namespace cinderx::jit

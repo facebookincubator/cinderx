@@ -5,7 +5,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 // Instructions that don't produce a borrowed reference or steal any of their
@@ -566,4 +566,4 @@ bool hasArbitraryExecution(const Instr& inst) {
   JIT_ABORT("Bad opcode {}", static_cast<int>(inst.opcode()));
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

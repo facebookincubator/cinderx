@@ -10,7 +10,7 @@
 #include <cstring>
 #include <vector>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 enum class CodeSection {
   kHot,
@@ -91,4 +91,4 @@ void populateCodeSections(
     asmjit::CodeHolder& code,
     void* entry);
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

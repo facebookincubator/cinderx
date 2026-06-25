@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <iosfwd>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 /*
  * Operand types:
@@ -67,10 +67,11 @@ size_t byteShift(DataType dt);
 std::ostream& operator<<(std::ostream& os, DataType dt);
 std::ostream& operator<<(std::ostream& os, OperandType ty);
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir
 
 template <>
-struct fmt::formatter<jit::lir::OperandType> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::OperandType> : fmt::ostream_formatter {
+};
 
 template <>
-struct fmt::formatter<jit::lir::DataType> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::DataType> : fmt::ostream_formatter {};

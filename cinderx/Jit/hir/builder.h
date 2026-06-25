@@ -15,7 +15,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class BasicBlock;
 class Environment;
@@ -565,4 +565,4 @@ class HIRBuilder {
   static bool isSimpleLeafFunction(BorrowedRef<PyCodeObject> code);
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

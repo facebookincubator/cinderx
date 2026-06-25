@@ -13,7 +13,7 @@
 #include <sstream>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 void parseAndSetFuncList(const std::string& flag_value) {
   auto& func_list = getMutableConfig().capture_compilation_times_for;
@@ -208,4 +208,4 @@ void CompilationPhaseTimer::end() {
   current_phase_stack_.pop_back();
 }
 
-} // namespace jit
+} // namespace cinderx::jit

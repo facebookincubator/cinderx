@@ -7,7 +7,7 @@
 #include "cinderx/Jit/hir/register.h"
 #include "cinderx/Jit/stack.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // An entry in the CPython block stack
 struct ExecutionBlock {
@@ -123,4 +123,4 @@ struct FrameState {
   FrameState* parent{nullptr};
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

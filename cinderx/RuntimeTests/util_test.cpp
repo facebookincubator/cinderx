@@ -7,8 +7,10 @@
 
 using UtilTest = RuntimeTest;
 
+using namespace cinderx;
+
 TEST(UtilTestNoFixture, Worklist) {
-  jit::Worklist<int> wl;
+  Worklist<int> wl;
   ASSERT_TRUE(wl.empty());
   wl.push(5);
   wl.push(12);
@@ -28,16 +30,14 @@ TEST(UtilTestNoFixture, Worklist) {
 }
 
 TEST(UtilTest, CombineHash) {
-  EXPECT_EQ(jit::combineHash(123, 456), 0x9e379a24);
-  EXPECT_EQ(jit::combineHash(123, 456, 789), 0x28cd9c7673);
+  EXPECT_EQ(combineHash(123, 456), 0x9e379a24);
+  EXPECT_EQ(combineHash(123, 456, 789), 0x28cd9c7673);
 
   // Hash combining is left-associative, not right-associative.
   EXPECT_EQ(
-      jit::combineHash(123, 456, 789),
-      jit::combineHash(jit::combineHash(123, 456), 789));
+      combineHash(123, 456, 789), combineHash(combineHash(123, 456), 789));
   EXPECT_NE(
-      jit::combineHash(123, 456, 789),
-      jit::combineHash(123, jit::combineHash(456, 789)));
+      combineHash(123, 456, 789), combineHash(123, combineHash(456, 789)));
 }
 
 TEST(UtilTest, ScopeExitRunsAtScopeEnd) {
@@ -98,12 +98,12 @@ TEST(UtilTest, FitsSignedInt) {
   int16_t i8min = std::numeric_limits<int8_t>::min();
   int16_t i8max = std::numeric_limits<int8_t>::max();
 
-  EXPECT_TRUE(jit::fitsSignedInt<8>(i8min));
-  EXPECT_TRUE(jit::fitsSignedInt<8>(i8max));
-  EXPECT_FALSE(jit::fitsSignedInt<8>(i8min - 1));
-  EXPECT_FALSE(jit::fitsSignedInt<8>(i8max + 1));
+  EXPECT_TRUE(fitsSignedInt<8>(i8min));
+  EXPECT_TRUE(fitsSignedInt<8>(i8max));
+  EXPECT_FALSE(fitsSignedInt<8>(i8min - 1));
+  EXPECT_FALSE(fitsSignedInt<8>(i8max + 1));
 
-  EXPECT_TRUE(jit::fitsSignedInt<64>(std::numeric_limits<int64_t>::min()));
-  EXPECT_TRUE(jit::fitsSignedInt<64>(std::numeric_limits<int64_t>::max()));
-  EXPECT_FALSE(jit::fitsSignedInt<64>(std::numeric_limits<uint64_t>::max()));
+  EXPECT_TRUE(fitsSignedInt<64>(std::numeric_limits<int64_t>::min()));
+  EXPECT_TRUE(fitsSignedInt<64>(std::numeric_limits<int64_t>::max()));
+  EXPECT_FALSE(fitsSignedInt<64>(std::numeric_limits<uint64_t>::max()));
 }

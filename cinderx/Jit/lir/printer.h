@@ -11,7 +11,7 @@
 
 #include <iosfwd>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class Printer {
  public:
@@ -54,15 +54,18 @@ inline std::ostream& operator<<(
   return out;
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir
 
 template <>
-struct fmt::formatter<jit::lir::Function> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::Function> : fmt::ostream_formatter {};
 template <>
-struct fmt::formatter<jit::lir::BasicBlock> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::BasicBlock> : fmt::ostream_formatter {
+};
 template <>
-struct fmt::formatter<jit::lir::Instruction> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::Instruction> : fmt::ostream_formatter {
+};
 template <>
-struct fmt::formatter<jit::lir::Operand> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::Operand> : fmt::ostream_formatter {};
 template <>
-struct fmt::formatter<jit::lir::MemoryIndirect> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::MemoryIndirect>
+    : fmt::ostream_formatter {};

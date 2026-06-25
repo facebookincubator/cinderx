@@ -14,7 +14,7 @@
 
 #include <memory>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 const RegisterSet kEmptyRegSet;
 
@@ -577,4 +577,4 @@ const Instr* RegisterTypeHints::dominatingTypeHint(
   return hint_types[block->id];
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

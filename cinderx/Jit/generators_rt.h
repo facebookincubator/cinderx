@@ -14,7 +14,7 @@
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/module_state.h" // @donotremove
 
-namespace jit {
+namespace cinderx::jit {
 
 struct GenDataFooter;
 extern PyType_Spec JitGen_Spec;
@@ -72,7 +72,7 @@ void patchJitGenAmSendForDeopt();
 // Restore the normal JIT am_send. Called when the JIT is re-enabled.
 void unpatchJitGenAmSendForDeopt();
 
-} // namespace jit
+} // namespace cinderx::jit
 #endif // __cplusplus
 
 #ifdef __cplusplus

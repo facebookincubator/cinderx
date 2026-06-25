@@ -9,7 +9,7 @@
 #include <stack>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -193,4 +193,4 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

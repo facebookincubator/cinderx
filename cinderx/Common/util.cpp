@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace jit {
+namespace cinderx::jit {
 
 static_assert(kPyObjectPtrTag == 0);
 
@@ -20,14 +20,18 @@ static_assert((kDeferredRcTag & kPyObjectTagBits) == kDeferredRcTag);
 static_assert(std::has_single_bit(kDeferredRcTag));
 #endif
 
+} // namespace cinderx::jit
+
+namespace cinderx {
+
 const void* getStablePointer(const void* ptr) {
-  return getConfig().use_stable_pointers
+  return jit::getConfig().use_stable_pointers
       ? reinterpret_cast<const void*>(0xdeadbeef)
       : ptr;
 }
 
 void setUseStablePointers(bool enable) {
-  getMutableConfig().use_stable_pointers = enable;
+  jit::getMutableConfig().use_stable_pointers = enable;
 }
 
 std::string unicodeAsString(PyObject* str) {
@@ -44,4 +48,4 @@ Ref<> stringAsUnicode(std::string_view str) {
   return Ref<>::steal(PyUnicode_FromStringAndSize(str.data(), str.size()));
 }
 
-} // namespace jit
+} // namespace cinderx

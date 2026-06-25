@@ -22,7 +22,7 @@
 // Tools/scripts/typed/generate_jit_type_h.py and lives in
 // Jit/hir/type_generated.h.
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class Type {
  public:
@@ -339,17 +339,17 @@ inline std::ostream& operator<<(std::ostream& os, const Type& ty) {
 HIR_TYPES(TY)
 #undef TY
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir
 
 template <>
-struct std::hash<jit::hir::Type> {
-  std::size_t operator()(const jit::hir::Type& ty) const {
+struct std::hash<cinderx::jit::hir::Type> {
+  std::size_t operator()(const cinderx::jit::hir::Type& ty) const {
     return ty.hash();
   }
 };
 
 template <>
-struct fmt::formatter<jit::hir::Type> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::hir::Type> : fmt::ostream_formatter {};
 
 #define incl_JIT_HIR_TYPE_INL_H
 #include "cinderx/Jit/hir/type_inl.h"

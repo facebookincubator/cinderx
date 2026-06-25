@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 namespace {
 
@@ -270,4 +270,4 @@ const hir::Function* Function::hirFunc() const {
   return hir_func_;
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

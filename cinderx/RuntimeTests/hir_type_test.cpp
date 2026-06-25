@@ -6,7 +6,7 @@
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 using HIRTypeTest = RuntimeTest;
 

@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace jit::perf {
+namespace cinderx::jit::perf {
 
 constexpr std::string_view kDefaultSymbolPrefix{"__CINDER_INFRA_JIT"};
 constexpr std::string_view kFuncSymbolPrefix{"__CINDER_JIT"};
@@ -35,4 +35,4 @@ void registerFunction(
 // per-process state, including handling of Linux perf pid maps.
 void afterForkChild();
 
-} // namespace jit::perf
+} // namespace cinderx::jit::perf

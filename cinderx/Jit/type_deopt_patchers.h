@@ -5,7 +5,7 @@
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/threaded_compile.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 // Patch a DeoptPatchpoint when the given PyTypeObject changes at all. This
 // should only be used (instead of a more specific subclass) in cases where it
@@ -66,4 +66,4 @@ class SplitDictDeoptPatcher : public TypeDeoptPatcher {
   PyDictKeysObject* keys_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

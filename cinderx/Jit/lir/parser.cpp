@@ -14,7 +14,7 @@
 #include <string>
 #include <utility>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 std::unordered_set<std::string>& GetStringLiterals() {
   static std::unordered_set<std::string> string_literals_;
@@ -590,4 +590,4 @@ void Parser::fixUnknownIds() {
   }
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

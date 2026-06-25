@@ -14,7 +14,7 @@
 #include <optional>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace hir {
 struct FrameState;
@@ -144,4 +144,4 @@ class DebugInfo {
   jit::UnorderedMap<uintptr_t, LocNode> addr_locs_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

@@ -9,7 +9,7 @@
 #include <string_view>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 namespace hir {
 class Instr;
 }
@@ -504,4 +504,4 @@ END_INSTR_PROPERTY_FIELD
 // clang-format on
 
 } // namespace lir
-} // namespace jit
+} // namespace cinderx::jit

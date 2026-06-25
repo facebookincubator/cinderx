@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Maps keyed on local indices or name indices.  Keys are small dense integers,
 // so a sorted vector is cheaper than a hash table or tree.
@@ -227,4 +227,4 @@ class IsolatedPreloaders {
   PreloaderManager* prev_manager_;
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

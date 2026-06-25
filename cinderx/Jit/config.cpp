@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/config.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 Config s_jit_config;
 
@@ -18,4 +18,4 @@ bool isJitPaused() {
   return getConfig().state == State::kPaused;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

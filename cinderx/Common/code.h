@@ -90,7 +90,7 @@ static inline uint8_t Cix_GetOriginalOpcode(
 
 #include <string>
 
-namespace jit {
+namespace cinderx {
 
 std::string codeFullname(
     BorrowedRef<PyObject> module,
@@ -113,6 +113,6 @@ uint32_t hashBytecode(BorrowedRef<PyCodeObject> code);
 // "<unknown>" if not set.
 std::string codeQualname(BorrowedRef<PyCodeObject> code);
 
-} // namespace jit
+} // namespace cinderx
 
 #endif

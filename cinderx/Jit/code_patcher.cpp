@@ -11,7 +11,7 @@
 #include <atomic>
 #include <cstring>
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -246,4 +246,4 @@ uint8_t* JumpPatcher::jumpTarget() const {
       resolveDisplacement(reinterpret_cast<uintptr_t>(patchpoint_), disp));
 }
 
-} // namespace jit
+} // namespace cinderx::jit

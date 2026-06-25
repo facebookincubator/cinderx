@@ -7,7 +7,7 @@
 #include <iosfwd>
 #include <string>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // AliasClass is a lattice of memory locations describing where instructions
 // can read from or write to. It is similar to hir::Type, but much simpler.
@@ -107,11 +107,11 @@ HIR_ACLS(ACLS)
 
 std::ostream& operator<<(std::ostream& os, const AliasClass& acls);
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir
 
 template <>
-struct std::hash<jit::hir::AliasClass> {
-  size_t operator()(const jit::hir::AliasClass& acls) const {
+struct std::hash<cinderx::jit::hir::AliasClass> {
+  size_t operator()(const cinderx::jit::hir::AliasClass& acls) const {
     return acls.bits();
   }
 };

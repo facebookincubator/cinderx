@@ -35,10 +35,9 @@
 
 namespace {
 
-using jit::Compiler;
-using jit::PassConfig;
-using jit::hir::Function;
-using jit::hir::Pass;
+using namespace cinderx;
+using namespace cinderx::jit;
+using namespace cinderx::jit::hir;
 
 class AllPasses : public Pass {
  public:
@@ -61,18 +60,18 @@ using PassFactory = std::function<std::unique_ptr<Pass>()>;
 class TestPassRegistry {
  public:
   TestPassRegistry() {
-    addPass(jit::hir::RefcountInsertion::Factory);
-    addPass(jit::hir::CopyPropagation::Factory);
-    addPass(jit::hir::CleanCFG::Factory);
-    addPass(jit::hir::DynamicComparisonElimination::Factory);
-    addPass(jit::hir::PhiElimination::Factory);
-    addPass(jit::hir::InlineFunctionCalls::Factory);
-    addPass(jit::hir::Simplify::Factory);
-    addPass(jit::hir::DeadCodeElimination::Factory);
-    addPass(jit::hir::GuardTypeRemoval::Factory);
-    addPass(jit::hir::BeginInlinedFunctionElimination::Factory);
-    addPass(jit::hir::BuiltinLoadMethodElimination::Factory);
-    addPass(jit::hir::InsertUpdatePrevInstr::Factory);
+    addPass(RefcountInsertion::Factory);
+    addPass(CopyPropagation::Factory);
+    addPass(CleanCFG::Factory);
+    addPass(DynamicComparisonElimination::Factory);
+    addPass(PhiElimination::Factory);
+    addPass(InlineFunctionCalls::Factory);
+    addPass(Simplify::Factory);
+    addPass(DeadCodeElimination::Factory);
+    addPass(GuardTypeRemoval::Factory);
+    addPass(BeginInlinedFunctionElimination::Factory);
+    addPass(BuiltinLoadMethodElimination::Factory);
+    addPass(InsertUpdatePrevInstr::Factory);
 
     addPass(AllPasses::Factory);
   }
@@ -265,7 +264,7 @@ int main(int argc, char* argv[]) {
   Py_SetProgramName(argv0);
 
   // Prevent any test failures due to transient pointer values.
-  jit::setUseStablePointers(true);
+  setUseStablePointers(true);
 
   // Particularly with ASAN, we might need a really large stack size.
   struct rlimit rl;

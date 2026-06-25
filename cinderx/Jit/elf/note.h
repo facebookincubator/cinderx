@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // A note in an ELF file is a tuple of a string name, an integral type, and an
 // optional descriptor string.  The type must be nonnegative and zero-length
@@ -76,4 +76,4 @@ constexpr uint32_t kInvalidStaticOffset = ~uint32_t{0};
 
 constexpr std::string_view kFuncNoteSectionName = ".note.pyfunc";
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

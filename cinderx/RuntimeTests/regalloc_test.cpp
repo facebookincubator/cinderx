@@ -15,9 +15,9 @@
 #include <sstream>
 #include <vector>
 
-using namespace jit;
+using namespace cinderx::jit;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 class LinearScanAllocatorTest : public ::testing::Test {
  public:
   static bool LiveIntervalPtrLess(
@@ -392,4 +392,4 @@ TEST_F(LinearScanAllocatorTest, CallWithSideEffectTest) {
   ASSERT_TRUE(a->output()->type() == lir::Operand::kNone);
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

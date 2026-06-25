@@ -8,10 +8,10 @@
 #include "cinderx/Jit/lir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit;
-using namespace jit::codegen;
+using namespace cinderx::jit;
+using namespace cinderx::jit::codegen;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class LIRInlinerTest : public RuntimeTest {};
 
@@ -233,4 +233,4 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionFailureTest) {
   ASSERT_EQ(callee, nullptr);
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

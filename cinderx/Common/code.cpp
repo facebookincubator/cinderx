@@ -50,7 +50,7 @@ std::string fullnameImpl(PyObject* module, PyObject* qualname) {
 
 } // namespace
 
-namespace jit {
+namespace cinderx {
 
 std::string codeFullname(
     BorrowedRef<PyObject> module,
@@ -112,7 +112,7 @@ std::string codeQualname(BorrowedRef<PyCodeObject> code) {
   return "<unknown>";
 }
 
-} // namespace jit
+} // namespace cinderx
 
 extern "C" {
 
@@ -221,12 +221,12 @@ CodeExtra* codeExtra(PyCodeObject* code) {
 
   // Lock the code object to prevent concurrent get-or-create races under
   // FT-Python. Under GIL builds this is a no-op.
-  jit::CriticalSectionGuard guard(code_obj);
+  cinderx::CriticalSectionGuard guard(code_obj);
 
   void* data_ptr = nullptr;
   if (PyUnstable_Code_GetExtra(code_obj, extra_index, &data_ptr) < 0) {
     JIT_LOG("Failed to get code extra data for {}", codeName(code));
-    jit::printPythonException();
+    cinderx::printPythonException();
     PyErr_Clear();
     return nullptr;
   }
@@ -241,7 +241,7 @@ CodeExtra* codeExtra(PyCodeObject* code) {
 
   if (PyUnstable_Code_SetExtra(code_obj, extra_index, extra) < 0) {
     JIT_LOG("Failed to set code extra data for {}", codeName(code));
-    jit::printPythonException();
+    cinderx::printPythonException();
     PyErr_Clear();
     PyMem_Free(extra);
     return nullptr;

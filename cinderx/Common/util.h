@@ -33,6 +33,14 @@
 
 #define UNUSED __attribute__((unused))
 
+// This is for non-test builds. define FRIEND_TEST here so we don't have to
+// include the googletest header in our headers to be tested.
+#ifndef FRIEND_TEST
+#define FRIEND_TEST(test_case_name, test_name) friend class test_case_name
+#endif
+
+namespace cinderx {
+
 // Loading a method returns up to 2 items, for one of three possible outcomes:
 // * A callable plus an object instance (self).
 // * A bound method.
@@ -146,6 +154,8 @@ inline TaggedPyObject untaggedPyObjectRef(PyObject* obj) {
 inline TaggedPyObject addDeferredRcTag(PyObject* obj) {
   return taggedPyObject(obj, kDeferredRcTag);
 }
+
+} // namespace jit
 
 constexpr int kPointerSize = sizeof(void*);
 
@@ -378,7 +388,7 @@ class CriticalSectionGuard final {
 
 #define SCOPE_EXIT_INTERNAL2(lname, aname, ...) \
   auto lname = [&]() { __VA_ARGS__; };          \
-  jit::ScopeExit<decltype(lname)> aname(std::move(lname));
+  cinderx::ScopeExit<decltype(lname)> aname(std::move(lname));
 
 #define SCOPE_EXIT_TOKENPASTE(x, y) SCOPE_EXIT_##x##y
 
@@ -422,8 +432,6 @@ inline void walkFunctionObjects(FuncVisitor visitor) {
   PyUnstable_GC_VisitObjects(wrapper, reinterpret_cast<void*>(visitor));
 }
 
-} // namespace jit
-
 template <typename D, typename S>
 inline constexpr D bit_cast(const S& src) {
   static_assert(sizeof(S) == sizeof(D), "src and dst must be the same size");
@@ -435,8 +443,4 @@ inline constexpr D bit_cast(const S& src) {
   return dst;
 }
 
-// this is for non-test builds. define FRIEND_TEST here so we don't
-// have to include the googletest header in our headers to be tested.
-#ifndef FRIEND_TEST
-#define FRIEND_TEST(test_case_name, test_name) friend class test_case_name
-#endif
+} // namespace cinderx

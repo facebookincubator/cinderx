@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class BuiltinLoadMethodElimination final : public Pass {
  public:
@@ -17,4 +17,4 @@ class BuiltinLoadMethodElimination final : public Pass {
   }
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

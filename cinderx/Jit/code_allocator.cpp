@@ -23,7 +23,7 @@
 
 #include <cstring>
 
-namespace jit {
+namespace cinderx::jit {
 
 using codegen::CodeSection;
 using codegen::codeSectionFromName;
@@ -470,4 +470,4 @@ bool CodeAllocatorCinder::contains(const void* ptr) const {
   return false;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

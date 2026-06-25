@@ -7,7 +7,7 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 DataType hirTypeToDataType(hir::Type tp) {
   if (tp <= hir::TCDouble) {
@@ -147,4 +147,4 @@ void BasicBlockBuilder::createRegisterInput(
   createInstrInput(instr, val);
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

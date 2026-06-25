@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Eliminate Assign instructions by propagating copies.
 class CopyPropagation final : public Pass {
@@ -18,4 +18,4 @@ class CopyPropagation final : public Pass {
   }
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

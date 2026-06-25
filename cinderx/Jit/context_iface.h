@@ -6,7 +6,7 @@
 
 #include "cinderx/Common/ref.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 class alignas(16) CodeRuntime;
 
@@ -21,4 +21,4 @@ class IJitContext {
   virtual BorrowedRef<> zero() = 0;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

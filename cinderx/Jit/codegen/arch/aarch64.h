@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 #define FOREACH_GP(X) \
   X(X0, W0)           \
@@ -204,4 +204,4 @@ constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
 
 constexpr int kShadowSpaceSize = 0;
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

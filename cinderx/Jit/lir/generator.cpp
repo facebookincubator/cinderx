@@ -58,9 +58,9 @@ extern "C" {
 // codegen.cpp with some interfaces changes so that it works with the new
 // LIR.
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 namespace {
 
@@ -4669,7 +4669,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         bool is_generator =
             reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags &
-            jit::kCoFlagsAnyGenerator;
+            kCoFlagsAnyGenerator;
         emitUnlinkFrame(
             bbb,
             has_freevars,
@@ -6192,4 +6192,4 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
   }
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

@@ -13,7 +13,7 @@
 
 using JITFlagProcessorTest = RuntimeTest;
 
-using namespace jit;
+using namespace cinderx::jit;
 using namespace std;
 
 TEST_F(JITFlagProcessorTest, EmptyHelpMessage) {

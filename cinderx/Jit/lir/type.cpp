@@ -5,7 +5,7 @@
 #include <bit>
 #include <ostream>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 size_t bitSize(DataType dt) {
   switch (dt) {
@@ -56,4 +56,4 @@ std::ostream& operator<<(std::ostream& os, DataType dt) {
   return os << "<unknown DataType " << static_cast<uint8_t>(dt) << ">";
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class BasicBlock;
 class Register;
@@ -253,4 +253,4 @@ class RegisterTypeHints {
   DominatorAnalysis doms_;
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

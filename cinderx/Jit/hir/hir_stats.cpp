@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/hir/hir_stats.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 void HIRStats::Run(Function& irfunc) {
   for (auto& block : irfunc.cfg.blocks) {
@@ -85,4 +85,4 @@ void HIRStats::Stats::dump(std::string_view function_name) const {
   JIT_LOG("Stats for {}: {}", function_name, result);
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

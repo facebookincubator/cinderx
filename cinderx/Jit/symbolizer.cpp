@@ -23,7 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -279,4 +279,4 @@ std::optional<std::string> symbolize(const void* func) {
 #endif
 }
 
-} // namespace jit
+} // namespace cinderx::jit

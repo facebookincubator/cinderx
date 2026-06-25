@@ -45,11 +45,14 @@
 #include <span>
 #include <type_traits>
 
-namespace jit::codegen {
+using namespace cinderx;
+using namespace cinderx::jit;
+
+namespace cinderx::jit::codegen {
 // Defined in Jit/codegen/gen_asm.cpp.  Windows x64 only ABI bridge for the
 // struct-returning reentry helpers (see invokeStaticReentry below).
 void* getStaticReentryTrampoline(bool fp);
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen
 
 static int JITRT_BindKeywords(
     PyObject** args,
@@ -71,7 +74,7 @@ static int JITRT_BindKeywords(
     // Speed hack: do raw pointer compares. As names are
     //    normally interned this should almost always hit.
     for (j = co->co_posonlyargcount; j < arg_space.size(); j++) {
-      PyObject* name = jit::getVarname(co, j);
+      PyObject* name = getVarname(co, j);
       if (name == keyword) {
         goto kw_found;
       }
@@ -79,7 +82,7 @@ static int JITRT_BindKeywords(
 
     // Slow fallback, just in case
     for (j = co->co_posonlyargcount; j < arg_space.size(); j++) {
-      PyObject* name = jit::getVarname(co, j);
+      PyObject* name = getVarname(co, j);
       int cmp = PyObject_RichCompareBool(keyword, name, Py_EQ);
       if (cmp > 0) {
         goto kw_found;
@@ -210,7 +213,7 @@ static int JITRT_BindKeywordArgs(
       if (arg_space[i] != nullptr) {
         continue;
       }
-      name = jit::getVarname(co, i);
+      name = getVarname(co, i);
       if (kwdefs != nullptr) {
         PyObject* def = PyDict_GetItemWithError(kwdefs, name);
         if (def) {
@@ -360,8 +363,8 @@ static inline TRetType invokeStaticReentry(
       PyObject* const* args,
       size_t nargsf,
       PyObject* kwnames);
-  return reinterpret_cast<Trampoline>(jit::codegen::getStaticReentryTrampoline(
-      kFp))(reentry, (PyObject*)func, args, nargsf, kwnames);
+  return reinterpret_cast<Trampoline>(codegen::getStaticReentryTrampoline(kFp))(
+      reentry, (PyObject*)func, args, nargsf, kwnames);
 #else
   return reinterpret_cast<TVectorcall>(reentry)(
       (PyObject*)func, args, nargsf, kwnames);
@@ -651,7 +654,7 @@ PyObject* JITRT_ReportStaticArgTypecheckErrors(
     return nullptr;
   }
   for (Py_ssize_t i = code->co_argcount; i < code->co_argcount + nkwonly; i++) {
-    auto name = Ref<>::create(jit::getVarname(code, i));
+    auto name = Ref<>::create(getVarname(code, i));
     PyTuple_SetItem(new_kwnames, i - code->co_argcount, std::move(name));
   }
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf) - nkwonly;
@@ -672,8 +675,8 @@ static void init_and_link_interpreter_frame(
     PyThreadState* tstate,
     _frameowner owner,
     _PyInterpreterFrame* frame,
-    jit::CodeRuntime* code_rt = nullptr) {
-  jit::jitFrameInit(
+    CodeRuntime* code_rt = nullptr) {
+  jitFrameInit(
       tstate,
       frame,
       func,
@@ -714,16 +717,16 @@ void JITRT_InitFrameCellVars(
 #endif
 }
 
-std::pair<PyThreadState*, jit::GenDataFooter*>
+std::pair<PyThreadState*, GenDataFooter*>
 JITRT_AllocateAndLinkGenAndInterpreterFrame(
     PyFunctionObject* func,
-    jit::CodeRuntime* code_rt,
+    CodeRuntime* code_rt,
     GenResumeFunc resume_func,
     uint64_t original_frame_pointer) {
   JIT_DCHECK(
       PyCode_Check(func->func_code),
       "Non-code object for JIT function: {}",
-      jit::repr(reinterpret_cast<PyObject*>(func)));
+      repr(reinterpret_cast<PyObject*>(func)));
   BorrowedRef<PyCodeObject> co{func->func_code};
   JIT_DCHECK(co == code_rt->code(), "Code object mismatch");
 
@@ -731,7 +734,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
   auto [gen, gen_size] = cinderx::getModuleState()->jit_gen_free_list->allocate(
-      co, spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
+      co, spill_words * sizeof(uint64_t) + sizeof(GenDataFooter));
 
   gen->gi_frame_state = FRAME_CREATED;
   gen->gi_weakreflist = nullptr;
@@ -759,8 +762,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
       gen->gi_origin_or_finalizer = cr_origin;
       if (!cr_origin) {
         JIT_LOG(
-            "Failed to compute cr_origin for {}",
-            jit::repr(func->func_qualname));
+            "Failed to compute cr_origin for {}", repr(func->func_qualname));
         PyErr_Clear();
       }
     }
@@ -770,9 +772,9 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
   _PyInterpreterFrame* frame = generatorFrame(gen);
   auto footer =
-      reinterpret_cast<jit::GenDataFooter*>( // NOLINT performance-no-int-to-ptr
+      reinterpret_cast<GenDataFooter*>( // NOLINT performance-no-int-to-ptr
           reinterpret_cast<uintptr_t>(gen) + gen_size -
-          sizeof(jit::GenDataFooter));
+          sizeof(GenDataFooter));
   *jitGenDataFooterPtr(gen, co) = footer;
   init_and_link_interpreter_frame(
       func, co, tstate, FRAME_OWNED_BY_GENERATOR, frame, code_rt);
@@ -780,8 +782,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
   footer->gen = static_cast<PyGenObject*>(gen);
-  BorrowedRef<jit::CompiledFunction> compiled_func =
-      code_rt->compiledFunction();
+  BorrowedRef<CompiledFunction> compiled_func = code_rt->compiledFunction();
   JIT_DCHECK(
       compiled_func != nullptr,
       "CodeRuntime has no associated CompiledFunction: {}",
@@ -816,7 +817,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   return {tstate, footer};
 }
 
-std::pair<jit::JitGenObject*, jit::GenDataFooter*>
+std::pair<JitGenObject*, GenDataFooter*>
 JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
   setCurrentFrame(tstate, frame->previous);
@@ -824,7 +825,7 @@ JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
   frame->previous = nullptr;
 
   BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
-  jit::JitGenObject* gen = jit::JitGenObject::cast(base_gen.get());
+  JitGenObject* gen = JitGenObject::cast(base_gen.get());
   return {gen, gen->genDataFooter()};
 }
 
@@ -852,7 +853,7 @@ static void cleanupFrameExecutable(_PyInterpreterFrame* frame) {
 // keeps the function alive. Incref now to balance the decref that
 // jitFrameClearExceptCode will perform.
 static void increfFuncObjForNonGenerator(_PyInterpreterFrame* frame) {
-  if (frameCode(frame)->co_flags & jit::kCoFlagsAnyGenerator) {
+  if (frameCode(frame)->co_flags & kCoFlagsAnyGenerator) {
     return;
   }
 #if PY_VERSION_HEX >= 0x030E0000
@@ -862,8 +863,8 @@ static void increfFuncObjForNonGenerator(_PyInterpreterFrame* frame) {
   // function lives in FrameHeader.func. For inlined frames,
   // jitFrameRemoveReifier already handles the incref via Py_NewRef,
   // so only incref for non-inlined (top-level) frames here.
-  if (!jit::isInlinedFrame(frame)) {
-    Py_XINCREF(jit::jitFrameGetFunction(frame));
+  if (!isInlinedFrame(frame)) {
+    Py_XINCREF(jitFrameGetFunction(frame));
   }
 #else
   Py_INCREF(frame->f_funcobj);
@@ -882,7 +883,7 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
 
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
-  jit::jitFrameClearExceptCode(frame);
+  jitFrameClearExceptCode(frame);
   cleanupFrameExecutable(frame);
 }
 
@@ -1664,7 +1665,7 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(PyObject** args) {
 
   PyObject** dest_args;
   auto final_args = std::make_unique<PyObject*[]>(total_args);
-  int cc_reg_args = jit::codegen::ARGUMENT_REGS.size();
+  int cc_reg_args = codegen::ARGUMENT_REGS.size();
 
   if (total_args < cc_reg_args) {
     // no gap in args to worry about
@@ -1679,8 +1680,7 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(PyObject** args) {
     dest_args = final_args.get();
   }
 
-  _PyTypedArgsInfo* arg_info =
-      jit::getContext()->findFunctionPrimitiveArgInfo(func);
+  _PyTypedArgsInfo* arg_info = getContext()->findFunctionPrimitiveArgInfo(func);
   auto allocated_args = std::make_unique<PyObject*[]>(
       arg_info == nullptr ? 0 : Py_SIZE(arg_info));
   int allocated_count = 0;
@@ -1996,13 +1996,13 @@ int JITRT_RichCompareBool(PyObject* v, PyObject* w, int op) {
 }
 
 /* perform a batch decref to the objects in args */
-void JITRT_BatchDecref(jit::TaggedPyObject* args, int nargs) {
+void JITRT_BatchDecref(TaggedPyObject* args, int nargs) {
   for (int i = 0; i < nargs; i++) {
     // Deferred-RC stack refs are managed by the GC.
-    if (kFreeThreadedBuild && jit::isDeferredRcTagged(args[i])) {
+    if (kFreeThreadedBuild && isDeferredRcTagged(args[i])) {
       continue;
     }
-    Py_DECREF(jit::untaggedPyObject(args[i]));
+    Py_DECREF(untaggedPyObject(args[i]));
   }
 }
 
@@ -2178,13 +2178,13 @@ void JITRT_AtQuiescentState([[maybe_unused]] PyThreadState* tstate) {
 #endif
 }
 
-jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj) {
+TaggedPyObject JITRT_TagIfDeferred(PyObject* obj) {
 #ifdef Py_GIL_DISABLED
   if (obj != nullptr && _PyObject_HasDeferredRefcount(obj)) {
-    return jit::addDeferredRcTag(obj);
+    return addDeferredRcTag(obj);
   }
 #endif
-  return jit::untaggedPyObjectRef(obj);
+  return untaggedPyObjectRef(obj);
 }
 
 PyObject JITRT_IterDoneSentinel = {

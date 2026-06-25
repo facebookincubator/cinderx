@@ -78,13 +78,13 @@ void WatcherState::setTypeWatcher(TypeWatcher watcher) {
 
 int WatcherState::watchDict(BorrowedRef<PyDictObject> dict) {
   // TODO: Remove once CPython's dict watcher API is thread-safe.
-  jit::CriticalSectionGuard guard(dict);
+  cinderx::CriticalSectionGuard guard(dict);
   return PyDict_Watch(dict_watcher_id_, dict);
 }
 
 int WatcherState::unwatchDict(BorrowedRef<PyDictObject> dict) {
   // TODO: Remove once CPython's dict watcher API is thread-safe.
-  jit::CriticalSectionGuard guard(dict);
+  cinderx::CriticalSectionGuard guard(dict);
   return PyDict_Unwatch(dict_watcher_id_, dict);
 }
 

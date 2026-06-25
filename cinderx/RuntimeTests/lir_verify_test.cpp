@@ -6,9 +6,9 @@
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit;
+using namespace cinderx::jit;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 class LIRVerifyTest : public RuntimeTest {};
 
 TEST_F(LIRVerifyTest, TestImmediateFallthroughOK) {
@@ -133,4 +133,4 @@ BB %1 - preds: %0 - section: .coldtext
       "1.\n");
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

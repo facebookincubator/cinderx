@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // An abstract compiler pass over an HIR function.
 class Pass {
@@ -74,4 +74,4 @@ bool removeUnreachableInstructions(Function& func);
 // branch.
 void simplifyRedundantCondBranches(CFG* cfg);
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

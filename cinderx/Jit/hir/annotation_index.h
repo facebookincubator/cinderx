@@ -6,7 +6,7 @@
 
 #include <memory>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // When building type annotation guards, we have to find the annotations by
 // specific names. For short lists, we can iterate directly through the tuple.
@@ -52,4 +52,4 @@ class AnnotationIndex {
   Py_ssize_t size_;
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

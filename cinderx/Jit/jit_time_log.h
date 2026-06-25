@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 using Clock = std::chrono::steady_clock;
 using time_point = Clock::time_point;
@@ -107,4 +107,4 @@ class CompilationPhaseTimer {
   void dumpPhaseTimingsAndTidy();
 };
 
-} // namespace jit
+} // namespace cinderx::jit

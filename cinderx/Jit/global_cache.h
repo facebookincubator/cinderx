@@ -15,7 +15,7 @@
 #include <set>
 #include <unordered_map>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Identifies a cached global Python value.
 struct GlobalCacheKey {
@@ -191,6 +191,6 @@ class GlobalCacheManager : public IGlobalCacheManager {
       watch_map_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit
 
 #endif

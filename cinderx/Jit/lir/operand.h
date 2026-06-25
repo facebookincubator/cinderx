@@ -10,7 +10,7 @@
 #include <memory>
 #include <variant>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class BasicBlock;
 class Instruction;
@@ -327,4 +327,4 @@ DECLARE_TYPE_ARG(OutDbl, double, true)
 DECLARE_TYPE_ARG(OutInd, MemoryIndirect, true)
 DECLARE_TYPE_ARG(OutVReg, void, true)
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

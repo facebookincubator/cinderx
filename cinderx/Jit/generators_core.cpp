@@ -7,7 +7,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/module_state.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 bool jitgen_is_coroutine(PyObject* o) {
   if (Py_TYPE(o) != cinderx::getModuleState()->gen_type &&
@@ -22,9 +22,10 @@ bool jitgen_is_coroutine(PyObject* o) {
   return code->co_flags & CO_ITERABLE_COROUTINE;
 }
 
-} // namespace jit
+} // namespace cinderx::jit
 
 extern "C" {
+
 int JitGen_CheckExact(PyObject* o) {
   return Py_TYPE(o) == cinderx::getModuleState()->gen_type;
 }
@@ -45,7 +46,7 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
   PyTypeObject* ot;
 
   if (JitCoro_CheckExact(o) || PyCoro_CheckExact(o) ||
-      jit::jitgen_is_coroutine(o)) {
+      cinderx::jit::jitgen_is_coroutine(o)) {
     /* 'o' is a coroutine. */
     return Py_NewRef(o);
   }
@@ -58,7 +59,7 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
     PyObject* res = (*getter)(o);
     if (res != nullptr) {
       if (JitCoro_CheckExact(res) || PyCoro_CheckExact(res) ||
-          jit::jitgen_is_coroutine(res)) {
+          cinderx::jit::jitgen_is_coroutine(res)) {
         /* __await__ must return an *iterator*, not
            a coroutine or another awaitable (see PEP 492) */
         if constexpr (PY_VERSION_HEX >= 0x030F0000) {

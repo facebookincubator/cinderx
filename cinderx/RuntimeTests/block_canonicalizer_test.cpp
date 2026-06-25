@@ -5,7 +5,7 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 TEST(BlockCanonicalizerTest, BreaksCycles) {
   CFG cfg;

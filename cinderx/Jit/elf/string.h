@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // String table encoded for ELF.
 class StringTable {
@@ -28,4 +28,4 @@ class StringTable {
   std::vector<uint8_t> bytes_;
 };
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

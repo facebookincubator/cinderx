@@ -4,7 +4,7 @@
 
 #include <ostream>
 
-namespace jit {
+namespace cinderx::jit {
 
 struct Disassembler {
   Disassembler(const char* buf, size_t size);
@@ -35,4 +35,4 @@ struct Disassembler {
 #endif
 };
 
-} // namespace jit
+} // namespace cinderx::jit

@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/bytecode.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 BCOffset BytecodeInstruction::baseOffset() const {
   return baseOffset_;
@@ -269,4 +269,4 @@ BorrowedRef<PyCodeObject> BytecodeInstructionBlock::code() const {
   return code_;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

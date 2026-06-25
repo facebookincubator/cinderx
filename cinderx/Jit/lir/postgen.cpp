@@ -9,11 +9,11 @@
 
 #include <unordered_map>
 
-void JITRT_BatchDecref(jit::TaggedPyObject* args, int nargs);
+void JITRT_BatchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
 
-using namespace jit::codegen;
+using namespace cinderx::jit::codegen;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 namespace {
 
@@ -1048,7 +1048,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
         if (base->isMove() && base->getNumInputs() == 1 &&
             base->getInput(0)->isImm()) {
           uint64_t value = base->getInput(0)->getConstant() &
-              ~static_cast<uint64_t>(jit::kPyObjectTagBits);
+              ~static_cast<uint64_t>(kPyObjectTagBits);
           Instruction* strip = block->allocateInstrBefore(
               it,
               Instruction::kMove,
@@ -1077,8 +1077,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
             Instruction::kAnd,
             OutVReg{DataType::kObjectUntagged},
             VReg{copy},
-            Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
-                DataType::k64bit});
+            Imm{~static_cast<uint64_t>(kPyObjectTagBits), DataType::k64bit});
         strip_cache[base] = strip;
         changed = true;
         return strip;
@@ -1190,4 +1189,4 @@ void PostGenerationRewrite::registerRewrites() {
   }
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

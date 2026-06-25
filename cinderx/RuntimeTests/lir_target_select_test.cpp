@@ -17,7 +17,7 @@
 #include <sstream>
 #include <string>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class LIRTargetSelectTest : public RuntimeTest {
  public:
@@ -385,4 +385,4 @@ def func(x, y):
 }
 #endif
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

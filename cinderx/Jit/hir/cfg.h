@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/hir.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class CFG {
  public:
@@ -66,4 +66,4 @@ class CFG {
   int next_block_id_{0};
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

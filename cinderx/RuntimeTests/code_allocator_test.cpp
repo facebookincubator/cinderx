@@ -12,8 +12,8 @@
 #include <cstring>
 #include <memory>
 
-using namespace jit;
-using namespace jit::codegen;
+using namespace cinderx::jit;
+using namespace cinderx::jit::codegen;
 
 namespace {
 

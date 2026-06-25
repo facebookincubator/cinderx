@@ -14,7 +14,7 @@
 #include <iterator>
 #include <limits>
 
-namespace jit {
+namespace cinderx::jit {
 
 // A structured, immutable representation of a CPython bytecode.
 //
@@ -181,4 +181,4 @@ class BytecodeInstructionBlock {
 #define EXTENDED_OPCODE_FLAG 0
 #endif
 
-} // namespace jit
+} // namespace cinderx::jit

@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/hir/cfg.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -172,4 +172,4 @@ const BasicBlock* CFG::getBlockById(int id) const {
   return nullptr;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

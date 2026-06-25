@@ -3,7 +3,7 @@
 
 #include "cinderx/Jit/dataflow.h"
 
-using namespace jit::optimizer;
+using namespace cinderx::jit::optimizer;
 
 // This test runs the example found in Section 8.1 of
 // the book Advanced Compiler Design And Implementation

@@ -6,7 +6,7 @@
 
 #include <string_view>
 
-namespace jit {
+namespace cinderx::jit {
 
 class IJITList {
  public:
@@ -27,4 +27,4 @@ class IJITList {
   virtual Ref<> getList() const = 0;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

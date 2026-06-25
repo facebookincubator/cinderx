@@ -7,7 +7,7 @@
 #include <initializer_list>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 template <class T>
 class Stack {
@@ -96,4 +96,4 @@ class Stack {
   std::vector<T> stack_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

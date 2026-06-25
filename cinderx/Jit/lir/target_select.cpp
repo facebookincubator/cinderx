@@ -13,7 +13,7 @@
 #include <memory>
 #include <unordered_map>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 namespace {
 
 #if defined(CINDER_X86_64)
@@ -355,4 +355,4 @@ void selectTargetOpcodes(Function* func) {
 #endif
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

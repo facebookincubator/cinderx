@@ -6,7 +6,7 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -869,4 +869,4 @@ void simplifyRedundantCondBranches(CFG* cfg) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

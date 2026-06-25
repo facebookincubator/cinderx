@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <memory>
 
-using namespace jit;
+using namespace cinderx::jit;
 
 namespace {
 
@@ -73,7 +73,7 @@ TEST_F(HintedCodeAllocationTest, AllocatesWithinCinderJitRegion) {
   asmjit::CodeHolder code;
   code.init(code_allocator_->asmJitEnvironment());
 
-  jit::codegen::arch::Builder as(&code);
+  codegen::arch::Builder as(&code);
   constexpr std::array<uint8_t, 4> kText{{0x90, 0x90, 0x90, 0xc3}};
   ASSERT_EQ(as.section(code.textSection()), asmjit::kErrorOk);
   ASSERT_EQ(as.embed(kText.data(), kText.size()), asmjit::kErrorOk);

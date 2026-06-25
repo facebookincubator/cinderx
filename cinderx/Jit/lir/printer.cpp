@@ -11,7 +11,7 @@
 
 #include <iomanip>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 Printer::Printer() {
   hir_printer_.setFullSnapshots(true);
@@ -162,4 +162,4 @@ void Printer::print(std::ostream& out, const MemoryIndirect& ind) {
   fmt::print(out, "]");
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

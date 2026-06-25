@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 std::unordered_set<std::string>& GetStringLiterals();
 
@@ -103,4 +103,4 @@ class Parser {
   std::vector<std::pair<BasicBlock*, int>> basic_block_succs_;
 };
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

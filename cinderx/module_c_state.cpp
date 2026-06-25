@@ -233,19 +233,19 @@ void Ci_free_jit_list_gen(PyGenObject* obj) {
 }
 
 bool Ci_GetDelayAdaptiveCode(void) {
-  return jit::getConfig().delay_adaptive_code;
+  return cinderx::jit::getConfig().delay_adaptive_code;
 }
 
 void Ci_SetDelayAdaptiveCode(bool delay) {
-  jit::getMutableConfig().delay_adaptive_code = delay;
+  cinderx::jit::getMutableConfig().delay_adaptive_code = delay;
 }
 
 uint64_t Ci_GetAdaptiveThreshold(void) {
-  return jit::getConfig().adaptive_threshold;
+  return cinderx::jit::getConfig().adaptive_threshold;
 }
 
 void Ci_SetAdaptiveThreshold(uint64_t threshold) {
-  jit::getMutableConfig().adaptive_threshold = threshold;
+  cinderx::jit::getMutableConfig().adaptive_threshold = threshold;
 }
 
 } // extern "C"

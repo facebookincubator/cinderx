@@ -12,7 +12,7 @@
 #include <cstdlib>
 #include <utility>
 
-namespace jit {
+namespace cinderx::jit {
 
 template <typename T>
 class SlabIterator {
@@ -146,4 +146,4 @@ class Slab {
   size_t mlocks_{0};
 };
 
-} // namespace jit
+} // namespace cinderx::jit

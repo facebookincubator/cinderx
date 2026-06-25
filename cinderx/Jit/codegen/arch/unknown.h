@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 #define FOREACH_GP(X) \
   X(R0)               \
@@ -117,4 +117,4 @@ constexpr PhyLocation INITIAL_TSTATE_REG = R2;
 // This is often provided by the first argument in the vector call protocol.
 constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

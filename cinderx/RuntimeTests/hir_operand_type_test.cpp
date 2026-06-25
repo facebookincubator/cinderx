@@ -9,7 +9,7 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 using HIROperandTypeTest = RuntimeTest;
 

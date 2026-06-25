@@ -6,7 +6,7 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/function.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class LIRInliner {
  public:
@@ -101,4 +101,4 @@ class LIRInliner {
   FRIEND_TEST(LIRInlinerTest, ResolveReturnWithoutPhiTest);
 };
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

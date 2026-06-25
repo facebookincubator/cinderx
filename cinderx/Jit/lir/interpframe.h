@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // Describes what to store for each _PyInterpreterFrame / FrameHeader field
 // during lightweight frame setup. Offsets are relative to the
@@ -235,4 +235,4 @@ consteval FrameInitTable buildFrameInitTable() {
 
 constexpr FrameInitTable kFrameInitTable = buildFrameInitTable();
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

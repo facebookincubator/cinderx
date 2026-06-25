@@ -8,7 +8,7 @@
 
 using PyTypeObject = struct _typeobject;
 
-namespace jit {
+namespace cinderx::jit {
 
 // A simple runtime type profiler that remembers frequencies for the first N
 // types it sees, grouping any further types into an "other" bucket. Types are
@@ -73,4 +73,4 @@ bool FixedTypeProfiler<N>::empty() const {
   return true;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

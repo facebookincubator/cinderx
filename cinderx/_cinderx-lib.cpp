@@ -51,6 +51,8 @@
 #include <dlfcn.h>
 #endif
 
+using namespace cinderx;
+
 namespace {
 
 /*
@@ -308,7 +310,7 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
     if (PyUnstable_PerfTrampoline_CompileCode(code) == -1) {
       JIT_LOG(
           "Failed to compile perf trampoline for function {}",
-          jit::funcFullname(func));
+          cinderx::funcFullname(func));
     }
   }
   perf_trampoline_worklist.clear();
@@ -477,7 +479,7 @@ int function_visitor(BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(
       codeExtra(code) != nullptr,
       "Failed to initialize extra data for {}",
-      jit::funcFullname(func));
+      cinderx::funcFullname(func));
 
   // Schedule the function to be compiled if desired.
   scheduleCompile(func);
@@ -1222,7 +1224,7 @@ int _cinderx_exec(PyObject* m) {
     // Same as above error case, but hold onto a C++ exception object and
     // convert it to a Python exception.
     Ci_FiniFrameEvalFunc();
-    jit::setRuntimeError(exn);
+    setRuntimeError(exn);
     return -1;
   }
 }

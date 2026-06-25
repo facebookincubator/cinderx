@@ -27,7 +27,7 @@
 #include <chrono>
 #include <iostream>
 
-namespace jit {
+namespace cinderx::jit {
 
 template <typename T>
 static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
@@ -275,4 +275,4 @@ std::optional<CompiledFunctionData> Compiler::Compile(
   return compiled_data;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

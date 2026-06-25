@@ -4,7 +4,7 @@
 
 #include <fmt/format.h>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Status codes for the result of JIT attempts.
 enum class Result : int32_t {
@@ -41,8 +41,8 @@ enum class Result : int32_t {
   PYTHON_EXCEPTION = -1,
 };
 
-} // namespace jit
+} // namespace cinderx::jit
 
-inline auto format_as(jit::Result e) {
+inline auto format_as(cinderx::jit::Result e) {
   return fmt::underlying(e);
 }

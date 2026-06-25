@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Populates live-value metadata for HIR instructions that lower to helper calls
 // requiring deferred-RC GC root recovery.
@@ -18,4 +18,4 @@ class CallSiteLiveValues final : public Pass {
   DISALLOW_COPY_AND_ASSIGN(CallSiteLiveValues);
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

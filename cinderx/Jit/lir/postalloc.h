@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/lir/rewrite.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // Rewrites after register allocation
 class PostRegAllocRewrite : public Rewrite {
@@ -18,4 +18,4 @@ class PostRegAllocRewrite : public Rewrite {
   void registerRewrites();
 };
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

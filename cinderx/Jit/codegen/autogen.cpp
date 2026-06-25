@@ -18,10 +18,10 @@
 #include "cinderx/module_state.h"
 
 using namespace asmjit;
-using namespace jit::lir;
-using namespace jit::codegen;
+using namespace cinderx::jit::lir;
+using namespace cinderx::jit::codegen;
 
-namespace jit::codegen::autogen {
+namespace cinderx::jit::codegen::autogen {
 
 namespace {
 
@@ -3405,4 +3405,4 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
   }
 }
 
-} // namespace jit::codegen::autogen
+} // namespace cinderx::jit::codegen::autogen

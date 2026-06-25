@@ -29,7 +29,7 @@ void __tsan_write8(void* addr);
 void __tsan_write16(void* addr);
 }
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 namespace {
 
 constexpr int kTsanXmmRegCount = 16;
@@ -429,6 +429,6 @@ bool tryEmitTsanRelaxedAtomicWrite(
   return true;
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen
 
 #endif // CINDER_JIT_TSAN_ENABLED

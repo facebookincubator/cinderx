@@ -29,7 +29,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Only used to serialize FT-only entrypoints, but declared unconditionally so
 // callers can branch on kFreeThreadedBuild instead of the preprocessor.
@@ -77,8 +77,8 @@ struct DeoptStat {
 //
 // Uses an unordered map to store the deopt stats for each code object as it's
 // meant to be sparse.  We expect most deopt points to be unused.
-using DeoptStats = jit::
-    UnorderedMap<const CodeRuntime*, jit::UnorderedMap<std::size_t, DeoptStat>>;
+using DeoptStats =
+    UnorderedMap<const CodeRuntime*, UnorderedMap<std::size_t, DeoptStat>>;
 
 using InlineCacheStats = std::vector<CacheStats>;
 
@@ -100,7 +100,7 @@ class Builtins {
 // and builtins dicts it was JIT-compiled with.
 struct CompilationKey {
   // These three are borrowed references; the values are kept alive by strong
-  // references in the corresponding jit::CodeRuntime.
+  // references in the corresponding CodeRuntime.
   PyObject* code;
   PyObject* builtins;
   PyObject* globals;
@@ -121,18 +121,18 @@ struct CompilationKey {
   constexpr bool operator==(const CompilationKey& other) const = default;
 };
 
-} // namespace jit
+} // namespace cinderx::jit
 
 template <>
-struct std::hash<jit::CompilationKey> {
-  std::size_t operator()(const jit::CompilationKey& key) const {
+struct std::hash<cinderx::jit::CompilationKey> {
+  std::size_t operator()(const cinderx::jit::CompilationKey& key) const {
     std::hash<PyObject*> hasher;
-    return jit::combineHash(
+    return cinderx::combineHash(
         hasher(key.code), hasher(key.globals), hasher(key.builtins));
   }
 };
 
-namespace jit {
+namespace cinderx::jit {
 
 struct OwnedCompilationKey {
   Ref<> code;
@@ -152,20 +152,20 @@ struct OwnedCompilationKey {
   bool operator==(const OwnedCompilationKey& other) const = default;
 };
 
-} // namespace jit
+} // namespace cinderx::jit
 
 template <>
-struct std::hash<jit::OwnedCompilationKey> {
-  std::size_t operator()(const jit::OwnedCompilationKey& key) const {
+struct std::hash<cinderx::jit::OwnedCompilationKey> {
+  std::size_t operator()(const cinderx::jit::OwnedCompilationKey& key) const {
     std::hash<PyObject*> hasher;
-    return jit::combineHash(
+    return cinderx::combineHash(
         hasher(key.code.get()),
         hasher(key.globals.get()),
         hasher(key.builtins.get()));
   }
 };
 
-namespace jit {
+namespace cinderx::jit {
 
 /*
  * A jit::Context encapsulates all the state managed by an instance of the JIT.
@@ -665,7 +665,7 @@ class AotContext {
   // The handle to the AOT bundle created by dlopen().
   void* bundle_handle_{nullptr};
 
-  jit::UnorderedMap<std::string, FuncState> funcs_;
+  UnorderedMap<std::string, FuncState> funcs_;
 };
 
 extern AotContext g_aot_ctx;
@@ -674,4 +674,4 @@ extern AotContext g_aot_ctx;
 // This is equivalent to jitCtx() but can be used without depending on pyjit.
 Context* getContext();
 
-} // namespace jit
+} // namespace cinderx::jit

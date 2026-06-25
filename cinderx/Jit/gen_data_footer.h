@@ -9,7 +9,7 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/frame_header.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 // In a regular JIT function spill-data is stored at negative offsets from the
 // frame pointer and the frame pointer points into the system stack. In JIT
@@ -70,4 +70,4 @@ GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen);
 
 GenDataFooter* jitGenDataFooter(PyGenObject* gen);
 
-} // namespace jit
+} // namespace cinderx::jit

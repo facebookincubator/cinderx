@@ -15,10 +15,10 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 
 using namespace asmjit;
-using namespace jit;
-using namespace jit::codegen;
+using namespace cinderx::jit;
+using namespace cinderx::jit::codegen;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // Test each combination of instructions and operands that are implicitly
 // permitted by the translation layer.
@@ -1491,4 +1491,4 @@ TEST_F(LIRABITest, TestkMoveRelaxed_RejectsRegReg) {
       "kMoveRelaxed only supports");
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

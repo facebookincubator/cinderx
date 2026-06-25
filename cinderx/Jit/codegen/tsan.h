@@ -26,11 +26,11 @@
 #define CINDER_JIT_TSAN_ENABLED 0
 #endif
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 class Operand;
 }
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 struct Environ;
 
@@ -99,4 +99,4 @@ inline bool tryEmitTsanRelaxedAtomicWrite(
 
 #endif // CINDER_JIT_TSAN_ENABLED
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

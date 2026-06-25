@@ -4,8 +4,8 @@
 
 #include "cinderx/Jit/lir/function.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 void eliminateDeadCode(Function* func);
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/lir/function.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // Verifies the following properties of a LIR function:
 //
@@ -16,4 +16,4 @@ namespace jit::lir {
 // register allocation.
 bool verifyPostRegAllocInvariants(Function* func, std::ostream& err);
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

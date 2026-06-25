@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <unordered_set>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Return the ValueKind to use for a value with the given Type.
 hir::ValueKind deoptValueKind(hir::Type type);
@@ -279,4 +279,4 @@ void visitLiveDeferredRefs(
     uintptr_t frame_base,
     gcvisitobjects_t visit);
 
-} // namespace jit
+} // namespace cinderx::jit

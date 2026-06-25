@@ -11,9 +11,9 @@
 
 #include <optional>
 
-using namespace jit::codegen;
+using namespace cinderx::jit::codegen;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 namespace {
 
@@ -1627,4 +1627,4 @@ void PostRegAllocRewrite::registerRewrites() {
 #endif
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

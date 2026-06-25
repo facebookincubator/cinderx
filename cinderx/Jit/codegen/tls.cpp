@@ -10,7 +10,7 @@
 #include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/module_state.h"
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 void initThreadStateOffset() {
   auto module_state = cinderx::getModuleState();
@@ -115,4 +115,4 @@ void initThreadStateOffset() {
 
   module_state->tstate_offset_inited = true;
 }
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

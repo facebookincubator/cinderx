@@ -18,7 +18,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace jit {
+namespace cinderx::jit {
 
 class Symbolizer : public ISymbolizer {
  public:
@@ -66,4 +66,4 @@ std::optional<std::string> demangle(const std::string& mangled_name);
 // Symbolize and demangle the given function.
 std::optional<std::string> symbolize(const void* func);
 
-} // namespace jit
+} // namespace cinderx::jit

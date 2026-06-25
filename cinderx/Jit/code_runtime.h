@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace jit {
+namespace cinderx::jit {
 
 class CompiledFunction;
 
@@ -156,4 +156,4 @@ class alignas(16) CodeRuntime {
   DebugInfo debug_info_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

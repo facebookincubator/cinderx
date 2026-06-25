@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class HIRParser {
  public:
@@ -114,4 +114,4 @@ class HIRParser {
   }
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

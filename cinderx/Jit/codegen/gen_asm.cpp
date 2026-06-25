@@ -48,12 +48,12 @@
 #include <vector>
 
 using namespace asmjit;
-using namespace jit;
-using namespace jit::hir;
-using namespace jit::lir;
-using namespace jit::util;
+using namespace cinderx::jit;
+using namespace cinderx::jit::hir;
+using namespace cinderx::jit::lir;
+using namespace cinderx::jit::util;
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 namespace {
 
@@ -1472,4 +1472,4 @@ std::unique_ptr<NativeGenerator> NativeGeneratorFactory::operator()(
   return std::make_unique<NativeGenerator>(func, *this);
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

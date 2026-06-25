@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 template <class T>
 struct ObjectSizeTrait {
@@ -178,4 +178,4 @@ class SlabArena {
 #endif
 };
 
-} // namespace jit
+} // namespace cinderx::jit

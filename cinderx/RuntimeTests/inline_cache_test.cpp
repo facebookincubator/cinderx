@@ -12,6 +12,8 @@
 
 #include <cstring>
 
+using namespace cinderx::jit;
+
 class InlineCacheTest : public RuntimeTest {};
 
 TEST_F(InlineCacheTest, LoadTypeMethodCacheLookUp) {
@@ -48,7 +50,7 @@ regular_meth = RequestContext.regular_meth
   ASSERT_NE(klass, nullptr) << "Couldn't get class RequestContext";
 
   auto py_class_meth = Ref<>::steal(PyUnicode_FromString("class_meth"));
-  jit::LoadTypeMethodCache cache;
+  LoadTypeMethodCache cache;
   auto res = cache.lookup(klass, py_class_meth);
   ASSERT_EQ(res.self_or_null, klass)
       << "Expected instance to be equal to class from cache look up";
@@ -60,7 +62,7 @@ regular_meth = RequestContext.regular_meth
 
   for (auto& meth : {"static_meth", "regular_meth"}) {
     auto name = Ref<>::steal(PyUnicode_FromString(meth));
-    jit::LoadTypeMethodCache methCache;
+    LoadTypeMethodCache methCache;
     auto methRes = methCache.lookup(klass, name);
     PyObject* py_meth = PyDict_GetItemString(locals, meth);
 #if PY_VERSION_HEX < 0x030E0000
@@ -108,7 +110,7 @@ module_meth = functools._unwrap_partial
 #endif
   auto name = Ref<>::steal(name_obj);
 
-  jit::LoadModuleMethodCache cache;
+  LoadModuleMethodCache cache;
   auto res = cache.lookup(functools_mod, name);
 #if PY_VERSION_HEX < 0x030E0000
   ASSERT_EQ(PyObject_RichCompareBool(res.self_or_null, module_meth, Py_EQ), 1)

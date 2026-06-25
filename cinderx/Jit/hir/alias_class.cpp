@@ -7,7 +7,7 @@
 #include <ostream>
 #include <unordered_map>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 auto makeAclsNames() {
@@ -43,4 +43,4 @@ std::ostream& operator<<(std::ostream& os, const AliasClass& acls) {
   return os << acls.toString();
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

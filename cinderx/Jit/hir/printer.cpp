@@ -20,7 +20,7 @@ extern "C" {
 #include <sstream>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -975,4 +975,4 @@ std::ostream& operator<<(std::ostream& os, const FrameState& state) {
   return os;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

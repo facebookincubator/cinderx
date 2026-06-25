@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit::optimizer {
+namespace cinderx::jit::optimizer {
 
 /* This file implements a framework for data-flow analysis based on bit vector
  * operations. DataFlowAnalyzer is a template class, where the template argument
@@ -238,4 +238,4 @@ void DataFlowAnalyzer<T>::RunAnalysis(bool forward) {
   }
 }
 
-} // namespace jit::optimizer
+} // namespace cinderx::jit::optimizer

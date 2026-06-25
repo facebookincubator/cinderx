@@ -18,7 +18,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -480,4 +480,4 @@ std::unordered_map<BasicBlock*, SSABasicBlock*> SSAify::initSSABasicBlocks(
   return ssa_basic_blocks;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

@@ -4,7 +4,7 @@
 
 #include "cinderx/python.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 const uint64_t* pyFunctionFromName(std::string_view name) {
   static const std::unordered_map<std::string_view, uint64_t> mapping = {
@@ -24,4 +24,4 @@ const uint64_t* pyFunctionFromName(std::string_view name) {
   return it != mapping.end() ? &it->second : nullptr;
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

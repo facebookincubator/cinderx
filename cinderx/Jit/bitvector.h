@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit::util {
+namespace cinderx::jit::util {
 
 class BitVector {
  public:
@@ -117,7 +117,8 @@ class BitVector {
 
 std::ostream& operator<<(std::ostream& os, const BitVector& bv);
 
-} // namespace jit::util
+} // namespace cinderx::jit::util
 
 template <>
-struct fmt::formatter<jit::util::BitVector> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::util::BitVector> : fmt::ostream_formatter {
+};

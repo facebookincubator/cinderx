@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Perform a mixed bag of strength-reduction optimizations: remove redundant
 // null checks, conversions, loads from compile-time constant containers, etc.
@@ -26,4 +26,4 @@ class Simplify final : public Pass {
   DISALLOW_COPY_AND_ASSIGN(Simplify);
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

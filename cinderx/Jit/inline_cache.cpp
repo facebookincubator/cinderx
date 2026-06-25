@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <memory>
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -1918,4 +1918,4 @@ void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type) {
   ltm_watcher.typeChanged(type);
 }
 
-} // namespace jit
+} // namespace cinderx::jit

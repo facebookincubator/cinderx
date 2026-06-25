@@ -12,7 +12,7 @@
 
 #include <vector>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 struct Environ {
   // Metadata for annotated disassembly.
@@ -212,4 +212,4 @@ struct Environ {
   Py_ssize_t gi_jit_data_offset{0};
 };
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

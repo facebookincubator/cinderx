@@ -8,7 +8,7 @@
 #include <memory>
 #include <string_view>
 
-namespace jit {
+namespace cinderx::jit {
 
 // The JIT list is a file that specifies which functions should be compiled.
 //
@@ -127,4 +127,4 @@ class WildcardJITList : public JITList {
   Ref<> wildcard_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

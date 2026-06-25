@@ -7,7 +7,7 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/module_state.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -221,4 +221,4 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

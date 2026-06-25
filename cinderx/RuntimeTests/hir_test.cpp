@@ -23,8 +23,8 @@ extern "C" {
 
 } // extern "C"
 
-using namespace jit;
-using namespace jit::hir;
+using namespace cinderx::jit;
+using namespace cinderx::jit::hir;
 
 HIRPrinter fullPrinter() {
   return HIRPrinter{}.setFullSnapshots(true);

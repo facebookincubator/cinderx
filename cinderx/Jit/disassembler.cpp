@@ -11,7 +11,7 @@
 #endif
 
 #ifndef ENABLE_DISASSEMBLER
-namespace jit {
+namespace cinderx::jit {
 
 Disassembler::Disassembler(const char*, size_t) {}
 
@@ -25,7 +25,7 @@ const char* Disassembler::cursor() const {
 void Disassembler::setPrintAddr(bool) {}
 void Disassembler::setPrintInstBytes(bool) {}
 
-} // namespace jit
+} // namespace cinderx::jit
 #else
 #pragma GCC diagnostic push
 #ifdef __clang__
@@ -38,7 +38,7 @@ void Disassembler::setPrintInstBytes(bool) {}
 #include "capstone/arm64.h"
 #endif
 
-namespace jit {
+namespace cinderx::jit {
 
 Disassembler::Disassembler(const char* buf, size_t size)
     : buf_(buf), size_{size} {}
@@ -233,5 +233,5 @@ void Disassembler::disassemble(std::ostream& os, size_t handle) {
   start_ += insn->size;
 }
 
-} // namespace jit
+} // namespace cinderx::jit
 #endif

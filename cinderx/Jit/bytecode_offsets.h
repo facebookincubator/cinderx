@@ -16,7 +16,7 @@
 #include <ostream>
 #include <type_traits>
 
-namespace jit {
+namespace cinderx::jit {
 
 /*
  * BCOffsetBase is used to define two related types: BCOffset and BCIndex.
@@ -193,32 +193,32 @@ inline _Py_CODEUNIT* operator+(_Py_CODEUNIT* code, BCIndex index) {
   return code + index.value();
 }
 
-inline std::ostream& operator<<(std::ostream& os, jit::BCOffset offset) {
+inline std::ostream& operator<<(std::ostream& os, BCOffset offset) {
   return os << offset.value();
 }
 
-inline std::ostream& operator<<(std::ostream& os, jit::BCIndex index) {
+inline std::ostream& operator<<(std::ostream& os, BCIndex index) {
   return os << index.value();
 }
 
-} // namespace jit
+} // namespace cinderx::jit
 
 template <>
-struct fmt::formatter<jit::BCIndex> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::BCIndex> : fmt::ostream_formatter {};
 
 template <>
-struct fmt::formatter<jit::BCOffset> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::BCOffset> : fmt::ostream_formatter {};
 
 template <>
-struct std::hash<jit::BCOffset> {
-  size_t operator()(const jit ::BCOffset& offset) const {
+struct std::hash<cinderx::jit::BCOffset> {
+  size_t operator()(const cinderx::jit::BCOffset& offset) const {
     return std::hash<int>{}(offset.value());
   }
 };
 
 template <>
-struct std::hash<jit::BCIndex> {
-  size_t operator()(const jit::BCIndex& index) const {
+struct std::hash<cinderx::jit::BCIndex> {
+  size_t operator()(const cinderx::jit::BCIndex& index) const {
     return std::hash<int>{}(index.value());
   }
 };

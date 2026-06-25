@@ -12,7 +12,7 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 std::string typeFullname(PyTypeObject* type) {
   PyObject* dict = _PyType_GetDict(type);
@@ -70,4 +70,4 @@ bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
   return PyUnstable_Type_AssignVersionTag(type);
 }
 
-} // namespace jit
+} // namespace cinderx::jit

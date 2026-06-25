@@ -13,10 +13,10 @@
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit;
-using namespace jit::codegen;
+using namespace cinderx::jit;
+using namespace cinderx::jit::codegen;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 class LIRPostAllocRewriteTest : public RuntimeTest {};
 
 TEST_F(LIRPostAllocRewriteTest, TestInsertBranchForSuccessorsInCondBranch) {
@@ -447,4 +447,4 @@ BB %0
 }
 #endif // CINDER_AARCH64
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

@@ -6,7 +6,7 @@
 
 #include <fmt/format.h>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 const std::string* mapCHelperToLIR(uint64_t addr) {
   static const std::unordered_map<uint64_t, std::string> mapping = {
@@ -45,4 +45,4 @@ BB %4 - preds: %2 %3
   return it != mapping.end() ? &it->second : nullptr;
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

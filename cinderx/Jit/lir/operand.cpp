@@ -5,7 +5,7 @@
 #include "cinderx/Jit/lir/arch.h"
 #include "cinderx/Jit/lir/instruction.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 MemoryIndirect::MemoryIndirect(Instruction* parent) : parent_(parent) {}
 
@@ -426,4 +426,4 @@ uint64_t Operand::rawValue() const {
   JIT_ABORT("Unknown operand value type, has index {}", value_.index());
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

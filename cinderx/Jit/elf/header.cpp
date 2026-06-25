@@ -4,7 +4,7 @@
 
 #include <type_traits>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // ELF headers are all expected to be a set size.
 static_assert(sizeof(SectionHeader) == 64);
@@ -17,4 +17,4 @@ static_assert(std::is_standard_layout_v<SectionHeader>);
 static_assert(std::is_standard_layout_v<SegmentHeader>);
 static_assert(std::is_standard_layout_v<FileHeader>);
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

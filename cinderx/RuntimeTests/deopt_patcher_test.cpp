@@ -10,9 +10,12 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+using namespace cinderx;
+using namespace cinderx::jit;
+
 class CodePatcherTest : public RuntimeTest {
  public:
-  Ref<jit::CompiledFunction> generateCode(jit::codegen::NativeGenerator& ngen) {
+  Ref<CompiledFunction> generateCode(codegen::NativeGenerator& ngen) {
     auto entry = ngen.getVectorcallEntry();
     if (entry == nullptr) {
       return nullptr;
@@ -20,19 +23,19 @@ class CodePatcherTest : public RuntimeTest {
     std::span<const std::byte> code = ngen.getCodeBuffer();
     int stack_size = ngen.GetCompiledFunctionStackSize();
     int spill_stack_size = ngen.GetCompiledFunctionSpillStackSize();
-    jit::CompiledFunctionData data;
+    CompiledFunctionData data;
     data.code = code;
     data.vectorcall_entry = reinterpret_cast<vectorcallfunc>(entry);
     data.stack_size = stack_size;
     data.spill_stack_size = spill_stack_size;
-    return jit::CompiledFunction::create(std::move(data), false);
+    return CompiledFunction::create(std::move(data), false);
   }
 
  protected:
   asmjit::JitRuntime rt_;
 };
 
-class MyDeoptPatcher : public jit::JumpPatcher {
+class MyDeoptPatcher : public JumpPatcher {
  public:
   explicit MyDeoptPatcher(int id) : id_(id) {}
 
@@ -79,7 +82,7 @@ TEST_F(CodePatcherTest, CodePatch) {
 
   std::array<uint8_t, 2> bytes{0xef, 0xbe};
 
-  jit::CodePatcher patcher;
+  CodePatcher patcher;
   EXPECT_FALSE(patcher.isLinked());
   EXPECT_FALSE(patcher.isPatched());
 
@@ -117,26 +120,25 @@ def func():
 
   // Need to find the return instruction.  It should be the last instruction in
   // the last block.
-  jit::hir::BasicBlock* entry = irfunc->cfg.entry_block;
-  std::vector<jit::hir::BasicBlock*> postorder =
+  hir::BasicBlock* entry = irfunc->cfg.entry_block;
+  std::vector<hir::BasicBlock*> postorder =
       irfunc->cfg.GetPostOrderTraversal(entry);
   ASSERT_GT(postorder.size(), 0);
-  jit::hir::Instr* term = postorder[0]->GetTerminator();
+  hir::Instr* term = postorder[0]->GetTerminator();
   ASSERT_NE(term, nullptr);
   ASSERT_TRUE(term->IsReturn()) << *term;
 
   // Insert a patchpoint immediately before the return
   auto patcher = irfunc->allocateCodePatcher<MyDeoptPatcher>(123);
-  irfunc->reifier =
-      jit::ThreadedRef<>::create(jit::makeFrameReifier(pyfunc->func_code));
+  irfunc->reifier = ThreadedRef<>::create(makeFrameReifier(pyfunc->func_code));
   EXPECT_EQ(patcher->id(), 123);
-  auto patchpoint = jit::hir::DeoptPatchpoint::create(patcher);
+  auto patchpoint = hir::DeoptPatchpoint::create(patcher);
   patchpoint->InsertBefore(*term);
 
   // Generate machine code and link the patcher
-  jit::Compiler::runPasses(*irfunc, jit::PassConfig::kAllExceptInliner);
-  jit::codegen::NativeGeneratorFactory factory;
-  jit::codegen::NativeGenerator ngen(irfunc.get(), factory);
+  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+  codegen::NativeGeneratorFactory factory;
+  codegen::NativeGenerator ngen(irfunc.get(), factory);
   auto jitfunc = generateCode(ngen);
   ASSERT_NE(jitfunc, nullptr);
   EXPECT_TRUE(patcher->isLinked());
@@ -145,8 +147,8 @@ def func():
   EXPECT_FALSE(patcher->calledOnPatch());
 
   size_t deopts = 0;
-  auto callback = [&deopts](const jit::DeoptMetadata&) { deopts += 1; };
-  jit::Context* jit_ctx = jit::getContext();
+  auto callback = [&deopts](const DeoptMetadata&) { deopts += 1; };
+  Context* jit_ctx = getContext();
   jit_ctx->setGuardFailureCallback(callback);
 
   // Make sure things work in the nominal case.

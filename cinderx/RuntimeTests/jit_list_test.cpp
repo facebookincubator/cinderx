@@ -7,8 +7,8 @@
 using JITListTest = RuntimeTest;
 using WildcardJITListTest = RuntimeTest;
 
-using jit::JITList;
-using jit::WildcardJITList;
+using cinderx::jit::JITList;
+using cinderx::jit::WildcardJITList;
 
 TEST_F(JITListTest, ParseLine) {
   auto jitlist = JITList::create();

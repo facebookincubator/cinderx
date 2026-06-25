@@ -6,7 +6,7 @@
 
 #include <stdexcept>
 
-namespace jit {
+namespace cinderx {
 
 namespace {
 
@@ -23,29 +23,29 @@ std::string_view trimSourcePath(std::string_view path) {
   return pos != std::string_view::npos ? path.substr(pos) : path;
 }
 
-[[noreturn]] JIT_COLD void abortImpl() {
+[[noreturn]] CINDERX_COLD void abortImpl() {
   fmt::print(stderr, "\n");
   std::fflush(stderr);
-  jit::printPythonException();
+  printPythonException();
   std::abort();
 }
 
 } // namespace
 
-JIT_COLD void logImplV(
+CINDERX_COLD void logImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
     fmt::format_args args) {
-  FILE* output = getConfig().log.output_file;
-  ThreadedCompileSerialize guard;
+  FILE* output = jit::getConfig().log.output_file;
+  jit::ThreadedCompileSerialize guard;
   fmt::print(output, "JIT: {}:{} -- ", trimSourcePath(file), line);
   fmt::vprint(output, format, args);
   fmt::print(output, "\n");
   std::fflush(output);
 }
 
-[[noreturn]] JIT_COLD void abortImplV(
+[[noreturn]] CINDERX_COLD void abortImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
@@ -55,7 +55,7 @@ JIT_COLD void logImplV(
   abortImpl();
 }
 
-[[noreturn]] JIT_COLD void checkFailedImplV(
+[[noreturn]] CINDERX_COLD void checkFailedImplV(
     std::string_view file,
     int line,
     std::string_view cond_str,
@@ -71,7 +71,7 @@ JIT_COLD void logImplV(
   abortImpl();
 }
 
-[[noreturn]] JIT_COLD void throwImplV(
+[[noreturn]] CINDERX_COLD void throwImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
@@ -119,4 +119,4 @@ void setRuntimeError(const std::exception& exn) {
   PyErr_SetString(PyExc_RuntimeError, exn.what());
 }
 
-} // namespace jit
+} // namespace cinderx

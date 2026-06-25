@@ -8,7 +8,7 @@
 
 #include <string>
 
-namespace jit {
+namespace cinderx::jit {
 
 // When possible, return the fully qualified name of the given type (including
 // its module). Falls back to the type's bare name.
@@ -29,4 +29,4 @@ BorrowedRef<> typeLookupSafe(
 // true if successful.
 bool ensureVersionTag(BorrowedRef<PyTypeObject> type);
 
-} // namespace jit
+} // namespace cinderx::jit

@@ -5,7 +5,7 @@
 #include <optional>
 #include <string_view>
 
-namespace jit {
+namespace cinderx::jit {
 
 class ISymbolizer {
  public:
@@ -17,4 +17,4 @@ class ISymbolizer {
   virtual std::optional<std::string_view> symbolize(const void* func) = 0;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

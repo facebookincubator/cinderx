@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // At what granularity the rewrite is being performed.
 enum RewriteType {
@@ -140,4 +140,4 @@ class Rewrite {
       instruction_rewrites_;
 };
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

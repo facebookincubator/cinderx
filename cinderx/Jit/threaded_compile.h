@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Used to punt out of optimizations that require holding the GIL.
 #define RETURN_MULTITHREADED_COMPILE(RETVAL)          \
@@ -355,11 +355,11 @@ class ThreadedRef : public RefBase<T> {
   using RefBase<T>::ptr_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit
 
 template <typename T>
-struct std::hash<jit::ThreadedRef<T>> {
-  size_t operator()(const jit::ThreadedRef<T>& ref) const {
+struct std::hash<cinderx::jit::ThreadedRef<T>> {
+  size_t operator()(const cinderx::jit::ThreadedRef<T>& ref) const {
     std::hash<T*> hasher;
     return hasher(ref.get());
   }
@@ -369,7 +369,7 @@ template <typename T>
 struct TransparentThreadedRefHasher {
   using is_transparent = void;
 
-  size_t operator()(const jit::ThreadedRef<T>& ref) const {
-    return std::hash<jit::ThreadedRef<T>>{}(ref);
+  size_t operator()(const cinderx::jit::ThreadedRef<T>& ref) const {
+    return std::hash<cinderx::jit::ThreadedRef<T>>{}(ref);
   }
 };

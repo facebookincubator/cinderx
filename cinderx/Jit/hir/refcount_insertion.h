@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Inserts incref/decref instructions.
 class RefcountInsertion final : public Pass {
@@ -21,4 +21,4 @@ class RefcountInsertion final : public Pass {
   DISALLOW_COPY_AND_ASSIGN(RefcountInsertion);
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

@@ -2,7 +2,7 @@
 
 #pragma once
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class Function;
 
@@ -13,4 +13,4 @@ class Function;
 // introducing a separate IR.
 void selectTargetOpcodes(Function* func);
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

@@ -17,7 +17,7 @@
 
 #include <string_view>
 
-namespace jit {
+namespace cinderx::jit {
 
 PyObject* JitGenObject::yieldFrom() {
   GenDataFooter* gen_footer = genDataFooter();
@@ -977,9 +977,9 @@ void shutdown_jit_genobject_type() {
   PyCoro_Type.tp_dealloc = original_coro_dealloc;
 }
 
-} // namespace jit
+} // namespace cinderx::jit
 
 PyObject* JitGen_yf(PyGenObject* gen) {
-  jit::JitGenObject* jit_gen = jit::JitGenObject::cast(gen);
+  auto jit_gen = cinderx::jit::JitGenObject::cast(gen);
   return jit_gen == nullptr ? _PyGen_yf(gen) : jit_gen->yieldFrom();
 }

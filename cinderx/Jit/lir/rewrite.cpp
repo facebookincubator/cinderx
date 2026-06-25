@@ -8,7 +8,7 @@
 
 #include <set>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 Rewrite::Rewrite(Function* func, codegen::Environ* env)
     : function_(func), env_(env) {}
@@ -86,4 +86,4 @@ void Rewrite::runOneStage(int stage) {
   } while (changed);
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

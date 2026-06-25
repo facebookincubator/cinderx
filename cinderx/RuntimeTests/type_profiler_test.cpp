@@ -4,7 +4,7 @@
 #include "cinderx/Jit/fixed_type_profiler.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit;
+using namespace cinderx::jit;
 
 using TypeProfilerTest = RuntimeTest;
 

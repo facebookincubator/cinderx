@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 static auto nameToType() {
   std::unordered_map<std::string_view, Type> map{
@@ -1357,4 +1357,4 @@ RegState HIRParser::GetNextRegState() {
   return rs;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

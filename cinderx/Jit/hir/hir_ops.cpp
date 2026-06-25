@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/hir/hir_ops.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 std::optional<Opcode> opcodeFromName(std::string_view name) {
 #define CASE_OP(OP)       \
@@ -14,4 +14,4 @@ std::optional<Opcode> opcodeFromName(std::string_view name) {
   return std::nullopt;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

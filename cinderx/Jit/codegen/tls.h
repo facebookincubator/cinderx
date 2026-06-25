@@ -2,6 +2,6 @@
 
 #pragma once
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 void initThreadStateOffset();
 }

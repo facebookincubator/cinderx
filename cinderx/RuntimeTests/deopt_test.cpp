@@ -30,10 +30,10 @@
 
 #include <algorithm>
 
-using namespace jit;
-using namespace jit::hir;
-using namespace jit::codegen;
-using jit::kPointerSize;
+using namespace cinderx;
+using namespace cinderx::jit;
+using namespace cinderx::jit::hir;
+using namespace cinderx::jit::codegen;
 
 class ReifyFrameTest : public RuntimeTest {};
 
@@ -46,7 +46,7 @@ static inline Ref<> runInInterpreterViaReify(
   BorrowedRef<PyCodeObject> code = PyFunction_GetCode(func);
   _PyInterpreterFrame* interp_frame =
       Cix_PyThreadState_PushFrame(tstate, code->co_framesize);
-  jit::jitFrameInit(
+  jitFrameInit(
       tstate,
       interp_frame,
       func,
@@ -56,8 +56,8 @@ static inline Ref<> runInInterpreterViaReify(
       nullptr,
       makeFrameReifier(code));
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  jit::jitFramePopulateFrame(interp_frame);
-  jit::jitFrameRemoveReifier(interp_frame);
+  jitFramePopulateFrame(interp_frame);
+  jitFrameRemoveReifier(interp_frame);
 #endif
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
@@ -369,7 +369,7 @@ class DeoptStressTest : public RuntimeTest {
     irfunc->reifier =
         ThreadedRef<>::create(makeFrameReifier(funcobj->func_code).get());
     auto guards = insertDeopts(*irfunc);
-    jit::Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+    Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
     auto delete_one_deopt = [&](const DeoptMetadata& deopt_meta) {
       auto it = guards.find(deopt_meta.nonce);
       JIT_CHECK(it != guards.end(), "No guard for nonce {}", deopt_meta.nonce);
@@ -448,11 +448,11 @@ class DeoptStressTest : public RuntimeTest {
     std::cerr << "Disassembly:\n";
     // Recompile so we get the annotated disassembly
     bool old_dump_asm = true;
-    std::swap(jit::getMutableConfig().log.dump_asm, old_dump_asm);
+    std::swap(getMutableConfig().log.dump_asm, old_dump_asm);
     NativeGeneratorFactory factory;
     NativeGenerator gen(&irfunc, factory);
     gen.getVectorcallEntry();
-    jit::getMutableConfig().log.dump_asm = old_dump_asm;
+    getMutableConfig().log.dump_asm = old_dump_asm;
     std::cerr << '\n';
     std::cerr << "Python traceback: ";
     PyErr_Print();

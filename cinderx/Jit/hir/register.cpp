@@ -8,7 +8,7 @@
 
 #include <ostream>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 const std::string& Register::name() const {
   if (name_.empty()) {
@@ -49,4 +49,4 @@ std::ostream& operator<<(std::ostream& os, ValueKind kind) {
   JIT_ABORT("Bad ValueKind {}", static_cast<int>(kind));
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

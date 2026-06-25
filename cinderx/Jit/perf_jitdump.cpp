@@ -43,7 +43,7 @@
 
 #endif
 
-namespace jit::perf {
+namespace cinderx::jit::perf {
 
 #ifndef WIN32
 int jit_perfmap = 0;
@@ -551,4 +551,4 @@ void afterForkChild() {
 #endif
 }
 
-} // namespace jit::perf
+} // namespace cinderx::jit::perf

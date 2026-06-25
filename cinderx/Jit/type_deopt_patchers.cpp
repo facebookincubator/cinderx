@@ -5,7 +5,7 @@
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 template <typename Body>
 bool shouldPatchForAttr(
@@ -110,4 +110,4 @@ void SplitDictDeoptPatcher::onPatch() {
   attr_name_.reset();
 }
 
-} // namespace jit
+} // namespace cinderx::jit

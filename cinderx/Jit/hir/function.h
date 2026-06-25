@@ -9,7 +9,7 @@
 #include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class Function {
  public:
@@ -105,4 +105,4 @@ class Function {
 using OpcodeCounts = std::array<int, kNumOpcodes>;
 OpcodeCounts count_opcodes(const Function& func);
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

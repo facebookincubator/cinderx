@@ -5,7 +5,7 @@
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -74,4 +74,4 @@ void CleanCFG::Run(Function& irfunc) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

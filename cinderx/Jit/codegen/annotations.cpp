@@ -9,7 +9,7 @@
 #include <sstream>
 #include <utility>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 std::string Annotations::disassembleSection(
     void* entry,
@@ -117,4 +117,4 @@ std::string Annotations::disassemble(
   return result;
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

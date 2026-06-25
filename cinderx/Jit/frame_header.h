@@ -10,7 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace jit {
+namespace cinderx::jit {
 
 int frameHeaderSize(BorrowedRef<PyCodeObject> code);
 
@@ -42,4 +42,4 @@ inline constexpr size_t kFrameHeaderOverhead = sizeof(FrameHeader);
 #define JIT_FRAME_DEOPT_PATCHED 0x04
 #define JIT_FRAME_MASK 0x07
 
-} // namespace jit
+} // namespace cinderx::jit

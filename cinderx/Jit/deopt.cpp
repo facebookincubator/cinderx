@@ -22,7 +22,7 @@
 
 #include <shared_mutex>
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -626,4 +626,4 @@ void visitLiveDeferredRefs(
 #endif
 }
 
-} // namespace jit
+} // namespace cinderx::jit

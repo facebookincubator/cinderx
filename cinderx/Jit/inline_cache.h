@@ -16,7 +16,7 @@
 #include <span>
 #include <unordered_map>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Mutator for an instance attribute that is stored in a split dictionary
 struct SplitMutator {
@@ -433,7 +433,7 @@ class LoadModuleMethodCache {
 // Invalidate all load/store attr caches for type
 void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type);
 
-} // namespace jit
+} // namespace cinderx::jit
 
 struct FunctionEntryCacheValue {
   void** ptr{nullptr};
@@ -441,4 +441,4 @@ struct FunctionEntryCacheValue {
 };
 
 using FunctionEntryCacheMap =
-    jit::UnorderedMap<PyFunctionObject*, FunctionEntryCacheValue>;
+    cinderx::jit::UnorderedMap<PyFunctionObject*, FunctionEntryCacheValue>;

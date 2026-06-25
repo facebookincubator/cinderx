@@ -10,7 +10,7 @@
 #include "cinderx/Jit/lir/regalloc.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 class LIRPostGenerationRewriteTest : public RuntimeTest {};
 
 static std::string runPostGenRewrite(const char* lir_input_str) {
@@ -260,4 +260,4 @@ BB %0
 }
 #endif
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

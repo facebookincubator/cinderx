@@ -9,7 +9,7 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 /*
  * This defines the global public API for the JIT that is consumed by the
@@ -88,4 +88,4 @@ Result compilePreloaderImpl(
     const hir::Preloader& preloader,
     BorrowedRef<PyFunctionObject> func);
 
-} // namespace jit
+} // namespace cinderx::jit

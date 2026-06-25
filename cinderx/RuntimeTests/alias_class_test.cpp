@@ -3,7 +3,7 @@
 
 #include "cinderx/Jit/hir/alias_class.h"
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 TEST(AliasClassTest, Equality) {
   EXPECT_EQ(ACellItem, ACellItem);

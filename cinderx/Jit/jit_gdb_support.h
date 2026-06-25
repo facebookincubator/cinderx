@@ -4,9 +4,9 @@
 
 #include "cinderx/python.h"
 
-namespace jit {
+namespace cinderx::jit {
+
 struct CompiledFunctionData;
-}
 
 int register_raw_debug_symbol(
     const char* function_name,
@@ -20,3 +20,5 @@ int register_pycode_debug_symbol(
     PyCodeObject* codeobj,
     const char* fullname,
     jit::CompiledFunctionData& compiled_func);
+
+} // namespace cinderx::jit

@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // This is the hash function defined by the ELF standard.
 constexpr uint32_t hash(const char* name) {
@@ -59,4 +59,4 @@ class HashTable {
   std::vector<uint32_t> chains_;
 };
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

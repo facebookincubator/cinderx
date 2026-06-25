@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/config.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 std::unique_ptr<AnnotationIndex> AnnotationIndex::from_function(
     BorrowedRef<PyFunctionObject> func) {
@@ -30,4 +30,4 @@ std::unique_ptr<AnnotationIndex> AnnotationIndex::from_function(
   return nullptr;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

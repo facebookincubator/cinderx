@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/copy_propagation.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 void PhiElimination::Run(Function& func) {
   for (bool changed = true; changed;) {
@@ -47,4 +47,4 @@ void PhiElimination::Run(Function& func) {
   removeTrampolineBlocks(&func.cfg);
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

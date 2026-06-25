@@ -14,7 +14,7 @@
 #include <string>
 #include <variant>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
 // in codegen.cpp/h. Currently, this file is almost an identical copy from
@@ -509,4 +509,4 @@ void GenerateFailedDeferredCompileBlocks(
 // directly to the block's label.
 void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env);
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

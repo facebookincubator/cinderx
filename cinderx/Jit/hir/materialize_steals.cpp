@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/instr_effects.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Insert MaterializeRef before each stolen input so that the actual incref
 // happens before ownership is transferred. The refcount insertion pass adds
@@ -53,4 +53,4 @@ void MaterializeSteals::Run(Function& func) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

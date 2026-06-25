@@ -4,7 +4,7 @@
 
 #include "cinderx/Common/log.h"
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 const char* codeSectionName(CodeSection section) {
   switch (section) {
     case CodeSection::kHot:
@@ -41,4 +41,4 @@ void populateCodeSections(
   });
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

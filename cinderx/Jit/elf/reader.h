@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <iosfwd>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // Find an ELF section by name from an ELF file.
 //
@@ -23,4 +23,4 @@ NoteArray readNoteSection(std::span<const std::byte> bytes);
 // Parse a function's code note data out of an ELF note.
 CodeNoteData parseCodeNote(const Note& note);
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

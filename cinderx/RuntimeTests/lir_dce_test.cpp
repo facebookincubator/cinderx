@@ -5,9 +5,9 @@
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit;
+using namespace cinderx::jit;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 class LIRDeadCodeEliminationTest : public RuntimeTest {};
 
 TEST_F(LIRDeadCodeEliminationTest, TestEliminateMov) {
@@ -202,4 +202,4 @@ BB %0
   ASSERT_EQ(lir_expected_str, ss.str());
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

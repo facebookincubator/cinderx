@@ -10,7 +10,7 @@
 
 class GuardTest : public RuntimeTest {};
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 static void testFillGuards(const char* hir_source, const char* expected) {
   auto func = HIRParser().ParseHIR(hir_source);

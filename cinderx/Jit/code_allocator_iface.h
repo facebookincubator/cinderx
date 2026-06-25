@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Resulting address and status code after calling ICodeAllocator::addCode().
 struct AllocateResult {
@@ -36,4 +36,4 @@ class ICodeAllocator {
   virtual const asmjit::Environment& asmJitEnvironment() const = 0;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

@@ -5,7 +5,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/module_state.h"
 
-namespace jit {
+namespace cinderx::jit {
 GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen, PyCodeObject* gen_code) {
   // TASK(T209501671): This has way too much going on. If we made PyGenObject
   // use PyObject_VAR_HEAD like it probably should this would get simpler. If
@@ -30,4 +30,4 @@ GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen) {
 GenDataFooter* jitGenDataFooter(PyGenObject* gen) {
   return *jitGenDataFooterPtr(gen);
 }
-} // namespace jit
+} // namespace cinderx::jit

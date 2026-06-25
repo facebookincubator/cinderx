@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 namespace hir {
 class Instr;
 }
@@ -82,4 +82,4 @@ class Annotations {
 };
 
 } // namespace codegen
-} // namespace jit
+} // namespace cinderx::jit

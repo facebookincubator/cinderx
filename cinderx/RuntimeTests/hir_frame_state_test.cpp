@@ -7,8 +7,9 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using jit::BCOffset;
-using namespace jit::hir;
+using cinderx::jit::BCOffset;
+
+using namespace cinderx::jit::hir;
 
 class FrameStateCreationTest : public RuntimeTest {};
 

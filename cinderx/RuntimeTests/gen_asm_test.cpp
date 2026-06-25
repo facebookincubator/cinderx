@@ -12,9 +12,10 @@
 #include <utility>
 
 using namespace asmjit;
-using namespace jit;
-using namespace jit::codegen;
-using namespace jit::hir;
+using namespace cinderx;
+using namespace cinderx::jit;
+using namespace cinderx::jit::codegen;
+using namespace cinderx::jit::hir;
 
 class ASMGeneratorTest : public RuntimeTest {
  public:
@@ -23,7 +24,7 @@ class ASMGeneratorTest : public RuntimeTest {
 
     CompilationKey key{
         func_obj->func_code, func_obj->func_builtins, func_obj->func_globals};
-    auto jit_ctx = reinterpret_cast<jit::CompilerContext<Compiler>*>(
+    auto jit_ctx = reinterpret_cast<CompilerContext<Compiler>*>(
         cinderx::getModuleState()->jit_context.get());
     std::optional<CompiledFunctionData> compiled_func =
         jit_ctx->compiler().Compile(func);
@@ -1488,8 +1489,8 @@ def func(a, b):
 }
 
 TEST_F(NewASMGeneratorTest, BlockSorter) {
-  jit::lir::Function func;
-  std::vector<jit::lir::BasicBlock*> blocks;
+  lir::Function func;
+  std::vector<lir::BasicBlock*> blocks;
   for (int i = 0; i < 6; i++) {
     blocks.push_back(func.allocateBasicBlock());
   }

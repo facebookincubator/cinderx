@@ -19,7 +19,7 @@
 
 #include <utility>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -667,4 +667,4 @@ IsolatedPreloaders::~IsolatedPreloaders() {
   tls_manager = prev_manager_;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

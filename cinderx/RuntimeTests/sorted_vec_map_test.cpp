@@ -11,7 +11,7 @@
 
 namespace {
 
-using namespace jit;
+using namespace cinderx;
 
 using IntMap = SortedVecMap<int, std::string>;
 

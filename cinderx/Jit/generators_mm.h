@@ -8,7 +8,7 @@
 
 #include <array>
 
-namespace jit {
+namespace cinderx::jit {
 
 struct JitGenObject;
 
@@ -60,4 +60,4 @@ class JITGenFreeThreadedFreeList : public IJitGenFreeList {
   void free(PyObject* ptr) override;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

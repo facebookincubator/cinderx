@@ -9,11 +9,11 @@
 
 #include <utility>
 
-namespace jit {
+namespace cinderx::jit {
 class CodeRuntime;
 struct GenDataFooter;
 struct JitGenObject;
-} // namespace jit
+} // namespace cinderx::jit
 
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this
@@ -35,11 +35,11 @@ PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
 PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
     PyFunctionObject* func);
 
-std::pair<PyThreadState*, jit::GenDataFooter*>
+std::pair<PyThreadState*, cinderx::jit::GenDataFooter*>
 JITRT_AllocateAndLinkGenAndInterpreterFrame(
     PyFunctionObject* func,
-    jit::CodeRuntime* code_rt,
-    GenResumeFunc resume_entry,
+    cinderx::jit::CodeRuntime* code_rt,
+    cinderx::GenResumeFunc resume_entry,
     uint64_t original_frame_pointer);
 
 void JITRT_InitFrameCellVars(
@@ -47,7 +47,7 @@ void JITRT_InitFrameCellVars(
     int nvars,
     PyThreadState* tstate);
 
-std::pair<jit::JitGenObject*, jit::GenDataFooter*>
+std::pair<cinderx::jit::JitGenObject*, cinderx::jit::GenDataFooter*>
 JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
 
 /*
@@ -189,7 +189,7 @@ PyObject* JITRT_VectorcallTstate(
 /*
  * Perform a method lookup on an object.
  */
-LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
+cinderx::LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
 
 /*
  * Perform an attribute lookup in a super class
@@ -197,7 +197,7 @@ LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
  * This is used to avoid bound method creation for attribute lookups that
  * correspond to method calls (e.g. `self.foo()`).
  */
-LoadMethodResult JITRT_GetMethodFromSuper(
+cinderx::LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
     PyTypeObject* type,
     PyObject* self,
@@ -479,7 +479,7 @@ int JITRT_NotContainsBool(PyObject* w, PyObject* v);
 int JITRT_RichCompareBool(PyObject* v, PyObject* w, int op);
 
 /* perform a batch decref to the objects in args */
-void JITRT_BatchDecref(jit::TaggedPyObject* args, int nargs);
+void JITRT_BatchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
 
 /* Check that `i` is within the bounds of `seq`.
  *
@@ -533,7 +533,7 @@ PyObject* JITRT_LookupAttrSpecial(
     PyObject* attr,
     const char* failure_fmt_str);
 
-LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
+cinderx::LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
 
 /*
  * Non-inline wrapper for _Py_qsbr_quiescent_state(). This is only meaningful
@@ -558,7 +558,7 @@ void JITRT_IncRefShared(PyObject* obj);
  *
  * Used by FT builds only.
  */
-jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
+cinderx::jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
 
 #if PY_VERSION_HEX >= 0x030D0000
 

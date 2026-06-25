@@ -6,7 +6,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 TEST(CopyPropagationTest, EliminatesCopies) {
   // This could be converted to a .txt-based pass test when we lower directly to

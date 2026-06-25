@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // See https://en.wikipedia.org/wiki/Executable_and_Linkable_Format#File_layout
 // for how the ELF 64-bit file layout is structured.
@@ -154,4 +154,4 @@ struct FileHeader {
   uint16_t section_name_index{0};
 };
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

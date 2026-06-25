@@ -12,11 +12,11 @@
 #include <iterator>
 #include <utility>
 
-using namespace jit::codegen;
+using namespace cinderx::jit::codegen;
 
 #define TRACE(...) JIT_LOGIF(getConfig().log.debug_regalloc, __VA_ARGS__)
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 namespace {
 
@@ -1708,4 +1708,4 @@ std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs) {
   return out;
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

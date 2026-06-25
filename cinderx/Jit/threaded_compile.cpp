@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/threaded_compile.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -14,4 +14,4 @@ ThreadedCompileContext& getThreadedCompileContext() {
   return s_threaded_compile_context;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

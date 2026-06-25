@@ -4,7 +4,7 @@
 
 #include <type_traits>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 static_assert(std::is_standard_layout_v<Dyn>);
 
@@ -13,4 +13,4 @@ DynamicTable::DynamicTable() {
   dyns_.emplace_back();
 }
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

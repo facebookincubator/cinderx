@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/analysis.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -112,4 +112,4 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
   reflowTypes(irfunc);
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

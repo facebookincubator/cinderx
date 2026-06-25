@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 static_assert(sizeof(Type) == 16, "Type should fit in two registers");
 static_assert(sizeof(intptr_t) == sizeof(int64_t), "Expected 64-bit pointers");
@@ -729,4 +729,4 @@ Type prim_type_to_type(int prim_type) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

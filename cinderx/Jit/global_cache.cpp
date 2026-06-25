@@ -15,7 +15,7 @@
 #define PyLazyImport_CheckExact(OBJ) false
 #endif
 
-namespace jit {
+namespace cinderx::jit {
 
 GlobalCacheKey::GlobalCacheKey(
     BorrowedRef<PyDictObject> builtins,
@@ -346,4 +346,4 @@ void GlobalCacheManager::disableCaches(const std::vector<GlobalCache>& caches) {
   }
 }
 
-} // namespace jit
+} // namespace cinderx::jit

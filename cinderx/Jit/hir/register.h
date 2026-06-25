@@ -7,7 +7,7 @@
 #include <iosfwd>
 #include <string>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class Instr;
 
@@ -111,7 +111,7 @@ inline auto format_as(const jit::hir::ValueKind& kind) {
   return fmt::underlying(kind);
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir
 
 template <>
-struct fmt::formatter<jit::hir::Register> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::hir::Register> : fmt::ostream_formatter {};

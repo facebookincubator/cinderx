@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // Convert an HIR type into an LIR type.
 DataType hirTypeToDataType(hir::Type tp);
@@ -366,4 +366,4 @@ class BasicBlockBuilder {
   }
 };
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

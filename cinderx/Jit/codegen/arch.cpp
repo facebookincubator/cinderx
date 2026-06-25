@@ -6,7 +6,7 @@
 
 using namespace asmjit;
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 // Attempt to build a pointer using an offset from a base register. If it is
 // not possible to do so, return std::nullopt.
@@ -132,14 +132,14 @@ void add_signed_immediate(
   }
 }
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch
 
 #endif
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 std::ostream& operator<<(std::ostream& out, const PhyLocation& loc) {
   return out << loc.toString();
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

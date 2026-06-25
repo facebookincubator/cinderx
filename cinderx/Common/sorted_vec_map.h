@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit {
+namespace cinderx {
 
 // An associative map backed by a single sorted std::vector of key/value pairs.
 //
@@ -104,4 +104,4 @@ class SortedVecMap {
   [[no_unique_address]] Compare comp_;
 };
 
-} // namespace jit
+} // namespace cinderx

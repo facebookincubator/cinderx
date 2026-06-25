@@ -7,7 +7,7 @@
 
 #include <memory>
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 using HIRParserTest = RuntimeTest;
 

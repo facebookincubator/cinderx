@@ -22,7 +22,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 /*
  * This file defines the high-level intermediate representation (HIR) used by
@@ -4201,10 +4201,12 @@ const char* getInlineFailureName(InlineFailureType failure_type);
 FrameState* get_frame_state(Instr& instr);
 const FrameState* get_frame_state(const Instr& instr);
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir
 
 template <>
-struct fmt::formatter<jit::hir::OperandType> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::hir::OperandType> : fmt::ostream_formatter {
+};
 
 template <>
-struct fmt::formatter<jit::hir::CallCFunc::Func> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::hir::CallCFunc::Func>
+    : fmt::ostream_formatter {};

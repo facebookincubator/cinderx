@@ -18,7 +18,7 @@
 #include <asmjit/x86/x86emitter.h>
 #include <asmjit/x86/x86operand.h>
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 using Builder = asmjit::x86::Builder;
 using Emitter = asmjit::x86::Emitter;
@@ -46,7 +46,7 @@ constexpr auto reg_stack_pointer_loc = RSP;
 
 constexpr auto fp = asmjit::x86::rbp;
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch
 
 #elif defined(CINDER_AARCH64)
 
@@ -57,7 +57,7 @@ constexpr auto fp = asmjit::x86::rbp;
 #include <asmjit/arm/a64operand.h>
 #include <asmjit/arm/armutils.h>
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 using Builder = asmjit::a64::Builder;
 using Emitter = asmjit::a64::Emitter;
@@ -101,13 +101,13 @@ constexpr auto lr = asmjit::a64::x30;
 // Size of the AArch64 frame record: saved FP + LR (two 64-bit registers).
 constexpr int kFrameRecordSize = 2 * sizeof(void*);
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch
 
 #else
 
 #include "cinderx/Jit/codegen/arch/unknown.h"
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 class Builder : public asmjit::BaseBuilder {
  public:
@@ -138,13 +138,13 @@ constexpr auto reg_double_auxilary_return_loc = D1;
 constexpr auto reg_frame_pointer_loc = R3;
 constexpr auto reg_stack_pointer_loc = SP;
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch
 
 #endif
 
 #if defined(CINDER_AARCH64)
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 enum class AccessSize : int32_t { k8 = 1, k16 = 2, k32 = 4, k64 = 8 };
 
@@ -160,9 +160,9 @@ asmjit::a64::Mem ptr_resolve(
     const asmjit::a64::Gp& scratch,
     AccessSize access_size = AccessSize::k64);
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 void cmp_immediate(
     asmjit::a64::Builder* as,
@@ -187,25 +187,26 @@ void add_signed_immediate(
     const asmjit::a64::Gp& lhs,
     int64_t rhsi);
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch
 
 #endif
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 std::ostream& operator<<(std::ostream& out, const PhyLocation& loc);
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen
 
-inline auto format_as(jit::codegen::RegId reg) {
+inline auto format_as(cinderx::jit::codegen::RegId reg) {
   return fmt::underlying(reg);
 }
 
 namespace std {
 
 template <>
-struct hash<jit::codegen::PhyLocation> {
-  std::size_t operator()(jit::codegen::PhyLocation const& s) const noexcept {
+struct hash<cinderx::jit::codegen::PhyLocation> {
+  std::size_t operator()(
+      cinderx::jit::codegen::PhyLocation const& s) const noexcept {
     return s.loc;
   }
 };
@@ -213,4 +214,5 @@ struct hash<jit::codegen::PhyLocation> {
 } // namespace std
 
 template <>
-struct fmt::formatter<jit::codegen::PhyLocation> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::codegen::PhyLocation>
+    : fmt::ostream_formatter {};

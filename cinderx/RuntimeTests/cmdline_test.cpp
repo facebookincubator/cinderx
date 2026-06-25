@@ -17,8 +17,8 @@
 // are being processed correctly to have the required effect
 // on the JIT config
 
-using namespace jit;
-using namespace jit::lir;
+using namespace cinderx;
+using namespace cinderx::jit;
 
 class CmdLineTest : public RuntimeTest {
  public:

@@ -8,7 +8,7 @@
 
 using JITTimeLogTest = RuntimeTest;
 
-using namespace jit;
+using namespace cinderx::jit;
 
 void testWithCompilationTimes(
     const std::string& funcList,

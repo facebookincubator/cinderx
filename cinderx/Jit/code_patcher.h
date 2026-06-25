@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <span>
 
-namespace jit {
+namespace cinderx::jit {
 
 // A CodePatcher is used by the runtime to overwrite parts of compiled code.
 // Often times this is used to patch in a jump to a deopt exit when an invariant
@@ -136,4 +136,4 @@ class JumpPatcher : public CodePatcher {
   uint8_t* jumpTarget() const;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

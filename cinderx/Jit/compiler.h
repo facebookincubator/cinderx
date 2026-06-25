@@ -16,7 +16,7 @@
 #include <string_view>
 #include <utility>
 
-namespace jit {
+namespace cinderx::jit {
 
 using PostPassFunction = std::function<
     void(hir::Function& func, std::string_view pass_name, std::size_t time_ns)>;
@@ -75,4 +75,4 @@ class Compiler {
   codegen::NativeGeneratorFactory ngen_factory_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

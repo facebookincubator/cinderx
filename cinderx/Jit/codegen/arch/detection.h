@@ -2,7 +2,7 @@
 
 #pragma once
 
-namespace jit::codegen::arch {
+namespace cinderx::jit::codegen::arch {
 
 // The CPU architecture targeted by the current build.
 enum class Arch {
@@ -31,4 +31,4 @@ constexpr Arch kBuildArch = Arch::kUnknown;
 
 #endif
 
-} // namespace jit::codegen::arch
+} // namespace cinderx::jit::codegen::arch

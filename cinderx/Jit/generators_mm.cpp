@@ -13,7 +13,7 @@
 #include "internal/pycore_interpframe.h"
 #endif
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -143,4 +143,4 @@ void JITGenFreeThreadedFreeList::free(PyObject* ptr) {
   PyObject_GC_Del(ptr);
 }
 
-} // namespace jit
+} // namespace cinderx::jit

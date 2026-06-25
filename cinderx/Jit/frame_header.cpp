@@ -5,7 +5,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/config.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
   if (code->co_flags & kCoFlagsAnyGenerator) {
@@ -15,4 +15,4 @@ int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
   return kFrameHeaderOverhead + sizeof(PyObject*) * code->co_framesize;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

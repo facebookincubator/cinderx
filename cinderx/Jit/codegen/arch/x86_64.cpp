@@ -7,7 +7,7 @@
 
 #ifdef CINDER_X86_64
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 PhyLocation PhyLocation::parse(std::string_view name) {
 #define FIND_GP_REG(V64, V32, V16, V8)  \
@@ -49,6 +49,6 @@ std::string PhyLocation::toString() const {
   return std::string{name(static_cast<RegId>(loc))};
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen
 
 #endif

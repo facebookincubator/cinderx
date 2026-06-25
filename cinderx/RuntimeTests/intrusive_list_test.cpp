@@ -3,8 +3,8 @@
 
 #include "cinderx/Jit/intrusive_list.h"
 
-using jit::IntrusiveList;
-using jit::IntrusiveListNode;
+using cinderx::jit::IntrusiveList;
+using cinderx::jit::IntrusiveListNode;
 
 struct Entry {
   Entry(int value) : value(value), node() {}

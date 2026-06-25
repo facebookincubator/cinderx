@@ -10,7 +10,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Check that func's CFG is well-formed and that its Register uses and defs are
 // vald SSA, returning true iff no errors were found. Details of any errors
@@ -70,4 +70,4 @@ class SSAify final : public Pass {
   Register* null_reg_{nullptr};
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

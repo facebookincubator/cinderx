@@ -4,7 +4,7 @@
 
 #include <type_traits>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 static_assert(std::is_standard_layout_v<Symbol>);
 
@@ -17,4 +17,4 @@ const Symbol& SymbolTable::operator[](size_t idx) const {
   return syms_[idx];
 }
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

@@ -10,6 +10,8 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/pyjit.h"
 
+using namespace cinderx;
+
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {
   // Force preloading dependent functions to test the inliner.
@@ -25,7 +27,7 @@ std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
 }
 
 void HIRTest::TestBody() {
-  using namespace jit::hir;
+  using namespace cinderx::jit::hir;
 
   std::string test_name = "<unknown>";
   const testing::TestInfo* info =

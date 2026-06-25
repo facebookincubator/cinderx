@@ -42,7 +42,7 @@
  *     }
  */
 
-namespace jit {
+namespace cinderx::jit {
 
 class IntrusiveListNode {
  public:
@@ -377,4 +377,4 @@ class IntrusiveListIterator {
   node_type current_{};
 };
 
-} // namespace jit
+} // namespace cinderx::jit

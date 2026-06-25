@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/instr_effects.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -50,4 +50,4 @@ void DeadCodeElimination::Run(Function& func) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

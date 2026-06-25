@@ -7,7 +7,7 @@
 
 #include <ostream>
 
-using namespace jit::codegen;
+using namespace cinderx::jit::codegen;
 using Op = CopyGraph::Op;
 
 std::ostream& operator<<(std::ostream& os, const Op& op) {
@@ -108,6 +108,6 @@ TEST(CopyGraphTest, CopyGraphWithTypeMultiCycles) {
     if (op.to == CopyGraph::kTempLoc) {
       continue;
     }
-    EXPECT_EQ(op.type, jit::map_get(expected, op.to));
+    EXPECT_EQ(op.type, cinderx::map_get(expected, op.to));
   }
 }

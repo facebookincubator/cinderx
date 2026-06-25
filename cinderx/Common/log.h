@@ -18,21 +18,21 @@
 
 #if defined(__has_cpp_attribute)
 #if __has_cpp_attribute(gnu::cold)
-#define JIT_COLD [[gnu::cold]]
+#define CINDERX_COLD [[gnu::cold]]
 #endif
 #endif
 
-#if !defined(JIT_COLD) && defined(__has_attribute)
+#if !defined(CINDERX_COLD) && defined(__has_attribute)
 #if __has_attribute(cold)
-#define JIT_COLD __attribute__((cold))
+#define CINDERX_COLD __attribute__((cold))
 #endif
 #endif
 
-#ifndef JIT_COLD
-#define JIT_COLD
+#ifndef CINDERX_COLD
+#define CINDERX_COLD
 #endif
 
-namespace jit {
+namespace cinderx {
 
 template <typename... Args>
 auto format_to(
@@ -59,30 +59,30 @@ std::string repr(BorrowedRef<> obj);
 void setRuntimeError(const std::exception& exn);
 
 // Outlined logging implementations to reduce code size on hot paths.
-JIT_COLD void logImplV(
+CINDERX_COLD void logImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
     fmt::format_args args);
-[[noreturn]] JIT_COLD void abortImplV(
+[[noreturn]] CINDERX_COLD void abortImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
     fmt::format_args args);
-[[noreturn]] JIT_COLD void checkFailedImplV(
+[[noreturn]] CINDERX_COLD void checkFailedImplV(
     std::string_view file,
     int line,
     std::string_view cond_str,
     fmt::string_view format,
     fmt::format_args args);
-[[noreturn]] JIT_COLD void throwImplV(
+[[noreturn]] CINDERX_COLD void throwImplV(
     std::string_view file,
     int line,
     fmt::string_view format,
     fmt::format_args args);
 
 template <typename... Args>
-JIT_COLD void logImpl(
+CINDERX_COLD void logImpl(
     std::string_view file,
     int line,
     fmt::format_string<Args...> format,
@@ -91,7 +91,7 @@ JIT_COLD void logImpl(
 }
 
 template <typename... Args>
-[[noreturn]] JIT_COLD void abortImpl(
+[[noreturn]] CINDERX_COLD void abortImpl(
     std::string_view file,
     int line,
     fmt::format_string<Args...> format,
@@ -100,7 +100,7 @@ template <typename... Args>
 }
 
 template <typename... Args>
-[[noreturn]] JIT_COLD void checkFailedImpl(
+[[noreturn]] CINDERX_COLD void checkFailedImpl(
     std::string_view file,
     int line,
     std::string_view cond_str,
@@ -111,7 +111,7 @@ template <typename... Args>
 }
 
 template <typename... Args>
-[[noreturn]] JIT_COLD void throwImpl(
+[[noreturn]] CINDERX_COLD void throwImpl(
     std::string_view file,
     int line,
     fmt::format_string<Args...> format,
@@ -119,20 +119,21 @@ template <typename... Args>
   throwImplV(file, line, format, fmt::make_format_args(args...));
 }
 
-#define JIT_LOG(...) jit::logImpl(__FILE__, __LINE__, __VA_ARGS__)
+#define JIT_LOG(...) cinderx::logImpl(__FILE__, __LINE__, __VA_ARGS__)
 
 #define JIT_LOGIF(PRED, ...) \
   if (PRED) {                \
     JIT_LOG(__VA_ARGS__);    \
   }
 
-#define JIT_DLOG(...) JIT_LOGIF(jit::getConfig().log.debug, __VA_ARGS__)
+#define JIT_DLOG(...) \
+  JIT_LOGIF(cinderx::jit::getConfig().log.debug, __VA_ARGS__)
 
-#define JIT_CHECK(COND, ...)                                        \
-  {                                                                 \
-    if (!(COND)) {                                                  \
-      jit::checkFailedImpl(__FILE__, __LINE__, #COND, __VA_ARGS__); \
-    }                                                               \
+#define JIT_CHECK(COND, ...)                                            \
+  {                                                                     \
+    if (!(COND)) {                                                      \
+      cinderx::checkFailedImpl(__FILE__, __LINE__, #COND, __VA_ARGS__); \
+    }                                                                   \
   }
 
 #define JIT_CHECK_ONCE(COND, ...)   \
@@ -144,9 +145,9 @@ template <typename... Args>
     }                               \
   }
 
-#define JIT_ABORT(...) jit::abortImpl(__FILE__, __LINE__, __VA_ARGS__)
+#define JIT_ABORT(...) cinderx::abortImpl(__FILE__, __LINE__, __VA_ARGS__)
 
-#define JIT_THROW(...) jit::throwImpl(__FILE__, __LINE__, __VA_ARGS__)
+#define JIT_THROW(...) cinderx::throwImpl(__FILE__, __LINE__, __VA_ARGS__)
 
 #define JIT_THROW_IF(COND, ...) \
   if (COND) {                   \
@@ -172,4 +173,4 @@ template <typename... Args>
   }
 #endif
 
-} // namespace jit
+} // namespace cinderx

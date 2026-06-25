@@ -23,7 +23,7 @@
 // This file implements our reference count insertion pass. If this is your
 // first time here, I recommend reading refcount_insertion.md first.
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -355,15 +355,15 @@ std::ostream& operator<<(std::ostream& os, const StateMap& regs) {
 
 } // namespace
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir
 
 template <>
-struct fmt::formatter<jit::hir::RegState> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::hir::RegState> : fmt::ostream_formatter {};
 
 template <>
-struct fmt::formatter<jit::hir::StateMap> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::hir::StateMap> : fmt::ostream_formatter {};
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -1355,4 +1355,4 @@ void RefcountInsertion::Run(Function& func) {
   optimizeLongDecrefRuns(func);
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

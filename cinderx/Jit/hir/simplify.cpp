@@ -20,7 +20,7 @@
 
 #include <fmt/ostream.h>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // This file contains the Simplify pass, which is a collection of
 // strength-reduction optimizations. An optimization should be added as a case
@@ -2519,4 +2519,4 @@ void Simplify::Run(Function& irfunc) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

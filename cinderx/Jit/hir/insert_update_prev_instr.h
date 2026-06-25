@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class InsertUpdatePrevInstr final : public Pass {
  public:
@@ -17,4 +17,4 @@ class InsertUpdatePrevInstr final : public Pass {
   }
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

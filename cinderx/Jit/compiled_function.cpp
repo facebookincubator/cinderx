@@ -25,14 +25,14 @@ bool isJitCompiled(const PyFunctionObject* func) {
   if (mod_state == nullptr) {
     return false;
   }
-  jit::ICodeAllocator* code_allocator = mod_state->code_allocator.get();
+  auto code_allocator = mod_state->code_allocator.get();
   return code_allocator != nullptr &&
       code_allocator->contains(reinterpret_cast<const void*>(func->vectorcall));
 }
 
 } // extern "C"
 
-namespace jit {
+namespace cinderx::jit {
 
 // The key used to store the CompiledFunction in a function's __dict__.
 PyObject *kCompiledFunctionKey, *kNestedCompiledFunctionsKey = nullptr;
@@ -62,11 +62,11 @@ int compiledfunc_clear(PyObject* self) {
 
 static PyTypeObject _CiCompiledFunction_Type = {
     .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "CompiledFunction",
-    .tp_basicsize = sizeof(jit::CompiledFunction),
-    .tp_dealloc = jit::compiledfunc_dealloc,
+    .tp_basicsize = sizeof(CompiledFunction),
+    .tp_dealloc = compiledfunc_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_traverse = jit::compiledfunc_traverse,
-    .tp_clear = jit::compiledfunc_clear,
+    .tp_traverse = compiledfunc_traverse,
+    .tp_clear = compiledfunc_clear,
 };
 
 void compiledfuncdata_dealloc(PyObject* self) {
@@ -78,7 +78,7 @@ void compiledfuncdata_dealloc(PyObject* self) {
   // instead.
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   if (mod_state != nullptr && cfd->code.data() != nullptr) {
-    jit::ICodeAllocator* code_allocator = mod_state->code_allocator.get();
+    auto code_allocator = mod_state->code_allocator.get();
     if (code_allocator != nullptr) {
       code_allocator->releaseCode(const_cast<std::byte*>(cfd->code.data()));
     }
@@ -109,18 +109,18 @@ int compiledfuncdata_clear(PyObject* /*self*/) {
 
 static PyTypeObject _CiCompiledFunctionData_Type = {
     .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "CompiledFunctionData",
-    .tp_basicsize = sizeof(jit::CompiledFunctionData),
-    .tp_dealloc = jit::compiledfuncdata_dealloc,
+    .tp_basicsize = sizeof(CompiledFunctionData),
+    .tp_dealloc = compiledfuncdata_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_traverse = jit::compiledfuncdata_traverse,
-    .tp_clear = jit::compiledfuncdata_clear,
+    .tp_traverse = compiledfuncdata_traverse,
+    .tp_clear = compiledfuncdata_clear,
 };
 
 } // namespace
 
-} // namespace jit
+} // namespace cinderx::jit
 
-namespace jit {
+namespace cinderx::jit {
 
 int initCompiledFunctionType() {
   if (PyType_Ready(&_CiCompiledFunctionData_Type) < 0) {
@@ -387,7 +387,7 @@ void CompiledFunction::printHIR() const {
   JIT_CHECK(
       data_->irfunc != nullptr,
       "Can only call CompiledFunction::printHIR() from a debug build");
-  jit::hir::HIRPrinter printer;
+  hir::HIRPrinter printer;
   printer.Print(std::cout, *data_->irfunc);
 }
 
@@ -505,4 +505,4 @@ void CompiledFunction::clear(bool context_finalizing) {
   }
 }
 
-} // namespace jit
+} // namespace cinderx::jit

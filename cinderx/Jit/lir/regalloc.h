@@ -10,7 +10,7 @@
 #include <memory>
 #include <ostream>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // This header file contains classes implementing linear scan register
 // allocation. The algorithm employed is based on papers "Linear Scan Register
@@ -294,10 +294,11 @@ class LinearScanAllocator {
 std::ostream& operator<<(std::ostream& out, const LiveRange& rhs);
 std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs);
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir
 
 template <>
-struct fmt::formatter<jit::lir::LiveRange> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::LiveRange> : fmt::ostream_formatter {};
 
 template <>
-struct fmt::formatter<jit::lir::LiveInterval> : fmt::ostream_formatter {};
+struct fmt::formatter<cinderx::jit::lir::LiveInterval>
+    : fmt::ostream_formatter {};

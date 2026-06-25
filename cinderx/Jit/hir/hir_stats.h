@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 class HIRStats final : public Pass {
  public:
@@ -34,4 +34,4 @@ class HIRStats final : public Pass {
   Stats stats_;
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

@@ -10,7 +10,7 @@
 #include <sstream>
 #include <string>
 
-namespace jit {
+namespace cinderx::jit {
 
 constexpr std::string_view indent1 = "         ";
 constexpr std::string_view indent2 = "             ";
@@ -337,4 +337,4 @@ std::string FlagProcessor::jitXOptionHelpMessage() {
   return ret;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

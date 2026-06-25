@@ -10,7 +10,7 @@
 
 #include <asmjit/asmjit.h>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 struct Environ;
 
@@ -26,4 +26,4 @@ void emitCall(
     const jit::lir::Instruction* instr);
 void emitCall(Environ& env, uint64_t func, const jit::lir::Instruction* instr);
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

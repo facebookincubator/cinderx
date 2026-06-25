@@ -4,7 +4,7 @@
 
 #include "cinderx/Common/util.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 GenYieldPoint::GenYieldPoint(std::size_t deopt_idx, ptrdiff_t yield_from_offset)
     : deopt_idx_{deopt_idx}, yield_from_offset_{yield_from_offset} {}
@@ -208,4 +208,4 @@ BorrowedRef<CompiledFunction> CodeRuntime::compiledFunction() const {
   return compiled_function_;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

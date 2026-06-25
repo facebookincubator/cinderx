@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/codegen/copy_graph.h"
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 CopyGraph::Node::~Node() {
   if (child_node.isLinked()) {
@@ -142,4 +142,4 @@ void CopyGraph::processLeafNodes(std::vector<Op>& ops) {
   }
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

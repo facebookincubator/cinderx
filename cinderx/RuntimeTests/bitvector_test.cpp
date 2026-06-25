@@ -5,7 +5,7 @@
 
 #include <ostream>
 
-using namespace jit::util;
+using namespace cinderx::jit::util;
 
 TEST(BitVectorTest, ShortVectors) {
   BitVector bv1(34, uint64_t(0x310305070));

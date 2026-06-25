@@ -8,6 +8,8 @@
 
 using BytecodeInstructionIteratorTest = RuntimeTest;
 
+using namespace cinderx::jit;
+
 TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   //  0  EXTENDED_ARG  1
   //  2  EXTENDED_ARG  2
@@ -58,7 +60,7 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
       /*_unused_exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
-  jit::BytecodeInstructionBlock bc_block{code};
+  BytecodeInstructionBlock bc_block{code};
   auto it = bc_block.begin();
   EXPECT_EQ(it->opcode(), LOAD_CONST);
   EXPECT_EQ(it->oparg(), 0x010203);

@@ -6,7 +6,7 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/lir/function.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 BasicBlock::BasicBlock(Function* func) : id_(func->allocateId()), func_(func) {}
 
@@ -222,4 +222,4 @@ void BasicBlock::applyPendingAnnotation(Instruction* instr) {
   }
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 template <typename RegIdType, int VecDRegBase, int NumRegs>
 struct PhyLocationBase {
@@ -57,4 +57,4 @@ struct PhyLocationBase {
   }
 };
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

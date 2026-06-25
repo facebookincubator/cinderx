@@ -59,7 +59,8 @@
 #include <utility>
 #include <vector>
 
-using namespace jit;
+using namespace cinderx;
+using namespace cinderx::jit;
 
 jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
 
@@ -3332,7 +3333,7 @@ int register_gc_callback() {
 
 } // namespace
 
-namespace jit {
+namespace cinderx::jit {
 
 int initialize() {
   JIT_CHECK(
@@ -3905,4 +3906,4 @@ Result compilePreloaderImpl(
   return Result::OK;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

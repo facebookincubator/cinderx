@@ -7,7 +7,7 @@
 
 #include <sstream>
 
-using namespace jit;
+using namespace cinderx::jit;
 
 using ElfTest = RuntimeTest;
 

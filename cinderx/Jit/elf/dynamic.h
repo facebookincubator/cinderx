@@ -8,7 +8,7 @@
 #include <span>
 #include <vector>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 enum class DynTag : uint64_t {
   kNull = 0,
@@ -49,4 +49,4 @@ class DynamicTable {
   std::vector<Dyn> dyns_;
 };
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

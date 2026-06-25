@@ -10,11 +10,14 @@
 
 #include <memory>
 
+using namespace cinderx;
+using namespace cinderx::jit;
+
 class JITContextTest : public RuntimeTest {
  public:
   void SetUp() override {
     RuntimeTest::SetUp();
-    jit_ctx_ = std::make_unique<jit::CompilerContext<jit::Compiler>>();
+    jit_ctx_ = std::make_unique<CompilerContext<Compiler>>();
     ASSERT_NE(jit_ctx_, nullptr) << "Failed creating jit context";
   }
 
@@ -23,7 +26,7 @@ class JITContextTest : public RuntimeTest {
     RuntimeTest::TearDown();
   }
 
-  std::unique_ptr<jit::CompilerContext<jit::Compiler>> jit_ctx_;
+  std::unique_ptr<CompilerContext<Compiler>> jit_ctx_;
 };
 
 TEST_F(JITContextTest, UnwatchableBuiltins) {
@@ -45,12 +48,11 @@ foo = "hello"
 )";
 
   Ref<PyFunctionObject> func(compileAndGet(py_src, "func"));
-  std::unique_ptr<jit::hir::Preloader> preloader(
-      jit::hir::Preloader::make(func, jit::makeFrameReifier(func->func_code)));
+  std::unique_ptr<hir::Preloader> preloader(
+      hir::Preloader::make(func, makeFrameReifier(func->func_code)));
 
-  auto comp_result =
-      jit::compilePreloaderImpl(jit_ctx_.get(), *preloader, func);
-  ASSERT_EQ(comp_result, jit::Result::OK);
+  auto comp_result = compilePreloaderImpl(jit_ctx_.get(), *preloader, func);
+  ASSERT_EQ(comp_result, Result::OK);
 
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));

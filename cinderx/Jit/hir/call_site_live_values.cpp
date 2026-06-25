@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -99,4 +99,4 @@ void CallSiteLiveValues::Run(Function& irfunc) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

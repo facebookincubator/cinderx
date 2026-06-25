@@ -5,9 +5,9 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace jit::codegen;
+using namespace cinderx::jit::codegen;
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 class CodegenTest : public RuntimeTest {};
 
@@ -43,4 +43,4 @@ TEST_F(CodegenTest, TestPhyRegisterSet) {
   ASSERT_EQ(set.Has(3), false);
 }
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

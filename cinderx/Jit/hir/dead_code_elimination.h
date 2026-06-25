@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Eliminate instructions whose outputs are not used in a return or by
 // other instructions with side-effects
@@ -19,4 +19,4 @@ class DeadCodeElimination final : public Pass {
   }
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

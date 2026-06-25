@@ -7,7 +7,7 @@
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/operand.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 // For the purposes of dead code elimination, we consider writes to physical
 // registers as affecting memory.
@@ -92,4 +92,4 @@ void eliminateDeadCode(Function* function) {
   }
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

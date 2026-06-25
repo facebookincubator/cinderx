@@ -10,8 +10,8 @@
 
 #if defined(CINDER_AARCH64)
 
-using namespace jit;
-using namespace jit::codegen;
+using namespace cinderx::jit;
+using namespace cinderx::jit::codegen;
 
 namespace {
 

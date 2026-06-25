@@ -11,7 +11,7 @@
 
 class SSAifyTest : public RuntimeTest {};
 
-using namespace jit::hir;
+using namespace cinderx::jit::hir;
 
 static void testCheckFunc(const char* hir_source, const char* expected_err) {
   std::ostringstream err;

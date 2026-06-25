@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <span>
 
-namespace jit {
+namespace cinderx::jit {
 
 #ifndef WIN32
 class MmapFile {
@@ -27,4 +27,4 @@ class MmapFile {
 
 #endif
 
-} // namespace jit
+} // namespace cinderx::jit

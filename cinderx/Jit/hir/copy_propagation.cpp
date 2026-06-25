@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/hir/copy_propagation.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 void CopyPropagation::Run(Function& irfunc) {
   std::vector<Instr*> assigns;
@@ -25,4 +25,4 @@ void CopyPropagation::Run(Function& irfunc) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

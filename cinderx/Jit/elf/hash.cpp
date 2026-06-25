@@ -4,7 +4,7 @@
 
 #include "cinderx/Common/log.h"
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 void HashTable::build(const SymbolTable& syms, const StringTable& strings) {
   // Use a load factor of 2 for the hash table.  It will never be resized
@@ -43,4 +43,4 @@ uint32_t HashTable::chaseChainIdx(uint32_t idx) const {
   return idx;
 }
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

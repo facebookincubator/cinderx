@@ -78,7 +78,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include <span>
 #include <unordered_set>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Data members extracted from CompiledFunction to enable separate storage.
 // CompiledFunction is a GC tracked object and cannot be constructed during
@@ -274,6 +274,6 @@ bool associateFunctionWithCompiled(
     BorrowedRef<CompiledFunction> compiled,
     bool is_nested);
 
-} // namespace jit
+} // namespace cinderx::jit
 
 #endif

@@ -5,7 +5,7 @@
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/printer.h"
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
   auto& blocks = func->basicblocks();
@@ -72,4 +72,4 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
   return true;
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

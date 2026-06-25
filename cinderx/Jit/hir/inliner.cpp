@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 #define LOG_INLINER(...) JIT_LOGIF(getConfig().log.debug_inliner, __VA_ARGS__)
 
@@ -627,4 +627,4 @@ void BeginInlinedFunctionElimination::Run(Function& irfunc) {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

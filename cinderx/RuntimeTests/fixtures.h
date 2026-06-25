@@ -47,12 +47,12 @@ class RuntimeTest : public ::testing::Test {
   }
 
   void SetUp() override {
-    ASSERT_FALSE(jit::isJitUsable())
+    ASSERT_FALSE(cinderx::jit::isJitUsable())
         << "Haven't called Py_Initialize yet but the JIT says it's enabled";
 
     bool jit = isJit();
     if (jit) {
-      jit::getMutableConfig().force_init = true;
+      cinderx::jit::getMutableConfig().force_init = true;
     }
 
     Py_Initialize();
@@ -92,8 +92,9 @@ class RuntimeTest : public ::testing::Test {
     int result = Py_FinalizeEx();
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
-    ASSERT_EQ(jit::getConfig().state, jit::State::kNotInitialized);
-    ASSERT_FALSE(jit::isJitUsable())
+    ASSERT_EQ(
+        cinderx::jit::getConfig().state, cinderx::jit::State::kNotInitialized);
+    ASSERT_FALSE(cinderx::jit::isJitUsable())
         << "JIT should be disabled with Py_FinalizeEx";
 
     cinderx::ModuleState* mod_state = cinderx::getModuleState();
@@ -268,7 +269,7 @@ class RuntimeTest : public ::testing::Test {
     return false;
   }
 
-  std::unique_ptr<jit::hir::Function> buildHIR(
+  std::unique_ptr<cinderx::jit::hir::Function> buildHIR(
       BorrowedRef<PyFunctionObject> func);
 
   // Out param is a limitation of googletest.
@@ -276,7 +277,7 @@ class RuntimeTest : public ::testing::Test {
   void CompileToHIR(
       const char* src,
       const char* func_name,
-      std::unique_ptr<jit::hir::Function>& irfunc) {
+      std::unique_ptr<cinderx::jit::hir::Function>& irfunc) {
     Ref<PyFunctionObject> func(compileAndGet(src, func_name));
     ASSERT_NE(func.get(), nullptr) << "failed creating function";
 
@@ -286,7 +287,7 @@ class RuntimeTest : public ::testing::Test {
   void CompileToHIRStatic(
       const char* src,
       const char* func_name,
-      std::unique_ptr<jit::hir::Function>& irfunc) {
+      std::unique_ptr<cinderx::jit::hir::Function>& irfunc) {
     Ref<PyFunctionObject> func(compileStaticAndGet(src, func_name));
     ASSERT_NE(func.get(), nullptr) << "failed creating function";
 
@@ -307,7 +308,7 @@ class RuntimeTest : public ::testing::Test {
 
  private:
   Ref<> globals_;
-  std::optional<jit::hir::IsolatedPreloaders> isolated_preloaders_;
+  std::optional<cinderx::jit::hir::IsolatedPreloaders> isolated_preloaders_;
   Flags flags_;
 };
 
@@ -330,14 +331,14 @@ class HIRTest : public RuntimeTest {
         expected_hir_{expected_hir},
         src_is_hir_{src_is_hir} {}
 
-  void setPasses(std::vector<std::unique_ptr<jit::hir::Pass>> passes) {
+  void setPasses(std::vector<std::unique_ptr<cinderx::jit::hir::Pass>> passes) {
     passes_ = std::move(passes);
   }
 
   void TestBody() override;
 
  private:
-  std::vector<std::unique_ptr<jit::hir::Pass>> passes_;
+  std::vector<std::unique_ptr<cinderx::jit::hir::Pass>> passes_;
   std::string src_;
   std::string expected_hir_;
   bool src_is_hir_;

@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace jit {
+namespace cinderx::jit {
 
 std::unique_ptr<JITList> JITList::create() {
   JIT_DCHECK(
@@ -340,4 +340,4 @@ int WildcardJITList::lookupName(
   return 0;
 }
 
-} // namespace jit
+} // namespace cinderx::jit

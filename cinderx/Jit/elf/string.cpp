@@ -7,7 +7,7 @@
 
 #include <cstring>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 StringTable::StringTable() {
   // All string tables begin with a NUL character.
@@ -29,4 +29,4 @@ std::string_view StringTable::string_at(size_t offset) const {
   return reinterpret_cast<const char*>(&bytes_[offset]);
 }
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

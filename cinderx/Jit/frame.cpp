@@ -25,7 +25,7 @@
 
 #include <optional>
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -921,4 +921,4 @@ void deoptAllJitFramesOnStack() {
 #endif
 }
 
-} // namespace jit
+} // namespace cinderx::jit

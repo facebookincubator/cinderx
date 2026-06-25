@@ -4,7 +4,7 @@
 
 #include "cinderx/Common/ref.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 struct JitGenObject;
 
@@ -19,4 +19,4 @@ class IJitGenFreeList {
   virtual void free(PyObject* ptr) = 0;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

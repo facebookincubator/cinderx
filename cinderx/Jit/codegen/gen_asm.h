@@ -23,7 +23,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 // Returns a cached trampoline (Windows x64 only) that bridges the Microsoft x64
 // sret ABI used by the struct-returning C++ reentry helpers (e.g.
@@ -174,4 +174,4 @@ class NativeGeneratorFactory {
   void* failed_deferred_compile_trampoline_{nullptr};
 };
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

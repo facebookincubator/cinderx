@@ -13,7 +13,7 @@
 
 #ifndef WIN32
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 namespace {
 
@@ -471,6 +471,6 @@ void writeEntries(std::ostream& os, const std::vector<CodeEntry>& entries) {
   writeElf(os, elf, entries);
 }
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf
 
 #endif

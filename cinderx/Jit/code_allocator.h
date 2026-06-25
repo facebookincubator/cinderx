@@ -11,7 +11,7 @@
 #include <span>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 /*
   A CodeAllocator allocates memory for live JIT code. This is an abstract
@@ -119,4 +119,4 @@ void populateCodeSections(
     asmjit::CodeHolder& code,
     void* entry);
 
-} // namespace jit
+} // namespace cinderx::jit

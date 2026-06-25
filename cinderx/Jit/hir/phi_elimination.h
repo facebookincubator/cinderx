@@ -4,7 +4,7 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Remove Phis that only have one unique input value (other than their output).
 class PhiElimination final : public Pass {
@@ -18,4 +18,4 @@ class PhiElimination final : public Pass {
   }
 };
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

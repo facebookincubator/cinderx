@@ -23,8 +23,8 @@
 #include <utility>
 
 using namespace asmjit;
-using namespace jit;
-using namespace jit::lir;
+using namespace cinderx::jit;
+using namespace cinderx::jit::lir;
 
 TEST(LIRTypeTest, DataTypeByteShift) {
   EXPECT_EQ(byteShift(DataType::k8bit), 0);
@@ -52,15 +52,15 @@ class LIRGeneratorTest : public RuntimeTest {
       return "";
     }
 
-    std::unique_ptr<jit::hir::Function> irfunc(buildHIR(func));
+    std::unique_ptr<hir::Function> irfunc(buildHIR(func));
 
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 
-    jit::codegen::Environ env;
+    codegen::Environ env;
 
     env.ctx = getContext();
 
-    jit::CodeRuntime runtime{func};
+    CodeRuntime runtime{func};
     runtime.setReifier(irfunc->reifier);
     env.code_rt = &runtime;
 
@@ -409,7 +409,7 @@ BB %10 - preds: %0 %7 - section: hot
 
 template <typename... Args>
 std::string formatMemoryIndirect(Args&&... args) {
-  jit::lir::MemoryIndirect im(nullptr);
+  MemoryIndirect im(nullptr);
   im.setMemoryIndirect(std::forward<Args>(args)...);
   return fmt::format("{}", im);
 }
@@ -466,7 +466,7 @@ fun foo {
           // We don't have a code-object for kInsertUpdatePrevInstr.
           PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
-  jit::codegen::Environ env;
+  codegen::Environ env;
 
   env.ctx = getContext();
 
@@ -520,9 +520,8 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
           // We don't have a code-object for kInsertUpdatePrevInstr.
           PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
-  jit::codegen::Environ env;
-  jit::CodeRuntime code_runtime{
-      irfunc->code, irfunc->builtins, irfunc->globals};
+  codegen::Environ env;
+  CodeRuntime code_runtime{irfunc->code, irfunc->builtins, irfunc->globals};
 
   env.ctx = getContext();
   env.code_rt = &code_runtime;

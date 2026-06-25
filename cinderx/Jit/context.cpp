@@ -20,7 +20,7 @@
 #include <sys/mman.h>
 #endif
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -852,4 +852,4 @@ Context* getContext() {
   return static_cast<Context*>(state->jit_context.get());
 }
 
-} // namespace jit
+} // namespace cinderx::jit

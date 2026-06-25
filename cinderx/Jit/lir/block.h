@@ -9,11 +9,11 @@
 #include <memory>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 class Instr;
-} // namespace jit::hir
+} // namespace cinderx::jit::hir
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class Function;
 
@@ -163,4 +163,4 @@ class BasicBlock {
 
 using instr_iter_t = BasicBlock::instr_iter_t;
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

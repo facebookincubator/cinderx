@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/hir/function.h"
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 // Be intentional about HIR structure sizes.  There's no hard limit on what
 // these sizes have to be, but we should be aware when we change them.
@@ -108,4 +108,4 @@ OpcodeCounts count_opcodes(const Function& func) {
   return counts;
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

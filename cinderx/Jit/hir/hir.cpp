@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 LiveValuesBase::LiveValuesBase(Opcode op) : Instr(op) {}
 
@@ -1388,4 +1388,4 @@ FrameState* get_frame_state(Instr& instr) {
       get_frame_state(const_cast<const Instr&>(instr)));
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

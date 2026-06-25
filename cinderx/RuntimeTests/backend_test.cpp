@@ -26,10 +26,10 @@
 #include "tools/cxx/Resources.h"
 #endif
 
-using namespace jit;
-using namespace jit::lir;
+using namespace cinderx::jit;
+using namespace cinderx::jit::lir;
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 class BackendTest : public RuntimeTest {
  public:
@@ -1575,4 +1575,4 @@ TEST_F(BackendTest, RegSwapK32bitTruncates64BitValues) {
 
 #endif // CINDER_AARCH64
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

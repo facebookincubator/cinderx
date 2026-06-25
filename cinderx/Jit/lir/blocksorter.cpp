@@ -9,7 +9,7 @@
 #include <limits>
 #include <stack>
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 BasicBlockSorter::BasicBlockSorter(
     const std::vector<BasicBlock*>& blocks,
@@ -222,4 +222,4 @@ void BasicBlockSorter::sortRPO() {
   }
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

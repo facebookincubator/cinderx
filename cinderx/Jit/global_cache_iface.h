@@ -6,7 +6,7 @@
 
 #include "cinderx/Common/ref.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 class IGlobalCacheManager {
  public:
@@ -42,4 +42,4 @@ class IGlobalCacheManager {
   virtual void clear() = 0;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

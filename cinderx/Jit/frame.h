@@ -15,7 +15,7 @@
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/module_state.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 // A singleton reifier object that was set _PyInterpreterFrame's f_funcobj
 // to. The Python runtime will call this object when it needs a complete
@@ -92,4 +92,4 @@ void registerJitGCDeferredRefVisitor(PyInterpreterState* interp);
 void clearJitGCDeferredRefVisitor(PyInterpreterState* interp);
 #endif
 
-} // namespace jit
+} // namespace cinderx::jit

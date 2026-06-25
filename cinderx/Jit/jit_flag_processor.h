@@ -12,7 +12,7 @@
 #include <string_view>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 struct Option {
   // required
@@ -150,4 +150,4 @@ struct FlagProcessor {
   std::vector<std::unique_ptr<Option>> options_;
 };
 
-} // namespace jit
+} // namespace cinderx::jit

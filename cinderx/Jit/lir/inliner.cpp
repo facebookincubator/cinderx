@@ -9,9 +9,9 @@
 #include <shared_mutex>
 #include <string_view>
 
-using namespace jit::codegen;
+using namespace cinderx::jit::codegen;
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 bool LIRInliner::inlineCalls(Function* func) {
   bool changed = false;
@@ -373,4 +373,4 @@ std::string_view LIRInliner::callerName() {
   return "<unnamed LIR function>";
 }
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

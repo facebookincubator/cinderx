@@ -9,11 +9,11 @@
 #include <string>
 #include <vector>
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 class Function;
 }
 
-namespace jit::lir {
+namespace cinderx::jit::lir {
 
 class Function {
  public:
@@ -140,4 +140,4 @@ class Function {
   UnorderedMap<const Instruction*, std::string> annotations_;
 };
 
-} // namespace jit::lir
+} // namespace cinderx::jit::lir

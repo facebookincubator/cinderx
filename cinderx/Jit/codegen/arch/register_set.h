@@ -7,7 +7,7 @@
 #include <concepts>
 #include <span>
 
-namespace jit::codegen {
+namespace cinderx::jit::codegen {
 
 template <typename PhyLocationType, std::unsigned_integral StorageType>
 class RegisterSet {
@@ -109,4 +109,4 @@ class RegisterSet {
   }
 };
 
-} // namespace jit::codegen
+} // namespace cinderx::jit::codegen

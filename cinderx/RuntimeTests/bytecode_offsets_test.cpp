@@ -3,7 +3,7 @@
 
 #include "cinderx/Jit/bytecode_offsets.h"
 
-using namespace jit;
+using namespace cinderx::jit;
 
 TEST(BytecodeOffsetsTest, Basic) {
   EXPECT_EQ(BCOffset{6}.value(), 6);

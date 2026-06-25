@@ -6,7 +6,7 @@
 #include <span>
 #include <vector>
 
-namespace jit::elf {
+namespace cinderx::jit::elf {
 
 // Symbol flags.
 constexpr uint8_t kGlobal = 0x10;
@@ -52,4 +52,4 @@ class SymbolTable {
   std::vector<Symbol> syms_;
 };
 
-} // namespace jit::elf
+} // namespace cinderx::jit::elf

@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace jit {
+namespace cinderx::jit {
 
 // Lifetime diagram of the JIT compiler:
 //
@@ -254,4 +254,4 @@ bool isJitUsable();
 // Check that the JIT is initialized but currently paused and unusable.
 bool isJitPaused();
 
-} // namespace jit
+} // namespace cinderx::jit

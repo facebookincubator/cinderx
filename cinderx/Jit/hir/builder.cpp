@@ -48,7 +48,7 @@ extern "C" {
       preloader_.fullname(),     \
       bc_instr.opcodeOffset())
 
-namespace jit::hir {
+namespace cinderx::jit::hir {
 
 namespace {
 
@@ -5147,4 +5147,4 @@ void HIRBuilder::checkTranslate() {
   }
 }
 
-} // namespace jit::hir
+} // namespace cinderx::jit::hir

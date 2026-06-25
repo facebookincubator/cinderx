@@ -10,7 +10,7 @@
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/module_state.h"
 
-namespace jit {
+namespace cinderx::jit {
 
 namespace {
 
@@ -184,4 +184,4 @@ PyObject* JitGen_AnextAwaitable_New(
   return reinterpret_cast<PyObject*>(anext);
 }
 
-} // namespace jit
+} // namespace cinderx::jit
