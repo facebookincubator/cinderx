@@ -9,7 +9,9 @@
 
 #include <unordered_map>
 
-void JITRT_BatchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
+namespace cinderx::jit::rt {
+void batchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
+} // namespace cinderx::jit::rt
 
 using namespace cinderx::jit::codegen;
 
@@ -1018,7 +1020,7 @@ bool hasHelperTarget(const Instruction& instr, uint64_t helper) {
 
 bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
   return instr.isVarArgCall() &&
-      hasHelperTarget(instr, reinterpret_cast<uint64_t>(JITRT_BatchDecref));
+      hasHelperTarget(instr, reinterpret_cast<uint64_t>(rt::batchDecref));
 }
 
 // Strip deferred-RC tag bits from all kObject values before they
@@ -1127,7 +1129,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       }
 
       // Strip kObject call args, compare operands, and return values.
-      // JITRT_BatchDecref needs tagged deferred-RC refs so the helper can
+      // rt::batchDecref needs tagged deferred-RC refs so the helper can
       // recognize and skip them; every other call should still see untagged
       // object pointers.
       bool is_call = instr->isCall() || instr->isVectorCallTstate() ||

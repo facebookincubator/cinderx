@@ -10,7 +10,7 @@ namespace cinderx::jit::lir {
 
 const std::string* mapCHelperToLIR(uint64_t addr) {
   static const std::unordered_map<uint64_t, std::string> mapping = {
-      {reinterpret_cast<uint64_t>(JITRT_Cast),
+      {reinterpret_cast<uint64_t>(rt::cast),
        fmt::format(
            R"(Function:
 BB %0 - succs: %2 %1

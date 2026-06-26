@@ -524,7 +524,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
 void* generateFailedDeferredCompileTrampoline() {
   lir::Function lir_func;
   lir::GenerateFailedDeferredCompileBlocks(
-      &lir_func, reinterpret_cast<void*>(JITRT_FailedDeferredCompileShim));
+      &lir_func, reinterpret_cast<void*>(rt::failedDeferredCompileShim));
 
   return emitAndRegisterTrampoline(
       &lir_func, "failedDeferredCompileTrampoline");
@@ -537,8 +537,8 @@ void* generateFailedDeferredCompileTrampoline() {
 // vectorcall convention (RCX=callable, RDX=args, R8=nargsf, R9=kwnames) and
 // returns its two result values in RAX:RDX (or XMM0:XMM1 for functions which
 // return a primitive double).  The C++ runtime helpers that re-dispatch through
-// the reentry (e.g. JITRT_CallWithIncorrectArgcount) are typed to return the
-// 16-byte JITRT_StaticCallReturn / JITRT_StaticCallFPReturn structs.  On the MS
+// the reentry (e.g. rt::callWithIncorrectArgcount) are typed to return the
+// 16-byte rt::StaticCallReturn / rt::StaticCallFPReturn structs.  On the MS
 // x64 ABI a struct larger than 8 bytes is returned via a hidden sret pointer in
 // RCX, which shifts every argument by one register -- so without this bridge
 // the reentry would read the callable (in RDX) as its args array and crash.
@@ -1195,8 +1195,8 @@ void NativeGenerator::generateCode(
     generateStaticEntryPoint(env_.finish_frame_setup, static_jmp_location);
   }
 
-  // Reentry point: dispatched to from JITRT_CallWithIncorrectArgcount and
-  // JITRT_CallWithKeywordArgs after argument binding. Must be exactly
+  // Reentry point: dispatched to from rt::callWithIncorrectArgcount and
+  // rt::callWithKeywordArgs after argument binding. Must be exactly
   // JITRT_CALL_REENTRY_OFFSET bytes before the vectorcall entry.
   auto arg_reentry_cursor = as_->cursor();
   Label correct_args_entry = as_->newLabel();
@@ -1258,27 +1258,26 @@ void NativeGenerator::generateCode(
       if (GetFunction()->returnsPrimitiveDouble()) {
         as_->call(
             reinterpret_cast<uint64_t>(
-                JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn));
+                rt::reportStaticArgTypecheckErrorsWithDoubleReturn));
       } else {
         as_->call(
             reinterpret_cast<uint64_t>(
-                JITRT_ReportStaticArgTypecheckErrorsWithPrimitiveReturn));
+                rt::reportStaticArgTypecheckErrorsWithPrimitiveReturn));
       }
     } else {
-      as_->call(
-          reinterpret_cast<uint64_t>(JITRT_ReportStaticArgTypecheckErrors));
+      as_->call(reinterpret_cast<uint64_t>(rt::reportStaticArgTypecheckErrors));
     }
     as_->leave();
     as_->ret();
 #elif defined(CINDER_AARCH64)
     if (GetFunction()->returnsPrimitive()) {
       if (GetFunction()->returnsPrimitiveDouble()) {
-        as_->bl(JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn);
+        as_->bl(rt::reportStaticArgTypecheckErrorsWithDoubleReturn);
       } else {
-        as_->bl(JITRT_ReportStaticArgTypecheckErrorsWithPrimitiveReturn);
+        as_->bl(rt::reportStaticArgTypecheckErrorsWithPrimitiveReturn);
       }
     } else {
-      as_->bl(JITRT_ReportStaticArgTypecheckErrors);
+      as_->bl(rt::reportStaticArgTypecheckErrors);
     }
 
     // leave + ret equivalent on aarch64

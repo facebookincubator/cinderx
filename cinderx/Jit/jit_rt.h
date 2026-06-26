@@ -15,62 +15,62 @@ struct GenDataFooter;
 struct JitGenObject;
 } // namespace cinderx::jit
 
+namespace cinderx::jit::rt {
+
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this
 // convention, returning this struct will fill the right registers
-struct JITRT_StaticCallReturn {
+struct StaticCallReturn {
   void* rax;
   void* rdx;
 };
 
-struct JITRT_StaticCallFPReturn {
+struct StaticCallFPReturn {
   double xmm0;
   double xmm1;
 };
 
-PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
+PyThreadState* allocateAndLinkInterpreterFrame_Debug(
     PyFunctionObject* func,
     PyCodeObject* jit_code_object);
 
-PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
-    PyFunctionObject* func);
+PyThreadState* allocateAndLinkInterpreterFrame_Release(PyFunctionObject* func);
 
-std::pair<PyThreadState*, cinderx::jit::GenDataFooter*>
-JITRT_AllocateAndLinkGenAndInterpreterFrame(
+std::pair<PyThreadState*, GenDataFooter*> allocateAndLinkGenAndInterpreterFrame(
     PyFunctionObject* func,
-    cinderx::jit::CodeRuntime* code_rt,
-    cinderx::GenResumeFunc resume_entry,
+    CodeRuntime* code_rt,
+    GenResumeFunc resume_entry,
     uint64_t original_frame_pointer);
 
-void JITRT_InitFrameCellVars(
+void initFrameCellVars(
     PyFunctionObject* func,
     int nvars,
     PyThreadState* tstate);
 
-std::pair<cinderx::jit::JitGenObject*, cinderx::jit::GenDataFooter*>
-JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
+std::pair<JitGenObject*, GenDataFooter*> unlinkGenFrameAndReturnGenDataFooter(
+    PyThreadState* tstate);
 
 /*
  * Helper function to decref a frame.
  *
- * Used by JITRT_UnlinkFrame, and designed to only be used separately if
+ * Used by unlinkFrame, and designed to only be used separately if
  * something else has already unlinked the frame.
  */
-void JITRT_DecrefFrame(PyFrameObject* frame);
+void decrefFrame(PyFrameObject* frame);
 
 /*
  * Helper function to unlink a frame.
  *
- * Designed to be used in tandem with JITRT_AllocateAndLinkFrame. This checks
+ * Designed to be used in tandem with allocateAndLinkFrame. This checks
  * if the frame has escaped (> 1 refcount) and tracks it if so.
  */
-void JITRT_UnlinkFrame(PyThreadState* tstate);
+void unlinkFrame(PyThreadState* tstate);
 
 /*
  * Handles a call that includes kw arguments where the target function has
  * *args, **kwargs, or keyword only args.
  */
-PyObject* JITRT_CallWithKeywordArgs(
+PyObject* callWithKeywordArgs(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
@@ -80,19 +80,19 @@ PyObject* JITRT_CallWithKeywordArgs(
  * Handles a call that includes kw arguments where the target function doesn't
  * have *args, **kwargs, or keyword only args.
  */
-PyObject* JITRT_CallWithKeywordArgsSimple(
+PyObject* callWithKeywordArgsSimple(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
     PyObject* kwnames);
 
-JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
+StaticCallReturn callWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
     int argcount);
 
-JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
+StaticCallFPReturn callWithIncorrectArgcountFPReturn(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
@@ -101,25 +101,25 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
 /* Helper function to report an error when the arguments aren't correct for
  * a static function call.  Dispatches to the eval loop to let the normal
  * argument checking prologue run and then report the error */
-PyObject* JITRT_ReportStaticArgTypecheckErrors(
+PyObject* reportStaticArgTypecheckErrors(
     PyObject* func,
     PyObject** args,
     size_t nargsf,
     PyObject* kwnames);
 
-/* Variation of JITRT_ReportStaticArgTypecheckErrors but also sets the primitive
+/* Variation of reportStaticArgTypecheckErrors but also sets the primitive
    return value error in addition to returning the normal NULL error indicator
  */
-JITRT_StaticCallReturn JITRT_ReportStaticArgTypecheckErrorsWithPrimitiveReturn(
+StaticCallReturn reportStaticArgTypecheckErrorsWithPrimitiveReturn(
     PyObject* func,
     PyObject** args,
     size_t nargsf,
     PyObject* kwnames);
 
-/* Variation of JITRT_ReportStaticArgTypecheckErrors but also sets the double
+/* Variation of reportStaticArgTypecheckErrors but also sets the double
    return value error in addition to returning the normal NULL error indicator
  */
-JITRT_StaticCallFPReturn JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn(
+StaticCallFPReturn reportStaticArgTypecheckErrorsWithDoubleReturn(
     PyObject* func,
     PyObject** args,
     size_t nargsf,
@@ -129,20 +129,17 @@ JITRT_StaticCallFPReturn JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn(
  * Mimics the behavior of _PyDict_LoadGlobal except that it raises an error
  * when the name does not exist.
  */
-PyObject*
-JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name);
+PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name);
 
 /*
  * Load a global value given a Python thread state.
  */
-PyObject* JITRT_LoadGlobalFromThreadState(
-    PyThreadState* tstate,
-    PyObject* name);
+PyObject* loadGlobalFromThreadState(PyThreadState* tstate, PyObject* name);
 
 /*
  * Load the globals dict from a Python thread state.
  */
-PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate);
+PyObject* loadGlobalsDict(PyThreadState* tstate);
 
 /*
  * Helper to perform a Python call with dynamically determined arguments.
@@ -150,8 +147,7 @@ PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate);
  * pargs will be a possibly empty tuple of positional arguments, kwargs will be
  * null or a dictionary of keyword arguments.
  */
-PyObject*
-JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs);
+PyObject* callFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs);
 
 /*
  * Perform a function or method call.
@@ -168,7 +164,7 @@ JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs);
  * not Py_None, but we use NULL return values in HIR to determine where to
  * deopt.
  */
-PyObject* JITRT_Call(
+PyObject* call(
     PyThreadState* tstate,
     PyObject* callable,
     PyObject* const* args,
@@ -179,7 +175,7 @@ PyObject* JITRT_Call(
  * Performs a function call with a vectorcall. Will check and handle any
  * eval breaker events after the call.
  */
-PyObject* JITRT_VectorcallTstate(
+PyObject* vectorcallTstate(
     PyThreadState* tstate,
     PyObject* callable,
     PyObject* const* args,
@@ -189,7 +185,7 @@ PyObject* JITRT_VectorcallTstate(
 /*
  * Perform a method lookup on an object.
  */
-cinderx::LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
+LoadMethodResult getMethod(PyObject* obj, PyObject* name);
 
 /*
  * Perform an attribute lookup in a super class
@@ -197,7 +193,7 @@ cinderx::LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
  * This is used to avoid bound method creation for attribute lookups that
  * correspond to method calls (e.g. `self.foo()`).
  */
-cinderx::LoadMethodResult JITRT_GetMethodFromSuper(
+LoadMethodResult getMethodFromSuper(
     PyObject* global_super,
     PyTypeObject* type,
     PyObject* self,
@@ -207,7 +203,7 @@ cinderx::LoadMethodResult JITRT_GetMethodFromSuper(
 /*
  * Perform an attribute lookup in a super class
  */
-PyObject* JITRT_GetAttrFromSuper(
+PyObject* getAttrFromSuper(
     PyObject* super_globals,
     PyTypeObject* type,
     PyObject* self,
@@ -220,13 +216,13 @@ PyObject* JITRT_GetAttrFromSuper(
  * Checks if value is truthy, and returns Py_False if it is, or Py_True if
  * it's not.  Returns NULL if the object doesn't support truthyness.
  */
-PyObject* JITRT_UnaryNot(PyObject* value);
+PyObject* unaryNot(PyObject* value);
 
 /*
  * Invokes a function stored within the method table for the object.
  * The method table lives off tp_cache in the type object
  */
-PyObject* JITRT_InvokeMethod(
+PyObject* invokeMethod(
     Py_ssize_t slot,
     PyObject** args,
     Py_ssize_t nargs,
@@ -235,7 +231,7 @@ PyObject* JITRT_InvokeMethod(
  * Invokes a function stored within the method table for the object.
  * The method table lives off tp_cache of self.
  */
-PyObject* JITRT_InvokeClassMethod(
+PyObject* invokeClassMethod(
     Py_ssize_t slot,
     PyObject** args,
     Py_ssize_t nargs,
@@ -245,7 +241,7 @@ PyObject* JITRT_InvokeClassMethod(
  * Loads an indirect function, optionally loading it from the descriptor
  * if the indirect cache fails.
  */
-PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr);
+PyObject* loadFunctionIndirect(PyObject** func, PyObject* descr);
 
 /*
  * Performs a type check on an object, raising an error if the object is
@@ -253,19 +249,19 @@ PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr);
  * check which doesn't support dynamic behaviors against the type or
  * proxy behaviors against obj.__class__
  */
-PyObject* JITRT_Cast(PyObject* obj, PyTypeObject* type);
+PyObject* cast(PyObject* obj, PyTypeObject* type);
 
 /*
- * JITRT_Cast when target type is float. This case requires extra work
- * because Python typing pretends int is a subtype of float, so CAST
- * needs to coerce int to float.
+ * cast() when target type is float. This case requires extra work because
+ * Python typing pretends int is a subtype of float, so CAST needs to coerce int
+ * to float.
  */
-PyObject* JITRT_CastToFloat(PyObject* obj);
+PyObject* castToFloat(PyObject* obj);
 
 /*
- * JITRT_CastToFloat but with None allowed.
+ * castToFloat() but with None allowed.
  */
-PyObject* JITRT_CastToFloatOptional(PyObject* obj);
+PyObject* castToFloatOptional(PyObject* obj);
 
 /*
  * Performs a type check on an object, raising an error if the object is
@@ -273,56 +269,58 @@ PyObject* JITRT_CastToFloatOptional(PyObject* obj);
  * real type check which doesn't support dynamic behaviors against the
  * type or proxy behaviors against obj.__class__.
  */
-PyObject* JITRT_CastOptional(PyObject* obj, PyTypeObject* type);
-/* Performs a type check on obj, but does not allow passing a subclass of type.
+PyObject* castOptional(PyObject* obj, PyTypeObject* type);
+
+/*
+ * Performs a type check on obj, but does not allow passing a subclass of type.
  */
-PyObject* JITRT_CastExact(PyObject* obj, PyTypeObject* type);
-PyObject* JITRT_CastOptionalExact(PyObject* obj, PyTypeObject* type);
+PyObject* castExact(PyObject* obj, PyTypeObject* type);
+PyObject* castOptionalExact(PyObject* obj, PyTypeObject* type);
 
 /* Helper methods to implement left shift, which wants its operand in cl */
-int64_t JITRT_ShiftLeft64(int64_t x, int64_t y);
-int32_t JITRT_ShiftLeft32(int32_t x, int32_t y);
+int64_t shiftLeft64(int64_t x, int64_t y);
+int32_t shiftLeft32(int32_t x, int32_t y);
 
 /* Helper methods to implement right shift, which wants its operand in cl */
-int64_t JITRT_ShiftRight64(int64_t x, int64_t y);
-int32_t JITRT_ShiftRight32(int32_t x, int32_t y);
+int64_t shiftRight64(int64_t x, int64_t y);
+int32_t shiftRight32(int32_t x, int32_t y);
 
 /* Helper methods to implement unsigned right shift, which wants its operand in
  * cl
  */
-uint64_t JITRT_ShiftRightUnsigned64(uint64_t x, uint64_t y);
-uint32_t JITRT_ShiftRightUnsigned32(uint32_t x, uint32_t y);
+uint64_t shiftRightUnsigned64(uint64_t x, uint64_t y);
+uint32_t shiftRightUnsigned32(uint32_t x, uint32_t y);
 
 /* Helper methods to implement signed modulus */
-int64_t JITRT_Mod64(int64_t x, int64_t y);
-int32_t JITRT_Mod32(int32_t x, int32_t y);
+int64_t mod64(int64_t x, int64_t y);
+int32_t mod32(int32_t x, int32_t y);
 
 /* Helper methods to implement unsigned modulus */
-uint64_t JITRT_ModUnsigned64(uint64_t x, uint64_t y);
-uint32_t JITRT_ModUnsigned32(uint32_t x, uint32_t y);
+uint64_t modUnsigned64(uint64_t x, uint64_t y);
+uint32_t modUnsigned32(uint32_t x, uint32_t y);
 
-PyObject* JITRT_BoxI32(int32_t i);
-PyObject* JITRT_BoxU32(uint32_t i);
-PyObject* JITRT_BoxBool(uint32_t i);
-PyObject* JITRT_BoxI64(int64_t i);
-PyObject* JITRT_BoxU64(uint64_t i);
-PyObject* JITRT_BoxDouble(double_t d);
+PyObject* boxI32(int32_t i);
+PyObject* boxU32(uint32_t i);
+PyObject* boxBool(uint32_t i);
+PyObject* boxI64(int64_t i);
+PyObject* boxU64(uint64_t i);
+PyObject* boxDouble(double_t d);
 
-double JITRT_PowerDouble(double x, double y);
-double JITRT_SqrtDouble(double x);
-double JITRT_Power32(int32_t x, int32_t y);
-double JITRT_PowerUnsigned32(uint32_t x, uint32_t y);
-double JITRT_Power64(int64_t x, int64_t y);
-double JITRT_PowerUnsigned64(uint64_t x, uint64_t y);
+double powerDouble(double x, double y);
+double sqrtDouble(double x);
+double power32(int32_t x, int32_t y);
+double powerUnsigned32(uint32_t x, uint32_t y);
+double power64(int64_t x, int64_t y);
+double powerUnsigned64(uint64_t x, uint64_t y);
 
-uint64_t JITRT_UnboxU64(PyObject* obj);
-uint32_t JITRT_UnboxU32(PyObject* obj);
-uint16_t JITRT_UnboxU16(PyObject* obj);
-uint8_t JITRT_UnboxU8(PyObject* obj);
-int64_t JITRT_UnboxI64(PyObject* obj);
-int32_t JITRT_UnboxI32(PyObject* obj);
-int16_t JITRT_UnboxI16(PyObject* obj);
-int8_t JITRT_UnboxI8(PyObject* obj);
+uint64_t unboxU64(PyObject* obj);
+uint32_t unboxU32(PyObject* obj);
+uint16_t unboxU16(PyObject* obj);
+uint8_t unboxU8(PyObject* obj);
+int64_t unboxI64(PyObject* obj);
+int32_t unboxI32(PyObject* obj);
+int16_t unboxI16(PyObject* obj);
+int8_t unboxI8(PyObject* obj);
 
 /*
  * Calls __builtins__.__import__(), with a fast-path if this hasn't been
@@ -331,7 +329,7 @@ int8_t JITRT_UnboxI8(PyObject* obj);
  * This is a near verbatim copy of import_name() from ceval.c with minor
  * tweaks. We copy rather than expose to avoid making changes to ceval.c.
  */
-PyObject* JITRT_ImportName(
+PyObject* importName(
     PyThreadState* tstate,
     PyObject* name,
     PyObject* fromlist,
@@ -345,7 +343,7 @@ PyObject* JITRT_ImportName(
  * import-from. `frame` is only used to record the import location for any
  * chained lazy import that gets created.
  */
-PyObject* JITRT_ImportFrom(
+PyObject* importFrom(
     PyThreadState* tstate,
     struct _PyInterpreterFrame* frame,
     PyObject* from,
@@ -355,7 +353,7 @@ PyObject* JITRT_ImportFrom(
 /*
  * Formats a f-string value
  */
-PyObject* JITRT_FormatValue(
+PyObject* formatValue(
     PyThreadState* tstate,
     PyObject* fmt_spec,
     PyObject* value,
@@ -363,7 +361,7 @@ PyObject* JITRT_FormatValue(
 /*
  * Concatenate strings from args
  */
-PyObject* JITRT_BuildString(
+PyObject* buildString(
     PyThreadState* /*tstate*/,
     void* /*unused*/,
     PyObject** args,
@@ -372,7 +370,7 @@ PyObject* JITRT_BuildString(
 
 // Set the awaiter of the given awaitable to be the coroutine at the top of
 // `ts`.
-void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts);
+void setCurrentAwaiter(PyObject* awaitable, PyThreadState* ts);
 
 // Mostly the same implementation as YIELD_FROM in ceval.c with slight tweaks to
 // make it stand alone. The argument 'v' is stolen.
@@ -380,11 +378,11 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts);
 // The arguments 'gen', 'v', 'finish_yield_from' must match positions with JIT
 // resume entry function (GenResumeFunc) so registers with their values pass
 // straight through.
-struct JITRT_GenSendRes {
+struct GenSendRes {
   PyObject* retval;
   uint64_t done;
 };
-JITRT_GenSendRes JITRT_GenSend(
+GenSendRes genSend(
     PyObject* gen,
     PyObject* v,
     uint64_t finish_yield_from,
@@ -393,11 +391,11 @@ JITRT_GenSendRes JITRT_GenSend(
 // Used for the `YIELD_FROM` that appears in the bytecode of the header for
 // an `async for` loop.
 //
-// This is identical to JITRT_GenSend with the addition that it detects when
+// This is identical to genSend() with the addition that it detects when
 // PyExc_StopAsyncIteration has been raised. In such cases the function clears
 // the error and returns a sentinel value indicating that iteration has
 // finished.
-JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
+GenSendRes genSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
     uint64_t finish_yield_from,
@@ -406,7 +404,7 @@ JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
 /* Unpack a sequence as in unpack_iterable(), and save the
  * results in a tuple.
  */
-PyObject* JITRT_UnpackExToTuple(
+PyObject* unpackExToTuple(
     PyThreadState* tstate,
     PyObject* iterable,
     int before,
@@ -420,7 +418,7 @@ PyObject* JITRT_UnpackExToTuple(
  * On error, sets a Python exception and returns -1. Any partially-filled
  * items are cleaned up before returning.
  */
-int JITRT_UnpackSequence(
+int unpackSequence(
     PyThreadState* tstate,
     PyObject* iterable,
     PyObject** items,
@@ -437,16 +435,16 @@ int JITRT_UnpackSequence(
  * The function object is obtained from args[0] since in the static calling
  * convention the function is always the first argument.
  */
-JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(PyObject** args);
+StaticCallReturn failedDeferredCompileShim(PyObject** args);
 
-JITRT_StaticCallReturn JITRT_CallStaticallyWithPrimitiveSignature(
+StaticCallReturn callStaticallyWithPrimitiveSignature(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
     PyObject* kwnames,
     _PyTypedArgsInfo* arg_info);
 
-JITRT_StaticCallFPReturn JITRT_CallStaticallyWithPrimitiveSignatureFP(
+StaticCallFPReturn callStaticallyWithPrimitiveSignatureFP(
     PyFunctionObject* func,
     PyObject** args,
     size_t nargsf,
@@ -457,29 +455,29 @@ JITRT_StaticCallFPReturn JITRT_CallStaticallyWithPrimitiveSignatureFP(
  * At least one of the objects has to be exactly a unicode
  * object.
  */
-int JITRT_UnicodeEquals(PyObject* s1, PyObject* s2, int equals);
+int unicodeEquals(PyObject* s1, PyObject* s2, int equals);
 
 /* Return Py_True if needle is in haystack else return Py_False. Return nullptr
  * with exception raised on error. */
-PyObject* JITRT_SequenceContains(PyObject* haystack, PyObject* needle);
+PyObject* sequenceContains(PyObject* haystack, PyObject* needle);
 
 /* Return Py_True if needle is not in haystack else return Py_False. Return
  * nullptr with exception raised on error. */
-PyObject* JITRT_SequenceNotContains(PyObject* haystack, PyObject* needle);
+PyObject* sequenceNotContains(PyObject* haystack, PyObject* needle);
 
 /* Inverse form of PySequence_Contains for "not in"
  */
-int JITRT_NotContainsBool(PyObject* w, PyObject* v);
+int notContainsBool(PyObject* w, PyObject* v);
 
 /* Perform a rich comparison with integer result.  This wraps
    PyObject_RichCompare(), returning -1 for error, 0 for false, 1 for true.
    Unlike PyObject_RichCompareBool this doesn't perform an object equality
    check, which is incompatible w/ float comparisons. */
 
-int JITRT_RichCompareBool(PyObject* v, PyObject* w, int op);
+int richCompareBool(PyObject* v, PyObject* w, int op);
 
 /* perform a batch decref to the objects in args */
-void JITRT_BatchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
+void batchDecref(TaggedPyObject* args, int nargs);
 
 /* Check that `i` is within the bounds of `seq`.
  *
@@ -489,22 +487,21 @@ void JITRT_BatchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
  * Returns 0-based index that `i` refers to on success.
  * Returns -1 and raises IndexError on error.
  **/
-Py_ssize_t JITRT_CheckSequenceBounds(PyObject* seq, Py_ssize_t i);
+Py_ssize_t checkSequenceBounds(PyObject* seq, Py_ssize_t i);
 
 /* Call obj.__len__(). Return LongExact on success or NULL with an exception
  * set if there was an error. */
-PyObject* JITRT_GetLength(PyObject* obj);
+PyObject* getLength(PyObject* obj);
 
 /* Call match_keys() in ceval.c
  * NOTE: This function is here as a wrapper around the private match_keys
  * function and should be removed when match_keys becomes public.
  */
-PyObject*
-JITRT_MatchKeys(PyThreadState* tstate, PyObject* subject, PyObject* keys);
+PyObject* matchKeys(PyThreadState* tstate, PyObject* subject, PyObject* keys);
 
 /* Used by DICT_UPDATE and DICT_MERGE implementations. */
-int JITRT_DictUpdate(PyThreadState* tstate, PyObject* dict, PyObject* update);
-int JITRT_DictMerge(
+int dictUpdate(PyThreadState* tstate, PyObject* dict, PyObject* update);
+int dictMerge(
     PyThreadState* tstate,
     PyObject* dict,
     PyObject* update,
@@ -512,35 +509,35 @@ int JITRT_DictMerge(
 
 /* Returns nullptr on error and an exact dict otherwise. Used by
  * COPY_DICT_WITHOUT_KEYS implementation. */
-PyObject* JITRT_CopyDictWithoutKeys(PyObject* subject, PyObject* keys);
+PyObject* copyDictWithoutKeys(PyObject* subject, PyObject* keys);
 
-/* Load a name from a Python thread's code object.
+/*
+ * Load a name from a Python thread's code object.
  */
-PyObject* JITRT_LoadName(PyThreadState* tstate, int name_idx);
+PyObject* loadName(PyThreadState* tstate, int name_idx);
 
-/* Reimplements the format_awaitable_error() function from the CPython
+/*
+ * Reimplements the format_awaitable_error() function from the CPython
  * interpreter loop. */
-void JITRT_FormatAwaitableError(
+void formatAwaitableError(
     PyThreadState* tstate,
     PyTypeObject* type,
     bool is_aenter);
 
-void JITRT_IncRefTotal();
-void JITRT_DecRefTotal();
+void incRefTotal();
+void decRefTotal();
 
-PyObject* JITRT_LookupAttrSpecial(
-    PyObject* obj,
-    PyObject* attr,
-    const char* failure_fmt_str);
+PyObject*
+lookupAttrSpecial(PyObject* obj, PyObject* attr, const char* failure_fmt_str);
 
-cinderx::LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);
+LoadMethodResult loadSpecial(PyObject* self, int special_idx);
 
 /*
  * Non-inline wrapper for _Py_qsbr_quiescent_state(). This is only meaningful
  * in free-threaded builds; GIL builds compile a no-op so callers can branch on
  * kFreeThreadedBuild instead of #ifdefs.
  */
-void JITRT_AtQuiescentState(PyThreadState* tstate);
+void atQuiescentState(PyThreadState* tstate);
 
 /*
  * Atomically increment the shared refcount. Called from the inline incref
@@ -548,7 +545,7 @@ void JITRT_AtQuiescentState(PyThreadState* tstate);
  *
  * Used by FT builds only.
  */
-void JITRT_IncRefShared(PyObject* obj);
+void incRefShared(PyObject* obj);
 
 /*
  * If the object uses deferred reference counting, return a value with the
@@ -558,33 +555,38 @@ void JITRT_IncRefShared(PyObject* obj);
  *
  * Used by FT builds only.
  */
-cinderx::jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
-
-#if PY_VERSION_HEX >= 0x030D0000
-
-extern "C" {
-
-/*
- * Atomically load cell value with new reference (for LOAD_DEREF).
- */
-PyObject* JITRT_LoadCellItem(PyCellObject* cell);
-
-/*
- * Atomically swap cell value, returns old value for decref (for STORE_DEREF).
- */
-PyObject* JITRT_SwapCellItem(PyCellObject* cell, PyObject* new_value);
-}
-
-#endif
+TaggedPyObject tagIfDeferred(PyObject* obj);
 
 /*
  * A PyObject that is used to indicate that an iterator has finished
  * normally. This must never escape into managed code.
  */
-extern PyObject JITRT_IterDoneSentinel;
+extern PyObject iterDoneSentinel;
 
 /*
  * Invoke __next__ on iterator.
- * Returns the next value, or JITRT_IterDoneSentinel if the iterator is done.
+ * Returns the next value, or iterDoneSentinel if the iterator is done.
  */
-PyObject* JITRT_InvokeIterNext(PyObject* iterator);
+PyObject* invokeIterNext(PyObject* iterator);
+
+} // namespace cinderx::jit::rt
+
+#if PY_VERSION_HEX >= 0x030D0000
+
+// Implemented in Jit/cell_helpers.c, so these need C linkage. See that file for
+// why they can't live in jit_rt.cpp.
+extern "C" {
+
+/*
+ * Atomically load cell value with new reference (for LOAD_DEREF).
+ */
+PyObject* cx_load_cell_item(PyCellObject* cell);
+
+/*
+ * Atomically swap cell value, returns old value for decref (for STORE_DEREF).
+ */
+PyObject* cx_swap_cell_item(PyCellObject* cell, PyObject* new_value);
+
+} // extern "C"
+
+#endif

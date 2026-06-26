@@ -13,11 +13,11 @@
 
 #include "internal/pycore_cell.h"
 
-PyObject* JITRT_LoadCellItem(PyCellObject* cell) {
+PyObject* cx_load_cell_item(PyCellObject* cell) {
   return PyCell_GetRef(cell);
 }
 
-PyObject* JITRT_SwapCellItem(PyCellObject* cell, PyObject* new_value) {
+PyObject* cx_swap_cell_item(PyCellObject* cell, PyObject* new_value) {
   return PyCell_SwapTakeRef(cell, new_value);
 }
 

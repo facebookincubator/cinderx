@@ -644,16 +644,16 @@ def func3(x):
   auto lir_str = getLIRString(pyfunc2.get());
 
   auto fast_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobal));
+      fmt::format("{}", reinterpret_cast<uint64_t>(rt::loadGlobal));
   auto slow_path = fmt::format(
-      "{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobalFromThreadState));
+      "{}", reinterpret_cast<uint64_t>(rt::loadGlobalFromThreadState));
 
   EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_EQ(lir_str.find(fast_path), std::string::npos)
-      << "Should not call out to JITRT_LoadGlobal as globals aren't stable";
+      << "Should not call out to rt::loadGlobal as globals aren't stable";
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
-      << "Should be calling out to JITRT_LoadGlobalFromThreadState as globals "
+      << "Should be calling out to rt::loadGlobalFromThreadState as globals "
          "aren't stable";
 
   Ref<PyObject> pyfunc3(compileAndGet(src, "func3"));
@@ -662,12 +662,12 @@ def func3(x):
   lir_str = getLIRString(pyfunc3.get());
 
   slow_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobalsDict));
+      fmt::format("{}", reinterpret_cast<uint64_t>(rt::loadGlobalsDict));
 
   EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
-      << "Should be calling out to JITRT_LoadGlobalsDict as globals "
+      << "Should be calling out to rt::loadGlobalsDict as globals "
          "aren't stable";
 }
 
@@ -716,13 +716,12 @@ def func():
 
   auto lir_str = getLIRString(pyfunc.get());
 
-  auto slow_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadName));
+  auto slow_path = fmt::format("{}", reinterpret_cast<uint64_t>(rt::loadName));
 
   EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
-      << "Should be calling out to JITRT_LoadName as code objects aren't "
+      << "Should be calling out to rt::loadName as code objects aren't "
          "stable";
 }
 

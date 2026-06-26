@@ -462,8 +462,8 @@ int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
 
 // rewrite call instructions:
 //   - move function arguments to the right registers.
-//   - handle special cases such as JITRT_(Call|Invoke)Function,
-//   JITRT_(Call|Get)Method, etc.
+//   - handle special cases such as rt::call, rt::invokeMethod,
+//   rt::getMethod, etc.
 RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   auto instr = instr_iter->get();
   // Call arguments are placed at SP+0, which is where the callee expects them

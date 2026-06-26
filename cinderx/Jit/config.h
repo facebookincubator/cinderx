@@ -134,7 +134,7 @@ struct Config {
   // Use huge pages for cold code sections as well. Only applicable when
   // multiple_code_sections is enabled. Defaults to false (regular pages).
   bool cold_code_huge_pages{false};
-  // Allocate JIT code near JITRT_Call by passing an mmap address hint. This
+  // Allocate JIT code near rt::call by passing an mmap address hint. This
   // keeps runtime helper calls within direct branch range and improves
   // instruction cache / TLB locality. Falls back to unhinted allocation when
   // the kernel can't place the allocation near the hint.

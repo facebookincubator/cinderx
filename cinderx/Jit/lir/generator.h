@@ -124,7 +124,7 @@ class LIRGenerator {
 #endif
 
   // Emit a call to a C++ function that returns a two-field struct (e.g.
-  // LoadMethodResult, JITRT_GenSendRes).  On SysV x64 the two fields come
+  // LoadMethodResult, rt::GenSendRes).  On SysV x64 the two fields come
   // back in RAX:RDX.  On Windows x64 the caller provides a hidden first
   // pointer argument; the callee writes the struct there.
   //
@@ -425,7 +425,7 @@ void GenerateFunctionEntryBlock(Function* lir_func);
 
 // Build a post-regalloc LIR block for the primitive-args prologue.
 // Loads the _PyTypedArgsInfo pointer into the 5th argument register (R8/x4),
-// calls JITRT_CallStaticallyWithPrimitiveSignature[FP], then branches to
+// calls rt::callStaticallyWithPrimitiveSignature[FP], then branches to
 // prologue_exit. The block is appended to the block list; the caller is
 // responsible for positioning it.
 void GeneratePrimitiveArgsPrologueBlock(
@@ -449,7 +449,7 @@ void GenerateArgcountCheckBlocks(
 // a Static Python primitive return value into a boxed PyObject*. The wrapper
 // sets up its own minimal frame, calls the inner function via generic_entry,
 // checks the success flag (EDX/W1 for integers, XMM1/D1 for doubles), boxes
-// the result by calling the appropriate JITRT_Box* helper, then branches to
+// the result by calling the appropriate rt::box* helper, then branches to
 // wrapper_exit (which should be bound to a leave;ret sequence). The blocks
 // are appended to the block list; the caller is responsible for positioning
 // them.
@@ -482,11 +482,11 @@ void GenerateDeoptTrampolineBlocks(
 // Build post-regalloc LIR blocks for the failed deferred compilation
 // trampoline.  This trampoline is invoked when a lazily-compiled function
 // fails to compile: it saves incoming argument registers, calls
-// JITRT_FailedDeferredCompileShim with a pointer to the saved args, tears
+// rt::failedDeferredCompileShim with a pointer to the saved args, tears
 // down the frame, and returns.
 //
 // |failed_deferred_compile_shim| is the function pointer to
-// JITRT_FailedDeferredCompileShim.
+// rt::failedDeferredCompileShim.
 void GenerateFailedDeferredCompileBlocks(
     Function* lir_func,
     void* failed_deferred_compile_shim);

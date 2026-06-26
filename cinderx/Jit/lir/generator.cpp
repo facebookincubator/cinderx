@@ -214,8 +214,7 @@ int lineForBytecodeOffset(BorrowedRef<PyCodeObject> code, int bc_off) {
 void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
   if (kPyRefDebug) {
     auto helper = reinterpret_cast<uint64_t>(
-        op == Instruction::Opcode::kInc ? JITRT_IncRefTotal
-                                        : JITRT_DecRefTotal);
+        op == Instruction::Opcode::kInc ? rt::incRefTotal : rt::decRefTotal);
     // Py_REF_DEBUG bookkeeping is inserted while lowering refcount HIR, but
     // these helper calls do not execute arbitrary Python code and do not need
     // callsite live-value metadata for the surrounding HIR instruction.
@@ -887,7 +886,7 @@ void GenerateArgcountCheckBlocks(
   if (will_check_argcount) {
     // Two blocks:
     //   kw_dispatch: test kwnames → if null, branch to argcount_check;
-    //                otherwise call JITRT_CallWithKeywordArgs → exit.
+    //                otherwise call rt::callWithKeywordArgs → exit.
     //   argcount_check: cmp nargsf with numArgs → if equal, branch to
     //                   next_block; otherwise call incorrect-argcount
     //                   helper → exit.
@@ -909,8 +908,8 @@ void GenerateArgcountCheckBlocks(
         // Args are stack allocated in the simple version so only
         // use if we have a reasonable number of arguments.
         Imm{reinterpret_cast<uint64_t>(
-            num_args < 30 ? JITRT_CallWithKeywordArgsSimple
-                          : JITRT_CallWithKeywordArgs)});
+            num_args < 30 ? rt::callWithKeywordArgsSimple
+                          : rt::callWithKeywordArgs)});
     kw_dispatch->allocateInstr(
         Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
 
@@ -919,7 +918,7 @@ void GenerateArgcountCheckBlocks(
 
     // Load numArgs into kwnames_reg. After the kBranchZ above we know
     // kwnames is null so this register is free. This also sets up the
-    // 4th argument for JITRT_CallWithIncorrectArgcount if needed.
+    // 4th argument for rt::callWithIncorrectArgcount if needed.
     argcount_check->allocateInstr(
         Instruction::kMove,
         nullptr,
@@ -938,8 +937,8 @@ void GenerateArgcountCheckBlocks(
 
     // Wrong argcount: kwnames_reg already holds numArgs for the 4th arg.
     auto helper = returns_primitive_double
-        ? reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcountFPReturn)
-        : reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcount);
+        ? reinterpret_cast<uint64_t>(rt::callWithIncorrectArgcountFPReturn)
+        : reinterpret_cast<uint64_t>(rt::callWithIncorrectArgcount);
 #ifdef _WIN32
     // On Windows x64, both helpers return 16-byte structs which causes the
     // ABI to use a hidden sret pointer in RCX, shifting all visible
@@ -1036,7 +1035,7 @@ void GenerateArgcountCheckBlocks(
     kw_dispatch->allocateInstr(
         Instruction::kCall,
         nullptr,
-        Imm{reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs)});
+        Imm{reinterpret_cast<uint64_t>(rt::callWithKeywordArgs)});
     kw_dispatch->allocateInstr(
         Instruction::kBranch, nullptr, AsmLbl{prologue_exit});
   }
@@ -1056,7 +1055,7 @@ void GeneratePrimitiveArgsPrologueBlock(
     asmjit::Label prologue_exit) {
   // The primitive-args prologue loads the _PyTypedArgsInfo* into the 5th
   // argument register (ARGUMENT_REGS[4] = R8 on x86-64, x4 on aarch64),
-  // calls the appropriate JITRT_CallStaticallyWithPrimitiveSignature helper,
+  // calls the appropriate rt::callStaticallyWithPrimitiveSignature helper,
   // then exits. If the helper decides the call can proceed statically, it
   // returns to the reentry point; otherwise it handles the call itself and
   // the prologue_exit stub tears down the frame and returns.
@@ -1075,8 +1074,8 @@ void GeneratePrimitiveArgsPrologueBlock(
 
   // Call the appropriate helper.
   auto helper = returns_primitive_double
-      ? reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignatureFP)
-      : reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignature);
+      ? reinterpret_cast<uint64_t>(rt::callStaticallyWithPrimitiveSignatureFP)
+      : reinterpret_cast<uint64_t>(rt::callStaticallyWithPrimitiveSignature);
 
   block->allocateInstr(Instruction::kCall, nullptr, Imm{helper});
 
@@ -1157,7 +1156,7 @@ void GenerateBoxedReturnWrapperBlocks(
 
   if (returns_double) {
     // XMM0/D0 already holds the double; the box function reads it from there.
-    box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
+    box_func = reinterpret_cast<uint64_t>(rt::boxDouble);
   } else {
     // Move the primitive result from the return register (RAX/X0) to the
     // first argument register (RDI on x86-64, X0 on aarch64).
@@ -1168,35 +1167,35 @@ void GenerateBoxedReturnWrapperBlocks(
           nullptr,
           OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
           PhyReg{ret8, Operand::k8bit});
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
+      box_func = reinterpret_cast<uint64_t>(rt::boxBool);
     } else if (return_type <= TCInt8) {
       box_block->allocateInstr(
           Instruction::kMovSX,
           nullptr,
           OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
           PhyReg{ret8, Operand::k8bit});
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+      box_func = reinterpret_cast<uint64_t>(rt::boxI32);
     } else if (return_type <= TCUInt8) {
       box_block->allocateInstr(
           Instruction::kMovZX,
           nullptr,
           OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
           PhyReg{ret8, Operand::k8bit});
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+      box_func = reinterpret_cast<uint64_t>(rt::boxU32);
     } else if (return_type <= TCInt16) {
       box_block->allocateInstr(
           Instruction::kMovSX,
           nullptr,
           OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
           PhyReg{ret16, Operand::k16bit});
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+      box_func = reinterpret_cast<uint64_t>(rt::boxI32);
     } else if (return_type <= TCUInt16) {
       box_block->allocateInstr(
           Instruction::kMovZX,
           nullptr,
           OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
           PhyReg{ret16, Operand::k16bit});
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+      box_func = reinterpret_cast<uint64_t>(rt::boxU32);
     } else if (
         return_type <= TCInt32 || return_type <= TCUInt32 ||
         return_type <= TCInt64 || return_type <= TCUInt64) {
@@ -1211,13 +1210,13 @@ void GenerateBoxedReturnWrapperBlocks(
             PhyReg{ret64});
       }
       if (return_type <= TCInt32) {
-        box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+        box_func = reinterpret_cast<uint64_t>(rt::boxI32);
       } else if (return_type <= TCUInt32) {
-        box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+        box_func = reinterpret_cast<uint64_t>(rt::boxU32);
       } else if (return_type <= TCInt64) {
-        box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
+        box_func = reinterpret_cast<uint64_t>(rt::boxI64);
       } else {
-        box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
+        box_func = reinterpret_cast<uint64_t>(rt::boxU64);
       }
     } else {
       JIT_ABORT("Unsupported primitive return type {}", return_type.toString());
@@ -1321,7 +1320,7 @@ void LIRGenerator::GenerateExitBlocks() {
 
   block = exit_epilogue_;
 
-  // Restore original frame pointer. Must come after JITRT_UnlinkFrame
+  // Restore original frame pointer. Must come after rt::unlinkFrame
   // (if present) since changing RBP makes regalloc spill slots
   // inaccessible.
   block->allocateInstr(
@@ -1744,7 +1743,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
     BasicBlock* end_incref) {
   // Inline the common-case incref for free-threading. Check thread ownership
   // (ob_tid == tstate->thread_id) and use a relaxed atomic store for
-  // thread-owned objects. Fall back to JITRT_IncRefShared for objects owned
+  // thread-owned objects. Fall back to rt::incRefShared for objects owned
   // by other threads.
 
   BasicBlock* slow_incref = bbb.allocateBlock();
@@ -1802,17 +1801,17 @@ void LIRGenerator::makeIncrefFreeThreaded(
   // Jump past the slow path to end_incref.
   bbb.appendBranch(Instruction::kBranch, end_incref);
 
-  // Slow path: not owned by this thread, use JITRT_IncRefShared.
+  // Slow path: not owned by this thread, use rt::incRefShared.
   // Use switchBlock (not appendBlock) because fast_store's unconditional
   // branch means slow_incref is not its fallthrough successor.
   bbb.switchBlock(slow_incref);
   if (getConfig().multiple_code_sections) {
     slow_incref->setSection(codegen::CodeSection::kCold);
   }
-  // Call JITRT_IncRefShared directly instead of Py_IncRef — we've already
+  // Call rt::incRefShared directly instead of Py_IncRef — we've already
   // checked immortality and ownership. Avoids redundant checks.
   updateRefTotal(bbb, Instruction::kInc);
-  bbb.appendInvokeInstruction(JITRT_IncRefShared, instr);
+  bbb.appendInvokeInstruction(rt::incRefShared, instr);
   // Falls through to end_incref (appended by caller).
 }
 
@@ -2235,7 +2234,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto* instr = static_cast<const SwapCellItem*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_SwapCellItem,
+            cx_swap_cell_item,
             instr->GetOperand(0),
             instr->GetOperand(1));
         break;
@@ -2251,7 +2250,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if constexpr (kFreeThreadedBuild) {
           auto* instr = static_cast<const LoadCellItem*>(&i);
           bbb.appendCallInstruction(
-              instr->output(), JITRT_LoadCellItem, instr->GetOperand(0));
+              instr->output(), cx_load_cell_item, instr->GetOperand(0));
         } else {
           hir::Register* dest = i.output();
           Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
@@ -2279,7 +2278,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kInitFrameCellVars: {
         auto& hir_instr = static_cast<const InitFrameCellVars&>(i);
         bbb.appendInvokeInstruction(
-            JITRT_InitFrameCellVars,
+            rt::initFrameCellVars,
             bbb.getDefInstr(hir_instr.func()),
             hir_instr.num_cell_vars(),
             env_->asm_tstate);
@@ -2321,7 +2320,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadFunctionIndirect*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_LoadFunctionIndirect,
+            rt::loadFunctionIndirect,
             instr->funcptr(),
             instr->descr());
         break;
@@ -2384,10 +2383,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kSext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_ShiftLeft32);
+                helper = reinterpret_cast<uint64_t>(rt::shiftLeft32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_ShiftLeft64);
+                helper = reinterpret_cast<uint64_t>(rt::shiftLeft64);
                 break;
             }
             break;
@@ -2408,10 +2407,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kSext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_ShiftRight32);
+                helper = reinterpret_cast<uint64_t>(rt::shiftRight32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_ShiftRight64);
+                helper = reinterpret_cast<uint64_t>(rt::shiftRight64);
                 break;
             }
             break;
@@ -2432,10 +2431,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kZext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_ShiftRightUnsigned32);
+                helper = reinterpret_cast<uint64_t>(rt::shiftRightUnsigned32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_ShiftRightUnsigned64);
+                helper = reinterpret_cast<uint64_t>(rt::shiftRightUnsigned64);
                 break;
             }
             break;
@@ -2453,10 +2452,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kSext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_Mod32);
+                helper = reinterpret_cast<uint64_t>(rt::mod32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_Mod64);
+                helper = reinterpret_cast<uint64_t>(rt::mod64);
                 break;
             }
             break;
@@ -2467,10 +2466,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kZext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_ModUnsigned32);
+                helper = reinterpret_cast<uint64_t>(rt::modUnsigned32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_ModUnsigned64);
+                helper = reinterpret_cast<uint64_t>(rt::modUnsigned64);
                 break;
             }
             break;
@@ -2481,10 +2480,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kSext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_Power32);
+                helper = reinterpret_cast<uint64_t>(rt::power32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_Power64);
+                helper = reinterpret_cast<uint64_t>(rt::power64);
                 break;
             };
             break;
@@ -2495,10 +2494,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                 extend = Instruction::kZext;
                 [[fallthrough]];
               case 3:
-                helper = reinterpret_cast<uint64_t>(JITRT_PowerUnsigned32);
+                helper = reinterpret_cast<uint64_t>(rt::powerUnsigned32);
                 break;
               case 4:
-                helper = reinterpret_cast<uint64_t>(JITRT_PowerUnsigned64);
+                helper = reinterpret_cast<uint64_t>(rt::powerUnsigned64);
                 break;
             };
             break;
@@ -2554,11 +2553,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           Type right_type = instr->right()->type();
           if (right_type.hasDoubleSpec() && right_type.doubleSpec() == 0.5) {
             bbb.appendCallInstruction(
-                instr->output(), JITRT_SqrtDouble, instr->left());
+                instr->output(), rt::sqrtDouble, instr->left());
           } else {
             bbb.appendCallInstruction(
                 instr->output(),
-                JITRT_PowerDouble,
+                rt::powerDouble,
                 instr->left(),
                 instr->right());
           }
@@ -2664,26 +2663,26 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (src_type == TNullptr) {
           // special case for an uninitialized variable, we'll
           // load zero
-          bbb.appendCallInstruction(instr->output(), JITRT_BoxI64, int64_t{0});
+          bbb.appendCallInstruction(instr->output(), rt::boxI64, int64_t{0});
           break;
         } else if (src_type <= TCUInt64) {
-          func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
+          func = reinterpret_cast<uint64_t>(rt::boxU64);
         } else if (src_type <= TCInt64) {
-          func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
+          func = reinterpret_cast<uint64_t>(rt::boxI64);
         } else if (src_type <= TCUInt32) {
-          func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+          func = reinterpret_cast<uint64_t>(rt::boxU32);
         } else if (src_type <= TCInt32) {
-          func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+          func = reinterpret_cast<uint64_t>(rt::boxI32);
         } else if (src_type <= TCDouble) {
-          func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
+          func = reinterpret_cast<uint64_t>(rt::boxDouble);
         } else if (src_type <= (TCUInt8 | TCUInt16)) {
           src = bbb.appendInstr(
               Instruction::kZext, OutVReg{Operand::k32bit}, src);
-          func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+          func = reinterpret_cast<uint64_t>(rt::boxU32);
         } else if (src_type <= (TCInt8 | TCInt16)) {
           src = bbb.appendInstr(
               Instruction::kSext, OutVReg{Operand::k32bit}, src);
-          func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+          func = reinterpret_cast<uint64_t>(rt::boxI32);
         }
 
         JIT_CHECK(func != 0, "Unknown box type {}", src_type.toString());
@@ -2766,28 +2765,28 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               instr->output(), Instruction::kMove, Ind{value, offset});
         } else if (ty <= TCUInt64) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxU64, instr->value());
+              instr->output(), rt::unboxU64, instr->value());
         } else if (ty <= TCUInt32) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxU32, instr->value());
+              instr->output(), rt::unboxU32, instr->value());
         } else if (ty <= TCUInt16) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxU16, instr->value());
+              instr->output(), rt::unboxU16, instr->value());
         } else if (ty <= TCUInt8) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxU8, instr->value());
+              instr->output(), rt::unboxU8, instr->value());
         } else if (ty <= TCInt64) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxI64, instr->value());
+              instr->output(), rt::unboxI64, instr->value());
         } else if (ty <= TCInt32) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxI32, instr->value());
+              instr->output(), rt::unboxI32, instr->value());
         } else if (ty <= TCInt16) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxI16, instr->value());
+              instr->output(), rt::unboxI16, instr->value());
         } else if (ty <= TCInt8) {
           bbb.appendCallInstruction(
-              instr->output(), JITRT_UnboxI8, instr->value());
+              instr->output(), rt::unboxI8, instr->value());
         } else {
           JIT_ABORT("Cannot unbox type {}", ty.toString());
         }
@@ -2843,7 +2842,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kSetCurrentAwaiter: {
         bbb.appendInvokeInstruction(
-            JITRT_SetCurrentAwaiter, i.GetOperand(0), env_->asm_tstate);
+            rt::setCurrentAwaiter, i.GetOperand(0), env_->asm_tstate);
         break;
       }
       case Opcode::kYieldValue: {
@@ -2897,7 +2896,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             bbb,
             gen_obj,
             footer,
-            JITRT_UnlinkGenFrameAndReturnGenDataFooter,
+            rt::unlinkGenFrameAndReturnGenDataFooter,
             env_->asm_tstate);
 
         // Store yield point metadata (same as kYieldValue).
@@ -2936,7 +2935,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         if (opcode == Opcode::kCondBranchIterNotDone) {
           auto iter_done_addr =
-              reinterpret_cast<uint64_t>(&JITRT_IterDoneSentinel);
+              reinterpret_cast<uint64_t>(&rt::iterDoneSentinel);
           cond = bbb.appendInstr(
               Instruction::kSub,
               OutVReg{Operand::k64bit},
@@ -3007,7 +3006,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadAttrSpecial*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_LookupAttrSpecial,
+            rt::lookupAttrSpecial,
             instr->GetOperand(0),
             instr->id(),
             instr->failureFmtStr());
@@ -3102,7 +3101,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
-        appendCall2RetValues(bbb, dst, JITRT_GetMethod, base, name);
+        appendCall2RetValues(bbb, dst, rt::getMethod, base, name);
         break;
       }
       case Opcode::kLoadMethodCached: {
@@ -3166,7 +3165,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         appendCall2RetValues(
             bbb,
             instr->output(),
-            JITRT_GetMethodFromSuper,
+            rt::getMethodFromSuper,
             instr->global_super(),
             instr->type(),
             instr->receiver(),
@@ -3179,7 +3178,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_GetAttrFromSuper,
+            rt::getAttrFromSuper,
             instr->global_super(),
             instr->type(),
             instr->receiver(),
@@ -3289,7 +3288,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // NB: This needs to be in the order that the values appear in the
         // UnaryOpKind enum
         static const unaryfunc helpers[] = {
-            JITRT_UnaryNot,
+            rt::unaryNot,
             PyNumber_Negative,
             PyNumber_Positive,
             PyNumber_Invert,
@@ -3318,7 +3317,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (instr->op() == CompareOp::kIn) {
           bbb.appendCallInstruction(
               instr->output(),
-              JITRT_SequenceContains,
+              rt::sequenceContains,
               instr->right(),
               instr->left());
           break;
@@ -3326,7 +3325,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (instr->op() == CompareOp::kNotIn) {
           bbb.appendCallInstruction(
               instr->output(),
-              JITRT_SequenceNotContains,
+              rt::sequenceNotContains,
               instr->right(),
               instr->left());
           break;
@@ -3425,7 +3424,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         } else if (instr->op() == CompareOp::kNotIn) {
           call_instr = bbb.appendCallInstruction(
               instr->output(),
-              JITRT_NotContainsBool,
+              rt::notContainsBool,
               instr->right(),
               instr->left());
         } else if (
@@ -3435,7 +3434,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
              instr->right()->type() <= TUnicodeExact)) {
           call_instr = bbb.appendCallInstruction(
               instr->output(),
-              JITRT_UnicodeEquals,
+              rt::unicodeEquals,
               instr->left(),
               instr->right(),
               static_cast<int>(instr->op()));
@@ -3453,7 +3452,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         } else {
           call_instr = bbb.appendCallInstruction(
               instr->output(),
-              JITRT_RichCompareBool,
+              rt::richCompareBool,
               instr->left(),
               instr->right(),
               static_cast<int>(instr->op()));
@@ -3465,7 +3464,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const CopyDictWithoutKeys*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_CopyDictWithoutKeys,
+            rt::copyDictWithoutKeys,
             instr->GetOperand(0),
             instr->GetOperand(1));
         break;
@@ -3502,7 +3501,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           storeActiveDeoptIndex(bbb, deopt_idx);
         }
         Instruction* lir = bbb.appendInstr(Instruction::kVarArgCall);
-        lir->addOperands(Imm{reinterpret_cast<uint64_t>(JITRT_BatchDecref)});
+        lir->addOperands(Imm{reinterpret_cast<uint64_t>(rt::batchDecref)});
         for (hir::Register* arg : instr->GetOperands()) {
           lir->addOperands(VReg{bbb.getDefInstr(arg)});
         }
@@ -3543,7 +3542,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kRaiseAwaitableError: {
         const auto& instr = static_cast<const RaiseAwaitableError&>(i);
         bbb.appendInvokeInstruction(
-            JITRT_FormatAwaitableError,
+            rt::formatAwaitableError,
             env_->asm_tstate,
             instr.GetOperand(0),
             instr.isAEnter());
@@ -3641,7 +3640,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (!getConfig().stable_frame) {
           bbb.appendCallInstruction(
               instr->output(),
-              JITRT_LoadGlobalFromThreadState,
+              rt::loadGlobalFromThreadState,
               env_->asm_tstate,
               name);
           break;
@@ -3651,7 +3650,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         PyObject* globals = instr->frameState()->globals;
         env_->code_rt->addReference(globals);
         bbb.appendCallInstruction(
-            instr->output(), JITRT_LoadGlobal, globals, builtins, name);
+            instr->output(), rt::loadGlobal, globals, builtins, name);
         break;
       }
       case Opcode::kStoreAttr: {
@@ -3694,7 +3693,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           // Calls to things which aren't simple Python functions will
           // need to check the eval breaker. We do this in a helper instead
           // of injecting it after every call.
-          func = reinterpret_cast<uint64_t>(JITRT_VectorcallTstate);
+          func = reinterpret_cast<uint64_t>(rt::vectorcallTstate);
         }
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
@@ -3734,7 +3733,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto& instr = static_cast<const CallEx&>(i);
         bbb.appendCallInstruction(
             instr.output(),
-            JITRT_CallFunctionEx,
+            rt::callFunctionEx,
             instr.func(),
             instr.pargs(),
             instr.kwargs());
@@ -3818,7 +3817,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.output(),
             Instruction::kVectorCallTstate,
             // TASK(T140174965): This should be MemImm.
-            Imm{reinterpret_cast<uint64_t>(JITRT_Call)},
+            Imm{reinterpret_cast<uint64_t>(rt::call)},
             Imm{flags},
             VReg{env_->asm_tstate});
         for (hir::Register* arg : hir_instr.GetOperands()) {
@@ -3956,13 +3955,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (instr->pytype() == &PyFloat_Type) {
           bbb.appendCallInstruction(
               instr->output(),
-              instr->optional() ? JITRT_CastToFloatOptional : JITRT_CastToFloat,
+              instr->optional() ? rt::castToFloatOptional : rt::castToFloat,
               instr->value());
           break;
         } else if (instr->exact()) {
-          func = instr->optional() ? JITRT_CastOptionalExact : JITRT_CastExact;
+          func = instr->optional() ? rt::castOptionalExact : rt::castExact;
         } else {
-          func = instr->optional() ? JITRT_CastOptional : JITRT_Cast;
+          func = instr->optional() ? rt::castOptional : rt::cast;
         }
 
         bbb.appendCallInstruction(
@@ -4061,13 +4060,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               instr->GetOperand(1));
           bbb.appendCallInstruction(
               instr->output(),
-              JITRT_CheckSequenceBounds,
+              rt::checkSequenceBounds,
               instr->GetOperand(0),
               lir);
         } else {
           bbb.appendCallInstruction(
               instr->output(),
-              JITRT_CheckSequenceBounds,
+              rt::checkSequenceBounds,
               instr->GetOperand(0),
               instr->GetOperand(1));
         }
@@ -4170,7 +4169,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kDictUpdate: {
         bbb.appendCallInstruction(
             i.output(),
-            JITRT_DictUpdate,
+            rt::dictUpdate,
             env_->asm_tstate,
             i.GetOperand(0),
             i.GetOperand(1));
@@ -4179,7 +4178,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kDictMerge: {
         bbb.appendCallInstruction(
             i.output(),
-            JITRT_DictMerge,
+            rt::dictMerge,
             env_->asm_tstate,
             i.GetOperand(0),
             i.GetOperand(1),
@@ -4316,7 +4315,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kGetLength: {
         auto instr = static_cast<const GetLength*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), JITRT_GetLength, instr->GetOperand(0));
+            instr->output(), rt::getLength, instr->GetOperand(0));
         break;
       }
       case Opcode::kPhi: {
@@ -4345,7 +4344,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               OutVReg{},
               Instruction::kCall,
               // TASK(T140174965): This should be MemImm.
-              Imm{reinterpret_cast<uint64_t>(JITRT_LoadGlobalsDict)},
+              Imm{reinterpret_cast<uint64_t>(rt::loadGlobalsDict)},
               env_->asm_tstate);
         }
 
@@ -4418,7 +4417,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kInvokeIterNext: {
         auto instr = static_cast<const InvokeIterNext*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), JITRT_InvokeIterNext, instr->GetOperand(0));
+            instr->output(), rt::invokeIterNext, instr->GetOperand(0));
         break;
       }
       case Opcode::kLoadEvalBreaker: {
@@ -4450,7 +4449,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kAtQuiescentState: {
         if constexpr (kFreeThreadedBuild) {
-          bbb.appendInvokeInstruction(JITRT_AtQuiescentState, env_->asm_tstate);
+          bbb.appendInvokeInstruction(rt::atQuiescentState, env_->asm_tstate);
         }
         break;
       }
@@ -4772,7 +4771,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(
             i.output(),
-            JITRT_ImportFrom,
+            rt::importFrom,
             env_->asm_tstate,
             env_->asm_interpreter_frame,
             instr->module(),
@@ -4798,7 +4797,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(
             i.output(),
-            JITRT_ImportName,
+            rt::importName,
             env_->asm_tstate,
             name,
             instr->GetFromList(),
@@ -4811,7 +4810,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #if PY_VERSION_HEX >= 0x030F0000
         bbb.appendCallInstruction(
             i.output(),
-            JITRT_ImportName,
+            rt::importName,
             env_->asm_tstate,
             name,
             instr->GetFromList(),
@@ -4830,7 +4829,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #elif ENABLE_LAZY_IMPORTS
         PyObject* globals = instr->frameState()->globals;
         PyObject* builtins = instr->frameState()->builtins;
-        PyObject* locals = Py_None; /* see JITRT_ImportName. */
+        PyObject* locals = Py_None; /* see rt::importName. */
         bbb.appendCallInstruction(
             i.output(),
             _PyImport_ImportName,
@@ -4872,7 +4871,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         const auto& instr = static_cast<const FormatValue&>(i);
         bbb.appendCallInstruction(
             instr.output(),
-            JITRT_FormatValue,
+            rt::formatValue,
             env_->asm_tstate,
             instr.GetOperand(0),
             instr.GetOperand(1),
@@ -4898,7 +4897,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* lir = bbb.appendInstr(
             instr.output(),
             Instruction::kVectorCallTstate,
-            JITRT_BuildString,
+            rt::buildString,
             nullptr,
             nullptr);
         lir->addOperands(Imm{0});
@@ -4935,7 +4934,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const UnpackExToTuple*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_UnpackExToTuple,
+            rt::unpackExToTuple,
             env_->asm_tstate,
             instr->seq(),
             instr->before(),
@@ -4961,7 +4960,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const UnpackSequence*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            JITRT_UnpackSequence,
+            rt::unpackSequence,
             env_->asm_tstate,
             instr->seq(),
             instr->items_ptr(),
@@ -5020,8 +5019,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto& hir_instr = static_cast<const Send&>(i);
         uint64_t func = reinterpret_cast<uint64_t>(
             hir_instr.handleStopAsyncIteration()
-                ? JITRT_GenSendHandleStopAsyncIteration
-                : JITRT_GenSend);
+                ? rt::genSendHandleStopAsyncIteration
+                : rt::genSend);
         appendCall2RetValues(
             bbb,
             hir_instr.output(),
@@ -5062,7 +5061,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         appendCall2RetValues(
             bbb,
             load_special.output(),
-            JITRT_LoadSpecial,
+            rt::loadSpecial,
             load_special.GetOperand(0),
             load_special.specialIdx());
         break;
@@ -5220,7 +5219,7 @@ Instruction* LIRGenerator::getNameFromIdx(
     return bbb.appendInstr(
         OutVReg{},
         Instruction::kCall,
-        JITRT_LoadName,
+        rt::loadName,
         env_->asm_tstate,
         instr->name_idx());
   }
@@ -5321,7 +5320,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         bbb,
         env_->asm_tstate,
         footer,
-        JITRT_AllocateAndLinkGenAndInterpreterFrame,
+        rt::allocateAndLinkGenAndInterpreterFrame,
         env_->asm_func,
         Imm{reinterpret_cast<uint64_t>(env_->code_rt)},
         VReg{resume_label},
@@ -5551,7 +5550,7 @@ void LIRGenerator::emitUnlinkFrame(
     std::optional<destructor> exec_dtor,
     Instruction* callee_frame) {
   if (has_freevars) {
-    bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+    bbb.appendInvokeInstruction(rt::unlinkFrame, env_->asm_tstate);
   } else if (!env_->can_deopt) {
     emitInlineUnlinkLeafFrame(
         bbb, is_generator, func_reg, executable, exec_dtor, callee_frame);
@@ -5636,7 +5635,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
     if (getConfig().multiple_code_sections) {
       materialized_block->setSection(codegen::CodeSection::kCold);
     }
-    bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+    bbb.appendInvokeInstruction(rt::unlinkFrame, env_->asm_tstate);
     bbb.appendBranch(Instruction::kBranch, done_block);
   }
 
@@ -5995,7 +5994,7 @@ void GenerateFailedDeferredCompileBlocks(
       OutPhyReg{codegen::ARGUMENT_REGS[0]},
       Ind(sp_reg, 0));
 
-  // Call JITRT_FailedDeferredCompileShim.
+  // Call rt::failedDeferredCompileShim.
   block->allocateInstr(
       Instruction::kCall,
       nullptr,

@@ -62,7 +62,9 @@
 using namespace cinderx;
 using namespace cinderx::jit;
 
-jit::TaggedPyObject JITRT_TagIfDeferred(PyObject* obj);
+namespace cinderx::jit::rt {
+TaggedPyObject tagIfDeferred(PyObject* obj);
+} // namespace cinderx::jit::rt
 
 namespace {
 
@@ -458,7 +460,7 @@ FlagProcessor initFlagProcessor() {
       "cinderx-jit-hinted-code-allocation",
       "CINDERX_JIT_HINTED_CODE_ALLOCATION",
       getMutableConfig().hinted_code_allocation,
-      "Allocate JIT code near JITRT_Call to keep helper calls in branch range");
+      "Allocate JIT code near rt::call to keep helper calls in branch range");
 
   flag_processor.addOption(
       "cinderx-jit-enable-jit-list-wildcards",
@@ -2253,7 +2255,7 @@ PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
 
 PyObject* would_tag_if_deferred(PyObject* /* self */, PyObject* arg) {
 #ifdef Py_GIL_DISABLED
-  if (jit::taggedPyObjectBits(JITRT_TagIfDeferred(arg)) !=
+  if (jit::taggedPyObjectBits(rt::tagIfDeferred(arg)) !=
       reinterpret_cast<uintptr_t>(arg)) {
     Py_RETURN_TRUE;
   }
@@ -3059,7 +3061,7 @@ PyMethodDef jit_methods[] = {
      would_tag_if_deferred,
      METH_O,
      PyDoc_STR(
-         "Return whether JITRT_TagIfDeferred() would tag this object in the "
+         "Return whether tagIfDeferred() would tag this object in the "
          "current runtime.")},
     {"mlock_profiler_dependencies",
      mlock_profiler_dependencies,

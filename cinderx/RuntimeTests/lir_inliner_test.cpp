@@ -208,7 +208,7 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionSuccessTest) {
       Instruction::kCall,
       nullptr,
       OutVReg(),
-      Imm(reinterpret_cast<uint64_t>(JITRT_Cast)));
+      Imm(reinterpret_cast<uint64_t>(rt::cast)));
   LIRInliner inliner{&caller, call_instr};
   auto callee = inliner.findCalleeFunction();
   ASSERT_TRUE(callee != nullptr);
@@ -225,8 +225,8 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionFailureTest) {
       Instruction::kCall,
       nullptr,
       OutVReg(),
-      Imm(reinterpret_cast<uint64_t>(JITRT_BoxBool)));
-  // JITRT_BoxBool is a function that we have not yet translated.
+      Imm(reinterpret_cast<uint64_t>(rt::boxBool)));
+  // rt::boxBool is a function that we have not yet translated.
   LIRInliner inliner{&caller, call_instr};
   auto callee = inliner.findCalleeFunction();
 

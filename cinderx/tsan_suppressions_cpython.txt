@@ -39,7 +39,7 @@ race:jit::AttributeCache::fill
 race:jit::LoadMethodCache::
 race:jit::LoadTypeMethodCache::
 race:jit::LoadTypeAttrCache::
-race:JITRT_LoadSpecial
+race:jit::rt::loadSpecial
 
 # CinderX JIT compilation tracking: parallel-hashmap races between JIT
 # compilation threads and main-thread lookups in jit::Context maps.

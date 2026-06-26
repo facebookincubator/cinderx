@@ -271,7 +271,7 @@ class BackendTest : public RuntimeTest {
     auto test_noerror = [&](PyObject* a_in, PyTypeObject* b_in) -> void {
       auto ret_test = func(a_in, b_in);
       ASSERT_TRUE(PyErr_Occurred() == nullptr);
-      auto ret_jitrt = JITRT_Cast(a_in, b_in);
+      auto ret_jitrt = rt::cast(a_in, b_in);
       ASSERT_TRUE(PyErr_Occurred() == nullptr);
       ASSERT_EQ(ret_test, ret_jitrt);
     };
@@ -281,7 +281,7 @@ class BackendTest : public RuntimeTest {
       ASSERT_TRUE(PyErr_ExceptionMatches(PyExc_TypeError));
       PyErr_Clear();
 
-      auto ret_jitrt = JITRT_Cast(a_in, b_in);
+      auto ret_jitrt = rt::cast(a_in, b_in);
       ASSERT_TRUE(PyErr_ExceptionMatches(PyExc_TypeError));
       PyErr_Clear();
 
@@ -1229,7 +1229,7 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
       Instruction::kCall,
       nullptr,
       OutVReg(),
-      Imm(reinterpret_cast<uint64_t>(JITRT_Cast)),
+      Imm(reinterpret_cast<uint64_t>(rt::cast)),
       VReg(r1),
       VReg(r2));
   bb->allocateInstr(
@@ -1306,7 +1306,7 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
       Instruction::kCall,
       nullptr,
       OutVReg(),
-      Imm(reinterpret_cast<uint64_t>(JITRT_Cast)),
+      Imm(reinterpret_cast<uint64_t>(rt::cast)),
       VReg(r1),
       VReg(r2));
   bb->allocateInstr(
