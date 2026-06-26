@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Jit/codegen/annotations.h"
 #include "cinderx/Jit/codegen/arch.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/debug_info.h"
 

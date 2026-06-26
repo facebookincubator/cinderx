@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "cinderx/Jit/containers.h"
+#include "cinderx/Common/containers.h"
 #include "cinderx/Jit/lir/block.h"
 
 #include <deque>

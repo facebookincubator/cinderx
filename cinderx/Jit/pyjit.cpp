@@ -9,6 +9,7 @@
 
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
@@ -23,7 +24,6 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"

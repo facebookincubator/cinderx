@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/lir/function.h"
 
-#include "cinderx/Jit/containers.h"
+#include "cinderx/Common/containers.h"
 #include "cinderx/Jit/lir/blocksorter.h"
 
 #include <algorithm>

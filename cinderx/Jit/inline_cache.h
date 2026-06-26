@@ -4,11 +4,11 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
 #include <array>
@@ -469,4 +469,4 @@ struct FunctionEntryCacheValue {
 };
 
 using FunctionEntryCacheMap =
-    cinderx::jit::UnorderedMap<PyFunctionObject*, FunctionEntryCacheValue>;
+    cinderx::UnorderedMap<PyFunctionObject*, FunctionEntryCacheValue>;

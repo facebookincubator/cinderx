@@ -4,9 +4,9 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/code_allocator_iface.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/generators_mm_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
@@ -118,10 +118,10 @@ struct ModuleState {
   Ref<> orig_sys_settrace;
 
   // Function and code objects ("units") registered for compilation.
-  jit::UnorderedSet<BorrowedRef<>> registered_compilation_units;
+  UnorderedSet<BorrowedRef<>> registered_compilation_units;
 
   // Function objects registered for pre-fork perf-trampoline compilation.
-  jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
+  UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
 
   // The CinderX PyModule instance itself.  Stored so that code with data backed
   // by the module (e.g. the generator free-list) can prevent premature cleanup

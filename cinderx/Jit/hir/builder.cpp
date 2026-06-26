@@ -15,10 +15,10 @@ extern "C" {
 } // extern "C"
 
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/ssa.h"

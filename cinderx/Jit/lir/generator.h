@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Jit/codegen/environ.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_rt.h"

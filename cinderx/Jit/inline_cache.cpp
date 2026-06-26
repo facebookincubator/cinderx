@@ -4,13 +4,13 @@
 
 #include "internal/pycore_object.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
@@ -24,7 +24,7 @@ namespace {
 
 template <class T>
 struct TypeWatcher {
-  jit::UnorderedMap<BorrowedRef<PyTypeObject>, jit::UnorderedSet<T*>> caches;
+  UnorderedMap<BorrowedRef<PyTypeObject>, UnorderedSet<T*>> caches;
 
   void watch(BorrowedRef<PyTypeObject> type, T* cache) {
     if (PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE)) {
@@ -55,7 +55,7 @@ struct TypeWatcher {
     if (it == caches.end()) {
       return;
     }
-    jit::UnorderedSet<T*> to_notify = std::move(it->second);
+    UnorderedSet<T*> to_notify = std::move(it->second);
     caches.erase(it);
     for (T* cache : to_notify) {
       cb(cache, type);

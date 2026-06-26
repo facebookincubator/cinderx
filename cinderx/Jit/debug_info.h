@@ -4,9 +4,9 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/bytecode_offsets.h"
-#include "cinderx/Jit/containers.h"
 
 #include <asmjit/asmjit.h>
 
@@ -141,7 +141,7 @@ class DebugInfo {
   // Index into the graph, keyed by address in the generated code
   //
   // Consider storing in a vector sorted by address instead.
-  jit::UnorderedMap<uintptr_t, LocNode> addr_locs_;
+  UnorderedMap<uintptr_t, LocNode> addr_locs_;
 };
 
 } // namespace cinderx::jit

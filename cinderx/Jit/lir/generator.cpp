@@ -21,6 +21,7 @@ extern "C" {
 #endif
 }
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
@@ -29,7 +30,6 @@ extern "C" {
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame_header.h"

@@ -2,9 +2,9 @@
 
 #include "cinderx/Jit/jit_time_log.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/containers.h"
 
 #include <fmt/core.h>
 #include <fmt/format.h>
@@ -75,7 +75,7 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
   // flatten phase timings into one vector
   std::vector<std::tuple<int, SubPhaseTimer*>> toproc;
   std::vector<std::tuple<int, SubPhaseTimer*, int, bool, int>> flat_rows;
-  jit::UnorderedMap<SubPhaseTimer*, int> subphase_to_group_total_time;
+  UnorderedMap<SubPhaseTimer*, int> subphase_to_group_total_time;
 
   toproc.emplace_back(0, root_.get());
   while (!toproc.empty()) {
