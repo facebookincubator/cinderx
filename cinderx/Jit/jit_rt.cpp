@@ -1087,10 +1087,8 @@ PyObject* JITRT_VectorcallTstate(
 PyObject* JITRT_UnaryNot(PyObject* value) {
   int res = PyObject_IsTrue(value);
   if (res == 0) {
-    Py_INCREF(Py_True);
     return Py_True;
   } else if (res > 0) {
-    Py_INCREF(Py_False);
     return Py_False;
   }
   return nullptr;
@@ -1103,7 +1101,6 @@ LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name) {
     return {nullptr, nullptr};
   }
   if (!found) {
-    Py_INCREF(Py_None);
     return {Py_None, method};
   }
   Py_INCREF(obj);
@@ -1167,7 +1164,6 @@ LoadMethodResult JITRT_GetMethodFromSuper(
     Py_INCREF(self);
     return {result, self};
   }
-  Py_INCREF(Py_None);
   return {Py_None, result};
 }
 
