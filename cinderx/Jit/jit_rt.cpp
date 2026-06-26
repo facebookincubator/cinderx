@@ -156,7 +156,7 @@ static int JITRT_BindKeywordArgs(
   Py_ssize_t argcount = PyVectorcall_NARGS(nargsf);
 
   for (int i = 0; i < arg_space.size(); i++) {
-    arg_space[i] = nullptr;
+    JIT_DCHECK(arg_space[i] == nullptr, "should be initialized");
   }
 
   // Copy all positional arguments into local variables
@@ -245,14 +245,15 @@ static int JITRT_BindKeywordArgsSimple(
     return 0;
   }
 
-  for (int i = 0; i < arg_space.size(); i++) {
-    arg_space[i] = nullptr;
-  }
-
   // Copy all positional arguments into local variables
   Py_ssize_t n = std::min<Py_ssize_t>(argcount, co->co_argcount);
+
   for (Py_ssize_t j = 0; j < n; j++) {
     arg_space[j] = args[j];
+  }
+
+  for (int i = n; i < arg_space.size(); i++) {
+    arg_space[i] = nullptr;
   }
 
   // Check the number of positional arguments
