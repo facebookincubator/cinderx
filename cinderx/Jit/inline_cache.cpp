@@ -1410,10 +1410,18 @@ LoadMethodResult LoadMethodCache::lookup(
         return {Py_NewRef(entry.value), Py_NewRef(obj)};
       }
 
-      // NULL sentinel: the attribute is absent from the type, so dispatch to
-      // the type's __getattr__ hook. We only cache NULL for types that have
-      // such a hook, and the cache is invalidated if the type changes.
-      PyObject* result = getAttrFallback(obj, name);
+      // NULL sentinel. Two kinds of types cache a NULL entry (see
+      // lookupSlowPath); the cache is invalidated if the type changes:
+      //
+      //  * A type whose __getattr__ hook wraps the generic getattr we
+      //    replicate: the attribute is genuinely absent, so we skip straight
+      //    to __getattr__ via getAttrFallback().
+      //
+      //  * A type with a lookup we can't replicate (custom __getattribute__,
+      //    or a metaclass instance using type_getattro): we don't know the
+      //    result, so dispatch through the type's own lookup.
+      PyObject* result = entry.has_getattr_hook ? getAttrFallback(obj, name)
+                                                : PyObject_GetAttr(obj, name);
       if (result == nullptr) {
         return {nullptr, nullptr};
       }
@@ -1466,6 +1474,12 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
       tp->tp_getattro == Ci_tp_getattr_hook && hookUsesGenericGetAttr(tp);
 
   if (tp->tp_getattro != PyObject_GenericGetAttr && !has_getattr_hook) {
+    // The type has a custom lookup we can't replicate (a custom
+    // __getattribute__, or a metaclass instance whose __getattribute__ is
+    // type_getattro). Cache a NULL sentinel so future lookups hit the cache and
+    // dispatch straight through the type's own lookup (see lookup()), then
+    // service this miss now.
+    fill(tp, nullptr, name, /* has_getattr_hook */ false);
     PyObject* res = PyObject_GetAttr(obj, name);
     if (res != nullptr) {
       maybeCollectCacheStats(
@@ -1511,7 +1525,7 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   }
 
   if (is_method) {
-    fill(tp, descr, name);
+    fill(tp, descr, name, /* has_getattr_hook */ false);
     Py_INCREF(obj);
     return {descr, obj};
   }
@@ -1535,7 +1549,7 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   // hit the cache and dispatch to __getattr__ directly (see lookup()), then
   // service this miss through __getattr__ now.
   if (has_getattr_hook) {
-    fill(tp, nullptr, name);
+    fill(tp, nullptr, name, /* has_getattr_hook */ true);
     PyObject* result = getAttrFallback(obj, name);
     if (result == nullptr) {
       return {nullptr, nullptr};
@@ -1550,7 +1564,8 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
 void LoadMethodCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> value,
-    BorrowedRef<> name) {
+    BorrowedRef<> name,
+    bool has_getattr_hook) {
   if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
@@ -1558,9 +1573,10 @@ void LoadMethodCache::fill(
     return;
   }
 
-  // `value` may be NULL here, which is a sentinel meaning "the attribute is
-  // absent from the type". This only happens for types with a __getattr__ hook
-  // (see lookupSlowPath); lookup() turns such a hit into a __getattr__ call.
+  // `value` may be NULL here, which is a sentinel meaning the cache can't
+  // resolve the attribute itself (see lookupSlowPath). `has_getattr_hook`
+  // records which kind of sentinel this is so lookup() can dispatch without
+  // recomputing it.
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
       uint32_t keys_version = 0;
@@ -1572,6 +1588,7 @@ void LoadMethodCache::fill(
       entry.type = type;
       entry.value = value;
       entry.keys_version = keys_version;
+      entry.has_getattr_hook = has_getattr_hook;
       return;
     }
   }

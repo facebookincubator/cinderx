@@ -303,6 +303,12 @@ class LoadMethodCache {
     BorrowedRef<> value;
     uint32_t keys_version;
 
+    // For a NULL sentinel entry (value == nullptr), records whether the type
+    // dispatches a genuine miss to __getattr__ (true) or has a lookup we can't
+    // replicate, e.g. a custom __getattribute__ (false). Meaningless when
+    // value != nullptr.
+    bool has_getattr_hook{false};
+
     bool isValidKeysVersion(BorrowedRef<> obj);
   };
 
@@ -319,8 +325,11 @@ class LoadMethodCache {
 
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
-  void
-  fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value, BorrowedRef<> name);
+  void fill(
+      BorrowedRef<PyTypeObject> type,
+      BorrowedRef<> value,
+      BorrowedRef<> name,
+      bool has_getattr_hook);
 
   std::array<Entry, 4> entries_;
   std::unique_ptr<CacheStats> cache_stats_;

@@ -316,6 +316,172 @@ class LoadMethodGetAttrTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
 
+class LoadMethodGetAttributeTests(unittest.TestCase):
+    """LoadMethodCache should support types with a custom __getattribute__.
+
+    Such types can't be replicated by the cache's generic-lookup logic, so the
+    cache stores a NULL sentinel and dispatches each hit through the type's own
+    lookup (PyObject_GetAttr). This covers types with a user-defined
+    __getattribute__ as well as class objects whose metaclass uses
+    type.__getattribute__ (MRO search). The cache must be invalidated when
+    __getattribute__ is added or removed.
+    """
+
+    def test_custom_getattribute_supplies_method(self):
+        """A custom __getattribute__ that synthesizes the method is invoked on
+        both the uncached and cached paths."""
+
+        class Oracle:
+            def __getattribute__(self, name):
+                if name == "meaning_of_life":
+                    return lambda: 42
+                return object.__getattribute__(self, name)
+
+        obj = Oracle()
+        # Uncached, then cached (NULL sentinel + __getattribute__ dispatch).
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_custom_getattribute_finds_real_method(self):
+        """A real method is still reached when the custom __getattribute__
+        delegates to object.__getattribute__, proving dispatch goes through the
+        custom hook rather than the cache's own lookup."""
+
+        seen = []
+
+        class Oracle:
+            def meaning_of_life(self):
+                return 42
+
+            def __getattribute__(self, name):
+                seen.append(name)
+                return object.__getattribute__(self, name)
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+        # The custom __getattribute__ was invoked on every lookup, including
+        # the cached ones.
+        self.assertIn("meaning_of_life", seen)
+        self.assertEqual(len(seen), 102)
+
+    def test_getattribute_error_propagates(self):
+        """If __getattribute__ raises for the method, the error propagates on
+        both the uncached and cached paths."""
+
+        class Oracle:
+            def __getattribute__(self, name):
+                raise AttributeError(name)
+
+        obj = Oracle()
+        with self.assertRaises(AttributeError):
+            get_meaning_of_life(obj)
+        # Cached NULL sentinel: __getattribute__ is still invoked and raises.
+        with self.assertRaises(AttributeError):
+            get_meaning_of_life(obj)
+
+    def test_metaclass_instance_classmethod(self):
+        """Calling a classmethod on a class object goes through the metaclass's
+        type.__getattribute__ (MRO search), which the NULL sentinel handles via
+        PyObject_GetAttr."""
+
+        class Meta(type):
+            pass
+
+        class Oracle(metaclass=Meta):
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+        # Py_TYPE(Oracle) is Meta, whose tp_getattro is type_getattro.
+        self.assertEqual(get_meaning_of_life(Oracle), 42)
+        self.assertEqual(get_meaning_of_life(Oracle), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(Oracle), 42)
+
+    def test_metaclass_getattr_inherited_method(self):
+        """When the metaclass defines __getattr__, an inherited classmethod
+        must still be found via MRO (type.__getattribute__), NOT routed through
+        the metaclass __getattr__ -- even after the NULL sentinel is cached."""
+
+        class Meta(type):
+            def __getattr__(cls, name):
+                raise AttributeError(name)
+
+        class Base(metaclass=Meta):
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+        class Child(Base):
+            pass
+
+        self.assertEqual(get_meaning_of_life(Child), 42)
+        self.assertEqual(get_meaning_of_life(Child), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(Child), 42)
+
+    def test_metaclass_getattr_missing_method(self):
+        """A method missing from the class MRO falls through to the metaclass
+        __getattr__, on both the uncached and cached paths."""
+
+        class Meta(type):
+            def __getattr__(cls, name):
+                if name == "meaning_of_life":
+                    return lambda: 7
+                raise AttributeError(name)
+
+        class Oracle(metaclass=Meta):
+            pass
+
+        self.assertEqual(get_meaning_of_life(Oracle), 7)
+        self.assertEqual(get_meaning_of_life(Oracle), 7)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(Oracle), 7)
+
+    def test_add_getattribute_invalidates_method_cache(self):
+        """Adding a custom __getattribute__ after a method was cached should
+        invalidate the cache so dispatch goes through __getattribute__."""
+
+        class Oracle:
+            def meaning_of_life(self):
+                return 42
+
+        obj = Oracle()
+        # Cache the real method via the generic lookup.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # pyrefly: ignore [bad-assignment]
+        Oracle.__getattribute__ = lambda self, name: (lambda: 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_remove_getattribute_invalidates_method_cache(self):
+        """Removing a custom __getattribute__ after the NULL sentinel was
+        cached should invalidate the cache so the real method is found."""
+
+        class Oracle:
+            def meaning_of_life(self):
+                return 42
+
+            def __getattribute__(self, name):
+                if name == "meaning_of_life":
+                    return lambda: 0
+                return object.__getattribute__(self, name)
+
+        obj = Oracle()
+        # Cache the NULL sentinel + custom __getattribute__ dispatch.
+        self.assertEqual(get_meaning_of_life(obj), 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+        del Oracle.__getattribute__
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+
 @passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 class LoadModuleMethodCacheTests(unittest.TestCase):
     @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
