@@ -205,6 +205,117 @@ class LoadMethodCacheTests(unittest.TestCase):
         self.assertEqual(self._index_long(), 6)
 
 
+class LoadMethodGetAttrTests(unittest.TestCase):
+    """LoadMethodCache should support types that define __getattr__.
+
+    A method found on the type via normal lookup is cached as usual, even when
+    the type defines __getattr__. When the method is absent from the type, the
+    cache stores a NULL sentinel and dispatches to __getattr__ on each hit. The
+    cache must be invalidated when __getattr__ or the method itself changes.
+    """
+
+    def test_method_cached_with_getattr_defined(self):
+        """A real method is found via type lookup and cached, not routed
+        through __getattr__, even though the type defines __getattr__."""
+
+        class Oracle:
+            def meaning_of_life(self):
+                return 42
+
+            def __getattr__(self, name):
+                raise AttributeError(name)
+
+        obj = Oracle()
+        # Uncached, then cached.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        # Exercise the cache thoroughly.
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_missing_method_dispatches_to_getattr(self):
+        """When the method is absent from the type, __getattr__ supplies it.
+        The NULL sentinel is cached and hits keep dispatching to __getattr__."""
+
+        class Oracle:
+            def __getattr__(self, name):
+                if name == "meaning_of_life":
+                    return lambda: 42
+                raise AttributeError(name)
+
+        obj = Oracle()
+        # Uncached, then cached (NULL sentinel + __getattr__ dispatch).
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_getattr_error_propagates(self):
+        """If __getattr__ raises for a missing method, the error propagates
+        on both the uncached and cached paths."""
+
+        class Oracle:
+            def __getattr__(self, name):
+                raise AttributeError(name)
+
+        obj = Oracle()
+        with self.assertRaises(AttributeError):
+            get_meaning_of_life(obj)
+        # Cached NULL sentinel: __getattr__ is still invoked and still raises.
+        with self.assertRaises(AttributeError):
+            get_meaning_of_life(obj)
+
+    def test_add_getattr_after_cache_populated(self):
+        """Adding __getattr__ after a missing-method lookup was cached should
+        invalidate the cache so the new __getattr__ services the miss."""
+
+        class Oracle:
+            pass
+
+        obj = Oracle()
+        # Populate the cache with a genuine miss (no __getattr__ yet).
+        with self.assertRaises(AttributeError):
+            get_meaning_of_life(obj)
+
+        # pyrefly: ignore [bad-assignment]
+        Oracle.__getattr__ = lambda self, name: (lambda: 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_remove_getattr_invalidates_null_cache(self):
+        """Removing __getattr__ after the NULL sentinel was cached should
+        invalidate the cache so the missing method raises again."""
+
+        class Oracle:
+            def __getattr__(self, name):
+                return lambda: 7
+
+        obj = Oracle()
+        # Populate the NULL sentinel via __getattr__.
+        self.assertEqual(get_meaning_of_life(obj), 7)
+        self.assertEqual(get_meaning_of_life(obj), 7)
+
+        del Oracle.__getattr__
+        with self.assertRaises(AttributeError):
+            get_meaning_of_life(obj)
+
+    def test_define_method_after_getattr_cache_populated(self):
+        """Defining the real method after the NULL sentinel was cached should
+        invalidate the cache so the method is used instead of __getattr__."""
+
+        class Oracle:
+            def __getattr__(self, name):
+                return lambda: -1
+
+        obj = Oracle()
+        # Cache the NULL sentinel -> __getattr__.
+        self.assertEqual(get_meaning_of_life(obj), -1)
+        self.assertEqual(get_meaning_of_life(obj), -1)
+
+        # pyrefly: ignore [bad-assignment]
+        Oracle.meaning_of_life = lambda self: 42
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+
 @passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 class LoadModuleMethodCacheTests(unittest.TestCase):
     @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")

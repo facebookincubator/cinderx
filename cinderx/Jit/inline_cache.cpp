@@ -1406,10 +1406,18 @@ LoadMethodResult LoadMethodCache::lookup(
         continue;
       }
 
-      PyObject* result = entry.value;
-      Py_INCREF(result);
-      Py_INCREF(obj);
-      return {result, obj};
+      if (entry.value != nullptr) {
+        return {Py_NewRef(entry.value), Py_NewRef(obj)};
+      }
+
+      // NULL sentinel: the attribute is absent from the type, so dispatch to
+      // the type's __getattr__ hook. We only cache NULL for types that have
+      // such a hook, and the cache is invalidated if the type changes.
+      PyObject* result = getAttrFallback(obj, name);
+      if (result == nullptr) {
+        return {nullptr, nullptr};
+      }
+      return {Py_None, result};
     }
   }
 
@@ -1451,7 +1459,13 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   PyObject* attr;
   bool is_method = false;
 
-  if ((tp->tp_getattro != PyObject_GenericGetAttr)) {
+  // A type with a __getattr__ hook is cacheable as long as the hook wraps the
+  // generic getattr we replicate below: the type-dict lookup is authoritative,
+  // and a genuine miss is forwarded to __getattr__ (and cached as NULL).
+  bool has_getattr_hook =
+      tp->tp_getattro == Ci_tp_getattr_hook && hookUsesGenericGetAttr(tp);
+
+  if (tp->tp_getattro != PyObject_GenericGetAttr && !has_getattr_hook) {
     PyObject* res = PyObject_GetAttr(obj, name);
     if (res != nullptr) {
       maybeCollectCacheStats(
@@ -1516,6 +1530,19 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
     return {Py_None, descr};
   }
 
+  // The attribute is absent from both the type dict and the instance dict. If
+  // the type has a __getattr__ hook, cache a NULL sentinel so future lookups
+  // hit the cache and dispatch to __getattr__ directly (see lookup()), then
+  // service this miss through __getattr__ now.
+  if (has_getattr_hook) {
+    fill(tp, nullptr, name);
+    PyObject* result = getAttrFallback(obj, name);
+    if (result == nullptr) {
+      return {nullptr, nullptr};
+    }
+    return {Py_None, result};
+  }
+
   raise_attribute_error(obj, name);
   return {nullptr, nullptr};
 }
@@ -1531,6 +1558,9 @@ void LoadMethodCache::fill(
     return;
   }
 
+  // `value` may be NULL here, which is a sentinel meaning "the attribute is
+  // absent from the type". This only happens for types with a __getattr__ hook
+  // (see lookupSlowPath); lookup() turns such a hit into a __getattr__ call.
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
       uint32_t keys_version = 0;
