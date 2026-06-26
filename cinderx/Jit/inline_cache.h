@@ -300,7 +300,17 @@ class LoadMethodCache {
  public:
   struct Entry {
     BorrowedRef<PyTypeObject> type;
-    BorrowedRef<> value;
+    // Borrowed cached attribute, tagged in the low bit. When the low bit is
+    // clear the value is an untagged PyObject* for a bound method (the common,
+    // hot case) -- a single bit test selects it and it is bound to the
+    // receiver. When the low bit is set the value is not a bound method:
+    //   * value == 1 (just the tag bit): the attribute is absent from the type
+    //     and must be resolved via __getattr__ / __getattribute__ dispatch.
+    //   * value > 1: a tagged PyObject* for a staticmethod descriptor or class
+    //     variable; untag it and return it as a plain attribute (no self
+    //     binding).
+    // Use the tag helpers in inline_cache.cpp to read it.
+    uintptr_t value{0};
     uint32_t keys_version;
 
     // For a NULL sentinel entry (value == nullptr), records whether the type
@@ -311,6 +321,7 @@ class LoadMethodCache {
 
     bool isValidKeysVersion(BorrowedRef<> obj);
   };
+  static_assert(sizeof(Entry) == 24, "Entry must be small");
 
   ~LoadMethodCache();
 
@@ -329,7 +340,8 @@ class LoadMethodCache {
       BorrowedRef<PyTypeObject> type,
       BorrowedRef<> value,
       BorrowedRef<> name,
-      bool has_getattr_hook);
+      bool has_getattr_hook,
+      bool is_bound_method = true);
 
   std::array<Entry, 4> entries_;
   std::unique_ptr<CacheStats> cache_stats_;

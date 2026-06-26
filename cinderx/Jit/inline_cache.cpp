@@ -76,6 +76,40 @@ TypeWatcher<LoadMethodCache> lm_watcher;
 TypeWatcher<LoadTypeMethodCache> ltm_watcher;
 constexpr uintptr_t kKindMask = 0x07;
 
+// Low-bit tag on a LoadMethodCache entry's cached value. When clear, the value
+// is an untagged PyObject* for a bound method -- the common, hot case -- and is
+// bound to the receiver as a method. When set, the value is *not* a bound
+// method and falls into one of two cases distinguished by the rest of the bits:
+//   * value == kLoadMethodGetAttrSentinel (just the tag bit, no pointer): the
+//     attribute is absent from the type and must be resolved via __getattr__ /
+//     __getattribute__ dispatch.
+//   * value > kLoadMethodGetAttrSentinel: a tagged PyObject* for a staticmethod
+//     descriptor or class variable; untag it and return it as a plain attribute
+//     (no self binding).
+constexpr uintptr_t kLoadMethodUnboundTag = 0x1;
+constexpr uintptr_t kLoadMethodGetAttrSentinel = kLoadMethodUnboundTag;
+
+uintptr_t tagLoadMethodValue(PyObject* value, bool is_bound_method) {
+  uintptr_t bits = reinterpret_cast<uintptr_t>(value);
+  JIT_DCHECK(
+      (bits & kLoadMethodUnboundTag) == 0,
+      "PyObject* expected to be aligned, low bit is used as a tag");
+  if (value == nullptr) {
+    // The attribute is absent from the type: store the getattr/getattribute
+    // sentinel (just the tag bit, no pointer).
+    return kLoadMethodGetAttrSentinel;
+  }
+  return is_bound_method ? bits : (bits | kLoadMethodUnboundTag);
+}
+
+PyObject* loadMethodValuePtr(uintptr_t bits) {
+  return reinterpret_cast<PyObject*>(bits & ~kLoadMethodUnboundTag);
+}
+
+bool loadMethodValueIsUnbound(uintptr_t bits) {
+  return (bits & kLoadMethodUnboundTag) != 0;
+}
+
 // Sentinel PyTypeObject that must never escape into user code.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-field-initializers"
@@ -1333,7 +1367,7 @@ LoadMethodCache::~LoadMethodCache() {
     if (entry.type != nullptr) {
       lm_watcher.unwatch(entry.type, this);
       entry.type.reset();
-      entry.value.reset();
+      entry.value = 0;
     }
   }
 }
@@ -1406,12 +1440,21 @@ LoadMethodResult LoadMethodCache::lookup(
         continue;
       }
 
-      if (entry.value != nullptr) {
-        return {Py_NewRef(entry.value), Py_NewRef(obj)};
+      uintptr_t value = entry.value;
+      if (!loadMethodValueIsUnbound(value)) {
+        // Bound method (common case): the low bit is clear, so the value is an
+        // untagged PyObject* which is a method-like object.
+        return {Py_NewRef(reinterpret_cast<PyObject*>(value)), Py_NewRef(obj)};
+      } else if (value != kLoadMethodGetAttrSentinel) {
+        // A tagged pointer (value > the tag bit): a staticmethod or class
+        // variable. Untag it and return it as a plain attribute without binding
+        // the receiver as self.
+        return {Py_None, Py_NewRef(loadMethodValuePtr(value))};
       }
 
-      // NULL sentinel. Two kinds of types cache a NULL entry (see
-      // lookupSlowPath); the cache is invalidated if the type changes:
+      // getattr/getattribute sentinel (value == kLoadMethodGetAttrSentinel).
+      // Two kinds of types cache the sentinel (see lookupSlowPath); the cache
+      // is invalidated if the type changes:
       //
       //  * A type whose __getattr__ hook wraps the generic getattr we
       //    replicate: the attribute is genuinely absent, so we skip straight
@@ -1436,7 +1479,7 @@ void LoadMethodCache::typeChanged(PyTypeObject* type) {
   for (auto& entry : entries_) {
     if (entry.type == type) {
       entry.type.reset();
-      entry.value.reset();
+      entry.value = 0;
     }
   }
 }
@@ -1466,19 +1509,21 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   PyObject **dictptr, *dict;
   PyObject* attr;
   bool is_method = false;
+  bool is_static_method = false;
 
   // A type with a __getattr__ hook is cacheable as long as the hook wraps the
   // generic getattr we replicate below: the type-dict lookup is authoritative,
-  // and a genuine miss is forwarded to __getattr__ (and cached as NULL).
+  // and a genuine miss is forwarded to __getattr__ (and cached as the
+  // sentinel).
   bool has_getattr_hook =
       tp->tp_getattro == Ci_tp_getattr_hook && hookUsesGenericGetAttr(tp);
 
   if (tp->tp_getattro != PyObject_GenericGetAttr && !has_getattr_hook) {
     // The type has a custom lookup we can't replicate (a custom
     // __getattribute__, or a metaclass instance whose __getattribute__ is
-    // type_getattro). Cache a NULL sentinel so future lookups hit the cache and
-    // dispatch straight through the type's own lookup (see lookup()), then
-    // service this miss now.
+    // type_getattro). Cache the getattr sentinel so future lookups hit the
+    // cache and dispatch straight through the type's own lookup (see lookup()),
+    // then service this miss now.
     fill(tp, nullptr, name, /* has_getattr_hook */ false);
     PyObject* res = PyObject_GetAttr(obj, name);
     if (res != nullptr) {
@@ -1497,6 +1542,11 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
     if (PyFunction_Check(descr) || Py_TYPE(descr) == &PyMethodDescr_Type ||
         PyType_HasFeature(Py_TYPE(descr), Py_TPFLAGS_METHOD_DESCRIPTOR)) {
       is_method = true;
+    } else if (Py_TYPE(descr) == &PyStaticMethod_Type) {
+      // A staticmethod is a non-data descriptor; it can still be shadowed by an
+      // instance attribute, so defer caching until after the instance dict
+      // check below.
+      is_static_method = true;
     } else {
       f = descr->ob_type->tp_descr_get;
       if (f != nullptr && PyDescr_IsData(descr)) {
@@ -1530,6 +1580,22 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
     return {descr, obj};
   }
 
+  if (is_static_method) {
+    // The staticmethod was found in the type dict and is not shadowed by an
+    // instance attribute. Unwrap it to the underlying callable, cache that
+    // callable, and return it as a plain attribute (static methods do not bind
+    // to the instance).
+    BorrowedRef<> callable = Ci_PyStaticMethod_GetFunc(descr);
+    fill(
+        tp,
+        callable,
+        name,
+        /*has_getattr_hook=*/false,
+        /*is_bound_method=*/false);
+    Py_DECREF(descr);
+    return {Py_None, Py_NewRef(callable)};
+  }
+
   if (f != nullptr) {
     maybeCollectCacheStats(
         cache_stats_, tp, name, CacheMissReason::kUncategorized);
@@ -1539,15 +1605,18 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   }
 
   if (descr != nullptr) {
-    maybeCollectCacheStats(
-        cache_stats_, tp, name, CacheMissReason::kUncategorized);
+    // A class variable / non-descriptor attribute found on the type dict and
+    // not shadowed by an instance attribute. Cache it and return it as a plain
+    // attribute (not bound to the receiver).
+    fill(
+        tp, descr, name, /*has_getattr_hook=*/false, /*is_bound_method=*/false);
     return {Py_None, descr};
   }
 
   // The attribute is absent from both the type dict and the instance dict. If
-  // the type has a __getattr__ hook, cache a NULL sentinel so future lookups
-  // hit the cache and dispatch to __getattr__ directly (see lookup()), then
-  // service this miss through __getattr__ now.
+  // the type has a __getattr__ hook, cache the getattr sentinel so future
+  // lookups hit the cache and dispatch to __getattr__ directly (see lookup()),
+  // then service this miss through __getattr__ now.
   if (has_getattr_hook) {
     fill(tp, nullptr, name, /* has_getattr_hook */ true);
     PyObject* result = getAttrFallback(obj, name);
@@ -1565,7 +1634,8 @@ void LoadMethodCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> value,
     BorrowedRef<> name,
-    bool has_getattr_hook) {
+    bool has_getattr_hook,
+    bool is_bound_method) {
   if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
@@ -1573,10 +1643,11 @@ void LoadMethodCache::fill(
     return;
   }
 
-  // `value` may be NULL here, which is a sentinel meaning the cache can't
-  // resolve the attribute itself (see lookupSlowPath). `has_getattr_hook`
-  // records which kind of sentinel this is so lookup() can dispatch without
-  // recomputing it.
+  // `value` may be NULL here, which is encoded as the getattr sentinel (value
+  // == kLoadMethodGetAttrSentinel) meaning "the attribute is absent from the
+  // type" (see tagLoadMethodValue). This happens for types with a __getattr__
+  // hook or an unreplicable lookup (see lookupSlowPath); lookup() turns such a
+  // hit into a __getattr__ / __getattribute__ dispatch.
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
       uint32_t keys_version = 0;
@@ -1586,7 +1657,7 @@ void LoadMethodCache::fill(
 
       lm_watcher.watch(type, this);
       entry.type = type;
-      entry.value = value;
+      entry.value = tagLoadMethodValue(value, is_bound_method);
       entry.keys_version = keys_version;
       entry.has_getattr_hook = has_getattr_hook;
       return;

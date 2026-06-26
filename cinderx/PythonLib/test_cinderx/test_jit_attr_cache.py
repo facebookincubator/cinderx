@@ -22,9 +22,25 @@ def nothing():
     return 0
 
 
+class Caller:
+    """A callable that is not a descriptor (no __get__), used to exercise
+    class-variable caching in LoadMethodCache."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __call__(self):
+        return self.value
+
+
 @cinder_support.failUnlessJITCompiled
 def get_meaning_of_life(obj):
     return obj.meaning_of_life()
+
+
+@cinder_support.failUnlessJITCompiled
+def call_static_with_arg(obj):
+    return obj.compute(10)
 
 
 class LoadMethodCacheTests(unittest.TestCase):
@@ -203,6 +219,189 @@ class LoadMethodCacheTests(unittest.TestCase):
 
     def test_call_wrapper_descriptor(self):
         self.assertEqual(self._index_long(), 6)
+
+
+class LoadMethodStaticMethodTests(unittest.TestCase):
+    """LoadMethodCache should support staticmethod descriptors found on the
+    type. A staticmethod is unwrapped to its underlying callable, cached, and
+    returned as a plain attribute -- the receiver is not bound as self.
+    """
+
+    def test_static_method_on_type(self):
+        class Oracle:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+        obj = Oracle()
+        # Uncached, then cached. The receiver is not bound as self; if it were,
+        # calling a zero-arg staticmethod would raise TypeError.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_static_method_not_bound(self):
+        class Oracle:
+            @staticmethod
+            def compute(x):
+                return x * 2
+
+        obj = Oracle()
+        # The argument is passed through directly; the receiver is not prepended
+        # as self (otherwise compute would get two arguments).
+        self.assertEqual(call_static_with_arg(obj), 20)
+        self.assertEqual(call_static_with_arg(obj), 20)
+
+    def test_static_method_inherited(self):
+        class Base:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+        class Derived(Base):
+            pass
+
+        obj = Derived()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_static_method_type_modified(self):
+        class Oracle:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+        obj = Oracle()
+        # Cache the staticmethod.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # Replace with a different staticmethod; the cache must be invalidated.
+        # pyrefly: ignore [bad-assignment]
+        Oracle.meaning_of_life = staticmethod(lambda: 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_static_method_base_modified(self):
+        class Base:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+        class Derived(Base):
+            pass
+
+        obj = Derived()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # Mutating the base should propagate to Derived and invalidate the cache.
+        # pyrefly: ignore [bad-assignment]
+        Base.meaning_of_life = staticmethod(lambda: 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_static_method_replaced_with_instance_method(self):
+        class Oracle:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # Replace the staticmethod with a regular (bound) method. The cache must
+        # switch from an unbound to a bound result.
+        # pyrefly: ignore [bad-assignment]
+        Oracle.meaning_of_life = lambda self: 0
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_static_method_shadowed_by_instance(self):
+        class Oracle:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+        obj = Oracle()
+        # Cache the staticmethod first.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # A staticmethod is a non-data descriptor, so an instance attribute
+        # shadows it.
+        # pyrefly: ignore [missing-attribute]
+        obj.meaning_of_life = nothing
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_static_method_with_getattr_defined(self):
+        """A staticmethod present on the type is returned directly, not routed
+        through __getattr__, even when the type defines __getattr__."""
+
+        class Oracle:
+            @staticmethod
+            def meaning_of_life():
+                return 42
+
+            def __getattr__(self, name):
+                raise AttributeError(name)
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+
+class LoadMethodClassVarTests(unittest.TestCase):
+    """LoadMethodCache should cache class variables (non-descriptor attributes)
+    found on the type, returning them as plain attributes (no self binding).
+    """
+
+    def test_class_var_callable(self):
+        class Oracle:
+            meaning_of_life = Caller(42)
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_class_var_inherited(self):
+        class Base:
+            meaning_of_life = Caller(42)
+
+        class Derived(Base):
+            pass
+
+        obj = Derived()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_class_var_modified(self):
+        class Oracle:
+            meaning_of_life = Caller(42)
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # Replace the class var; the cache must be invalidated.
+        Oracle.meaning_of_life = Caller(0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_class_var_shadowed_by_instance(self):
+        class Oracle:
+            meaning_of_life = Caller(42)
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # A class variable can be shadowed by an instance attribute.
+        # pyrefly: ignore [bad-assignment]
+        obj.meaning_of_life = nothing
+        self.assertEqual(get_meaning_of_life(obj), 0)
 
 
 class LoadMethodGetAttrTests(unittest.TestCase):
