@@ -110,6 +110,25 @@ bool loadMethodValueIsUnbound(uintptr_t bits) {
   return (bits & kLoadMethodUnboundTag) != 0;
 }
 
+// For a class-method descriptor `descr` found on a type, returns the callable
+// to cache (which lookup() binds to the receiver's type), or nullptr if it
+// isn't safe to cache.
+BorrowedRef<> classMethodCacheableCallable(BorrowedRef<> descr) {
+  if (Py_TYPE(descr) == &PyClassMethodDescr_Type) {
+    // A C-level classmethod descriptor (e.g. dict.fromkeys). It is immutable
+    // and directly callable with the bound type as its first argument, so cache
+    // the descriptor itself.
+    return descr;
+  }
+  // A Python-level classmethod. Only cache when it wraps a plain function;
+  // other callables may run arbitrary user code when bound.
+  BorrowedRef<> callable = Ci_PyClassMethod_GetFunc(descr);
+  if (Py_TYPE(callable) == &PyFunction_Type) {
+    return callable;
+  }
+  return nullptr;
+}
+
 // Sentinel PyTypeObject that must never escape into user code.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-field-initializers"
@@ -1445,6 +1464,12 @@ LoadMethodResult LoadMethodCache::lookup(
         // Bound method (common case): the low bit is clear, so the value is an
         // untagged PyObject* which is a method-like object.
         return {Py_NewRef(reinterpret_cast<PyObject*>(value)), Py_NewRef(obj)};
+      } else if (entry.is_class_method) {
+        // Class method: the (tagged) value is the underlying callable. Bind it
+        // to the receiver's type rather than the receiver itself.
+        return {
+            Py_NewRef(loadMethodValuePtr(value)),
+            Py_NewRef(reinterpret_cast<PyObject*>(tp.get()))};
       } else if (value != kLoadMethodGetAttrSentinel) {
         // A tagged pointer (value > the tag bit): a staticmethod or class
         // variable. Untag it and return it as a plain attribute without binding
@@ -1510,6 +1535,7 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   PyObject* attr;
   bool is_method = false;
   bool is_static_method = false;
+  bool is_class_method = false;
 
   // A type with a __getattr__ hook is cacheable as long as the hook wraps the
   // generic getattr we replicate below: the type-dict lookup is authoritative,
@@ -1547,6 +1573,16 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
       // instance attribute, so defer caching until after the instance dict
       // check below.
       is_static_method = true;
+    } else if (
+        Py_TYPE(descr) == &PyClassMethod_Type ||
+        Py_TYPE(descr) == &PyClassMethodDescr_Type) {
+      // A class method (Python-level classmethod or C-level
+      // classmethod_descriptor). Both are non-data descriptors that can be
+      // shadowed by an instance attribute, so defer caching until after the
+      // instance dict check below. `f` is set so we can still dispatch through
+      // the descriptor if it turns out not to be cacheable.
+      is_class_method = true;
+      f = descr->ob_type->tp_descr_get;
     } else {
       f = descr->ob_type->tp_descr_get;
       if (f != nullptr && PyDescr_IsData(descr)) {
@@ -1596,6 +1632,27 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
     return {Py_None, Py_NewRef(callable)};
   }
 
+  if (is_class_method) {
+    // The class method was found in the type dict and is not shadowed by an
+    // instance attribute. If it is safe to cache, cache the underlying callable
+    // and return it bound to the type (class methods bind to the type, not the
+    // instance). Otherwise fall through to the generic descriptor dispatch.
+    BorrowedRef<> callable = classMethodCacheableCallable(descr);
+    if (callable != nullptr) {
+      fill(
+          tp,
+          callable,
+          name,
+          /*has_getattr_hook=*/false,
+          /*is_bound_method=*/false,
+          /*is_class_method=*/true);
+      LoadMethodResult result = {
+          Py_NewRef(callable), Py_NewRef(reinterpret_cast<PyObject*>(tp))};
+      Py_DECREF(descr);
+      return result;
+    }
+  }
+
   if (f != nullptr) {
     maybeCollectCacheStats(
         cache_stats_, tp, name, CacheMissReason::kUncategorized);
@@ -1635,7 +1692,8 @@ void LoadMethodCache::fill(
     BorrowedRef<> value,
     BorrowedRef<> name,
     bool has_getattr_hook,
-    bool is_bound_method) {
+    bool is_bound_method,
+    bool is_class_method) {
   if (!Ci_Type_HasValidVersionTag(type)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
@@ -1660,6 +1718,7 @@ void LoadMethodCache::fill(
       entry.value = tagLoadMethodValue(value, is_bound_method);
       entry.keys_version = keys_version;
       entry.has_getattr_hook = has_getattr_hook;
+      entry.is_class_method = is_class_method;
       return;
     }
   }

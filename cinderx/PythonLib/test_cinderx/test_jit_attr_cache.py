@@ -43,6 +43,13 @@ def call_static_with_arg(obj):
     return obj.compute(10)
 
 
+@cinder_support.failUnlessJITCompiled
+def call_fromkeys(obj):
+    # `fromkeys` resolves to a classmethod_descriptor (a C-level classmethod)
+    # when accessed via an instance.
+    return obj.fromkeys([1, 2])
+
+
 class LoadMethodCacheTests(unittest.TestCase):
     def test_type_modified(self):
         class Oracle:
@@ -402,6 +409,161 @@ class LoadMethodClassVarTests(unittest.TestCase):
         # pyrefly: ignore [bad-assignment]
         obj.meaning_of_life = nothing
         self.assertEqual(get_meaning_of_life(obj), 0)
+
+
+class LoadMethodClassMethodTests(unittest.TestCase):
+    """LoadMethodCache should cache class methods found on the type. Both a
+    Python-level classmethod and a C-level classmethod_descriptor are unwrapped
+    to their underlying callable, cached, and bound to the receiver's type (not
+    the receiver itself) when called.
+    """
+
+    def test_class_method_on_type(self):
+        class Oracle:
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+        obj = Oracle()
+        # Uncached, then cached.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_class_method_binds_to_type(self):
+        class Oracle:
+            @classmethod
+            def meaning_of_life(cls):
+                return cls.__name__
+
+        obj = Oracle()
+        # cls is bound to the receiver's type, not the receiver.
+        self.assertEqual(get_meaning_of_life(obj), "Oracle")
+        self.assertEqual(get_meaning_of_life(obj), "Oracle")
+
+    def test_class_method_binds_to_most_derived_type(self):
+        class Base:
+            @classmethod
+            def meaning_of_life(cls):
+                return cls.__name__
+
+        class Derived(Base):
+            pass
+
+        # An inherited classmethod binds to the most-derived type of the
+        # receiver. The two receiver types get independent cache entries.
+        self.assertEqual(get_meaning_of_life(Base()), "Base")
+        self.assertEqual(get_meaning_of_life(Derived()), "Derived")
+        self.assertEqual(get_meaning_of_life(Base()), "Base")
+        self.assertEqual(get_meaning_of_life(Derived()), "Derived")
+
+    def test_class_method_passes_args_after_cls(self):
+        class Oracle:
+            @classmethod
+            def compute(cls, x):
+                return x * 2
+
+        obj = Oracle()
+        # The explicit argument follows the implicit cls.
+        self.assertEqual(call_static_with_arg(obj), 20)
+        self.assertEqual(call_static_with_arg(obj), 20)
+
+    def test_class_method_type_modified(self):
+        class Oracle:
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # Replace with a different classmethod; the cache must be invalidated.
+        # pyrefly: ignore [bad-assignment]
+        Oracle.meaning_of_life = classmethod(lambda cls: 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_class_method_base_modified(self):
+        class Base:
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+        class Derived(Base):
+            pass
+
+        obj = Derived()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # Mutating the base should propagate to Derived and invalidate the cache.
+        # pyrefly: ignore [bad-assignment]
+        Base.meaning_of_life = classmethod(lambda cls: 0)
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_class_method_shadowed_by_instance(self):
+        class Oracle:
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+        obj = Oracle()
+        # Cache the classmethod first.
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+
+        # A classmethod is a non-data descriptor, so an instance attribute
+        # shadows it.
+        # pyrefly: ignore [missing-attribute]
+        obj.meaning_of_life = nothing
+        self.assertEqual(get_meaning_of_life(obj), 0)
+
+    def test_class_method_with_getattr_defined(self):
+        """A classmethod present on the type is returned directly, not routed
+        through __getattr__, even when the type defines __getattr__."""
+
+        class Oracle:
+            @classmethod
+            def meaning_of_life(cls):
+                return 42
+
+            def __getattr__(self, name):
+                raise AttributeError(name)
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), 42)
+
+    def test_class_method_wrapping_non_function(self):
+        """A classmethod wrapping a non-function callable is not cached, but is
+        still dispatched correctly through the descriptor."""
+
+        class Callable:
+            def __call__(self, cls):
+                return cls.__name__
+
+        class Oracle:
+            meaning_of_life = classmethod(Callable())
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), "Oracle")
+        self.assertEqual(get_meaning_of_life(obj), "Oracle")
+        for _ in range(100):
+            self.assertEqual(get_meaning_of_life(obj), "Oracle")
+
+    def test_classmethod_descriptor_on_builtin(self):
+        """A C-level classmethod_descriptor (e.g. dict.fromkeys) accessed via an
+        instance is cached and bound to the type."""
+
+        obj = {}
+        expected = {1: None, 2: None}
+        self.assertEqual(call_fromkeys(obj), expected)
+        self.assertEqual(call_fromkeys(obj), expected)
+        for _ in range(100):
+            self.assertEqual(call_fromkeys(obj), expected)
 
 
 class LoadMethodGetAttrTests(unittest.TestCase):

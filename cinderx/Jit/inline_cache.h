@@ -308,7 +308,7 @@ class LoadMethodCache {
     //     and must be resolved via __getattr__ / __getattribute__ dispatch.
     //   * value > 1: a tagged PyObject* for a staticmethod descriptor or class
     //     variable; untag it and return it as a plain attribute (no self
-    //     binding).
+    //     binding) -- unless is_class_method is set (see below).
     // Use the tag helpers in inline_cache.cpp to read it.
     uintptr_t value{0};
     uint32_t keys_version;
@@ -318,6 +318,12 @@ class LoadMethodCache {
     // replicate, e.g. a custom __getattribute__ (false). Meaningless when
     // value != nullptr.
     bool has_getattr_hook{false};
+
+    // Set when the entry caches a class method (a Python-level classmethod or a
+    // C-level classmethod_descriptor). The (tagged, unbound) value is the
+    // underlying callable, which lookup() binds to the receiver's type rather
+    // than to the receiver itself. Only meaningful for unbound entries.
+    bool is_class_method{false};
 
     bool isValidKeysVersion(BorrowedRef<> obj);
   };
@@ -341,7 +347,8 @@ class LoadMethodCache {
       BorrowedRef<> value,
       BorrowedRef<> name,
       bool has_getattr_hook,
-      bool is_bound_method = true);
+      bool is_bound_method = true,
+      bool is_class_method = false);
 
   std::array<Entry, 4> entries_;
   std::unique_ptr<CacheStats> cache_stats_;
