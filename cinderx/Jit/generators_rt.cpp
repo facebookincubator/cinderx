@@ -4,6 +4,7 @@
 
 #include "internal/pycore_frame.h"
 #include "internal/pycore_genobject.h"
+#include "internal/pycore_object.h" // _PyObject_GC_TRACK()/_PyObject_GC_UNTRACK()
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 
 #include "cinderx/Common/log.h"
@@ -44,18 +45,18 @@ void gen_dealloc_with_custom_free(PyObject* self) {
 
   auto* gen = reinterpret_cast<PyGenObject*>(self);
 
-  PyObject_GC_UnTrack(gen);
+  _PyObject_GC_UNTRACK(gen);
 
   if (gen->gi_weakreflist != nullptr) {
     PyObject_ClearWeakRefs(self);
   }
 
   // Re-track so the finalizer can run; it may resurrect the object.
-  PyObject_GC_Track(self);
+  _PyObject_GC_TRACK(self);
   if (PyObject_CallFinalizerFromDealloc(self)) {
     return;
   }
-  PyObject_GC_UnTrack(self);
+  _PyObject_GC_UNTRACK(self);
 
   JIT_DCHECK(
       !PyAsyncGen_CheckExact(gen),
