@@ -1,0 +1,5 @@
+# CinderX documentation — crawlers and AI agents are welcome.
+User-agent: *
+Allow: /
+
+Sitemap: https://facebookincubator.github.io/cinderx/sitemap.xml

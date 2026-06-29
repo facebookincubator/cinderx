@@ -1,0 +1,29 @@
+/**
+ * CinderX theme. Colors are drawn from the logo's flame, a saturated warm
+ * gradient running from amber-orange at the base to bright gold at the tips.
+ * Light mode uses a slightly deeper amber for legibility on white; dark mode
+ * uses the brighter flame gold, which pops against the dark background.
+ */
+
+:root {
+  --ifm-color-primary: #e58a00;
+  --ifm-color-primary-dark: #ce7c00;
+  --ifm-color-primary-darker: #c37500;
+  --ifm-color-primary-darkest: #a06100;
+  --ifm-color-primary-light: #e8961a;
+  --ifm-color-primary-lighter: #e99c26;
+  --ifm-color-primary-lightest: #edad4c;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #f9a825;
+  --ifm-color-primary-dark: #e09721;
+  --ifm-color-primary-darker: #d48f1f;
+  --ifm-color-primary-darkest: #ae761a;
+  --ifm-color-primary-light: #fab13b;
+  --ifm-color-primary-lighter: #fab546;
+  --ifm-color-primary-lightest: #fbc266;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
