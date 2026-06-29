@@ -608,6 +608,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
   // unreachable and therefore make less work (less to inline), we cannot remove
   // unreachable blocks in the above loop.  It might delete instructions pointed
   // to by `calls`.
+  removeUnreachableBlocks(irfunc);
   CopyPropagation{}.Run(irfunc);
   CleanCFG{}.Run(irfunc);
 }

@@ -190,6 +190,74 @@ def caller_of_warm_branch(x: int, take_cold: bool) -> int:
     return warm_branch(x, take_cold) + 1
 
 
+# Regression model for a JIT inliner crash.  `flag_set_loop` is a `while True:` loop
+# whose only exit is the KeyError raised by the lookup.  There is no reachable `return`
+# inside the loop so when it is inlined its merged exit block has no predecessors and is
+# unreachable.  The inliner used to run CopyPropagation and CleanCFG over that stale
+# block (left behind because it can't be removed during the inlining loop), which
+# dereferenced freed instructions and crashed.
+_FLAG_VALUES = {"a": 1, "b": 2, "i": 4, "L": 8}
+_LOCALE = 8
+_GLOBAL = 16
+
+
+class FlagSource:
+    def __init__(self, chars: str) -> None:
+        self._chars = chars
+        self.pos = 0
+
+    def get(self) -> str:
+        ch = self._chars[self.pos]
+        self.pos += 1
+        return ch
+
+    def match(self, ch: str) -> bool:
+        if self.pos < len(self._chars) and self._chars[self.pos] == ch:
+            self.pos += 1
+            return True
+        return False
+
+
+class FlagInfo:
+    inline_locale: bool = False
+
+
+def flag_set_loop(source: FlagSource) -> int:
+    flags = 0
+    saved_pos = 0
+    try:
+        while True:
+            saved_pos = source.pos
+            ch = source.get()
+            flags |= _FLAG_VALUES[ch]
+    except KeyError:
+        source.pos = saved_pos
+    return flags
+
+
+def parse_flags(source: FlagSource, info: FlagInfo) -> tuple[int, int]:
+    flags_on = flag_set_loop(source)
+    if source.match("-"):
+        flags_off = flag_set_loop(source)
+        if not flags_off:
+            raise ValueError("no flags after '-'")
+    else:
+        flags_off = 0
+    if flags_on & _LOCALE:
+        info.inline_locale = True
+    return flags_on, flags_off
+
+
+def parse_flags_subpattern(source: FlagSource, info: FlagInfo) -> tuple[int, int]:
+    flags_on, flags_off = parse_flags(source, info)
+    if flags_off & _GLOBAL:
+        raise ValueError("cannot turn off global flag")
+    if flags_on & flags_off:
+        raise ValueError("flag turned on and off")
+    flags_on &= ~_GLOBAL
+    return flags_on, flags_off
+
+
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
     @jit_suppress
@@ -364,6 +432,27 @@ class InlinedFunctionTests(unittest.TestCase):
             "test_cinderx.test_jit_inliner:func_with_varargs",
             next(iter(has_varargs)),
         )
+
+    @jit_suppress
+    def test_inlining_callee_without_reachable_return(self) -> None:
+        """Inlining a function whose only loop exit is an exception (so it has
+        no reachable return) leaves an unreachable exit block in the caller.
+        The inliner must drop that block before running CopyPropagation/CleanCFG;
+        otherwise those passes walk freed instructions and crash."""
+        cinderx.jit.force_compile(parse_flags_subpattern)
+        self.assertTrue(cinderx.jit.is_jit_compiled(parse_flags_subpattern))
+
+        # parse_flags is inlined, and flag_set_loop is inlined transitively
+        # through it (once for flags_on, and the source has no "-" so flags_off
+        # stays a constant), exercising the unreachable-exit-block path.
+        self.assertGreater(
+            cinderx.jit.get_num_inlined_functions(parse_flags_subpattern), 1
+        )
+
+        # "abiX" turns on flags a|b|i = 7; the trailing "X" is not a flag, so
+        # the lookup raises KeyError and ends the loop.  There is no "-", so
+        # flags_off is 0.
+        self.assertEqual(parse_flags_subpattern(FlagSource("abiX"), FlagInfo()), (7, 0))
 
     @jit_suppress
     def test_line_numbers_with_multiple_inlined_calls(self) -> None:
