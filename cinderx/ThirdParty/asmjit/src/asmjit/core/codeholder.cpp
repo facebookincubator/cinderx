@@ -10,7 +10,6 @@
 #include "../core/support.h"
 
 #include <algorithm>
-#include <cstring>
 #include <tuple>
 
 ASMJIT_BEGIN_NAMESPACE
@@ -19,8 +18,6 @@ ASMJIT_BEGIN_NAMESPACE
 // =======
 
 static const char CodeHolder_addrTabName[] = ".addrtab";
-static const char CodeHolder_a64BranchStubName[] = ".a64stubs";
-static constexpr uint32_t kA64BranchStubSize = 16;
 
 //! Encode MOD byte.
 static inline uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) noexcept {
@@ -105,10 +102,6 @@ static void CodeHolder_resetInternal(CodeHolder* self, ResetPolicy resetPolicy) 
   self->_unresolvedLinkCount = 0;
   self->_addressTableSection = nullptr;
   self->_addressTableEntries.reset();
-  self->_a64BranchStubSection = nullptr;
-  self->_a64BranchStubEntries.reset();
-  self->_a64BranchStubIslands.reset();
-  self->_a64BranchStubIslandEntries.reset();
 
   allocator->reset(&self->_zone);
   self->_zone.reset(resetPolicy);
@@ -133,8 +126,7 @@ CodeHolder::CodeHolder(const Support::Temporary* temporary) noexcept
     _zone(16384 - Zone::kBlockOverhead, 1, temporary),
     _allocator(&_zone),
     _unresolvedLinkCount(0),
-    _addressTableSection(nullptr),
-    _a64BranchStubSection(nullptr) {}
+    _addressTableSection(nullptr) {}
 
 CodeHolder::~CodeHolder() noexcept {
   CodeHolder_resetInternal(this, ResetPolicy::kHard);
@@ -450,39 +442,6 @@ Error CodeHolder::addAddressToAddressTable(uint64_t address) noexcept {
 
   _addressTableEntries.insert(entry);
   section->_virtualSize += _environment.registerSize();
-
-  return kErrorOk;
-}
-
-Section* CodeHolder::ensureA64BranchStubSection() noexcept {
-  if (_a64BranchStubSection)
-    return _a64BranchStubSection;
-
-  newSection(&_a64BranchStubSection,
-             CodeHolder_a64BranchStubName,
-             sizeof(CodeHolder_a64BranchStubName) - 1,
-             SectionFlags::kExecutable | SectionFlags::kReadOnly,
-             8,
-             std::numeric_limits<int32_t>::max());
-  return _a64BranchStubSection;
-}
-
-Error CodeHolder::addAddressToA64BranchStubTable(uint64_t address) noexcept {
-  A64BranchStubEntry* entry = _a64BranchStubEntries.get(address);
-  if (entry)
-    return kErrorOk;
-
-  Section* section = ensureA64BranchStubSection();
-  if (ASMJIT_UNLIKELY(!section))
-    return DebugUtils::errored(kErrorOutOfMemory);
-
-  entry = _zone.newT<A64BranchStubEntry>(address);
-  if (ASMJIT_UNLIKELY(!entry))
-    return DebugUtils::errored(kErrorOutOfMemory);
-
-  entry->_slot = uint32_t(section->_virtualSize / kA64BranchStubSize);
-  _a64BranchStubEntries.insert(entry);
-  section->_virtualSize += kA64BranchStubSize;
 
   return kErrorOk;
 }
@@ -946,230 +905,38 @@ static Error CodeHolder_evaluateExpression(CodeHolder* self, Expression* exp, ui
 // CodeHolder - Utilities
 // ======================
 
-static bool CodeHolder_canEncodeA64Branch(uint64_t sourceOffset, uint64_t targetOffset) noexcept {
-  int64_t displacement = int64_t(targetOffset - sourceOffset);
-  int64_t dispImm = displacement >> 2;
-  return (displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 26);
-}
-
-static A64BranchStubIslandEntry* CodeHolder_findA64BranchStubIslandEntry(
-  CodeHolder* self,
-  uint32_t sourceSectionId,
-  uint64_t sourceOffset,
-  uint64_t targetAddress) noexcept {
-
-  for (A64BranchStubIslandEntry* entry : self->_a64BranchStubIslandEntries)
-    if (entry->_sourceSectionId == sourceSectionId && entry->_address == targetAddress &&
-        CodeHolder_canEncodeA64Branch(sourceOffset, entry->_offset))
-      return entry;
-
-  return nullptr;
-}
-
-static A64BranchStubIsland* CodeHolder_findReachableA64BranchStubIsland(
-  CodeHolder* self,
-  uint32_t sourceSectionId,
-  uint64_t sourceOffset) noexcept {
-
-  for (A64BranchStubIsland* island : self->_a64BranchStubIslands) {
-    uint64_t newStubOffset = uint64_t(island->_guardOffset) + island->_size;
-    if (island->_sourceSectionId == sourceSectionId && CodeHolder_canEncodeA64Branch(sourceOffset, newStubOffset))
-      return island;
-  }
-
-  return nullptr;
-}
-
-static void CodeHolder_adjustA64BranchStubIslandOffsets(
-  CodeHolder* self,
-  uint32_t sourceSectionId,
-  uint64_t insertOffset,
-  uint32_t size) noexcept {
-
-  for (RelocEntry* re : self->_relocations) {
-    if (re->_sourceSectionId == sourceSectionId && re->_sourceOffset >= insertOffset)
-      re->_sourceOffset += size;
-
-    if (re->_targetSectionId == sourceSectionId && re->_payload >= insertOffset)
-      re->_payload += size;
-  }
-
-  for (LabelEntry* le : self->_labelEntries) {
-    if (le->section() && le->section()->id() == sourceSectionId && le->_offset >= insertOffset)
-      le->_offset += size;
-
-    for (LabelLink* link = le->_links; link; link = link->next)
-      if (link->sectionId == sourceSectionId && link->offset >= insertOffset)
-        link->offset += size;
-  }
-
-  for (A64BranchStubIsland* island : self->_a64BranchStubIslands)
-    if (island->_sourceSectionId == sourceSectionId && island->_guardOffset >= insertOffset)
-      island->_guardOffset += size;
-
-  for (A64BranchStubIslandEntry* entry : self->_a64BranchStubIslandEntries)
-    if (entry->_sourceSectionId == sourceSectionId && entry->_offset >= insertOffset)
-      entry->_offset += size;
-}
-
-static Error CodeHolder_insertIntoSection(
-  CodeHolder* self,
-  Section* section,
-  size_t insertOffset,
-  size_t size) noexcept {
-
-  size_t oldSize = section->bufferSize();
-  if (ASMJIT_UNLIKELY(insertOffset > oldSize || size > SIZE_MAX - oldSize))
-    return DebugUtils::errored(kErrorTooLarge);
-
-  ASMJIT_PROPAGATE(self->reserveBuffer(&section->_buffer, oldSize + size));
-  uint8_t* data = section->_buffer.data();
-  std::memmove(data + insertOffset + size, data + insertOffset, oldSize - insertOffset);
-  std::memset(data + insertOffset, 0, size);
-  section->_buffer._size = oldSize + size;
-
-  CodeHolder_adjustA64BranchStubIslandOffsets(self, section->id(), insertOffset, uint32_t(size));
-  return kErrorOk;
-}
-
-static Error CodeHolder_addA64BranchStubIslandEntry(
-  CodeHolder* self,
-  Section* sourceSection,
-  uint64_t sourceOffset,
-  uint64_t targetAddress,
-  A64BranchStubIslandEntry** entryOut,
-  bool* appended) noexcept {
-
-  *entryOut = CodeHolder_findA64BranchStubIslandEntry(self, sourceSection->id(), sourceOffset, targetAddress);
-  *appended = false;
-  if (*entryOut)
-    return kErrorOk;
-
-  A64BranchStubIsland* island = CodeHolder_findReachableA64BranchStubIsland(self, sourceSection->id(), sourceOffset);
-  uint64_t stubOffset;
-
-  if (island) {
-    stubOffset = uint64_t(island->_guardOffset) + island->_size;
-    if (ASMJIT_UNLIKELY(stubOffset > uint64_t(std::numeric_limits<uint32_t>::max()) ||
-                        stubOffset + kA64BranchStubSize > uint64_t(std::numeric_limits<uint32_t>::max())))
-      return DebugUtils::errored(kErrorTooLarge);
-
-    ASMJIT_PROPAGATE(CodeHolder_insertIntoSection(self, sourceSection, size_t(stubOffset), kA64BranchStubSize));
-    island->_size += kA64BranchStubSize;
-  }
-  else {
-    stubOffset = sourceOffset + 8;
-    uint64_t insertOffset = sourceOffset + 4;
-    constexpr uint32_t kInitialIslandSize = 4 + kA64BranchStubSize;
-
-    if (ASMJIT_UNLIKELY(insertOffset > sourceSection->bufferSize() ||
-                        insertOffset > uint64_t(std::numeric_limits<uint32_t>::max())))
-      return DebugUtils::errored(kErrorInvalidRelocEntry);
-
-    ASMJIT_PROPAGATE(self->_a64BranchStubIslands.willGrow(self->allocator()));
-    ASMJIT_PROPAGATE(CodeHolder_insertIntoSection(self, sourceSection, size_t(insertOffset), kInitialIslandSize));
-
-    island = self->_zone.newT<A64BranchStubIsland>(sourceSection->id(), uint32_t(insertOffset), kInitialIslandSize);
-    if (ASMJIT_UNLIKELY(!island))
-      return DebugUtils::errored(kErrorOutOfMemory);
-
-    self->_a64BranchStubIslands.appendUnsafe(island);
-  }
-
-  ASMJIT_PROPAGATE(self->_a64BranchStubIslandEntries.willGrow(self->allocator()));
-  A64BranchStubIslandEntry* entry = self->_zone.newT<A64BranchStubIslandEntry>(
-    targetAddress,
-    sourceSection->id(),
-    uint32_t(stubOffset));
-
-  if (ASMJIT_UNLIKELY(!entry))
-    return DebugUtils::errored(kErrorOutOfMemory);
-
-  self->_a64BranchStubIslandEntries.appendUnsafe(entry);
-
-  *entryOut = entry;
-  *appended = true;
-  return kErrorOk;
-}
-
-Error CodeHolder::ensureBranchStubIslands(bool* changed) noexcept {
-  *changed = false;
-
-  Section* a64BranchStubSection = _a64BranchStubSection;
-  if (!a64BranchStubSection)
-    return kErrorOk;
-
-  for (const RelocEntry* re : _relocations) {
-    RelocType relocType = re->relocType();
-    if (relocType != RelocType::kA64AddressEntry && relocType != RelocType::kA64JumpAddressEntry)
-      continue;
-
-    Section* sourceSection = sectionById(re->sourceSectionId());
-    A64BranchStubEntry* stubEntry = _a64BranchStubEntries.get(re->payload());
-    if (ASMJIT_UNLIKELY(!stubEntry || !stubEntry->hasAssignedSlot()))
-      return DebugUtils::errored(kErrorInvalidRelocEntry);
-
-    uint64_t sourceOffset = sourceSection->offset() + re->sourceOffset();
-    uint64_t globalStubOffset =
-      a64BranchStubSection->offset() + uint64_t(size_t(stubEntry->slot()) * kA64BranchStubSize);
-    if (CodeHolder_canEncodeA64Branch(sourceOffset, globalStubOffset))
-      continue;
-
-    uint64_t sourceSectionOffset = re->sourceOffset();
-    A64BranchStubIslandEntry* islandEntry = nullptr;
-    bool appended = false;
-    ASMJIT_PROPAGATE(CodeHolder_addA64BranchStubIslandEntry(this, sourceSection, sourceSectionOffset, re->payload(), &islandEntry, &appended));
-
-    sourceOffset = sourceSection->offset() + re->sourceOffset();
-    uint64_t localStubOffset = sourceSection->offset() + islandEntry->_offset;
-    if (!CodeHolder_canEncodeA64Branch(sourceOffset, localStubOffset))
-      return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
-
-    *changed = *changed || appended;
-  }
-
-  return kErrorOk;
-}
-
 Error CodeHolder::flatten() noexcept {
-  for (;;) {
-    uint64_t offset = 0;
-    for (Section* section : _sectionsByOrder) {
-      uint64_t realSize = section->realSize();
-      if (realSize) {
-        uint64_t alignedOffset = Support::alignUp(offset, section->alignment());
-        if (ASMJIT_UNLIKELY(alignedOffset < offset))
-          return DebugUtils::errored(kErrorTooLarge);
+  uint64_t offset = 0;
+  for (Section* section : _sectionsByOrder) {
+    uint64_t realSize = section->realSize();
+    if (realSize) {
+      uint64_t alignedOffset = Support::alignUp(offset, section->alignment());
+      if (ASMJIT_UNLIKELY(alignedOffset < offset))
+        return DebugUtils::errored(kErrorTooLarge);
 
-        Support::FastUInt8 of = 0;
-        offset = Support::addOverflow(alignedOffset, realSize, &of);
+      Support::FastUInt8 of = 0;
+      offset = Support::addOverflow(alignedOffset, realSize, &of);
 
-        if (ASMJIT_UNLIKELY(of))
-          return DebugUtils::errored(kErrorTooLarge);
-      }
+      if (ASMJIT_UNLIKELY(of))
+        return DebugUtils::errored(kErrorTooLarge);
     }
+  }
 
-    // Now we know that we can assign offsets of all sections properly.
-    Section* prev = nullptr;
-    offset = 0;
-    for (Section* section : _sectionsByOrder) {
-      uint64_t realSize = section->realSize();
-      if (realSize)
-        offset = Support::alignUp(offset, section->alignment());
-      section->_offset = offset;
+  // Now we know that we can assign offsets of all sections properly.
+  Section* prev = nullptr;
+  offset = 0;
+  for (Section* section : _sectionsByOrder) {
+    uint64_t realSize = section->realSize();
+    if (realSize)
+      offset = Support::alignUp(offset, section->alignment());
+    section->_offset = offset;
 
-      // Make sure the previous section extends a bit to cover the alignment.
-      if (prev)
-        prev->_virtualSize = offset - prev->_offset;
+    // Make sure the previous section extends a bit to cover the alignment.
+    if (prev)
+      prev->_virtualSize = offset - prev->_offset;
 
-      prev = section;
-      offset += realSize;
-    }
-
-    bool changed = false;
-    ASMJIT_PROPAGATE(ensureBranchStubIslands(&changed));
-    if (!changed)
-      break;
+    prev = section;
+    offset += realSize;
   }
 
   return kErrorOk;
@@ -1226,40 +993,6 @@ static bool tryEncodeAdrOrAdrpAdd(uint8_t* buffer, size_t offset, uint64_t targe
   return false;
 }
 
-static Error CodeHolder_writeA64BranchStub(uint8_t* buffer, uint64_t targetAddress) noexcept {
-  Support::writeU32uLE(buffer, 0x58000050u); // LDR X16, [PC, #8].
-  Support::writeU32uLE(buffer + 4, 0xD61F0200u); // BR X16.
-  Support::writeU64uLE(buffer + 8, targetAddress);
-  return kErrorOk;
-}
-
-static Error CodeHolder_writeA64BranchStubIslands(CodeHolder* self) noexcept {
-  for (A64BranchStubIsland* island : self->_a64BranchStubIslands) {
-    Section* sourceSection = self->sectionById(island->_sourceSectionId);
-    uint64_t guardOffset = island->_guardOffset;
-    uint64_t afterIslandOffset = guardOffset + island->_size;
-
-    if (ASMJIT_UNLIKELY(afterIslandOffset > sourceSection->bufferSize()) ||
-        !CodeHolder_canEncodeA64Branch(guardOffset, afterIslandOffset))
-      return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
-
-    int64_t displacement = int64_t(afterIslandOffset - guardOffset);
-    int64_t dispImm = displacement >> 2;
-    Support::writeU32uLE(sourceSection->data() + guardOffset, 0x14000000u | (uint32_t(dispImm) & 0x03FFFFFFu));
-  }
-
-  for (A64BranchStubIslandEntry* entry : self->_a64BranchStubIslandEntries) {
-    Section* sourceSection = self->sectionById(entry->_sourceSectionId);
-
-    if (ASMJIT_UNLIKELY(entry->_offset + kA64BranchStubSize > sourceSection->bufferSize()))
-      return DebugUtils::errored(kErrorInvalidRelocEntry);
-
-    ASMJIT_PROPAGATE(CodeHolder_writeA64BranchStub(sourceSection->data() + entry->_offset, entry->_address));
-  }
-
-  return kErrorOk;
-}
-
 Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
   // Base address must be provided.
   if (ASMJIT_UNLIKELY(baseAddress == Globals::kNoBaseAddress))
@@ -1272,10 +1005,6 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
   uint32_t addressTableEntryCount = 0;
   uint8_t* addressTableEntryData = nullptr;
 
-  Section* a64BranchStubSection = _a64BranchStubSection;
-  uint32_t a64BranchStubEntryCount = 0;
-  uint8_t* a64BranchStubData = nullptr;
-
   if (addressTableSection) {
     size_t addrTableSize = size_t(addressTableSection->virtualSize());
     ASMJIT_PROPAGATE(
@@ -1283,16 +1012,6 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
     addressTableSection->_buffer._size = addrTableSize;
     addressTableEntryData = addressTableSection->_buffer.data();
   }
-
-  if (a64BranchStubSection) {
-    size_t stubTableSize = size_t(a64BranchStubSection->virtualSize());
-    ASMJIT_PROPAGATE(
-      reserveBuffer(&a64BranchStubSection->_buffer, stubTableSize));
-    a64BranchStubSection->_buffer._size = stubTableSize;
-    a64BranchStubData = a64BranchStubSection->_buffer.data();
-  }
-
-  ASMJIT_PROPAGATE(CodeHolder_writeA64BranchStubIslands(this));
 
   // Relocate all recorded locations.
   for (const RelocEntry* re : _relocations) {
@@ -1406,54 +1125,58 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
 
       case RelocType::kA64AddressEntry:
       case RelocType::kA64JumpAddressEntry: {
+        // AArch64: The source contains 8 bytes (two NOPs as placeholder).
+        // We try to use a direct `b`/`bl` first. If the displacement doesn't fit
+        // in the 26-bit signed offset (±128MB), we fall back to `ldr x16, [pc+off]; br/blr x16`
+        // using the address table to hold the target address.
         bool isCall = (re->relocType() == RelocType::kA64AddressEntry);
         uint64_t targetAddress = re->payload();
         uint64_t pc = baseAddress + sectionOffset + sourceOffset;
         int64_t displacement = int64_t(targetAddress - pc);
         int64_t dispImm = displacement >> 2;
-        uint32_t baseOpcode = isCall ? 0x94000000u : 0x14000000u;
 
         if ((displacement & 3) == 0 && Support::isEncodableOffset64(dispImm, 26)) {
+          // Displacement fits in b/bl range: emit `b/bl target; nop`.
+          uint32_t baseOpcode = isCall ? 0x94000000u : 0x14000000u;
           uint32_t branchOpcode = baseOpcode | (uint32_t(dispImm) & 0x03FFFFFFu);
           Support::writeU32uLE(buffer + sourceOffset, branchOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
         }
         else {
-          A64BranchStubIslandEntry* islandEntry =
-            CodeHolder_findA64BranchStubIslandEntry(this, sourceSection->id(), sourceOffset, targetAddress);
-          uint64_t stubOffset;
+          // Displacement doesn't fit: emit `ldr x16, [pc+off]; br/blr x16`.
+          AddressTableEntry* atEntry = _addressTableEntries.get(targetAddress);
+          if (ASMJIT_UNLIKELY(!atEntry))
+            return DebugUtils::errored(kErrorInvalidRelocEntry);
 
-          if (islandEntry) {
-            stubOffset = sectionOffset + islandEntry->_offset;
-          }
-          else {
-            A64BranchStubEntry* stubEntry = _a64BranchStubEntries.get(targetAddress);
-            if (ASMJIT_UNLIKELY(!stubEntry))
-              return DebugUtils::errored(kErrorInvalidRelocEntry);
+          ASMJIT_ASSERT(addressTableSection != nullptr);
 
-            ASMJIT_ASSERT(a64BranchStubSection != nullptr);
+          if (!atEntry->hasAssignedSlot())
+            atEntry->_slot = addressTableEntryCount++;
 
-            if (!stubEntry->hasAssignedSlot())
-              stubEntry->_slot = a64BranchStubEntryCount++;
-            else if (a64BranchStubEntryCount <= stubEntry->slot())
-              a64BranchStubEntryCount = stubEntry->slot() + 1;
+          size_t atEntryIndex = size_t(atEntry->slot()) * addressSize;
+          uint64_t addrTableOffset = addressTableSection->offset() + uint64_t(atEntryIndex);
 
-            size_t stubIndex = size_t(stubEntry->slot()) * kA64BranchStubSize;
-            ASMJIT_PROPAGATE(CodeHolder_writeA64BranchStub(a64BranchStubData + stubIndex, targetAddress));
+          // LDR Xt, literal: loads from PC + signed imm19 * 4.
+          // The PC for the ldr instruction is at sourceOffset.
+          int64_t ldrDisplacement = int64_t(addrTableOffset - (sectionOffset + sourceOffset));
+          int64_t ldrImm19 = ldrDisplacement >> 2;
 
-            stubOffset = a64BranchStubSection->offset() + uint64_t(size_t(stubEntry->slot()) * kA64BranchStubSize);
-          }
-
-          int64_t stubDisplacement = int64_t(stubOffset - (sectionOffset + sourceOffset));
-          int64_t stubDispImm = stubDisplacement >> 2;
-
-          if ((stubDisplacement & 3) != 0 || !Support::isEncodableOffset64(stubDispImm, 26))
+          if ((ldrDisplacement & 3) != 0 || !Support::isEncodableOffset64(ldrImm19, 19))
             return DebugUtils::errored(kErrorRelocOffsetOutOfRange);
 
-          uint32_t branchOpcode = baseOpcode | (uint32_t(stubDispImm) & 0x03FFFFFFu);
-          Support::writeU32uLE(buffer + sourceOffset, branchOpcode);
+          // LDR X16, [PC+off]: opc=01, V=0, imm19, Rt=16 -> 0x58000010 | (imm19 << 5)
+          uint32_t ldrOpcode = 0x58000010u | ((uint32_t(ldrImm19) & 0x7FFFFu) << 5);
+          // BR X16: 0xD61F0200, BLR X16: 0xD63F0200
+          uint32_t brOpcode = isCall ? 0xD63F0200u : 0xD61F0200u;
+
+          Support::writeU32uLE(buffer + sourceOffset, ldrOpcode);
+          Support::writeU32uLE(buffer + sourceOffset + 4, brOpcode);
+
+          // Write the target address into the address table.
+          Support::writeU64uLE(addressTableEntryData + atEntryIndex, targetAddress);
         }
 
-        // Skip the normal writeOffset call - we've already written the instruction directly.
+        // Skip the normal writeOffset call - we've already written the instructions directly.
         continue;
       }
 

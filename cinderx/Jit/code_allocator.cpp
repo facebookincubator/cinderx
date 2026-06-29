@@ -335,59 +335,48 @@ void CodeAllocatorCinder::ensureSplitSpace(
 }
 
 AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
+  // Compute how much space each section type needs.
   size_t hot_size = 0;
   size_t cold_size = 0;
-
-  for (;;) {
-    // Compute how much space each section type needs.
-    hot_size = 0;
-    cold_size = 0;
-    for (asmjit::Section* section : code->sections()) {
-      CodeSection cs = codeSectionFromName(section->name());
-      if (cs == CodeSection::kCold) {
-        cold_size += section->realSize();
-      } else {
-        hot_size += section->realSize();
-      }
+  for (asmjit::Section* section : code->sections()) {
+    CodeSection cs = codeSectionFromName(section->name());
+    if (cs == CodeSection::kCold) {
+      cold_size += section->realSize();
+    } else {
+      hot_size += section->realSize();
     }
+  }
 
-    // Ensure we have enough space for both hot and cold code.
+  // Ensure we have enough space for both hot and cold code.
 #if defined(__aarch64__)
-    // On ARM64, branch displacements are limited (±128MB for B/BL, ±1MB for
-    // B.cond). Allocate hot and cold from a single contiguous region so
-    // cross-section jumps are always in range.
-    ensureSplitSpace(hot_size, cold_size);
+  // On ARM64, branch displacements are limited (±128MB for B/BL, ±1MB for
+  // B.cond). Allocate hot and cold from a single contiguous region so
+  // cross-section jumps are always in range.
+  ensureSplitSpace(hot_size, cold_size);
 #else
-    // On x86-64, RIP-relative addressing has a ±2GB range which is large enough
-    // that independent allocations are unlikely to exceed it in practice.
-    ensureSpace(hot_alloc_, hot_alloc_free_, hot_size, true);
-    ensureSpace(
-        cold_alloc_,
-        cold_alloc_free_,
-        cold_size,
-        getConfig().cold_code_huge_pages);
+  // On x86-64, RIP-relative addressing has a ±2GB range which is large enough
+  // that independent allocations are unlikely to exceed it in practice.
+  ensureSpace(hot_alloc_, hot_alloc_free_, hot_size, true);
+  ensureSpace(
+      cold_alloc_,
+      cold_alloc_free_,
+      cold_size,
+      getConfig().cold_code_huge_pages);
 #endif
 
-    // Fix up offsets for each code section before resolving links.
-    // All offsets are relative to the hot allocation base so that asmjit can
-    // resolve cross-section jumps correctly.
-    size_t hot_offset = 0;
-    size_t cold_offset = static_cast<size_t>(cold_alloc_ - hot_alloc_);
-    for (asmjit::Section* section : code->sections()) {
-      CodeSection cs = codeSectionFromName(section->name());
-      if (cs == CodeSection::kCold) {
-        section->setOffset(cold_offset);
-        cold_offset += section->realSize();
-      } else {
-        section->setOffset(hot_offset);
-        hot_offset += section->realSize();
-      }
-    }
-
-    bool changed = false;
-    PROPAGATE_ERROR(code->ensureBranchStubIslands(&changed));
-    if (!changed) {
-      break;
+  // Fix up offsets for each code section before resolving links.
+  // All offsets are relative to the hot allocation base so that asmjit can
+  // resolve cross-section jumps correctly.
+  size_t hot_offset = 0;
+  size_t cold_offset = static_cast<size_t>(cold_alloc_ - hot_alloc_);
+  for (asmjit::Section* section : code->sections()) {
+    CodeSection cs = codeSectionFromName(section->name());
+    if (cs == CodeSection::kCold) {
+      section->setOffset(cold_offset);
+      cold_offset += section->realSize();
+    } else {
+      section->setOffset(hot_offset);
+      hot_offset += section->realSize();
     }
   }
 

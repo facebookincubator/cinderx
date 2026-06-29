@@ -16,8 +16,7 @@ const char* codeSectionName(CodeSection section) {
 }
 
 CodeSection codeSectionFromName(const char* name) {
-  if (strcmp(name, ".text") == 0 || strcmp(name, ".addrtab") == 0 ||
-      strcmp(name, ".a64stubs") == 0) {
+  if (strcmp(name, ".text") == 0 || strcmp(name, ".addrtab") == 0) {
     return CodeSection::kHot;
   }
   if (strcmp(name, ".coldtext") == 0) {

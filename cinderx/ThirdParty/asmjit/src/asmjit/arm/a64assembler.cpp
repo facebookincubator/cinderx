@@ -815,7 +815,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
   // is valid. All options that require special handling (including invalid
   // instruction) are handled by the next branch.
   // Check for < 8 bytes remaining because branch relaxation (cbz/cbnz,
-  // tbz/tbnz, b.cond, adr) may emit two 32-bit words (8 bytes).
+  // tbz/tbnz, b.cond, bl/b, adr) may emit two 32-bit words (8 bytes).
   InstOptions options = InstOptions(instId - 1 >= Inst::_kIdCount - 1) | InstOptions((size_t)(_bufferEnd - writer.cursor()) < 8) | instOptions() | forcedInstOptions();
 
   CondCode instCC = BaseInst::extractARMCondCode(instId);
@@ -854,7 +854,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
       goto InvalidInstruction;
 
     // Grow request, happens rarely. Reserve 8 bytes because branch relaxation
-    // (cbz/cbnz, tbz/tbnz, b.cond, adr) may emit two 32-bit words.
+    // (cbz/cbnz, tbz/tbnz, b.cond, bl/b, adr) may emit two 32-bit words.
     err = writer.ensureSpace(this, 8);
     if (ASMJIT_UNLIKELY(err))
       goto Failed;
@@ -5207,9 +5207,9 @@ EmitOp_Rel:
 
     size_t codeOffset = writer.offsetFrom(_bufferData);
 
-    // For b(imm) and bl(imm), use a branch stub to handle out-of-range
-    // targets. At emit time we reserve one branch instruction, and during
-    // relocation we choose either the target or the stub as its destination.
+    // For b(imm) and bl(imm), use address table mechanism to handle out-of-range
+    // targets. At emit time we reserve 8 bytes, and during relocation we choose
+    // the optimal encoding based on the actual displacement.
     if ((instId == Inst::kIdBl || instId == Inst::kIdB) &&
         offsetFormat.immBitCount() == 26 &&
         (baseAddress == Globals::kNoBaseAddress || _section->id() != 0))
@@ -5235,7 +5235,7 @@ EmitOp_Rel:
         pc &= ~uint64_t(4096 - 1);
 
       // For b(imm) and bl(imm) when base address is known, try the direct
-      // encoding first. If it doesn't fit, use the branch stub mechanism.
+      // encoding first. If it doesn't fit, use the address table mechanism.
       if ((instId == Inst::kIdBl || instId == Inst::kIdB) && offsetFormat.immBitCount() == 26) {
         int64_t displacement = int64_t(targetOffset - pc);
         int64_t dispImm = displacement >> 2;
@@ -5281,7 +5281,7 @@ EmitOp_DispImm:
   }
 
   // --------------------------------------------------------------------------
-  // [EmitOp - b/bl Relaxation via Branch Stub]
+  // [EmitOp - b/bl Relaxation via Address Table]
   // --------------------------------------------------------------------------
 
 EmitOp_BranchReloc:
@@ -5295,21 +5295,21 @@ EmitOp_BranchReloc:
     if (err)
       goto Failed;
 
-    size_t codeOffset = writer.offsetFrom(_bufferData);
     uint64_t targetOffset = rmRel->as<Imm>().valueAs<uint64_t>();
-    err = _code->addAddressToA64BranchStubTable(targetOffset);
+    err = _code->addAddressToAddressTable(targetOffset);
     if (err)
       goto Failed;
 
+    size_t codeOffset = writer.offsetFrom(_bufferData);
     re->_sourceSectionId = _section->id();
     re->_sourceOffset = codeOffset;
     re->_format = offsetFormat;
     re->_payload = targetOffset;
 
-    // Emit a 32-bit branch placeholder. During relocation this is patched to
-    // either `b/bl target` or `b/bl stub`, where the stub loads the full target
-    // address and branches to it.
-    writer.emit32uLE(opcode.get());
+    // Emit two 32-bit words (placeholder: nop; nop). These will be patched
+    // during relocation to either `b/bl target; nop` or `ldr x16, [pc+off]; br/blr x16`.
+    writer.emit32uLE(0xD503201F); // NOP
+    writer.emit32uLE(0xD503201F); // NOP
     goto EmitDone;
   }
 
