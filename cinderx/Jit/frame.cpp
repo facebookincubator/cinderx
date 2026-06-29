@@ -308,6 +308,7 @@ void updatePrevInstr(_PyInterpreterFrame* frame) {
 #endif
 }
 
+#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
 CodeRuntime* lookupCodeRuntimeForOwningFrame(_PyInterpreterFrame* frame) {
   JIT_CHECK(
       !isInlinedFrame(frame),
@@ -330,7 +331,6 @@ std::optional<ActiveDeoptMetadata> getActiveDeoptMetadata(
     return std::nullopt;
   }
 
-#if defined(Py_GIL_DISABLED)
   std::size_t deopt_idx = jitFrameGetHeader(owning_frame)->deopt_idx;
   if (deopt_idx >= code_rt->deoptMetadatas().size()) {
     return std::nullopt;
@@ -352,12 +352,8 @@ std::optional<ActiveDeoptMetadata> getActiveDeoptMetadata(
       .meta = &code_rt->getDeoptMetadata(deopt_idx),
       .frame_base = frame_base,
   };
-#else
-  return std::nullopt;
-#endif
 }
 
-#if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
 int visitJitDeferredRefs(PyInterpreterState* interp, gcvisitobjects_t visit) {
   _Py_FOR_EACH_TSTATE_BEGIN(interp, p) {
     for (_PyInterpreterFrame* frame = p->current_frame; frame != nullptr;
