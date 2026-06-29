@@ -94,7 +94,7 @@ class DefiniteAssignmentVisitor(NodeVisitor):
         if isinstance(target, ast.Name):
             if target.id not in self.assigned:
                 self.unassigned.add(target)
-            self.generic_visit(node.value)
+            self.visit(node.value)
             return
 
         self.generic_visit(node)
