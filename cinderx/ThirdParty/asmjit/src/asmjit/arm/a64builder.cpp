@@ -96,8 +96,6 @@ static uint32_t estimateNodeSize(BaseNode* node, uint32_t currentOffset) noexcep
         return 8;
       if (realId == Inst::kIdLdr && op.isMem() && op.as<Mem>().hasBaseLabel())
         return 8;
-      if ((realId == Inst::kIdB || realId == Inst::kIdBl) && op.isImm())
-        return 8;
       if (realId == Inst::kIdMov && op.isImm() && op.as<Imm>().valueAs<uint64_t>() > 0xFFFF)
         return 16;
     }
@@ -149,9 +147,10 @@ Error Builder::relaxBranches() {
   ZoneVector<uint32_t> labelSections;
   ASMJIT_PROPAGATE(labelSections.resize(&_allocator, labelCount));
 
-  for (;;) {
+  auto updateNodePositions = [&]() noexcept {
     uint32_t sectionId = 0;
     uint32_t offset = 0;
+
     memset(labelSections.data(), 0, labelCount * sizeof(uint32_t));
 
     for (BaseNode* node = firstNode(); node; node = node->next()) {
@@ -171,9 +170,13 @@ Error Builder::relaxBranches() {
 
       offset += size;
     }
+  };
+
+  for (;;) {
+    updateNodePositions();
 
     bool changed = false;
-    sectionId = 0;
+    uint32_t sectionId = 0;
 
     for (BaseNode* node = firstNode(); node; node = node->next()) {
       if (node->isSection()) {

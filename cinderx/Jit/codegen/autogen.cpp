@@ -1708,8 +1708,8 @@ void translateCall(Environ* env, const Instruction* instr) {
   auto input = instr->getInput(0);
 
   if (input->isImm()) {
-    // Use bl(imm) which leverages asmjit's relaxation to pick the optimal
-    // encoding: direct bl if within ±128MB, or ldr+blr via address table.
+    // Use bl(imm) so asmjit can pick the final encoding at relocation time:
+    // direct bl if within ±128MB, or a branch to an out-of-line stub.
     as->bl(static_cast<uint64_t>(input->getConstant()));
   } else if (input->isReg()) {
     as->blr(AT::getGp(input));

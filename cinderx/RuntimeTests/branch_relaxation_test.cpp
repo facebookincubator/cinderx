@@ -15,6 +15,14 @@ using namespace cinderx::jit::codegen;
 
 namespace {
 
+extern "C" uint64_t branchRelaxationReturn42() {
+  return 42;
+}
+
+extern "C" uint64_t branchRelaxationAddOne(uint64_t value) {
+  return value + 1;
+}
+
 class BranchRelaxationTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -73,6 +81,40 @@ TEST_F(BranchRelaxationTest, InRangeCondBranch) {
   auto func = reinterpret_cast<uint64_t (*)(uint64_t)>(fn);
   EXPECT_EQ(func(0), 0u);
   EXPECT_EQ(func(1), 42u);
+}
+
+TEST_F(BranchRelaxationTest, AbsoluteCallThroughCodeAllocator) {
+  asmjit::CodeHolder code;
+  code.init(code_allocator_->asmJitEnvironment());
+  arch::Builder as(&code);
+
+  as.stp(arch::fp, arch::lr, asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
+  as.mov(arch::fp, asmjit::a64::sp);
+  as.bl(reinterpret_cast<uint64_t>(branchRelaxationAddOne));
+  as.add(asmjit::a64::x0, asmjit::a64::x0, 1);
+  as.mov(asmjit::a64::sp, arch::fp);
+  as.ldp(arch::fp, arch::lr, asmjit::a64::ptr_post(asmjit::a64::sp, 16));
+  as.ret(arch::lr);
+
+  void* fn = compileBuilder(as, code);
+  ASSERT_NE(fn, nullptr);
+
+  auto func = reinterpret_cast<uint64_t (*)(uint64_t)>(fn);
+  EXPECT_EQ(func(41), 43u);
+}
+
+TEST_F(BranchRelaxationTest, AbsoluteBranchThroughCodeAllocator) {
+  asmjit::CodeHolder code;
+  code.init(code_allocator_->asmJitEnvironment());
+  arch::Builder as(&code);
+
+  as.b(reinterpret_cast<uint64_t>(branchRelaxationReturn42));
+
+  void* fn = compileBuilder(as, code);
+  ASSERT_NE(fn, nullptr);
+
+  auto func = reinterpret_cast<uint64_t (*)()>(fn);
+  EXPECT_EQ(func(), 42u);
 }
 
 // tbz has a 14-bit signed immediate (+/-32KB).

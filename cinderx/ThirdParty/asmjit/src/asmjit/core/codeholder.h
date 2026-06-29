@@ -270,6 +270,103 @@ public:
   //! \}
 };
 
+//! Entry in an AArch64 branch stub table.
+class A64BranchStubEntry : public ZoneTreeNodeT<A64BranchStubEntry> {
+public:
+  ASMJIT_NONCOPYABLE(A64BranchStubEntry)
+
+  //! \name Members
+  //! \{
+
+  //! Address.
+  uint64_t _address;
+  //! Slot.
+  uint32_t _slot;
+
+  //! \}
+
+  //! \name Construction & Destruction
+  //! \{
+
+  ASMJIT_INLINE_NODEBUG explicit A64BranchStubEntry(uint64_t address) noexcept
+    : _address(address),
+      _slot(0xFFFFFFFFu) {}
+
+  //! \}
+
+  //! \name Accessors
+  //! \{
+
+  ASMJIT_INLINE_NODEBUG uint64_t address() const noexcept { return _address; }
+  ASMJIT_INLINE_NODEBUG uint32_t slot() const noexcept { return _slot; }
+
+  ASMJIT_INLINE_NODEBUG bool hasAssignedSlot() const noexcept { return _slot != 0xFFFFFFFFu; }
+
+  ASMJIT_INLINE_NODEBUG bool operator<(const A64BranchStubEntry& other) const noexcept { return _address < other._address; }
+  ASMJIT_INLINE_NODEBUG bool operator>(const A64BranchStubEntry& other) const noexcept { return _address > other._address; }
+
+  ASMJIT_INLINE_NODEBUG bool operator<(uint64_t queryAddress) const noexcept { return _address < queryAddress; }
+  ASMJIT_INLINE_NODEBUG bool operator>(uint64_t queryAddress) const noexcept { return _address > queryAddress; }
+
+  //! \}
+};
+
+//! Local AArch64 branch stub island inserted into a source section.
+class A64BranchStubIsland {
+public:
+  ASMJIT_NONCOPYABLE(A64BranchStubIsland)
+
+  //! \name Members
+  //! \{
+
+  //! Source section id.
+  uint32_t _sourceSectionId;
+  //! Offset of the guard branch that skips the island.
+  uint32_t _guardOffset;
+  //! Total island size, including the guard branch.
+  uint32_t _size;
+
+  //! \}
+
+  //! \name Construction & Destruction
+  //! \{
+
+  ASMJIT_INLINE_NODEBUG A64BranchStubIsland(uint32_t sourceSectionId, uint32_t guardOffset, uint32_t size) noexcept
+    : _sourceSectionId(sourceSectionId),
+      _guardOffset(guardOffset),
+      _size(size) {}
+
+  //! \}
+};
+
+//! Entry in a local AArch64 branch stub island.
+class A64BranchStubIslandEntry {
+public:
+  ASMJIT_NONCOPYABLE(A64BranchStubIslandEntry)
+
+  //! \name Members
+  //! \{
+
+  //! Address.
+  uint64_t _address;
+  //! Source section id.
+  uint32_t _sourceSectionId;
+  //! Offset of the stub in the source section.
+  uint32_t _offset;
+
+  //! \}
+
+  //! \name Construction & Destruction
+  //! \{
+
+  ASMJIT_INLINE_NODEBUG A64BranchStubIslandEntry(uint64_t address, uint32_t sourceSectionId, uint32_t offset) noexcept
+    : _address(address),
+      _sourceSectionId(sourceSectionId),
+      _offset(offset) {}
+
+  //! \}
+};
+
 //! Offset format type, used by \ref OffsetFormat.
 enum class OffsetType : uint8_t {
   // Common Offset Formats
@@ -521,11 +618,11 @@ enum class RelocType : uint32_t {
   kAbsToRel = 4,
   //! Relocate absolute to relative or use trampoline.
   kX64AddressEntry = 5,
-  //! AArch64: Relocate absolute to relative `bl` or use `ldr+blr` via address table.
+  //! AArch64: Relocate absolute to relative `bl` or branch to an out-of-line stub.
   kA64AddressEntry = 6,
   //! AArch64: Relocate `adr` or relax to `adrp+add` if displacement > ±1MB.
   kA64AdrEntry = 7,
-  //! AArch64: Relocate absolute to relative `b` or use `ldr+br` via address table.
+  //! AArch64: Relocate absolute to relative `b` or branch to an out-of-line stub.
   kA64JumpAddressEntry = 8,
   //! AArch64: Relocate `ldr Xd, [PC+imm19]` literal or relax to `adrp Xd, page; ldr Xd, [Xd, #off]`.
   kA64LdrLiteralEntry = 9,
@@ -776,6 +873,14 @@ public:
   Section* _addressTableSection;
   //! Address table entries.
   ZoneTree<AddressTableEntry> _addressTableEntries;
+  //! Pointer to an AArch64 branch stub section (or null if this section doesn't exist).
+  Section* _a64BranchStubSection;
+  //! AArch64 branch stub entries.
+  ZoneTree<A64BranchStubEntry> _a64BranchStubEntries;
+  //! AArch64 local branch stub islands.
+  ZoneVector<A64BranchStubIsland*> _a64BranchStubIslands;
+  //! AArch64 local branch stub island entries.
+  ZoneVector<A64BranchStubIslandEntry*> _a64BranchStubIslandEntries;
 
   //! \}
 
@@ -955,6 +1060,18 @@ public:
   //! address table. Inserting address into address table without creating a particular relocation entry makes no sense.
   ASMJIT_API Error addAddressToAddressTable(uint64_t address) noexcept;
 
+  //! Tests whether '.a64stubs' section exists.
+  ASMJIT_INLINE_NODEBUG bool hasA64BranchStubTable() const noexcept { return _a64BranchStubSection != nullptr; }
+
+  //! Returns '.a64stubs' section.
+  ASMJIT_INLINE_NODEBUG Section* a64BranchStubSection() const noexcept { return _a64BranchStubSection; }
+
+  //! Ensures that '.a64stubs' section exists (creates it if it doesn't) and returns it.
+  ASMJIT_API Section* ensureA64BranchStubSection() noexcept;
+
+  //! Used to reserve an AArch64 out-of-line branch stub.
+  ASMJIT_API Error addAddressToA64BranchStubTable(uint64_t address) noexcept;
+
   //! \}
 
   //! \name Labels & Symbols
@@ -1109,6 +1226,9 @@ public:
   //!
   //! \note This should never be called more than once.
   ASMJIT_API Error flatten() noexcept;
+
+  //! Ensures that branch stub islands are reachable from branches that cannot reach the global stub table.
+  ASMJIT_API Error ensureBranchStubIslands(bool* changed) noexcept;
 
   //! Returns computed the size of code & data of all sections.
   //!
