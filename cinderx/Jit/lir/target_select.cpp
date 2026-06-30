@@ -143,6 +143,42 @@ void legalizeA64Min32BitOutput(instr_iter_t instr_iter) {
   }
 }
 
+/* AArch64 signed operations on sub-32-bit values need sign-extension. LIR
+ * DataType doesn't track signedness, so values in registers are zero-extended
+ * by default. Signed comparisons and signed division need explicit 32-bit
+ * signed inputs for correctness.
+ */
+void legalizeA64SignedSubWordInputs(
+    BasicBlock* block,
+    instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(
+      instr->opcode() == Instruction::kGreaterThanSigned ||
+          instr->opcode() == Instruction::kGreaterThanEqualSigned ||
+          instr->opcode() == Instruction::kLessThanSigned ||
+          instr->opcode() == Instruction::kLessThanEqualSigned ||
+          instr->opcode() == Instruction::kDiv,
+      "Expected signed comparison or Div, got {}",
+      instr->opname());
+
+  for (size_t i = 0; i < instr->getNumInputs(); i++) {
+    Operand* input = instr->getInput(i);
+    if (!input->isReg()) {
+      continue;
+    }
+
+    DataType dt = input->dataType();
+    if (dt != Operand::k8bit && dt != Operand::k16bit) {
+      continue;
+    }
+
+    Instruction* sext = block->allocateInstrBefore(
+        instr_iter, Instruction::kSext, OutVReg{DataType::k32bit});
+    sext->appendInput(instr->releaseInput(i));
+    instr->setInput(i, std::make_unique<Operand>(sext, Operand::kLinked));
+  }
+}
+
 /* AArch64 cannot directly test-and-branch on FP registers. Move double guard
  * inputs through a GP-sized vreg before guard selection and register
  * allocation.
@@ -458,10 +494,15 @@ void selectA64Opcodes(Function* func) {
       switch (cur_iter->get()->opcode()) {
         case Instruction::kEqual:
         case Instruction::kNotEqual:
+          legalizeA64Min32BitOutput(cur_iter);
+          break;
         case Instruction::kGreaterThanSigned:
         case Instruction::kGreaterThanEqualSigned:
         case Instruction::kLessThanSigned:
         case Instruction::kLessThanEqualSigned:
+          legalizeA64SignedSubWordInputs(block, cur_iter);
+          legalizeA64Min32BitOutput(cur_iter);
+          break;
         case Instruction::kGreaterThanUnsigned:
         case Instruction::kGreaterThanEqualUnsigned:
         case Instruction::kLessThanUnsigned:
@@ -470,6 +511,9 @@ void selectA64Opcodes(Function* func) {
         case Instruction::kXor:
         case Instruction::kOr:
           legalizeA64Min32BitOutput(cur_iter);
+          break;
+        case Instruction::kDiv:
+          legalizeA64SignedSubWordInputs(block, cur_iter);
           break;
         case Instruction::kLea:
           selectA64LeaLargeMultiplier(block, cur_iter);

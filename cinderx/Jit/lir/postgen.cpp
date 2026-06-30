@@ -433,47 +433,6 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   return kRemoved;
 }
 
-// On AArch64, signed operations on sub-32-bit values need sign-extension.
-// LIR DataType doesn't track signedness (both cint8 and cuint8 become k8bit),
-// so values in registers are zero-extended by default (via ldrb/ldrh/cset).
-// For signed comparisons, e.g. cint8 -1 is 0xFF in a register; without
-// sign-extension "cmp w0(=255), w1(=1)" with kLT gives false (wrong), but
-// with sign-extension "cmp w0(=-1), w1(=1)" with kLT gives true (correct).
-// Similarly, signed division (sdiv) needs sign-extended inputs for correctness.
-[[maybe_unused]] RewriteResult rewriteSignedSubWordOps(
-    instr_iter_t instr_iter) {
-  auto instr = instr_iter->get();
-  switch (instr->opcode()) {
-    case Instruction::kGreaterThanSigned:
-    case Instruction::kGreaterThanEqualSigned:
-    case Instruction::kLessThanSigned:
-    case Instruction::kLessThanEqualSigned:
-    case Instruction::kDiv:
-      break;
-    default:
-      return kUnchanged;
-  }
-
-  auto block = instr->basicblock();
-  bool changed = false;
-  for (size_t i = 0; i < instr->getNumInputs(); i++) {
-    auto input = instr->getInput(i);
-    if (!input->isReg()) {
-      continue;
-    }
-    auto dt = input->dataType();
-    if (dt != Operand::k8bit && dt != Operand::k16bit) {
-      continue;
-    }
-    auto sext = block->allocateInstrBefore(
-        instr_iter, Instruction::kSext, OutVReg{DataType::k32bit});
-    sext->appendInput(instr->releaseInput(i));
-    instr->setInput(i, std::make_unique<Operand>(sext, Operand::kLinked));
-    changed = true;
-  }
-  return changed ? kChanged : kUnchanged;
-}
-
 // On AArch64, Guards with kHasType load obj->ob_type into a scratch register
 // in TranslateGuard. Decompose this into an explicit Move(Ind) to load the
 // type, then convert the guard to kIs so register allocation handles the
@@ -1008,7 +967,6 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteLoadArg, 1);
 
   if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
-    registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
     registerOneRewriteFunction(rewriteGuardHasType, 1);
     registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
     registerOneRewriteFunction(rewriteStackInputToVreg, 1);
