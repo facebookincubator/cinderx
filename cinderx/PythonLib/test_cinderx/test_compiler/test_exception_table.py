@@ -38,3 +38,35 @@ class EncodingTests(TestCase):
         ]
         actual = ParsedExceptionTable.from_bytes(table).entries
         self.assertEqual(expected, actual)
+
+    @staticmethod
+    def _decode_item(buf: bytes) -> int:
+        # Decode a single varint emitted by emit_item(value, msb=0): 6 data bits
+        # per byte, continuation bit (64) set on every byte but the last.
+        it = iter(buf)
+        b = next(it)
+        value = b & 0x3F
+        while b & 64:
+            b = next(it)
+            value = (value << 6) | (b & 0x3F)
+        return value
+
+    def test_emit_item_roundtrip_across_group_boundaries(self) -> None:
+        # emit_item packs a value 6 bits at a time. Each group threshold uses
+        # `value >= (1 << i)`; the top group (bit 24) must use the same `>=`.
+        # A `>` there drops bit 24 at exactly value == 1 << 24, corrupting the
+        # entry (it decodes back to 0).
+        values = []
+        for i in (6, 12, 18, 24):
+            values += [(1 << i) - 1, 1 << i, (1 << i) + 1]
+        values += [0, 1, (1 << 30) - 1]
+        for value in values:
+            with self.subTest(value=value):
+                e = ExceptionTable()
+                e.emit_item(value, 0)
+                self.assertEqual(self._decode_item(e.getTable()), value)
+
+    def test_emit_item_bit24_boundary(self) -> None:
+        e = ExceptionTable()
+        e.emit_item(1 << 24, 0)
+        self.assertEqual(self._decode_item(e.getTable()), 1 << 24)

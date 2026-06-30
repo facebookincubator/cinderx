@@ -3647,7 +3647,7 @@ class ExceptionTable:
         assert value >= 0 and value < (1 << 30)
         CONTINUATION_BIT = 64
 
-        if value > (1 << 24):
+        if value >= (1 << 24):
             self.write_byte((value >> 24) | CONTINUATION_BIT | msb)
             msb = 0
         for i in (18, 12, 6):
