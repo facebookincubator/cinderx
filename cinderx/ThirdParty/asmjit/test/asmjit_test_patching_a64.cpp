@@ -40,6 +40,27 @@ static void emitNops(a64::Assembler& as, size_t count) {
   }
 }
 
+static uint32_t a64BranchTargetOffset(const uint8_t* buf, uint32_t sourceOffset) {
+  uint32_t instr = Support::readU32uLE(buf + sourceOffset);
+  int32_t imm26 = int32_t(instr << 6) >> 6;
+  return sourceOffset + uint32_t(imm26 * 4);
+}
+
+static uint32_t findA64BranchStubForTarget(
+    const uint8_t* buf,
+    size_t size,
+    uint64_t targetAddress) {
+  for (uint32_t offset = 0; offset + 16 <= size; offset += 4) {
+    if (Support::readU32uLE(buf + offset) == 0x58000050u &&
+        Support::readU32uLE(buf + offset + 4) == 0xD61F0200u &&
+        Support::readU64uLE(buf + offset + 8) == targetAddress) {
+      return offset;
+    }
+  }
+
+  return Globals::kNotFound;
+}
+
 // ============================================================================
 // [BL Patching Tests]
 // ============================================================================
@@ -68,29 +89,429 @@ UNIT(a64_bl_patching_in_range) {
     .message("Expected bl encoding, got: %s", hex.data());
 }
 
+// Test that bl to an absolute address that is in ±128MB range resolves to a
+// single direct bl, even when the base address is not known at emit time.
+UNIT(a64_bl_patching_absolute_addr_in_range_no_nop) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  as.bl(Imm(uint64_t(0x40)));
+
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single branch placeholder");
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const uint8_t* buf = code.textSection()->data();
+  uint32_t instr = Support::readU32uLE(buf);
+  EXPECT_EQ(instr, 0x94000010u)
+    .message("Expected direct bl +0x40, got: 0x%08X", instr);
+}
+
 // Test that bl to an absolute address that is out of ±128MB range
-// gets relaxed to ldr+blr via RelocEntry.
+// gets relocated to a branch to an out-of-line stub.
 UNIT(a64_bl_patching_absolute_addr) {
   CodeHolder code;
   a64::Assembler as;
-  setupCode(code, as);
+  setupCodeNoBase(code, as);
 
-  // bl to an absolute address (far away) should emit two NOPs as placeholder
-  // and create a RelocEntry. The actual relaxation happens in relocateToBase().
   uint64_t farAddr = 0x100000000ULL; // 4GB away
   as.bl(Imm(farAddr));
 
-  String hex;
-  getHex(code, hex);
-
-  // Should emit two NOPs as placeholders (will be rewritten during relocation):
-  // NOP = 0xD503201F -> little-endian = 1F2003D5
-  EXPECT_EQ(hex, "1F2003D51F2003D5")
-    .message("Expected two NOPs as placeholder, got: %s", hex.data());
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single branch placeholder");
+  EXPECT_EQ(Support::readU32uLE(code.textSection()->data()), 0x94000000u)
+    .message("Expected bl placeholder");
 
   // Verify a RelocEntry was created
   EXPECT_GT(code.relocEntries().size(), 0u)
     .message("Expected at least one reloc entry for far bl");
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected an AArch64 branch stub section");
+  if (!stubs)
+    return;
+
+  uint32_t branch = Support::readU32uLE(code.textSection()->data());
+  uint32_t expectedImm26 = uint32_t(stubs->offset() >> 2) & 0x03FFFFFFu;
+  EXPECT_EQ(branch, 0x94000000u | expectedImm26)
+    .message("Expected bl to stub, got: 0x%08X", branch);
+
+  const uint8_t* stub = stubs->data();
+  EXPECT_EQ(Support::readU32uLE(stub), 0x58000050u)
+    .message("Expected ldr x16, literal in stub");
+  EXPECT_EQ(Support::readU32uLE(stub + 4), 0xD61F0200u)
+    .message("Expected br x16 in stub");
+  EXPECT_EQ(Support::readU64uLE(stub + 8), farAddr)
+    .message("Expected target literal in stub");
+}
+
+UNIT(a64_bl_patching_absolute_addr_relocate_multiple_bases_keeps_stub_slots) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr1 = 0x100000000ULL;
+  uint64_t farAddr2 = 0x200000000ULL;
+  as.bl(Imm(farAddr1));
+  as.bl(Imm(farAddr2));
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(farAddr2), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(farAddr1), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected an AArch64 branch stub section");
+  if (!stubs)
+    return;
+
+  const uint8_t* text = code.textSection()->data();
+  uint32_t firstStubOffset = a64BranchTargetOffset(text, 0) - uint32_t(stubs->offset());
+  uint32_t secondStubOffset = a64BranchTargetOffset(text, 4) - uint32_t(stubs->offset());
+
+  EXPECT_NE(firstStubOffset, secondStubOffset)
+    .message("Expected each far target to keep a distinct stub slot");
+  EXPECT(firstStubOffset + 16 <= stubs->bufferSize())
+    .message("Expected first branch target to land in the stub section");
+  EXPECT(secondStubOffset + 16 <= stubs->bufferSize())
+    .message("Expected second branch target to land in the stub section");
+  if (firstStubOffset + 16 > stubs->bufferSize() || secondStubOffset + 16 > stubs->bufferSize())
+    return;
+
+  EXPECT_EQ(Support::readU64uLE(stubs->data() + firstStubOffset + 8), farAddr1)
+    .message("Expected first branch stub to retain the first target");
+  EXPECT_EQ(Support::readU64uLE(stubs->data() + secondStubOffset + 8), farAddr2)
+    .message("Expected second branch stub to retain the second target");
+}
+
+// Test that a local guarded island is appended only when the final layout puts
+// the global stub section out of the AArch64 branch range.
+UNIT(a64_bl_patching_absolute_addr_uses_local_island_when_global_stub_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr = 0x100000000ULL; // 4GB away
+  as.bl(Imm(farAddr));
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+
+  padding->setVirtualSize(0x08000000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected an AArch64 branch stub section");
+  if (!stubs)
+    return;
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+
+  EXPECT_EQ(text->bufferSize(), 24u)
+    .message("Expected bl + guard + one local stub");
+  if (text->bufferSize() < 24)
+    return;
+
+  uint32_t branch = Support::readU32uLE(buf);
+  EXPECT_EQ(branch, 0x94000002u)
+    .message("Expected bl to the local island stub, got: 0x%08X", branch);
+  EXPECT_EQ(a64BranchTargetOffset(buf, 0), 8u)
+    .message("Expected bl to target the local stub");
+
+  uint32_t guard = Support::readU32uLE(buf + 4);
+  EXPECT_EQ(guard, 0x14000005u)
+    .message("Expected guard branch over the local island, got: 0x%08X", guard);
+  EXPECT_EQ(a64BranchTargetOffset(buf, 4), 24u)
+    .message("Expected guard branch to skip the island");
+
+  EXPECT_EQ(Support::readU32uLE(buf + 8), 0x58000050u)
+    .message("Expected ldr x16, literal in local stub");
+  EXPECT_EQ(Support::readU32uLE(buf + 12), 0xD61F0200u)
+    .message("Expected br x16 in local stub");
+  EXPECT_EQ(Support::readU64uLE(buf + 16), farAddr)
+    .message("Expected target literal in local stub");
+}
+
+UNIT(a64_bl_patching_absolute_addr_uses_in_section_island_for_huge_section) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr = 0x100000000ULL; // 4GB away
+  as.bl(Imm(farAddr));
+  code.textSection()->setVirtualSize(0x08000000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+
+  EXPECT_EQ(text->bufferSize(), 24u)
+    .message("Expected bl + guard + one local stub");
+  EXPECT_EQ(text->virtualSize(), 0x08000000u)
+    .message("Expected the section to remain virtually huge");
+  if (text->bufferSize() < 24)
+    return;
+
+  EXPECT_EQ(Support::readU32uLE(buf), 0x94000002u)
+    .message("Expected bl to the local island stub");
+  EXPECT_EQ(Support::readU32uLE(buf + 4), 0x14000005u)
+    .message("Expected guard branch over the local island");
+  EXPECT_EQ(Support::readU64uLE(buf + 16), farAddr)
+    .message("Expected target literal in local stub");
+}
+
+UNIT(a64_b_patching_absolute_addr_uses_local_island_when_global_stub_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr = 0x100000000ULL; // 4GB away
+  as.b(Imm(farAddr));
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+
+  padding->setVirtualSize(0x08000000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+
+  EXPECT_EQ(text->bufferSize(), 24u)
+    .message("Expected b + guard + one local stub");
+  if (text->bufferSize() < 24)
+    return;
+
+  uint32_t branch = Support::readU32uLE(buf);
+  EXPECT_EQ(branch, 0x14000002u)
+    .message("Expected b to the local island stub, got: 0x%08X", branch);
+  EXPECT_EQ(a64BranchTargetOffset(buf, 0), 8u)
+    .message("Expected b to target the local stub");
+
+  uint32_t guard = Support::readU32uLE(buf + 4);
+  EXPECT_EQ(guard, 0x14000005u)
+    .message("Expected guard branch over the local island, got: 0x%08X", guard);
+  EXPECT_EQ(a64BranchTargetOffset(buf, 4), 24u)
+    .message("Expected guard branch to skip the island");
+
+  EXPECT_EQ(Support::readU32uLE(buf + 8), 0x58000050u)
+    .message("Expected ldr x16, literal in local stub");
+  EXPECT_EQ(Support::readU32uLE(buf + 12), 0xD61F0200u)
+    .message("Expected br x16 in local stub");
+  EXPECT_EQ(Support::readU64uLE(buf + 16), farAddr)
+    .message("Expected target literal in local stub");
+}
+
+// Test that Builder leaves far absolute branches to relocation-time patching
+// so in-range targets can still become direct branches after the base is known.
+UNIT(a64_bl_patching_absolute_addr_builder_uses_reloc_stub) {
+  CodeHolder code;
+  Environment env(Arch::kAArch64);
+  code.init(env);
+
+  a64::Builder as(&code);
+
+  uint64_t farAddr = 0x100000000ULL; // 4GB away
+  as.bl(Imm(farAddr));
+
+  EXPECT_EQ(as.finalize(), kErrorOk);
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected Builder to use relocation-time stubs");
+  if (!stubs)
+    return;
+
+  const uint8_t* buf = code.textSection()->data();
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single bl site");
+
+  uint32_t branch = Support::readU32uLE(buf);
+  uint32_t expectedImm26 = uint32_t(stubs->offset() >> 2) & 0x03FFFFFFu;
+  EXPECT_EQ(branch, 0x94000000u | expectedImm26)
+    .message("Expected bl to .a64stubs, got: 0x%08X", branch);
+
+  EXPECT_EQ(Support::readU32uLE(stubs->data()), 0x58000050u)
+    .message("Expected ldr x16, literal in stub");
+  EXPECT_EQ(Support::readU32uLE(stubs->data() + 4), 0xD61F0200u)
+    .message("Expected br x16 in stub");
+  EXPECT_EQ(Support::readU64uLE(stubs->data() + 8), farAddr)
+    .message("Expected target literal in stub");
+}
+
+// Test that Builder uses the same relocation-time stub path for an absolute
+// branch that is outside direct `bl` range after the base is known.
+UNIT(a64_bl_patching_absolute_addr_builder_midrange_reloc_stub) {
+  CodeHolder code;
+  Environment env(Arch::kAArch64);
+  code.init(env, 0);
+
+  a64::Builder as(&code);
+
+  uint64_t midrangeAddr = 0x10000000ULL; // 256MB away
+  as.bl(Imm(midrangeAddr));
+
+  EXPECT_EQ(as.finalize(), kErrorOk);
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected Builder to use relocation-time stubs");
+  if (!stubs)
+    return;
+
+  const uint8_t* buf = code.textSection()->data();
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single bl site");
+
+  uint32_t branch = Support::readU32uLE(buf);
+  uint32_t expectedImm26 = uint32_t(stubs->offset() >> 2) & 0x03FFFFFFu;
+  EXPECT_EQ(branch, 0x94000000u | expectedImm26)
+    .message("Expected bl to .a64stubs, got: 0x%08X", branch);
+
+  EXPECT_EQ(Support::readU32uLE(stubs->data()), 0x58000050u)
+    .message("Expected ldr x16, literal in stub");
+  EXPECT_EQ(Support::readU32uLE(stubs->data() + 4), 0xD61F0200u)
+    .message("Expected br x16 in stub");
+  EXPECT_EQ(Support::readU64uLE(stubs->data() + 8), midrangeAddr)
+    .message("Expected target literal in stub");
+}
+
+// Test that Builder emits only the direct `bl` when a known-base CodeHolder can
+// prove the absolute target is already in range.
+UNIT(a64_bl_patching_absolute_addr_builder_in_range_no_stub_pool) {
+  CodeHolder code;
+  Environment env(Arch::kAArch64);
+  code.init(env, 0);
+
+  a64::Builder as(&code);
+
+  as.bl(Imm(uint64_t(0x40)));
+
+  EXPECT_EQ(as.finalize(), kErrorOk);
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  EXPECT(code.sectionByName(".a64stubs") == nullptr)
+    .message("Expected no out-of-line stub section");
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single direct bl");
+
+  const uint8_t* buf = code.textSection()->data();
+  uint32_t instr = Support::readU32uLE(buf);
+  EXPECT_EQ(instr, 0x94000010u)
+    .message("Expected direct bl +0x40, got: 0x%08X", instr);
+}
+
+// Test that Builder binds each absolute branch to the relocation-time stub with
+// the matching target literal even when prior nodes have variable serialized
+// sizes.
+UNIT(a64_bl_patching_absolute_addr_builder_reloc_stub_multiple_targets) {
+  CodeHolder code;
+  Environment env(Arch::kAArch64);
+  code.init(env);
+
+  a64::Builder as(&code);
+
+  uint64_t farAddr1 = 0x100000000ULL;
+  uint64_t farAddr2 = 0x200000000ULL;
+
+  as.mov(a64::x0, 0x123456789ABCULL);
+  as.bl(Imm(farAddr1));
+  as.mov(a64::x1, 0xFEDCBA987654ULL);
+  as.bl(Imm(farAddr2));
+
+  EXPECT_EQ(as.finalize(), kErrorOk);
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected Builder to use relocation-time stubs");
+  if (!stubs)
+    return;
+
+  const uint8_t* buf = code.textSection()->data();
+  size_t size = code.textSection()->bufferSize();
+
+  uint32_t stub1 = findA64BranchStubForTarget(stubs->data(), stubs->bufferSize(), farAddr1);
+  uint32_t stub2 = findA64BranchStubForTarget(stubs->data(), stubs->bufferSize(), farAddr2);
+  EXPECT_NE(stub1, Globals::kNotFound)
+    .message("Expected a stub for the first target");
+  EXPECT_NE(stub2, Globals::kNotFound)
+    .message("Expected a stub for the second target");
+  if (stub1 == Globals::kNotFound || stub2 == Globals::kNotFound)
+    return;
+
+  uint32_t firstBranchTarget = Globals::kNotFound;
+  uint32_t secondBranchTarget = Globals::kNotFound;
+
+  for (uint32_t offset = 0; offset + 4 <= size; offset += 4) {
+    uint32_t instr = Support::readU32uLE(buf + offset);
+    if ((instr & 0xFC000000u) != 0x94000000u)
+      continue;
+
+    if (firstBranchTarget == Globals::kNotFound)
+      firstBranchTarget = a64BranchTargetOffset(buf, offset);
+    else {
+      secondBranchTarget = a64BranchTargetOffset(buf, offset);
+      break;
+    }
+  }
+
+  EXPECT_EQ(firstBranchTarget, stubs->offset() + stub1)
+    .message("Expected the first bl to target the first stub");
+  EXPECT_EQ(secondBranchTarget, stubs->offset() + stub2)
+    .message("Expected the second bl to target the second stub");
+}
+
+// Test that Builder doesn't rewrite conditional absolute branches to
+// unconditional stub calls.
+UNIT(a64_b_cond_patching_absolute_addr_builder_preserves_condition) {
+  CodeHolder code;
+  Environment env(Arch::kAArch64);
+  code.init(env, 0);
+
+  a64::Builder as(&code);
+
+  as.b_eq(Imm(uint64_t(0x40)));
+
+  EXPECT_EQ(as.finalize(), kErrorOk);
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  EXPECT(code.sectionByName(".a64stubs") == nullptr)
+    .message("Expected conditional branches not to use an unconditional stub");
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single conditional branch");
+
+  const uint8_t* buf = code.textSection()->data();
+  uint32_t instr = Support::readU32uLE(buf);
+  EXPECT_EQ(instr, 0x54000200u)
+    .message("Expected conditional b.eq +0x40, got: 0x%08X", instr);
 }
 
 // ============================================================================
@@ -381,28 +802,45 @@ UNIT(a64_ldr_literal_out_of_range) {
 // ============================================================================
 
 // Test that b to an absolute address that is out of ±128MB range
-// gets relaxed via RelocEntry (similar to bl relaxation).
+// gets relocated to a branch to an out-of-line stub.
 UNIT(a64_b_patching_absolute_addr) {
   CodeHolder code;
   a64::Assembler as;
-  setupCode(code, as);
+  setupCodeNoBase(code, as);
 
-  // b to an absolute address (far away) should emit two NOPs as placeholder
-  // and create a RelocEntry. The actual relaxation happens in relocateToBase().
   uint64_t farAddr = 0x100000000ULL; // 4GB away
   as.b(Imm(farAddr));
 
-  String hex;
-  getHex(code, hex);
-
-  // Should emit two NOPs as placeholders (will be rewritten during relocation):
-  // NOP = 0xD503201F -> little-endian = 1F2003D5
-  EXPECT_EQ(hex, "1F2003D51F2003D5")
-    .message("Expected two NOPs as placeholder, got: %s", hex.data());
+  EXPECT_EQ(code.textSection()->bufferSize(), 4u)
+    .message("Expected a single branch placeholder");
+  EXPECT_EQ(Support::readU32uLE(code.textSection()->data()), 0x14000000u)
+    .message("Expected b placeholder");
 
   // Verify a RelocEntry was created
   EXPECT_GT(code.relocEntries().size(), 0u)
     .message("Expected at least one reloc entry for far b");
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  Section* stubs = code.sectionByName(".a64stubs");
+  EXPECT(stubs != nullptr)
+    .message("Expected an AArch64 branch stub section");
+  if (!stubs)
+    return;
+
+  uint32_t branch = Support::readU32uLE(code.textSection()->data());
+  uint32_t expectedImm26 = uint32_t(stubs->offset() >> 2) & 0x03FFFFFFu;
+  EXPECT_EQ(branch, 0x14000000u | expectedImm26)
+    .message("Expected b to stub, got: 0x%08X", branch);
+
+  const uint8_t* stub = stubs->data();
+  EXPECT_EQ(Support::readU32uLE(stub), 0x58000050u)
+    .message("Expected ldr x16, literal in stub");
+  EXPECT_EQ(Support::readU32uLE(stub + 4), 0xD61F0200u)
+    .message("Expected br x16 in stub");
+  EXPECT_EQ(Support::readU64uLE(stub + 8), farAddr)
+    .message("Expected target literal in stub");
 }
 
 // ============================================================================
