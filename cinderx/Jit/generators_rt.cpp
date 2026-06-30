@@ -36,6 +36,28 @@ namespace {
 const destructor original_gen_dealloc = PyGen_Type.tp_dealloc;
 const destructor original_coro_dealloc = PyCoro_Type.tp_dealloc;
 
+// Track a GC object whose type is known to have GC support.
+template <class T>
+void track(T arg) {
+  BorrowedRef<> obj{_PyObject_CAST(arg)};
+#if defined(META_PYTHON)
+  _PyObject_GC_TRACK(obj);
+#else
+  PyObject_GC_Track(obj);
+#endif
+}
+
+// Untrack a GC object whose type is known to have GC support.
+template <class T>
+void untrack(T arg) {
+  BorrowedRef<> obj{_PyObject_CAST(arg)};
+#if defined(META_PYTHON)
+  _PyObject_GC_UNTRACK(obj);
+#else
+  PyObject_GC_UnTrack(obj);
+#endif
+}
+
 // Reimplementation of CPython's gen_dealloc that uses our custom free-list
 // (Ci_free_jit_list_gen) instead of PyObject_GC_Del for memory recycling.
 void gen_dealloc_with_custom_free(PyObject* self) {
@@ -45,18 +67,18 @@ void gen_dealloc_with_custom_free(PyObject* self) {
 
   auto* gen = reinterpret_cast<PyGenObject*>(self);
 
-  _PyObject_GC_UNTRACK(gen);
+  untrack(gen);
 
   if (gen->gi_weakreflist != nullptr) {
     PyObject_ClearWeakRefs(self);
   }
 
   // Re-track so the finalizer can run; it may resurrect the object.
-  _PyObject_GC_TRACK(self);
+  track(self);
   if (PyObject_CallFinalizerFromDealloc(self)) {
     return;
   }
-  _PyObject_GC_UNTRACK(self);
+  untrack(self);
 
   JIT_DCHECK(
       !PyAsyncGen_CheckExact(gen),
@@ -445,7 +467,7 @@ struct JitCoroWrapper {
 };
 
 void jitcoro_wrapper_dealloc(JitCoroWrapper* cw) {
-  PyObject_GC_UnTrack(reinterpret_cast<PyObject*>(cw));
+  untrack(reinterpret_cast<PyObject*>(cw));
   Py_CLEAR(cw->cw_coroutine);
   PyObject_GC_Del(cw);
 }
@@ -570,13 +592,14 @@ PyTypeObject _JitCoroWrapper_Type = {
 };
 
 namespace {
+
 PyObject* jitcoro_await(PyCoroObject* coro) {
   JitCoroWrapper* cw = PyObject_GC_New(JitCoroWrapper, &_JitCoroWrapper_Type);
   if (cw == nullptr) {
     return nullptr;
   }
   cw->cw_coroutine = Py_NewRef(coro);
-  PyObject_GC_Track(cw);
+  track(cw);
   return reinterpret_cast<PyObject*>(cw);
 }
 
