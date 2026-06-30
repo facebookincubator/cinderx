@@ -521,6 +521,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 //   - MovZX/MovSX/MovSXD: specialized sign/zero-extending loads from stack
 //   - Lea: takes the ADDRESS of a stack slot, not the value
 //   - Call: late-created by PostRegAllocRewrite via setOpcode()
+//   - Negate/Invert: handled by AArch64 target selection
 //   - Inc/Dec: handled by AArch64 target selection
 //   - EpilogueEnd: special return-value handling
 //   - Pop: stack output, not input
@@ -567,8 +568,6 @@ RewriteResult rewriteSingleStackInputToVreg(
   }
 
   switch (instr->opcode()) {
-    case Instruction::kNegate:
-    case Instruction::kInvert:
     case Instruction::kPush:
       return rewriteSingleStackInputToVreg(instr_iter, 0);
     case Instruction::kSelect:

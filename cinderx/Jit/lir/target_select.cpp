@@ -200,6 +200,26 @@ void legalizeA64GuardFPInput(BasicBlock* block, instr_iter_t instr_iter) {
       kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
 }
 
+/* AArch64 unary arithmetic instructions only operate on registers. */
+void legalizeA64UnaryStackInput(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(
+      instr->isNegate() || instr->isInvert(),
+      "Expected Negate or Invert, got {}",
+      instr->opname());
+
+  Operand* input = instr->getInput(0);
+  if (!input->isStack()) {
+    return;
+  }
+
+  PhyLocation loc = input->getStackSlot();
+  DataType dt = input->dataType();
+  Instruction* move = block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
+}
+
 /* AArch64 Inc/Dec only operate on registers. Rewrite stack updates through a
  * virtual register so register allocation handles the temporary.
  */
@@ -524,6 +544,10 @@ void selectA64Opcodes(Function* func) {
         case Instruction::kGuard:
           legalizeA64GuardFPInput(block, cur_iter);
           selectA64Guard(block, cur_iter, use_counts);
+          break;
+        case Instruction::kNegate:
+        case Instruction::kInvert:
+          legalizeA64UnaryStackInput(block, cur_iter);
           break;
         case Instruction::kInc:
         case Instruction::kDec:
