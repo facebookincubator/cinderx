@@ -474,36 +474,6 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   return changed ? kChanged : kUnchanged;
 }
 
-// On AArch64, we never are going to produce an output that is less than 32-bits
-// for our comparisons so promote all of these to 32-bits so we don't need to
-// mask them.
-[[maybe_unused]] RewriteResult rewritePromoteOutputSize(
-    instr_iter_t instr_iter) {
-  auto instr = instr_iter->get();
-  switch (instr->opcode()) {
-    case Instruction::kEqual:
-    case Instruction::kNotEqual:
-    case Instruction::kGreaterThanSigned:
-    case Instruction::kGreaterThanEqualSigned:
-    case Instruction::kLessThanSigned:
-    case Instruction::kLessThanEqualSigned:
-    case Instruction::kGreaterThanUnsigned:
-    case Instruction::kGreaterThanEqualUnsigned:
-    case Instruction::kLessThanUnsigned:
-    case Instruction::kLessThanEqualUnsigned:
-    case Instruction::kAnd:
-    case Instruction::kXor:
-    case Instruction::kOr:
-      if (instr->output()->sizeInBits() < 32) {
-        instr->output()->setDataType(DataType::k32bit);
-        return kChanged;
-      }
-      return kUnchanged;
-    default:
-      return kUnchanged;
-  }
-}
-
 // On AArch64, Guard's kNotZero with a VecD (double) input needs the value
 // moved to a GP register first (ARM64 lacks direct FP-register
 // test-and-branch). Insert Move(VecD → OutVReg{k64bit}) before the Guard so
@@ -1090,7 +1060,6 @@ void PostGenerationRewrite::registerRewrites() {
 
   if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
     registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
-    registerOneRewriteFunction(rewritePromoteOutputSize, 1);
     registerOneRewriteFunction(rewriteGuardFPInput, 1);
     registerOneRewriteFunction(rewriteGuardHasType, 1);
     registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);

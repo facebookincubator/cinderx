@@ -129,6 +129,36 @@ BB %0
   EXPECT_EQ(lir_str.find("Lea "), std::string::npos) << lir_str;
 }
 
+TEST_F(LIRTargetSelectTest, LegalizesComparisonOutputToMin32Bit) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:8bit = Equal %1, %2
+  Return %3
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find("%3:32bit = Equal "), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("%3:8bit = Equal "), std::string::npos) << lir_str;
+}
+
+TEST_F(LIRTargetSelectTest, LegalizesBitwiseOutputToMin32Bit) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:8bit = Move 1
+  %2:8bit = Move 2
+  %3:8bit = And %1, %2
+  Return %3
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find("%3:32bit = And "), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("%3:8bit = And "), std::string::npos) << lir_str;
+}
+
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForSingleUseCompare) {
   const char* lir_input_str = R"(Function:
 BB %0 - succs: %1 %2
@@ -213,9 +243,9 @@ BB %2 - preds: %0
 BB %0 - succs: %1 %2
         %1:64bit = Move 1(0x1):64bit
         %2:64bit = Move 2(0x2):64bit
-         %3:8bit = Equal %1:64bit, %2:64bit
+        %3:32bit = Equal %1:64bit, %2:64bit
         %4:64bit = Add %1:64bit, %2:64bit
-                   CondBranch %3:8bit, BB%1, BB%2
+                   CondBranch %3:32bit, BB%1, BB%2
 
 BB %1 - preds: %0
                    Return %1:64bit

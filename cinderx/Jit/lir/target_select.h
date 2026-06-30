@@ -6,11 +6,12 @@ namespace cinderx::jit::lir {
 
 class Function;
 
-// Select target-specific LIR opcodes from generic LIR opcodes.
+// Select and legalize target-specific LIR from generic LIR.
 //
-// This is currently a phase boundary for future target-specific instruction
-// selection. It intentionally operates on the existing LIR function rather than
-// introducing a separate IR.
+// This pass handles target-specific opcode selection and local legalization of
+// instruction forms or data types. Legalization here must be self-contained: it
+// runs after post-generation fixed-point rewrites and should not create LIR
+// that depends on those rewrites running again.
 void selectTargetOpcodes(Function* func);
 
 } // namespace cinderx::jit::lir

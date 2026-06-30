@@ -778,12 +778,12 @@ void* NativeGenerator::getVectorcallEntry() {
 
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
-      "Target Opcode Selection",
+      "Target Selection and Legalization",
       selectTargetOpcodes(lir_func.get()))
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
-      "LIR for {} after target opcode selection:\n{}",
+      "LIR for {} after target selection and legalization:\n{}",
       GetFunction()->fullname,
       *lir_func);
 

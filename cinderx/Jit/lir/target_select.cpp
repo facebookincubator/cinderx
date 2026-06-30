@@ -132,6 +132,17 @@ bool flagsPreservedBetween(instr_iter_t begin, instr_iter_t end) {
   return true;
 }
 
+/* AArch64 GPR operations produce at least 32-bit results. Keep semantic
+ * sub-32-bit types in generic LIR, then legalize them before register
+ * allocation so codegen does not need to mask partial-register results.
+ */
+void legalizeA64Min32BitOutput(instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  if (instr->output()->sizeInBits() < 32) {
+    instr->output()->setDataType(DataType::k32bit);
+  }
+}
+
 /* Convert from:
  *
  *     addr = Lea [base + index * (1 << mult) + offset]  where mult >= 4
@@ -397,6 +408,21 @@ void selectA64Opcodes(Function* func) {
       instr_iter_t cur_iter = iter++;
 
       switch (cur_iter->get()->opcode()) {
+        case Instruction::kEqual:
+        case Instruction::kNotEqual:
+        case Instruction::kGreaterThanSigned:
+        case Instruction::kGreaterThanEqualSigned:
+        case Instruction::kLessThanSigned:
+        case Instruction::kLessThanEqualSigned:
+        case Instruction::kGreaterThanUnsigned:
+        case Instruction::kGreaterThanEqualUnsigned:
+        case Instruction::kLessThanUnsigned:
+        case Instruction::kLessThanEqualUnsigned:
+        case Instruction::kAnd:
+        case Instruction::kXor:
+        case Instruction::kOr:
+          legalizeA64Min32BitOutput(cur_iter);
+          break;
         case Instruction::kLea:
           selectA64LeaLargeMultiplier(block, cur_iter);
           break;
