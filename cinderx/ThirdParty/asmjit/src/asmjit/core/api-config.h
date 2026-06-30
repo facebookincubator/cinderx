@@ -27,7 +27,7 @@
 //! AsmJit default, which makes it possible to use multiple AsmJit libraries within a single project, totally
 //! controlled by users. This is useful especially in cases in which some of such library comes from third party.
 #if !defined(ASMJIT_ABI_NAMESPACE)
-  #define ASMJIT_ABI_NAMESPACE _abi_1_13
+  #define ASMJIT_ABI_NAMESPACE _cinderx_abi_1_13
 #endif // !ASMJIT_ABI_NAMESPACE
 
 //! \}
