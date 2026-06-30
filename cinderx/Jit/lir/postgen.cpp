@@ -562,6 +562,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 //   - MovZX/MovSX/MovSXD: specialized sign/zero-extending loads from stack
 //   - Lea: takes the ADDRESS of a stack slot, not the value
 //   - Call: late-created by PostRegAllocRewrite via setOpcode()
+//   - Inc/Dec: handled by AArch64 target selection
 //   - EpilogueEnd: special return-value handling
 //   - Pop: stack output, not input
 bool lowerStackInputToVreg(instr_iter_t instr_iter, size_t idx) {
@@ -594,25 +595,6 @@ RewriteResult rewriteSingleStackInputToVreg(
   return lowerStackInputToVreg(instr_iter, idx) ? kChanged : kUnchanged;
 }
 
-RewriteResult rewriteStackInputForIncDec(instr_iter_t instr_iter) {
-  auto instr = instr_iter->get();
-  auto input = instr->getInput(0);
-  if (!input->isStack()) {
-    return kUnchanged;
-  }
-
-  auto loc = input->getStackSlot();
-  auto dt = input->dataType();
-  auto block = instr->basicblock();
-  auto move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
-  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
-  auto next_iter = std::next(instr_iter);
-  block->allocateInstrBefore(
-      next_iter, Instruction::kMove, OutStk{loc, dt}, VReg{move});
-  return kChanged;
-}
-
 [[maybe_unused]] RewriteResult rewriteStackInputToVreg(
     instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
@@ -630,9 +612,6 @@ RewriteResult rewriteStackInputForIncDec(instr_iter_t instr_iter) {
     case Instruction::kInvert:
     case Instruction::kPush:
       return rewriteSingleStackInputToVreg(instr_iter, 0);
-    case Instruction::kInc:
-    case Instruction::kDec:
-      return rewriteStackInputForIncDec(instr_iter);
     case Instruction::kSelect:
       return rewriteAllStackInputsToVreg(instr_iter);
     default:
