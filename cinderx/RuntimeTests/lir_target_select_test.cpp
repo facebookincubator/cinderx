@@ -295,6 +295,26 @@ BB %0
   EXPECT_EQ(lir_str.find("Guard "), std::string::npos) << lir_str;
 }
 
+TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:Double = Move 1
+  Guard 4, 0, %1, 0
+  Return %1
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find(":64bit = Move %1:Double"), std::string::npos)
+      << lir_str;
+  EXPECT_TRUE(
+      std::regex_search(
+          lir_str,
+          std::regex{R"(Guard 4\(0x4\):64bit, 0\(0x0\):64bit, %\d+:64bit)"}))
+      << lir_str;
+  EXPECT_EQ(lir_str.find("A64GuardCC"), std::string::npos) << lir_str;
+}
+
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForTest32BranchS) {
   const char* lir_input_str = R"(Function:
 BB %0 - succs: %1 %2

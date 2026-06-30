@@ -474,31 +474,6 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   return changed ? kChanged : kUnchanged;
 }
 
-// On AArch64, Guard's kNotZero with a VecD (double) input needs the value
-// moved to a GP register first (ARM64 lacks direct FP-register
-// test-and-branch). Insert Move(VecD → OutVReg{k64bit}) before the Guard so
-// TranslateGuard only sees GP register inputs.
-[[maybe_unused]] RewriteResult rewriteGuardFPInput(instr_iter_t instr_iter) {
-  auto instr = instr_iter->get();
-  if (!instr->isGuard()) {
-    return kUnchanged;
-  }
-
-  constexpr size_t kGuardVarIndex = 2;
-  auto guard_var = instr->getInput(kGuardVarIndex);
-  if (guard_var->dataType() != DataType::kDouble) {
-    return kUnchanged;
-  }
-
-  auto block = instr->basicblock();
-  auto move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
-  move->appendInput(instr->releaseInput(kGuardVarIndex));
-  instr->setInput(
-      kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
-  return kChanged;
-}
-
 // On AArch64, Guards with kHasType load obj->ob_type into a scratch register
 // in TranslateGuard. Decompose this into an explicit Move(Ind) to load the
 // type, then convert the guard to kIs so register allocation handles the
@@ -1060,7 +1035,6 @@ void PostGenerationRewrite::registerRewrites() {
 
   if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
     registerOneRewriteFunction(rewriteSignedSubWordOps, 1);
-    registerOneRewriteFunction(rewriteGuardFPInput, 1);
     registerOneRewriteFunction(rewriteGuardHasType, 1);
     registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
     registerOneRewriteFunction(rewriteStackInputToVreg, 1);

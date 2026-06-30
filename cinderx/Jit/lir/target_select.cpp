@@ -143,6 +143,27 @@ void legalizeA64Min32BitOutput(instr_iter_t instr_iter) {
   }
 }
 
+/* AArch64 cannot directly test-and-branch on FP registers. Move double guard
+ * inputs through a GP-sized vreg before guard selection and register
+ * allocation.
+ */
+void legalizeA64GuardFPInput(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(instr->isGuard(), "Expected Guard, got {}", instr->opname());
+
+  constexpr size_t kGuardVarIndex = 2;
+  Operand* guard_var = instr->getInput(kGuardVarIndex);
+  if (guard_var->dataType() != DataType::kDouble) {
+    return;
+  }
+
+  Instruction* move = block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
+  move->appendInput(instr->releaseInput(kGuardVarIndex));
+  instr->setInput(
+      kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
+}
+
 /* Convert from:
  *
  *     addr = Lea [base + index * (1 << mult) + offset]  where mult >= 4
@@ -430,6 +451,7 @@ void selectA64Opcodes(Function* func) {
           selectA64CondBranch(block, cur_iter, use_counts);
           break;
         case Instruction::kGuard:
+          legalizeA64GuardFPInput(block, cur_iter);
           selectA64Guard(block, cur_iter, use_counts);
           break;
         case Instruction::kBranchS:
