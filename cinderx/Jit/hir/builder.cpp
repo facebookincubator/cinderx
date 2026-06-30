@@ -732,16 +732,13 @@ InlineResult HIRBuilder::inlineHIR(
   checkTranslate();
 
   BasicBlock* entry_block = buildHIRImpl(caller, caller_frame_state);
+
   // Make one block with a Return that merges the return branches from the
-  // callee. After SSA, it will turn into a massive Phi. The caller can find
+  // callee.  After SSA, it will turn into a massive Phi.  The caller can find
   // the Return and use it as the output of the call instruction.
   Register* return_val = caller->env.AllocateRegister();
   BasicBlock* exit_block = caller->cfg.AllocateBlock();
-  if (preloader_.returnType() <= TPrimitive) {
-    exit_block->append<Return>(return_val, preloader_.returnType());
-  } else {
-    exit_block->append<Return>(return_val);
-  }
+  size_t num_preds = 0;
   for (auto block : caller->cfg.GetRPOTraversal(entry_block)) {
     auto instr = block->GetTerminator();
     if (instr->IsReturn()) {
@@ -749,7 +746,21 @@ InlineResult HIRBuilder::inlineHIR(
       auto branch = Branch::create(exit_block);
       instr->ExpandInto({assign, branch});
       delete instr;
+      num_preds += 1;
     }
+  }
+
+  // If the callee has no reachable return then the exit block is unreachable
+  // and nothing flows into `return_val`.  This will wreak havoc with later
+  // optimization passes as they can't handle an undefined value, so define it
+  // as Bottom.
+  if (num_preds == 0) {
+    exit_block->append<LoadConst>(return_val, TBottom);
+  }
+  if (preloader_.returnType() <= TPrimitive) {
+    exit_block->append<Return>(return_val, preloader_.returnType());
+  } else {
+    exit_block->append<Return>(return_val);
   }
 
   // Map of FrameState to parent pointers. We must completely disconnect the

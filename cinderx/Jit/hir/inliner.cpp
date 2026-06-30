@@ -280,7 +280,7 @@ std::optional<InlineResult> inlineFunctionCall(
   }
   tail->push_front(EndInlinedFunction::create(begin_inlined_function));
 
-  // Transform LoadArg into Assign
+  // Transform LoadArg into Assign.  They'll only be in the entry block.
   for (auto it = result.entry->begin(); it != result.entry->end();) {
     auto& instr = *it;
     ++it;
@@ -294,7 +294,8 @@ std::optional<InlineResult> inlineFunctionCall(
     }
   }
 
-  // Transform Return into Assign+Branch
+  // Transform Return into Assign+Branch.  The HIRBuilder guarantees that the
+  // callee's exit block always has a Return, even if it is unreachable.
   auto return_instr = result.exit->GetTerminator();
   JIT_CHECK(
       return_instr->IsReturn(),
@@ -603,12 +604,11 @@ void InlineFunctionCalls::Run(Function& irfunc) {
     enqueueCandidates(call_code, funcFullname(call.func), nested);
   }
 
-  // The inliner will make some blocks unreachable and we need to remove them to
-  // make the CFG valid again.  While inlining might make some blocks
-  // unreachable and therefore make less work (less to inline), we cannot remove
-  // unreachable blocks in the above loop.  It might delete instructions pointed
-  // to by `calls`.
-  removeUnreachableBlocks(irfunc);
+  // Inlining a callee with no reachable return leaves unreachable blocks
+  // behind.  We can't drop them inside the loop above (that might free call
+  // instructions still queued for inlining), so we clean up here once the loop
+  // is done.  CleanCFG removes the unreachable blocks; CopyPropagation first
+  // collapses the Assigns the inliner introduced.
   CopyPropagation{}.Run(irfunc);
   CleanCFG{}.Run(irfunc);
 }
