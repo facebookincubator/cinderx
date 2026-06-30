@@ -90,6 +90,45 @@ BB %0
 #endif
 
 #if defined(CINDER_AARCH64)
+TEST_F(LIRTargetSelectTest, SelectsMulAddForLeaLargeMultiplier) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:64bit = Lea [%1:64bit + %2:64bit * 16 + 0x8]
+  Return %3
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find("= Move 16(0x10):64bit"), std::string::npos)
+      << lir_str;
+  EXPECT_NE(lir_str.find("= MulAdd %2:64bit"), std::string::npos) << lir_str;
+  EXPECT_NE(lir_str.find("= Add "), std::string::npos) << lir_str;
+  EXPECT_NE(lir_str.find("%3:64bit = Move %"), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("Lea "), std::string::npos) << lir_str;
+}
+
+TEST_F(LIRTargetSelectTest, SelectsMulAddForLeaLargeMultiplierWithLargeOffset) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:64bit = Lea [%1:64bit + %2:64bit * 16 + 0x100001]
+  Return %3
+)";
+
+  std::string lir_str = runTargetSelect(lir_input_str);
+
+  EXPECT_NE(lir_str.find("= Move 16(0x10):64bit"), std::string::npos)
+      << lir_str;
+  EXPECT_NE(lir_str.find("= Move 1048577(0x100001):64bit"), std::string::npos)
+      << lir_str;
+  EXPECT_NE(lir_str.find("= MulAdd %2:64bit"), std::string::npos) << lir_str;
+  EXPECT_NE(lir_str.find("= Add "), std::string::npos) << lir_str;
+  EXPECT_EQ(lir_str.find("Lea "), std::string::npos) << lir_str;
+}
+
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForSingleUseCompare) {
   const char* lir_input_str = R"(Function:
 BB %0 - succs: %1 %2

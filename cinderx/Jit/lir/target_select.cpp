@@ -3,6 +3,7 @@
 #include "cinderx/Jit/lir/target_select.h"
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
@@ -129,6 +130,81 @@ bool flagsPreservedBetween(instr_iter_t begin, instr_iter_t end) {
     }
   }
   return true;
+}
+
+/* Convert from:
+ *
+ *     addr = Lea [base + index * (1 << mult) + offset]  where mult >= 4
+ *
+ * to:
+ *
+ *     scale = Move(Imm(1 << mult))
+ *     addr' = MulAdd(index, scale, base)
+ *     [if offset != 0: addr' = Add(addr', Imm(offset))]
+ *     addr = Move(addr')
+ */
+void selectA64LeaLargeMultiplier(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(instr->isLea(), "Expected Lea, got {}", instr->opname());
+
+  Operand* input = instr->getInput(0);
+  if (!input->isInd()) {
+    return;
+  }
+
+  MemoryIndirect* ind = input->getMemoryIndirect();
+  Operand* index_op = ind->getIndexRegOperand();
+  if (index_op == nullptr) {
+    return;
+  }
+
+  uint8_t mult = ind->getMultiplier();
+  if (mult < 4) {
+    return;
+  }
+
+  int32_t offset = ind->getOffset();
+
+  auto ind_input = instr->removeInput(0);
+  ind = ind_input->getMemoryIndirect();
+  auto index = ind->releaseIndexRegOperand();
+  auto base = ind->releaseBaseRegOperand();
+  JIT_CHECK(base != nullptr, "Expected Lea with index to also have a base");
+
+  Instruction* scale_move = block->allocateInstrBefore(
+      instr_iter,
+      Instruction::kMove,
+      OutVReg{DataType::k64bit},
+      Imm{uint64_t{1} << mult, DataType::k64bit});
+
+  Instruction* muladd = block->allocateInstrBefore(
+      instr_iter, Instruction::kMulAdd, OutVReg{DataType::k64bit});
+  muladd->appendInput(std::move(index));
+  muladd->appendInput(std::make_unique<Operand>(scale_move, Operand::kLinked));
+  muladd->appendInput(std::move(base));
+
+  Instruction* final_result = muladd;
+  if (offset != 0) {
+    uint64_t offset_value = static_cast<uint64_t>(static_cast<int64_t>(offset));
+
+    Instruction* add = block->allocateInstrBefore(
+        instr_iter, Instruction::kAdd, OutVReg{DataType::k64bit}, VReg{muladd});
+    if (asmjit::arm::Utils::isAddSubImm(offset_value)) {
+      add->addOperands(Imm{offset_value, DataType::k64bit});
+    } else {
+      Instruction* offset_move = block->allocateInstrBefore(
+          instr_iter,
+          Instruction::kMove,
+          OutVReg{DataType::k64bit},
+          Imm{offset_value, DataType::k64bit});
+      add->addOperands(VReg{offset_move});
+    }
+
+    final_result = add;
+  }
+
+  instr->setOpcode(Instruction::kMove);
+  instr->appendInput(std::make_unique<Operand>(final_result, Operand::kLinked));
 }
 
 /* Convert from:
@@ -321,6 +397,9 @@ void selectA64Opcodes(Function* func) {
       instr_iter_t cur_iter = iter++;
 
       switch (cur_iter->get()->opcode()) {
+        case Instruction::kLea:
+          selectA64LeaLargeMultiplier(block, cur_iter);
+          break;
         case Instruction::kCondBranch:
           selectA64CondBranch(block, cur_iter, use_counts);
           break;
