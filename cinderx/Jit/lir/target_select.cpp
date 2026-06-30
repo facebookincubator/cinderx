@@ -200,6 +200,22 @@ void legalizeA64GuardFPInput(BasicBlock* block, instr_iter_t instr_iter) {
       kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
 }
 
+Instruction* moveA64StackInputToVreg(
+    BasicBlock* block,
+    instr_iter_t instr_iter,
+    size_t idx) {
+  Instruction* instr = instr_iter->get();
+  Operand* input = instr->getInput(idx);
+  JIT_DCHECK(input->isStack(), "Expected stack input");
+
+  PhyLocation loc = input->getStackSlot();
+  DataType dt = input->dataType();
+  Instruction* move = block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+  instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
+  return move;
+}
+
 /* AArch64 unary arithmetic instructions only operate on registers. */
 void legalizeA64UnaryStackInput(BasicBlock* block, instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
@@ -208,16 +224,11 @@ void legalizeA64UnaryStackInput(BasicBlock* block, instr_iter_t instr_iter) {
       "Expected Negate or Invert, got {}",
       instr->opname());
 
-  Operand* input = instr->getInput(0);
-  if (!input->isStack()) {
+  if (!instr->getInput(0)->isStack()) {
     return;
   }
 
-  PhyLocation loc = input->getStackSlot();
-  DataType dt = input->dataType();
-  Instruction* move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
-  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
+  moveA64StackInputToVreg(block, instr_iter, 0);
 }
 
 /* AArch64 Inc/Dec only operate on registers. Rewrite stack updates through a
@@ -239,9 +250,7 @@ void legalizeA64StackInputForIncDec(
 
   PhyLocation loc = input->getStackSlot();
   DataType dt = input->dataType();
-  Instruction* move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
-  instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
+  Instruction* move = moveA64StackInputToVreg(block, instr_iter, 0);
 
   block->allocateInstrBefore(
       std::next(instr_iter), Instruction::kMove, OutStk{loc, dt}, VReg{move});
