@@ -231,6 +231,18 @@ void legalizeA64UnaryStackInput(BasicBlock* block, instr_iter_t instr_iter) {
   moveA64StackInputToVreg(block, instr_iter, 0);
 }
 
+/* AArch64 Select lowers to register-only csel. */
+void legalizeA64SelectStackInputs(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(instr->isSelect(), "Expected Select, got {}", instr->opname());
+
+  for (size_t i = 0; i < instr->getNumInputs(); i++) {
+    if (instr->getInput(i)->isStack()) {
+      moveA64StackInputToVreg(block, instr_iter, i);
+    }
+  }
+}
+
 /* AArch64 Inc/Dec only operate on registers. Rewrite stack updates through a
  * virtual register so register allocation handles the temporary.
  */
@@ -557,6 +569,9 @@ void selectA64Opcodes(Function* func) {
         case Instruction::kNegate:
         case Instruction::kInvert:
           legalizeA64UnaryStackInput(block, cur_iter);
+          break;
+        case Instruction::kSelect:
+          legalizeA64SelectStackInputs(block, cur_iter);
           break;
         case Instruction::kInc:
         case Instruction::kDec:
