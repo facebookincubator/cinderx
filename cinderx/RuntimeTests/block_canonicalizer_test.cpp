@@ -10,12 +10,12 @@ using namespace cinderx::jit::hir;
 TEST(BlockCanonicalizerTest, BreaksCycles) {
   CFG cfg;
   Environment env;
-  TempAllocator temps(&env);
+  BlockCanonicalizer bc(&env);
   OperandStack stack;
 
-  auto t0 = temps.AllocateStack();
-  auto t1 = temps.AllocateStack();
-  auto t2 = temps.AllocateStack();
+  auto t0 = bc.getOrAllocateCanonicalStack(0);
+  auto t1 = bc.getOrAllocateCanonicalStack(1);
+  auto t2 = bc.getOrAllocateCanonicalStack(2);
 
   stack.push(t1);
   stack.push(t2);
@@ -24,8 +24,7 @@ TEST(BlockCanonicalizerTest, BreaksCycles) {
   auto block = cfg.AllocateBlock();
   block->append<Return>(env.AllocateRegister());
 
-  BlockCanonicalizer bc;
-  bc.Run(block, temps, stack);
+  bc.Run(block, stack);
 
   HIRPrinter printer;
   const char* expected = R"(bb 0 {
@@ -42,12 +41,12 @@ TEST(BlockCanonicalizerTest, BreaksCycles) {
 TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
   CFG cfg;
   Environment env;
-  TempAllocator temps(&env);
+  BlockCanonicalizer bc(&env);
   OperandStack stack;
 
-  auto t0 = temps.AllocateStack();
-  auto t1 = temps.AllocateStack();
-  auto t2 = temps.AllocateStack();
+  auto t0 = bc.getOrAllocateCanonicalStack(0);
+  auto t1 = bc.getOrAllocateCanonicalStack(1);
+  auto t2 = bc.getOrAllocateCanonicalStack(2);
 
   stack.push(t1);
   stack.push(t2);
@@ -59,8 +58,7 @@ TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
   auto block = cfg.AllocateBlock();
   block->append<Return>(env.AllocateRegister());
 
-  BlockCanonicalizer bc;
-  bc.Run(block, temps, stack);
+  bc.Run(block, stack);
 
   HIRPrinter printer;
   const char* expected = R"(bb 0 {
@@ -80,11 +78,11 @@ TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
 TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
   CFG cfg;
   Environment env;
-  TempAllocator temps(&env);
+  BlockCanonicalizer bc(&env);
   OperandStack stack;
 
-  auto t0 = temps.AllocateStack();
-  auto t1 = temps.AllocateStack();
+  auto t0 = bc.getOrAllocateCanonicalStack(0);
+  auto t1 = bc.getOrAllocateCanonicalStack(1);
 
   auto x = env.AllocateRegister();
   auto y = env.AllocateRegister();
@@ -98,8 +96,7 @@ TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
   auto block = cfg.AllocateBlock();
   block->append<Return>(env.AllocateRegister());
 
-  BlockCanonicalizer bc;
-  bc.Run(block, temps, stack);
+  bc.Run(block, stack);
 
   HIRPrinter printer;
   const char* expected = R"(bb 0 {

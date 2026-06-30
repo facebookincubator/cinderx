@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/preload.h"
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -22,27 +23,6 @@ class Environment;
 class Function;
 class Register;
 
-// Helper class for managing temporary variables
-class TempAllocator {
- public:
-  explicit TempAllocator(Environment* env) : env_(env) {}
-
-  // Allocate a temp register that may be used for the stack. It should not be a
-  // register that will be treated specially in the FrameState (e.g. tracked as
-  // containing a local or cell.)
-  Register* AllocateStack();
-
-  // Get the i-th stack temporary or allocate one
-  Register* GetOrAllocateStack(std::size_t idx);
-
-  // Allocate a temp register that will not be used for a stack value.
-  Register* AllocateNonStack();
-
- private:
-  Environment* env_;
-  std::vector<Register*> cache_;
-};
-
 // We expect that on exit from a basic block the stack only contains temporaries
 // in increasing order (called the canonical form). For example,
 //
@@ -53,21 +33,33 @@ class TempAllocator {
 // It may be the case that temporaries are re-ordered, duplicated, or the stack
 // contains locals. This class is responsible for inserting the necessary
 // register moves such that the stack is in canonical form.
+//
+// It owns the per-function bank of canonical stack registers (one per
+// operand-stack depth). A single instance is reused for the whole function so
+// that stack depth i always lands in the same register at every block exit.
 class BlockCanonicalizer {
  public:
-  BlockCanonicalizer() : processing_(), done_(), copies_(), moved_() {}
+  explicit BlockCanonicalizer(Environment* env) : env_(env) {}
 
-  void Run(BasicBlock* block, TempAllocator& temps, OperandStack& stack);
+  void Run(BasicBlock* block, OperandStack& stack);
+
+  // Get the register reserved for operand-stack depth idx, allocating it if it
+  // does not yet exist. These canonical stack registers are used only to put
+  // the operand stack in canonical form at block boundaries; they are never
+  // handed out as general temporaries and so stay disjoint from locals/cells
+  // and intermediates.
+  Register* getOrAllocateCanonicalStack(std::size_t idx);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(BlockCanonicalizer);
 
   void InsertCopies(
       Register* reg,
-      TempAllocator& temps,
       Instr& terminator,
       std::vector<Register*>& alloced);
 
+  Environment* env_;
+  std::vector<Register*> canonical_stack_;
   std::unordered_set<Register*> processing_;
   std::unordered_set<Register*> done_;
   std::unordered_map<Register*, std::vector<Register*>> copies_;
@@ -541,11 +533,19 @@ class HIRBuilder {
   // Check that a code object can be compiled into HIR.
   void checkTranslate();
 
+  // Allocate a fresh temporary register from the function's Environment.
+  Register* allocateTemp();
+
   BorrowedRef<PyCodeObject> code_;
   BlockMap block_map_;
   const Preloader& preloader_;
 
-  TempAllocator temps_{nullptr};
+  // The function's register Environment, set in buildHIRImpl.
+  Environment* env_{nullptr};
+
+  // Reused for the whole function so the canonical stack layout is preserved
+  // across all blocks. Constructed in buildHIRImpl once env_ is known.
+  std::optional<BlockCanonicalizer> block_canonicalizer_;
 
   // Tracks the function for compilations that require it.
   Register* func_{nullptr};

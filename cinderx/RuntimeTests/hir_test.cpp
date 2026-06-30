@@ -600,9 +600,8 @@ TEST_F(HIRBuildTest, GetLength) {
       Locals<1> v0
       Stack<2> v0 v2
     }
-    v3 = Assign v2
-    v2 = Assign v0
-    Return v3
+    v3 = Assign v0
+    Return v2
   }
 }
 )";
@@ -1136,7 +1135,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
       Locals<1> v0
       Stack<2> v0 v6
     }
-    v2 = Assign v0
+    v7 = Assign v0
     Return v6
   }
 }
@@ -1174,7 +1173,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
       Locals<1> v0
       Stack<2> v0 v6
     }
-    v2 = Assign v0
+    v7 = Assign v0
     Return v6
   }
 }
@@ -1220,7 +1219,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
       Locals<1> v0
       Stack<2> v0 v6
     }
-    v2 = Assign v0
+    v7 = Assign v0
     Return v6
   }
 }
@@ -1258,7 +1257,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
       Locals<1> v0
       Stack<2> v0 v6
     }
-    v2 = Assign v0
+    v7 = Assign v0
     Return v6
   }
 }
@@ -1308,10 +1307,9 @@ TEST_F(HIRBuildTest, MatchKeys) {
       Locals<2> v0 v1
       Stack<3> v0 v1 v3
     }
-    v6 = Assign v3
-    v3 = Assign v0
-    v4 = Assign v1
-    Return v6
+    v6 = Assign v0
+    v7 = Assign v1
+    Return v3
   }
 }
 )";
