@@ -12,6 +12,62 @@
 
 namespace cinderx::jit::codegen {
 
+namespace {
+
+#if defined(CINDER_X86_64) && defined(__linux__)
+// __tls_get_addr is provided by the dynamic loader and has no public header.
+extern "C" void* __tls_get_addr(void* tls_index);
+
+// When libpython is a shared library, `_PyThreadState_GetCurrent` is compiled
+// with the general-dynamic TLS model and looks like:
+//   push %rbp; mov %rsp,%rbp
+//   lea  disp32(%rip), %rdi        # &tls_index
+//   call __tls_get_addr
+//   mov  disp32(%rax), %rax        # tstate = *(tls_block + disp)
+// __tls_get_addr returns the per-thread address of libpython's TLS block. For a
+// module loaded at startup that block sits at a fixed offset from the thread
+// pointer, so we resolve a thread-pointer-relative offset once here and let the
+// JIT emit direct %fs loads instead of calling __tls_get_addr on every tstate
+// access. Returns the offset, or -1 if the function doesn't match the expected
+// shape or the resolved offset fails verification.
+int32_t decodeGeneralDynamicTstateOffset(const uint8_t* ts_func) {
+  const bool matches = ts_func[0] == 0x55 && // push %rbp
+      ts_func[1] == 0x48 && ts_func[2] == 0x89 &&
+      ts_func[3] == 0xe5 && // mov %rsp,%rbp
+      ts_func[4] == 0x48 && ts_func[5] == 0x8d &&
+      ts_func[6] == 0x3d && // lea disp32(%rip),%rdi (bytes 4-10)
+      ts_func[11] == 0xe8 && // call rel32 (bytes 11-15)
+      ts_func[16] == 0x48 && ts_func[17] == 0x8b &&
+      ts_func[18] == 0x80; // mov disp32(%rax),%rax (bytes 16-22)
+  if (!matches) {
+    return -1;
+  }
+
+  // The lea is RIP-relative to the following instruction, the call at
+  // ts_func + 11.
+  const int32_t lea_disp = *reinterpret_cast<const int32_t*>(ts_func + 7);
+  void* tls_index = const_cast<uint8_t*>(ts_func) + 11 + lea_disp;
+  const int32_t member_disp = *reinterpret_cast<const int32_t*>(ts_func + 19);
+
+  const uintptr_t tls_block =
+      reinterpret_cast<uintptr_t>(__tls_get_addr(tls_index));
+
+  // On x86-64 the %fs base is the thread pointer, and %fs:0 holds its value.
+  uintptr_t thread_ptr;
+  asm volatile("mov %%fs:0, %0" : "=r"(thread_ptr));
+
+  const int32_t offset =
+      static_cast<int32_t>(tls_block - thread_ptr) + member_disp;
+
+  // Verify the computed offset reads back the real tstate before trusting it.
+  PyThreadState* from_offset =
+      *reinterpret_cast<PyThreadState**>(thread_ptr + offset);
+  return from_offset == _PyThreadState_GetCurrent() ? offset : -1;
+}
+#endif
+
+} // namespace
+
 void initThreadStateOffset() {
   auto module_state = cinderx::getModuleState();
   if (module_state->tstate_offset_inited) {
@@ -32,6 +88,14 @@ void initThreadStateOffset() {
       ts_func[7] == 0x04 && ts_func[8] == 0x25) { // movq   %fs:OFFSET, %rax
     module_state->tstate_offset = *reinterpret_cast<int32_t*>(ts_func + 9);
   }
+#ifdef __linux__
+  // General-dynamic TLS fallback (the form used when libpython is a shared
+  // library), so JIT code can load tstate with a direct %fs access rather than
+  // calling _PyThreadState_GetCurrent / __tls_get_addr on every use.
+  if (module_state->tstate_offset == -1) {
+    module_state->tstate_offset = decodeGeneralDynamicTstateOffset(ts_func);
+  }
+#endif
 #elif defined(CINDER_AARCH64)
   uint32_t* ts_func = reinterpret_cast<uint32_t*>(&_PyThreadState_GetCurrent);
 
