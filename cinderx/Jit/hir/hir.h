@@ -2922,7 +2922,7 @@ class INSTR_CLASS(LoadArg, (), HasOutput, Operands<0>) {
 };
 
 // Allocate an empty list object
-class INSTR_CLASS(MakeList, (TObject), HasOutput, Operands<0>, DeoptBase) {
+class INSTR_CLASS(MakeList, (), HasOutput, Operands<0>, DeoptBase) {
  public:
   MakeList(Register* dst, size_t nvalues, const FrameState& frame)
       : InstrT(dst, frame), nvalues_(nvalues) {}
@@ -2936,7 +2936,7 @@ class INSTR_CLASS(MakeList, (TObject), HasOutput, Operands<0>, DeoptBase) {
 };
 
 // Allocate an empty tuple object
-class INSTR_CLASS(MakeTuple, (TObject), HasOutput, Operands<0>, DeoptBase) {
+class INSTR_CLASS(MakeTuple, (), HasOutput, Operands<0>, DeoptBase) {
  public:
   MakeTuple(Register* dst, size_t nvalues, const FrameState& frame)
       : InstrT(dst, frame), nvalues_(nvalues) {}
@@ -3185,12 +3185,7 @@ class INSTR_CLASS(MakeCheckedDict, (), HasOutput, Operands<0>, DeoptBase) {
 };
 
 // Allocate and fill a CheckedList object with the given operands
-class INSTR_CLASS(
-    MakeCheckedList,
-    (TObject),
-    HasOutput,
-    Operands<0>,
-    DeoptBase) {
+class INSTR_CLASS(MakeCheckedList, (), HasOutput, Operands<0>, DeoptBase) {
  public:
   MakeCheckedList(
       Register* dst,
