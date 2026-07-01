@@ -705,7 +705,39 @@ int MemberDescrMutator::setAttr(PyObject* obj, PyObject* value) {
 }
 
 PyObject* MemberDescrMutator::getAttr(PyObject* obj) {
-  return PyMember_GetOne((char*)obj, memberdef);
+  PyMemberDef* def = memberdef;
+
+  // Fast path for the common __slots__ member types -- a plain object pointer
+  // at a fixed offset -- avoiding PyMember_GetOne's per-member-type dispatch.
+  // Equivalent to PyMember_GetOne for these types; rarer member kinds
+  // (numeric, char, relative-offset) fall back to the generic helper.
+  //
+  // TODO(T250369692): FT support for inline-caches.
+  if constexpr (!kFreeThreadedBuild) {
+    if ((def->type == T_OBJECT_EX || def->type == T_OBJECT) &&
+        !(def->flags & Py_RELATIVE_OFFSET)) {
+      PyObject* v = *reinterpret_cast<PyObject**>(
+          reinterpret_cast<char*>(obj) + def->offset);
+      if (v != nullptr) {
+        Py_INCREF(v);
+        return v;
+      }
+      if (def->type == T_OBJECT) {
+        Py_RETURN_NONE;
+      }
+      // An unset T_OBJECT_EX slot raises AttributeError, matching
+      // PyMember_GetOne so the __getattr__ fallback in
+      // AttributeMutator::getAttr still triggers.
+      PyErr_Format(
+          PyExc_AttributeError,
+          "'%.200s' object has no attribute '%s'",
+          Py_TYPE(obj)->tp_name,
+          def->name);
+      return nullptr;
+    }
+  }
+
+  return PyMember_GetOne(reinterpret_cast<char*>(obj), def);
 }
 
 int DescrOrClassVarMutator::setAttr(
