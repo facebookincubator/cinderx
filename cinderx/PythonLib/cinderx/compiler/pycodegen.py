@@ -75,7 +75,6 @@ try:
         Annotations,
         AnnotationScope,
         BaseSymbolVisitor,
-        CinderSymbolVisitor,
         ClassScope,
         FunctionScope,
         GenExprScope,
