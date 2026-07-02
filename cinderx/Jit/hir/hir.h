@@ -18,6 +18,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -98,6 +99,16 @@ struct OperandType {
 };
 
 std::ostream& operator<<(std::ostream& os, OperandType kind);
+
+// Sentinel used in place of an operand-type list for instructions whose
+// operand types depend on instruction-specific state (e.g. Return's `type_`
+// member) and so must define their own `getOperandTypeImpl()`.
+struct DynamicOperandTypes {};
+constexpr DynamicOperandTypes kDynamicOperandTypes{};
+
+constexpr DynamicOperandTypes makeTypeArray(DynamicOperandTypes) {
+  return {};
+}
 
 template <typename... Args>
 inline auto makeTypeArray(Args&&... args) {
@@ -529,18 +540,48 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
   }
 };
 
-// TASK(T105350013): Add a compile-time op_types size check.
-template <auto GetOperandTypes>
+template <typename... Ts>
+struct OperandArity : std::integral_constant<int, 0> {};
+
+template <int N, typename... Ts>
+struct OperandArity<Operands<N>, Ts...> : std::integral_constant<int, N> {};
+
+template <typename T, typename... Ts>
+struct OperandArity<T, Ts...> : OperandArity<Ts...> {};
+
+template <auto GetOperandTypes, typename... Args>
 struct OperandTypes {
-  OperandType getOperandTypeImpl(std::size_t i) const {
+  using Types = decltype(GetOperandTypes());
+  static constexpr int kArity = OperandArity<Args...>::value;
+  static constexpr bool kDynamic = std::is_same_v<Types, DynamicOperandTypes>;
+  static constexpr std::size_t kNumTypes = [] {
+    if constexpr (kDynamic) {
+      return std::size_t{0};
+    } else {
+      return std::tuple_size_v<Types>;
+    }
+  }();
+
+  static_assert(
+      kDynamic || (kArity == kVariadic ? kNumTypes >= 1 : kArity == kNumTypes),
+      "INSTR_CLASS operand type count does not match Operands<N>. TYPES "
+      "describes input operands, not outputs. Use kDynamicOperandTypes for "
+      "instruction-specific getOperandTypeImpl() logic.");
+
+  // If operand types are dynamic, the instruction class must define its own
+  // getOperandTypeImpl().
+  OperandType getOperandTypeImpl(std::size_t i) const
+    requires(!kDynamic)
+  {
     static const auto op_types = GetOperandTypes();
     return i < op_types.size() ? op_types[i] : op_types.back();
   }
 };
 
-#define INSTR_CLASS(NAME, TYPES, ...)                             \
-  NAME final : public InstrT<NAME, Opcode::k##NAME, __VA_ARGS__>, \
-               public OperandTypes<[] { return makeTypeArray TYPES; }>
+#define INSTR_CLASS(NAME, TYPES, ...)                      \
+  NAME final                                               \
+      : public InstrT<NAME, Opcode::k##NAME, __VA_ARGS__>, \
+        public OperandTypes<[] { return makeTypeArray TYPES; }, __VA_ARGS__>
 
 #define DEFINE_SIMPLE_INSTR(NAME, TYPES, ...)   \
   class INSTR_CLASS(NAME, TYPES, __VA_ARGS__) { \
@@ -2117,7 +2158,11 @@ PrimitiveCompareOp ParsePrimitiveCompareOpName(std::string_view name);
 // Convert a CompareOp into an equivalent PrimitiveCompareOp, if it exists.
 std::optional<PrimitiveCompareOp> toPrimitiveCompareOp(CompareOp op);
 
-class INSTR_CLASS(PrimitiveCompare, (), HasOutput, Operands<2>) {
+class INSTR_CLASS(
+    PrimitiveCompare,
+    (kDynamicOperandTypes),
+    HasOutput,
+    Operands<2>) {
  public:
   PrimitiveCompare(
       Register* dst,
@@ -2156,7 +2201,7 @@ DEFINE_SIMPLE_INSTR(PrimitiveBoxBool, (TCBool), HasOutput, Operands<1>);
 
 class INSTR_CLASS(
     PrimitiveBox,
-    (TPrimitive),
+    (kDynamicOperandTypes),
     HasOutput,
     Operands<1>,
     DeoptBase) {
@@ -2188,7 +2233,11 @@ class INSTR_CLASS(
   Type type_;
 };
 
-class INSTR_CLASS(PrimitiveUnbox, (), HasOutput, Operands<1>) {
+class INSTR_CLASS(
+    PrimitiveUnbox,
+    (kDynamicOperandTypes),
+    HasOutput,
+    Operands<1>) {
  public:
   PrimitiveUnbox(Register* dst, Register* value, Type type)
       : InstrT(dst, value), type_(type) {}
@@ -2834,7 +2883,7 @@ class INSTR_CLASS(RefineType, (TTop), HasOutput, Operands<1>) {
 };
 
 //  Return from the function
-class INSTR_CLASS(Return, (), Operands<1>) {
+class INSTR_CLASS(Return, (kDynamicOperandTypes), Operands<1>) {
  public:
   explicit Return(Register* val) : InstrT(val), type_(TObject) {}
   Return(Register* val, Type type) : InstrT(val), type_(type) {}
@@ -2857,7 +2906,7 @@ class INSTR_CLASS(Return, (), Operands<1>) {
 //
 // Ensures that we don't accidentally remove a type check (such as in GuardType)
 // despite a register not having any explicit users
-class INSTR_CLASS(UseType, (), Operands<1>) {
+class INSTR_CLASS(UseType, (kDynamicOperandTypes), Operands<1>) {
  public:
   UseType(Register* val, Type type) : InstrT(val), type_(type) {}
 
