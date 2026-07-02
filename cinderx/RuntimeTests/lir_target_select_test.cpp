@@ -44,7 +44,7 @@ class LIRTargetSelectTest : public RuntimeTest {
     env.code_rt = &runtime;
 
     LIRGenerator lir_gen(irfunc.get(), &env);
-    std::unique_ptr<Function> lir_func = lir_gen.TranslateFunction();
+    std::unique_ptr<Function> lir_func = lir_gen.translateFunction();
     selectTargetOpcodes(lir_func.get());
 
     std::stringstream ss;

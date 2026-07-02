@@ -417,7 +417,7 @@ void emitLIRBlocks(
     const asmjit::CodeHolder* code = nullptr,
     CodeHolderMetadata* metadata = nullptr) {
   auto* as = env->as;
-  auto& blocks = lir_func->basicblocks();
+  auto& blocks = lir_func->basicBlocks();
 
   for (auto& basicblock : blocks) {
     env->block_label_map.emplace(basicblock, as->newLabel());
@@ -751,7 +751,7 @@ void* NativeGenerator::getVectorcallEntry() {
   COMPILE_TIMER(
       getFunction()->compilation_phase_timer,
       "Lowering into LIR",
-      lir_func = lirgen.TranslateFunction())
+      lir_func = lirgen.translateFunction())
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
@@ -1080,7 +1080,7 @@ void NativeGenerator::generatePrologueBlocks(lir::BasicBlock* frameSetupBlock) {
   // Final block order:
   //   [wrapper?] [func_entry] [argcount/primitive] [typechecks?]
   //   [entry(args)] [body...] [exit] [resume?] [deopt_exits]
-  auto& blocks = lir_func_->basicblocks();
+  auto& blocks = lir_func_->basicBlocks();
   size_t body_end = blocks.size();
 
   auto* entry_block = lir_func_->allocateBasicBlock();
@@ -1100,7 +1100,7 @@ void NativeGenerator::generatePrologueBlocks(lir::BasicBlock* frameSetupBlock) {
   // Function entry prologue (push rbp / mov rbp, rsp).
   lir::GenerateFunctionEntryBlock(lir_func_.get());
   if (generic_entry.isValid()) {
-    env_.block_label_map[lir_func_->basicblocks().back()] = generic_entry;
+    env_.block_label_map[lir_func_->basicBlocks().back()] = generic_entry;
   }
 
   // Argcount check or primitive-args prologue. The correct-args path
@@ -1234,7 +1234,7 @@ void NativeGenerator::generateCode(
         lir_func_->hirFunc()->fullname);
     lir::PopulateResumeEntryBlock(bb, env_.gi_jit_data_offset);
     env_.block_label_map[bb] = env_.gen_resume_entry_label;
-    lir_func_->basicblocks().push_back(bb);
+    lir_func_->basicBlocks().push_back(bb);
   }
 
   // Generate deopt exit LIR blocks (stage 1 + stage 2). These must be

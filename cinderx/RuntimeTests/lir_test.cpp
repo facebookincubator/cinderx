@@ -66,7 +66,7 @@ class LIRGeneratorTest : public RuntimeTest {
 
     LIRGenerator lir_gen(irfunc.get(), &env);
 
-    auto lir_func = lir_gen.TranslateFunction();
+    auto lir_func = lir_gen.translateFunction();
 
     std::stringstream ss;
 
@@ -398,13 +398,13 @@ BB %10 - preds: %0 %7 - section: hot
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
-  ASSERT_EQ(parsed_func->basicblocks().size(), 3);
+  ASSERT_EQ(parsed_func->basicBlocks().size(), 3);
   ASSERT_EQ(
-      parsed_func->basicblocks()[0]->section(), codegen::CodeSection::kHot);
+      parsed_func->basicBlocks()[0]->section(), codegen::CodeSection::kHot);
   ASSERT_EQ(
-      parsed_func->basicblocks()[1]->section(), codegen::CodeSection::kCold);
+      parsed_func->basicBlocks()[1]->section(), codegen::CodeSection::kCold);
   ASSERT_EQ(
-      parsed_func->basicblocks()[2]->section(), codegen::CodeSection::kHot);
+      parsed_func->basicBlocks()[2]->section(), codegen::CodeSection::kHot);
 }
 
 template <typename... Args>
@@ -472,7 +472,7 @@ fun foo {
 
   LIRGenerator lir_gen(irfunc.get(), &env);
 
-  auto lir_func = lir_gen.TranslateFunction();
+  auto lir_func = lir_gen.translateFunction();
 
   std::stringstream ss;
 
@@ -528,7 +528,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 
   LIRGenerator lir_gen(irfunc.get(), &env);
 
-  auto lir_func = lir_gen.TranslateFunction();
+  auto lir_func = lir_gen.translateFunction();
 
   std::stringstream ss;
 

@@ -568,7 +568,7 @@ void Parser::connectBasicBlocks() {
 void Parser::fixUnknownIds() {
   // find largest ID
   int largest_id = -1;
-  for (auto& bb : func_->basicblocks()) {
+  for (auto& bb : func_->basicBlocks()) {
     if (bb->id() > largest_id) {
       largest_id = bb->id();
     }
@@ -581,7 +581,7 @@ void Parser::fixUnknownIds() {
   func_->setNextId(largest_id + 1);
   // all basic blocks should have been assigned an ID
   // assign ID's to instructions without ID's
-  for (auto& bb : func_->basicblocks()) {
+  for (auto& bb : func_->basicBlocks()) {
     for (auto& instr : bb->instructions()) {
       if (instr->id() == -1) {
         instr->setId(func_->allocateId());

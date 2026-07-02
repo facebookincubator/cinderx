@@ -361,10 +361,10 @@ class Instruction {
     return this;
   }
 
-  void setbasicblock(BasicBlock* bb);
+  void setBasicBlock(BasicBlock* bb);
 
-  BasicBlock* basicblock();
-  const BasicBlock* basicblock() const;
+  BasicBlock* basicBlock();
+  const BasicBlock* basicBlock() const;
 
   Opcode opcode() const;
   void setOpcode(Opcode opcode);

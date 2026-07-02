@@ -8,7 +8,7 @@
 namespace cinderx::jit::lir {
 
 bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
-  auto& blocks = func->basicblocks();
+  auto& blocks = func->basicBlocks();
   for (auto iter = blocks.begin(); iter != blocks.end();) {
     auto& block = *iter;
     ++iter;

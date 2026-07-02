@@ -76,7 +76,7 @@ RewriteResult rewriteConstantFoldUnaryOps(instr_iter_t instr_iter) {
 // instructions)
 RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   if (instr->isDiv() || instr->isDivUn()) {
     bool changed = false;
@@ -203,7 +203,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   CINDER_UNSUPPORTED
 #endif
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   auto move = block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
@@ -255,7 +255,7 @@ RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
   CINDER_UNSUPPORTED
 #endif
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   auto move = block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
@@ -317,7 +317,7 @@ Instruction* getSecondCallResult(
     return it->second;
   }
   Instruction* src_instr = src->instr();
-  BasicBlock* src_block = src_instr->basicblock();
+  BasicBlock* src_block = src_instr->basicBlock();
   auto src_it = src_block->iterator_to(src_instr);
 
   // Whether the input is a Call (or Windows struct-return Move) vs a Phi.
@@ -371,7 +371,7 @@ Instruction* getSecondCallResult(
   if (instr) {
     // We want to keep using the vreg defined by instr, so move it to after
     // src_instr, rather than allocating a new one.
-    BasicBlock* instr_block = instr->basicblock();
+    BasicBlock* instr_block = instr->basicBlock();
     auto instr_it = instr_block->iterator_to(instr);
     auto instr_owner = instr_block->removeInstr(instr_it);
     src_block->instructions().insert(std::next(src_it), std::move(instr_owner));
@@ -459,7 +459,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   JIT_CHECK(guard_var->isLinked(), "Expected guard var to be a linked operand");
   Instruction* guard_var_def = guard_var->getLinkedInstr();
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   constexpr int32_t kObTypeOffset = offsetof(PyObject, ob_type);
 
   // type_vreg = Move([guard_var + ob_type_offset])
@@ -491,7 +491,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   auto addr = reinterpret_cast<uint64_t>(input->getMemoryAddress());
 
   // addr_vreg = Move(Imm{addr})
@@ -535,7 +535,7 @@ bool lowerStackInputToVreg(instr_iter_t instr_iter, size_t idx) {
 
   auto loc = input->getStackSlot();
   auto dt = input->dataType();
-  auto move = instr->basicblock()->allocateInstrBefore(
+  auto move = instr->basicBlock()->allocateInstrBefore(
       instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
   instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
   return true;
@@ -595,7 +595,7 @@ bool lowerImmediateInputToVreg(instr_iter_t instr_iter, size_t idx) {
     return false;
   }
 
-  auto move = instr->basicblock()->allocateInstrBefore(
+  auto move = instr->basicBlock()->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
       OutVReg{input->dataType()},
@@ -658,7 +658,7 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   if (input->isImm()) {
     // On aarch64, leave immediate call targets as-is so translateCall can emit
@@ -714,7 +714,7 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
     function_rewrite_arg_t func) {
   // Phase 1: Count occurrences of large immediate values.
   std::unordered_map<uint64_t, int> value_counts;
-  for (auto& block : func->basicblocks()) {
+  for (auto& block : func->basicBlocks()) {
     for (auto it = block->instructions().begin();
          it != block->instructions().end();
          ++it) {
@@ -742,7 +742,7 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
 
   // Phase 2: Rewrite duplicates to MovConstPool.
   bool changed = false;
-  for (auto& block : func->basicblocks()) {
+  for (auto& block : func->basicBlocks()) {
     for (auto it = block->instructions().begin();
          it != block->instructions().end();
          ++it) {
@@ -824,7 +824,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
 [[maybe_unused]] RewriteResult rewriteStripObjectPointers(
     function_rewrite_arg_t func) {
   bool changed = false;
-  for (auto& block : func->basicblocks()) {
+  for (auto& block : func->basicBlocks()) {
     std::unordered_map<Instruction*, Instruction*> strip_cache;
 
     for (auto it = block->instructions().begin();

@@ -40,7 +40,7 @@ void eliminateDeadCode(Function* function) {
       worklist.push(instruction);
     }
   };
-  for (auto& block : function->basicblocks()) {
+  for (auto& block : function->basicBlocks()) {
     for (auto& instruction : block->instructions()) {
       if (isUseful(instruction.get())) {
         mark_live(instruction.get());
@@ -76,7 +76,7 @@ void eliminateDeadCode(Function* function) {
     }
   }
   // Filter anything not in the live set out.
-  for (auto& block : function->basicblocks()) {
+  for (auto& block : function->basicBlocks()) {
     for (auto instruction_iterator = block->instructions().begin();
          instruction_iterator != block->instructions().end();) {
       // The LIR APIs for removing instructions takes an iterator. We keep a

@@ -400,7 +400,7 @@ BB %0
   rewrite.run();
 
   size_t store_pairs = 0;
-  for (auto& instr : parsed_func->basicblocks().front()->instructions()) {
+  for (auto& instr : parsed_func->basicBlocks().front()->instructions()) {
     store_pairs += instr->isStorePair() ? 1 : 0;
   }
 
@@ -433,7 +433,7 @@ BB %0
   rewrite.run();
 
   const Instruction* store_pair = nullptr;
-  for (auto& instr : parsed_func->basicblocks().front()->instructions()) {
+  for (auto& instr : parsed_func->basicBlocks().front()->instructions()) {
     if (instr->isStorePair()) {
       ASSERT_EQ(store_pair, nullptr);
       store_pair = instr.get();

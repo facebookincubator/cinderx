@@ -1520,6 +1520,6 @@ TEST_F(NewASMGeneratorTest, BlockSorter) {
 
   size_t expected[] = {0, 2, 3, 1, 4, 5};
   for (size_t i = 0; i < 6; i++) {
-    ASSERT_EQ(func.basicblocks()[i], blocks[expected[i]]) << "i = " << i;
+    ASSERT_EQ(func.basicBlocks()[i], blocks[expected[i]]) << "i = " << i;
   }
 }

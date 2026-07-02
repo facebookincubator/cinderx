@@ -160,7 +160,7 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
   auto second_block = func_->allocateBasicBlockAfter(this);
   // move all instructions after iterator
   while (it != instrs_.end()) {
-    it->get()->setbasicblock(second_block);
+    it->get()->setBasicBlock(second_block);
     second_block->appendInstr(std::move(*it));
     it = instrs_.erase(it);
   }

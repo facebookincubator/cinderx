@@ -128,15 +128,15 @@ Operand* Instruction::allocateAsmLabelInput(const asmjit::Label& label) {
   return allocateOperand(&Operand::setAsmLabel, label);
 }
 
-void Instruction::setbasicblock(BasicBlock* bb) {
+void Instruction::setBasicBlock(BasicBlock* bb) {
   basic_block_ = bb;
 }
 
-BasicBlock* Instruction::basicblock() {
+BasicBlock* Instruction::basicBlock() {
   return basic_block_;
 }
 
-const BasicBlock* Instruction::basicblock() const {
+const BasicBlock* Instruction::basicBlock() const {
   return basic_block_;
 }
 

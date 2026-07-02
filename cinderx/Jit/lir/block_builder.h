@@ -206,7 +206,7 @@ class BasicBlockBuilder {
   void createInstrInput(Instruction* instr, hir::Register* reg);
   void createInstrOutput(Instruction* instr, hir::Register* dst);
 
-  std::vector<BasicBlock*> Generate();
+  std::vector<BasicBlock*> generate();
 
   BasicBlock* curBlock() const {
     return cur_bb_;

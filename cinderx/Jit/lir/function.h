@@ -53,8 +53,8 @@ class Function {
   // Returns the list of all the basic blocks.
   // The basic blocks will be in RPO as long as the CFG has not been
   // modified since the last call to SortRPO().
-  const std::vector<BasicBlock*>& basicblocks() const;
-  std::vector<BasicBlock*>& basicblocks();
+  const std::vector<BasicBlock*>& basicBlocks() const;
+  std::vector<BasicBlock*>& basicBlocks();
 
   BasicBlock* entryBlock() const;
 

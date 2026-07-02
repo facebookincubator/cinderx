@@ -20,7 +20,7 @@ Printer::Printer() {
 
 void Printer::print(std::ostream& out, const Function& func) {
   out << "Function:\n";
-  for (auto& block : func.basicblocks()) {
+  for (auto& block : func.basicBlocks()) {
     print(out, *block);
     out << '\n';
   }

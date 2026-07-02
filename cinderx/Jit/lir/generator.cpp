@@ -245,7 +245,7 @@ LIRGenerator::LIRGenerator(
   }
 }
 
-BasicBlock* LIRGenerator::GenerateEntryBlock() {
+BasicBlock* LIRGenerator::generateEntryBlock() {
   // Entry block: placeholder for argument loading (currently handled by
   // raw asmjit in generatePrologue).
   entry_block_ = lir_func_->allocateBasicBlock();
@@ -1227,7 +1227,7 @@ void GenerateBoxedReturnWrapperBlocks(
   box_block->allocateInstr(Instruction::kBranch, nullptr, AsmLbl{wrapper_exit});
 }
 
-void LIRGenerator::GenerateExitBlocks() {
+void LIRGenerator::generateExitBlocks() {
   if (!is_gen_) {
     auto* block = lir_func_->allocateBasicBlock();
     exit_block_ = block;
@@ -1333,7 +1333,7 @@ void LIRGenerator::GenerateExitBlocks() {
   block->allocateInstr(Instruction::kEpilogueEnd, nullptr, VReg{epilogue_phi_});
 }
 
-void LIRGenerator::AnalyzeCopies() {
+void LIRGenerator::analyzeCopies() {
   // Find all HIR instructions in the input that would end with a copy, and
   // assign their output the same vreg as the input, effectively performing
   // copy propagation during lowering.
@@ -1353,14 +1353,14 @@ void LIRGenerator::AnalyzeCopies() {
   }
 }
 
-std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
-  AnalyzeCopies();
+std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
+  analyzeCopies();
 
   auto function = std::make_unique<jit::lir::Function>(func_);
   lir_func_ = function.get();
 
   // generate entry block and exit block
-  entry_block_ = GenerateEntryBlock();
+  entry_block_ = generateEntryBlock();
 
 #if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   // Compute the caller FrameState and active code object at each block's entry
@@ -1372,7 +1372,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   };
   UnorderedMap<const hir::BasicBlock*, BlockInlineCtx> block_inline_ctx;
   if (func_->code != nullptr) {
-    auto hir_entry_block = GetHIRFunction()->cfg.entry_block;
+    auto hir_entry_block = getHIRFunction()->cfg.entry_block;
     std::vector<const hir::BasicBlock*> bfs;
     bfs.push_back(hir_entry_block);
     block_inline_ctx[hir_entry_block] = {nullptr, func_->code};
@@ -1420,15 +1420,15 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     BorrowedRef<PyCodeObject> entry_code =
         it != block_inline_ctx.end() ? it->second.code : nullptr;
     bb_map.emplace(
-        hir_bb, TranslateOneBasicBlock(hir_bb, entry_fs, entry_code));
+        hir_bb, translateOneBasicBlock(hir_bb, entry_fs, entry_code));
 #else
-    bb_map.emplace(hir_bb, TranslateOneBasicBlock(hir_bb));
+    bb_map.emplace(hir_bb, translateOneBasicBlock(hir_bb));
 #endif
     translated.emplace_back(hir_bb);
   };
 
   // Translate all reachable blocks.
-  auto hir_entry = GetHIRFunction()->cfg.entry_block;
+  auto hir_entry = getHIRFunction()->cfg.entry_block;
   translate_block(hir_entry);
   for (size_t i = 0; i < translated.size(); ++i) {
     auto hir_term = translated[i]->getTerminator();
@@ -1442,7 +1442,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     }
   }
 
-  GenerateExitBlocks();
+  generateExitBlocks();
 
   // Track the exit block explicitly so the block sorter doesn't have to
   // rely on it being basic_blocks_.back().
@@ -1545,7 +1545,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     // re-inserted in generateCode() before emission.  Leaving it in the
     // list causes the block sorter to treat it as the exit block and assert
     // because it has successors.
-    auto& bbs = lir_func_->basicblocks();
+    auto& bbs = lir_func_->basicBlocks();
     bbs.erase(std::remove(bbs.begin(), bbs.end(), resume_entry), bbs.end());
     for (auto* rb : resume_blocks_) {
       resume_entry->addSuccessor(rb);
@@ -1627,7 +1627,7 @@ void LIRGenerator::registerCallSiteLiveValues(
 }
 
 // Attempt to emit a type-specialized call, returning true if successful.
-bool LIRGenerator::TranslateSpecializedCall(
+bool LIRGenerator::translateSpecializedCall(
     BasicBlockBuilder& bbb,
     const hir::VectorCall& hir_instr) {
   if (hir_instr.flags() & CallFlags::KwArgs) {
@@ -2142,7 +2142,7 @@ void LIRGenerator::makeDecref(
       obj->type().couldBe(TImmortalObject));
 }
 
-LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
+LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
     const hir::BasicBlock* hir_bb,
     const jit::hir::FrameState* initial_caller_fs,
     BorrowedRef<PyCodeObject> initial_inlined_code) {
@@ -2866,7 +2866,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         //    flows to the exit epilogue via the CFG (phi + edge resolution).
         auto* branch = bbb.appendInstr(Instruction::kBranchToYieldExit);
         yield_exit_edges_.push_back(
-            {branch->basicblock(), bbb.getDefInstr(hir_instr->reg())});
+            {branch->basicBlock(), bbb.getDefInstr(hir_instr->reg())});
 
         // 3. Split block: resume path starts in a new basic block.
         //    The resume block is added as a successor of the yield block
@@ -2905,7 +2905,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         // kBranchToYieldExit: terminates this block.
         auto* branch = bbb.appendInstr(Instruction::kBranchToYieldExit);
-        yield_exit_edges_.push_back({branch->basicblock(), gen_obj});
+        yield_exit_edges_.push_back({branch->basicBlock(), gen_obj});
 
         // Split block: resume path starts in a new basic block.
         // Split block: resume path starts in a new basic block.
@@ -3684,7 +3684,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kVectorCall: {
         auto& hir_instr = static_cast<const VectorCall&>(i);
-        if (TranslateSpecializedCall(bbb, hir_instr)) {
+        if (translateSpecializedCall(bbb, hir_instr)) {
           break;
         }
         size_t flags = 0;
@@ -5126,7 +5126,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
   }
 
   // the last instruction must be kBranch, kCondBranch, or kReturn
-  auto bbs = bbb.Generate();
+  auto bbs = bbb.generate();
   basic_blocks_.insert(basic_blocks_.end(), bbs.begin(), bbs.end());
 
   return {bbs.front(), bbs.back()};
@@ -6015,7 +6015,7 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
     const hir::Instr* origin;
   };
   std::vector<DeoptEntry> deopt_entries;
-  for (auto* bb : lir_func->basicblocks()) {
+  for (auto* bb : lir_func->basicBlocks()) {
     for (auto& instr : bb->instructions()) {
       if (instructionHasDeoptExit(instr.get())) {
         size_t deopt_id =

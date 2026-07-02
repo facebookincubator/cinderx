@@ -184,14 +184,14 @@ Function::CopyResult Function::copyFrom(
   UnorderedMap<int, BasicBlock*> block_index_map;
 
   // Initialize the basic blocks.
-  for (auto bb : src_func->basicblocks()) {
+  for (auto bb : src_func->basicBlocks()) {
     BasicBlock* bb_copy = &basic_block_store_.emplace_back(this);
     block_index_map.emplace(bb->id(), bb_copy);
     // Insert basic block before the last block.
     basic_blocks_.emplace(std::prev(basic_blocks_.end()), bb_copy);
   }
 
-  deepCopyBasicBlocks(src_func->basicblocks(), block_index_map, origin);
+  deepCopyBasicBlocks(src_func->basicBlocks(), block_index_map, origin);
 
   int end = basic_blocks_.size() - 1;
   int start = end - src_func->basic_blocks_.size();
@@ -225,11 +225,11 @@ BasicBlock* Function::allocateBasicBlockAfter(BasicBlock* block) {
   return new_block;
 }
 
-const std::vector<BasicBlock*>& Function::basicblocks() const {
+const std::vector<BasicBlock*>& Function::basicBlocks() const {
   return basic_blocks_;
 }
 
-std::vector<BasicBlock*>& Function::basicblocks() {
+std::vector<BasicBlock*>& Function::basicBlocks() {
   return basic_blocks_;
 }
 

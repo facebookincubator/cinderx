@@ -21,7 +21,7 @@ RewriteResult removePhiInstructions(instr_iter_t instr_iter) {
   auto& instr = *instr_iter;
 
   if (instr->opcode() == Instruction::kPhi) {
-    auto block = instr->basicblock();
+    auto block = instr->basicBlock();
     block->removeInstr(instr_iter);
     return kRemoved;
   }
@@ -126,7 +126,7 @@ void insertStorePairToMemoryLocation(
 
 int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   auto num_inputs = instr->getNumInputs();
   int stack_arg_size = kShadowSpaceSize;
@@ -265,7 +265,7 @@ int prepareArgsArray(
     PhyLocation size_dest,
     int base_offset) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   constexpr size_t PTR_SIZE = sizeof(void*);
 
   // offset on the stack where arg reservation starts...
@@ -320,7 +320,7 @@ int rewriteVectorCallCommon(
     size_t callable_input,
     size_t first_arg) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   auto flag = instr->getInput(1)->getConstant();
   auto num_args = instr->getNumInputs() - first_arg - 1;
@@ -435,7 +435,7 @@ int rewriteVectorCallCommon(
 // Calling convention: (tstate, callable, args, nargsf, kwnames)
 int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   auto move_tstate = block->allocateInstrBefore(instr_iter, Instruction::kMove);
   move_tstate->output()->setPhyRegister(ARGUMENT_REGS[0]);
@@ -485,7 +485,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   }
 
   int rsp_sub = 0;
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   if (instr->isVectorCallTstate()) {
     rsp_sub = rewriteVectorCallTstateFunctions(instr_iter, base_offset);
@@ -600,7 +600,7 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
 // already did in static compiler), we need to also rewrite conditional branches
 // into Jcc instructions.
 RewriteResult rewriteBranchInstrs(Function* function) {
-  auto& blocks = function->basicblocks();
+  auto& blocks = function->basicBlocks();
   bool changed = false;
 
   for (auto iter = blocks.begin(); iter != blocks.end();) {
@@ -661,7 +661,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   // if the input and the output are the same
   if ((out->isReg() || out->isStack()) && in->type() == out->type() &&
       in->getPhyRegOrStackSlot() == out->getPhyRegOrStackSlot()) {
-    instr->basicblock()->removeInstr(instr_iter);
+    instr->basicBlock()->removeInstr(instr_iter);
     return kRemoved;
   }
 
@@ -715,7 +715,7 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
@@ -775,7 +775,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto instr = instr_iter->get();
 
   auto input = instr->getInput(0);
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   auto true_block = block->getTrueSuccessor();
   auto false_block = block->getFalseSuccessor();
@@ -863,7 +863,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
 // Negate BranchCC instructions based on the next (fallthrough) basic block.
 void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   auto true_bb = block->getTrueSuccessor();
   auto false_bb = block->getFalseSuccessor();
@@ -900,7 +900,7 @@ Instruction::Opcode negateBranchBit(Instruction::Opcode opcode) {
 // Negate BranchBit instructions based on the next (fallthrough) basic block.
 void doRewriteBranchBit(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto instr = instr_iter->get();
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
 
   auto true_bb = block->getTrueSuccessor();
   auto false_bb = block->getFalseSuccessor();
@@ -925,7 +925,7 @@ void doRewriteBranchBit(instr_iter_t instr_iter, BasicBlock* next_block) {
 
 // Convert CondBranch, BranchCC, and BranchBit instructions.
 RewriteResult rewriteCondBranch(Function* function) {
-  auto& blocks = function->basicblocks();
+  auto& blocks = function->basicBlocks();
 
   bool changed = false;
   for (auto iter = blocks.begin(); iter != blocks.end();) {
@@ -1159,7 +1159,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
       return kUnchanged;
   }
 
-  auto block = instr->basicblock();
+  auto block = instr->basicBlock();
   bool changed = false;
   constexpr PhyLocation gp_scratch_locs[] = {
       arch::reg_scratch_0_loc,
@@ -1283,7 +1283,7 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
     out_reg = output->getPhyRegister();
   }
 
-  BasicBlock* block = instr->basicblock();
+  BasicBlock* block = instr->basicBlock();
   if (in_reg != AL) {
     block->allocateInstrBefore(
         instr_iter,
@@ -1347,7 +1347,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
   bool changed = false;
   Operand* output = instr->output();
 
-  BasicBlock* block = instr->basicblock();
+  BasicBlock* block = instr->basicBlock();
 
   Operand* dividend_upper = nullptr;
   Operand* dividend_lower;

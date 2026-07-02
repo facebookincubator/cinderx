@@ -49,9 +49,9 @@ class LIRGenerator {
       const jit::hir::Function* func,
       jit::codegen::Environ* env);
 
-  std::unique_ptr<jit::lir::Function> TranslateFunction();
+  std::unique_ptr<jit::lir::Function> translateFunction();
 
-  const jit::hir::Function* GetHIRFunction() const {
+  const jit::hir::Function* getHIRFunction() const {
     return func_;
   }
 
@@ -192,9 +192,9 @@ class LIRGenerator {
 #endif
   }
 
-  void AnalyzeCopies();
-  BasicBlock* GenerateEntryBlock();
-  void GenerateExitBlocks();
+  void analyzeCopies();
+  BasicBlock* generateEntryBlock();
+  void generateExitBlocks();
 
   void appendGuardAlwaysFail(
       BasicBlockBuilder& bbb,
@@ -311,11 +311,11 @@ class LIRGenerator {
       BorrowedRef<PyCodeObject> inlined_code);
 #endif
 
-  bool TranslateSpecializedCall(
+  bool translateSpecializedCall(
       BasicBlockBuilder& bbb,
       const hir::VectorCall& instr);
 
-  TranslatedBlock TranslateOneBasicBlock(
+  TranslatedBlock translateOneBasicBlock(
       const hir::BasicBlock* bb,
       const hir::FrameState* initial_caller_fs = nullptr,
       BorrowedRef<PyCodeObject> initial_inlined_code = nullptr);

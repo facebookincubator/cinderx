@@ -105,7 +105,7 @@ void BasicBlockBuilder::createInstrOutput(
   output->setDataType(hirTypeToDataType(dst->type()));
 }
 
-std::vector<BasicBlock*> BasicBlockBuilder::Generate() {
+std::vector<BasicBlock*> BasicBlockBuilder::generate() {
   return bbs_;
 }
 

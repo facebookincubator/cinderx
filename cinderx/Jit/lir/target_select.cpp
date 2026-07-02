@@ -63,7 +63,7 @@ void selectX64MoveToMemoryLargeConstant(
 }
 
 void selectX64Opcodes(Function* func) {
-  for (BasicBlock* block : func->basicblocks()) {
+  for (BasicBlock* block : func->basicBlocks()) {
     BasicBlock::InstrList& instrs = block->instructions();
     for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {
       instr_iter_t cur_iter = iter++;
@@ -110,7 +110,7 @@ void countOperandUse(UseCounts& use_counts, const Operand* operand) {
  */
 UseCounts countUses(Function* func) {
   UseCounts use_counts;
-  for (BasicBlock* block : func->basicblocks()) {
+  for (BasicBlock* block : func->basicBlocks()) {
     for (std::unique_ptr<Instruction>& instr : block->instructions()) {
       instr->foreachInputOperand([&use_counts](const Operand* operand) {
         countOperandUse(use_counts, operand);
@@ -371,7 +371,7 @@ void selectA64CondBranch(
   /* Check that the input to this conditional branch is a compare in the same
    * block and that it is not used by any other instruction. */
   Instruction* compare = input->getLinkedInstr();
-  if (!compare->isCompare() || compare->basicblock() != block ||
+  if (!compare->isCompare() || compare->basicBlock() != block ||
       use_counts.at(compare) != 1) {
     return;
   }
@@ -427,7 +427,7 @@ void selectA64Guard(
   /* Check that the input to this guard is a compare in the same block and that
    * it is not used by any other instruction. */
   Instruction* compare = input->getLinkedInstr();
-  if (!compare->isCompare() || compare->basicblock() != block ||
+  if (!compare->isCompare() || compare->basicBlock() != block ||
       use_counts.at(compare) != 1) {
     return;
   }
@@ -526,7 +526,7 @@ void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
 void selectA64Opcodes(Function* func) {
   UseCounts use_counts = countUses(func);
 
-  for (BasicBlock* block : func->basicblocks()) {
+  for (BasicBlock* block : func->basicBlocks()) {
     BasicBlock::InstrList& instrs = block->instructions();
 
     for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {

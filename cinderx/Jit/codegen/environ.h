@@ -154,7 +154,7 @@ struct Environ {
   // generation purposes.
   //
   // This is a hack. Need to do the real copy propagation after LIR cleanup is
-  // done. Related to jit::lir::LIRGenerator::AnalyzeCopies().
+  // done. Related to jit::lir::LIRGenerator::analyzeCopies().
   UnorderedMap<const hir::Register*, hir::Register*> copy_propagation_map;
 
   UnorderedMap<jit::lir::BasicBlock*, asmjit::Label> block_label_map;

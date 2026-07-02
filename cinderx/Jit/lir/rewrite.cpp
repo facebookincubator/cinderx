@@ -66,13 +66,13 @@ void Rewrite::runOneStage(int stage) {
     }
 
     if (has_basic_block_rewrites) {
-      for (auto& bb : function_->basicblocks()) {
+      for (auto& bb : function_->basicBlocks()) {
         changed |= runOneTypeRewrites(*basic_block_rewrites, bb);
       }
     }
 
     if (has_instruction_rewrites) {
-      for (auto& bb : function_->basicblocks()) {
+      for (auto& bb : function_->basicBlocks()) {
         auto& instrs = bb->instructions();
 
         auto iter = instrs.begin();

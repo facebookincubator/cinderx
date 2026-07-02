@@ -15,7 +15,7 @@ namespace cinderx::jit::lir {
 
 bool LIRInliner::inlineCalls(Function* func) {
   bool changed = false;
-  std::vector<BasicBlock*>& blocks = func->basicblocks();
+  std::vector<BasicBlock*>& blocks = func->basicBlocks();
 
   // Do not convert to a range-based for loop because 'blocks' is updated
   // inside the loop.
@@ -55,7 +55,7 @@ bool LIRInliner::inlineCall() {
   }
 
   // Split basic blocks of caller.
-  BasicBlock* block1 = call_instr_->basicblock();
+  BasicBlock* block1 = call_instr_->basicBlock();
   BasicBlock* block2 = block1->splitBefore(call_instr_);
 
   // Copy callee into caller.
@@ -87,7 +87,7 @@ bool LIRInliner::isInlineable(const Function* callee) {
 }
 
 bool LIRInliner::checkEntryExitReturn(const Function* callee) {
-  if (callee->basicblocks().empty()) {
+  if (callee->basicBlocks().empty()) {
     JIT_DLOG("Callee has no basic block.");
     return false;
   }
@@ -96,12 +96,12 @@ bool LIRInliner::checkEntryExitReturn(const Function* callee) {
     JIT_DLOG("Expect entry block to have no predecessors.");
     return false;
   }
-  BasicBlock* exit_block = callee->basicblocks().back();
+  BasicBlock* exit_block = callee->basicBlocks().back();
   if (!exit_block->successors().empty()) {
     JIT_DLOG("Expect exit block to have no successors.");
     return false;
   }
-  for (BasicBlock* bb : callee->basicblocks()) {
+  for (BasicBlock* bb : callee->basicBlocks()) {
     if (bb->predecessors().empty() && bb != entry_block) {
       JIT_DLOG("Expect callee to have only 1 entry block.");
       return false;
@@ -148,7 +148,7 @@ bool LIRInliner::checkLoadArg(const Function* callee) {
   size_t numInputs = call_instr_->getNumInputs() - 1;
   // Use check_load_arg to track if we are still in LoadArg instructions.
   bool check_load_arg = true;
-  for (auto bb : callee->basicblocks()) {
+  for (auto bb : callee->basicBlocks()) {
     for (auto& instr : bb->instructions()) {
       if (check_load_arg) {
         if (instr->isLoadArg()) {
@@ -241,7 +241,7 @@ lir::Function* LIRInliner::parseFunction(uint64_t addr) {
 bool LIRInliner::resolveArguments() {
   // Remove load arg instructions and update virtual registers.
   UnorderedMap<Operand*, Operand*> vreg_map;
-  auto const& caller_blocks = caller_->basicblocks();
+  auto const& caller_blocks = caller_->basicBlocks();
   for (int i = callee_start_; i < callee_end_; i++) {
     auto bb = caller_blocks.at(i);
     auto it = bb->instructions().begin();
@@ -322,7 +322,7 @@ void LIRInliner::resolveLinkedArgumentsUses(
 }
 
 void LIRInliner::resolveReturnValue() {
-  auto epilogue = caller_->basicblocks().at(callee_end_ - 1);
+  auto epilogue = caller_->basicBlocks().at(callee_end_ - 1);
 
   // Create phi instruction.
   auto phi_instr =
