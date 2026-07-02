@@ -38,7 +38,7 @@ void HIRTest::TestBody() {
 
   std::unique_ptr<Function> irfunc;
   if (src_is_hir_) {
-    irfunc = HIRParser{}.ParseHIR(src_.c_str());
+    irfunc = HIRParser{}.parseHIR(src_.c_str());
     ASSERT_FALSE(passes_.empty())
         << "HIR tests don't make sense without a pass to test";
     ASSERT_NE(irfunc, nullptr);
@@ -71,6 +71,6 @@ void HIRTest::TestBody() {
     ASSERT_TRUE(checkFunc(*irfunc, std::cout));
   }
   HIRPrinter printer;
-  auto hir = printer.ToString(*irfunc.get());
+  auto hir = printer.toString(*irfunc.get());
   EXPECT_EQ(hir, expected_hir_);
 }

@@ -21,8 +21,8 @@ Instr* replaceCompare(Compare* compare, IsTruthy* truthy) {
 
 void DynamicComparisonElimination::Run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
-  liveness.Run();
-  auto last_uses = liveness.GetLastUses();
+  liveness.run();
+  auto last_uses = liveness.getLastUses();
 
   // Optimize "if x is y" case
   for (auto& block : irfunc.cfg.blocks) {

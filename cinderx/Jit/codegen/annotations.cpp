@@ -85,7 +85,7 @@ std::string Annotations::disassembleSection(
         auto prev_hir = prev_annot ? prev_annot->instr : nullptr;
         if (new_hir != nullptr && new_hir != prev_hir) {
           annot_str =
-              hir::HIRPrinter().setFullSnapshots(true).ToString(*new_hir);
+              hir::HIRPrinter().setFullSnapshots(true).toString(*new_hir);
         } else if (!new_annot->str.empty()) {
           annot_str = new_annot->str;
         }

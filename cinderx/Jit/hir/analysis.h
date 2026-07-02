@@ -53,19 +53,19 @@ class DataflowAnalysis {
 
   virtual ~DataflowAnalysis() {}
 
-  virtual void Run() = 0;
+  virtual void run() = 0;
 
-  RegisterSet GetIn(const BasicBlock* block);
-  RegisterSet GetOut(const BasicBlock* block);
+  RegisterSet getIn(const BasicBlock* block);
+  RegisterSet getOut(const BasicBlock* block);
 
  protected:
-  virtual void ComputeGenKill(
+  virtual void computeGenKill(
       const BasicBlock* block,
       RegisterSet& gen,
       RegisterSet& kill) = 0;
-  virtual jit::util::BitVector ComputeNewIn(
+  virtual jit::util::BitVector computeNewIn(
       const jit::optimizer::DataFlowBlock* block) = 0;
-  virtual jit::util::BitVector ComputeNewOut(
+  virtual jit::util::BitVector computeNewOut(
       const jit::optimizer::DataFlowBlock* block) = 0;
 
   // Should be overridden by subclasses to set an appropriate uninitialized in-
@@ -73,8 +73,8 @@ class DataflowAnalysis {
   // zeros.
   virtual void setUninitialized(jit::optimizer::DataFlowBlock* block) = 0;
 
-  virtual void Initialize();
-  void AddBasicBlock(const BasicBlock* cfg_block);
+  virtual void initialize();
+  void addBasicBlock(const BasicBlock* cfg_block);
 
   virtual std::string name() = 0;
 
@@ -94,7 +94,7 @@ class BackwardDataflowAnalysis : public DataflowAnalysis {
   explicit BackwardDataflowAnalysis(const Function& irfunc)
       : DataflowAnalysis(irfunc) {}
 
-  void Run() override;
+  void run() override;
 };
 
 class ForwardDataflowAnalysis : public DataflowAnalysis {
@@ -102,7 +102,7 @@ class ForwardDataflowAnalysis : public DataflowAnalysis {
   explicit ForwardDataflowAnalysis(const Function& irfunc)
       : DataflowAnalysis(irfunc) {}
 
-  void Run() override;
+  void run() override;
 };
 
 class LivenessAnalysis : public BackwardDataflowAnalysis {
@@ -110,24 +110,24 @@ class LivenessAnalysis : public BackwardDataflowAnalysis {
   explicit LivenessAnalysis(const Function& irfunc)
       : BackwardDataflowAnalysis(irfunc) {}
 
-  bool IsLiveIn(const BasicBlock* cfg_block, Register* reg);
-  bool IsLiveOut(const BasicBlock* cfg_block, Register* reg);
+  bool isLiveIn(const BasicBlock* cfg_block, Register* reg);
+  bool isLiveOut(const BasicBlock* cfg_block, Register* reg);
 
   using LastUses =
       std::unordered_map<const Instr*, std::unordered_set<Register*>>;
 
   // Compute and return a map indicating which values die after which
-  // instructions. Must be called after Run().
-  LastUses GetLastUses();
+  // instructions. Must be called after run().
+  LastUses getLastUses();
 
  protected:
-  void ComputeGenKill(
+  void computeGenKill(
       const BasicBlock* block,
       RegisterSet& gen,
       RegisterSet& kill) final;
-  jit::util::BitVector ComputeNewIn(
+  jit::util::BitVector computeNewIn(
       const jit::optimizer::DataFlowBlock* block) final;
-  jit::util::BitVector ComputeNewOut(
+  jit::util::BitVector computeNewOut(
       const jit::optimizer::DataFlowBlock* block) final;
   void setUninitialized(jit::optimizer::DataFlowBlock* block) final;
 
@@ -175,17 +175,17 @@ class AssignmentAnalysis : public ForwardDataflowAnalysis {
  public:
   AssignmentAnalysis(const Function& irfunc, bool is_definite);
 
-  bool IsAssignedIn(const BasicBlock* cfg_block, Register* reg);
-  bool IsAssignedOut(const BasicBlock* cfg_block, Register* reg);
+  bool isAssignedIn(const BasicBlock* cfg_block, Register* reg);
+  bool isAssignedOut(const BasicBlock* cfg_block, Register* reg);
 
  protected:
-  void ComputeGenKill(
+  void computeGenKill(
       const BasicBlock* block,
       RegisterSet& gen,
       RegisterSet& kill) final;
-  jit::util::BitVector ComputeNewIn(
+  jit::util::BitVector computeNewIn(
       const jit::optimizer::DataFlowBlock* block) final;
-  jit::util::BitVector ComputeNewOut(
+  jit::util::BitVector computeNewOut(
       const jit::optimizer::DataFlowBlock* block) final;
   void setUninitialized(jit::optimizer::DataFlowBlock* block) final;
 

@@ -55,7 +55,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
          })";
 
   HIRParser parser;
-  std::unique_ptr<Function> func(parser.ParseHIR(ir));
+  std::unique_ptr<Function> func(parser.parseHIR(ir));
 
   auto traversal = func->cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 4);
@@ -277,7 +277,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
 )";
 
   HIRParser parser;
-  std::unique_ptr<Function> func(parser.ParseHIR(ir));
+  std::unique_ptr<Function> func(parser.parseHIR(ir));
 }
 
 TEST_F(HIRParserTest, IgnoresEscapedName) {
@@ -294,7 +294,7 @@ fun test {
   }
 }
 )";
-  auto func = HIRParser{}.ParseHIR(hir_src);
+  auto func = HIRParser{}.parseHIR(hir_src);
   const char* expected_hir = R"(fun test {
   bb 0 (preds 1) {
     v0 = LoadArg<0>
@@ -308,7 +308,7 @@ fun test {
   }
 }
 )";
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), expected_hir);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected_hir);
 }
 
 TEST_F(HIRParserTest, InvokeStaticFunction) {
@@ -321,7 +321,7 @@ fun test {
   }
 }
 )";
-  auto func = HIRParser{}.ParseHIR(hir_src);
+  auto func = HIRParser{}.parseHIR(hir_src);
   const char* expected_hir = R"(fun test {
   bb 0 {
     v0 = LoadArg<0>
@@ -334,7 +334,7 @@ fun test {
   }
 }
 )";
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), expected_hir);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected_hir);
 }
 
 TEST_F(HIRParserTest, FormatValue) {
@@ -358,8 +358,8 @@ TEST_F(HIRParserTest, FormatValue) {
   }
 }
 )";
-  auto func = HIRParser{}.ParseHIR(hir_source);
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), hir_source);
+  auto func = HIRParser{}.parseHIR(hir_source);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), hir_source);
 }
 
 TEST_F(HIRParserTest, ParsesReturnType) {
@@ -370,8 +370,8 @@ TEST_F(HIRParserTest, ParsesReturnType) {
   }
 }
 )";
-  auto func = HIRParser{}.ParseHIR(hir_source);
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), hir_source);
+  auto func = HIRParser{}.parseHIR(hir_source);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), hir_source);
 }
 
 TEST_F(HIRParserTest, PartialRoundtripWithNames) {
@@ -382,12 +382,12 @@ def my_func(a, b, c):
 
   std::unique_ptr<Function> func;
   ASSERT_NO_FATAL_FAILURE(CompileToHIR(py_src, "my_func", func));
-  std::string printed_hir = HIRPrinter{}.ToString(*func);
+  std::string printed_hir = HIRPrinter{}.toString(*func);
 
   // For now, just verify that we can parse the printed HIR into
   // *something*. We can't do a true roundtrip yet since names are ignored by
   // the parser.
-  auto parsed_func = HIRParser{}.ParseHIR(printed_hir.c_str());
+  auto parsed_func = HIRParser{}.parseHIR(printed_hir.c_str());
   ASSERT_NE(parsed_func, nullptr);
 }
 
@@ -448,7 +448,7 @@ TEST_F(HIRParserTest, ParsePyObject) {
 }
 )";
   HIRParser parser;
-  auto func = parser.ParseHIR(source);
+  auto func = parser.parseHIR(source);
 
   EXPECT_TRUE(isLongTypeWithValue(parser.parseType("Long[1]"), TLong, 1));
   EXPECT_TRUE(isLongTypeWithValue(

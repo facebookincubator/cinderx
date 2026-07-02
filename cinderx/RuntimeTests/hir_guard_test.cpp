@@ -13,12 +13,12 @@ class GuardTest : public RuntimeTest {};
 using namespace cinderx::jit::hir;
 
 static void testFillGuards(const char* hir_source, const char* expected) {
-  auto func = HIRParser().ParseHIR(hir_source);
+  auto func = HIRParser().parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
   ASSERT_TRUE(checkFunc(*func, std::cout));
   reflowTypes(*func);
   RefcountInsertion().Run(*func);
-  ASSERT_EQ(HIRPrinter{}.setFullSnapshots(true).ToString(*func), expected);
+  ASSERT_EQ(HIRPrinter{}.setFullSnapshots(true).toString(*func), expected);
 }
 
 TEST_F(GuardTest, BindFrameStateFromBlock) {

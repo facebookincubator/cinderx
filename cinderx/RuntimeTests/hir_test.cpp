@@ -175,7 +175,7 @@ fun test {
   }
 }
 )";
-  auto func = HIRParser{}.ParseHIR(hir_source);
+  auto func = HIRParser{}.parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
   ASSERT_TRUE(checkFunc(*func, std::cout));
 
@@ -213,7 +213,7 @@ fun test {
   }
 }
 )";
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), expected_hir);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected_hir);
 }
 
 TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
@@ -225,7 +225,7 @@ TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
 
   removeTrampolineBlocks(&cfg);
 
-  auto s = HIRPrinter().ToString(cfg);
+  auto s = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 0 (preds 0) {
   Branch<0>
 }
@@ -244,7 +244,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
 
   removeTrampolineBlocks(&cfg);
 
-  auto s = HIRPrinter().ToString(cfg);
+  auto s = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 1 (preds 1) {
   Branch<1>
 }
@@ -276,7 +276,7 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
 
   removeTrampolineBlocks(&cfg);
 
-  auto s = HIRPrinter().ToString(cfg);
+  auto s = HIRPrinter().toString(cfg);
   auto expected = R"(bb 0 {
   Return v0
 }
@@ -328,7 +328,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
 
   removeTrampolineBlocks(&cfg);
 
-  auto after = HIRPrinter().ToString(cfg);
+  auto after = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 5 {
   CondBranch<0, 4> v0
 }
@@ -391,7 +391,7 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
 
   removeTrampolineBlocks(&cfg);
 
-  auto after = HIRPrinter().ToString(cfg);
+  auto after = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 5 {
   Branch<0>
 }
@@ -442,7 +442,7 @@ fun foo {
 }
 )";
 
-  std::unique_ptr<Function> func = HIRParser{}.ParseHIR(hir);
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
   ASSERT_NE(func, nullptr);
 
   removeUnreachableBlocks(*func);
@@ -458,7 +458,7 @@ fun foo {
   }
 }
 )";
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), expected);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
 }
 
 TEST(RemoveUnreachableBlocks, FixesPhisOfReachableBlocks) {
@@ -486,7 +486,7 @@ fun foo {
 }
 )";
 
-  std::unique_ptr<Function> func = HIRParser{}.ParseHIR(hir);
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
   ASSERT_NE(func, nullptr);
 
   removeUnreachableBlocks(*func);
@@ -508,7 +508,7 @@ fun foo {
   }
 }
 )";
-  EXPECT_EQ(HIRPrinter{}.ToString(*func), expected);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
 }
 
 template <class T>
@@ -605,7 +605,7 @@ TEST_F(HIRBuildTest, GetLength) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 #if PY_VERSION_HEX < 0x030E0000
@@ -657,7 +657,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 #endif
 
@@ -749,7 +749,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 class EdgeCaseTest : public RuntimeTest {};
@@ -823,7 +823,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
@@ -891,7 +891,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 class CppInlinerTest : public RuntimeTest {};
@@ -1055,7 +1055,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   }
 }
 )";
-  auto irfunc = HIRParser().ParseHIR(hir);
+  auto irfunc = HIRParser().parseHIR(hir);
   ASSERT_NE(irfunc, nullptr);
   ASSERT_TRUE(checkFunc(*irfunc, std::cout));
   reflowTypes(*irfunc);
@@ -1074,7 +1074,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   }
 }
 )";
-  ASSERT_EQ(fullPrinter().ToString(*irfunc), expected);
+  ASSERT_EQ(fullPrinter().toString(*irfunc), expected);
   BasicBlock* bb0 = irfunc->cfg.entry_block;
   Instr& load_global = *(++(bb0->rbegin()));
   ASSERT_TRUE(load_global.isLoadGlobal());
@@ -1179,7 +1179,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
 }
 )";
 #endif
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, MatchSequence) {
@@ -1263,7 +1263,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
 }
 )";
 #endif
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, MatchKeys) {
@@ -1313,7 +1313,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, ListExtend) {
@@ -1345,7 +1345,7 @@ TEST_F(HIRBuildTest, ListExtend) {
   }
 }
 )";
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, ListToTuple) {
@@ -1394,7 +1394,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
 }
 )";
 #endif
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, LoadFastAndClear) {
@@ -1426,7 +1426,7 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
 }
 )";
 
-  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, AtQuiescentStateInEvalBreakerCheck) {

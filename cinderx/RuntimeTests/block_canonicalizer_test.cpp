@@ -24,7 +24,7 @@ TEST(BlockCanonicalizerTest, BreaksCycles) {
   auto block = cfg.allocateBlock();
   block->append<Return>(env.allocateRegister());
 
-  bc.Run(block, stack);
+  bc.run(block, stack);
 
   HIRPrinter printer;
   const char* expected = R"(bb 0 {
@@ -35,7 +35,7 @@ TEST(BlockCanonicalizerTest, BreaksCycles) {
   Return v3
 }
 )";
-  ASSERT_EQ(printer.ToString(*block), expected);
+  ASSERT_EQ(printer.toString(*block), expected);
 }
 
 TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
@@ -58,7 +58,7 @@ TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
   auto block = cfg.allocateBlock();
   block->append<Return>(env.allocateRegister());
 
-  bc.Run(block, stack);
+  bc.run(block, stack);
 
   HIRPrinter printer;
   const char* expected = R"(bb 0 {
@@ -72,7 +72,7 @@ TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
   Return v3
 }
 )";
-  ASSERT_EQ(printer.ToString(*block), expected);
+  ASSERT_EQ(printer.toString(*block), expected);
 }
 
 TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
@@ -96,7 +96,7 @@ TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
   auto block = cfg.allocateBlock();
   block->append<Return>(env.allocateRegister());
 
-  bc.Run(block, stack);
+  bc.run(block, stack);
 
   HIRPrinter printer;
   const char* expected = R"(bb 0 {
@@ -108,5 +108,5 @@ TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
   Return v4
 }
 )";
-  ASSERT_EQ(printer.ToString(*block), expected);
+  ASSERT_EQ(printer.toString(*block), expected);
 }

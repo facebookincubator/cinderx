@@ -15,7 +15,7 @@ using namespace cinderx::jit::hir;
 
 static void testCheckFunc(const char* hir_source, const char* expected_err) {
   std::ostringstream err;
-  auto func = HIRParser().ParseHIR(hir_source);
+  auto func = HIRParser().parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
   ASSERT_FALSE(checkFunc(*func, err));
   EXPECT_EQ(err.str(), expected_err);
@@ -312,10 +312,10 @@ TEST(CheckFuncTest, UnreachableBlock) {
 }
 
 static void testSSAify(const char* hir_source, const char* expected) {
-  std::unique_ptr<Function> func(HIRParser().ParseHIR(hir_source));
+  std::unique_ptr<Function> func(HIRParser().parseHIR(hir_source));
   ASSERT_NE(func, nullptr);
   SSAify().Run(*func);
-  ASSERT_EQ(HIRPrinter().ToString(*func), expected);
+  ASSERT_EQ(HIRPrinter().toString(*func), expected);
 }
 
 TEST_F(SSAifyTest, PlacesPhisCorrectlyAtCondBranchJoins) {

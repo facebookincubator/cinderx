@@ -59,7 +59,7 @@ void Printer::print(std::ostream& out, const BasicBlock& block) {
     if (getConfig().log.lir_origin && instr->origin() != prev_instr) {
       if (instr->origin()) {
         out << '\n';
-        hir_printer_.Print(out, *instr->origin());
+        hir_printer_.print(out, *instr->origin());
         out << '\n';
       }
       prev_instr = instr->origin();

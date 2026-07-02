@@ -444,7 +444,7 @@ class DeoptStressTest : public RuntimeTest {
     }
     std::cerr << '\n';
     std::cerr << "HIR of failed function:\n";
-    std::cerr << HIRPrinter().ToString(irfunc) << '\n';
+    std::cerr << HIRPrinter().toString(irfunc) << '\n';
     std::cerr << "Disassembly:\n";
     // Recompile so we get the annotated disassembly
     bool old_dump_asm = true;

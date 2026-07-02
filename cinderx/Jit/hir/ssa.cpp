@@ -25,7 +25,7 @@ namespace {
 struct CheckEnv {
   CheckEnv(const Function& func, std::ostream& err)
       : func{func}, err{err}, assign{func, true} {
-    assign.Run();
+    assign.run();
   }
 
   const Function& func;
@@ -151,7 +151,7 @@ void checkRegisters(CheckEnv& env) {
     auto phi = static_cast<const Phi*>(env.instr);
     for (size_t i = 0; i < phi->numOperands(); ++i) {
       auto operand = phi->getOperand(i);
-      if (!env.assign.IsAssignedOut(phi->basicBlocks()[i], operand)) {
+      if (!env.assign.isAssignedOut(phi->basicBlocks()[i], operand)) {
         fmt::print(
             env.err,
             "ERROR: Phi input '{}' to instruction '{}' in bb {} not "
@@ -224,7 +224,7 @@ bool checkFunc(const Function& func, std::ostream& err) {
   CheckEnv env{func, err};
   for (auto& block : func.cfg.blocks) {
     env.block = &block;
-    env.defined = env.assign.GetIn(&block);
+    env.defined = env.assign.getIn(&block);
 
     if (block.empty()) {
       fmt::print(err, "ERROR: bb {} has no instructions\n", block.id);

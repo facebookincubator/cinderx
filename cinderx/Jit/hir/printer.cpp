@@ -39,11 +39,11 @@ const char* fvc_to_string(int conversion) {
 }
 } // namespace
 
-void HIRPrinter::Indent() {
+void HIRPrinter::indent() {
   indent_level_ += 1;
 }
 
-std::ostream& HIRPrinter::Indented(std::ostream& os) {
+std::ostream& HIRPrinter::indented(std::ostream& os) {
   os << line_prefix_;
   for (int i = 0; i < indent_level_; i++) {
     os << "  ";
@@ -51,11 +51,11 @@ std::ostream& HIRPrinter::Indented(std::ostream& os) {
   return os;
 }
 
-void HIRPrinter::Dedent() {
+void HIRPrinter::dedent() {
   indent_level_ -= 1;
 }
 
-void HIRPrinter::Print(std::ostream& os, const Function& func) {
+void HIRPrinter::print(std::ostream& os, const Function& func) {
   func_ = &func;
   SCOPE_EXIT(func_ = nullptr);
 
@@ -63,26 +63,26 @@ void HIRPrinter::Print(std::ostream& os, const Function& func) {
       os,
       "fun {} {{\n",
       func.fullname.empty() ? "<unknown>" : func.fullname.c_str());
-  Indent();
-  Print(os, func.cfg);
-  Dedent();
+  indent();
+  print(os, func.cfg);
+  dedent();
   os << "}\n";
 }
 
-void HIRPrinter::Print(std::ostream& os, const CFG& cfg) {
+void HIRPrinter::print(std::ostream& os, const CFG& cfg) {
   auto start = cfg.entry_block;
   std::vector<BasicBlock*> blocks = cfg.getRPOTraversal(start);
   auto last_block = blocks.back();
   for (auto block : blocks) {
-    Print(os, *block);
+    print(os, *block);
     if (block != last_block) {
       os << '\n';
     }
   }
 }
 
-void HIRPrinter::Print(std::ostream& os, const BasicBlock& block) {
-  Indented(os);
+void HIRPrinter::print(std::ostream& os, const BasicBlock& block) {
+  indented(os);
   fmt::print(os, "bb {}", block.id);
   auto& in_edges = block.inEdges();
   if (!in_edges.empty()) {
@@ -99,13 +99,13 @@ void HIRPrinter::Print(std::ostream& os, const BasicBlock& block) {
     os << ")";
   }
   os << " {\n";
-  Indent();
+  indent();
   for (auto& instr : block) {
-    Print(os, instr);
+    print(os, instr);
     os << '\n';
   }
-  Dedent();
-  Indented(os) << "}\n";
+  dedent();
+  indented(os) << "}\n";
 }
 
 static void print_reg_states(
@@ -822,8 +822,8 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));
 }
 
-void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
-  Indented(os);
+void HIRPrinter::print(std::ostream& os, const Instr& instr) {
+  indented(os);
   if (Register* dst = instr.output()) {
     os << dst->name();
     if (dst->type() != TTop) {
@@ -853,42 +853,42 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
   auto db = instr.asDeoptBase();
   if (db != nullptr) {
     os << " {\n";
-    Indent();
+    indent();
     if (!db->descr().empty()) {
-      Indented(os) << fmt::format("Descr '{}'\n", db->descr());
+      indented(os) << fmt::format("Descr '{}'\n", db->descr());
     }
     if (Register* guilty_reg = db->guiltyReg()) {
-      Indented(os) << fmt::format("GuiltyReg {}\n", *guilty_reg);
+      indented(os) << fmt::format("GuiltyReg {}\n", *guilty_reg);
     }
     if (db->liveRegs().size() > 0) {
-      Indented(os) << "LiveValues";
+      indented(os) << "LiveValues";
       print_reg_states(os, db->liveRegs());
       os << '\n';
     }
     if (fs != nullptr) {
-      Indented(os) << "FrameState {\n";
-      Indent();
-      Print(os, *fs);
-      Dedent();
-      Indented(os) << "}\n";
+      indented(os) << "FrameState {\n";
+      indent();
+      print(os, *fs);
+      dedent();
+      indented(os) << "}\n";
     }
-    Dedent();
-    Indented(os) << "}";
+    dedent();
+    indented(os) << "}";
   } else if (fs != nullptr) {
     os << " {\n";
-    Indent();
-    Print(os, *fs);
-    Dedent();
-    Indented(os) << "}";
+    indent();
+    print(os, *fs);
+    dedent();
+    indented(os) << "}";
   }
 }
 
-void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
-  Indented(os) << "CurInstrOffset " << state.cur_instr_offs << '\n';
+void HIRPrinter::print(std::ostream& os, const FrameState& state) {
+  indented(os) << "CurInstrOffset " << state.cur_instr_offs << '\n';
 
   auto nlocals = state.nlocals;
   if (nlocals > 0) {
-    Indented(os) << "Locals<" << nlocals << ">";
+    indented(os) << "Locals<" << nlocals << ">";
     for (int i = 0; i < nlocals; ++i) {
       auto reg = state.localsplus[i];
       if (reg == nullptr) {
@@ -903,7 +903,7 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
   auto nlocalsplus = state.localsplus.size();
   auto ncells = nlocalsplus - state.nlocals;
   if (ncells > 0) {
-    Indented(os) << "Cells<" << ncells << ">";
+    indented(os) << "Cells<" << ncells << ">";
     for (int i = nlocals; i < nlocalsplus; ++i) {
       auto reg = state.localsplus[i];
       if (reg == nullptr) {
@@ -917,7 +917,7 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
 
   auto opstack_size = state.stack.size();
   if (opstack_size > 0) {
-    Indented(os) << "Stack<" << opstack_size << ">";
+    indented(os) << "Stack<" << opstack_size << ">";
     for (std::size_t i = 0; i < opstack_size; i++) {
       os << " " << state.stack.at(i)->name();
     }
@@ -926,17 +926,17 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
 
   auto& bs = state.block_stack;
   if (!bs.isEmpty()) {
-    Indented(os) << "BlockStack {\n";
-    Indent();
+    indented(os) << "BlockStack {\n";
+    indent();
     for (const auto& entry : bs) {
-      Indented(os) << fmt::format(
+      indented(os) << fmt::format(
           "Opcode {} HandlerOff {} StackLevel {}\n",
           entry.opcode,
           entry.handler_off,
           entry.stack_level);
     }
-    Dedent();
-    Indented(os) << "}" << '\n';
+    dedent();
+    indented(os) << "}" << '\n';
   }
 }
 
@@ -951,27 +951,27 @@ HIRPrinter& HIRPrinter::setLinePrefix(std::string_view prefix) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Function& func) {
-  HIRPrinter{}.Print(os, func);
+  HIRPrinter{}.print(os, func);
   return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const CFG& cfg) {
-  HIRPrinter{}.Print(os, cfg);
+  HIRPrinter{}.print(os, cfg);
   return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const BasicBlock& block) {
-  HIRPrinter{}.Print(os, block);
+  HIRPrinter{}.print(os, block);
   return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const Instr& instr) {
-  HIRPrinter{}.Print(os, instr);
+  HIRPrinter{}.print(os, instr);
   return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const FrameState& state) {
-  HIRPrinter{}.Print(os, state);
+  HIRPrinter{}.print(os, state);
   return os;
 }
 

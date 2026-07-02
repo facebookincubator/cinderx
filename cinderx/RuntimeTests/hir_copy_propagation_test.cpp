@@ -57,12 +57,12 @@ fun test {
 }
 )";
 
-  auto func = HIRParser().ParseHIR(hir_source);
+  auto func = HIRParser().parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
   ASSERT_TRUE(checkFunc(*func, std::cout));
 
   CopyPropagation copy_prop;
   copy_prop.Run(*func);
 
-  EXPECT_EQ(HIRPrinter().ToString(*func), expected_hir);
+  EXPECT_EQ(HIRPrinter().toString(*func), expected_hir);
 }

@@ -41,7 +41,7 @@ class BlockCanonicalizer {
  public:
   explicit BlockCanonicalizer(Environment* env) : env_(env) {}
 
-  void Run(BasicBlock* block, OperandStack& stack);
+  void run(BasicBlock* block, OperandStack& stack);
 
   // Get the register reserved for operand-stack depth idx, allocating it if it
   // does not yet exist. These canonical stack registers are used only to put
@@ -53,7 +53,7 @@ class BlockCanonicalizer {
  private:
   DISALLOW_COPY_AND_ASSIGN(BlockCanonicalizer);
 
-  void InsertCopies(
+  void insertCopies(
       Register* reg,
       Instr& terminator,
       std::vector<Register*>& alloced);

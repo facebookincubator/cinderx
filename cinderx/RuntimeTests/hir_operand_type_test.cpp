@@ -119,7 +119,7 @@ TEST_F(HIROperandTypeTest, PrimitiveBoxGetOperandTypeImplReturnsCorrectType) {
 
 static void funcTypeCheckPasses(const char* hir_source) {
   std::ostringstream err;
-  auto func = HIRParser().ParseHIR(hir_source);
+  auto func = HIRParser().parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
   ASSERT_TRUE(checkFunc(*func, std::cerr));
   reflowTypes(*func);
@@ -130,7 +130,7 @@ static void funcTypeCheckFails(
     const char* hir_source,
     const char* expected_err) {
   std::ostringstream err;
-  auto func = HIRParser().ParseHIR(hir_source);
+  auto func = HIRParser().parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
   ASSERT_TRUE(checkFunc(*func, std::cerr));
   reflowTypes(*func);

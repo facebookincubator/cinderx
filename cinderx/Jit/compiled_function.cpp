@@ -388,7 +388,7 @@ void CompiledFunction::printHIR() const {
       data_->irfunc != nullptr,
       "Can only call CompiledFunction::printHIR() from a debug build");
   hir::HIRPrinter printer;
-  printer.Print(std::cout, *data_->irfunc);
+  printer.print(std::cout, *data_->irfunc);
 }
 
 std::chrono::nanoseconds CompiledFunction::compileTime() const {

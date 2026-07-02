@@ -457,7 +457,7 @@ fun foo {
 }
 )";
 
-  std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.ParseHIR(hir);
+  std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.parseHIR(hir);
   ASSERT_NE(irfunc, nullptr);
 
   Compiler::runPasses(
@@ -511,7 +511,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 }
 )";
 
-  std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.ParseHIR(hir_source);
+  std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.parseHIR(hir_source);
   ASSERT_NE(irfunc, nullptr);
 
   Compiler::runPasses(

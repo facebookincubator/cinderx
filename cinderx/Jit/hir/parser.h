@@ -17,7 +17,7 @@ namespace cinderx::jit::hir {
 
 class HIRParser {
  public:
-  std::unique_ptr<Function> ParseHIR(const char* hir);
+  std::unique_ptr<Function> parseHIR(const char* hir);
 
   // Parse a Type from the given string. Unions and PyObject* specializations
   // are not supported. Returns TBottom on error. Note that TBottom can also be
@@ -50,7 +50,7 @@ class HIRParser {
   std::unordered_map<int, std::vector<PhiInfo>> phis_;
   int max_reg_id_{0};
 
-  std::string_view GetNextToken() {
+  std::string_view getNextToken() {
     JIT_CHECK(token_iter_ != tokens_.end(), "No more tokens");
     return *(token_iter_++);
   }
@@ -61,24 +61,24 @@ class HIRParser {
     return *it;
   }
 
-  int GetNextInteger() {
-    auto token = GetNextToken();
+  int getNextInteger() {
+    auto token = getNextToken();
     auto n = parseNumber<int>(token);
     JIT_CHECK(n.has_value(), "Cannot parse '{}' as an integer", token);
     return *n;
   }
 
-  int GetNextNameIdx();
-  RegState GetNextRegState();
-  BorrowedRef<> GetNextUnicode();
+  int getNextNameIdx();
+  RegState getNextRegState();
+  BorrowedRef<> getNextUnicode();
 
   void expect(std::string_view expected);
 
-  BasicBlock* ParseBasicBlock(CFG& cfg);
+  BasicBlock* parseBasicBlock(CFG& cfg);
 
   Instr* parseInstr(std::string_view opcode, Register* dst, int bb_index);
 
-  Register* ParseRegister();
+  Register* parseRegister();
 
   Register* allocateRegister(std::string_view name);
 

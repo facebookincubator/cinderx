@@ -2074,9 +2074,9 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
         }
 
         LivenessAnalysis analysis{env.func};
-        analysis.Run();
+        analysis.run();
 
-        last_uses = analysis.GetLastUses();
+        last_uses = analysis.getLastUses();
         auto lu_at_condbranch = last_uses.find(&*current);
         if (lu_at_condbranch == last_uses.end() ||
             lu_at_condbranch->second.size() != 1) {

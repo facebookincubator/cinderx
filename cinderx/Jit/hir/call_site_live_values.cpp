@@ -83,10 +83,10 @@ void fillCallSiteLiveRegs(
 
 void CallSiteLiveValues::Run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
-  liveness.Run();
+  liveness.run();
 
   for (BasicBlock* block : irfunc.cfg.getRPOTraversal()) {
-    RegisterSet live = liveness.GetOut(block);
+    RegisterSet live = liveness.getOut(block);
     for (auto it = block->rbegin(); it != block->rend(); ++it) {
       Instr& instr = *it;
       RegisterSet live_before = liveBeforeInstr(instr, live);

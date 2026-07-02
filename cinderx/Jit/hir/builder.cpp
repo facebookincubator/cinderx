@@ -1551,7 +1551,7 @@ void HIRBuilder::translate(
 
     // Make sure any values left on the stack are in the registers that we
     // expect
-    block_canonicalizer_->Run(tc.block, tc.frame.stack);
+    block_canonicalizer_->run(tc.block, tc.frame.stack);
 
     // Add successors to be processed
     //
@@ -1629,7 +1629,7 @@ void HIRBuilder::translate(
   }
 }
 
-void BlockCanonicalizer::InsertCopies(
+void BlockCanonicalizer::insertCopies(
     Register* reg,
     Instr& terminator,
     std::vector<Register*>& alloced) {
@@ -1653,7 +1653,7 @@ void BlockCanonicalizer::InsertCopies(
     if (it != copies_.end()) {
       // The destination also needs to be moved. So deal with it first.
       processing_.insert(reg);
-      InsertCopies(dst, terminator, alloced);
+      insertCopies(dst, terminator, alloced);
       processing_.erase(reg);
       // It's possible that the register we were processing was moved
       // because it participated in a cycle
@@ -1670,7 +1670,7 @@ void BlockCanonicalizer::InsertCopies(
   done_.insert(orig_reg);
 }
 
-void BlockCanonicalizer::Run(BasicBlock* block, OperandStack& stack) {
+void BlockCanonicalizer::run(BasicBlock* block, OperandStack& stack) {
   if (stack.isEmpty()) {
     return;
   }
@@ -1715,7 +1715,7 @@ void BlockCanonicalizer::Run(BasicBlock* block, OperandStack& stack) {
   }
 
   for (auto reg : need_copy) {
-    InsertCopies(reg, *term, alloced);
+    insertCopies(reg, *term, alloced);
   }
 
   // Put the stack in canonical form

@@ -24,10 +24,10 @@ TEST_F(LivenessAnalysisTest, SingleBlockHasNoLiveInOut) {
   block->append<Return>(v0);
 
   LivenessAnalysis liveness(func);
-  liveness.Run();
+  liveness.run();
 
-  EXPECT_FALSE(liveness.IsLiveIn(block, v0));
-  EXPECT_FALSE(liveness.IsLiveOut(block, v0));
+  EXPECT_FALSE(liveness.isLiveIn(block, v0));
+  EXPECT_FALSE(liveness.isLiveOut(block, v0));
 }
 
 TEST_F(LivenessAnalysisTest, UninitializedVariableUseIsLiveIn) {
@@ -65,27 +65,27 @@ TEST_F(LivenessAnalysisTest, UninitializedVariableUseIsLiveIn) {
   f_block->append<Return>(v1);
 
   LivenessAnalysis liveness(func);
-  liveness.Run();
+  liveness.run();
 
   // Arguments are killed by the LoadArg pseudo instructions
-  EXPECT_FALSE(liveness.IsLiveIn(entry, v0));
-  EXPECT_FALSE(liveness.IsLiveOut(entry, v0));
+  EXPECT_FALSE(liveness.isLiveIn(entry, v0));
+  EXPECT_FALSE(liveness.isLiveOut(entry, v0));
   // v1 is potentially undefined so it should show up as live-in on entry
-  EXPECT_TRUE(liveness.IsLiveIn(entry, v1));
-  EXPECT_TRUE(liveness.IsLiveOut(entry, v1));
+  EXPECT_TRUE(liveness.isLiveIn(entry, v1));
+  EXPECT_TRUE(liveness.isLiveOut(entry, v1));
 
   // True block assigns v1, which is used by the return block
-  EXPECT_FALSE(liveness.IsLiveIn(t_block, v0));
-  EXPECT_FALSE(liveness.IsLiveOut(t_block, v0));
-  EXPECT_FALSE(liveness.IsLiveIn(t_block, v1));
-  EXPECT_TRUE(liveness.IsLiveOut(t_block, v1));
+  EXPECT_FALSE(liveness.isLiveIn(t_block, v0));
+  EXPECT_FALSE(liveness.isLiveOut(t_block, v0));
+  EXPECT_FALSE(liveness.isLiveIn(t_block, v1));
+  EXPECT_TRUE(liveness.isLiveOut(t_block, v1));
 
   // Use of v1 in false block is potentially uninitialized
   // No vars should be live out on exit block
-  EXPECT_FALSE(liveness.IsLiveIn(f_block, v0));
-  EXPECT_FALSE(liveness.IsLiveOut(f_block, v0));
-  EXPECT_TRUE(liveness.IsLiveIn(f_block, v1));
-  EXPECT_FALSE(liveness.IsLiveOut(f_block, v1));
+  EXPECT_FALSE(liveness.isLiveIn(f_block, v0));
+  EXPECT_FALSE(liveness.isLiveOut(f_block, v0));
+  EXPECT_TRUE(liveness.isLiveIn(f_block, v1));
+  EXPECT_FALSE(liveness.isLiveOut(f_block, v1));
 }
 
 TEST_F(LivenessAnalysisTest, PhiUses) {
@@ -113,20 +113,20 @@ TEST_F(LivenessAnalysisTest, PhiUses) {
   ASSERT_TRUE(checkFunc(func, std::cout));
 
   LivenessAnalysis liveness{func};
-  liveness.Run();
+  liveness.run();
 
-  EXPECT_FALSE(liveness.IsLiveOut(b0, v0));
-  EXPECT_TRUE(liveness.IsLiveOut(b0, v1));
-  EXPECT_TRUE(liveness.IsLiveOut(b0, v2));
+  EXPECT_FALSE(liveness.isLiveOut(b0, v0));
+  EXPECT_TRUE(liveness.isLiveOut(b0, v1));
+  EXPECT_TRUE(liveness.isLiveOut(b0, v2));
 
-  EXPECT_TRUE(liveness.IsLiveIn(b1, v1));
-  EXPECT_TRUE(liveness.IsLiveIn(b1, v2));
-  EXPECT_FALSE(liveness.IsLiveOut(b1, v1));
-  EXPECT_TRUE(liveness.IsLiveOut(b1, v2));
+  EXPECT_TRUE(liveness.isLiveIn(b1, v1));
+  EXPECT_TRUE(liveness.isLiveIn(b1, v2));
+  EXPECT_FALSE(liveness.isLiveOut(b1, v1));
+  EXPECT_TRUE(liveness.isLiveOut(b1, v2));
 
-  EXPECT_FALSE(liveness.IsLiveIn(b2, v0));
-  EXPECT_FALSE(liveness.IsLiveIn(b2, v1));
-  EXPECT_TRUE(liveness.IsLiveIn(b2, v2));
+  EXPECT_FALSE(liveness.isLiveIn(b2, v0));
+  EXPECT_FALSE(liveness.isLiveIn(b2, v1));
+  EXPECT_TRUE(liveness.isLiveIn(b2, v2));
 }
 
 TEST_F(LivenessAnalysisTest, LastUses) {
@@ -160,8 +160,8 @@ TEST_F(LivenessAnalysisTest, LastUses) {
   ASSERT_TRUE(checkFunc(func, std::cout));
 
   LivenessAnalysis liveness{func};
-  liveness.Run();
-  auto last_uses = liveness.GetLastUses();
+  liveness.run();
+  auto last_uses = liveness.getLastUses();
   LivenessAnalysis::LastUses expected_last_uses{
       {b1_inc, {v1}},
       {b2_inc, {v1}},
@@ -183,10 +183,10 @@ TEST_F(DefiniteAssignmentAnalysisTest, ArgumentsAlwaysAssigned) {
   block->append<Return>(v0);
 
   AssignmentAnalysis def_assign(func, true);
-  def_assign.Run();
+  def_assign.run();
 
-  EXPECT_FALSE(def_assign.IsAssignedIn(block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(block, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(block, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(block, v0));
 }
 
 TEST_F(
@@ -229,25 +229,25 @@ TEST_F(
   f_block->append<Return>(v1);
 
   AssignmentAnalysis def_assign(func, true);
-  def_assign.Run();
+  def_assign.run();
 
-  EXPECT_FALSE(def_assign.IsAssignedIn(entry, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(entry, v0));
-  EXPECT_FALSE(def_assign.IsAssignedIn(entry, v1));
-  EXPECT_FALSE(def_assign.IsAssignedOut(entry, v1));
+  EXPECT_FALSE(def_assign.isAssignedIn(entry, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(entry, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(entry, v1));
+  EXPECT_FALSE(def_assign.isAssignedOut(entry, v1));
 
   // True block assigns y
-  EXPECT_TRUE(def_assign.IsAssignedIn(t_block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(t_block, v0));
-  EXPECT_FALSE(def_assign.IsAssignedIn(t_block, v1));
-  EXPECT_TRUE(def_assign.IsAssignedOut(t_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedIn(t_block, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(t_block, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(t_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedOut(t_block, v1));
 
   // Since y is only assigned in the true block it should not be assigned on
   // entry to the false block
-  EXPECT_TRUE(def_assign.IsAssignedIn(f_block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(f_block, v0));
-  EXPECT_FALSE(def_assign.IsAssignedIn(f_block, v1));
-  EXPECT_FALSE(def_assign.IsAssignedOut(f_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedIn(f_block, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(f_block, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(f_block, v1));
+  EXPECT_FALSE(def_assign.isAssignedOut(f_block, v1));
 }
 
 TEST_F(DefiniteAssignmentAnalysisTest, CondInitOnAllBranchesAreDefAssigned) {
@@ -294,31 +294,31 @@ TEST_F(DefiniteAssignmentAnalysisTest, CondInitOnAllBranchesAreDefAssigned) {
   exit_block->append<Return>(v1);
 
   AssignmentAnalysis def_assign(func, true);
-  def_assign.Run();
+  def_assign.run();
 
-  EXPECT_FALSE(def_assign.IsAssignedIn(entry, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(entry, v0));
-  EXPECT_FALSE(def_assign.IsAssignedIn(entry, v1));
-  EXPECT_FALSE(def_assign.IsAssignedOut(entry, v1));
+  EXPECT_FALSE(def_assign.isAssignedIn(entry, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(entry, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(entry, v1));
+  EXPECT_FALSE(def_assign.isAssignedOut(entry, v1));
 
   // True block assigns v1
-  EXPECT_TRUE(def_assign.IsAssignedIn(t_block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(t_block, v0));
-  EXPECT_FALSE(def_assign.IsAssignedIn(t_block, v1));
-  EXPECT_TRUE(def_assign.IsAssignedOut(t_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedIn(t_block, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(t_block, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(t_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedOut(t_block, v1));
 
   // False block assigns y
-  EXPECT_TRUE(def_assign.IsAssignedIn(f_block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(f_block, v0));
-  EXPECT_FALSE(def_assign.IsAssignedIn(f_block, v1));
-  EXPECT_TRUE(def_assign.IsAssignedOut(f_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedIn(f_block, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(f_block, v0));
+  EXPECT_FALSE(def_assign.isAssignedIn(f_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedOut(f_block, v1));
 
   // y is assigned in both arms of the conditional, so should be marked as
   // definitely assigned on entry to the last block
-  EXPECT_TRUE(def_assign.IsAssignedIn(exit_block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedOut(exit_block, v0));
-  EXPECT_TRUE(def_assign.IsAssignedIn(exit_block, v1));
-  EXPECT_TRUE(def_assign.IsAssignedOut(exit_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedIn(exit_block, v0));
+  EXPECT_TRUE(def_assign.isAssignedOut(exit_block, v0));
+  EXPECT_TRUE(def_assign.isAssignedIn(exit_block, v1));
+  EXPECT_TRUE(def_assign.isAssignedOut(exit_block, v1));
 }
 
 TEST_F(DefiniteAssignmentAnalysisTest, AssignmentDominatesLoop) {
@@ -366,32 +366,32 @@ TEST_F(DefiniteAssignmentAnalysisTest, AssignmentDominatesLoop) {
   b4->append<Return>(v0);
 
   AssignmentAnalysis assign(func, true);
-  assign.Run();
+  assign.run();
 
-  EXPECT_FALSE(assign.IsAssignedIn(b0, v0));
-  EXPECT_FALSE(assign.IsAssignedIn(b0, v1));
-  EXPECT_TRUE(assign.IsAssignedOut(b0, v0));
-  EXPECT_FALSE(assign.IsAssignedOut(b0, v1));
+  EXPECT_FALSE(assign.isAssignedIn(b0, v0));
+  EXPECT_FALSE(assign.isAssignedIn(b0, v1));
+  EXPECT_TRUE(assign.isAssignedOut(b0, v0));
+  EXPECT_FALSE(assign.isAssignedOut(b0, v1));
 
-  EXPECT_TRUE(assign.IsAssignedIn(b1, v0));
-  EXPECT_FALSE(assign.IsAssignedIn(b1, v1));
-  EXPECT_TRUE(assign.IsAssignedOut(b1, v0));
-  EXPECT_FALSE(assign.IsAssignedOut(b1, v1));
+  EXPECT_TRUE(assign.isAssignedIn(b1, v0));
+  EXPECT_FALSE(assign.isAssignedIn(b1, v1));
+  EXPECT_TRUE(assign.isAssignedOut(b1, v0));
+  EXPECT_FALSE(assign.isAssignedOut(b1, v1));
 
-  EXPECT_TRUE(assign.IsAssignedIn(b2, v0));
-  EXPECT_FALSE(assign.IsAssignedIn(b2, v1));
-  EXPECT_TRUE(assign.IsAssignedOut(b2, v0));
-  EXPECT_FALSE(assign.IsAssignedOut(b2, v1));
+  EXPECT_TRUE(assign.isAssignedIn(b2, v0));
+  EXPECT_FALSE(assign.isAssignedIn(b2, v1));
+  EXPECT_TRUE(assign.isAssignedOut(b2, v0));
+  EXPECT_FALSE(assign.isAssignedOut(b2, v1));
 
-  EXPECT_TRUE(assign.IsAssignedIn(b3, v0));
-  EXPECT_FALSE(assign.IsAssignedIn(b3, v1));
-  EXPECT_TRUE(assign.IsAssignedOut(b3, v0));
-  EXPECT_TRUE(assign.IsAssignedOut(b3, v1));
+  EXPECT_TRUE(assign.isAssignedIn(b3, v0));
+  EXPECT_FALSE(assign.isAssignedIn(b3, v1));
+  EXPECT_TRUE(assign.isAssignedOut(b3, v0));
+  EXPECT_TRUE(assign.isAssignedOut(b3, v1));
 
-  EXPECT_TRUE(assign.IsAssignedIn(b4, v0));
-  EXPECT_FALSE(assign.IsAssignedIn(b4, v1));
-  EXPECT_TRUE(assign.IsAssignedOut(b4, v0));
-  EXPECT_FALSE(assign.IsAssignedOut(b4, v1));
+  EXPECT_TRUE(assign.isAssignedIn(b4, v0));
+  EXPECT_FALSE(assign.isAssignedIn(b4, v1));
+  EXPECT_TRUE(assign.isAssignedOut(b4, v0));
+  EXPECT_FALSE(assign.isAssignedOut(b4, v1));
 }
 
 class DominatorAnalysisTest : public RuntimeTest {};
@@ -417,7 +417,7 @@ fun dominators {
    }
  }
 )";
-  std::unique_ptr<Function> func = HIRParser().ParseHIR(src);
+  std::unique_ptr<Function> func = HIRParser().parseHIR(src);
 
   auto bb0 = func->cfg.getBlockById(0);
   auto bb1 = func->cfg.getBlockById(1);
@@ -469,7 +469,7 @@ fun dominators {
    }
  }
 )";
-  std::unique_ptr<Function> func = HIRParser().ParseHIR(src);
+  std::unique_ptr<Function> func = HIRParser().parseHIR(src);
 
   auto bb0 = func->cfg.getBlockById(0);
   auto bb1 = func->cfg.getBlockById(1);
@@ -583,7 +583,7 @@ fun type_hints {
    }
  }
 )";
-  std::unique_ptr<Function> func = HIRParser().ParseHIR(src);
+  std::unique_ptr<Function> func = HIRParser().parseHIR(src);
 
   auto bb0 = func->cfg.getBlockById(0);
   const Instr& v0_load = bb0->front();

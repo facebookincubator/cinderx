@@ -26,16 +26,16 @@ class HIRPrinter {
   // specify whether or not the full instruction should be printed.
   HIRPrinter() = default;
 
-  void Print(std::ostream& os, const Function& func);
-  void Print(std::ostream& os, const BasicBlock& block);
-  void Print(std::ostream& os, const Instr& instr);
-  void Print(std::ostream& os, const CFG& cfg);
-  void Print(std::ostream& os, const FrameState& state);
+  void print(std::ostream& os, const Function& func);
+  void print(std::ostream& os, const BasicBlock& block);
+  void print(std::ostream& os, const Instr& instr);
+  void print(std::ostream& os, const CFG& cfg);
+  void print(std::ostream& os, const FrameState& state);
 
   template <class T>
-  std::string ToString(const T& obj) {
+  std::string toString(const T& obj) {
     std::ostringstream os;
-    Print(os, obj);
+    print(os, obj);
     return os.str();
   }
 
@@ -43,9 +43,9 @@ class HIRPrinter {
   HIRPrinter& setLinePrefix(std::string_view prefix);
 
  private:
-  void Indent();
-  void Dedent();
-  std::ostream& Indented(std::ostream& os);
+  void indent();
+  void dedent();
+  std::ostream& indented(std::ostream& os);
 
   const Function* func_{nullptr};
   std::string line_prefix_;

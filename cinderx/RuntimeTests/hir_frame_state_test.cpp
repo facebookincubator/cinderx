@@ -22,7 +22,7 @@ TEST_F(FrameStateCreationTest, InitialInstrOffset) {
   {                                                                         \
     ASSERT_TRUE(irfunc != nullptr);                                         \
     EXPECT_EQ(                                                              \
-        HIRPrinter{}.setFullSnapshots(true).ToString(*(irfunc)), expected); \
+        HIRPrinter{}.setFullSnapshots(true).toString(*(irfunc)), expected); \
   }
 
 TEST_F(FrameStateCreationTest, LoadGlobal) {

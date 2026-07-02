@@ -135,7 +135,7 @@ bool funcTypeChecks(const Function& func, std::ostream& err) {
   return true;
 }
 
-void DataflowAnalysis::AddBasicBlock(const BasicBlock* cfg_block) {
+void DataflowAnalysis::addBasicBlock(const BasicBlock* cfg_block) {
   auto res = df_blocks_.emplace(
       std::piecewise_construct,
       std::forward_as_tuple(cfg_block),
@@ -145,7 +145,7 @@ void DataflowAnalysis::AddBasicBlock(const BasicBlock* cfg_block) {
   setUninitialized(&df_block);
 
   std::unordered_set<Register*> gen, kill;
-  ComputeGenKill(cfg_block, gen, kill);
+  computeGenKill(cfg_block, gen, kill);
 
   for (auto reg : gen) {
     df_analyzer_.setBlockGenBit(df_block, reg);
@@ -155,7 +155,7 @@ void DataflowAnalysis::AddBasicBlock(const BasicBlock* cfg_block) {
   }
 }
 
-void DataflowAnalysis::Initialize() {
+void DataflowAnalysis::initialize() {
   // Add all registers -- this sets up the correct number of bits for the
   // analysis
   num_bits_ = irfunc_.env.getRegisters().size();
@@ -165,7 +165,7 @@ void DataflowAnalysis::Initialize() {
 
   // Compute the initial state for each block
   for (const auto& cfg_block : irfunc_.cfg.blocks) {
-    AddBasicBlock(&cfg_block);
+    addBasicBlock(&cfg_block);
   }
 
   // Set up dataflow graph
@@ -197,14 +197,14 @@ void DataflowAnalysis::Initialize() {
   }
 }
 
-RegisterSet DataflowAnalysis::GetIn(const BasicBlock* cfg_block) {
+RegisterSet DataflowAnalysis::getIn(const BasicBlock* cfg_block) {
   RegisterSet in;
   const auto& df_block = df_blocks_[cfg_block];
   df_analyzer_.forEachBlockIn(df_block, [&](Register* r) { in.insert(r); });
   return in;
 }
 
-RegisterSet DataflowAnalysis::GetOut(const BasicBlock* cfg_block) {
+RegisterSet DataflowAnalysis::getOut(const BasicBlock* cfg_block) {
   RegisterSet out;
   const auto& df_block = df_blocks_[cfg_block];
   df_analyzer_.forEachBlockOut(df_block, [&](Register* r) { out.insert(r); });
@@ -225,17 +225,17 @@ void DataflowAnalysis::dump() {
       }
     };
     format_to(out, "  In:\n");
-    format_set(GetIn(&block));
+    format_set(getIn(&block));
     format_to(out, "  Out:\n");
-    format_set(GetOut(&block));
+    format_set(getOut(&block));
     format_to(out, "\n");
   }
 
   JIT_DLOG("{}", out);
 }
 
-void BackwardDataflowAnalysis::Run() {
-  Initialize();
+void BackwardDataflowAnalysis::run() {
+  initialize();
 
   std::list<jit::optimizer::DataFlowBlock*> blocks;
   for (auto& it : df_blocks_) {
@@ -248,11 +248,11 @@ void BackwardDataflowAnalysis::Run() {
     auto block = blocks.front();
     blocks.pop_front();
 
-    auto new_out = ComputeNewOut(block);
+    auto new_out = computeNewOut(block);
     bool changed = (new_out != block->out_);
     block->out_ = std::move(new_out);
 
-    auto new_in = ComputeNewIn(block);
+    auto new_in = computeNewIn(block);
     changed |= (new_in != block->in_);
     block->in_ = std::move(new_in);
 
@@ -263,8 +263,8 @@ void BackwardDataflowAnalysis::Run() {
   }
 }
 
-void ForwardDataflowAnalysis::Run() {
-  Initialize();
+void ForwardDataflowAnalysis::run() {
+  initialize();
 
   std::list<jit::optimizer::DataFlowBlock*> blocks;
   for (auto& it : df_blocks_) {
@@ -277,11 +277,11 @@ void ForwardDataflowAnalysis::Run() {
     auto block = blocks.front();
     blocks.pop_front();
 
-    auto new_in = ComputeNewIn(block);
+    auto new_in = computeNewIn(block);
     bool changed = (new_in != block->in_);
     block->in_ = std::move(new_in);
 
-    auto new_out = ComputeNewOut(block);
+    auto new_out = computeNewOut(block);
     changed |= (new_out != block->out_);
     block->out_ = std::move(new_out);
 
@@ -331,12 +331,12 @@ static void analyzeInstrLiveness(
   }
 }
 
-LivenessAnalysis::LastUses LivenessAnalysis::GetLastUses() {
+LivenessAnalysis::LastUses LivenessAnalysis::getLastUses() {
   LastUses last_uses;
 
   for (auto& pair : df_blocks_) {
     auto block = pair.first;
-    auto live = GetOut(block);
+    auto live = getOut(block);
 
     for (auto it = block->rbegin(); it != block->rend(); ++it) {
       auto& instr = *it;
@@ -361,7 +361,7 @@ LivenessAnalysis::LastUses LivenessAnalysis::GetLastUses() {
   return last_uses;
 }
 
-void LivenessAnalysis::ComputeGenKill(
+void LivenessAnalysis::computeGenKill(
     const BasicBlock* cfg_block,
     RegisterSet& gen,
     RegisterSet& kill) {
@@ -376,14 +376,14 @@ void LivenessAnalysis::ComputeGenKill(
   }
 }
 
-jit::util::BitVector LivenessAnalysis::ComputeNewIn(
+jit::util::BitVector LivenessAnalysis::computeNewIn(
     const jit::optimizer::DataFlowBlock* block) {
   jit::util::BitVector new_in(num_bits_);
   new_in = block->gen_ | (block->out_ - block->kill_);
   return new_in;
 }
 
-jit::util::BitVector LivenessAnalysis::ComputeNewOut(
+jit::util::BitVector LivenessAnalysis::computeNewOut(
     const jit::optimizer::DataFlowBlock* block) {
   jit::util::BitVector new_out(num_bits_);
   for (auto& succ : block->succ_) {
@@ -396,12 +396,12 @@ void LivenessAnalysis::setUninitialized(jit::optimizer::DataFlowBlock*) {
   // Do nothing.
 }
 
-bool LivenessAnalysis::IsLiveIn(const BasicBlock* cfg_block, Register* reg) {
+bool LivenessAnalysis::isLiveIn(const BasicBlock* cfg_block, Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
   return df_analyzer_.getBlockInBit(df_block, reg);
 }
 
-bool LivenessAnalysis::IsLiveOut(const BasicBlock* cfg_block, Register* reg) {
+bool LivenessAnalysis::isLiveOut(const BasicBlock* cfg_block, Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
   return df_analyzer_.getBlockOutBit(df_block, reg);
 }
@@ -415,21 +415,21 @@ AssignmentAnalysis::AssignmentAnalysis(const Function& irfunc, bool is_definite)
   }
 }
 
-bool AssignmentAnalysis::IsAssignedIn(
+bool AssignmentAnalysis::isAssignedIn(
     const BasicBlock* cfg_block,
     Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
   return df_analyzer_.getBlockInBit(df_block, reg);
 }
 
-bool AssignmentAnalysis::IsAssignedOut(
+bool AssignmentAnalysis::isAssignedOut(
     const BasicBlock* cfg_block,
     Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
   return df_analyzer_.getBlockOutBit(df_block, reg);
 }
 
-void AssignmentAnalysis::ComputeGenKill(
+void AssignmentAnalysis::computeGenKill(
     const BasicBlock* block,
     RegisterSet& gen,
     RegisterSet& /* kill */) {
@@ -442,7 +442,7 @@ void AssignmentAnalysis::ComputeGenKill(
   }
 }
 
-jit::util::BitVector AssignmentAnalysis::ComputeNewIn(
+jit::util::BitVector AssignmentAnalysis::computeNewIn(
     const jit::optimizer::DataFlowBlock* block) {
   if (block->pred_.empty()) {
     jit::util::BitVector new_in(num_bits_);
@@ -462,7 +462,7 @@ jit::util::BitVector AssignmentAnalysis::ComputeNewIn(
   return new_in;
 }
 
-jit::util::BitVector AssignmentAnalysis::ComputeNewOut(
+jit::util::BitVector AssignmentAnalysis::computeNewOut(
     const jit::optimizer::DataFlowBlock* block) {
   jit::util::BitVector new_out(num_bits_);
   new_out = block->gen_ | (block->in_ - block->kill_);

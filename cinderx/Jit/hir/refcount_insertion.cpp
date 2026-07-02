@@ -370,8 +370,8 @@ namespace {
 // Global state used by the analysis.
 struct Env {
   explicit Env(Function& func) : func{func}, liveness{func} {
-    liveness.Run();
-    last_uses = liveness.GetLastUses();
+    liveness.run();
+    last_uses = liveness.getLastUses();
 
     // Visit each Phi to collect some metadata:
     // - Assign a borrow support bit to any Register that is a Phi input or
@@ -682,7 +682,7 @@ void useSimpleInState(Env& env, BasicBlock* block) {
   }
 
   // Second, kill any registers that die across the edge.
-  RegisterSet live_in = env.liveness.GetIn(block);
+  RegisterSet live_in = env.liveness.getIn(block);
   std::vector<Register*> dying_values;
   for (auto& pair : env.live_regs) {
     RegState& rstate = pair.second;
@@ -872,7 +872,7 @@ void updateInState(Env& env, BasicBlock* block) {
   }
 
   auto preds = collectPredStates(env, block);
-  auto live_in = env.liveness.GetIn(block);
+  auto live_in = env.liveness.getIn(block);
   auto block_pair = env.blocks.emplace(
       std::piecewise_construct,
       std::forward_as_tuple(block),
@@ -1288,7 +1288,7 @@ void RefcountInsertion::Run(Function& func) {
   TRACE(
       "Starting refcount insertion for '{}':\n{}",
       func.fullname,
-      HIRPrinter{}.setFullSnapshots(true).ToString(func));
+      HIRPrinter{}.setFullSnapshots(true).toString(func));
   Env env{func};
 
   auto rpo_blocks = func.cfg.getRPOTraversal();
