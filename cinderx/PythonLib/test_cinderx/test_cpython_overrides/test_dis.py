@@ -6,8 +6,6 @@ import re
 import sys
 import unittest
 
-from cinderx.test_support import passIf
-
 try:
     # pyre-fixme[21]: Could not find name `shadowop` in `cinderx.opcode`.
     from cinderx.opcode import shadowop
