@@ -63,8 +63,8 @@ struct Option {
     return *this;
   }
 
-  std::string getFormatted_cmdline_flag();
-  std::string getFormatted_environment_variable();
+  std::string getFormattedCmdlineFlag();
+  std::string getFormattedEnvironmentVariable();
 
  private:
   std::string getFormatted(std::string);

@@ -70,7 +70,7 @@ def func(x):
 
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
-  std::optional<CompiledFunctionData> compiled_data = Compiler().Compile(func);
+  std::optional<CompiledFunctionData> compiled_data = Compiler().compile(func);
   ASSERT_TRUE(compiled_data.has_value());
   auto compiled_func =
       CompiledFunction::create(std::move(*compiled_data), false);

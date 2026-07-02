@@ -132,7 +132,7 @@ void Compiler::runPasses(
       irfunc);
 }
 
-std::optional<CompiledFunctionData> Compiler::Compile(
+std::optional<CompiledFunctionData> Compiler::compile(
     BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
@@ -140,7 +140,7 @@ std::optional<CompiledFunctionData> Compiler::Compile(
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::make(func, makeFrameReifier(func->func_code));
-  return preloader ? Compile(*preloader) : std::nullopt;
+  return preloader ? compile(*preloader) : std::nullopt;
 }
 
 PassConfig createConfig() {
@@ -168,7 +168,7 @@ PassConfig createConfig() {
   return static_cast<PassConfig>(result);
 }
 
-std::optional<CompiledFunctionData> Compiler::Compile(
+std::optional<CompiledFunctionData> Compiler::compile(
     const jit::hir::Preloader& preloader) {
   const std::string& fullname = preloader.fullname();
   if (!PyDict_CheckExact(preloader.globals())) {

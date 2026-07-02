@@ -27,7 +27,7 @@ class ASMGeneratorTest : public RuntimeTest {
     auto jit_ctx = reinterpret_cast<CompilerContext<Compiler>*>(
         cinderx::getModuleState()->jit_context.get());
     std::optional<CompiledFunctionData> compiled_func =
-        jit_ctx->compiler().Compile(func);
+        jit_ctx->compiler().compile(func);
     if (!compiled_func.has_value()) {
       return nullptr;
     }
@@ -1432,7 +1432,7 @@ class NewASMGeneratorTest : public RuntimeTest {
  public:
   Ref<CompiledFunction> GenerateCode(PyObject* func) {
     std::optional<CompiledFunctionData> compiled_func =
-        Compiler().Compile(func);
+        Compiler().compile(func);
     if (!compiled_func.has_value()) {
       return nullptr;
     }

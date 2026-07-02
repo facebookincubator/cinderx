@@ -121,20 +121,20 @@ class AttributeMutator {
   PyTypeObject* type() const;
   void reset();
   bool isEmpty() const;
-  void set_combined(PyTypeObject* type);
-  void set_dict(PyTypeObject* type);
-  void set_data_descr(PyTypeObject* type, PyObject* descr);
-  void set_member_descr(PyTypeObject* type, PyObject* descr);
-  void set_descr_or_classvar(
+  void setCombined(PyTypeObject* type);
+  void setDict(PyTypeObject* type);
+  void setDataDescr(PyTypeObject* type, PyObject* descr);
+  void setMemberDescr(PyTypeObject* type, PyObject* descr);
+  void setDescrOrClassvar(
       PyTypeObject* type,
       PyObject* descr,
       uint32_t keys_version);
-  void set_split(
+  void setSplit(
       PyTypeObject* type,
       Py_ssize_t val_offset,
       PyDictKeysObject* keys,
       bool values_inline);
-  void set_getattr(
+  void setGetattr(
       PyTypeObject* type,
       PyObject* getattr_method,
       uint32_t keys_version);
@@ -152,8 +152,8 @@ class AttributeMutator {
   }
 
  private:
-  void set_type(PyTypeObject* type, Kind kind);
-  Kind get_kind() const;
+  void setType(PyTypeObject* type, Kind kind);
+  Kind getKind() const;
 
   uintptr_t type_; // This value stores both a PyTypeObject* for the type object
                    // and the Kind enum value which are bitpacked together to

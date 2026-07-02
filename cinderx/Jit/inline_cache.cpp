@@ -822,59 +822,59 @@ bool AttributeMutator::isEmpty() const {
   return type_ == 0;
 }
 
-void AttributeMutator::set_combined(PyTypeObject* type) {
-  set_type(type, Kind::kCombined);
+void AttributeMutator::setCombined(PyTypeObject* type) {
+  setType(type, Kind::kCombined);
   combined_.dict_offset = type->tp_dictoffset;
   combined_.getattr_method = getGetAttrForCaching(type);
 }
 
-void AttributeMutator::set_dict(PyTypeObject* type) {
-  set_type(type, Kind::kDict);
+void AttributeMutator::setDict(PyTypeObject* type) {
+  setType(type, Kind::kDict);
   dict_.getattr_method = getGetAttrForCaching(type);
 }
 
-void AttributeMutator::set_data_descr(PyTypeObject* type, PyObject* descr) {
-  set_type(type, Kind::kDataDescr);
+void AttributeMutator::setDataDescr(PyTypeObject* type, PyObject* descr) {
+  setType(type, Kind::kDataDescr);
   data_descr_.descr = descr;
   data_descr_.descr_type = Py_TYPE(descr);
 }
 
-void AttributeMutator::set_member_descr(PyTypeObject* type, PyObject* descr) {
-  set_type(type, Kind::kMemberDescr);
+void AttributeMutator::setMemberDescr(PyTypeObject* type, PyObject* descr) {
+  setType(type, Kind::kMemberDescr);
   member_descr_.memberdef = ((PyMemberDescrObject*)descr)->d_member;
   member_descr_.getattr_method = getGetAttrForCaching(type);
 }
 
-void AttributeMutator::set_descr_or_classvar(
+void AttributeMutator::setDescrOrClassvar(
     PyTypeObject* type,
     PyObject* descr,
     uint32_t keys_version) {
-  set_type(type, Kind::kDescrOrClassVar);
+  setType(type, Kind::kDescrOrClassVar);
   descr_or_cvar_.descr = descr;
   descr_or_cvar_.keys_version = keys_version;
 }
 
-void AttributeMutator::set_split(
+void AttributeMutator::setSplit(
     PyTypeObject* type,
     Py_ssize_t val_offset,
     [[maybe_unused]] PyDictKeysObject* keys,
     bool inline_values) {
-  set_type(type, inline_values ? Kind::kSplitInline : Kind::kSplit);
+  setType(type, inline_values ? Kind::kSplitInline : Kind::kSplit);
   split_.val_offset = val_offset;
   split_.keys = keys;
 }
 
-void AttributeMutator::set_getattr(
+void AttributeMutator::setGetattr(
     PyTypeObject* type,
     PyObject* getattr_method,
     uint32_t keys_version) {
-  set_type(type, Kind::kGetAttr);
+  setType(type, Kind::kGetAttr);
   getattr_.getattr_method = getattr_method;
   getattr_.keys_version = keys_version;
 }
 
 BorrowedRef<PyTypeObject> AttributeMutator::watchedDescrType() const {
-  if (get_kind() == Kind::kDataDescr) {
+  if (getKind() == Kind::kDataDescr) {
     return data_descr_.descr_type;
   }
   return nullptr;
@@ -887,7 +887,7 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
       "Empty attribute mutator setting field {} on object of type {}",
       repr(name),
       Py_TYPE(obj)->tp_name);
-  AttributeMutator::Kind kind = get_kind();
+  AttributeMutator::Kind kind = getKind();
   switch (kind) {
     case AttributeMutator::Kind::kSplit:
       return split_.setAttr(obj, name, value);
@@ -920,7 +920,7 @@ inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
       "Empty attribute mutator getting field {} on object of type {}",
       repr(name),
       Py_TYPE(obj)->tp_name);
-  AttributeMutator::Kind kind = get_kind();
+  AttributeMutator::Kind kind = getKind();
   switch (kind) {
     case AttributeMutator::Kind::kSplit:
       return split_.getAttr(obj, name);
@@ -962,14 +962,14 @@ inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
   }
 }
 
-void AttributeMutator::set_type(PyTypeObject* type, Kind kind) {
+void AttributeMutator::setType(PyTypeObject* type, Kind kind) {
   auto raw = reinterpret_cast<uintptr_t>(type);
   JIT_CHECK((raw & kKindMask) == 0, "PyTypeObject* expected to be aligned");
   auto mask = static_cast<uintptr_t>(kind);
   type_ = raw | mask;
 }
 
-AttributeMutator::Kind AttributeMutator::get_kind() const {
+AttributeMutator::Kind AttributeMutator::getKind() const {
   return static_cast<Kind>(type_ & kKindMask);
 }
 
@@ -1142,13 +1142,13 @@ void AttributeCache::fill(
         descr_type->tp_descr_set != nullptr) {
       // Data descriptor
       if (descr_type == &PyMemberDescr_Type) {
-        mut->set_member_descr(type, descr);
+        mut->setMemberDescr(type, descr);
       } else {
         // If someone modifies descr_type (e.g., deletes __set__), it may no
         // longer be a data descriptor. Watch it via the descriptor watcher
         // so the cache is invalidated.
         ac_descr_watcher.watch(descr_type, this);
-        mut->set_data_descr(type, descr);
+        mut->setDataDescr(type, descr);
       }
     } else {
       // Non-data descriptor or class var.
@@ -1157,7 +1157,7 @@ void AttributeCache::fill(
       // handling the transition if __set__ is added or removed.
       uint32_t keys_version = 0;
       canCacheAttribute(type, name, keys_version);
-      mut->set_descr_or_classvar(type, descr, keys_version);
+      mut->setDescrOrClassvar(type, descr, keys_version);
     }
     ac_watcher.watch(type, this);
     return;
@@ -1193,7 +1193,7 @@ void AttributeCache::fill(
             // lack of the attribute.
             keys_version = 0;
           }
-          mut->set_getattr(type, getattr_method, keys_version);
+          mut->setGetattr(type, getattr_method, keys_version);
           ac_watcher.watch(type, this);
           return;
         }
@@ -1202,7 +1202,7 @@ void AttributeCache::fill(
       if (keys->dk_nentries == SHARED_KEYS_MAX_SIZE) {
         // The shared dict is full, fallback to dict access via managed
         // dict APIs.
-        mut->set_dict(type);
+        mut->setDict(type);
         ac_watcher.watch(type, this);
       }
 
@@ -1210,10 +1210,10 @@ void AttributeCache::fill(
     }
 
     // set_split handles __getattr__ fallback too
-    mut->set_split(type, index, keys, inline_values);
+    mut->setSplit(type, index, keys, inline_values);
   } else {
     // combined handles __getattr__ fallback too
-    mut->set_combined(type);
+    mut->setCombined(type);
   }
   ac_watcher.watch(type, this);
 }

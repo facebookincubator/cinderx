@@ -53,11 +53,11 @@ class Compiler {
 
   // Compile the function / code object preloaded by the given Preloader.
   // Returns the compiled function data, or nullptr on failure.
-  std::optional<CompiledFunctionData> Compile(const hir::Preloader& preloader);
+  std::optional<CompiledFunctionData> compile(const hir::Preloader& preloader);
 
   // Convenience wrapper to create and compile a preloader from a
   // PyFunctionObject.
-  std::optional<CompiledFunctionData> Compile(
+  std::optional<CompiledFunctionData> compile(
       BorrowedRef<PyFunctionObject> func);
 
   // Runs all the compiler passes on the HIR function.

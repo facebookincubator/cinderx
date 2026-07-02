@@ -305,11 +305,11 @@ std::string Option::getFormatted(std::string left_hand_side) {
   return left_hand_side;
 }
 
-std::string Option::getFormatted_cmdline_flag() {
+std::string Option::getFormattedCmdlineFlag() {
   return getFormatted(cmdline_flag);
 }
 
-std::string Option::getFormatted_environment_variable() {
+std::string Option::getFormattedEnvironmentVariable() {
   return environment_variable.empty() ? "" : getFormatted(environment_variable);
 }
 
@@ -320,15 +320,14 @@ std::string FlagProcessor::jitXOptionHelpMessage() {
   for (auto const& option : options_) {
     if (!option->hidden_flag) {
       std::string fmt_env_var =
-          option->getFormatted_environment_variable().empty()
+          option->getFormattedEnvironmentVariable().empty()
           ? ""
-          : fmt::format(
-                "; also {}", option->getFormatted_environment_variable());
+          : fmt::format("; also {}", option->getFormattedEnvironmentVariable());
       ret += indent1;
       ret += multi_line_split_(
                  fmt::format(
                      "-X {}: {}{}\n",
-                     option->getFormatted_cmdline_flag(),
+                     option->getFormattedCmdlineFlag(),
                      option->flag_description,
                      fmt_env_var)) +
           "\n";

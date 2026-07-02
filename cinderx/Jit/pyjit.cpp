@@ -3883,7 +3883,7 @@ Result compilePreloaderImpl(
 
   std::optional<CompiledFunctionData> compiled_func;
   try {
-    compiled_func = jit_ctx->compiler().Compile(preloader);
+    compiled_func = jit_ctx->compiler().compile(preloader);
   } catch (const std::exception& exn) {
     JIT_DLOG("{}", exn.what());
   }
