@@ -28,20 +28,20 @@ struct PhyLocationBase {
   /* implicit */ constexpr PhyLocationBase(int loc, int size)
       : PhyLocationBase{loc, static_cast<size_t>(size)} {}
 
-  constexpr bool is_memory() const {
+  constexpr bool isMemory() const {
     return loc < 0;
   }
 
-  constexpr bool is_register() const {
+  constexpr bool isRegister() const {
     return loc >= 0 && loc < NumRegs;
   }
 
-  constexpr bool is_gp_register() const {
-    return is_register() && loc < VecDRegBase;
+  constexpr bool isGpRegister() const {
+    return isRegister() && loc < VecDRegBase;
   }
 
-  constexpr bool is_fp_register() const {
-    return is_register() && loc >= VecDRegBase;
+  constexpr bool isFpRegister() const {
+    return isRegister() && loc >= VecDRegBase;
   }
 
   // Comparisons are based only on the register ID.

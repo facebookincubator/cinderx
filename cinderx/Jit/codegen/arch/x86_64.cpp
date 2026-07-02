@@ -37,7 +37,7 @@ PhyLocation PhyLocation::parse(std::string_view name) {
 }
 
 std::string PhyLocation::toString() const {
-  if (is_memory()) {
+  if (isMemory()) {
     return fmt::format("[RBP({})]", loc);
   } else if (bitSize == 32) {
     return std::string{name32(static_cast<RegId>(loc))};

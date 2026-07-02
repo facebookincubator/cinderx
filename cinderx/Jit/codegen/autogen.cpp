@@ -1021,7 +1021,7 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
 
   as->bind(env->hard_exit_label);
   auto saved_regs = env->changed_regs & CALLEE_SAVE_REGS;
-  if (!saved_regs.Empty()) {
+  if (!saved_regs.empty()) {
     JIT_CHECK(
         env->last_callee_saved_reg_off != -1,
         "offset to callee saved regs not initialized");
@@ -1033,12 +1033,12 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
     auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
     auto gp_regs = saved_regs & ALL_GP_REGISTERS;
     int xmm_offset = 0;
-    while (!vecd_regs.Empty()) {
-      auto reg = vecd_regs.GetFirst();
+    while (!vecd_regs.empty()) {
+      auto reg = vecd_regs.getFirst();
       as->movaps(
           x86::xmm(reg.loc - VECD_REG_BASE), x86::ptr(x86::rsp, xmm_offset));
       xmm_offset += kVecDSize;
-      vecd_regs.RemoveFirst();
+      vecd_regs.removeFirst();
     }
     int vecd_count = (saved_regs & ALL_VECD_REGISTERS).count();
     int gp_count = gp_regs.count();
@@ -1049,15 +1049,15 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
     if (vecd_area_size > 0) {
       as->add(x86::rsp, vecd_area_size);
     }
-    while (!gp_regs.Empty()) {
-      as->pop(x86::gpq(gp_regs.GetLast().loc));
-      gp_regs.RemoveLast();
+    while (!gp_regs.empty()) {
+      as->pop(x86::gpq(gp_regs.getLast().loc));
+      gp_regs.removeLast();
     }
 #else
     // Pop in reverse push order (GetLast→GetFirst) to restore registers.
-    while (!saved_regs.Empty()) {
-      as->pop(x86::gpq(saved_regs.GetLast().loc));
-      saved_regs.RemoveLast();
+    while (!saved_regs.empty()) {
+      as->pop(x86::gpq(saved_regs.getLast().loc));
+      saved_regs.removeLast();
     }
 #endif
   }
@@ -1093,7 +1093,7 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
 
   as->bind(env->hard_exit_label);
   auto saved_regs = env->changed_regs & CALLEE_SAVE_REGS;
-  if (!saved_regs.Empty()) {
+  if (!saved_regs.empty()) {
     JIT_CHECK(
         env->last_callee_saved_reg_off != -1,
         "offset to callee saved regs not initialized");
@@ -1118,38 +1118,38 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
 
     // Restore GP registers (iterate GetFirst→GetLast, same as save).
     int offset = 0;
-    if (!gp_regs.Empty()) {
+    if (!gp_regs.empty()) {
       if (gp_regs.count() % 2 == 1) {
         as->ldr(
-            a64::x(gp_regs.GetFirst().loc),
+            a64::x(gp_regs.getFirst().loc),
             a64::ptr(arch::reg_scratch_0, -(offset + 16)));
-        gp_regs.RemoveFirst();
+        gp_regs.removeFirst();
         offset += 16;
       }
-      while (!gp_regs.Empty()) {
-        auto first = a64::x(gp_regs.GetFirst().loc);
-        gp_regs.RemoveFirst();
-        auto second = a64::x(gp_regs.GetFirst().loc);
-        gp_regs.RemoveFirst();
+      while (!gp_regs.empty()) {
+        auto first = a64::x(gp_regs.getFirst().loc);
+        gp_regs.removeFirst();
+        auto second = a64::x(gp_regs.getFirst().loc);
+        gp_regs.removeFirst();
         as->ldp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
         offset += 16;
       }
     }
 
     // Restore VecD registers (iterate GetFirst→GetLast, same as save).
-    if (!vecd_regs.Empty()) {
+    if (!vecd_regs.empty()) {
       if (vecd_regs.count() % 2 == 1) {
         as->ldr(
-            a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+            a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE),
             a64::ptr(arch::reg_scratch_0, -(offset + 16)));
-        vecd_regs.RemoveFirst();
+        vecd_regs.removeFirst();
         offset += 16;
       }
-      while (!vecd_regs.Empty()) {
-        auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-        vecd_regs.RemoveFirst();
-        auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-        vecd_regs.RemoveFirst();
+      while (!vecd_regs.empty()) {
+        auto first = a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE);
+        vecd_regs.removeFirst();
+        auto second = a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE);
+        vecd_regs.removeFirst();
         as->ldp(first, second, a64::ptr(arch::reg_scratch_0, -(offset + 16)));
         offset += 16;
       }
@@ -1194,9 +1194,9 @@ void translateSetupFrame(Environ* env, const Instruction*) {
   asmjit::BaseNode* save_cursor = as->cursor();
   auto gp_saved_regs = env->resume_saved_regs & ALL_GP_REGISTERS;
   // Push GP callee-saved registers (1-2B per register).
-  while (!gp_saved_regs.Empty()) {
-    as->push(x86::gpq(gp_saved_regs.GetFirst().loc));
-    gp_saved_regs.RemoveFirst();
+  while (!gp_saved_regs.empty()) {
+    as->push(x86::gpq(gp_saved_regs.getFirst().loc));
+    gp_saved_regs.removeFirst();
   }
 
   auto gp_save_count = (env->resume_saved_regs & ALL_GP_REGISTERS).count();
@@ -1220,12 +1220,12 @@ void translateSetupFrame(Environ* env, const Instruction*) {
   }
   // Save XMM registers into [rsp + arg_buffer_size + offset]
   int xmm_offset = arg_buffer_size;
-  while (!vecd_saved_regs.Empty()) {
-    auto reg = vecd_saved_regs.GetFirst();
+  while (!vecd_saved_regs.empty()) {
+    auto reg = vecd_saved_regs.getFirst();
     as->movaps(
         x86::ptr(x86::rsp, xmm_offset), x86::xmm(reg.loc - VECD_REG_BASE));
     xmm_offset += kVecDSize;
-    vecd_saved_regs.RemoveFirst();
+    vecd_saved_regs.removeFirst();
   }
 #else
   int arg_buffer_size = env->resume_frame_total_size -
@@ -1257,36 +1257,36 @@ void translateSetupFrame(Environ* env, const Instruction*) {
       static_cast<uint64_t>(env->resume_header_and_spill_size));
 
   int reg_offset = 0;
-  if (!gp_regs.Empty()) {
+  if (!gp_regs.empty()) {
     if (gp_regs.count() % 2 == 1) {
       as->str(
-          a64::x(gp_regs.GetFirst().loc),
+          a64::x(gp_regs.getFirst().loc),
           a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
-      gp_regs.RemoveFirst();
+      gp_regs.removeFirst();
       reg_offset += 16;
     }
-    while (!gp_regs.Empty()) {
-      auto first = a64::x(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
-      auto second = a64::x(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
+    while (!gp_regs.empty()) {
+      auto first = a64::x(gp_regs.getFirst().loc);
+      gp_regs.removeFirst();
+      auto second = a64::x(gp_regs.getFirst().loc);
+      gp_regs.removeFirst();
       as->stp(first, second, a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
       reg_offset += 16;
     }
   }
-  if (!vecd_regs.Empty()) {
+  if (!vecd_regs.empty()) {
     if (vecd_regs.count() % 2 == 1) {
       as->str(
-          a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE),
           a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
-      vecd_regs.RemoveFirst();
+      vecd_regs.removeFirst();
       reg_offset += 16;
     }
-    while (!vecd_regs.Empty()) {
-      auto first = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-      vecd_regs.RemoveFirst();
-      auto second = a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE);
-      vecd_regs.RemoveFirst();
+    while (!vecd_regs.empty()) {
+      auto first = a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE);
+      vecd_regs.removeFirst();
+      auto second = a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE);
+      vecd_regs.removeFirst();
       as->stp(first, second, a64::ptr(arch::reg_scratch_0, -(reg_offset + 16)));
       reg_offset += 16;
     }

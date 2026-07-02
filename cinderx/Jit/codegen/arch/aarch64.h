@@ -131,7 +131,7 @@ constexpr std::string_view name32(RegId id) {
 }
 
 // A physical location (register or stack slot). If this represents a stack
-// slot (is_memory() is true) then `loc` is relative to X29 (the frame pointer).
+// slot (isMemory() is true) then `loc` is relative to X29 (the frame pointer).
 struct PhyLocation : PhyLocationBase<RegId, VECD_REG_BASE, NUM_REGS> {
   using Base = PhyLocationBase<RegId, VECD_REG_BASE, NUM_REGS>;
   using Base::Base;

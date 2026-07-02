@@ -35,9 +35,9 @@ struct LiveRangeCompare {
 
 void markDisallowedRegisters(std::vector<LIRLocation>& locs) {
   auto disallowed_registers = DISALLOWED_REGISTERS;
-  while (!disallowed_registers.Empty()) {
-    auto reg = disallowed_registers.GetFirst();
-    disallowed_registers.RemoveFirst();
+  while (!disallowed_registers.empty()) {
+    auto reg = disallowed_registers.getFirst();
+    disallowed_registers.removeFirst();
 
     locs[reg.loc] = START_LOCATION;
   }
@@ -266,7 +266,7 @@ bool LiveInterval::isAllocated() const {
 }
 
 bool LiveInterval::isRegisterAllocated() const {
-  return isAllocated() && allocated_loc.is_register();
+  return isAllocated() && allocated_loc.isRegister();
 }
 
 LinearScanAllocator::LinearScanAllocator(
@@ -618,21 +618,21 @@ void LinearScanAllocator::reserveRegisters(
   static const UnorderedStablePointerMap<PhyLocation, Operand> vregs = []() {
     UnorderedStablePointerMap<PhyLocation, Operand> result;
     PhyRegisterSet phy_regs = ALL_REGISTERS;
-    while (!phy_regs.Empty()) {
-      PhyLocation phy_reg = phy_regs.GetFirst();
-      phy_regs.RemoveFirst();
+    while (!phy_regs.empty()) {
+      PhyLocation phy_reg = phy_regs.getFirst();
+      phy_regs.removeFirst();
 
       auto& inserted_operand = result.emplace(phy_reg, nullptr).first->second;
       inserted_operand.setPhyRegister(phy_reg);
       inserted_operand.setDataType(
-          phy_reg.is_fp_register() ? DataType::kDouble : DataType::k64bit);
+          phy_reg.isFpRegister() ? DataType::kDouble : DataType::k64bit);
     }
     return result;
   }();
 
-  while (!phy_regs.Empty()) {
-    PhyLocation reg = phy_regs.GetFirst();
-    phy_regs.RemoveFirst();
+  while (!phy_regs.empty()) {
+    PhyLocation reg = phy_regs.getFirst();
+    phy_regs.removeFirst();
 
     const Operand* vreg = &(vregs.at(reg));
     LiveInterval& interval = getInterval(vreg);
@@ -738,7 +738,7 @@ void LinearScanAllocator::linearScan() {
     }
 
     if (current->isRegisterAllocated()) {
-      changed_regs_.Set(current->allocated_loc);
+      changed_regs_.set(current->allocated_loc);
       active.insert(current);
     } else {
       stack_intervals.emplace(current);
@@ -799,7 +799,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
   if (current->isRegisterAllocated()) {
     PhyLocation allocated = current->allocated_loc;
     JIT_CHECK(
-        is_fp == allocated.is_fp_register(),
+        is_fp == allocated.isFpRegister(),
         "Operand is allocated to register {} of incorrect type",
         allocated);
     if (freeUntilPos[allocated.loc] != START_LOCATION) {
@@ -1000,7 +1000,7 @@ PhyLocation LinearScanAllocator::newStackSlot(const Operand* operand) {
     TRACE("Reusing stack slot {} for operand {}", slot, *operand);
   }
   JIT_CHECK(
-      slot.is_memory(),
+      slot.isMemory(),
       "Incorrectly allocated {} for stack-allocated operand {}",
       slot,
       *operand);
@@ -1016,7 +1016,7 @@ void LinearScanAllocator::freeStackSlot(const Operand* operand) {
 
   PhyLocation slot = iter->second;
   JIT_CHECK(
-      slot.is_memory(),
+      slot.isMemory(),
       "Have mapped a stack-allocated operand {} to register {}",
       *operand,
       slot);
@@ -1532,7 +1532,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
               block->allocateInstrBefore(instr_iter, Instruction::kPop);
           instr->output()->setPhyRegOrStackSlot(to);
           instr->output()->setDataType(DataType::k64bit);
-        } else if (to.is_register() || from.is_register()) {
+        } else if (to.isRegister() || from.isRegister()) {
           auto instr =
               block->allocateInstrBefore(instr_iter, Instruction::kMove);
 #if defined(CINDER_AARCH64)
@@ -1546,7 +1546,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
           // upper half is already zero for true 32-bit values.
           // FP registers must keep kDouble — using k64bit would route
           // through getGp() instead of getVecD() and abort.
-          auto copy_dt = (from.is_fp_register() || to.is_fp_register())
+          auto copy_dt = (from.isFpRegister() || to.isFpRegister())
               ? orig_opnd_size
               : DataType::k64bit;
 #else
@@ -1587,7 +1587,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
       }
       case CopyGraph::Op::Kind::kExchange: {
         JIT_CHECK(
-            from.is_register() && to.is_register(),
+            from.isRegister() && to.isRegister(),
             "Can only exchange registers, got {} and {}",
             from,
             to);
@@ -1598,7 +1598,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
         // reasoning as the kCopy case above — a narrower exchange
         // truncates the wider value sharing the physical register).
         // FP registers must keep kDouble.
-        auto xchg_dt = (from.is_fp_register() || to.is_fp_register())
+        auto xchg_dt = (from.isFpRegister() || to.isFpRegister())
             ? orig_opnd_size
             : DataType::k64bit;
 #else
@@ -1692,7 +1692,7 @@ std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs) {
   auto loc = rhs.allocated_loc;
   if (loc != PhyLocation::REG_INVALID) {
     out << "->";
-    if (loc.is_register()) {
+    if (loc.isRegister()) {
       out << "R" << static_cast<int>(loc.loc);
     } else {
       out << "[RBP - " << -loc.loc << "]";

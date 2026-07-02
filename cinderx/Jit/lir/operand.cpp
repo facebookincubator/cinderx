@@ -153,7 +153,7 @@ bool Operand::isFp() const {
 }
 
 bool Operand::isVecD() const {
-  return getPhyRegister().is_fp_register();
+  return getPhyRegister().isFpRegister();
 }
 
 bool Operand::isLastUse() const {

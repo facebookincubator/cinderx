@@ -249,8 +249,8 @@ std::optional<CompiledFunctionData> Compiler::Compile(
     irfunc->setCompilationPhaseTimer(nullptr);
   }
 
-  int stack_size = ngen->GetCompiledFunctionStackSize();
-  int spill_stack_size = ngen->GetCompiledFunctionSpillStackSize();
+  int stack_size = ngen->getCompiledFunctionStackSize();
+  int spill_stack_size = ngen->getCompiledFunctionSpillStackSize();
 
   // Grab some fields off of irfunc and ngen before moving them.
   hir::Function::InlineFunctionStats inline_stats =

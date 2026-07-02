@@ -138,7 +138,7 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
         }
         codegen::PhyLocation loc = value.location;
         JIT_CHECK(
-            !loc.is_register(),
+            !loc.isRegister(),
             "DeoptMetadata for Yields should not reference registers");
         PyObject* v = *reinterpret_cast<PyObject**>(
             reinterpret_cast<uintptr_t>(gen_footer) + loc.loc);

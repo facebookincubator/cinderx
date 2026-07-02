@@ -586,7 +586,7 @@ void PopulateEntryBlock(
       has_extra_args = true;
       continue;
     }
-    if (arg.is_gp_register()) {
+    if (arg.isGpRegister()) {
       entry_block->allocateInstr(
           Instruction::kMove,
           nullptr,

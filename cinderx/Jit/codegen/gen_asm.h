@@ -43,7 +43,7 @@ class NativeGenerator {
     }
   }
 
-  std::string GetFunctionName() const;
+  std::string getFunctionName() const;
 
   // Get the buffer containing the compiled machine code.  The start of this
   // buffer is not guaranteed to be a valid entry point.
@@ -62,9 +62,9 @@ class NativeGenerator {
   // Python call.
   void* getStaticEntry();
 
-  int GetCompiledFunctionStackSize() const;
-  int GetCompiledFunctionSpillStackSize() const;
-  const hir::Function* GetFunction() const {
+  int getCompiledFunctionStackSize() const;
+  int getCompiledFunctionSpillStackSize() const;
+  const hir::Function* getFunction() const {
     return func_;
   }
 
@@ -77,7 +77,7 @@ class NativeGenerator {
   }
 
 #ifdef __ASM_DEBUG
-  const char* GetPyFunctionName() const;
+  const char* getPyFunctionName() const;
 #endif
  private:
   const hir::Function* func_;

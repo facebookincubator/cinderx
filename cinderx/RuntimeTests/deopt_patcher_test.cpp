@@ -21,8 +21,8 @@ class CodePatcherTest : public RuntimeTest {
       return nullptr;
     }
     std::span<const std::byte> code = ngen.getCodeBuffer();
-    int stack_size = ngen.GetCompiledFunctionStackSize();
-    int spill_stack_size = ngen.GetCompiledFunctionSpillStackSize();
+    int stack_size = ngen.getCompiledFunctionStackSize();
+    int spill_stack_size = ngen.getCompiledFunctionSpillStackSize();
     CompiledFunctionData data;
     data.code = code;
     data.vectorcall_entry = reinterpret_cast<vectorcallfunc>(entry);

@@ -99,10 +99,10 @@ class BackendTest : public RuntimeTest {
     // Push used callee-saved registers.
     std::vector<int> pushed_regs;
     pushed_regs.reserve(saved_regs.count());
-    while (!saved_regs.Empty()) {
-      as.push(asmjit::x86::gpq(saved_regs.GetFirst().loc));
-      pushed_regs.push_back(saved_regs.GetFirst().loc);
-      saved_regs.RemoveFirst();
+    while (!saved_regs.empty()) {
+      as.push(asmjit::x86::gpq(saved_regs.getFirst().loc));
+      pushed_regs.push_back(saved_regs.getFirst().loc);
+      saved_regs.removeFirst();
     }
 
     if (arg_buffer_size > 0) {
@@ -137,22 +137,22 @@ class BackendTest : public RuntimeTest {
 
     std::vector<int> pushed_gp_regs;
     pushed_gp_regs.reserve(gp_regs.count());
-    while (!gp_regs.Empty()) {
+    while (!gp_regs.empty()) {
       as.str(
-          asmjit::a64::x(gp_regs.GetFirst().loc),
+          asmjit::a64::x(gp_regs.getFirst().loc),
           asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
-      pushed_gp_regs.push_back(gp_regs.GetFirst().loc);
-      gp_regs.RemoveFirst();
+      pushed_gp_regs.push_back(gp_regs.getFirst().loc);
+      gp_regs.removeFirst();
     }
 
     std::vector<int> pushed_vecd_regs;
     pushed_vecd_regs.reserve(vecd_regs.count());
-    while (!vecd_regs.Empty()) {
+    while (!vecd_regs.empty()) {
       as.str(
-          asmjit::a64::d(vecd_regs.GetFirst().loc - VECD_REG_BASE),
+          asmjit::a64::d(vecd_regs.getFirst().loc - VECD_REG_BASE),
           asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
-      pushed_vecd_regs.push_back(vecd_regs.GetFirst().loc);
-      vecd_regs.RemoveFirst();
+      pushed_vecd_regs.push_back(vecd_regs.getFirst().loc);
+      vecd_regs.removeFirst();
     }
 
     if (arg_buffer_size > 0) {

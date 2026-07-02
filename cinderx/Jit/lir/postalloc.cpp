@@ -1462,7 +1462,7 @@ class RegisterToMemoryMoves {
       PhyLocation to,
       instr_iter_t instr_iter) {
     JIT_DCHECK(
-        from.is_register() && to.is_memory(),
+        from.isRegister() && to.isMemory(),
         "Must be a move from register to memory");
     invalidateMemory(to);
     invalidateRegister(from);
@@ -1472,7 +1472,7 @@ class RegisterToMemoryMoves {
   }
 
   void invalidate(PhyLocation loc) {
-    if (loc.is_register()) {
+    if (loc.isRegister()) {
       invalidateRegister(loc);
     } else {
       invalidateMemory(loc);

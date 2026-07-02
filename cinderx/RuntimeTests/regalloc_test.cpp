@@ -69,8 +69,8 @@ class LinearScanAllocatorTest : public ::testing::Test {
     codegen::PhyRegisterSet result;
     for (const auto& pair : allocator.intervalMap()) {
       const LiveInterval& interval = pair.second;
-      if (interval.fixed && interval.allocated_loc.is_register()) {
-        result.Set(interval.allocated_loc);
+      if (interval.fixed && interval.allocated_loc.isRegister()) {
+        result.set(interval.allocated_loc);
       }
     }
     return result;

@@ -257,7 +257,7 @@ struct MemoryView {
 
   uint64_t readRaw(const LiveValue& value) const {
     jit::codegen::PhyLocation loc = value.location;
-    if (loc.is_register()) {
+    if (loc.isRegister()) {
       return regs[loc.loc];
     } else {
       uint64_t frame_pointer = regs[codegen::arch::reg_frame_pointer_loc.loc];

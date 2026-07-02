@@ -692,12 +692,12 @@ void* NativeGenerator::getVectorcallEntry() {
   // uses general purpose registers while available for non-floating
   // point values, and floating point values while available for fp
   // arguments.
-  const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
+  const std::vector<TypedArgument>& checks = getFunction()->typed_args;
 
   // gp_index starts at 1 because the first argument is reserved for the
   // function
   for (size_t i = 0, check_index = 0, gp_index = 1, fp_index = 0;
-       i < static_cast<size_t>(GetFunction()->numArgs());
+       i < static_cast<size_t>(getFunction()->numArgs());
        i++) {
     auto add_gp = [&]() {
       if (gp_index < ARGUMENT_REGS.size()) {
@@ -727,7 +727,7 @@ void* NativeGenerator::getVectorcallEntry() {
     add_gp();
   }
 
-  auto func = GetFunction();
+  auto func = getFunction();
 
   env_.ctx = getContext();
   env_.code_rt = env_.ctx->allocateCodeRuntime(
@@ -738,7 +738,7 @@ void* NativeGenerator::getVectorcallEntry() {
     env_.code_rt->addReference(ref);
   }
 
-  lir::LIRGenerator lirgen(GetFunction(), &env_);
+  lir::LIRGenerator lirgen(getFunction(), &env_);
   std::unique_ptr<lir::Function> lir_func;
 
 #if defined(CINDER_X86_64) && defined(_WIN32)
@@ -749,42 +749,42 @@ void* NativeGenerator::getVectorcallEntry() {
 #endif
 
   COMPILE_TIMER(
-      GetFunction()->compilation_phase_timer,
+      getFunction()->compilation_phase_timer,
       "Lowering into LIR",
       lir_func = lirgen.TranslateFunction())
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after generation:\n{}",
-      GetFunction()->fullname,
+      getFunction()->fullname,
       *lir_func);
 
   PostGenerationRewrite post_gen(lir_func.get(), &env_);
   COMPILE_TIMER(
-      GetFunction()->compilation_phase_timer,
+      getFunction()->compilation_phase_timer,
       "LIR transformations",
       post_gen.run())
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after postgen rewrites:\n{}",
-      GetFunction()->fullname,
+      getFunction()->fullname,
       *lir_func);
 
   COMPILE_TIMER(
-      GetFunction()->compilation_phase_timer,
+      getFunction()->compilation_phase_timer,
       "DeadCodeElimination",
       eliminateDeadCode(lir_func.get()))
 
   COMPILE_TIMER(
-      GetFunction()->compilation_phase_timer,
+      getFunction()->compilation_phase_timer,
       "Target Selection and Legalization",
       selectTargetOpcodes(lir_func.get()))
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after target selection and legalization:\n{}",
-      GetFunction()->fullname,
+      getFunction()->fullname,
       *lir_func);
 
   int frame_header_size = frameHeaderSize(func_->code);
@@ -798,37 +798,37 @@ void* NativeGenerator::getVectorcallEntry() {
   LinearScanAllocator lsalloc(lir_func.get(), reserved_stack_space);
 
   COMPILE_TIMER(
-      GetFunction()->compilation_phase_timer,
+      getFunction()->compilation_phase_timer,
       "Register Allocation",
       lsalloc.run())
 
   env_.shadow_frames_and_spill_size = lsalloc.getFrameSize();
   env_.changed_regs = lsalloc.getChangedRegs();
   env_.exit_label = as_->newLabel();
-  env_.can_deopt = GetFunction()->canDeopt();
+  env_.can_deopt = getFunction()->canDeopt();
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after register allocation:\n{}",
-      GetFunction()->fullname,
+      getFunction()->fullname,
       *lir_func);
 
   PostRegAllocRewrite post_rewrite(lir_func.get(), &env_);
   COMPILE_TIMER(
-      GetFunction()->compilation_phase_timer,
+      getFunction()->compilation_phase_timer,
       "Post Reg Alloc Rewrite",
       post_rewrite.run())
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after postalloc rewrites:\n{}",
-      GetFunction()->fullname,
+      getFunction()->fullname,
       *lir_func);
 
   if (!verifyPostRegAllocInvariants(lir_func.get(), std::cerr)) {
     JIT_ABORT(
         "LIR for {} failed verification:\n{}",
-        GetFunction()->fullname,
+        getFunction()->fullname,
         *lir_func);
   }
 
@@ -836,7 +836,7 @@ void* NativeGenerator::getVectorcallEntry() {
 
   try {
     COMPILE_TIMER(
-        GetFunction()->compilation_phase_timer,
+        getFunction()->compilation_phase_timer,
         "Code Generation",
         generateCode(code, lirgen.frameSetupBlock()))
   } catch (const AsmJitException& ex) {
@@ -847,7 +847,7 @@ void* NativeGenerator::getVectorcallEntry() {
     JIT_ABORT(
         "Failed to emit code for '{}': '{}' failed with '{}'\n\n"
         "Builder contents on failure:\n{}",
-        GetFunction()->fullname,
+        getFunction()->fullname,
         ex.expr,
         ex.message,
         s.data());
@@ -861,7 +861,7 @@ void* NativeGenerator::getVectorcallEntry() {
   JIT_DCHECK(code.codeSize() < INT_MAX, "Code size is larger than INT_MAX");
   compiled_size_ = code.codeSize();
   env_.code_rt->setFrameSize(env_.stack_frame_size);
-  if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
+  if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {
     JIT_DCHECK(
         env_.shadow_frames_and_spill_size % kPointerSize == 0,
         "Bad spill alignment");
@@ -882,11 +882,11 @@ void* NativeGenerator::getStaticEntry() {
       JITRT_STATIC_ENTRY_OFFSET);
 }
 
-int NativeGenerator::GetCompiledFunctionStackSize() const {
+int NativeGenerator::getCompiledFunctionStackSize() const {
   return env_.stack_frame_size;
 }
 
-int NativeGenerator::GetCompiledFunctionSpillStackSize() const {
+int NativeGenerator::getCompiledFunctionSpillStackSize() const {
   return spill_stack_size_;
 }
 
@@ -964,13 +964,13 @@ arch::Gp get_arg_location(int arg) {
 #if defined(CINDER_X86_64)
   auto phyloc = get_arg_location_phy_location(arg);
 
-  if (phyloc.is_register()) {
+  if (phyloc.isRegister()) {
     return x86::gpq(phyloc.loc);
   }
 #elif defined(CINDER_AARCH64)
   auto phyloc = get_arg_location_phy_location(arg);
 
-  if (phyloc.is_register()) {
+  if (phyloc.isRegister()) {
     return a64::x(phyloc.loc);
   }
 #else
@@ -1005,7 +1005,7 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
 
 Py_ssize_t NativeGenerator::giJITDataOffset() {
   Py_ssize_t python_frame_slots =
-      _PyFrame_NumSlotsForCodeObject(GetFunction()->code);
+      _PyFrame_NumSlotsForCodeObject(getFunction()->code);
   return _PyObject_VAR_SIZE(
       cinderx::getModuleState()->gen_type, python_frame_slots);
 }
@@ -1019,7 +1019,7 @@ void NativeGenerator::generateStaticEntryPoint(
 
   generateFunctionEntry();
 
-  size_t total_args = (size_t)GetFunction()->numArgs();
+  size_t total_args = (size_t)getFunction()->numArgs();
 
   if (total_args + 1 > ARGUMENT_REGS.size()) {
     // Capture the extra args pointer from the stack. For generators on 3.12+
@@ -1040,7 +1040,7 @@ void NativeGenerator::generateStaticEntryPoint(
 
   generateFunctionEntry();
 
-  size_t total_args = (size_t)GetFunction()->numArgs();
+  size_t total_args = (size_t)getFunction()->numArgs();
 
   if (total_args + 1 > ARGUMENT_REGS.size()) {
     // Capture the extra args pointer from the stack. For generators on 3.12+
@@ -1058,7 +1058,7 @@ void NativeGenerator::generateStaticEntryPoint(
 }
 
 bool NativeGenerator::hasStaticEntry() const {
-  PyCodeObject* code = GetFunction()->code;
+  PyCodeObject* code = getFunction()->code;
   return (code->co_flags & CI_CO_STATICALLY_COMPILED);
 }
 
@@ -1119,20 +1119,20 @@ void NativeGenerator::generatePrologueBlocks(lir::BasicBlock* frameSetupBlock) {
   } else {
     lir::GenerateArgcountCheckBlocks(
         lir_func_.get(),
-        GetFunction(),
+        getFunction(),
         env_.correct_arg_count,
         env_.prologue_exit);
   }
 
   // Static argument type checking (if applicable).
   if (hasStaticEntry() && !func_->has_primitive_args &&
-      !GetFunction()->typed_args.empty()) {
+      !getFunction()->typed_args.empty()) {
     env_.static_arg_typecheck_failed_label = as_->newLabel();
     auto jt = lir::GenerateStaticTypeCheckBlocks(
         lir_func_.get(),
         entry_block,
-        GetFunction()->typed_args,
-        GetFunction()->numArgs(),
+        getFunction()->typed_args,
+        getFunction()->numArgs(),
         env_.code_rt,
         env_.static_arg_typecheck_failed_label);
     env_.static_typecheck_table = jt.table;
@@ -1224,7 +1224,7 @@ void NativeGenerator::generateCode(
 
   // Append suffix blocks to the block list. These come after the body's exit
   // block but before code emission.
-  if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
+  if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {
     env_.gi_jit_data_offset = giJITDataOffset();
 
     auto* bb = lir_func_->resumeEntryBlock();
@@ -1240,7 +1240,7 @@ void NativeGenerator::generateCode(
   // Generate deopt exit LIR blocks (stage 1 + stage 2). These must be
   // appended before generateAssemblyBody because the body block translators
   // (Guard, DeoptPatchpoint) reference the deopt_exit_blocks map.
-  env_.deopt_trampoline = GetFunction()->code->co_flags & kCoFlagsAnyGenerator
+  env_.deopt_trampoline = getFunction()->code->co_flags & kCoFlagsAnyGenerator
       ? factory_.deoptTrampolineGenerators()
       : factory_.deoptTrampoline();
   lir::GenerateDeoptExitBlocks(lir_func_.get(), &env_);
@@ -1254,8 +1254,8 @@ void NativeGenerator::generateCode(
     as_->bind(env_.static_arg_typecheck_failed_label);
 
 #if defined(CINDER_X86_64)
-    if (GetFunction()->returnsPrimitive()) {
-      if (GetFunction()->returnsPrimitiveDouble()) {
+    if (getFunction()->returnsPrimitive()) {
+      if (getFunction()->returnsPrimitiveDouble()) {
         as_->call(
             reinterpret_cast<uint64_t>(
                 rt::reportStaticArgTypecheckErrorsWithDoubleReturn));
@@ -1270,8 +1270,8 @@ void NativeGenerator::generateCode(
     as_->leave();
     as_->ret();
 #elif defined(CINDER_AARCH64)
-    if (GetFunction()->returnsPrimitive()) {
-      if (GetFunction()->returnsPrimitiveDouble()) {
+    if (getFunction()->returnsPrimitive()) {
+      if (getFunction()->returnsPrimitiveDouble()) {
         as_->bl(rt::reportStaticArgTypecheckErrorsWithDoubleReturn);
       } else {
         as_->bl(rt::reportStaticArgTypecheckErrorsWithPrimitiveReturn);
@@ -1318,7 +1318,7 @@ void NativeGenerator::generateCode(
   }
 #endif
 
-  code_start_ = finalizeCode(*as_, GetFunction()->fullname);
+  code_start_ = finalizeCode(*as_, getFunction()->fullname);
 
   // ------------- code_start_
   // ^
@@ -1345,7 +1345,7 @@ void NativeGenerator::generateCode(
 
   linkDeoptPatchers(codeholder);
   env_.code_rt->debugInfo()->resolvePending(
-      env_.pending_debug_locs, *GetFunction(), codeholder);
+      env_.pending_debug_locs, *getFunction(), codeholder);
 
   // Resolve callsite->deopt-exit label pairs (recorded in TranslateGuard)
   // to addresses now that code is finalized.
@@ -1387,7 +1387,7 @@ void NativeGenerator::generateCode(
   JIT_LOGIF(
       getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
-      GetFunction()->fullname,
+      getFunction()->fullname,
       env_.annotations.disassemble(code_start_, codeholder));
   {
     ThreadedCompileSerialize guard;
@@ -1396,7 +1396,7 @@ void NativeGenerator::generateCode(
     }
   }
 
-  const hir::Function* func = GetFunction();
+  const hir::Function* func = getFunction();
   // For perf, we want only the size of the code, so we get that directly from
   // the text sections.
   std::vector<std::pair<void*, std::size_t>> code_sections;
@@ -1408,8 +1408,8 @@ void NativeGenerator::generateCode(
 }
 
 #ifdef __ASM_DEBUG
-const char* NativeGenerator::GetPyFunctionName() const {
-  return PyUnicode_AsUTF8(GetFunction()->code->co_name);
+const char* NativeGenerator::getPyFunctionName() const {
+  return PyUnicode_AsUTF8(getFunction()->code->co_name);
 }
 #endif
 
