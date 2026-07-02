@@ -6,10 +6,10 @@ namespace cinderx::jit::codegen {
 
 CopyGraph::Node::~Node() {
   if (child_node.isLinked()) {
-    child_node.Unlink();
+    child_node.unlink();
   }
   if (leaf_node.isLinked()) {
-    leaf_node.Unlink();
+    leaf_node.unlink();
   }
 }
 
@@ -34,7 +34,7 @@ CopyGraph::Node* CopyGraph::getNode(int loc) {
       std::forward_as_tuple(loc));
   if (pair.second) {
     // Every node starts as a leaf.
-    leaf_nodes_.PushBack(pair.first->second);
+    leaf_nodes_.pushBack(pair.first->second);
   }
   return &pair.first->second;
 }
@@ -42,13 +42,13 @@ CopyGraph::Node* CopyGraph::getNode(int loc) {
 void CopyGraph::setParent(Node* child, Node* parent) {
   JIT_DCHECK(child != parent, "Can't make node its own parent");
   if (child->child_node.isLinked()) {
-    child->child_node.Unlink();
+    child->child_node.unlink();
   }
   child->parent = parent;
   if (parent != nullptr) {
-    parent->children.PushBack(*child);
+    parent->children.pushBack(*child);
     if (parent->leaf_node.isLinked()) {
-      parent->leaf_node.Unlink();
+      parent->leaf_node.unlink();
     }
   }
 }
@@ -99,7 +99,7 @@ std::vector<CopyGraph::Op> CopyGraph::process() {
     auto node = &nodes_.begin()->second;
 
     if (inRegisterCycle(node)) {
-      setParent(&node->children.Front(), nullptr);
+      setParent(&node->children.front(), nullptr);
       while (node->parent != nullptr) {
         ops.emplace_back(Op::Kind::kExchange, node->loc, node->parent->loc);
         auto parent = node->parent;
@@ -112,9 +112,9 @@ std::vector<CopyGraph::Op> CopyGraph::process() {
 
     ops.emplace_back(Op::Kind::kCopy, node->loc, kTempLoc);
     auto temp_node = getNode(kTempLoc);
-    auto child = &node->children.Front();
+    auto child = &node->children.front();
     setParent(child, temp_node);
-    leaf_nodes_.PushBack(*node);
+    leaf_nodes_.pushBack(*node);
     processLeafNodes(ops);
   }
 
@@ -122,21 +122,21 @@ std::vector<CopyGraph::Op> CopyGraph::process() {
 }
 
 void CopyGraph::processLeafNodes(std::vector<Op>& ops) {
-  while (!leaf_nodes_.IsEmpty()) {
-    auto node = &leaf_nodes_.Front();
-    leaf_nodes_.PopFront();
+  while (!leaf_nodes_.isEmpty()) {
+    auto node = &leaf_nodes_.front();
+    leaf_nodes_.popFront();
     auto parent = node->parent;
 
     ops.emplace_back(Op::Kind::kCopy, parent->loc, node->loc);
     nodes_.erase(node->loc);
 
-    if (parent->children.IsEmpty()) {
+    if (parent->children.isEmpty()) {
       if (parent->parent == nullptr) {
         // The parent has no parent, so this was the last copy in this chain.
         nodes_.erase(parent->loc);
       } else {
         // Process the parent next.
-        leaf_nodes_.PushFront(*parent);
+        leaf_nodes_.pushFront(*parent);
       }
     }
   }

@@ -572,12 +572,12 @@ void Instr::set_block(BasicBlock* block) {
 }
 
 void Instr::InsertBefore(Instr& instr) {
-  block_node_.InsertBefore(&instr.block_node_);
+  block_node_.insertBefore(&instr.block_node_);
   link(instr.block());
 }
 
 void Instr::InsertAfter(Instr& instr) {
-  block_node_.InsertAfter(&instr.block_node_);
+  block_node_.insertAfter(&instr.block_node_);
   link(instr.block());
 }
 
@@ -604,7 +604,7 @@ void Instr::link(BasicBlock* block) {
 
 void Instr::unlink() {
   JIT_CHECK(block_ != nullptr, "Instr isn't linked");
-  block_node_.Unlink();
+  block_node_.unlink();
   set_block(nullptr);
 }
 
@@ -913,7 +913,7 @@ Register* modelReg(Register* reg) {
 }
 
 Instr* BasicBlock::Append(Instr* instr) {
-  instrs_.PushBack(*instr);
+  instrs_.pushBack(*instr);
   instr->link(this);
   return instr;
 }
@@ -928,12 +928,12 @@ void BasicBlock::retargetPreds(BasicBlock* target) {
 }
 
 void BasicBlock::push_front(Instr* instr) {
-  instrs_.PushFront(*instr);
+  instrs_.pushFront(*instr);
   instr->link(this);
 }
 
 Instr* BasicBlock::pop_front() {
-  Instr* result = &(instrs_.ExtractFront());
+  Instr* result = &(instrs_.extractFront());
   result->set_block(nullptr);
   return result;
 }
@@ -954,8 +954,8 @@ void BasicBlock::insert(Instr* instr, Instr::List::iterator it) {
 }
 
 void BasicBlock::clear() {
-  while (!instrs_.IsEmpty()) {
-    Instr* instr = &(instrs_.ExtractFront());
+  while (!instrs_.isEmpty()) {
+    Instr* instr = &(instrs_.extractFront());
     delete instr;
   }
 }
@@ -969,10 +969,10 @@ BasicBlock::~BasicBlock() {
 }
 
 Instr* BasicBlock::GetTerminator() {
-  if (instrs_.IsEmpty()) {
+  if (instrs_.isEmpty()) {
     return nullptr;
   }
-  return &instrs_.Back();
+  return &instrs_.back();
 }
 
 Snapshot* BasicBlock::entrySnapshot() {

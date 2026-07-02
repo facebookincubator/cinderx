@@ -9,13 +9,13 @@
 namespace cinderx::jit::util {
 
 BitVector::~BitVector() {
-  if (!IsShortVector()) {
+  if (!isShortVector()) {
     delete bits_.bit_vec;
   }
 }
 
 BitVector::BitVector(size_t nb) : num_bits_(nb) {
-  if (IsShortVector()) {
+  if (isShortVector()) {
     bits_.bits = 0;
   } else {
     size_t size = num_bits_ / PTR_WIDTH + (num_bits_ % PTR_WIDTH == 0 ? 0 : 1);
@@ -28,8 +28,8 @@ BitVector& BitVector::operator=(const BitVector& bv) {
     return *this;
   }
 
-  bool lhs_short = IsShortVector();
-  bool rhs_short = bv.IsShortVector();
+  bool lhs_short = isShortVector();
+  bool rhs_short = bv.isShortVector();
 
   num_bits_ = bv.num_bits_;
 
@@ -52,7 +52,7 @@ BitVector& BitVector::operator=(BitVector&& bv) {
     return *this;
   }
 
-  if (!IsShortVector()) {
+  if (!isShortVector()) {
     delete bits_.bit_vec;
   }
 
@@ -66,7 +66,7 @@ BitVector& BitVector::operator=(BitVector&& bv) {
 bool BitVector::operator==(const BitVector& rhs) const {
   JIT_CHECK(num_bits_ == rhs.num_bits_, "LHS and RHS are of different widths.");
 
-  if (IsShortVector()) {
+  if (isShortVector()) {
     return bits_.bits == rhs.bits_.bits;
   }
 
@@ -75,10 +75,10 @@ bool BitVector::operator==(const BitVector& rhs) const {
 }
 
 template <typename Op>
-BitVector BitVector::BinaryOp(const BitVector& rhs, const Op& op) const {
+BitVector BitVector::binaryOp(const BitVector& rhs, const Op& op) const {
   JIT_CHECK(num_bits_ == rhs.num_bits_, "LHS and RHS are of different widths.");
 
-  if (IsShortVector()) {
+  if (isShortVector()) {
     return BitVector(num_bits_, op(bits_.bits, rhs.bits_.bits));
   }
 
@@ -96,25 +96,25 @@ BitVector BitVector::BinaryOp(const BitVector& rhs, const Op& op) const {
 }
 
 BitVector BitVector::operator&(const BitVector& rhs) const {
-  return BinaryOp(
+  return binaryOp(
       rhs, [](uint64_t a, uint64_t b) -> uint64_t { return a & b; });
 }
 
 BitVector BitVector::operator|(const BitVector& rhs) const {
-  return BinaryOp(
+  return binaryOp(
       rhs, [](uint64_t a, uint64_t b) -> uint64_t { return a | b; });
 }
 
 BitVector BitVector::operator-(const BitVector& rhs) const {
-  return BinaryOp(
+  return binaryOp(
       rhs, [](uint64_t a, uint64_t b) -> uint64_t { return a & ~b; });
 }
 
 template <typename Op>
-BitVector& BitVector::BinaryOpAssign(const BitVector& rhs, const Op& op) {
+BitVector& BitVector::binaryOpAssign(const BitVector& rhs, const Op& op) {
   JIT_CHECK(num_bits_ == rhs.num_bits_, "LHS and RHS are of different widths.");
 
-  if (IsShortVector()) {
+  if (isShortVector()) {
     bits_.bits = op(bits_.bits, rhs.bits_.bits);
   } else {
     std::transform(
@@ -129,22 +129,22 @@ BitVector& BitVector::BinaryOpAssign(const BitVector& rhs, const Op& op) {
 }
 
 BitVector& BitVector::operator&=(const BitVector& rhs) {
-  return BinaryOpAssign(
+  return binaryOpAssign(
       rhs, [](uint64_t a, uint64_t b) -> uint64_t { return a & b; });
 }
 
 BitVector& BitVector::operator|=(const BitVector& rhs) {
-  return BinaryOpAssign(
+  return binaryOpAssign(
       rhs, [](uint64_t a, uint64_t b) -> uint64_t { return a | b; });
 }
 
 BitVector& BitVector::operator-=(const BitVector& rhs) {
-  return BinaryOpAssign(
+  return binaryOpAssign(
       rhs, [](uint64_t a, uint64_t b) -> uint64_t { return a & ~b; });
 }
 
-void BitVector::ResetAll() {
-  if (IsShortVector()) {
+void BitVector::resetAll() {
+  if (isShortVector()) {
     bits_.bits = 0;
   } else {
     for (auto& v : *(bits_.bit_vec)) {
@@ -155,10 +155,10 @@ void BitVector::ResetAll() {
 
 void BitVector::fill(bool v) {
   if (!v) {
-    return ResetAll();
+    return resetAll();
   }
 
-  if (IsShortVector()) {
+  if (isShortVector()) {
     if (num_bits_ == PTR_WIDTH) {
       bits_.bits = -1;
     } else {
@@ -179,9 +179,9 @@ void BitVector::fill(bool v) {
   }
 }
 
-void BitVector::SetBit(size_t bit, bool v) {
+void BitVector::setBit(size_t bit, bool v) {
   JIT_CHECK(bit < num_bits_, "bit is too large.");
-  if (IsShortVector()) {
+  if (isShortVector()) {
     auto b = uintptr_t(1) << bit;
     bits_.bits = v ? (bits_.bits | b) : (bits_.bits & ~b);
   } else {
@@ -193,21 +193,21 @@ void BitVector::SetBit(size_t bit, bool v) {
   }
 }
 
-size_t BitVector::AddBits(size_t i) {
+size_t BitVector::addBits(size_t i) {
   auto new_num_bits = num_bits_ + i;
-  SetBitWidth(new_num_bits);
+  setBitWidth(new_num_bits);
   return new_num_bits;
 }
 
-void BitVector::SetBitWidth(size_t size) {
+void BitVector::setBitWidth(size_t size) {
   if (num_bits_ == size) {
     return;
   }
 
-  bool old_short = IsShortVector();
+  bool old_short = isShortVector();
   auto new_num_bits = size;
   num_bits_ = new_num_bits;
-  bool new_short = IsShortVector();
+  bool new_short = isShortVector();
 
   if (old_short && !new_short) {
     size_t size_2 =
@@ -238,9 +238,9 @@ void BitVector::SetBitWidth(size_t size) {
   }
 }
 
-bool BitVector::GetBit(size_t bit) const {
+bool BitVector::getBit(size_t bit) const {
   JIT_CHECK(bit < num_bits_, "bit is out of range.");
-  if (IsShortVector()) {
+  if (isShortVector()) {
     auto b = uintptr_t(1) << bit;
     return bits_.bits & b;
   }
@@ -260,7 +260,7 @@ void BitVector::forEachSetBit(std::function<void(size_t)> per_bit_func) const {
     }
   };
 
-  if (IsShortVector()) {
+  if (isShortVector()) {
     forEachBitInChunk(bits_.bits, 0);
   } else {
     size_t chunk_base = 0;
@@ -271,8 +271,8 @@ void BitVector::forEachSetBit(std::function<void(size_t)> per_bit_func) const {
   }
 }
 
-uint64_t BitVector::GetBitChunk(size_t chunk) const {
-  if (IsShortVector()) {
+uint64_t BitVector::getBitChunk(size_t chunk) const {
+  if (isShortVector()) {
     JIT_CHECK(chunk == 0, "chunk is out of range.");
     return bits_.bits;
   }
@@ -281,7 +281,7 @@ uint64_t BitVector::GetBitChunk(size_t chunk) const {
   return bits_.bit_vec->at(chunk);
 }
 
-void BitVector::SetBitChunk(size_t chunk, uint64_t bits) {
+void BitVector::setBitChunk(size_t chunk, uint64_t bits) {
   auto num_chunks = (num_bits_ + PTR_WIDTH - 1) / PTR_WIDTH;
   JIT_CHECK(chunk < num_chunks, "chunk is out of range");
 
@@ -293,7 +293,7 @@ void BitVector::SetBitChunk(size_t chunk, uint64_t bits) {
     }
   }
 
-  if (IsShortVector()) {
+  if (isShortVector()) {
     bits_.bits = bits;
     return;
   }
@@ -301,8 +301,8 @@ void BitVector::SetBitChunk(size_t chunk, uint64_t bits) {
   (*bits_.bit_vec)[chunk] = bits;
 }
 
-size_t BitVector::GetPopCount() const {
-  if (IsShortVector()) {
+size_t BitVector::getPopCount() const {
+  if (isShortVector()) {
     return std::popcount(bits_.bits);
   }
 
@@ -313,8 +313,8 @@ size_t BitVector::GetPopCount() const {
   return count;
 }
 
-bool BitVector::IsEmpty() const {
-  if (IsShortVector()) {
+bool BitVector::isEmpty() const {
+  if (isShortVector()) {
     return bits_.bits == 0;
   }
 
@@ -328,11 +328,11 @@ bool BitVector::IsEmpty() const {
 
 std::ostream& operator<<(std::ostream& os, const BitVector& bv) {
   os << '[';
-  for (std::size_t i = 0, n = bv.GetNumBits(); i < n; ++i) {
+  for (std::size_t i = 0, n = bv.getNumBits(); i < n; ++i) {
     if (i > 0 && (i % 8) == 0) {
       os << ';';
     }
-    os << (bv.GetBit(i) ? '1' : '0');
+    os << (bv.getBit(i) ? '1' : '0');
   }
   os << ']';
   return os;

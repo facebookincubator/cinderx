@@ -41,26 +41,26 @@ class BorrowSupport {
 
  public:
   void clear() {
-    bits_.SetBitWidth(0);
+    bits_.setBitWidth(0);
   }
 
   void init(size_t num_support_bits) {
-    bits_.SetBitWidth(num_support_bits);
+    bits_.setBitWidth(num_support_bits);
     bits_.fill(0);
   }
 
   bool empty() const {
-    return bits_.IsEmpty();
+    return bits_.isEmpty();
   }
 
   bool intersects(const BorrowSupport& other) const {
-    return !(bits_ & other.bits_).IsEmpty();
+    return !(bits_ & other.bits_).isEmpty();
   }
   bool intersects(AliasClass acls) const {
-    return (bits_.GetBitChunk(0) & acls.bits()) != 0;
+    return (bits_.getBitChunk(0) & acls.bits()) != 0;
   }
   bool intersects(size_t bit) const {
-    return bits_.GetBit(bit);
+    return bits_.getBit(bit);
   }
 
   bool operator==(const BorrowSupport& other) const {
@@ -75,19 +75,19 @@ class BorrowSupport {
     bits_ |= other.bits_;
   }
   void add(AliasClass acls) {
-    bits_.SetBitChunk(0, bits_.GetBitChunk(0) | acls.bits());
+    bits_.setBitChunk(0, bits_.getBitChunk(0) | acls.bits());
   }
 
   void add(size_t bit) {
-    bits_.SetBit(bit, 1);
+    bits_.setBit(bit, 1);
   }
 
   void remove(AliasClass acls) {
-    bits_.SetBitChunk(0, bits_.GetBitChunk(0) & ~acls.bits());
+    bits_.setBitChunk(0, bits_.getBitChunk(0) & ~acls.bits());
   }
 
   void remove(size_t bit) {
-    bits_.SetBit(bit, 0);
+    bits_.setBit(bit, 0);
   }
 
  private:
@@ -970,12 +970,12 @@ void stealInputs(
     Instr& instr,
     const util::BitVector& stolen_inputs,
     const RegisterSet& dying_regs) {
-  if (stolen_inputs.GetPopCount() == 0) {
+  if (stolen_inputs.getPopCount() == 0) {
     return;
   }
 
   for (int i = 0, n = instr.NumOperands(); i < n; ++i) {
-    if (!stolen_inputs.GetBit(i)) {
+    if (!stolen_inputs.getBit(i)) {
       continue;
     }
 

@@ -57,8 +57,8 @@ void postorder_traverse(
 } // namespace
 
 CFG::~CFG() {
-  while (!blocks.IsEmpty()) {
-    BasicBlock* block = &(blocks.ExtractFront());
+  while (!blocks.isEmpty()) {
+    BasicBlock* block = &(blocks.extractFront());
     // This is the one situation where it's not a bug to delete a reachable
     // block, since we're deleting everything. Clear block's incoming edges so
     // its destructor doesn't complain.
@@ -73,7 +73,7 @@ CFG::~CFG() {
 
 BasicBlock* CFG::AllocateBlock() {
   auto block = AllocateUnlinkedBlock();
-  blocks.PushBack(*block);
+  blocks.pushBack(*block);
   return block;
 }
 
@@ -85,11 +85,11 @@ BasicBlock* CFG::AllocateUnlinkedBlock() {
 }
 
 void CFG::InsertBlock(BasicBlock* block) {
-  blocks.PushBack(*block);
+  blocks.pushBack(*block);
 }
 
 void CFG::RemoveBlock(BasicBlock* block) {
-  block->cfg_node.Unlink();
+  block->cfg_node.unlink();
 }
 
 BasicBlock* CFG::splitAfter(Instr& target) {

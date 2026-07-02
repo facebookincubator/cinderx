@@ -237,13 +237,13 @@ MemoryEffects memoryEffects(const Instr& inst) {
       // Steal all value inputs (not the container at index 0).
       util::BitVector inputs{inst.NumOperands()};
       inputs.fill(true);
-      inputs.SetBit(0, false);
+      inputs.setBit(0, false);
       return {false, AEmpty, std::move(inputs), AListItem};
     }
     case Opcode::kInitTupleElements: {
       util::BitVector inputs{inst.NumOperands()};
       inputs.fill(true);
-      inputs.SetBit(0, false);
+      inputs.setBit(0, false);
       return {false, AEmpty, std::move(inputs), ATupleItem};
     }
 

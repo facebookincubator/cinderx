@@ -31,7 +31,7 @@ namespace cinderx::jit::optimizer {
  */
 
 struct DataFlowBlock {
-  void ConnectTo(DataFlowBlock& block) {
+  void connectTo(DataFlowBlock& block) {
     succ_.insert(&block);
     block.pred_.insert(this);
   }
@@ -50,27 +50,27 @@ class DataFlowAnalyzer {
   DataFlowAnalyzer()
       : num_bits_(0), entry_block_(nullptr), exit_block_(nullptr) {}
 
-  void AddBlock(DataFlowBlock& block) {
+  void addBlock(DataFlowBlock& block) {
     blocks_.insert(&block);
-    block.gen_.SetBitWidth(num_bits_);
-    block.kill_.SetBitWidth(num_bits_);
-    block.in_.SetBitWidth(num_bits_);
-    block.out_.SetBitWidth(num_bits_);
+    block.gen_.setBitWidth(num_bits_);
+    block.kill_.setBitWidth(num_bits_);
+    block.in_.setBitWidth(num_bits_);
+    block.out_.setBitWidth(num_bits_);
   }
 
-  void SetBlockGenBit(DataFlowBlock& block, const T& bit);
-  void SetBlockGenBits(DataFlowBlock& block, const std::vector<T>& bits);
-  void SetBlockKillBit(DataFlowBlock& block, const T& bit);
-  void SetBlockKillBits(DataFlowBlock& block, const std::vector<T>& bits);
-  void SetEntryBlock(DataFlowBlock& block) {
+  void setBlockGenBit(DataFlowBlock& block, const T& bit);
+  void setBlockGenBits(DataFlowBlock& block, const std::vector<T>& bits);
+  void setBlockKillBit(DataFlowBlock& block, const T& bit);
+  void setBlockKillBits(DataFlowBlock& block, const std::vector<T>& bits);
+  void setEntryBlock(DataFlowBlock& block) {
     entry_block_ = &block;
   }
-  void SetExitBlock(DataFlowBlock& block) {
+  void setExitBlock(DataFlowBlock& block) {
     entry_block_ = &block;
   }
 
-  bool GetBlockInBit(const DataFlowBlock& block, const T& bit) const;
-  bool GetBlockOutBit(const DataFlowBlock& block, const T& bit) const;
+  bool getBlockInBit(const DataFlowBlock& block, const T& bit) const;
+  bool getBlockOutBit(const DataFlowBlock& block, const T& bit) const;
 
   template <typename F>
   void forEachBlockIn(const DataFlowBlock& block, F per_obj_func) const;
@@ -78,13 +78,13 @@ class DataFlowAnalyzer {
   template <typename F>
   void forEachBlockOut(const DataFlowBlock& block, F per_obj_func) const;
 
-  void AddObject(const T& obj);
-  void AddObjects(const std::vector<T>& objs);
-  size_t GetObjectIndex(const T& obj) const;
+  void addObject(const T& obj);
+  void addObjects(const std::vector<T>& objs);
+  size_t getObjectIndex(const T& obj) const;
 
   // This function does forward-flow analysis when forward is set to true.
   // It does backward-flow analysis otherwise.
-  void RunAnalysis(bool forward = true);
+  void runAnalysis(bool forward = true);
 
  private:
   std::unordered_map<T, size_t> obj_to_index_map_;
@@ -96,21 +96,21 @@ class DataFlowAnalyzer {
 };
 
 template <typename T>
-void DataFlowAnalyzer<T>::AddObject(const T& obj) {
+void DataFlowAnalyzer<T>::addObject(const T& obj) {
   obj_to_index_map_.emplace(obj, num_bits_);
   index_to_obj_map_.emplace_back(obj);
   num_bits_++;
 
   for (auto& block : blocks_) {
-    block->gen_.AddBits(1);
-    block->kill_.AddBits(1);
-    block->in_.AddBits(1);
-    block->out_.AddBits(1);
+    block->gen_.addBits(1);
+    block->kill_.addBits(1);
+    block->in_.addBits(1);
+    block->out_.addBits(1);
   }
 }
 
 template <typename T>
-void DataFlowAnalyzer<T>::AddObjects(const std::vector<T>& objs) {
+void DataFlowAnalyzer<T>::addObjects(const std::vector<T>& objs) {
   for (auto& obj : objs) {
     obj_to_index_map_.emplace(obj, num_bits_);
     index_to_obj_map_.emplace_back(obj);
@@ -119,15 +119,15 @@ void DataFlowAnalyzer<T>::AddObjects(const std::vector<T>& objs) {
 
   auto added_bits = objs.size();
   for (auto& block : blocks_) {
-    block->gen_.AddBits(added_bits);
-    block->kill_.AddBits(added_bits);
-    block->in_.AddBits(added_bits);
-    block->out_.AddBits(added_bits);
+    block->gen_.addBits(added_bits);
+    block->kill_.addBits(added_bits);
+    block->in_.addBits(added_bits);
+    block->out_.addBits(added_bits);
   }
 }
 
 template <typename T>
-size_t DataFlowAnalyzer<T>::GetObjectIndex(const T& obj) const {
+size_t DataFlowAnalyzer<T>::getObjectIndex(const T& obj) const {
   return obj_to_index_map_.at(obj);
 }
 
@@ -150,53 +150,53 @@ void DataFlowAnalyzer<T>::forEachBlockOut(
 }
 
 template <typename T>
-void DataFlowAnalyzer<T>::SetBlockGenBit(DataFlowBlock& block, const T& bit) {
+void DataFlowAnalyzer<T>::setBlockGenBit(DataFlowBlock& block, const T& bit) {
   auto pos = obj_to_index_map_.at(bit);
-  block.gen_.SetBit(pos);
+  block.gen_.setBit(pos);
 }
 
 template <typename T>
-void DataFlowAnalyzer<T>::SetBlockGenBits(
+void DataFlowAnalyzer<T>::setBlockGenBits(
     DataFlowBlock& block,
     const std::vector<T>& bits) {
   for (const auto& bit : bits) {
-    SetBlockGenBit(block, bit);
+    setBlockGenBit(block, bit);
   }
 }
 
 template <typename T>
-void DataFlowAnalyzer<T>::SetBlockKillBit(DataFlowBlock& block, const T& bit) {
+void DataFlowAnalyzer<T>::setBlockKillBit(DataFlowBlock& block, const T& bit) {
   auto pos = obj_to_index_map_.at(bit);
-  block.kill_.SetBit(pos);
+  block.kill_.setBit(pos);
 }
 
 template <typename T>
-void DataFlowAnalyzer<T>::SetBlockKillBits(
+void DataFlowAnalyzer<T>::setBlockKillBits(
     DataFlowBlock& block,
     const std::vector<T>& bits) {
   for (const auto& bit : bits) {
-    SetBlockKillBit(block, bit);
+    setBlockKillBit(block, bit);
   }
 }
 
 template <typename T>
-bool DataFlowAnalyzer<T>::GetBlockInBit(
+bool DataFlowAnalyzer<T>::getBlockInBit(
     const DataFlowBlock& block,
     const T& bit) const {
   auto index = obj_to_index_map_.at(bit);
-  return block.in_.GetBit(index);
+  return block.in_.getBit(index);
 }
 
 template <typename T>
-bool DataFlowAnalyzer<T>::GetBlockOutBit(
+bool DataFlowAnalyzer<T>::getBlockOutBit(
     const DataFlowBlock& block,
     const T& bit) const {
   auto index = obj_to_index_map_.at(bit);
-  return block.out_.GetBit(index);
+  return block.out_.getBit(index);
 }
 
 template <typename T>
-void DataFlowAnalyzer<T>::RunAnalysis(bool forward) {
+void DataFlowAnalyzer<T>::runAnalysis(bool forward) {
   std::list<DataFlowBlock*> blocks;
 
   std::copy_if(

@@ -61,33 +61,33 @@ class BitVector {
   BitVector& operator-=(const BitVector& rhs);
 
   // Reset all bits to 0 with num_bits_ unchanged.
-  void ResetAll();
+  void resetAll();
 
   // Set all bits to v.
   void fill(bool v);
 
   // Get and set a bit in the position specified in bit. The bit index should
   // be in the range of the bit vector, i.e. less than num_bits_.
-  bool GetBit(size_t bit) const;
+  bool getBit(size_t bit) const;
 
   void forEachSetBit(std::function<void(size_t)> per_bit_func) const;
 
-  void SetBit(size_t bit, bool v = true);
+  void setBit(size_t bit, bool v = true);
   // Get or set a 64-bit chunk of bits.
-  uint64_t GetBitChunk(size_t chunk = 0) const;
-  void SetBitChunk(size_t chunk, uint64_t bits);
+  uint64_t getBitChunk(size_t chunk = 0) const;
+  void setBitChunk(size_t chunk, uint64_t bits);
 
   // Add number of bits specified in i to the bit vector. Returns the new size.
-  size_t AddBits(size_t i);
+  size_t addBits(size_t i);
   // Resize the bit vector to the number of bits specified in size. If size is
   // less than the current number of bits, the bit vector will be truncated.
-  void SetBitWidth(size_t size);
+  void setBitWidth(size_t size);
 
-  size_t GetNumBits() const {
+  size_t getNumBits() const {
     return num_bits_;
   }
-  size_t GetPopCount() const;
-  bool IsEmpty() const;
+  size_t getPopCount() const;
+  bool isEmpty() const;
 
  private:
   size_t num_bits_;
@@ -104,15 +104,15 @@ class BitVector {
 
   static constexpr size_t PTR_WIDTH = sizeof(void*) * 8;
 
-  bool IsShortVector() const {
+  bool isShortVector() const {
     return num_bits_ <= PTR_WIDTH;
   }
 
   template <typename Op>
-  BitVector BinaryOp(const BitVector& rhs, const Op& op) const;
+  BitVector binaryOp(const BitVector& rhs, const Op& op) const;
 
   template <typename Op>
-  BitVector& BinaryOpAssign(const BitVector& rhs, const Op& op);
+  BitVector& binaryOpAssign(const BitVector& rhs, const Op& op);
 };
 
 std::ostream& operator<<(std::ostream& os, const BitVector& bv);

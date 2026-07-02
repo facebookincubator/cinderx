@@ -3972,19 +3972,19 @@ class BasicBlock {
   // BasicBlock holds a list of instructions, delegating most operations
   // directly to its IntrusiveList.
   auto empty() const {
-    return instrs_.IsEmpty();
+    return instrs_.isEmpty();
   }
   auto& front() {
-    return instrs_.Front();
+    return instrs_.front();
   }
   auto& front() const {
-    return instrs_.Front();
+    return instrs_.front();
   }
   auto& back() {
-    return instrs_.Back();
+    return instrs_.back();
   }
   auto& back() const {
-    return instrs_.Back();
+    return instrs_.back();
   }
   auto iterator_to(Instr& instr) {
     return instrs_.iterator_to(instr);

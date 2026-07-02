@@ -141,17 +141,17 @@ void DataflowAnalysis::AddBasicBlock(const BasicBlock* cfg_block) {
       std::forward_as_tuple(cfg_block),
       std::forward_as_tuple());
   auto& df_block = res.first->second;
-  df_analyzer_.AddBlock(df_block);
+  df_analyzer_.addBlock(df_block);
   setUninitialized(&df_block);
 
   std::unordered_set<Register*> gen, kill;
   ComputeGenKill(cfg_block, gen, kill);
 
   for (auto reg : gen) {
-    df_analyzer_.SetBlockGenBit(df_block, reg);
+    df_analyzer_.setBlockGenBit(df_block, reg);
   }
   for (auto reg : kill) {
-    df_analyzer_.SetBlockKillBit(df_block, reg);
+    df_analyzer_.setBlockKillBit(df_block, reg);
   }
 }
 
@@ -160,7 +160,7 @@ void DataflowAnalysis::Initialize() {
   // analysis
   num_bits_ = irfunc_.env.GetRegisters().size();
   for (const auto& it : irfunc_.env.GetRegisters()) {
-    df_analyzer_.AddObject(it.second.get());
+    df_analyzer_.addObject(it.second.get());
   }
 
   // Compute the initial state for each block
@@ -169,21 +169,21 @@ void DataflowAnalysis::Initialize() {
   }
 
   // Set up dataflow graph
-  df_analyzer_.AddBlock(df_entry_);
-  df_analyzer_.SetEntryBlock(df_entry_);
+  df_analyzer_.addBlock(df_entry_);
+  df_analyzer_.setEntryBlock(df_entry_);
 
-  df_analyzer_.AddBlock(df_exit_);
-  df_analyzer_.SetExitBlock(df_exit_);
+  df_analyzer_.addBlock(df_exit_);
+  df_analyzer_.setExitBlock(df_exit_);
 
   for (const auto& cfg_block : irfunc_.cfg.blocks) {
     auto& df_block = df_blocks_[&cfg_block];
 
     if (&cfg_block == irfunc_.cfg.entry_block) {
-      df_entry_.ConnectTo(df_block);
+      df_entry_.connectTo(df_block);
     }
 
     if (cfg_block.out_edges().empty()) {
-      df_block.ConnectTo(df_exit_);
+      df_block.connectTo(df_exit_);
     } else {
       for (auto cfg_edge : cfg_block.out_edges()) {
         auto succ_cfg_block = cfg_edge->to();
@@ -191,7 +191,7 @@ void DataflowAnalysis::Initialize() {
             df_blocks_.contains(succ_cfg_block),
             "succ_cfg_block has to be in the hash table df_blocks_.");
         auto& succ_df_block = df_blocks_.at(succ_cfg_block);
-        df_block.ConnectTo(succ_df_block);
+        df_block.connectTo(succ_df_block);
       }
     }
   }
@@ -398,12 +398,12 @@ void LivenessAnalysis::setUninitialized(jit::optimizer::DataFlowBlock*) {
 
 bool LivenessAnalysis::IsLiveIn(const BasicBlock* cfg_block, Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.GetBlockInBit(df_block, reg);
+  return df_analyzer_.getBlockInBit(df_block, reg);
 }
 
 bool LivenessAnalysis::IsLiveOut(const BasicBlock* cfg_block, Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.GetBlockOutBit(df_block, reg);
+  return df_analyzer_.getBlockOutBit(df_block, reg);
 }
 
 AssignmentAnalysis::AssignmentAnalysis(const Function& irfunc, bool is_definite)
@@ -419,14 +419,14 @@ bool AssignmentAnalysis::IsAssignedIn(
     const BasicBlock* cfg_block,
     Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.GetBlockInBit(df_block, reg);
+  return df_analyzer_.getBlockInBit(df_block, reg);
 }
 
 bool AssignmentAnalysis::IsAssignedOut(
     const BasicBlock* cfg_block,
     Register* reg) {
   const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.GetBlockOutBit(df_block, reg);
+  return df_analyzer_.getBlockOutBit(df_block, reg);
 }
 
 void AssignmentAnalysis::ComputeGenKill(

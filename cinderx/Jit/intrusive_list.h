@@ -31,10 +31,10 @@
  *     IntrusiveList<Entry, &Entry::node> entries;
  *
  *     Entry entry1(100);
- *     entries.PushBack(entry1);
+ *     entries.pushBack(entry1);
  *
  *     Entry entry2(200);
- *     entries.PushBack(entry2);
+ *     entries.pushBack(entry2);
  *
  *     // Prints 1 2
  *     for (auto entry : entries) {
@@ -52,7 +52,7 @@ class IntrusiveListNode {
     return prev_;
   }
 
-  void set_prev(IntrusiveListNode* prev) {
+  void setPrev(IntrusiveListNode* prev) {
     prev_ = prev;
   }
 
@@ -60,34 +60,34 @@ class IntrusiveListNode {
     return next_;
   }
 
-  void set_next(IntrusiveListNode* next) {
+  void setNext(IntrusiveListNode* next) {
     next_ = next;
   }
 
-  void InsertBefore(IntrusiveListNode* node) {
+  void insertBefore(IntrusiveListNode* node) {
     JIT_DCHECK(!isLinked(), "Item is already in a list");
     auto prev_node = node->prev();
-    prev_node->set_next(this);
-    set_prev(prev_node);
-    set_next(node);
-    node->set_prev(this);
+    prev_node->setNext(this);
+    setPrev(prev_node);
+    setNext(node);
+    node->setPrev(this);
   }
 
-  void InsertAfter(IntrusiveListNode* node) {
+  void insertAfter(IntrusiveListNode* node) {
     JIT_DCHECK(!isLinked(), "Item is already in a list");
     auto next_node = node->next();
-    next_node->set_prev(this);
-    set_next(next_node);
-    node->set_next(this);
-    set_prev(node);
+    next_node->setPrev(this);
+    setNext(next_node);
+    node->setNext(this);
+    setPrev(node);
   }
 
-  void Unlink() {
+  void unlink() {
     JIT_DCHECK(isLinked(), "Item is not in a list");
-    prev()->set_next(next());
-    next()->set_prev(prev());
-    set_next(this);
-    set_prev(this);
+    prev()->setNext(next());
+    next()->setPrev(prev());
+    setNext(this);
+    setPrev(this);
   }
 
   bool isLinked() const {
@@ -120,70 +120,70 @@ class IntrusiveList {
   using reference = T&;
   using const_reference = const T&;
 
-  IntrusiveList() : root_(), node_member_offset_(OffsetOfNode()) {}
+  IntrusiveList() : root_(), node_member_offset_(offsetOfNode()) {}
 
-  bool IsEmpty() const {
+  bool isEmpty() const {
     return root_.next() == &root_;
   }
 
-  reference Front() {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
-    return *GetOwner(root_.next());
+  reference front() {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
+    return *getOwner(root_.next());
   }
 
-  const_reference Front() const {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
-    return *GetOwner(root_.next());
+  const_reference front() const {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
+    return *getOwner(root_.next());
   }
 
-  void PushFront(reference node) {
-    (node.*node_member).InsertAfter(&root_);
+  void pushFront(reference node) {
+    (node.*node_member).insertAfter(&root_);
   }
 
-  void PopFront() {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
-    root_.next()->Unlink();
+  void popFront() {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
+    root_.next()->unlink();
   }
 
-  reference ExtractFront() {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
+  reference extractFront() {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
     IntrusiveListNode* old_front = root_.next();
-    old_front->Unlink();
-    return *GetOwner(old_front);
+    old_front->unlink();
+    return *getOwner(old_front);
   }
 
-  reference Back() {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
-    return *GetOwner(root_.prev());
+  reference back() {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
+    return *getOwner(root_.prev());
   }
 
-  const_reference Back() const {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
-    return *GetOwner(root_.prev());
+  const_reference back() const {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
+    return *getOwner(root_.prev());
   }
 
-  reference Next(reference node) {
-    return *GetOwner((node.*node_member).next());
+  reference next(reference node) {
+    return *getOwner((node.*node_member).next());
   }
 
-  const_reference Next(const_reference node) const {
-    return *GetOwner((node.*node_member).next());
+  const_reference next(const_reference node) const {
+    return *getOwner((node.*node_member).next());
   }
 
-  void PushBack(reference node) {
-    (node.*node_member).InsertAfter(root_.prev());
+  void pushBack(reference node) {
+    (node.*node_member).insertAfter(root_.prev());
   }
 
-  void PopBack() {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
-    root_.prev()->Unlink();
+  void popBack() {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
+    root_.prev()->unlink();
   }
 
-  reference ExtractBack() {
-    JIT_DCHECK(!IsEmpty(), "list cannot be empty");
+  reference extractBack() {
+    JIT_DCHECK(!isEmpty(), "list cannot be empty");
     IntrusiveListNode* old_back = root_.prev();
-    old_back->Unlink();
-    return *GetOwner(old_back);
+    old_back->unlink();
+    return *getOwner(old_back);
   }
 
   void spliceAfter(reference node, IntrusiveList& other) {
@@ -196,14 +196,14 @@ class IntrusiveList {
     IntrusiveListNode* spliced_head = lnode->next();
     IntrusiveListNode* spliced_tail = other_root->prev();
     // Splice the remainder out of the other list
-    lnode->set_next(other_root);
-    other_root->set_prev(lnode);
+    lnode->setNext(other_root);
+    other_root->setPrev(lnode);
     // Insert it into our list
     IntrusiveListNode* tail = root_.prev();
-    tail->set_next(spliced_head);
-    spliced_head->set_prev(tail);
-    spliced_tail->set_next(&root_);
-    root_.set_prev(spliced_tail);
+    tail->setNext(spliced_head);
+    spliced_head->setPrev(tail);
+    spliced_tail->setNext(&root_);
+    root_.setPrev(spliced_tail);
   }
 
   void insert(reference r, iterator it) {
@@ -212,7 +212,7 @@ class IntrusiveList {
         "iterator is for list {}, this == {}",
         reinterpret_cast<void*>(it.list()),
         reinterpret_cast<void*>(this));
-    (r.*node_member).InsertBefore(it.node());
+    (r.*node_member).insertBefore(it.node());
   }
 
   // Return an iterator to the given object, assuming it's in this list.
@@ -274,12 +274,12 @@ class IntrusiveList {
  private:
   DISALLOW_COPY_AND_ASSIGN(IntrusiveList);
 
-  pointer GetOwner(IntrusiveListNode* node) const {
+  pointer getOwner(IntrusiveListNode* node) const {
     return reinterpret_cast<pointer>(
         reinterpret_cast<char*>(node) - node_member_offset_);
   }
 
-  const_pointer GetOwner(const IntrusiveListNode* node) const {
+  const_pointer getOwner(const IntrusiveListNode* node) const {
     return reinterpret_cast<const_pointer>(
         reinterpret_cast<const char*>(node) - node_member_offset_);
   }
@@ -287,7 +287,7 @@ class IntrusiveList {
   // This is technically UB, but all of the compilers that we're going to
   // need to use seem to support it, and it's what other more sophisticated
   // intrusive list classes use.
-  static std::size_t OffsetOfNode() {
+  static std::size_t offsetOfNode() {
     return reinterpret_cast<char*>(&(static_cast<T*>(nullptr)->*node_member)) -
         static_cast<char*>(nullptr);
   }
@@ -330,12 +330,12 @@ class IntrusiveListIterator {
 
   reference operator*() const {
     JIT_DCHECK(current_ != &(list_->root_), "iterator exhausted");
-    return *(list_->GetOwner(current_));
+    return *(list_->getOwner(current_));
   }
 
   pointer operator->() const {
     JIT_DCHECK(current_ != &(list_->root_), "iterator exhausted");
-    return list_->GetOwner(current_);
+    return list_->getOwner(current_);
   }
 
   IntrusiveListIterator& operator++() {

@@ -26,13 +26,13 @@ void MaterializeSteals::Run(Function& func) {
       }
 
       MemoryEffects effects = memoryEffects(instr);
-      if (effects.stolen_inputs.GetPopCount() == 0) {
+      if (effects.stolen_inputs.getPopCount() == 0) {
         continue;
       }
 
       auto cursor = block.iterator_to(instr);
-      for (int i = 0; i < effects.stolen_inputs.GetNumBits(); ++i) {
-        if (!effects.stolen_inputs.GetBit(i)) {
+      for (int i = 0; i < effects.stolen_inputs.getNumBits(); ++i) {
+        if (!effects.stolen_inputs.getBit(i)) {
           continue;
         }
 
