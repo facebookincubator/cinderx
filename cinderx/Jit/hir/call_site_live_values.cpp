@@ -85,7 +85,7 @@ void CallSiteLiveValues::Run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
   liveness.Run();
 
-  for (BasicBlock* block : irfunc.cfg.GetRPOTraversal()) {
+  for (BasicBlock* block : irfunc.cfg.getRPOTraversal()) {
     RegisterSet live = liveness.GetOut(block);
     for (auto it = block->rbegin(); it != block->rend(); ++it) {
       Instr& instr = *it;

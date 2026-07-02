@@ -320,10 +320,10 @@ Register* Instr::output() const {
 
 void Instr::setOutput(Register* dst) {
   if (output_ != nullptr) {
-    output_->set_instr(nullptr);
+    output_->setInstr(nullptr);
   }
   if (dst != nullptr) {
-    dst->set_instr(this);
+    dst->setInstr(this);
   }
   output_ = dst;
 }

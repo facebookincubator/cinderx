@@ -482,7 +482,7 @@ DominatorAnalysis::DominatorAnalysis(const Function& irfunc)
   // When it terminates, idoms_[block-id] will contain the block-id of the
   // immediate dominator of each block.  idoms_[start] will be nullptr. This is
   // the general algorithm but it will only loop twice for loop-free graphs.
-  std::vector<BasicBlock*> rpo = irfunc.cfg.GetRPOTraversal();
+  std::vector<BasicBlock*> rpo = irfunc.cfg.getRPOTraversal();
   // Map block ids to their index in the RPO traversal
   std::unordered_map<int, int> rpo_index{};
   for (size_t i = 0; i < rpo.size(); i++) {

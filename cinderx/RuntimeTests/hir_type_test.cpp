@@ -931,10 +931,10 @@ class IntSubObjectSub2(IntSub, ObjectSub):
 
 TEST_F(HIRTypeTest, ReflowSimpleTypes) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  auto b2 = func.cfg.AllocateBlock();
-  auto b3 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  auto b2 = func.cfg.allocateBlock();
+  auto b3 = func.cfg.allocateBlock();
 
   auto v0 = func.env.allocateRegister();
   auto v1 = func.env.allocateRegister();
@@ -966,9 +966,9 @@ TEST_F(HIRTypeTest, ReflowSimpleTypes) {
 
 TEST_F(HIRTypeTest, ReflowLoopTypes) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  auto b2 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  auto b2 = func.cfg.allocateBlock();
 
   auto v0 = func.env.allocateRegister();
   auto v1 = func.env.allocateRegister();

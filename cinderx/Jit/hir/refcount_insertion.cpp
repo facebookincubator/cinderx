@@ -1244,7 +1244,7 @@ void optimizeLongDecrefRuns(Function& irfunc) {
     return result;
   };
 
-  for (auto& block : irfunc.cfg.GetRPOTraversal()) {
+  for (auto& block : irfunc.cfg.getRPOTraversal()) {
     auto cur_iter = block->begin();
 
     while (cur_iter != block->end()) {
@@ -1291,7 +1291,7 @@ void RefcountInsertion::Run(Function& func) {
       HIRPrinter{}.setFullSnapshots(true).ToString(func));
   Env env{func};
 
-  auto rpo_blocks = func.cfg.GetRPOTraversal();
+  auto rpo_blocks = func.cfg.getRPOTraversal();
   Worklist<BasicBlock*> worklist;
   for (auto block : rpo_blocks) {
     worklist.push(block);

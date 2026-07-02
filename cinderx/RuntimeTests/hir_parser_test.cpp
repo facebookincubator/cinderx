@@ -57,7 +57,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   HIRParser parser;
   std::unique_ptr<Function> func(parser.ParseHIR(ir));
 
-  auto traversal = func->cfg.GetRPOTraversal();
+  auto traversal = func->cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 4);
 
   auto block = func->cfg.entry_block;

@@ -2958,7 +2958,7 @@ def test(x):
 
 TEST_F(FrameStateCreationTest, GetDominatingFrameState) {
   CFG cfg;
-  auto block = cfg.AllocateBlock();
+  auto block = cfg.allocateBlock();
   FrameState fs{BCOffset{10}};
   block->append<Snapshot>(fs);
 

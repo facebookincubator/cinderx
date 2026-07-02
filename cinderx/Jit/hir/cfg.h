@@ -12,17 +12,17 @@ class CFG {
   ~CFG();
 
   // Allocate a new basic block and insert it into this CFG
-  BasicBlock* AllocateBlock();
+  BasicBlock* allocateBlock();
 
   // Allocate a block without linking it into the CFG
-  BasicBlock* AllocateUnlinkedBlock();
+  BasicBlock* allocateUnlinkedBlock();
 
   // Insert a block into the CFG. The CFG takes ownership and will free it
   // upon destruction of the CFG.
-  void InsertBlock(BasicBlock* block);
+  void insertBlock(BasicBlock* block);
 
   // Remove block from the CFG
-  void RemoveBlock(BasicBlock* block);
+  void removeBlock(BasicBlock* block);
 
   // Split a block after instr. Once split, the block will contain all
   // instructions up to and including instr. A newly allocated block is returned
@@ -34,12 +34,12 @@ class CFG {
 
   // Return the RPO traversal of the basic blocks in the CFG starting from
   // entry_block.
-  std::vector<BasicBlock*> GetRPOTraversal() const;
+  std::vector<BasicBlock*> getRPOTraversal() const;
 
   // Return the post order traversal of the basic blocks in the CFG starting
   // from entry_block. Used in backward data-flow analysis like unreachable
   // instructions
-  std::vector<BasicBlock*> GetPostOrderTraversal() const;
+  std::vector<BasicBlock*> getPostOrderTraversal() const;
 
   // Return the BasicBlock in the CFG with the specified id, or nullptr if none
   // exist
@@ -47,12 +47,12 @@ class CFG {
 
   // Return the RPO traversal of the reachable basic blocks in the CFG starting
   // from the given block.
-  static std::vector<BasicBlock*> GetRPOTraversal(BasicBlock* start);
+  static std::vector<BasicBlock*> getRPOTraversal(BasicBlock* start);
 
   // Returns the post order traversal of the reachable basic blocks in the CFG
   // starting from the given block. Used in backward data-flow analysis like
   // unreachable instructions
-  static std::vector<BasicBlock*> GetPostOrderTraversal(BasicBlock* start);
+  static std::vector<BasicBlock*> getPostOrderTraversal(BasicBlock* start);
 
   // Entry point into the CFG; may be null
   BasicBlock* entry_block{nullptr};

@@ -31,7 +31,7 @@ void Function::setCode(BorrowedRef<PyCodeObject> new_code) {
   code.reset(new_code);
 }
 
-std::size_t Function::CountInstrs(InstrPredicate pred) const {
+std::size_t Function::countInstrs(InstrPredicate pred) const {
   std::size_t result = 0;
   for (const auto& block : cfg.blocks) {
     for (const auto& instr : block) {

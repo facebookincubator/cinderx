@@ -17,7 +17,7 @@ using namespace cinderx::jit::hir;
 
 TEST_F(LivenessAnalysisTest, SingleBlockHasNoLiveInOut) {
   Function func;
-  auto block = func.cfg.AllocateBlock();
+  auto block = func.cfg.allocateBlock();
   func.cfg.entry_block = block;
   auto v0 = func.env.allocateRegister();
   block->append<LoadConst>(v0, TNoneType);
@@ -49,13 +49,13 @@ TEST_F(LivenessAnalysisTest, UninitializedVariableUseIsLiveIn) {
   //   }
   // }
   Function func;
-  auto entry = func.cfg.AllocateBlock();
+  auto entry = func.cfg.allocateBlock();
   func.cfg.entry_block = entry;
   auto v0 = func.env.allocateRegister();
   entry->append<LoadArg>(v0, 0);
 
-  auto t_block = func.cfg.AllocateBlock();
-  auto f_block = func.cfg.AllocateBlock();
+  auto t_block = func.cfg.allocateBlock();
+  auto f_block = func.cfg.allocateBlock();
   entry->append<CondBranch>(v0, t_block, f_block);
 
   auto v1 = func.env.allocateRegister();
@@ -90,9 +90,9 @@ TEST_F(LivenessAnalysisTest, UninitializedVariableUseIsLiveIn) {
 
 TEST_F(LivenessAnalysisTest, PhiUses) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  auto b2 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  auto b2 = func.cfg.allocateBlock();
 
   auto v0 = func.env.allocateRegister();
   auto v1 = func.env.allocateRegister();
@@ -131,10 +131,10 @@ TEST_F(LivenessAnalysisTest, PhiUses) {
 
 TEST_F(LivenessAnalysisTest, LastUses) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  auto b2 = func.cfg.AllocateBlock();
-  auto b3 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  auto b2 = func.cfg.allocateBlock();
+  auto b3 = func.cfg.allocateBlock();
 
   auto v0 = func.env.allocateRegister();
   auto v1 = func.env.allocateRegister();
@@ -176,7 +176,7 @@ class DefiniteAssignmentAnalysisTest : public RuntimeTest {};
 
 TEST_F(DefiniteAssignmentAnalysisTest, ArgumentsAlwaysAssigned) {
   Function func;
-  auto block = func.cfg.AllocateBlock();
+  auto block = func.cfg.allocateBlock();
   func.cfg.entry_block = block;
   auto v0 = func.env.allocateRegister();
   block->append<LoadArg>(v0, 0);
@@ -213,13 +213,13 @@ TEST_F(
   //   }
   // }
   Function func;
-  auto entry = func.cfg.AllocateBlock();
+  auto entry = func.cfg.allocateBlock();
   func.cfg.entry_block = entry;
   auto v0 = func.env.allocateRegister();
   entry->append<LoadArg>(v0, 0);
 
-  auto t_block = func.cfg.AllocateBlock();
-  auto f_block = func.cfg.AllocateBlock();
+  auto t_block = func.cfg.allocateBlock();
+  auto f_block = func.cfg.allocateBlock();
   entry->append<CondBranch>(v0, t_block, f_block);
 
   auto v1 = func.env.allocateRegister();
@@ -275,16 +275,16 @@ TEST_F(DefiniteAssignmentAnalysisTest, CondInitOnAllBranchesAreDefAssigned) {
   //   }
   // }
   Function func;
-  auto entry = func.cfg.AllocateBlock();
+  auto entry = func.cfg.allocateBlock();
   func.cfg.entry_block = entry;
   auto v0 = func.env.allocateRegister();
   entry->append<LoadArg>(v0, 0);
 
-  auto t_block = func.cfg.AllocateBlock();
-  auto f_block = func.cfg.AllocateBlock();
+  auto t_block = func.cfg.allocateBlock();
+  auto f_block = func.cfg.allocateBlock();
   entry->append<CondBranch>(v0, t_block, f_block);
 
-  auto exit_block = func.cfg.AllocateBlock();
+  auto exit_block = func.cfg.allocateBlock();
   auto v1 = func.env.allocateRegister();
   t_block->append<LoadConst>(v1, TNoneType);
   t_block->append<Branch>(exit_block);
@@ -348,11 +348,11 @@ TEST_F(DefiniteAssignmentAnalysisTest, AssignmentDominatesLoop) {
   // }
 
   Function func;
-  auto b0 = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  auto b2 = func.cfg.AllocateBlock();
-  auto b3 = func.cfg.AllocateBlock();
-  auto b4 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  auto b2 = func.cfg.allocateBlock();
+  auto b3 = func.cfg.allocateBlock();
+  auto b4 = func.cfg.allocateBlock();
 
   func.cfg.entry_block = b0;
   auto v0 = func.env.allocateRegister();

@@ -145,7 +145,7 @@ std::unique_ptr<Preloader> Preloader::make(
       func->func_code,
       func->func_builtins,
       func->func_globals,
-      AnnotationIndex::from_function(func),
+      AnnotationIndex::fromFunction(func),
       funcFullname(func),
       std::move(reifier));
 }

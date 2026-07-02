@@ -71,7 +71,7 @@ void HIRPrinter::Print(std::ostream& os, const Function& func) {
 
 void HIRPrinter::Print(std::ostream& os, const CFG& cfg) {
   auto start = cfg.entry_block;
-  std::vector<BasicBlock*> blocks = cfg.GetRPOTraversal(start);
+  std::vector<BasicBlock*> blocks = cfg.getRPOTraversal(start);
   auto last_block = blocks.back();
   for (auto block : blocks) {
     Print(os, *block);

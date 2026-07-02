@@ -140,10 +140,10 @@ struct Env {
         case Opcode::kVectorCall:
           // We don't know the exact output type until its operands are
           // populated.
-          output->set_type(TObject);
+          output->setType(TObject);
           break;
         default:
-          output->set_type(outputType(*instr));
+          output->setType(outputType(*instr));
           break;
       }
     }
@@ -162,8 +162,8 @@ struct Env {
     // bb1, bb2, and the new tail block that's split from the original.
     new_blocks += 3;
 
-    BasicBlock* bb1 = func.cfg.AllocateBlock();
-    BasicBlock* bb2 = func.cfg.AllocateBlock();
+    BasicBlock* bb1 = func.cfg.allocateBlock();
+    BasicBlock* bb2 = func.cfg.allocateBlock();
     do_branch(bb1, bb2);
     JIT_CHECK(
         cursor != block->begin(),
@@ -213,7 +213,7 @@ struct Env {
     new_blocks += 2;
 
     BasicBlock* previous_path = block;
-    BasicBlock* slow_path = func.cfg.AllocateBlock();
+    BasicBlock* slow_path = func.cfg.allocateBlock();
 
     auto branch = do_branch(slow_path);
     BasicBlock* fast_path = func.cfg.splitAfter(*branch);
@@ -1433,12 +1433,12 @@ Register* simplifyUnbox(Env& env, const Instr* instr) {
       return nullptr;
     }
     if (output_type <= TCSigned) {
-      if (!Type::CIntFitsType(number, output_type)) {
+      if (!Type::cIntFitsType(number, output_type)) {
         return nullptr;
       }
       return env.emit<LoadConst>(Type::fromCInt(number, output_type));
     } else {
-      if (!Type::CUIntFitsType(number, output_type)) {
+      if (!Type::cuIntFitsType(number, output_type)) {
         return nullptr;
       }
       return env.emit<LoadConst>(Type::fromCUInt(number, output_type));
@@ -1959,7 +1959,7 @@ static Register* resolveArgs(
   for (size_t i = 0; i < resolved_args.size(); i++) {
     new_instr->setOperand(i + 1, resolved_args.at(i));
   }
-  result->set_type(outputType(*new_instr));
+  result->setType(outputType(*new_instr));
   return result;
 }
 
@@ -1977,7 +1977,7 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
       for (size_t i = 2; i < instr->numOperands(); ++i) {
         call->setOperand(i - 1, instr->getOperand(i));
       }
-      call->output()->set_type(instr->output()->type());
+      call->output()->setType(instr->output()->type());
       return call->output();
     }
   } else {
@@ -2211,7 +2211,7 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
       // compare instead. This works, but requires that we change the
       // instruction's output type to match in order to pass the assertions that
       // come after the call to simplifyInstr.
-      instr->output()->set_type(TCBool);
+      instr->output()->setType(TCBool);
 
       return result;
     }

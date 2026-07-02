@@ -1170,7 +1170,7 @@ BasicBlock* HIRParser::ParseBasicBlock(CFG& cfg) {
 
   expect("bb");
   int id = GetNextInteger();
-  auto bb = cfg.AllocateBlock();
+  auto bb = cfg.allocateBlock();
   bb->id = id;
 
   if (peekNextToken() == "(") {

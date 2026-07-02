@@ -45,7 +45,7 @@ void MaterializeSteals::Run(Function& func) {
         Register* output = func.env.allocateRegister();
         MaterializeRef* materialized = MaterializeRef::create(output, operand);
         materialized->copyBytecodeOffset(instr);
-        output->set_type(outputType(*materialized));
+        output->setType(outputType(*materialized));
         block.insert(materialized, cursor);
         instr.setOperand(i, output);
       }

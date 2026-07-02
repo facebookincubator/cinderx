@@ -71,30 +71,30 @@ CFG::~CFG() {
   }
 }
 
-BasicBlock* CFG::AllocateBlock() {
-  auto block = AllocateUnlinkedBlock();
+BasicBlock* CFG::allocateBlock() {
+  auto block = allocateUnlinkedBlock();
   blocks.pushBack(*block);
   return block;
 }
 
-BasicBlock* CFG::AllocateUnlinkedBlock() {
+BasicBlock* CFG::allocateUnlinkedBlock() {
   int id = next_block_id_;
   auto block = new BasicBlock(id);
   next_block_id_++;
   return block;
 }
 
-void CFG::InsertBlock(BasicBlock* block) {
+void CFG::insertBlock(BasicBlock* block) {
   blocks.pushBack(*block);
 }
 
-void CFG::RemoveBlock(BasicBlock* block) {
+void CFG::removeBlock(BasicBlock* block) {
   block->cfg_node.unlink();
 }
 
 BasicBlock* CFG::splitAfter(Instr& target) {
   auto block = target.block();
-  auto tail = AllocateBlock();
+  auto tail = allocateBlock();
   for (auto it = std::next(block->iterator_to(target)); it != block->end();) {
     auto& instr = *it;
     ++it;
@@ -131,7 +131,7 @@ void CFG::splitCriticalEdges() {
   for (auto edge : critical_edges) {
     auto from = edge->from();
     auto to = edge->to();
-    auto split_bb = AllocateBlock();
+    auto split_bb = allocateBlock();
     auto term = edge->from()->getTerminator();
     split_bb->appendWithOff<Branch>(term->bytecodeOffset(), to);
     edge->setTo(split_bb);
@@ -139,21 +139,21 @@ void CFG::splitCriticalEdges() {
   }
 }
 
-std::vector<BasicBlock*> CFG::GetRPOTraversal() const {
-  return GetRPOTraversal(entry_block);
+std::vector<BasicBlock*> CFG::getRPOTraversal() const {
+  return getRPOTraversal(entry_block);
 }
 
-std::vector<BasicBlock*> CFG::GetRPOTraversal(BasicBlock* start) {
-  auto traversal = GetPostOrderTraversal(start);
+std::vector<BasicBlock*> CFG::getRPOTraversal(BasicBlock* start) {
+  auto traversal = getPostOrderTraversal(start);
   std::reverse(traversal.begin(), traversal.end());
   return traversal;
 }
 
-std::vector<BasicBlock*> CFG::GetPostOrderTraversal() const {
-  return GetPostOrderTraversal(entry_block);
+std::vector<BasicBlock*> CFG::getPostOrderTraversal() const {
+  return getPostOrderTraversal(entry_block);
 }
 
-std::vector<BasicBlock*> CFG::GetPostOrderTraversal(BasicBlock* start) {
+std::vector<BasicBlock*> CFG::getPostOrderTraversal(BasicBlock* start) {
   std::vector<BasicBlock*> traversal;
   if (start == nullptr) {
     return traversal;

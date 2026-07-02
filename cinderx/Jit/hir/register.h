@@ -28,7 +28,7 @@ class Register {
   Type type() const {
     return type_;
   }
-  void set_type(Type type) {
+  void setType(Type type) {
     type_ = type;
   }
 
@@ -42,7 +42,7 @@ class Register {
   Instr* instr() const {
     return instr_;
   }
-  void set_instr(Instr* instr) {
+  void setInstr(Instr* instr) {
     instr_ = instr;
   }
 

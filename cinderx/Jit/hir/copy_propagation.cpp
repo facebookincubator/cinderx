@@ -6,7 +6,7 @@ namespace cinderx::jit::hir {
 
 void CopyPropagation::Run(Function& irfunc) {
   std::vector<Instr*> assigns;
-  for (auto block : irfunc.cfg.GetRPOTraversal()) {
+  for (auto block : irfunc.cfg.getRPOTraversal()) {
     for (auto& instr : *block) {
       instr.visitUses([](Register*& reg) {
         reg = chaseAssignOperand(reg);

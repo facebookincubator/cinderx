@@ -285,7 +285,7 @@ void SSAify::Run(Function& irfunc) {
 void SSAify::Run(Function& irfunc, BasicBlock* start) {
   env_ = &irfunc.env;
 
-  auto blocks = CFG::GetRPOTraversal(start);
+  auto blocks = CFG::getRPOTraversal(start);
   auto ssa_basic_blocks = initSSABasicBlocks(blocks);
   phi_uses_.clear();
 

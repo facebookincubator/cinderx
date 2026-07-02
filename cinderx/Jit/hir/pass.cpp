@@ -573,11 +573,11 @@ void reflowTypes(Function& func, BasicBlock* start) {
   // First, reset all types to Bottom so Phi inputs from back edges don't
   // contribute to the output type of the Phi until they've been processed.
   for (auto& pair : func.env.getRegisters()) {
-    pair.second->set_type(TBottom);
+    pair.second->setType(TBottom);
   }
 
   // Next, flow types forward, iterating to a fixed point.
-  auto rpo_blocks = CFG::GetRPOTraversal(start);
+  auto rpo_blocks = CFG::getRPOTraversal(start);
   for (bool changed = true; changed;) {
     changed = false;
     for (auto block : rpo_blocks) {
@@ -604,7 +604,7 @@ void reflowTypes(Function& func, BasicBlock* start) {
           continue;
         }
 
-        dst->set_type(new_ty);
+        dst->setType(new_ty);
         changed = true;
       }
     }
@@ -635,7 +635,7 @@ bool removeTrampolineBlocks(CFG* cfg) {
     trampolines.emplace_back(&block);
   }
   for (auto& block : trampolines) {
-    cfg->RemoveBlock(block);
+    cfg->removeBlock(block);
     delete block;
   }
   simplifyRedundantCondBranches(cfg);
@@ -676,7 +676,7 @@ bool removeUnreachableBlocks(Function& func) {
           old_term->successor(i)->removePhiPredecessor(block);
         }
       }
-      cfg->RemoveBlock(block);
+      cfg->removeBlock(block);
       block->clear();
       unreachable.emplace_back(block);
     }
@@ -693,7 +693,7 @@ bool removeUnreachableInstructions(Function& func) {
   auto cfg = &func.cfg;
 
   bool modified = false;
-  std::vector<BasicBlock*> blocks = cfg->GetPostOrderTraversal();
+  std::vector<BasicBlock*> blocks = cfg->getPostOrderTraversal();
   DominatorAnalysis dom(func);
   RegUses reg_uses = collectDirectRegUses(func);
   auto remove_reg_uses = [&reg_uses](Instr* instr) {

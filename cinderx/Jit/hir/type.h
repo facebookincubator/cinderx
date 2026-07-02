@@ -67,8 +67,8 @@ class Type {
   static Type fromCDouble(double d);
   static Type fromCPtr(void* p);
 
-  static bool CIntFitsType(int64_t i, Type t);
-  static bool CUIntFitsType(uint64_t i, Type t);
+  static bool cIntFitsType(int64_t i, Type t);
+  static bool cuIntFitsType(uint64_t i, Type t);
 
   // Convert a signed integer into a primitive Type.  The integer must fit
   // inside the type's value range.

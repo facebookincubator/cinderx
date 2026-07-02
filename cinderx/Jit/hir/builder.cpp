@@ -513,7 +513,7 @@ HIRBuilder::BlockMap HIRBuilder::createBlocks(
     } else {
       end_idx = BCIndex{bc_block.size()};
     }
-    auto block = irfunc.cfg.AllocateBlock();
+    auto block = irfunc.cfg.allocateBlock();
     block_map.blocks[start_idx] = block;
     block_map.bc_blocks.emplace(
         std::piecewise_construct,
@@ -659,7 +659,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   BasicBlock* entry_block = getBlockAtOff(BCOffset{0});
   for (const auto& bci : bc_instrs) {
     if (bci.isBranch() && bci.getJumpTarget() == 0) {
-      entry_block = irfunc->cfg.AllocateBlock();
+      entry_block = irfunc->cfg.allocateBlock();
       break;
     }
   }
@@ -723,9 +723,9 @@ InlineResult HIRBuilder::inlineHIR(
   // callee.  After SSA, it will turn into a massive Phi.  The caller can find
   // the Return and use it as the output of the call instruction.
   Register* return_val = caller->env.allocateRegister();
-  BasicBlock* exit_block = caller->cfg.AllocateBlock();
+  BasicBlock* exit_block = caller->cfg.allocateBlock();
   size_t num_preds = 0;
-  for (auto block : caller->cfg.GetRPOTraversal(entry_block)) {
+  for (auto block : caller->cfg.getRPOTraversal(entry_block)) {
     auto instr = block->getTerminator();
     if (instr->isReturn()) {
       auto assign = Assign::create(return_val, instr->getOperand(0));
@@ -753,7 +753,7 @@ InlineResult HIRBuilder::inlineHIR(
   // inlined function's CFG from its caller for SSAify to run properly: it will
   // find uses (in FrameState) before defs and insert LoadConst<Nullptr>.
   UnorderedMap<FrameState*, FrameState*> framestate_parent;
-  for (BasicBlock* block : caller->cfg.GetRPOTraversal(entry_block)) {
+  for (BasicBlock* block : caller->cfg.getRPOTraversal(entry_block)) {
     for (Instr& instr : *block) {
       JIT_CHECK(
           !instr.isBeginInlinedFunction(),
@@ -1986,7 +1986,7 @@ void HIRBuilder::emitResume(
   if (is_simple_leaf_function_) {
     return;
   }
-  TranslationContext succ(cfg.AllocateBlock(), tc.frame);
+  TranslationContext succ(cfg.allocateBlock(), tc.frame);
   succ.emitSnapshot();
   insertRunPeriodicActivites(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;
@@ -2197,13 +2197,13 @@ void HIRBuilder::emitLoadIterableArg(
     const jit::BytecodeInstruction& bc_instr) {
   auto iterable = tc.frame.stack.top();
   if (iterable->type() != TTupleExact) {
-    TranslationContext tuple_path{cfg.AllocateBlock(), tc.frame};
+    TranslationContext tuple_path{cfg.allocateBlock(), tc.frame};
     tuple_path.emitSnapshot();
-    TranslationContext non_tuple_path{cfg.AllocateBlock(), tc.frame};
+    TranslationContext non_tuple_path{cfg.allocateBlock(), tc.frame};
     non_tuple_path.emitSnapshot();
     tc.emit<CondBranchCheckType>(
         iterable, TTuple, tuple_path.block, non_tuple_path.block);
-    tc.block = cfg.AllocateBlock();
+    tc.block = cfg.allocateBlock();
     Register* tuple = allocateTemp();
     tc.frame.stack.topPut(0, tuple);
     tc.emitSnapshot();
@@ -2785,7 +2785,7 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
     bool load_method) {
-  TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
+  TranslationContext deopt_path{cfg.allocateBlock(), tc.frame};
   Register* receiver = tc.frame.stack.pop();
   Register* type = tc.frame.stack.pop();
   Register* global_super = tc.frame.stack.pop();
@@ -2801,7 +2801,7 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
   deopt_path.emitSnapshot();
   deopt_path.emit<Deopt>();
-  BasicBlock* fast_path = cfg.AllocateBlock();
+  BasicBlock* fast_path = cfg.allocateBlock();
   tc.emit<CondBranchCheckType>(type, TType, fast_path, deopt_path.block);
   tc.block = fast_path;
   tc.emit<RefineType>(type, TType, type);
@@ -3381,12 +3381,12 @@ void HIRBuilder::emitFastLen(
   JIT_CHECK(offset > 0, "Bad oparg for FAST_LEN");
 
   if (inexact) {
-    TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
+    TranslationContext deopt_path{cfg.allocateBlock(), tc.frame};
     deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
     deopt_path.emitSnapshot();
     deopt_path.emit<Deopt>();
     collection = tc.frame.stack.pop();
-    BasicBlock* fast_path = cfg.AllocateBlock();
+    BasicBlock* fast_path = cfg.allocateBlock();
     tc.emit<CondBranchCheckType>(collection, type, fast_path, deopt_path.block);
     tc.block = fast_path;
     // TASK(T105038867): Remove once we have RefineTypeInsertion
@@ -3959,12 +3959,12 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
   Register* iter_in = tc.frame.stack.pop();
 
   bool in_coro = code_->co_flags & (CO_COROUTINE | CO_ITERABLE_COROUTINE);
-  BasicBlock* done_block = cfg.AllocateBlock();
-  BasicBlock* next_block = cfg.AllocateBlock();
-  BasicBlock* nop_block = cfg.AllocateBlock();
-  BasicBlock* is_coro_block = in_coro ? nop_block : cfg.AllocateBlock();
+  BasicBlock* done_block = cfg.allocateBlock();
+  BasicBlock* next_block = cfg.allocateBlock();
+  BasicBlock* nop_block = cfg.allocateBlock();
+  BasicBlock* is_coro_block = in_coro ? nop_block : cfg.allocateBlock();
 
-  BasicBlock* check_coro_block = cfg.AllocateBlock();
+  BasicBlock* check_coro_block = cfg.allocateBlock();
   tc.emit<CondBranchCheckType>(
       iter_in,
       Type::fromTypeExact(cinderx::getModuleState()->coro_type),
@@ -3986,7 +3986,7 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
 
   tc.block = next_block;
 
-  BasicBlock* slow_path = cfg.AllocateBlock();
+  BasicBlock* slow_path = cfg.allocateBlock();
   Register* iter_out = allocateTemp();
   tc.emit<CondBranchCheckType>(iter_in, TGen, nop_block, slow_path);
 
@@ -4052,17 +4052,17 @@ void HIRBuilder::emitUnpackSequence(
   bool needs_slow_path =
       !seq->isA(TTupleExact) && (kFreeThreadedBuild || !seq->isA(TListExact));
 
-  TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
+  TranslationContext deopt_path{cfg.allocateBlock(), tc.frame};
   deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
   deopt_path.emitSnapshot();
   Deopt* deopt = deopt_path.emit<Deopt>();
   deopt->setGuiltyReg(seq);
   deopt->setDescr("UNPACK_SEQUENCE");
 
-  BasicBlock* fast_path = cfg.AllocateBlock();
-  BasicBlock* list_check_path = cfg.AllocateBlock();
-  BasicBlock* list_fast_path = cfg.AllocateBlock();
-  BasicBlock* tuple_fast_path = cfg.AllocateBlock();
+  BasicBlock* fast_path = cfg.allocateBlock();
+  BasicBlock* list_check_path = cfg.allocateBlock();
+  BasicBlock* list_fast_path = cfg.allocateBlock();
+  BasicBlock* tuple_fast_path = cfg.allocateBlock();
   Register* list_mem = allocateTemp();
   stack.pop();
 
@@ -4070,8 +4070,8 @@ void HIRBuilder::emitUnpackSequence(
   // between the fast and slow paths. Both paths write to the same items[]
   // registers (at runtime exactly one path executes), and then branch to
   // done_path where the items are pushed to the stack.
-  BasicBlock* slow_path = needs_slow_path ? cfg.AllocateBlock() : nullptr;
-  BasicBlock* done_path = needs_slow_path ? cfg.AllocateBlock() : nullptr;
+  BasicBlock* slow_path = needs_slow_path ? cfg.allocateBlock() : nullptr;
+  BasicBlock* done_path = needs_slow_path ? cfg.allocateBlock() : nullptr;
   std::vector<Register*> items;
   if (needs_slow_path) {
     items.resize(count);
@@ -4126,7 +4126,7 @@ void HIRBuilder::emitUnpackSequence(
   tc.emit<LoadConst>(target_size, Type::fromCInt(count, TCInt64));
   tc.emit<PrimitiveCompare>(
       is_equal, PrimitiveCompareOp::kEqual, seq_size, target_size);
-  fast_path = cfg.AllocateBlock();
+  fast_path = cfg.allocateBlock();
   tc.emit<CondBranch>(is_equal, fast_path, deopt_path.block);
   tc.block = fast_path;
 
@@ -4438,9 +4438,9 @@ void HIRBuilder::emitYieldFrom(
     tc.emit<SetCurrentAwaiter>(iter);
   }
 
-  BasicBlock* send_bb = cfg.AllocateBlock();
-  BasicBlock* yield_bb = cfg.AllocateBlock();
-  BasicBlock* done_bb = cfg.AllocateBlock();
+  BasicBlock* send_bb = cfg.allocateBlock();
+  BasicBlock* yield_bb = cfg.allocateBlock();
+  BasicBlock* done_bb = cfg.allocateBlock();
 
   tc.emit<Branch>(send_bb);
 
@@ -4553,8 +4553,8 @@ void HIRBuilder::emitGetAwaitable(
   bool error_aenter = bc_instr.oparg() == 1;
   bool error_aexit = bc_instr.oparg() == 2;
   if (error_aenter || error_aexit) {
-    BasicBlock* error_block = cfg.AllocateBlock();
-    BasicBlock* ok_block = cfg.AllocateBlock();
+    BasicBlock* error_block = cfg.allocateBlock();
+    BasicBlock* ok_block = cfg.allocateBlock();
     tc.emit<CondBranch>(iter, ok_block, error_block);
     tc.block = error_block;
     Register* type = allocateTemp();
@@ -4571,9 +4571,9 @@ void HIRBuilder::emitGetAwaitable(
 
   // For coroutines only, runtime assert it isn't already awaiting by checking
   // if it has a sub-iterator using *Gen_yf().
-  BasicBlock* block_assert_not_awaited_coro = cfg.AllocateBlock();
-  BasicBlock* block_done = cfg.AllocateBlock();
-  BasicBlock* block_check_coro = cfg.AllocateBlock();
+  BasicBlock* block_assert_not_awaited_coro = cfg.allocateBlock();
+  BasicBlock* block_done = cfg.allocateBlock();
+  BasicBlock* block_check_coro = cfg.allocateBlock();
   tc.emit<CondBranchCheckType>(
       iter,
       Type::fromTypeExact(cinderx::getModuleState()->coro_type),
@@ -4589,7 +4589,7 @@ void HIRBuilder::emitGetAwaitable(
   tc.block = block_assert_not_awaited_coro;
   tc.emit<CallCFunc>(
       1, yf, CallCFunc::Func::kJitGen_yf, std::vector<Register*>{iter});
-  BasicBlock* block_coro_already_awaited = cfg.AllocateBlock();
+  BasicBlock* block_coro_already_awaited = cfg.allocateBlock();
   tc.emit<CondBranch>(yf, block_coro_already_awaited, block_done);
   tc.block = block_coro_already_awaited;
   tc.emit<RaiseStatic>(
@@ -4683,7 +4683,7 @@ void HIRBuilder::emitDispatchEagerCoroResult(
     BasicBlock* post_await_block) {
   Register* stack_top = tc.frame.stack.top();
 
-  TranslationContext has_wh_block{cfg.AllocateBlock(), tc.frame};
+  TranslationContext has_wh_block{cfg.allocateBlock(), tc.frame};
   tc.emit<CondBranchCheckType>(
       stack_top, TWaitHandle, has_wh_block.block, await_block);
 
@@ -4694,8 +4694,8 @@ void HIRBuilder::emitDispatchEagerCoroResult(
   has_wh_block.emit<WaitHandleLoadWaiter>(wh_waiter, wait_handle);
   has_wh_block.emit<WaitHandleRelease>(wait_handle);
 
-  TranslationContext coro_block{cfg.AllocateBlock(), tc.frame};
-  TranslationContext res_block{cfg.AllocateBlock(), tc.frame};
+  TranslationContext coro_block{cfg.allocateBlock(), tc.frame};
+  TranslationContext res_block{cfg.allocateBlock(), tc.frame};
   has_wh_block.emit<CondBranch>(wh_waiter, coro_block.block, res_block.block);
 
   // wh_waiter is OptObject; refine to Object in the true branch.
@@ -4736,14 +4736,14 @@ void HIRBuilder::emitMatchMappingSequence(
   auto and_result = allocateTemp();
   tc.emit<IntBinaryOp>(and_result, BinaryOpKind::kAnd, tp_flags, flag);
 
-  auto true_block = cfg.AllocateBlock();
-  auto false_block = cfg.AllocateBlock();
+  auto true_block = cfg.allocateBlock();
+  auto false_block = cfg.allocateBlock();
   tc.emit<CondBranch>(and_result, true_block, false_block);
 
   auto result = allocateTemp();
   tc.block = true_block;
   tc.emit<LoadConst>(result, Type::fromObject(Py_True));
-  auto done = cfg.AllocateBlock();
+  auto done = cfg.allocateBlock();
   tc.emit<Branch>(done);
 
   tc.block = false_block;
@@ -4775,9 +4775,9 @@ void HIRBuilder::emitMatchClass(
   Register* tuple_or_none = allocateTemp();
   stack.push(tuple_or_none);
 
-  auto true_block = cfg.AllocateBlock();
-  auto false_block = cfg.AllocateBlock();
-  auto done = cfg.AllocateBlock();
+  auto true_block = cfg.allocateBlock();
+  auto false_block = cfg.allocateBlock();
+  auto done = cfg.allocateBlock();
 
   tc.emit<CondBranch>(attrs_tuple, true_block, false_block);
   tc.block = true_block;
@@ -4809,9 +4809,9 @@ void HIRBuilder::emitMatchKeys(CFG& cfg, TranslationContext& tc) {
   tc.emit<PrimitiveCompare>(
       is_none, PrimitiveCompareOp::kEqual, values_or_none, none);
 
-  auto true_block = cfg.AllocateBlock();
-  auto false_block = cfg.AllocateBlock();
-  auto done = cfg.AllocateBlock();
+  auto true_block = cfg.allocateBlock();
+  auto false_block = cfg.allocateBlock();
+  auto done = cfg.allocateBlock();
 
   tc.emit<CondBranch>(is_none, true_block, false_block);
   tc.block = true_block;
@@ -4931,9 +4931,9 @@ void HIRBuilder::emitFormatSimple(CFG& cfg, TranslationContext& tc) {
   OperandStack& stack = tc.frame.stack;
   Register* value = stack.pop();
 
-  BasicBlock* done_block = cfg.AllocateBlock();
-  BasicBlock* do_fmt_block = cfg.AllocateBlock();
-  BasicBlock* pass_through_block = cfg.AllocateBlock();
+  BasicBlock* done_block = cfg.allocateBlock();
+  BasicBlock* do_fmt_block = cfg.allocateBlock();
+  BasicBlock* pass_through_block = cfg.allocateBlock();
 
   tc.emit<CondBranchCheckType>(
       value, TUnicodeExact, pass_through_block, do_fmt_block);
@@ -5050,7 +5050,7 @@ void HIRBuilder::insertRunPeriodicActivites(
     BasicBlock* succ,
     const FrameState& frame) {
   TranslationContext check(check_block, frame);
-  TranslationContext body(cfg.AllocateBlock(), frame);
+  TranslationContext body(cfg.allocateBlock(), frame);
   if constexpr (kFreeThreadedBuild) {
     check.emit<AtQuiescentState>();
   }
@@ -5074,7 +5074,7 @@ void HIRBuilder::insertRunPeriodicActivitesForLoop(
       fs != nullptr,
       "entry snapshot for block {} has no FrameState",
       loop_header->id);
-  auto check_block = cfg.AllocateBlock();
+  auto check_block = cfg.allocateBlock();
   loop_header->retargetPreds(check_block);
   insertRunPeriodicActivites(cfg, check_block, loop_header, *fs);
 }
@@ -5082,7 +5082,7 @@ void HIRBuilder::insertRunPeriodicActivitesForLoop(
 void HIRBuilder::insertRunPeriodicActivitesForExcept(
     CFG& cfg,
     TranslationContext& tc) {
-  TranslationContext succ(cfg.AllocateBlock(), tc.frame);
+  TranslationContext succ(cfg.allocateBlock(), tc.frame);
   succ.emitSnapshot();
   insertRunPeriodicActivites(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;

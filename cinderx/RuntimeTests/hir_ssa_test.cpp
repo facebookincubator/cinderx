@@ -84,8 +84,8 @@ TEST(CheckFuncTest, NonFirstPhi) {
   // HIRParser() fixes the positions of Phis, so we have to manually construct
   // the bad code here.
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
   auto v0 = func.env.allocateRegister();
   auto v1 = func.env.allocateRegister();
   auto v2 = func.env.allocateRegister();
@@ -107,11 +107,11 @@ TEST(CheckFuncTest, NonFirstPhi) {
 
 TEST(CheckFuncTest, RegisterInstr) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
   auto v0 = func.env.allocateRegister();
 
   b0->append<LoadConst>(v0, TNoneType);
-  v0->set_instr(nullptr);
+  v0->setInstr(nullptr);
   b0->append<Return>(v0);
 
   const char* expected_err =
@@ -253,8 +253,8 @@ fun test {
 
 TEST(CheckFuncTest, BadCFG) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  std::unique_ptr<BasicBlock> b1{func.cfg.AllocateUnlinkedBlock()};
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  std::unique_ptr<BasicBlock> b1{func.cfg.allocateUnlinkedBlock()};
   auto tmp = func.env.allocateRegister();
 
   b0->append<Branch>(b1.get());
@@ -273,9 +273,9 @@ TEST(CheckFuncTest, BadCFG) {
 
 TEST(CheckFuncTest, UnlinkedPredecessor) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  std::unique_ptr<BasicBlock> b2{func.cfg.AllocateUnlinkedBlock()};
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  std::unique_ptr<BasicBlock> b2{func.cfg.allocateUnlinkedBlock()};
   auto tmp = func.env.allocateRegister();
 
   b0->append<Branch>(b1);
@@ -292,9 +292,9 @@ TEST(CheckFuncTest, UnlinkedPredecessor) {
 
 TEST(CheckFuncTest, UnreachableBlock) {
   Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto b1 = func.cfg.AllocateBlock();
-  auto b2 = func.cfg.AllocateBlock();
+  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
+  auto b1 = func.cfg.allocateBlock();
+  auto b2 = func.cfg.allocateBlock();
   auto tmp0 = func.env.allocateRegister();
   auto tmp1 = func.env.allocateRegister();
 

@@ -57,7 +57,7 @@ TEST(BasicBlockTest, CanIterateInstrs) {
 TEST(BasicBlockTest, SplitAfterSplitsBlockAfterInstruction) {
   Environment env;
   CFG cfg;
-  BasicBlock* head = cfg.AllocateBlock();
+  BasicBlock* head = cfg.allocateBlock();
   auto v0 = env.allocateRegister();
   head->append<LoadConst>(v0, TNoneType);
   Instr* load_const = head->getTerminator();
@@ -71,33 +71,33 @@ TEST(BasicBlockTest, SplitAfterSplitsBlockAfterInstruction) {
 
 TEST(CFGIterTest, IteratingEmptyCFGReturnsEmptyTraversal) {
   CFG cfg;
-  std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
+  std::vector<BasicBlock*> traversal = cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 0);
 }
 
 TEST(CFGIterTest, IteratingSingleBlockCFGReturnsOneBlock) {
   Environment env;
   CFG cfg;
-  BasicBlock* block = cfg.AllocateBlock();
+  BasicBlock* block = cfg.allocateBlock();
   cfg.entry_block = block;
 
   // Add a single instuction to the block
   block->append<Return>(env.allocateRegister());
 
-  std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
+  std::vector<BasicBlock*> traversal = cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 1) << "Incorrect number of blocks returned";
   ASSERT_EQ(traversal[0], block) << "Incorrect block returned";
 }
 
 TEST(CFGIterTest, VisitsBlocksOnlyOnce) {
   CFG cfg;
-  BasicBlock* block = cfg.AllocateBlock();
+  BasicBlock* block = cfg.allocateBlock();
   cfg.entry_block = block;
 
   // The block loops on itself
   block->append<Branch>(block);
 
-  std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
+  std::vector<BasicBlock*> traversal = cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 1) << "Incorrect number of blocks returned";
   ASSERT_EQ(traversal[0], block) << "Incorrect block returned";
 }
@@ -105,18 +105,18 @@ TEST(CFGIterTest, VisitsBlocksOnlyOnce) {
 TEST(CFGIterTest, VisitsAllBranches) {
   Environment env;
   CFG cfg;
-  BasicBlock* cond = cfg.AllocateBlock();
+  BasicBlock* cond = cfg.allocateBlock();
   cfg.entry_block = cond;
 
-  BasicBlock* true_block = cfg.AllocateBlock();
+  BasicBlock* true_block = cfg.allocateBlock();
   true_block->append<Return>(env.allocateRegister());
 
-  BasicBlock* false_block = cfg.AllocateBlock();
+  BasicBlock* false_block = cfg.allocateBlock();
   false_block->append<Return>(env.allocateRegister());
 
   cond->append<CondBranch>(env.allocateRegister(), true_block, false_block);
 
-  std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
+  std::vector<BasicBlock*> traversal = cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 3) << "Incorrect number of blocks returned";
   ASSERT_EQ(traversal[0], cond) << "Should have visited cond block first";
   ASSERT_EQ(traversal[1], true_block)
@@ -130,21 +130,21 @@ TEST(CFGIterTest, VisitsLoops) {
   CFG cfg;
 
   // Create the else block
-  BasicBlock* outer_else = cfg.AllocateBlock();
+  BasicBlock* outer_else = cfg.allocateBlock();
   outer_else->append<Return>(env.allocateRegister());
 
   // Create the inner loop
-  BasicBlock* loop_cond = cfg.AllocateBlock();
-  BasicBlock* loop_body = cfg.AllocateBlock();
+  BasicBlock* loop_cond = cfg.allocateBlock();
+  BasicBlock* loop_body = cfg.allocateBlock();
   loop_body->append<Branch>(loop_cond);
   loop_cond->append<CondBranch>(env.allocateRegister(), loop_body, outer_else);
 
   // Create the outer conditional
-  BasicBlock* outer_cond = cfg.AllocateBlock();
+  BasicBlock* outer_cond = cfg.allocateBlock();
   outer_cond->append<CondBranch>(env.allocateRegister(), loop_cond, outer_else);
   cfg.entry_block = outer_cond;
 
-  std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
+  std::vector<BasicBlock*> traversal = cfg.getRPOTraversal();
   ASSERT_EQ(traversal.size(), 4) << "Incorrect number of blocks returned";
   ASSERT_EQ(traversal[0], outer_cond) << "Should have visited outer cond first";
   ASSERT_EQ(traversal[1], loop_cond) << "Should have visited loop cond second";
@@ -220,7 +220,7 @@ TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
   CFG cfg;
   Environment env;
 
-  cfg.entry_block = cfg.AllocateBlock();
+  cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(cfg.entry_block);
 
   removeTrampolineBlocks(&cfg);
@@ -237,8 +237,8 @@ TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
   CFG cfg;
   Environment env;
 
-  auto t1 = cfg.AllocateBlock();
-  cfg.entry_block = cfg.AllocateBlock();
+  auto t1 = cfg.allocateBlock();
+  cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(t1);
   t1->append<Branch>(cfg.entry_block);
 
@@ -262,16 +262,16 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
   //
   // after removing tramponline blocks we should be left
   // with only the exit block
-  auto exit_block = cfg.AllocateBlock();
+  auto exit_block = cfg.allocateBlock();
   exit_block->append<Return>(env.allocateRegister());
 
-  auto t1 = cfg.AllocateBlock();
+  auto t1 = cfg.allocateBlock();
   t1->append<Branch>(exit_block);
 
-  auto t2 = cfg.AllocateBlock();
+  auto t2 = cfg.allocateBlock();
   t2->append<Branch>(t1);
 
-  cfg.entry_block = cfg.AllocateBlock();
+  cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(t2);
 
   removeTrampolineBlocks(&cfg);
@@ -311,19 +311,19 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
   //                              |  |
   //                              +--+
   Register* v0 = env.allocateRegister();
-  auto exit_block = cfg.AllocateBlock();
+  auto exit_block = cfg.allocateBlock();
   exit_block->append<Return>(v0);
 
-  auto t1 = cfg.AllocateBlock();
-  auto t2 = cfg.AllocateBlock();
-  auto t3 = cfg.AllocateBlock();
-  auto t4 = cfg.AllocateBlock();
+  auto t1 = cfg.allocateBlock();
+  auto t2 = cfg.allocateBlock();
+  auto t3 = cfg.allocateBlock();
+  auto t4 = cfg.allocateBlock();
   t1->append<Branch>(t2);
   t2->append<Branch>(t3);
   t3->append<Branch>(t4);
   t4->append<Branch>(t2);
 
-  cfg.entry_block = cfg.AllocateBlock();
+  cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<CondBranch>(v0, exit_block, t1);
 
   removeTrampolineBlocks(&cfg);
@@ -371,22 +371,22 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
   //                v
   //               exit
   Register* v0 = env.allocateRegister();
-  auto exit_block = cfg.AllocateBlock();
+  auto exit_block = cfg.allocateBlock();
   exit_block->append<Return>(v0);
 
-  auto t1 = cfg.AllocateBlock();
+  auto t1 = cfg.allocateBlock();
   t1->append<Branch>(exit_block);
 
-  auto t2 = cfg.AllocateBlock();
+  auto t2 = cfg.allocateBlock();
   t2->append<Branch>(t1);
 
-  auto t3 = cfg.AllocateBlock();
+  auto t3 = cfg.allocateBlock();
   t3->append<Branch>(t2);
 
-  auto t4 = cfg.AllocateBlock();
+  auto t4 = cfg.allocateBlock();
   t4->append<Branch>(t2);
 
-  cfg.entry_block = cfg.AllocateBlock();
+  cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<CondBranch>(v0, t4, t3);
 
   removeTrampolineBlocks(&cfg);
@@ -948,8 +948,8 @@ TEST_F(HIRCloneTest, CanCloneInstrs) {
 TEST_F(HIRCloneTest, CanCloneBranches) {
   Environment env;
   CFG cfg;
-  BasicBlock* from = cfg.AllocateBlock();
-  BasicBlock* to = cfg.AllocateBlock();
+  BasicBlock* from = cfg.allocateBlock();
+  BasicBlock* to = cfg.allocateBlock();
   cfg.entry_block = from;
   from->append<Branch>(to);
   Instr* branch = from->getTerminator();

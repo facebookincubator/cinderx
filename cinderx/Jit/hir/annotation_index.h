@@ -27,7 +27,7 @@ class AnnotationIndex {
     return nullptr;
   }
 
-  static std::unique_ptr<AnnotationIndex> from_function(
+  static std::unique_ptr<AnnotationIndex> fromFunction(
       BorrowedRef<PyFunctionObject> func);
 
  private:

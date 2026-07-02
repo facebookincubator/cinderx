@@ -6,7 +6,7 @@
 
 namespace cinderx::jit::hir {
 
-std::unique_ptr<AnnotationIndex> AnnotationIndex::from_function(
+std::unique_ptr<AnnotationIndex> AnnotationIndex::fromFunction(
     BorrowedRef<PyFunctionObject> func) {
   if (getMutableConfig().emit_type_annotation_guards) {
 #if PY_VERSION_HEX >= 0x030E0000

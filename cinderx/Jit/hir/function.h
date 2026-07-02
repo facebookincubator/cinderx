@@ -69,7 +69,7 @@ class Function {
   void setCode(BorrowedRef<PyCodeObject> code);
 
   // Count the number of instructions that match the predicate
-  std::size_t CountInstrs(InstrPredicate pred) const;
+  std::size_t countInstrs(InstrPredicate pred) const;
 
   // Does this function return a primitive type?
   bool returnsPrimitive() const;

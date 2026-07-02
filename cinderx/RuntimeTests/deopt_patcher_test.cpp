@@ -122,7 +122,7 @@ def func():
   // the last block.
   hir::BasicBlock* entry = irfunc->cfg.entry_block;
   std::vector<hir::BasicBlock*> postorder =
-      irfunc->cfg.GetPostOrderTraversal(entry);
+      irfunc->cfg.getPostOrderTraversal(entry);
   ASSERT_GT(postorder.size(), 0);
   hir::Instr* term = postorder[0]->getTerminator();
   ASSERT_NE(term, nullptr);
