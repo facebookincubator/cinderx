@@ -16,7 +16,7 @@ namespace cinderx::jit::hir {
 namespace {
 
 void addUsesForLiveness(const Instr& instr, RegisterSet& live) {
-  if (!instr.IsPhi()) {
+  if (!instr.isPhi()) {
     instr.visitUses([&](Register* reg) {
       live.insert(reg);
       return true;
@@ -32,14 +32,14 @@ void addUsesForLiveness(const Instr& instr, RegisterSet& live) {
     BasicBlock* succ = instr.successor(i);
     int phi_idx = -1;
     for (const Instr& succ_instr : *succ) {
-      if (!succ_instr.IsPhi()) {
+      if (!succ_instr.isPhi()) {
         break;
       }
       const Phi& phi = static_cast<const Phi&>(succ_instr);
       if (phi_idx == -1) {
         phi_idx = phi.blockIndex(instr.block());
       }
-      live.insert(phi.GetOperand(phi_idx));
+      live.insert(phi.getOperand(phi_idx));
     }
   }
 }
@@ -57,7 +57,7 @@ void fillCallSiteLiveRegs(
     const RegisterSet& live_regs,
     CallSiteLiveValuesBase& live_values_instr) {
   JIT_CHECK(
-      live_values_instr.live_regs().empty(),
+      live_values_instr.liveRegs().empty(),
       "Instruction should have no live regs");
 
   std::vector<Register*> sorted_regs{live_regs.begin(), live_regs.end()};

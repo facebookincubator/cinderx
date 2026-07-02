@@ -11,16 +11,16 @@ namespace {
 // Instructions that don't produce a borrowed reference or steal any of their
 // inputs.
 MemoryEffects commonEffects(const Instr& inst, AliasClass may_store) {
-  return {false, AEmpty, {inst.NumOperands()}, may_store};
+  return {false, AEmpty, {inst.numOperands()}, may_store};
 }
 
 // Instructions that borrow their output from a specific location.
 MemoryEffects borrowFrom(const Instr& inst, AliasClass borrow_support) {
-  return {true, borrow_support, {inst.NumOperands()}, AEmpty};
+  return {true, borrow_support, {inst.numOperands()}, AEmpty};
 }
 
 util::BitVector stealAllInputs(const Instr& inst) {
-  return {inst.NumOperands(), (uint64_t{1} << inst.NumOperands()) - 1};
+  return {inst.numOperands(), (uint64_t{1} << inst.numOperands()) - 1};
 }
 
 } // namespace
@@ -170,12 +170,12 @@ MemoryEffects memoryEffects(const Instr& inst) {
 
     // Steals the reference to its second input and gives it to the cell
     case Opcode::kSetCellItem:
-      return {true, AEmpty, {inst.NumOperands(), 2}, ACellItem};
+      return {true, AEmpty, {inst.numOperands(), 2}, ACellItem};
 
     // Atomically swaps cell value. Steals operand 1 (new value) and returns
     // owned reference to old value. Used for thread-safe STORE_DEREF.
     case Opcode::kSwapCellItem:
-      return {false, AEmpty, {inst.NumOperands(), 2}, ACellItem};
+      return {false, AEmpty, {inst.numOperands(), 2}, ACellItem};
 
     // Returns a stolen (from the cell), not borrowed, reference.
     case Opcode::kStealCellItem:
@@ -202,11 +202,11 @@ MemoryEffects memoryEffects(const Instr& inst) {
 
     case Opcode::kListAppend:
     case Opcode::kListExtend:
-      return {true, AEmpty, {inst.NumOperands()}, AListItem};
+      return {true, AEmpty, {inst.numOperands()}, AListItem};
 
     case Opcode::kIncref:
     case Opcode::kXIncref:
-      return {false, AEmpty, {inst.NumOperands()}, AOther};
+      return {false, AEmpty, {inst.numOperands()}, AOther};
 
     case Opcode::kMaterializeRef:
       return commonEffects(inst, AOther);
@@ -216,8 +216,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
 
     case Opcode::kDecref:
     case Opcode::kXDecref: {
-      if (inst.GetOperand(0)->type().runtimePyTypeDestructor().has_value()) {
-        return {false, AEmpty, {inst.NumOperands()}, AOther};
+      if (inst.getOperand(0)->type().runtimePyTypeDestructor().has_value()) {
+        return {false, AEmpty, {inst.numOperands()}, AOther};
       } else {
         return {false, AEmpty, {1, 1}, AManagedHeapAny};
       }
@@ -235,20 +235,20 @@ MemoryEffects memoryEffects(const Instr& inst) {
 
     case Opcode::kInitListElements: {
       // Steal all value inputs (not the container at index 0).
-      util::BitVector inputs{inst.NumOperands()};
+      util::BitVector inputs{inst.numOperands()};
       inputs.fill(true);
       inputs.setBit(0, false);
       return {false, AEmpty, std::move(inputs), AListItem};
     }
     case Opcode::kInitTupleElements: {
-      util::BitVector inputs{inst.NumOperands()};
+      util::BitVector inputs{inst.numOperands()};
       inputs.fill(true);
       inputs.setBit(0, false);
       return {false, AEmpty, std::move(inputs), ATupleItem};
     }
 
     case Opcode::kStoreField:
-      JIT_DCHECK(inst.NumOperands() == 3, "Unexpected number of operands");
+      JIT_DCHECK(inst.numOperands() == 3, "Unexpected number of operands");
       return {false, AEmpty, {3, 2}, AInObjectAttr};
 
     case Opcode::kLoadArg:
@@ -299,7 +299,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kStoreArrayItem:
       // we steal a ref to our third operand, the value being stored
       return {
-          false, AEmpty, {inst.NumOperands(), 1 << 2}, AArrayItem | AListItem};
+          false, AEmpty, {inst.numOperands(), 1 << 2}, AArrayItem | AListItem};
     case Opcode::kLoadSplitDictItem:
       return borrowFrom(inst, ADictItem);
     case Opcode::kLoadTypeAttrCacheEntryType:
@@ -319,7 +319,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
       return {false, AEmpty, {1, 1}, AManagedHeapAny};
 
     case Opcode::kSetFunctionAttr: {
-      JIT_DCHECK(inst.NumOperands() == 2, "Unexpected number of operands");
+      JIT_DCHECK(inst.numOperands() == 2, "Unexpected number of operands");
       return {false, AEmpty, {2, 1}, AFuncAttr};
     }
 
@@ -334,7 +334,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // _PyJIT_GenSend(), which is borrowed from its caller like all arguments
     // to C functions.
     case Opcode::kInitialYield:
-      return {true, AFuncArgs, {inst.NumOperands()}, AAny};
+      return {true, AFuncArgs, {inst.numOperands()}, AAny};
     case Opcode::kYieldValue:
       return {true, AFuncArgs, {1, 1}, AAny};
 

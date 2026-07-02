@@ -98,7 +98,7 @@ ActivationMap buildActivationMap(const jit::hir::Function& func) {
 
     processed.insert(item.block);
 
-    for (const auto& edge : item.block->out_edges()) {
+    for (const auto& edge : item.block->outEdges()) {
       workq.emplace_back(edge->to(), item.activation);
     }
   }

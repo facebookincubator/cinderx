@@ -448,8 +448,8 @@ LiveValue::Source getLiveValueSource(jit::hir::Register* reg) {
 std::vector<const hir::RegState*> usedLiveRegs(
     const hir::LiveValuesBase& instr) {
   std::vector<const hir::RegState*> live_regs;
-  live_regs.reserve(instr.live_regs().size());
-  for (const auto& reg_state : instr.live_regs()) {
+  live_regs.reserve(instr.liveRegs().size());
+  for (const auto& reg_state : instr.liveRegs()) {
     live_regs.push_back(&reg_state);
   }
   return live_regs;
@@ -458,8 +458,8 @@ std::vector<const hir::RegState*> usedLiveRegs(
 std::vector<const hir::RegState*> usedLiveRegs(const hir::DeoptBase& instr) {
   DeoptLiveRegFilter live_reg_filter{instr};
   std::vector<const hir::RegState*> live_regs;
-  live_regs.reserve(instr.live_regs().size());
-  for (const auto& reg_state : instr.live_regs()) {
+  live_regs.reserve(instr.liveRegs().size());
+  for (const auto& reg_state : instr.liveRegs()) {
     if (live_reg_filter.isUsed(reg_state)) {
       live_regs.push_back(&reg_state);
     }

@@ -78,7 +78,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kInitialYield);
   {
     auto& initial_yield = static_cast<InitialYield&>(*it);
-    ASSERT_EQ(initial_yield.live_regs().size(), 0);
+    ASSERT_EQ(initial_yield.liveRegs().size(), 0);
     ASSERT_EQ(initial_yield.output()->name(), "v0");
   }
   ++it;
@@ -97,7 +97,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kYieldValue);
   {
     auto& yield_value = static_cast<YieldValue&>(*it);
-    const auto& reg_states = yield_value.live_regs();
+    const auto& reg_states = yield_value.liveRegs();
     ASSERT_EQ(reg_states.size(), 1);
     ASSERT_EQ(reg_states.at(0).reg->name(), "v1");
     ASSERT_EQ(reg_states.at(0).ref_kind, RefKind::kOwned);
@@ -109,7 +109,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kYieldValue);
   {
     auto& yield_value = static_cast<YieldValue&>(*it);
-    const auto& reg_states = yield_value.live_regs();
+    const auto& reg_states = yield_value.liveRegs();
     ASSERT_EQ(reg_states.size(), 2);
     ASSERT_EQ(reg_states.at(0).reg->name(), "v1");
     ASSERT_EQ(reg_states.at(0).ref_kind, RefKind::kOwned);
@@ -181,15 +181,15 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kImportFrom);
   ASSERT_EQ(static_cast<ImportFrom&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<ImportFrom&>(*it).name_idx(), 2);
+  ASSERT_EQ(static_cast<ImportFrom&>(*it).nameIdx(), 2);
   ASSERT_EQ(static_cast<ImportFrom&>(*it).module()->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kImportName);
   ASSERT_EQ(static_cast<ImportName&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<ImportName&>(*it).name_idx(), 2);
-  ASSERT_EQ(static_cast<ImportName&>(*it).GetFromList()->name(), "v3");
-  ASSERT_EQ(static_cast<ImportName&>(*it).GetLevel()->name(), "v4");
+  ASSERT_EQ(static_cast<ImportName&>(*it).nameIdx(), 2);
+  ASSERT_EQ(static_cast<ImportName&>(*it).getFromList()->name(), "v3");
+  ASSERT_EQ(static_cast<ImportName&>(*it).getLevel()->name(), "v4");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kDecref);
@@ -211,23 +211,23 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kPhi);
   auto phi = static_cast<const Phi*>(&*it);
   ASSERT_EQ(phi->output()->name(), "v3");
-  ASSERT_EQ(phi->basic_blocks().size(), 2);
-  ASSERT_EQ(phi->basic_blocks()[0]->id, 0);
-  ASSERT_EQ(phi->basic_blocks()[1]->id, 1);
-  ASSERT_EQ(phi->NumOperands(), 2);
-  ASSERT_EQ(phi->GetOperand(0)->name(), "v1");
-  ASSERT_EQ(phi->GetOperand(1)->name(), "v2");
+  ASSERT_EQ(phi->basicBlocks().size(), 2);
+  ASSERT_EQ(phi->basicBlocks()[0]->id, 0);
+  ASSERT_EQ(phi->basicBlocks()[1]->id, 1);
+  ASSERT_EQ(phi->numOperands(), 2);
+  ASSERT_EQ(phi->getOperand(0)->name(), "v1");
+  ASSERT_EQ(phi->getOperand(1)->name(), "v2");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kPhi);
   phi = static_cast<const Phi*>(&*it);
   ASSERT_EQ(phi->output()->name(), "v4");
-  ASSERT_EQ(phi->basic_blocks().size(), 2);
-  ASSERT_EQ(phi->basic_blocks()[0]->id, 0);
-  ASSERT_EQ(phi->basic_blocks()[1]->id, 1);
-  ASSERT_EQ(phi->NumOperands(), 2);
-  ASSERT_EQ(phi->GetOperand(0)->name(), "v0");
-  ASSERT_EQ(phi->GetOperand(1)->name(), "v2");
+  ASSERT_EQ(phi->basicBlocks().size(), 2);
+  ASSERT_EQ(phi->basicBlocks()[0]->id, 0);
+  ASSERT_EQ(phi->basicBlocks()[1]->id, 1);
+  ASSERT_EQ(phi->numOperands(), 2);
+  ASSERT_EQ(phi->getOperand(0)->name(), "v0");
+  ASSERT_EQ(phi->getOperand(1)->name(), "v2");
   ++it;
   ASSERT_EQ(it->opcode(), Opcode::kReturn);
   ++it;
@@ -241,7 +241,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kRaiseAwaitableError);
   auto rae = static_cast<const RaiseAwaitableError*>(&*it);
-  ASSERT_EQ(rae->GetOperand(0)->name(), "v1");
+  ASSERT_EQ(rae->getOperand(0)->name(), "v1");
   ASSERT_TRUE(rae->isAEnter());
   ++blocks_it;
 

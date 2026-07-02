@@ -111,7 +111,7 @@ void finishYield(
     const DeoptBase* hir_instr) {
   DeoptLiveRegFilter live_reg_filter{*hir_instr};
   size_t num_live_regs = 0;
-  for (const RegState& rs : hir_instr->live_regs()) {
+  for (const RegState& rs : hir_instr->liveRegs()) {
     if (!live_reg_filter.isUsed(rs)) {
       continue;
     }
@@ -295,8 +295,8 @@ void emitStorePairs(
     size_t count) {
   size_t i = 0;
   while (i + 1 < count) {
-    Instruction* v0 = bbb.getDefInstr(src_instr.GetOperand(src_start + i));
-    Instruction* v1 = bbb.getDefInstr(src_instr.GetOperand(src_start + i + 1));
+    Instruction* v0 = bbb.getDefInstr(src_instr.getOperand(src_start + i));
+    Instruction* v1 = bbb.getDefInstr(src_instr.getOperand(src_start + i + 1));
     auto* sp = bbb.appendInstr(
         Instruction::kStorePair,
         Imm{static_cast<uint64_t>(
@@ -307,7 +307,7 @@ void emitStorePairs(
     i += 2;
   }
   if (i < count) {
-    Instruction* v = bbb.getDefInstr(src_instr.GetOperand(src_start + i));
+    Instruction* v = bbb.getDefInstr(src_instr.getOperand(src_start + i));
     bbb.appendInstr(
         OutInd{base, base_offset + static_cast<int32_t>(i * kPointerSize)},
         Instruction::kMove,
@@ -1345,9 +1345,9 @@ void LIRGenerator::AnalyzeCopies() {
     for (auto& instr : block) {
       // Cast doesn't have to be a special case once it deopts and always
       // returns its input.
-      if (instr.output() != nullptr && !instr.IsCast() &&
+      if (instr.output() != nullptr && !instr.isCast() &&
           hir::isPassthrough(instr)) {
-        env_->copy_propagation_map.emplace(instr.output(), instr.GetOperand(0));
+        env_->copy_propagation_map.emplace(instr.output(), instr.getOperand(0));
       }
     }
   }
@@ -1393,7 +1393,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
           }
         }
       }
-      auto term = block->GetTerminator();
+      auto term = block->getTerminator();
       for (int s = 0, ns = term->numEdges(); s < ns; s++) {
         auto succ = term->successor(s);
         auto [it, inserted] = block_inline_ctx.insert({succ, ctx});
@@ -1431,7 +1431,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   auto hir_entry = GetHIRFunction()->cfg.entry_block;
   translate_block(hir_entry);
   for (size_t i = 0; i < translated.size(); ++i) {
-    auto hir_term = translated[i]->GetTerminator();
+    auto hir_term = translated[i]->getTerminator();
     for (int succ = 0, num_succs = hir_term->numEdges(); succ < num_succs;
          succ++) {
       auto hir_succ = hir_term->successor(succ);
@@ -1452,7 +1452,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
   BasicBlockBuilder phi_bbb{env_, lir_func_};
   frame_setup_block_->addSuccessor(bb_map[hir_entry].first);
   for (auto hir_bb : translated) {
-    auto hir_term = hir_bb->GetTerminator();
+    auto hir_term = hir_bb->getTerminator();
     auto last_bb = bb_map[hir_bb].last;
     switch (hir_term->opcode()) {
       case Opcode::kBranch: {
@@ -1477,7 +1477,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
         last_bb->addSuccessor(exit_block_);
         auto* ret = static_cast<const Return*>(hir_term);
         return_edges_.push_back(
-            {last_bb, phi_bbb.getDefInstr(ret->GetOperand(0))});
+            {last_bb, phi_bbb.getDefInstr(ret->getOperand(0))});
         break;
       }
       default:
@@ -1574,7 +1574,7 @@ void LIRGenerator::addLiveRegOperands(
     Instruction* instr,
     const hir::DeoptBase& hir_instr) {
   DeoptLiveRegFilter live_reg_filter{hir_instr};
-  auto& regstates = hir_instr.live_regs();
+  auto& regstates = hir_instr.liveRegs();
   for (const auto& reg_state : regstates) {
     if (!live_reg_filter.isUsed(reg_state)) {
       continue;
@@ -1589,7 +1589,7 @@ Instruction* LIRGenerator::createCallSiteLiveValuesInstr(
     const hir::CallSiteLiveValuesBase& hir_instr) {
   Instruction* live_values_instr =
       bbb.appendInstr(Instruction::kCallSiteLiveValues);
-  for (const auto& reg_state : hir_instr.live_regs()) {
+  for (const auto& reg_state : hir_instr.liveRegs()) {
     Instruction* def = bbb.getDefInstr(reg_state.reg);
     JIT_CHECK(
         def != nullptr,
@@ -1922,7 +1922,7 @@ void LIRGenerator::makeIncref(
     BasicBlockBuilder& bbb,
     const hir::Instr& instr,
     bool xincref) {
-  Register* obj = instr.GetOperand(0);
+  Register* obj = instr.getOperand(0);
 
   // Don't generate anything for immortal objects.
   if (!obj->type().couldBe(TMortalObject)) {
@@ -2119,7 +2119,7 @@ void LIRGenerator::makeDecref(
     BasicBlockBuilder& bbb,
     const jit::hir::Instr& instr,
     bool xdecref) {
-  Register* obj = instr.GetOperand(0);
+  Register* obj = instr.getOperand(0);
   const auto* callsite_live_values = instr.asCallSiteLiveValuesBase();
 
   // Don't generate anything for immortal objects.
@@ -2181,10 +2181,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
     switch (opcode) {
       case Opcode::kLoadArg: {
         auto instr = static_cast<const LoadArg*>(&i);
-        if (instr->arg_idx() < env_->arg_locations.size() &&
-            env_->arg_locations[instr->arg_idx()] != PhyLocation::REG_INVALID) {
+        if (instr->argIdx() < env_->arg_locations.size() &&
+            env_->arg_locations[instr->argIdx()] != PhyLocation::REG_INVALID) {
           bbb.appendInstr(
-              instr->output(), Instruction::kLoadArg, Imm{instr->arg_idx()});
+              instr->output(), Instruction::kLoadArg, Imm{instr->argIdx()});
           break;
         }
         size_t reg_count = env_->arg_locations.size();
@@ -2194,7 +2194,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           }
         }
         Instruction* extra_args = env_->asm_extra_args;
-        int32_t offset = (instr->arg_idx() - reg_count) * kPointerSize;
+        int32_t offset = (instr->argIdx() - reg_count) * kPointerSize;
         bbb.appendInstr(
             instr->output(), Instruction::kMove, Ind{extra_args, offset});
         break;
@@ -2207,7 +2207,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kTagIfDeferred: {
         auto instr = static_cast<const TagIfDeferred*>(&i);
-        makeTagIfDeferred(bbb, instr->GetOperand(0), instr->output());
+        makeTagIfDeferred(bbb, instr->getOperand(0), instr->output());
         break;
       }
       case Opcode::kLoadFrame: {
@@ -2217,12 +2217,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kMakeCell: {
         auto instr = static_cast<const MakeCell*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), PyCell_New, instr->GetOperand(0));
+            instr->output(), PyCell_New, instr->getOperand(0));
         break;
       }
       case Opcode::kStealCellItem: {
         hir::Register* dest = i.output();
-        Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
+        Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
         constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
         bbb.appendInstr(dest, Instruction::kMove, Ind{src_base, kOffset});
         break;
@@ -2235,8 +2235,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             cx_swap_cell_item,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
 #else
         JIT_ABORT("SwapCellItem requires Python 3.13+");
@@ -2250,16 +2250,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if constexpr (kFreeThreadedBuild) {
           auto* instr = static_cast<const LoadCellItem*>(&i);
           bbb.appendCallInstruction(
-              instr->output(), cx_load_cell_item, instr->GetOperand(0));
+              instr->output(), cx_load_cell_item, instr->getOperand(0));
         } else {
           hir::Register* dest = i.output();
-          Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
+          Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
           constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
           bbb.appendInstr(dest, Instruction::kMove, Ind{src_base, kOffset});
         }
 #else
         hir::Register* dest = i.output();
-        Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
+        Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
         constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
         bbb.appendInstr(dest, Instruction::kMove, Ind{src_base, kOffset});
 #endif
@@ -2269,10 +2269,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const SetCellItem*>(&i);
         bbb.appendInstr(
             OutInd{
-                bbb.getDefInstr(instr->GetOperand(0)),
+                bbb.getDefInstr(instr->getOperand(0)),
                 int32_t{offsetof(PyCellObject, ob_ref)}},
             Instruction::kMove,
-            instr->GetOperand(1));
+            instr->getOperand(1));
         break;
       }
       case Opcode::kInitFrameCellVars: {
@@ -2280,7 +2280,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInvokeInstruction(
             rt::initFrameCellVars,
             bbb.getDefInstr(hir_instr.func()),
-            hir_instr.num_cell_vars(),
+            hir_instr.numCellVars(),
             env_->asm_tstate);
         break;
       }
@@ -2310,7 +2310,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kLoadVarObjectSize: {
         hir::Register* dest = i.output();
-        Instruction* src_base = bbb.getDefInstr(i.GetOperand(0));
+        Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
         constexpr int32_t kOffset = offsetof(PyVarObject, ob_size);
         bbb.appendInstr(dest, Instruction::kMove, Ind{src_base, kOffset});
         break;
@@ -2377,7 +2377,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               break;
             }
 
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kSext;
@@ -2401,7 +2401,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               break;
             }
 
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kSext;
@@ -2425,7 +2425,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               break;
             }
 
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kZext;
@@ -2446,7 +2446,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             op = Instruction::kDivUn;
             break;
           case BinaryOpKind::kModulo:
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kSext;
@@ -2460,7 +2460,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             }
             break;
           case BinaryOpKind::kModuloUnsigned:
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kZext;
@@ -2474,7 +2474,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             }
             break;
           case BinaryOpKind::kPower:
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kSext;
@@ -2488,7 +2488,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             };
             break;
           case BinaryOpKind::kPowerUnsigned:
-            switch (bytes_from_cint_type(instr->GetOperand(0)->type())) {
+            switch (bytes_from_cint_type(instr->getOperand(0)->type())) {
               case 1:
               case 2:
                 extend = Instruction::kZext;
@@ -2634,7 +2634,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // Boxing a boolean is a matter of selecting between Py_True and
         // Py_False.
         Register* dest = i.output();
-        Register* src = i.GetOperand(0);
+        Register* src = i.getOperand(0);
         auto true_addr = reinterpret_cast<uint64_t>(Py_True);
         auto false_addr = reinterpret_cast<uint64_t>(Py_False);
         Instruction* temp_true = bbb.appendInstr(
@@ -2648,7 +2648,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // Py_False, which differ by a constant. XOR-ing with that constant
         // maps each singleton to the other.
         Register* dest = i.output();
-        Register* src = i.GetOperand(0);
+        Register* src = i.getOperand(0);
         uint64_t flip = reinterpret_cast<uint64_t>(Py_True) ^
             reinterpret_cast<uint64_t>(Py_False);
         bbb.appendInstr(dest, Instruction::kXor, src, Imm{flip});
@@ -2797,7 +2797,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             PyNumber_AsSsize_t,
-            instr->GetOperand(0),
+            instr->getOperand(0),
             instr->exception());
         break;
       }
@@ -2842,7 +2842,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kSetCurrentAwaiter: {
         bbb.appendInvokeInstruction(
-            rt::setCurrentAwaiter, i.GetOperand(0), env_->asm_tstate);
+            rt::setCurrentAwaiter, i.getOperand(0), env_->asm_tstate);
         break;
       }
       case Opcode::kYieldValue: {
@@ -2931,7 +2931,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCondBranch:
       case Opcode::kCondBranchIterNotDone: {
-        Instruction* cond = bbb.getDefInstr(i.GetOperand(0));
+        Instruction* cond = bbb.getDefInstr(i.getOperand(0));
 
         if (opcode == Opcode::kCondBranchIterNotDone) {
           auto iter_done_addr =
@@ -2962,7 +2962,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Imm{reinterpret_cast<uint64_t>(type.uniquePyType()),
                   DataType::kObject});
         } else {
-          eq_res_var = emitSubclassCheck(bbb, instr.GetOperand(0), type);
+          eq_res_var = emitSubclassCheck(bbb, instr.getOperand(0), type);
         }
         bbb.appendInstr(Instruction::kCondBranch, eq_res_var);
         break;
@@ -2975,7 +2975,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             OutVReg{Operand::k32bit},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(PyObject_SetAttr)},
-            instr->GetOperand(0),
+            instr->getOperand(0),
             name,
             Imm{0});
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, call);
@@ -2984,7 +2984,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kLoadAttr: {
         auto instr = static_cast<const LoadAttr*>(&i);
         hir::Register* dst = instr->output();
-        hir::Register* base = instr->GetOperand(0);
+        hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(dst, PyObject_GetAttr, base, name);
         break;
@@ -2995,7 +2995,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inline caches must be enabled to use LoadAttrCached");
         auto instr = static_cast<const LoadAttrCached*>(&i);
         hir::Register* dst = instr->output();
-        hir::Register* base = instr->GetOperand(0);
+        hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache = getContext()->allocateLoadAttrCache();
         bbb.appendCallInstruction(
@@ -3007,7 +3007,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             rt::lookupAttrSpecial,
-            instr->GetOperand(0),
+            instr->getOperand(0),
             instr->id(),
             instr->failureFmtStr());
         break;
@@ -3017,7 +3017,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             getConfig().attr_caches,
             "Inline caches must be enabled to use LoadTypeAttrCacheEntryType");
         auto instr = static_cast<const LoadTypeAttrCacheEntryType*>(&i);
-        LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cache_id());
+        LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cacheId());
         PyTypeObject** addr = cache->typeAddr();
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
@@ -3027,7 +3027,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             getConfig().attr_caches,
             "Inline caches must be enabled to use LoadTypeAttrCacheEntryValue");
         auto instr = static_cast<const LoadTypeAttrCacheEntryValue*>(&i);
-        LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cache_id());
+        LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cacheId());
         PyObject** addr = cache->valueAddr();
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
@@ -3041,7 +3041,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             LoadTypeAttrCache::invoke,
-            load_type_attr_caches_.at(instr->cache_id()),
+            load_type_attr_caches_.at(instr->cacheId()),
             instr->receiver(),
             name);
         break;
@@ -3052,7 +3052,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inline caches must be enabled to use FillTypeMethodCache");
         auto instr = static_cast<const FillTypeMethodCache*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache_entry = load_type_method_caches_.at(instr->cache_id());
+        auto cache_entry = load_type_method_caches_.at(instr->cacheId());
         if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
           cache_entry->initCacheStats(
@@ -3075,7 +3075,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "LoadTypeMethodCacheEntryType");
         auto instr = static_cast<const LoadTypeMethodCacheEntryType*>(&i);
         LoadTypeMethodCache* cache =
-            load_type_method_caches_.at(instr->cache_id());
+            load_type_method_caches_.at(instr->cacheId());
         PyTypeObject** addr = cache->typeAddr();
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
@@ -3087,7 +3087,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "LoadTypeMethodCacheEntryValue");
         auto instr = static_cast<const LoadTypeMethodCacheEntryValue*>(&i);
         LoadTypeMethodCache* cache =
-            load_type_method_caches_.at(instr->cache_id());
+            load_type_method_caches_.at(instr->cacheId());
         appendCall2RetValues(
             bbb,
             instr->output(),
@@ -3134,7 +3134,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->output(),
             LoadModuleAttrCache::lookupHelper,
             cache,
-            instr->GetOperand(0),
+            instr->getOperand(0),
             name);
         break;
       }
@@ -3156,7 +3156,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kGetSecondOutput: {
         bbb.appendInstr(
-            i.output(), Instruction::kLoadSecondCallResult, i.GetOperand(0));
+            i.output(), Instruction::kLoadSecondCallResult, i.getOperand(0));
         break;
       }
       case Opcode::kLoadMethodSuper: {
@@ -3166,11 +3166,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             bbb,
             instr->output(),
             rt::getMethodFromSuper,
-            instr->global_super(),
+            instr->globalSuper(),
             instr->type(),
             instr->receiver(),
             name,
-            instr->no_args_in_super_call());
+            instr->noArgsInSuperCall());
         break;
       }
       case Opcode::kLoadAttrSuper: {
@@ -3179,11 +3179,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             rt::getAttrFromSuper,
-            instr->global_super(),
+            instr->globalSuper(),
             instr->type(),
             instr->receiver(),
             name,
-            instr->no_args_in_super_call());
+            instr->noArgsInSuperCall());
         break;
       }
       case Opcode::kBinaryOp: {
@@ -3307,8 +3307,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* call_instr = bbb.appendCallInstruction(
             instr->output(),
             PyObject_IsInstance,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, call_instr);
         break;
       }
@@ -3380,8 +3380,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             PyUnicode_Concat,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kUnicodeRepeat: {
@@ -3390,8 +3390,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             PyUnicode_Type.tp_as_sequence->sq_repeat,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kUnicodeSubscr: {
@@ -3400,8 +3400,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             PyUnicode_Type.tp_as_sequence->sq_item,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kCompareBool: {
@@ -3465,8 +3465,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             rt::copyDictWithoutKeys,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kIncref: {
@@ -3479,7 +3479,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMaterializeRef: {
         if constexpr (kFreeThreadedBuild) {
-          makeMaterializeRef(bbb, bbb.getDefInstr(i.GetOperand(0)), i.output());
+          makeMaterializeRef(bbb, bbb.getDefInstr(i.getOperand(0)), i.output());
         } else {
           JIT_ABORT("Deferred RC is only used with FT");
         }
@@ -3502,7 +3502,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
         Instruction* lir = bbb.appendInstr(Instruction::kVarArgCall);
         lir->addOperands(Imm{reinterpret_cast<uint64_t>(rt::batchDecref)});
-        for (hir::Register* arg : instr->GetOperands()) {
+        for (hir::Register* arg : instr->getOperands()) {
           lir->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         if constexpr (kFreeThreadedBuild) {
@@ -3525,7 +3525,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kDeoptPatchpoint: {
         const auto& instr = static_cast<const DeoptPatchpoint&>(i);
         std::size_t deopt_id = bbb.makeDeoptMetadata();
-        auto& regstates = instr.live_regs();
+        auto& regstates = instr.liveRegs();
         Instruction* lir = bbb.appendInstr(
             Instruction::kDeoptPatchpoint,
             MemImm{instr.patcher()},
@@ -3544,7 +3544,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInvokeInstruction(
             rt::formatAwaitableError,
             env_->asm_tstate,
-            instr.GetOperand(0),
+            instr.getOperand(0),
             instr.isAEnter());
         appendGuardAlwaysFail(bbb, instr);
         break;
@@ -3566,12 +3566,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kGuardIs: {
         const auto& instr = static_cast<const DeoptBase&>(i);
         auto kind = InstrGuardKind::kNotZero;
-        if (instr.IsCheckNeg()) {
+        if (instr.isCheckNeg()) {
           kind = InstrGuardKind::kNotNegative;
-        } else if (instr.IsGuardIs()) {
+        } else if (instr.isGuardIs()) {
           kind = InstrGuardKind::kIs;
         }
-        Instruction* value = bbb.getDefInstr(instr.GetOperand(0));
+        Instruction* value = bbb.getDefInstr(instr.getOperand(0));
         // Strip dynamic deferred RC tag before comparison.
         if constexpr (kFreeThreadedBuild) {
           if (kind == InstrGuardKind::kIs) {
@@ -3588,7 +3588,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kGuardType: {
         const auto& instr = static_cast<const DeoptBase&>(i);
-        Instruction* value = bbb.getDefInstr(instr.GetOperand(0));
+        Instruction* value = bbb.getDefInstr(instr.getOperand(0));
         if constexpr (kFreeThreadedBuild) {
           // Strip dynamic deferred RC tag before comparison.
           value = bbb.appendInstr(
@@ -3624,7 +3624,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Py_TYPE(builtins)->tp_name);
         env_->code_rt->addReference(builtins);
         PyObject* name =
-            PyTuple_GET_ITEM(instr->code()->co_names, instr->name_idx());
+            PyTuple_GET_ITEM(instr->code()->co_names, instr->nameIdx());
         JIT_CHECK(
             PyUnicode_CheckExact(name),
             "Global name should be a string, but is actually a {}",
@@ -3655,9 +3655,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kStoreAttr: {
         auto instr = static_cast<const StoreAttrCached*>(&i);
-        hir::Register* base = instr->GetOperand(0);
+        hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
-        hir::Register* value = instr->GetOperand(1);
+        hir::Register* value = instr->getOperand(1);
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{Operand::k32bit}, PyObject_SetAttr, base, name, value);
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
@@ -3668,9 +3668,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             getConfig().attr_caches,
             "Inline caches must be enabled to use StoreAttrCached");
         auto instr = static_cast<const StoreAttrCached*>(&i);
-        hir::Register* base = instr->GetOperand(0);
+        hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
-        hir::Register* value = instr->GetOperand(1);
+        hir::Register* value = instr->getOperand(1);
         auto cache = getContext()->allocateStoreAttrCache();
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{Operand::k32bit},
@@ -3702,7 +3702,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Imm{func},
             Imm{flags},
             VReg{env_->asm_tstate});
-        for (hir::Register* arg : hir_instr.GetOperands()) {
+        for (hir::Register* arg : hir_instr.getOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         if (!(hir_instr.flags() & CallFlags::KwArgs)) {
@@ -3724,7 +3724,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.output(),
             Instruction::kCall,
             Imm{reinterpret_cast<uint64_t>(func_ptr)});
-        for (hir::Register* arg : hir_instr.GetOperands()) {
+        for (hir::Register* arg : hir_instr.getOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         break;
@@ -3745,11 +3745,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.output(),
             Instruction::kCall,
             VReg{bbb.getDefInstr(hir_instr.func())});
-        for (std::size_t op = 0; op < hir_instr.arg_count(); op++) {
+        for (std::size_t op = 0; op < hir_instr.argCount(); op++) {
           instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(op))});
         }
         auto kind = InstrGuardKind::kNotZero;
-        Type ret_type = hir_instr.ret_type();
+        Type ret_type = hir_instr.retType();
         if (ret_type <= TCDouble) {
           appendGuard(
               bbb,
@@ -3774,7 +3774,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kCallIntrinsic: {
         auto& hir_instr = static_cast<const CallIntrinsic&>(i);
         uint64_t func_addr;
-        switch (hir_instr.NumOperands()) {
+        switch (hir_instr.numOperands()) {
           case 1: {
 #if PY_VERSION_HEX >= 0x030E0000
             const intrinsic_func1 func =
@@ -3800,12 +3800,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           default:
             JIT_ABORT(
                 "CallIntrinsic only supported with 1 or 2 args, got {}",
-                hir_instr.NumOperands());
+                hir_instr.numOperands());
         }
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(), Instruction::kCall, Imm{func_addr});
         instr->addOperands(VReg{env_->asm_tstate});
-        for (hir::Register* arg : hir_instr.GetOperands()) {
+        for (hir::Register* arg : hir_instr.getOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         break;
@@ -3820,7 +3820,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Imm{reinterpret_cast<uint64_t>(rt::call)},
             Imm{flags},
             VReg{env_->asm_tstate});
-        for (hir::Register* arg : hir_instr.GetOperands()) {
+        for (hir::Register* arg : hir_instr.getOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         if (!(hir_instr.flags() & CallFlags::KwArgs)) {
@@ -3834,7 +3834,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto& hir_instr = static_cast<const CallStatic&>(i);
         std::vector<Instruction*> args;
         // Generate the argument conversions before the call.
-        for (hir::Register* reg_arg : hir_instr.GetOperands()) {
+        for (hir::Register* reg_arg : hir_instr.getOperands()) {
           Instruction* arg = bbb.getDefInstr(reg_arg);
           Type src_type = reg_arg->type();
           if (src_type <= (TCBool | TCUInt8 | TCUInt16)) {
@@ -3862,7 +3862,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kCall,
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(hir_instr.addr())});
-        for (hir::Register* arg : hir_instr.GetOperands()) {
+        for (hir::Register* arg : hir_instr.getOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         break;
@@ -3871,7 +3871,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         ThreadedCompileSerialize guard;
 
         auto instr = static_cast<const InvokeStaticFunction*>(&i);
-        auto nargs = instr->NumOperands();
+        auto nargs = instr->numOperands();
         PyFunctionObject* func = instr->func();
 
         std::stringstream ss;
@@ -3892,11 +3892,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
 
         for (size_t argIdx = 0; argIdx < nargs; argIdx++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr->GetOperand(argIdx))});
+          lir->addOperands(VReg{bbb.getDefInstr(instr->getOperand(argIdx))});
         }
         // functions that return primitives will signal error via edx/xmm1
         auto kind = InstrGuardKind::kNotZero;
-        Type ret_type = instr->ret_type();
+        Type ret_type = instr->retType();
         if (ret_type <= TCDouble) {
           appendGuard(
               bbb,
@@ -4024,10 +4024,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr.output(),
             _PyEval_MatchClass,
             env_->asm_tstate,
-            instr.GetOperand(0),
-            instr.GetOperand(1),
-            instr.GetOperand(2),
-            instr.GetOperand(3));
+            instr.getOperand(0),
+            instr.getOperand(1),
+            instr.getOperand(2),
+            instr.getOperand(3));
         break;
       }
       case Opcode::kMatchKeys: {
@@ -4036,8 +4036,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->output(),
             _PyEval_MatchKeys,
             env_->asm_tstate,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kLoadTupleItem: {
@@ -4051,24 +4051,24 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCheckSequenceBounds: {
         auto instr = static_cast<const CheckSequenceBounds*>(&i);
-        auto type = instr->GetOperand(1)->type();
+        auto type = instr->getOperand(1)->type();
         if (type <= (TCInt8 | TCInt16 | TCInt32) ||
             type <= (TCUInt8 | TCUInt16 | TCUInt32)) {
           Instruction* lir = bbb.appendInstr(
               Instruction::kSext,
               OutVReg{DataType::k64bit},
-              instr->GetOperand(1));
+              instr->getOperand(1));
           bbb.appendCallInstruction(
               instr->output(),
               rt::checkSequenceBounds,
-              instr->GetOperand(0),
+              instr->getOperand(0),
               lir);
         } else {
           bbb.appendCallInstruction(
               instr->output(),
               rt::checkSequenceBounds,
-              instr->GetOperand(0),
-              instr->GetOperand(1));
+              instr->getOperand(0),
+              instr->getOperand(1));
         }
         break;
       }
@@ -4108,7 +4108,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kLoadSplitDictItem: {
         auto instr = static_cast<const LoadSplitDictItem*>(&i);
-        Register* dict = instr->GetOperand(0);
+        Register* dict = instr->getOperand(0);
         // Users of LoadSplitDictItem are required to verify that dict has a
         // split table, so it's safe to load and access ma_values with no
         // additional checks here.
@@ -4135,7 +4135,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMakeCheckedDict: {
         auto instr = static_cast<const MakeCheckedDict*>(&i);
-        auto capacity = instr->GetCapacity();
+        auto capacity = instr->getCapacity();
         if (capacity == 0) {
           bbb.appendCallInstruction(
               instr->output(), Ci_CheckedDict_New, instr->type().typeSpec());
@@ -4150,7 +4150,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMakeDict: {
         auto instr = static_cast<const MakeDict*>(&i);
-        auto capacity = instr->GetCapacity();
+        auto capacity = instr->getCapacity();
         if (capacity == 0) {
           bbb.appendCallInstruction(instr->output(), PyDict_New);
         } else {
@@ -4171,8 +4171,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             i.output(),
             rt::dictUpdate,
             env_->asm_tstate,
-            i.GetOperand(0),
-            i.GetOperand(1));
+            i.getOperand(0),
+            i.getOperand(1));
         break;
       }
       case Opcode::kDictMerge: {
@@ -4180,9 +4180,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             i.output(),
             rt::dictMerge,
             env_->asm_tstate,
-            i.GetOperand(0),
-            i.GetOperand(1),
-            i.GetOperand(2));
+            i.getOperand(0),
+            i.getOperand(1),
+            i.getOperand(2));
         break;
       }
       case Opcode::kMergeSetUnpack: {
@@ -4190,8 +4190,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             _PySet_Update,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kSetDictItem: {
@@ -4201,16 +4201,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendCallInstruction(
               instr->output(),
               PyDict_SetItem,
-              instr->GetOperand(0),
-              instr->GetOperand(1),
-              instr->GetOperand(2));
+              instr->getOperand(0),
+              instr->getOperand(1),
+              instr->getOperand(2));
         } else {
           bbb.appendCallInstruction(
               instr->output(),
               Ci_DictOrChecked_SetItem,
-              instr->GetOperand(0),
-              instr->GetOperand(1),
-              instr->GetOperand(2));
+              instr->getOperand(0),
+              instr->getOperand(1),
+              instr->getOperand(2));
         }
         break;
       }
@@ -4219,8 +4219,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             PySet_Add,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kSetUpdate: {
@@ -4228,8 +4228,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             _PySet_Update,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kStoreSubscr: {
@@ -4237,9 +4237,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{Operand::k32bit},
             PyObject_SetItem,
-            instr->GetOperand(0),
-            instr->GetOperand(1),
-            instr->GetOperand(2));
+            instr->getOperand(0),
+            instr->getOperand(1),
+            instr->getOperand(2));
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }
@@ -4248,8 +4248,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
             PyDict_Type.tp_as_mapping->mp_subscript,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kInPlaceOp: {
@@ -4309,13 +4309,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kGetIter: {
         auto instr = static_cast<const GetIter*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), PyObject_GetIter, instr->GetOperand(0));
+            instr->output(), PyObject_GetIter, instr->getOperand(0));
         break;
       }
       case Opcode::kGetLength: {
         auto instr = static_cast<const GetLength*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), rt::getLength, instr->GetOperand(0));
+            instr->output(), rt::getLength, instr->getOperand(0));
         break;
       }
       case Opcode::kPhi: {
@@ -4327,8 +4327,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMakeFunction: {
         auto instr = static_cast<const MakeFunction*>(&i);
-        auto code = instr->GetOperand(0);
-        auto qualname = instr->GetOperand(1);
+        auto code = instr->getOperand(0);
+        auto qualname = instr->getOperand(1);
 
         Instruction* globals;
         if (getConfig().stable_frame) {
@@ -4380,14 +4380,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendCallInstruction(
               instr->output(),
               PyList_Append,
-              instr->GetOperand(0),
-              instr->GetOperand(1));
+              instr->getOperand(0),
+              instr->getOperand(1));
         } else {
           bbb.appendCallInstruction(
               instr->output(),
               Ci_ListOrCheckedList_Append,
-              instr->GetOperand(0),
-              instr->GetOperand(1));
+              instr->getOperand(0),
+              instr->getOperand(1));
         }
         break;
       }
@@ -4397,27 +4397,27 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->output(),
             __Invoke_PyList_Extend,
             env_->asm_tstate,
-            instr->GetOperand(0),
-            instr->GetOperand(1));
+            instr->getOperand(0),
+            instr->getOperand(1));
         break;
       }
       case Opcode::kMakeTupleFromList: {
         auto instr = static_cast<const MakeTupleFromList*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), PyList_AsTuple, instr->GetOperand(0));
+            instr->output(), PyList_AsTuple, instr->getOperand(0));
         break;
       }
       case Opcode::kGetTuple: {
         auto instr = static_cast<const GetTuple*>(&i);
 
         bbb.appendCallInstruction(
-            instr->output(), PySequence_Tuple, instr->GetOperand(0));
+            instr->output(), PySequence_Tuple, instr->getOperand(0));
         break;
       }
       case Opcode::kInvokeIterNext: {
         auto instr = static_cast<const InvokeIterNext*>(&i);
         bbb.appendCallInstruction(
-            instr->output(), rt::invokeIterNext, instr->GetOperand(0));
+            instr->output(), rt::invokeIterNext, instr->getOperand(0));
         break;
       }
       case Opcode::kLoadEvalBreaker: {
@@ -4682,7 +4682,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kCompactLongUnbox: {
         // Inline _PyLong_CompactValue: sign * (Py_ssize_t)ob_digit[0]
         // where sign = 1 - (lv_tag & 3).
-        Instruction* obj = bbb.getDefInstr(i.GetOperand(0));
+        Instruction* obj = bbb.getDefInstr(i.getOperand(0));
         int32_t lv_tag_offset =
             static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
         int32_t digit_offset =
@@ -4715,12 +4715,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kIsCompactLong: {
-        Type operand_type = i.GetOperand(0)->type();
+        Type operand_type = i.getOperand(0)->type();
         if (operand_type <= TCInt64) {
           // For a raw CInt64, check if the value fits in a single 30-bit
           // digit: -(2^30-1) <= v <= 2^30-1, i.e.
           // (unsigned)(v + (2^30-1)) < (2^31-1).
-          Instruction* val = bbb.getDefInstr(i.GetOperand(0));
+          Instruction* val = bbb.getDefInstr(i.getOperand(0));
           constexpr int64_t kMaxDigit = (int64_t{1} << PyLong_SHIFT) - 1;
           Instruction* shifted = bbb.appendInstr(
               OutVReg{DataType::k64bit},
@@ -4734,7 +4734,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Imm{2 * kMaxDigit + 1});
         } else {
           // Load lv_tag from PyLongObject and check < (2 << 3) i.e. < 16.
-          Instruction* obj = bbb.getDefInstr(i.GetOperand(0));
+          Instruction* obj = bbb.getDefInstr(i.getOperand(0));
           int32_t lv_tag_offset =
               static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
           Instruction* lv_tag = bbb.appendInstr(
@@ -4752,7 +4752,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kIsTruthy: {
         auto is_truthy = static_cast<const IsTruthy*>(&i);
         Instruction* call_instr = bbb.appendCallInstruction(
-            i.output(), PyObject_IsTrue, i.GetOperand(0));
+            i.output(), PyObject_IsTrue, i.getOperand(0));
         appendGuard(bbb, InstrGuardKind::kNotNegative, *is_truthy, call_instr);
         break;
       }
@@ -4800,8 +4800,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             rt::importName,
             env_->asm_tstate,
             name,
-            instr->GetFromList(),
-            instr->GetLevel());
+            instr->getFromList(),
+            instr->getLevel());
         break;
       }
       case Opcode::kEagerImportName: {
@@ -4813,8 +4813,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             rt::importName,
             env_->asm_tstate,
             name,
-            instr->GetFromList(),
-            instr->GetLevel());
+            instr->getFromList(),
+            instr->getLevel());
 #elif PY_VERSION_HEX >= 0x030E0000
         // asm_interpreter_frame isn't right for inlined functions but we don't
         // allow inlining of things which contain EagerImportName instructions.
@@ -4824,8 +4824,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             env_->asm_tstate,
             env_->asm_interpreter_frame,
             name,
-            instr->GetFromList(),
-            instr->GetLevel());
+            instr->getFromList(),
+            instr->getLevel());
 #elif ENABLE_LAZY_IMPORTS
         PyObject* globals = instr->frameState()->globals;
         PyObject* builtins = instr->frameState()->builtins;
@@ -4838,8 +4838,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             globals,
             locals,
             name,
-            instr->GetFromList(),
-            instr->GetLevel());
+            instr->getFromList(),
+            instr->getLevel());
 #else
         bbb.appendCallInstruction(i.output(), PyImport_Import, name);
 #endif
@@ -4859,9 +4859,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Imm{reinterpret_cast<uint64_t>(instr.excType()), DataType::kObject},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(instr.fmt())});
-        for (size_t operandIdx = 0; operandIdx < instr.NumOperands();
+        for (size_t operandIdx = 0; operandIdx < instr.numOperands();
              operandIdx++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(operandIdx))});
+          lir->addOperands(VReg{bbb.getDefInstr(instr.getOperand(operandIdx))});
         }
 
         appendGuardAlwaysFail(bbb, instr);
@@ -4873,8 +4873,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr.output(),
             rt::formatValue,
             env_->asm_tstate,
-            instr.GetOperand(0),
-            instr.GetOperand(1),
+            instr.getOperand(0),
+            instr.getOperand(1),
             instr.conversion());
         break;
       }
@@ -4883,8 +4883,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr.output(),
             PyObject_Format,
-            instr.GetOperand(0),
-            instr.GetOperand(1));
+            instr.getOperand(0),
+            instr.getOperand(1));
         break;
       }
       case Opcode::kBuildString: {
@@ -4901,9 +4901,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             nullptr,
             nullptr);
         lir->addOperands(Imm{0});
-        for (size_t operandIdx = 0; operandIdx < instr.NumOperands();
+        for (size_t operandIdx = 0; operandIdx < instr.numOperands();
              operandIdx++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(operandIdx))});
+          lir->addOperands(VReg{bbb.getDefInstr(instr.getOperand(operandIdx))});
         }
         lir->addOperands(Imm{0});
 
@@ -4925,8 +4925,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             OutVReg{Operand::k32bit},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(PyObject_DelItem)},
-            instr.GetOperand(0),
-            instr.GetOperand(1));
+            instr.getOperand(0),
+            instr.getOperand(1));
         appendGuard(bbb, InstrGuardKind::kNotNegative, instr, call);
         break;
       }
@@ -4950,7 +4950,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // normal register allocation and is lowered to a LEA in autogen once
         // max_arg_buffer_size is known.
         auto aligned_size =
-            static_cast<int>((instr->num_words() * kPointerSize + 15) & ~15);
+            static_cast<int>((instr->numWords() * kPointerSize + 15) & ~15);
         env_->reserve_stack_size =
             std::max(env_->reserve_stack_size, aligned_size);
         bbb.appendInstr(instr->output(), Instruction::kReserveStack);
@@ -4963,20 +4963,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             rt::unpackSequence,
             env_->asm_tstate,
             instr->seq(),
-            instr->items_ptr(),
+            instr->itemsPtr(),
             instr->count());
         break;
       }
       case Opcode::kGetAIter: {
         auto& instr = static_cast<const GetAIter&>(i);
         bbb.appendCallInstruction(
-            instr.output(), Ci_GetAIter, env_->asm_tstate, instr.GetOperand(0));
+            instr.output(), Ci_GetAIter, env_->asm_tstate, instr.getOperand(0));
         break;
       }
       case Opcode::kGetANext: {
         auto& instr = static_cast<const GetAIter&>(i);
         bbb.appendCallInstruction(
-            instr.output(), Ci_GetANext, env_->asm_tstate, instr.GetOperand(0));
+            instr.output(), Ci_GetANext, env_->asm_tstate, instr.getOperand(0));
         break;
       }
       case Opcode::kUpdatePrevInstr: {
@@ -5025,8 +5025,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             bbb,
             hir_instr.output(),
             Imm{func},
-            hir_instr.GetOperand(0),
-            hir_instr.GetOperand(1),
+            hir_instr.getOperand(0),
+            hir_instr.getOperand(1),
             Imm{0},
             env_->asm_interpreter_frame);
         break;
@@ -5037,10 +5037,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             hir_instr.output(),
             _PyInterpolation_Build,
-            hir_instr.GetOperand(0),
-            hir_instr.GetOperand(1),
+            hir_instr.getOperand(0),
+            hir_instr.getOperand(1),
             hir_instr.conversion(),
-            hir_instr.GetOperand(2));
+            hir_instr.getOperand(2));
 #endif
         break;
       }
@@ -5051,8 +5051,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.output(),
             Instruction::kCall,
             Imm{reinterpret_cast<uint64_t>(_PyTemplate_Build)},
-            hir_instr.GetOperand(0),
-            hir_instr.GetOperand(1));
+            hir_instr.getOperand(0),
+            hir_instr.getOperand(1));
 #endif
         break;
       }
@@ -5062,7 +5062,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             bbb,
             load_special.output(),
             rt::loadSpecial,
-            load_special.GetOperand(0),
+            load_special.getOperand(0),
             load_special.specialIdx());
         break;
       }
@@ -5072,12 +5072,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             convert_value.output(),
             _PyEval_ConversionFuncs[convert_value.converterIdx()],
-            convert_value.GetOperand(0));
+            convert_value.getOperand(0));
 #endif
         break;
       }
       case Opcode::kCIntToCBool: {
-        bbb.appendInstr(i.output(), Instruction::kIntToBool, i.GetOperand(0));
+        bbb.appendInstr(i.output(), Instruction::kIntToBool, i.getOperand(0));
         break;
       }
     }
@@ -5202,9 +5202,9 @@ void LIRGenerator::resolvePhiOperands(
   for (auto& block : basic_blocks_) {
     block->foreachPhiInstr([&](Instruction* instr) {
       auto hir_instr = static_cast<const Phi*>(instr->origin());
-      for (size_t i = 0; i < hir_instr->NumOperands(); ++i) {
-        hir::BasicBlock* hir_block = hir_instr->basic_blocks().at(i);
-        hir::Register* hir_value = hir_instr->GetOperand(i);
+      for (size_t i = 0; i < hir_instr->numOperands(); ++i) {
+        hir::BasicBlock* hir_block = hir_instr->basicBlocks().at(i);
+        hir::Register* hir_value = hir_instr->getOperand(i);
         instr->allocateLabelInput(bb_map.at(hir_block).last);
         instr->allocateLinkedInput(bbb.getDefInstr(hir_value));
       }
@@ -5221,7 +5221,7 @@ Instruction* LIRGenerator::getNameFromIdx(
         Instruction::kCall,
         rt::loadName,
         env_->asm_tstate,
-        instr->name_idx());
+        instr->nameIdx());
   }
 
   BorrowedRef<PyUnicodeObject> name = instr->name();

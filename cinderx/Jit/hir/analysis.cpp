@@ -87,16 +87,16 @@ bool operandsMustMatch(OperandType op_type) {
 bool funcTypeChecks(const Function& func, std::ostream& err) {
   for (auto& block : func.cfg.blocks) {
     for (const Instr& instr : block) {
-      if (instr.NumOperands() > 1 &&
-          operandsMustMatch(instr.GetOperandType(0))) {
+      if (instr.numOperands() > 1 &&
+          operandsMustMatch(instr.getOperandType(0))) {
         Type join = TBottom;
-        for (std::size_t i = 0; i < instr.NumOperands(); i++) {
+        for (std::size_t i = 0; i < instr.numOperands(); i++) {
           JIT_DCHECK(
-              operandsMustMatch(instr.GetOperandType(i)),
+              operandsMustMatch(instr.getOperandType(i)),
               "Inconsistent operand type constraint");
-          join |= instr.GetOperand(i)->type();
+          join |= instr.getOperand(i)->type();
         }
-        OperandType expected_type = instr.GetOperandType(0);
+        OperandType expected_type = instr.getOperandType(0);
         if (!registerTypeMatches(join, expected_type)) {
           fmt::print(
               err,
@@ -110,9 +110,9 @@ bool funcTypeChecks(const Function& func, std::ostream& err) {
           return false;
         }
       } else {
-        for (std::size_t i = 0; i < instr.NumOperands(); i++) {
-          Register* op = instr.GetOperand(i);
-          OperandType expected_type = instr.GetOperandType(i);
+        for (std::size_t i = 0; i < instr.numOperands(); i++) {
+          Register* op = instr.getOperand(i);
+          OperandType expected_type = instr.getOperandType(i);
           if (!registerTypeMatches(op->type(), expected_type)) {
             fmt::print(
                 err,
@@ -158,8 +158,8 @@ void DataflowAnalysis::AddBasicBlock(const BasicBlock* cfg_block) {
 void DataflowAnalysis::Initialize() {
   // Add all registers -- this sets up the correct number of bits for the
   // analysis
-  num_bits_ = irfunc_.env.GetRegisters().size();
-  for (const auto& it : irfunc_.env.GetRegisters()) {
+  num_bits_ = irfunc_.env.getRegisters().size();
+  for (const auto& it : irfunc_.env.getRegisters()) {
     df_analyzer_.addObject(it.second.get());
   }
 
@@ -182,10 +182,10 @@ void DataflowAnalysis::Initialize() {
       df_entry_.connectTo(df_block);
     }
 
-    if (cfg_block.out_edges().empty()) {
+    if (cfg_block.outEdges().empty()) {
       df_block.connectTo(df_exit_);
     } else {
-      for (auto cfg_edge : cfg_block.out_edges()) {
+      for (auto cfg_edge : cfg_block.outEdges()) {
         auto succ_cfg_block = cfg_edge->to();
         JIT_CHECK(
             df_blocks_.contains(succ_cfg_block),
@@ -300,7 +300,7 @@ static void analyzeInstrLiveness(
     define_output(output);
   }
 
-  if (instr.IsPhi()) {
+  if (instr.isPhi()) {
     // Phi uses happen at the end of the predecessor block.
     return;
   }
@@ -318,14 +318,14 @@ static void analyzeInstrLiveness(
       auto succ = instr.successor(i);
       int phi_idx = -1;
       for (auto& succ_instr : *succ) {
-        if (!succ_instr.IsPhi()) {
+        if (!succ_instr.isPhi()) {
           break;
         }
         auto& phi = static_cast<const Phi&>(succ_instr);
         if (phi_idx == -1) {
           phi_idx = phi.blockIndex(instr.block());
         }
-        use(phi.GetOperand(phi_idx));
+        use(phi.getOperand(phi_idx));
       }
     }
   }
@@ -409,7 +409,7 @@ bool LivenessAnalysis::IsLiveOut(const BasicBlock* cfg_block, Register* reg) {
 AssignmentAnalysis::AssignmentAnalysis(const Function& irfunc, bool is_definite)
     : ForwardDataflowAnalysis(irfunc), args_(), is_definite_(is_definite) {
   for (const auto& instr : *irfunc_.cfg.entry_block) {
-    if (instr.IsLoadArg()) {
+    if (instr.isLoadArg()) {
       args_.insert(instr.output());
     }
   }
@@ -496,8 +496,8 @@ DominatorAnalysis::DominatorAnalysis(const Function& irfunc)
     changed = false;
     for (auto it = start; it != rpo.end(); it++) {
       const BasicBlock* block = *it;
-      auto predIter = block->in_edges().begin();
-      auto predEnd = block->in_edges().end();
+      auto predIter = block->inEdges().begin();
+      auto predEnd = block->inEdges().end();
       // pred1 = any already-processed predecessor
       auto pred1 = const_cast<const BasicBlock*>((*predIter)->from());
       while (!idoms_[pred1->id]) {
@@ -547,11 +547,11 @@ RegisterTypeHints::RegisterTypeHints(const Function& irfunc)
     : dom_hint_{}, doms_{irfunc} {
   for (const auto& block : irfunc.cfg.blocks) {
     for (const auto& instr : block) {
-      if (instr.IsHintType()) {
-        for (size_t i = 0; i < instr.NumOperands(); i++) {
-          dom_hint_[instr.GetOperand(i)][block.id] = &instr;
+      if (instr.isHintType()) {
+        for (size_t i = 0; i < instr.numOperands(); i++) {
+          dom_hint_[instr.getOperand(i)][block.id] = &instr;
         }
-      } else if (instr.IsPhi()) {
+      } else if (instr.isPhi()) {
         dom_hint_[instr.output()][block.id] = &instr;
       }
     }

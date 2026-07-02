@@ -400,12 +400,12 @@ class DeoptStressTest : public RuntimeTest {
  private:
   std::unordered_map<int, Instr*> insertDeopts(Function& irfunc) {
     std::unordered_map<int, Instr*> guards;
-    Register* reg = irfunc.env.AllocateRegister();
+    Register* reg = irfunc.env.allocateRegister();
     int next_nonce{0};
     for (auto& block : irfunc.cfg.blocks) {
       bool has_periodic_tasks =
           std::any_of(block.begin(), block.end(), [](auto& instr) {
-            return instr.IsRunPeriodicTasks();
+            return instr.isRunPeriodicTasks();
           });
       if (has_periodic_tasks) {
         // skip blocks that depend on the contents of the eval breaker
@@ -417,9 +417,9 @@ class DeoptStressTest : public RuntimeTest {
           // Nothing defines reg, so it will be null initialized and the guard
           // will fail, thus causing deopt.
           auto guard = Guard::create(reg);
-          guard->InsertBefore(instr);
+          guard->insertBefore(instr);
           auto nonce = next_nonce++;
-          guard->set_nonce(nonce);
+          guard->setNonce(nonce);
           guards[nonce] = guard;
         }
       }

@@ -936,9 +936,9 @@ TEST_F(HIRTypeTest, ReflowSimpleTypes) {
   auto b2 = func.cfg.AllocateBlock();
   auto b3 = func.cfg.AllocateBlock();
 
-  auto v0 = func.env.AllocateRegister();
-  auto v1 = func.env.AllocateRegister();
-  auto v2 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
+  auto v1 = func.env.allocateRegister();
+  auto v2 = func.env.allocateRegister();
   // Types start as Top and are set appropriately by reflowTypes() later.
   ASSERT_EQ(v0->type(), TTop);
   ASSERT_EQ(v1->type(), TTop);
@@ -970,9 +970,9 @@ TEST_F(HIRTypeTest, ReflowLoopTypes) {
   auto b1 = func.cfg.AllocateBlock();
   auto b2 = func.cfg.AllocateBlock();
 
-  auto v0 = func.env.AllocateRegister();
-  auto v1 = func.env.AllocateRegister();
-  auto v2 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
+  auto v1 = func.env.allocateRegister();
+  auto v2 = func.env.allocateRegister();
 
   b0->append<MakeTuple>(v0, static_cast<size_t>(0), FrameState{});
   b0->append<Branch>(b1);

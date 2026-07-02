@@ -124,16 +124,16 @@ def func():
   std::vector<hir::BasicBlock*> postorder =
       irfunc->cfg.GetPostOrderTraversal(entry);
   ASSERT_GT(postorder.size(), 0);
-  hir::Instr* term = postorder[0]->GetTerminator();
+  hir::Instr* term = postorder[0]->getTerminator();
   ASSERT_NE(term, nullptr);
-  ASSERT_TRUE(term->IsReturn()) << *term;
+  ASSERT_TRUE(term->isReturn()) << *term;
 
   // Insert a patchpoint immediately before the return
   auto patcher = irfunc->allocateCodePatcher<MyDeoptPatcher>(123);
   irfunc->reifier = ThreadedRef<>::create(makeFrameReifier(pyfunc->func_code));
   EXPECT_EQ(patcher->id(), 123);
   auto patchpoint = hir::DeoptPatchpoint::create(patcher);
-  patchpoint->InsertBefore(*term);
+  patchpoint->insertBefore(*term);
 
   // Generate machine code and link the patcher
   Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);

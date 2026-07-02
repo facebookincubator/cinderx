@@ -288,12 +288,12 @@ bool isBannedName(std::string_view name) {
 } // namespace
 
 Register* HIRBuilder::allocateTemp() {
-  return env_->AllocateRegister();
+  return env_->allocateRegister();
 }
 
 Register* BlockCanonicalizer::getOrAllocateCanonicalStack(std::size_t idx) {
   while (idx >= canonical_stack_.size()) {
-    canonical_stack_.emplace_back(env_->AllocateRegister());
+    canonical_stack_.emplace_back(env_->allocateRegister());
   }
   return canonical_stack_[idx];
 }
@@ -303,7 +303,7 @@ void HIRBuilder::allocateLocalsplus(Environment* env, FrameState& state) {
   state.localsplus.clear();
   state.localsplus.reserve(nlocalsplus);
   for (int i = 0; i < nlocalsplus; ++i) {
-    state.localsplus.emplace_back(env->AllocateRegister());
+    state.localsplus.emplace_back(env->allocateRegister());
   }
 
   state.nlocals = numLocals(code_);
@@ -331,11 +331,11 @@ struct HIRBuilder::TranslationContext {
 
   template <typename T, typename... Args>
   T* emitVariadic(Environment& env, std::size_t num_operands, Args&&... args) {
-    Register* out = env.AllocateRegister();
+    Register* out = env.allocateRegister();
     auto call = emit<T>(num_operands, out, std::forward<Args>(args)...);
     for (auto i = num_operands; i > 0; i--) {
       Register* operand = frame.stack.pop();
-      call->SetOperand(i - 1, operand);
+      call->setOperand(i - 1, operand);
     }
     call->setFrameState(frame);
     frame.stack.push(out);
@@ -722,15 +722,15 @@ InlineResult HIRBuilder::inlineHIR(
   // Make one block with a Return that merges the return branches from the
   // callee.  After SSA, it will turn into a massive Phi.  The caller can find
   // the Return and use it as the output of the call instruction.
-  Register* return_val = caller->env.AllocateRegister();
+  Register* return_val = caller->env.allocateRegister();
   BasicBlock* exit_block = caller->cfg.AllocateBlock();
   size_t num_preds = 0;
   for (auto block : caller->cfg.GetRPOTraversal(entry_block)) {
-    auto instr = block->GetTerminator();
-    if (instr->IsReturn()) {
-      auto assign = Assign::create(return_val, instr->GetOperand(0));
+    auto instr = block->getTerminator();
+    if (instr->isReturn()) {
+      auto assign = Assign::create(return_val, instr->getOperand(0));
       auto branch = Branch::create(exit_block);
-      instr->ExpandInto({assign, branch});
+      instr->expandInto({assign, branch});
       delete instr;
       num_preds += 1;
     }
@@ -756,10 +756,10 @@ InlineResult HIRBuilder::inlineHIR(
   for (BasicBlock* block : caller->cfg.GetRPOTraversal(entry_block)) {
     for (Instr& instr : *block) {
       JIT_CHECK(
-          !instr.IsBeginInlinedFunction(),
+          !instr.isBeginInlinedFunction(),
           "there should be no BeginInlinedFunction in inlined functions");
       JIT_CHECK(
-          !instr.IsEndInlinedFunction(),
+          !instr.isEndInlinedFunction(),
           "there should be no EndInlinedFunction in inlined functions");
       FrameState* fs = nullptr;
       if (auto db = instr.asDeoptBase()) {
@@ -821,7 +821,7 @@ void HIRBuilder::translate(
       BytecodeInstruction bc_instr = *bc_it;
 
       tc.frame.cur_instr_offs = bc_instr.baseOffset();
-      Instr* prev_hir_instr = tc.block->GetTerminator();
+      Instr* prev_hir_instr = tc.block->getTerminator();
       // Outputting too many snapshots is safe but noisy so try to cull.
       // Note in some cases we'll have a non-empty block without yet having
       // translated any bytecodes. For example, if this is the first block and
@@ -837,7 +837,7 @@ void HIRBuilder::translate(
                // change the frame state.
                should_snapshot(
                    prev_bc_instr, is_in_async_for_header_block())))) {
-        if (prev_hir_instr && prev_hir_instr->IsSnapshot()) {
+        if (prev_hir_instr && prev_hir_instr->isSnapshot()) {
           auto snapshot = static_cast<Snapshot*>(prev_hir_instr);
           snapshot->setFrameState(tc.frame);
         } else {
@@ -1543,8 +1543,8 @@ void HIRBuilder::translate(
       }
     }
     // Insert jumps for blocks that fall through.
-    auto last_instr = tc.block->GetTerminator();
-    if ((last_instr == nullptr) || !last_instr->IsTerminator()) {
+    auto last_instr = tc.block->getTerminator();
+    if ((last_instr == nullptr) || !last_instr->isTerminator()) {
       auto off = bc_block.endOffset();
       last_instr = tc.emit<Branch>(getBlockAtOff(off));
     }
@@ -1596,7 +1596,7 @@ void HIRBuilder::translate(
         if (prev_bc_instr.opcode() == YIELD_FROM &&
             is_in_async_for_header_block()) {
           JIT_CHECK(
-              last_instr->IsCondBranchIterNotDone(),
+              last_instr->isCondBranchIterNotDone(),
               "Async-for header should end with CondBranchIterNotDone");
           auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
           FrameState new_frame = tc.frame;
@@ -1614,8 +1614,8 @@ void HIRBuilder::translate(
       }
     }
     JIT_DCHECK(
-        tc.block->GetTerminator() != nullptr &&
-            !tc.block->GetTerminator()->IsSnapshot(),
+        tc.block->getTerminator() != nullptr &&
+            !tc.block->getTerminator()->isSnapshot(),
         "opcodes should not end with a snapshot");
   }
 
@@ -1638,10 +1638,10 @@ void BlockCanonicalizer::InsertCopies(
   } else if (processing_.contains(reg)) {
     // We've detected a cycle. Move the register to a new home
     // in order to break the cycle.
-    auto tmp = env_->AllocateRegister();
+    auto tmp = env_->allocateRegister();
     auto mov = Assign::create(tmp, reg);
     mov->copyBytecodeOffset(terminator);
-    mov->InsertBefore(terminator);
+    mov->insertBefore(terminator);
     moved_[reg] = tmp;
     alloced.emplace_back(tmp);
     return;
@@ -1664,7 +1664,7 @@ void BlockCanonicalizer::InsertCopies(
     }
     auto mov = Assign::create(dst, reg);
     mov->copyBytecodeOffset(terminator);
-    mov->InsertBefore(terminator);
+    mov->insertBefore(terminator);
   }
 
   done_.insert(orig_reg);
@@ -1690,7 +1690,7 @@ void BlockCanonicalizer::Run(BasicBlock* block, OperandStack& stack) {
 
   // Compute the minimum number of copies that need to happen
   std::vector<Register*> need_copy;
-  auto term = block->GetTerminator();
+  auto term = block->getTerminator();
   std::vector<Register*> alloced;
   for (std::size_t i = 0; i < stack.size(); i++) {
     auto src = stack.at(i);
@@ -1699,14 +1699,14 @@ void BlockCanonicalizer::Run(BasicBlock* block, OperandStack& stack) {
       need_copy.emplace_back(src);
       copies_[src].emplace_back(dst);
 
-      if (term->Uses(src)) {
-        term->ReplaceUsesOf(src, dst);
-      } else if (term->Uses(dst)) {
-        auto tmp = env_->AllocateRegister();
+      if (term->uses(src)) {
+        term->replaceUsesOf(src, dst);
+      } else if (term->uses(dst)) {
+        auto tmp = env_->allocateRegister();
         alloced.emplace_back(tmp);
         auto mov = Assign::create(tmp, dst);
-        mov->InsertBefore(*term);
-        term->ReplaceUsesOf(dst, tmp);
+        mov->insertBefore(*term);
+        term->replaceUsesOf(dst, tmp);
       }
     }
   }
@@ -1916,13 +1916,13 @@ void HIRBuilder::emitAnyCall(
       auto call = tc.emit<CallMethod>(num_operands, out, flags);
       for (auto i = num_stack_inputs; i > 0; i--) {
         Register* arg = tc.frame.stack.pop();
-        call->SetOperand(i - 1, arg);
+        call->setOperand(i - 1, arg);
       }
       if (kwnames_ != nullptr) {
         JIT_CHECK(
-            call->GetOperand(num_operands - 1) == nullptr,
+            call->getOperand(num_operands - 1) == nullptr,
             "Somehow already set the kwnames argument");
-        call->SetOperand(num_operands - 1, kwnames_);
+        call->setOperand(num_operands - 1, kwnames_);
         kwnames_ = nullptr;
       }
       call->setFrameState(tc.frame);
@@ -2247,7 +2247,7 @@ bool HIRBuilder::tryEmitDirectMethodCall(
     auto& stack = tc.frame.stack;
     for (auto i = nargs - 1; i >= 0; i--) {
       Register* operand = stack.pop();
-      staticCall->SetOperand(i, operand);
+      staticCall->setOperand(i, operand);
     }
 
     if (target.builtin_returns_error_code) {
@@ -2377,11 +2377,11 @@ void HIRBuilder::emitInvokeFunction(
       auto call =
           tc.emit<InvokeStaticFunction>(nargs + 1, out, target.func(), typ);
 
-      call->SetOperand(0, funcreg);
+      call->setOperand(0, funcreg);
 
       for (auto i = nargs - 1; i >= 0; i--) {
         Register* operand = tc.frame.stack.pop();
-        call->SetOperand(i + 1, operand);
+        call->setOperand(i + 1, operand);
       }
       call->setFrameState(tc.frame);
 
@@ -2413,9 +2413,9 @@ void HIRBuilder::emitInvokeFunction(
   // Add one for the function argument.
   auto call = tc.emit<VectorCall>(nargs + 1, out, flags);
   for (auto i = 0; i < nargs; i++) {
-    call->SetOperand(i + 1, arg_regs.at(i));
+    call->setOperand(i + 1, arg_regs.at(i));
   }
-  call->SetOperand(0, funcreg);
+  call->setOperand(0, funcreg);
   call->setFrameState(tc.frame);
 
   fixStaticReturn(tc, out, target.return_type);
@@ -2440,7 +2440,7 @@ void HIRBuilder::emitInvokeNative(
   auto call = tc.emit<CallStatic>(nargs, out, target.callable, typ);
   for (auto i = nargs - 1; i >= 0; i--) {
     Register* operand = tc.frame.stack.pop();
-    call->SetOperand(i, operand);
+    call->setOperand(i, operand);
   }
 
   tc.frame.stack.push(out);
@@ -2454,7 +2454,7 @@ void HIRBuilder::emitInvokeMethodVectorCall(
 
   auto vectorCall = tc.emit<VectorCall>(arg_regs.size(), out, CallFlags::None);
   for (auto i = 0; i < arg_regs.size(); i++) {
-    vectorCall->SetOperand(i, arg_regs.at(i));
+    vectorCall->setOperand(i, arg_regs.at(i));
   }
   vectorCall->setFrameState(tc.frame);
 
@@ -2548,9 +2548,9 @@ void HIRBuilder::emitInvokeMethod(
     auto entry = static_method_stack_.pop();
     auto invoke =
         tc.emit<CallInd>(nargs + 1, out, "vtable invoke", target.return_type);
-    invoke->SetOperand(0, entry);
+    invoke->setOperand(0, entry);
     for (size_t i = 0; i < arg_regs.size(); i++) {
-      invoke->SetOperand(i + 1, arg_regs[i]);
+      invoke->setOperand(i + 1, arg_regs[i]);
     }
 
     invoke->setFrameState(tc.frame);
@@ -3591,10 +3591,10 @@ void HIRBuilder::emitMakeListTuple(
     } else {
       fill = tc.emit<InitListElements>(num_elems + 1);
     }
-    fill->SetOperand(0, dst);
+    fill->setOperand(0, dst);
     for (size_t i = num_elems; i > 0; i--) {
       auto opnd = tc.frame.stack.pop();
-      fill->SetOperand(i, opnd);
+      fill->setOperand(i, opnd);
     }
   }
   tc.frame.stack.push(dst);
@@ -3636,10 +3636,10 @@ void HIRBuilder::emitBuildCheckedList(
   tc.emit<MakeCheckedList>(list, list_size, type->toHir(), tc.frame);
   if (list_size > 0) {
     auto fill = tc.emit<InitListElements>(list_size + 1);
-    fill->SetOperand(0, list);
+    fill->setOperand(0, list);
     for (size_t i = list_size; i > 0; i--) {
       auto operand = tc.frame.stack.pop();
-      fill->SetOperand(i, operand);
+      fill->setOperand(i, operand);
     }
   }
   tc.frame.stack.push(list);
@@ -4259,7 +4259,7 @@ Register* HIRBuilder::emitSetupWithCommon(
   Register* enter_result = allocateTemp();
   auto call = tc.emit<VectorCall>(1, enter_result, CallFlags::None);
   call->setFrameState(tc.frame);
-  call->SetOperand(0, enter);
+  call->setOperand(0, enter);
   return enter_result;
 }
 

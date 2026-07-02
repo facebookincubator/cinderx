@@ -12,13 +12,13 @@ namespace cinderx::jit::hir {
 LiveValuesBase::LiveValuesBase(Opcode op) : Instr(op) {}
 
 LiveValuesBase::LiveValuesBase(const LiveValuesBase& other)
-    : Instr(other), live_regs_{other.live_regs()} {}
+    : Instr(other), live_regs_{other.liveRegs()} {}
 
-const std::vector<RegState>& LiveValuesBase::live_regs() const {
+const std::vector<RegState>& LiveValuesBase::liveRegs() const {
   return live_regs_;
 }
 
-std::vector<RegState>& LiveValuesBase::live_regs() {
+std::vector<RegState>& LiveValuesBase::liveRegs() {
   return live_regs_;
 }
 
@@ -128,7 +128,7 @@ int DeoptBase::nonce() const {
   return nonce_;
 }
 
-void DeoptBase::set_nonce(int nonce) {
+void DeoptBase::setNonce(int nonce) {
   nonce_ = nonce;
 }
 
@@ -161,7 +161,7 @@ std::string_view CallCFunc::funcName() const {
 }
 
 void Phi::setArgs(const std::unordered_map<BasicBlock*, Register*>& args) {
-  JIT_DCHECK(NumOperands() == args.size(), "arg mismatch");
+  JIT_DCHECK(numOperands() == args.size(), "arg mismatch");
 
   basic_blocks_.clear();
   basic_blocks_.reserve(args.size());
@@ -195,13 +195,13 @@ std::size_t Phi::blockIndex(const BasicBlock* block) const {
 }
 
 Edge::Edge(const Edge& other) {
-  set_from(other.from_);
-  set_to(other.to_);
+  setFrom(other.from_);
+  setTo(other.to_);
 }
 
 Edge::~Edge() {
-  set_from(nullptr);
-  set_to(nullptr);
+  setFrom(nullptr);
+  setTo(nullptr);
 }
 
 BasicBlock* Edge::from() const {
@@ -212,7 +212,7 @@ BasicBlock* Edge::to() const {
   return to_;
 }
 
-void Edge::set_from(BasicBlock* new_from) {
+void Edge::setFrom(BasicBlock* new_from) {
   if (from_) {
     from_->out_edges_.erase(this);
   }
@@ -222,7 +222,7 @@ void Edge::set_from(BasicBlock* new_from) {
   from_ = new_from;
 }
 
-void Edge::set_to(BasicBlock* new_to) {
+void Edge::setTo(BasicBlock* new_to) {
   if (to_) {
     to_->in_edges_.erase(this);
   }
@@ -262,24 +262,24 @@ std::string_view Instr::opname() const {
   return hirOpcodeName(opcode());
 }
 
-std::size_t Instr::NumOperands() const {
+std::size_t Instr::numOperands() const {
   return *(reinterpret_cast<const std::size_t*>(this) - 1);
 }
 
-Register* Instr::GetOperand(std::size_t i) const {
+Register* Instr::getOperand(std::size_t i) const {
   return const_cast<Instr*>(this)->operandAt(i);
 }
 
-std::span<Register* const> Instr::GetOperands() const {
-  return {operands(), NumOperands()};
+std::span<Register* const> Instr::getOperands() const {
+  return {operands(), numOperands()};
 }
 
-void Instr::SetOperand(std::size_t i, Register* reg) {
+void Instr::setOperand(std::size_t i, Register* reg) {
   operandAt(i) = reg;
 }
 
 bool Instr::visitUses(const std::function<bool(Register*&)>& func) {
-  auto num_uses = NumOperands();
+  auto num_uses = numOperands();
   for (std::size_t i = 0; i < num_uses; i++) {
     if (!func(operandAt(i))) {
       return false;
@@ -293,7 +293,7 @@ bool Instr::visitUses(const std::function<bool(Register*)>& func) const {
       [&func](Register*& reg) { return func(reg); });
 }
 
-bool Instr::Uses(Register* needle) const {
+bool Instr::uses(Register* needle) const {
   bool found = false;
   visitUses([&](const Register* reg) {
     if (reg == needle) {
@@ -305,7 +305,7 @@ bool Instr::Uses(Register* needle) const {
   return found;
 }
 
-void Instr::ReplaceUsesOf(Register* orig, Register* replacement) {
+void Instr::replaceUsesOf(Register* orig, Register* replacement) {
   visitUses([&](Register*& reg) {
     if (reg == orig) {
       reg = replacement;
@@ -328,7 +328,7 @@ void Instr::setOutput(Register* dst) {
   output_ = dst;
 }
 
-bool Instr::IsTerminator() const {
+bool Instr::isTerminator() const {
   switch (opcode()) {
     case Opcode::kBranch:
     case Opcode::kDeopt:
@@ -373,8 +373,8 @@ BasicBlock* Instr::successor(std::size_t i) const {
   return edge(i)->to();
 }
 
-void Instr::set_successor(std::size_t i, BasicBlock* to) {
-  edge(i)->set_to(to);
+void Instr::setSuccessor(std::size_t i, BasicBlock* to) {
+  edge(i)->setTo(to);
 }
 
 bool Instr::isReplayable() const {
@@ -562,35 +562,35 @@ bool Instr::isReplayable() const {
   JIT_ABORT("Bad opcode {}", static_cast<int>(opcode()));
 }
 
-void Instr::set_block(BasicBlock* block) {
+void Instr::setBlock(BasicBlock* block) {
   block_ = block;
-  if (IsTerminator()) {
+  if (isTerminator()) {
     for (std::size_t i = 0, n = numEdges(); i < n; ++i) {
-      edge(i)->set_from(block);
+      edge(i)->setFrom(block);
     }
   }
 }
 
-void Instr::InsertBefore(Instr& instr) {
+void Instr::insertBefore(Instr& instr) {
   block_node_.insertBefore(&instr.block_node_);
   link(instr.block());
 }
 
-void Instr::InsertAfter(Instr& instr) {
+void Instr::insertAfter(Instr& instr) {
   block_node_.insertAfter(&instr.block_node_);
   link(instr.block());
 }
 
-void Instr::ReplaceWith(Instr& instr) {
-  instr.InsertBefore(*this);
+void Instr::replaceWith(Instr& instr) {
+  instr.insertBefore(*this);
   instr.setBytecodeOffset(bytecodeOffset());
   unlink();
 }
 
-void Instr::ExpandInto(const std::vector<Instr*>& expansion) {
+void Instr::expandInto(const std::vector<Instr*>& expansion) {
   Instr* last = this;
   for (Instr* instr : expansion) {
-    instr->InsertAfter(*last);
+    instr->insertAfter(*last);
     instr->setBytecodeOffset(bytecodeOffset());
     last = instr;
   }
@@ -599,13 +599,13 @@ void Instr::ExpandInto(const std::vector<Instr*>& expansion) {
 
 void Instr::link(BasicBlock* block) {
   JIT_CHECK(block_ == nullptr, "Instr is already linked");
-  set_block(block);
+  setBlock(block);
 }
 
 void Instr::unlink() {
   JIT_CHECK(block_ != nullptr, "Instr isn't linked");
   block_node_.unlink();
-  set_block(nullptr);
+  setBlock(nullptr);
 }
 
 BasicBlock* Instr::block() const {
@@ -631,7 +631,7 @@ const FrameState* Instr::getDominatingFrameState() const {
   auto rend = block()->crend();
   auto it = block()->const_reverse_iterator_to(*this);
   for (it++; it != rend; it++) {
-    if (it->IsSnapshot()) {
+    if (it->isSnapshot()) {
       auto snapshot = static_cast<const Snapshot*>(&*it);
       return snapshot->frameState();
     }
@@ -659,7 +659,7 @@ const CallSiteLiveValuesBase* Instr::asCallSiteLiveValuesBase() const {
 }
 
 void* Instr::base() {
-  return reinterpret_cast<char*>(this) - (NumOperands() * kPointerSize) -
+  return reinterpret_cast<char*>(this) - (numOperands() * kPointerSize) -
       sizeof(size_t);
 }
 
@@ -673,11 +673,11 @@ Register* const* Instr::operands() const {
 
 Register*& Instr::operandAt(std::size_t i) {
   JIT_DCHECK(
-      i < NumOperands(),
+      i < numOperands(),
       "Operand {} out of range for {} (max is {})",
       i,
       opname(),
-      NumOperands() - 1);
+      numOperands() - 1);
   return operands()[i];
 }
 
@@ -699,15 +699,15 @@ bool isAnyLoadMethod(const Instr& instr) {
   if (isLoadMethodBase(instr)) {
     return true;
   }
-  if (!instr.IsPhi() || instr.NumOperands() != 2) {
+  if (!instr.isPhi() || instr.numOperands() != 2) {
     return false;
   }
-  const Instr* arg1 = instr.GetOperand(0)->instr();
-  const Instr* arg2 = instr.GetOperand(1)->instr();
-  return (arg1->IsLoadTypeMethodCacheEntryValue() &&
-          arg2->IsFillTypeMethodCache()) ||
-      (arg2->IsLoadTypeMethodCacheEntryValue() &&
-       arg1->IsFillTypeMethodCache());
+  const Instr* arg1 = instr.getOperand(0)->instr();
+  const Instr* arg2 = instr.getOperand(1)->instr();
+  return (arg1->isLoadTypeMethodCacheEntryValue() &&
+          arg2->isFillTypeMethodCache()) ||
+      (arg2->isLoadTypeMethodCacheEntryValue() &&
+       arg1->isFillTypeMethodCache());
 }
 
 bool isPassthrough(const Instr& instr) {
@@ -905,14 +905,14 @@ Register* modelReg(Register* reg) {
   // Even though GuardIs is a passthrough, it verifies that a runtime value is a
   // specific object, breaking the dependency on the instruction that produced
   // the runtime value
-  while (isPassthrough(*reg->instr()) && !(reg->instr()->IsGuardIs())) {
-    reg = reg->instr()->GetOperand(0);
+  while (isPassthrough(*reg->instr()) && !(reg->instr()->isGuardIs())) {
+    reg = reg->instr()->getOperand(0);
     JIT_DCHECK(reg != orig_reg, "Hit cycle while looking for model reg");
   }
   return reg;
 }
 
-Instr* BasicBlock::Append(Instr* instr) {
+Instr* BasicBlock::append(Instr* instr) {
   instrs_.pushBack(*instr);
   instr->link(this);
   return instr;
@@ -923,7 +923,7 @@ void BasicBlock::retargetPreds(BasicBlock* target) {
   for (auto it = in_edges_.begin(); it != in_edges_.end();) {
     auto edge = *it;
     ++it;
-    const_cast<Edge*>(edge)->set_to(target);
+    const_cast<Edge*>(edge)->setTo(target);
   }
 }
 
@@ -934,7 +934,7 @@ void BasicBlock::push_front(Instr* instr) {
 
 Instr* BasicBlock::pop_front() {
   Instr* result = &(instrs_.extractFront());
-  result->set_block(nullptr);
+  result->setBlock(nullptr);
   return result;
 }
 
@@ -968,7 +968,7 @@ BasicBlock::~BasicBlock() {
       out_edges_.empty(), "out_edges not empty after deleting all instrs");
 }
 
-Instr* BasicBlock::GetTerminator() {
+Instr* BasicBlock::getTerminator() {
   if (instrs_.isEmpty()) {
     return nullptr;
   }
@@ -977,10 +977,10 @@ Instr* BasicBlock::GetTerminator() {
 
 Snapshot* BasicBlock::entrySnapshot() {
   for (auto& instr : instrs_) {
-    if (instr.IsPhi()) {
+    if (instr.isPhi()) {
       continue;
     }
-    if (instr.IsSnapshot()) {
+    if (instr.isSnapshot()) {
       return static_cast<Snapshot*>(&instr);
     }
     return nullptr;
@@ -988,18 +988,18 @@ Snapshot* BasicBlock::entrySnapshot() {
   return nullptr;
 }
 
-bool BasicBlock::IsTrampoline() {
+bool BasicBlock::isTrampoline() {
   for (auto& instr : instrs_) {
-    if (instr.IsBranch()) {
+    if (instr.isBranch()) {
       auto succ = instr.successor(0);
       // Don't consider a block a trampoline if its successor has one or more
       // Phis, since this block may be necessary to pass a specific value to
       // the Phi. This is correct but conservative: it's often safe to
       // eliminate trampolines that jump to Phis, but that requires more
       // involved analysis in the caller.
-      return succ != this && (succ->empty() || !succ->front().IsPhi());
+      return succ != this && (succ->empty() || !succ->front().isPhi());
     }
-    if (instr.IsSnapshot()) {
+    if (instr.isSnapshot()) {
       continue;
     }
     return false;
@@ -1015,12 +1015,12 @@ void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
 
   forEachPhi([&](Phi& phi) {
     std::unordered_map<BasicBlock*, Register*> args;
-    for (size_t i = 0, n = phi.NumOperands(); i < n; ++i) {
-      auto block = phi.basic_blocks()[i];
+    for (size_t i = 0, n = phi.numOperands(); i < n; ++i) {
+      auto block = phi.basicBlocks()[i];
       if (block == old_pred) {
         block = new_pred;
       }
-      args[block] = phi.GetOperand(i);
+      args[block] = phi.getOperand(i);
     }
     phi.setArgs(args);
   });
@@ -1029,7 +1029,7 @@ void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
 void BasicBlock::addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
   std::vector<Phi*> replacements;
   forEachPhi([&](Phi& phi) {
-    for (auto block : phi.basic_blocks()) {
+    for (auto block : phi.basicBlocks()) {
       if (block == old_pred) {
         replacements.push_back(&phi);
         break;
@@ -1039,15 +1039,15 @@ void BasicBlock::addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
 
   for (auto phi : replacements) {
     std::unordered_map<BasicBlock*, Register*> args;
-    for (size_t i = 0, n = phi->NumOperands(); i < n; ++i) {
-      auto block = phi->basic_blocks()[i];
+    for (size_t i = 0, n = phi->numOperands(); i < n; ++i) {
+      auto block = phi->basicBlocks()[i];
       if (block == old_pred) {
-        args[new_pred] = phi->GetOperand(i);
+        args[new_pred] = phi->getOperand(i);
       }
-      args[block] = phi->GetOperand(i);
+      args[block] = phi->getOperand(i);
     }
 
-    phi->ReplaceWith(*Phi::create(phi->output(), args));
+    phi->replaceWith(*Phi::create(phi->output(), args));
     delete phi;
   }
 }
@@ -1056,20 +1056,20 @@ void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
   for (auto it = instrs_.begin(); it != instrs_.end();) {
     auto& instr = *it;
     ++it;
-    if (!instr.IsPhi()) {
+    if (!instr.isPhi()) {
       break;
     }
 
     Phi* phi = static_cast<Phi*>(&instr);
     std::unordered_map<BasicBlock*, Register*> args;
-    for (size_t i = 0, n = phi->NumOperands(); i < n; ++i) {
-      auto block = phi->basic_blocks()[i];
+    for (size_t i = 0, n = phi->numOperands(); i < n; ++i) {
+      auto block = phi->basicBlocks()[i];
       if (block == old_pred) {
         continue;
       }
-      args[block] = phi->GetOperand(i);
+      args[block] = phi->getOperand(i);
     }
-    phi->ReplaceWith(*Phi::create(phi->output(), args));
+    phi->replaceWith(*Phi::create(phi->output(), args));
     delete phi;
   }
 }
@@ -1282,7 +1282,7 @@ Environment::~Environment() {
   references_.clear();
 }
 
-Register* Environment::AllocateRegister() {
+Register* Environment::allocateRegister() {
   auto id = next_register_id_++;
   while (registers_.contains(id)) {
     id = next_register_id_++;
@@ -1299,7 +1299,7 @@ Register* Environment::getRegister(int id) {
   return it->second.get();
 }
 
-const Environment::RegisterMap& Environment::GetRegisters() const {
+const Environment::RegisterMap& Environment::getRegisters() const {
   return registers_;
 }
 
@@ -1371,10 +1371,10 @@ std::ostream& operator<<(std::ostream& os, OperandType op) {
 }
 
 const FrameState* get_frame_state(const Instr& instr) {
-  if (instr.IsSnapshot()) {
+  if (instr.isSnapshot()) {
     return static_cast<const Snapshot&>(instr).frameState();
   }
-  if (instr.IsBeginInlinedFunction()) {
+  if (instr.isBeginInlinedFunction()) {
     return static_cast<const BeginInlinedFunction&>(instr).callerFrameState();
   }
   if (auto db = instr.asDeoptBase()) {

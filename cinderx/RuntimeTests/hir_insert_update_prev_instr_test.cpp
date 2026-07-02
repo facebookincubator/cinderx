@@ -63,7 +63,7 @@ def test(a):
   ASSERT_NE(irfunc, nullptr);
 
   int update_count =
-      countIf(*irfunc, [](const Instr& i) { return i.IsUpdatePrevInstr(); });
+      countIf(*irfunc, [](const Instr& i) { return i.isUpdatePrevInstr(); });
   int arbitrary_count = countIf(*irfunc, hasArbitraryExecution);
 
   // There must be at least one UpdatePrevInstr.
@@ -85,6 +85,6 @@ def test(a):
   ASSERT_NE(irfunc, nullptr);
 
   int update_count =
-      countIf(*irfunc, [](const Instr& i) { return i.IsUpdatePrevInstr(); });
+      countIf(*irfunc, [](const Instr& i) { return i.isUpdatePrevInstr(); });
   EXPECT_GT(update_count, 0);
 }

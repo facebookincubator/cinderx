@@ -314,7 +314,7 @@ TEST_F(
     LinearScanAllocatorTest,
     ArbitraryExecutionCallReservesAllRegistersInFreeThreadedBuild) {
   hir::Function hir_func;
-  hir::Register* dst = hir_func.env.AllocateRegister();
+  hir::Register* dst = hir_func.env.allocateRegister();
   std::unique_ptr<hir::Instr> origin(
       hir::CallInd::create(0, dst, "call_ind", hir::TObject));
 

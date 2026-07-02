@@ -35,16 +35,16 @@ bool guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
       continue;
     }
     for (const Instr* instr : new_reg_uses->second) {
-      for (std::size_t i = 0; i < instr->NumOperands(); i++) {
-        if (instr->GetOperand(i) == new_reg) {
+      for (std::size_t i = 0; i < instr->numOperands(); i++) {
+        if (instr->getOperand(i) == new_reg) {
           if ((instr->output() != nullptr) &&
-              (instr->IsPhi() || isPassthrough(*instr))) {
+              (instr->isPhi() || isPassthrough(*instr))) {
             Register* passthrough_output = instr->output();
             Type passthrough_type = outputType(*instr, [&](std::size_t ind) {
               if (ind == i) {
                 return relaxed_type;
               }
-              return instr->GetOperand(ind)->type();
+              return instr->getOperand(ind)->type();
             });
             if (seen_state[passthrough_output]
                     .insert(passthrough_type)
@@ -52,7 +52,7 @@ bool guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
               worklist.emplace(passthrough_output, passthrough_type);
             }
           }
-          OperandType expected_type = instr->GetOperandType(i);
+          OperandType expected_type = instr->getOperandType(i);
           // TASK(T106726658): We should be able to remove GuardTypes if we ever
           // add a matching constraint for non-Primitive types, and our
           // GuardType adds an unnecessary refinement. Since we cannot guard on
@@ -83,16 +83,16 @@ void GuardTypeRemoval::Run(Function& func) {
       auto& instr = *it;
       ++it;
 
-      if (!instr.IsGuardType()) {
+      if (!instr.isGuardType()) {
         continue;
       }
 
       Register* guard_out = instr.output();
-      Register* guard_in = instr.GetOperand(0);
+      Register* guard_in = instr.getOperand(0);
       if (!guardNeeded(reg_uses, guard_out, guard_in->type())) {
         auto assign = Assign::create(guard_out, guard_in);
         assign->copyBytecodeOffset(instr);
-        instr.ReplaceWith(*assign);
+        instr.replaceWith(*assign);
         removed_guards.emplace_back(&instr);
       }
     }

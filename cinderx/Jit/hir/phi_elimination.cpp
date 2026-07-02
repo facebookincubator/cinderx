@@ -15,9 +15,9 @@ void PhiElimination::Run(Function& func) {
       for (auto it = block.begin(); it != block.end();) {
         auto& instr = *it;
         ++it;
-        if (!instr.IsPhi()) {
+        if (!instr.isPhi()) {
           for (auto assign : assigns_or_loads) {
-            assign->InsertBefore(instr);
+            assign->insertBefore(instr);
           }
           break;
         }

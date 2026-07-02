@@ -68,7 +68,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
       return false;
     }
 
-    for (auto edge : block->out_edges()) {
+    for (auto edge : block->outEdges()) {
       auto succ = edge->to();
       if (reachable.emplace(succ).second) {
         queue.push(succ);
@@ -83,7 +83,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
     }
 
     std::unordered_set<BasicBlock*> seen;
-    for (auto edge : block.in_edges()) {
+    for (auto edge : block.inEdges()) {
       auto pred = edge->from();
       if (!reachable.contains(pred)) {
         fmt::print(
@@ -112,10 +112,10 @@ void checkPhi(CheckEnv& env) {
   auto& phi = static_cast<const Phi&>(*env.instr);
   auto block = phi.block();
   std::unordered_set<const BasicBlock*> preds;
-  for (auto edge : block->in_edges()) {
+  for (auto edge : block->inEdges()) {
     preds.emplace(edge->from());
   }
-  for (auto phi_block : phi.basic_blocks()) {
+  for (auto phi_block : phi.basicBlocks()) {
     if (!preds.contains(phi_block)) {
       fmt::print(
           env.err,
@@ -131,7 +131,7 @@ void checkPhi(CheckEnv& env) {
 
 void checkTerminator(CheckEnv& env) {
   auto is_last = env.instr == &env.block->back();
-  if (env.instr->IsTerminator() && !is_last) {
+  if (env.instr->isTerminator() && !is_last) {
     fmt::print(
         env.err,
         "ERROR: bb {} contains terminator '{}' in non-terminal position\n",
@@ -139,7 +139,7 @@ void checkTerminator(CheckEnv& env) {
         *env.instr);
     env.ok = false;
   }
-  if (is_last && !env.instr->IsTerminator()) {
+  if (is_last && !env.instr->isTerminator()) {
     fmt::print(
         env.err, "ERROR: bb {} has no terminator at end\n", env.block->id);
     env.ok = false;
@@ -147,11 +147,11 @@ void checkTerminator(CheckEnv& env) {
 }
 
 void checkRegisters(CheckEnv& env) {
-  if (env.instr->IsPhi()) {
+  if (env.instr->isPhi()) {
     auto phi = static_cast<const Phi*>(env.instr);
-    for (size_t i = 0; i < phi->NumOperands(); ++i) {
-      auto operand = phi->GetOperand(i);
-      if (!env.assign.IsAssignedOut(phi->basic_blocks()[i], operand)) {
+    for (size_t i = 0; i < phi->numOperands(); ++i) {
+      auto operand = phi->getOperand(i);
+      if (!env.assign.IsAssignedOut(phi->basicBlocks()[i], operand)) {
         fmt::print(
             env.err,
             "ERROR: Phi input '{}' to instruction '{}' in bb {} not "
@@ -159,13 +159,13 @@ void checkRegisters(CheckEnv& env) {
             operand->name(),
             *phi,
             env.block->id,
-            phi->basic_blocks()[i]->id);
+            phi->basicBlocks()[i]->id);
         env.ok = false;
       }
     }
   } else {
-    for (size_t i = 0, n = env.instr->NumOperands(); i < n; ++i) {
-      auto operand = env.instr->GetOperand(i);
+    for (size_t i = 0, n = env.instr->numOperands(); i < n; ++i) {
+      auto operand = env.instr->getOperand(i);
       if (!env.defined.contains(operand)) {
         fmt::print(
             env.err,
@@ -237,7 +237,7 @@ bool checkFunc(const Function& func, std::ostream& err) {
     for (auto& instr : block) {
       env.instr = &instr;
 
-      if (instr.IsPhi()) {
+      if (instr.isPhi()) {
         if (!phi_section) {
           fmt::print(
               err,
@@ -252,8 +252,8 @@ bool checkFunc(const Function& func, std::ostream& err) {
         phi_section = false;
       }
 
-      if (instr.IsLoadArg() || instr.IsLoadCurrentFunc() ||
-          instr.IsLoadFrame()) {
+      if (instr.isLoadArg() || instr.isLoadCurrentFunc() ||
+          instr.isLoadFrame()) {
         if (!allow_prologue_loads) {
           fmt::print(
               err,
@@ -293,7 +293,7 @@ void SSAify::Run(Function& irfunc, BasicBlock* start) {
     auto ssablock = ssa_basic_blocks.at(block);
 
     for (auto& instr : *block) {
-      JIT_CHECK(!instr.IsPhi(), "SSAify does not support Phis in its input");
+      JIT_CHECK(!instr.isPhi(), "SSAify does not support Phis in its input");
       instr.visitUses([&](Register*& reg) {
         JIT_CHECK(
             reg != nullptr, "Instructions should not have nullptr operands.");
@@ -304,7 +304,7 @@ void SSAify::Run(Function& irfunc, BasicBlock* start) {
       auto out_reg = instr.output();
 
       if (out_reg != nullptr) {
-        auto new_reg = env_->AllocateRegister();
+        auto new_reg = env_->allocateRegister();
         instr.setOutput(new_reg);
         ssablock->local_defs[out_reg] = new_reg;
       }
@@ -359,13 +359,13 @@ Register* SSAify::getDefine(SSABasicBlock* ssablock, Register* reg) {
       auto it = ssablock->block->begin();
       while (
           it != ssablock->block->end() &&
-          (it->IsLoadArg() || it->IsLoadCurrentFunc() || it->IsLoadFrame())) {
+          (it->isLoadArg() || it->isLoadCurrentFunc() || it->isLoadFrame())) {
         ++it;
       }
-      null_reg_ = env_->AllocateRegister();
+      null_reg_ = env_->allocateRegister();
       auto loadnull = LoadConst::create(null_reg_, TNullptr);
       loadnull->copyBytecodeOffset(*it);
-      loadnull->InsertBefore(*it);
+      loadnull->insertBefore(*it);
     }
     ssablock->local_defs.emplace(reg, null_reg_);
     return null_reg_;
@@ -375,7 +375,7 @@ Register* SSAify::getDefine(SSABasicBlock* ssablock, Register* reg) {
     // If we haven't visited all our predecessors, they can't provide
     // definitions for us to look up. We'll place an incomplete phi that will
     // be resolved once we've visited all predecessors.
-    auto phi_output = env_->AllocateRegister();
+    auto phi_output = env_->allocateRegister();
     ssablock->incomplete_phis.emplace_back(reg, phi_output);
     ssablock->local_defs.emplace(reg, phi_output);
     return phi_output;
@@ -389,7 +389,7 @@ Register* SSAify::getDefine(SSABasicBlock* ssablock, Register* reg) {
   }
 
   // We have multiple predecessors and may need to create a phi.
-  auto new_reg = env_->AllocateRegister();
+  auto new_reg = env_->allocateRegister();
   // Adding a phi may loop back to our block if there is a loop in the CFG.  We
   // update our local_defs before adding the phi to terminate the recursion
   // rather than looping infinitely.
@@ -462,7 +462,7 @@ std::unordered_map<BasicBlock*, SSABasicBlock*> SSAify::initSSABasicBlocks(
 
   for (auto& block : blocks) {
     auto ssablock = get_or_create_ssa_block(block);
-    for (auto& edge : block->out_edges()) {
+    for (auto& edge : block->outEdges()) {
       auto succ = edge->to();
       auto succ_ssa_block = get_or_create_ssa_block(succ);
       auto p = succ_ssa_block->preds.insert(ssablock);

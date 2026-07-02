@@ -9,9 +9,9 @@ namespace cinderx::jit::hir {
 namespace {
 
 bool isUseful(Instr& instr) {
-  return instr.IsTerminator() || instr.IsSnapshot() || instr.IsUseObj() ||
-      (instr.asDeoptBase() != nullptr && !instr.IsPrimitiveBox()) ||
-      (!instr.IsPhi() && memoryEffects(instr).may_store != AEmpty);
+  return instr.isTerminator() || instr.isSnapshot() || instr.isUseObj() ||
+      (instr.asDeoptBase() != nullptr && !instr.isPrimitiveBox()) ||
+      (!instr.isPhi() && memoryEffects(instr).may_store != AEmpty);
 }
 
 } // namespace

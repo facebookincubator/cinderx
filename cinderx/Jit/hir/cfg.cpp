@@ -14,7 +14,7 @@ void postorder_traverse(
   visited->emplace(block);
 
   // Add successors to be visited
-  Instr* instr = block->GetTerminator();
+  Instr* instr = block->getTerminator();
   switch (instr->opcode()) {
     case Opcode::kCondBranch:
     case Opcode::kCondBranchIterNotDone:
@@ -62,10 +62,10 @@ CFG::~CFG() {
     // This is the one situation where it's not a bug to delete a reachable
     // block, since we're deleting everything. Clear block's incoming edges so
     // its destructor doesn't complain.
-    for (auto it = block->in_edges().begin(); it != block->in_edges().end();) {
+    for (auto it = block->inEdges().begin(); it != block->inEdges().end();) {
       auto edge = *it;
       ++it;
-      const_cast<Edge*>(edge)->set_to(nullptr);
+      const_cast<Edge*>(edge)->setTo(nullptr);
     }
     delete block;
   }
@@ -99,10 +99,10 @@ BasicBlock* CFG::splitAfter(Instr& target) {
     auto& instr = *it;
     ++it;
     instr.unlink();
-    tail->Append(&instr);
+    tail->append(&instr);
   }
 
-  for (auto edge : tail->out_edges()) {
+  for (auto edge : tail->outEdges()) {
     edge->to()->fixupPhis(block, tail);
   }
   return tail;
@@ -114,7 +114,7 @@ void CFG::splitCriticalEdges() {
   // Separately enumerate and process the critical edges to avoid mutating the
   // CFG while iterating it.
   for (auto& block : blocks) {
-    auto term = block.GetTerminator();
+    auto term = block.getTerminator();
     JIT_DCHECK(term != nullptr, "Invalid block");
     auto num_edges = term->numEdges();
     if (num_edges < 2) {
@@ -122,7 +122,7 @@ void CFG::splitCriticalEdges() {
     }
     for (std::size_t i = 0; i < num_edges; ++i) {
       auto edge = term->edge(i);
-      if (edge->to()->in_edges().size() > 1) {
+      if (edge->to()->inEdges().size() > 1) {
         critical_edges.emplace_back(edge);
       }
     }
@@ -132,9 +132,9 @@ void CFG::splitCriticalEdges() {
     auto from = edge->from();
     auto to = edge->to();
     auto split_bb = AllocateBlock();
-    auto term = edge->from()->GetTerminator();
+    auto term = edge->from()->getTerminator();
     split_bb->appendWithOff<Branch>(term->bytecodeOffset(), to);
-    edge->set_to(split_bb);
+    edge->setTo(split_bb);
     to->fixupPhis(from, split_bb);
   }
 }

@@ -35,15 +35,15 @@ struct AbstractCall {
       : func{func}, nargs{nargs}, instr{instr}, target{target} {}
 
   Register* arg(std::size_t i) const {
-    if (instr->IsInvokeStaticFunction()) {
+    if (instr->isInvokeStaticFunction()) {
       auto f = static_cast<InvokeStaticFunction*>(instr);
       return f->arg(i + 1);
     }
-    if (instr->IsVectorCall()) {
+    if (instr->isVectorCall()) {
       auto f = static_cast<VectorCall*>(instr);
       return f->arg(i);
     }
-    if (instr->IsCallMethod()) {
+    if (instr->isCallMethod()) {
       auto f = static_cast<CallMethod*>(instr);
       return f->arg(i);
     }
@@ -183,7 +183,7 @@ bool canInlineWithPreloader(
     Function& caller,
     const AbstractCall& call_instr,
     const Preloader& preloader) {
-  if (call_instr.instr->IsVectorCall() &&
+  if (call_instr.instr->isVectorCall() &&
       (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
       (preloader.returnType() <= TPrimitive || preloader.hasPrimitiveArgs())) {
     // TASK(T122371281) remove this constraint
@@ -264,19 +264,19 @@ std::optional<InlineResult> inlineFunctionCall(
     //
     // Consider emitting a DeoptPatchpoint here to catch the case where someone
     // swaps out function.__code__.
-    Register* code_obj = caller.env.AllocateRegister();
+    Register* code_obj = caller.env.allocateRegister();
     auto load_code = LoadField::create(
         code_obj,
         call_instr.target,
         "func_code",
         offsetof(PyFunctionObject, func_code),
         TObject);
-    Register* guarded_code = caller.env.AllocateRegister();
+    Register* guarded_code = caller.env.allocateRegister();
     auto guard_code = GuardIs::create(guarded_code, callee_code, code_obj);
-    call_instr.instr->ExpandInto(
+    call_instr.instr->expandInto(
         {load_code, guard_code, begin_inlined_function, callee_branch});
   } else {
-    call_instr.instr->ExpandInto({begin_inlined_function, callee_branch});
+    call_instr.instr->expandInto({begin_inlined_function, callee_branch});
   }
   tail->push_front(EndInlinedFunction::create(begin_inlined_function));
 
@@ -285,25 +285,25 @@ std::optional<InlineResult> inlineFunctionCall(
     auto& instr = *it;
     ++it;
 
-    if (instr.IsLoadArg()) {
+    if (instr.isLoadArg()) {
       auto load_arg = static_cast<LoadArg*>(&instr);
       auto assign =
-          Assign::create(instr.output(), call_instr.arg(load_arg->arg_idx()));
-      instr.ReplaceWith(*assign);
+          Assign::create(instr.output(), call_instr.arg(load_arg->argIdx()));
+      instr.replaceWith(*assign);
       delete &instr;
     }
   }
 
   // Transform Return into Assign+Branch.  The HIRBuilder guarantees that the
   // callee's exit block always has a Return, even if it is unreachable.
-  auto return_instr = result.exit->GetTerminator();
+  auto return_instr = result.exit->getTerminator();
   JIT_CHECK(
-      return_instr->IsReturn(),
+      return_instr->isReturn(),
       "terminator from inlined function should be Return");
   auto assign =
-      Assign::create(call_instr.instr->output(), return_instr->GetOperand(0));
+      Assign::create(call_instr.instr->output(), return_instr->getOperand(0));
   auto return_branch = Branch::create(tail);
-  return_instr->ExpandInto({assign, return_branch});
+  return_instr->expandInto({assign, return_branch});
   delete return_instr;
 
   delete call_instr.instr;
@@ -359,11 +359,11 @@ void collectCalls(
     BasicBlock& block,
     std::vector<AbstractCall>& calls) {
   for (auto& instr : block) {
-    if (instr.IsVectorCall()) {
+    if (instr.isVectorCall()) {
       auto call = static_cast<VectorCall*>(&instr);
       maybeAddDynamicCall(
           irfunc, call, call->func(), call->numArgs(), call->flags(), calls);
-    } else if (instr.IsCallMethod()) {
+    } else if (instr.isCallMethod()) {
       // A CallMethod is a plain (inlinable) function call only when its
       // receiver is null; with a real receiver it's a method dispatch we can't
       // turn into a direct call.  Which operand holds the callable vs. the null
@@ -385,11 +385,11 @@ void collectCalls(
       }
       if (target != nullptr) {
         maybeAddDynamicCall(
-            irfunc, call, target, call->NumArgs(), call->flags(), calls);
+            irfunc, call, target, call->numArgs(), call->flags(), calls);
       }
-    } else if (instr.IsInvokeStaticFunction()) {
+    } else if (instr.isInvokeStaticFunction()) {
       auto call = static_cast<InvokeStaticFunction*>(&instr);
-      calls.emplace_back(call->func(), call->NumArgs() - 1, call);
+      calls.emplace_back(call->func(), call->numArgs() - 1, call);
     }
   }
 }
@@ -425,7 +425,7 @@ std::vector<BasicBlock*> inlinedBlocks(BasicBlock* entry, BasicBlock* exit) {
     if (block == exit) {
       continue;
     }
-    Instr* terminator = block->GetTerminator();
+    Instr* terminator = block->getTerminator();
     for (std::size_t i = 0, n = terminator->numEdges(); i < n; i++) {
       BasicBlock* succ = block->successor(i);
       if (seen.insert(succ).second) {
@@ -448,7 +448,7 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
   for (; &*it != end; it++) {
     // Snapshots reference the FrameState owned by BeginInlinedFunction and, if
     // not removed, will contain bad pointers.
-    if (it->IsSnapshot()) {
+    if (it->isSnapshot()) {
       to_delete.push_back(&*it);
       continue;
     }
@@ -617,7 +617,7 @@ void BeginInlinedFunctionElimination::Run(Function& irfunc) {
   std::vector<EndInlinedFunction*> ends;
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
-      if (!instr.IsEndInlinedFunction()) {
+      if (!instr.isEndInlinedFunction()) {
         continue;
       }
       ends.push_back(static_cast<EndInlinedFunction*>(&instr));

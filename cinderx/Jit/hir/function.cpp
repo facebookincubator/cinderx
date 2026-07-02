@@ -82,11 +82,11 @@ bool Function::canDeopt() const {
 }
 
 BorrowedRef<PyCodeObject> Function::codeFor(const Instr& instr) const {
-  if (instr.IsBeginInlinedFunction()) {
+  if (instr.isBeginInlinedFunction()) {
     auto bif = static_cast<const BeginInlinedFunction*>(&instr);
     return bif->func()->func_code;
   }
-  if (instr.IsLoadGlobalCached()) {
+  if (instr.isLoadGlobalCached()) {
     auto load_global = static_cast<const LoadGlobalCached*>(&instr);
     return load_global->code();
   }

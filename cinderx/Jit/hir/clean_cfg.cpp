@@ -10,15 +10,15 @@ namespace cinderx::jit::hir {
 namespace {
 
 bool absorbDstBlock(BasicBlock* block) {
-  if (block->GetTerminator()->opcode() != Opcode::kBranch) {
+  if (block->getTerminator()->opcode() != Opcode::kBranch) {
     return false;
   }
-  auto branch = dynamic_cast<Branch*>(block->GetTerminator());
+  auto branch = dynamic_cast<Branch*>(block->getTerminator());
   BasicBlock* target = branch->target();
   if (target == block) {
     return false;
   }
-  if (target->in_edges().size() != 1) {
+  if (target->inEdges().size() != 1) {
     return false;
   }
   if (target == block) {
@@ -27,12 +27,12 @@ bool absorbDstBlock(BasicBlock* block) {
   branch->unlink();
   while (!target->empty()) {
     Instr* instr = target->pop_front();
-    JIT_CHECK(!instr->IsPhi(), "Expected no Phi but found {}", *instr);
-    block->Append(instr);
+    JIT_CHECK(!instr->isPhi(), "Expected no Phi but found {}", *instr);
+    block->append(instr);
   }
   // The successors to target might have Phis that still refer to target.
   // Retarget them to refer to block.
-  Instr* old_term = block->GetTerminator();
+  Instr* old_term = block->getTerminator();
   JIT_CHECK(old_term != nullptr, "block must have a terminator");
   for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
     old_term->successor(i)->fixupPhis(

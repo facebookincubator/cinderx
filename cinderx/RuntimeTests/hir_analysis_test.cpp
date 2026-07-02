@@ -19,7 +19,7 @@ TEST_F(LivenessAnalysisTest, SingleBlockHasNoLiveInOut) {
   Function func;
   auto block = func.cfg.AllocateBlock();
   func.cfg.entry_block = block;
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
   block->append<LoadConst>(v0, TNoneType);
   block->append<Return>(v0);
 
@@ -51,14 +51,14 @@ TEST_F(LivenessAnalysisTest, UninitializedVariableUseIsLiveIn) {
   Function func;
   auto entry = func.cfg.AllocateBlock();
   func.cfg.entry_block = entry;
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
   entry->append<LoadArg>(v0, 0);
 
   auto t_block = func.cfg.AllocateBlock();
   auto f_block = func.cfg.AllocateBlock();
   entry->append<CondBranch>(v0, t_block, f_block);
 
-  auto v1 = func.env.AllocateRegister();
+  auto v1 = func.env.allocateRegister();
   t_block->append<LoadConst>(v1, TNoneType);
   t_block->append<Branch>(f_block);
 
@@ -94,10 +94,10 @@ TEST_F(LivenessAnalysisTest, PhiUses) {
   auto b1 = func.cfg.AllocateBlock();
   auto b2 = func.cfg.AllocateBlock();
 
-  auto v0 = func.env.AllocateRegister();
-  auto v1 = func.env.AllocateRegister();
-  auto v2 = func.env.AllocateRegister();
-  auto v3 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
+  auto v1 = func.env.allocateRegister();
+  auto v2 = func.env.allocateRegister();
+  auto v3 = func.env.allocateRegister();
 
   b0->append<LoadArg>(v0, 0);
   b0->append<LoadArg>(v1, 1);
@@ -136,10 +136,10 @@ TEST_F(LivenessAnalysisTest, LastUses) {
   auto b2 = func.cfg.AllocateBlock();
   auto b3 = func.cfg.AllocateBlock();
 
-  auto v0 = func.env.AllocateRegister();
-  auto v1 = func.env.AllocateRegister();
-  auto v2 = func.env.AllocateRegister();
-  auto v3 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
+  auto v1 = func.env.allocateRegister();
+  auto v2 = func.env.allocateRegister();
+  auto v3 = func.env.allocateRegister();
 
   FrameState frame;
   b0->append<MakeDict>(v0, 0, frame);
@@ -178,7 +178,7 @@ TEST_F(DefiniteAssignmentAnalysisTest, ArgumentsAlwaysAssigned) {
   Function func;
   auto block = func.cfg.AllocateBlock();
   func.cfg.entry_block = block;
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
   block->append<LoadArg>(v0, 0);
   block->append<Return>(v0);
 
@@ -215,14 +215,14 @@ TEST_F(
   Function func;
   auto entry = func.cfg.AllocateBlock();
   func.cfg.entry_block = entry;
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
   entry->append<LoadArg>(v0, 0);
 
   auto t_block = func.cfg.AllocateBlock();
   auto f_block = func.cfg.AllocateBlock();
   entry->append<CondBranch>(v0, t_block, f_block);
 
-  auto v1 = func.env.AllocateRegister();
+  auto v1 = func.env.allocateRegister();
   t_block->append<LoadConst>(v1, TNoneType);
   t_block->append<Branch>(f_block);
 
@@ -277,7 +277,7 @@ TEST_F(DefiniteAssignmentAnalysisTest, CondInitOnAllBranchesAreDefAssigned) {
   Function func;
   auto entry = func.cfg.AllocateBlock();
   func.cfg.entry_block = entry;
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
   entry->append<LoadArg>(v0, 0);
 
   auto t_block = func.cfg.AllocateBlock();
@@ -285,7 +285,7 @@ TEST_F(DefiniteAssignmentAnalysisTest, CondInitOnAllBranchesAreDefAssigned) {
   entry->append<CondBranch>(v0, t_block, f_block);
 
   auto exit_block = func.cfg.AllocateBlock();
-  auto v1 = func.env.AllocateRegister();
+  auto v1 = func.env.allocateRegister();
   t_block->append<LoadConst>(v1, TNoneType);
   t_block->append<Branch>(exit_block);
   f_block->append<LoadConst>(v1, TNoneType);
@@ -355,12 +355,12 @@ TEST_F(DefiniteAssignmentAnalysisTest, AssignmentDominatesLoop) {
   auto b4 = func.cfg.AllocateBlock();
 
   func.cfg.entry_block = b0;
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
   b0->append<LoadConst>(v0, TNoneType);
   b0->append<Branch>(b1);
   b1->append<CondBranch>(v0, b2, b3);
   b2->append<Branch>(b4);
-  auto v1 = func.env.AllocateRegister();
+  auto v1 = func.env.allocateRegister();
   b3->append<LoadConst>(v1, TNoneType);
   b3->append<CondBranch>(v1, b1, b4);
   b4->append<Return>(v0);

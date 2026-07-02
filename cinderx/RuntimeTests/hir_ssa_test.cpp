@@ -86,9 +86,9 @@ TEST(CheckFuncTest, NonFirstPhi) {
   Function func;
   auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
   auto b1 = func.cfg.AllocateBlock();
-  auto v0 = func.env.AllocateRegister();
-  auto v1 = func.env.AllocateRegister();
-  auto v2 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
+  auto v1 = func.env.allocateRegister();
+  auto v2 = func.env.allocateRegister();
 
   b0->append<LoadConst>(v0, TNoneType);
   b0->append<CondBranch>(v0, b0, b1);
@@ -108,7 +108,7 @@ TEST(CheckFuncTest, NonFirstPhi) {
 TEST(CheckFuncTest, RegisterInstr) {
   Function func;
   auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
-  auto v0 = func.env.AllocateRegister();
+  auto v0 = func.env.allocateRegister();
 
   b0->append<LoadConst>(v0, TNoneType);
   v0->set_instr(nullptr);
@@ -255,7 +255,7 @@ TEST(CheckFuncTest, BadCFG) {
   Function func;
   auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
   std::unique_ptr<BasicBlock> b1{func.cfg.AllocateUnlinkedBlock()};
-  auto tmp = func.env.AllocateRegister();
+  auto tmp = func.env.allocateRegister();
 
   b0->append<Branch>(b1.get());
 
@@ -268,7 +268,7 @@ TEST(CheckFuncTest, BadCFG) {
 
   // Unlink the orphan block from the CFG before it's destroyed, to avoid
   // exploding in ~BasicBlock.
-  b0->GetTerminator()->edge(0)->set_to(nullptr);
+  b0->getTerminator()->edge(0)->setTo(nullptr);
 }
 
 TEST(CheckFuncTest, UnlinkedPredecessor) {
@@ -276,7 +276,7 @@ TEST(CheckFuncTest, UnlinkedPredecessor) {
   auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
   auto b1 = func.cfg.AllocateBlock();
   std::unique_ptr<BasicBlock> b2{func.cfg.AllocateUnlinkedBlock()};
-  auto tmp = func.env.AllocateRegister();
+  auto tmp = func.env.allocateRegister();
 
   b0->append<Branch>(b1);
 
@@ -295,8 +295,8 @@ TEST(CheckFuncTest, UnreachableBlock) {
   auto b0 = func.cfg.entry_block = func.cfg.AllocateBlock();
   auto b1 = func.cfg.AllocateBlock();
   auto b2 = func.cfg.AllocateBlock();
-  auto tmp0 = func.env.AllocateRegister();
-  auto tmp1 = func.env.AllocateRegister();
+  auto tmp0 = func.env.allocateRegister();
+  auto tmp1 = func.env.allocateRegister();
 
   b0->append<Branch>(b1);
 

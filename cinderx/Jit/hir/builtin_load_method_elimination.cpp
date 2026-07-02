@@ -110,7 +110,7 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   ThreadedCompileSerialize guard;
   PyCodeObject* code = invoke.load_method->frameState()->code;
   PyObject* names = code->co_names;
-  PyObject* name = PyTuple_GetItem(names, invoke.load_method->name_idx());
+  PyObject* name = PyTuple_GetItem(names, invoke.load_method->nameIdx());
   JIT_DCHECK(name != nullptr, "name must not be null");
 
   Register* receiver = invoke.load_method->receiver();
@@ -130,21 +130,21 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   auto load_const = LoadConst::create(
       method_reg, Type::fromObject(irfunc.env.addReference(method_obj.get())));
   auto call_static = VectorCall::create(
-      invoke.call_method->NumOperands(),
+      invoke.call_method->numOperands(),
       invoke.call_method->output(),
       invoke.call_method->flags() | CallFlags::Static,
       *invoke.call_method->frameState());
-  call_static->SetOperand(0, method_reg);
+  call_static->setOperand(0, method_reg);
   if (Py_TYPE(method_obj) == &PyClassMethodDescr_Type) {
     // Pass the type as the first argument (e.g. dict.fromkeys).
-    Register* type_reg = irfunc.env.AllocateRegister();
+    Register* type_reg = irfunc.env.allocateRegister();
     auto load_type = LoadConst::create(
         type_reg,
         Type::fromObject(
             reinterpret_cast<PyObject*>(receiver_type.runtimePyType())));
     load_type->setBytecodeOffset(invoke.load_method->bytecodeOffset());
-    load_type->InsertBefore(*invoke.call_method);
-    call_static->SetOperand(1, type_reg);
+    load_type->insertBefore(*invoke.call_method);
+    call_static->setOperand(1, type_reg);
   } else {
     JIT_DCHECK(
         Py_TYPE(method_obj) == &PyMethodDescr_Type ||
@@ -152,16 +152,16 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
             Py_TYPE(method_obj) == &PyFunction_Type,
         "unexpected type");
     // Pass the instance as the first argument (e.g. str.join, str.__mod__).
-    call_static->SetOperand(1, receiver);
+    call_static->setOperand(1, receiver);
   }
-  for (std::size_t i = 2; i < invoke.call_method->NumOperands(); i++) {
-    call_static->SetOperand(i, invoke.call_method->GetOperand(i));
+  for (std::size_t i = 2; i < invoke.call_method->numOperands(); i++) {
+    call_static->setOperand(i, invoke.call_method->getOperand(i));
   }
   auto use_type = UseType::create(receiver, receiver_type.unspecialized());
-  invoke.load_method->ExpandInto({use_type, load_const});
-  invoke.get_instance->ReplaceWith(
+  invoke.load_method->expandInto({use_type, load_const});
+  invoke.get_instance->replaceWith(
       *Assign::create(invoke.get_instance->output(), receiver));
-  invoke.call_method->ReplaceWith(*call_static);
+  invoke.call_method->replaceWith(*call_static);
   delete invoke.load_method;
   delete invoke.get_instance;
   delete invoke.call_method;
@@ -177,12 +177,12 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
     UnorderedMap<LoadMethodBase*, MethodInvoke> invokes;
     for (auto& block : irfunc.cfg.blocks) {
       for (auto& instr : block) {
-        if (!instr.IsCallMethod()) {
+        if (!instr.isCallMethod()) {
           continue;
         }
         auto cm = static_cast<CallMethod*>(&instr);
         auto func_instr = cm->func()->instr();
-        if (func_instr->IsLoadMethodSuper()) {
+        if (func_instr->isLoadMethodSuper()) {
           continue;
         }
 
@@ -199,7 +199,7 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
         auto lm = static_cast<LoadMethodBase*>(func_instr);
 
         JIT_DCHECK(
-            cm->self()->instr()->IsGetSecondOutput(),
+            cm->self()->instr()->isGetSecondOutput(),
             "GetSecondOutput/CallMethod should be paired but got "
             "{}/CallMethod",
             cm->self()->instr()->opname());

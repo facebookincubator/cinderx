@@ -13,7 +13,7 @@ void CopyPropagation::Run(Function& irfunc) {
         return true;
       });
 
-      if (instr.IsAssign()) {
+      if (instr.isAssign()) {
         assigns.emplace_back(&instr);
       }
     }

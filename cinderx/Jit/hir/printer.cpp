@@ -84,7 +84,7 @@ void HIRPrinter::Print(std::ostream& os, const CFG& cfg) {
 void HIRPrinter::Print(std::ostream& os, const BasicBlock& block) {
   Indented(os);
   fmt::print(os, "bb {}", block.id);
-  auto& in_edges = block.in_edges();
+  auto& in_edges = block.inEdges();
   if (!in_edges.empty()) {
     std::vector<const Edge*> edges(in_edges.begin(), in_edges.end());
     std::sort(edges.begin(), edges.end(), [](auto& e1, auto& e2) {
@@ -220,12 +220,12 @@ static std::string format_load_super(
     const LoadSuperBase& load) {
   auto code = func != nullptr ? func->codeFor(load) : nullptr;
   if (code == nullptr) {
-    return fmt::format("{} {}", load.name_idx(), load.no_args_in_super_call());
+    return fmt::format("{} {}", load.nameIdx(), load.noArgsInSuperCall());
   }
   return fmt::format(
       "{}, {}",
-      format_name_impl(load.name_idx(), code->co_names),
-      load.no_args_in_super_call());
+      format_name_impl(load.nameIdx(), code->co_names),
+      load.noArgsInSuperCall());
 }
 
 static std::string
@@ -380,13 +380,13 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kCallIntrinsic: {
       const auto& call = static_cast<const CallIntrinsic&>(instr);
 #if PY_VERSION_HEX >= 0x030E0000
-      switch (call.NumOperands()) {
+      switch (call.numOperands()) {
         case 1:
           return _PyIntrinsics_UnaryFunctions[call.index()].name;
         case 2:
           return _PyIntrinsics_BinaryFunctions[call.index()].name;
         default:
-          JIT_ABORT("Invalid number of intrinsic args: {}", call.NumOperands());
+          JIT_ABORT("Invalid number of intrinsic args: {}", call.numOperands());
       }
 #else
       return fmt::format("{}", call.index());
@@ -394,7 +394,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kCallMethod: {
       const auto& call = static_cast<const CallMethod&>(instr);
-      return fmt::format("{}", call.NumOperands());
+      return fmt::format("{}", call.numOperands());
     }
     case Opcode::kCallStatic: {
       const auto& call = static_cast<const CallStatic&>(instr);
@@ -404,10 +404,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
             "{}@{}, {}",
             *func_name,
             getStablePointer(call.addr()),
-            call.NumOperands());
+            call.numOperands());
       }
       return fmt::format(
-          "{}, {}", getStablePointer(call.addr()), call.NumOperands());
+          "{}, {}", getStablePointer(call.addr()), call.numOperands());
     }
     case Opcode::kCallStaticRetVoid: {
       const auto& call = static_cast<const CallStaticRetVoid&>(instr);
@@ -417,10 +417,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
             "{}@{}, {}",
             *func_name,
             getStablePointer(call.addr()),
-            call.NumOperands());
+            call.numOperands());
       }
       return fmt::format(
-          "{}, {}", getStablePointer(call.addr()), call.NumOperands());
+          "{}, {}", getStablePointer(call.addr()), call.numOperands());
     }
     case Opcode::kInvokeStaticFunction: {
       const auto& call = static_cast<const InvokeStaticFunction&>(instr);
@@ -428,12 +428,12 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
           "{}.{}, {}, {}",
           PyUnicode_AsUTF8(call.func()->func_module),
           PyUnicode_AsUTF8(call.func()->func_qualname),
-          call.NumOperands(),
-          call.ret_type());
+          call.numOperands(),
+          call.retType());
     }
     case Opcode::kInitFrameCellVars: {
       const auto& init = static_cast<const InitFrameCellVars&>(instr);
-      return fmt::format("{}", init.num_cell_vars());
+      return fmt::format("{}", init.numCellVars());
     }
     case Opcode::kLoadField: {
       const auto& lf = static_cast<const LoadField&>(instr);
@@ -516,7 +516,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& cond = static_cast<const CondBranchBase&>(instr);
       auto targets =
           fmt::format("{}, {}", cond.true_bb()->id, cond.false_bb()->id);
-      if (cond.IsCondBranchCheckType()) {
+      if (cond.isCondBranchCheckType()) {
         Type type = static_cast<const CondBranchCheckType&>(cond).type();
         return fmt::format("{}, {}", targets, type);
       }
@@ -528,7 +528,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kLoadArg: {
       const auto& load = static_cast<const LoadArg&>(instr);
-      auto varname = format_varname(func, load, load.arg_idx());
+      auto varname = format_varname(func, load, load.argIdx());
       if (load.type() == TObject) {
         return varname;
       }
@@ -542,7 +542,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kLoadMethodCached:
     case Opcode::kLoadModuleMethodCached: {
       const auto& load = static_cast<const LoadMethodBase&>(instr);
-      return format_name(func, load, load.name_idx());
+      return format_name(func, load, load.nameIdx());
     }
     case Opcode::kLoadMethodSuper: {
       return format_load_super(func, static_cast<const LoadSuperBase&>(instr));
@@ -588,11 +588,11 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kLoadGlobalCached: {
       const auto& load = static_cast<const LoadGlobalCached&>(instr);
-      return format_name(func, load, load.name_idx());
+      return format_name(func, load, load.nameIdx());
     }
     case Opcode::kLoadGlobal: {
       const auto& load = static_cast<const LoadGlobal&>(instr);
-      return format_name(func, load, load.name_idx());
+      return format_name(func, load, load.nameIdx());
     }
     case Opcode::kInitListElements: {
       const auto& init = static_cast<const InitListElements&>(instr);
@@ -620,7 +620,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kMakeCheckedDict: {
       const auto& makedict = static_cast<const MakeCheckedDict&>(instr);
-      return fmt::format("{} {}", makedict.type(), makedict.GetCapacity());
+      return fmt::format("{} {}", makedict.type(), makedict.getCapacity());
     }
     case Opcode::kMakeCheckedList: {
       const auto& makelist = static_cast<const MakeCheckedList&>(instr);
@@ -628,13 +628,13 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kMakeDict: {
       const auto& makedict = static_cast<const MakeDict&>(instr);
-      return fmt::format("{}", makedict.GetCapacity());
+      return fmt::format("{}", makedict.getCapacity());
     }
     case Opcode::kPhi: {
       const auto& phi = static_cast<const Phi&>(instr);
       std::stringstream ss;
       bool first = true;
-      for (auto& bb : phi.basic_blocks()) {
+      for (auto& bb : phi.basicBlocks()) {
         if (first) {
           first = false;
         } else {
@@ -652,7 +652,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kStoreAttr:
     case Opcode::kStoreAttrCached: {
       const auto& named = static_cast<const DeoptBaseWithNameIdx&>(instr);
-      return format_name(func, named, named.name_idx());
+      return format_name(func, named, named.nameIdx());
     }
     case Opcode::kInPlaceOp: {
       const auto& inplace_op = static_cast<const InPlaceOp&>(instr);
@@ -660,31 +660,31 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kBuildSlice: {
       const auto& build_slice = static_cast<const BuildSlice&>(instr);
-      return fmt::format("{}", build_slice.NumOperands());
+      return fmt::format("{}", build_slice.numOperands());
     }
     case Opcode::kLoadTypeAttrCacheEntryType: {
       const auto& i = static_cast<const LoadTypeAttrCacheEntryType&>(instr);
-      return fmt::format("{}", i.cache_id());
+      return fmt::format("{}", i.cacheId());
     }
     case Opcode::kLoadTypeAttrCacheEntryValue: {
       const auto& i = static_cast<const LoadTypeAttrCacheEntryValue&>(instr);
-      return fmt::format("{}", i.cache_id());
+      return fmt::format("{}", i.cacheId());
     }
     case Opcode::kFillTypeAttrCache: {
       const auto& ftac = static_cast<const FillTypeAttrCache&>(instr);
-      return fmt::format("{}, {}", ftac.cache_id(), ftac.name_idx());
+      return fmt::format("{}, {}", ftac.cacheId(), ftac.nameIdx());
     }
     case Opcode::kLoadTypeMethodCacheEntryValue: {
       const auto& i = static_cast<const LoadTypeMethodCacheEntryValue&>(instr);
-      return fmt::format("{}", i.cache_id());
+      return fmt::format("{}", i.cacheId());
     }
     case Opcode::kLoadTypeMethodCacheEntryType: {
       const auto& i = static_cast<const LoadTypeMethodCacheEntryType&>(instr);
-      return fmt::format("{}", i.cache_id());
+      return fmt::format("{}", i.cacheId());
     }
     case Opcode::kFillTypeMethodCache: {
       const auto& ftmc = static_cast<const FillTypeMethodCache&>(instr);
-      return fmt::format("{}, {}", ftmc.cache_id(), ftmc.name_idx());
+      return fmt::format("{}, {}", ftmc.cacheId(), ftmc.nameIdx());
     }
     case Opcode::kSetFunctionAttr: {
       const auto& set_fn_attr = static_cast<const SetFunctionAttr&>(instr);
@@ -708,7 +708,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       std::ostringstream os;
       auto profile_sep = "";
       const auto& hint = static_cast<const HintType&>(instr);
-      os << fmt::format("{}, ", hint.NumOperands());
+      os << fmt::format("{}, ", hint.numOperands());
       for (auto types_seen : hint.seenTypes()) {
         os << fmt::format("{}<", profile_sep);
         auto type_sep = "";
@@ -732,7 +732,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kRaiseStatic: {
       const auto& pyerr = static_cast<const RaiseStatic&>(instr);
       std::ostringstream os;
-      print_reg_states(os, pyerr.live_regs());
+      print_reg_states(os, pyerr.liveRegs());
       return fmt::format(
           "{}, \"{}\", <{}>",
           PyExceptionClass_Name(pyerr.excType()),
@@ -741,16 +741,16 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kImportFrom: {
       const auto& import_from = static_cast<const ImportFrom&>(instr);
-      return format_name(func, import_from, import_from.name_idx());
+      return format_name(func, import_from, import_from.nameIdx());
     }
     case Opcode::kImportName: {
       const auto& import_name = static_cast<const ImportName&>(instr);
-      return format_name(func, import_name, import_name.name_idx());
+      return format_name(func, import_name, import_name.nameIdx());
     }
     case Opcode::kEagerImportName: {
       const auto& eager_import_name =
           static_cast<const EagerImportName&>(instr);
-      return format_name(func, eager_import_name, eager_import_name.name_idx());
+      return format_name(func, eager_import_name, eager_import_name.nameIdx());
     }
     case Opcode::kRefineType: {
       const auto& rt = static_cast<const RefineType&>(instr);
@@ -766,7 +766,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kReserveStack: {
       const auto& i = static_cast<const ReserveStack&>(instr);
-      return fmt::format("{}", i.num_words());
+      return fmt::format("{}", i.numWords());
     }
     case Opcode::kUnpackSequence: {
       const auto& i = static_cast<const UnpackSequence&>(instr);
@@ -837,8 +837,8 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
   if (!immed.empty()) {
     os << "<" << immed << ">";
   }
-  for (size_t i = 0, n = instr.NumOperands(); i < n; ++i) {
-    auto op = instr.GetOperand(i);
+  for (size_t i = 0, n = instr.numOperands(); i < n; ++i) {
+    auto op = instr.getOperand(i);
     if (op != nullptr) {
       os << " " << op->name();
     } else {
@@ -846,7 +846,7 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
     }
   }
 
-  if (instr.IsSnapshot() && !full_snapshots_) {
+  if (instr.isSnapshot() && !full_snapshots_) {
     return;
   }
   auto fs = get_frame_state(instr);
@@ -860,9 +860,9 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
     if (Register* guilty_reg = db->guiltyReg()) {
       Indented(os) << fmt::format("GuiltyReg {}\n", *guilty_reg);
     }
-    if (db->live_regs().size() > 0) {
+    if (db->liveRegs().size() > 0) {
       Indented(os) << "LiveValues";
-      print_reg_states(os, db->live_regs());
+      print_reg_states(os, db->liveRegs());
       os << '\n';
     }
     if (fs != nullptr) {

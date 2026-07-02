@@ -212,9 +212,9 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
           std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
 
       instruction = newInstr<VectorCall>(num_args + 1, dst, flags);
-      instruction->SetOperand(0, func);
+      instruction->setOperand(0, func);
       for (int i = 0; i < num_args; i++) {
-        instruction->SetOperand(i + 1, args[i]);
+        instruction->setOperand(i + 1, args[i]);
       }
       break;
     }
@@ -323,7 +323,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
         instruction = InitTupleElements::create(total);
       }
       for (int i = 0; i < total; i++) {
-        instruction->SetOperand(i, args[i]);
+        instruction->setOperand(i, args[i]);
       }
       break;
     }
@@ -391,7 +391,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
           std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
       instruction = newInstr<CallMethod>(args.size(), dst, flags);
       for (std::size_t i = 0; i < args.size(); i++) {
-        instruction->SetOperand(i, args[i]);
+        instruction->setOperand(i, args[i]);
       }
       break;
     }
@@ -1189,7 +1189,7 @@ BasicBlock* HIRParser::ParseBasicBlock(CFG& cfg) {
     std::string_view token = GetNextToken();
     auto* instr = parseInstr(token, dst, id);
     if (instr != nullptr) {
-      bb->Append(instr);
+      bb->append(instr);
     }
   }
   expect("}");
@@ -1283,12 +1283,12 @@ std::unique_ptr<Function> HIRParser::ParseHIR(const char* hir) {
   realizePhis();
 
   for (auto& it : branches_) {
-    it.first->set_target(index_to_bb_[it.second]);
+    it.first->setTarget(index_to_bb_[it.second]);
   }
 
   for (auto& it : cond_branches_) {
-    it.first->set_true_bb(index_to_bb_[it.second.first]);
-    it.first->set_false_bb(index_to_bb_[it.second.second]);
+    it.first->setTrueBb(index_to_bb_[it.second.first]);
+    it.first->setFalseBb(index_to_bb_[it.second.second]);
   }
 
   expect("}");
@@ -1307,7 +1307,7 @@ void HIRParser::realizePhis() {
       for (auto& info : phi.inputs) {
         inputs.emplace(index_to_bb_[info.bb], info.value);
       }
-      (Phi::create(phi.dst, inputs))->InsertBefore(front);
+      (Phi::create(phi.dst, inputs))->insertBefore(front);
     }
   }
 }

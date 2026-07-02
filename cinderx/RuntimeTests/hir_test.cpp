@@ -33,23 +33,23 @@ HIRPrinter fullPrinter() {
 TEST(BasicBlockTest, CanAppendInstrs) {
   Environment env;
   BasicBlock block;
-  auto v0 = env.AllocateRegister();
+  auto v0 = env.allocateRegister();
   block.append<LoadConst>(v0, TNoneType);
   block.append<Return>(v0);
-  ASSERT_TRUE(block.GetTerminator()->IsReturn());
+  ASSERT_TRUE(block.getTerminator()->isReturn());
 }
 
 TEST(BasicBlockTest, CanIterateInstrs) {
   Environment env;
   BasicBlock block;
-  auto v0 = env.AllocateRegister();
+  auto v0 = env.allocateRegister();
   block.append<LoadConst>(v0, TNoneType);
   block.append<Return>(v0);
 
   auto it = block.begin();
-  ASSERT_TRUE(it->IsLoadConst());
+  ASSERT_TRUE(it->isLoadConst());
   it++;
-  ASSERT_TRUE(it->IsReturn());
+  ASSERT_TRUE(it->isReturn());
   it++;
   ASSERT_TRUE(it == block.end());
 }
@@ -58,15 +58,15 @@ TEST(BasicBlockTest, SplitAfterSplitsBlockAfterInstruction) {
   Environment env;
   CFG cfg;
   BasicBlock* head = cfg.AllocateBlock();
-  auto v0 = env.AllocateRegister();
+  auto v0 = env.allocateRegister();
   head->append<LoadConst>(v0, TNoneType);
-  Instr* load_const = head->GetTerminator();
+  Instr* load_const = head->getTerminator();
   head->append<Return>(v0);
   BasicBlock* tail = cfg.splitAfter(*load_const);
-  ASSERT_NE(nullptr, head->GetTerminator());
-  EXPECT_TRUE(head->GetTerminator()->IsLoadConst());
-  ASSERT_NE(nullptr, tail->GetTerminator());
-  EXPECT_TRUE(tail->GetTerminator()->IsReturn());
+  ASSERT_NE(nullptr, head->getTerminator());
+  EXPECT_TRUE(head->getTerminator()->isLoadConst());
+  ASSERT_NE(nullptr, tail->getTerminator());
+  EXPECT_TRUE(tail->getTerminator()->isReturn());
 }
 
 TEST(CFGIterTest, IteratingEmptyCFGReturnsEmptyTraversal) {
@@ -82,7 +82,7 @@ TEST(CFGIterTest, IteratingSingleBlockCFGReturnsOneBlock) {
   cfg.entry_block = block;
 
   // Add a single instuction to the block
-  block->append<Return>(env.AllocateRegister());
+  block->append<Return>(env.allocateRegister());
 
   std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
   ASSERT_EQ(traversal.size(), 1) << "Incorrect number of blocks returned";
@@ -109,12 +109,12 @@ TEST(CFGIterTest, VisitsAllBranches) {
   cfg.entry_block = cond;
 
   BasicBlock* true_block = cfg.AllocateBlock();
-  true_block->append<Return>(env.AllocateRegister());
+  true_block->append<Return>(env.allocateRegister());
 
   BasicBlock* false_block = cfg.AllocateBlock();
-  false_block->append<Return>(env.AllocateRegister());
+  false_block->append<Return>(env.allocateRegister());
 
-  cond->append<CondBranch>(env.AllocateRegister(), true_block, false_block);
+  cond->append<CondBranch>(env.allocateRegister(), true_block, false_block);
 
   std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
   ASSERT_EQ(traversal.size(), 3) << "Incorrect number of blocks returned";
@@ -131,17 +131,17 @@ TEST(CFGIterTest, VisitsLoops) {
 
   // Create the else block
   BasicBlock* outer_else = cfg.AllocateBlock();
-  outer_else->append<Return>(env.AllocateRegister());
+  outer_else->append<Return>(env.allocateRegister());
 
   // Create the inner loop
   BasicBlock* loop_cond = cfg.AllocateBlock();
   BasicBlock* loop_body = cfg.AllocateBlock();
   loop_body->append<Branch>(loop_cond);
-  loop_cond->append<CondBranch>(env.AllocateRegister(), loop_body, outer_else);
+  loop_cond->append<CondBranch>(env.allocateRegister(), loop_body, outer_else);
 
   // Create the outer conditional
   BasicBlock* outer_cond = cfg.AllocateBlock();
-  outer_cond->append<CondBranch>(env.AllocateRegister(), loop_cond, outer_else);
+  outer_cond->append<CondBranch>(env.allocateRegister(), loop_cond, outer_else);
   cfg.entry_block = outer_cond;
 
   std::vector<BasicBlock*> traversal = cfg.GetRPOTraversal();
@@ -263,7 +263,7 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
   // after removing tramponline blocks we should be left
   // with only the exit block
   auto exit_block = cfg.AllocateBlock();
-  exit_block->append<Return>(env.AllocateRegister());
+  exit_block->append<Return>(env.allocateRegister());
 
   auto t1 = cfg.AllocateBlock();
   t1->append<Branch>(exit_block);
@@ -310,7 +310,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
   //                              ^  |
   //                              |  |
   //                              +--+
-  Register* v0 = env.AllocateRegister();
+  Register* v0 = env.allocateRegister();
   auto exit_block = cfg.AllocateBlock();
   exit_block->append<Return>(v0);
 
@@ -370,7 +370,7 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
   //                |
   //                v
   //               exit
-  Register* v0 = env.AllocateRegister();
+  Register* v0 = env.allocateRegister();
   auto exit_block = cfg.AllocateBlock();
   exit_block->append<Return>(v0);
 
@@ -932,11 +932,11 @@ class HIRCloneTest : public RuntimeTest {};
 
 TEST_F(HIRCloneTest, CanCloneInstrs) {
   Environment env;
-  auto v0 = env.AllocateRegister();
+  auto v0 = env.allocateRegister();
   std::unique_ptr<Instr> load_const(
       LoadConst::create(v0, Type::fromObject(Py_False)));
   std::unique_ptr<Instr> new_load(load_const->clone());
-  ASSERT_TRUE(new_load->IsLoadConst());
+  ASSERT_TRUE(new_load->isLoadConst());
   EXPECT_TRUE(
       static_cast<LoadConst*>(new_load.get())->type() ==
       static_cast<LoadConst*>(load_const.get())->type());
@@ -952,9 +952,9 @@ TEST_F(HIRCloneTest, CanCloneBranches) {
   BasicBlock* to = cfg.AllocateBlock();
   cfg.entry_block = from;
   from->append<Branch>(to);
-  Instr* branch = from->GetTerminator();
+  Instr* branch = from->getTerminator();
   std::unique_ptr<Instr> new_branch(branch->clone());
-  ASSERT_TRUE(new_branch->IsBranch());
+  ASSERT_TRUE(new_branch->isBranch());
   EXPECT_EQ(branch->block(), from);
   EXPECT_EQ(new_branch->block(), nullptr);
 
@@ -964,21 +964,21 @@ TEST_F(HIRCloneTest, CanCloneBranches) {
   EXPECT_NE(orig_edge, dup_edge);
 
   EXPECT_EQ(orig_edge->from(), dup_edge->from());
-  EXPECT_TRUE(from->out_edges().contains(orig_edge));
-  EXPECT_TRUE(from->out_edges().contains(dup_edge));
+  EXPECT_TRUE(from->outEdges().contains(orig_edge));
+  EXPECT_TRUE(from->outEdges().contains(dup_edge));
 
   EXPECT_EQ(orig_edge->to(), dup_edge->to());
-  EXPECT_TRUE(to->in_edges().contains(orig_edge));
-  EXPECT_TRUE(to->in_edges().contains(dup_edge));
+  EXPECT_TRUE(to->inEdges().contains(orig_edge));
+  EXPECT_TRUE(to->inEdges().contains(dup_edge));
 }
 
 TEST_F(HIRCloneTest, CanCloneBorrwedRefFields) {
   Environment env;
-  auto v0 = env.AllocateRegister();
+  auto v0 = env.allocateRegister();
   auto name = Ref<>::steal(PyUnicode_FromString("test"));
   std::unique_ptr<Instr> check(CheckVar::create(v0, v0, name));
   std::unique_ptr<Instr> new_check(check->clone());
-  ASSERT_TRUE(new_check->IsCheckVar());
+  ASSERT_TRUE(new_check->isCheckVar());
   BorrowedRef<> orig_name = static_cast<CheckVar*>(check.get())->name();
   BorrowedRef<> dup_name = static_cast<CheckVar*>(new_check.get())->name();
   EXPECT_EQ(orig_name, dup_name);
@@ -986,34 +986,34 @@ TEST_F(HIRCloneTest, CanCloneBorrwedRefFields) {
 
 TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   Environment env;
-  auto out = env.AllocateRegister();
-  auto v0 = env.AllocateRegister();
+  auto out = env.allocateRegister();
+  auto v0 = env.allocateRegister();
 
   // Create a CallStatic with no arguments
   std::unique_ptr<Instr> call_static_no_args(
       CallStatic::create(0, out, nullptr, Type::fromObject(Py_None)));
   std::unique_ptr<Instr> new_call_static_no_args(call_static_no_args->clone());
   ASSERT_NE(call_static_no_args.get(), new_call_static_no_args.get());
-  ASSERT_TRUE(new_call_static_no_args->IsCallStatic());
+  ASSERT_TRUE(new_call_static_no_args->isCallStatic());
 
   CallStatic* orig_call = static_cast<CallStatic*>(call_static_no_args.get());
   CallStatic* dup_call =
       static_cast<CallStatic*>(new_call_static_no_args.get());
   EXPECT_EQ(orig_call->addr(), dup_call->addr());
-  EXPECT_EQ(orig_call->ret_type(), dup_call->ret_type());
+  EXPECT_EQ(orig_call->retType(), dup_call->retType());
 
   // Create a CallStatic with one argument
   std::unique_ptr<Instr> call_static_one_arg(
       CallStatic::create(1, out, nullptr, Type::fromObject(Py_None), v0));
   std::unique_ptr<Instr> new_call_static_one_arg(call_static_one_arg->clone());
   ASSERT_NE(call_static_one_arg.get(), new_call_static_one_arg.get());
-  ASSERT_TRUE(new_call_static_one_arg->IsCallStatic());
+  ASSERT_TRUE(new_call_static_one_arg->isCallStatic());
 
   orig_call = static_cast<CallStatic*>(call_static_one_arg.get());
   dup_call = static_cast<CallStatic*>(new_call_static_one_arg.get());
   EXPECT_EQ(orig_call->addr(), dup_call->addr());
-  EXPECT_EQ(orig_call->ret_type(), dup_call->ret_type());
-  EXPECT_EQ(orig_call->GetOperand(0), dup_call->GetOperand(0));
+  EXPECT_EQ(orig_call->retType(), dup_call->retType());
+  EXPECT_EQ(orig_call->getOperand(0), dup_call->getOperand(0));
 
   // Create a CallStatic with two arguments
   std::unique_ptr<Instr> call_static_two_args(
@@ -1021,14 +1021,14 @@ TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   std::unique_ptr<Instr> new_call_static_two_args(
       call_static_two_args->clone());
   ASSERT_NE(call_static_two_args.get(), new_call_static_two_args.get());
-  ASSERT_TRUE(new_call_static_two_args->IsCallStatic());
+  ASSERT_TRUE(new_call_static_two_args->isCallStatic());
 
   orig_call = static_cast<CallStatic*>(call_static_two_args.get());
   dup_call = static_cast<CallStatic*>(new_call_static_two_args.get());
   EXPECT_EQ(orig_call->addr(), dup_call->addr());
-  EXPECT_EQ(orig_call->ret_type(), dup_call->ret_type());
-  EXPECT_EQ(orig_call->GetOperand(0), dup_call->GetOperand(0));
-  EXPECT_EQ(orig_call->GetOperand(1), dup_call->GetOperand(1));
+  EXPECT_EQ(orig_call->retType(), dup_call->retType());
+  EXPECT_EQ(orig_call->getOperand(0), dup_call->getOperand(0));
+  EXPECT_EQ(orig_call->getOperand(1), dup_call->getOperand(1));
 }
 
 TEST_F(HIRCloneTest, CanCloneDeoptBase) {
@@ -1077,16 +1077,16 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   ASSERT_EQ(fullPrinter().ToString(*irfunc), expected);
   BasicBlock* bb0 = irfunc->cfg.entry_block;
   Instr& load_global = *(++(bb0->rbegin()));
-  ASSERT_TRUE(load_global.IsLoadGlobal());
+  ASSERT_TRUE(load_global.isLoadGlobal());
 
   std::unique_ptr<Instr> dup_load(load_global.clone());
-  ASSERT_TRUE(dup_load->IsLoadGlobal());
+  ASSERT_TRUE(dup_load->isLoadGlobal());
 
   LoadGlobal* orig = static_cast<LoadGlobal*>(&load_global);
   LoadGlobal* dup = static_cast<LoadGlobal*>(dup_load.get());
 
   EXPECT_EQ(orig->output(), dup->output());
-  EXPECT_EQ(orig->name_idx(), dup->name_idx());
+  EXPECT_EQ(orig->nameIdx(), dup->nameIdx());
 
   FrameState* orig_fs = orig->frameState();
   FrameState* dup_fs = dup->frameState();
@@ -1095,7 +1095,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   EXPECT_TRUE(*orig_fs == *dup_fs);
 
   // Should have equal contents
-  EXPECT_TRUE(orig->live_regs() == dup->live_regs());
+  EXPECT_TRUE(orig->liveRegs() == dup->liveRegs());
 }
 
 TEST_F(HIRBuildTest, MatchMapping) {
@@ -1443,7 +1443,7 @@ def test():
   bool found_at_quiescent_state = false;
   for (auto& block : irfunc->cfg.blocks) {
     for (auto& instr : block) {
-      if (instr.IsAtQuiescentState()) {
+      if (instr.isAtQuiescentState()) {
         found_at_quiescent_state = true;
         break;
       }

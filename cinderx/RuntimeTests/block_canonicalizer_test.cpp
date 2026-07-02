@@ -22,7 +22,7 @@ TEST(BlockCanonicalizerTest, BreaksCycles) {
   stack.push(t0);
 
   auto block = cfg.AllocateBlock();
-  block->append<Return>(env.AllocateRegister());
+  block->append<Return>(env.allocateRegister());
 
   bc.Run(block, stack);
 
@@ -56,7 +56,7 @@ TEST(BlockCanonicalizerTest, HandlesMultipleOccurrencesOfSingleReg) {
   stack.push(t1);
 
   auto block = cfg.AllocateBlock();
-  block->append<Return>(env.AllocateRegister());
+  block->append<Return>(env.allocateRegister());
 
   bc.Run(block, stack);
 
@@ -84,8 +84,8 @@ TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
   auto t0 = bc.getOrAllocateCanonicalStack(0);
   auto t1 = bc.getOrAllocateCanonicalStack(1);
 
-  auto x = env.AllocateRegister();
-  auto y = env.AllocateRegister();
+  auto x = env.allocateRegister();
+  auto y = env.allocateRegister();
 
   stack.push(x);
   stack.push(y);
@@ -94,7 +94,7 @@ TEST(BlockCanonicalizerTest, HandlesMixOfLocalsAndTemporaries) {
   stack.push(t1);
 
   auto block = cfg.AllocateBlock();
-  block->append<Return>(env.AllocateRegister());
+  block->append<Return>(env.allocateRegister());
 
   bc.Run(block, stack);
 

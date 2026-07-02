@@ -18,10 +18,10 @@ void MaterializeSteals::Run(Function& func) {
 
       if (
           // Memory effects are undefined for these cases.
-          instr.IsPhi() || instr.numEdges() > 0 ||
+          instr.isPhi() || instr.numEdges() > 0 ||
           // BatchDecref does not correctly handle effects.stolen_inputs and
           // doesn't steal anyway.
-          instr.IsBatchDecref()) {
+          instr.isBatchDecref()) {
         continue;
       }
 
@@ -36,18 +36,18 @@ void MaterializeSteals::Run(Function& func) {
           continue;
         }
 
-        Register* operand = instr.GetOperand(i);
+        Register* operand = instr.getOperand(i);
         if (!operand->type().couldBe(TOptObject) ||
-            operand->instr()->IsMaterializeRef()) {
+            operand->instr()->isMaterializeRef()) {
           continue;
         }
 
-        Register* output = func.env.AllocateRegister();
+        Register* output = func.env.allocateRegister();
         MaterializeRef* materialized = MaterializeRef::create(output, operand);
         materialized->copyBytecodeOffset(instr);
         output->set_type(outputType(*materialized));
         block.insert(materialized, cursor);
-        instr.SetOperand(i, output);
+        instr.setOperand(i, output);
       }
     }
   }

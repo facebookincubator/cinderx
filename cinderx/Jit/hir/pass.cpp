@@ -90,8 +90,8 @@ Type returnType(Type callable) {
 } // namespace
 
 Register* chaseAssignOperand(Register* value) {
-  while (value->instr()->IsAssign()) {
-    value = value->instr()->GetOperand(0);
+  while (value->instr()->isAssign()) {
+    value = value->instr()->getOperand(0);
   }
   return value;
 }
@@ -100,8 +100,8 @@ RegUses collectDirectRegUses(Function& func) {
   RegUses uses;
   for (auto& block : func.cfg.blocks) {
     for (Instr& instr : block) {
-      for (size_t i = 0; i < instr.NumOperands(); ++i) {
-        uses[instr.GetOperand(i)].insert(&instr);
+      for (size_t i = 0; i < instr.numOperands(); ++i) {
+        uses[instr.getOperand(i)].insert(&instr);
       }
     }
   }
@@ -255,7 +255,7 @@ Type outputType(
     case Opcode::kLoadVarObjectSize:
       return TCInt64;
     case Opcode::kInvokeStaticFunction:
-      return static_cast<const InvokeStaticFunction&>(instr).ret_type();
+      return static_cast<const InvokeStaticFunction&>(instr).retType();
     case Opcode::kLoadArrayItem:
       return static_cast<const LoadArrayItem&>(instr).type();
     case Opcode::kLoadSplitDictItem:
@@ -266,11 +266,11 @@ Type outputType(
       return TCPtr;
     case Opcode::kCallStatic: {
       auto& call = static_cast<const CallStatic&>(instr);
-      return call.ret_type();
+      return call.retType();
     }
     case Opcode::kCallInd: {
       auto& call = static_cast<const CallInd&>(instr);
-      return call.ret_type();
+      return call.retType();
     }
     case Opcode::kPrimitiveConvert: {
       auto& conv = static_cast<const PrimitiveConvert&>(instr);
@@ -414,7 +414,7 @@ Type outputType(
       return TCPtr;
     case Opcode::kPhi: {
       auto ty = TBottom;
-      for (std::size_t i = 0, n = instr.NumOperands(); i < n; ++i) {
+      for (std::size_t i = 0, n = instr.numOperands(); i < n; ++i) {
         ty |= get_op_type(i);
       }
       return ty;
@@ -562,7 +562,7 @@ Type outputType(
 
 Type outputType(const Instr& instr) {
   return outputType(
-      instr, [&](std::size_t ind) { return instr.GetOperand(ind)->type(); });
+      instr, [&](std::size_t ind) { return instr.getOperand(ind)->type(); });
 }
 
 void reflowTypes(Function& func) {
@@ -572,7 +572,7 @@ void reflowTypes(Function& func) {
 void reflowTypes(Function& func, BasicBlock* start) {
   // First, reset all types to Bottom so Phi inputs from back edges don't
   // contribute to the output type of the Phi until they've been processed.
-  for (auto& pair : func.env.GetRegisters()) {
+  for (auto& pair : func.env.getRegisters()) {
     pair.second->set_type(TBottom);
   }
 
@@ -584,7 +584,7 @@ void reflowTypes(Function& func, BasicBlock* start) {
       for (auto& instr : *block) {
         if (instr.opcode() == Opcode::kReturn) {
           Type type = static_cast<const Return&>(instr).type();
-          hir::Register* value = instr.GetOperand(0);
+          hir::Register* value = instr.getOperand(0);
           JIT_DCHECK(
               value->type() <= type,
               "Function expecting to return a {} but got {}:{}, CFG is:\n{}",
@@ -614,7 +614,7 @@ void reflowTypes(Function& func, BasicBlock* start) {
 bool removeTrampolineBlocks(CFG* cfg) {
   std::vector<BasicBlock*> trampolines;
   for (auto& block : cfg->blocks) {
-    if (!block.IsTrampoline()) {
+    if (!block.isTrampoline()) {
       continue;
     }
     BasicBlock* succ = block.successor(0);
@@ -622,7 +622,7 @@ bool removeTrampolineBlocks(CFG* cfg) {
     // predecessors, don't remove it; it's necessary to maintain isolated
     // entries
     if (&block == cfg->entry_block) {
-      if (succ->in_edges().size() > 1) {
+      if (succ->inEdges().size() > 1) {
         continue;
       } else {
         cfg->entry_block = succ;
@@ -631,7 +631,7 @@ bool removeTrampolineBlocks(CFG* cfg) {
     // Update all predecessors to jump directly to our successor
     block.retargetPreds(succ);
     // Finish splicing the trampoline out of the cfg
-    block.set_successor(0, nullptr);
+    block.setSuccessor(0, nullptr);
     trampolines.emplace_back(&block);
   }
   for (auto& block : trampolines) {
@@ -655,7 +655,7 @@ bool removeUnreachableBlocks(Function& func) {
       continue;
     }
     visited.insert(block);
-    auto term = block->GetTerminator();
+    auto term = block->getTerminator();
     for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
       BasicBlock* succ = term->successor(i);
       // This check isn't necessary for correctness but avoids unnecessary
@@ -671,7 +671,7 @@ bool removeUnreachableBlocks(Function& func) {
     BasicBlock* block = &*it;
     ++it;
     if (!visited.contains(block)) {
-      if (Instr* old_term = block->GetTerminator()) {
+      if (Instr* old_term = block->getTerminator()) {
         for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
           old_term->successor(i)->removePhiPredecessor(block);
         }
@@ -697,7 +697,7 @@ bool removeUnreachableInstructions(Function& func) {
   DominatorAnalysis dom(func);
   RegUses reg_uses = collectDirectRegUses(func);
   auto remove_reg_uses = [&reg_uses](Instr* instr) {
-    for (auto op : instr->GetOperands()) {
+    for (auto op : instr->getOperands()) {
       auto instrs = reg_uses.find(op);
       if (instrs != reg_uses.end()) {
         instrs->second.erase(instr);
@@ -710,7 +710,7 @@ bool removeUnreachableInstructions(Function& func) {
       Instr& instr = *it;
       ++it;
       if ((instr.output() == nullptr || !instr.output()->isA(TBottom)) &&
-          !instr.IsUnreachable()) {
+          !instr.isUnreachable()) {
         continue;
       }
       // 1) Any instruction dominated by a definition of a Bottom value is
@@ -733,7 +733,7 @@ bool removeUnreachableInstructions(Function& func) {
         it = prev_it;
       } while (it != block->begin());
 
-      if (it != block->begin() && std::prev(it)->IsGuardType()) {
+      if (it != block->begin() && std::prev(it)->isGuardType()) {
         // Everything after this GuardType is unreachable, but only as long as
         // the GuardType fails at runtime. Indicate that the guard is required
         // for correctness with a UseType. This prevents GuardTypeElimination
@@ -746,11 +746,11 @@ bool removeUnreachableInstructions(Function& func) {
 
       block->insert(Unreachable::create(), it);
       // Clean up dangling phi references
-      if (Instr* old_term = block->GetTerminator()) {
+      if (Instr* old_term = block->getTerminator()) {
         for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
           auto bb = old_term->successor(i);
           for (auto& potential_phi : *bb) {
-            if (potential_phi.IsPhi()) {
+            if (potential_phi.isPhi()) {
               remove_reg_uses(&potential_phi);
             }
           }
@@ -767,18 +767,18 @@ bool removeUnreachableInstructions(Function& func) {
         delete &instrToDelete;
       }
     }
-    if (block->begin()->IsUnreachable()) {
+    if (block->begin()->isUnreachable()) {
       std::vector<Instr*> interesting_branches;
       // If one edge of a conditional branch leads to an Unreachable, it can be
       // replaced with a Branch to the other target. If a Branch leads to an
       // Unreachable, it is replaced with an Unreachable.
-      for (const Edge* edge : block->in_edges()) {
+      for (const Edge* edge : block->inEdges()) {
         BasicBlock* predecessor = edge->from();
-        interesting_branches.emplace_back(predecessor->GetTerminator());
+        interesting_branches.emplace_back(predecessor->getTerminator());
       }
       for (Instr* branch : interesting_branches) {
-        if (branch->IsBranch()) {
-          branch->ReplaceWith(*Unreachable::create());
+        if (branch->isBranch()) {
+          branch->replaceWith(*Unreachable::create());
         } else if (auto cond_branch = dynamic_cast<CondBranchBase*>(branch)) {
           BasicBlock* target;
           if (cond_branch->false_bb() == block) {
@@ -790,20 +790,20 @@ bool removeUnreachableInstructions(Function& func) {
             target = cond_branch->false_bb();
           }
 
-          if (branch->IsCondBranchCheckType()) {
+          if (branch->isCondBranchCheckType()) {
             // Before replacing a CondBranchCheckType with a Branch to the
             // reachable block, insert a RefineType to preserve the type
             // information implied by following that path.
             auto check_type_branch = static_cast<CondBranchCheckType*>(branch);
-            Register* refined_value = func.env.AllocateRegister();
+            Register* refined_value = func.env.allocateRegister();
             Type check_type = check_type_branch->type();
             if (target == cond_branch->false_bb()) {
               check_type = TTop - check_type_branch->type();
             }
 
-            Register* operand = check_type_branch->GetOperand(0);
+            Register* operand = check_type_branch->getOperand(0);
             RefineType::create(refined_value, check_type, operand)
-                ->InsertBefore(*cond_branch);
+                ->insertBefore(*cond_branch);
             auto uses = reg_uses.find(operand);
             if (uses == reg_uses.end()) {
               break;
@@ -813,11 +813,11 @@ bool removeUnreachableInstructions(Function& func) {
                 dom.getBlocksDominatedBy(target);
             for (Instr* instr : instrs_using_reg) {
               if (dom_set.contains(instr->block())) {
-                instr->ReplaceUsesOf(operand, refined_value);
+                instr->replaceUsesOf(operand, refined_value);
               }
             }
           }
-          cond_branch->ReplaceWith(*Branch::create(target));
+          cond_branch->replaceWith(*Branch::create(target));
         } else {
           JIT_ABORT("Unexpected branch instruction {}", *branch);
         }
@@ -839,7 +839,7 @@ void simplifyRedundantCondBranches(CFG* cfg) {
     if (block.empty()) {
       continue;
     }
-    auto term = block.GetTerminator();
+    auto term = block.getTerminator();
     std::size_t num_edges = term->numEdges();
     if (num_edges < 2) {
       continue;
@@ -860,7 +860,7 @@ void simplifyRedundantCondBranches(CFG* cfg) {
     to_simplify.emplace_back(&block);
   }
   for (auto& block : to_simplify) {
-    auto term = block->GetTerminator();
+    auto term = block->getTerminator();
     term->unlink();
     auto branch = block->appendWithOff<Branch>(
         term->bytecodeOffset(), term->successor(0));

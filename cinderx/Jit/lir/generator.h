@@ -214,11 +214,11 @@ class LIRGenerator {
         Imm{deopt_id},
         std::forward<TOperand>(guard_var));
 
-    if (hir_instr.IsGuardIs()) {
+    if (hir_instr.isGuardIs()) {
       const auto& guard = static_cast<const hir::GuardIs&>(hir_instr);
       env_->code_rt->addReference(guard.target());
       instr->addOperands(MemImm{guard.target()});
-    } else if (hir_instr.IsGuardType()) {
+    } else if (hir_instr.isGuardType()) {
       const auto& guard = static_cast<const hir::GuardType&>(hir_instr);
       // TASK(T101999851): Handle non-Exact types
       JIT_CHECK(

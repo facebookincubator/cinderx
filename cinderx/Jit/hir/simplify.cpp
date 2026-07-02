@@ -103,7 +103,7 @@ struct Env {
   T* emitInstr(Args&&... args) {
     if constexpr (T::has_output) {
       return emitRawInstr<T>(
-          func.env.AllocateRegister(), std::forward<Args>(args)...);
+          func.env.allocateRegister(), std::forward<Args>(args)...);
     } else {
       return emitRawInstr<T>(std::forward<Args>(args)...);
     }
@@ -117,7 +117,7 @@ struct Env {
     if constexpr (T::has_output) {
       return emitRawInstr<T>(
                  arity,
-                 func.env.AllocateRegister(),
+                 func.env.allocateRegister(),
                  std::forward<Args>(args)...)
           ->output();
     } else {
@@ -217,7 +217,7 @@ struct Env {
 
     auto branch = do_branch(slow_path);
     BasicBlock* fast_path = func.cfg.splitAfter(*branch);
-    branch->set_true_bb(fast_path);
+    branch->setTrueBb(fast_path);
 
     block = slow_path;
     cursor = slow_path->begin();
@@ -237,9 +237,9 @@ struct Env {
 
 Register* simplifyCheck(const CheckBase* instr) {
   // These all check their input for null.
-  if (instr->GetOperand(0)->isA(TObject)) {
+  if (instr->getOperand(0)->isA(TObject)) {
     // No UseType is necessary because we never guard potentially-null values.
-    return instr->GetOperand(0);
+    return instr->getOperand(0);
   }
   return nullptr;
 }
@@ -247,9 +247,9 @@ Register* simplifyCheck(const CheckBase* instr) {
 Register* simplifyCheckSequenceBounds(
     Env& env,
     const CheckSequenceBounds* instr) {
-  Register* sequence = instr->GetOperand(0);
-  Register* idx = instr->GetOperand(1);
-  if (sequence->isA(TTupleExact) && sequence->instr()->IsMakeTuple() &&
+  Register* sequence = instr->getOperand(0);
+  Register* idx = instr->getOperand(1);
+  if (sequence->isA(TTupleExact) && sequence->instr()->isMakeTuple() &&
       idx->isA(TCInt) && idx->type().hasIntSpec()) {
     size_t length = static_cast<const MakeTuple*>(sequence->instr())->nvalues();
     intptr_t idx_value = idx->type().intSpec();
@@ -272,7 +272,7 @@ Register* simplifyCheckSequenceBounds(
 }
 
 Register* simplifyGuardType(Env& env, const GuardType* instr) {
-  Register* input = instr->GetOperand(0);
+  Register* input = instr->getOperand(0);
   Type type = instr->target();
   if (input->isA(type)) {
     // We don't need a UseType: If an instruction cares about the type of this
@@ -289,7 +289,7 @@ Register* simplifyGuardType(Env& env, const GuardType* instr) {
 }
 
 Register* simplifyRefineType(const RefineType* instr) {
-  Register* input = instr->GetOperand(0);
+  Register* input = instr->getOperand(0);
   if (input->isA(instr->type())) {
     // No UseType for the same reason as GuardType above: RefineType itself
     // doesn't care about the input's type, only users of its output do, and
@@ -300,7 +300,7 @@ Register* simplifyRefineType(const RefineType* instr) {
 }
 
 Register* simplifyCast(const Cast* instr) {
-  Register* input = instr->GetOperand(0);
+  Register* input = instr->getOperand(0);
   Type type = instr->exact() ? Type::fromTypeExact(instr->pytype())
                              : Type::fromType(instr->pytype());
   if (instr->optional()) {
@@ -366,7 +366,7 @@ Register* emitGetLengthInt64(Env& env, Register* obj) {
 }
 
 Register* simplifyGetLength(Env& env, const GetLength* instr) {
-  Register* obj = instr->GetOperand(0);
+  Register* obj = instr->getOperand(0);
   if (Register* size = emitGetLengthInt64(env, obj)) {
     return env.emit<PrimitiveBox>(size, TCInt64, *instr->frameState());
   }
@@ -374,13 +374,13 @@ Register* simplifyGetLength(Env& env, const GetLength* instr) {
 }
 
 Register* simplifyPrimitiveConvert(Env& env, const PrimitiveConvert* instr) {
-  Register* src = instr->GetOperand(0);
+  Register* src = instr->getOperand(0);
   // Source and dest types already match.
   if (src->isA(instr->type())) {
     // Intentionally widen the source to the destination type, theoretically
     // this could relax a guard.
     env.emit<UseType>(src, instr->type());
-    return instr->GetOperand(0);
+    return instr->getOperand(0);
   }
   // Constant CInt --> CDouble.
   if (instr->type() <= TCDouble && src->type().hasIntSpec()) {
@@ -406,8 +406,8 @@ Register* simplifyPrimitiveConvert(Env& env, const PrimitiveConvert* instr) {
 }
 
 Register* simplifyCompare(Env& env, const Compare* instr) {
-  Register* left = instr->GetOperand(0);
-  Register* right = instr->GetOperand(1);
+  Register* left = instr->getOperand(0);
+  Register* right = instr->getOperand(1);
   CompareOp op = instr->op();
 
   if (left->isA(TNoneType) && right->isA(TNoneType)) {
@@ -458,8 +458,8 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
 }
 
 Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
-  Register* left = instr->GetOperand(0);
-  Register* right = instr->GetOperand(1);
+  Register* left = instr->getOperand(0);
+  Register* right = instr->getOperand(1);
   CompareOp op = instr->op();
 
   // TODO: Constant folding.
@@ -484,7 +484,7 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
 }
 
 Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
-  Register* cond = instr->GetOperand(0);
+  Register* cond = instr->getOperand(0);
   Type cond_type = cond->type();
   // Constant condition folds into an unconditional jump.
   if (cond_type.hasIntSpec()) {
@@ -495,19 +495,19 @@ Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
   // which had been simplified down from an IsTruthy.  Can forward the value
   // only if it's being widened.  Narrowing an integer might change it from
   // non-zero to zero.
-  if (cond->instr()->IsPrimitiveConvert()) {
+  if (cond->instr()->isPrimitiveConvert()) {
     auto convert = static_cast<PrimitiveConvert*>(cond->instr());
     Register* src = convert->src();
     if (convert->type().sizeInBytes() >= src->type().sizeInBytes()) {
       return env.emit<CondBranch>(src, instr->true_bb(), instr->false_bb());
     }
   }
-  if (cond->instr()->IsPrimitiveUnaryOp()) {
+  if (cond->instr()->isPrimitiveUnaryOp()) {
     auto unary = static_cast<PrimitiveUnaryOp*>(cond->instr());
     auto unary_op = unary->op();
     if (unary_op == PrimitiveUnaryOpKind::kNotInt) {
       return env.emit<CondBranch>(
-          unary->GetOperand(0), instr->false_bb(), instr->true_bb());
+          unary->getOperand(0), instr->false_bb(), instr->true_bb());
     }
   }
   return nullptr;
@@ -516,7 +516,7 @@ Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
 Register* simplifyCondBranchCheckType(
     Env& env,
     const CondBranchCheckType* instr) {
-  Register* value = instr->GetOperand(0);
+  Register* value = instr->getOperand(0);
   Type actual_type = value->type();
   Type expected_type = instr->type();
   if (actual_type <= expected_type) {
@@ -531,7 +531,7 @@ Register* simplifyCondBranchCheckType(
 }
 
 Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
-  Type ty = instr->GetOperand(0)->type();
+  Type ty = instr->getOperand(0)->type();
   PyObject* obj = ty.asObject();
   if (obj != nullptr) {
     // Should only consider immutable Objects
@@ -548,25 +548,25 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
     if (kTrustedTypes.contains(Py_TYPE(obj))) {
       int res = PyObject_IsTrue(obj);
       JIT_CHECK(res >= 0, "PyObject_IsTrue failed on trusted type");
-      // Since we no longer use instr->GetOperand(0), we need to make sure that
+      // Since we no longer use instr->getOperand(0), we need to make sure that
       // we don't lose any associated type checks
-      env.emit<UseType>(instr->GetOperand(0), ty);
+      env.emit<UseType>(instr->getOperand(0), ty);
       return env.emit<LoadConst>(Type::fromCBool(res));
     }
   }
   if (ty <= TBool) {
-    Register* left = instr->GetOperand(0);
+    Register* left = instr->getOperand(0);
     env.emit<UseType>(left, TBool);
     Register* right = env.emit<LoadConst>(Type::fromObject(Py_True));
     Register* result =
         env.emit<PrimitiveCompare>(PrimitiveCompareOp::kEqual, left, right);
     return result;
   }
-  if (Register* size = emitGetLengthInt64(env, instr->GetOperand(0))) {
+  if (Register* size = emitGetLengthInt64(env, instr->getOperand(0))) {
     return env.emit<CIntToCBool>(size);
   }
   if (ty <= TLongExact) {
-    Register* left = instr->GetOperand(0);
+    Register* left = instr->getOperand(0);
     env.emit<UseType>(left, ty);
     Register* right = env.emit<LoadConst>(Type::fromObject(_PyLong_GetZero()));
     Register* result =
@@ -577,21 +577,21 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
 }
 
 Register* simplifyIsCompactLong(Env& env, const IsCompactLong* instr) {
-  Type ty = instr->GetOperand(0)->type();
+  Type ty = instr->getOperand(0)->type();
   JIT_CHECK(
       ty <= TLongExact || ty <= TCInt64,
       "IsCompactLong generated for invalid type '{}'",
       ty);
   if (ty.hasObjectSpec()) {
-    env.emit<UseType>(instr->GetOperand(0), ty);
+    env.emit<UseType>(instr->getOperand(0), ty);
     bool compact =
         _PyLong_IsCompact(reinterpret_cast<PyLongObject*>(ty.objectSpec()));
     return env.emit<LoadConst>(Type::fromCBool(compact));
   }
 
   // IsCompactLong(box(n)) --> IsCompactLong(n).
-  Register* operand = instr->GetOperand(0);
-  if (operand->instr()->IsPrimitiveBox()) {
+  Register* operand = instr->getOperand(0);
+  if (operand->instr()->isPrimitiveBox()) {
     auto* box = static_cast<const PrimitiveBox*>(operand->instr());
     if (box->type() <= TCInt64) {
       return env.emit<IsCompactLong>(box->value());
@@ -602,7 +602,7 @@ Register* simplifyIsCompactLong(Env& env, const IsCompactLong* instr) {
 }
 
 Register* simplifyCompactLongUnbox(Env& env, const CompactLongUnbox* instr) {
-  Type ty = instr->GetOperand(0)->type();
+  Type ty = instr->getOperand(0)->type();
   JIT_CHECK(
       ty <= TLongExact, "CompactLongUnbox generated for invalid type '{}'", ty);
   if (ty.hasObjectSpec()) {
@@ -611,14 +611,14 @@ Register* simplifyCompactLongUnbox(Env& env, const CompactLongUnbox* instr) {
       // Should be unreachable.
       return nullptr;
     }
-    env.emit<UseType>(instr->GetOperand(0), ty);
+    env.emit<UseType>(instr->getOperand(0), ty);
     Py_ssize_t value = _PyLong_CompactValue(long_obj);
     return env.emit<LoadConst>(Type::fromCInt(value, TCInt64));
   }
 
   // CompactLongUnbox(box(n)) --> n.
-  Register* operand = instr->GetOperand(0);
-  if (operand->instr()->IsPrimitiveBox()) {
+  Register* operand = instr->getOperand(0);
+  if (operand->instr()->isPrimitiveBox()) {
     auto* box = static_cast<const PrimitiveBox*>(operand->instr());
     if (box->type() <= TCInt64) {
       return box->value();
@@ -629,7 +629,7 @@ Register* simplifyCompactLongUnbox(Env& env, const CompactLongUnbox* instr) {
 }
 
 Register* simplifyLoadTupleItem(Env& env, const LoadTupleItem* instr) {
-  Register* src = instr->GetOperand(0);
+  Register* src = instr->getOperand(0);
   Type src_ty = src->type();
   if (!src_ty.hasValueSpec(TTuple)) {
     return nullptr;
@@ -650,17 +650,17 @@ Register* simplifyLoadArrayItem(Env& env, const LoadArrayItem* instr) {
   // We can only do this for tuples because lists and arrays, the other
   // sequence types, are mutable. A more general LoadElimination pass could
   // accomplish that, though.
-  if (src->instr()->IsMakeTuple()) {
+  if (src->instr()->isMakeTuple()) {
     size_t length = static_cast<const MakeTuple*>(src->instr())->nvalues();
     if (idx < length) {
       // Find the InitTupleElements that fills this tuple.
       auto* block = src->instr()->block();
       for (auto it = block->iterator_to(*src->instr()); it != block->end();
            ++it) {
-        if (it->IsInitTupleElements() && it->GetOperand(0) == src) {
+        if (it->isInitTupleElements() && it->getOperand(0) == src) {
           env.emit<UseType>(src, TTupleExact);
           env.emit<UseType>(instr->idx(), instr->idx()->type());
-          return it->GetOperand(idx + 1);
+          return it->getOperand(idx + 1);
         }
       }
     }
@@ -678,12 +678,12 @@ Register* simplifyLoadArrayItem(Env& env, const LoadArrayItem* instr) {
 }
 
 Register* simplifyLoadVarObjectSize(Env& env, const LoadVarObjectSize* instr) {
-  Register* obj_reg = instr->GetOperand(0);
+  Register* obj_reg = instr->getOperand(0);
   Type type = obj_reg->type();
   // We can only do this for tuples because lists and arrays, the other
   // sequence types, are mutable. A more general LoadElimination pass could
   // accomplish that, though.
-  if (obj_reg->instr()->IsMakeTuple()) {
+  if (obj_reg->instr()->isMakeTuple()) {
     env.emit<UseType>(obj_reg, type);
     size_t size = static_cast<const MakeTuple*>(obj_reg->instr())->nvalues();
     Type output_type = instr->output()->type();
@@ -702,14 +702,14 @@ Register* simplifyLoadVarObjectSize(Env& env, const LoadVarObjectSize* instr) {
 Register* simplifyLoadModuleMethodCached(
     Env& env,
     const LoadMethod* load_meth) {
-  Register* receiver = load_meth->GetOperand(0);
-  int name_idx = load_meth->name_idx();
+  Register* receiver = load_meth->getOperand(0);
+  int name_idx = load_meth->nameIdx();
   return env.emit<LoadModuleMethodCached>(
       receiver, name_idx, *load_meth->frameState());
 }
 
 Register* simplifyLoadTypeMethodCached(Env& env, const LoadMethod* load_meth) {
-  Register* receiver = load_meth->GetOperand(0);
+  Register* receiver = load_meth->getOperand(0);
   const int cache_id = env.func.env.allocateLoadTypeMethodCache();
   env.emit<UseType>(receiver, TType);
   Register* guard = env.emit<LoadTypeMethodCacheEntryType>(cache_id);
@@ -723,7 +723,7 @@ Register* simplifyLoadTypeMethodCached(Env& env, const LoadMethod* load_meth) {
         return env.emit<LoadTypeMethodCacheEntryValue>(cache_id, receiver);
       },
       [&] { // Slow path
-        int name_idx = load_meth->name_idx();
+        int name_idx = load_meth->nameIdx();
         return env.emit<FillTypeMethodCache>(
             receiver, name_idx, cache_id, *load_meth->frameState());
       });
@@ -733,7 +733,7 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
   if (!getConfig().attr_caches) {
     return nullptr;
   }
-  Register* receiver = load_meth->GetOperand(0);
+  Register* receiver = load_meth->getOperand(0);
   Type ty = receiver->type();
   if (receiver->isA(TType)) {
     return simplifyLoadTypeMethodCached(env, load_meth);
@@ -743,9 +743,7 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
     return simplifyLoadModuleMethodCached(env, load_meth);
   }
   return env.emit<LoadMethodCached>(
-      load_meth->GetOperand(0),
-      load_meth->name_idx(),
-      *load_meth->frameState());
+      load_meth->getOperand(0), load_meth->nameIdx(), *load_meth->frameState());
 }
 
 Register*
@@ -757,7 +755,7 @@ checkConstantListOrTupleIndex(Env& env, Register* container, Register* index) {
     return nullptr;
   }
 
-  if (container->isA(TTupleExact) && container->instr()->IsMakeTuple()) {
+  if (container->isA(TTupleExact) && container->instr()->isMakeTuple()) {
     size_t length =
         static_cast<const MakeTuple*>(container->instr())->nvalues();
     if (index_val < 0) {
@@ -1313,8 +1311,8 @@ Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
 }
 
 Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
-  Register* left = instr->GetOperand(0);
-  Register* right = instr->GetOperand(1);
+  Register* left = instr->getOperand(0);
+  Register* right = instr->getOperand(1);
   PrimitiveCompareOp op = instr->op();
   bool commutative =
       op == PrimitiveCompareOp::kEqual || op == PrimitiveCompareOp::kNotEqual;
@@ -1348,21 +1346,21 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   }
 
   // box(b) == True --> b
-  if (op == PrimitiveCompareOp::kEqual && left->instr()->IsPrimitiveBoxBool() &&
+  if (op == PrimitiveCompareOp::kEqual && left->instr()->isPrimitiveBoxBool() &&
       right->type().asObject() == Py_True) {
-    return left->instr()->GetOperand(0);
+    return left->instr()->getOperand(0);
   }
   // box(b) == False --> !b
-  if (op == PrimitiveCompareOp::kEqual && left->instr()->IsPrimitiveBoxBool() &&
+  if (op == PrimitiveCompareOp::kEqual && left->instr()->isPrimitiveBoxBool() &&
       right->type().asObject() == Py_False) {
     return env.emit<PrimitiveUnaryOp>(
-        PrimitiveUnaryOpKind::kNotInt, left->instr()->GetOperand(0));
+        PrimitiveUnaryOpKind::kNotInt, left->instr()->getOperand(0));
   }
   // box(b1) CMP box(b2) --> b1 CMP b2
-  if (left->instr()->IsPrimitiveBoxBool() &&
-      right->instr()->IsPrimitiveBoxBool()) {
+  if (left->instr()->isPrimitiveBoxBool() &&
+      right->instr()->isPrimitiveBoxBool()) {
     return env.emit<PrimitiveCompare>(
-        op, left->instr()->GetOperand(0), right->instr()->GetOperand(0));
+        op, left->instr()->getOperand(0), right->instr()->getOperand(0));
   }
 
   return nullptr;
@@ -1373,7 +1371,7 @@ Register* simplifyPrimitiveBox(Env& env, const PrimitiveBox* instr) {
   // we don't hold the GIL which is required for allocation.
   RETURN_MULTITHREADED_COMPILE(nullptr);
 
-  Register* input = instr->GetOperand(0);
+  Register* input = instr->getOperand(0);
   Type ty = instr->type();
 
   Ref<> boxed;
@@ -1398,7 +1396,7 @@ Register* simplifyPrimitiveBox(Env& env, const PrimitiveBox* instr) {
 }
 
 Register* simplifyPrimitiveBoxBool(Env& env, const PrimitiveBoxBool* instr) {
-  Register* input = instr->GetOperand(0);
+  Register* input = instr->getOperand(0);
   if (input->type().hasIntSpec()) {
     env.emit<UseType>(input, input->type());
     auto bool_obj = input->type().intSpec() ? Py_True : Py_False;
@@ -1408,14 +1406,14 @@ Register* simplifyPrimitiveBoxBool(Env& env, const PrimitiveBoxBool* instr) {
 }
 
 Register* simplifyUnbox(Env& env, const Instr* instr) {
-  Register* input_value = instr->GetOperand(0);
+  Register* input_value = instr->getOperand(0);
   Type output_type = instr->output()->type();
-  if (input_value->instr()->IsPrimitiveBox()) {
+  if (input_value->instr()->isPrimitiveBox()) {
     // Simplify unbox(box(x)) -> x
     const auto box = static_cast<PrimitiveBox*>(input_value->instr());
     if (box->type() == output_type) {
       // We can't optimize away the potential overflow in unboxing.
-      return box->GetOperand(0);
+      return box->getOperand(0);
     }
   }
   // Ensure that we are dealing with either a integer or a double.
@@ -1483,7 +1481,7 @@ Register* simplifyLoadAttrSplitDict(
   // T244151823: For now we deopt on the type keys changing and in that case,
   // de-opt the whole function. Ideally we'd just skip to the slow-path in this
   // case.
-  Register* receiver = load_attr->GetOperand(0);
+  Register* receiver = load_attr->getOperand(0);
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
       env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
   patchpoint->setGuiltyReg(receiver);
@@ -1515,7 +1513,7 @@ Register* simplifyLoadAttrSplitDict(
       [&] { // Not valid - slow-path, call getattr.
         return env.emit<LoadAttr>(
             receiver,
-            load_attr->name_idx(),
+            load_attr->nameIdx(),
             *load_attr->frameState(),
             /* already_optimized= */ true);
       });
@@ -1546,7 +1544,7 @@ Register* simplifyLoadAttrSplitDict(
     return nullptr;
   }
 
-  Register* receiver = load_attr->GetOperand(0);
+  Register* receiver = load_attr->getOperand(0);
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
       env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
   patchpoint->setGuiltyReg(receiver);
@@ -1672,9 +1670,9 @@ Register* simplifyLoadAttrProperty(Env& env, const DescrInfo& info) {
   env.emit<UseType>(info.receiver, info.type);
   Register* getter_obj = env.emit<LoadConst>(Type::fromObject(getter));
   auto call = env.emitRawInstr<VectorCall>(
-      2, env.func.env.AllocateRegister(), CallFlags::None, *info.frame_state);
-  call->SetOperand(0, getter_obj);
-  call->SetOperand(1, info.receiver);
+      2, env.func.env.allocateRegister(), CallFlags::None, *info.frame_state);
+  call->setOperand(0, getter_obj);
+  call->setOperand(1, info.receiver);
   return call->output();
 }
 
@@ -1701,12 +1699,12 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
   Register* type_reg = env.emit<LoadConst>(Type::fromObject(info.py_type));
   auto call = env.emitRawInstr<CallStatic>(
       3,
-      env.func.env.AllocateRegister(),
+      env.func.env.allocateRegister(),
       reinterpret_cast<void*>(descr_get),
       TOptObject);
-  call->SetOperand(0, descr_reg);
-  call->SetOperand(1, info.receiver);
-  call->SetOperand(2, type_reg);
+  call->setOperand(0, descr_reg);
+  call->setOperand(1, info.receiver);
+  call->setOperand(2, type_reg);
   return env.emit<CheckExc>(call->output(), *info.frame_state);
 }
 
@@ -1715,7 +1713,7 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
 Register* simplifyLoadAttrInstanceReceiver(
     Env& env,
     const LoadAttr* load_attr) {
-  Register* receiver = load_attr->GetOperand(0);
+  Register* receiver = load_attr->getOperand(0);
   Type type = receiver->type();
   BorrowedRef<PyTypeObject> py_type{type.runtimePyType()};
 
@@ -1760,7 +1758,7 @@ Register* simplifyLoadAttrInstanceReceiver(
 }
 
 Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
-  Register* receiver = load_attr->GetOperand(0);
+  Register* receiver = load_attr->getOperand(0);
   if (!receiver->isA(TType)) {
     return nullptr;
   }
@@ -1778,7 +1776,7 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
         return env.emit<LoadTypeAttrCacheEntryValue>(cache_id);
       },
       [&] { // Slow path
-        int name_idx = load_attr->name_idx();
+        int name_idx = load_attr->nameIdx();
         return env.emit<FillTypeAttrCache>(
             receiver, name_idx, cache_id, *load_attr->frameState());
       });
@@ -1793,14 +1791,14 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
     return reg;
   }
   if (getConfig().attr_caches) {
-    Register* receiver = load_attr->GetOperand(0);
+    Register* receiver = load_attr->getOperand(0);
     Type ty = receiver->type();
     BorrowedRef<PyTypeObject> type{ty.runtimePyType()};
 
     if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
       return env.emit<LoadModuleAttrCached>(
-          load_attr->GetOperand(0),
-          load_attr->name_idx(),
+          load_attr->getOperand(0),
+          load_attr->nameIdx(),
           *load_attr->frameState());
     }
 
@@ -1808,8 +1806,8 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
       return reg;
     }
     return env.emit<LoadAttrCached>(
-        load_attr->GetOperand(0),
-        load_attr->name_idx(),
+        load_attr->getOperand(0),
+        load_attr->nameIdx(),
         *load_attr->frameState());
   }
   return nullptr;
@@ -1818,7 +1816,7 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
 // If we're loading ob_fval from a known float into a double, this can be
 // simplified into a LoadConst.
 Register* simplifyLoadField(Env& env, const LoadField* instr) {
-  Register* loadee = instr->GetOperand(0);
+  Register* loadee = instr->getOperand(0);
   Type load_output_type = instr->output()->type();
   // Ensure that we are dealing with either a integer or a double.
   Type loadee_type = loadee->type();
@@ -1838,7 +1836,7 @@ Register* simplifyLoadField(Env& env, const LoadField* instr) {
 Register* simplifyIsNegativeAndErrOccurred(
     Env& env,
     const IsNegativeAndErrOccurred* instr) {
-  if (!instr->GetOperand(0)->instr()->IsLoadConst()) {
+  if (!instr->getOperand(0)->instr()->isLoadConst()) {
     return nullptr;
   }
   // Other optimizations might reduce the strength of global loads, etc. to load
@@ -1854,9 +1852,9 @@ Register* simplifyIsNegativeAndErrOccurred(
 Register* simplifyStoreAttr(Env& env, const StoreAttr* store_attr) {
   if (getConfig().attr_caches) {
     return env.emit<StoreAttrCached>(
-        store_attr->GetOperand(0),
-        store_attr->GetOperand(1),
-        store_attr->name_idx(),
+        store_attr->getOperand(0),
+        store_attr->getOperand(1),
+        store_attr->nameIdx(),
         *store_attr->frameState());
   }
   return nullptr;
@@ -1941,7 +1939,7 @@ static Register* resolveArgs(
   }
 
   Register* defaults_obj = env.emit<LoadField>(
-      instr->GetOperand(0),
+      instr->getOperand(0),
       "func_defaults",
       offsetof(PyFunctionObject, func_defaults),
       TTuple);
@@ -1950,16 +1948,16 @@ static Register* resolveArgs(
   // and inserts it to the current block. Returns the output of vectorcall
   auto new_instr = env.emitRawInstr<VectorCall>(
       resolved_args.size() + 1,
-      env.func.env.AllocateRegister(), // output register
+      env.func.env.allocateRegister(), // output register
       CallFlags::None,
       *instr->frameState());
   Register* result = new_instr->output();
 
   // populate the call arguments of the newly created VectorCall
   // the first arg is the function to call
-  new_instr->SetOperand(0, instr->func());
+  new_instr->setOperand(0, instr->func());
   for (size_t i = 0; i < resolved_args.size(); i++) {
-    new_instr->SetOperand(i + 1, resolved_args.at(i));
+    new_instr->setOperand(i + 1, resolved_args.at(i));
   }
   result->set_type(outputType(*new_instr));
   return result;
@@ -1971,13 +1969,13 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
   if constexpr (PY_VERSION_HEX >= 0x030E0000) {
     if (instr->self()->type() <= TNullptr) {
       auto call = env.emitRawInstr<VectorCall>(
-          instr->NumOperands() - 1,
-          env.func.env.AllocateRegister(),
+          instr->numOperands() - 1,
+          env.func.env.allocateRegister(),
           instr->flags(),
           *instr->frameState());
-      call->SetOperand(0, instr->GetOperand(0));
-      for (size_t i = 2; i < instr->NumOperands(); ++i) {
-        call->SetOperand(i - 1, instr->GetOperand(i));
+      call->setOperand(0, instr->getOperand(0));
+      for (size_t i = 2; i < instr->numOperands(); ++i) {
+        call->setOperand(i - 1, instr->getOperand(i));
       }
       call->output()->set_type(instr->output()->type());
       return call->output();
@@ -1985,12 +1983,12 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
   } else {
     if (instr->func()->type() <= TNullptr) {
       auto call = env.emitRawInstr<VectorCall>(
-          instr->NumOperands() - 1,
-          env.func.env.AllocateRegister(),
+          instr->numOperands() - 1,
+          env.func.env.allocateRegister(),
           instr->flags(),
           *instr->frameState());
-      for (size_t i = 1; i < instr->NumOperands(); ++i) {
-        call->SetOperand(i - 1, instr->GetOperand(i));
+      for (size_t i = 1; i < instr->numOperands(); ++i) {
+        call->setOperand(i - 1, instr->getOperand(i));
       }
       return call->output();
     }
@@ -2070,7 +2068,7 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
        ++current) {
     switch (state) {
       case kInitial: {
-        if (!current->IsCondBranch()) {
+        if (!current->isCondBranch()) {
           state = kFailed;
           break;
         }
@@ -2089,12 +2087,12 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
         }
 
         state = kCondBranch;
-        output = current->GetOperand(0);
+        output = current->getOperand(0);
         break;
       }
       case kCondBranch: {
-        if (current->IsIsTruthy() && output == current->output() &&
-            current->GetOperand(0) == instr->output()) {
+        if (current->isIsTruthy() && output == current->output() &&
+            current->getOperand(0) == instr->output()) {
           auto lu_at_istruthy = last_uses.find(&*current);
           if (lu_at_istruthy == last_uses.end() ||
               lu_at_istruthy->second.size() != 1) {
@@ -2107,7 +2105,7 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
           break;
         }
 
-        if (current->IsSnapshot()) {
+        if (current->isSnapshot()) {
           snapshots.push_back(&*current);
           break;
         }
@@ -2121,7 +2119,7 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
           return std::make_optional(std::make_pair(output->instr(), snapshots));
         }
 
-        if (current->IsSnapshot()) {
+        if (current->isSnapshot()) {
           // Leave these snapshots in place.
           break;
         }
@@ -2148,22 +2146,22 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
     return nullptr;
   }
 
-  Register* target = instr->GetOperand(0);
+  Register* target = instr->getOperand(0);
   Type target_type = target->type();
-  if (target_type == env.type_object && instr->NumOperands() == 2) {
+  if (target_type == env.type_object && instr->numOperands() == 2) {
     env.emit<UseType>(target, env.type_object);
     return env.emit<LoadField>(
-        instr->GetOperand(1), "ob_type", offsetof(PyObject, ob_type), TType);
+        instr->getOperand(1), "ob_type", offsetof(PyObject, ob_type), TType);
   }
   if (isBuiltin(target, "len") && instr->numArgs() == 1) {
     env.emit<UseType>(target, target->type());
     return env.emit<GetLength>(instr->arg(0), *instr->frameState());
   }
   if (isBuiltin(target, "isinstance") && instr->numArgs() == 2 &&
-      instr->GetOperand(2)->type() <= TType &&
-      !(instr->GetOperand(2)->type() <= TTuple)) {
-    auto obj_op = instr->GetOperand(1);
-    auto type_op = instr->GetOperand(2);
+      instr->getOperand(2)->type() <= TType &&
+      !(instr->getOperand(2)->type() <= TTuple)) {
+    auto obj_op = instr->getOperand(1);
+    auto type_op = instr->getOperand(2);
 
     auto obj_type = env.emit<LoadField>(
         obj_op, "ob_type", offsetof(PyObject, ob_type), TType);
@@ -2250,28 +2248,28 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
 }
 
 Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
-  if (instr->GetOperand(0)->isA(TDictExact)) {
-    env.emit<UseType>(instr->GetOperand(0), TDictExact);
-    auto output = env.func.env.AllocateRegister();
+  if (instr->getOperand(0)->isA(TDictExact)) {
+    env.emit<UseType>(instr->getOperand(0), TDictExact);
+    auto output = env.func.env.allocateRegister();
     env.emitRawInstr<CallStatic>(
         3,
         output,
         reinterpret_cast<void*>(PyDict_Type.tp_as_mapping->mp_ass_subscript),
         TCInt32,
-        instr->GetOperand(0),
-        instr->GetOperand(1),
-        instr->GetOperand(2));
+        instr->getOperand(0),
+        instr->getOperand(1),
+        instr->getOperand(2));
 
     env.emit<CheckNeg>(output, *instr->frameState());
     return nullptr;
   }
 
   // TODO(T255264263). Enable this for FT builds. See P2169673256.
-  if (!kFreeThreadedBuild && instr->GetOperand(0)->isA(TListExact) &&
-      instr->GetOperand(1)->isA(TLongExact)) {
-    Register* container = instr->GetOperand(0);
-    Register* raw_idx = instr->GetOperand(1);
-    Register* value = instr->GetOperand(2);
+  if (!kFreeThreadedBuild && instr->getOperand(0)->isA(TListExact) &&
+      instr->getOperand(1)->isA(TLongExact)) {
+    Register* container = instr->getOperand(0);
+    Register* raw_idx = instr->getOperand(1);
+    Register* value = instr->getOperand(2);
     Register* adjusted_idx =
         unboxAndCheckListOrTupleIndex(env, instr, container, raw_idx);
     if (adjusted_idx == nullptr) {
@@ -2291,7 +2289,7 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
 }
 
 Register* simplifyCIntToCBool(Env& env, const CIntToCBool* instr) {
-  Type input_type = instr->GetOperand(0)->type();
+  Type input_type = instr->getOperand(0)->type();
   if (input_type.hasIntSpec()) {
     return env.emit<LoadConst>(Type::fromCBool(input_type.intSpec()));
   }
@@ -2467,12 +2465,12 @@ void Simplify::Run(Function& irfunc) {
           env.emitRawInstr<Assign>(instr.output(), new_output);
         }
 
-        if (instr.IsCondBranch() || instr.IsCondBranchIterNotDone() ||
-            instr.IsCondBranchCheckType()) {
+        if (instr.isCondBranch() || instr.isCondBranchIterNotDone() ||
+            instr.isCondBranchCheckType()) {
           JIT_CHECK(env.cursor != env.block->begin(), "Unexpected empty block");
           Instr& prev_instr = *std::prev(env.cursor);
           JIT_CHECK(
-              instr.opcode() == prev_instr.opcode() || prev_instr.IsBranch(),
+              instr.opcode() == prev_instr.opcode() || prev_instr.isBranch(),
               "The only supported simplification for CondBranch* is to a "
               "Branch or a different CondBranch, got unexpected '{}'",
               prev_instr);
@@ -2480,7 +2478,7 @@ void Simplify::Run(Function& irfunc) {
           // If we've optimized a CondBranchBase into a Branch, we also need to
           // remove any Phi references to the current block from the block that
           // we no longer visit.
-          if (prev_instr.IsBranch()) {
+          if (prev_instr.isBranch()) {
             auto cond = static_cast<CondBranchBase*>(&instr);
             BasicBlock* new_dst = prev_instr.successor(0);
             BasicBlock* old_branch_block = cond->false_bb() == new_dst

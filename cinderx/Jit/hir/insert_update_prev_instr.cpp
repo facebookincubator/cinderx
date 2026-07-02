@@ -96,11 +96,11 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
             last_emitted->unlink();
             static_cast<UpdatePrevInstr*>(last_emitted)->setLineNo(line_no);
             last_emitted->copyBytecodeOffset(instr);
-            last_emitted->InsertBefore(instr);
+            last_emitted->insertBefore(instr);
           } else {
             last_emitted = UpdatePrevInstr::create(line_no, parent);
             last_emitted->copyBytecodeOffset(instr);
-            last_emitted->InsertBefore(instr);
+            last_emitted->insertBefore(instr);
           }
         };
         // If we don't have a valid line table to optimize with, update after
@@ -129,7 +129,7 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
       // Inlined functions have a single entry point and a single exit, so we
       // will encounter the exit by following the successor blocks from the
       // entry.
-      if (instr.IsBeginInlinedFunction()) {
+      if (instr.isBeginInlinedFunction()) {
         // We need to ensure we have emitted a line number update to the outer
         // function before going to the inlined function, otherwise the runtime
         // will see the outer function has having an incomplete frame and skip
@@ -148,7 +148,7 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
         inited_once = false;
 #endif
-      } else if (instr.IsEndInlinedFunction()) {
+      } else if (instr.isEndInlinedFunction()) {
         parent =
             parents[static_cast<EndInlinedFunction&>(instr).matchingBegin()];
         last_emitted = nullptr;
@@ -160,7 +160,7 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
       // indicates when we should update the line number from the instruction
       // - 1 to the first instruction to indicate that the frame is now
       // complete.
-      if (!inited_once && instr.IsLoadEvalBreaker()) {
+      if (!inited_once && instr.isLoadEvalBreaker()) {
         auto target_code = parent == nullptr ? func.code : parent->code();
         auto& cur_bc_idx_to_line = code_bc_idx_map.at(target_code);
         int line_no = cur_bc_idx_to_line.lineNoFor(
@@ -168,7 +168,7 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
         Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
         update_instr->setBytecodeOffset(
             BCIndex(target_code->_co_firsttraceable));
-        update_instr->InsertBefore(instr);
+        update_instr->insertBefore(instr);
         last_emitted = update_instr;
 
         inited_once = true;
@@ -182,7 +182,7 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
     }
 
     // Add the successors to be processed
-    auto term = block->GetTerminator();
+    auto term = block->getTerminator();
     for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
       BasicBlock* succ = term->successor(i);
       if (!enqueued.contains(succ)) {
