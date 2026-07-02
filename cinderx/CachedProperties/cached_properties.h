@@ -1,7 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#ifndef Py_CACHED_PROPERTIES_H
-#define Py_CACHED_PROPERTIES_H
+#pragma once
 
 #include "cinderx/python.h"
 
@@ -42,5 +41,3 @@ extern PyTypeObject PyAsyncCachedClassProperty_Type; /* fb T82701047 */
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* !Py_CACHED_PROPERTIES_H */

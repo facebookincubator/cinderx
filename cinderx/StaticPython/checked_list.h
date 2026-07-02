@@ -1,6 +1,5 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
-#ifndef Ci_CHECKED_LIST_H
-#define Ci_CHECKED_LIST_H
+#pragma once
 
 #include "cinderx/python.h"
 
@@ -41,4 +40,3 @@ extern PyType_Spec Ci_CheckedListIter_Spec;
 #ifdef __cplusplus
 }
 #endif
-#endif /* !Ci_CHECKED_LIST_H */

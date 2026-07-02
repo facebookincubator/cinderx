@@ -1,6 +1,5 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
-#ifndef Ci_CHECKED_DICT_H
-#define Ci_CHECKED_DICT_H
+#pragma once
 
 #include "cinderx/python.h"
 
@@ -46,4 +45,3 @@ extern PyType_Spec Ci_CheckedDictRevIterValue_Spec;
 #ifdef __cplusplus
 }
 #endif
-#endif /* !Ci_CHECKED_DICT_H */

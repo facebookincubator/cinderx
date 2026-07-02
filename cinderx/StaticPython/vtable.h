@@ -1,7 +1,6 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
-#ifndef Ci_VTABLE_H
-#define Ci_VTABLE_H
+#pragma once
 
 #include "cinderx/python.h"
 
@@ -86,6 +85,4 @@ StaticMethodInfo _PyClassLoader_LoadStaticMethod(
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

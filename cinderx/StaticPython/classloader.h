@@ -1,6 +1,5 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
-#ifndef Ci_CLASSLOADER_H
-#define Ci_CLASSLOADER_H
+#pragma once
 
 #include "cinderx/python.h"
 
@@ -201,4 +200,3 @@ void _PyClassLoader_ClearValueCache();
 #ifdef __cplusplus
 }
 #endif
-#endif /* !Ci_CLASSLOADER_H */

@@ -1,7 +1,6 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
-#ifndef Ci_STATIC_ARRAY_H
-#define Ci_STATIC_ARRAY_H
+#pragma once
 
 #include "Python.h"
 
@@ -24,6 +23,4 @@ PyObject* _Ci_StaticArray_Get(PyObject* array, Py_ssize_t index);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

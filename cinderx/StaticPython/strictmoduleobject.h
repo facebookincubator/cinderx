@@ -1,8 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 /* Module object interface */
 
-#ifndef Ci_MODULEOBJECT_H
-#define Ci_MODULEOBJECT_H
+#pragma once
 
 #include "cinderx/python.h"
 
@@ -55,4 +54,3 @@ int _PyClassLoader_IsImmutable(PyObject* container);
 #ifdef __cplusplus
 }
 #endif
-#endif /* !Py_MODULEOBJECT_H */
