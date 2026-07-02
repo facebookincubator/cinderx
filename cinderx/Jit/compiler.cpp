@@ -13,7 +13,6 @@
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/dynamic_comparison_elimination.h"
 #include "cinderx/Jit/hir/guard_removal.h"
-#include "cinderx/Jit/hir/hir_stats.h"
 #include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/insert_update_prev_instr.h"
 #include "cinderx/Jit/hir/materialize_steals.h"
@@ -22,6 +21,7 @@
 #include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/simplify.h"
 #include "cinderx/Jit/hir/ssa.h"
+#include "cinderx/Jit/hir/stats.h"
 #include "cinderx/Jit/jit_time_log.h"
 
 #include <chrono>

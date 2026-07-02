@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/hir/hir_stats.h"
+#include "cinderx/Jit/hir/stats.h"
 
 namespace cinderx::jit::hir {
 
