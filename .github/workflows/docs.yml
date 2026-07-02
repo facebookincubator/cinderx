@@ -44,7 +44,7 @@ jobs:
           cache-dependency-path: cinderx/website/yarn.lock
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install
 
       - name: Build (fails on broken links)
         run: yarn build
