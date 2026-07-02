@@ -62,7 +62,7 @@ fun test {
   ASSERT_TRUE(checkFunc(*func, std::cout));
 
   CopyPropagation copy_prop;
-  copy_prop.Run(*func);
+  copy_prop.run(*func);
 
   EXPECT_EQ(HIRPrinter().toString(*func), expected_hir);
 }

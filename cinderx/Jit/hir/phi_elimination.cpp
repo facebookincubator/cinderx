@@ -6,7 +6,7 @@
 
 namespace cinderx::jit::hir {
 
-void PhiElimination::Run(Function& func) {
+void PhiElimination::run(Function& func) {
   for (bool changed = true; changed;) {
     changed = false;
 
@@ -40,7 +40,7 @@ void PhiElimination::Run(Function& func) {
       }
     }
 
-    CopyPropagation{}.Run(func);
+    CopyPropagation{}.run(func);
   }
 
   // Consider having a separate run of CleanCFG between passes clean this up.

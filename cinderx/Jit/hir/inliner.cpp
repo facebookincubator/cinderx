@@ -468,7 +468,7 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
 
 } // namespace
 
-void InlineFunctionCalls::Run(Function& irfunc) {
+void InlineFunctionCalls::run(Function& irfunc) {
   if (irfunc.code == nullptr) {
     // In tests, irfunc may not have bytecode.
     return;
@@ -609,11 +609,11 @@ void InlineFunctionCalls::Run(Function& irfunc) {
   // instructions still queued for inlining), so we clean up here once the loop
   // is done.  CleanCFG removes the unreachable blocks; CopyPropagation first
   // collapses the Assigns the inliner introduced.
-  CopyPropagation{}.Run(irfunc);
-  CleanCFG{}.Run(irfunc);
+  CopyPropagation{}.run(irfunc);
+  CleanCFG{}.run(irfunc);
 }
 
-void BeginInlinedFunctionElimination::Run(Function& irfunc) {
+void BeginInlinedFunctionElimination::run(Function& irfunc) {
   std::vector<EndInlinedFunction*> ends;
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {

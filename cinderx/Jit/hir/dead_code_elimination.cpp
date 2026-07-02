@@ -16,7 +16,7 @@ bool isUseful(Instr& instr) {
 
 } // namespace
 
-void DeadCodeElimination::Run(Function& func) {
+void DeadCodeElimination::run(Function& func) {
   Worklist<Instr*> worklist;
   for (auto& block : func.cfg.blocks) {
     for (Instr& instr : block) {

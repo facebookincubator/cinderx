@@ -1059,7 +1059,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   ASSERT_NE(irfunc, nullptr);
   ASSERT_TRUE(checkFunc(*irfunc, std::cout));
   reflowTypes(*irfunc);
-  RefcountInsertion().Run(*irfunc);
+  RefcountInsertion().run(*irfunc);
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>

@@ -1226,7 +1226,7 @@ void bindGuards(Function& irfunc) {
     snapshot->unlink();
     delete snapshot;
   }
-  DeadCodeElimination{}.Run(irfunc);
+  DeadCodeElimination{}.run(irfunc);
 }
 
 void optimizeLongDecrefRuns(Function& irfunc) {
@@ -1280,8 +1280,8 @@ void optimizeLongDecrefRuns(Function& irfunc) {
 
 } // namespace
 
-void RefcountInsertion::Run(Function& func) {
-  PhiElimination{}.Run(func);
+void RefcountInsertion::run(Function& func) {
+  PhiElimination{}.run(func);
   bindGuards(func);
   func.cfg.splitCriticalEdges();
 

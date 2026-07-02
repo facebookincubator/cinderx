@@ -4,7 +4,7 @@
 
 namespace cinderx::jit::hir {
 
-void HIRStats::Run(Function& irfunc) {
+void HIRStats::run(Function& irfunc) {
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
       stats_.instrs[std::string(instr.opname())]++;

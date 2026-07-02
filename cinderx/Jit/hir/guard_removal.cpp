@@ -75,7 +75,7 @@ bool guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
 
 } // namespace
 
-void GuardTypeRemoval::Run(Function& func) {
+void GuardTypeRemoval::run(Function& func) {
   RegUses reg_uses = collectDirectRegUses(func);
   std::vector<std::unique_ptr<Instr>> removed_guards;
   for (auto& block : func.cfg.blocks) {
@@ -98,7 +98,7 @@ void GuardTypeRemoval::Run(Function& func) {
     }
   }
 
-  CopyPropagation{}.Run(func);
+  CopyPropagation{}.run(func);
   reflowTypes(func);
 }
 

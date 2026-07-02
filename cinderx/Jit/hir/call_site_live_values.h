@@ -12,7 +12,7 @@ class CallSiteLiveValues final : public Pass {
  public:
   CallSiteLiveValues() : Pass("CallSiteLiveValues") {}
 
-  void Run(Function& irfunc) override;
+  void run(Function& irfunc) override;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CallSiteLiveValues);

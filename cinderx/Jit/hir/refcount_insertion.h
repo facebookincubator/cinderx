@@ -11,9 +11,9 @@ class RefcountInsertion final : public Pass {
  public:
   RefcountInsertion() : Pass("RefcountInsertion") {}
 
-  void Run(Function& irfunc) override;
+  void run(Function& irfunc) override;
 
-  static std::unique_ptr<RefcountInsertion> Factory() {
+  static std::unique_ptr<RefcountInsertion> factory() {
     return std::make_unique<RefcountInsertion>();
   }
 

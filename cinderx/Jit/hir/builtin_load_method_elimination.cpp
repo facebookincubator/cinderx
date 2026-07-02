@@ -170,7 +170,7 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
 
 } // namespace
 
-void BuiltinLoadMethodElimination::Run(Function& irfunc) {
+void BuiltinLoadMethodElimination::run(Function& irfunc) {
   bool changed = true;
   while (changed) {
     changed = false;

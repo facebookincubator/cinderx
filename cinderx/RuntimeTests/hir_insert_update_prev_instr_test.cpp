@@ -36,10 +36,10 @@ std::unique_ptr<Function> compileAndRunPass(
   if (irfunc == nullptr) {
     return nullptr;
   }
-  SSAify{}.Run(*irfunc);
-  Simplify{}.Run(*irfunc);
-  PhiElimination{}.Run(*irfunc);
-  InsertUpdatePrevInstr{}.Run(*irfunc);
+  SSAify{}.run(*irfunc);
+  Simplify{}.run(*irfunc);
+  PhiElimination{}.run(*irfunc);
+  InsertUpdatePrevInstr{}.run(*irfunc);
   return irfunc;
 }
 

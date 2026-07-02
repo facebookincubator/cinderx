@@ -154,7 +154,7 @@ class NativeGenerator {
   NativeGeneratorFactory& factory_;
 };
 
-// Factory class for creating instances of NativeGenerator that reuse the same
+// factory class for creating instances of NativeGenerator that reuse the same
 // trampolines.
 class NativeGeneratorFactory {
  public:

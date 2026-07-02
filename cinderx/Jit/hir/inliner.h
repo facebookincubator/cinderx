@@ -12,9 +12,9 @@ class InlineFunctionCalls final : public Pass {
  public:
   InlineFunctionCalls() : Pass("InlineFunctionCalls") {}
 
-  void Run(Function& irfunc) override;
+  void run(Function& irfunc) override;
 
-  static std::unique_ptr<InlineFunctionCalls> Factory() {
+  static std::unique_ptr<InlineFunctionCalls> factory() {
     return std::make_unique<InlineFunctionCalls>();
   }
 };
@@ -25,9 +25,9 @@ class BeginInlinedFunctionElimination final : public Pass {
  public:
   BeginInlinedFunctionElimination() : Pass("BeginInlinedFunctionElimination") {}
 
-  void Run(Function& irfunc) override;
+  void run(Function& irfunc) override;
 
-  static std::unique_ptr<BeginInlinedFunctionElimination> Factory() {
+  static std::unique_ptr<BeginInlinedFunctionElimination> factory() {
     return std::make_unique<BeginInlinedFunctionElimination>();
   }
 };

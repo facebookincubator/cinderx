@@ -43,11 +43,11 @@ class AllPasses : public Pass {
  public:
   AllPasses() : Pass("@AllPasses") {}
 
-  void Run(Function& irfunc) override {
+  void run(Function& irfunc) override {
     Compiler::runPasses(irfunc, PassConfig::kAll);
   }
 
-  static std::unique_ptr<AllPasses> Factory() {
+  static std::unique_ptr<AllPasses> factory() {
     return std::make_unique<AllPasses>();
   }
 
@@ -60,20 +60,20 @@ using PassFactory = std::function<std::unique_ptr<Pass>()>;
 class TestPassRegistry {
  public:
   TestPassRegistry() {
-    addPass(RefcountInsertion::Factory);
-    addPass(CopyPropagation::Factory);
-    addPass(CleanCFG::Factory);
-    addPass(DynamicComparisonElimination::Factory);
-    addPass(PhiElimination::Factory);
-    addPass(InlineFunctionCalls::Factory);
-    addPass(Simplify::Factory);
-    addPass(DeadCodeElimination::Factory);
-    addPass(GuardTypeRemoval::Factory);
-    addPass(BeginInlinedFunctionElimination::Factory);
-    addPass(BuiltinLoadMethodElimination::Factory);
-    addPass(InsertUpdatePrevInstr::Factory);
+    addPass(RefcountInsertion::factory);
+    addPass(CopyPropagation::factory);
+    addPass(CleanCFG::factory);
+    addPass(DynamicComparisonElimination::factory);
+    addPass(PhiElimination::factory);
+    addPass(InlineFunctionCalls::factory);
+    addPass(Simplify::factory);
+    addPass(DeadCodeElimination::factory);
+    addPass(GuardTypeRemoval::factory);
+    addPass(BeginInlinedFunctionElimination::factory);
+    addPass(BuiltinLoadMethodElimination::factory);
+    addPass(InsertUpdatePrevInstr::factory);
 
-    addPass(AllPasses::Factory);
+    addPass(AllPasses::factory);
   }
 
   std::unique_ptr<Pass> makePass(const std::string& name) {

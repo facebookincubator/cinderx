@@ -19,7 +19,7 @@ Instr* replaceCompare(Compare* compare, IsTruthy* truthy) {
 
 } // namespace
 
-void DynamicComparisonElimination::Run(Function& irfunc) {
+void DynamicComparisonElimination::run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
   liveness.run();
   auto last_uses = liveness.getLastUses();

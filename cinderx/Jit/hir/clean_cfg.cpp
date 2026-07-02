@@ -46,13 +46,13 @@ bool absorbDstBlock(BasicBlock* block) {
 
 } // namespace
 
-void CleanCFG::Run(Function& irfunc) {
+void CleanCFG::run(Function& irfunc) {
   bool changed = false;
 
   do {
     removeUnreachableInstructions(irfunc);
     // Remove any trivial Phis; absorbDstBlock cannot handle them.
-    PhiElimination{}.Run(irfunc);
+    PhiElimination{}.run(irfunc);
     std::vector<BasicBlock*> blocks = irfunc.cfg.getRPOTraversal();
     for (auto block : blocks) {
       // Ignore transient empty blocks.

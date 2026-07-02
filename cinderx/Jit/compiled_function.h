@@ -167,7 +167,7 @@ class CompiledFunctionOwner {
 class CompiledFunction {
  public:
   PyObject_HEAD
-  // Factory function to create a new CompiledFunction.
+  // factory function to create a new CompiledFunction.
   [[nodiscard]] static Ref<CompiledFunction> create(
       CompiledFunctionData&& data,
       bool immortal);

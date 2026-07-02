@@ -2417,7 +2417,7 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
 } // namespace
 
-void Simplify::Run(Function& irfunc) {
+void Simplify::run(Function& irfunc) {
   Env env{irfunc};
 
   const SimplifierConfig& config = getConfig().simplifier;
@@ -2510,9 +2510,9 @@ void Simplify::Run(Function& irfunc) {
 
     if (changed) {
       // Perform some simple cleanup between each pass.
-      CopyPropagation{}.Run(irfunc);
+      CopyPropagation{}.run(irfunc);
       reflowTypes(irfunc);
-      CleanCFG{}.Run(irfunc);
+      CleanCFG{}.run(irfunc);
     }
   }
 }

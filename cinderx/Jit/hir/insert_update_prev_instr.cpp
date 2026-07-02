@@ -68,7 +68,7 @@ struct InlineStackState {
 
 } // namespace
 
-void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
+void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
   // We can have instructions w/ different code objects when we have
   // inlined functions so we maintain multiple BytecodeIndexToLine based upon
   // the code object

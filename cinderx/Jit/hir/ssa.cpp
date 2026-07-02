@@ -274,15 +274,15 @@ bool checkFunc(const Function& func, std::ostream& err) {
   return env.ok;
 }
 
-void SSAify::Run(Function& irfunc) {
-  Run(irfunc, irfunc.cfg.entry_block);
-  PhiElimination{}.Run(irfunc);
+void SSAify::run(Function& irfunc) {
+  run(irfunc, irfunc.cfg.entry_block);
+  PhiElimination{}.run(irfunc);
 }
 
 // This implements the algorithm outlined in "Simple and Efficient Construction
 // of Static Single Assignment Form"
 // https://pp.info.uni-karlsruhe.de/uploads/publikationen/braun13cc.pdf
-void SSAify::Run(Function& irfunc, BasicBlock* start) {
+void SSAify::run(Function& irfunc, BasicBlock* start) {
   env_ = &irfunc.env;
 
   auto blocks = CFG::getRPOTraversal(start);

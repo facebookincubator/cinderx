@@ -13,9 +13,9 @@ class HIRStats final : public Pass {
  public:
   HIRStats() : Pass("HIRStats") {}
 
-  void Run(Function& irfunc) override;
+  void run(Function& irfunc) override;
 
-  static std::unique_ptr<HIRStats> Factory() {
+  static std::unique_ptr<HIRStats> factory() {
     return std::make_unique<HIRStats>();
   }
 

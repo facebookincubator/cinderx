@@ -19,7 +19,7 @@ class Pass {
   explicit Pass(std::string_view name) : name_{name} {}
   virtual ~Pass() = default;
 
-  virtual void Run(Function& irfunc) = 0;
+  virtual void run(Function& irfunc) = 0;
 
   constexpr std::string_view name() const {
     return name_;

@@ -58,15 +58,15 @@ void HIRTest::TestBody() {
     if (!src_is_hir_ &&
         !(passes_.size() == 1 &&
           std::string(passes_.at(0)->name()) == "@AllPasses")) {
-      SSAify{}.Run(*irfunc);
+      SSAify{}.run(*irfunc);
       // Perform some straightforward cleanup on Python inputs to make the
       // output more reasonable. This implies that tests for the passes used
       // here are most useful as HIR-only tests.
-      Simplify{}.Run(*irfunc);
-      PhiElimination{}.Run(*irfunc);
+      Simplify{}.run(*irfunc);
+      PhiElimination{}.run(*irfunc);
     }
     for (auto& pass : passes_) {
-      pass->Run(*irfunc);
+      pass->run(*irfunc);
     }
     ASSERT_TRUE(checkFunc(*irfunc, std::cout));
   }

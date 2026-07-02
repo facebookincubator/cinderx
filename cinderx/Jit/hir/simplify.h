@@ -16,9 +16,9 @@ class Simplify final : public Pass {
  public:
   Simplify() : Pass("Simplify") {}
 
-  void Run(Function& func) override;
+  void run(Function& func) override;
 
-  static std::unique_ptr<Simplify> Factory() {
+  static std::unique_ptr<Simplify> factory() {
     return std::make_unique<Simplify>();
   }
 

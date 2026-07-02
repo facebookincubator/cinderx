@@ -41,7 +41,7 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                     func);
 
                 Timer timer;
-                pass.Run(func);
+                pass.run(func);
                 std::size_t time_ns = timer.finish().count();
                 callback(func, pass.name(), time_ns);
 

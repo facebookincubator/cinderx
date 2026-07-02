@@ -81,7 +81,7 @@ void fillCallSiteLiveRegs(
 
 } // namespace
 
-void CallSiteLiveValues::Run(Function& irfunc) {
+void CallSiteLiveValues::run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
   liveness.run();
 

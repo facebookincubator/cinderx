@@ -314,7 +314,7 @@ TEST(CheckFuncTest, UnreachableBlock) {
 static void testSSAify(const char* hir_source, const char* expected) {
   std::unique_ptr<Function> func(HIRParser().parseHIR(hir_source));
   ASSERT_NE(func, nullptr);
-  SSAify().Run(*func);
+  SSAify().run(*func);
   ASSERT_EQ(HIRPrinter().toString(*func), expected);
 }
 

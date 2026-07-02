@@ -17,7 +17,7 @@ static void testFillGuards(const char* hir_source, const char* expected) {
   ASSERT_NE(func, nullptr);
   ASSERT_TRUE(checkFunc(*func, std::cout));
   reflowTypes(*func);
-  RefcountInsertion().Run(*func);
+  RefcountInsertion().run(*func);
   ASSERT_EQ(HIRPrinter{}.setFullSnapshots(true).toString(*func), expected);
 }
 
