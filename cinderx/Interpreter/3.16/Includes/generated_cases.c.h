@@ -1925,7 +1925,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2442,7 +2442,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2535,7 +2535,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2624,7 +2624,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2735,7 +2735,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2849,7 +2849,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -3177,7 +3177,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -3686,7 +3686,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4102,7 +4102,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4222,7 +4222,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4344,7 +4344,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4479,7 +4479,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4556,7 +4556,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4854,7 +4854,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4932,7 +4932,7 @@
             {
                 assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -5877,68 +5877,6 @@
             _PyFrame_StackPointerValidate(frame);
             PyStackRef_XCLOSE(tmp);
             _PyFrame_StackPointerInvalidate(frame);
-            DISPATCH();
-        }
-
-        TARGET(DELETE_GLOBAL) {
-            #if _Py_TAIL_CALL_INTERP
-            int opcode = DELETE_GLOBAL;
-            (void)(opcode);
-            #endif
-            frame->instr_ptr = next_instr;
-            next_instr += 1;
-            INSTRUCTION_STATS(DELETE_GLOBAL);
-            PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
-            _PyFrame_SetStackPointer(frame, stack_pointer);
-            _PyFrame_StackPointerValidate(frame);
-            int err = PyDict_Pop(GLOBALS(), name, NULL);
-            _PyFrame_StackPointerInvalidate(frame);
-            if (err < 0) {
-                JUMP_TO_LABEL(error);
-            }
-            if (err == 0) {
-                assert(stack_pointer == _PyFrame_GetStackPointer(frame));
-                _PyFrame_StackPointerValidate(frame);
-                _PyEval_FormatExcCheckArg(tstate, PyExc_NameError,
-                    NAME_ERROR_MSG, name);
-                _PyFrame_StackPointerInvalidate(frame);
-                JUMP_TO_LABEL(error);
-            }
-            DISPATCH();
-        }
-
-        TARGET(DELETE_NAME) {
-            #if _Py_TAIL_CALL_INTERP
-            int opcode = DELETE_NAME;
-            (void)(opcode);
-            #endif
-            frame->instr_ptr = next_instr;
-            next_instr += 1;
-            INSTRUCTION_STATS(DELETE_NAME);
-            PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
-            PyObject *ns = LOCALS();
-            int err;
-            if (ns == NULL) {
-                _PyFrame_SetStackPointer(frame, stack_pointer);
-                _PyFrame_StackPointerValidate(frame);
-                _PyErr_Format(tstate, PyExc_SystemError,
-                              "no locals when deleting %R", name);
-                _PyFrame_StackPointerInvalidate(frame);
-                JUMP_TO_LABEL(error);
-            }
-            _PyFrame_SetStackPointer(frame, stack_pointer);
-            _PyFrame_StackPointerValidate(frame);
-            err = PyObject_DelItem(ns, name);
-            _PyFrame_StackPointerInvalidate(frame);
-            if (err != 0) {
-                assert(stack_pointer == _PyFrame_GetStackPointer(frame));
-                _PyFrame_StackPointerValidate(frame);
-                _PyEval_FormatExcCheckArg(tstate, PyExc_NameError,
-                    NAME_ERROR_MSG,
-                    name);
-                _PyFrame_StackPointerInvalidate(frame);
-                JUMP_TO_LABEL(error);
-            }
             DISPATCH();
         }
 
@@ -8894,7 +8832,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -9076,7 +9014,7 @@
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 _PyFrame_StackPointerInvalidate(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -10192,8 +10130,7 @@
                         (this_instr->op.code == JUMP_BACKWARD_JIT || is_resume)) &&
                     next_instr->op.code != ENTER_EXECUTOR) {
                     _Py_CODEUNIT *insert_exec_at = this_instr;
-                    while (oparg > 255) {
-                        oparg >>= 8;
+                    for (int tmp = oparg; tmp > 255; tmp >>= 8) {
                         insert_exec_at--;
                     }
                     int succ = _PyJit_TryInitializeTracing(tstate, frame, this_instr, insert_exec_at,
@@ -13193,8 +13130,7 @@
                         (this_instr->op.code == JUMP_BACKWARD_JIT || is_resume)) &&
                     next_instr->op.code != ENTER_EXECUTOR) {
                     _Py_CODEUNIT *insert_exec_at = this_instr;
-                    while (oparg > 255) {
-                        oparg >>= 8;
+                    for (int tmp = oparg; tmp > 255; tmp >>= 8) {
                         insert_exec_at--;
                     }
                     int succ = _PyJit_TryInitializeTracing(tstate, frame, this_instr, insert_exec_at,
@@ -14187,17 +14123,36 @@
             _PyStackRef v;
             v = stack_pointer[-1];
             PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
-            _PyFrame_SetStackPointer(frame, stack_pointer);
-            _PyFrame_StackPointerValidate(frame);
-            int err = PyDict_SetItem(GLOBALS(), name, PyStackRef_AsPyObjectBorrow(v));
-            _PyFrame_StackPointerInvalidate(frame);
-            stack_pointer += -1;
-            ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
-            _PyFrame_SetStackPointer(frame, stack_pointer);
-            _PyFrame_StackPointerValidate(frame);
-            PyStackRef_CLOSE(v);
-            _PyFrame_StackPointerInvalidate(frame);
-            if (err) {
+            int err;
+            if (PyStackRef_IsNull(v)) {
+                stack_pointer += -1;
+                ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                _PyFrame_StackPointerValidate(frame);
+                err = PyDict_Pop(GLOBALS(), name, NULL);
+                _PyFrame_StackPointerInvalidate(frame);
+                if (err == 0) {
+                    err = -1;
+                    assert(stack_pointer == _PyFrame_GetStackPointer(frame));
+                    _PyFrame_StackPointerValidate(frame);
+                    _PyEval_FormatExcCheckArg(tstate, PyExc_NameError,
+                        NAME_ERROR_MSG, name);
+                    _PyFrame_StackPointerInvalidate(frame);
+                }
+            }
+            else {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                _PyFrame_StackPointerValidate(frame);
+                err = PyDict_SetItem(GLOBALS(), name, PyStackRef_AsPyObjectBorrow(v));
+                _PyFrame_StackPointerInvalidate(frame);
+                stack_pointer += -1;
+                ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                _PyFrame_StackPointerValidate(frame);
+                PyStackRef_CLOSE(v);
+                _PyFrame_StackPointerInvalidate(frame);
+            }
+            if (err < 0) {
                 JUMP_TO_LABEL(error);
             }
             DISPATCH();
@@ -14215,42 +14170,26 @@
             v = stack_pointer[-1];
             PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
             PyObject *ns = LOCALS();
-            int err;
-            if (ns == NULL) {
-                _PyFrame_SetStackPointer(frame, stack_pointer);
-                _PyFrame_StackPointerValidate(frame);
-                _PyErr_Format(tstate, PyExc_SystemError,
-                              "no locals found when storing %R", name);
-                _PyFrame_StackPointerInvalidate(frame);
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _PyFrame_StackPointerValidate(frame);
+            int error = _PyEval_StoreName(tstate, v, name, ns);
+            _PyFrame_StackPointerInvalidate(frame);
+            if (PyStackRef_IsNull(v)) {
+            }
+            else {
                 stack_pointer += -1;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 _PyFrame_StackPointerValidate(frame);
                 PyStackRef_CLOSE(v);
                 _PyFrame_StackPointerInvalidate(frame);
-                JUMP_TO_LABEL(error);
+                stack_pointer += 1;
             }
-            if (PyDict_CheckExact(ns)) {
-                _PyFrame_SetStackPointer(frame, stack_pointer);
-                _PyFrame_StackPointerValidate(frame);
-                err = PyDict_SetItem(ns, name, PyStackRef_AsPyObjectBorrow(v));
-                _PyFrame_StackPointerInvalidate(frame);
-            }
-            else {
-                _PyFrame_SetStackPointer(frame, stack_pointer);
-                _PyFrame_StackPointerValidate(frame);
-                err = PyObject_SetItem(ns, name, PyStackRef_AsPyObjectBorrow(v));
-                _PyFrame_StackPointerInvalidate(frame);
+            if (error) {
+                JUMP_TO_LABEL(pop_1_error);
             }
             stack_pointer += -1;
             ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
-            _PyFrame_SetStackPointer(frame, stack_pointer);
-            _PyFrame_StackPointerValidate(frame);
-            PyStackRef_CLOSE(v);
-            _PyFrame_StackPointerInvalidate(frame);
-            if (err) {
-                JUMP_TO_LABEL(error);
-            }
             DISPATCH();
         }
 

@@ -3267,6 +3267,20 @@ class PyFlowGraph316(PyFlowGraph315):
             self.ordered_blocks, allow_empty_tuple=True
         )
 
+    def emit(self, opcode: str, oparg: object = 0) -> None:
+        # 3.16a1 (magic 3702/3703) removed DELETE_NAME and DELETE_GLOBAL:
+        # deleting a name/global is now PUSH_NULL; STORE_{NAME,GLOBAL}, where
+        # storing NULL performs the delete. DELETE_FAST/DELETE_DEREF are
+        # unchanged. Rewriting at the graph level catches every emission site.
+        if opcode == "DELETE_NAME":
+            super().emit("PUSH_NULL")
+            super().emit("STORE_NAME", oparg)
+        elif opcode == "DELETE_GLOBAL":
+            super().emit("PUSH_NULL")
+            super().emit("STORE_GLOBAL", oparg)
+        else:
+            super().emit(opcode, oparg)
+
 
 # Constants for reference tracking flags
 SUPPORT_KILLED = (
