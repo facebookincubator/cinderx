@@ -160,8 +160,7 @@ BB %6
 
 TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
 #ifndef Py_GIL_DISABLED
-  GTEST_SKIP() << "Object pointer stripping is only enabled in free-threaded "
-                  "builds";
+  // Object pointer stripping is only enabled in free-threaded builds.
 #else
   const char* lir_input_str = R"(Function:
 BB %0
