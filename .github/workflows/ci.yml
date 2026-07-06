@@ -19,7 +19,7 @@ jobs:
           - os: ubuntu-latest
             python-version: '3.14t'
           - os: ubuntu-latest
-            python-version: '3.15.0-beta.1'
+            python-version: '3.15.0-beta.3'
 
     steps:
     - name: Checkout CinderX
