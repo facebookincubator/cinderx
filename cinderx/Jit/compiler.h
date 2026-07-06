@@ -38,6 +38,7 @@ enum PassConfig : uint64_t {
   kPhiElim = 1 << 7,
   kSimplify = 1 << 8,
   kInsertUpdatePrevInstr = 1 << 9,
+  kSinkPrimitiveBox = 1 << 10,
 
   // Run all the passes.
   kAll = ~uint64_t{0},

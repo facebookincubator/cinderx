@@ -20,6 +20,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/simplify.h"
+#include "cinderx/Jit/hir/sink_primitive_box.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/stats.h"
 #include "cinderx/Jit/jit_time_log.h"
@@ -107,6 +108,7 @@ void Compiler::runPasses(
       hir::BuiltinLoadMethodElimination{}, PassConfig::kBuiltinLoadMethodElim);
   runPassIf(hir::Simplify{}, PassConfig::kSimplify);
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
+  runPassIf(hir::SinkPrimitiveBox{}, PassConfig::kSinkPrimitiveBox);
   runPassIf(hir::DeadCodeElimination{}, PassConfig::kDeadCodeElim);
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
 
@@ -164,6 +166,7 @@ PassConfig createConfig() {
   set(hir_opts.insert_update_prev_instr, PassConfig::kInsertUpdatePrevInstr);
   set(hir_opts.phi_elim, PassConfig::kPhiElim);
   set(hir_opts.simplify, PassConfig::kSimplify);
+  set(hir_opts.sink_primitive_box, PassConfig::kSinkPrimitiveBox);
 
   return static_cast<PassConfig>(result);
 }
