@@ -1622,6 +1622,15 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
             cache_stats_, tp, name, CacheMissReason::kPyDescrIsData);
         PyObject* result = f(descr, obj, (PyObject*)obj->ob_type);
         Py_DECREF(descr);
+        if (result == nullptr) {
+          // Replicate slot_tp_getattr_hook semantics: an AttributeError
+          // raised by the descriptor's __get__ (e.g. an unset slot) falls
+          // back to __getattr__ rather than propagating.
+          result = tryGetAttrFallback(tp, nullptr, obj, name);
+          if (result == nullptr) {
+            return {nullptr, nullptr};
+          }
+        }
         return {Py_None, result};
       }
     }
@@ -1690,6 +1699,13 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
         cache_stats_, tp, name, CacheMissReason::kUncategorized);
     PyObject* result = f(descr, obj, (PyObject*)Py_TYPE(obj));
     Py_DECREF(descr);
+    if (result == nullptr) {
+      // As above: route an AttributeError from __get__ to __getattr__.
+      result = tryGetAttrFallback(tp, nullptr, obj, name);
+      if (result == nullptr) {
+        return {nullptr, nullptr};
+      }
+    }
     return {Py_None, result};
   }
 
