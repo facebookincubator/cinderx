@@ -182,6 +182,71 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("COMPARE_OP_FLOAT", opnames(f))
         self.assertEqual(f(2.5, 3.5), True)
 
+    def test_compare_op_float_comparisons(self) -> None:
+        import operator
+
+        nan = float("nan")
+        # Ordered, equal, and NaN inputs. Every ordering comparison involving a
+        # NaN must be False, `nan == nan` must be False, and `nan != nan` must be
+        # True, matching CPython.
+        cases = [
+            (2.5, 3.5),
+            (3.5, 2.5),
+            (2.5, 2.5),
+            (-1.0, 1.0),
+            (nan, 2.5),
+            (2.5, nan),
+            (nan, nan),
+        ]
+
+        entries = [
+            ("<", operator.lt, lambda a, b: a < b),
+            ("<=", operator.le, lambda a, b: a <= b),
+            (">", operator.gt, lambda a, b: a > b),
+            (">=", operator.ge, lambda a, b: a >= b),
+            ("==", operator.eq, lambda a, b: a == b),
+            ("!=", operator.ne, lambda a, b: a != b),
+        ]
+        for opname, ref, f in entries:
+            specialize(f, lambda: f(1.5, 2.5))
+            self.assertIn("COMPARE_OP_FLOAT", opnames(f), opname)
+            for a, b in cases:
+                self.assertEqual(f(a, b), ref(a, b), f"{a} {opname} {b}")
+
+    def test_compare_op_float_branch(self) -> None:
+        import operator
+
+        nan = float("nan")
+        # Same as test_compare_op_float_comparisons, but the comparison feeds an
+        # `if` so the backend may fuse it into a conditional branch. The fused
+        # branch picks its condition from the comparison opcode, so it must stay
+        # NaN-correct and agree with the standalone comparison.
+        cases = [
+            (2.5, 3.5),
+            (3.5, 2.5),
+            (2.5, 2.5),
+            (-1.0, 1.0),
+            (nan, 2.5),
+            (2.5, nan),
+            (nan, nan),
+        ]
+
+        entries = [
+            ("<", operator.lt, lambda a, b: True if a < b else False),
+            ("<=", operator.le, lambda a, b: True if a <= b else False),
+            (">", operator.gt, lambda a, b: True if a > b else False),
+            (">=", operator.ge, lambda a, b: True if a >= b else False),
+            ("==", operator.eq, lambda a, b: True if a == b else False),
+            ("!=", operator.ne, lambda a, b: True if a != b else False),
+        ]
+        for opname, ref, f in entries:
+            specialize(f, lambda: f(1.5, 2.5))
+            self.assertIn("COMPARE_OP_FLOAT", opnames(f), opname)
+            # Testing COMPARE_OP -> POP_JUMP_IF_FALSE control flow.
+            self.assertIn("POP_JUMP_IF_FALSE", opnames(f), opname)
+            for a, b in cases:
+                self.assertEqual(f(a, b), ref(a, b), f"{a} {opname} {b}")
+
     def test_compare_op_int(self) -> None:
         def f(a: int, b: int) -> bool:
             return a < b

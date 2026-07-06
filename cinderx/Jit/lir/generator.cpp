@@ -2592,6 +2592,126 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case Opcode::kPrimitiveCompare: {
         auto instr = static_cast<const PrimitiveCompare*>(&i);
+        // Float comparisons need NaN-correct condition codes, and the choice is
+        // architecture-specific because comisd (x86-64) and fcmp (ARM64) expose
+        // different flags for unordered (NaN) operands.  Pick the LIR opcode
+        // (and operand order) so the opcode's standard condition, used both by
+        // the standalone setcc/cset and by a compare fused into a branch
+        // through compareToBranchCC, yields Python's result: every ordering
+        // comparison involving a NaN is false, `NaN == NaN` is False, `Nan !=
+        // NaN` is True.
+        if (instr->left()->type() <= TCDouble) {
+          Register* lhs = instr->left();
+          Register* rhs = instr->right();
+#if defined(CINDER_X86_64)
+          // comisd sets unsigned-sense flags and reports unordered as CF=1, so
+          // only the above / above-equal conditions are false for NaN.  Express
+          // every ordering as > / >=, swapping operands for < / <=.  == / !=
+          // have no NaN-correct single-instruction form (comisd folds unordered
+          // into ZF), so build them from ordering comparisons:
+          //   a == b == (a <= b) && (a >= b);  a != b == !(a == b)
+          // Floats are neither signed nor unsigned, so the signed and unsigned
+          // PrimitiveCompareOp variants denote the same ordering (Static Python
+          // `double` emits the unsigned variants; the Python-float path emits
+          // the natural ones).
+          switch (instr->op()) {
+            case PrimitiveCompareOp::kGreaterThan:
+            case PrimitiveCompareOp::kGreaterThanUnsigned:
+              bbb.appendInstr(
+                  instr->output(), Instruction::kGreaterThanUnsigned, lhs, rhs);
+              break;
+            case PrimitiveCompareOp::kGreaterThanEqual:
+            case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+              bbb.appendInstr(
+                  instr->output(),
+                  Instruction::kGreaterThanEqualUnsigned,
+                  lhs,
+                  rhs);
+              break;
+            case PrimitiveCompareOp::kLessThan: // a < b == b > a
+            case PrimitiveCompareOp::kLessThanUnsigned:
+              bbb.appendInstr(
+                  instr->output(), Instruction::kGreaterThanUnsigned, rhs, lhs);
+              break;
+            case PrimitiveCompareOp::kLessThanEqual: // a <= b == b >= a
+            case PrimitiveCompareOp::kLessThanEqualUnsigned:
+              bbb.appendInstr(
+                  instr->output(),
+                  Instruction::kGreaterThanEqualUnsigned,
+                  rhs,
+                  lhs);
+              break;
+            case PrimitiveCompareOp::kEqual:
+            case PrimitiveCompareOp::kNotEqual: {
+              Instruction* le = bbb.appendInstr(
+                  OutVReg{Operand::k8bit},
+                  Instruction::kGreaterThanEqualUnsigned,
+                  rhs,
+                  lhs); // a <= b
+              Instruction* ge = bbb.appendInstr(
+                  OutVReg{Operand::k8bit},
+                  Instruction::kGreaterThanEqualUnsigned,
+                  lhs,
+                  rhs); // a >= b
+              if (instr->op() == PrimitiveCompareOp::kEqual) {
+                bbb.appendInstr(instr->output(), Instruction::kAnd, le, ge);
+              } else {
+                Instruction* eq = bbb.appendInstr(
+                    OutVReg{Operand::k8bit}, Instruction::kAnd, le, ge);
+                bbb.appendInstr(
+                    instr->output(),
+                    Instruction::kXor,
+                    eq,
+                    Imm{1, DataType::k8bit});
+              }
+              break;
+            }
+            default:
+              JIT_ABORT(
+                  "Not a float comparison {}", static_cast<int>(instr->op()));
+          }
+#elif defined(CINDER_AARCH64)
+          // fcmp leaves Z=0 for unordered operands and sets C=1, V=1.  Pick the
+          // condition that is false for NaN on each ordering: GT/GE for > / >=
+          // (signed opcodes), LO/LS for < / <= (unsigned opcodes).  EQ/NE key
+          // off Z alone and are already NaN-correct.  Floats are neither signed
+          // nor unsigned, so the signed and unsigned PrimitiveCompareOp
+          // variants denote the same ordering (Static Python `double` emits the
+          // unsigned variants; the Python-float path emits the natural ones).
+          Instruction::Opcode op;
+          switch (instr->op()) {
+            case PrimitiveCompareOp::kEqual:
+              op = Instruction::kEqual;
+              break;
+            case PrimitiveCompareOp::kNotEqual:
+              op = Instruction::kNotEqual;
+              break;
+            case PrimitiveCompareOp::kGreaterThan:
+            case PrimitiveCompareOp::kGreaterThanUnsigned:
+              op = Instruction::kGreaterThanSigned;
+              break;
+            case PrimitiveCompareOp::kGreaterThanEqual:
+            case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+              op = Instruction::kGreaterThanEqualSigned;
+              break;
+            case PrimitiveCompareOp::kLessThan:
+            case PrimitiveCompareOp::kLessThanUnsigned:
+              op = Instruction::kLessThanUnsigned;
+              break;
+            case PrimitiveCompareOp::kLessThanEqual:
+            case PrimitiveCompareOp::kLessThanEqualUnsigned:
+              op = Instruction::kLessThanEqualUnsigned;
+              break;
+            default:
+              JIT_ABORT(
+                  "Not a float comparison {}", static_cast<int>(instr->op()));
+          }
+          bbb.appendInstr(instr->output(), op, lhs, rhs);
+#else
+          CINDER_UNSUPPORTED
+#endif
+          break;
+        }
         Instruction::Opcode op;
         switch (instr->op()) {
           case PrimitiveCompareOp::kEqual:
@@ -3339,17 +3459,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             instr->left(),
             instr->right(),
             op);
-        break;
-      }
-      case Opcode::kFloatCompare: {
-        auto instr = static_cast<const FloatCompare*>(&i);
-
-        bbb.appendCallInstruction(
-            instr->output(),
-            PyFloat_Type.tp_richcompare,
-            instr->left(),
-            instr->right(),
-            static_cast<int>(instr->op()));
         break;
       }
       case Opcode::kLongCompare: {

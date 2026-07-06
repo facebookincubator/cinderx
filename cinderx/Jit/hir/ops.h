@@ -57,7 +57,6 @@ namespace cinderx::jit::hir {
   V(FillTypeAttrCache)             \
   V(FillTypeMethodCache)           \
   V(FloatBinaryOp)                 \
-  V(FloatCompare)                  \
   V(FormatValue)                   \
   V(FormatWithSpec)                \
   V(GetAIter)                      \
