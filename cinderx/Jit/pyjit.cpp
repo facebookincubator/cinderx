@@ -564,11 +564,6 @@ FlagProcessor initFlagProcessor() {
       "CINDERX_JIT_PHI_ELIM");
   HIR_OPTIMIZATION_OPTION(
       "simplify", simplify, "cinderx-jit-simplify", "CINDERX_JIT_SIMPLIFY");
-  HIR_OPTIMIZATION_OPTION(
-      "sink primitive box",
-      sink_primitive_box,
-      "cinderx-jit-sink-primitive-box",
-      "CINDERX_JIT_SINK_PRIMITIVE_BOX");
 
   flag_processor.addOption(
       "cinderx-jit-simplify-iteration-limit",

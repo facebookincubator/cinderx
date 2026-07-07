@@ -43,7 +43,6 @@ struct HIROptimizations {
   bool insert_update_prev_instr{true};
   bool phi_elim{true};
   bool simplify{true};
-  bool sink_primitive_box{true};
 };
 
 // List of LIR optimization passes to run.
