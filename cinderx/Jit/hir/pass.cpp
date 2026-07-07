@@ -355,6 +355,7 @@ Type outputType(
     }
     case Opcode::kFloatBinaryOp:
       return TFloatExact;
+    case Opcode::kFloatCompare:
     case Opcode::kLongCompare:
     case Opcode::kUnicodeCompare:
       return TImmortalBool;

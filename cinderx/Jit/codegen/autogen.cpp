@@ -531,13 +531,6 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
   } else if (!inp1->isVecD()) {
     as->cmp(AutoTranslator::getGp(inp0), AutoTranslator::getGp(inp1));
   } else {
-    // Floating-point comparison; both operands are in XMM registers.  `comisd`
-    // sets the flags in the unsigned sense (CF/ZF) and reports unordered (NaN)
-    // operands as CF=ZF=PF=1; the shared condition switch below then reads
-    // those flags.  NaN-correctness and the comparison direction are chosen
-    // when the compare is lowered to LIR, so a compare fused into a branch,
-    // which reuses these flags via compareToBranchCC on the LIR opcode, stays
-    // consistent with the standalone setcc emitted here.
     as->comisd(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
   auto output = AutoTranslator::getGp(instr->output());
@@ -573,7 +566,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
       as->setbe(output);
       break;
     default:
-      JIT_ABORT("Bad instruction for TranslateCompare {}", instr->opname());
+      JIT_ABORT("bad instruction for TranslateCompare");
   }
   if (instr->output()->dataType() != lir::Operand::k8bit) {
     as->movzx(
@@ -600,11 +593,6 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
   } else if (!inp1->isVecD()) {
     as->cmp(AutoTranslator::getGpWiden(inp0), AutoTranslator::getGpWiden(inp1));
   } else {
-    // Floating-point comparison, see the note in the x86-64 path.  `fcmp` sets
-    // NZCV (unordered/NaN operands set C=1, V=1 while leaving Z=0), the shared
-    // condition switch below picks the cset. NaN-correctness and the comparison
-    // direction are chosen when the compare is lowered to LIR, keeping the
-    // standalone cset and any fused b.cc consistent.
     as->fcmp(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
 
@@ -641,7 +629,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
       as->cset(output, arm::CondCode::kLS);
       break;
     default:
-      JIT_ABORT("Bad instruction for TranslateCompare {}", instr->opname());
+      JIT_ABORT("bad instruction for TranslateCompare");
   }
 #else
   CINDER_UNSUPPORTED
