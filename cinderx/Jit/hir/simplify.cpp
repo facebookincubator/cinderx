@@ -1098,10 +1098,11 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
     return env.emit<UnicodeConcat>(lhs, rhs, *instr->frameState());
   }
 
-  // Generic add where the operand types aren't statically known: emit an
-  // inline-cached variant that specializes on the operand types seen at
-  // runtime (e.g. a fast path for int + int).
-  if (getConfig().binary_op_caches && op == BinaryOpKind::kAdd) {
+  // Generic add/multiply where the operand types aren't statically known: emit
+  // an inline-cached variant that specializes on the operand types seen at
+  // runtime (e.g. a fast path for int + int or int * int).
+  if (getConfig().binary_op_caches &&
+      (op == BinaryOpKind::kAdd || op == BinaryOpKind::kMultiply)) {
     return env.emit<BinaryOpCached>(op, lhs, rhs, *instr->frameState());
   }
 

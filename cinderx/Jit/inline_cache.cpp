@@ -2103,7 +2103,7 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
   return {nullptr, nullptr};
 }
 
-// Single source of truth for BinaryOpCache's add specializations, in priority
+// Single source of truth for BinaryOpCache's specializations, in priority
 // order.  Each row is X(Name, Lhs, Rhs, Ret, Op, Fallback):
 //   - Name           unique identifier; becomes Specialization::k<Name>.
 //   - Lhs, Rhs, Ret  operand and result types (SpecializedType values); their
@@ -2114,9 +2114,15 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
 //                    compact/compact/long when a result overflows the compact
 //                    range, which in turn steps down to long/long/long when the
 //                    operands stop being compact.
-//   - Op             fast-path operation (e.g. longAdd, defined below).
-//   - Fallback       the Specialization to step down to once this row stops
-//                    matching.
+//   - Op             fast-path operation (e.g. longAdd, defined in
+//                    inline_cache.cpp).
+//   - Fallback       the per-op Specialization to step down to once this row
+//                    stops matching.
+//
+// These macros are defined here (rather than in inline_cache.cpp) so the
+// Specialization enum below can be generated from the same lists that drive the
+// dispatch switches.  The Op/Fallback columns are only expanded inside
+// inline_cache.cpp, so naming file-local op helpers here is fine.
 #define FOREACH_ADD_SPECIALIZATION(X)                                     \
   X(AddCompactCompactCompact,                                             \
     CompactLong,                                                          \
@@ -2137,12 +2143,45 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
   X(AddTuple, Tuple, Tuple, Tuple, tupleAdd, kAddGeneric)                 \
   X(AddComplex, Complex, Complex, Complex, complexAdd, kAddGeneric)
 
+// Specializations for the multiply op.  Note the (sequence, long) rows have
+// distinct lhs/rhs/result types: list/str/tuple repeated by an integer count.
+#define FOREACH_MULTIPLY_SPECIALIZATION(X)                        \
+  X(MulCompactCompactCompact,                                     \
+    CompactLong,                                                  \
+    CompactLong,                                                  \
+    CompactLong,                                                  \
+    compactLongMul,                                               \
+    kMulCompactCompactLong)                                       \
+  X(MulCompactCompactLong,                                        \
+    CompactLong,                                                  \
+    CompactLong,                                                  \
+    Long,                                                         \
+    compactLongMul,                                               \
+    kMulLongLongLong)                                             \
+  X(MulLongLongLong, Long, Long, Long, longMul, kMultiplyGeneric) \
+  X(MulFloat, Float, Float, Float, floatMul, kMultiplyGeneric)    \
+  X(MulList, List, Long, List, listMul, kMultiplyGeneric)         \
+  X(MulUnicode, Unicode, Long, Unicode, strMul, kMultiplyGeneric) \
+  X(MulTuple, Tuple, Long, Tuple, tupleMul, kMultiplyGeneric)     \
+  X(MulComplex, Complex, Long, Complex, complexMul, kMultiplyGeneric)
+
+// The full specialization list (add followed by multiply), used to generate the
+// single Specialization enum and the specializedTypes() switch that covers all
+// values.
+#define FOREACH_BINARY_OP_SPECIALIZATION(X) \
+  FOREACH_ADD_SPECIALIZATION(X)             \
+  FOREACH_MULTIPLY_SPECIALIZATION(X)
+
 enum class BinaryOpCache::Specialization : uint8_t {
-#define DECLARE_ADD_SPECIALIZATION(NAME, LHS, RHS, RET, OP, FALLBACK) k##NAME,
+#define DECLARE_BINARY_OP_SPECIALIZATION(NAME, LHS, RHS, RET, OP, FALLBACK) \
+  k##NAME,
   kUninitializedAdd,
   kAddGeneric,
-  FOREACH_ADD_SPECIALIZATION(DECLARE_ADD_SPECIALIZATION)
-#undef DECLARE_ADD_SPECIALIZATION
+  FOREACH_ADD_SPECIALIZATION(DECLARE_BINARY_OP_SPECIALIZATION)
+      kUninitializedMultiply,
+  kMultiplyGeneric,
+  FOREACH_MULTIPLY_SPECIALIZATION(DECLARE_BINARY_OP_SPECIALIZATION)
+#undef DECLARE_BINARY_OP_SPECIALIZATION
 };
 
 BinaryOpCache::BinaryOpCache(cinderx::jit::hir::BinaryOpKind op)
@@ -2153,6 +2192,8 @@ BinaryOpCache::Specialization BinaryOpCache::selectInitialSpecialization(
   switch (op) {
     case cinderx::jit::hir::BinaryOpKind::kAdd:
       return Specialization::kUninitializedAdd;
+    case cinderx::jit::hir::BinaryOpKind::kMultiply:
+      return Specialization::kUninitializedMultiply;
     default:
       throw std::runtime_error(
           fmt::format(
@@ -2291,6 +2332,8 @@ PyObject* BinaryOpCache::invokeSpecialized(
   }
 #define POPULATE_ADD_SPECIALIZATION(...) \
   POPULATE_BINARY_SPECIALIZATION(add, __VA_ARGS__)
+#define POPULATE_MULTIPLY_SPECIALIZATION(...) \
+  POPULATE_BINARY_SPECIALIZATION(multiply, __VA_ARGS__)
 
 // Emits one dispatch-switch arm that runs the specialization directly via
 // invokeSpecialized<>, threading the Fallback value and the matching
@@ -2307,6 +2350,8 @@ PyObject* BinaryOpCache::invokeSpecialized(
         &BinaryOpCache::DISPATCH>(lhs, rhs, cache);
 #define DISPATCH_ADD_SPECIALIZATION(...) \
   DISPATCH_BINARY_SPECIALIZATION(add, __VA_ARGS__)
+#define DISPATCH_MULTIPLY_SPECIALIZATION(...) \
+  DISPATCH_BINARY_SPECIALIZATION(multiply, __VA_ARGS__)
 
 // Emits one specializedTypes() switch arm mapping a specialization to its
 // (lhs, rhs, return) operand types.  A single enum lets one switch cover both
@@ -2353,11 +2398,76 @@ static inline PyObject* tupleAdd(PyObject* lhs, PyObject* rhs) {
   return PyTuple_Type.tp_as_sequence->sq_concat(lhs, rhs);
 }
 
+static inline PyObject* longMul(PyObject* lhs, PyObject* rhs) {
+#if PY_VERSION_HEX >= 0x030F0000
+  // _PyLong_Multiply was removed in 3.15.  Both operands are exact ints here,
+  // so the public number slot is equivalent and returns a new reference.
+  return PyLong_Type.tp_as_number->nb_multiply(lhs, rhs);
+#else
+  return _PyLong_Multiply(
+      reinterpret_cast<PyLongObject*>(lhs),
+      reinterpret_cast<PyLongObject*>(rhs));
+#endif
+}
+
+// Fast path for two compact ints: multiply their machine-word values
+// directly. Both operands are single-digit (guaranteed by _PyLong_IsCompact),
+// so the product cannot overflow Py_ssize_t.  The result may itself be
+// non-compact; the compact/compact/compact specialization detects that via
+// its return-type check and steps down to compact/compact/long.
+static inline PyObject* compactLongMul(PyObject* lhs, PyObject* rhs) {
+  Py_ssize_t a = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(lhs));
+  Py_ssize_t b = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(rhs));
+  return PyLong_FromSsize_t(a * b);
+}
+
+static inline PyObject* floatMul(PyObject* lhs, PyObject* rhs) {
+  double a = reinterpret_cast<PyFloatObject*>(lhs)->ob_fval;
+  double b = reinterpret_cast<PyFloatObject*>(rhs)->ob_fval;
+  return PyFloat_FromDouble(a * b);
+}
+
+static inline PyObject* complexMul(PyObject* lhs, PyObject* rhs) {
+  // complex * long: the complex nb_multiply slot coerces the integer operand.
+  return PyComplex_Type.tp_as_number->nb_multiply(lhs, rhs);
+}
+
+// Sequence-repeat helpers for (sequence, long) multiplication.  The repeat
+// count is the integer rhs; an out-of-range count surfaces as an error from
+// PyLong_AsSsize_t, matching the generic path.
+static inline PyObject*
+sequenceRepeat(PySequenceMethods* methods, PyObject* seq, PyObject* count) {
+  Py_ssize_t n = PyLong_AsSsize_t(count);
+  if (n == -1 && PyErr_Occurred()) {
+    return nullptr;
+  }
+  return methods->sq_repeat(seq, n);
+}
+
+static inline PyObject* listMul(PyObject* lhs, PyObject* rhs) {
+  return sequenceRepeat(PyList_Type.tp_as_sequence, lhs, rhs);
+}
+
+static inline PyObject* strMul(PyObject* lhs, PyObject* rhs) {
+  return sequenceRepeat(PyUnicode_Type.tp_as_sequence, lhs, rhs);
+}
+
+static inline PyObject* tupleMul(PyObject* lhs, PyObject* rhs) {
+  return sequenceRepeat(PyTuple_Type.tp_as_sequence, lhs, rhs);
+}
+
 PyObject* BinaryOpCache::addGeneric(
     PyObject* lhs,
     PyObject* rhs,
     BinaryOpCache* /* cache */) {
   return PyNumber_Add(lhs, rhs);
+}
+
+PyObject* BinaryOpCache::multiplyGeneric(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* /* cache */) {
+  return PyNumber_Multiply(lhs, rhs);
 }
 
 PyObject* BinaryOpCache::populateAndInvokeAdd(
@@ -2370,10 +2480,20 @@ PyObject* BinaryOpCache::populateAndInvokeAdd(
   return addGeneric(lhs, rhs, cache);
 }
 
-// Dispatch on the cache's current specialization and run the corresponding add
-// operation directly.  The specialized arms are generated from
-// FOREACH_ADD_SPECIALIZATION so this stays in sync with the Specialization
-// enum. There is no indirect call through a function pointer.
+PyObject* BinaryOpCache::populateAndInvokeMultiply(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* cache) {
+  FOREACH_MULTIPLY_SPECIALIZATION(POPULATE_MULTIPLY_SPECIALIZATION)
+
+  cache->specialization_ = Specialization::kMultiplyGeneric;
+  return multiplyGeneric(lhs, rhs, cache);
+}
+
+// Dispatch on the cache's current specialization and run the corresponding
+// add operation directly.  The arms cover only the add subset of the single
+// Specialization enum (generated from FOREACH_ADD_SPECIALIZATION); multiply
+// states never reach here because codegen calls add() only for kAdd caches.
 PyObject*
 BinaryOpCache::add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
   switch (cache->specialization_) {
@@ -2382,23 +2502,41 @@ BinaryOpCache::add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
     case Specialization::kAddGeneric:
       return addGeneric(lhs, rhs, cache);
       FOREACH_ADD_SPECIALIZATION(DISPATCH_ADD_SPECIALIZATION)
+    default:
+      JIT_ABORT("Unexpected specialization in BinaryOpCache::add");
   }
-  JIT_ABORT("Unknown BinaryOpCache specialization");
+}
+
+// Dispatch on the cache's current specialization.  Mirrors add() but over the
+// multiply subset of the enum (FOREACH_MULTIPLY_SPECIALIZATION).
+PyObject*
+BinaryOpCache::multiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
+  switch (cache->specialization_) {
+    case Specialization::kUninitializedMultiply:
+      return populateAndInvokeMultiply(lhs, rhs, cache);
+    case Specialization::kMultiplyGeneric:
+      return multiplyGeneric(lhs, rhs, cache);
+      FOREACH_MULTIPLY_SPECIALIZATION(DISPATCH_MULTIPLY_SPECIALIZATION)
+    default:
+      JIT_ABORT("Unexpected specialization in BinaryOpCache::multiply");
+  }
 }
 
 BinaryOpCache::BinarySpecialization BinaryOpCache::specializedTypes() const {
   switch (specialization_) {
     case Specialization::kUninitializedAdd:
+    case Specialization::kUninitializedMultiply:
       return BinarySpecialization{
           SpecializedType::kUninitialized,
           SpecializedType::kUninitialized,
           SpecializedType::kUninitialized};
     case Specialization::kAddGeneric:
+    case Specialization::kMultiplyGeneric:
       return BinarySpecialization{
           SpecializedType::kGeneric,
           SpecializedType::kGeneric,
           SpecializedType::kGeneric};
-      FOREACH_ADD_SPECIALIZATION(SPECIALIZATION_TYPES_ENTRY)
+      FOREACH_BINARY_OP_SPECIALIZATION(SPECIALIZATION_TYPES_ENTRY)
   }
   JIT_ABORT("Unknown BinaryOpCache specialization");
 }

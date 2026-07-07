@@ -2027,6 +2027,7 @@ void HIRBuilder::emitBinaryOp(
   if (getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
       case BINARY_OP_ADD_INT:
+      case BINARY_OP_MULTIPLY_INT:
         // If we have inline caches for binary ops enabled then we don't want
         // to specialize on the last seen interpreter type. The binary cache
         // ops perform no backoff so once a cache is installed it persists.
@@ -2037,7 +2038,6 @@ void HIRBuilder::emitBinaryOp(
           tc.emit<GuardType>(right, TLongExact, right, tc.frame);
         }
         break;
-      case BINARY_OP_MULTIPLY_INT:
       case BINARY_OP_SUBTRACT_INT:
         tc.emit<GuardType>(left, TLongExact, left, tc.frame);
         tc.emit<GuardType>(right, TLongExact, right, tc.frame);

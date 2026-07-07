@@ -59,7 +59,22 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericAddBecomesBinaryOpCached) {
   EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOpCached<Add>"));
 }
 
-// Non-add operations are not affected by the binary-op cache.
+// A generic multiply is also rewritten into the inline-cached variant.
+TEST_F(SimplifyBinaryOpCacheTest, GenericMultiplyBecomesBinaryOpCached) {
+  const char* hir = R"(fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = BinaryOp<Multiply> v0 v1
+    Return v2
+  }
+}
+)";
+  EXPECT_THAT(
+      runSimplify(hir), ::testing::HasSubstr("BinaryOpCached<Multiply>"));
+}
+
+// Non-add/multiply operations are not affected by the binary-op cache.
 TEST_F(SimplifyBinaryOpCacheTest, GenericSubtractStaysBinaryOp) {
   const char* hir = R"(fun test {
   bb 0 {

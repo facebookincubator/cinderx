@@ -208,8 +208,8 @@ using BinaryOpDispatch = PyObject* (*)(PyObject * lhs,
                                        BinaryOpCache* cache);
 
 // Runs lhs `op` rhs through the cache via the given dispatch entry point
-// (BinaryOpCache::add) and returns the (lhs, rhs, return) types it settled on,
-// as reported by specializedTypes().
+// (BinaryOpCache::add or ::multiply) and returns the (lhs, rhs, return) types
+// it settled on, as reported by specializedTypes().
 BinaryOpCache::BinarySpecialization specializeWith(
     BinaryOpDispatch dispatch,
     BinaryOpCache& cache,
@@ -308,9 +308,113 @@ TEST_F(InlineCacheTest, BinaryOpCacheSpecializationFallbackLookup) {
 }
 
 TEST_F(InlineCacheTest, BinaryOpCacheRejectsUnsupportedOpKind) {
-  // Only add is currently supported; constructing a cache for any other op kind
-  // should throw rather than silently produce a broken cache.
+  // Only add and multiply are currently supported; constructing a cache for any
+  // other op kind should throw rather than silently produce a broken cache.
   EXPECT_THROW(BinaryOpCache{BinaryOpKind::kSubtract}, std::runtime_error);
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheMultiplySpecializationLookup) {
+  using SpecializedType = SpecializedType;
+
+  auto count = Ref<>::steal(PyLong_FromLong(3));
+
+  // Small ints specialize to compact-long multiply.
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  BinaryOpCache compact{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, compact, two, count),
+      sameTypes(SpecializedType::kCompactLong));
+  // Non-compact ints fall back to the general long-multiply specialization.
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, compact, big, big),
+      sameTypes(SpecializedType::kLong));
+
+  // A general (long, long) multiply that never saw compact operands.
+  BinaryOpCache long_long{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, long_long, big, big),
+      sameTypes(SpecializedType::kLong));
+
+  auto flt = Ref<>::steal(PyFloat_FromDouble(1.5));
+  BinaryOpCache float_float{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, float_float, flt, flt),
+      sameTypes(SpecializedType::kFloat));
+
+  // The (sequence, long) specializations have distinct lhs/rhs/return types.
+  auto list = Ref<>::steal(PyList_New(0));
+  BinaryOpCache list_long{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, list_long, list, count),
+      types(
+          SpecializedType::kList,
+          SpecializedType::kLong,
+          SpecializedType::kList));
+
+  auto str = Ref<>::steal(PyUnicode_FromString("ab"));
+  BinaryOpCache str_long{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, str_long, str, count),
+      types(
+          SpecializedType::kUnicode,
+          SpecializedType::kLong,
+          SpecializedType::kUnicode));
+
+  auto tuple = Ref<>::steal(PyTuple_New(0));
+  BinaryOpCache tuple_long{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, tuple_long, tuple, count),
+      types(
+          SpecializedType::kTuple,
+          SpecializedType::kLong,
+          SpecializedType::kTuple));
+
+  auto cplx = Ref<>::steal(PyComplex_FromDoubles(1.0, 2.0));
+  BinaryOpCache complex_long{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, complex_long, cplx, count),
+      types(
+          SpecializedType::kComplex,
+          SpecializedType::kLong,
+          SpecializedType::kComplex));
+
+  // A multiply combination with no specialization falls back to generic.
+  auto bytes = Ref<>::steal(PyBytes_FromString("x"));
+  BinaryOpCache generic{BinaryOpKind::kMultiply};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::multiply, generic, bytes, count),
+      sameTypes(SpecializedType::kGeneric));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheMultiplyComputesCorrectly) {
+  auto count = Ref<>::steal(PyLong_FromLong(3));
+
+  // long * long.
+  BinaryOpCache long_cache{BinaryOpKind::kMultiply};
+  auto four = Ref<>::steal(PyLong_FromLong(4));
+  auto product =
+      Ref<>::steal(BinaryOpCache::multiply(four, count, &long_cache));
+  ASSERT_NE(product.get(), nullptr);
+  EXPECT_EQ(PyLong_AsLong(product), 12);
+
+  // list * int repeats the list.
+  BinaryOpCache list_cache{BinaryOpKind::kMultiply};
+  auto list = Ref<>::steal(PyList_New(0));
+  PyList_Append(list, four);
+  auto repeated =
+      Ref<>::steal(BinaryOpCache::multiply(list, count, &list_cache));
+  ASSERT_NE(repeated.get(), nullptr);
+  EXPECT_EQ(PyList_Size(repeated), 3);
+
+  // str * int repeats the string.
+  BinaryOpCache str_cache{BinaryOpKind::kMultiply};
+  auto str = Ref<>::steal(PyUnicode_FromString("ab"));
+  auto repeated_str =
+      Ref<>::steal(BinaryOpCache::multiply(str, count, &str_cache));
+  ASSERT_NE(repeated_str.get(), nullptr);
+  auto expected_str = Ref<>::steal(PyUnicode_FromString("ababab"));
+  EXPECT_EQ(PyObject_RichCompareBool(repeated_str, expected_str, Py_EQ), 1);
 }
 
 TEST_F(InlineCacheTest, BinaryOpCacheCompactAddDeoptsOnNonCompactResult) {
@@ -325,6 +429,24 @@ TEST_F(InlineCacheTest, BinaryOpCacheCompactAddDeoptsOnNonCompactResult) {
   auto result = Ref<>::steal(BinaryOpCache::add(compact, compact, &cache));
   ASSERT_NE(result.get(), nullptr);
   EXPECT_EQ(PyLong_AsLong(result), 1L << 30);
+  EXPECT_EQ(
+      cache.specializedTypes(),
+      types(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kLong));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheCompactMultiplyDeoptsOnNonCompactResult) {
+  using SpecializedType = SpecializedType;
+  BinaryOpCache cache{BinaryOpKind::kMultiply};
+
+  // 2^20 is compact but 2^20 * 2^20 == 2^40 is not, so the compact fast path
+  // steps down one level to compact/compact/long.
+  auto compact = Ref<>::steal(PyLong_FromLong(1L << 20));
+  auto result = Ref<>::steal(BinaryOpCache::multiply(compact, compact, &cache));
+  ASSERT_NE(result.get(), nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), 1L << 40);
   EXPECT_EQ(
       cache.specializedTypes(),
       types(

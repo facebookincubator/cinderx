@@ -3351,16 +3351,28 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case Opcode::kBinaryOpCached: {
         auto instr = static_cast<const BinaryOpCached*>(&i);
         BinaryOpCache* cache = getContext()->allocateBinaryOpCache(instr->op());
-        // Emit a direct call to the dispatch entry point add(), which switches
-        // on the cache's specialization enum -- there is no indirect call
-        // through a function pointer.  allocateBinaryOpCache() already rejected
-        // any unsupported op kind.
-        bbb.appendCallInstruction(
-            instr->output(),
-            BinaryOpCache::add,
-            instr->left(),
-            instr->right(),
-            cache);
+        // Emit a direct call to the op-specific dispatch entry point: add() for
+        // kAdd, multiply() for kMultiply.  Each switches on the cache's per-op
+        // specialization enum -- there is no indirect call through a function
+        // pointer.  allocateBinaryOpCache() already rejected any other op kind.
+        if (instr->op() == BinaryOpKind::kMultiply) {
+          bbb.appendCallInstruction(
+              instr->output(),
+              BinaryOpCache::multiply,
+              instr->left(),
+              instr->right(),
+              cache);
+        } else {
+          JIT_DCHECK(
+              instr->op() == BinaryOpKind::kAdd,
+              "BinaryOpCached only supports add and multiply");
+          bbb.appendCallInstruction(
+              instr->output(),
+              BinaryOpCache::add,
+              instr->left(),
+              instr->right(),
+              cache);
+        }
         break;
       }
       case Opcode::kLongBinaryOp: {

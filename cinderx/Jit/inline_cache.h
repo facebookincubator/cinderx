@@ -486,21 +486,29 @@ enum class SpecializedType : uint8_t {
 // A cache for an individual BinaryOpCached instruction.
 //
 // Implements an inline cache for binary operations as a small state machine.
-// A cache starts in the populate state, which checks the inputs for known cache
-// types on the first invocation, then transitions specialization_ to the
-// matching specialized state, or to a generic state when no SpecializedType
-// applies.
+// A single Specialization enum covers both add and multiply states, but add and
+// multiply have separate dispatch entry points (add() / multiply()) that each
+// switch over their op's subset of the enum.  A cache is constructed for a
+// single op; it starts in that op's populate state, which checks the inputs for
+// known cache types on the first invocation, then transitions specialization_
+// to the matching specialized state, or to a generic state when no
+// SpecializedType applies.
 //
-// Codegen emits a direct call to add(), which switches on specialization_ and
-// calls the matching specialized operation directly -- there is no indirect
-// call through a function pointer.
+// Codegen emits a direct call to add() (for kAdd) or multiply() (for
+// kMultiply); each switches on specialization_ and calls the matching
+// specialized operation directly -- there is no indirect call through a
+// function pointer.
 class BinaryOpCache {
  public:
   // Identifies which specialization the cache has settled on, i.e. which
-  // operation add() dispatches to.  The k<Name> values are auto-generated from
-  // FOREACH_ADD_SPECIALIZATION (in inline_cache.cpp); kUninitializedAdd is the
-  // initial (lazily specializing) populate state and kAddGeneric is the
-  // permanent generic fallback.  Defined out-of-line in inline_cache.cpp.
+  // operation add()/multiply() dispatches to.  A single enum holds both ops'
+  // states: the k<Name> values are auto-generated from
+  // FOREACH_BINARY_OP_SPECIALIZATION, the kUninitialized* values are the
+  // initial (lazily specializing) populate states, and
+  // kAddGeneric/kMultiplyGeneric are the permanent generic fallbacks.  add()
+  // only ever observes the add subset and multiply() the multiply subset, but a
+  // single enum lets specializedTypes() switch over all values without a
+  // discriminant.
   enum class Specialization : uint8_t;
 
   // The (lhs, rhs, return) operand/result types a cache has specialized to.
@@ -520,9 +528,11 @@ class BinaryOpCache {
   // op has no inline-cache support.
   explicit BinaryOpCache(cinderx::jit::hir::BinaryOpKind op);
 
-  // Dispatch entry point called directly by codegen for kAdd.  Switches on the
-  // cache's specialization enum and runs the corresponding operation directly.
+  // Dispatch entry points called directly by codegen: add() for kAdd,
+  // multiply() for kMultiply.  Each switches on the cache's per-op
+  // specialization enum and runs the corresponding operation directly.
   static PyObject* add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+  static PyObject* multiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
   // Returns the (lhs, rhs, return) operand types the cache has settled on
   // ({kUninitialized, ...} before the first call).
@@ -541,9 +551,18 @@ class BinaryOpCache {
   static PyObject*
   populateAndInvokeAdd(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
+  // Initial entry point for the multiply op: inspects the operand types,
+  // transitions the multiply specialization, and performs the operation.
+  static PyObject*
+  populateAndInvokeMultiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
   // Permanent generic fallback that just calls PyNumber_Add.
   static PyObject*
   addGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Permanent generic fallback that just calls PyNumber_Multiply.
+  static PyObject*
+  multiplyGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
   // Specialized entry for a (lhs, rhs) -> ret triple.  Guards that lhs passes
   // checkFor(LhsKind) and rhs passes checkFor(RhsKind) and, if so, runs the
