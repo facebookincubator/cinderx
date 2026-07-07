@@ -482,7 +482,7 @@ if (BUILD_RUNTIME_TESTS)
   FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest
-    GIT_TAG v1.15.2 # 2024-Jul-31
+    GIT_TAG v1.17.0 # 2025-Apr-30
   )
   FetchContent_MakeAvailable(googletest)
 
@@ -510,6 +510,7 @@ if (BUILD_RUNTIME_TESTS)
     cinderx-lib
     asmjit::asmjit fmt::fmt
     GTest::gtest
+    GTest::gmock
     Python::Python
   )
 
