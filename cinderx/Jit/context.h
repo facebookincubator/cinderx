@@ -398,6 +398,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   LoadModuleMethodCache* allocateLoadModuleMethodCache();
   LoadTypeMethodCache* allocateLoadTypeMethodCache();
   StoreAttrCache* allocateStoreAttrCache();
+  BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
 
   const Builtins& builtins();
 
@@ -498,6 +499,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   SlabArena<LoadModuleMethodCache> load_module_method_caches_;
   SlabArena<LoadTypeMethodCache> load_type_method_caches_;
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
+  SlabArena<BinaryOpCache> binary_op_caches_;
   SlabArena<void*> pointer_caches_;
 
   FunctionEntryCacheMap function_entry_caches_;

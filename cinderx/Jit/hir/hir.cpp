@@ -449,6 +449,7 @@ bool Instr::isReplayable() const {
     case Opcode::kBatchDecref:
     case Opcode::kBeginInlinedFunction:
     case Opcode::kBinaryOp:
+    case Opcode::kBinaryOpCached:
     case Opcode::kBranch:
     case Opcode::kBuildSlice:
     case Opcode::kBuildInterpolation:
@@ -733,6 +734,7 @@ bool isPassthrough(const Instr& instr) {
       return (static_cast<const Cast*>(&instr))->pytype() != &PyFloat_Type;
 
     case Opcode::kBinaryOp:
+    case Opcode::kBinaryOpCached:
     case Opcode::kBuildSlice:
     case Opcode::kBuildString:
     case Opcode::kBuildInterpolation:

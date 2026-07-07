@@ -15,6 +15,13 @@
 #include <memory>
 #include <span>
 #include <unordered_map>
+#include <utility>
+
+namespace cinderx::jit::hir {
+// Defined in cinderx/Jit/hir/hir.h; only the complete type is needed in
+// inline_cache.cpp, so a forward declaration suffices here.
+enum class BinaryOpKind;
+} // namespace cinderx::jit::hir
 
 namespace cinderx::jit {
 
@@ -456,6 +463,108 @@ class LoadModuleMethodCache {
   ci_dict_version_tag_t module_version_{0};
   BorrowedRef<> value_;
 #endif
+};
+
+// Identifies a single operand type a SpecializedType expects.  Kept in sync
+// with FOREACH_OPERAND_TYPE (inline_cache.cpp): every type there maps to a
+// k<Name> value here, enforced at compile time by the
+// SpecializedType::k##NAME uses in checkFor.
+enum class SpecializedType : uint8_t {
+  // The cache has not specialized yet (still in a populate state).
+  kUninitialized,
+  // The cache has fallen back to the generic PyNumber_Add/Multiply path.
+  kGeneric,
+  kCompactLong,
+  kLong,
+  kUnicode,
+  kFloat,
+  kList,
+  kTuple,
+  kComplex,
+};
+
+// A cache for an individual BinaryOpCached instruction.
+//
+// Implements an inline cache for binary operations as a small state machine.
+// A cache starts in the populate state, which checks the inputs for known cache
+// types on the first invocation, then transitions specialization_ to the
+// matching specialized state, or to a generic state when no SpecializedType
+// applies.
+//
+// Codegen emits a direct call to add(), which switches on specialization_ and
+// calls the matching specialized operation directly -- there is no indirect
+// call through a function pointer.
+class BinaryOpCache {
+ public:
+  // Identifies which specialization the cache has settled on, i.e. which
+  // operation add() dispatches to.  The k<Name> values are auto-generated from
+  // FOREACH_ADD_SPECIALIZATION (in inline_cache.cpp); kUninitializedAdd is the
+  // initial (lazily specializing) populate state and kAddGeneric is the
+  // permanent generic fallback.  Defined out-of-line in inline_cache.cpp.
+  enum class Specialization : uint8_t;
+
+  // The (lhs, rhs, return) operand/result types a cache has specialized to.
+  // The return type is tracked when known, which lets a specialization step
+  // down to a wider one when the result no longer matches (e.g. a compact int
+  // add whose result overflows the compact range).
+  struct BinarySpecialization {
+    SpecializedType lhs;
+    SpecializedType rhs;
+    SpecializedType ret;
+
+    bool operator==(const BinarySpecialization&) const = default;
+  };
+
+  // Constructs a cache for op, seeding the matching per-op populate state
+  // (which specializes lazily on the first call).  Throws std::runtime_error if
+  // op has no inline-cache support.
+  explicit BinaryOpCache(cinderx::jit::hir::BinaryOpKind op);
+
+  // Dispatch entry point called directly by codegen for kAdd.  Switches on the
+  // cache's specialization enum and runs the corresponding operation directly.
+  static PyObject* add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Returns the (lhs, rhs, return) operand types the cache has settled on
+  // ({kUninitialized, ...} before the first call).
+  BinarySpecialization specializedTypes() const;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BinaryOpCache);
+
+  // Selects the initial populate state for op, or throws std::runtime_error if
+  // op is not supported.
+  static Specialization selectInitialSpecialization(
+      cinderx::jit::hir::BinaryOpKind op);
+
+  // Initial entry point for the add op: inspects the operand types, transitions
+  // the add specialization, and performs the operation.
+  static PyObject*
+  populateAndInvokeAdd(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Permanent generic fallback that just calls PyNumber_Add.
+  static PyObject*
+  addGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Specialized entry for a (lhs, rhs) -> ret triple.  Guards that lhs passes
+  // checkFor(LhsKind) and rhs passes checkFor(RhsKind) and, if so, runs the
+  // fast-path Op.  When the return type is refined (returnNeedsCheck), it also
+  // verifies the result matches checkFor(ReturnKind) and, if not, steps the
+  // specialization down to Fallback (a wider specialization) while still
+  // returning the already-correct result.  If the operands stop matching, it
+  // sets specialization_ to Fallback and re-dispatches through ReDispatch.
+  // Fallback is the next Specialization in the chain and ReDispatch is the
+  // matching add()/multiply().
+  template <
+      auto LhsKind,
+      auto RhsKind,
+      auto ReturnKind,
+      auto Op,
+      auto Fallback,
+      auto ReDispatch>
+  static PyObject*
+  invokeSpecialized(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  Specialization specialization_;
 };
 
 // Invalidate all load/store attr caches for type

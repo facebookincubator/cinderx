@@ -13,6 +13,7 @@ namespace cinderx::jit::hir {
   V(BatchDecref)                   \
   V(BeginInlinedFunction)          \
   V(BinaryOp)                      \
+  V(BinaryOpCached)                \
   V(BitCast)                       \
   V(Branch)                        \
   V(BuildSlice)                    \

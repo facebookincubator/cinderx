@@ -543,6 +543,15 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<BinaryOp>(dst, op, left, right);
       break;
     }
+    case Opcode::kBinaryOpCached: {
+      expect("<");
+      BinaryOpKind op = ParseBinaryOpName(getNextToken());
+      expect(">");
+      auto left = parseRegister();
+      auto right = parseRegister();
+      instruction = newInstr<BinaryOpCached>(dst, op, left, right);
+      break;
+    }
     case Opcode::kLongBinaryOp: {
       expect("<");
       BinaryOpKind op = ParseBinaryOpName(getNextToken());

@@ -357,6 +357,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& bin_op = static_cast<const BinaryOp&>(instr);
       return std::string{GetBinaryOpName(bin_op.op())};
     }
+    case Opcode::kBinaryOpCached: {
+      const auto& bin_op = static_cast<const BinaryOpCached&>(instr);
+      return std::string{GetBinaryOpName(bin_op.op())};
+    }
     case Opcode::kUnaryOp: {
       const auto& unary_op = static_cast<const UnaryOp&>(instr);
       return std::string{GetUnaryOpName(unary_op.op())};

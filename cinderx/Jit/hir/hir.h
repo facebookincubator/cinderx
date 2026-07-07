@@ -659,6 +659,40 @@ class INSTR_CLASS(
   BinaryOpKind op_;
 };
 
+// Variant of BinaryOp that dispatches through a per-instruction inline cache
+// (BinaryOpCache).  Used to specialize the operation based on the operand types
+// observed at runtime.  Currently only emitted for the add (kAdd) variant.
+class INSTR_CLASS(
+    BinaryOpCached,
+    (TObject, TObject),
+    HasOutput,
+    Operands<2>,
+    DeoptBase) {
+ public:
+  BinaryOpCached(
+      Register* dst,
+      BinaryOpKind op,
+      Register* left,
+      Register* right,
+      const FrameState& frame)
+      : InstrT(dst, left, right, frame), op_(op) {}
+
+  BinaryOpKind op() const {
+    return op_;
+  }
+
+  Register* left() const {
+    return getOperand(0);
+  }
+
+  Register* right() const {
+    return getOperand(1);
+  }
+
+ private:
+  BinaryOpKind op_;
+};
+
 #define FOREACH_UNARY_OP_KIND(V) \
   V(Not)                         \
   V(Negate)                      \

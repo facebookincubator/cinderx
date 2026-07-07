@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/inline_cache.h"
 
+#include "internal/pycore_long.h"
 #include "internal/pycore_object.h"
 
 #include "cinderx/Common/containers.h"
@@ -11,12 +12,14 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/hir/hir.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
 #include <algorithm>
 #include <memory>
+#include <stdexcept>
 
 namespace cinderx::jit {
 
@@ -2098,6 +2101,306 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
     return {Py_None, generic_res.release()};
   }
   return {nullptr, nullptr};
+}
+
+// Single source of truth for BinaryOpCache's add specializations, in priority
+// order.  Each row is X(Name, Lhs, Rhs, Ret, Op, Fallback):
+//   - Name           unique identifier; becomes Specialization::k<Name>.
+//   - Lhs, Rhs, Ret  operand and result types (SpecializedType values); their
+//                    checks are derived via checkFor().  Ret is verified at
+//                    runtime only when it is a refinement (see
+//                    returnNeedsCheck)
+//                    -- e.g. compact/compact/compact steps down to
+//                    compact/compact/long when a result overflows the compact
+//                    range, which in turn steps down to long/long/long when the
+//                    operands stop being compact.
+//   - Op             fast-path operation (e.g. longAdd, defined below).
+//   - Fallback       the Specialization to step down to once this row stops
+//                    matching.
+#define FOREACH_ADD_SPECIALIZATION(X)                                     \
+  X(AddCompactCompactCompact,                                             \
+    CompactLong,                                                          \
+    CompactLong,                                                          \
+    CompactLong,                                                          \
+    compactLongAdd,                                                       \
+    kAddCompactCompactLong)                                               \
+  X(AddCompactCompactLong,                                                \
+    CompactLong,                                                          \
+    CompactLong,                                                          \
+    Long,                                                                 \
+    compactLongAdd,                                                       \
+    kAddLongLongLong)                                                     \
+  X(AddLongLongLong, Long, Long, Long, longAdd, kAddGeneric)              \
+  X(AddUnicode, Unicode, Unicode, Unicode, PyUnicode_Concat, kAddGeneric) \
+  X(AddFloat, Float, Float, Float, floatAdd, kAddGeneric)                 \
+  X(AddList, List, List, List, listAdd, kAddGeneric)                      \
+  X(AddTuple, Tuple, Tuple, Tuple, tupleAdd, kAddGeneric)                 \
+  X(AddComplex, Complex, Complex, Complex, complexAdd, kAddGeneric)
+
+enum class BinaryOpCache::Specialization : uint8_t {
+#define DECLARE_ADD_SPECIALIZATION(NAME, LHS, RHS, RET, OP, FALLBACK) k##NAME,
+  kUninitializedAdd,
+  kAddGeneric,
+  FOREACH_ADD_SPECIALIZATION(DECLARE_ADD_SPECIALIZATION)
+#undef DECLARE_ADD_SPECIALIZATION
+};
+
+BinaryOpCache::BinaryOpCache(cinderx::jit::hir::BinaryOpKind op)
+    : specialization_{selectInitialSpecialization(op)} {}
+
+BinaryOpCache::Specialization BinaryOpCache::selectInitialSpecialization(
+    cinderx::jit::hir::BinaryOpKind op) {
+  switch (op) {
+    case cinderx::jit::hir::BinaryOpKind::kAdd:
+      return Specialization::kUninitializedAdd;
+    default:
+      throw std::runtime_error(
+          fmt::format(
+              "BinaryOpCache does not support binary op kind: {}",
+              hir::GetBinaryOpName(op)));
+  }
+}
+
+// The operand types BinaryOpCache can specialize on.  Each X(Name) maps
+// SpecializedType::k<Name> to its type-check predicate check<Name> (see
+// checkFor).  Kept in sync with the SpecializedType enum.
+#define FOREACH_OPERAND_TYPE(X) \
+  X(CompactLong)                \
+  X(Long)                       \
+  X(Unicode)                    \
+  X(Float)                      \
+  X(List)                       \
+  X(Tuple)                      \
+  X(Complex)
+
+namespace {
+// Type-check / fast-path helpers used to instantiate
+// BinaryOpCache::invokeSpecialized for each supported operand type.
+bool checkLong(PyObject* op) {
+  return PyLong_CheckExact(op);
+}
+
+bool checkCompactLong(PyObject* op) {
+  return PyLong_CheckExact(op) &&
+      _PyLong_IsCompact(reinterpret_cast<PyLongObject*>(op));
+}
+
+bool checkUnicode(PyObject* op) {
+  return PyUnicode_CheckExact(op);
+}
+
+bool checkFloat(PyObject* op) {
+  return PyFloat_CheckExact(op);
+}
+
+bool checkComplex(PyObject* op) {
+  return PyComplex_CheckExact(op);
+}
+
+bool checkList(PyObject* op) {
+  return PyList_CheckExact(op);
+}
+
+bool checkTuple(PyObject* op) {
+  return PyTuple_CheckExact(op);
+}
+} // namespace
+
+// Predicate testing whether an operand has the exact type a SpecializedType
+// expects (e.g. PyLong_CheckExact, PyUnicode_CheckExact).
+using CheckFn = bool (*)(PyObject* op);
+
+// Maps a SpecializedType to its type-check predicate (check<Name>).  This
+// lets the SpecializedType tables name a SpecializedType and derive the check
+// from it, rather than repeating the check function in every row.  consteval
+// so it can be used in the invokeSpecialized<> template arguments below.
+consteval CheckFn checkFor(SpecializedType kind) {
+  switch (kind) {
+#define CHECK_FOR(NAME)          \
+  case SpecializedType::k##NAME: \
+    return check##NAME;
+    FOREACH_OPERAND_TYPE(CHECK_FOR)
+#undef CHECK_FOR
+    default:
+      break;
+  }
+  // Called for a SpecializedType with no type check
+  // (kUninitialized/kGeneric); reaching this during constant evaluation is a
+  // compile error.
+  throw std::runtime_error(
+      "checkFor: SpecializedType has no associated type check");
+}
+
+// Whether a specialization with the given return type must verify its result
+// at runtime.  Only the compact-int refinement can be violated by an
+// otherwise-matching specialization (a compact+compact op may produce a
+// non-compact result); every other return type is guaranteed by its op.
+consteval bool returnNeedsCheck(SpecializedType ret) {
+  return ret == SpecializedType::kCompactLong;
+}
+
+// Specialized entry for a (lhs, rhs) -> ret triple.  Derives the lhs/rhs
+// checks from LhsKind/RhsKind and runs the fast-path Op on a match.  When
+// ReturnKind is a refinement (returnNeedsCheck), it also verifies the result
+// and steps the specialization down to Fallback if the result doesn't match.
+// When the operands stop matching it sets the specialization to Fallback and
+// re-dispatches through ReDispatch (the matching add()/multiply()).
+template <
+    auto LhsKind,
+    auto RhsKind,
+    auto ReturnKind,
+    auto Op,
+    auto Fallback,
+    auto ReDispatch>
+PyObject* BinaryOpCache::invokeSpecialized(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* cache) {
+  constexpr CheckFn lhsCheck = checkFor(LhsKind);
+  constexpr CheckFn rhsCheck = checkFor(RhsKind);
+  if (lhsCheck(lhs) && rhsCheck(rhs)) {
+    PyObject* result = Op(lhs, rhs);
+    if constexpr (returnNeedsCheck(ReturnKind)) {
+      // The declared return type is a refinement the op may not actually
+      // produce; if the result doesn't match, step specialization_ down to
+      // the (wider) Fallback but still return the already-correct result.
+      if (result != nullptr && !checkFor(ReturnKind)(result)) {
+        cache->specialization_ = Fallback;
+      }
+    }
+    return result;
+  }
+
+  // The operands no longer match; step down to the Fallback specialization so
+  // future calls skip this type guard, then re-dispatch.
+  cache->specialization_ = Fallback;
+  return ReDispatch(lhs, rhs, cache);
+}
+
+// Emits one type-guarded populate arm: if lhs/rhs match their (derived) checks,
+// transition specialization_ to the matching state and re-dispatch through
+// DISPATCH (add/multiply), which runs it.  The ADD/MULTIPLY wrappers bind
+// DISPATCH so the same body serves both ops.
+#define POPULATE_BINARY_SPECIALIZATION(                               \
+    DISPATCH, NAME, LHS, RHS, RET, OP, FALLBACK)                      \
+  if (constexpr CheckFn lhsCheck = checkFor(SpecializedType::k##LHS), \
+      rhsCheck = checkFor(SpecializedType::k##RHS);                   \
+      lhsCheck(lhs) && rhsCheck(rhs)) {                               \
+    cache->specialization_ = BinaryOpCache::Specialization::k##NAME;  \
+    return DISPATCH(lhs, rhs, cache);                                 \
+  }
+#define POPULATE_ADD_SPECIALIZATION(...) \
+  POPULATE_BINARY_SPECIALIZATION(add, __VA_ARGS__)
+
+// Emits one dispatch-switch arm that runs the specialization directly via
+// invokeSpecialized<>, threading the Fallback value and the matching
+// re-dispatch entry point.  The ADD/MULTIPLY wrappers bind DISPATCH.
+#define DISPATCH_BINARY_SPECIALIZATION(          \
+    DISPATCH, NAME, LHS, RHS, RET, OP, FALLBACK) \
+  case BinaryOpCache::Specialization::k##NAME:   \
+    return invokeSpecialized<                    \
+        SpecializedType::k##LHS,                 \
+        SpecializedType::k##RHS,                 \
+        SpecializedType::k##RET,                 \
+        OP,                                      \
+        Specialization::FALLBACK,                \
+        &BinaryOpCache::DISPATCH>(lhs, rhs, cache);
+#define DISPATCH_ADD_SPECIALIZATION(...) \
+  DISPATCH_BINARY_SPECIALIZATION(add, __VA_ARGS__)
+
+// Emits one specializedTypes() switch arm mapping a specialization to its
+// (lhs, rhs, return) operand types.  A single enum lets one switch cover both
+// ops, so no per-op wrapper is needed.
+#define SPECIALIZATION_TYPES_ENTRY(NAME, LHS, RHS, RET, OP, FALLBACK) \
+  case BinaryOpCache::Specialization::k##NAME:                        \
+    return BinarySpecialization{                                      \
+        SpecializedType::k##LHS,                                      \
+        SpecializedType::k##RHS,                                      \
+        SpecializedType::k##RET};
+
+static inline PyObject* longAdd(PyObject* lhs, PyObject* rhs) {
+  return PyLong_Type.tp_as_number->nb_add(lhs, rhs);
+}
+
+// Fast path for two compact ints: add their machine-word values directly.
+// Both operands are single-digit (guaranteed by _PyLong_IsCompact), so the
+// sum cannot overflow Py_ssize_t.  The result may itself be non-compact; the
+// compact/compact/compact specialization detects that via its return-type
+// check and steps down to compact/compact/long.
+static inline PyObject* compactLongAdd(PyObject* lhs, PyObject* rhs) {
+  Py_ssize_t a = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(lhs));
+  Py_ssize_t b = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(rhs));
+  return PyLong_FromSsize_t(a + b);
+}
+
+static inline PyObject* floatAdd(PyObject* lhs, PyObject* rhs) {
+  double a = reinterpret_cast<PyFloatObject*>(lhs)->ob_fval;
+  double b = reinterpret_cast<PyFloatObject*>(rhs)->ob_fval;
+  return PyFloat_FromDouble(a + b);
+}
+
+static inline PyObject* complexAdd(PyObject* lhs, PyObject* rhs) {
+  Py_complex a = reinterpret_cast<PyComplexObject*>(lhs)->cval;
+  Py_complex b = reinterpret_cast<PyComplexObject*>(rhs)->cval;
+  return PyComplex_FromCComplex(_Py_c_sum(a, b));
+}
+
+static inline PyObject* listAdd(PyObject* lhs, PyObject* rhs) {
+  return PyList_Type.tp_as_sequence->sq_concat(lhs, rhs);
+}
+
+static inline PyObject* tupleAdd(PyObject* lhs, PyObject* rhs) {
+  return PyTuple_Type.tp_as_sequence->sq_concat(lhs, rhs);
+}
+
+PyObject* BinaryOpCache::addGeneric(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* /* cache */) {
+  return PyNumber_Add(lhs, rhs);
+}
+
+PyObject* BinaryOpCache::populateAndInvokeAdd(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* cache) {
+  FOREACH_ADD_SPECIALIZATION(POPULATE_ADD_SPECIALIZATION)
+
+  cache->specialization_ = Specialization::kAddGeneric;
+  return addGeneric(lhs, rhs, cache);
+}
+
+// Dispatch on the cache's current specialization and run the corresponding add
+// operation directly.  The specialized arms are generated from
+// FOREACH_ADD_SPECIALIZATION so this stays in sync with the Specialization
+// enum. There is no indirect call through a function pointer.
+PyObject*
+BinaryOpCache::add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
+  switch (cache->specialization_) {
+    case Specialization::kUninitializedAdd:
+      return populateAndInvokeAdd(lhs, rhs, cache);
+    case Specialization::kAddGeneric:
+      return addGeneric(lhs, rhs, cache);
+      FOREACH_ADD_SPECIALIZATION(DISPATCH_ADD_SPECIALIZATION)
+  }
+  JIT_ABORT("Unknown BinaryOpCache specialization");
+}
+
+BinaryOpCache::BinarySpecialization BinaryOpCache::specializedTypes() const {
+  switch (specialization_) {
+    case Specialization::kUninitializedAdd:
+      return BinarySpecialization{
+          SpecializedType::kUninitialized,
+          SpecializedType::kUninitialized,
+          SpecializedType::kUninitialized};
+    case Specialization::kAddGeneric:
+      return BinarySpecialization{
+          SpecializedType::kGeneric,
+          SpecializedType::kGeneric,
+          SpecializedType::kGeneric};
+      FOREACH_ADD_SPECIALIZATION(SPECIALIZATION_TYPES_ENTRY)
+  }
+  JIT_ABORT("Unknown BinaryOpCache specialization");
 }
 
 void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type) {

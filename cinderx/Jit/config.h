@@ -150,6 +150,10 @@ struct Config {
   bool attr_caches{!kFreeThreadedBuild};
   // Collect stats information about attribute caches.
   bool collect_attr_cache_stats{false};
+  // Use inline caches for binary operations (currently the add variant only),
+  // dispatching through a self-modifying function pointer that specializes on
+  // the operand types observed at runtime.  Opt-in / off by default.
+  bool binary_op_caches{false};
   // Use type annotations to create runtime checks.
   bool emit_type_annotation_guards{false};
   // Whether or not to JIT specialized opcodes or to fall back to their generic

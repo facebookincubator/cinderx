@@ -373,6 +373,10 @@ LoadTypeMethodCache* Context::allocateLoadTypeMethodCache() {
   return load_type_method_caches_.allocate();
 }
 
+BinaryOpCache* Context::allocateBinaryOpCache(hir::BinaryOpKind op) {
+  return binary_op_caches_.allocate(op);
+}
+
 StoreAttrCache* Context::allocateStoreAttrCache() {
   return store_attr_caches_.allocate();
 }

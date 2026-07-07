@@ -111,6 +111,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // inputs, and may write all memory locations (usually from invoking
     // arbitrary user code).
     case Opcode::kBinaryOp:
+    case Opcode::kBinaryOpCached:
     case Opcode::kCallEx:
     case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
@@ -526,6 +527,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadSpecial:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:
+    case Opcode::kBinaryOpCached:
     case Opcode::kMakeFunction:
     case Opcode::kMergeSetUnpack:
     case Opcode::kMatchClass:
