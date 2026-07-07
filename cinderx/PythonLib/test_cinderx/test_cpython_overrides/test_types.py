@@ -6,14 +6,14 @@ import sys
 import typing
 import unittest
 
+from cinderx.test_support import passUnless
 
 T = typing.TypeVar("T")
 
 
 class CinderX_UnionTests(unittest.TestCase):
+    @passUnless(hasattr(sys, "gettotalrefcount"), "Uses sys.gettotalrefcount")
     def test_or_type_operator_reference_cycle(self) -> None:
-        if not hasattr(sys, "gettotalrefcount"):
-            self.skipTest("Cannot get total reference count.")
         gc.collect()
         before = sys.gettotalrefcount()
         # CinderX: This is changed from 30 to 1000
