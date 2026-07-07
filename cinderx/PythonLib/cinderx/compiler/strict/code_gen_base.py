@@ -29,7 +29,7 @@ from .feature_extractor import FeatureExtractor
 
 
 def is_mutable(node: AST) -> bool:
-    return isinstance(node, Name) and node.id in ("mutable")
+    return isinstance(node, Name) and node.id == "mutable"
 
 
 class FindClassDef(NodeVisitor):
