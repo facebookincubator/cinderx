@@ -517,6 +517,12 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(DictSubscr, dst, dict, key, FrameState{});
       break;
     }
+    case Opcode::kListSubscr: {
+      auto list = parseRegister();
+      auto idx = parseRegister();
+      NEW_INSTR(ListSubscr, dst, list, idx, FrameState{});
+      break;
+    }
     case Opcode::kStoreSubscr: {
       auto receiver = parseRegister();
       auto index = parseRegister();

@@ -3383,6 +3383,23 @@ class INSTR_CLASS(
       : InstrT(dst, left, right, frame) {}
 };
 
+// FT-only specialized list subscript. This is the free-threaded counterpart
+// to the GIL-build `LoadArrayItem` fast path, but returns an owned reference.
+class INSTR_CLASS(
+    ListSubscr,
+    (TListExact, TLongExact),
+    HasOutput,
+    Operands<2>,
+    DeoptBase) {
+ public:
+  ListSubscr(
+      Register* dst,
+      Register* left,
+      Register* right,
+      const FrameState& frame)
+      : InstrT(dst, left, right, frame) {}
+};
+
 // Return a new iterator for the object, or return it if it's an iterator
 class INSTR_CLASS(GetIter, (TObject), HasOutput, Operands<1>, DeoptBase) {
  public:

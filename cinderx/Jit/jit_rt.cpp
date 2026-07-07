@@ -2218,4 +2218,22 @@ PyObject* invokeIterNext(PyObject* iterator) {
   return &iterDoneSentinel;
 }
 
+PyObject* listSubscript(
+    [[maybe_unused]] PyObject* list,
+    [[maybe_unused]] PyObject* index) {
+#ifdef Py_GIL_DISABLED
+  Py_ssize_t i = PyNumber_AsSsize_t(index, PyExc_IndexError);
+  if (i == -1 && PyErr_Occurred()) {
+    return nullptr;
+  }
+  if (i < 0) {
+    // Resolve negative indices against the current size.
+    i += PyList_GET_SIZE(list);
+  }
+  return PyList_GetItemRef(list, i);
+#else
+  JIT_ABORT("listSubscript is only used in free-threaded builds");
+#endif
+}
+
 } // namespace cinderx::jit::rt

@@ -96,6 +96,7 @@ namespace cinderx::jit::hir {
   V(IsTruthy)                      \
   V(ListAppend)                    \
   V(ListExtend)                    \
+  V(ListSubscr)                    \
   V(LoadArrayItem)                 \
   V(LoadFieldAddress)              \
   V(LoadArg)                       \

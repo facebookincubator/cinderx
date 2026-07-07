@@ -4279,6 +4279,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             instr->getOperand(1));
         break;
       }
+      case Opcode::kListSubscr: {
+        if constexpr (kFreeThreadedBuild) {
+          auto instr = static_cast<const ListSubscr*>(&i);
+          bbb.appendCallInstruction(
+              instr->output(),
+              rt::listSubscript,
+              instr->getOperand(0),
+              instr->getOperand(1));
+          break;
+        } else {
+          JIT_THROW("ListSubscr only available for FT Python");
+        }
+      }
       case Opcode::kInPlaceOp: {
         auto instr = static_cast<const InPlaceOp*>(&i);
 

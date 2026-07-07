@@ -569,6 +569,12 @@ extern PyObject iterDoneSentinel;
  */
 PyObject* invokeIterNext(PyObject* iterator);
 
+/*
+ * FT-safe exact-list subscript used by ListSubscr. Uses PyList_GetItemRef so
+ * the result is an owned reference.
+ */
+PyObject* listSubscript(PyObject* list, PyObject* index);
+
 } // namespace cinderx::jit::rt
 
 #if PY_VERSION_HEX >= 0x030D0000

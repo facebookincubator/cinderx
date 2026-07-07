@@ -880,23 +880,33 @@ Register* simplifySubscript(Env& env, const BinaryOp* instr) {
     }
   }
 
-  // TODO(T255264263). Enable this for FT builds. See P2169673256.
-  if (!kFreeThreadedBuild && (lhs->isA(TListExact) || lhs->isA(TTupleExact))) {
-    Register* adjusted_idx =
-        unboxAndCheckListOrTupleIndex(env, instr, lhs, rhs);
-    if (adjusted_idx == nullptr) {
-      return nullptr;
-    }
-    Py_ssize_t offset = offsetof(PyTupleObject, ob_item);
-    Register* array = lhs;
-    // Lists carry a nested array of ob_item whereas tuples are variable-sized
-    // structs.
+  if constexpr (kFreeThreadedBuild) {
+    // In free-threaded builds we can't use the borrowed LoadArrayItem path
+    // for lists because another thread may overwrite the slot at any time.
+    // With an exact list, we can still skip PyObject_GetItem's generic
+    // dispatch by emitting ListSubscr, which returns an owned reference
+    // via PyList_GetItemRef.
     if (lhs->isA(TListExact)) {
-      array = env.emit<LoadField>(
-          lhs, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
-      offset = 0;
+      return env.emit<ListSubscr>(lhs, rhs, *instr->frameState());
     }
-    return env.emit<LoadArrayItem>(array, adjusted_idx, lhs, offset, TObject);
+  } else {
+    if (lhs->isA(TListExact) || lhs->isA(TTupleExact)) {
+      Register* adjusted_idx =
+          unboxAndCheckListOrTupleIndex(env, instr, lhs, rhs);
+      if (adjusted_idx == nullptr) {
+        return nullptr;
+      }
+      Py_ssize_t offset = offsetof(PyTupleObject, ob_item);
+      Register* array = lhs;
+      // Lists carry a nested array of ob_item whereas tuples are variable-sized
+      // structs.
+      if (lhs->isA(TListExact)) {
+        array = env.emit<LoadField>(
+            lhs, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
+        offset = 0;
+      }
+      return env.emit<LoadArrayItem>(array, adjusted_idx, lhs, offset, TObject);
+    }
   }
 
   // Unicode subscript.

@@ -276,6 +276,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kIsTruthy:
     case Opcode::kListAppend:
     case Opcode::kListExtend:
+    case Opcode::kListSubscr:
     case Opcode::kLoadCellItem:
     case Opcode::kLoadCurrentFunc:
     case Opcode::kLoadFrame:

@@ -499,6 +499,7 @@ bool Instr::isReplayable() const {
     case Opcode::kIsTruthy:
     case Opcode::kListAppend:
     case Opcode::kListExtend:
+    case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
     case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
@@ -786,6 +787,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kIsTruthy:
     case Opcode::kListAppend:
     case Opcode::kListExtend:
+    case Opcode::kListSubscr:
     case Opcode::kLoadArg:
     case Opcode::kLoadArrayItem:
     case Opcode::kLoadAttr:

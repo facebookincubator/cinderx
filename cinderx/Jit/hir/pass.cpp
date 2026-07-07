@@ -203,6 +203,7 @@ Type outputType(
     case Opcode::kImportFrom:
     case Opcode::kImportName:
     case Opcode::kInvokeIterNext:
+    case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
     case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:

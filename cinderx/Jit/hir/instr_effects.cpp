@@ -146,6 +146,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
     case Opcode::kIsTruthy:
+    case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
     case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
@@ -516,6 +517,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
     case Opcode::kIsTruthy:
+    case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
     case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:

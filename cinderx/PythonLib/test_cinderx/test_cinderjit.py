@@ -1943,6 +1943,39 @@ class StoreSubscrTests(unittest.TestCase):
             self.doit(obj, 1, 2)
 
 
+SUBSCR_OP = "BINARY_SUBSCR" if sys.version_info < (3, 14) else "BINARY_OP"
+
+
+class ListSubscrTests(unittest.TestCase):
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes(SUBSCR_OP)
+    def positive_index(self):
+        lst = [10, 20, 30]
+        return lst[1]
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes(SUBSCR_OP)
+    def negative_index(self):
+        lst = [10, 20, 30]
+        return lst[-1]
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes(SUBSCR_OP)
+    def out_of_bounds(self):
+        lst = [10, 20, 30]
+        return lst[5]
+
+    def test_positive_index(self) -> None:
+        self.assertEqual(self.positive_index(), 20)
+
+    def test_negative_index(self) -> None:
+        self.assertEqual(self.negative_index(), 30)
+
+    def test_out_of_bounds_raises_index_error(self) -> None:
+        with self.assertRaises(IndexError):
+            self.out_of_bounds()
+
+
 FORMAT_OP = "FORMAT_VALUE" if sys.version_info < (3, 14) else "FORMAT_SIMPLE"
 
 
