@@ -1,0 +1,8 @@
+# Tests skipped on ARM64 (aarch64), including CI runs under qemu-user emulation.
+# Loaded by cinder_test_runner._computeSkipTests when platform.machine() reports
+# aarch64/arm64. Unlike an --expected-failures entry, skipping avoids running
+# (and then serially re-running) a test that always fails here.
+
+# fexecve() is not reliably supported under qemu-user emulation, so this fails
+# on the emulated ARM64 CI.
+test.test_posix.PosixTester.test_fexecve

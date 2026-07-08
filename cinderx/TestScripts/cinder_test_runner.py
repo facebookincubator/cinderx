@@ -312,6 +312,9 @@ def _computeSkipTests(
     if platform.processor() != "" and platform.processor() != platform.machine():
         skip_list_files.append("cross_platform_skip_tests.txt")
 
+    if platform.machine() in ("aarch64", "arm64"):
+        skip_list_files.append("arm64_skip_tests.txt")
+
     for skip_file in skip_list_files:
         skip_file_path = os.path.join(os.path.dirname(__file__), skip_file)
         if not os.path.exists(skip_file_path):
