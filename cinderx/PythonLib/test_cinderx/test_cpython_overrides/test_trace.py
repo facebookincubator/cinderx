@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import os
 import sys
 import unittest
 from trace import Trace
