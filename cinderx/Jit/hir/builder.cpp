@@ -117,7 +117,10 @@ bool isSupportedOpcode(int opcode) {
     case COPY:
     case COPY_DICT_WITHOUT_KEYS:
     case COPY_FREE_VARS:
+#if PY_VERSION_HEX < 0x03100000
+    // 3.16 (gh-145855) removed DELETE_ATTR in favor of PUSH_NULL; STORE_ATTR.
     case DELETE_ATTR:
+#endif
     case DELETE_FAST:
     case DELETE_SUBSCR:
     case DICT_MERGE:
@@ -987,10 +990,14 @@ void HIRBuilder::translate(
           emitGetLen(tc);
           break;
         }
+#if PY_VERSION_HEX < 0x03100000
+        // 3.16 (gh-145855) removed DELETE_ATTR; `del obj.attr` is now
+        // PUSH_NULL; STORE_ATTR, handled by emitStoreAttr below.
         case DELETE_ATTR: {
           emitDeleteAttr(tc, bc_instr);
           break;
         }
+#endif
         case LOAD_ATTR: {
           emitLoadAttr(tc, bc_instr);
           break;
@@ -2741,12 +2748,17 @@ void HIRBuilder::emitJumpIf(
   }
 }
 
+#if PY_VERSION_HEX < 0x03100000
+// 3.16 (gh-145855) removed DELETE_ATTR; on earlier versions `del obj.attr`
+// still emits it. From 3.16 the equivalent PUSH_NULL; STORE_ATTR is handled by
+// emitStoreAttr routing a NULL value to DeleteAttr.
 void HIRBuilder::emitDeleteAttr(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   Register* receiver = tc.frame.stack.pop();
   tc.emit<DeleteAttr>(receiver, bc_instr.oparg(), tc.frame);
 }
+#endif
 
 void HIRBuilder::emitLoadAttr(
     TranslationContext& tc,
@@ -3820,6 +3832,19 @@ void HIRBuilder::emitStoreAttr(
     const jit::BytecodeInstruction& bc_instr) {
   Register* receiver = tc.frame.stack.pop();
   Register* value = tc.frame.stack.pop();
+  // Since 3.16 (gh-145855) `del obj.attr` is compiled as PUSH_NULL; STORE_ATTR,
+  // where a NULL value performs the delete. Route that to DeleteAttr, which
+  // lowers to PyObject_SetAttr(recv, name, NULL); a plain StoreAttr would be
+  // rewritten to a StoreAttrCached whose inline cache cannot represent a
+  // delete. Earlier versions emit DELETE_ATTR directly (see emitDeleteAttr).
+  if constexpr (PY_VERSION_HEX >= 0x03100000) {
+    Instr* value_def = value->instr();
+    if (value_def != nullptr && value_def->isLoadConst() &&
+        static_cast<const LoadConst*>(value_def)->type() <= TNullptr) {
+      tc.emit<DeleteAttr>(receiver, bc_instr.oparg(), tc.frame);
+      return;
+    }
+  }
   tc.emit<StoreAttr>(receiver, value, bc_instr.oparg(), tc.frame);
 }
 

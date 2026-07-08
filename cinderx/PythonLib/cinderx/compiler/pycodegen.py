@@ -6713,6 +6713,20 @@ class CodeGenerator316(CodeGenerator315):
         CodeGenerator315.SUPPORTED_FUNCTION_CALL_OPS + ("frozenset",)
     )
 
+    def visitAttribute(self, node: ast.Attribute) -> None:
+        # 3.16 (gh-145855) removed DELETE_ATTR; `del obj.attr` now compiles to
+        # PUSH_NULL; <owner>; STORE_ATTR, where storing NULL performs the delete.
+        # Emit it here (PUSH_NULL before the owner) to byte-match CPython's
+        # codegen exactly; Load/Store are unchanged.
+        if isinstance(node.ctx, ast.Del):
+            self.maybe_add_static_attribute_to_class(node)
+            self.emit("PUSH_NULL")
+            self.visit(node.value)
+            loc = self.compute_start_location_to_match_attr(node, node)
+            self.graph.emit_with_loc("STORE_ATTR", self.mangle(node.attr), loc)
+            return
+        super().visitAttribute(node)
+
     def maybe_optimize_function_call(self, node: ast.Call) -> bool:
         # frozenset({...}) / frozenset({... comprehension}) builds the set then
         # converts it via INTRINSIC_BUILD_FROZENSET, guarded by an identity check

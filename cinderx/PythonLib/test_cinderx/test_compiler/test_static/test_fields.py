@@ -2,6 +2,7 @@
 
 # pyre-strict
 
+import sys
 from types import MemberDescriptorType
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -158,7 +159,12 @@ class StaticFieldTests(StaticTestBase):
         """
         code = self.compile(codestr, modname="foo")
         code = self.find_code(code, name="f")
-        self.assertInBytecode(code, "DELETE_ATTR", "x")
+        if sys.version_info >= (3, 16):
+            # 3.16 (gh-145855) removed DELETE_ATTR; `del` is now
+            # PUSH_NULL; STORE_ATTR (a NULL value performs the delete).
+            self.assertInBytecode(code, "STORE_ATTR", "x")
+        else:
+            self.assertInBytecode(code, "DELETE_ATTR", "x")
 
     def test_uninit_slot(self) -> None:
         codestr = """

@@ -113,11 +113,11 @@ def init(
     specializations["STORE_LOCAL"].append("STORE_LOCAL_CACHED")
     def_op("PRIMITIVE_BOX", 18)
     hasarg.append(18)
-    jrel_op("POP_JUMP_IF_ZERO", 97)
-    hasarg.append(97)
+    jrel_op("POP_JUMP_IF_ZERO", 96)
+    hasarg.append(96)
     inline_cache_entries["POP_JUMP_IF_ZERO"] = 1
-    jrel_op("POP_JUMP_IF_NONZERO", 100)
-    hasarg.append(100)
+    jrel_op("POP_JUMP_IF_NONZERO", 99)
+    hasarg.append(99)
     inline_cache_entries["POP_JUMP_IF_NONZERO"] = 1
     def_op("PRIMITIVE_UNBOX", 19)
     hasarg.append(19)

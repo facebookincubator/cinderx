@@ -1338,7 +1338,12 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertInBytecode(mod.foo, "LOAD_ATTR", "load")
             self.assertInBytecode(mod.foo, "STORE_ATTR", "store")
-            self.assertInBytecode(mod.foo, "DELETE_ATTR", "delete")
+            if sys.version_info >= (3, 16):
+                # 3.16 (gh-145855) removed DELETE_ATTR; `del x.delete` is now
+                # PUSH_NULL; STORE_ATTR (a NULL value performs the delete).
+                self.assertInBytecode(mod.foo, "STORE_ATTR", "delete")
+            else:
+                self.assertInBytecode(mod.foo, "DELETE_ATTR", "delete")
 
     def test_incompat_override_method_ret_type(self) -> None:
         codestr = """

@@ -3267,19 +3267,27 @@ class PyFlowGraph316(PyFlowGraph315):
             self.ordered_blocks, allow_empty_tuple=True
         )
 
-    def emit(self, opcode: str, oparg: object = 0) -> None:
-        # 3.16a1 (magic 3702/3703) removed DELETE_NAME and DELETE_GLOBAL:
-        # deleting a name/global is now PUSH_NULL; STORE_{NAME,GLOBAL}, where
-        # storing NULL performs the delete. DELETE_FAST/DELETE_DEREF are
-        # unchanged. Rewriting at the graph level catches every emission site.
+    def emit_with_loc(self, opcode: str, oparg: object, loc: AST | SrcLocation) -> None:
+        # 3.16a1 removed DELETE_NAME/DELETE_GLOBAL (magic 3702/3703) and
+        # DELETE_ATTR (gh-145855): deleting is now PUSH_NULL; STORE_{NAME,GLOBAL,
+        # ATTR}, where storing NULL performs the delete. DELETE_FAST/DELETE_DEREF
+        # are unchanged. We rewrite in emit_with_loc (not emit) because attribute
+        # ops call emit_with_loc directly while emit() delegates here, so this
+        # single override catches every emission site.
         if opcode == "DELETE_NAME":
-            super().emit("PUSH_NULL")
-            super().emit("STORE_NAME", oparg)
+            super().emit_with_loc("PUSH_NULL", 0, loc)
+            super().emit_with_loc("STORE_NAME", oparg, loc)
         elif opcode == "DELETE_GLOBAL":
-            super().emit("PUSH_NULL")
-            super().emit("STORE_GLOBAL", oparg)
+            super().emit_with_loc("PUSH_NULL", 0, loc)
+            super().emit_with_loc("STORE_GLOBAL", oparg, loc)
+        elif opcode == "DELETE_ATTR":
+            # The owner is already on the stack, so swap it above the pushed NULL
+            # to get the STORE_ATTR operand order (value, owner) right.
+            super().emit_with_loc("PUSH_NULL", 0, loc)
+            super().emit_with_loc("SWAP", 2, loc)
+            super().emit_with_loc("STORE_ATTR", oparg, loc)
         else:
-            super().emit(opcode, oparg)
+            super().emit_with_loc(opcode, oparg, loc)
 
 
 # Constants for reference tracking flags

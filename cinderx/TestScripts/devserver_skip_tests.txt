@@ -78,6 +78,7 @@ test_multiprocessing_spawn
 test.test_compileall.CommandLineTestsNoSourceEpoch.test_workers
 test.test_compileall.CommandLineTestsWithSourceEpoch.test_workers
 test.test_concurrent_futures.test_shutdown.ProcessPoolForkserverProcessPoolShutdownTest.test_interpreter_shutdown
+test.test_concurrent_futures.test_shutdown.ProcessPoolForkserverProcessPoolShutdownTest.test_hang_gh83386
 
 # This fails with a negative reference count even without CinderX being loaded.
 test.test_set.TestSet.test_c_api

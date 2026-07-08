@@ -156,10 +156,13 @@ class HIRBuilder {
       const jit::BytecodeInstruction& bc_instr);
   void emitCopyDictWithoutKeys(TranslationContext& tc);
   void emitGetLen(TranslationContext& tc);
-  void emitJumpIf(
+#if PY_VERSION_HEX < 0x03100000
+  // Removed in 3.16 (gh-145855); see builder.cpp.
+  void emitDeleteAttr(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitDeleteAttr(
+#endif
+  void emitJumpIf(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitLoadAttr(

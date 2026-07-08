@@ -1691,7 +1691,11 @@ class CinderJitModuleTests(StaticTestBase):
 
 class DeleteAttrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("DELETE_ATTR")
+    # 3.16 (gh-145855) removed DELETE_ATTR; `del obj.foo` is now
+    # PUSH_NULL; STORE_ATTR (a NULL value performs the delete).
+    @failUnlessHasOpcodes(
+        "STORE_ATTR" if sys.version_info >= (3, 16) else "DELETE_ATTR"
+    )
     def del_foo(self, obj):
         del obj.foo
 

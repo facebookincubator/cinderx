@@ -63,7 +63,12 @@ class PropertyTests(StaticTestBase):
             self.assertEqual(c.foo, 42)
 
             bar = mod.bar
-            self.assertInBytecode(bar, "DELETE_ATTR", "foo")
+            if sys.version_info >= (3, 16):
+                # 3.16 (gh-145855) removed DELETE_ATTR; `del` is now
+                # PUSH_NULL; STORE_ATTR (a NULL value performs the delete).
+                self.assertInBytecode(bar, "STORE_ATTR", "foo")
+            else:
+                self.assertInBytecode(bar, "DELETE_ATTR", "foo")
 
     def test_property_getter_known_exact(self):
         codestr = """
