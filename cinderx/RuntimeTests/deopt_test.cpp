@@ -356,6 +356,28 @@ def test(x, y):
   }
 }
 
+TEST_F(ReifyFrameTest, ReadOwnedDoubleReinterpretsBits) {
+  uint64_t regs[NUM_GP_REGS] = {};
+
+  const double expected = 3.5;
+  regs[ARGUMENT_REGS[0].loc] = bit_cast<uint64_t, double>(expected);
+
+  LiveValue value{
+      PhyLocation{ARGUMENT_REGS[0].loc},
+      RefKind::kUncounted,
+      ValueKind::kDouble,
+      LiveValue::Source::kUnknown};
+
+  MemoryView mem{regs};
+  Ref<> result = mem.readOwned(value);
+
+  ASSERT_NE(result, nullptr);
+  ASSERT_TRUE(PyFloat_CheckExact(result));
+  // A buggy uint64_t -> double conversion would turn the IEEE-754 bit pattern
+  // of 3.5 into a ~4.6e18 float, verify we get the same 3.5 back.
+  ASSERT_EQ(PyFloat_AsDouble(result), expected);
+}
+
 class DeoptStressTest : public RuntimeTest {
  public:
   void runTest(

@@ -340,7 +340,9 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
     case jit::hir::ValueKind::kUnsigned:
       return Ref<>::steal(PyLong_FromSize_t(raw));
     case hir::ValueKind::kDouble:
-      return Ref<>::steal(PyFloat_FromDouble(raw));
+      // `raw` holds the IEEE-754 bit pattern of the unboxed CDouble, not a
+      // numeric integer, so reinterpret the bits rather than converting.
+      return Ref<>::steal(PyFloat_FromDouble(bit_cast<double, uint64_t>(raw)));
     case jit::hir::ValueKind::kBool:
       return Ref<>::create(raw ? Py_True : Py_False);
     case jit::hir::ValueKind::kObject: {
