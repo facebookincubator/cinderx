@@ -300,56 +300,54 @@ bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
     return true;
   }
 
-#if PY_VERSION_HEX >= 0x030E0000
   PyTypeObject* tp = Py_TYPE(obj);
-  if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
-    if (PyType_HasFeature(tp, Py_TPFLAGS_INLINE_VALUES)) {
-      PyDictValues* values = _PyObject_InlineValues(obj);
-      if (values->valid) {
-        // Inline values are still active but the shared keys may have changed
-        // (e.g., a new instance attribute was added). Check the type's shared
-        // keys version.
-        PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
-        return ht->ht_cached_keys->dk_version == keys_version;
-      }
-    }
-    // Check the managed dict directly.
-    PyDictObject* dict = _PyObject_GetManagedDict(obj);
-    if (dict == nullptr) {
+  PyDictObject* dict;
+#if PY_VERSION_HEX >= 0x030E0000
+  if (PyType_HasFeature(tp, Py_TPFLAGS_INLINE_VALUES)) {
+    if (_PyObject_InlineValues(obj)->valid) {
+#if defined(ENABLE_SHARED_KEYS_TYPE_MODIFIED) || PY_VERSION_HEX >= 0x03100000
       return true;
+#else
+      // Inline values are still active but the shared keys may have changed
+      // (e.g., a new instance attribute was added). Check the type's shared
+      // keys version.
+      PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
+      return ht->ht_cached_keys->dk_version == keys_version;
+#endif
     }
-    return dict->ma_keys->dk_version == keys_version;
+    dict = _PyObject_GetManagedDict(obj);
+  } else if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
+    // Check the managed dict directly.
+    dict = _PyObject_GetManagedDict(obj);
+  } else {
+    PyObject** dictptr = _PyObject_GetDictPtr(obj);
+    JIT_DCHECK(
+        dictptr != nullptr, "should have dict ptr {}", Py_TYPE(obj)->tp_name);
+    dict = reinterpret_cast<PyDictObject*>(*dictptr);
   }
 #else
-  PyTypeObject* tp = Py_TYPE(obj);
   if (PyType_HasFeature(tp, Py_TPFLAGS_MANAGED_DICT)) {
     PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
     if (_PyDictOrValues_IsValues(dorv)) {
+#if defined(ENABLE_SHARED_KEYS_TYPE_MODIFIED) || PY_VERSION_HEX >= 0x03100000
+      return true;
+#else
       // Values are still inline but the shared keys may have changed
       // (e.g., a new instance attribute was added). Check the type's shared
       // keys version.
       PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(tp);
       return ht->ht_cached_keys->dk_version == keys_version;
+#endif
     }
-    PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
-    if (dict == nullptr) {
-      return true;
-    }
-    return dict->ma_keys->dk_version == keys_version;
+    dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
+  } else {
+    PyObject** dictptr = _PyObject_GetDictPtr(obj);
+    JIT_DCHECK(
+        dictptr != nullptr, "should have dict ptr {}", Py_TYPE(obj)->tp_name);
+    dict = reinterpret_cast<PyDictObject*>(*dictptr);
   }
 #endif
-
-  // Non-managed-dict fallback (non-heap types with tp_dictoffset).
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  JIT_DCHECK(
-      dictptr != nullptr, "should have dict ptr {}", Py_TYPE(obj)->tp_name);
-
-  PyDictObject* dict = reinterpret_cast<PyDictObject*>(*dictptr);
-  if (dict == nullptr) {
-    return true;
-  }
-
-  return dict->ma_keys->dk_version == keys_version;
+  return dict == nullptr || dict->ma_keys->dk_version == keys_version;
 }
 
 // If the current exception is AttributeError and the type has __getattr__,
