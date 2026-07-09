@@ -456,23 +456,25 @@ class BuildExt(build_ext):
         mac = sys.platform == "darwin"
         meta_312 = meta_python and py_version == "3.12"
         is_314plus = py_version == "3.14" or py_version == "3.15"
+        is_315 = py_version == "3.15"
         free_threading = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
-        set_option("META_PYTHON", meta_python)
-        set_option("ENABLE_FREE_THREADING", free_threading)
         set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
         set_option("ENABLE_DISASSEMBLER", True)
         set_option("ENABLE_ELF_READER", linux)
         set_option("ENABLE_EVAL_HOOK", meta_312)
-        set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312)
+        set_option("ENABLE_FREE_THREADING", free_threading)
+        set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312 or is_315)
         set_option("ENABLE_GENERATOR_AWAITER", meta_312)
-        set_option("ENABLE_INTERPRETER_LOOP", meta_312 or is_314plus)
+        set_option("ENABLE_INTERPRETER_LOOP", True)
         set_option("ENABLE_LAZY_IMPORTS", meta_312)
         set_option("ENABLE_LIGHTWEIGHT_FRAMES", meta_312)
         set_option("ENABLE_PARALLEL_GC", meta_312)
-        set_option("ENABLE_PEP523_HOOK", meta_312 or is_314plus)
+        set_option("ENABLE_PEP523_HOOK", True)
         set_option("ENABLE_PERF_TRAMPOLINE", meta_312)
+        set_option("ENABLE_PREFORK_MODEL", False)
         set_option("ENABLE_SYMBOLIZER", linux)
+        set_option("ENABLE_XXCLASSLOADER", False)
         set_option("ENABLE_USDT", linux)
         set_option("ENABLE_ZLIB", linux or mac)
 
