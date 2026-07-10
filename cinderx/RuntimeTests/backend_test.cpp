@@ -18,6 +18,7 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/module_state.h"
 
+#include <cstddef>
 // NOLINTNEXTLINE(facebook-hte-BadInclude-regex)
 #include <regex>
 #include <sstream>
@@ -1251,18 +1252,18 @@ BB %0 - succs: %8
        %2:Object = LoadArg 1(0x1):64bit
 
 BB %8 - preds: %0 - succs: %10 %9
-      %15:Object = Move [%1:Object + 0x8]:Object
+      %15:Object = Move [%1:Object + {0:#x}]:Object
       %16:Object = Equal %15:Object, %2:Object
                    CondBranch %16:Object
 
 BB %9 - preds: %8 - succs: %10 %11
-      %18:Object = Call {0}({0:#x}):Object, %15:Object, %2:Object
+      %18:Object = Call {2}({2:#x}):Object, %15:Object, %2:Object
                    CondBranch %18:Object
 
 BB %11 - preds: %9 - succs: %12
-      %22:Object = Move [%15:Object + 0x18]:Object
-      %23:Object = Move [%2:Object + 0x18]:Object
-                   Call {1}({1:#x}):Object, {2}({2:#x}):Object, string_literal, %23:Object, %22:Object
+      %22:Object = Move [%15:Object + {1:#x}]:Object
+      %23:Object = Move [%2:Object + {1:#x}]:Object
+                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
       %25:Object = Move 0(0x0):Object
 
 BB %10 - preds: %8 %9 - succs: %12
@@ -1272,12 +1273,14 @@ BB %12 - preds: %10 %11 - succs: %7
 
 BB %7 - preds: %12 - succs: %6
        %3:Object = Move %28:Object
-{3:>16} = Move %3:Object
+{5:>16} = Move %3:Object
                    Return
 
 BB %6 - preds: %7
 
 )",
+      offsetof(PyObject, ob_type),
+      offsetof(PyTypeObject, tp_name),
       reinterpret_cast<uint64_t>(PyType_IsSubtype),
       reinterpret_cast<uint64_t>(PyErr_Format),
       reinterpret_cast<uint64_t>(PyExc_TypeError),
