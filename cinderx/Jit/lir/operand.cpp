@@ -5,6 +5,8 @@
 #include "cinderx/Jit/lir/arch.h"
 #include "cinderx/Jit/lir/instruction.h"
 
+#include <bit>
+
 namespace cinderx::jit::lir {
 
 MemoryIndirect::MemoryIndirect(Instruction* parent) : parent_(parent) {}
@@ -112,7 +114,7 @@ Operand::Operand(
 
 Operand::Operand(Instruction* parent, Operand::Type type, double data)
     : parent_instr_{parent}, type_{type}, data_type_{kDouble} {
-  value_ = bit_cast<uint64_t>(data);
+  value_ = std::bit_cast<uint64_t>(data);
 }
 
 Operand::Operand(Instruction* def_instr, LinkedTag) {
@@ -182,13 +184,13 @@ double Operand::getFPConstant() const {
     return def->getFPConstant();
   }
   uint64_t value = std::get<uint64_t>(value_);
-  return bit_cast<double>(value);
+  return std::bit_cast<double>(value);
 }
 
 void Operand::setFPConstant(double n) {
   type_ = kImm;
   data_type_ = kDouble;
-  value_ = bit_cast<uint64_t>(n);
+  value_ = std::bit_cast<uint64_t>(n);
 }
 
 PhyLocation Operand::getPhyRegister() const {

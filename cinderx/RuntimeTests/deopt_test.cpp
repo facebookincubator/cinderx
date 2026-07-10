@@ -29,6 +29,7 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <algorithm>
+#include <bit>
 
 using namespace cinderx;
 using namespace cinderx::jit;
@@ -360,7 +361,7 @@ TEST_F(ReifyFrameTest, ReadOwnedDoubleReinterpretsBits) {
   uint64_t regs[NUM_GP_REGS] = {};
 
   const double expected = 3.5;
-  regs[ARGUMENT_REGS[0].loc] = bit_cast<uint64_t, double>(expected);
+  regs[ARGUMENT_REGS[0].loc] = std::bit_cast<uint64_t, double>(expected);
 
   LiveValue value{
       PhyLocation{ARGUMENT_REGS[0].loc},

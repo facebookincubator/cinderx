@@ -20,6 +20,7 @@
 #define USDT(...)
 #endif
 
+#include <bit>
 #include <shared_mutex>
 
 namespace cinderx::jit {
@@ -334,7 +335,7 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
 
   switch (value.value_kind) {
     case jit::hir::ValueKind::kSigned: {
-      Py_ssize_t raw_signed = bit_cast<Py_ssize_t, uint64_t>(raw);
+      Py_ssize_t raw_signed = std::bit_cast<Py_ssize_t, uint64_t>(raw);
       return Ref<>::steal(PyLong_FromSsize_t(raw_signed));
     }
     case jit::hir::ValueKind::kUnsigned:
@@ -342,7 +343,8 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
     case hir::ValueKind::kDouble:
       // `raw` holds the IEEE-754 bit pattern of the unboxed CDouble, not a
       // numeric integer, so reinterpret the bits rather than converting.
-      return Ref<>::steal(PyFloat_FromDouble(bit_cast<double, uint64_t>(raw)));
+      return Ref<>::steal(
+          PyFloat_FromDouble(std::bit_cast<double, uint64_t>(raw)));
     case jit::hir::ValueKind::kBool:
       return Ref<>::create(raw ? Py_True : Py_False);
     case jit::hir::ValueKind::kObject: {

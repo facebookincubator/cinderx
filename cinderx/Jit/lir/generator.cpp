@@ -50,6 +50,7 @@ extern "C" {
 #include <fmt/ostream.h>
 
 #include <algorithm>
+#include <bit>
 #include <functional>
 #include <sstream>
 
@@ -2290,7 +2291,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
         if (ty <= TCDouble) {
           // Loads the bits of the double constant into an integer register.
-          auto spec_value = bit_cast<uint64_t>(ty.doubleSpec());
+          auto spec_value = std::bit_cast<uint64_t>(ty.doubleSpec());
           Instruction* double_bits = bbb.appendInstr(
               Instruction::kMove, OutVReg{Operand::k64bit}, Imm{spec_value});
           // Moves the value into a floating point register.

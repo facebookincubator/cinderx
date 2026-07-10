@@ -9,6 +9,7 @@
 #include "cinderx/Jit/hir/type_generated.h"
 #include "fmt/ostream.h"
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
@@ -248,7 +249,11 @@ class Type {
             reinterpret_cast<intptr_t>(value_spec)} {}
 
   constexpr Type(bits_t bits, double_t spec)
-      : Type{bits, kLifetimeBottom, kSpecDouble, bit_cast<intptr_t>(spec)} {}
+      : Type{
+            bits,
+            kLifetimeBottom,
+            kSpecDouble,
+            std::bit_cast<intptr_t>(spec)} {}
 
   constexpr Type(
       bits_t bits,

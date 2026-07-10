@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#include <bit>
 #include <cctype>
 #include <cstdint>
 #include <optional>
@@ -343,7 +344,8 @@ class BasicBlockBuilder {
     } else if constexpr (std::is_same_v<CurArgType, bool>) {
       instr->allocateImmediateInput(val ? 1 : 0, DataType::k8bit);
     } else if constexpr (std::is_floating_point_v<CurArgType>) {
-      instr->allocateImmediateInput(bit_cast<uint64_t>(val), DataType::kDouble);
+      instr->allocateImmediateInput(
+          std::bit_cast<uint64_t>(val), DataType::kDouble);
     } else if constexpr (std::is_integral_v<CurArgType>) {
       if constexpr (sizeof(CurArgType) == 1) {
         instr->allocateImmediateInput(

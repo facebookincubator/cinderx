@@ -41,6 +41,7 @@
 #include "internal/pycore_qsbr.h"
 #endif
 
+#include <bit>
 #include <cmath>
 #include <span>
 #include <type_traits>
@@ -496,7 +497,7 @@ bool packStaticArgs(
         if (!PyFloat_Check(arg)) {
           return true;
         }
-        arg_space[i] = bit_cast<void*>(PyFloat_AsDouble(arg));
+        arg_space[i] = std::bit_cast<void*>(PyFloat_AsDouble(arg));
       } else if (cur_arg->tai_primitive_type <= TYPED_INT64) {
         // Primitive arg check
         if (!PyLong_Check(arg) ||

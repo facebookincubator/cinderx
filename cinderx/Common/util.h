@@ -432,15 +432,4 @@ inline void walkFunctionObjects(FuncVisitor visitor) {
   PyUnstable_GC_VisitObjects(wrapper, reinterpret_cast<void*>(visitor));
 }
 
-template <typename D, typename S>
-inline constexpr D bit_cast(const S& src) {
-  static_assert(sizeof(S) == sizeof(D), "src and dst must be the same size");
-  static_assert(
-      std::is_scalar_v<D> && std::is_scalar_v<S>,
-      "both src and dst must be of scalar type.");
-  D dst;
-  std::memcpy(&dst, &src, sizeof(dst));
-  return dst;
-}
-
 } // namespace cinderx
