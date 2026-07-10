@@ -20,6 +20,8 @@
 
 #include <fmt/ostream.h>
 
+#include <optional>
+
 namespace cinderx::jit::hir {
 
 // This file contains the Simplify pass, which is a collection of
@@ -233,6 +235,29 @@ struct Env {
 
     return emitRawInstr<Phi>(output, args);
   }
+
+  // Last-use information for the current function, computed lazily on first use
+  // and cached for the remainder of the current Simplify iteration.
+  // Recomputing liveness once per iteration keeps liveness-dependent rewrites
+  // (e.g. the isinstance-if simplification) from being quadratic in function
+  // size.  invalidateLastUses() must be called whenever the cache may have gone
+  // stale, i.e. between iterations after the CopyPropagation/CleanCFG cleanup
+  // runs.
+  const LivenessAnalysis::LastUses& lastUses() {
+    if (!last_uses_.has_value()) {
+      LivenessAnalysis liveness{func};
+      liveness.run();
+      last_uses_ = liveness.getLastUses();
+    }
+    return *last_uses_;
+  }
+
+  void invalidateLastUses() {
+    last_uses_.reset();
+  }
+
+ private:
+  std::optional<LivenessAnalysis::LastUses> last_uses_;
 };
 
 Register* simplifyCheck(const CheckBase* instr) {
@@ -2074,7 +2099,6 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
     const VectorCall* instr) {
   std::vector<Instr*> snapshots;
 
-  LivenessAnalysis::LastUses last_uses;
   Register* output = nullptr;
 
   enum state { kInitial, kCondBranch, kIsTruthy, kFailed };
@@ -2091,10 +2115,7 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
           break;
         }
 
-        LivenessAnalysis analysis{env.func};
-        analysis.run();
-
-        last_uses = analysis.getLastUses();
+        const auto& last_uses = env.lastUses();
         auto lu_at_condbranch = last_uses.find(&*current);
         if (lu_at_condbranch == last_uses.end() ||
             lu_at_condbranch->second.size() != 1) {
@@ -2111,6 +2132,7 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
       case kCondBranch: {
         if (current->isIsTruthy() && output == current->output() &&
             current->getOperand(0) == instr->output()) {
+          const auto& last_uses = env.lastUses();
           auto lu_at_istruthy = last_uses.find(&*current);
           if (lu_at_istruthy == last_uses.end() ||
               lu_at_istruthy->second.size() != 1) {
@@ -2449,6 +2471,9 @@ void Simplify::run(Function& irfunc) {
        changed && i < iteration_limit && env.new_blocks < new_block_limit;
        ++i) {
     changed = false;
+    // The previous iteration's cleanup passes (below) may have invalidated
+    // liveness; recompute it lazily on next use this iteration.
+    env.invalidateLastUses();
     for (auto& block : irfunc.cfg.blocks) {
       env.block = &block;
 

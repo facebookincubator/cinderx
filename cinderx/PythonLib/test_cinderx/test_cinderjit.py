@@ -2679,6 +2679,62 @@ class CompileTimeTests(unittest.TestCase):
         self.assertGreater(cinderx.jit.get_function_compilation_time(_compile), 0)
 
 
+class SimplifyCompileTimeTests(unittest.TestCase):
+    @staticmethod
+    def _make_chain(kind: str, n: int) -> Callable[..., int]:
+        # Distinct args per check so nothing collapses the N isinstance sites.
+        args = ", ".join(f"a{i}" for i in range(n))
+        lines = [f"def f(acc, {args}):"]
+        for i in range(n):
+            cond = f"isinstance(a{i}, str)" if kind == "isinstance" else f"a{i}"
+            lines.append(f"    if {cond}:")
+            lines.append(f"        acc += {i}")
+        lines.append("    return acc")
+        ns: dict[str, object] = {}
+        exec(compile("\n".join(lines), f"<{kind}_{n}>", "exec"), ns, ns)
+        # pyre-ignore[7]: exec-defined function.
+        return ns["f"]
+
+    def test_isinstance_if_chain_compiles_in_linear_time(self) -> None:
+        """
+        Regression test for a quadratic blowup in the HIR Simplify pass: an
+        `if isinstance(x, T):` check made the pass recompute whole-function
+        liveness, and it ran once per such check, so a function with N of
+        them compiled in ~O(N^2).
+
+        Wall-clock thresholds are too fragile here (sanitized/emulated CI hosts
+        run much slower), so we compare the compile time of an isinstance-if
+        chain against a size-matched `if x:` chain: same CFG, but the baseline
+        never triggers the isinstance simplification.  After the fix the two
+        scale together (ratio ~2); before it the isinstance chain was ~15-30x
+        slower, growing with N.
+        """
+
+        n = 128
+        isinstance_fn = self._make_chain("isinstance", n)
+        baseline_fn = self._make_chain("baseline", n)
+
+        force_compile(isinstance_fn)
+        force_compile(baseline_fn)
+
+        isinstance_ms = cinderx.jit.get_function_compilation_time(isinstance_fn)
+        baseline_ms = cinderx.jit.get_function_compilation_time(baseline_fn)
+
+        # The baseline must be large enough for the ratio below to be meaningful.
+        self.assertGreater(baseline_ms, 0, "baseline compile time too small to measure")
+        # Same-size CFGs, so absent the quadratic bug the isinstance chain is
+        # within a small constant factor of the baseline (~2x). Guard well below
+        # the pre-fix ratio (~30x at this size).
+        self.assertLess(
+            isinstance_ms,
+            6 * baseline_ms,
+            f"isinstance-if chain compiled in {isinstance_ms}ms vs {baseline_ms}ms "
+            f"for a size-matched baseline "
+            f"({isinstance_ms / max(baseline_ms, 1):.1f}x); the Simplify pass may "
+            f"have regressed to recomputing liveness per isinstance check.",
+        )
+
+
 @passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LocalsBuiltinTests(unittest.TestCase):
     def test_locals_not_compiled(self) -> None:
