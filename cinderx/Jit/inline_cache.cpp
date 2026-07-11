@@ -169,34 +169,6 @@ PyObject* __attribute__((noinline)) raise_attribute_error(
   return nullptr;
 }
 
-ci_dict_version_tag_t getModuleVersion(BorrowedRef<PyModuleObject> mod) {
-  if (mod->md_dict) {
-    BorrowedRef<PyDictObject> md_dict = mod->md_dict;
-    return Ci_DictVersionTag(md_dict.get());
-  }
-  return 0;
-}
-
-ci_dict_version_tag_t getModuleVersion(BorrowedRef<Ci_StrictModuleObject> mod) {
-  if (mod->globals) {
-    BorrowedRef<PyDictObject> globals = mod->globals;
-    return Ci_DictVersionTag(globals.get());
-  }
-  return 0;
-}
-
-ci_dict_version_tag_t getModuleVersion(BorrowedRef<> obj) {
-  if (PyModule_Check(obj)) {
-    BorrowedRef<PyModuleObject> mod{obj};
-    return getModuleVersion(mod);
-  } else if (Ci_StrictModule_Check(obj)) {
-    BorrowedRef<Ci_StrictModuleObject> mod{obj};
-    return getModuleVersion(mod);
-  } else {
-    return 0;
-  }
-}
-
 void maybeCollectCacheStats(
     std::unique_ptr<CacheStats>& stat,
     BorrowedRef<PyTypeObject> tp,
@@ -1996,9 +1968,11 @@ PyObject* LoadModuleAttrCache::lookup(
     }
   }
 #else
-  if (module_ == object && value_ != nullptr &&
-      version_ == getModuleVersion(object)) {
-    return Py_NewRef(value_);
+  if (module_ == object && value_ != nullptr) {
+    BorrowedRef<PyDictObject> dict = getModuleDict(object);
+    if (dict != nullptr && version_ == Ci_DictVersionTag(dict)) {
+      return Py_NewRef(value_);
+    }
   }
 #endif
 
@@ -2068,11 +2042,11 @@ LoadMethodResult LoadModuleMethodCache::lookup(
     }
   }
 #else
-  BorrowedRef<PyDictObject> dict = getModuleDict(obj);
-  ci_dict_version_tag_t version = Ci_DictVersionTag(dict);
-
-  if (module_obj_ == obj && value_ != nullptr && module_version_ == version) {
-    return {Py_None, Py_NewRef(value_)};
+  if (module_obj_ == obj && value_ != nullptr) {
+    BorrowedRef<PyDictObject> dict = getModuleDict(obj);
+    if (dict != nullptr && module_version_ == Ci_DictVersionTag(dict)) {
+      return {Py_None, Py_NewRef(value_)};
+    }
   }
 #endif
 
