@@ -4,6 +4,7 @@
 
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/analysis.h"
+#include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/printer.h"
 
 namespace cinderx::jit::hir {
@@ -696,7 +697,7 @@ bool removeUnreachableInstructions(Function& func) {
 
   bool modified = false;
   std::vector<BasicBlock*> blocks = cfg->getPostOrderTraversal();
-  DominatorAnalysis dom(func);
+  DominatorTree dom{func};
   RegUses reg_uses = collectDirectRegUses(func);
   auto remove_reg_uses = [&reg_uses](Instr* instr) {
     for (auto op : instr->getOperands()) {
