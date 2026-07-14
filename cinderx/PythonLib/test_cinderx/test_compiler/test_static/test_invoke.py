@@ -4,7 +4,6 @@
 
 import asyncio
 import platform
-import sys
 from collections.abc import Sequence
 
 import cinderx.jit
