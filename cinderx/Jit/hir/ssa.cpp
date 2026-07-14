@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/hir/analysis.h"
+#include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -12,6 +13,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#include <algorithm>
 #include <ostream>
 #include <queue>
 #include <unordered_map>
@@ -274,210 +276,311 @@ bool checkFunc(const Function& func, std::ostream& err) {
   return env.ok;
 }
 
+namespace {
+
+// Static single assignment construction using the classic algorithm of Cytron,
+// Ferrante, Rosen, Wegman, and Zadeck, "Efficiently Computing Static Single
+// Assignment Form and the Control Dependence Graph" (TOPLAS 1991). Phi nodes
+// are placed at the iterated dominance frontiers of each variable's definition
+// sites, then a walk of the dominator tree renames uses to their reaching
+// definitions.
+//
+// The input is HIR where a single "variable" Register may be defined by more
+// than one instruction; the output gives each definition a fresh SSA Register
+// and inserts Phis where control flow merges distinct definitions. The pass
+// operates on the sub-CFG reachable from `start`, which lets it run over an
+// inlined function's body in isolation.
+class SSAConstructor {
+ public:
+  SSAConstructor(Environment& env, BasicBlock* start)
+      : env_{env}, start_{start}, dom_{start} {}
+
+  void run();
+
+ private:
+  struct PhiInfo {
+    // The SSA Register produced by the Phi; allocated when its block is
+    // renamed.
+    Register* output{nullptr};
+    // Incoming value from each predecessor block, filled during renaming.
+    std::unordered_map<BasicBlock*, Register*> args;
+  };
+
+  void computeLiveness();
+  void collectDefSites();
+  void placePhis();
+  void rename();
+  void renameBlock(BasicBlock* block, std::vector<Register*>& pushed);
+  void materializePhis();
+
+  // Current reaching definition of `var`, or a null constant if it is undefined
+  // on this path.
+  Register* readVar(Register* var);
+  Register* getNullReg();
+  std::vector<BasicBlock*> sortedSuccessors(BasicBlock* block);
+
+  Environment& env_;
+  BasicBlock* start_;
+  DominatorTree dom_;
+
+  // Variables live on entry to each block, used to place pruned SSA (a Phi is
+  // only created where its variable is actually needed).
+  std::unordered_map<BasicBlock*, std::unordered_set<Register*>> live_in_;
+
+  std::unordered_map<Register*, std::unordered_set<BasicBlock*>> def_sites_;
+  std::unordered_map<BasicBlock*, std::unordered_map<Register*, PhiInfo>> phis_;
+  // Stack of reaching definitions per variable, scoped to the dominator-tree
+  // walk.
+  std::unordered_map<Register*, std::vector<Register*>> def_stack_;
+
+  Register* null_reg_{nullptr};
+};
+
+void SSAConstructor::run() {
+  computeLiveness();
+  collectDefSites();
+  placePhis();
+  rename();
+  materializePhis();
+}
+
+// Backward liveness of the pre-SSA variables over the reachable subgraph.
+void SSAConstructor::computeLiveness() {
+  const std::vector<BasicBlock*>& rpo = dom_.reversePostorder();
+  std::unordered_map<BasicBlock*, std::unordered_set<Register*>> gen;
+  std::unordered_map<BasicBlock*, std::unordered_set<Register*>> kill;
+  for (BasicBlock* block : rpo) {
+    auto& block_gen = gen[block];
+    auto& block_kill = kill[block];
+    for (Instr& instr : *block) {
+      instr.visitUses([&](Register* reg) {
+        if (!block_kill.contains(reg)) {
+          block_gen.insert(reg);
+        }
+        return true;
+      });
+      if (Register* out = instr.output()) {
+        block_kill.insert(out);
+      }
+    }
+  }
+
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (auto it = rpo.rbegin(); it != rpo.rend(); ++it) {
+      BasicBlock* block = *it;
+      std::unordered_set<Register*> new_in = gen[block];
+      for (BasicBlock* succ : sortedSuccessors(block)) {
+        for (Register* reg : live_in_[succ]) {
+          if (!kill[block].contains(reg)) {
+            new_in.insert(reg);
+          }
+        }
+      }
+      if (new_in != live_in_[block]) {
+        live_in_[block] = std::move(new_in);
+        changed = true;
+      }
+    }
+  }
+}
+
+void SSAConstructor::collectDefSites() {
+  for (BasicBlock* block : dom_.reversePostorder()) {
+    for (Instr& instr : *block) {
+      JIT_CHECK(!instr.isPhi(), "SSAify does not support Phis in its input");
+      if (Register* out = instr.output()) {
+        def_sites_[out].insert(block);
+      }
+    }
+  }
+}
+
+// Place Phis at the iterated dominance frontier of each variable's definitions.
+void SSAConstructor::placePhis() {
+  for (auto& [var, sites] : def_sites_) {
+    std::vector<BasicBlock*> worklist{sites.begin(), sites.end()};
+    std::unordered_set<BasicBlock*> on_worklist{sites.begin(), sites.end()};
+    std::unordered_set<BasicBlock*> has_phi;
+    while (!worklist.empty()) {
+      BasicBlock* x = worklist.back();
+      worklist.pop_back();
+      for (BasicBlock* y : dom_.dominanceFrontier(x)) {
+        // Pruned SSA: skip Phis for variables that aren't live at the merge.
+        if (!live_in_[y].contains(var)) {
+          continue;
+        }
+        if (!has_phi.insert(y).second) {
+          continue;
+        }
+        // A Phi is itself a definition of `var`, so `y` joins the worklist to
+        // propagate to its own dominance frontier.
+        phis_[y].try_emplace(var);
+        if (on_worklist.insert(y).second) {
+          worklist.push_back(y);
+        }
+      }
+    }
+  }
+}
+
+void SSAConstructor::rename() {
+  struct Frame {
+    BasicBlock* block;
+    bool exit;
+  };
+
+  // Registers pushed onto def_stack_ while renaming a block, to be popped when
+  // the dominator-tree walk leaves it.
+  std::unordered_map<BasicBlock*, std::vector<Register*>> pushed;
+  std::vector<Frame> stack;
+  stack.push_back({start_, false});
+
+  while (!stack.empty()) {
+    Frame frame = stack.back();
+    stack.pop_back();
+
+    if (frame.exit) {
+      for (Register* var : pushed[frame.block]) {
+        def_stack_[var].pop_back();
+      }
+      pushed.erase(frame.block);
+      continue;
+    }
+
+    renameBlock(frame.block, pushed[frame.block]);
+    stack.push_back({frame.block, true});
+    // Push children in reverse so they are visited in ascending-id order.
+    const std::vector<BasicBlock*>& children = dom_.children(frame.block);
+    for (auto it = children.rbegin(); it != children.rend(); ++it) {
+      stack.push_back({*it, false});
+    }
+  }
+}
+
+void SSAConstructor::renameBlock(
+    BasicBlock* block,
+    std::vector<Register*>& pushed) {
+  // Phi outputs are the reaching definitions at block entry. Allocate them in
+  // variable-id order so register numbering is deterministic.
+  if (auto phi_it = phis_.find(block); phi_it != phis_.end()) {
+    std::vector<Register*> vars;
+    vars.reserve(phi_it->second.size());
+    for (auto& [var, info] : phi_it->second) {
+      vars.push_back(var);
+    }
+    std::sort(vars.begin(), vars.end(), [](Register* a, Register* b) {
+      return a->id() < b->id();
+    });
+    for (Register* var : vars) {
+      Register* out = env_.allocateRegister();
+      phi_it->second[var].output = out;
+      def_stack_[var].push_back(out);
+      pushed.push_back(var);
+    }
+  }
+
+  for (Instr& instr : *block) {
+    instr.visitUses([&](Register*& reg) {
+      JIT_CHECK(
+          reg != nullptr, "Instructions should not have nullptr operands");
+      reg = readVar(reg);
+      return true;
+    });
+    if (Register* var = instr.output()) {
+      Register* new_reg = env_.allocateRegister();
+      instr.setOutput(new_reg);
+      def_stack_[var].push_back(new_reg);
+      pushed.push_back(var);
+    }
+  }
+
+  // Supply the operand each successor Phi reads from this block.
+  for (BasicBlock* succ : sortedSuccessors(block)) {
+    auto it = phis_.find(succ);
+    if (it == phis_.end()) {
+      continue;
+    }
+    for (auto& [var, info] : it->second) {
+      info.args[block] = readVar(var);
+    }
+  }
+}
+
+void SSAConstructor::materializePhis() {
+  for (auto& [block, phi_map] : phis_) {
+    auto bc_off = block->begin()->bytecodeOffset();
+
+    // Collect and sort to stabilize IR ordering.
+    std::vector<Phi*> phis;
+    phis.reserve(phi_map.size());
+    for (auto& [var, info] : phi_map) {
+      JIT_DCHECK(info.output != nullptr, "Phi output was never allocated");
+      Phi* phi = Phi::create(info.output, info.args);
+      phi->setBytecodeOffset(bc_off);
+      phis.push_back(phi);
+    }
+    std::sort(phis.begin(), phis.end(), [](const Phi* a, const Phi* b) {
+      // Sort using > instead of the typical < because we're effectively
+      // reversing by looping push_front below.
+      return a->output()->id() > b->output()->id();
+    });
+    for (Phi* phi : phis) {
+      block->push_front(phi);
+    }
+  }
+}
+
+Register* SSAConstructor::readVar(Register* var) {
+  auto it = def_stack_.find(var);
+  if (it != def_stack_.end() && !it->second.empty()) {
+    return it->second.back();
+  }
+  // The variable is undefined on this path; model it with a null constant
+  // placed after the argument-loading prologue in the entry block.
+  return getNullReg();
+}
+
+Register* SSAConstructor::getNullReg() {
+  if (null_reg_ == nullptr) {
+    auto it = start_->begin();
+    while (it != start_->end() &&
+           (it->isLoadArg() || it->isLoadCurrentFunc() || it->isLoadFrame())) {
+      ++it;
+    }
+    null_reg_ = env_.allocateRegister();
+    auto loadnull = LoadConst::create(null_reg_, TNullptr);
+    loadnull->copyBytecodeOffset(*it);
+    loadnull->insertBefore(*it);
+  }
+  return null_reg_;
+}
+
+std::vector<BasicBlock*> SSAConstructor::sortedSuccessors(BasicBlock* block) {
+  std::unordered_set<BasicBlock*> seen;
+  std::vector<BasicBlock*> succs;
+  for (const Edge* edge : block->outEdges()) {
+    BasicBlock* to = edge->to();
+    if (dom_.contains(to) && seen.insert(to).second) {
+      succs.push_back(to);
+    }
+  }
+  std::sort(succs.begin(), succs.end(), [](BasicBlock* a, BasicBlock* b) {
+    return a->id < b->id;
+  });
+  return succs;
+}
+
+} // namespace
+
 void SSAify::run(Function& irfunc) {
   run(irfunc, irfunc.cfg.entry_block);
   PhiElimination{}.run(irfunc);
 }
 
-// This implements the algorithm outlined in "Simple and Efficient Construction
-// of Static Single Assignment Form"
-// https://pp.info.uni-karlsruhe.de/uploads/publikationen/braun13cc.pdf
 void SSAify::run(Function& irfunc, BasicBlock* start) {
-  env_ = &irfunc.env;
-
-  auto blocks = CFG::getRPOTraversal(start);
-  auto ssa_basic_blocks = initSSABasicBlocks(blocks);
-  phi_uses_.clear();
-
-  for (auto& block : blocks) {
-    auto ssablock = ssa_basic_blocks.at(block);
-
-    for (auto& instr : *block) {
-      JIT_CHECK(!instr.isPhi(), "SSAify does not support Phis in its input");
-      instr.visitUses([&](Register*& reg) {
-        JIT_CHECK(
-            reg != nullptr, "Instructions should not have nullptr operands.");
-        reg = getDefine(ssablock, reg);
-        return true;
-      });
-
-      auto out_reg = instr.output();
-
-      if (out_reg != nullptr) {
-        auto new_reg = env_->allocateRegister();
-        instr.setOutput(new_reg);
-        ssablock->local_defs[out_reg] = new_reg;
-      }
-    }
-
-    for (auto& succ : ssablock->succs) {
-      succ->unsealed_preds--;
-      if (succ->unsealed_preds > 0) {
-        continue;
-      }
-      fixIncompletePhis(succ);
-    }
-  }
-
-  // realize phi functions
-  for (auto& bb : ssa_basic_blocks) {
-    auto block = bb.first;
-    auto ssablock = bb.second;
-
-    // Collect and sort to stabilize IR ordering.
-    std::vector<Phi*> phis;
-    for (auto& pair : ssablock->phi_nodes) {
-      phis.push_back(pair.second);
-    }
-    std::sort(phis.begin(), phis.end(), [](const Phi* a, const Phi* b) -> bool {
-      // Sort using > instead of the typical < because we're effectively
-      // reversing by looping push_front below.
-      return a->output()->id() > b->output()->id();
-    });
-    for (auto& phi : phis) {
-      block->push_front(phi);
-    }
-
-    delete ssablock;
-  }
-
+  SSAConstructor{irfunc.env, start}.run();
   reflowTypes(irfunc, start);
-}
-
-Register* SSAify::getDefine(SSABasicBlock* ssablock, Register* reg) {
-  auto iter = ssablock->local_defs.find(reg);
-  if (iter != ssablock->local_defs.end()) {
-    // If defined locally, just return
-    return iter->second;
-  }
-
-  if (ssablock->preds.size() == 0) {
-    // If we made it back to the entry block and didn't find a definition, use
-    // a Nullptr from LoadConst. Place it after the initialization of the args
-    // which explicitly come first.
-    if (null_reg_ == nullptr) {
-      auto it = ssablock->block->begin();
-      while (
-          it != ssablock->block->end() &&
-          (it->isLoadArg() || it->isLoadCurrentFunc() || it->isLoadFrame())) {
-        ++it;
-      }
-      null_reg_ = env_->allocateRegister();
-      auto loadnull = LoadConst::create(null_reg_, TNullptr);
-      loadnull->copyBytecodeOffset(*it);
-      loadnull->insertBefore(*it);
-    }
-    ssablock->local_defs.emplace(reg, null_reg_);
-    return null_reg_;
-  }
-
-  if (ssablock->unsealed_preds > 0) {
-    // If we haven't visited all our predecessors, they can't provide
-    // definitions for us to look up. We'll place an incomplete phi that will
-    // be resolved once we've visited all predecessors.
-    auto phi_output = env_->allocateRegister();
-    ssablock->incomplete_phis.emplace_back(reg, phi_output);
-    ssablock->local_defs.emplace(reg, phi_output);
-    return phi_output;
-  }
-
-  if (ssablock->preds.size() == 1) {
-    // If we only have a single predecessor, use its value
-    auto new_reg = getDefine(*ssablock->preds.begin(), reg);
-    ssablock->local_defs.emplace(reg, new_reg);
-    return new_reg;
-  }
-
-  // We have multiple predecessors and may need to create a phi.
-  auto new_reg = env_->allocateRegister();
-  // Adding a phi may loop back to our block if there is a loop in the CFG.  We
-  // update our local_defs before adding the phi to terminate the recursion
-  // rather than looping infinitely.
-  ssablock->local_defs.emplace(reg, new_reg);
-  maybeAddPhi(ssablock, reg, new_reg);
-
-  return ssablock->local_defs.at(reg);
-}
-
-void SSAify::maybeAddPhi(
-    SSABasicBlock* ssa_block,
-    Register* reg,
-    Register* out) {
-  std::unordered_map<BasicBlock*, Register*> pred_defs;
-  for (auto& pred : ssa_block->preds) {
-    auto pred_reg = getDefine(pred, reg);
-    pred_defs.emplace(pred->block, pred_reg);
-  }
-  auto bc_off = ssa_block->block->begin()->bytecodeOffset();
-  auto phi = Phi::create(out, pred_defs);
-  phi->setBytecodeOffset(bc_off);
-  ssa_block->phi_nodes.emplace(out, phi);
-  for (auto& def_pair : pred_defs) {
-    phi_uses_[def_pair.second].emplace(phi, ssa_block);
-  }
-}
-
-Register* SSAify::getCommonPredValue(
-    const Register* out_reg,
-    const std::unordered_map<BasicBlock*, Register*>& defs) {
-  Register* other_reg = nullptr;
-
-  for (auto& def_pair : defs) {
-    auto def = def_pair.second;
-
-    if (def == out_reg) {
-      continue;
-    }
-
-    if (other_reg != nullptr && def != other_reg) {
-      return nullptr;
-    }
-
-    other_reg = def;
-  }
-
-  return other_reg;
-}
-
-void SSAify::fixIncompletePhis(SSABasicBlock* ssa_block) {
-  for (auto& pi : ssa_block->incomplete_phis) {
-    maybeAddPhi(ssa_block, pi.first, pi.second);
-  }
-}
-
-std::unordered_map<BasicBlock*, SSABasicBlock*> SSAify::initSSABasicBlocks(
-    std::vector<BasicBlock*>& blocks) {
-  std::unordered_map<BasicBlock*, SSABasicBlock*> ssa_basic_blocks;
-
-  auto get_or_create_ssa_block =
-      [&ssa_basic_blocks](BasicBlock* block) -> SSABasicBlock* {
-    auto iter = ssa_basic_blocks.find(block);
-    if (iter == ssa_basic_blocks.end()) {
-      auto ssablock = new SSABasicBlock(block);
-      ssa_basic_blocks.emplace(block, ssablock);
-      return ssablock;
-    }
-    return iter->second;
-  };
-
-  for (auto& block : blocks) {
-    auto ssablock = get_or_create_ssa_block(block);
-    for (auto& edge : block->outEdges()) {
-      auto succ = edge->to();
-      auto succ_ssa_block = get_or_create_ssa_block(succ);
-      auto p = succ_ssa_block->preds.insert(ssablock);
-      if (p.second) {
-        // It's possible that we have multiple outgoing edges to the same
-        // successor. Since we only care about the number of unsealed
-        // predecessor *nodes*, only update if this is the first time we're
-        // processing this predecessor.
-        succ_ssa_block->unsealed_preds++;
-        ssablock->succs.insert(succ_ssa_block);
-      }
-    }
-  }
-
-  return ssa_basic_blocks;
 }
 
 } // namespace cinderx::jit::hir

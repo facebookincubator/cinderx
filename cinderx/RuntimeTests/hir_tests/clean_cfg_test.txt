@@ -117,7 +117,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v24:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -128,12 +128,12 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:Nullptr = LoadConst<Nullptr>
-    v17:Bottom = CheckVar<"a"> v12 {
+    v14:Nullptr = LoadConst<Nullptr>
+    v15:Bottom = CheckVar<"a"> v12 {
       FrameState {
         CurInstrOffset 4
         Locals<1> v12
-        Stack<1> v16
+        Stack<1> v14
       }
     }
     Unreachable
@@ -152,7 +152,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v17:CInt32 = RunPeriodicTasks {
+    v29:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v15
@@ -163,7 +163,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v19:Bottom = CheckVar<"a"> v15 {
+    v17:Bottom = CheckVar<"a"> v15 {
       FrameState {
         CurInstrOffset 2
         Locals<1> v15
@@ -185,7 +185,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v17:CInt32 = RunPeriodicTasks {
+    v29:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v15
@@ -196,7 +196,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v19:Bottom = CheckVar<"a"> v15 {
+    v17:Bottom = CheckVar<"a"> v15 {
       FrameState {
         CurInstrOffset 4
         Locals<1> v15
@@ -218,7 +218,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v17:CInt32 = RunPeriodicTasks {
+    v29:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v15
@@ -229,7 +229,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v19:Bottom = CheckVar<"a"> v15 {
+    v17:Bottom = CheckVar<"a"> v15 {
       FrameState {
         CurInstrOffset 4
         Locals<1> v15

@@ -561,15 +561,13 @@ fun test {
 }
 
 TEST_F(SSAifyTest, HandlesLocalDefOfTrivialPhi) {
-  // Make sure we correctly handle the case where the register corresponding to
-  // the output of a trivial phi is redefined later in the same block.
+  // Make sure we correctly handle the case where a variable whose merge Phi is
+  // trivial (and so gets eliminated) is redefined later in the same block.
   //
-  // In the CFG below, bb1 uses v0 and later redefines it. When converting this
-  // to SSA, an incomplete phi will be placed in bb1 for v0. After processing
-  // bb3 we'll realize that the phi would have been trivial and never place
-  // it. Since v0 was redefined in the same block, subsequent uses of v0 should
-  // use the value produced by the redefinition, not whatever replaced the
-  // trivial phi's output.
+  // In the CFG below, bb1 uses v0 and later redefines it. The merge Phi for v0
+  // in bb1 is trivial and gets eliminated. Since v0 was redefined in the same
+  // block, subsequent uses of v0 should use the value produced by the
+  // redefinition, not the value the eliminated Phi resolved to.
   const char* hir_source = R"(
 fun test {
   bb 0 {
@@ -615,12 +613,12 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v6:NoneType = LoadConst<NoneType>
+    v4:NoneType = LoadConst<NoneType>
     Branch<4>
   }
 
   bb 4 (preds 1) {
-    Return v6
+    Return v4
   }
 
   bb 3 (preds 2) {
@@ -637,23 +635,11 @@ fun test {
 }
 
 TEST_F(SSAifyTest, PropagatesRegisterReplacements) {
-  // This tests that we correctly handle chains of replaced registers.
-  // (e.g. when $v3 has been replaced by $v2, which has been replaced by $v1.
-  //
-  // When processing the CFG below, the SSA conversion algorithm will
-  // do the following:
-  //
-  // 0. When visiting bb 0, we record a local def for x, $v0.
-  // 1. When visiting bb 2, we place an incomplete phi for x in bb 1
-  //    and use its output as the local def for x in bb 2, $v1.
-  // 2. When visiting bb 3, we place another incomplete phi for x, $v2.
-  // 3. After visiting bb 3, we complete the phi that we placed in (2).
-  //    It would be trivial, so we record that $v2 should be replaced
-  //    with $v1.
-  // 4. After visiting bb 5, we complete the phi in bb 1. It too would
-  //    have been trivial, so we replace $v1 with $v0.
-  //
-  // This leads to the replacement chain of $v2 -> $v1 -> $v0.
+  // This tests that a variable with a single reaching definition read across a
+  // CFG with several merge points resolves back to that definition. The merge
+  // Phis placed for x in bb1 and bb3 are all trivial and get eliminated, so
+  // every use of x should resolve to its original definition ($v3 below) with
+  // no Phis left behind.
   const char* hir_source = R"(
 fun test {
   bb 0 {
@@ -723,8 +709,8 @@ fun test {
   }
 
   bb 6 (preds 5) {
-    v9:NoneType = LoadConst<NoneType>
-    Return v9
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
   }
 }
 )";
@@ -807,19 +793,19 @@ fun test {
   }
 
   bb 2 (preds 1) {
-    v12:Object = BinaryOp<Subscript> v6 v8 {
+    v9:Object = BinaryOp<Subscript> v6 v8 {
       FrameState {
         CurInstrOffset -2
       }
     }
-    v13:NoneType = LoadConst<NoneType>
-    v14:Object = BinaryOp<Add> v12 v13 {
+    v10:NoneType = LoadConst<NoneType>
+    v11:Object = BinaryOp<Add> v9 v10 {
       FrameState {
         CurInstrOffset -2
       }
     }
-    Decref v12
-    CondBranch<1, 3> v14
+    Decref v9
+    CondBranch<1, 3> v11
   }
 
   bb 3 (preds 1, 2) {

@@ -22,7 +22,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v23:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -33,21 +33,21 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = PrimitiveConvert<CInt64> v16
-    v18:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
-    v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
+    v15:CInt64 = PrimitiveConvert<CInt64> v14
+    v16:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
+    v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CInt64 = IntBinaryOp<FloorDivide> v15 v24
     Snapshot
-    v24:LongExact = PrimitiveBox<CInt64> v22 {
+    v22:LongExact = PrimitiveBox<CInt64> v20 {
       FrameState {
         CurInstrOffset 30
-        Locals<1> v22
+        Locals<1> v20
       }
     }
-    Return v24
+    Return v22
   }
 }
 --- Expected 3.14 ---
@@ -63,7 +63,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v23:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -74,21 +74,21 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = PrimitiveConvert<CInt64> v16
-    v18:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
-    v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
+    v15:CInt64 = PrimitiveConvert<CInt64> v14
+    v16:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
+    v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CInt64 = IntBinaryOp<FloorDivide> v15 v24
     Snapshot
-    v24:LongExact = PrimitiveBox<CInt64> v22 {
+    v22:LongExact = PrimitiveBox<CInt64> v20 {
       FrameState {
         CurInstrOffset 32
-        Locals<1> v22
+        Locals<1> v20
       }
     }
-    Return v24
+    Return v22
   }
 }
 --- Expected 3.15 ---
@@ -104,7 +104,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v23:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -115,21 +115,21 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = PrimitiveConvert<CInt64> v16
-    v18:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
-    v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
+    v15:CInt64 = PrimitiveConvert<CInt64> v14
+    v16:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
+    v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CInt64 = IntBinaryOp<FloorDivide> v15 v24
     Snapshot
-    v24:LongExact = PrimitiveBox<CInt64> v22 {
+    v22:LongExact = PrimitiveBox<CInt64> v20 {
       FrameState {
         CurInstrOffset 34
-        Locals<1> v22
+        Locals<1> v20
       }
     }
-    Return v24
+    Return v22
   }
 }
 --- Expected 3.16 ---
@@ -145,7 +145,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v23:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -156,21 +156,21 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v17:CInt64 = PrimitiveConvert<CInt64> v16
-    v18:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
-    v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
-    v26:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
+    v15:CInt64 = PrimitiveConvert<CInt64> v14
+    v16:MortalLongExact[2147483647] = LoadConst<MortalLongExact[2147483647]>
+    v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CInt64 = IntBinaryOp<FloorDivide> v15 v24
     Snapshot
-    v24:LongExact = PrimitiveBox<CInt64> v22 {
+    v22:LongExact = PrimitiveBox<CInt64> v20 {
       FrameState {
         CurInstrOffset 34
-        Locals<1> v22
+        Locals<1> v20
       }
     }
-    Return v24
+    Return v22
   }
 }
 --- Test Name ---
@@ -200,7 +200,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v25:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -211,25 +211,25 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:CInt64[64] = LoadConst<CInt64[64]>
-    v18:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
-    v27:CInt64[111] = LoadConst<CInt64[111]>
-    v28:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CBool = PrimitiveCompare<LessThan> v16 v27
+    v14:CInt64[64] = LoadConst<CInt64[64]>
+    v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
+    v26:CInt64[111] = LoadConst<CInt64[111]>
+    v27:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CBool = PrimitiveCompare<LessThan> v14 v26
     Snapshot
-    CondBranch<1, 2> v22
+    CondBranch<1, 2> v20
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v23:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    Return<ImmortalBool[True]> v23
+    v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return<ImmortalBool[True]> v21
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v25:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<ImmortalBool[False]> v25
+    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return<ImmortalBool[False]> v23
   }
 }
 --- Expected 3.14 ---
@@ -245,7 +245,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v25:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -256,26 +256,26 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:CInt64[64] = LoadConst<CInt64[64]>
-    v18:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
+    v14:CInt64[64] = LoadConst<CInt64[64]>
+    v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
-    v27:CInt64[111] = LoadConst<CInt64[111]>
-    v28:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CBool = PrimitiveCompare<LessThan> v16 v27
+    v26:CInt64[111] = LoadConst<CInt64[111]>
+    v27:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CBool = PrimitiveCompare<LessThan> v14 v26
     Snapshot
-    CondBranch<1, 2> v22
+    CondBranch<1, 2> v20
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v23:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    Return<Bool> v23
+    v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return<Bool> v21
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v25:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<Bool> v25
+    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return<Bool> v23
   }
 }
 --- Expected 3.15 ---
@@ -291,7 +291,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v25:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -302,28 +302,28 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:CInt64[64] = LoadConst<CInt64[64]>
-    v18:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
+    v14:CInt64[64] = LoadConst<CInt64[64]>
+    v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
-    v27:CInt64[111] = LoadConst<CInt64[111]>
-    v28:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CBool = PrimitiveCompare<LessThan> v16 v27
+    v26:CInt64[111] = LoadConst<CInt64[111]>
+    v27:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CBool = PrimitiveCompare<LessThan> v14 v26
     Snapshot
-    CondBranch<1, 2> v22
+    CondBranch<1, 2> v20
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v23:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Snapshot
-    Return<Bool> v23
+    Return<Bool> v21
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v25:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
-    Return<Bool> v25
+    Return<Bool> v23
   }
 }
 --- Expected 3.16 ---
@@ -339,7 +339,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v14:CInt32 = RunPeriodicTasks {
+    v25:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v12
@@ -350,28 +350,28 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:CInt64[64] = LoadConst<CInt64[64]>
-    v18:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
+    v14:CInt64[64] = LoadConst<CInt64[64]>
+    v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
-    v27:CInt64[111] = LoadConst<CInt64[111]>
-    v28:CInt64[0] = LoadConst<CInt64[0]>
-    v22:CBool = PrimitiveCompare<LessThan> v16 v27
+    v26:CInt64[111] = LoadConst<CInt64[111]>
+    v27:CInt64[0] = LoadConst<CInt64[0]>
+    v20:CBool = PrimitiveCompare<LessThan> v14 v26
     Snapshot
-    CondBranch<1, 2> v22
+    CondBranch<1, 2> v20
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v23:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Snapshot
-    Return<Bool> v23
+    Return<Bool> v21
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v25:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
-    Return<Bool> v25
+    Return<Bool> v23
   }
 }
 --- Test Name ---
@@ -398,7 +398,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v14:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -409,10 +409,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    v10:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
     Snapshot
-    v16:CDouble[1.23] = LoadConst<CDouble[1.23]>
-    Return<CDouble> v16
+    v15:CDouble[1.23] = LoadConst<CDouble[1.23]>
+    Return<CDouble> v15
   }
 }
 --- Expected 3.14 ---
@@ -428,7 +428,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v14:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -439,10 +439,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    v10:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
     Snapshot
-    v16:CDouble[1.23] = LoadConst<CDouble[1.23]>
-    Return<CDouble> v16
+    v15:CDouble[1.23] = LoadConst<CDouble[1.23]>
+    Return<CDouble> v15
   }
 }
 --- Expected 3.15 ---
@@ -458,7 +458,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v14:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -469,10 +469,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    v10:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
     Snapshot
-    v16:CDouble[1.23] = LoadConst<CDouble[1.23]>
-    Return<CDouble> v16
+    v15:CDouble[1.23] = LoadConst<CDouble[1.23]>
+    Return<CDouble> v15
   }
 }
 --- Expected 3.16 ---
@@ -488,7 +488,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v14:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -499,10 +499,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    v10:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
     Snapshot
-    v16:CDouble[1.23] = LoadConst<CDouble[1.23]>
-    Return<CDouble> v16
+    v15:CDouble[1.23] = LoadConst<CDouble[1.23]>
+    Return<CDouble> v15
   }
 }
 --- Test Name ---
@@ -529,7 +529,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -540,10 +540,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
-    v17:CUInt8[42] = LoadConst<CUInt8[42]>
-    v18:CInt64[0] = LoadConst<CInt64[0]>
-    Return<CUInt8> v17
+    v10:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    v16:CUInt8[42] = LoadConst<CUInt8[42]>
+    v17:CInt64[0] = LoadConst<CInt64[0]>
+    Return<CUInt8> v16
   }
 }
 --- Expected 3.14 ---
@@ -559,7 +559,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -570,11 +570,11 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    v10:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
     Snapshot
-    v17:CUInt8[42] = LoadConst<CUInt8[42]>
-    v18:CInt64[0] = LoadConst<CInt64[0]>
-    Return<CUInt8> v17
+    v16:CUInt8[42] = LoadConst<CUInt8[42]>
+    v17:CInt64[0] = LoadConst<CInt64[0]>
+    Return<CUInt8> v16
   }
 }
 --- Expected 3.15 ---
@@ -590,7 +590,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -601,11 +601,11 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    v10:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
     Snapshot
-    v17:CUInt8[42] = LoadConst<CUInt8[42]>
-    v18:CInt64[0] = LoadConst<CInt64[0]>
-    Return<CUInt8> v17
+    v16:CUInt8[42] = LoadConst<CUInt8[42]>
+    v17:CInt64[0] = LoadConst<CInt64[0]>
+    Return<CUInt8> v16
   }
 }
 --- Expected 3.16 ---
@@ -621,7 +621,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -632,11 +632,11 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
+    v10:ImmortalLongExact[42] = LoadConst<ImmortalLongExact[42]>
     Snapshot
-    v17:CUInt8[42] = LoadConst<CUInt8[42]>
-    v18:CInt64[0] = LoadConst<CInt64[0]>
-    Return<CUInt8> v17
+    v16:CUInt8[42] = LoadConst<CUInt8[42]>
+    v17:CInt64[0] = LoadConst<CInt64[0]>
+    Return<CUInt8> v16
   }
 }
 --- Test Name ---
@@ -663,7 +663,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -674,15 +674,15 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
-    v14:CInt8 = PrimitiveUnbox<CInt8> v12
-    v15:CInt64 = IsNegativeAndErrOccurred v14 {
+    v10:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
+    v12:CInt8 = PrimitiveUnbox<CInt8> v10
+    v13:CInt64 = IsNegativeAndErrOccurred v12 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v8
       }
     }
-    Return<CInt8> v14
+    Return<CInt8> v12
   }
 }
 --- Expected 3.14 ---
@@ -698,7 +698,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -709,15 +709,15 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
-    v14:CInt8 = PrimitiveUnbox<CInt8> v12
-    v15:CInt64 = IsNegativeAndErrOccurred v14 {
+    v10:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
+    v12:CInt8 = PrimitiveUnbox<CInt8> v10
+    v13:CInt64 = IsNegativeAndErrOccurred v12 {
       FrameState {
         CurInstrOffset 8
         Locals<1> v8
       }
     }
-    Return<CInt8> v14
+    Return<CInt8> v12
   }
 }
 --- Expected 3.15 ---
@@ -733,7 +733,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -744,15 +744,15 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
-    v14:CInt8 = PrimitiveUnbox<CInt8> v12
-    v15:CInt64 = IsNegativeAndErrOccurred v14 {
+    v10:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
+    v12:CInt8 = PrimitiveUnbox<CInt8> v10
+    v13:CInt64 = IsNegativeAndErrOccurred v12 {
       FrameState {
         CurInstrOffset 10
         Locals<1> v8
       }
     }
-    Return<CInt8> v14
+    Return<CInt8> v12
   }
 }
 --- Expected 3.16 ---
@@ -768,7 +768,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v15:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v8
@@ -779,15 +779,15 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
-    v14:CInt8 = PrimitiveUnbox<CInt8> v12
-    v15:CInt64 = IsNegativeAndErrOccurred v14 {
+    v10:MortalLongExact[10000] = LoadConst<MortalLongExact[10000]>
+    v12:CInt8 = PrimitiveUnbox<CInt8> v10
+    v13:CInt64 = IsNegativeAndErrOccurred v12 {
       FrameState {
         CurInstrOffset 10
         Locals<1> v8
       }
     }
-    Return<CInt8> v14
+    Return<CInt8> v12
   }
 }
 --- Test Name ---
@@ -810,7 +810,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -838,7 +838,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -866,7 +866,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -894,7 +894,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -929,7 +929,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v7:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -939,9 +939,9 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v8:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v7:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
-    Return v8
+    Return v7
   }
 }
 --- Expected 3.14 ---
@@ -956,7 +956,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v7:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -966,9 +966,9 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v8:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v7:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
-    Return v8
+    Return v7
   }
 }
 --- Expected 3.15 ---
@@ -983,7 +983,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v7:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -993,10 +993,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v8:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v7:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
     Snapshot
-    Return v8
+    Return v7
   }
 }
 --- Expected 3.16 ---
@@ -1011,7 +1011,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v7:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -1021,10 +1021,10 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v8:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v7:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
     Snapshot
-    Return v8
+    Return v7
   }
 }
 --- Test Name ---
@@ -1047,7 +1047,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1075,7 +1075,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1103,7 +1103,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1131,7 +1131,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1166,7 +1166,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1177,14 +1177,14 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v10:Bool = Cast<Exact[bool]> v5 {
+    v8:Bool = Cast<Exact[bool]> v5 {
       FrameState {
         CurInstrOffset 4
         Locals<1> v5
       }
     }
     Snapshot
-    Return v10
+    Return v8
   }
 }
 --- Expected 3.14 ---
@@ -1200,7 +1200,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1211,14 +1211,14 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v10:Bool = Cast<Exact[bool]> v5 {
+    v8:Bool = Cast<Exact[bool]> v5 {
       FrameState {
         CurInstrOffset 4
         Locals<1> v5
       }
     }
     Snapshot
-    Return v10
+    Return v8
   }
 }
 --- Expected 3.15 ---
@@ -1234,7 +1234,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1245,14 +1245,14 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v10:Bool = Cast<Exact[bool]> v5 {
+    v8:Bool = Cast<Exact[bool]> v5 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v5
       }
     }
     Snapshot
-    Return v10
+    Return v8
   }
 }
 --- Expected 3.16 ---
@@ -1268,7 +1268,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v8:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<1> v5
@@ -1279,14 +1279,14 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v10:Bool = Cast<Exact[bool]> v5 {
+    v8:Bool = Cast<Exact[bool]> v5 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v5
       }
     }
     Snapshot
-    Return v10
+    Return v8
   }
 }
 --- Test Name ---
@@ -1309,7 +1309,7 @@ fun jittestmodule:test {
 
   bb 5 (preds 0) {
     Snapshot
-    v25:CInt32 = RunPeriodicTasks {
+    v47:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<3> v21 v23 v23
@@ -1320,23 +1320,23 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v29:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v35:CInt64 = Phi<4, 10> v29 v48
-    v36:OptObject = Phi<4, 10> v23 v65
-    v32:CInt32 = LoadEvalBreaker
-    CondBranch<7, 1> v32
+    v28:CInt64 = Phi<4, 10> v25 v37
+    v29:OptObject = Phi<4, 10> v23 v56
+    v30:CInt32 = LoadEvalBreaker
+    CondBranch<7, 1> v30
   }
 
   bb 7 (preds 6) {
     Snapshot
-    v37:CInt32 = RunPeriodicTasks {
+    v46:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 10
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<1> v21
       }
     }
@@ -1345,36 +1345,36 @@ fun jittestmodule:test {
 
   bb 1 (preds 6, 7) {
     Snapshot
-    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
     Snapshot
-    v43:CBool = PrimitiveCompare<GreaterThan> v42 v35
+    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
     Snapshot
-    CondBranch<2, 3> v43
+    CondBranch<2, 3> v32
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v45:LongExact = PrimitiveBox<CInt64> v35 {
+    v34:LongExact = PrimitiveBox<CInt64> v28 {
       FrameState {
         CurInstrOffset 24
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<2> v21 v21
       }
     }
     UseType<TupleExact> v21
-    UseType<LongExact> v45
-    v67:CBool = IsCompactLong v35
-    Guard v67 {
+    UseType<LongExact> v34
+    v58:CBool = IsCompactLong v28
+    Guard v58 {
     }
     UseType<TupleExact> v21
-    v59:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v60:CInt64[0] = LoadConst<CInt64[0]>
-    v61:CBool = PrimitiveCompare<LessThan> v35 v60
-    CondBranch<8, 9> v61
+    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v51:CInt64[0] = LoadConst<CInt64[0]>
+    v52:CBool = PrimitiveCompare<LessThan> v28 v51
+    CondBranch<8, 9> v52
   }
 
   bb 8 (preds 2) {
-    v62:CInt64 = IntBinaryOp<Add> v35 v59
+    v53:CInt64 = IntBinaryOp<Add> v28 v50
     Branch<10>
   }
 
@@ -1383,26 +1383,26 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v63:CInt64 = Phi<8, 9> v62 v35
+    v54:CInt64 = Phi<8, 9> v53 v28
     Snapshot
-    v64:CBool = PrimitiveCompare<LessThan> v63 v59
-    Guard v64 {
+    v55:CBool = PrimitiveCompare<LessThan> v54 v50
+    Guard v55 {
     }
-    v65:Object = LoadArrayItem<Offset[24]> v21 v63 v21
+    v56:Object = LoadArrayItem<Offset[24]> v21 v54 v21
     Snapshot
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64 = IntBinaryOp<Add> v35 v47
+    v36:CInt64[1] = LoadConst<CInt64[1]>
+    v37:CInt64 = IntBinaryOp<Add> v28 v36
     Snapshot
-    v51:Nullptr = LoadConst<Nullptr>
-    v52:OptObject = LoadGlobalCached<0; "print">
-    v53:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v52 {
+    v40:Nullptr = LoadConst<Nullptr>
+    v41:OptObject = LoadGlobalCached<0; "print">
+    v42:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v41 {
       Descr 'LOAD_GLOBAL: print'
     }
     Snapshot
-    v66:Object = VectorCall<1> v53 v65 {
+    v57:Object = VectorCall<1> v42 v56 {
       FrameState {
         CurInstrOffset 54
-        Locals<3> v21 v48 v65
+        Locals<3> v21 v37 v56
         Stack<1> v21
       }
     }
@@ -1412,8 +1412,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v55:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return<ImmortalNoneType> v55
+    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v44
   }
 }
 --- Expected 3.14 ---
@@ -1430,7 +1430,7 @@ fun jittestmodule:test {
 
   bb 5 (preds 0) {
     Snapshot
-    v25:CInt32 = RunPeriodicTasks {
+    v46:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<3> v21 v23 v23
@@ -1441,23 +1441,23 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v29:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v35:CInt64 = Phi<4, 10> v29 v48
-    v36:OptObject = Phi<4, 10> v23 v64
-    v32:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v32
+    v28:CInt64 = Phi<4, 10> v25 v37
+    v29:OptObject = Phi<4, 10> v23 v55
+    v30:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v30
   }
 
   bb 7 (preds 6) {
     Snapshot
-    v37:CInt32 = RunPeriodicTasks {
+    v45:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 12
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<1> v21
       }
     }
@@ -1466,36 +1466,36 @@ fun jittestmodule:test {
 
   bb 1 (preds 6, 7) {
     Snapshot
-    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
     Snapshot
-    v43:CBool = PrimitiveCompare<GreaterThan> v42 v35
+    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
     Snapshot
-    CondBranch<2, 3> v43
+    CondBranch<2, 3> v32
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v45:LongExact = PrimitiveBox<CInt64> v35 {
+    v34:LongExact = PrimitiveBox<CInt64> v28 {
       FrameState {
         CurInstrOffset 38
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<2> v21 v21
       }
     }
     UseType<TupleExact> v21
-    UseType<LongExact> v45
-    v66:CBool = IsCompactLong v35
-    Guard v66 {
+    UseType<LongExact> v34
+    v57:CBool = IsCompactLong v28
+    Guard v57 {
     }
     UseType<TupleExact> v21
-    v58:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v59:CInt64[0] = LoadConst<CInt64[0]>
-    v60:CBool = PrimitiveCompare<LessThan> v35 v59
-    CondBranch<8, 9> v60
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:CInt64[0] = LoadConst<CInt64[0]>
+    v51:CBool = PrimitiveCompare<LessThan> v28 v50
+    CondBranch<8, 9> v51
   }
 
   bb 8 (preds 2) {
-    v61:CInt64 = IntBinaryOp<Add> v35 v58
+    v52:CInt64 = IntBinaryOp<Add> v28 v49
     Branch<10>
   }
 
@@ -1504,26 +1504,26 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v62:CInt64 = Phi<8, 9> v61 v35
+    v53:CInt64 = Phi<8, 9> v52 v28
     Snapshot
-    v63:CBool = PrimitiveCompare<LessThan> v62 v58
-    Guard v63 {
+    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    Guard v54 {
     }
-    v64:Object = LoadArrayItem<Offset[32]> v21 v62 v21
+    v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
     Snapshot
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64 = IntBinaryOp<Add> v35 v47
+    v36:CInt64[1] = LoadConst<CInt64[1]>
+    v37:CInt64 = IntBinaryOp<Add> v28 v36
     Snapshot
-    v51:OptObject = LoadGlobalCached<0; "print">
-    v52:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v51 {
+    v40:OptObject = LoadGlobalCached<0; "print">
+    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
       Descr 'LOAD_GLOBAL: print'
     }
-    v53:Nullptr = LoadConst<Nullptr>
+    v42:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v65:Object = VectorCall<1> v52 v64 {
+    v56:Object = VectorCall<1> v41 v55 {
       FrameState {
         CurInstrOffset 84
-        Locals<3> v21 v48 v64
+        Locals<3> v21 v37 v55
         Stack<1> v21
       }
     }
@@ -1533,8 +1533,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v55:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v55
+    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v44
   }
 }
 --- Expected 3.15 ---
@@ -1551,7 +1551,7 @@ fun jittestmodule:test {
 
   bb 5 (preds 0) {
     Snapshot
-    v25:CInt32 = RunPeriodicTasks {
+    v46:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<3> v21 v23 v23
@@ -1562,23 +1562,23 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v29:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v35:CInt64 = Phi<4, 10> v29 v48
-    v36:OptObject = Phi<4, 10> v23 v64
-    v32:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v32
+    v28:CInt64 = Phi<4, 10> v25 v37
+    v29:OptObject = Phi<4, 10> v23 v55
+    v30:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v30
   }
 
   bb 7 (preds 6) {
     Snapshot
-    v37:CInt32 = RunPeriodicTasks {
+    v45:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 14
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<1> v21
       }
     }
@@ -1587,36 +1587,36 @@ fun jittestmodule:test {
 
   bb 1 (preds 6, 7) {
     Snapshot
-    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
     Snapshot
-    v43:CBool = PrimitiveCompare<GreaterThan> v42 v35
+    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
     Snapshot
-    CondBranch<2, 3> v43
+    CondBranch<2, 3> v32
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v45:LongExact = PrimitiveBox<CInt64> v35 {
+    v34:LongExact = PrimitiveBox<CInt64> v28 {
       FrameState {
         CurInstrOffset 40
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<2> v21 v21
       }
     }
     UseType<TupleExact> v21
-    UseType<LongExact> v45
-    v66:CBool = IsCompactLong v35
-    Guard v66 {
+    UseType<LongExact> v34
+    v57:CBool = IsCompactLong v28
+    Guard v57 {
     }
     UseType<TupleExact> v21
-    v58:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v59:CInt64[0] = LoadConst<CInt64[0]>
-    v60:CBool = PrimitiveCompare<LessThan> v35 v59
-    CondBranch<8, 9> v60
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:CInt64[0] = LoadConst<CInt64[0]>
+    v51:CBool = PrimitiveCompare<LessThan> v28 v50
+    CondBranch<8, 9> v51
   }
 
   bb 8 (preds 2) {
-    v61:CInt64 = IntBinaryOp<Add> v35 v58
+    v52:CInt64 = IntBinaryOp<Add> v28 v49
     Branch<10>
   }
 
@@ -1625,26 +1625,26 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v62:CInt64 = Phi<8, 9> v61 v35
+    v53:CInt64 = Phi<8, 9> v52 v28
     Snapshot
-    v63:CBool = PrimitiveCompare<LessThan> v62 v58
-    Guard v63 {
+    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    Guard v54 {
     }
-    v64:Object = LoadArrayItem<Offset[32]> v21 v62 v21
+    v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
     Snapshot
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64 = IntBinaryOp<Add> v35 v47
+    v36:CInt64[1] = LoadConst<CInt64[1]>
+    v37:CInt64 = IntBinaryOp<Add> v28 v36
     Snapshot
-    v51:OptObject = LoadGlobalCached<0; "print">
-    v52:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v51 {
+    v40:OptObject = LoadGlobalCached<0; "print">
+    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
       Descr 'LOAD_GLOBAL: print'
     }
-    v53:Nullptr = LoadConst<Nullptr>
+    v42:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v65:Object = VectorCall<1> v52 v64 {
+    v56:Object = VectorCall<1> v41 v55 {
       FrameState {
         CurInstrOffset 86
-        Locals<3> v21 v48 v64
+        Locals<3> v21 v37 v55
         Stack<1> v21
       }
     }
@@ -1654,9 +1654,9 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v55:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
-    Return v55
+    Return v44
   }
 }
 --- Expected 3.16 ---
@@ -1673,7 +1673,7 @@ fun jittestmodule:test {
 
   bb 5 (preds 0) {
     Snapshot
-    v25:CInt32 = RunPeriodicTasks {
+    v46:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<3> v21 v23 v23
@@ -1684,23 +1684,23 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v29:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v35:CInt64 = Phi<4, 10> v29 v48
-    v36:OptObject = Phi<4, 10> v23 v64
-    v32:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v32
+    v28:CInt64 = Phi<4, 10> v25 v37
+    v29:OptObject = Phi<4, 10> v23 v55
+    v30:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v30
   }
 
   bb 7 (preds 6) {
     Snapshot
-    v37:CInt32 = RunPeriodicTasks {
+    v45:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 14
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<1> v21
       }
     }
@@ -1709,36 +1709,36 @@ fun jittestmodule:test {
 
   bb 1 (preds 6, 7) {
     Snapshot
-    v42:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
     Snapshot
-    v43:CBool = PrimitiveCompare<GreaterThan> v42 v35
+    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
     Snapshot
-    CondBranch<2, 3> v43
+    CondBranch<2, 3> v32
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v45:LongExact = PrimitiveBox<CInt64> v35 {
+    v34:LongExact = PrimitiveBox<CInt64> v28 {
       FrameState {
         CurInstrOffset 40
-        Locals<3> v21 v35 v36
+        Locals<3> v21 v28 v29
         Stack<2> v21 v21
       }
     }
     UseType<TupleExact> v21
-    UseType<LongExact> v45
-    v66:CBool = IsCompactLong v35
-    Guard v66 {
+    UseType<LongExact> v34
+    v57:CBool = IsCompactLong v28
+    Guard v57 {
     }
     UseType<TupleExact> v21
-    v58:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v59:CInt64[0] = LoadConst<CInt64[0]>
-    v60:CBool = PrimitiveCompare<LessThan> v35 v59
-    CondBranch<8, 9> v60
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:CInt64[0] = LoadConst<CInt64[0]>
+    v51:CBool = PrimitiveCompare<LessThan> v28 v50
+    CondBranch<8, 9> v51
   }
 
   bb 8 (preds 2) {
-    v61:CInt64 = IntBinaryOp<Add> v35 v58
+    v52:CInt64 = IntBinaryOp<Add> v28 v49
     Branch<10>
   }
 
@@ -1747,26 +1747,26 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v62:CInt64 = Phi<8, 9> v61 v35
+    v53:CInt64 = Phi<8, 9> v52 v28
     Snapshot
-    v63:CBool = PrimitiveCompare<LessThan> v62 v58
-    Guard v63 {
+    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    Guard v54 {
     }
-    v64:Object = LoadArrayItem<Offset[32]> v21 v62 v21
+    v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
     Snapshot
-    v47:CInt64[1] = LoadConst<CInt64[1]>
-    v48:CInt64 = IntBinaryOp<Add> v35 v47
+    v36:CInt64[1] = LoadConst<CInt64[1]>
+    v37:CInt64 = IntBinaryOp<Add> v28 v36
     Snapshot
-    v51:OptObject = LoadGlobalCached<0; "print">
-    v52:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v51 {
+    v40:OptObject = LoadGlobalCached<0; "print">
+    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
       Descr 'LOAD_GLOBAL: print'
     }
-    v53:Nullptr = LoadConst<Nullptr>
+    v42:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v65:Object = VectorCall<1> v52 v64 {
+    v56:Object = VectorCall<1> v41 v55 {
       FrameState {
         CurInstrOffset 86
-        Locals<3> v21 v48 v64
+        Locals<3> v21 v37 v55
         Stack<1> v21
       }
     }
@@ -1776,9 +1776,9 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v55:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
-    Return v55
+    Return v44
   }
 }
 --- Test Name ---
@@ -1803,7 +1803,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v17:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<2> v8 v10
@@ -1814,20 +1814,20 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:LongExact = PrimitiveBox<CInt64> v8 {
+    v12:LongExact = PrimitiveBox<CInt64> v8 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v8 v10
       }
     }
-    v17:CInt8 = PrimitiveUnbox<CInt8> v15
-    v18:CInt64 = IsNegativeAndErrOccurred v17 {
+    v14:CInt8 = PrimitiveUnbox<CInt8> v12
+    v15:CInt64 = IsNegativeAndErrOccurred v14 {
       FrameState {
         CurInstrOffset 8
         Locals<2> v8 v10
       }
     }
-    Return<CInt8> v17
+    Return<CInt8> v14
   }
 }
 --- Expected 3.14 ---
@@ -1844,7 +1844,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v17:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<2> v8 v10
@@ -1855,20 +1855,20 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:LongExact = PrimitiveBox<CInt64> v8 {
+    v12:LongExact = PrimitiveBox<CInt64> v8 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v8 v10
       }
     }
-    v17:CInt8 = PrimitiveUnbox<CInt8> v15
-    v18:CInt64 = IsNegativeAndErrOccurred v17 {
+    v14:CInt8 = PrimitiveUnbox<CInt8> v12
+    v15:CInt64 = IsNegativeAndErrOccurred v14 {
       FrameState {
         CurInstrOffset 14
         Locals<2> v8 v10
       }
     }
-    Return<CInt8> v17
+    Return<CInt8> v14
   }
 }
 --- Expected 3.15 ---
@@ -1885,7 +1885,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v17:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<2> v8 v10
@@ -1896,20 +1896,20 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:LongExact = PrimitiveBox<CInt64> v8 {
+    v12:LongExact = PrimitiveBox<CInt64> v8 {
       FrameState {
         CurInstrOffset 8
         Locals<2> v8 v10
       }
     }
-    v17:CInt8 = PrimitiveUnbox<CInt8> v15
-    v18:CInt64 = IsNegativeAndErrOccurred v17 {
+    v14:CInt8 = PrimitiveUnbox<CInt8> v12
+    v15:CInt64 = IsNegativeAndErrOccurred v14 {
       FrameState {
         CurInstrOffset 16
         Locals<2> v8 v10
       }
     }
-    Return<CInt8> v17
+    Return<CInt8> v14
   }
 }
 --- Expected 3.16 ---
@@ -1926,7 +1926,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v17:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
         Locals<2> v8 v10
@@ -1937,20 +1937,20 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:LongExact = PrimitiveBox<CInt64> v8 {
+    v12:LongExact = PrimitiveBox<CInt64> v8 {
       FrameState {
         CurInstrOffset 8
         Locals<2> v8 v10
       }
     }
-    v17:CInt8 = PrimitiveUnbox<CInt8> v15
-    v18:CInt64 = IsNegativeAndErrOccurred v17 {
+    v14:CInt8 = PrimitiveUnbox<CInt8> v12
+    v15:CInt64 = IsNegativeAndErrOccurred v14 {
       FrameState {
         CurInstrOffset 16
         Locals<2> v8 v10
       }
     }
-    Return<CInt8> v17
+    Return<CInt8> v14
   }
 }
 --- End ---
