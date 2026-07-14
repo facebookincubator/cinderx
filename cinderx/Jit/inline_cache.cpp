@@ -1980,7 +1980,7 @@ PyObject* LoadModuleAttrCache::lookup(
   return lookupSlowPath(object, name);
 }
 
-static std::pair<ci_dict_version_tag_t, PyObject*> getModuleAttribute(
+static std::pair<ci_dict_version_tag_t, Ref<>> getModuleAttribute(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
@@ -1990,7 +1990,15 @@ static std::pair<ci_dict_version_tag_t, PyObject*> getModuleAttribute(
       (tp->tp_getattro == PyModule_Type.tp_getattro ||
        tp->tp_getattro == Ci_StrictModule_Type.tp_getattro) &&
       _PyType_Lookup(tp, name) == nullptr) {
-    return {Ci_DictVersionTag(dict), PyDict_GetItemWithError(dict, name)};
+#if PY_VERSION_HEX >= 0x030E0000
+    PyObject* value = nullptr;
+    PyDict_GetItemRef(dict, name, &value);
+    // 0 because 3.14+ uses dict watchers, not version tags.
+    return {0, Ref<>::steal(value)};
+#else
+    PyObject* value = PyDict_GetItemWithError(dict, name);
+    return {Ci_DictVersionTag(dict), Ref<>::create(value)};
+#endif
   }
 
   return {0, nullptr};
@@ -2010,14 +2018,12 @@ PyObject* __attribute__((noinline)) LoadModuleAttrCache::lookupSlowPath(
           dict, dict, uname);
     }
 #else
-    value_ = value;
+    value_ = value.get();
     version_ = version;
 #endif
     module_ = object;
 
-    // PyDict_GetItemWithError returns a borrowed reference, so
-    // we need to increment it before returning.
-    return Py_NewRef(value);
+    return value.release();
   }
 
   auto generic = Ref<>::steal(PyObject_GetAttr(object, name));
@@ -2077,12 +2083,10 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
           getModuleDict(obj), getModuleDict(obj), uname);
 #else
       module_version_ = version;
-      value_ = res;
+      value_ = res.get();
 #endif
     }
-    // PyDict_GetItemWithError returns a borrowed reference, so
-    // we need to increment it before returning.
-    return {Py_None, Py_NewRef(res)};
+    return {Py_None, res.release()};
   }
   auto generic_res = Ref<>::steal(PyObject_GetAttr(obj, name));
   if (generic_res != nullptr) {
