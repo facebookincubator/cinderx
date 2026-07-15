@@ -19,7 +19,6 @@ import sys
 import sysconfig
 from enum import Enum
 from functools import lru_cache
-from typing import Callable
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build import build as build
