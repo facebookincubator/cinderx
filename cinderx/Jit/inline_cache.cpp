@@ -1980,7 +1980,7 @@ PyObject* LoadModuleAttrCache::lookup(
   return lookupSlowPath(object, name);
 }
 
-static std::pair<ci_dict_version_tag_t, Ref<>> getModuleAttribute(
+static std::pair<BorrowedRef<PyDictObject>, Ref<>> getModuleDictAndAttribute(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
@@ -1992,34 +1992,37 @@ static std::pair<ci_dict_version_tag_t, Ref<>> getModuleAttribute(
       _PyType_Lookup(tp, name) == nullptr) {
 #if PY_VERSION_HEX >= 0x030E0000
     PyObject* value = nullptr;
+    // PyDict_GetItemRef matches PyDict_GetItemWithError's miss/error handling
+    // while returning a strong reference on hit. There is no need to check its
+    // return code here: callers only need value, which is populated on hit and
+    // left null on miss or error; errors remain represented by the exception
+    // state.
     PyDict_GetItemRef(dict, name, &value);
-    // 0 because 3.14+ uses dict watchers, not version tags.
-    return {0, Ref<>::steal(value)};
+    return {dict, Ref<>::steal(value)};
 #else
     PyObject* value = PyDict_GetItemWithError(dict, name);
-    return {Ci_DictVersionTag(dict), Ref<>::create(value)};
+    return {dict, Ref<>::create(value)};
 #endif
   }
 
-  return {0, nullptr};
+  return {nullptr, nullptr};
 }
 
 PyObject* __attribute__((noinline)) LoadModuleAttrCache::lookupSlowPath(
     BorrowedRef<> object,
     BorrowedRef<> name) {
-  auto [version, value] = getModuleAttribute(object, name);
+  auto [module_dict, value] = getModuleDictAndAttribute(object, name);
 
   if (value != nullptr) {
 #if PY_VERSION_HEX >= 0x030E0000
-    PyObject* dict = getModuleDict(object);
     BorrowedRef<PyUnicodeObject> uname{name};
-    if (hasOnlyUnicodeKeys(dict)) {
+    if (hasOnlyUnicodeKeys(module_dict)) {
       cache_ = cinderx::getModuleState()->cache_manager->getGlobalCache(
-          dict, dict, uname);
+          module_dict, module_dict, uname);
     }
 #else
     value_ = value.get();
-    version_ = version;
+    version_ = Ci_DictVersionTag(module_dict);
 #endif
     module_ = object;
 
@@ -2071,7 +2074,7 @@ BorrowedRef<> LoadModuleMethodCache::value() {
 
 LoadMethodResult __attribute__((noinline))
 LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
-  auto [version, res] = getModuleAttribute(obj, name);
+  auto [module_dict, res] = getModuleDictAndAttribute(obj, name);
 
   if (res != nullptr) {
     if (PyFunction_Check(res) || PyCFunction_Check(res) ||
@@ -2080,9 +2083,9 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
 #if PY_VERSION_HEX >= 0x030E0000
       BorrowedRef<PyUnicodeObject> uname{name};
       cache_ = cinderx::getModuleState()->cache_manager->getGlobalCache(
-          getModuleDict(obj), getModuleDict(obj), uname);
+          module_dict, module_dict, uname);
 #else
-      module_version_ = version;
+      module_version_ = Ci_DictVersionTag(module_dict);
       value_ = res.get();
 #endif
     }

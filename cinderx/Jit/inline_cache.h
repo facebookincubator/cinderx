@@ -424,12 +424,12 @@ class LoadModuleAttrCache {
   void
   fill(BorrowedRef<> obj, BorrowedRef<> value, ci_dict_version_tag_t version);
 
-  // This corresponds to module __dict__'s version which allows us
-  // to correctly invalidate the cache whenever the dictionary changes.
   BorrowedRef<> module_;
 #if PY_VERSION_HEX >= 0x030E0000
   PyObject** cache_;
 #else
+  // This corresponds to module __dict__'s version which allows us
+  // to correctly invalidate the cache whenever the dictionary changes.
   ci_dict_version_tag_t version_{0};
   BorrowedRef<> value_;
 #endif
@@ -454,12 +454,12 @@ class LoadModuleMethodCache {
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
 
-  // This corresponds to module __dict__'s version which allows us
-  // to correctly invalidate the cache whenever the dictionary changes.
   BorrowedRef<> module_obj_;
 #if PY_VERSION_HEX >= 0x030E0000
   PyObject** cache_;
 #else
+  // This corresponds to module __dict__'s version which allows us
+  // to correctly invalidate the cache whenever the dictionary changes.
   ci_dict_version_tag_t module_version_{0};
   BorrowedRef<> value_;
 #endif
