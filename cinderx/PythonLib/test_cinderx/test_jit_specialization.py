@@ -2,11 +2,12 @@
 
 # pyre-strict
 
+import contextlib
 import dis
 import sys
 import unittest
 from types import ModuleType
-from typing import Callable, TypeVar
+from typing import Callable, Iterator, TypeVar
 
 import cinderx
 import cinderx.jit
@@ -50,6 +51,31 @@ def specialize(
 
     cinderx.jit.jit_unsuppress(func)
     cinderx.jit.force_compile(func)
+
+
+# The specialized opcodes under test only run in CinderX's eval loop, which
+# needs the frame evaluator installed.
+@contextlib.contextmanager
+def frame_evaluator() -> Iterator[None]:
+    if cinderx.is_frame_evaluator_installed():
+        yield
+        return
+
+    cinderx.install_frame_evaluator()
+    try:
+        yield
+    finally:
+        cinderx.remove_frame_evaluator()
+
+
+# Like specialize(), but stays interpreted so the interpreter's guards run.
+def specialize_interpreted(
+    func: Callable[..., TCallableRet], callable: Callable[[], TCallableRet]
+) -> None:
+    cinderx.jit.jit_suppress(func)
+
+    for _ in range(5):
+        callable()
 
 
 @passIf(not cinderx.jit.is_enabled(), "Tests functionality on the JIT")
@@ -214,6 +240,45 @@ class SpecializationTests(unittest.TestCase):
         self.assertNotIn("LOAD_ATTR", opnames(f))
         self.assertIn("LOAD_ATTR_MODULE", opnames(f))
         self.assertEqual(f(), sys.argv[0])
+
+    @passUnless(sys.version_info >= (3, 14), "3.12 only builds against Meta Python")
+    def test_load_attr_nondescriptor_with_values(self) -> None:
+        class C:
+            attr: object = "class-attr"
+
+        def f(o: C) -> object:
+            return o.attr
+
+        with frame_evaluator():
+            specialize_interpreted(f, lambda: f(C()))
+
+            self.assertNotIn("LOAD_ATTR", opnames(f))
+            self.assertIn("LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES", opnames(f))
+
+            # Setting the attribute on an instance bumps the shared keys, so the
+            # load must deopt instead of returning the cached class attribute.
+            o = C()
+            o.attr = "instance-attr"
+            self.assertEqual(f(o), "instance-attr")
+
+    @passUnless(sys.version_info >= (3, 14), "3.12 only builds against Meta Python")
+    def test_load_attr_method_with_values(self) -> None:
+        class C:
+            def m(self) -> str:
+                return "class-method"
+
+        def f(o: C) -> str:
+            return o.m()
+
+        with frame_evaluator():
+            specialize_interpreted(f, lambda: f(C()))
+
+            self.assertNotIn("LOAD_ATTR", opnames(f))
+            self.assertIn("LOAD_ATTR_METHOD_WITH_VALUES", opnames(f))
+
+            o = C()
+            setattr(o, "m", lambda: "instance-attr")
+            self.assertEqual(f(o), "instance-attr")
 
     def test_store_subscr_dict(self) -> None:
         def f(a: dict[str, str], b: str, c: str) -> None:

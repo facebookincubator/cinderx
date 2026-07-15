@@ -10050,6 +10050,7 @@
             // _GUARD_KEYS_VERSION
             {
                 uint32_t keys_version = read_u32(&this_instr[4].cache);
+                #ifndef META_PYTHON
                 PyTypeObject *owner_cls = Py_TYPE(PyStackRef_AsPyObjectBorrow(owner));
                 PyHeapTypeObject *owner_heap_type = (PyHeapTypeObject *)owner_cls;
                 PyDictKeysObject *keys = owner_heap_type->ht_cached_keys;
@@ -10058,6 +10059,9 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_ATTR));
                     JUMP_TO_PREDICTED(LOAD_ATTR);
                 }
+                #else
+                (void)keys_version;
+                #endif
             }
             // _LOAD_ATTR_METHOD_WITH_VALUES
             {
@@ -10244,6 +10248,7 @@
             // _GUARD_KEYS_VERSION
             {
                 uint32_t keys_version = read_u32(&this_instr[4].cache);
+                #ifndef META_PYTHON
                 PyTypeObject *owner_cls = Py_TYPE(PyStackRef_AsPyObjectBorrow(owner));
                 PyHeapTypeObject *owner_heap_type = (PyHeapTypeObject *)owner_cls;
                 PyDictKeysObject *keys = owner_heap_type->ht_cached_keys;
@@ -10252,6 +10257,9 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_ATTR));
                     JUMP_TO_PREDICTED(LOAD_ATTR);
                 }
+                #else
+                (void)keys_version;
+                #endif
             }
             // _LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES
             {
