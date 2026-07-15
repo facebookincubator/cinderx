@@ -2655,6 +2655,11 @@ void HIRBuilder::emitToBool(
       case TO_BOOL_BOOL:
         // The operand is already a bool, so it is also the result.
         tc.emit<GuardType>(operand, TBool, operand, tc.frame);
+        // POP_JUMP_IF_FALSE/TRUE consumes the result with a PrimitiveCompare
+        // against Py_True, which declares TTop operands because `is` shares
+        // the instruction. Without a typed use, GuardTypeRemoval deletes the
+        // guard above and truthy non-bools take the false branch.
+        tc.emit<UseType>(operand, TBool);
         tc.frame.stack.push(operand);
         return;
       case TO_BOOL_INT:

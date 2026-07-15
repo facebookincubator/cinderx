@@ -263,6 +263,23 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(False), "n")
 
     @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
+    def test_to_bool_bool_deopt(self) -> None:
+        def f(a: object) -> str:
+            return "y" if a else "n"
+
+        specialize(f, lambda: f(True))
+
+        self.assertNotIn("TO_BOOL", opnames(f))
+        self.assertIn("TO_BOOL_BOOL", opnames(f))
+
+        # TO_BOOL_BOOL keeps its operand as the result, so the guard is the
+        # only thing stopping a non-bool from being compared against Py_True.
+        self.assertEqual(f((1, 2)), "y")
+        self.assertEqual(f(()), "n")
+        self.assertEqual(f(5), "y")
+        self.assertEqual(f(""), "n")
+
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_int(self) -> None:
         def f(a: int) -> str:
             return "y" if a else "n"
