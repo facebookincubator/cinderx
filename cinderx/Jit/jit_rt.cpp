@@ -1988,7 +1988,7 @@ void batchDecref(TaggedPyObject* args, int nargs) {
     if (kFreeThreadedBuild && isDeferredRcTagged(args[i])) {
       continue;
     }
-    Py_DECREF(untaggedPyObject(args[i]));
+    Py_XDECREF(untaggedPyObject(args[i]));
   }
 }
 

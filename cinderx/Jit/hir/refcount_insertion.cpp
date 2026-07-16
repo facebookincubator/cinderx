@@ -1235,7 +1235,7 @@ void optimizeLongDecrefRuns(Function& irfunc) {
   auto get_number_of_decrefs = [](auto block, auto cur_iter) {
     int result = 0;
     while (cur_iter != block->end()) {
-      if (!cur_iter->isDecref()) {
+      if (!(cur_iter->isDecref() || cur_iter->isXDecref())) {
         break;
       }
       result++;
@@ -1248,7 +1248,7 @@ void optimizeLongDecrefRuns(Function& irfunc) {
     auto cur_iter = block->begin();
 
     while (cur_iter != block->end()) {
-      if (!cur_iter->isDecref()) {
+      if (!cur_iter->isDecref() && !cur_iter->isXDecref()) {
         ++cur_iter;
         continue;
       }
@@ -1266,7 +1266,7 @@ void optimizeLongDecrefRuns(Function& irfunc) {
       constexpr size_t kDecrefOperandIndex = 0;
       for (int i = 0; i < num; i++) {
         JIT_CHECK(
-            cur_iter->isDecref(),
+            cur_iter->isDecref() || cur_iter->isXDecref(),
             "An unexpected non-decref instruction in a decref run.");
 
         batch_decref->setOperand(i, cur_iter->getOperand(kDecrefOperandIndex));

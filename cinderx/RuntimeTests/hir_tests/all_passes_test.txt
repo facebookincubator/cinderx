@@ -1288,10 +1288,7 @@ fun jittestmodule:test {
         Locals<1> v13
       }
     }
-    Decref v13
-    XDecref v16
-    Decref v18
-    Decref v22
+    BatchDecref v13 v16 v18 v22
     v19:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return<ImmortalNoneType> v19
   }
@@ -1341,10 +1338,7 @@ fun jittestmodule:test {
         Locals<1> v13
       }
     }
-    Decref v13
-    XDecref v16
-    Decref v18
-    Decref v21
+    BatchDecref v13 v16 v18 v21
     v19:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return v19
   }
@@ -1395,10 +1389,7 @@ fun jittestmodule:test {
         Locals<1> v13
       }
     }
-    Decref v13
-    XDecref v16
-    Decref v18
-    Decref v21
+    BatchDecref v13 v16 v18 v21
     v19:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return v19
   }
@@ -1449,10 +1440,7 @@ fun jittestmodule:test {
         Locals<1> v13
       }
     }
-    Decref v13
-    XDecref v16
-    Decref v18
-    Decref v21
+    BatchDecref v13 v16 v18 v21
     v19:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return v19
   }

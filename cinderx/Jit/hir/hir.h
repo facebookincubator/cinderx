@@ -2388,7 +2388,11 @@ DEFINE_SIMPLE_INSTR(XIncref, (TOptObject), Operands<1>);
 DEFINE_SIMPLE_INSTR(MaterializeRef, (TOptObject), HasOutput, Operands<1>);
 
 // batch decrement references
-DEFINE_SIMPLE_INSTR(BatchDecref, (TObject), Operands<>, CallSiteLiveValuesBase);
+DEFINE_SIMPLE_INSTR(
+    BatchDecref,
+    (TOptObject),
+    Operands<>,
+    CallSiteLiveValuesBase);
 
 class DeoptBaseWithNameIdx : public DeoptBase {
  public:
