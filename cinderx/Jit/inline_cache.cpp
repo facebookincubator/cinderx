@@ -5,6 +5,7 @@
 #include "internal/pycore_long.h"
 #include "internal/pycore_object.h"
 
+#include "cinderx/Common/compiler.h"
 #include "cinderx/Common/containers.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
@@ -157,9 +158,8 @@ inline bool is_dict_unmaterialized(PyDictObject* dict) {
       dict == nullptr;
 }
 
-PyObject* __attribute__((noinline)) raise_attribute_error(
-    PyObject* obj,
-    PyObject* name) {
+CINDERX_NOINLINE
+PyObject* raise_attribute_error(PyObject* obj, PyObject* name) {
   PyErr_Format(
       PyExc_AttributeError,
       "'%.50s' object has no attribute '%U'",
@@ -1209,8 +1209,11 @@ int StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
   return invokeSlowPath(obj, name, value);
 }
 
-int __attribute__((noinline))
-StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
+CINDERX_NOINLINE
+int StoreAttrCache::invokeSlowPath(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value) {
   int result = PyObject_SetAttr(obj, name, value);
   if (result < 0) {
     JIT_DCHECK(
@@ -1238,9 +1241,8 @@ PyObject* LoadAttrCache::doInvoke(PyObject* obj, PyObject* name) {
   return invokeSlowPath(obj, name);
 }
 
-PyObject* __attribute__((noinline)) LoadAttrCache::invokeSlowPath(
-    PyObject* obj,
-    PyObject* name) {
+CINDERX_NOINLINE
+PyObject* LoadAttrCache::invokeSlowPath(PyObject* obj, PyObject* name) {
   auto result = Ref<>::steal(PyObject_GetAttr(obj, name));
   if (result == nullptr) {
     JIT_DCHECK(
@@ -1530,7 +1532,8 @@ const CacheStats* LoadMethodCache::cacheStats() {
   return cache_stats_.get();
 }
 
-LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
+CINDERX_NOINLINE
+LoadMethodResult LoadMethodCache::lookupSlowPath(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   PyTypeObject* tp = Py_TYPE(obj);
@@ -2008,7 +2011,8 @@ static std::pair<BorrowedRef<PyDictObject>, Ref<>> getModuleDictAndAttribute(
   return {nullptr, nullptr};
 }
 
-PyObject* __attribute__((noinline)) LoadModuleAttrCache::lookupSlowPath(
+CINDERX_NOINLINE
+PyObject* LoadModuleAttrCache::lookupSlowPath(
     BorrowedRef<> object,
     BorrowedRef<> name) {
   auto [module_dict, value] = getModuleDictAndAttribute(object, name);
@@ -2072,8 +2076,10 @@ BorrowedRef<> LoadModuleMethodCache::value() {
 }
 #endif
 
-LoadMethodResult __attribute__((noinline))
-LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
+CINDERX_NOINLINE
+LoadMethodResult LoadModuleMethodCache::lookupSlowPath(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
   auto [module_dict, res] = getModuleDictAndAttribute(obj, name);
 
   if (res != nullptr) {

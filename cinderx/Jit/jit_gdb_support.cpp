@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/jit_gdb_support.h"
 
+#include "cinderx/Common/compiler.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/compiled_function.h"
@@ -42,7 +43,7 @@ struct JITDescriptor {
  * Has to be a weak symbol in case another library also uses the GDB JIT
  * interface (e.g. LLVM ORC).
  */
-[[gnu::weak]] [[gnu::noinline]] void __jit_debug_register_code() {
+CINDERX_NOINLINE [[gnu::weak]] void __jit_debug_register_code() {
   __asm("");
 }
 
