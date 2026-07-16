@@ -364,6 +364,10 @@ class CodeGenerator(ASTVisitor):
     flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor: type[BaseSymbolVisitor] = BaseSymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
+    # gh-issue-151907: a list comprehension used as an expression statement
+    # (its result discarded) skips building the list. Only enabled for the
+    # Python versions whose compiler performs this optimization.
+    _unused_listcomp_avoids_creation: bool = False
 
     # pyre-fixme[4] This appears to be unused.
     __initialized = None
@@ -1029,6 +1033,30 @@ class CodeGenerator(ASTVisitor):
         self.visit(elt)
         self.visit(val)
 
+    def compile_unpack_starred(
+        self, comp: CompNode, elt: ast.Starred, yield_: bool
+    ) -> None:
+        # gh-issue-151907 / PEP 798: a starred comprehension element is unpacked
+        # -- its value is iterated and each item is yielded (generator
+        # expression) or discarded (list comprehension whose result is unused).
+        # Only reachable on the 3.16+ code generators, where the grammar allows
+        # a starred element in a comprehension.
+        unpack_start = self.newBlock("unpack_start")
+        unpack_end = self.newBlock("unpack_end")
+        self.visit(elt.value)
+        self.set_pos(elt)
+        self.emit("GET_ITER", 0)
+        self.nextBlock(unpack_start)
+        self.emit("FOR_ITER", unpack_end)
+        self.nextBlock()
+        if yield_:
+            self.emit_yield(self.scopes[comp])
+        self.emit("POP_TOP")
+        self.set_no_pos()
+        self.emitJump(unpack_start)
+        self.nextBlock(unpack_end)
+        self.emit_end_for()
+
     # exception related
 
     def visitRaise(self, node: ast.Raise) -> None:
@@ -1168,6 +1196,23 @@ class CodeGenerator(ASTVisitor):
             self.emit_print()
         elif is_const(node.value):
             self.emit("NOP")
+        elif self._unused_listcomp_avoids_creation and isinstance(
+            node.value, ast.ListComp
+        ):
+            # gh-issue-151907: compile the discarded list comprehension without
+            # building the list; the artificial POP_TOP below drops the leftover
+            # copy of the iterable left on the stack by the COPY 1.
+            comp = node.value
+            self.compile_comprehension(
+                comp,
+                sys.intern("<listcomp>"),
+                comp.elt,
+                None,
+                "BUILD_LIST",
+                avoid_creation=True,
+            )
+            self.set_no_pos()
+            self.emit("POP_TOP")
         else:
             self.visit(node.value)
             self.set_no_pos()
@@ -2780,6 +2825,7 @@ class CodeGenerator(ASTVisitor):
         val: ast.expr | None,
         opcode: str | None,
         oparg: object = 0,
+        avoid_creation: bool = False,
     ) -> None:
         raise NotImplementedError()
 
@@ -4554,6 +4600,7 @@ class CodeGenerator312(CodeGenerator):
         val: ast.expr | None,
         opcode: str | None,
         oparg: object = 0,
+        avoid_creation: bool = False,
     ) -> None:
         self.check_async_comprehension(node)
 
@@ -4614,14 +4661,15 @@ class CodeGenerator312(CodeGenerator):
         val: ast.expr | None,
         type: type[ast.AST],
         iter_on_stack: IterStackState,
+        avoid_creation: bool = False,
     ) -> None:
         if comp.generators[gen_index].is_async:
             self._compile_async_comprehension(
-                comp, gen_index, depth, elt, val, type, iter_on_stack
+                comp, gen_index, depth, elt, val, type, iter_on_stack, avoid_creation
             )
         else:
             self._compile_sync_comprehension(
-                comp, gen_index, depth, elt, val, type, iter_on_stack
+                comp, gen_index, depth, elt, val, type, iter_on_stack, avoid_creation
             )
 
     def _compile_async_comprehension(
@@ -4633,6 +4681,7 @@ class CodeGenerator312(CodeGenerator):
         val: ast.expr | None,
         type: type[ast.AST],
         iter_on_stack: IterStackState,
+        avoid_creation: bool = False,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
@@ -4713,6 +4762,7 @@ class CodeGenerator312(CodeGenerator):
         val: ast.expr | None,
         type: type[ast.AST],
         iter_on_stack: IterStackState,
+        avoid_creation: bool = False,
     ) -> None:
         start = self.newBlock("start")
         skip = self.newBlock("skip")
@@ -5524,6 +5574,7 @@ class CodeGenerator314(CodeGenerator312):
         val: ast.expr | None,
         type: type[ast.AST],
         iter_on_stack: IterStackState,
+        avoid_creation: bool = False,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
@@ -5560,21 +5611,51 @@ class CodeGenerator314(CodeGenerator312):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
+                comp,
+                gen_index,
+                depth,
+                elt,
+                val,
+                type,
+                IterStackState.IterableInLocal,
+                avoid_creation,
             )
         elif type is ast.GeneratorExp:
-            self.visit(elt)
-            self.set_pos(elt)
-            self.emit_yield(self.scopes[comp])
-            self.emit("POP_TOP")
+            if isinstance(elt, ast.Starred):
+                self.compile_unpack_starred(comp, elt, yield_=True)
+            else:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit_yield(self.scopes[comp])
+                self.emit("POP_TOP")
         elif type is ast.ListComp:
-            self.visit(elt)
-            self.set_pos(elt)
-            self.emit("LIST_APPEND", depth + 1)
+            if avoid_creation:
+                # gh-issue-151907: result discarded.
+                if isinstance(elt, ast.Starred):
+                    self.compile_unpack_starred(comp, elt, yield_=False)
+                else:
+                    self.visit(elt)
+                    self.set_pos(elt)
+                    self.emit("POP_TOP")
+            elif isinstance(elt, ast.Starred):
+                # PEP 798: [*x for ...] extends the result list.
+                self.visit(elt.value)
+                self.set_pos(elt)
+                self.emit("LIST_EXTEND", depth + 1)
+            else:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit("LIST_APPEND", depth + 1)
         elif type is ast.SetComp:
-            self.visit(elt)
-            self.set_pos(elt)
-            self.emit("SET_ADD", depth + 1)
+            if isinstance(elt, ast.Starred):
+                # PEP 798: {*x for ...} updates the result set.
+                self.visit(elt.value)
+                self.set_pos(elt)
+                self.emit("SET_UPDATE", depth + 1)
+            else:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit("SET_ADD", depth + 1)
         elif type is ast.DictComp:
             assert val is not None
             self.compile_dictcomp_element(elt, val)
@@ -6412,6 +6493,7 @@ class CodeGenerator315(CodeGenerator314):
         val: ast.expr | None,
         opcode: str | None,
         oparg: object = 0,
+        avoid_creation: bool = False,
     ) -> None:
         self.check_async_comprehension(node)
 
@@ -6454,13 +6536,19 @@ class CodeGenerator315(CodeGenerator314):
         start = gen.newBlock("start")
         gen.setups.append(Entry(STOP_ITERATION, start, None, None))
         if opcode:
-            gen.emit(opcode, oparg)
-            if scope.inlined:
-                gen.emit("SWAP", 2)
+            if avoid_creation:
+                # gh-issue-151907: no collection is built; COPY 1 keeps a dummy
+                # value in the result slot so the inlined-comprehension stack
+                # layout (and its cleanup) is unchanged.
+                gen.emit("COPY", 1)
+            else:
+                gen.emit(opcode, oparg)
+                if scope.inlined:
+                    gen.emit("SWAP", 2)
 
         assert isinstance(gen, CodeGenerator312)
         gen.compile_comprehension_generator(
-            node, 0, 0, elt, val, type(node), iter_state
+            node, 0, 0, elt, val, type(node), iter_state, avoid_creation
         )
         if inlined_state is not None:
             self.pop_fblock(STOP_ITERATION)
@@ -6484,6 +6572,7 @@ class CodeGenerator315(CodeGenerator314):
         val: ast.expr | None,
         type: type[ast.AST],
         iter_on_stack: IterStackState,
+        avoid_creation: bool = False,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
@@ -6519,21 +6608,51 @@ class CodeGenerator315(CodeGenerator314):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
+                comp,
+                gen_index,
+                depth,
+                elt,
+                val,
+                type,
+                IterStackState.IterableInLocal,
+                avoid_creation,
             )
         elif type is ast.GeneratorExp:
-            self.visit(elt)
-            self.set_pos(elt)
-            self.emit_yield(self.scopes[comp])
-            self.emit("POP_TOP")
+            if isinstance(elt, ast.Starred):
+                self.compile_unpack_starred(comp, elt, yield_=True)
+            else:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit_yield(self.scopes[comp])
+                self.emit("POP_TOP")
         elif type is ast.ListComp:
-            self.visit(elt)
-            self.set_pos(elt)
-            self.emit("LIST_APPEND", depth + 1)
+            if avoid_creation:
+                # gh-issue-151907: result discarded.
+                if isinstance(elt, ast.Starred):
+                    self.compile_unpack_starred(comp, elt, yield_=False)
+                else:
+                    self.visit(elt)
+                    self.set_pos(elt)
+                    self.emit("POP_TOP")
+            elif isinstance(elt, ast.Starred):
+                # PEP 798: [*x for ...] extends the result list.
+                self.visit(elt.value)
+                self.set_pos(elt)
+                self.emit("LIST_EXTEND", depth + 1)
+            else:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit("LIST_APPEND", depth + 1)
         elif type is ast.SetComp:
-            self.visit(elt)
-            self.set_pos(elt)
-            self.emit("SET_ADD", depth + 1)
+            if isinstance(elt, ast.Starred):
+                # PEP 798: {*x for ...} updates the result set.
+                self.visit(elt.value)
+                self.set_pos(elt)
+                self.emit("SET_UPDATE", depth + 1)
+            else:
+                self.visit(elt)
+                self.set_pos(elt)
+                self.emit("SET_ADD", depth + 1)
         elif type is ast.DictComp:
             assert val is not None
             self.compile_dictcomp_element(elt, val)
@@ -6565,6 +6684,7 @@ class CodeGenerator315(CodeGenerator314):
         val: ast.expr | None,
         type: type[ast.AST],
         iter_on_stack: IterStackState,
+        avoid_creation: bool = False,
     ) -> None:
         start = self.newBlock("start")
         skip = self.newBlock("skip")
@@ -6607,22 +6727,52 @@ class CodeGenerator315(CodeGenerator314):
         elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                comp, gen_index, depth, elt, val, type, IterStackState.IterableInLocal
+                comp,
+                gen_index,
+                depth,
+                elt,
+                val,
+                type,
+                IterStackState.IterableInLocal,
+                avoid_creation,
             )
         else:
             if type is ast.GeneratorExp:
-                self.set_pos(elt)
-                self.visit(elt)
-                self.emit_yield(self.scopes[comp])
-                self.emit("POP_TOP")
+                if isinstance(elt, ast.Starred):
+                    self.compile_unpack_starred(comp, elt, yield_=True)
+                else:
+                    self.set_pos(elt)
+                    self.visit(elt)
+                    self.emit_yield(self.scopes[comp])
+                    self.emit("POP_TOP")
             elif type is ast.ListComp:
-                self.visit(elt)
-                self.set_pos(elt)
-                self.emit("LIST_APPEND", depth + 1)
+                if avoid_creation:
+                    # gh-issue-151907: result discarded.
+                    if isinstance(elt, ast.Starred):
+                        self.compile_unpack_starred(comp, elt, yield_=False)
+                    else:
+                        self.visit(elt)
+                        self.set_pos(elt)
+                        self.emit("POP_TOP")
+                elif isinstance(elt, ast.Starred):
+                    # PEP 798: [*x for ...] extends the result list.
+                    self.visit(elt.value)
+                    self.set_pos(elt)
+                    self.emit("LIST_EXTEND", depth + 1)
+                else:
+                    self.visit(elt)
+                    self.set_pos(elt)
+                    self.emit("LIST_APPEND", depth + 1)
             elif type is ast.SetComp:
-                self.set_pos(elt)
-                self.visit(elt)
-                self.emit("SET_ADD", depth + 1)
+                if isinstance(elt, ast.Starred):
+                    # PEP 798: {*x for ...} updates the result set.
+                    self.visit(elt.value)
+                    self.set_pos(elt)
+                    self.emit("SET_UPDATE", depth + 1)
+                else:
+                    self.set_pos(elt)
+                    self.visit(elt)
+                    self.emit("SET_ADD", depth + 1)
             elif type is ast.DictComp:
                 assert elt is not None and val is not None
                 self.compile_dictcomp_element(elt, val)
@@ -6700,6 +6850,9 @@ class CodeGenerator315(CodeGenerator314):
 
 class CodeGenerator316(CodeGenerator315):
     flow_graph = PyFlowGraph316
+    # gh-issue-151907: 3.16 skips building a list for a list comprehension whose
+    # result is discarded (used as an expression statement).
+    _unused_listcomp_avoids_creation: bool = True
 
     def make_annotations_code_holder(self, code_gen: CodeGenerator) -> CodeHolder:
         # 3.16 extended the ".format" -> "format" rename to the
