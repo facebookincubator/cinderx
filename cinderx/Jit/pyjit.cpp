@@ -716,6 +716,18 @@ FlagProcessor initFlagProcessor() {
       "Megabytes is m or M and gigabytes is g or G. 0 implies no limit.");
 
   flag_processor.addOption(
+      "cinderx-jit-max-lir-blocks",
+      "CINDERX_JIT_MAX_LIR_BLOCKS",
+      getMutableConfig().max_lir_blocks,
+      "Set the maximum number of LIR basic blocks in a compiled function");
+
+  flag_processor.addOption(
+      "cinderx-jit-max-lir-instrs",
+      "CINDERX_JIT_MAX_LIR_INSTRS",
+      getMutableConfig().max_lir_instrs,
+      "Set the maximum number of LIR instructions in a compiled function");
+
+  flag_processor.addOption(
       "cinderx-jit-emit-type-annotation-guards",
       "CINDERX_JIT_EMIT_TYPE_ANNOTATION_GUARDS",
       getMutableConfig().emit_type_annotation_guards,

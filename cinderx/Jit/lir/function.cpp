@@ -244,6 +244,14 @@ size_t Function::getNumBasicBlocks() const {
   return basic_blocks_.size();
 }
 
+size_t Function::getNumInstrs() const {
+  size_t n = 0;
+  for (const BasicBlock* block : basic_blocks_) {
+    n += block->getNumInstrs();
+  }
+  return n;
+}
+
 void Function::sortBasicBlocks() {
   // Remove resume_entry_block from the block list before sorting.
   // It is a placeholder with no instructions during regalloc — populated

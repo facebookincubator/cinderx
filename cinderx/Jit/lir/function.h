@@ -59,6 +59,7 @@ class Function {
   BasicBlock* entryBlock() const;
 
   size_t getNumBasicBlocks() const;
+  size_t getNumInstrs() const;
 
   void sortBasicBlocks();
 

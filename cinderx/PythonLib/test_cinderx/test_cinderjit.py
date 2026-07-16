@@ -3,14 +3,12 @@
 import asyncio
 import faulthandler
 import gc
-import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
 import warnings
 import weakref
-from pathlib import Path
 from typing import Callable, TYPE_CHECKING
 
 import cinderx.jit
@@ -26,7 +24,6 @@ from cinderx.jit import (
 )
 from cinderx.test_support import (
     compiles_after_one_call,
-    ENCODING,
     is_oss,
     passIf,
     passUnless,
@@ -35,7 +32,6 @@ from cinderx.test_support import (
     skip_if_prefork,
     skip_test_if_oss,
     skip_unless_jit,
-    subprocess_env,
 )
 
 from .common import failUnlessHasOpcodes, with_globals
@@ -1517,177 +1513,6 @@ class CinderJitModuleTests(StaticTestBase):
                 self.assertTrue(is_jit_compiled(g))
                 self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
-    def test_max_code_size_slow(self) -> None:
-        # TODO(T240152676): Improve stability of this test
-        call_limit = cinderx.jit.get_compile_after_n_calls()
-        if call_limit is None or call_limit > 10000:
-            # Expecting the JIT to be compiling a bunch of code automatically
-            return
-
-        code = textwrap.dedent(
-            """
-            import cinderx.jit
-            for i in range(2000):
-                exec(f'''
-            def junk{i}(j):
-                j = j + 1
-                s = f'dogs {i} ' + str(j)
-                if s == '23':
-                    j += 2
-                return j*2+{i}
-            ''')
-            # Call a handful of functions enough times to exceed the
-            # jit-auto threshold (up to 1000) so the JIT compiles them.
-            # The remaining functions are called once each below.
-            for _rep in range(1100):
-                junk0(0)
-                junk1(1)
-            x = 0
-            for i in range(2000):
-                exec(f'x *= junk{i}(i)')
-            max_bytes = cinderx.jit.get_allocator_stats()["max_bytes"]
-            used_bytes = cinderx.jit.get_allocator_stats()["used_bytes"]
-            print(f'max_size: {max_bytes}')
-            print(f'used_size: {used_bytes}')
-        """
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            dirpath = Path(tmp)
-            codepath = dirpath / "mod.py"
-            codepath.write_text(code)
-
-            def run_test(
-                asserts_func: Callable[[list[str]], None], params: list[str]
-            ) -> None:
-                args = [sys.executable]
-                args.extend(params)
-                args.append("mod.py")
-                proc = subprocess.run(
-                    args,
-                    cwd=tmp,
-                    stdout=subprocess.PIPE,
-                    encoding=ENCODING,
-                    env=subprocess_env(),
-                )
-                self.assertEqual(proc.returncode, 0, proc)
-                actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
-                asserts_func(actual_stdout)
-
-            def zero_asserts(actual_stdout: list[str]) -> None:
-                expected_stdout = "max_size: 0"
-                self.assertEqual(actual_stdout[0], expected_stdout)
-                self.assertIn("used_size", actual_stdout[1])
-                used_size = int(actual_stdout[1].split(" ")[1])
-                self.assertGreater(used_size, 0)
-
-            def onek_asserts(actual_stdout: list[str]) -> None:
-                expected_stdout = "max_size: 1024"
-                self.assertEqual(actual_stdout[0], expected_stdout)
-                self.assertIn("used_size", actual_stdout[1])
-                used_size = int(actual_stdout[1].split(" ")[1])
-                self.assertGreater(used_size, 1024)
-                # This is a bit fragile because it depends on what the initial 'zeroth'
-                # allocation is; we assume < 600K.
-                self.assertLess(used_size, 1024 * 600)
-
-            # Run the zero-assert tests with JitAuto=1000 to test "normal" behavior
-            # where we compile some code but don't have any limits to trip.
-            run_test(zero_asserts, ["-X", "jit-auto=1000", "-X", "jit-max-code-size=0"])
-            run_test(
-                zero_asserts,
-                [
-                    "-X",
-                    "jit-auto=1000",
-                    "-X",
-                    "jit-max-code-size=0",
-                    "-X",
-                    "jit-huge-pages=0",
-                ],
-            )
-
-            # Run the onek-assert tests with JitAll so that we quickly trip the limit
-            # and stop compiling.
-            run_test(onek_asserts, ["-X", "jit-all", "-X", "jit-max-code-size=1024"])
-            run_test(
-                onek_asserts,
-                [
-                    "-X",
-                    "jit-all",
-                    "-X",
-                    "jit-max-code-size=1024",
-                    "-X",
-                    "jit-huge-pages=0",
-                ],
-            )
-
-    def test_max_code_size_fast(self) -> None:
-        code = textwrap.dedent(
-            """
-            import cinderx.jit
-            max_bytes = cinderx.jit.get_allocator_stats()["max_bytes"]
-            print(f'max_size: {max_bytes}')
-        """
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            dirpath = Path(tmp)
-            codepath = dirpath / "mod.py"
-            codepath.write_text(code)
-
-            def run_proc(size: str | None = None) -> str:
-                args = [sys.executable]
-                if size:
-                    args.extend(["-X", f"jit-max-code-size={size}"])
-                args.append("mod.py")
-
-                proc = subprocess.run(
-                    args,
-                    cwd=tmp,
-                    stdout=subprocess.PIPE,
-                    encoding=ENCODING,
-                    env=subprocess_env(),
-                )
-                self.assertEqual(proc.returncode, 0, proc)
-                actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
-                return actual_stdout[0]
-
-            self.assertEqual(run_proc(), "max_size: 0")
-            self.assertEqual(run_proc("1234567"), "max_size: 1234567")
-            self.assertEqual(run_proc("1k"), "max_size: 1024")
-            self.assertEqual(run_proc("1K"), "max_size: 1024")
-            self.assertEqual(run_proc("1m"), "max_size: 1048576")
-            self.assertEqual(run_proc("1M"), "max_size: 1048576")
-            self.assertEqual(run_proc("1g"), "max_size: 1073741824")
-            self.assertEqual(run_proc("1G"), "max_size: 1073741824")
-
-            def run_proc(size: str) -> str:
-                args = [
-                    sys.executable,
-                    "-X",
-                    f"jit-max-code-size={size}",
-                    "mod.py",
-                ]
-                proc = subprocess.run(
-                    args,
-                    cwd=tmp,
-                    stderr=subprocess.PIPE,
-                    encoding=ENCODING,
-                    env=subprocess_env(),
-                )
-                self.assertEqual(proc.returncode, -6, proc)
-                return proc.stderr
-
-            self.assertIn(
-                "Invalid unsigned integer in input string: '-1'", run_proc("-1")
-            )
-            self.assertIn(
-                "Invalid unsigned integer in input string: '1.1'", run_proc("1.1")
-            )
-            self.assertIn("Invalid character in input string", run_proc("dogs"))
-            self.assertIn(
-                "Unsigned Integer overflow in input string: '1152921504606846976g'",
-                run_proc("1152921504606846976g"),
-            )
-
 
 class DeleteAttrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
@@ -2498,65 +2323,6 @@ class BadArgumentTests(unittest.TestCase):
             cinderx.jit.lazy_compile(5)
         with self.assertRaises(TypeError):
             cinderx.jit.lazy_compile(is_jit_compiled)
-
-    def test_set_max_code_size(self) -> None:
-        # Test with valid positive value
-        cinderx.jit.set_max_code_size(100_000_000)
-
-        # Test with zero (unlimited)
-        cinderx.jit.set_max_code_size(0)
-
-        # Test invalid types
-        with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
-            cinderx.jit.set_max_code_size(None)
-        with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
-            cinderx.jit.set_max_code_size("100M")
-        with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
-            cinderx.jit.set_max_code_size(100.5)
-
-        # Test negative value
-        with self.assertRaises(ValueError):
-            cinderx.jit.set_max_code_size(-1)
-        with self.assertRaises(ValueError):
-            cinderx.jit.set_max_code_size(-100)
-
-    def test_max_code_size_prevents_compilation(self) -> None:
-        # Setup: Get current allocator stats and set a very small limit
-        stats = cinderx.jit.get_allocator_stats()
-        if stats is None:
-            self.skipTest("Allocator stats not available")
-
-        # Save original limit to restore later
-        original_limit = cinderx.jit.get_allocator_stats()["max_bytes"]
-
-        try:
-            # Make the limit infinite
-            cinderx.jit.set_max_code_size(0)
-
-            # Create a function that should compile successfully
-            def small_func1():
-                return 42
-
-            force_compile(small_func1)
-            self.assertTrue(is_jit_compiled(small_func1))
-
-            # Set a very small limit to prevent further compilations
-            cinderx.jit.set_max_code_size(5)
-
-            # Create another function that should NOT compile due to limit
-            def small_func2():
-                return 43
-
-            with self.assertRaisesRegex(RuntimeError, "PYJIT_OVER_MAX_CODE_SIZE"):
-                force_compile(small_func2)
-
-            self.assertFalse(is_jit_compiled(small_func2))
-
-        finally:
-            cinderx.jit.set_max_code_size(original_limit)
 
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):

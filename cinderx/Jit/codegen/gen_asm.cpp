@@ -86,6 +86,34 @@ namespace {
 // Scratch register used by the various deopt trampolines.
 [[maybe_unused]] const auto deopt_scratch_reg = arch::reg_scratch_deopt;
 
+// Raise an exception if an LIR function exceeds a reasonable size.
+void checkLirSize(const lir::Function& func) {
+  auto name = [&] {
+    auto hir_func = func.hirFunc();
+    return hir_func != nullptr ? hir_func->fullname : "<unknown func>";
+  };
+
+  auto num_blocks = func.getNumBasicBlocks();
+  auto max_blocks = getConfig().max_lir_blocks;
+  if (num_blocks > max_blocks) {
+    throw std::runtime_error{fmt::format(
+        "LIR function '{}' has too many basic blocks ({}, max={})",
+        name(),
+        num_blocks,
+        max_blocks)};
+  }
+
+  auto num_instrs = func.getNumInstrs();
+  auto max_instrs = getConfig().max_lir_instrs;
+  if (num_instrs > max_instrs) {
+    throw std::runtime_error{fmt::format(
+        "LIR function '{}' has too many instructions ({}, max={})",
+        name(),
+        num_instrs,
+        max_instrs)};
+  }
+}
+
 void raiseUnboundLocalError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
 
@@ -752,6 +780,7 @@ void* NativeGenerator::getVectorcallEntry() {
       getFunction()->compilation_phase_timer,
       "Lowering into LIR",
       lir_func = lirgen.translateFunction())
+  checkLirSize(*lir_func);
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
