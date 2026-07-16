@@ -603,15 +603,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<Compare>(dst, op, left, right);
       break;
     }
-    case Opcode::kFloatCompare: {
-      expect("<");
-      CompareOp op = ParseCompareOpName(getNextToken());
-      expect(">");
-      auto left = parseRegister();
-      auto right = parseRegister();
-      NEW_INSTR(FloatCompare, dst, op, left, right);
-      break;
-    }
     case Opcode::kLongCompare: {
       expect("<");
       CompareOp op = ParseCompareOpName(getNextToken());

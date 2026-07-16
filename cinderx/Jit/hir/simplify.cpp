@@ -455,12 +455,22 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
     }
   }
 
-  // Emit FloatCompare if both args are FloatExact and the op is supported
-  // between two longs.
+  // Emit primitive comparisons for floats: unbox and compare as CDouble.  The
+  // op is emitted naturally (PrimitiveCompare<LessThan> and friends). NaNs are
+  // handled using Python's rules (`NaN == NaN` is false, `NaN != NaN` is true,
+  // all other comparison types with NaN are false).
   if (left->isA(TFloatExact) && right->isA(TFloatExact) &&
-      !(op == CompareOp::kIn || op == CompareOp::kNotIn ||
-        op == CompareOp::kExcMatch)) {
-    return env.emit<FloatCompare>(instr->op(), left, right);
+      (op == CompareOp::kLessThan || op == CompareOp::kLessThanEqual ||
+       op == CompareOp::kGreaterThan || op == CompareOp::kGreaterThanEqual ||
+       op == CompareOp::kEqual || op == CompareOp::kNotEqual)) {
+    std::optional<PrimitiveCompareOp> prim_op = toPrimitiveCompareOp(op);
+    env.emit<UseType>(left, TFloatExact);
+    env.emit<UseType>(right, TFloatExact);
+    Register* unboxed_left = env.emit<PrimitiveUnbox>(left, TCDouble);
+    Register* unboxed_right = env.emit<PrimitiveUnbox>(right, TCDouble);
+    Register* result =
+        env.emit<PrimitiveCompare>(*prim_op, unboxed_left, unboxed_right);
+    return env.emit<PrimitiveBoxBool>(result);
   }
 
   // Emit LongCompare if both args are LongExact and the op is supported between

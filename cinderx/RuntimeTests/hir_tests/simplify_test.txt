@@ -4960,7 +4960,7 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
-CompareOfTwoFloatsTurnsToFloatCompare
+CompareOfTwoFloatsGetsUnboxed
 --- Input ---
 # HIR
 fun test {
@@ -5004,10 +5004,14 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = FloatCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<FloatExact> v2
+    UseType<FloatExact> v3
+    v8:CDouble = PrimitiveUnbox<CDouble> v2
+    v9:CDouble = PrimitiveUnbox<CDouble> v3
     v10:CBool = PrimitiveCompare<Equal> v8 v9
+    v11:ImmortalBool = PrimitiveBoxBool v10
+    UseType<Bool> v11
+    v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<2, 1> v10
   }
 
@@ -5036,10 +5040,14 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = FloatCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<FloatExact> v2
+    UseType<FloatExact> v3
+    v8:CDouble = PrimitiveUnbox<CDouble> v2
+    v9:CDouble = PrimitiveUnbox<CDouble> v3
     v10:CBool = PrimitiveCompare<Equal> v8 v9
+    v11:ImmortalBool = PrimitiveBoxBool v10
+    UseType<Bool> v11
+    v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<2, 1> v10
   }
 
@@ -5068,10 +5076,14 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = FloatCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<FloatExact> v2
+    UseType<FloatExact> v3
+    v8:CDouble = PrimitiveUnbox<CDouble> v2
+    v9:CDouble = PrimitiveUnbox<CDouble> v3
     v10:CBool = PrimitiveCompare<Equal> v8 v9
+    v11:ImmortalBool = PrimitiveBoxBool v10
+    UseType<Bool> v11
+    v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<2, 1> v10
   }
 
@@ -5100,10 +5112,14 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = FloatCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<FloatExact> v2
+    UseType<FloatExact> v3
+    v8:CDouble = PrimitiveUnbox<CDouble> v2
+    v9:CDouble = PrimitiveUnbox<CDouble> v3
     v10:CBool = PrimitiveCompare<Equal> v8 v9
+    v11:ImmortalBool = PrimitiveBoxBool v10
+    UseType<Bool> v11
+    v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     CondBranch<2, 1> v10
   }
 

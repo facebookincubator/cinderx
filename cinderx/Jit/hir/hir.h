@@ -1819,32 +1819,6 @@ class INSTR_CLASS(
   CompareOp op_;
 };
 
-// Perform the comparison indicated by op between two floats
-class INSTR_CLASS(
-    FloatCompare,
-    (TFloatExact, TFloatExact),
-    HasOutput,
-    Operands<2>) {
- public:
-  FloatCompare(Register* dst, CompareOp op, Register* left, Register* right)
-      : InstrT(dst, left, right), op_(op) {}
-
-  CompareOp op() const {
-    return op_;
-  }
-
-  Register* left() const {
-    return getOperand(0);
-  }
-
-  Register* right() const {
-    return getOperand(1);
-  }
-
- private:
-  CompareOp op_;
-};
-
 // Perform the comparison indicated by op between two longs
 class INSTR_CLASS(
     LongCompare,
