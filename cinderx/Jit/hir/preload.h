@@ -22,6 +22,7 @@ namespace cinderx::jit::hir {
 // so a sorted vector is cheaper than a hash table or tree.
 using ArgTypeMap = SortedVecMap<int, Type>;
 using GlobalNamesMap = SortedVecMap<int, BorrowedRef<>>;
+using GlobalsCacheMap = SortedVecMap<int, PyObject**>;
 
 // A map keyed by type descr tuples.
 template <class T>
@@ -183,6 +184,12 @@ class Preloader {
   SortedVecMap<int, OwnedType> check_arg_types_;
   // Keyed by name index, names borrowed from code object.
   GlobalNamesMap global_names_;
+  // keyed by name index; stable GlobalCache value slots captured during
+  // preload (while the GIL is held).  Preloader::global() reads these slots
+  // directly during HIR building rather than re-entering the
+  // GlobalCacheManager, which is unsafe with the GIL released in a background
+  // compile.
+  GlobalsCacheMap global_caches_;
   OwnedType return_type_;
   // for primitive args only, null unless has_primitive_args_
   Ref<_PyTypedArgsInfo> prim_args_info_;

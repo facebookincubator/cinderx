@@ -242,11 +242,11 @@ bool Preloader::canCacheGlobals() const {
 }
 
 BorrowedRef<> Preloader::global(int name_idx) const {
-  BorrowedRef<> name = map_get(global_names_, name_idx, nullptr);
-  if (name != nullptr && canCacheGlobals()) {
-    return *getGlobalCache(name);
+  auto it = global_caches_.find(name_idx);
+  if (it == global_caches_.end()) {
+    return nullptr;
   }
-  return nullptr;
+  return *it->second;
 }
 
 std::unique_ptr<Function> Preloader::makeFunction() const {
@@ -383,11 +383,12 @@ bool Preloader::preload() {
         // The above dict fetches may have had side effects that mean globals
         // are no longer cacheable, so recheck that.
         if (canCacheGlobals()) {
-          // We also initialize the GlobalCache here so we don't have to
-          // thread-serialize initializing it later (it calls PyDict_GetItem,
-          // which can cause data races in multithreaded compile.)
-          getGlobalCache(name);
-          global_names_.emplace(name_idx, name);
+          // Eagerly load the global cache, we can't re-enter the global cache
+          // manager on the background thread because it can call PyDict_Watch
+          if (PyObject** cache = getGlobalCache(name)) {
+            global_caches_.emplace(name_idx, cache);
+            global_names_.emplace(name_idx, name);
+          }
         }
         break;
       }
