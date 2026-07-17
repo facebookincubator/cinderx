@@ -5,6 +5,7 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Common/containers.h"
+#include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/context_iface.h"
@@ -34,6 +35,14 @@ struct ModuleState {
   int clear();
 
   bool initBuiltinMembers();
+
+  // Return the HugePageArena shared by all live SlabArenas, creating it on
+  // demand. The arena (and every 2MB chunk it owns) stays alive as long as at
+  // least one holder exists, and is freed once the last one is destroyed. A
+  // subsequent call after that creates a fresh arena.
+  std::shared_ptr<HugePageArena> getSharedHugePageArena();
+
+  void afterForkChild();
 
   // State for dict/type/code/func watchers registered with CPython.
   WatcherState watcher_state;
@@ -157,6 +166,10 @@ struct ModuleState {
 
   bool tstate_offset_inited{false};
   int32_t tstate_offset{-1};
+
+ private:
+  std::mutex mutex_;
+  std::weak_ptr<HugePageArena> huge_page_arena_;
 };
 
 // Get the global ModuleState singleton.

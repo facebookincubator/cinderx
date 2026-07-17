@@ -109,6 +109,27 @@ bool ModuleState::initBuiltinMembers() {
   return true;
 }
 
+std::shared_ptr<HugePageArena> ModuleState::getSharedHugePageArena() {
+  // A weak_ptr lets the arena be freed once the last SlabArena holding a strong
+  // reference goes away, while still handing the same instance to any that are
+  // created in the meantime.
+
+  std::lock_guard<std::mutex> lock{mutex_};
+  std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock();
+  if (arena == nullptr) {
+    arena = std::make_shared<HugePageArena>();
+    huge_page_arena_ = arena;
+  }
+  return arena;
+}
+
+void ModuleState::afterForkChild() {
+  std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock();
+  if (arena != nullptr) {
+    arena->afterForkChild();
+  }
+}
+
 ModuleState* getModuleState() {
   return s_cinderx_state;
 }

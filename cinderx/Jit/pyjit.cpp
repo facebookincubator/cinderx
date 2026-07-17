@@ -11,6 +11,7 @@
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/containers.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
@@ -2650,6 +2651,7 @@ PyObject* after_fork_child(PyObject*, PyObject*) {
 #ifndef WIN32
   perf::afterForkChild();
 #endif
+  getModuleState()->afterForkChild();
   Py_RETURN_NONE;
 }
 
