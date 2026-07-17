@@ -6,6 +6,10 @@ import os
 import sys
 import unittest
 
+# pyre-ignore
+# this must be in globals for JIT to see
+from re._constants import BIGCHARSET
+
 import cinderx
 from cinderx.test_support import passUnless, run_in_subprocess, skip_if_ft
 
@@ -246,6 +250,25 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(holder))
         self.assertTrue(cinderx.is_immortal(target.__code__))
         self.assertTrue(cinderx.is_immortal(exceptiontable))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_immortalize_refcount(self) -> None:
+        from cinderx import jit
+
+        print(sys.getrefcount(BIGCHARSET))
+
+        def f():
+            x = BIGCHARSET
+            return x
+
+        jit.force_compile(f)
+        cinderx.immortalize_heap()
+
+        rc = sys.getrefcount(BIGCHARSET)
+        x = f()
+        self.assertEqual(rc, sys.getrefcount(BIGCHARSET))
+        self.assertTrue(cinderx.is_immortal(x))
 
     @unittest.skipIf(
         _PY_DEBUG_BUILD,

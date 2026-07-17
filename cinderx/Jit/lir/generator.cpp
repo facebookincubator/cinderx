@@ -1719,8 +1719,7 @@ void LIRGenerator::emitExceptionCheck(
 void LIRGenerator::makeIncref(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
-    bool xincref,
-    [[maybe_unused]] bool possible_immortal) {
+    bool xincref) {
   auto end_incref = bbb.allocateBlock();
   if (xincref) {
     auto cont = bbb.allocateBlock();
@@ -1731,7 +1730,7 @@ void LIRGenerator::makeIncref(
   if constexpr (kFreeThreadedBuild) {
     makeIncrefFreeThreaded(bbb, instr, end_incref);
   } else {
-    makeIncrefGILEnabled(bbb, instr, end_incref, possible_immortal);
+    makeIncrefGILEnabled(bbb, instr, end_incref);
   }
 
   bbb.appendBlock(end_incref);
@@ -1884,36 +1883,24 @@ void LIRGenerator::makeTagIfDeferred(
 void LIRGenerator::makeIncrefGILEnabled(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
-    BasicBlock* end_incref,
-    bool possible_immortal) {
+    BasicBlock* end_incref) {
   // If this could be an immortal object then we need to load the refcount as a
   // 32-bit integer to see if it overflows on increment, indicating that it's
   // immortal.  For mortal objects the refcount is a regular 64-bit integer.
-  if (possible_immortal) {
-    auto mortal = bbb.allocateBlock();
-    Instruction* r1 = bbb.appendInstr(
-        OutVReg{Operand::k32bit},
-        Instruction::kMove,
-        Ind{instr, kRefcountOffset, DataType::k32bit});
-    bbb.appendInstr(Instruction::kInc, r1);
+  auto mortal = bbb.allocateBlock();
+  Instruction* r1 = bbb.appendInstr(
+      OutVReg{Operand::k32bit},
+      Instruction::kMove,
+      Ind{instr, kRefcountOffset, DataType::k32bit});
+  bbb.appendInstr(Instruction::kInc, r1);
 #if PY_VERSION_HEX >= 0x030E0000
-    bbb.appendBranch(Instruction::kBranchS, end_incref);
+  bbb.appendBranch(Instruction::kBranchS, end_incref);
 #else
-    bbb.appendBranch(Instruction::kBranchE, end_incref);
+  bbb.appendBranch(Instruction::kBranchE, end_incref);
 #endif
-    bbb.appendBlock(mortal);
-    bbb.appendInstr(
-        OutInd{instr, kRefcountOffset, DataType::k32bit},
-        Instruction::kMove,
-        r1);
-  } else {
-    Instruction* r1 = bbb.appendInstr(
-        OutVReg{DataType::k64bit},
-        Instruction::kMove,
-        Ind{instr, kRefcountOffset});
-    bbb.appendInstr(Instruction::kInc, r1);
-    bbb.appendInstr(OutInd{instr, kRefcountOffset}, Instruction::kMove, r1);
-  }
+  bbb.appendBlock(mortal);
+  bbb.appendInstr(
+      OutInd{instr, kRefcountOffset, DataType::k32bit}, Instruction::kMove, r1);
 
   updateRefTotal(bbb, Instruction::kInc);
 }
@@ -1930,8 +1917,7 @@ void LIRGenerator::makeIncref(
     return;
   }
 
-  makeIncref(
-      bbb, bbb.getDefInstr(obj), xincref, obj->type().couldBe(TImmortalObject));
+  makeIncref(bbb, bbb.getDefInstr(obj), xincref);
 }
 
 void LIRGenerator::makeDecref(
@@ -1939,8 +1925,7 @@ void LIRGenerator::makeDecref(
     lir::Instruction* instr,
     const hir::CallSiteLiveValuesBase* callsite_live_values,
     [[maybe_unused]] std::optional<destructor> destructor,
-    bool xdecref,
-    [[maybe_unused]] bool possible_immortal) {
+    bool xdecref) {
   auto end_decref = bbb.allocateBlock();
   if (xdecref) {
     auto cont = bbb.allocateBlock();
@@ -1951,7 +1936,7 @@ void LIRGenerator::makeDecref(
   if constexpr (kFreeThreadedBuild) {
     makeDecrefFreeThreaded(bbb, instr, callsite_live_values, end_decref);
   } else {
-    makeDecrefGILEnabled(bbb, instr, end_decref, destructor, possible_immortal);
+    makeDecrefGILEnabled(bbb, instr, end_decref, destructor);
   }
 
   bbb.appendBlock(end_decref);
@@ -2079,19 +2064,16 @@ void LIRGenerator::makeDecrefGILEnabled(
     BasicBlockBuilder& bbb,
     lir::Instruction* instr,
     BasicBlock* end_decref,
-    std::optional<destructor> destructor,
-    bool possible_immortal) {
+    std::optional<destructor> destructor) {
   Instruction* r1 = bbb.appendInstr(
       OutVReg{DataType::k64bit},
       Instruction::kMove,
       Ind{instr, kRefcountOffset});
 
-  if (possible_immortal) {
-    auto mortal = bbb.allocateBlock();
-    bbb.appendInstr(Instruction::kTest32, r1, r1);
-    bbb.appendBranch(Instruction::kBranchS, end_decref);
-    bbb.appendBlock(mortal);
-  }
+  auto mortal = bbb.allocateBlock();
+  bbb.appendInstr(Instruction::kTest32, r1, r1);
+  bbb.appendBranch(Instruction::kBranchS, end_decref);
+  bbb.appendBlock(mortal);
 
   updateRefTotal(bbb, Instruction::kDec);
 
@@ -2139,8 +2121,7 @@ void LIRGenerator::makeDecref(
       bbb.getDefInstr(obj),
       callsite_live_values,
       obj->type().runtimePyTypeDestructor(),
-      xdecref,
-      obj->type().couldBe(TImmortalObject));
+      xdecref);
 }
 
 LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
@@ -5687,7 +5668,7 @@ void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
   if (!_Py_IsImmortal(executable)) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
-    makeDecref(bbb, exec_reg, nullptr, dtor, false, false);
+    makeDecref(bbb, exec_reg, nullptr, dtor, false);
   }
 }
 
@@ -5734,13 +5715,12 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
         func_reg,
         nullptr,
         std::optional<destructor>(PyFunction_Type.tp_dealloc),
-        false,
         false);
   }
   if (!_Py_IsImmortal(executable)) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
-    makeDecref(bbb, exec_reg, nullptr, exec_dtor, false, false);
+    makeDecref(bbb, exec_reg, nullptr, exec_dtor, false);
   }
 }
 
@@ -5805,13 +5785,12 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
         func_reg,
         nullptr,
         std::optional<destructor>(PyFunction_Type.tp_dealloc),
-        false,
         false);
   }
   if (!_Py_IsImmortal(executable)) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, executable);
-    makeDecref(bbb, exec_reg, nullptr, exec_dtor, false, false);
+    makeDecref(bbb, exec_reg, nullptr, exec_dtor, false);
   }
 
   bbb.appendBlock(done_block);
