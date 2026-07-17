@@ -37,11 +37,15 @@ FieldInfo resolve_field_descr(BorrowedRef<PyTupleObject> descr) {
   Py_ssize_t offset = _PyClassLoader_ResolveFieldOffset(descr, &field_type);
 
   JIT_THROW_IF(offset == -1, "Failed to resolve field {}", repr(descr));
+  JIT_DCHECK(!PyErr_Occurred(), "shouldn't preload with an error set");
 
-  return {
-      offset,
-      prim_type_to_type(field_type),
-      PyTuple_GET_ITEM(descr, PyTuple_GET_SIZE(descr) - 1)};
+  BorrowedRef<PyUnicodeObject> name_obj{reinterpret_cast<PyUnicodeObject*>(
+      PyTuple_GET_ITEM(descr, PyTuple_GET_SIZE(descr) - 1))};
+  const char* utf8 = PyUnicode_AsUTF8(name_obj);
+  PyErr_Clear();
+  std::string name_str = utf8 != nullptr ? utf8 : "";
+
+  return {offset, prim_type_to_type(field_type), name_obj, std::move(name_str)};
 }
 
 void _fill_primitive_arg_types_helper(
@@ -217,6 +221,14 @@ const GlobalNamesMap& Preloader::globalNames() const {
   return global_names_;
 }
 
+const std::vector<std::string>& Preloader::names() const {
+  return names_;
+}
+
+const std::string& Preloader::name(Py_ssize_t idx) const {
+  return names_[idx];
+}
+
 Type Preloader::checkArgType(int local_idx) const {
   auto it = check_arg_types_.find(local_idx);
   return it != check_arg_types_.end() ? it->second.toHir() : TObject;
@@ -332,6 +344,18 @@ BorrowedRef<> Preloader::constArg(BytecodeInstruction& bc_instr) const {
 }
 
 bool Preloader::preload() {
+  // Precompute UTF-8 names from co_names for use during HIR building without
+  // GIL.
+  PyObject* names_tuple = code_->co_names;
+  Py_ssize_t num_names = PyTuple_GET_SIZE(names_tuple);
+  names_.reserve(num_names);
+  JIT_DCHECK(!PyErr_Occurred(), "shouldn't preload with an error set");
+  for (Py_ssize_t i = 0; i < num_names; i++) {
+    const char* utf8 = PyUnicode_AsUTF8(PyTuple_GET_ITEM(names_tuple, i));
+    names_.emplace_back(utf8 != nullptr ? utf8 : "");
+    PyErr_Clear();
+  }
+
   bool is_static = code_->co_flags & CI_CO_STATICALLY_COMPILED;
   if (is_static && !preloadStatic()) {
     return false;

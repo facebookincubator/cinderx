@@ -32,6 +32,7 @@ struct FieldInfo {
   Py_ssize_t offset;
   Type type;
   BorrowedRef<PyUnicodeObject> name;
+  std::string name_str;
 };
 
 // The target of an INVOKE_FUNCTION or INVOKE_METHOD
@@ -116,6 +117,11 @@ class Preloader {
   // All global names used by the code object.
   const GlobalNamesMap& globalNames() const;
 
+  // Precomputed UTF-8 names from co_names, for use during HIR building without
+  // GIL.
+  const std::vector<std::string>& names() const;
+  const std::string& name(Py_ssize_t idx) const;
+
   // Get the type from argument check info for the given locals index.  Will
   // return TObject for untyped values.
   Type checkArgType(int local_idx) const;
@@ -173,6 +179,7 @@ class Preloader {
   std::unique_ptr<AnnotationIndex> annotations_;
   std::string fullname_;
   Ref<> reifier_;
+  std::vector<std::string> names_;
 
   DescrMap<OwnedType> types_;
   DescrMap<FieldInfo> fields_;

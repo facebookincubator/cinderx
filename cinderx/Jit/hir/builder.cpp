@@ -10,6 +10,7 @@ extern "C" {
 
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_long.h"
+#include "internal/pycore_pyerrors.h"
 #include "internal/pycore_runtime.h"
 
 } // extern "C"
@@ -23,6 +24,7 @@ extern "C" {
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -3547,8 +3549,8 @@ void HIRBuilder::emitLoadGlobal(
     tc.emit<LoadGlobalCached>(
         result, code_, preloader_.builtins(), preloader_.globals(), name_idx);
     auto guard_is = tc.emit<GuardIs>(result, value, result);
-    BorrowedRef<> name = PyTuple_GET_ITEM(code_->co_names, name_idx);
-    guard_is->setDescr(fmt::format("LOAD_GLOBAL: {}", PyUnicode_AsUTF8(name)));
+    guard_is->setDescr(
+        fmt::format("LOAD_GLOBAL: {}", preloader_.name(name_idx)));
     return true;
   };
 
@@ -4341,18 +4343,13 @@ void HIRBuilder::emitLoadField(
   if (field == nullptr) {
     BUILDER_THROW("LOAD_FIELD: Can't find field for descr {}", repr(descr));
   }
-  auto& [offset, type, name] = *field;
 
   Register* receiver = tc.frame.stack.pop();
   Register* result = allocateTemp();
-  const char* field_name = PyUnicode_AsUTF8(name);
-  if (field_name == nullptr) {
-    PyErr_Clear();
-    field_name = "";
-  }
-  tc.emit<LoadField>(result, receiver, field_name, offset, type);
-  if (type.couldBe(TNullptr)) {
-    CheckField* cf = tc.emit<CheckField>(result, result, name, tc.frame);
+  tc.emit<LoadField>(
+      result, receiver, field->name_str, field->offset, field->type);
+  if (field->type.couldBe(TNullptr)) {
+    CheckField* cf = tc.emit<CheckField>(result, result, field->name, tc.frame);
     cf->setGuiltyReg(receiver);
   }
   tc.frame.stack.push(result);
@@ -4366,25 +4363,21 @@ void HIRBuilder::emitStoreField(
   if (field == nullptr) {
     BUILDER_THROW("STORE_FIELD: Can't find field for descr {}", repr(descr));
   }
-  auto& [offset, type, name] = *field;
-  const char* field_name = PyUnicode_AsUTF8(name);
-  if (field_name == nullptr) {
-    PyErr_Clear();
-    field_name = "";
-  }
 
   Register* receiver = tc.frame.stack.pop();
   Register* value = tc.frame.stack.pop();
   Register* previous = allocateTemp();
-  if (type <= TPrimitive) {
+  if (field->type <= TPrimitive) {
     Register* converted = allocateTemp();
     tc.emit<LoadConst>(previous, TNullptr);
-    tc.emit<PrimitiveConvert>(converted, value, type);
+    tc.emit<PrimitiveConvert>(converted, value, field->type);
     value = converted;
   } else {
-    tc.emit<LoadField>(previous, receiver, field_name, offset, type, false);
+    tc.emit<LoadField>(
+        previous, receiver, field->name_str, field->offset, field->type, false);
   }
-  tc.emit<StoreField>(receiver, field_name, offset, value, type, previous);
+  tc.emit<StoreField>(
+      receiver, field->name_str, field->offset, value, field->type, previous);
 }
 
 void HIRBuilder::emitCast(
@@ -5140,13 +5133,12 @@ BorrowedRef<> HIRBuilder::constArg(const BytecodeInstruction& bc_instr) {
 }
 
 void HIRBuilder::checkTranslate() {
-  PyObject* names = code_->co_names;
+  const auto& names = preloader_.names();
+  Py_ssize_t num_names = names.size();
+
   std::unordered_set<Py_ssize_t> banned_name_ids;
-  auto name_at = [&](Py_ssize_t i) {
-    return std::string_view(PyUnicode_AsUTF8(PyTuple_GET_ITEM(names, i)));
-  };
-  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(names); i++) {
-    if (isBannedName(name_at(i))) {
+  for (Py_ssize_t i = 0; i < num_names; i++) {
+    if (isBannedName(names[i])) {
       banned_name_ids.insert(i);
     }
   }
@@ -5161,7 +5153,7 @@ void HIRBuilder::checkTranslate() {
           opcode,
           opcodeName(opcode))};
     } else if (opcode == LOAD_GLOBAL) {
-      if ((oparg & 0x01) && name_at(oparg >> 1) == "super") {
+      if ((oparg & 0x01) && names[oparg >> 1] == "super") {
         // LOAD_GLOBAL NULL + super, super isn't being used with a
         // LOAD_SUPER_ATTR.
         throw std::runtime_error{fmt::format(
@@ -5174,7 +5166,7 @@ void HIRBuilder::checkTranslate() {
         throw std::runtime_error{fmt::format(
             "Cannot compile {} to HIR because it uses banned global '{}'",
             preloader_.fullname(),
-            name_at(oparg))};
+            names[oparg])};
       }
     }
   }
