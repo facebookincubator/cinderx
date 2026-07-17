@@ -330,6 +330,27 @@ bool fitsSignedInt(T val) {
   return fitsSignedInt<N>(reinterpret_cast<intptr_t>(val));
 }
 
+inline void* malloc_aligned(size_t size, size_t alignment) {
+#ifdef WIN32
+  return _aligned_malloc(size, alignment);
+#else
+  void* chunk = nullptr;
+  int result = posix_memalign(&chunk, alignment, size);
+  if (result) {
+    return nullptr;
+  }
+  return chunk;
+#endif
+}
+
+inline void free_aligned(void* ptr) {
+#ifdef WIN32
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
+}
+
 // std::unique_ptr for objects created with std::malloc() rather than new.
 struct FreeDeleter {
   void operator()(void* ptr) const {
@@ -339,15 +360,13 @@ struct FreeDeleter {
 template <typename T>
 using unique_c_ptr = std::unique_ptr<T, FreeDeleter>;
 
-#ifdef WIN32
 struct AlignedDeleter {
   void operator()(void* ptr) const {
-    _aligned_free(ptr);
+    free_aligned(ptr);
   }
 };
 template <typename T>
 using unique_aligned_ptr = std::unique_ptr<T, AlignedDeleter>;
-#endif
 
 template <class T>
 class ScopeExit {

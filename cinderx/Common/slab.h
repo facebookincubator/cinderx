@@ -65,14 +65,8 @@ class Slab {
     JIT_CHECK(
         increment >= sizeof(T),
         "Trying to fit a slab object into too little memory");
-    void* ptr;
-#ifndef WIN32
-    int result = posix_memalign(&ptr, kPageSize, kSlabSize);
-    JIT_CHECK(result == 0, "Failed to allocate {} bytes", kSlabSize);
-#else
-    ptr = _aligned_malloc(kSlabSize, kPageSize);
+    void* ptr = malloc_aligned(kSlabSize, kPageSize);
     JIT_CHECK(ptr != nullptr, "Failed to allocate {} bytes", kSlabSize);
-#endif
     base_.reset(static_cast<char*>(ptr));
     fill_ = base_.get();
   }
@@ -136,11 +130,7 @@ class Slab {
   }
 
  private:
-#ifdef WIN32
   unique_aligned_ptr<char> base_;
-#else
-  unique_c_ptr<char> base_;
-#endif
   char* fill_{nullptr};
   size_t increment_{0};
   size_t mlocks_{0};
