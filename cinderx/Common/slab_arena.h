@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/slab.h"
 #include "cinderx/Common/util.h"
@@ -90,6 +91,8 @@ class SlabArenaIterator {
   SlabIterator<T> slab_iter_;
 };
 
+std::shared_ptr<HugePageArena> getSharedHugePageArena();
+
 // SlabArena is a simple arena allocator, using slabs that are multiples of the
 // system's page size. Allocated objects never move after creation, and all
 // objects will be kept alive until the SlabArena they came from is destroyed.
@@ -115,7 +118,7 @@ class SlabArena {
   using iterator = SlabArenaIterator<T, kSlabSize>;
 
   SlabArena() {
-    slabs_.emplace_back(SizeTrait::size());
+    slabs_.emplace_back(SizeTrait::size(), getSharedHugePageArena());
   }
 
   // Allocate a new instance of T using the given constructor arguments.
@@ -133,7 +136,8 @@ class SlabArena {
 
     void* mem = slabs_.back().allocate();
     if (mem == nullptr) {
-      mem = slabs_.emplace_back(SizeTrait::size()).allocate();
+      mem = slabs_.emplace_back(SizeTrait::size(), getSharedHugePageArena())
+                .allocate();
       JIT_CHECK(mem != nullptr, "Empty slab failed to allocate");
 #ifndef WIN32
       if (mlocked_) {

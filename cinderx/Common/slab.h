@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #ifndef WIN32
@@ -61,21 +62,34 @@ class Slab {
  public:
   using iterator = SlabIterator<T>;
 
-  explicit Slab(size_t increment) : increment_{increment} {
+  explicit Slab(
+      size_t increment,
+      std::shared_ptr<HugePageArena> arena = nullptr)
+      : arena_(arena), increment_{increment} {
     JIT_CHECK(
         increment >= sizeof(T),
         "Trying to fit a slab object into too little memory");
-    void* ptr = malloc_aligned(kSlabSize, kPageSize);
-    JIT_CHECK(ptr != nullptr, "Failed to allocate {} bytes", kSlabSize);
-    base_.reset(static_cast<char*>(ptr));
-    fill_ = base_.get();
+    void* ptr = nullptr;
+    if (arena_ != nullptr) {
+      ptr = arena_->allocate(kSlabSize, kPageSize);
+    }
+
+    if (ptr == nullptr) {
+      ptr = malloc_aligned(kSlabSize, kPageSize);
+      JIT_CHECK(ptr != nullptr, "Failed to allocate {} bytes", kSlabSize);
+      owned_base_.reset(static_cast<char*>(ptr));
+    }
+    base_ = fill_ = static_cast<char*>(ptr);
   }
 
   Slab(Slab&& other)
-      : base_{std::move(other.base_)},
+      : base_{other.base_},
+        arena_(std::move(other.arena_)),
+        owned_base_{std::move(other.owned_base_)},
         fill_{other.fill_},
         increment_{other.increment_} {
     other.fill_ = nullptr;
+    other.base_ = nullptr;
   }
 
   ~Slab() {
@@ -88,7 +102,7 @@ class Slab {
   // constructed yet.
   void* allocate() {
     char* new_fill = fill_ + increment_;
-    if (new_fill > base_.get() + kSlabSize) {
+    if (new_fill > base_ + kSlabSize) {
       return nullptr;
     }
 
@@ -99,8 +113,8 @@ class Slab {
 
 #ifndef WIN32
   void mlock() {
-    if (::mlock(base_.get(), kSlabSize) < 0) {
-      JIT_LOG("Failed to mlock slab at {}", base_.get());
+    if (::mlock(base_, kSlabSize) < 0) {
+      JIT_LOG("Failed to mlock slab at {}", base_);
       return;
     }
     mlocks_++;
@@ -113,8 +127,8 @@ class Slab {
       JIT_LOG("Trying to unlock slab more than it has been been locked");
     }
 
-    if (::munlock(base_.get(), kSlabSize) < 0) {
-      JIT_LOG("Failed to munlock slab at {}", base_.get());
+    if (::munlock(base_, kSlabSize) < 0) {
+      JIT_LOG("Failed to munlock slab at {}", base_);
       return;
     }
     mlocks_--;
@@ -122,7 +136,7 @@ class Slab {
 #endif
 
   iterator begin() const {
-    return iterator{base_.get(), increment_};
+    return iterator{base_, increment_};
   }
 
   iterator end() const {
@@ -130,7 +144,9 @@ class Slab {
   }
 
  private:
-  unique_aligned_ptr<char> base_;
+  char* base_;
+  std::shared_ptr<HugePageArena> arena_;
+  unique_aligned_ptr<char> owned_base_;
   char* fill_{nullptr};
   size_t increment_{0};
   size_t mlocks_{0};
