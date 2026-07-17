@@ -218,8 +218,6 @@ void _PyDict_InsertSplitValue(
     Py_ssize_t ix) {
 #if defined(__clang__)
   [[clang::always_inline]]
-#elif defined(__GNUC__)
-  [[gnu::always_inline]]
 #endif
   insert_split_value(_PyInterpreterState_GET(), mp, key, value, ix);
 }
