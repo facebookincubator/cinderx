@@ -678,6 +678,26 @@ def test(n):
   runTest(src, args, 1, result);
 }
 
+// A module attribute that resolves to a type is pinned with a GuardIs by the
+// Simplify pass. Exercise that guard (and its Snapshot) under deopt stress.
+TEST_F(DeoptStressTest, CallModuleType) {
+  const char* src = R"(
+import collections
+
+def test(n):
+  acc = 0
+  for x in range(1, n + 1):
+    d = collections.OrderedDict()
+    d[x] = x
+    acc += d[x]
+  return acc
+)";
+  auto arg1 = Ref<>::steal(PyLong_FromLong(5));
+  PyObject* args[] = {arg1};
+  auto result = Ref<>::steal(PyLong_FromLong(15));
+  runTest(src, args, 1, result);
+}
+
 TEST_F(DeoptStressTest, CallDescriptor) {
   const char* src = R"(
 class Multiplier:

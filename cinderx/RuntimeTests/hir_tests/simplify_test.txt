@@ -4503,6 +4503,611 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
+LoadAttrFromModuleChainedIsSpecialized
+--- Input ---
+import os
+
+def test():
+  return os.path.join
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "os">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: os'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "path"> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v14:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    v15:Object = LoadModuleAttrCached<2; "join"> v14 {
+      FrameState {
+        CurInstrOffset 32
+      }
+    }
+    Snapshot
+    Return v15
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "os">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: os'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "path"> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v14:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    v15:Object = LoadModuleAttrCached<2; "join"> v14 {
+      FrameState {
+        CurInstrOffset 32
+      }
+    }
+    Snapshot
+    Return v15
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "os">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: os'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "path"> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v14:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    v15:Object = LoadModuleAttrCached<2; "join"> v14 {
+      FrameState {
+        CurInstrOffset 34
+      }
+    }
+    Snapshot
+    Return v15
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "os">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: os'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "path"> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v14:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    v15:Object = LoadModuleAttrCached<2; "join"> v14 {
+      FrameState {
+        CurInstrOffset 34
+      }
+    }
+    Snapshot
+    Return v15
+  }
+}
+--- Test Name ---
+LoadAttrFromModuleTypeValueIsSpecialized
+--- Input ---
+import functools
+
+def test():
+  return functools.partial
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v6:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7:OptObject = LoadGlobalCached<0; "functools">
+    v8:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
+      Descr 'LOAD_GLOBAL: functools'
+    }
+    Snapshot
+    v11:Object = LoadModuleAttrCached<1; "partial"> v8 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v12:MortalTypeExact[functools.partial:obj] = GuardIs<0xdeadbeef> v11 {
+    }
+    Snapshot
+    Return v12
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7:OptObject = LoadGlobalCached<0; "functools">
+    v8:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
+      Descr 'LOAD_GLOBAL: functools'
+    }
+    Snapshot
+    v11:Object = LoadModuleAttrCached<1; "partial"> v8 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v12:MortalTypeExact[functools.partial:obj] = GuardIs<0xdeadbeef> v11 {
+    }
+    Snapshot
+    Return v12
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7:OptObject = LoadGlobalCached<0; "functools">
+    v8:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
+      Descr 'LOAD_GLOBAL: functools'
+    }
+    Snapshot
+    v11:Object = LoadModuleAttrCached<1; "partial"> v8 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v12:MortalTypeExact[functools.partial:obj] = GuardIs<0xdeadbeef> v11 {
+    }
+    Snapshot
+    Return v12
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v6:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7:OptObject = LoadGlobalCached<0; "functools">
+    v8:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
+      Descr 'LOAD_GLOBAL: functools'
+    }
+    Snapshot
+    v11:Object = LoadModuleAttrCached<1; "partial"> v8 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v12:MortalTypeExact[functools.partial:obj] = GuardIs<0xdeadbeef> v11 {
+    }
+    Snapshot
+    Return v12
+  }
+}
+--- Test Name ---
+LoadAttrChainThroughModuleTypeIsSpecialized
+--- Input ---
+import collections
+
+def test():
+  return collections.OrderedDict.fromkeys
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "collections">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: collections'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "OrderedDict"> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v14:ImmortalTypeExact[collections.OrderedDict:obj] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    UseType<Type> v14
+    v15:OptType = LoadTypeAttrCacheEntryType<0>
+    v16:CBool = PrimitiveCompare<Equal> v15 v14
+    CondBranch<3, 4> v16
+  }
+
+  bb 3 (preds 1) {
+    v17:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v18:Object = FillTypeAttrCache<0, 2> v14 {
+      FrameState {
+        CurInstrOffset 32
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v19:Object = Phi<3, 4> v17 v18
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "collections">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: collections'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "OrderedDict"> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v14:ImmortalTypeExact[collections.OrderedDict:obj] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    UseType<Type> v14
+    v15:OptType = LoadTypeAttrCacheEntryType<0>
+    v16:CBool = PrimitiveCompare<Equal> v15 v14
+    CondBranch<3, 4> v16
+  }
+
+  bb 3 (preds 1) {
+    v17:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v18:Object = FillTypeAttrCache<0, 2> v14 {
+      FrameState {
+        CurInstrOffset 32
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v19:Object = Phi<3, 4> v17 v18
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "collections">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: collections'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "OrderedDict"> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v14:ImmortalTypeExact[collections.OrderedDict:obj] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    UseType<Type> v14
+    v15:OptType = LoadTypeAttrCacheEntryType<0>
+    v16:CBool = PrimitiveCompare<Equal> v15 v14
+    CondBranch<3, 4> v16
+  }
+
+  bb 3 (preds 1) {
+    v17:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v18:Object = FillTypeAttrCache<0, 2> v14 {
+      FrameState {
+        CurInstrOffset 34
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v19:Object = Phi<3, 4> v17 v18
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "collections">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: collections'
+    }
+    Snapshot
+    v13:Object = LoadModuleAttrCached<1; "OrderedDict"> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v14:ImmortalTypeExact[collections.OrderedDict:obj] = GuardIs<0xdeadbeef> v13 {
+    }
+    Snapshot
+    UseType<Type> v14
+    v15:OptType = LoadTypeAttrCacheEntryType<0>
+    v16:CBool = PrimitiveCompare<Equal> v15 v14
+    CondBranch<3, 4> v16
+  }
+
+  bb 3 (preds 1) {
+    v17:Object = LoadTypeAttrCacheEntryValue<0>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v18:Object = FillTypeAttrCache<0, 2> v14 {
+      FrameState {
+        CurInstrOffset 34
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v19:Object = Phi<3, 4> v17 v18
+    Snapshot
+    Return v19
+  }
+}
+--- Test Name ---
 RedundantGuardTypeIsRemoved
 --- Input ---
 # HIR

@@ -3,6 +3,7 @@
 #include "cinderx/Jit/hir/simplify.h"
 
 #include "pycore_long.h"
+#include "pycore_pyerrors.h"
 
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
@@ -1835,6 +1836,103 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
       });
 }
 
+// Resolve a module attribute at compile time, mirroring the safety checks in
+// LoadModuleAttrCache::lookup(): the module must use the stock attribute lookup
+// and nothing on its type may shadow the name. Returns nullptr if the attribute
+// can't be safely resolved. A GuardIs on the result keeps this correct even if
+// these checks are imprecise (the worst case is a deopt, never a wrong result).
+BorrowedRef<> loadModuleAttrSafe(
+    BorrowedRef<> mod,
+    BorrowedRef<PyUnicodeObject> name) {
+  BorrowedRef<PyTypeObject> tp{Py_TYPE(mod)};
+  JIT_DCHECK(
+      tp->tp_getattro == PyModule_Type.tp_getattro ||
+          tp->tp_getattro == Ci_StrictModule_Type.tp_getattro,
+      "should be module");
+
+  if (typeLookupSafe(tp, name) != nullptr) {
+    return nullptr;
+  }
+
+  BorrowedRef<PyDictObject> dict{Ci_MaybeStrictModule_Dict(mod)};
+  if (dict == nullptr || !hasOnlyUnicodeKeys(dict)) {
+    return nullptr;
+  }
+
+  BorrowedRef<> value;
+#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX < 0x030F0000
+  // We don't have a version of _PyDict_GetItemKeepLazy which is compatible w/
+  // multi-threaded compile on 3.14.
+  RETURN_MULTITHREADED_COMPILE(nullptr);
+#endif
+  value = PyDict_GetItemWithError(dict, name);
+#else
+  value = _PyDict_GetItemKeepLazy(dict, name);
+#endif
+  JIT_DCHECK(
+      !_PyErr_Occurred(getThreadedCompileContext().tstate()),
+      "should have no errors on lookup, it's not multi-thread compile safe");
+
+  return value;
+}
+
+// Return the module object that the given register statically refers to, or
+// nullptr if it doesn't refer to a statically-known module. A module chain like
+// `pkg.submod.attr` resolves because simplifyLoadAttr pins each intermediate
+// module with a GuardIs whose output carries the module's object
+// specialization, so the next level's receiver is already statically known.
+BorrowedRef<> staticModuleForReceiver(Register* reg) {
+  // Trace through passthrough copies (e.g. the transient Assign the simplifier
+  // inserts when it rewrites an instruction) to reach the GuardIs that carries
+  // the object specialization.
+  Type ty = modelReg(reg)->type();
+  if (ty.hasObjectSpec()) {
+    BorrowedRef<> obj{ty.objectSpec()};
+    if (PyModule_CheckExact(obj) || Ci_StrictModule_CheckExact(obj)) {
+      return obj;
+    }
+  }
+  return nullptr;
+}
+
+// Given a LoadModuleAttrCached (cached) that reads `load_attr`'s attribute from
+// the statically-known module `mod`, resolve the attribute at compile time and,
+// if it is itself a module or a type, pin its identity with a GuardIs. Returns
+// the pinned register, or nullptr if nothing was pinned (leaving `cached`
+// as-is).
+//
+// Pinning modules lets a chain like `pkg.submod.attr` recognize each level as a
+// module; pinning types exposes the concrete type to type-based optimizations.
+// Other values (functions, constants, ...) are left to the runtime cache. The
+// GuardIs deopts if the attribute is later rebound to a different object, and
+// the runtime LoadModuleAttrCached is retained for correctness.
+Register* pinModuleAttr(
+    Env& env,
+    BorrowedRef<> mod,
+    const LoadAttr* load_attr,
+    Register* cached) {
+  if (mod == nullptr) {
+    return nullptr;
+  }
+  BorrowedRef<PyUnicodeObject> name{load_attr->name()};
+  JIT_DCHECK(PyUnicode_CheckExact(name), "should only have unicode names");
+
+  BorrowedRef<> value = loadModuleAttrSafe(mod, name);
+  if (value == nullptr ||
+      !(PyModule_Check(value) || Ci_StrictModule_Check(value) ||
+        PyType_Check(value))) {
+    return nullptr;
+  }
+
+  // Unlike LoadGlobalCached, LoadModuleAttrCached is not replayable (its slow
+  // path can run arbitrary code), so it resets the guard-binding pass's notion
+  // of the dominating FrameState. Emit a Snapshot with the load's FrameState so
+  // the following GuardIs deopts back to re-executing this load.
+  env.emit<Snapshot>(*load_attr->frameState());
+  return env.emit<GuardIs>(env.func.env.addReference(value), cached);
+}
+
 Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
   if (load_attr->alreadyOptimized()) {
     return nullptr;
@@ -1849,10 +1947,17 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
     BorrowedRef<PyTypeObject> type{ty.runtimePyType()};
 
     if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
-      return env.emit<LoadModuleAttrCached>(
+      Register* cached = env.emit<LoadModuleAttrCached>(
           load_attr->getOperand(0),
           load_attr->nameIdx(),
           *load_attr->frameState());
+      Register* reg;
+      BorrowedRef<> mod = staticModuleForReceiver(receiver);
+      if (mod != nullptr &&
+          (reg = pinModuleAttr(env, mod, load_attr, cached))) {
+        return reg;
+      }
+      return cached;
     }
 
     if (Register* reg = simplifyLoadAttrTypeReceiver(env, load_attr)) {
