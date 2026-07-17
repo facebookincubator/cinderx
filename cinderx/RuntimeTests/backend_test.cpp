@@ -11,10 +11,10 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/instruction.h"
+#include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/postgen.h"
-#include "cinderx/Jit/lir/regalloc.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/module_state.h"
 
