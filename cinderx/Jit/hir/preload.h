@@ -44,6 +44,11 @@ struct InvokeTarget {
   Ref<> callable;
   // python-level return type (None for void/error-code builtins)
   Type return_type{TObject};
+  // Strong reference keeping return_type's spec PyTypeObject alive for the
+  // lifetime of this target (which spans compilation).  return_type only holds
+  // a borrowed reference, so without this the type could be freed by the
+  // interpreter mid-compile -- a use-after-free during a background compile.
+  OwnedType return_type_owned;
   // map argnum to primitive type code for primitive args only
   ArgTypeMap primitive_arg_types;
   // patching indirection, nullptr if container_is_immutable
@@ -178,7 +183,8 @@ class Preloader {
   SortedVecMap<int, OwnedType> check_arg_types_;
   // Keyed by name index, names borrowed from code object.
   GlobalNamesMap global_names_;
-  Type return_type_{TObject};
+  OwnedType return_type_;
+  // for primitive args only, null unless has_primitive_args_
   Ref<_PyTypedArgsInfo> prim_args_info_;
 };
 

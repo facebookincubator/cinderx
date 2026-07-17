@@ -258,7 +258,7 @@ std::unique_ptr<Function> Preloader::makeFunction() const {
   irfunc->builtins.reset(builtins_);
   irfunc->globals.reset(globals_);
   irfunc->prim_args_info.reset(prim_args_info_);
-  irfunc->return_type = return_type_;
+  irfunc->return_type = returnType();
   irfunc->has_primitive_args = hasPrimitiveArgs();
   for (auto& [local, preloaded_type] : check_arg_types_) {
     irfunc->typed_args.emplace_back(
@@ -292,7 +292,7 @@ const std::string& Preloader::fullname() const {
 }
 
 Type Preloader::returnType() const {
-  return return_type_;
+  return return_type_.type != nullptr ? return_type_.toHir() : TObject;
 }
 
 int Preloader::numArgs() const {
@@ -478,7 +478,7 @@ bool Preloader::preloadStatic() {
       repr(ret_type_descr),
       fullname());
 
-  return_type_ = ret_type.toHir();
+  return_type_ = std::move(ret_type);
 
   BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
       _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
@@ -553,11 +553,11 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
       // TODO properly handle coroutine returns awaitable type
       target->return_type = TObject;
     } else {
-      OwnedType preloaded_type{
+      target->return_type_owned = OwnedType{
           std::move(return_pytype),
           static_cast<bool>(optional),
           static_cast<bool>(exact)};
-      target->return_type = preloaded_type.toHir();
+      target->return_type = target->return_type_owned.toHir();
     }
   }
   target->is_statically_typed = _PyClassLoader_IsStaticCallable(callable);
@@ -612,7 +612,6 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
     fill_primitive_arg_types_thunk(
         target->callable.get(), target->primitive_arg_types, container);
   }
-
   return target;
 }
 
