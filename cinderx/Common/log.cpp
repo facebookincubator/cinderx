@@ -82,6 +82,16 @@ CINDERX_COLD void logImplV(
 }
 
 void printPythonException() {
+  // This can run on a background compile thread that does not hold the GIL
+  // (e.g. a JIT_CHECK firing mid-compile). Touching the Python error indicator
+  // without the GIL is unsafe, so only report when the GIL is held.
+#if PY_VERSION_HEX >= 0x030E0000
+  if (PyThreadState_GetUnchecked() == nullptr) {
+#else
+  if (_PyThreadState_UncheckedGet() == nullptr) {
+#endif
+    return;
+  }
   if (PyErr_Occurred()) {
     auto exc = Ref<>::steal(PyErr_GetRaisedException());
     PyErr_DisplayException(exc);
