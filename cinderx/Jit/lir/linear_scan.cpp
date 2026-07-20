@@ -105,6 +105,11 @@ void LiveInterval::addRange(LiveRange range) {
     cur_iter->start = kRemovedRange;
     ++cur_iter;
   }
+  // Ranges are only ever marked kRemovedRange by the loop above, so the O(n)
+  // compaction below is only needed when that loop merged something. Skipping
+  // it otherwise avoids a full scan on every addRange call, which is quadratic
+  // for intervals built up one range at a time (e.g. caller-save registers).
+  const bool merged_forward = cur_iter != iter;
 
   // check if we can merge with iter - 1
   bool merged = false;
@@ -124,9 +129,11 @@ void LiveInterval::addRange(LiveRange range) {
     }
   }
 
-  std::erase_if(ranges, [](const LiveRange& range) {
-    return range.start == kRemovedRange;
-  });
+  if (merged_forward) {
+    std::erase_if(ranges, [](const LiveRange& range) {
+      return range.start == kRemovedRange;
+    });
+  }
 }
 
 void LiveInterval::setFrom(LIRLocation loc) {
