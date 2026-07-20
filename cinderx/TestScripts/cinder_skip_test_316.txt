@@ -17,6 +17,13 @@ test.test_faulthandler.FaultHandlerTests.test_dump_ext_modules
 test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
 test.test_perf_profiler.TestPerfProfiler.test_pre_fork_compile
 
+# Flaky only on main: main runs the whole CPython suite via cinder_test_runner
+# with --num-workers 10, so `perf record` is starved of CPU and captures no
+# samples, leaving `perf script` output empty and the symbol assertions failing.
+# Production versions run this as an isolated single-worker job where perf is
+# reliable, so this can be removed once 3.16 is no longer main.
+test.test_perf_profiler.TestPerfProfiler.test_python_calls_appear_in_the_stack_if_perf_activated
+
 test.test_threading.ThreadTests.test_native_id_after_fork
 test.test_traceback.MiscTest.test_windows_only_module_error
 
