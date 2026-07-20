@@ -692,11 +692,13 @@ bool removeUnreachableBlocks(Function& func) {
 }
 
 bool removeUnreachableInstructions(Function& func) {
-  auto cfg = &func.cfg;
-
   bool modified = false;
-  std::vector<BasicBlock*> blocks = cfg->getPostOrderTraversal();
+  // DominatorTree already computes and caches an RPO traversal, and the
+  // postorder iterated below is exactly its reverse. Reuse it rather than
+  // walking the CFG a second time with getPostOrderTraversal().
   DominatorTree dom{func};
+  const std::vector<BasicBlock*>& rpo = dom.reversePostorder();
+  std::vector<BasicBlock*> blocks{rpo.rbegin(), rpo.rend()};
   RegUses reg_uses = collectDirectRegUses(func);
   auto remove_reg_uses = [&reg_uses](Instr* instr) {
     for (auto op : instr->getOperands()) {
