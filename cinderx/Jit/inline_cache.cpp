@@ -688,7 +688,11 @@ PyObject* MemberDescrMutator::getAttr(PyObject* obj) {
   // TODO(T250369692): FT support for inline-caches.
   if constexpr (!kFreeThreadedBuild) {
     if ((def->type == T_OBJECT_EX || def->type == T_OBJECT) &&
-        !(def->flags & Py_RELATIVE_OFFSET)) {
+        !(def->flags & Py_RELATIVE_OFFSET)
+#ifdef _Py_AFTER_ITEMS
+        && !(def->flags & _Py_AFTER_ITEMS)
+#endif
+    ) {
       PyObject* v = *reinterpret_cast<PyObject**>(
           reinterpret_cast<char*>(obj) + def->offset);
       if (v != nullptr) {

@@ -2,6 +2,7 @@
 
 # pyre-unsafe
 
+import sys
 import unittest
 from textwrap import dedent
 
@@ -1011,6 +1012,27 @@ class LoadAttrCacheTests(unittest.TestCase):
         self.assertEqual(get_foo(obj2), 200)
         self.assertEqual(get_foo(obj3), 400)
         self.assertEqual(get_foo(obj4), 600)
+
+    @passUnless(
+        sys.version_info >= (3, 15),
+        "_Py_AFTER_ITEMS slots are supported starting in Python 3.15",
+    )
+    def test_tuple_subclass_slot_after_items(self):
+        class SlotTuple(tuple):
+            __slots__ = ("foo",)
+
+        @cinder_support.failUnlessJITCompiled
+        @failUnlessHasOpcodes("LOAD_ATTR")
+        def get_attr(o):
+            return o.foo
+
+        obj = SlotTuple(("tuple item",))
+        obj.foo = "slot value"
+
+        # Uncached
+        self.assertEqual(get_attr(obj), "slot value")
+        # Cached
+        self.assertEqual(get_attr(obj), "slot value")
 
     def test_descr_type_mutated(self):
         class Descr:
