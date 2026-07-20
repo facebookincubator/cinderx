@@ -14,6 +14,7 @@ Limits that are only settable at startup are exercised in fresh subprocesses;
 ``max_code_size`` also has a runtime setter, exercised in-process.
 """
 
+import signal
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,7 @@ from cinderx.test_support import ENCODING, passUnless, subprocess_env
 # guaranteed to trip regardless of Python version or architecture.
 _TINY_INSTRS_LIMIT = "jit-max-lir-instrs=1"
 _TINY_BLOCKS_LIMIT = "jit-max-lir-blocks=1"
+_WINDOWS_STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
 
 # A trivial straight-line function: >1 LIR instruction, 1 LIR basic block.
 _STRAIGHT_LINE = """
@@ -291,7 +293,12 @@ class SizeLimitTest(unittest.TestCase):
                     encoding=ENCODING,
                     env=subprocess_env(),
                 )
-                self.assertEqual(proc.returncode, -6, proc)
+                expected_returncode = (
+                    _WINDOWS_STATUS_STACK_BUFFER_OVERRUN
+                    if sys.platform == "win32"
+                    else -signal.SIGABRT
+                )
+                self.assertEqual(proc.returncode, expected_returncode, proc)
                 return proc.stderr
 
             self.assertIn(
