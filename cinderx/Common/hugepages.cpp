@@ -6,11 +6,7 @@
 #include "cinderx/Common/util.h"
 
 #ifndef WIN32
-#include <fcntl.h>
-#include <link.h>
 #include <sys/mman.h>
-#include <sys/syscall.h>
-#include <unistd.h>
 #endif
 
 #include <algorithm>
@@ -108,6 +104,7 @@ void HugePageArena::afterForkChild() {
           chunk.ptr,
           strerror(errno));
     }
+#ifdef MADV_HUGEPAGE
     if (madvise(chunk.ptr, chunk.size, MADV_HUGEPAGE) != 0) {
       JIT_DLOG(
           "CINDERX: MADV_HUGEPAGE failed for {} bytes at {} after fork: {}\n",
@@ -115,6 +112,7 @@ void HugePageArena::afterForkChild() {
           chunk.ptr,
           strerror(errno));
     }
+#endif
     memcpy(chunk.ptr, tmp, chunk.size);
   }
   free(tmp);
