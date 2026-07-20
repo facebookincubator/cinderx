@@ -120,7 +120,8 @@ class TestLog:
         self.pid = pid
         self.test_order: List[str] = []
         if path is None:
-            self.path = tempfile.NamedTemporaryFile(delete=False).name
+            fd, self.path = tempfile.mkstemp()
+            os.close(fd)
         else:
             self.path = path
             self._deserialize()

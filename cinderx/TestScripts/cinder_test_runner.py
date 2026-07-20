@@ -188,10 +188,10 @@ def start_worker(
 
     pipe = MessagePipe(d_r, d_w)
 
-    runtest_config_file = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", delete=False
-    )
-    json.dump(dataclasses.asdict(runtests_config), runtest_config_file.file)
+    ) as runtest_config_file:
+        json.dump(dataclasses.asdict(runtests_config), runtest_config_file.file)
     cmd = [
         sys.executable,
         *get_cinderjit_xargs(),
