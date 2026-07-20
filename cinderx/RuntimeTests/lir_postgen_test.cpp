@@ -9,23 +9,31 @@
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_query.h"
 
 namespace cinderx::jit::lir {
 class LIRPostGenerationRewriteTest : public RuntimeTest {};
 
-static std::string runPostGenRewrite(const char* lir_input_str) {
+static std::unique_ptr<Function> runPostGenRewrite(const char* lir_input_str) {
   auto func = Parser().parse(lir_input_str);
   codegen::Environ env;
   PostGenerationRewrite(func.get(), &env).run();
-  return fmt::format("{}", *func);
+  return func;
+}
+static std::string runPostGenRewriteStr(const char* lir_input_str) {
+  auto func = runPostGenRewrite(lir_input_str);
+  return lirFuncString(*func);
 }
 
-static std::string runRegAlloc(const char* lir_input_str) {
+// Only used by StrippedCallOperandsKeepLocalDefs, which is free-threaded-only.
+#ifdef Py_GIL_DISABLED
+static std::unique_ptr<Function> runRegAllocFunc(const char* lir_input_str) {
   auto func = Parser().parse(lir_input_str);
   LinearScanAllocator allocator{func.get()};
   allocator.run();
-  return fmt::format("{}", *func);
+  return func;
 }
+#endif
 
 TEST_F(LIRPostGenerationRewriteTest, RetainsLoadSecondCallResultDataType) {
   const char* lir_input_str = R"(Function:
@@ -47,7 +55,7 @@ BB %0
       "0(0x0):64bit",
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 16});
 
-  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
+  EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str.c_str());
 }
 
 TEST_F(LIRPostGenerationRewriteTest, DoesNotAllowMultipleLSCRPerCall) {
@@ -64,7 +72,7 @@ BB %2
 )";
 
   EXPECT_DEATH(
-      runPostGenRewrite(lir_input_str),
+      runPostGenRewriteStr(lir_input_str),
       "Call output consumed by multiple LoadSecondCallResult instructions");
 }
 
@@ -155,7 +163,7 @@ BB %6
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32},
       PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 32});
 
-  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str.c_str());
+  EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str.c_str());
 }
 
 TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
@@ -175,8 +183,10 @@ BB %0
   Return %80
 )";
 
-  std::string pre_alloc_lir = runPostGenRewrite(lir_input_str);
-  std::string allocated_lir = runRegAlloc(pre_alloc_lir.c_str());
+  auto pre_alloc_func = runPostGenRewrite(lir_input_str);
+  std::string pre_alloc_lir = lirFuncString(*pre_alloc_func);
+  auto allocated_func = runRegAllocFunc(pre_alloc_lir.c_str());
+  std::string allocated_lir = lirFuncString(*allocated_func);
 
   // This constructs the postgen/regalloc hazard directly.  VectorCallTstate
   // receives PyObject* operands that must have deferred-RC tag bits stripped
@@ -213,8 +223,19 @@ BB %0
   // This test checks both phases: pre-allocation LIR has the local
   // copy-then-strip shape, and post-allocation LIR strips from the register
   // assigned to that adjacent copy.
-  EXPECT_NE(pre_alloc_lir.find(":Object = Move %10:Object"), std::string::npos);
-  EXPECT_NE(pre_alloc_lir.find(":ObjectUntagged = And %"), std::string::npos);
+
+  // A local copy of the long-lived object %10 is made before stripping:
+  //   %copy:Object = Move %10:Object
+  EXPECT_LIR(Query(*pre_alloc_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::kObject)
+                 .inVreg(0, 10));
+  // ...and the strip produces the untagged value.
+  EXPECT_LIR(Query(*pre_alloc_func)
+                 .opcode(Instruction::kAnd)
+                 .outType(DataType::kObjectUntagged));
+  // Post-allocation the strip reads the register holding the adjacent copy.
+  // Query doesn't model physical-register shapes, so check these by text.
   EXPECT_NE(
       allocated_lir.find("RCX:Object = Move RBX:Object"), std::string::npos);
   EXPECT_NE(
@@ -224,18 +245,20 @@ BB %0
   // Immediate PyObject* constants also flow through call-operand stripping.
   // They do not need a register-producing strip: the tag can be removed while
   // materializing the immediate as an ObjectUntagged value.
-  EXPECT_NE(
-      pre_alloc_lir.find(":ObjectUntagged = Move 4660(0x1234):64bit"),
-      std::string::npos);
+  EXPECT_LIR(Query(*pre_alloc_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::kObjectUntagged)
+                 .inImm(0, 4660));
   EXPECT_NE(
       allocated_lir.find("RAX:ObjectUntagged = Move 4660(0x1234):64bit"),
       std::string::npos);
 
   // The fragile shape is an `And` that directly consumes an older, non-local
-  // tagged object definition.  The call-result operand and immediate-like
-  // operand in this input used to keep that shape.
-  EXPECT_EQ(pre_alloc_lir.find("= And %10:Object"), std::string::npos);
-  EXPECT_EQ(pre_alloc_lir.find("= And %60:Object"), std::string::npos);
+  // tagged object definition. The `And` must not strip directly from a
+  // long-lived definition: neither the call result %10 nor the immediate %60
+  // (each is copied locally first).
+  EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Instruction::kAnd).inVreg(0, 10));
+  EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Instruction::kAnd).inVreg(0, 60));
 #endif
 }
 
@@ -255,7 +278,7 @@ BB %0
 
 )";
 
-  EXPECT_EQ(runPostGenRewrite(lir_input_str), expected_lir_str);
+  EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str);
 }
 #endif
 

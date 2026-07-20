@@ -11,17 +11,19 @@
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/target_select.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_query.h"
 
 #include <memory>
 #include <regex>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace cinderx::jit::lir {
 
 class LIRTargetSelectTest : public RuntimeTest {
  public:
-  std::string getSelectedLIRString(PyObject* func_obj) {
+  std::unique_ptr<Function> getSelectedLIRFunction(PyObject* func_obj) {
     JIT_CHECK(
         PyFunction_Check(func_obj),
         "Trying to compile something that isn't a function");
@@ -30,35 +32,71 @@ class LIRTargetSelectTest : public RuntimeTest {
     PyObject* globals = PyFunction_GetGlobals(func_obj);
     if (!PyDict_CheckExact(globals) ||
         !PyDict_CheckExact(func->func_builtins)) {
-      return "";
+      return nullptr;
     }
 
-    std::unique_ptr<hir::Function> irfunc(buildHIR(func));
+    // The returned LIR keeps references into the HIR function and CodeRuntime
+    // (e.g. the printer emits the originating HIR instruction as a comment), so
+    // they must outlive it. Retain them for the lifetime of the fixture.
+    std::unique_ptr<hir::Function>& irfunc =
+        hir_funcs_.emplace_back(buildHIR(func));
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+
+    std::unique_ptr<CodeRuntime>& runtime =
+        runtimes_.emplace_back(std::make_unique<CodeRuntime>(func));
+    runtime->setReifier(irfunc->reifier);
 
     codegen::Environ env;
     env.ctx = getContext();
-
-    CodeRuntime runtime{func};
-    runtime.setReifier(irfunc->reifier);
-    env.code_rt = &runtime;
+    env.code_rt = runtime.get();
 
     LIRGenerator lir_gen(irfunc.get(), &env);
     std::unique_ptr<Function> lir_func = lir_gen.translateFunction();
     selectTargetOpcodes(lir_func.get());
 
-    std::stringstream ss;
     lir_func->sortBasicBlocks();
+    return lir_func;
+  }
+
+  std::string getSelectedLIRString(PyObject* func_obj) {
+    auto lir_func = getSelectedLIRFunction(func_obj);
+    if (!lir_func) {
+      return "";
+    }
+    std::stringstream ss;
     ss << *lir_func << '\n';
     return ss.str();
   }
+
+  void TearDown() override {
+    // These hold Python references and must be destroyed before the base
+    // fixture finalizes the interpreter.
+    runtimes_.clear();
+    hir_funcs_.clear();
+    RuntimeTest::TearDown();
+  }
+
+ private:
+  // Keep the HIR functions and runtimes referenced by LIR produced in this
+  // fixture alive until the test finishes.
+  std::vector<std::unique_ptr<hir::Function>> hir_funcs_;
+  std::vector<std::unique_ptr<CodeRuntime>> runtimes_;
 };
 
 #if defined(CINDER_AARCH64) || defined(CINDER_X86_64)
-static std::string runTargetSelect(const char* lir_input_str) {
+static std::unique_ptr<Function> runTargetSelectFunc(
+    const char* lir_input_str) {
   std::unique_ptr<Function> func = Parser().parse(lir_input_str);
   selectTargetOpcodes(func.get());
-  return fmt::format("{}", *func);
+  return func;
+}
+#endif
+
+// Only used by the AARCH64-only golden-output tests below.
+#ifdef CINDER_AARCH64
+static std::string runTargetSelect(const char* lir_input_str) {
+  auto func = runTargetSelectFunc(lir_input_str);
+  return lirFuncString(*func);
 }
 #endif
 
@@ -71,12 +109,16 @@ BB %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(
-      lir_str.find(":Object = Move 4294967296(0x100000000):64bit"),
-      std::string::npos)
-      << lir_str;
+  // Should materialize large constant into a register.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::kObject)
+                 .inImm(0, 4294967296ULL));
+  // The memory-indirect store shape isn't modelled by Query yet, so check
+  // it (and the absence of a direct immediate store) via the formatted text.
+  std::string lir_str = lirFuncString(*lir_func);
   EXPECT_TRUE(
       std::regex_search(
           lir_str,
@@ -99,14 +141,20 @@ BB %0
   Return %3
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("= Move 16(0x10):64bit"), std::string::npos)
-      << lir_str;
-  EXPECT_NE(lir_str.find("= MulAdd %2:64bit"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("= Add "), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("%3:64bit = Move %"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Lea "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 16));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kMulAdd).inVreg(0, 2));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kAdd));
+  // The Lea result %3 is materialized by a Move.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outVreg(3)
+                 .outType(DataType::k64bit));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kLea));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsMulAddForLeaLargeMultiplierWithLargeOffset) {
@@ -118,15 +166,19 @@ BB %0
   Return %3
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("= Move 16(0x10):64bit"), std::string::npos)
-      << lir_str;
-  EXPECT_NE(lir_str.find("= Move 1048577(0x100001):64bit"), std::string::npos)
-      << lir_str;
-  EXPECT_NE(lir_str.find("= MulAdd %2:64bit"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("= Add "), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Lea "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 16));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 1048577));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kMulAdd).inVreg(0, 2));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kAdd));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kLea));
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesComparisonOutputToMin32Bit) {
@@ -138,10 +190,16 @@ BB %0
   Return %3
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("%3:32bit = Equal "), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("%3:8bit = Equal "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kEqual)
+                 .outVreg(3)
+                 .outType(DataType::k32bit));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Instruction::kEqual)
+                    .outVreg(3)
+                    .outType(DataType::k8bit));
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesBitwiseOutputToMin32Bit) {
@@ -153,10 +211,16 @@ BB %0
   Return %3
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("%3:32bit = And "), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("%3:8bit = And "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kAnd)
+                 .outVreg(3)
+                 .outType(DataType::k32bit));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Instruction::kAnd)
+                    .outVreg(3)
+                    .outType(DataType::k8bit));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForSingleUseCompare) {
@@ -268,12 +332,12 @@ BB %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("Cmp "), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("A64GuardCC"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("LessThanUnsigned"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Guard "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCmp));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kA64GuardCC));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kLessThanUnsigned));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kGuard));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCThroughFlagPreservingInstrs) {
@@ -287,12 +351,12 @@ BB %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("Cmp "), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("A64GuardCC"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("LessThanUnsigned"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Guard "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCmp));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kA64GuardCC));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kLessThanUnsigned));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kGuard));
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {
@@ -303,16 +367,22 @@ BB %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find(":64bit = Move %1:Double"), std::string::npos)
-      << lir_str;
+  // The FP input %1 is moved into a GP register before the guard.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inVreg(0, 1)
+                 .inType(0, DataType::kDouble));
+  // The Guard's operand shapes aren't modelled by Query yet; check by text.
+  std::string lir_str = lirFuncString(*lir_func);
   EXPECT_TRUE(
       std::regex_search(
           lir_str,
           std::regex{R"(Guard 4\(0x4\):64bit, 0\(0x0\):64bit, %\d+:64bit)"}))
       << lir_str;
-  EXPECT_EQ(lir_str.find("A64GuardCC"), std::string::npos) << lir_str;
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kA64GuardCC));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForTest32BranchS) {
@@ -327,12 +397,11 @@ BB %2 - preds: %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("31(0x1f)"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Test32"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("BranchS"), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchBitSet).inImm(1, 31));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kTest32));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchS));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitNotSetForTest32BranchNS) {
@@ -347,12 +416,12 @@ BB %2 - preds: %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("BranchBitNotSet"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("31(0x1f)"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Test32"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("BranchNS"), std::string::npos) << lir_str;
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Instruction::kBranchBitNotSet).inImm(1, 31));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kTest32));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchNS));
 }
 
 TEST_F(
@@ -370,10 +439,10 @@ BB %2 - preds: %0
   Return %2
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Test32"), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchBitSet));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kTest32));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchBitSetAcrossFlagClobber) {
@@ -389,11 +458,11 @@ BB %2 - preds: %0
   Return %2
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("Test32"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("BranchS"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kTest32));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchS));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchBitSet));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchBitSetFromEarlierTest32) {
@@ -410,11 +479,11 @@ BB %2 - preds: %0
   Return %2
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("Test32"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("BranchS"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kTest32));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchS));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchBitSet));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchBitSetWithoutFlagProducer) {
@@ -428,10 +497,10 @@ BB %2 - preds: %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("BranchS"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchS));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchBitSet));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForPythonRefcountSignTest) {
@@ -447,12 +516,11 @@ BB %2 - preds: %0
   Return %1
 )";
 
-  std::string lir_str = runTargetSelect(lir_input_str);
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_NE(lir_str.find("BranchBitSet"), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("31(0x1f)"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("Test32"), std::string::npos) << lir_str;
-  EXPECT_EQ(lir_str.find("BranchS"), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchBitSet).inImm(1, 31));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kTest32));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchS));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForPythonCompareBranch) {
@@ -466,11 +534,11 @@ def func(x, y):
   Ref<PyObject> pyfunc(compileAndGet(src, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  std::string lir_str = getSelectedLIRString(pyfunc.get());
+  auto lir_func = getSelectedLIRFunction(pyfunc.get());
 
-  EXPECT_NE(lir_str.find("Cmp "), std::string::npos) << lir_str;
-  EXPECT_NE(lir_str.find("BranchE"), std::string::npos);
-  EXPECT_EQ(lir_str.find(" = Equal "), std::string::npos) << lir_str;
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCmp));
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kBranchE));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kEqual));
 }
 #endif
 

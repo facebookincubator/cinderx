@@ -13,6 +13,7 @@
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_query.h"
 
 #include <math.h>
 
@@ -21,6 +22,7 @@
 #include <regex>
 #include <string>
 #include <utility>
+#include <vector>
 
 using namespace asmjit;
 using namespace cinderx::jit;
@@ -37,7 +39,7 @@ TEST(LIRTypeTest, DataTypeByteShift) {
 
 class LIRGeneratorTest : public RuntimeTest {
  public:
-  std::string getLIRString(PyObject* func_obj) {
+  std::unique_ptr<Function> getLIRFunction(PyObject* func_obj) {
     JIT_CHECK(
         PyFunction_Check(func_obj),
         "Trying to compile something that isn't a function");
@@ -45,32 +47,43 @@ class LIRGeneratorTest : public RuntimeTest {
 
     PyObject* globals = PyFunction_GetGlobals(func_obj);
     if (!PyDict_CheckExact(globals)) {
-      return "";
+      return nullptr;
     }
 
     if (!PyDict_CheckExact(func->func_builtins)) {
-      return "";
+      return nullptr;
     }
 
-    std::unique_ptr<hir::Function> irfunc(buildHIR(func));
+    // The returned LIR keeps references into the HIR function and CodeRuntime
+    // (e.g. the printer emits the originating HIR instruction as a comment), so
+    // they must outlive it. Retain them for the lifetime of the fixture.
+    std::unique_ptr<hir::Function>& irfunc =
+        hir_funcs_.emplace_back(buildHIR(func));
 
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 
+    std::unique_ptr<CodeRuntime>& runtime =
+        runtimes_.emplace_back(std::make_unique<CodeRuntime>(func));
+    runtime->setReifier(irfunc->reifier);
+
     codegen::Environ env;
-
     env.ctx = getContext();
-
-    CodeRuntime runtime{func};
-    runtime.setReifier(irfunc->reifier);
-    env.code_rt = &runtime;
+    env.code_rt = runtime.get();
 
     LIRGenerator lir_gen(irfunc.get(), &env);
 
     auto lir_func = lir_gen.translateFunction();
 
-    std::stringstream ss;
-
     lir_func->sortBasicBlocks();
+    return lir_func;
+  }
+
+  std::string getLIRString(PyObject* func_obj) {
+    auto lir_func = getLIRFunction(func_obj);
+    if (!lir_func) {
+      return "";
+    }
+    std::stringstream ss;
     ss << *lir_func << '\n';
     return ss.str();
   }
@@ -92,6 +105,20 @@ class LIRGeneratorTest : public RuntimeTest {
     }
     return output_s;
   }
+
+  void TearDown() override {
+    // These hold Python references and must be destroyed before the base
+    // fixture finalizes the interpreter.
+    runtimes_.clear();
+    hir_funcs_.clear();
+    RuntimeTest::TearDown();
+  }
+
+ private:
+  // Keep the HIR functions and runtimes referenced by LIR produced in this
+  // fixture alive until the test finishes.
+  std::vector<std::unique_ptr<hir::Function>> hir_funcs_;
+  std::vector<std::unique_ptr<CodeRuntime>> runtimes_;
 };
 
 TEST_F(LIRGeneratorTest, StaticLoadInteger) {
@@ -106,10 +133,13 @@ def f() -> int64:
   Ref<PyObject> pyfunc(compileStaticAndGet(pycode, "f"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
   // Check that the resulting LIR has the unboxed constant we care about,
   // without hardcoding a variable name or the program structure.
-  ASSERT_NE(lir_str.find(":64bit = Move 12(0xc):Object"), std::string::npos);
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 12));
 }
 
 TEST_F(LIRGeneratorTest, StaticLoadDouble) {
@@ -124,13 +154,13 @@ def f() -> double:
   Ref<PyObject> pyfunc(compileStaticAndGet(pycode, "f"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
   // Check that the resulting LIR has the unboxed constant we care about,
   // without hardcoding a variable name or the program structure.
-  ASSERT_NE(
-      lir_str.find(
-          ":64bit = Move 4614256447914709615(0x400921cac083126f):64bit"),
-      std::string::npos);
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 4614256447914709615ULL));
 }
 
 TEST_F(LIRGeneratorTest, StaticBoxDouble) {
@@ -145,11 +175,14 @@ def f() -> float:
   Ref<PyObject> pyfunc(compileStaticAndGet(pycode, "f"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
 
-  ASSERT_NE(
-      lir_str.find(":64bit = Move 4614256447914709615"), std::string::npos);
-  ASSERT_NE(lir_str.find(":Object = Call"), std::string::npos);
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 4614256447914709615ULL));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Instruction::kCall).outType(DataType::kObject));
 }
 
 TEST_F(LIRGeneratorTest, StaticAddDouble) {
@@ -165,26 +198,9 @@ def f() -> float:
   Ref<PyObject> pyfunc(compileStaticAndGet(pycode, "f"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
-
-  const char* lir_expected = R"(Function:
-BB %0 - succs: %3
-       %1:Object = Bind R10:Object
-       %2:Object = Bind R11:Object
-
-BB %3 - preds: %0 - succs: %12
-
-# v7:CDouble[1.14] = LoadConst<CDouble[1.14]>
-        %4:64bit = Move 4607812922747849277(0x3ff23d70a3d70a3d):64bit
-       %5:Double = Move %4:64bit
-
-# v9:CDouble[2] = LoadConst<CDouble[2]>
-        %6:64bit = Move 4611686018427387904(0x4000000000000000):64bit
-       %7:Double = Move %6:64bit
-
-# v11:CDouble = DoubleBinaryOp<Add> v7 v9
-       %8:Double = Fadd %5:Double, %7:Double)";
-  ASSERT_EQ(lir_expected, lir_expected);
+  auto lir_func = getLIRFunction(pyfunc.get());
+  // `d + e` on doubles should lower to an Fadd.
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kFadd));
 }
 
 // disabled due to unstable Guard instruction
@@ -641,32 +657,30 @@ def func3(x):
   Ref<PyObject> pyfunc2(compileAndGet(src, "func2"));
   ASSERT_NE(pyfunc2.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc2.get());
+  auto lir_func2 = getLIRFunction(pyfunc2.get());
 
-  auto fast_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(rt::loadGlobal));
-  auto slow_path = fmt::format(
-      "{}", reinterpret_cast<uint64_t>(rt::loadGlobalFromThreadState));
+  auto fast_addr = reinterpret_cast<uint64_t>(rt::loadGlobal);
+  auto slow_addr = reinterpret_cast<uint64_t>(rt::loadGlobalFromThreadState);
 
   EXPECT_FALSE(getConfig().stable_frame);
 
-  EXPECT_EQ(lir_str.find(fast_path), std::string::npos)
+  EXPECT_NO_LIR(
+      Query(*lir_func2).opcode(Instruction::kCall).inAddr(0, fast_addr))
       << "Should not call out to rt::loadGlobal as globals aren't stable";
-  EXPECT_NE(lir_str.find(slow_path), std::string::npos)
+  EXPECT_LIR(Query(*lir_func2).opcode(Instruction::kCall).inAddr(0, slow_addr))
       << "Should be calling out to rt::loadGlobalFromThreadState as globals "
          "aren't stable";
 
   Ref<PyObject> pyfunc3(compileAndGet(src, "func3"));
   ASSERT_NE(pyfunc3.get(), nullptr) << "Failed compiling func";
 
-  lir_str = getLIRString(pyfunc3.get());
+  auto lir_func3 = getLIRFunction(pyfunc3.get());
 
-  slow_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(rt::loadGlobalsDict));
+  auto slow_addr2 = reinterpret_cast<uint64_t>(rt::loadGlobalsDict);
 
   EXPECT_FALSE(getConfig().stable_frame);
 
-  EXPECT_NE(lir_str.find(slow_path), std::string::npos)
+  EXPECT_LIR(Query(*lir_func3).opcode(Instruction::kCall).inAddr(0, slow_addr2))
       << "Should be calling out to rt::loadGlobalsDict as globals "
          "aren't stable";
 }
@@ -684,19 +698,18 @@ def func():
   Ref<PyObject> pyfunc(compileAndGet(src, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
 
-  auto fast_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(LoadAttrCache::invoke));
-  auto slow_path =
-      fmt::format("{}", reinterpret_cast<uint64_t>(PyObject_GetAttr));
+  auto fast_addr = reinterpret_cast<uint64_t>(LoadAttrCache::invoke);
+  auto slow_addr = reinterpret_cast<uint64_t>(PyObject_GetAttr);
 
   EXPECT_FALSE(getConfig().attr_caches);
 
-  EXPECT_NE(lir_str.find(slow_path), std::string::npos)
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCall).inAddr(0, slow_addr))
       << "Should be calling out to PyObject_GetAttr as inline caches are "
          "disabled";
-  EXPECT_EQ(lir_str.find(fast_path), std::string::npos)
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Instruction::kCall).inAddr(0, fast_addr))
       << "Should not be calling out to LoadAttrCache::invoke as inline caches "
          "are disabled";
 }
@@ -714,13 +727,13 @@ def func():
   Ref<PyObject> pyfunc(compileAndGet(src, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
 
-  auto slow_path = fmt::format("{}", reinterpret_cast<uint64_t>(rt::loadName));
+  auto slow_addr = reinterpret_cast<uint64_t>(rt::loadName);
 
   EXPECT_FALSE(getConfig().stable_frame);
 
-  EXPECT_NE(lir_str.find(slow_path), std::string::npos)
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCall).inAddr(0, slow_addr))
       << "Should be calling out to rt::loadName as code objects aren't "
          "stable";
 }
@@ -740,8 +753,8 @@ def func():
   Ref<PyObject> pyfunc(compileAndGet(src, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
-  EXPECT_NE(lir_str.find("MoveRelaxed"), std::string::npos)
+  auto lir_func = getLIRFunction(pyfunc.get());
+  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kMoveRelaxed))
       << "LoadEvalBreaker should lower to MoveRelaxed";
 }
 
