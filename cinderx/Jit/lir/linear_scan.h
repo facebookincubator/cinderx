@@ -110,10 +110,6 @@ class LinearScanAllocator : public RegisterAllocator {
   // Return the number of bytes that should be allocated below the base pointer.
   int getFrameSize() const override;
 
-  // returns true if the variables defined in the entry block is
-  // used in the function.
-  bool isPredefinedUsed(const Operand* operand) const override;
-
   // Get the mapping of virtual registers to liveness intervals.  Meant for
   // tests.
   const IntervalMap& intervalMap() const;

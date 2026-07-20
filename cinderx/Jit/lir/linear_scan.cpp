@@ -302,18 +302,6 @@ int LinearScanAllocator::getFrameSize() const {
   return -max_stack_slot_;
 }
 
-bool LinearScanAllocator::isPredefinedUsed(const Operand* operand) const {
-  auto& block = func_->basicBlocks()[0];
-
-  for (auto& succ : block->successors()) {
-    if (map_get(regalloc_blocks_, succ).livein.contains(operand)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 const LinearScanAllocator::IntervalMap& LinearScanAllocator::intervalMap()
     const {
   return intervals_;

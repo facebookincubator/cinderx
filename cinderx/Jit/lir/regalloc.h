@@ -25,10 +25,6 @@ class RegisterAllocator {
 
   // The number of bytes that should be allocated below the base pointer.
   virtual int getFrameSize() const = 0;
-
-  // Return true if a variable defined in the entry block is used in the
-  // function.
-  virtual bool isPredefinedUsed(const Operand* operand) const = 0;
 };
 
 } // namespace cinderx::jit::lir
