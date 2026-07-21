@@ -57,7 +57,18 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_simple_overridable(self) -> None:
+    def test_invoke_str_wrapper_dunder_dispatches_dynamically(self) -> None:
+        codestr = """
+            def func() -> str:
+                a = 'hello'
+                return a.__str__()
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.func
+            self.assertNotInBytecode(f, "INVOKE_FUNCTION")
+            self.assertNotInBytecode(f, "INVOKE_METHOD")
+            self.assertEqual(f(), "hello")
+
         codestr = """
             class C(Exception):
                 def f(self):

@@ -1554,7 +1554,13 @@ class Class(Object["Class"]):
             except AttributeError:
                 continue
 
-            if isinstance(obj, (MethodDescriptorType, WrapperDescriptorType)):
+            if isinstance(obj, MethodDescriptorType) or (
+                isinstance(obj, WrapperDescriptorType)
+                and (
+                    getattr(obj, "__typed_signature__", None) is not None
+                    or obj in ALT_SIGS
+                )
+            ):
                 result[k] = reflect_method_desc(obj, self, self.type_env)
             elif isinstance(obj, BuiltinFunctionType):
                 result[k] = reflect_builtin_function(obj, self, self.type_env)
