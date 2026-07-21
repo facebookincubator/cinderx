@@ -2,57 +2,40 @@
 
 #pragma once
 
-#include "cinderx/Common/log.h"
-#include "fmt/ostream.h"
+#include <fmt/ostream.h>
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <iosfwd>
-#include <type_traits>
-#include <utility>
+#include <span>
 #include <vector>
 
 namespace cinderx::jit::util {
 
 class BitVector {
  public:
-  BitVector() : num_bits_(0) {
-    bits_.bits = 0;
-  }
-
+  BitVector() = default;
   ~BitVector();
 
-  template <typename T>
-  BitVector(size_t nb, T val) {
-    static_assert(std::is_integral_v<T>, "val must be of an integral type.");
-    JIT_CHECK(nb <= sizeof(void*) * 8, "Bit width is too large.")
-    JIT_CHECK(
-        nb == 64 || (val & ~((T{1} << nb) - 1)) == 0,
-        "Val has too many bits for bit width");
-    num_bits_ = nb;
-    bits_.bits = val;
+  /* implicit */ BitVector(size_t num_bits);
+
+  template <std::integral T>
+  BitVector(size_t num_bits, T bits) : BitVector{num_bits} {
+    setShortBits(bits);
   }
 
-  /* implicit */ BitVector(size_t size);
+  BitVector(const BitVector& bv);
+  BitVector(BitVector&& bv) noexcept;
 
-  BitVector(const BitVector& bv) : num_bits_(0) {
-    *this = bv;
-  }
-  BitVector(BitVector&& bv) : num_bits_(0) {
-    *this = std::move(bv);
-  }
-
-  BitVector& operator=(const BitVector& bv);
-  BitVector& operator=(BitVector&& bv);
+  BitVector& operator=(const BitVector& rhs);
+  BitVector& operator=(BitVector&& rhs) noexcept;
 
   // Operators for the bit vector. Due to the purpose of this class (used in DFG
   // analysis), we only support operations between two bit vectors with the same
   // width.
   bool operator==(const BitVector& rhs) const;
-  bool operator!=(const BitVector& rhs) const {
-    return !(*this == rhs);
-  }
+  bool operator!=(const BitVector& rhs) const;
   BitVector operator&(const BitVector& rhs) const;
   BitVector operator|(const BitVector& rhs) const;
   BitVector operator-(const BitVector& rhs) const;
@@ -60,53 +43,71 @@ class BitVector {
   BitVector& operator|=(const BitVector& rhs);
   BitVector& operator-=(const BitVector& rhs);
 
-  // Reset all bits to 0 with num_bits_ unchanged.
+  // Reset all bits to 0.
   void resetAll();
+  // Set all bits to 1.
+  void setAll();
 
-  // Set all bits to v.
+  // Set all bits to `v`.
   void fill(bool v);
 
-  // Get and set a bit in the position specified in bit. The bit index should
-  // be in the range of the bit vector, i.e. less than num_bits_.
+  // Get and set a bit in the position specified in bit. The bit index must
+  // be in the range of the bit vector.
   bool getBit(size_t bit) const;
-
-  void forEachSetBit(std::function<void(size_t)> per_bit_func) const;
-
   void setBit(size_t bit, bool v = true);
+
+  // Run a function for every set bit, passing it the bit index.
+  template <class F>
+    requires std::invocable<F, size_t>
+  void forEachSetBit(F&& per_bit_func) const {
+    size_t chunk_base = 0;
+    for (uint64_t chunk : chunks()) {
+      while (chunk > 0) {
+        int bit = std::countr_zero(chunk);
+        chunk ^= chunk & -chunk;
+        per_bit_func(bit + chunk_base);
+      }
+      chunk_base += sizeof(uint64_t) * CHAR_BIT;
+    }
+  }
+
+  // Get and set the bit vector as a uintptr_t.  Only works if its size is small
+  // enough to fit in a uintptr_t.
+  uintptr_t shortBits() const;
+  void setShortBits(uintptr_t bits);
+
   // Get or set a 64-bit chunk of bits.
   uint64_t getBitChunk(size_t chunk = 0) const;
   void setBitChunk(size_t chunk, uint64_t bits);
 
-  // Add number of bits specified in i to the bit vector. Returns the new size.
+  // Add number of bits specified in i to the bit vector.  Returns the new size.
   size_t addBits(size_t i);
+
   // Resize the bit vector to the number of bits specified in size. If size is
   // less than the current number of bits, the bit vector will be truncated.
   void setBitWidth(size_t size);
 
-  size_t getNumBits() const {
-    return num_bits_;
-  }
+  size_t getNumBits() const;
   size_t getPopCount() const;
   bool isEmpty() const;
 
  private:
-  size_t num_bits_;
+  size_t num_bits_{0};
 
   /*
    * For a bit vector <= 64 bits (which is the bit width of a pointer), the bits
-   * are saved in bits. For a larger bit vector, it is divided into 64-bit
-   * chunks and saved in bit_vec.
+   * are saved inline.  For a larger bit vector, it is divided into 64-bit
+   * chunks and saved in a vector.
    */
   union {
-    uintptr_t bits;
+    uintptr_t bits{0};
     std::vector<uint64_t>* bit_vec;
-  } bits_;
+  };
 
-  static constexpr size_t PTR_WIDTH = sizeof(void*) * 8;
+  std::span<uint64_t> chunks();
+  std::span<const uint64_t> chunks() const;
 
-  bool isShortVector() const {
-    return num_bits_ <= PTR_WIDTH;
-  }
+  bool isShortVector() const;
 
   template <typename Op>
   BitVector binaryOp(const BitVector& rhs, const Op& op) const;

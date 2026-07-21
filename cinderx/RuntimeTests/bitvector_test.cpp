@@ -3,23 +3,23 @@
 
 #include "cinderx/Jit/bitvector.h"
 
-#include <ostream>
+#include <sstream>
+#include <stdexcept>
 
 using namespace cinderx::jit::util;
 
 TEST(BitVectorTest, ShortVectors) {
-  BitVector bv1(34, uint64_t(0x310305070));
-  BitVector bv2(34, uint64_t(0x102040608));
+  BitVector bv1{34, uintptr_t{0x310305070}};
+  BitVector bv2{34, uintptr_t{0x102040608}};
 
   auto bv = bv1 | bv2;
-
-  ASSERT_EQ(bv, BitVector(34, uint64_t(0x312345678)));
+  ASSERT_EQ(bv, BitVector(34, uintptr_t{0x312345678}));
 
   bv = bv1 & bv2;
-  ASSERT_EQ(bv, BitVector(34, uint64_t(0x100000000)));
+  ASSERT_EQ(bv, BitVector(34, uintptr_t{0x100000000}));
 
   bv = bv2 - bv;
-  ASSERT_EQ(bv, BitVector(34, uint64_t(0x002040608)));
+  ASSERT_EQ(bv, BitVector(34, uintptr_t{0x002040608}));
 }
 
 TEST(BitVectorTest, LongVectors) {
@@ -60,6 +60,25 @@ TEST(BitVectorTest, Others) {
   ASSERT_EQ(bv1.getPopCount(), 0);
   bv1.setBitWidth(128);
   ASSERT_EQ(bv1.getPopCount(), 0);
+}
+
+TEST(BitVectorTest, ShrinkToChunkMultiplePreservesLastChunk) {
+  // Shrinking to an exact multiple of the chunk width must keep the fully-used
+  // last chunk intact rather than masking it to zero.
+
+  // Long vector: bit 127 lives in the last chunk after shrinking to 128 bits.
+  BitVector longvec(129);
+  longvec.setBit(127);
+  longvec.setBitWidth(128);
+  EXPECT_EQ(longvec.getPopCount(), 1);
+  EXPECT_TRUE(longvec.getBit(127));
+
+  // Short vector: shrinking to 64 bits keeps bit 63 in the last (only) chunk.
+  BitVector shortvec(65);
+  shortvec.setBit(63);
+  shortvec.setBitWidth(64);
+  EXPECT_EQ(shortvec.getPopCount(), 1);
+  EXPECT_TRUE(shortvec.getBit(63));
 }
 
 TEST(BitVectorTest, Print) {
@@ -107,13 +126,13 @@ TEST(BitVectorTest, SetBitChunk) {
   EXPECT_EQ(s.getBitChunk(0), 0);
   s.setBitChunk(0, 0x70);
   EXPECT_EQ(s.getBitChunk(0), 0x70);
-  EXPECT_DEATH(s.setBitChunk(0, 0x80), "invalid bit chunk");
+  EXPECT_THROW(s.setBitChunk(0, 0x80), std::runtime_error);
 
   BitVector l(130);
   EXPECT_EQ(l.getBitChunk(2), 0);
   l.setBitChunk(2, 0x3);
   EXPECT_EQ(l.getBitChunk(2), 0x3);
-  EXPECT_DEATH(l.setBitChunk(2, 0x4), "invalid bit chunk");
+  EXPECT_THROW(l.setBitChunk(2, 0x4), std::runtime_error);
 }
 
 TEST(BitVectorTest, IsEmpty) {
@@ -152,17 +171,17 @@ TEST(BitVectorTest, forEachSetBitShort) {
 }
 
 TEST(BitVectorTest, forEachSetBitLong) {
-  BitVector shortvec(123);
-  shortvec.setBit(1, true);
-  shortvec.setBit(3, true);
-  shortvec.setBit(65, true);
-  shortvec.setBit(122, true);
+  BitVector longvec(123);
+  longvec.setBit(1, true);
+  longvec.setBit(3, true);
+  longvec.setBit(65, true);
+  longvec.setBit(122, true);
 
   int saw_1_n = 0;
   int saw_3_n = 0;
   int saw_65_n = 0;
   int saw_122_n = 0;
-  shortvec.forEachSetBit([&](size_t bit) {
+  longvec.forEachSetBit([&](size_t bit) {
     if (bit == 1) {
       saw_1_n++;
     }
