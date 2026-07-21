@@ -6,3 +6,8 @@
 # fexecve() is not reliably supported under qemu-user emulation, so this fails
 # on the emulated ARM64 CI.
 test.test_posix.PosixTester.test_fexecve
+
+# Requires PYTHONJITSUPPORTINSTRUMENTATION, so it is always skipped (see
+# _should_skip_test in defs.bzl). The per-test x86-64 jobs drop it there; the
+# aggregated ARM64 jobs run the whole suite, so they need this entry to skip it.
+test_cinderx.test_jit_support_instrumentation.*
