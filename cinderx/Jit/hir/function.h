@@ -9,7 +9,11 @@
 #include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
+#include <memory>
+
 namespace cinderx::jit::hir {
+
+class DominatorTree;
 
 class Function {
  public:
@@ -96,10 +100,25 @@ class Function {
   // The instruction must be part of this function.
   BorrowedRef<PyCodeObject> codeFor(const Instr& instr) const;
 
+  // Dominator tree over the CFG's entry block, lazily built and cached so
+  // optimization passes can share a single tree instead of each recomputing
+  // dominance.  Any pass that mutates the CFG in a way that changes dominance
+  // (adds/removes blocks, or retargets edges) must call invalidateDomTree().
+  // The tree will be rebuilt on the next call to domTree().  Passes that only
+  // rewrite instructions within blocks preserve dominance and need not
+  // invalidate.
+  const DominatorTree& domTree();
+
+  // Discard any cached dominator tree.  Cheap and idempotent, safe to call even
+  // when nothing has been cached yet.
+  void invalidateDomTree();
+
   ThreadedRef<> reifier;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Function);
+
+  std::unique_ptr<DominatorTree> dom_tree_;
 };
 
 using OpcodeCounts = std::array<int, kNumOpcodes>;

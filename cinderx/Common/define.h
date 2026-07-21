@@ -7,6 +7,15 @@
 
 #pragma once
 
+// Whether CinderX is being built with a debug build configuration.
+constexpr bool kDebug =
+#ifdef NDEBUG
+    false;
+#else
+    true;
+#endif
+
+// Whether the Python runtime was built with a debug build configuration.
 constexpr bool kPyDebug =
 #ifdef Py_DEBUG
     true;

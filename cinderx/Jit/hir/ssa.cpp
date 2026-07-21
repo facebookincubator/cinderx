@@ -292,8 +292,8 @@ namespace {
 // inlined function's body in isolation.
 class SSAConstructor {
  public:
-  SSAConstructor(Environment& env, BasicBlock* start)
-      : env_{env}, start_{start}, dom_{start} {}
+  SSAConstructor(Environment& env, BasicBlock* start, const DominatorTree& dom)
+      : env_{env}, start_{start}, dom_{dom} {}
 
   void run();
 
@@ -321,7 +321,7 @@ class SSAConstructor {
 
   Environment& env_;
   BasicBlock* start_;
-  DominatorTree dom_;
+  const DominatorTree& dom_;
 
   // Variables live on entry to each block, used to place pruned SSA (a Phi is
   // only created where its variable is actually needed).
@@ -579,7 +579,17 @@ void SSAify::run(Function& irfunc) {
 }
 
 void SSAify::run(Function& irfunc, BasicBlock* start) {
-  SSAConstructor{irfunc.env, start}.run();
+  if (start == irfunc.cfg.entry_block) {
+    // Whole-function SSA: reuse (and seed) the function's cached dominator tree
+    // rather than build a throwaway one. SSA construction only inserts Phis and
+    // renames registers, so it preserves dominance and needn't invalidate.
+    SSAConstructor{irfunc.env, start, irfunc.domTree()}.run();
+  } else {
+    // Sub-CFG SSA (e.g. an inlined body): the cached tree is rooted at the
+    // function entry and doesn't describe this region, so build a local one.
+    DominatorTree dom{start};
+    SSAConstructor{irfunc.env, start, dom}.run();
+  }
   reflowTypes(irfunc, start);
 }
 

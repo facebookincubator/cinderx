@@ -7,6 +7,8 @@
 #include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/printer.h"
 
+#include <ranges>
+
 namespace cinderx::jit::hir {
 
 namespace {
@@ -688,17 +690,16 @@ bool removeUnreachableBlocks(Function& func) {
     delete block;
   }
 
+  // Removing blocks changes the CFG and invalidates the dominator tree.
+  if (unreachable.size() > 0) {
+    func.invalidateDomTree();
+  }
+
   return unreachable.size() > 0;
 }
 
 bool removeUnreachableInstructions(Function& func) {
   bool modified = false;
-  // DominatorTree already computes and caches an RPO traversal, and the
-  // postorder iterated below is exactly its reverse. Reuse it rather than
-  // walking the CFG a second time with getPostOrderTraversal().
-  DominatorTree dom{func};
-  const std::vector<BasicBlock*>& rpo = dom.reversePostorder();
-  std::vector<BasicBlock*> blocks{rpo.rbegin(), rpo.rend()};
   RegUses reg_uses = collectDirectRegUses(func);
   auto remove_reg_uses = [&reg_uses](Instr* instr) {
     for (auto op : instr->getOperands()) {
@@ -708,7 +709,11 @@ bool removeUnreachableInstructions(Function& func) {
       }
     }
   };
-  for (BasicBlock* block : blocks) {
+
+  // Post-order traversal.
+  const DominatorTree& dom = func.domTree();
+  auto po = std::ranges::reverse_view(dom.reversePostorder());
+  for (BasicBlock* block : po) {
     auto it = block->begin();
     while (it != block->end()) {
       Instr& instr = *it;
@@ -830,8 +835,13 @@ bool removeUnreachableInstructions(Function& func) {
       }
     }
   }
+
   if (modified) {
     removeUnreachableBlocks(func);
+    // We rewrote branches and/or dropped blocks above, so any cached dominance
+    // is no longer valid.  (removeUnreachableBlocks invalidates too when it
+    // drops blocks, but the branch rewrites alone can change dominance.)
+    func.invalidateDomTree();
     reflowTypes(func);
   }
   return modified;

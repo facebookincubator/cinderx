@@ -9,9 +9,6 @@
 
 namespace cinderx::jit::hir {
 
-DominatorTree::DominatorTree(const Function& irfunc)
-    : DominatorTree{irfunc.cfg.entry_block} {}
-
 DominatorTree::DominatorTree(BasicBlock* start) {
   rpo_ = CFG::getRPOTraversal(start);
   for (size_t i = 0; i < rpo_.size(); ++i) {
@@ -130,6 +127,22 @@ DominatorTree::getBlocksDominatedBy(const BasicBlock* block) const {
   static const std::unordered_set<const BasicBlock*> kEmpty;
   auto it = dom_sets_.find(block->id);
   return it == dom_sets_.end() ? kEmpty : it->second;
+}
+
+bool DominatorTree::sameDominanceAs(const DominatorTree& other) const {
+  if (idoms_.size() != other.idoms_.size()) {
+    return false;
+  }
+  // Compare immediate dominators by pointer identity. Both trees are built over
+  // the same CFG, so they reference the same BasicBlock objects; this avoids
+  // dereferencing a pointer that a missed invalidation may have left dangling.
+  for (const auto& [id, idom] : idoms_) {
+    auto it = other.idoms_.find(id);
+    if (it == other.idoms_.end() || it->second != idom) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void DominatorTree::computeDominatorSets() const {

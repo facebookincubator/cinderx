@@ -2667,6 +2667,12 @@ void Simplify::run(Function& irfunc) {
     }
 
     if (changed) {
+      // This iteration may have split blocks or folded CondBranches into
+      // Branches, so any cached dominance is stale before we run CleanCFG
+      // (which consults the dominator tree).  This is conservative, `changed`
+      // also covers instruction-only rewrites that preserve dominance.
+      irfunc.invalidateDomTree();
+
       // Perform some simple cleanup between each pass.
       CopyPropagation{}.run(irfunc);
       reflowTypes(irfunc);

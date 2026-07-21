@@ -38,7 +38,7 @@ fun dominators {
   auto bb2 = func->cfg.getBlockById(2);
   auto bb3 = func->cfg.getBlockById(3);
 
-  DominatorTree doms{*func};
+  DominatorTree doms{func->cfg.entry_block};
 
   EXPECT_EQ(doms.immediateDominator(bb0), nullptr);
   EXPECT_EQ(doms.immediateDominator(bb1), bb0);
@@ -94,7 +94,7 @@ fun dominators {
   auto bb6 = func->cfg.getBlockById(6);
   auto bb7 = func->cfg.getBlockById(7);
 
-  DominatorTree doms{*func};
+  DominatorTree doms{func->cfg.entry_block};
 
   EXPECT_EQ(doms.immediateDominator(bb0), nullptr);
   EXPECT_EQ(doms.immediateDominator(bb1), bb0);

@@ -477,7 +477,7 @@ void AssignmentAnalysis::setUninitialized(
 }
 
 RegisterTypeHints::RegisterTypeHints(const Function& irfunc)
-    : dom_hint_{}, doms_{irfunc} {
+    : doms_{irfunc.cfg.entry_block} {
   for (const auto& block : irfunc.cfg.blocks) {
     for (const auto& instr : block) {
       if (instr.isHintType()) {

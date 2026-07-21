@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <unordered_map>
@@ -14,16 +13,13 @@ namespace cinderx::jit::hir {
 // Dominator tree over the blocks reachable from a root block, based on Cooper,
 // Harvey, and Kennedy's "A Simple, Fast Dominance Algorithm".
 //
-// The root may be any block, not just the CFG entry, so this can be built over
-// an inlined function's sub-CFG.  Immediate dominators and dominator-tree
-// children are computed up front; dominance frontiers and full dominator sets
-// are computed lazily on first use, so consumers that only need immediate
-// dominators don't pay for them.
+// The tree is built from a start block.  The start may be any block, not just
+// the CFG entry, so this can be built over an inlined function's sub-CFG.
+// Immediate dominators and dominator-tree children are computed up front;
+// dominance frontiers and full dominator sets are computed lazily on first use,
+// so consumers that only need immediate dominators don't pay for them.
 class DominatorTree {
  public:
-  // Build the tree rooted a function's entry block.
-  explicit DominatorTree(const Function& irfunc);
-
   // Build the tree rooted at a start block, covering all blocks reachable from
   // it.
   explicit DominatorTree(BasicBlock* start);
@@ -49,6 +45,11 @@ class DominatorTree {
   // Set of blocks dominated by `block`, inclusive. Computed lazily.
   const std::unordered_set<const BasicBlock*>& getBlocksDominatedBy(
       const BasicBlock* block) const;
+
+  // Whether this tree has the same immediate-dominator mapping as `other`: the
+  // same set of reachable blocks, each with the same immediate dominator. Used
+  // to detect a stale cached tree against a freshly-computed one.
+  bool sameDominanceAs(const DominatorTree& other) const;
 
  private:
   // Walk up the dominator tree to the common dominator of two blocks.

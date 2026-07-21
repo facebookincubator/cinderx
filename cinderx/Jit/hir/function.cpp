@@ -2,6 +2,9 @@
 
 #include "cinderx/Jit/hir/function.h"
 
+#include "cinderx/Common/log.h"
+#include "cinderx/Jit/hir/dominance.h"
+
 namespace cinderx::jit::hir {
 
 // Be intentional about HIR structure sizes.  There's no hard limit on what
@@ -10,7 +13,7 @@ namespace cinderx::jit::hir {
 // Ignore it for libc++ and Windows for now though, too tricky to track multiple
 // implementations.
 #if !defined(_LIBCPP_VERSION) && !defined(WIN32)
-static_assert(sizeof(Function) == 47 * kPointerSize);
+static_assert(sizeof(Function) == 48 * kPointerSize);
 static_assert(sizeof(CFG) == 5 * kPointerSize);
 static_assert(sizeof(BasicBlock) == 20 * kPointerSize);
 static_assert(sizeof(Instr) == 6 * kPointerSize);
@@ -79,6 +82,28 @@ bool Function::canDeopt() const {
     }
   }
   return false;
+}
+
+const DominatorTree& Function::domTree() {
+  if (dom_tree_ == nullptr) {
+    dom_tree_ = std::make_unique<DominatorTree>(cfg.entry_block);
+  }
+  // Catch any CFG-mutating pass that forgot to invalidate.  Recompute a fresh
+  // tree and confirm the cache still matches the current CFG.  This happens in
+  // debug builds only for performance reasons.
+  if constexpr (kDebug) {
+    DominatorTree fresh{cfg.entry_block};
+    JIT_CHECK(
+        dom_tree_->sameDominanceAs(fresh),
+        "Cached dominator tree for {} is stale; a CFG-mutating pass failed to "
+        "call Function::invalidateDomTree()",
+        fullname);
+  }
+  return *dom_tree_;
+}
+
+void Function::invalidateDomTree() {
+  dom_tree_.reset();
 }
 
 BorrowedRef<PyCodeObject> Function::codeFor(const Instr& instr) const {

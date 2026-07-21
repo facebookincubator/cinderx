@@ -484,7 +484,9 @@ void InlineFunctionCalls::run(Function& irfunc) {
   const size_t cost_limit = getConfig().inliner_cost_limit;
   const size_t depth_limit = getConfig().inliner_depth_limit;
   const size_t cold_threshold = getConfig().inliner_cold_call_threshold;
-  size_t cost = codeCost(irfunc.code);
+
+  const size_t original_cost = codeCost(irfunc.code);
+  size_t cost = original_cost;
 
   // Priority queue of candidate calls, ordered so that smaller callees are
   // inlined first.  Preferring small callees lets us fit more of them under the
@@ -602,6 +604,12 @@ void InlineFunctionCalls::run(Function& irfunc) {
       collectCalls(irfunc, *block, nested);
     }
     enqueueCandidates(call_code, funcFullname(call.func), nested);
+  }
+
+  // Inlining spliced callee sub-CFGs into the caller, changing block structure,
+  // so drop any cached dominance before CleanCFG (which consults it).
+  if (cost != original_cost) {
+    irfunc.invalidateDomTree();
   }
 
   // Inlining a callee with no reachable return leaves unreachable blocks
