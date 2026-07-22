@@ -5,6 +5,7 @@
 #include "cinderx/Jit/bitvector.h"
 
 #include <algorithm>
+#include <functional>
 #include <list>
 #include <unordered_map>
 #include <unordered_set>
