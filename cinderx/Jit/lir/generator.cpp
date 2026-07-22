@@ -3688,6 +3688,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           kind = InstrGuardKind::kNotNegative;
         } else if (instr.isGuardIs()) {
           kind = InstrGuardKind::kIs;
+          // Keep the guard target object alive for the lifetime of the compiled
+          // code.  Without this, the object can be freed and its
+          // memory reused.
+          const auto& guard_is = static_cast<const hir::GuardIs&>(instr);
+          if (BorrowedRef<> target_obj = guard_is.target()) {
+            env_->code_rt->addReference(target_obj);
+          }
         }
         Instruction* value = bbb.getDefInstr(instr.getOperand(0));
         // Strip dynamic deferred RC tag before comparison.
@@ -3705,7 +3712,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         break;
       }
       case Opcode::kGuardType: {
-        const auto& instr = static_cast<const DeoptBase&>(i);
+        const auto& instr = static_cast<const hir::GuardType&>(i);
+        // Keep the guard target type alive for the lifetime of the compiled
+        // code.  The machine code embeds a raw PyTypeObject* for the type
+        // comparison, with no other owner.
+        if (BorrowedRef<PyTypeObject> type_obj =
+                instr.target().uniquePyType()) {
+          env_->code_rt->addReference(type_obj.getObj());
+        }
         Instruction* value = bbb.getDefInstr(instr.getOperand(0));
         if constexpr (kFreeThreadedBuild) {
           // Strip dynamic deferred RC tag before comparison.

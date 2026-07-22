@@ -244,6 +244,10 @@ std::optional<InlineResult> inlineFunctionCall(
     return std::nullopt;
   }
 
+  // Keep the callee and transitively its code object, which a
+  // PyFunctionObject owns strongly alive
+  caller.env.addReference(call_instr.func);
+
   // This logging is parsed by jitlist_bisect.py to find inlined functions.
   JIT_LOGIF(
       getConfig().log.debug_inliner || getConfig().log.debug,
