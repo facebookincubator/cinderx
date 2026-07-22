@@ -8,7 +8,6 @@ import ast
 import asyncio
 import builtins
 import gc
-import os
 import re
 import sys
 from contextlib import AbstractContextManager, contextmanager
