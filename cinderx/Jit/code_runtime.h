@@ -112,7 +112,7 @@ class alignas(16) CodeRuntime {
 
   void addCallsiteDeoptExit(uintptr_t return_addr, uintptr_t deopt_exit_addr);
 
-  void setReifier(BorrowedRef<> reifier);
+  void setReifier(ThreadedRef<>&& reifier);
 
   BorrowedRef<> reifier();
 

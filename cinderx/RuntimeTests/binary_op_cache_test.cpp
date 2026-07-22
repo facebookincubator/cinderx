@@ -55,8 +55,6 @@ def test(a, b):
 
   std::unique_ptr<Function> irfunc(buildHIR(funcobj));
   ASSERT_NE(irfunc, nullptr);
-  irfunc->reifier =
-      ThreadedRef<>::create(makeFrameReifier(funcobj->func_code).get());
 
   Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 

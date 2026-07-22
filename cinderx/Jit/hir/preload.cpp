@@ -272,6 +272,7 @@ std::unique_ptr<Function> Preloader::makeFunction() const {
   irfunc->prim_args_info.reset(prim_args_info_);
   irfunc->return_type = returnType();
   irfunc->has_primitive_args = hasPrimitiveArgs();
+  irfunc->env.reifier = reifier();
   for (auto& [local, preloaded_type] : check_arg_types_) {
     irfunc->typed_args.emplace_back(
         local,

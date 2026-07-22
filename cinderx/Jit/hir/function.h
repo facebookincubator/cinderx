@@ -119,8 +119,6 @@ class Function {
   // when nothing has been cached yet.
   void invalidateDomTree();
 
-  ThreadedRef<> reifier;
-
  private:
   DISALLOW_COPY_AND_ASSIGN(Function);
 

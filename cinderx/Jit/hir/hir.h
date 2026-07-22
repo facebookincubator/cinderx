@@ -4206,6 +4206,10 @@ class Environment {
     return next_load_type_method_cache_;
   }
 
+  // The functions reifier when lightweight frames are used, kept alive by the
+  // preloader until transferred to the CodeRuntime at the end of compilation.
+  BorrowedRef<> reifier;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(Environment);
 

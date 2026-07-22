@@ -210,6 +210,8 @@ struct Environ {
   // Byte offset of gi_jit_data within a generator object, computed per
   // function. Read by the resume entry block builder.
   Py_ssize_t gi_jit_data_offset{0};
+
+  BorrowedRef<> reifier;
 };
 
 } // namespace cinderx::jit::codegen

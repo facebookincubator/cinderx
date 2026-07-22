@@ -73,15 +73,15 @@ void CodeRuntime::releaseReferences() {
   // We want to be careful here with the freeing of these references. Freeing
   // the objects could cause our CompiledFunction to be freed as well so first
   // we grab the references and then clear them.
+  ThreadedCompileSerialize guard;
   std::unordered_set<ThreadedRef<>> refs;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   ThreadedRef<> tmp;
 #endif
   {
-    ThreadedCompileSerialize guard;
     refs = std::move(references_);
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-    tmp = std::move(reifier_);
+    reifier_.reset(nullptr);
 #endif
   }
   // and then we let the dtors clean everything up
@@ -184,10 +184,9 @@ void CodeRuntime::addCallsiteDeoptExit(
   callsite_deopt_exits_[return_addr] = deopt_exit_addr;
 }
 
-void CodeRuntime::setReifier([[maybe_unused]] BorrowedRef<> reifier) {
+void CodeRuntime::setReifier([[maybe_unused]] ThreadedRef<>&& reifier) {
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  ThreadedCompileSerialize guard;
-  reifier_ = ThreadedRef<>::create(reifier);
+  reifier_ = std::move(reifier);
 #endif
 }
 

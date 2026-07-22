@@ -1252,7 +1252,7 @@ void LIRGenerator::generateExitBlocks() {
     PyObject* executable;
     std::optional<destructor> exec_dtor;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-    executable = env_->code_rt->reifier().get();
+    executable = env_->reifier;
     exec_dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
 #else
     executable = reinterpret_cast<PyObject*>(func_->code.get());
@@ -5554,7 +5554,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
                 JIT_DCHECK(
                     executable_or_reifier == nullptr,
                     "should only be emitted once");
-                executable_or_reifier_obj = env_->code_rt->reifier();
+                executable_or_reifier_obj = env_->reifier;
                 executable_or_reifier = bbb.appendInstr(
                     OutVReg{},
                     Instruction::kMove,
@@ -5673,7 +5673,7 @@ void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
   PyObject* executable;
   std::optional<destructor> dtor;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  executable = env_->code_rt->reifier().get();
+  executable = env_->reifier;
   dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
 #else
   executable = reinterpret_cast<PyObject*>(func_->code.get());

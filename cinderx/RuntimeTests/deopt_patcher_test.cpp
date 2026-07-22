@@ -130,7 +130,6 @@ def func():
 
   // Insert a patchpoint immediately before the return
   auto patcher = irfunc->allocateCodePatcher<MyDeoptPatcher>(123);
-  irfunc->reifier = ThreadedRef<>::create(makeFrameReifier(pyfunc->func_code));
   EXPECT_EQ(patcher->id(), 123);
   auto patchpoint = hir::DeoptPatchpoint::create(patcher);
   patchpoint->insertBefore(*term);

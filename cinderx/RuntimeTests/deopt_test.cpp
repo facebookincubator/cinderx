@@ -389,8 +389,6 @@ class DeoptStressTest : public RuntimeTest {
     Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
     ASSERT_NE(funcobj, nullptr);
     std::unique_ptr<Function> irfunc(buildHIR(funcobj));
-    irfunc->reifier =
-        ThreadedRef<>::create(makeFrameReifier(funcobj->func_code).get());
     auto guards = insertDeopts(*irfunc);
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
     auto delete_one_deopt = [&](const DeoptMetadata& deopt_meta) {

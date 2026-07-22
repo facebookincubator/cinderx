@@ -21,9 +21,7 @@ std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
   JIT_CHECK(
       preloader->code() == func->func_code,
       "Expecting the last function to compile to be the first one preloaded");
-  auto irfunc = jit::hir::buildHIR(*preloader);
-  irfunc->reifier = jit::ThreadedRef<>::create(preloader->reifier());
-  return irfunc;
+  return jit::hir::buildHIR(*preloader);
 }
 
 void HIRTest::TestBody() {
