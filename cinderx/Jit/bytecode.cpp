@@ -231,9 +231,7 @@ BytecodeInstructionBlock::BytecodeInstructionBlock(
     BorrowedRef<PyCodeObject> code,
     BCIndex start,
     BCIndex end)
-    : code_{ThreadedRef<PyCodeObject>::create(code)},
-      start_idx_{start},
-      end_idx_{end} {}
+    : code_{code}, start_idx_{start}, end_idx_{end} {}
 
 BytecodeInstructionBlock::Iterator BytecodeInstructionBlock::begin() const {
   return Iterator{code_, start_idx_, end_idx_};

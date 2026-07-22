@@ -517,6 +517,11 @@ void Context::codeCompiled(
   addCompileTime(compiled_func.compile_time);
 
   if (getThreadedCompileContext().compileRunning()) {
+    // ThreadedRef::create touches the function's refcount, which races the
+    // interpreter during a background compile (GIL released).  Serialize to
+    // keep it safe -- a no-op for batch compile where the interpreter is
+    // frozen, but necessary for background compile.
+    ThreadedCompileSerialize guard;
     completed_compiles_.emplace(
         key,
         std::pair(
