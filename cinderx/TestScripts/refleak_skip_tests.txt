@@ -28,6 +28,11 @@ test_cinderx.test_compiler.test_static.test_elide_type_checks.*
 test_cinderx.test_jit_generators.*
 test_cinderx.test_jit_inliner.*
 
+# Compile-time stress test: force-compiles many functions as a wall-time
+# benchmark, so it accumulates JIT state by design and is far too slow to rerun
+# under refleak's repeated runs.
+test_cinderx.test_jit_pipeline_stress.*
+
 # This fails because the refleak infra captures all of the ABCs
 # and clears and restores them between runs, but contextvars isn't
 # imported when it captures them when we run in cinder_test_runner.
