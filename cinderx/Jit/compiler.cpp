@@ -29,8 +29,33 @@
 
 namespace cinderx::jit {
 
+namespace {
+
+// Raise an exception if an HIR function exceeds a reasonable size.
+void checkHirSize(const hir::Function& func) {
+  auto num_blocks = func.numBlocks();
+  auto max_blocks = getConfig().max_hir_blocks;
+  if (num_blocks > max_blocks) {
+    throw std::runtime_error{fmt::format(
+        "HIR function '{}' has too many basic blocks ({}, max={})",
+        func.fullname,
+        num_blocks,
+        max_blocks)};
+  }
+
+  auto num_instrs = func.numInstrs();
+  auto max_instrs = getConfig().max_hir_instrs;
+  if (num_instrs > max_instrs) {
+    throw std::runtime_error{fmt::format(
+        "HIR function '{}' has too many instructions ({}, max={})",
+        func.fullname,
+        num_instrs,
+        max_instrs)};
+  }
+}
+
 template <typename T>
-static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
+void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
   COMPILE_TIMER(func.compilation_phase_timer,
                 pass.name(),
                 JIT_LOGIF(
@@ -67,6 +92,8 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                     func);)
 }
 
+} // namespace
+
 void Compiler::runPasses(jit::hir::Function& irfunc, PassConfig config) {
   PostPassFunction callback =
       [](hir::Function&, std::string_view, std::size_t) {};
@@ -77,6 +104,11 @@ void Compiler::runPasses(
     jit::hir::Function& irfunc,
     PassConfig config,
     PostPassFunction callback) {
+  // Bail out before doing any work if the freshly-built HIR is already too
+  // large to be worth compiling.  Checked once here rather than before every
+  // pass to avoid repeatedly walking the CFG.
+  checkHirSize(irfunc);
+
   // SSAify must come first; nothing but SSAify should ever see non-SSA HIR.
   runPass(jit::hir::SSAify{}, irfunc, callback);
 

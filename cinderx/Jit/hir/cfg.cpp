@@ -172,4 +172,16 @@ const BasicBlock* CFG::getBlockById(int id) const {
   return nullptr;
 }
 
+size_t CFG::numBlocks() const {
+  return std::distance(blocks.begin(), blocks.end());
+}
+
+size_t CFG::numInstrs() const {
+  size_t result = 0;
+  for (const auto& block : blocks) {
+    result += std::distance(block.begin(), block.end());
+  }
+  return result;
+}
+
 } // namespace cinderx::jit::hir

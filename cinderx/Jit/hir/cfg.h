@@ -54,6 +54,12 @@ class CFG {
   // unreachable instructions
   static std::vector<BasicBlock*> getPostOrderTraversal(BasicBlock* start);
 
+  // Total number of basic blocks in the CFG.
+  size_t numBlocks() const;
+
+  // Total number of instructions in the CFG.
+  size_t numInstrs() const;
+
   // Entry point into the CFG; may be null
   BasicBlock* entry_block{nullptr};
 

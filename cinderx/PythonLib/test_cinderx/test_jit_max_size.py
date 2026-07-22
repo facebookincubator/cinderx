@@ -4,7 +4,10 @@
 
 """All JIT "size limit" tests in one place.
 
-Two kinds of limit are covered:
+Three kinds of limit are covered:
+  * Per-function HIR size (``jit-max-hir-instrs`` / ``jit-max-hir-blocks``),
+    which abort compilation during HIR optimization and fall back to the
+    interpreter.
   * Per-function LIR size (``jit-max-lir-instrs`` / ``jit-max-lir-blocks``),
     which abort native code generation and fall back to the interpreter.
   * Total emitted machine-code size (``jit-max-code-size``), which stops the
@@ -28,14 +31,16 @@ from cinderx.jit import force_compile, is_jit_compiled
 from cinderx.test_support import ENCODING, passUnless, subprocess_env
 
 
-# Compiling any real function produces more than one LIR instruction and, for a
-# branchy function, more than one LIR basic block, so these tiny limits are
+# Compiling any real function produces more than one HIR/LIR instruction and,
+# for a branchy function, more than one basic block, so these tiny limits are
 # guaranteed to trip regardless of Python version or architecture.
-_TINY_INSTRS_LIMIT = "jit-max-lir-instrs=1"
-_TINY_BLOCKS_LIMIT = "jit-max-lir-blocks=1"
+_TINY_HIR_INSTRS_LIMIT = "jit-max-hir-instrs=1"
+_TINY_HIR_BLOCKS_LIMIT = "jit-max-hir-blocks=1"
+_TINY_LIR_INSTRS_LIMIT = "jit-max-lir-instrs=1"
+_TINY_LIR_BLOCKS_LIMIT = "jit-max-lir-blocks=1"
 _WINDOWS_STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
 
-# A trivial straight-line function: >1 LIR instruction, 1 LIR basic block.
+# A trivial straight-line function: >1 instruction, 1 basic block (HIR or LIR).
 _STRAIGHT_LINE = """
 import cinderx.jit as jit
 
@@ -56,7 +61,7 @@ assert sample(41) == 42, "interpreter execution produced wrong result"
 print("FALLBACK_OK")
 """
 
-# A branchy function: multiple LIR basic blocks.
+# A branchy function: multiple basic blocks (HIR or LIR).
 _BRANCHY = """
 import cinderx.jit as jit
 
@@ -125,12 +130,20 @@ class SizeLimitTest(unittest.TestCase):
         )
         self.assertIn(token, proc.stdout)
 
+    def test_hir_instrs_limit_triggers_fallback(self) -> None:
+        proc = self._run_child(_STRAIGHT_LINE, ["-X", _TINY_HIR_INSTRS_LIMIT])
+        self._assert_child_printed(proc, "FALLBACK_OK")
+
+    def test_hir_blocks_limit_triggers_fallback(self) -> None:
+        proc = self._run_child(_BRANCHY, ["-X", _TINY_HIR_BLOCKS_LIMIT])
+        self._assert_child_printed(proc, "FALLBACK_OK")
+
     def test_lir_instrs_limit_triggers_fallback(self) -> None:
-        proc = self._run_child(_STRAIGHT_LINE, ["-X", _TINY_INSTRS_LIMIT])
+        proc = self._run_child(_STRAIGHT_LINE, ["-X", _TINY_LIR_INSTRS_LIMIT])
         self._assert_child_printed(proc, "FALLBACK_OK")
 
     def test_lir_blocks_limit_triggers_fallback(self) -> None:
-        proc = self._run_child(_BRANCHY, ["-X", _TINY_BLOCKS_LIMIT])
+        proc = self._run_child(_BRANCHY, ["-X", _TINY_LIR_BLOCKS_LIMIT])
         self._assert_child_printed(proc, "FALLBACK_OK")
 
     def test_compiles_under_default_limit(self) -> None:

@@ -72,6 +72,12 @@ class Function {
   // Set code and a number of other members that are derived from it.
   void setCode(BorrowedRef<PyCodeObject> code);
 
+  // Total number of HIR basic blocks in the function.
+  std::size_t numBlocks() const;
+
+  // Total number of HIR instructions in the function.
+  std::size_t numInstrs() const;
+
   // Count the number of instructions that match the predicate
   std::size_t countInstrs(InstrPredicate pred) const;
 

@@ -200,6 +200,10 @@ struct Config {
   size_t preload_dependent_limit{99};
   // Memory threshold after which we stop jitting.
   size_t max_code_size{0};
+  // Maximum number of HIR blocks we can support for a single function.
+  size_t max_hir_blocks{4000};
+  // Maximum number of HIR instructions we can support for a single function.
+  size_t max_hir_instrs{40000};
   // Maximum number of LIR blocks we can support for a single function.
   size_t max_lir_blocks{5000};
   // Maximum number of LIR instructions we can support for a single function.
