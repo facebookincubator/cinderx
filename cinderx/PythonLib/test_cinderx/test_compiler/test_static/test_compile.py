@@ -23,7 +23,7 @@ from typing import Callable, cast
 from unittest.mock import patch
 
 import cinderx.jit
-from cinderx import install_frame_evaluator, StrictModule
+from cinderx import install_frame_evaluator
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
