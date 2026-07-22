@@ -8,7 +8,7 @@ import sys
 import unittest
 from typing import final
 
-from cinderx.test_support import passIf, passUnless
+from cinderx.test_support import passUnless
 
 try:
     from cinderx.static import (
