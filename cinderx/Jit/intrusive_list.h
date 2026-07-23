@@ -120,7 +120,7 @@ class IntrusiveList {
   using reference = T&;
   using const_reference = const T&;
 
-  IntrusiveList() : root_(), node_member_offset_(offsetOfNode()) {}
+  IntrusiveList() = default;
 
   bool isEmpty() const {
     return root_.next() == &root_;
@@ -276,17 +276,20 @@ class IntrusiveList {
 
   pointer getOwner(IntrusiveListNode* node) const {
     return reinterpret_cast<pointer>(
-        reinterpret_cast<char*>(node) - node_member_offset_);
+        reinterpret_cast<char*>(node) - offsetOfNode());
   }
 
   const_pointer getOwner(const IntrusiveListNode* node) const {
     return reinterpret_cast<const_pointer>(
-        reinterpret_cast<const char*>(node) - node_member_offset_);
+        reinterpret_cast<const char*>(node) - offsetOfNode());
   }
 
-  // This is technically UB, but all of the compilers that we're going to
-  // need to use seem to support it, and it's what other more sophisticated
-  // intrusive list classes use.
+  // The offset is a compile-time constant determined entirely by the template
+  // parameters.
+  //
+  // This is technically UB, but all of the compilers that we're going to need
+  // to use seem to support it, and it's what other more sophisticated intrusive
+  // list classes use.
   static std::size_t offsetOfNode() {
     return reinterpret_cast<char*>(&(static_cast<T*>(nullptr)->*node_member)) -
         static_cast<char*>(nullptr);
@@ -296,7 +299,6 @@ class IntrusiveList {
   friend class IntrusiveListIterator<T, node_member, false>;
 
   IntrusiveListNode root_;
-  std::size_t node_member_offset_;
 };
 
 template <class T, IntrusiveListNode T::* node_member, bool is_const>

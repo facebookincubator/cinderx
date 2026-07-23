@@ -13,9 +13,9 @@ namespace cinderx::jit::hir {
 // Ignore it for libc++ and Windows for now though, too tricky to track multiple
 // implementations.
 #if !defined(_LIBCPP_VERSION) && !defined(WIN32)
-static_assert(sizeof(Function) == 48 * kPointerSize);
-static_assert(sizeof(CFG) == 5 * kPointerSize);
-static_assert(sizeof(BasicBlock) == 20 * kPointerSize);
+static_assert(sizeof(Function) == 47 * kPointerSize);
+static_assert(sizeof(CFG) == 4 * kPointerSize);
+static_assert(sizeof(BasicBlock) == 19 * kPointerSize);
 static_assert(sizeof(Instr) == 6 * kPointerSize);
 #endif
 
