@@ -5925,7 +5925,7 @@ fun test {
   }
 }
 --- Test Name ---
-CompareOfTwoStringsTurnsToUnicodeCompare
+CompareEqualOfTwoStringsUsesUnicodeEqual
 --- Input ---
 # HIR
 fun test {
@@ -5969,11 +5969,11 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = UnicodeCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    v8:CBool = UnicodeEqual v2 v3
+    v9:ImmortalBool = PrimitiveBoxBool v8
+    UseType<Bool> v9
+    v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<2, 1> v8
   }
 
   bb 2 (preds 0) {
@@ -6001,11 +6001,11 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = UnicodeCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    v8:CBool = UnicodeEqual v2 v3
+    v9:ImmortalBool = PrimitiveBoxBool v8
+    UseType<Bool> v9
+    v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<2, 1> v8
   }
 
   bb 2 (preds 0) {
@@ -6033,11 +6033,11 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = UnicodeCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    v8:CBool = UnicodeEqual v2 v3
+    v9:ImmortalBool = PrimitiveBoxBool v8
+    UseType<Bool> v9
+    v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<2, 1> v8
   }
 
   bb 2 (preds 0) {
@@ -6065,11 +6065,11 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v8:ImmortalBool = UnicodeCompare<Equal> v2 v3
-    UseType<Bool> v8
-    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v10:CBool = PrimitiveCompare<Equal> v8 v9
-    CondBranch<2, 1> v10
+    v8:CBool = UnicodeEqual v2 v3
+    v9:ImmortalBool = PrimitiveBoxBool v8
+    UseType<Bool> v9
+    v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<2, 1> v8
   }
 
   bb 2 (preds 0) {
@@ -6080,6 +6080,554 @@ fun test {
   bb 1 (preds 0) {
     v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return v6
+  }
+}
+--- Test Name ---
+CompareNotEqualOfTwoStringsUsesUnicodeEqual
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = GuardType<UnicodeExact> v0
+    v3 = GuardType<UnicodeExact> v1
+    v4 = Compare<NotEqual> v2 v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v6:CBool = UnicodeEqual v2 v3
+    v7:CBool = PrimitiveUnaryOp<NotInt> v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v6:CBool = UnicodeEqual v2 v3
+    v7:CBool = PrimitiveUnaryOp<NotInt> v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v6:CBool = UnicodeEqual v2 v3
+    v7:CBool = PrimitiveUnaryOp<NotInt> v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v6:CBool = UnicodeEqual v2 v3
+    v7:CBool = PrimitiveUnaryOp<NotInt> v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Test Name ---
+CompareLessThanOfTwoStringsUsesUnicodeCompare
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = GuardType<UnicodeExact> v0
+    v3 = GuardType<UnicodeExact> v1
+    v4 = Compare<LessThan> v2 v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:ImmortalBool = UnicodeCompare<LessThan> v2 v3
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:ImmortalBool = UnicodeCompare<LessThan> v2 v3
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:ImmortalBool = UnicodeCompare<LessThan> v2 v3
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:ImmortalBool = UnicodeCompare<LessThan> v2 v3
+    Return v5
+  }
+}
+--- Test Name ---
+UnicodeCompareEqualUsesUnicodeEqual
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = GuardType<UnicodeExact> v0
+    v3 = GuardType<UnicodeExact> v1
+    v4 = UnicodeCompare<Equal> v2 v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:CBool = UnicodeEqual v2 v3
+    v6:ImmortalBool = PrimitiveBoxBool v5
+    Return v6
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:CBool = UnicodeEqual v2 v3
+    v6:ImmortalBool = PrimitiveBoxBool v5
+    Return v6
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:CBool = UnicodeEqual v2 v3
+    v6:ImmortalBool = PrimitiveBoxBool v5
+    Return v6
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:UnicodeExact = GuardType<UnicodeExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:UnicodeExact = GuardType<UnicodeExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:CBool = UnicodeEqual v2 v3
+    v6:ImmortalBool = PrimitiveBoxBool v5
+    Return v6
+  }
+}
+--- Test Name ---
+UnicodeCompareOfTwoStringConstantsIsConstantFolded
+--- Input ---
+def test():
+    return "abc" < "abd"
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Snapshot
+    Return v13
+  }
+}
+--- Test Name ---
+UnicodeEqualOfTwoStringConstantsIsConstantFolded
+--- Input ---
+def test():
+    return "abc" == "abd"
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v14:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v14
+    v15:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
+    Return v15
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v14:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v14
+    v15:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
+    Return v15
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v14:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v14
+    v15:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
+    Return v15
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v9:MortalUnicodeExact["abd"] = LoadConst<MortalUnicodeExact["abd"]>
+    UseType<ImmortalUnicodeExact["abc"]> v8
+    UseType<MortalUnicodeExact["abd"]> v9
+    v14:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v14
+    v15:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Snapshot
+    Return v15
   }
 }
 --- Test Name ---

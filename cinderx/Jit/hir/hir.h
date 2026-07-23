@@ -1845,6 +1845,25 @@ class INSTR_CLASS(
   CompareOp op_;
 };
 
+// Check two strings for equality.
+class INSTR_CLASS(
+    UnicodeEqual,
+    (TUnicodeExact, TUnicodeExact),
+    HasOutput,
+    Operands<2>) {
+ public:
+  UnicodeEqual(Register* dst, Register* left, Register* right)
+      : InstrT{dst, left, right} {}
+
+  Register* left() const {
+    return getOperand(0);
+  }
+
+  Register* right() const {
+    return getOperand(1);
+  }
+};
+
 // Perform the comparison indicated by op between two strings
 class INSTR_CLASS(
     UnicodeCompare,

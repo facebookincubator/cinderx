@@ -439,6 +439,7 @@ bool Instr::isReplayable() const {
     case Opcode::kUpdatePrevInstr:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
+    case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUseObj:
     case Opcode::kUseType:
@@ -854,6 +855,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kUnaryOp:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
+    case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnpackExToTuple:

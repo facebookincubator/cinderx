@@ -3,18 +3,20 @@
 #include "cinderx/Jit/lir/generator.h"
 
 extern "C" {
+
 #include "internal/pycore_call.h"
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_gc.h"
+#include "internal/pycore_import.h"
+#include "internal/pycore_interp.h"
 #include "internal/pycore_intrinsics.h"
+#include "internal/pycore_pyerrors.h"
+#include "internal/pycore_unicodeobject.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_setobject.h"
 #endif
 
-#include "internal/pycore_import.h"
-#include "internal/pycore_interp.h"
-#include "internal/pycore_pyerrors.h"
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_interpolation.h"
 #include "internal/pycore_template.h"
@@ -3500,6 +3502,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             PyUnicode_Concat,
             instr->getOperand(0),
             instr->getOperand(1));
+        break;
+      }
+      case Opcode::kUnicodeEqual: {
+        auto instr = static_cast<const UnicodeEqual*>(&i);
+        // Explicitly calling the internal _PyUnicode_Equal here because it
+        // skips type checks.  Will need to switch to PyUnicode_Equal if it ever
+        // stops being exported.
+        bbb.appendCallInstruction(
+            instr->output(), _PyUnicode_Equal, instr->left(), instr->right());
         break;
       }
       case Opcode::kUnicodeRepeat: {

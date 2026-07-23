@@ -169,6 +169,7 @@ namespace cinderx::jit::hir {
   V(UnaryOp)                       \
   V(UnicodeCompare)                \
   V(UnicodeConcat)                 \
+  V(UnicodeEqual)                  \
   V(UnicodeRepeat)                 \
   V(UnicodeSubscr)                 \
   V(UnpackExToTuple)               \

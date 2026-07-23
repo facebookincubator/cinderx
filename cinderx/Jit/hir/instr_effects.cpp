@@ -65,6 +65,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kTpAlloc:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
+    case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnreachable:
@@ -463,6 +464,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kTpAlloc:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
+    case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnreachable:

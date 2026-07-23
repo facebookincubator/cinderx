@@ -314,6 +314,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kXDecref:
     case Opcode::kXIncref:
     case Opcode::kUnicodeConcat:
+    case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnreachable:

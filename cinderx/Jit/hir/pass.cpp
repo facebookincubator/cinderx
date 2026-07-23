@@ -294,6 +294,7 @@ Type outputType(
     }
     case Opcode::kIsCompactLong:
     case Opcode::kPrimitiveCompare:
+    case Opcode::kUnicodeEqual:
       return TCBool;
     case Opcode::kPrimitiveUnaryOp:
       if (static_cast<const PrimitiveUnaryOp&>(instr).op() ==

@@ -627,6 +627,12 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(UnicodeConcat, dst, left, right, FrameState{});
       break;
     }
+    case Opcode::kUnicodeEqual: {
+      auto left = parseRegister();
+      auto right = parseRegister();
+      NEW_INSTR(UnicodeEqual, dst, left, right);
+      break;
+    }
     case Opcode::kUnicodeRepeat: {
       auto left = parseRegister();
       auto right = parseRegister();

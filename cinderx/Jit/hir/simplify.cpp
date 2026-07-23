@@ -484,10 +484,17 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
 
   // Emit UnicodeCompare if both args are UnicodeExact and the op is supported
   // between two strings.
-  if (left->isA(TUnicodeExact) && right->isA(TUnicodeExact) &&
-      !(op == CompareOp::kIn || op == CompareOp::kNotIn ||
-        op == CompareOp::kExcMatch)) {
-    return env.emit<UnicodeCompare>(instr->op(), left, right);
+  if (left->isA(TUnicodeExact) && right->isA(TUnicodeExact)) {
+    // Special case for equality checks.
+    if (op == CompareOp::kEqual) {
+      auto result = env.emit<UnicodeEqual>(left, right);
+      return env.emit<PrimitiveBoxBool>(result);
+    }
+
+    if (op != CompareOp::kIn && op != CompareOp::kNotIn &&
+        op != CompareOp::kExcMatch) {
+      return env.emit<UnicodeCompare>(instr->op(), left, right);
+    }
   }
 
   return nullptr;
@@ -517,6 +524,65 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
   Register* unboxed_result =
       env.emit<PrimitiveCompare>(*prim_op, compact_left, compact_right);
   return env.emit<PrimitiveBoxBool>(unboxed_result);
+}
+
+Register* simplifyUnicodeCompare(Env& env, const UnicodeCompare* instr) {
+  Register* left = instr->getOperand(0);
+  Register* right = instr->getOperand(1);
+  CompareOp op = instr->op();
+
+  // Constant fold.
+  if (left->type().hasObjectSpec() && right->type().hasObjectSpec()) {
+    BorrowedRef<> left_obj = left->type().objectSpec();
+    BorrowedRef<> right_obj = right->type().objectSpec();
+    auto result =
+        PyUnicode_RichCompare(left_obj, right_obj, static_cast<int>(op));
+    if (result == nullptr) {
+      PyErr_Clear();
+      return nullptr;
+    }
+    // Technically PyUnicode_RichCompare() can return Py_NotImplemented, don't
+    // handle that case.
+    if (!PyBool_Check(result)) {
+      return nullptr;
+    }
+    env.emit<UseType>(left, left->type());
+    env.emit<UseType>(right, right->type());
+    return env.emit<LoadConst>(Type::fromObject(result));
+  }
+
+  // Special case for equality checks.
+  if (op == CompareOp::kEqual || op == CompareOp::kNotEqual) {
+    auto result = env.emit<UnicodeEqual>(left, right);
+    if (op == CompareOp::kNotEqual) {
+      result =
+          env.emit<PrimitiveUnaryOp>(PrimitiveUnaryOpKind::kNotInt, result);
+    }
+    return env.emit<PrimitiveBoxBool>(result);
+  }
+
+  return nullptr;
+}
+
+Register* simplifyUnicodeEqual(Env& env, const UnicodeEqual* instr) {
+  Register* left = instr->getOperand(0);
+  Register* right = instr->getOperand(1);
+
+  // Constant fold.
+  if (left->type().hasObjectSpec() && right->type().hasObjectSpec()) {
+    BorrowedRef<> left_obj = left->type().objectSpec();
+    BorrowedRef<> right_obj = right->type().objectSpec();
+    auto result = PyUnicode_Equal(left_obj, right_obj);
+    if (result == -1) {
+      PyErr_Clear();
+      return nullptr;
+    }
+    env.emit<UseType>(left, left->type());
+    env.emit<UseType>(right, right->type());
+    return env.emit<LoadConst>(Type::fromCBool(result == 1));
+  }
+
+  return nullptr;
 }
 
 Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
@@ -2471,6 +2537,11 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
       return simplifyCompare(env, static_cast<const Compare*>(instr));
     case Opcode::kLongCompare:
       return simplifyLongCompare(env, static_cast<const LongCompare*>(instr));
+    case Opcode::kUnicodeCompare:
+      return simplifyUnicodeCompare(
+          env, static_cast<const UnicodeCompare*>(instr));
+    case Opcode::kUnicodeEqual:
+      return simplifyUnicodeEqual(env, static_cast<const UnicodeEqual*>(instr));
 
     case Opcode::kCondBranch:
       return simplifyCondBranch(env, static_cast<const CondBranch*>(instr));
