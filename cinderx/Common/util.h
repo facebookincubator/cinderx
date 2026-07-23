@@ -405,6 +405,20 @@ class CriticalSectionGuard final {
 #endif
 };
 
+// Typed, cross-version equivalent of CPython's FT_ATOMIC_LOAD_PTR_ACQUIRE().
+template <typename T>
+T* ftAtomicLoadPtrAcquire(T*& ptr) noexcept {
+  if constexpr (kFreeThreadedBuild) {
+#ifdef __cpp_lib_atomic_ref
+    return std::atomic_ref<T*>(ptr).load(std::memory_order_acquire);
+#else
+    return __atomic_load_n(&ptr, __ATOMIC_ACQUIRE);
+#endif
+  } else {
+    return ptr;
+  }
+}
+
 #define SCOPE_EXIT_INTERNAL2(lname, aname, ...) \
   auto lname = [&]() { __VA_ARGS__; };          \
   cinderx::ScopeExit<decltype(lname)> aname(std::move(lname));
