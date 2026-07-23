@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <vector>
@@ -44,6 +45,7 @@ class Query {
   Query& with(std::function<bool(const Instruction*)> pred);
 
   bool exists() const;
+  bool matches(const Instruction& ins) const;
 
   const Function& func() const;
 
@@ -57,7 +59,6 @@ class Query {
   };
 
   InputMatch& input(size_t index);
-  bool matches(const Instruction& ins) const;
   bool matchesOutput(const Instruction& ins) const;
   bool matchesInputs(const Instruction& ins) const;
   bool matchesInput(const Instruction& ins, const InputMatch& im) const;
@@ -74,6 +75,10 @@ class Query {
 // Format a LIR function for an EXPECT_LIR failure message.
 std::string lirFuncString(const Function& func);
 
+// Returns true if `queries` match, in order, an ordered (not necessarily
+// adjacent) subsequence of instructions within a single basic block.
+bool hasLIRSequence(const Function& func, std::initializer_list<Query> queries);
+
 } // namespace cinderx::jit::lir
 
 // Assert that a Query matches (or does not match) an instruction, dumping
@@ -87,3 +92,7 @@ std::string lirFuncString(const Function& func);
 #define EXPECT_NO_LIR(query)     \
   EXPECT_FALSE((query).exists()) \
       << ::cinderx::jit::lir::lirFuncString((query).func())
+
+#define EXPECT_LIR_SEQUENCE(func, ...)                                    \
+  EXPECT_TRUE(::cinderx::jit::lir::hasLIRSequence((func), {__VA_ARGS__})) \
+      << ::cinderx::jit::lir::lirFuncString((func))

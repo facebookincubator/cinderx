@@ -134,13 +134,9 @@ bool Query::matchesInput(const Instruction& ins, const InputMatch& im) const {
 
 const Instruction* Query::find() const {
   for (const BasicBlock* bb : func_.basicBlocks()) {
-    if (bb == nullptr) {
-      continue;
-    }
     for (const std::unique_ptr<Instruction>& instr : bb->instructions()) {
-      const Instruction* ins = instr.get();
-      if (ins != nullptr && matches(*ins)) {
-        return ins;
+      if (matches(*instr)) {
+        return instr.get();
       }
     }
   }
@@ -157,6 +153,27 @@ const Function& Query::func() const {
 
 std::string lirFuncString(const Function& func) {
   return fmt::format("{}", func);
+}
+
+bool hasLIRSequence(
+    const Function& func,
+    std::initializer_list<Query> queries) {
+  if (queries.size() == 0) {
+    return true;
+  }
+
+  for (const BasicBlock* bb : func.basicBlocks()) {
+    auto next = queries.begin();
+    for (const std::unique_ptr<Instruction>& instr : bb->instructions()) {
+      if (next->matches(*instr)) {
+        ++next;
+        if (next == queries.end()) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 } // namespace cinderx::jit::lir

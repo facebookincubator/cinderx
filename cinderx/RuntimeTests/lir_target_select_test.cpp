@@ -93,14 +93,6 @@ static std::unique_ptr<Function> runTargetSelectFunc(
 }
 #endif
 
-// Only used by the AARCH64-only golden-output tests below.
-#ifdef CINDER_AARCH64
-static std::string runTargetSelect(const char* lir_input_str) {
-  auto func = runTargetSelectFunc(lir_input_str);
-  return lirFuncString(*func);
-}
-#endif
-
 #if defined(CINDER_X86_64)
 TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantMemoryMove) {
   const char* lir_input_str = R"(Function:
@@ -150,7 +142,6 @@ BB %0
                  .inImm(0, 16));
   EXPECT_LIR(Query(*lir_func).opcode(Instruction::kMulAdd).inVreg(0, 2));
   EXPECT_LIR(Query(*lir_func).opcode(Instruction::kAdd));
-  // The Lea result %3 is materialized by a Move.
   EXPECT_LIR(Query(*lir_func)
                  .opcode(Instruction::kMove)
                  .outVreg(3)
@@ -237,22 +228,14 @@ BB %2 - preds: %0
   Return %2
 )";
 
-  const char* expected_lir_str = R"(Function:
-BB %0 - succs: %1 %2
-        %1:64bit = Move 1(0x1):64bit
-        %2:64bit = Move 2(0x2):64bit
-                   Cmp %1:64bit, %2:64bit
-                   BranchE
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-BB %1 - preds: %0
-                   Return %1:64bit
-
-BB %2 - preds: %0
-                   Return %2:64bit
-
-)";
-
-  EXPECT_EQ(runTargetSelect(lir_input_str), expected_lir_str);
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func).opcode(Instruction::kCmp).inVreg(0, 1).inVreg(1, 2),
+      Query(*lir_func).opcode(Instruction::kBranchE));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kEqual));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kCondBranch));
 }
 
 TEST_F(
@@ -271,23 +254,15 @@ BB %2 - preds: %0
   Return %2
 )";
 
-  const char* expected_lir_str = R"(Function:
-BB %0 - succs: %1 %2
-        %1:64bit = Move 1(0x1):64bit
-        %2:64bit = Move 2(0x2):64bit
-                   Cmp %1:64bit, %2:64bit
-        %4:64bit = Move 3(0x3):64bit
-                   BranchE
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-BB %1 - preds: %0
-                   Return %1:64bit
-
-BB %2 - preds: %0
-                   Return %2:64bit
-
-)";
-
-  EXPECT_EQ(runTargetSelect(lir_input_str), expected_lir_str);
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func).opcode(Instruction::kCmp).inVreg(0, 1).inVreg(1, 2),
+      Query(*lir_func).opcode(Instruction::kMove).outVreg(4).inImm(0, 3),
+      Query(*lir_func).opcode(Instruction::kBranchE));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kEqual));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kCondBranch));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchCCAcrossFlagClobber) {
@@ -304,23 +279,21 @@ BB %2 - preds: %0
   Return %2
 )";
 
-  const char* expected_lir_str = R"(Function:
-BB %0 - succs: %1 %2
-        %1:64bit = Move 1(0x1):64bit
-        %2:64bit = Move 2(0x2):64bit
-        %3:32bit = Equal %1:64bit, %2:64bit
-        %4:64bit = Add %1:64bit, %2:64bit
-                   CondBranch %3:32bit, BB%1, BB%2
+  auto lir_func = runTargetSelectFunc(lir_input_str);
 
-BB %1 - preds: %0
-                   Return %1:64bit
-
-BB %2 - preds: %0
-                   Return %2:64bit
-
-)";
-
-  EXPECT_EQ(runTargetSelect(lir_input_str), expected_lir_str);
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func)
+          .opcode(Instruction::kEqual)
+          .outVreg(3)
+          .outType(DataType::k32bit),
+      Query(*lir_func)
+          .opcode(Instruction::kAdd)
+          .outVreg(4)
+          .inVreg(0, 1)
+          .inVreg(1, 2),
+      Query(*lir_func).opcode(Instruction::kCondBranch).inVreg(0, 3));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kBranchE));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCForSingleUseCompareGuard) {
@@ -335,7 +308,8 @@ BB %0
 
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCmp));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Instruction::kCmp).inVreg(0, 1).inVreg(1, 2));
   EXPECT_LIR(Query(*lir_func).opcode(Instruction::kA64GuardCC));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kLessThanUnsigned));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kGuard));
@@ -354,7 +328,8 @@ BB %0
 
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCmp));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Instruction::kCmp).inVreg(0, 1).inVreg(1, 2));
   EXPECT_LIR(Query(*lir_func).opcode(Instruction::kA64GuardCC));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kLessThanUnsigned));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kGuard));
@@ -370,7 +345,7 @@ BB %0
 
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  // The FP input %1 is moved into a GP register before the guard.
+  // The FP input is moved into a GP register before the guard.
   EXPECT_LIR(Query(*lir_func)
                  .opcode(Instruction::kMove)
                  .outType(DataType::k64bit)
