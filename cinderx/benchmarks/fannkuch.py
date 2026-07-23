@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-strict
+
 """
 Fannkuch-redux benchmark.
 
@@ -18,7 +20,7 @@ import sys
 import cinderx.jit
 
 
-def count_flips(perm1, perm, n):
+def count_flips(perm1: list[int], perm: list[int], n: int) -> int:
     k = perm1[0]
     if not k:
         return 0
@@ -43,7 +45,7 @@ def count_flips(perm1, perm, n):
     return flips
 
 
-def fannkuch(n):
+def fannkuch(n: int) -> tuple[int, int]:
     perm = [0] * n
     perm1 = list(range(n))
     count = [0] * n
@@ -83,8 +85,8 @@ def fannkuch(n):
             count[r] += 1
 
 
-class Fannkuch(object):
-    def run(self, iterations):
+class Fannkuch:
+    def run(self, iterations: int) -> bool:
         for _ in range(iterations):
             n = 10
             checksum, max_flips = fannkuch(n)
