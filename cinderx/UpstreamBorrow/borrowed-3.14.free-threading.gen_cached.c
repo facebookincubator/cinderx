@@ -7458,12 +7458,22 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
+#ifdef __linux__
+#elif defined(__APPLE__)
+#endif
 #ifdef WITH_MIMALLOC
 #endif
 #if defined(Py_GIL_DISABLED) && !defined(WITH_MIMALLOC)
 #endif
 #undef  uint
 #define uint pymem_uint
+#ifdef MS_WINDOWS
+#elif defined(__linux__)
+#elif defined(__APPLE__)
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#else
+#endif
 #ifdef WITH_MIMALLOC
 #ifdef Py_GIL_DISABLED
 #endif
@@ -7630,6 +7640,9 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
 #endif
 #ifdef WITH_MIMALLOC
 #endif
@@ -7637,6 +7650,17 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 #else
 #endif
 #ifdef WITH_MIMALLOC
+#endif
+#ifdef Py_DEBUG
+#else
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
 #endif
 #ifdef Py_DEBUG
 #endif
