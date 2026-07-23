@@ -9,17 +9,17 @@
 using namespace cinderx::jit::util;
 
 TEST(BitVectorTest, ShortVectors) {
-  BitVector bv1{34, uintptr_t{0x310305070}};
-  BitVector bv2{34, uintptr_t{0x102040608}};
+  BitVector bv1{34, uint64_t{0x310305070}};
+  BitVector bv2{34, uint64_t{0x102040608}};
 
   auto bv = bv1 | bv2;
-  ASSERT_EQ(bv, BitVector(34, uintptr_t{0x312345678}));
+  ASSERT_EQ(bv, BitVector(34, uint64_t{0x312345678}));
 
   bv = bv1 & bv2;
-  ASSERT_EQ(bv, BitVector(34, uintptr_t{0x100000000}));
+  ASSERT_EQ(bv, BitVector(34, uint64_t{0x100000000}));
 
   bv = bv2 - bv;
-  ASSERT_EQ(bv, BitVector(34, uintptr_t{0x002040608}));
+  ASSERT_EQ(bv, BitVector(34, uint64_t{0x002040608}));
 }
 
 TEST(BitVectorTest, LongVectors) {

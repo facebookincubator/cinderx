@@ -12,7 +12,6 @@ namespace cinderx::jit::util {
 
 namespace {
 
-constexpr size_t kShortBitWidth = sizeof(uintptr_t) * CHAR_BIT;
 constexpr size_t kChunkBitWidth = sizeof(uint64_t) * CHAR_BIT;
 
 // Get the number of chunks needed to fit a specific bit width.
@@ -222,7 +221,7 @@ void BitVector::setBit(size_t bit, bool v) {
       num_bits_);
 
   if (isShortVector()) {
-    auto b = uintptr_t{1} << bit;
+    auto b = uint64_t{1} << bit;
     bits = v ? (bits | b) : (bits & ~b);
   } else {
     size_t index = bit / kChunkBitWidth;
@@ -233,21 +232,21 @@ void BitVector::setBit(size_t bit, bool v) {
   }
 }
 
-uintptr_t BitVector::shortBits() const {
+uint64_t BitVector::shortBits() const {
   JIT_THROW_IF(
       !isShortVector(), "BitVector::shortBits() called on large vector");
   return bits;
 }
 
-void BitVector::setShortBits(uintptr_t new_bits) {
+void BitVector::setShortBits(uint64_t new_bits) {
   JIT_THROW_IF(
       !isShortVector(),
       "BitVector::setShortBits() with value {} on large vector of size {}",
       new_bits,
       num_bits_);
   JIT_THROW_IF(
-      num_bits_ != kShortBitWidth &&
-          (new_bits & ~((uintptr_t{1} << num_bits_) - 1)) != 0,
+      num_bits_ != kChunkBitWidth &&
+          (new_bits & ~((uint64_t{1} << num_bits_) - 1)) != 0,
       "BitVector::setShortBits() with value {} can't fit in vector of size {}",
       new_bits,
       num_bits_);
@@ -361,7 +360,7 @@ std::span<const uint64_t> BitVector::chunks() const {
 }
 
 bool BitVector::isShortVector() const {
-  return num_bits_ <= kShortBitWidth;
+  return num_bits_ <= kChunkBitWidth;
 }
 
 std::ostream& operator<<(std::ostream& os, const BitVector& bv) {

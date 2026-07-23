@@ -71,10 +71,10 @@ class BitVector {
     }
   }
 
-  // Get and set the bit vector as a uintptr_t.  Only works if its size is small
-  // enough to fit in a uintptr_t.
-  uintptr_t shortBits() const;
-  void setShortBits(uintptr_t bits);
+  // Get and set the bit vector as a uint64_t.  Only works if its size is small
+  // enough to fit in a uint64_t.
+  uint64_t shortBits() const;
+  void setShortBits(uint64_t bits);
 
   // Get or set a 64-bit chunk of bits.
   uint64_t getBitChunk(size_t chunk = 0) const;
@@ -100,7 +100,7 @@ class BitVector {
    * chunks and saved in a vector.
    */
   union {
-    uintptr_t bits{0};
+    uint64_t bits{0};
     std::vector<uint64_t>* bit_vec;
   };
 
