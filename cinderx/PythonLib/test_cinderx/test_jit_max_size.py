@@ -28,7 +28,7 @@ from typing import Callable
 
 import cinderx.jit
 from cinderx.jit import force_compile, is_jit_compiled
-from cinderx.test_support import ENCODING, passUnless, subprocess_env
+from cinderx.test_support import ENCODING, subprocess_env
 
 
 # Compiling any real function produces more than one HIR/LIR instruction and,
