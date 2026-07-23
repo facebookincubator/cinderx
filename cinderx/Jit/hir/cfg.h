@@ -64,7 +64,7 @@ class CFG {
   BasicBlock* entry_block{nullptr};
 
   // List of all blocks in the CFG
-  IntrusiveList<BasicBlock, &BasicBlock::cfg_node> blocks;
+  IntrusiveList<BasicBlock> blocks;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CFG);

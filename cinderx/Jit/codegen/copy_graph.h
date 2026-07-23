@@ -58,7 +58,10 @@ class CopyGraph {
   }
 
  private:
-  struct Node {
+  struct ChildListTag {};
+  struct LeafListTag {};
+  struct Node : public IntrusiveListNode<Node, ChildListTag>,
+                public IntrusiveListNode<Node, LeafListTag> {
     explicit Node(int loc) : loc{loc} {}
     ~Node();
 
@@ -68,12 +71,13 @@ class CopyGraph {
 
     const int loc;
     Node* parent{nullptr};
-    IntrusiveListNode child_node;
-    IntrusiveListNode leaf_node;
-    IntrusiveList<Node, &Node::child_node> children;
+    IntrusiveList<Node, ChildListTag> children;
 
     DISALLOW_COPY_AND_ASSIGN(Node);
+    DISALLOW_MOVE_AND_ASSIGN(Node);
   };
+  using ChildLink = IntrusiveListNode<Node, ChildListTag>;
+  using LeafLink = IntrusiveListNode<Node, LeafListTag>;
 
   // Create or look up a node for the given location. Newly-created nodes will
   // automatically be added to leaf_nodes_.
@@ -95,7 +99,7 @@ class CopyGraph {
   std::map<int, Node> nodes_;
 
   // All nodes with no outgoing edges (children).
-  IntrusiveList<Node, &Node::leaf_node> leaf_nodes_;
+  IntrusiveList<Node, LeafListTag> leaf_nodes_;
 };
 
 // the same as CopyGraph, but preserves certain types of `from` nodes.

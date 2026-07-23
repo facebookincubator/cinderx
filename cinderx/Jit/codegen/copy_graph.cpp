@@ -5,11 +5,11 @@
 namespace cinderx::jit::codegen {
 
 CopyGraph::Node::~Node() {
-  if (child_node.isLinked()) {
-    child_node.unlink();
+  if (this->ChildLink::isLinked()) {
+    this->ChildLink::unlink();
   }
-  if (leaf_node.isLinked()) {
-    leaf_node.unlink();
+  if (this->LeafLink::isLinked()) {
+    this->LeafLink::unlink();
   }
 }
 
@@ -41,14 +41,14 @@ CopyGraph::Node* CopyGraph::getNode(int loc) {
 
 void CopyGraph::setParent(Node* child, Node* parent) {
   JIT_DCHECK(child != parent, "Can't make node its own parent");
-  if (child->child_node.isLinked()) {
-    child->child_node.unlink();
+  if (child->ChildLink::isLinked()) {
+    child->ChildLink::unlink();
   }
   child->parent = parent;
   if (parent != nullptr) {
     parent->children.pushBack(*child);
-    if (parent->leaf_node.isLinked()) {
-      parent->leaf_node.unlink();
+    if (parent->LeafLink::isLinked()) {
+      parent->LeafLink::unlink();
     }
   }
 }

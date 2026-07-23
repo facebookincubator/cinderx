@@ -31,6 +31,10 @@
   klass(const klass&) = delete;         \
   klass& operator=(const klass&) = delete
 
+#define DISALLOW_MOVE_AND_ASSIGN(klass) \
+  klass(klass&&) = delete;              \
+  klass& operator=(klass&&) = delete
+
 #define UNUSED __attribute__((unused))
 
 // This is for non-test builds. define FRIEND_TEST here so we don't have to

@@ -65,7 +65,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
     auto block = queue.front();
     queue.pop();
 
-    if (!block->cfg_node.isLinked()) {
+    if (!block->isLinked()) {
       fmt::print(err, "ERROR: Reachable bb {} isn't part of CFG\n", block->id);
       return false;
     }

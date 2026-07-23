@@ -574,12 +574,12 @@ void Instr::setBlock(BasicBlock* block) {
 }
 
 void Instr::insertBefore(Instr& instr) {
-  block_node_.insertBefore(&instr.block_node_);
+  BaseNode::insertBefore(&instr);
   link(instr.block());
 }
 
 void Instr::insertAfter(Instr& instr) {
-  block_node_.insertAfter(&instr.block_node_);
+  BaseNode::insertAfter(&instr);
   link(instr.block());
 }
 
@@ -606,7 +606,7 @@ void Instr::link(BasicBlock* block) {
 
 void Instr::unlink() {
   JIT_CHECK(block_ != nullptr, "Instr isn't linked");
-  block_node_.unlink();
+  BaseNode::unlink();
   setBlock(nullptr);
 }
 

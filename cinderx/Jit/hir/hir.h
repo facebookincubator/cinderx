@@ -141,13 +141,10 @@ class CallSiteLiveValuesBase;
 // subclasses. Attempting to heap allocate instructions should result
 // in a compiler error, however, automatic allocation will still compile.
 // Don't do that.
-class Instr {
-  // Instructions are part of a doubly linked list in the basic block they
-  // belong to.
-  IntrusiveListNode block_node_;
-
+class Instr : public IntrusiveListNode<Instr> {
  public:
-  using List = IntrusiveList<Instr, &Instr::block_node_>;
+  using BaseNode = IntrusiveListNode<Instr>;
+  using List = IntrusiveList<Instr>;
 
   static constexpr bool has_output = false;
 
@@ -274,6 +271,7 @@ class Instr {
   Instr(const Instr& other);
 
   Instr& operator=(const Instr&) = delete;
+  DISALLOW_MOVE_AND_ASSIGN(Instr);
 
   void* operator new(std::size_t count, void* ptr);
 
@@ -4000,7 +3998,7 @@ bool isPassthrough(const Instr& instr);
 // given value, returning the original source of the value.
 Register* modelReg(Register* reg);
 
-class BasicBlock {
+class BasicBlock : public IntrusiveListNode<BasicBlock> {
  public:
   BasicBlock() : BasicBlock(0) {}
   explicit BasicBlock(int id_) : id(id_) {}
@@ -4148,11 +4146,9 @@ class BasicBlock {
 
   int id;
 
-  // Basic blocks belong to a list of all blocks in their CFG
-  IntrusiveListNode cfg_node;
-
  private:
   DISALLOW_COPY_AND_ASSIGN(BasicBlock);
+  DISALLOW_MOVE_AND_ASSIGN(BasicBlock);
 
   friend class Edge;
 

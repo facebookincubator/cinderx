@@ -6,14 +6,13 @@
 using cinderx::jit::IntrusiveList;
 using cinderx::jit::IntrusiveListNode;
 
-struct Entry {
-  Entry(int value) : value(value), node() {}
+struct Entry : public IntrusiveListNode<Entry> {
+  explicit Entry(int value) : value(value) {}
 
   int value;
-  IntrusiveListNode node;
 };
 
-using EntryList = IntrusiveList<Entry, &Entry::node>;
+using EntryList = IntrusiveList<Entry>;
 
 TEST(IntrusiveListTest, NewlyCreatedListIsEmpty) {
   EntryList entries;
@@ -345,4 +344,62 @@ TEST(InstrusiveListTest, CanGetReverseIteratorsToElements) {
   ASSERT_EQ(it3->value, 100);
   ++it3;
   ASSERT_EQ(it3, list.rend());
+}
+
+namespace {
+
+struct FirstTag {};
+struct SecondTag {};
+
+struct MultiEntry : IntrusiveListNode<MultiEntry, FirstTag>,
+                    IntrusiveListNode<MultiEntry, SecondTag> {};
+
+} // namespace
+
+TEST(IntrusiveListTest, SupportsMultipleTaggedLists) {
+  MultiEntry entry;
+  IntrusiveList<MultiEntry, FirstTag> first;
+  IntrusiveList<MultiEntry, SecondTag> second;
+
+  first.pushBack(entry);
+  second.pushBack(entry);
+
+  EXPECT_EQ(&first.front(), &entry);
+  EXPECT_EQ(&second.front(), &entry);
+
+  first.popFront();
+  EXPECT_TRUE(first.isEmpty());
+  EXPECT_FALSE(second.isEmpty());
+
+  second.popFront();
+}
+
+TEST(IntrusiveListTest, TaggedListsAreIndependentlyOrdered) {
+  MultiEntry a, b, c;
+  IntrusiveList<MultiEntry, FirstTag> first;
+  IntrusiveList<MultiEntry, SecondTag> second;
+
+  // Same objects, deliberately different order in each list.
+  first.pushBack(a);
+  first.pushBack(b);
+  first.pushBack(c);
+
+  second.pushBack(c);
+  second.pushBack(a);
+  second.pushBack(b);
+
+  const std::vector<MultiEntry*> expected_first{&a, &b, &c};
+  const std::vector<MultiEntry*> expected_second{&c, &a, &b};
+
+  std::vector<MultiEntry*> got_first;
+  for (MultiEntry& e : first) {
+    got_first.push_back(&e);
+  }
+  std::vector<MultiEntry*> got_second;
+  for (MultiEntry& e : second) {
+    got_second.push_back(&e);
+  }
+
+  EXPECT_EQ(got_first, expected_first);
+  EXPECT_EQ(got_second, expected_second);
 }

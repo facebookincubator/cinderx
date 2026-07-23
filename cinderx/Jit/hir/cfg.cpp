@@ -89,7 +89,7 @@ void CFG::insertBlock(BasicBlock* block) {
 }
 
 void CFG::removeBlock(BasicBlock* block) {
-  block->cfg_node.unlink();
+  block->unlink();
 }
 
 BasicBlock* CFG::splitAfter(Instr& target) {
