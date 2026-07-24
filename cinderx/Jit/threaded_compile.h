@@ -31,112 +31,41 @@ class ThreadedCompileContext {
 
   // Accept a list of translation units and set them as being compiled by
   // multiple worker threads.
-  void startCompile(WorkList&& work_list) {
-    // Can't use JIT_CHECK because this is included by log.h.
-    assert(!compile_running_);
-    work_list_ = std::move(work_list);
-    compile_running_ = true;
-    interpreter_ = PyInterpreterState_Get();
-    tstate_ = PyThreadState_Get();
-  }
+  void startCompile(WorkList&& work_list);
 
   // Stop the current iteration of the multi-threaded compile, and return the
   // list of translation units that failed to compile.
-  WorkList endCompile() {
-    assert(compile_running_);
-    compile_running_ = false;
-    return std::move(retry_list_);
-  }
+  WorkList endCompile();
 
   // Fetch the next translation unit to compile.
-  BorrowedRef<> nextUnit() {
-    BorrowedRef<> unit;
-    JITCompilationLock lock;
-    if (!work_list_.empty()) {
-      unit = std::move(work_list_.back());
-      work_list_.pop_back();
-    }
-    return unit;
-  }
+  BorrowedRef<> nextUnit();
 
   // Mark a unit as having failed to compile and to be retried in the future.
-  void retryUnit(BorrowedRef<> unit) {
-    JITCompilationLock lock;
-    retry_list_.emplace_back(std::move(unit));
-  }
+  void retryUnit(BorrowedRef<> unit);
 
   // Check if there's a multi-threaded compile currently running.
-  static bool compileRunning() {
-    return getThreadedCompileContext().compile_running_;
-  }
+  static bool compileRunning();
 
   // Returns true if it's safe for the current thread to access data protected
   // by the threaded compile lock, either because no threaded compile is active
   // or the current thread holds the lock. May return true erroneously, but
   // shouldn't return false erroneously.
-  static bool canAccessSharedData() {
-    return !compileRunning() ||
-        getThreadedCompileContext().holder() == std::this_thread::get_id();
-  }
+  static bool canAccessSharedData();
 
-  static PyInterpreterState* interpreter() {
-    if (compileRunning()) {
-      return getThreadedCompileContext().interpreter_;
-    }
-    return PyInterpreterState_Get();
-  }
+  static PyInterpreterState* interpreter();
 
-  static PyThreadState* tstate() {
-    if (compileRunning()) {
-      return getThreadedCompileContext().tstate_;
-    }
-    return PyThreadState_Get();
-  }
+  static PyThreadState* tstate();
 
  private:
   friend class ThreadedCompileSerialize;
 
-  void lock() {
-    if (!compileRunning()) {
-      return;
-    }
+  void lock();
 
-    mutex_.lock();
+  void unlock();
 
-    auto us = std::this_thread::get_id();
+  std::thread::id holder() const;
 
-    auto prev_level = mutex_recursion_.fetch_add(1, std::memory_order_relaxed);
-    if (prev_level == 0) {
-      assert(holder() == std::thread::id{});
-    } else {
-      assert(holder() == us);
-    }
-
-    setHolder(us);
-  }
-
-  void unlock() {
-    if (!compileRunning()) {
-      return;
-    }
-
-    auto prev_level = mutex_recursion_.fetch_sub(1, std::memory_order_relaxed);
-    if (prev_level == 1) {
-      setHolder(std::thread::id{});
-    } else {
-      assert(holder() == std::this_thread::get_id());
-    }
-
-    mutex_.unlock();
-  }
-
-  std::thread::id holder() const {
-    return mutex_holder_.load(std::memory_order_relaxed);
-  }
-
-  void setHolder(std::thread::id holder) {
-    mutex_holder_.store(holder, std::memory_order_relaxed);
-  }
+  void setHolder(std::thread::id holder);
 
   // This is only written by the main thread, and only when no worker threads
   // exist. While worker threads exist, it is only read (mostly by the worker
