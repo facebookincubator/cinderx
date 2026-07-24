@@ -1032,7 +1032,6 @@ Register* simplifySubscript(Env& env, const BinaryOp* instr) {
         idx += n;
       }
 
-      ThreadedCompileSerialize guard;
       Py_UCS4 c = PyUnicode_ReadChar(lhs_type.objectSpec(), idx);
       PyObject* substr = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, &c, 1);
       if (substr == nullptr) {
@@ -1287,7 +1286,6 @@ Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
   Type left_type = instr->left()->type();
   Type right_type = instr->right()->type();
   if (left_type.hasObjectSpec() && right_type.hasObjectSpec()) {
-    ThreadedCompileSerialize guard;
     Ref<> result;
     if (instr->op() == BinaryOpKind::kPower) {
       result = Ref<>::steal(PyLong_Type.tp_as_number->nb_power(
@@ -1360,7 +1358,6 @@ Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
     return nullptr;
   }
 
-  ThreadedCompileSerialize guard;
   Ref<> result;
 
   if (instr->op() == BinaryOpKind::kPower) {
@@ -2153,7 +2150,6 @@ static Register* resolveArgs(
       size_t num_non_defaults = co_argcount - num_defaults;
       size_t default_idx = i - num_non_defaults;
 
-      ThreadedCompileSerialize guard;
       auto def = PyTuple_GET_ITEM(defaults, default_idx);
       JIT_CHECK(def != nullptr, "expected non-null default");
       auto type = Type::fromObject(env.func.env.addReference(def));

@@ -682,7 +682,9 @@ BorrowedRef<CompiledFunction> Context::lookupCode(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals) {
-  ThreadedCompileSerialize guard;
+  JIT_DCHECK(
+      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+
   auto it = compiled_codes_.find(CompilationKey{code, builtins, globals});
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }

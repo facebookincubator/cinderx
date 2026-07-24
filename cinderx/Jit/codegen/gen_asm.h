@@ -16,6 +16,7 @@
 #include <asmjit/asmjit.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <list>
 #include <span>
@@ -174,9 +175,9 @@ class NativeGeneratorFactory {
   void* failedDeferredCompileTrampoline();
 
  private:
-  void* deopt_trampoline_{nullptr};
-  void* deopt_trampoline_generators_{nullptr};
-  void* failed_deferred_compile_trampoline_{nullptr};
+  std::atomic<void*> deopt_trampoline_{nullptr};
+  std::atomic<void*> deopt_trampoline_generators_{nullptr};
+  std::atomic<void*> failed_deferred_compile_trampoline_{nullptr};
 };
 
 } // namespace cinderx::jit::codegen

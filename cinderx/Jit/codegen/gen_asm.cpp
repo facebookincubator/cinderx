@@ -558,6 +558,23 @@ void* generateFailedDeferredCompileTrampoline() {
       &lir_func, "failedDeferredCompileTrampoline");
 }
 
+// Helper template implementing double-checked locking for lazy trampoline
+// initialization. |slot| is the atomic cache, |generator| is a callable that
+// creates the trampoline when it has not yet been initialized.
+template <typename Generator>
+void* getOrCreateTrampoline(std::atomic<void*>& slot, Generator&& generator) {
+  void* trampoline = slot.load(std::memory_order_acquire);
+  if (trampoline == nullptr) {
+    ThreadedCompileSerialize guard;
+    trampoline = slot.load(std::memory_order_relaxed);
+    if (trampoline == nullptr) {
+      trampoline = generator();
+      slot.store(trampoline, std::memory_order_release);
+    }
+  }
+  return trampoline;
+}
+
 #if defined(_WIN32) && defined(CINDER_X86_64)
 // Bridges the Microsoft x64 sret ABI to the JIT's internal reentry ABI.
 //
@@ -1422,7 +1439,6 @@ void NativeGenerator::generateCode(
       getFunction()->fullname,
       env_.annotations.disassemble(code_start_, codeholder));
   {
-    ThreadedCompileSerialize guard;
     for (auto& x : env_.function_indirections) {
       *x.second.indirect = factory_.failedDeferredCompileTrampoline();
     }
@@ -1477,25 +1493,20 @@ int NativeGenerator::calcInlineStackSize(const hir::Function* func) {
 NativeGeneratorFactory::NativeGeneratorFactory() {}
 
 void* NativeGeneratorFactory::deoptTrampoline() {
-  if (deopt_trampoline_ == nullptr) {
-    deopt_trampoline_ = generateDeoptTrampoline(false);
-  }
-  return deopt_trampoline_;
+  return getOrCreateTrampoline(
+      deopt_trampoline_, [] { return generateDeoptTrampoline(false); });
 }
 
 void* NativeGeneratorFactory::deoptTrampolineGenerators() {
-  if (deopt_trampoline_generators_ == nullptr) {
-    deopt_trampoline_generators_ = generateDeoptTrampoline(true);
-  }
-  return deopt_trampoline_generators_;
+  return getOrCreateTrampoline(deopt_trampoline_generators_, [] {
+    return generateDeoptTrampoline(true);
+  });
 }
 
 void* NativeGeneratorFactory::failedDeferredCompileTrampoline() {
-  if (failed_deferred_compile_trampoline_ == nullptr) {
-    failed_deferred_compile_trampoline_ =
-        generateFailedDeferredCompileTrampoline();
-  }
-  return failed_deferred_compile_trampoline_;
+  return getOrCreateTrampoline(failed_deferred_compile_trampoline_, [] {
+    return generateFailedDeferredCompileTrampoline();
+  });
 }
 
 std::unique_ptr<NativeGenerator> NativeGeneratorFactory::operator()(

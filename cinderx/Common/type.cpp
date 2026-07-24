@@ -38,10 +38,12 @@ BorrowedRef<> typeLookupSafe(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name) {
   JIT_CHECK(PyUnicode_CheckExact(name), "name must be a str");
+#if CINDER_JIT_TSAN_ENABLED
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
   // This flag should never change during compilation although other
   // flags may.
   jit::ThreadedCompileSerialize guard;
+#endif
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {

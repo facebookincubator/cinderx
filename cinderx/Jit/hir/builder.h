@@ -184,7 +184,7 @@ class HIRBuilder {
   void emitStoreDeref(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitLoadAssertionError(TranslationContext& tc, Environment& env);
+  void emitLoadAssertionError(TranslationContext& tc);
   void emitLoadClass(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

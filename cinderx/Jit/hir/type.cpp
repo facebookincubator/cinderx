@@ -384,15 +384,9 @@ Type Type::fromTypeImpl(PyTypeObject* type, bool exact) {
     return TArray;
   }
 
-  {
-    ThreadedCompileSerialize guard;
-    if (type->tp_mro == nullptr && !(type->tp_flags & Py_TPFLAGS_READY)) {
-      PyType_Ready(type);
-    }
-  }
   JIT_CHECK(
-      type->tp_mro != nullptr,
-      "Type {}({}) has a null mro",
+      type->tp_mro != nullptr && type->tp_flags & Py_TPFLAGS_READY,
+      "Type {}({}) has a null mro or isn't ready",
       type->tp_name,
       reinterpret_cast<void*>(type));
 
@@ -427,11 +421,13 @@ Type Type::fromObject(PyObject* obj) {
   }
 
   bits_t lifetime = [&]() {
+#if CINDER_JIT_TSAN_ENABLED
     // Serialize to silence TSAN errors about accessing the reference count of
     // which can change during compilation. However, this is really a false
     // positive as the mortality of an object should not change during
     // compilation.
     ThreadedCompileSerialize guard;
+#endif
     return _Py_IsImmortal(obj) ? kLifetimeImmortal : kLifetimeMortal;
   }();
   return Type{fromTypeExact(Py_TYPE(obj)).bits_, lifetime, obj};

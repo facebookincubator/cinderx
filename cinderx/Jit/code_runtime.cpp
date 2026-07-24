@@ -76,7 +76,9 @@ void CodeRuntime::releaseReferences() {
   // We want to be careful here with the freeing of these references. Freeing
   // the objects could cause our CompiledFunction to be freed as well so first
   // we grab the references and then clear them.
-  ThreadedCompileSerialize guard;
+  JIT_DCHECK(
+      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+
   std::unordered_set<ThreadedRef<>> refs;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   ThreadedRef<> tmp;

@@ -1017,7 +1017,7 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_ASSERTION_ERROR: {
-          emitLoadAssertionError(tc, irfunc.env);
+          emitLoadAssertionError(tc);
           break;
         }
         case LOAD_ATTR_SUPER:
@@ -2945,12 +2945,10 @@ void HIRBuilder::emitStoreDeref(
   }
 }
 
-void HIRBuilder::emitLoadAssertionError(
-    TranslationContext& tc,
-    Environment& env) {
+void HIRBuilder::emitLoadAssertionError(TranslationContext& tc) {
   Register* result = allocateTemp();
-  tc.emit<LoadConst>(
-      result, Type::fromObject(env.addReference(PyExc_AssertionError)));
+  // PyExc_AssertionError is immortal so we add no reference
+  tc.emit<LoadConst>(result, Type::fromObject(PyExc_AssertionError));
   tc.frame.stack.push(result);
 }
 

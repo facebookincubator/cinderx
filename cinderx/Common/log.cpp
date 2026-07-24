@@ -99,8 +99,6 @@ void printPythonException() {
 }
 
 std::string repr(BorrowedRef<> obj) {
-  jit::ThreadedCompileSerialize guard;
-
   PyObject *t, *v, *tb;
 
   PyErr_Fetch(&t, &v, &tb);

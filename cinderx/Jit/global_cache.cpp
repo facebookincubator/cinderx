@@ -22,7 +22,9 @@ GlobalCacheKey::GlobalCacheKey(
     BorrowedRef<PyDictObject> globals,
     BorrowedRef<PyUnicodeObject> name)
     : builtins{builtins}, globals{globals} {
-  ThreadedCompileSerialize guard;
+  JIT_DCHECK(
+      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+
   JIT_CHECK(
       PyUnicode_CHECK_INTERNED(name.get()),
       "Global cache names must be interned; they'll be compared by pointer "
@@ -31,7 +33,8 @@ GlobalCacheKey::GlobalCacheKey(
 }
 
 GlobalCacheKey::~GlobalCacheKey() {
-  ThreadedCompileSerialize guard;
+  JIT_DCHECK(
+      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
   name.reset();
 }
 
