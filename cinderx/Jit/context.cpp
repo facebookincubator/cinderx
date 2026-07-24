@@ -332,12 +332,6 @@ void Context::clearGuardFailureCallback() {
   guard_failure_callback_ = nullptr;
 }
 
-void Context::addReference(BorrowedRef<> obj) {
-  // Serialize as we modify the ref-count to obj which may be widely accessible.
-  ThreadedCompileSerialize guard;
-  references_.emplace(ThreadedRef<>::create(obj));
-}
-
 void Context::releaseReferences() {
   for (auto& code_rt : code_runtimes_) {
     if (code_rt.isCleared()) {
@@ -345,7 +339,6 @@ void Context::releaseReferences() {
     }
     code_rt.releaseReferences();
   }
-  references_.clear();
   type_deopt_patchers_.clear();
 }
 

@@ -382,11 +382,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   void guardFailed(const DeoptMetadata& deopt_meta);
   void clearGuardFailureCallback();
 
-  // Ensure that this Context owns a reference to the given borrowed object,
-  // keeping it alive for use by the compiled code. Make CodeRuntime a new
-  // owner of the object.
-  void addReference(BorrowedRef<> obj);
-
   // Release any references this Context holds to Python objects.
   void releaseReferences();
 
@@ -529,8 +524,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   GuardFailureCallback guard_failure_callback_;
 
-  // References to Python objects held by this Context
-  std::unordered_set<ThreadedRef<PyObject>> references_;
   Builtins builtins_;
 
   std::unordered_map<
