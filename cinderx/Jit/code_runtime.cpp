@@ -3,6 +3,7 @@
 #include "cinderx/Jit/code_runtime.h"
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/threaded_compile.h"
 
 namespace cinderx::jit {
 
@@ -55,18 +56,20 @@ CodeRuntime::CodeRuntime(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals)
-    : code_{code}, builtins_{builtins}, globals_{globals} {
-  // Ensure code, globals, and builtins objects live as long as their compiled
-  // functions.
-  addReference(code);
-  addReference(builtins);
-  addReference(globals);
-}
+    : code_{code}, builtins_{builtins}, globals_{globals} {}
 
 void CodeRuntime::addReference(BorrowedRef<> obj) {
-  // Serialize as we modify the ref-count to obj which may be widely accessible.
-  ThreadedCompileSerialize guard;
-  references_.emplace(ThreadedRef<>::create(obj));
+  JIT_DCHECK(
+      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+  if (!_Py_IsImmortal(obj)) {
+    references_.emplace(ThreadedRef<>::create(obj));
+  }
+}
+
+void CodeRuntime::transferReferences(std::unordered_set<ThreadedRef<>>&& refs) {
+  JIT_DCHECK(
+      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+  references_.merge(std::move(refs));
 }
 
 void CodeRuntime::releaseReferences() {

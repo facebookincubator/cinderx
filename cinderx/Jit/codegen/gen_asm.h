@@ -73,6 +73,10 @@ class NativeGenerator {
     return env_.code_rt;
   }
 
+  void transferReferences() {
+    env_.transferReferences();
+  }
+
   bool isGen() const {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }

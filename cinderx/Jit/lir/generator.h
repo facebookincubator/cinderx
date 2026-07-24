@@ -216,7 +216,7 @@ class LIRGenerator {
 
     if (hir_instr.isGuardIs()) {
       const auto& guard = static_cast<const hir::GuardIs&>(hir_instr);
-      env_->code_rt->addReference(guard.target());
+      env_->addReference(guard.target());
       instr->addOperands(MemImm{guard.target()});
     } else if (hir_instr.isGuardType()) {
       const auto& guard = static_cast<const hir::GuardType&>(hir_instr);
@@ -225,7 +225,7 @@ class LIRGenerator {
           guard.target().isExact(), "Only exact type guards are supported");
       PyTypeObject* guard_type = guard.target().uniquePyType();
       JIT_CHECK(guard_type != nullptr, "Ensure unique representation exists");
-      env_->code_rt->addReference(reinterpret_cast<PyObject*>(guard_type));
+      env_->addReference(reinterpret_cast<PyObject*>(guard_type));
       instr->addOperands(MemImm{guard_type});
     } else {
       instr->addOperands(Imm{0});
@@ -410,7 +410,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
     BasicBlock* entry_block,
     const std::vector<hir::TypedArgument>& typed_args,
     int num_args,
-    CodeRuntime* code_rt,
+    codegen::Environ* env,
     asmjit::Label failure_label);
 
 // Build a post-regalloc LIR block for the function entry prologue

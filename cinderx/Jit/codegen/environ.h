@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/containers.h"
+#include "cinderx/Common/ref.h"
 #include "cinderx/Jit/codegen/annotations.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/context.h"
@@ -107,6 +108,29 @@ struct Environ {
 
   // Runtime data for this function.
   jit::CodeRuntime* code_rt{nullptr};
+
+  // Pending references to be added to CodeRuntime at end of compilation.
+  // During threaded compilation, we record borrowed references here without
+  // acquiring GIL, then flush them in batch to CodeRuntime with GIL held.
+  // This avoids GIL contention during codegen while keeping CodeRuntime simple.
+  std::vector<BorrowedRef<>> pending_references_;
+
+  void addReference(BorrowedRef<> obj) {
+    JIT_DCHECK(obj != nullptr, "no nulls allowed");
+    pending_references_.push_back(obj);
+  }
+
+  // Transfer the environments owned references into the CodeRuntime
+  void transferReferences() {
+    JIT_DCHECK(
+        getThreadedCompileContext().canAccessSharedData(),
+        "lock should be held");
+    code_rt->setReifier(ThreadedRef<>::create(reifier));
+    auto pending = std::move(pending_references_);
+    for (BorrowedRef<> obj : pending) {
+      code_rt->addReference(obj);
+    }
+  }
 
   // Codegen-lifetime cache mapping live-value instructions to their deopt
   // metadata index. Avoids duplicate CodeRuntime entries when multiple passes

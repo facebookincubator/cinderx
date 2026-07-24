@@ -620,7 +620,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
     BasicBlock* entry_block,
     const std::vector<hir::TypedArgument>& typed_args,
     int num_args,
-    CodeRuntime* code_rt,
+    codegen::Environ* env,
     asmjit::Label failure_label) {
   if (typed_args.empty()) {
     return {};
@@ -642,7 +642,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
 
   // Keep type objects alive.
   for (const auto& arg : typed_args) {
-    code_rt->addReference(BorrowedRef(arg.pytype));
+    env->addReference(BorrowedRef(arg.pytype));
   }
 
   // Allocate the dispatch block first so it is laid out before all type check
@@ -702,7 +702,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
 
   // Allocate a jump table in CodeRuntime (num_args + 1 entries for
   // defaulted_arg_count = 0 through num_args).
-  auto* jump_table = code_rt->allocateTypeCheckJumpTable(num_args + 1);
+  auto* jump_table = env->code_rt->allocateTypeCheckJumpTable(num_args + 1);
   auto table_addr = reinterpret_cast<uint64_t>(jump_table);
 
   // Build the unresolved jump table for post-codegen resolution.
@@ -3704,7 +3704,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           // memory reused.
           const auto& guard_is = static_cast<const hir::GuardIs&>(instr);
           if (BorrowedRef<> target_obj = guard_is.target()) {
-            env_->code_rt->addReference(target_obj);
+            env_->addReference(target_obj);
           }
         }
         Instruction* value = bbb.getDefInstr(instr.getOperand(0));
@@ -3729,7 +3729,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // comparison, with no other owner.
         if (BorrowedRef<PyTypeObject> type_obj =
                 instr.target().uniquePyType()) {
-          env_->code_rt->addReference(type_obj.getObj());
+          env_->addReference(type_obj.getObj());
         }
         Instruction* value = bbb.getDefInstr(instr.getOperand(0));
         if constexpr (kFreeThreadedBuild) {
@@ -3759,13 +3759,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             PyDict_CheckExact(globals),
             "Globals should be a dict, but is actually a {}",
             Py_TYPE(globals)->tp_name);
-        env_->code_rt->addReference(globals);
+        env_->addReference(globals);
         PyObject* builtins = instr->builtins();
         JIT_CHECK(
             PyDict_CheckExact(builtins),
             "Builtins should be a dict, but is actually a {}",
             Py_TYPE(builtins)->tp_name);
-        env_->code_rt->addReference(builtins);
+        env_->addReference(builtins);
         PyObject* name =
             PyTuple_GET_ITEM(instr->code()->co_names, instr->nameIdx());
         JIT_CHECK(
@@ -3789,9 +3789,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           break;
         }
         PyObject* builtins = instr->frameState()->builtins;
-        env_->code_rt->addReference(builtins);
+        env_->addReference(builtins);
         PyObject* globals = instr->frameState()->globals;
-        env_->code_rt->addReference(globals);
+        env_->addReference(globals);
         bbb.appendCallInstruction(
             instr->output(), rt::loadGlobal, globals, builtins, name);
         break;
@@ -4489,7 +4489,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* globals;
         if (getConfig().stable_frame) {
           BorrowedRef<> obj = instr->frameState()->globals;
-          env_->code_rt->addReference(obj);
+          env_->addReference(obj);
           globals = bbb.appendInstr(
               OutVReg{},
               Instruction::kMove,
@@ -4637,13 +4637,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = static_cast<const BeginInlinedFunction*>(&i);
         // Track references for code, globals, builtins, func.
         BorrowedRef<PyCodeObject> code = instr->code();
-        env_->code_rt->addReference(code.getObj());
+        env_->addReference(code.getObj());
         PyObject* globals = instr->globals();
-        env_->code_rt->addReference(globals);
+        env_->addReference(globals);
         PyObject* builtins = instr->builtins();
-        env_->code_rt->addReference(builtins);
+        env_->addReference(builtins);
         PyObject* func = instr->func();
-        env_->code_rt->addReference(func);
+        env_->addReference(func);
 
         // The caller frame for the `previous` field.  `frameOffsetBefore` lands
         // on the start of the caller's frame slot.  The non-inlined root
@@ -4670,7 +4670,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto existing_reifier = inline_code_to_reifier_.find(code);
         if (existing_reifier == inline_code_to_reifier_.end()) {
           frame_reifier = instr->reifier();
-          env_->code_rt->addReference(frame_reifier);
+          env_->addReference(frame_reifier);
           inline_code_to_reifier_.emplace(code, frame_reifier.get());
         } else {
           frame_reifier = existing_reifier->second;

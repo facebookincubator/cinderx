@@ -762,8 +762,11 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.code_rt = env_.ctx->allocateCodeRuntime(
       func->code.get(), func->builtins.get(), func->globals.get());
 
+  env_.addReference(func->code.getObj());
+  env_.addReference(func->builtins.getObj());
+  env_.addReference(func->globals.getObj());
   for (auto& ref : func->env.references()) {
-    env_.code_rt->addReference(ref);
+    env_.addReference(ref);
   }
 
   lir::LIRGenerator lirgen(getFunction(), &env_);
@@ -890,10 +893,6 @@ void* NativeGenerator::getVectorcallEntry() {
   JIT_DCHECK(code.codeSize() < INT_MAX, "Code size is larger than INT_MAX");
   compiled_size_ = code.codeSize();
   env_.code_rt->setFrameSize(env_.stack_frame_size);
-  {
-    ThreadedCompileSerialize guard;
-    env_.code_rt->setReifier(ThreadedRef<>::create(func->env.reifier));
-  }
   if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {
     JIT_DCHECK(
         env_.shadow_frames_and_spill_size % kPointerSize == 0,
@@ -1142,7 +1141,7 @@ void NativeGenerator::generatePrologueBlocks(lir::BasicBlock* frameSetupBlock) {
   env_.prologue_exit = as_->newLabel();
   if (func_->has_primitive_args) {
     BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
-    env_.code_rt->addReference(info);
+    env_.addReference(info);
 
     lir::GeneratePrimitiveArgsPrologueBlock(
         lir_func_.get(),
@@ -1166,7 +1165,7 @@ void NativeGenerator::generatePrologueBlocks(lir::BasicBlock* frameSetupBlock) {
         entry_block,
         getFunction()->typed_args,
         getFunction()->numArgs(),
-        env_.code_rt,
+        &env_,
         env_.static_arg_typecheck_failed_label);
     env_.static_typecheck_table = jt.table;
     env_.static_typecheck_jt_entries = std::move(jt.entries);

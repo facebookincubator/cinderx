@@ -1282,8 +1282,10 @@ unsigned long TypedArgument::threadSafeTpFlags() const {
 Environment::~Environment() {
   // Serialize as we modify the ref-count of objects which may be widely
   // accessible.
-  ThreadedCompileSerialize guard;
-  references_.clear();
+  if (strong_references_.size()) {
+    ThreadedCompileSerialize guard;
+    strong_references_.clear();
+  }
 }
 
 Register* Environment::allocateRegister() {
@@ -1315,19 +1317,20 @@ Register* Environment::addRegister(std::unique_ptr<Register> reg) {
 }
 
 BorrowedRef<> Environment::addReference(BorrowedRef<> obj) {
-  // Serialize as we modify the ref-count to obj which may be widely accessible.
-  ThreadedCompileSerialize guard;
-  return references_.emplace(ThreadedRef<>::create(obj)).first->get();
+  return references_.emplace(obj).first->get();
 }
 
-BorrowedRef<> Environment::addReference(Ref<> obj) {
-  // ThreadedRef cannot steal from Ref, so have to go through BorrowedRef and
-  // accept the extra increfs and decrefs.
-  return addReference(BorrowedRef<>{obj});
+BorrowedRef<> Environment::addReference(Ref<>&& obj) {
+  return strong_references_.emplace(ThreadedRef<>::steal(obj.release()))
+      .first->get();
 }
 
 const Environment::ReferenceSet& Environment::references() const {
   return references_;
+}
+
+Environment::StrongReferenceSet&& Environment::stealStrongReferences() {
+  return std::move(strong_references_);
 }
 
 const char* const kFailureTypeMsgs[] = {

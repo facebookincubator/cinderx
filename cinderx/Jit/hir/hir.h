@@ -4173,7 +4173,8 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 class Environment {
  public:
   using RegisterMap = std::unordered_map<int, std::unique_ptr<Register>>;
-  using ReferenceSet = std::unordered_set<ThreadedRef<>>;
+  using ReferenceSet = std::unordered_set<BorrowedRef<>>;
+  using StrongReferenceSet = std::unordered_set<ThreadedRef<>>;
 
   Environment() = default;
   ~Environment();
@@ -4190,9 +4191,10 @@ class Environment {
   // alive for use by the compiled code. Make Environment a new owner of the
   // object.
   BorrowedRef<> addReference(BorrowedRef<> obj);
-  BorrowedRef<> addReference(Ref<> obj);
+  BorrowedRef<> addReference(Ref<>&& obj);
 
   const ReferenceSet& references() const;
+  StrongReferenceSet&& stealStrongReferences();
 
   // Returns nullptr if a register with the given `id` isn't found
   Register* getRegister(int id);
@@ -4230,6 +4232,7 @@ class Environment {
 
   RegisterMap registers_;
   ReferenceSet references_;
+  StrongReferenceSet strong_references_;
   int next_register_id_{0};
   int next_load_type_attr_cache_{0};
   int next_load_type_method_cache_{0};

@@ -137,7 +137,7 @@ void BasicBlockBuilder::createRegisterInput(
       instr->allocateImmediateInput(static_cast<uint64_t>(tp.intSpec()), dat);
       return;
     } else if (tp.hasObjectSpec()) {
-      env_->code_rt->addReference(tp.objectSpec());
+      env_->addReference(tp.objectSpec());
       instr->allocateImmediateInput(
           reinterpret_cast<uint64_t>(tp.objectSpec()), DataType::kObject);
       return;

@@ -58,6 +58,9 @@ class alignas(16) CodeRuntime {
   // new owner of the object.
   void addReference(BorrowedRef<> obj);
 
+  // Transfer threaded references to be owned by the CodeRuntime.
+  void transferReferences(std::unordered_set<ThreadedRef<>>&& refs);
+
   // Release any references this CodeRuntime holds to Python objects.
   void releaseReferences();
 

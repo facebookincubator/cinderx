@@ -204,8 +204,8 @@ class ThreadedCompileSerialize {
  * tracked in the debug build during ref leak tests, so care
  * must be used to use them safely.
  *
- * Unlike Ref a ThreadedRef cannot be stolen because it would
- * result in an imbalance of the reference count stats.
+ * Can only be stolen from another strong reference which loses
+ * its reference to avoid an imbalance of the reference count stats.
  */
 
 template <typename T = PyObject>
@@ -272,6 +272,10 @@ class ThreadedRef : public RefBase<T> {
   template <typename V>
   static ThreadedRef steal(const ThreadedRef<V>&) = delete;
 
+  static ThreadedRef steal(T* obj) {
+    return ThreadedRef(reinterpret_cast<T*>(obj), StealTag{});
+  }
+
   template <typename X = T>
     requires(!IsPyObject<X>)
   static ThreadedRef create(PyObject* obj) {
@@ -281,6 +285,11 @@ class ThreadedRef : public RefBase<T> {
  private:
   ThreadedRef(const ThreadedRef&) = delete;
   ThreadedRef& operator=(const ThreadedRef&) = delete;
+
+  enum class StealTag {};
+  ThreadedRef(T* obj, StealTag) {
+    ptr_ = obj;
+  }
 
   explicit ThreadedRef(T* obj) {
     ptr_ = obj;
