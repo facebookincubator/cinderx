@@ -36,28 +36,6 @@ getattrofunc Ci_tp_getattr_hook;
 #include "pystats.h"
 #define _PyAsyncGenWrappedValue_CheckExact(o) \
                     Py_IS_TYPE(o, &_PyAsyncGenWrappedValue_Type)
-#if _PyAsyncGen_MAXFREELIST > 0
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
-#endif
-#if defined(Py_DEBUG) && _PyAsyncGen_MAXFREELIST > 0
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
-#ifdef Py_DEBUG
-#endif
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
-#ifdef Py_DEBUG
-#endif
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
-#ifdef Py_DEBUG
-#endif
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
-#ifdef Py_DEBUG
-#endif
-#endif
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
   return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
 }
@@ -506,12 +484,6 @@ void Cix_format_exc_check_arg(
 #endif
 #define ADD_INT(NAME) if (PyModule_AddIntConstant(module, #NAME, NAME) < 0) { return -1; }
 #undef ADD_INT
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
 typedef struct _gc_runtime_state GCState;
 static inline void
 gc_list_init(PyGC_Head *list)

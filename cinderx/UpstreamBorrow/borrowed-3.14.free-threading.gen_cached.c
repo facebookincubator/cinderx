@@ -191,8 +191,6 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 
 #define PyDict_LOG_MINSIZE 3
 #define PyDict_MINSIZE 8
-#ifdef META_PYTHON
-#endif
 #ifdef Py_GIL_DISABLED
 #define ASSERT_DICT_LOCKED(op) ASSERT_DICT_LOCKED(_Py_CAST(PyObject*, op))
 #define ASSERT_WORLD_STOPPED_OR_DICT_LOCKED(op)                         \
@@ -256,382 +254,22 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #define STORE_KEYS_NENTRIES(keys, nentries) FT_ATOMIC_STORE_SSIZE_RELAXED(keys->dk_nentries, nentries)
 #define STORE_USED(mp, used) FT_ATOMIC_STORE_SSIZE_RELAXED(mp->ma_used, used)
 #define PERTURB_SHIFT 5
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifndef NDEBUG
-#endif
 #define DK_MASK(dk) (DK_SIZE(dk)-1)
 #define _Py_DICT_IMMORTAL_INITIAL_REFCNT PY_SSIZE_T_MIN
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#if SIZEOF_VOID_P > 4
-#endif
-#if SIZEOF_VOID_P > 4
-#endif
 #define USABLE_FRACTION(n) (((n) << 1)/3)
-#if SIZEOF_LONG == SIZEOF_SIZE_T
-#elif defined(_MSC_VER)
-#else
-#endif
 #define GROWTH_RATE(d) ((d)->ma_used*3)
-#ifdef Py_GIL_DISABLED
-#endif
 #define Py_EMPTY_KEYS &empty_keys_struct
 #ifdef DEBUG_PYDICT
 #  define ASSERT_CONSISTENT(op) assert(_PyDict_CheckConsistency((PyObject *)(op), 1))
 #else
 #  define ASSERT_CONSISTENT(op) assert(_PyDict_CheckConsistency((PyObject *)(op), 0))
 #endif
-#ifdef DEBUG_PYDICT
-#endif
 #define CHECK(expr) \
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
 #undef CHECK
-#if SIZEOF_VOID_P > 4
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef META_PYTHON
-#ifdef Py_GIL_DISABLED
-#endif
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
 #define CACHED_KEYS(tp) (((PyHeapTypeObject*)tp)->ht_cached_keys)
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#else   // Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else /* Py_GIL_DISABLED */
-#endif  /* Py_GIL_DISABLED */
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifndef Py_GIL_DISABLED
-#endif  /* Py_GIL_DISABLED */
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_STATS
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
 #if 0
 #define CHECK(val) assert(val); if (!(val)) { return 0; }
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifndef NDEBUG
 #endif
 // Several functions in dictobject.c check for exact pointer equality on Py_EMPTY_KEYS
 // but the global it points to is only locally visible. Fortunately, we can extract
@@ -2417,8 +2055,6 @@ _PyDict_KeysSize(PyDictKeysObject *keys)
 
 // _PyCode_Quicken is used by copy_code from codeobject.c, so must be borrowed first
 #ifdef Py_STATS
-#if PYSTATS_MAX_UOP_ID < MAX_UOP_ID
-#endif
 #define ADD_STAT_TO_DICT(res, field) \
     do { \
         PyObject *val = PyLong_FromUnsignedLongLong(stats->field); \
@@ -2439,15 +2075,8 @@ _PyDict_KeysSize(PyDictKeysObject *keys)
         fprintf(out, "    opcode[%s]." #field " : %" PRIu64 "\n", _PyOpcode_OpName[i], stats[i].field); \
     }
 #undef PRINT_STAT
-#ifdef _Py_TIER2
-#endif
-#ifdef _Py_TIER2
-#endif
 #define MEM_IS_ZERO(DATA) mem_is_zero((unsigned char*)DATA, sizeof(*(DATA)))
 #undef MEM_IS_ZERO
-# ifdef MS_WINDOWS
-# else
-# endif
 #define SPECIALIZATION_FAIL(opcode, kind) \
 do { \
     if (_Py_stats) { \
@@ -2623,21 +2252,6 @@ do { \
 #define SPEC_FAIL_CONTAINS_OP_TUPLE      10
 #define SPEC_FAIL_CONTAINS_OP_LIST       11
 #define SPEC_FAIL_CONTAINS_OP_USER_CLASS 12
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_STATS
-#endif   // Py_STATS
-#ifdef Py_STATS
-#endif
-#ifndef META_PYTHON
-#endif
-#ifdef Py_STATS
-#endif
-#ifdef Py_STATS
-#endif
 #define BITWISE_LONGS_ACTION(NAME, OP) \
     static PyObject * \
     (NAME)(PyObject *lhs, PyObject *rhs) \
@@ -2665,27 +2279,7 @@ do { \
         return PyFloat_FromDouble(lhs_val OP rhs_val); \
     }
 #undef LONG_FLOAT_ACTION
-#ifdef Py_STATS
-#endif   // Py_STATS
-#ifdef Py_STATS
-#endif   // Py_STATS
-#ifdef Py_STATS
-#endif   // Py_STATS
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_STATS
-#endif  // Py_STATS
-#ifdef Py_STATS
-#endif
-#ifdef Py_STATS
-#endif
 #define NO_LOC_4 (128 | (PY_CODE_LOCATION_INFO_NONE << 3) | 3)
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
 void
 _PyCode_Quicken(_Py_CODEUNIT *instructions, Py_ssize_t size, int enable_counters)
 {
@@ -3085,69 +2679,12 @@ error:
 #define type_lock_allow_release()
 #endif
 #define PyTypeObject_CAST(op)   ((PyTypeObject *)(op))
-#ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
 #define SIGNATURE_END_MARKER         ")\n--\n\n"
 #define SIGNATURE_END_MARKER_LENGTH  6
 #define CHECK(expr) \
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG((PyObject *)type, Py_STRINGIFY(expr)); } } while (0)
 #undef CHECK
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifndef Py_GIL_DISABLED
-#else
-#endif
-#ifndef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
 #define MAX_VERSIONS_PER_CLASS 1000
-#if _Py_ATTR_CACHE_UNUSED < MAX_VERSIONS_PER_CLASS
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#if Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#if Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifndef NDEBUG
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
 #define COPYVAL(SLOT) \
     if (type->SLOT == 0) { type->SLOT = base->SLOT; }
 #undef COPYVAL
@@ -3168,8 +2705,6 @@ error:
 #define COPYMAP(SLOT) COPYSLOT(tp_as_mapping->SLOT)
 #define COPYBUF(SLOT) COPYSLOT(tp_as_buffer->SLOT)
 #define COLLECTION_FLAGS (Py_TPFLAGS_SEQUENCE | Py_TPFLAGS_MAPPING)
-#ifdef Py_TRACE_REFS
-#endif
 #undef RICHCMP_WRAPPER
 #define RICHCMP_WRAPPER(NAME, OP) \
 static PyObject * \
@@ -3236,10 +2771,6 @@ FUNCNAME(PyObject *self, PyObject *other) \
 #define SLOT1BIN(FUNCNAME, SLOTNAME, DUNDER, RDUNDER) \
     SLOT1BINFULL(FUNCNAME, FUNCNAME, SLOTNAME, DUNDER, RDUNDER)
 #define slot_mp_length slot_sq_length
-#ifndef Py_GIL_DISABLED
-#endif
-#ifndef Py_GIL_DISABLED
-#endif
 #define PyBufferWrapper_CAST(op)    ((PyBufferWrapper *)(op))
 #undef TPSLOT
 #undef FLSLOT
@@ -4009,10 +3540,6 @@ static const int8_t EVENT_FOR_OPCODE[256] = {
 #define MODIFY_BYTECODE(code, func, ...) \
     (func)(code, _PyCode_CODE(code), __VA_ARGS__)
 #endif
-#ifndef NDEBUG
-#endif
-#ifndef NDEBUG
-#endif
 #define NO_LINE (-2)
 #ifdef INSTRUMENT_DEBUG
 #define CHECK(test) do { \
@@ -4024,31 +3551,12 @@ static const int8_t EVENT_FOR_OPCODE[256] = {
 #else
 #define CHECK(test) assert(test)
 #endif
-#ifndef NDEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifndef NDEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef _Py_TIER2
-#endif
-#ifdef INSTRUMENT_DEBUG
-#endif
-#ifdef INSTRUMENT_DEBUG
-#endif
 #define C_RETURN_EVENTS \
     ((1 << PY_MONITORING_EVENT_C_RETURN) | \
      (1 << PY_MONITORING_EVENT_C_RAISE))
 #define C_CALL_EVENTS \
     (C_RETURN_EVENTS | (1 << PY_MONITORING_EVENT_CALL))
 #define MONITORING_VERSION_INCREMENT (1 << _PY_EVAL_EVENTS_BITS)
-#ifdef _Py_TIER2
-#endif
 #define _PyLegacyBranchEventHandler_CAST(op)    ((_PyLegacyBranchEventHandler *)(op))
 #define branchesiterator_CAST(op)   ((branchesiterator *)(op))
 static inline bool
@@ -7297,29 +6805,14 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 }
 
 #ifdef HAVE_DLOPEN
-#  ifdef HAVE_DLFCN_H
-#  endif
 #  if !HAVE_DECL_RTLD_LAZY
 #    define RTLD_LAZY 1
 #  endif
-#endif
-#ifdef HAVE_THREAD_LOCAL
-#endif
-#ifdef HAVE_THREAD_LOCAL
-#else
-#endif
-#ifdef HAVE_THREAD_LOCAL
-#else
-#endif
-#ifdef HAVE_THREAD_LOCAL
-#else
 #endif
 #define tstate_verify_not_active(tstate) \
     if (tstate == current_fast_get()) { \
         _Py_FatalErrorFormat(__func__, "tstate %p is still current", tstate); \
     }
-#ifdef HAVE_FORK
-#endif
 #define gilstate_tss_initialized(runtime) \
     tstate_tss_initialized(&(runtime)->autoTSSkey)
 #define gilstate_tss_init(runtime) \
@@ -7334,16 +6827,6 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
     tstate_tss_clear(&(runtime)->autoTSSkey)
 #define gilstate_tss_reinit(runtime) \
     tstate_tss_reinit(&(runtime)->autoTSSkey)
-#ifndef NDEBUG
-#endif  // !NDEBUG
-#ifdef PY_HAVE_THREAD_NATIVE_ID
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifndef HAVE_PTHREAD_STUBS
-#endif
-#ifdef PY_HAVE_THREAD_NATIVE_ID
-#endif
 #define LOCKS_INIT(runtime) \
     { \
         &(runtime)->interpreters.mutex, \
@@ -7359,152 +6842,17 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
         &(runtime)->_main_interpreter.dict_state.watcher_mutex, \
         &(runtime)->_main_interpreter.lazy_imports_mutex, \
     }
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef HAVE_FORK
-#ifdef Py_GIL_DISABLED
-#endif
-#endif
-#ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef META_PYTHON
-#endif
-#if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
-#  ifdef Py_STACKREF_CLOSE_DEBUG
-#  endif
-#endif
-#if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef HAVE_FORK
-#endif
-#ifdef _Py_TIER2
-#endif
-#if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
-#  ifdef Py_STACKREF_CLOSE_DEBUG
-#  endif
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef HAVE_FORK
-#endif
-#ifndef NDEBUG
-#endif
-#if LLONG_MAX > INT64_MAX
-#endif
-#ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#if defined(Py_DEBUG)
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#if defined(Py_DEBUG)
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
 #ifdef Py_GIL_DISABLED
 #define _Py_FOR_EACH_STW_INTERP(stw, i)                                     \
     for (PyInterpreterState *i = interp_for_stop_the_world((stw));          \
             i != NULL; i = ((stw->is_global) ? i->next : NULL))
 #endif  // Py_GIL_DISABLED
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#if defined(Py_GIL_DISABLED) && !defined(Py_LIMITED_API)
-#ifdef HAVE_THREAD_LOCAL
-#else
-#endif
-#endif
-#ifndef NDEBUG
-#endif
-#ifdef _Py_TIER2
-#endif
 #define MINIMUM_OVERHEAD 1000
-#ifndef NDEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef __linux__
-#elif defined(__APPLE__)
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#if defined(Py_GIL_DISABLED) && !defined(WITH_MIMALLOC)
-#endif
 #undef  uint
 #define uint pymem_uint
-#ifdef MS_WINDOWS
-#elif defined(__linux__)
-#elif defined(__APPLE__)
-#endif
-#if defined(__GNUC__) || defined(__clang__)
-#else
-#endif
 #ifdef WITH_MIMALLOC
 #ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
 #define QSBR_PAGE_MEM_LIMIT 4096*20
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
 #endif
 #endif // WITH_MIMALLOC
 #define MALLOC_ALLOC {NULL, _PyMem_RawMalloc, _PyMem_RawCalloc, _PyMem_RawRealloc, _PyMem_RawFree}
@@ -7534,18 +6882,6 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
     {&_PyRuntime.allocators.debug.mem, _PyMem_DebugMalloc, _PyMem_DebugCalloc, _PyMem_DebugRealloc, _PyMem_DebugFree}
 #define PYDBGOBJ_ALLOC \
     {&_PyRuntime.allocators.debug.obj, _PyMem_DebugMalloc, _PyMem_DebugCalloc, _PyMem_DebugRealloc, _PyMem_DebugFree}
-#ifdef Py_DEBUG
-#else
-#endif
-#ifdef Py_DEBUG
-#else
-#endif
-#ifdef Py_DEBUG
-#else
-#endif
-#ifdef Py_DEBUG
-#else
-#endif
 #ifdef WITH_PYMALLOC
 #  ifdef MS_WINDOWS
 #  elif defined(HAVE_MMAP)
@@ -7554,67 +6890,16 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 #    endif
 #  endif
 #endif
-#ifdef MS_WINDOWS
-#elif defined(ARENAS_USE_MMAP)
-#else
-#endif
-#if defined(ARENAS_USE_MMAP)
-#else
-#endif
-#ifdef MS_WINDOWS
-#elif defined(ARENAS_USE_MMAP)
-#else
-#endif
 #define ALLOCATORS_MUTEX (_PyRuntime.allocators.mutex)
 #define _PyMem_Raw (_PyRuntime.allocators.standard.raw)
 #define _PyMem (_PyRuntime.allocators.standard.mem)
 #define _PyObject (_PyRuntime.allocators.standard.obj)
 #define _PyMem_Debug (_PyRuntime.allocators.debug)
 #define _PyObject_Arena (_PyRuntime.allocators.obj_arena)
-#ifdef Py_DEBUG
-#else
-#endif
-#if defined(WITH_PYMALLOC) && !defined(Py_GIL_DISABLED)
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifndef Py_GIL_DISABLED
-#endif
-#ifdef WITH_PYMALLOC
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef WITH_PYMALLOC
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef WITH_PYMALLOC
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef WITH_PYMALLOC
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef WITH_PYMALLOC
-#ifdef WITH_MIMALLOC
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#endif  // WITH_MIMALLOC
-#endif  // WITH_PYMALLOC
 #define WORK_ITEMS_PER_CHUNK 254
-#ifdef Py_GIL_DISABLED
-#else
-#endif
 #ifdef Py_GIL_DISABLED
 #define QSBR_DEFERRED_LIMIT 127
 #define QSBR_FREE_MEM_LIMIT 1024*1024
-#endif
-#ifndef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
 #endif
 #if defined(__GNUC__) && (__GNUC__ > 2) && defined(__OPTIMIZE__)
 #  define UNLIKELY(value) __builtin_expect((value), 0)
@@ -7624,8 +6909,6 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 #  define LIKELY(value) (value)
 #endif
 #ifdef WITH_PYMALLOC
-#ifdef WITH_VALGRIND
-#endif
 #define usedpools (state->pools.used)
 #define allarenas (state->mgmt.arenas)
 #define maxarenas (state->mgmt.maxarenas)
@@ -7636,128 +6919,22 @@ _Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
 #define ntimes_arena_allocated (state->mgmt.ntimes_arena_allocated)
 #define narenas_highwater (state->mgmt.narenas_highwater)
 #define raw_allocated_blocks (state->mgmt.raw_allocated_blocks)
-#ifdef WITH_MIMALLOC
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef Py_DEBUG
-#else
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef Py_DEBUG
-#else
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
 #if WITH_PYMALLOC_RADIX_TREE
 #define arena_map_root (state->usage.arena_map_root)
 #ifdef USE_INTERIOR_NODES
 #define arena_map_mid_count (state->usage.arena_map_mid_count)
 #define arena_map_bot_count (state->usage.arena_map_bot_count)
 #endif
-#ifdef USE_INTERIOR_NODES
-#else
-#endif
 #endif /* WITH_PYMALLOC_RADIX_TREE */
-#if SIZEOF_SIZE_T <= SIZEOF_INT
-#endif
-#if WITH_PYMALLOC_RADIX_TREE
-#endif
-#if WITH_PYMALLOC_RADIX_TREE
-#else
-#endif /* !WITH_PYMALLOC_RADIX_TREE */
-#ifdef WITH_MEMORY_LIMITS
-#endif
-#ifdef WITH_VALGRIND
-#endif
-#if WITH_PYMALLOC_RADIX_TREE
-#endif
-#ifdef WITH_VALGRIND
-#endif
-#ifdef WITH_VALGRIND
-#endif
 #else   /* ! WITH_PYMALLOC */
 #endif /* WITH_PYMALLOC */
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
 #define SST SIZEOF_SIZE_T
 #ifdef PYMEM_DEBUG_SERIALNO
 #  define PYMEM_DEBUG_EXTRA_BYTES 4 * SST
 #else
 #  define PYMEM_DEBUG_EXTRA_BYTES 3 * SST
 #endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
 #define ERASED_SIZE 64
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
-#ifndef Py_GIL_DISABLED
-#endif
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
-#ifndef Py_GIL_DISABLED
-#endif
-#ifndef Py_GIL_DISABLED
-#else
-#endif
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
-#if WITH_PYMALLOC
-#else
-#endif
-#ifdef WITH_PYMALLOC
-#endif /* WITH_PYMALLOC */
-#ifdef WITH_PYMALLOC
-#endif /* WITH_PYMALLOC */
-#ifdef WITH_PYMALLOC
-#if WITH_PYMALLOC_RADIX_TREE
-#ifdef USE_INTERIOR_NODES
-#endif
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef PYMEM_DEBUG_SERIALNO
-#endif
-#if WITH_PYMALLOC_RADIX_TREE
-#ifdef USE_INTERIOR_NODES
-#endif
-#ifdef USE_INTERIOR_NODES
-#endif
-#endif
-#ifdef WITH_MIMALLOC
-#endif
-#endif /* #ifdef WITH_PYMALLOC */
 void *
 _PyObject_VirtualAlloc(size_t size)
 {
@@ -7834,123 +7011,28 @@ struct _mem_work_chunk {
     Py_ssize_t wr_idx;  // index of next item to write
     struct _mem_work_item array[WORK_ITEMS_PER_CHUNK];
 };
-#ifdef Py_LIMITED_API
-#endif
 #define CHECK(expr) \
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
 #undef CHECK
 #ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_REF_DEBUG
 #  define REFTOTAL(interp) \
     interp->object_state.reftotal
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
 #undef REFTOTAL
 #endif /* Py_REF_DEBUG */
 #ifdef Py_TRACE_REFS
 #define REFCHAIN(interp) interp->object_state.refchain
 #define REFCHAIN_VALUE ((void*)(uintptr_t)1)
-#ifndef NDEBUG
-#else
-#endif
 #endif  /* Py_TRACE_REFS */
-#ifdef Py_REF_DEBUG
-#endif /* Py_REF_DEBUG */
-#ifdef Py_GIL_DISABLED
-# ifdef Py_REF_DEBUG
-#  if SIZEOF_SIZE_T == 8
-#  else
-#  endif
-# endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#endif  /* Py_GIL_DISABLED */
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef META_PYTHON
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#ifdef META_PYTHON
-#endif
-#ifdef _Py_TIER2
-#endif
-#if !defined(Py_GIL_DISABLED)
-#if SIZEOF_VOID_P > 4
-#else
-#endif
-#else
-#ifdef _Py_THREAD_SANITIZER
-#else
-#endif
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_GIL_DISABLED
-#elif SIZEOF_VOID_P > 4
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#ifdef Py_TRACE_REFS
-#ifdef SLOW_UNREF_CHECK
-#endif
-#endif
 #ifdef Py_TRACE_REFS
 #undef REFCHAIN
 #undef REFCHAIN_VALUE
 #endif  /* Py_TRACE_REFS */
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_GIL_DISABLED
-#else
-#endif
-#ifdef Py_DEBUG
-#if !defined(Py_GIL_DISABLED) && !defined(Py_STACKREF_DEBUG)
-#endif
-#endif
-#ifdef Py_TRACE_REFS
-#endif
-#ifdef Py_DEBUG
-#endif
 #undef Py_NewRef
 #undef Py_XNewRef
 #undef Py_Is
 #undef Py_IsNone
 #undef Py_IsTrue
 #undef Py_IsFalse
-#ifndef NDEBUG
-#endif
 #undef Py_TYPE
 #undef Py_REFCNT
 // object.c #undef's a bunch of macros so it can implement the stable ABI
