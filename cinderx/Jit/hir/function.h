@@ -22,12 +22,14 @@ class Function {
   Function();
   ~Function();
 
-  ThreadedRef<PyCodeObject> code;
-  ThreadedRef<PyDictObject> builtins;
-  ThreadedRef<PyDictObject> globals;
+  // All references in Function are kept alive by the preloader during
+  // compilation
+  BorrowedRef<PyCodeObject> code;
+  BorrowedRef<PyDictObject> builtins;
+  BorrowedRef<PyDictObject> globals;
 
   // for primitive args only, null if there are none
-  ThreadedRef<_PyTypedArgsInfo> prim_args_info;
+  BorrowedRef<_PyTypedArgsInfo> prim_args_info;
 
   // Fully-qualified name of the function
   std::string fullname;

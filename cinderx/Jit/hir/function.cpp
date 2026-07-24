@@ -21,17 +21,10 @@ static_assert(sizeof(Instr) == 6 * kPointerSize);
 
 Function::Function() {}
 
-Function::~Function() {
-  // Serialize as we alter ref-counts on potentially global objects.
-  ThreadedCompileSerialize guard;
-  code.reset();
-  builtins.reset();
-  globals.reset();
-  prim_args_info.reset();
-}
+Function::~Function() = default;
 
 void Function::setCode(BorrowedRef<PyCodeObject> new_code) {
-  code.reset(new_code);
+  code = new_code;
 }
 
 std::size_t Function::numBlocks() const {

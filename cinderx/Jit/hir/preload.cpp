@@ -271,13 +271,12 @@ PyObject** Preloader::globalCache(int name_idx) const {
 
 std::unique_ptr<Function> Preloader::makeFunction() const {
   // We touch refcounts of Python objects here, so must serialize
-  ThreadedCompileSerialize guard;
   auto irfunc = std::make_unique<Function>();
   irfunc->fullname = fullname_;
   irfunc->setCode(code_);
-  irfunc->builtins.reset(builtins_);
-  irfunc->globals.reset(globals_);
-  irfunc->prim_args_info.reset(prim_args_info_);
+  irfunc->builtins = builtins_;
+  irfunc->globals = globals_;
+  irfunc->prim_args_info = prim_args_info_;
   irfunc->return_type = returnType();
   irfunc->has_primitive_args = hasPrimitiveArgs();
   irfunc->env.reifier = reifier();
