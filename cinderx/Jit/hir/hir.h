@@ -4247,17 +4247,21 @@ struct TypedArgument {
       int optional,
       int exact,
       Type jit_type);
-  ~TypedArgument();
 
-  TypedArgument(const TypedArgument& other);
-  TypedArgument& operator=(const TypedArgument& other);
+  ~TypedArgument() = default;
+
+  TypedArgument(const TypedArgument& other) = default;
+  TypedArgument& operator=(const TypedArgument& other) = default;
+  TypedArgument(TypedArgument&& other) = default;
+  TypedArgument& operator=(TypedArgument&& other) = default;
 
   // Returns type flags which should not change between concurrent compilation
   // threads.
   unsigned long threadSafeTpFlags() const;
 
   long locals_idx;
-  ThreadedRef<PyTypeObject> pytype;
+  // Kept alive by the Preloader
+  BorrowedRef<PyTypeObject> pytype;
   int optional;
   int exact;
   Type jit_type;

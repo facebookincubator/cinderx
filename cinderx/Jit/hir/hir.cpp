@@ -1233,10 +1233,6 @@ static const char* gFunctionFields[] = {
     "func_annotate",
 };
 
-const char* functionFieldName(FunctionAttr field) {
-  return gFunctionFields[static_cast<int>(field)];
-}
-
 TypedArgument::TypedArgument(
     long locals_idx,
     BorrowedRef<PyTypeObject> pytype,
@@ -1244,32 +1240,14 @@ TypedArgument::TypedArgument(
     int exact,
     Type jit_type)
     : locals_idx(locals_idx),
+      pytype(pytype),
       optional(optional),
       exact(exact),
-      jit_type(jit_type) {
-  ThreadedCompileSerialize guard;
-  this->pytype = ThreadedRef<PyTypeObject>::create(pytype);
-  thread_safe_flags = pytype->tp_flags & kThreadSafeFlagsMask;
-}
+      jit_type(jit_type),
+      thread_safe_flags(pytype->tp_flags & kThreadSafeFlagsMask) {}
 
-TypedArgument::~TypedArgument() {
-  ThreadedCompileSerialize guard;
-  pytype.reset();
-}
-
-TypedArgument::TypedArgument(const TypedArgument& other)
-    : locals_idx(other.locals_idx),
-      optional(other.optional),
-      exact(other.exact),
-      jit_type(other.jit_type),
-      thread_safe_flags(other.thread_safe_flags) {
-  ThreadedCompileSerialize guard;
-  pytype = ThreadedRef<PyTypeObject>::create(other.pytype);
-}
-
-TypedArgument& TypedArgument::operator=(const TypedArgument& other) {
-  new (this) TypedArgument{other};
-  return *this;
+const char* functionFieldName(FunctionAttr field) {
+  return gFunctionFields[static_cast<int>(field)];
 }
 
 unsigned long TypedArgument::threadSafeTpFlags() const {
