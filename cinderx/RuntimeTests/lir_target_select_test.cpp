@@ -109,18 +109,15 @@ BB %0
                  .opcode(Instruction::kMove)
                  .outType(DataType::kObject)
                  .inImm(0, 4294967296ULL));
-  // The memory-indirect store shape isn't modelled by Query yet, so check
-  // it (and the absence of a direct immediate store) via the formatted text.
-  std::string lir_str = lirFuncString(*lir_func);
-  EXPECT_TRUE(
-      std::regex_search(
-          lir_str,
-          std::regex{R"(\[%1:Object \+ 0x8\]:Object = Move %\d+:Object)"}))
-      << lir_str;
-  EXPECT_EQ(
-      lir_str.find("[%1:Object + 0x8]:Object = Move 4294967296(0x100000000)"),
-      std::string::npos)
-      << lir_str;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Instruction::kMove)
+                 .outInd(1, 0x8)
+                 .inDefOpcode(0, Instruction::kMove)
+                 .inDefImm(0, 0, 4294967296ULL));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Instruction::kMove)
+                    .outInd(1, 0x8)
+                    .inImm(0, 4294967296ULL));
 }
 #endif
 

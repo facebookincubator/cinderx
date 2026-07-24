@@ -32,6 +32,14 @@ bool isLinkedVreg(const Operand& operand, int id) {
   return def != nullptr && def->id() == id;
 }
 
+bool matchesInputImm(const Instruction& ins, size_t index, uint64_t imm) {
+  if (ins.getNumInputs() <= index) {
+    return false;
+  }
+  const Operand* in = ins.getInput(index);
+  return in != nullptr && in->isImm() && in->getConstant() == imm;
+}
+
 } // namespace
 
 Query::Query(const Function& func) : func_(func) {}
@@ -46,6 +54,41 @@ Query& Query::outType(DataType dt) {
 }
 Query& Query::outVreg(int id) {
   out_vreg_ = id;
+  return *this;
+}
+Query& Query::outInd(
+    int base_vreg,
+    int32_t offset,
+    std::optional<int> index_vreg,
+    DataType dt) {
+  outType(dt);
+  outIndBaseVreg(base_vreg);
+  outIndOffset(offset);
+  if (index_vreg.has_value()) {
+    outIndIndexVreg(*index_vreg);
+  } else {
+    outIndNoIndex();
+  }
+  return *this;
+}
+Query& Query::outInd(int base_vreg, int32_t offset, DataType dt) {
+  return outInd(base_vreg, offset, std::nullopt, dt);
+}
+Query& Query::outIndBaseVreg(int id) {
+  out_ind_base_vreg_ = id;
+  return *this;
+}
+Query& Query::outIndIndexVreg(int id) {
+  out_ind_index_vreg_ = id;
+  out_ind_no_index_ = false;
+  return *this;
+}
+Query& Query::outIndOffset(int32_t offset) {
+  out_ind_offset_ = offset;
+  return *this;
+}
+Query& Query::outIndNoIndex() {
+  out_ind_no_index_ = true;
   return *this;
 }
 
@@ -75,6 +118,15 @@ Query& Query::inType(size_t index, DataType dt) {
   input(index).type = dt;
   return *this;
 }
+Query& Query::inDefOpcode(size_t index, Instruction::Opcode op) {
+  input(index).def_opcode = op;
+  return *this;
+}
+Query& Query::inDefImm(size_t index, size_t def_input_index, uint64_t v) {
+  input(index).def_inputs.push_back(
+      DefInputMatch{.index = def_input_index, .imm = v});
+  return *this;
+}
 Query& Query::with(std::function<bool(const Instruction*)> pred) {
   extra_ = std::move(pred);
   return *this;
@@ -88,12 +140,40 @@ bool Query::matches(const Instruction& ins) const {
 }
 
 bool Query::matchesOutput(const Instruction& ins) const {
+  const Operand* out = ins.output();
   if (out_vreg_ && ins.id() != *out_vreg_) {
     return false;
   }
   if (out_type_) {
-    const Operand* out = ins.output();
     if (out == nullptr || out->dataType() != *out_type_) {
+      return false;
+    }
+  }
+  if (out_ind_base_vreg_ || out_ind_index_vreg_ || out_ind_offset_ ||
+      out_ind_no_index_) {
+    if (out == nullptr || !out->isInd()) {
+      return false;
+    }
+    const MemoryIndirect* ind = out->getMemoryIndirect();
+    if (ind == nullptr) {
+      return false;
+    }
+    if (out_ind_base_vreg_) {
+      const Operand* base = ind->getBaseRegOperand();
+      if (base == nullptr || !isLinkedVreg(*base, *out_ind_base_vreg_)) {
+        return false;
+      }
+    }
+    if (out_ind_index_vreg_) {
+      const Operand* index = ind->getIndexRegOperand();
+      if (index == nullptr || !isLinkedVreg(*index, *out_ind_index_vreg_)) {
+        return false;
+      }
+    }
+    if (out_ind_offset_ && ind->getOffset() != *out_ind_offset_) {
+      return false;
+    }
+    if (out_ind_no_index_ && ind->getIndexRegOperand() != nullptr) {
       return false;
     }
   }
@@ -128,6 +208,32 @@ bool Query::matchesInput(const Instruction& ins, const InputMatch& im) const {
   }
   if (im.type && in->dataType() != *im.type) {
     return false;
+  }
+  if (!matchesInputDef(*in, im)) {
+    return false;
+  }
+  return true;
+}
+
+bool Query::matchesInputDef(const Operand& in, const InputMatch& im) const {
+  if (!im.def_opcode && im.def_inputs.empty()) {
+    return true;
+  }
+  if (!in.isLinked()) {
+    return false;
+  }
+  const Instruction* def = in.getLinkedInstr();
+  if (def == nullptr) {
+    return false;
+  }
+  if (im.def_opcode && def->opcode() != *im.def_opcode) {
+    return false;
+  }
+  for (const DefInputMatch& def_input : im.def_inputs) {
+    if (def_input.imm &&
+        !matchesInputImm(*def, def_input.index, *def_input.imm)) {
+      return false;
+    }
   }
   return true;
 }

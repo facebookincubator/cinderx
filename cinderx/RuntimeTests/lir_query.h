@@ -33,6 +33,16 @@ class Query {
   // Match the output operand's data type / LIR id (`%id`).
   Query& outType(DataType dt);
   Query& outVreg(int id);
+  Query& outInd(
+      int base_vreg,
+      int32_t offset,
+      std::optional<int> index_vreg = std::nullopt,
+      DataType dt = DataType::kObject);
+  Query& outInd(int base_vreg, int32_t offset, DataType dt);
+  Query& outIndBaseVreg(int id);
+  Query& outIndIndexVreg(int id);
+  Query& outIndOffset(int32_t offset);
+  Query& outIndNoIndex();
   // Match input operand `index` as the immediate `v`.
   Query& inImm(size_t index, uint64_t v);
   // Match input operand `index` as the immediate or memory address `addr`.
@@ -41,6 +51,9 @@ class Query {
   Query& inVreg(size_t index, int id);
   // Match input operand `index`'s data type.
   Query& inType(size_t index, DataType dt);
+  // Match properties of the instruction defining linked input operand `index`.
+  Query& inDefOpcode(size_t index, Instruction::Opcode op);
+  Query& inDefImm(size_t index, size_t def_input_index, uint64_t v);
   // Arbitrary extra predicate on the instruction.
   Query& with(std::function<bool(const Instruction*)> pred);
 
@@ -50,24 +63,36 @@ class Query {
   const Function& func() const;
 
  private:
+  struct DefInputMatch {
+    size_t index{0};
+    std::optional<uint64_t> imm;
+  };
+
   struct InputMatch {
     size_t index{0};
     std::optional<uint64_t> imm;
     std::optional<uint64_t> addr;
     std::optional<int> vreg;
     std::optional<DataType> type;
+    std::optional<Instruction::Opcode> def_opcode;
+    std::vector<DefInputMatch> def_inputs;
   };
 
   InputMatch& input(size_t index);
   bool matchesOutput(const Instruction& ins) const;
   bool matchesInputs(const Instruction& ins) const;
   bool matchesInput(const Instruction& ins, const InputMatch& im) const;
+  bool matchesInputDef(const Operand& in, const InputMatch& im) const;
   const Instruction* find() const;
 
   const Function& func_;
   std::optional<Instruction::Opcode> opcode_;
   std::optional<DataType> out_type_;
   std::optional<int> out_vreg_;
+  std::optional<int> out_ind_base_vreg_;
+  std::optional<int> out_ind_index_vreg_;
+  std::optional<int32_t> out_ind_offset_;
+  bool out_ind_no_index_{false};
   std::vector<InputMatch> inputs_;
   std::function<bool(const Instruction*)> extra_;
 };
