@@ -129,6 +129,9 @@ class Preloader {
   // Get the global value at a given name index.
   BorrowedRef<> global(int name_idx) const;
 
+  // Get the global cache at a given name index
+  PyObject** globalCache(int name_idx) const;
+
   std::unique_ptr<Function> makeFunction() const;
 
   BorrowedRef<PyCodeObject> code() const;

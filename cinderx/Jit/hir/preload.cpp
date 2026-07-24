@@ -261,6 +261,14 @@ BorrowedRef<> Preloader::global(int name_idx) const {
   return *it->second;
 }
 
+PyObject** Preloader::globalCache(int name_idx) const {
+  auto it = global_caches_.find(name_idx);
+  if (it == global_caches_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
 std::unique_ptr<Function> Preloader::makeFunction() const {
   // We touch refcounts of Python objects here, so must serialize
   ThreadedCompileSerialize guard;

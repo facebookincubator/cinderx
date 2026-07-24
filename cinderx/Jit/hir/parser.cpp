@@ -479,7 +479,8 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
           /*code=*/nullptr,
           /*builtins=*/nullptr,
           /*globals=*/nullptr,
-          name_idx);
+          name_idx,
+          nullptr);
       break;
     }
     case Opcode::kStoreAttr: {

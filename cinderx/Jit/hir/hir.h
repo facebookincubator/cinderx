@@ -2859,12 +2859,14 @@ class INSTR_CLASS(LoadGlobalCached, (), HasOutput, Operands<0>) {
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
-      int name_idx)
+      int name_idx,
+      PyObject** cache)
       : InstrT(dst),
         code_(code),
         builtins_(builtins),
         globals_(globals),
-        name_idx_(name_idx) {}
+        name_idx_(name_idx),
+        cache_(cache) {}
 
   BorrowedRef<PyCodeObject> code() const {
     return code_;
@@ -2878,6 +2880,10 @@ class INSTR_CLASS(LoadGlobalCached, (), HasOutput, Operands<0>) {
     return globals_;
   }
 
+  PyObject** cache() const {
+    return cache_;
+  }
+
   int nameIdx() const {
     return name_idx_;
   }
@@ -2887,6 +2893,7 @@ class INSTR_CLASS(LoadGlobalCached, (), HasOutput, Operands<0>) {
   BorrowedRef<PyDictObject> builtins_;
   BorrowedRef<PyDictObject> globals_;
   int name_idx_;
+  PyObject** cache_;
 };
 
 DEFINE_SIMPLE_INSTR(

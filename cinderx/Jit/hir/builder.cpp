@@ -3547,7 +3547,12 @@ void HIRBuilder::emitLoadGlobal(
       return false;
     }
     tc.emit<LoadGlobalCached>(
-        result, code_, preloader_.builtins(), preloader_.globals(), name_idx);
+        result,
+        code_,
+        preloader_.builtins(),
+        preloader_.globals(),
+        name_idx,
+        preloader_.globalCache(name_idx));
     auto guard_is = tc.emit<GuardIs>(result, value, result);
     guard_is->setDescr(
         fmt::format("LOAD_GLOBAL: {}", preloader_.name(name_idx)));

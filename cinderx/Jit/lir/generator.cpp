@@ -3752,7 +3752,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             getConfig().stable_frame,
             "Can only use LoadGlobalCached when frame data is stable across "
             "function calls");
-        ThreadedCompileSerialize guard;
         auto instr = static_cast<const LoadGlobalCached*>(&i);
         PyObject* globals = instr->globals();
         JIT_CHECK(
@@ -3766,15 +3765,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Builtins should be a dict, but is actually a {}",
             Py_TYPE(builtins)->tp_name);
         env_->addReference(builtins);
-        PyObject* name =
-            PyTuple_GET_ITEM(instr->code()->co_names, instr->nameIdx());
-        JIT_CHECK(
-            PyUnicode_CheckExact(name),
-            "Global name should be a string, but is actually a {}",
-            Py_TYPE(name)->tp_name);
-        auto cache = cinderx::getModuleState()->cache_manager->getGlobalCache(
-            builtins, globals, name);
-        bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{cache});
+        bbb.appendInstr(
+            instr->output(), Instruction::kMove, MemImm{instr->cache()});
         break;
       }
       case Opcode::kLoadGlobal: {
