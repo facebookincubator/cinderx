@@ -3,6 +3,7 @@
 #include "cinderx/Jit/hir/builtin_load_method_elimination.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/type.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/module_state.h"
@@ -16,40 +17,6 @@ struct MethodInvoke {
   GetSecondOutput* get_instance{nullptr};
   CallMethod* call_method{nullptr};
 };
-
-BorrowedRef<> immutableMultithreadedTypeLookup(
-    BorrowedRef<PyTypeObject> type,
-    BorrowedRef<> name) {
-  BorrowedRef<> mro = type->tp_mro;
-  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(mro.get()); i++) {
-    PyTypeObject* mro_type =
-        reinterpret_cast<PyTypeObject*>(PyTuple_GET_ITEM(mro.get(), i));
-    if (PyType_HasFeature(mro_type, _Py_TPFLAGS_STATIC_BUILTIN)) {
-      auto& builtins = cinderx::getModuleState()->builtin_members;
-
-      auto members = builtins.find(mro_type);
-      if (members == builtins.end()) {
-        // We don't know anything about this builtin type.
-        return nullptr;
-      }
-      // We load all of the members from the MRO in the builtins
-      // cache so it's completely authorative.
-      return PyDict_GetItemWithError(members->second, name);
-    } else if (
-        !PyType_HasFeature(mro_type, Py_TPFLAGS_IMMUTABLETYPE) ||
-        !PyType_CheckExact(mro_type)) {
-      // We can't trust anything about this base type
-      return nullptr;
-    }
-
-    BorrowedRef<> method_obj =
-        PyDict_GetItemWithError(_PyType_GetDict(mro_type), name);
-    if (method_obj != nullptr) {
-      return method_obj;
-    }
-  }
-  return nullptr;
-}
 
 // Gets a directly invokable method object from a JIT Type. This only succeeds
 // if we know the type can be directly invoked.
@@ -79,21 +46,9 @@ BorrowedRef<> getMethodObjectFromType(Type receiver_type, BorrowedRef<> name) {
   }
 
   BorrowedRef<> method_obj = nullptr;
-  // In 3.12 we can't do PyType_Lookup because for built-in types it needs
-  // access to the current runtime, and in multi-threaded compile we don't
-  // have it. So we instead have a cache of all of the builtin types that we
-  // support this for.
-  auto& builtins = cinderx::getModuleState()->builtin_members;
-
-  if (PyType_HasFeature(type, _Py_TPFLAGS_STATIC_BUILTIN)) {
-    auto it = builtins.find(receiver_type.runtimePyType());
-    if (it != builtins.end()) {
-      method_obj = PyDict_GetItemWithError(it->second, name);
-    }
-  } else if (
-      PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE) &&
+  if (PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE) &&
       PyType_CheckExact(type) && type->tp_dictoffset == 0) {
-    method_obj = immutableMultithreadedTypeLookup(type, name);
+    method_obj = typeLookupSafe(type, name);
     if (method_obj != nullptr &&
         Py_TYPE(method_obj) != &PyClassMethodDescr_Type &&
         Py_TYPE(method_obj) != &PyMethodDescr_Type &&
@@ -108,7 +63,6 @@ BorrowedRef<> getMethodObjectFromType(Type receiver_type, BorrowedRef<> name) {
 // Returns true if LoadMethod/CallMethod/GetSecondOutput were removed.
 // Returns false if they could not be removed.
 bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
-  ThreadedCompileSerialize guard;
   PyCodeObject* code = invoke.load_method->frameState()->code;
   PyObject* names = code->co_names;
   PyObject* name = PyTuple_GetItem(names, invoke.load_method->nameIdx());

@@ -34,8 +34,6 @@ struct ModuleState {
   // Implement CPython's clear functionality for dropping GC references.
   int clear();
 
-  bool initBuiltinMembers();
-
   // Return the HugePageArena shared by all live SlabArenas, creating it on
   // demand. The arena (and every 2MB chunk it owns) stays alive as long as at
   // least one holder exists, and is freed once the last one is destroyed. A
@@ -105,11 +103,6 @@ struct ModuleState {
 
   // object.__getattribute__
   Ref<> object_getattribute;
-
-  // Snapshotted member dicts for standard builtin types (int, str, list, etc.)
-  // so the JIT optimizer can look up methods during multithreaded compilation
-  // without calling PyType_Lookup (which isn't safe off the main thread).
-  std::unordered_map<PyTypeObject*, Ref<>> builtin_members;
 
   // Sentinel function object placed in JIT frames to identify them.
   Ref<> frame_reifier;

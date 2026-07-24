@@ -1062,10 +1062,8 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
   state->symbolizer.reset(symbolizer);
-
-  if (!state->initBuiltinMembers()) {
-    return -1;
-  }
+  state->object_getattribute = Ref<>::create(
+      _PyType_Lookup(&PyBaseObject_Type, &_Py_ID(__getattribute__)));
 
   auto& watcher_state = state->watcher_state;
   watcher_state.setCodeWatcher(cinderx_code_watcher);
