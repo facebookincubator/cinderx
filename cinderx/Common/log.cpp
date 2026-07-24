@@ -2,8 +2,6 @@
 
 #include "cinderx/Common/log.h"
 
-#include "cinderx/Jit/threaded_compile.h"
-
 #include <stdexcept>
 
 namespace cinderx {
@@ -38,7 +36,8 @@ CINDERX_COLD void logImplV(
     fmt::string_view format,
     fmt::format_args args) {
   FILE* output = jit::getConfig().log.output_file;
-  jit::ThreadedCompileSerialize guard;
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> lock{mutex};
   fmt::print(output, "JIT: {}:{} -- ", trimSourcePath(file), line);
   fmt::vprint(output, format, args);
   fmt::print(output, "\n");
