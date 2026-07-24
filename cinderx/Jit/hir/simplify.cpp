@@ -1601,6 +1601,7 @@ Register* simplifyLoadAttrSplitDict(
   Register* receiver = load_attr->getOperand(0);
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
       env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
+  env.func.env.addReference(name);
   patchpoint->setGuiltyReg(receiver);
   patchpoint->setDescr("SplitDictDeoptPatcher");
   env.emit<UseType>(receiver, receiver->type());
@@ -1664,6 +1665,7 @@ Register* simplifyLoadAttrSplitDict(
   Register* receiver = load_attr->getOperand(0);
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
       env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
+  env.func.env.addReference(name);
   patchpoint->setGuiltyReg(receiver);
   patchpoint->setDescr("SplitDictDeoptPatcher");
   env.emit<UseType>(receiver, receiver->type());
@@ -1723,6 +1725,8 @@ void emitTypeAttrDeoptPatcher(
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
       env.func.allocateCodePatcher<TypeAttrDeoptPatcher>(
           info.py_type, info.attr_name, info.descr));
+  env.func.env.addReference(info.attr_name);
+  env.func.env.addReference(info.descr);
   patchpoint->setGuiltyReg(info.receiver);
   patchpoint->setDescr(description);
 }

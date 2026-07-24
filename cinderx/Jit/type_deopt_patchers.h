@@ -42,8 +42,9 @@ class TypeAttrDeoptPatcher : public TypeDeoptPatcher {
  private:
   void onPatch() override;
 
-  ThreadedRef<PyUnicodeObject> attr_name_;
-  ThreadedRef<> target_object_;
+  // Strong references held by the CodeRuntime
+  BorrowedRef<PyUnicodeObject> attr_name_;
+  BorrowedRef<> target_object_;
 };
 
 class SplitDictDeoptPatcher : public TypeDeoptPatcher {
@@ -58,7 +59,8 @@ class SplitDictDeoptPatcher : public TypeDeoptPatcher {
  private:
   void onPatch() override;
 
-  ThreadedRef<PyUnicodeObject> attr_name_;
+  // Strong reference held by the CodeRuntime
+  BorrowedRef<PyUnicodeObject> attr_name_;
 
   // We don't need to hold a strong reference to keys_ like we do for
   // attr_name_ because calls to PyTypeModified() happen before the old keys

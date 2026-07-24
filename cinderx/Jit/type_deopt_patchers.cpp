@@ -53,9 +53,8 @@ TypeAttrDeoptPatcher::TypeAttrDeoptPatcher(
     BorrowedRef<PyUnicodeObject> attr_name,
     BorrowedRef<> target_object)
     : TypeDeoptPatcher{type} {
-  ThreadedCompileSerialize guard;
-  attr_name_.reset(attr_name);
-  target_object_.reset(target_object);
+  attr_name_ = attr_name;
+  target_object_ = target_object;
 }
 
 bool TypeAttrDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
@@ -70,8 +69,8 @@ bool TypeAttrDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
 }
 
 void TypeAttrDeoptPatcher::onPatch() {
-  attr_name_.reset();
-  target_object_.reset();
+  attr_name_ = nullptr;
+  target_object_ = nullptr;
 }
 
 SplitDictDeoptPatcher::SplitDictDeoptPatcher(
@@ -79,8 +78,7 @@ SplitDictDeoptPatcher::SplitDictDeoptPatcher(
     BorrowedRef<PyUnicodeObject> attr_name,
     PyDictKeysObject* keys)
     : TypeDeoptPatcher{type}, keys_{keys} {
-  ThreadedCompileSerialize guard;
-  attr_name_.reset(attr_name);
+  attr_name_ = attr_name;
 }
 
 bool SplitDictDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
@@ -107,7 +105,7 @@ bool SplitDictDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
 }
 
 void SplitDictDeoptPatcher::onPatch() {
-  attr_name_.reset();
+  attr_name_ = nullptr;
 }
 
 } // namespace cinderx::jit
