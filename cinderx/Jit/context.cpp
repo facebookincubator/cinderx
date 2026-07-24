@@ -9,6 +9,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -186,24 +187,31 @@ void Context::mlockProfilerDependencies() {
 }
 
 Ref<> Context::pageInProfilerDependencies() {
-  ThreadedCompileSerialize guard;
-  Ref<> qualnames = Ref<>::steal(PyList_New(0));
-  if (qualnames == nullptr) {
-    return nullptr;
-  }
+  std::vector<Ref<>> qualname_refs;
   // We want to force the OS to page in the memory on the
   // code_rt->code->qualname path and keep the compiler from optimizing away
   // the code to do so. There are probably more efficient ways of doing this
   // but perf isn't a major concern.
-  for (auto& code_rt : code_runtimes_) {
-    if (code_rt.isCleared()) {
-      continue;
+  {
+    JITCompilationLock lock;
+    for (auto& code_rt : code_runtimes_) {
+      if (code_rt.isCleared()) {
+        continue;
+      }
+      BorrowedRef<> qualname = code_rt.code()->co_qualname;
+      if (qualname == nullptr) {
+        continue;
+      }
+      qualname_refs.push_back(Ref<>::create(qualname));
     }
-    BorrowedRef<> qualname = code_rt.code()->co_qualname;
-    if (qualname == nullptr) {
-      continue;
-    }
-    if (PyList_Append(qualnames, qualname) < 0) {
+  }
+
+  Ref<> qualnames = Ref<>::steal(PyList_New(qualname_refs.size()));
+  if (qualnames == nullptr) {
+    return nullptr;
+  }
+  for (Py_ssize_t i = 0; i < qualname_refs.size(); i++) {
+    if (PyList_SetItem(qualnames, i, qualname_refs[i].release()) < 0) {
       return nullptr;
     }
   }
@@ -384,14 +392,14 @@ const Builtins& Context::builtins() {
 }
 
 void Context::unwatch(TypeDeoptPatcher* patcher) {
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
   type_deopt_patchers_[patcher->type()].erase(patcher);
 }
 
 void Context::watchType(
     BorrowedRef<PyTypeObject> type,
     TypeDeoptPatcher* patcher) {
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
   type_deopt_patchers_[type].emplace(patcher);
   // We require the interpreter state in order to watch types
   if (getThreadedCompileContext().compileRunning()) {
@@ -428,7 +436,7 @@ void Context::notifyTypeModified(
     BorrowedRef<PyTypeObject> new_type) {
   notifyICsTypeChanged(lookup_type);
 
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
   auto it = type_deopt_patchers_.find(lookup_type);
   if (it == type_deopt_patchers_.end()) {
     return;
@@ -450,13 +458,14 @@ void Context::notifyTypeModified(
 }
 
 bool Context::hasCompletedCompile(CompilationKey& key) {
+  JITCompilationLock lock;
   return completed_compiles_.contains(key);
 }
 
 void Context::addDeferredFinalization(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
   deferred_finalizations_.emplace_back(
       ThreadedRef<PyFunctionObject>::create(func), compiled);
 }
@@ -465,6 +474,7 @@ void Context::finalizeMultiThreadedCompile() {
   fixupFunctionEntryCachePostMultiThreadedCompile();
   watchPendingTypes();
 
+  JITCompilationLock lock;
   for (auto& codes : completed_compiles_) {
     makeCompiledFunction(
         codes.second.second, codes.first, std::move(codes.second.first));
@@ -514,7 +524,7 @@ void Context::codeCompiled(
     // interpreter during a background compile (GIL released).  Serialize to
     // keep it safe -- a no-op for batch compile where the interpreter is
     // frozen, but necessary for background compile.
-    ThreadedCompileSerialize guard;
+    JITCompilationLock lock;
     completed_compiles_.emplace(
         key,
         std::pair(
@@ -534,6 +544,7 @@ const hir::Type& Context::typeForCommonConstant([[maybe_unused]] int i) const {
 }
 
 void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
+  JITCompilationLock lock;
   auto it = compiled_codes_.find(CompilationKey{func});
   if (it == compiled_codes_.end()) {
     return;
@@ -573,8 +584,8 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
 
 void Context::forgetCompiledFunction(CompiledFunction& function) {
   // tp_clear() can reach here from GC without going through a guarded
-  // top-level JIT entrypoint, so this path has to take the FT guard itself.
-  FreeThreadedJITEntrypointGuard guard;
+  // top-level JIT entrypoint, so this path has to take a lock.
+  JITCompilationLock lock;
   if (function.runtime() != nullptr) {
     for (auto pyfunc : function.functions()) {
       compiled_funcs_.erase(pyfunc);
@@ -584,7 +595,7 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
 }
 
 bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
   return compiled_funcs_.contains(func);
 }
 
@@ -647,6 +658,7 @@ void Context::setCinderJitModule(Ref<> mod) {
 }
 
 void Context::clearForMultithreadedCompileTest() {
+  JITCompilationLock lock;
   for (auto& func_entry : compiled_funcs_) {
     BorrowedRef<CompiledFunction> compiled = func_entry.second;
     // Disconnect from Context so clear() on eventual destruction won't call
@@ -661,6 +673,7 @@ void Context::clearForMultithreadedCompileTest() {
 }
 
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
+  JITCompilationLock lock;
   auto it = compiled_funcs_.find(func);
   if (it != compiled_funcs_.end()) {
     it->second->removeFunction(func);
@@ -676,27 +689,33 @@ BorrowedRef<CompiledFunction> Context::lookupCode(
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals) {
   JIT_DCHECK(
-      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+      JITCompilationLock::isHeld() ||
+          getThreadedCompileContext().canAccessSharedData(),
+      "lock should be held");
 
   auto it = compiled_codes_.find(CompilationKey{code, builtins, globals});
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }
 
 void Context::addDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
+  JITCompilationLock lock;
   deopted_funcs_.emplace(func);
 }
 
 void Context::removeDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
+  JITCompilationLock lock;
   deopted_funcs_.erase(func);
 }
 
 bool Context::addCompiledFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
+  JITCompilationLock lock;
   return compiled_funcs_.emplace(func, compiled).second;
 }
 
 bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
+  JITCompilationLock lock;
   auto in_compiled_funcs = compiled_funcs_.find(func);
   if (in_compiled_funcs != compiled_funcs_.end()) {
     in_compiled_funcs->second->removeFunction(func);
@@ -707,10 +726,12 @@ bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
 }
 
 bool Context::addActiveCompile(CompilationKey& key) {
+  JITCompilationLock lock;
   return active_compiles_.insert(key).second;
 }
 
 void Context::removeActiveCompile(CompilationKey& key) {
+  JITCompilationLock lock;
   active_compiles_.erase(key);
 }
 
@@ -718,6 +739,7 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     BorrowedRef<PyFunctionObject> func,
     const CompilationKey& key,
     CompiledFunctionData&& compiled_func) {
+  JITCompilationLock lock;
   BorrowedRef<PyFunctionObject> outer = nullptr;
   auto outer_it = code_outer_funcs_.find(key.code);
   if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {

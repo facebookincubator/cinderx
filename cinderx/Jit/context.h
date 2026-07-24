@@ -10,6 +10,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/codegen/arch.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/deopt.h"

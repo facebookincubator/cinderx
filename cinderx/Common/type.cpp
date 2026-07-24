@@ -9,6 +9,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
@@ -42,7 +43,7 @@ BorrowedRef<> typeLookupSafe(
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
   // This flag should never change during compilation although other
   // flags may.
-  jit::ThreadedCompileSerialize guard;
+  ThreadedCompileSerialize guard;
 #endif
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};

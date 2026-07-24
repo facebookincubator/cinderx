@@ -8,8 +8,8 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/threaded_compile.h"
 
 #ifndef WIN32
 
@@ -499,7 +499,7 @@ void registerFunction(
     std::string_view name,
     std::string_view prefix) {
 #ifndef WIN32
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
 
   initFiles();
 

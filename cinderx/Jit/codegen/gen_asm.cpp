@@ -15,6 +15,7 @@
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
@@ -565,7 +566,7 @@ template <typename Generator>
 void* getOrCreateTrampoline(std::atomic<void*>& slot, Generator&& generator) {
   void* trampoline = slot.load(std::memory_order_acquire);
   if (trampoline == nullptr) {
-    ThreadedCompileSerialize guard;
+    JITCompilationLock lock;
     trampoline = slot.load(std::memory_order_relaxed);
     if (trampoline == nullptr) {
       trampoline = generator();

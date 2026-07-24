@@ -22,6 +22,7 @@
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/codegen/tls.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/config.h"
@@ -1009,7 +1010,7 @@ void multithread_compile_units_preloaded(
     // Ensure that no worker threads start compiling until they are all created,
     // in case something else in the process has hooked thread creation to run
     // arbitrary code.
-    ThreadedCompileSerialize guard;
+    JITCompilationLock lock;
     for (size_t i = 0; i < worker_count; i++) {
       worker_threads.emplace_back(compile_worker_thread);
     }
@@ -3879,7 +3880,7 @@ Result compilePreloaderImpl(
   {
     // Attempt to atomically transition the code from "not compiled" to "in
     // progress".
-    ThreadedCompileSerialize guard;
+    JITCompilationLock lock;
     auto compiled = jit_ctx->lookupCode(code, builtins, globals);
     if (compiled != nullptr) {
       // The code is already compiled and we have a CompiledFunction object.
@@ -3914,7 +3915,7 @@ Result compilePreloaderImpl(
     JIT_DLOG("{}", exn.what());
   }
 
-  ThreadedCompileSerialize guard;
+  JITCompilationLock lock;
   jit_ctx->removeActiveCompile(key);
   if (!compiled_func.has_value()) {
     return Result::UNKNOWN_ERROR;

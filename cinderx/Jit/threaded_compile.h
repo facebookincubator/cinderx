@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/compilation_lock.h"
 
 #include <atomic>
 #include <cassert>
@@ -50,20 +51,18 @@ class ThreadedCompileContext {
   // Fetch the next translation unit to compile.
   BorrowedRef<> nextUnit() {
     BorrowedRef<> unit;
-    lock();
+    JITCompilationLock lock;
     if (!work_list_.empty()) {
       unit = std::move(work_list_.back());
       work_list_.pop_back();
     }
-    unlock();
     return unit;
   }
 
   // Mark a unit as having failed to compile and to be retried in the future.
   void retryUnit(BorrowedRef<> unit) {
-    lock();
+    JITCompilationLock lock;
     retry_list_.emplace_back(std::move(unit));
-    unlock();
   }
 
   // Check if there's a multi-threaded compile currently running.

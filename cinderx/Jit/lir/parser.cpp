@@ -4,6 +4,7 @@
 
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/code_section.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/symbol_mapping.h"
 
@@ -449,7 +450,7 @@ void Parser::parseInput(const Token& token, const char* code) {
     case kStringLiteral: {
       // Extract the string content (without quotes).
       std::string str_content(code + 1, token.length - 2);
-      ThreadedCompileSerialize guard;
+      JITCompilationLock lock;
       std::unordered_set<std::string>& v = GetStringLiterals();
       auto ret = v.emplace(std::move(str_content));
       instr_->allocateImmediateInput(

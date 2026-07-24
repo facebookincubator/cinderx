@@ -30,6 +30,7 @@ extern "C" {
 #include "cinderx/Interpreter/iter_helpers.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
@@ -4003,7 +4004,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         break;
       }
       case Opcode::kInvokeStaticFunction: {
-        ThreadedCompileSerialize guard;
+        JITCompilationLock lock;
 
         auto instr = static_cast<const InvokeStaticFunction*>(&i);
         auto nargs = instr->numOperands();
