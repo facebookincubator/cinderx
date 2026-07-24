@@ -47,6 +47,7 @@ test.test_traceback.TestTracebackException.test_long_context_chain
 test.test_traceback.TestTracebackFormat.test_recursive_traceback
 test.test_traceback.TracebackFormatTests.test_recursive_traceback_cpython_internal
 test.test_traceback.TracebackFormatTests.test_recursive_traceback_python
+test.test_typing.GenericTests.test_parameters_deep_recursion
 
 # TASK(T87023404): Eval breaker timing
 unittest.test.test_break.*.testInterruptCaught

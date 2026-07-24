@@ -35,6 +35,3 @@ test.test_gc.GCTests.test_heap_size
 
 # Need to port lightweight frames to 3.15
 test_cinderx.test_jit_support_instrumentation.*
-
-# JIT doesn't enforce recursion
-test.test_typing.GenericTests.test_parameters_deep_recursion
