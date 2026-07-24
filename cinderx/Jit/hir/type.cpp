@@ -11,6 +11,7 @@
 #include <fmt/ranges.h>
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
 #include <unordered_map>
 #include <vector>
@@ -281,7 +282,7 @@ static auto makeSortedBits() {
 
   // Sort the vector so types with the most bits set show up first.
   auto pred = [](auto& a, auto& b) {
-    return popcount(a.first) > popcount(b.first);
+    return std::popcount(a.first) > std::popcount(b.first);
   };
   std::sort(vec.begin(), vec.end(), pred);
   JIT_CHECK(

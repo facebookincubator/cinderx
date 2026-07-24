@@ -241,18 +241,6 @@ std::string unicodeAsString(PyObject* str);
 // error.
 Ref<> stringAsUnicode(std::string_view str);
 
-inline int popcount(unsigned i) {
-  return __builtin_popcount(i);
-}
-
-inline int popcount(unsigned long i) {
-  return __builtin_popcountl(i);
-}
-
-inline int popcount(unsigned long long i) {
-  return __builtin_popcountll(i);
-}
-
 // Look up an item in the given map. Always abort if key doesn't exist.
 template <typename M, typename K>
 auto& map_get_strict(M& map, const K& key) {
