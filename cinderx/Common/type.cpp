@@ -26,9 +26,9 @@ std::string typeFullname(PyTypeObject* type) {
 }
 
 PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
-  if (jit::getThreadedCompileContext().compileRunning() &&
+  if (jit::ThreadedCompileContext::compileRunning() &&
       self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
-    PyInterpreterState* interp = jit::getThreadedCompileContext().interpreter();
+    PyInterpreterState* interp = jit::ThreadedCompileContext::interpreter();
     managed_static_type_state* state = Cix_PyStaticType_GetState(interp, self);
     return state->tp_dict;
   }
@@ -65,7 +65,7 @@ BorrowedRef<> typeLookupSafe(
 
 bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
   JIT_CHECK(
-      jit::getThreadedCompileContext().canAccessSharedData(),
+      jit::ThreadedCompileContext::canAccessSharedData(),
       "Accessing type object needs lock");
   if (Ci_Type_HasValidVersionTag(type)) {
     return true;

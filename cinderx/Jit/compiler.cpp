@@ -168,7 +168,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
     BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
+      !ThreadedCompileContext::compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::make(func, makeFrameReifier(func->func_code));

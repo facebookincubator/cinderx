@@ -123,8 +123,7 @@ struct Environ {
   // Transfer the environments owned references into the CodeRuntime
   void transferReferences() {
     JIT_DCHECK(
-        getThreadedCompileContext().canAccessSharedData(),
-        "lock should be held");
+        ThreadedCompileContext::canAccessSharedData(), "lock should be held");
     code_rt->setReifier(ThreadedRef<>::create(reifier));
     auto pending = std::move(pending_references_);
     for (BorrowedRef<> obj : pending) {

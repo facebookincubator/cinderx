@@ -1274,7 +1274,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   }
 
   JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
+      !ThreadedCompileContext::compileRunning(),
       "Not intended for using during threaded compilation");
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
   jit_reg_units.emplace(func.getObj());
@@ -3886,7 +3886,7 @@ Result compilePreloaderImpl(
       // The code is already compiled and we have a CompiledFunction object.
       // Just finalize the code.
       if (func != nullptr) {
-        if (getThreadedCompileContext().compileRunning()) {
+        if (ThreadedCompileContext::compileRunning()) {
           // Can't call finalizeFunc on a worker thread - it does Python
           // allocations (PyDict_New, etc.) which require the GIL. Defer
           // finalization to after multi-threaded compile completes.

@@ -60,7 +60,7 @@ CodeRuntime::CodeRuntime(
 
 void CodeRuntime::addReference(BorrowedRef<> obj) {
   JIT_DCHECK(
-      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+      ThreadedCompileContext::canAccessSharedData(), "lock should be held");
   if (!_Py_IsImmortal(obj)) {
     references_.emplace(ThreadedRef<>::create(obj));
   }
@@ -68,7 +68,7 @@ void CodeRuntime::addReference(BorrowedRef<> obj) {
 
 void CodeRuntime::transferReferences(std::unordered_set<ThreadedRef<>>&& refs) {
   JIT_DCHECK(
-      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+      ThreadedCompileContext::canAccessSharedData(), "lock should be held");
   references_.merge(std::move(refs));
 }
 
@@ -77,7 +77,7 @@ void CodeRuntime::releaseReferences() {
   // the objects could cause our CompiledFunction to be freed as well so first
   // we grab the references and then clear them.
   JIT_DCHECK(
-      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+      ThreadedCompileContext::canAccessSharedData(), "lock should be held");
 
   std::unordered_set<ThreadedRef<>> refs;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)

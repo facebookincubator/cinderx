@@ -23,7 +23,7 @@ GlobalCacheKey::GlobalCacheKey(
     BorrowedRef<PyUnicodeObject> name)
     : builtins{builtins}, globals{globals} {
   JIT_DCHECK(
-      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+      ThreadedCompileContext::canAccessSharedData(), "lock should be held");
 
   JIT_CHECK(
       PyUnicode_CHECK_INTERNED(name.get()),
@@ -34,7 +34,7 @@ GlobalCacheKey::GlobalCacheKey(
 
 GlobalCacheKey::~GlobalCacheKey() {
   JIT_DCHECK(
-      getThreadedCompileContext().canAccessSharedData(), "lock should be held");
+      ThreadedCompileContext::canAccessSharedData(), "lock should be held");
   name.reset();
 }
 

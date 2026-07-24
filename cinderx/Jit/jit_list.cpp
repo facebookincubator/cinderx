@@ -16,8 +16,7 @@ namespace cinderx::jit {
 
 std::unique_ptr<JITList> JITList::create() {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   auto qualnames = Ref<>::steal(PyDict_New());
   if (qualnames == nullptr) {
     return nullptr;
@@ -76,8 +75,7 @@ bool JITList::parseLine(std::string_view line) {
 
 bool JITList::addEntryFunc(BorrowedRef<> module_name, BorrowedRef<> qualname) {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   auto qualname_set = Ref<>::create(PyDict_GetItem(qualnames_, module_name));
   if (qualname_set == nullptr) {
     qualname_set = Ref<>::steal(PySet_New(nullptr));
@@ -95,8 +93,7 @@ bool JITList::addEntryFunc(
     std::string_view module_name,
     std::string_view qualname) {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   Ref<> mn_obj = stringAsUnicode(module_name);
   if (mn_obj == nullptr) {
     return false;
@@ -113,8 +110,7 @@ bool JITList::addEntryCode(
     BorrowedRef<> file,
     BorrowedRef<> line_no) {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   auto file_set = Ref<>::create(PyDict_GetItem(name_file_line_no_, name));
   if (file_set == nullptr) {
     file_set = Ref<>::steal(PyDict_New());
@@ -143,8 +139,7 @@ bool JITList::addEntryCode(
     std::string_view file,
     std::string_view line_no_str) {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   Ref<> name_obj = stringAsUnicode(name);
   if (name_obj == nullptr) {
     return false;
@@ -183,8 +178,7 @@ int JITList::lookupFunc(BorrowedRef<PyFunctionObject> func) const {
 
 int JITList::lookupCode(BorrowedRef<PyCodeObject> code) const {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "Unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "Unexpected multithreading");
 
   auto name =
       Ref<>::create(code->co_qualname ? code->co_qualname : code->co_name);
@@ -223,16 +217,14 @@ int JITList::lookupName(BorrowedRef<> module_name, BorrowedRef<> qualname)
 
 Ref<> JITList::getList() const {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   return Ref<>::steal(
       PyTuple_Pack(2, qualnames_.get(), name_file_line_no_.get()));
 }
 
 std::unique_ptr<WildcardJITList> WildcardJITList::create() {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   auto qualnames = Ref<>::steal(PyDict_New());
   if (qualnames == nullptr) {
     return nullptr;
@@ -249,8 +241,7 @@ std::unique_ptr<WildcardJITList> WildcardJITList::create() {
 
 Ref<> JITList::pathBasename(BorrowedRef<> path) const {
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   if (path_sep_ == nullptr) {
     path_sep_ = Ref<>::steal(PyUnicode_FromString("/"));
     if (path_sep_ == nullptr) {
@@ -316,8 +307,7 @@ int WildcardJITList::lookupName(
   }
 
   JIT_DCHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "unexpected multithreading");
+      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
   auto func_name = Ref<>::steal(PyUnicode_Substring(qualname, idx + 1, len));
   if (func_name == nullptr) {
     return -1;

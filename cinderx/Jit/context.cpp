@@ -228,7 +228,7 @@ void** Context::findFunctionEntryCache(PyFunctionObject* function) {
     // _PyClassLoader_HasPrimitiveArgs doesn't work well in multi-threaded
     // compile in 3.12+ due to access of a dictionary with non-key strings.
     // We fix this up post-compile in the multi-threaded case.
-    if (!getThreadedCompileContext().compileRunning() &&
+    if (!ThreadedCompileContext::compileRunning() &&
         _PyClassLoader_HasPrimitiveArgs((PyCodeObject*)function->func_code)) {
       result.first->second.arg_info =
           Ref<_PyTypedArgsInfo>::steal(_PyClassLoader_GetTypedArgsInfo(
@@ -402,7 +402,7 @@ void Context::watchType(
   JITCompilationLock lock;
   type_deopt_patchers_[type].emplace(patcher);
   // We require the interpreter state in order to watch types
-  if (getThreadedCompileContext().compileRunning()) {
+  if (ThreadedCompileContext::compileRunning()) {
     pending_watches_.emplace(type);
     return;
   }
@@ -519,7 +519,7 @@ void Context::codeCompiled(
     CompiledFunctionData&& compiled_func) {
   addCompileTime(compiled_func.compile_time);
 
-  if (getThreadedCompileContext().compileRunning()) {
+  if (ThreadedCompileContext::compileRunning()) {
     // ThreadedRef::create touches the function's refcount, which races the
     // interpreter during a background compile (GIL released).  Serialize to
     // keep it safe -- a no-op for batch compile where the interpreter is
@@ -690,7 +690,7 @@ BorrowedRef<CompiledFunction> Context::lookupCode(
     BorrowedRef<PyDictObject> globals) {
   JIT_DCHECK(
       JITCompilationLock::isHeld() ||
-          getThreadedCompileContext().canAccessSharedData(),
+          ThreadedCompileContext::canAccessSharedData(),
       "lock should be held");
 
   auto it = compiled_codes_.find(CompilationKey{code, builtins, globals});

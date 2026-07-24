@@ -1016,8 +1016,8 @@ Register* simplifySubscript(Env& env, const BinaryOp* instr) {
     // Constant fold.  This isn't safe in multi-threaded compilation because the
     // worker doesn't hold the GIL and that's required for creating a new
     // string.
-    if (!getThreadedCompileContext().compileRunning() &&
-        lhs_type.hasObjectSpec() && rhs_type.hasObjectSpec()) {
+    if (!ThreadedCompileContext::compileRunning() && lhs_type.hasObjectSpec() &&
+        rhs_type.hasObjectSpec()) {
       Py_ssize_t idx = PyLong_AsSsize_t(rhs_type.objectSpec());
       if (idx == -1 && PyErr_Occurred()) {
         PyErr_Clear();
@@ -1843,7 +1843,7 @@ Register* simplifyLoadAttrInstanceReceiver(
       py_type->tp_getattro != PyObject_GenericGetAttr) {
     return nullptr;
   }
-  if (getThreadedCompileContext().compileRunning()) {
+  if (ThreadedCompileContext::compileRunning()) {
     // Calling ensureVersionTag() in 3.12+ doesn't work during multi-threaded
     // compile as it wants to access tstate.
     if (!Ci_Type_HasValidVersionTag(py_type)) {
@@ -1938,7 +1938,7 @@ BorrowedRef<> loadModuleAttrSafe(
   value = _PyDict_GetItemKeepLazy(dict, name);
 #endif
   JIT_DCHECK(
-      !_PyErr_Occurred(getThreadedCompileContext().tstate()),
+      !_PyErr_Occurred(ThreadedCompileContext::tstate()),
       "should have no errors on lookup, it's not multi-thread compile safe");
 
   return value;

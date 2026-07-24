@@ -15,9 +15,9 @@
 namespace cinderx::jit {
 
 // Used to punt out of optimizations that require holding the GIL.
-#define RETURN_MULTITHREADED_COMPILE(RETVAL)          \
-  if (getThreadedCompileContext().compileRunning()) { \
-    return RETVAL;                                    \
+#define RETURN_MULTITHREADED_COMPILE(RETVAL)      \
+  if (ThreadedCompileContext::compileRunning()) { \
+    return RETVAL;                                \
   }
 
 class ThreadedCompileContext;
@@ -66,27 +66,28 @@ class ThreadedCompileContext {
   }
 
   // Check if there's a multi-threaded compile currently running.
-  bool compileRunning() const {
-    return compile_running_;
+  static bool compileRunning() {
+    return getThreadedCompileContext().compile_running_;
   }
 
   // Returns true if it's safe for the current thread to access data protected
   // by the threaded compile lock, either because no threaded compile is active
   // or the current thread holds the lock. May return true erroneously, but
   // shouldn't return false erroneously.
-  bool canAccessSharedData() const {
-    return !compileRunning() || holder() == std::this_thread::get_id();
+  static bool canAccessSharedData() {
+    return !compileRunning() ||
+        getThreadedCompileContext().holder() == std::this_thread::get_id();
   }
 
   static PyInterpreterState* interpreter() {
-    if (getThreadedCompileContext().compileRunning()) {
+    if (compileRunning()) {
       return getThreadedCompileContext().interpreter_;
     }
     return PyInterpreterState_Get();
   }
 
   static PyThreadState* tstate() {
-    if (getThreadedCompileContext().compileRunning()) {
+    if (compileRunning()) {
       return getThreadedCompileContext().tstate_;
     }
     return PyThreadState_Get();

@@ -10,8 +10,7 @@ void HIRStats::run(Function& irfunc) {
       stats_.instrs[std::string(instr.opname())]++;
       if (Register* output = instr.output()) {
         Type output_type = output->type();
-        std::string output_type_str =
-            getThreadedCompileContext().compileRunning()
+        std::string output_type_str = ThreadedCompileContext::compileRunning()
             ? output_type.toStringSafe()
             : output_type.toString();
         stats_.output_types[output_type_str]++;
