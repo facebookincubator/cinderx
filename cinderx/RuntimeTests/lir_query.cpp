@@ -118,6 +118,14 @@ Query& Query::inType(size_t index, DataType dt) {
   input(index).type = dt;
   return *this;
 }
+Query&
+Query::guard(uint64_t deopt_id, uint64_t frame_index, DataType guard_type) {
+  opcode_ = Instruction::kGuard;
+  input(0).imm = deopt_id;
+  input(1).imm = frame_index;
+  input(2).type = guard_type;
+  return *this;
+}
 Query& Query::inDefOpcode(size_t index, Instruction::Opcode op) {
   input(index).def_opcode = op;
   return *this;

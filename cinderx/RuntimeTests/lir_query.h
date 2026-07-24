@@ -51,6 +51,7 @@ class Query {
   Query& inVreg(size_t index, int id);
   // Match input operand `index`'s data type.
   Query& inType(size_t index, DataType dt);
+  Query& guard(uint64_t deopt_id, uint64_t frame_index, DataType guard_type);
   // Match properties of the instruction defining linked input operand `index`.
   Query& inDefOpcode(size_t index, Instruction::Opcode op);
   Query& inDefImm(size_t index, size_t def_input_index, uint64_t v);

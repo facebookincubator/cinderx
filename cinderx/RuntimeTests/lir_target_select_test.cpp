@@ -14,9 +14,6 @@
 #include "cinderx/RuntimeTests/lir_query.h"
 
 #include <memory>
-#include <regex>
-#include <sstream>
-#include <string>
 #include <vector>
 
 namespace cinderx::jit::lir {
@@ -57,16 +54,6 @@ class LIRTargetSelectTest : public RuntimeTest {
 
     lir_func->sortBasicBlocks();
     return lir_func;
-  }
-
-  std::string getSelectedLIRString(PyObject* func_obj) {
-    auto lir_func = getSelectedLIRFunction(func_obj);
-    if (!lir_func) {
-      return "";
-    }
-    std::stringstream ss;
-    ss << *lir_func << '\n';
-    return ss.str();
   }
 
   void TearDown() override {
@@ -348,13 +335,7 @@ BB %0
                  .outType(DataType::k64bit)
                  .inVreg(0, 1)
                  .inType(0, DataType::kDouble));
-  // The Guard's operand shapes aren't modelled by Query yet; check by text.
-  std::string lir_str = lirFuncString(*lir_func);
-  EXPECT_TRUE(
-      std::regex_search(
-          lir_str,
-          std::regex{R"(Guard 4\(0x4\):64bit, 0\(0x0\):64bit, %\d+:64bit)"}))
-      << lir_str;
+  EXPECT_LIR(Query(*lir_func).guard(4, 0, DataType::k64bit));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Instruction::kA64GuardCC));
 }
 
