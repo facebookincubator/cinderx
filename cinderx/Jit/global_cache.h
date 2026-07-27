@@ -61,6 +61,10 @@ class GlobalCache {
   // the caller since it can involve complicated dances with iterators.
   void clear();
 
+  // Store a borrowed value, or nullptr, in the cache. The store is atomic in
+  // free-threaded builds.
+  void store(PyObject* value) const;
+
   bool operator<(const GlobalCache& other) const;
 
  private:

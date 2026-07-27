@@ -411,6 +411,21 @@ T* ftAtomicLoadPtrAcquire(T*& ptr) noexcept {
   }
 }
 
+// Typed, cross-version equivalent of CPython's
+// FT_ATOMIC_STORE_PTR_RELAXED().
+template <typename T>
+void ftAtomicStorePtrRelaxed(T*& ptr, T* value) noexcept {
+  if constexpr (kFreeThreadedBuild) {
+#ifdef __cpp_lib_atomic_ref
+    std::atomic_ref<T*>(ptr).store(value, std::memory_order_relaxed);
+#else
+    __atomic_store(&ptr, &value, __ATOMIC_RELAXED);
+#endif
+  } else {
+    ptr = value;
+  }
+}
+
 #define SCOPE_EXIT_INTERNAL2(lname, aname, ...) \
   auto lname = [&]() { __VA_ARGS__; };          \
   cinderx::ScopeExit<decltype(lname)> aname(std::move(lname));

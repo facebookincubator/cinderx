@@ -59,7 +59,11 @@ void GlobalCache::init(PyObject** cache) const {
 }
 
 void GlobalCache::clear() {
-  *valuePtr() = nullptr;
+  store(nullptr);
+}
+
+void GlobalCache::store(PyObject* value) const {
+  ftAtomicStorePtrRelaxed(*valuePtr(), value);
 }
 
 bool GlobalCache::operator<(const GlobalCache& other) const {
@@ -277,7 +281,7 @@ void GlobalCacheManager::initCache(GlobalCache cache) {
     if (cache.valuePtr())
 #endif
     {
-      *cache.valuePtr() = globals_value;
+      cache.store(globals_value);
     }
     return;
   }
@@ -285,7 +289,7 @@ void GlobalCacheManager::initCache(GlobalCache cache) {
   // The getitem on globals might have had side effects and made this dict
   // unwatchable, so it needs to be checked again.
   if (hasOnlyUnicodeKeys(builtins)) {
-    *cache.valuePtr() = PyDict_GetItem(builtins, key);
+    cache.store(PyDict_GetItem(builtins, key));
     if (globals != builtins) {
       watchDictKey(builtins, key, cache);
     }
@@ -312,7 +316,7 @@ bool GlobalCacheManager::updateCache(
       }
 
       // Fall back to the builtin (which may also be null).
-      *cache.valuePtr() = PyDict_GetItem(builtins, name);
+      cache.store(PyDict_GetItem(builtins, name));
 
       // it changed, and it changed from something to nothing, so
       // we weren't watching builtins and need to start now.
@@ -320,7 +324,7 @@ bool GlobalCacheManager::updateCache(
         watchDictKey(builtins, name, cache);
       }
     } else {
-      *cache.valuePtr() = new_value;
+      cache.store(new_value);
     }
   } else {
     JIT_CHECK(dict == builtins, "Unexpected dict");
@@ -328,7 +332,7 @@ bool GlobalCacheManager::updateCache(
     // Check if this value is shadowed.
     PyObject* globals_value = PyDict_GetItem(globals, name);
     if (globals_value == nullptr) {
-      *cache.valuePtr() = new_value;
+      cache.store(new_value);
     }
   }
 

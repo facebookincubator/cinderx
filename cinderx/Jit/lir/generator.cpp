@@ -3767,7 +3767,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             Py_TYPE(builtins)->tp_name);
         env_->addReference(builtins);
         bbb.appendInstr(
-            instr->output(), Instruction::kMove, MemImm{instr->cache()});
+            instr->output(), Instruction::kMoveRelaxed, MemImm{instr->cache()});
         break;
       }
       case Opcode::kLoadGlobal: {
