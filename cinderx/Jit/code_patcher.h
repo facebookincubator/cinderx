@@ -106,6 +106,7 @@ class CodePatcher {
     uint8_t data_len : 3;
     bool is_patched : 1;
     bool lock : 1;
+    uint8_t unused : 3;
   };
   union {
     Flags flags_{};
@@ -116,6 +117,7 @@ class CodePatcher {
   static constexpr uint8_t lockBit() {
     Flags f{};
     f.lock = true;
+    static_assert(std::has_unique_object_representations_v<Flags>);
     return std::bit_cast<uint8_t>(f);
   }
 };
