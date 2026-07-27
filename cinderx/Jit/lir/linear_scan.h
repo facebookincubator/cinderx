@@ -50,14 +50,9 @@ struct LiveRange {
   bool intersectsWith(const LiveRange& lr) const;
 };
 
-struct LiveInterval {
+class LiveInterval {
+ public:
   explicit LiveInterval(const Operand* operand);
-
-  const Operand* operand;
-
-  std::vector<LiveRange> ranges;
-  PhyLocation allocated_loc;
-  bool fixed{false}; // whether the allocated_loc is fixed.
 
   void addRange(LiveRange range);
   void setFrom(LIRLocation loc);
@@ -85,9 +80,27 @@ struct LiveInterval {
   std::unique_ptr<LiveInterval> splitAt(LIRLocation loc);
 
   void allocateTo(PhyLocation loc);
+  void fixTo(PhyLocation loc);
 
   bool isAllocated() const;
   bool isRegisterAllocated() const;
+  bool isFixed() const;
+
+ public:
+  const Operand* operand;
+
+  std::vector<LiveRange> ranges;
+  PhyLocation allocated_loc;
+
+ private:
+  friend class LinearScanAllocator;
+
+  // Index of the range examined by the last covers() call, used as a hint for
+  // covers().
+  mutable uint32_t range_hint_{0};
+
+  // Whether the allocated location is fixed.
+  bool fixed_{false};
 };
 
 // The linear scan allocator.
