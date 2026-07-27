@@ -366,31 +366,57 @@ with warnings.catch_warnings():
 
     # pyre-ignore[9]: Pyre tries to union all the keys and values into concrete types.
     _FORMATTERS: dict[type[ast.AST], Callable[[ast.AST, int], str]] = {
+        # pyrefly: ignore [bad-assignment]
         ast.Attribute: _format_attribute,
+        # pyrefly: ignore [bad-assignment]
         ast.Await: _format_await,
+        # pyrefly: ignore [bad-assignment]
         ast.BinOp: _format_binaryop,
+        # pyrefly: ignore [bad-assignment]
         ast.BoolOp: _format_boolop,
+        # pyrefly: ignore [bad-assignment]
         ast.Call: _format_call,
+        # pyrefly: ignore [bad-assignment]
         ast.Compare: _format_compare,
+        # pyrefly: ignore [bad-assignment]
         ast.Constant: _format_constant,
+        # pyrefly: ignore [bad-assignment]
         ast.Dict: _format_dict,
+        # pyrefly: ignore [bad-assignment]
         ast.DictComp: _format_dict_comp,
+        # pyrefly: ignore [bad-assignment]
         ast.FormattedValue: None,
+        # pyrefly: ignore [bad-assignment]
         ast.GeneratorExp: _format_gen_exp,
+        # pyrefly: ignore [bad-assignment]
         ast.IfExp: _format_if_exp,
+        # pyrefly: ignore [bad-assignment]
         ast.JoinedStr: format_joinedstr,
+        # pyrefly: ignore [bad-assignment]
         ast.Lambda: _format_lambda,
+        # pyrefly: ignore [bad-assignment]
         ast.List: _format_list,
+        # pyrefly: ignore [bad-assignment]
         ast.ListComp: _format_list_comp,
+        # pyrefly: ignore [bad-assignment]
         ast.Name: _format_name,
+        # pyrefly: ignore [bad-assignment]
         ast.Set: _format_set,
+        # pyrefly: ignore [bad-assignment]
         ast.SetComp: _format_set_comp,
+        # pyrefly: ignore [bad-assignment]
         ast.Slice: _format_slice,
+        # pyrefly: ignore [bad-assignment]
         ast.Starred: _format_starred,
+        # pyrefly: ignore [bad-assignment]
         ast.Subscript: _format_subscript,
+        # pyrefly: ignore [bad-assignment]
         ast.Tuple: _format_tuple,
+        # pyrefly: ignore [bad-assignment]
         ast.UnaryOp: _format_unaryop,
+        # pyrefly: ignore [bad-assignment]
         ast.Yield: _format_yield,
+        # pyrefly: ignore [bad-assignment]
         ast.YieldFrom: _format_yield_from,
         **(
             {

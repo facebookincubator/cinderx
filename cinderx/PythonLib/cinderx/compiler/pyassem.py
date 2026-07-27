@@ -1012,56 +1012,104 @@ class PyFlowGraph(FlowGraph):
     # similarly for other opcodes...
     # pyrefly: ignore [bad-assignment]
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
+        # pyrefly: ignore [bad-assignment]
         "LOAD_CLASS": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_CONST": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "INVOKE_FUNCTION": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "INVOKE_METHOD": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_METHOD_STATIC": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "INVOKE_NATIVE": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_FIELD": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "STORE_FIELD": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "CAST": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "TP_ALLOC": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "BUILD_CHECKED_MAP": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "BUILD_CHECKED_LIST": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "PRIMITIVE_LOAD_CONST": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_FAST": _convert_LOAD_FAST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_FAST_AND_CLEAR": _convert_LOAD_FAST,
+        # pyrefly: ignore [bad-assignment]
         "STORE_FAST": _convert_LOAD_FAST,
+        # pyrefly: ignore [bad-assignment]
         "STORE_FAST_MAYBE_NULL": _convert_LOAD_FAST,
+        # pyrefly: ignore [bad-assignment]
         "DELETE_FAST": _convert_LOAD_FAST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_LOCAL": _convert_LOAD_LOCAL,
+        # pyrefly: ignore [bad-assignment]
         "STORE_LOCAL": _convert_LOAD_LOCAL,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_NAME": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_FROM_DICT_OR_DEREF": _convert_DEREF,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_FROM_DICT_OR_GLOBALS": _convert_NAME,
         # pyrefly: ignore [bad-argument-type]
         "LOAD_CLOSURE": lambda self, arg: self.closure.get_index(arg),
         "COMPARE_OP": lambda self, arg: self.opcode.CMP_OP.index(arg),
+        # pyrefly: ignore [bad-assignment]
         "LOAD_GLOBAL": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "STORE_GLOBAL": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "DELETE_GLOBAL": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "CONVERT_NAME": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "STORE_NAME": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "STORE_ANNOTATION": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "DELETE_NAME": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "IMPORT_NAME": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "IMPORT_FROM": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "STORE_ATTR": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_ATTR": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "DELETE_ATTR": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_METHOD": _convert_NAME,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_DEREF": _convert_DEREF,
+        # pyrefly: ignore [bad-assignment]
         "STORE_DEREF": _convert_DEREF,
+        # pyrefly: ignore [bad-assignment]
         "DELETE_DEREF": _convert_DEREF,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_CLASSDEREF": _convert_DEREF,
+        # pyrefly: ignore [bad-assignment]
         "REFINE_TYPE": _convert_LOAD_CONST,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_METHOD_SUPER": _convert_LOAD_SUPER,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_ATTR_SUPER": _convert_LOAD_SUPER,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_SUPER_ATTR": _convert_LOAD_SUPER_ATTR,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_ZERO_SUPER_ATTR": _convert_LOAD_SUPER_ATTR,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_SUPER_METHOD": _convert_LOAD_SUPER_ATTR,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_ZERO_SUPER_METHOD": _convert_LOAD_SUPER_ATTR,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_TYPE": _convert_LOAD_CONST,
     }
 

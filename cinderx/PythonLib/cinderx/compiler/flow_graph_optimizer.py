@@ -362,14 +362,23 @@ class FlowGraphOptimizer:
 
     # pyrefly: ignore [bad-assignment]
     handlers: dict[str, Handler] = {
+        # pyrefly: ignore [bad-assignment]
         "JUMP_IF_FALSE_OR_POP": opt_jump_if_false_or_pop,
+        # pyrefly: ignore [bad-assignment]
         "JUMP_IF_TRUE_OR_POP": opt_jump_if_true_or_pop,
+        # pyrefly: ignore [bad-assignment]
         "POP_JUMP_IF_FALSE": opt_pop_jump_if,
+        # pyrefly: ignore [bad-assignment]
         "POP_JUMP_IF_TRUE": opt_pop_jump_if,
+        # pyrefly: ignore [bad-assignment]
         "JUMP_FORWARD": opt_jump,
+        # pyrefly: ignore [bad-assignment]
         "FOR_ITER": opt_for_iter,
+        # pyrefly: ignore [bad-assignment]
         "ROT_N": opt_rot_n,
+        # pyrefly: ignore [bad-assignment]
         "LOAD_CONST": opt_load_const,
+        # pyrefly: ignore [bad-assignment]
         "RETURN_VALUE": opt_return_value,
     }
 

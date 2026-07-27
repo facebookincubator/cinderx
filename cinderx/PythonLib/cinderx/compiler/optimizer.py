@@ -35,7 +35,9 @@ INVERSE_OPS: Mapping[type[cmpop], type[cmpop]] = {
 
 # pyrefly: ignore [bad-assignment]
 BIN_OPS: Mapping[type[ast.operator], Callable[[object, object], object]] = {
+    # pyrefly: ignore [bad-assignment]
     ast.Add: operator.add,
+    # pyrefly: ignore [bad-assignment]
     ast.Sub: operator.sub,
     ast.Mult: lambda lhs, rhs: safe_multiply(lhs, rhs, PyLimits),
     ast.Div: operator.truediv,
