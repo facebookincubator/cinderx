@@ -1325,33 +1325,6 @@ uint32_t modUnsigned32(uint32_t x, uint32_t y) {
   return x % y;
 }
 
-PyObject* boxI32(int32_t i) {
-  return PyLong_FromLong(i);
-}
-
-PyObject* boxU32(uint32_t i) {
-  return PyLong_FromUnsignedLong(i);
-}
-
-PyObject* boxBool(uint32_t i) {
-  if (i) {
-    return Py_True;
-  }
-  return Py_False;
-}
-
-PyObject* boxI64(int64_t i) {
-  return PyLong_FromSsize_t(i);
-}
-
-PyObject* boxU64(uint64_t i) {
-  return PyLong_FromSize_t(i);
-}
-
-PyObject* boxDouble(double_t d) {
-  return PyFloat_FromDouble(d);
-}
-
 double powerDouble(double x, double y) {
   return pow(x, y);
 }
@@ -1392,10 +1365,6 @@ static T checkedUnboxImpl(PyObject* obj) {
   return -1;
 }
 
-uint64_t unboxU64(PyObject* obj) {
-  return PyLong_AsSize_t(obj);
-}
-
 uint32_t unboxU32(PyObject* obj) {
   return checkedUnboxImpl<uint32_t>(obj);
 }
@@ -1406,10 +1375,6 @@ uint16_t unboxU16(PyObject* obj) {
 
 uint8_t unboxU8(PyObject* obj) {
   return checkedUnboxImpl<uint8_t>(obj);
-}
-
-int64_t unboxI64(PyObject* obj) {
-  return PyLong_AsSsize_t(obj);
 }
 
 int32_t unboxI32(PyObject* obj) {
@@ -1734,9 +1699,9 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
     if (ret_code == TYPED_BOOL) {
       ival = (void*)(res == Py_True);
     } else if (ret_code & TYPED_INT_SIGNED) {
-      ival = (void*)unboxI64(res);
+      ival = (void*)PyLong_AsSsize_t(res);
     } else {
-      ival = (void*)unboxU64(res);
+      ival = (void*)PyLong_AsSize_t(res);
     }
     return StaticCallReturn{ival, no_error};
   }

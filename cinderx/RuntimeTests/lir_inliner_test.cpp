@@ -225,8 +225,8 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionFailureTest) {
       Instruction::kCall,
       nullptr,
       OutVReg(),
-      Imm(reinterpret_cast<uint64_t>(rt::boxBool)));
-  // rt::boxBool is a function that we have not yet translated.
+      Imm(reinterpret_cast<uint64_t>(rt::powerDouble)));
+  // rt::powerDouble is a function that we have not yet translated.
   LIRInliner inliner{&caller, call_instr};
   auto callee = inliner.findCalleeFunction();
 

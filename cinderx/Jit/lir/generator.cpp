@@ -1105,9 +1105,11 @@ void GenerateBoxedReturnWrapperBlocks(
 #if defined(CINDER_X86_64)
   PhyLocation ret8 = codegen::AL;
   PhyLocation ret16 = codegen::AX;
+  [[maybe_unused]] PhyLocation ret32 = codegen::EAX;
 #elif defined(CINDER_AARCH64)
   PhyLocation ret8 = codegen::W0;
   PhyLocation ret16 = codegen::W0;
+  [[maybe_unused]] PhyLocation ret32 = codegen::W0;
 #endif
 
   auto* wrapper_entry = lir_func->allocateBasicBlock();
@@ -1156,75 +1158,85 @@ void GenerateBoxedReturnWrapperBlocks(
 
   // Determine the box function and any sign/zero extension needed to
   // move the return value into the first argument register.
-  uint64_t box_func;
 
+  uint64_t box_func;
   if (returns_double) {
     // XMM0/D0 already holds the double; the box function reads it from there.
-    box_func = reinterpret_cast<uint64_t>(rt::boxDouble);
+    box_func = reinterpret_cast<uint64_t>(PyFloat_FromDouble);
+  } else if (return_type <= TCBool) {
+    box_func = reinterpret_cast<uint64_t>(PyBool_FromLong);
+  } else if (return_type <= TCUnsigned) {
+    box_func = reinterpret_cast<uint64_t>(PyLong_FromSize_t);
+  } else if (return_type <= TCSigned) {
+    box_func = reinterpret_cast<uint64_t>(PyLong_FromSsize_t);
   } else {
-    // Move the primitive result from the return register (RAX/X0) to the
-    // first argument register (RDI on x86-64, X0 on aarch64).
-    // On aarch64 return reg == arg reg, so 32/64-bit types need no move.
-    if (return_type <= TCBool) {
+    JIT_THROW(
+        "Unsupported primitive return type {} can't be boxed", return_type);
+  }
+
+// Python 3.14 has better functions for handling 32-bit and 64-bit integers.
+#if PY_VERSION_HEX >= 0x030E0000
+  if (return_type <= TCInt32) {
+    box_func = reinterpret_cast<uint64_t>(PyLong_FromInt32);
+  } else if (return_type <= TCUInt32) {
+    box_func = reinterpret_cast<uint64_t>(PyLong_FromUInt32);
+  } else if (return_type <= TCInt64) {
+    box_func = reinterpret_cast<uint64_t>(PyLong_FromInt64);
+  } else if (return_type <= TCUInt64) {
+    box_func = reinterpret_cast<uint64_t>(PyLong_FromUInt64);
+  }
+#endif
+
+  // Move the primitive result from the return register (RAX/X0) to the
+  // first argument register (RDI on x86-64, X0 on aarch64).
+  // On aarch64 return reg == arg reg, so 32/64-bit types need no move.
+  auto arg0 = ARGUMENT_REGS[0];
+  if (return_type <= TCBool) {
+    box_block->allocateInstr(
+        Instruction::kMovZX,
+        nullptr,
+        OutPhyReg{arg0, DataType::k64bit},
+        PhyReg{ret8, DataType::k8bit});
+  } else if (return_type <= TCInt8 || return_type <= TCUInt8) {
+    box_block->allocateInstr(
+        return_type <= TCInt8 ? Instruction::kMovSX : Instruction::kMovZX,
+        nullptr,
+        OutPhyReg{arg0, DataType::k64bit},
+        PhyReg{ret8, DataType::k8bit});
+  } else if (return_type <= TCInt16 || return_type <= TCUInt16) {
+    box_block->allocateInstr(
+        return_type <= TCInt16 ? Instruction::kMovSX : Instruction::kMovZX,
+        nullptr,
+        OutPhyReg{arg0, DataType::k64bit},
+        PhyReg{ret16, DataType::k16bit});
+  } else if (return_type <= TCInt32) {
+    // Signed 32->64 must use movsxd, movsx cannot encode a 32-bit source.
+    box_block->allocateInstr(
+        Instruction::kMovSXD,
+        nullptr,
+        OutPhyReg{arg0, DataType::k64bit},
+        PhyReg{ret32, DataType::k32bit});
+  } else if (return_type <= TCUInt32) {
+    // Unsigned 32->64: a 32-bit move zero-extends into the full register.
+    // Skippable when the registers already match, except on aarch64 pre-3.14:
+    // there arg0 == ret64, but PyLong_FromSize_t reads all 64 bits and AAPCS64
+    // leaves the upper half of a 32-bit return unspecified, so we must still
+    // clear it.
+    bool needs_extend = PY_VERSION_HEX < 0x030E0000 &&
+        codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64;
+    if (arg0 != ret64 || needs_extend) {
       box_block->allocateInstr(
-          Instruction::kMovZX,
+          Instruction::kMove,
           nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
-          PhyReg{ret8, Operand::k8bit});
-      box_func = reinterpret_cast<uint64_t>(rt::boxBool);
-    } else if (return_type <= TCInt8) {
-      box_block->allocateInstr(
-          Instruction::kMovSX,
-          nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
-          PhyReg{ret8, Operand::k8bit});
-      box_func = reinterpret_cast<uint64_t>(rt::boxI32);
-    } else if (return_type <= TCUInt8) {
-      box_block->allocateInstr(
-          Instruction::kMovZX,
-          nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
-          PhyReg{ret8, Operand::k8bit});
-      box_func = reinterpret_cast<uint64_t>(rt::boxU32);
-    } else if (return_type <= TCInt16) {
-      box_block->allocateInstr(
-          Instruction::kMovSX,
-          nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
-          PhyReg{ret16, Operand::k16bit});
-      box_func = reinterpret_cast<uint64_t>(rt::boxI32);
-    } else if (return_type <= TCUInt16) {
-      box_block->allocateInstr(
-          Instruction::kMovZX,
-          nullptr,
-          OutPhyReg{ARGUMENT_REGS[0], Operand::k32bit},
-          PhyReg{ret16, Operand::k16bit});
-      box_func = reinterpret_cast<uint64_t>(rt::boxU32);
-    } else if (
-        return_type <= TCInt32 || return_type <= TCUInt32 ||
-        return_type <= TCInt64 || return_type <= TCUInt64) {
-      // All 32/64-bit integer types: full-width move from return register
-      // to first argument register. On aarch64 these are the same register
-      // so no move is needed.
-      if (ARGUMENT_REGS[0] != ret64) {
-        box_block->allocateInstr(
-            Instruction::kMove,
-            nullptr,
-            OutPhyReg{ARGUMENT_REGS[0]},
-            PhyReg{ret64});
-      }
-      if (return_type <= TCInt32) {
-        box_func = reinterpret_cast<uint64_t>(rt::boxI32);
-      } else if (return_type <= TCUInt32) {
-        box_func = reinterpret_cast<uint64_t>(rt::boxU32);
-      } else if (return_type <= TCInt64) {
-        box_func = reinterpret_cast<uint64_t>(rt::boxI64);
-      } else {
-        box_func = reinterpret_cast<uint64_t>(rt::boxU64);
-      }
-    } else {
-      JIT_ABORT("Unsupported primitive return type {}", return_type.toString());
+          OutPhyReg{arg0, DataType::k32bit},
+          PhyReg{ret32, DataType::k32bit});
     }
+  } else if (return_type <= (TCInt64 | TCUInt64) && arg0 != ret64) {
+    box_block->allocateInstr(
+        Instruction::kMove,
+        nullptr,
+        OutPhyReg{arg0, DataType::k64bit},
+        PhyReg{ret64, DataType::k64bit});
   }
 
   box_block->allocateInstr(Instruction::kCall, nullptr, Imm{box_func});
@@ -2763,42 +2775,55 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = static_cast<const PrimitiveBox*>(&i);
         Instruction* src = bbb.getDefInstr(instr->value());
         Type src_type = instr->value()->type();
-        uint64_t func = 0;
+        hir::Register* output = instr->output();
 
+        // Special case for an uninitialized variable, we'll load zero.
         if (src_type == TNullptr) {
-          // special case for an uninitialized variable, we'll
-          // load zero
-          bbb.appendCallInstruction(instr->output(), rt::boxI64, int64_t{0});
+          bbb.appendCallInstruction(output, PyLong_FromSize_t, size_t{0});
           break;
-        } else if (src_type <= TCUInt64) {
-          func = reinterpret_cast<uint64_t>(rt::boxU64);
-        } else if (src_type <= TCInt64) {
-          func = reinterpret_cast<uint64_t>(rt::boxI64);
-        } else if (src_type <= TCUInt32) {
-          func = reinterpret_cast<uint64_t>(rt::boxU32);
-        } else if (src_type <= TCInt32) {
-          func = reinterpret_cast<uint64_t>(rt::boxI32);
-        } else if (src_type <= TCDouble) {
-          func = reinterpret_cast<uint64_t>(rt::boxDouble);
-        } else if (src_type <= (TCUInt8 | TCUInt16)) {
-          src = bbb.appendInstr(
-              Instruction::kZext, OutVReg{Operand::k32bit}, src);
-          func = reinterpret_cast<uint64_t>(rt::boxU32);
-        } else if (src_type <= (TCInt8 | TCInt16)) {
-          src = bbb.appendInstr(
-              Instruction::kSext, OutVReg{Operand::k32bit}, src);
-          func = reinterpret_cast<uint64_t>(rt::boxI32);
+        }
+        if (src_type <= TCDouble) {
+          bbb.appendCallInstruction(output, PyFloat_FromDouble, src);
+          break;
         }
 
-        JIT_CHECK(func != 0, "Unknown box type {}", src_type.toString());
+        // Extend to 64-bit integer.  Can skip doing so on 32-bit starting in
+        // Python 3.14.
+        if (src_type <= (TCUInt8 | TCUInt16 | TCUInt32)) {
+          if (PY_VERSION_HEX < 0x030E0000 || !(src_type <= TCUInt32)) {
+            src = bbb.appendInstr(
+                Instruction::kZext, OutVReg{Operand::k64bit}, src);
+          }
+        } else if (src_type <= (TCInt8 | TCInt16 | TCInt32)) {
+          if (PY_VERSION_HEX < 0x030E0000 || !(src_type <= TCInt32)) {
+            src = bbb.appendInstr(
+                Instruction::kSext, OutVReg{Operand::k64bit}, src);
+          }
+        }
 
-        bbb.appendInstr(
-            instr->output(),
-            Instruction::kCall,
-            // TASK(T140174965): This should be MemImm.
-            Imm{func},
-            src);
-
+        // Use the fixed-int functions in Python 3.14, size_t and Py_ssize_t
+        // otherwise.
+#if PY_VERSION_HEX >= 0x030E0000
+        if (src_type <= TCUInt32) {
+          bbb.appendCallInstruction(output, PyLong_FromUInt32, src);
+        } else if (src_type <= TCInt32) {
+          bbb.appendCallInstruction(output, PyLong_FromInt32, src);
+        } else if (src_type <= TCUnsigned) {
+          bbb.appendCallInstruction(output, PyLong_FromUInt64, src);
+        } else if (src_type <= TCSigned) {
+          bbb.appendCallInstruction(output, PyLong_FromInt64, src);
+        } else {
+          JIT_THROW("Don't know how to box {} type", src_type);
+        }
+#else
+        if (src_type <= TCUnsigned) {
+          bbb.appendCallInstruction(output, PyLong_FromSize_t, src);
+        } else if (src_type <= TCSigned) {
+          bbb.appendCallInstruction(output, PyLong_FromSsize_t, src);
+        } else {
+          JIT_THROW("Don't know how to box {} type", src_type);
+        }
+#endif
         break;
       }
 
@@ -2856,44 +2881,43 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case Opcode::kPrimitiveUnbox: {
         auto instr = static_cast<const PrimitiveUnbox*>(&i);
         Type ty = instr->type();
+        Instruction* value = bbb.getDefInstr(instr->value());
+        hir::Register* output = instr->output();
+
+        // Booleans and doubles can be handled efficiently inline.
         if (ty <= TCBool) {
+          auto py_true = reinterpret_cast<uint64_t>(Py_True);
           bbb.appendInstr(
-              instr->output(),
+              output,
               Instruction::kEqual,
-              instr->value(),
-              Imm{reinterpret_cast<uint64_t>(Py_True), Operand::kObject});
+              value,
+              Imm{py_true, Operand::kObject});
+          break;
         } else if (ty <= TCDouble) {
-          // For doubles, we can directly load the offset into the destination.
-          Instruction* value = bbb.getDefInstr(instr->value());
-          int32_t offset = offsetof(PyFloatObject, ob_fval);
-          bbb.appendInstr(
-              instr->output(), Instruction::kMove, Ind{value, offset});
-        } else if (ty <= TCUInt64) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxU64, instr->value());
-        } else if (ty <= TCUInt32) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxU32, instr->value());
-        } else if (ty <= TCUInt16) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxU16, instr->value());
-        } else if (ty <= TCUInt8) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxU8, instr->value());
+          constexpr int32_t offset = offsetof(PyFloatObject, ob_fval);
+          bbb.appendInstr(output, Instruction::kMove, Ind{value, offset});
+          break;
+        }
+
+        // Integers require runtime helpers to handle range checks.
+        if (ty <= TCUInt64) {
+          bbb.appendCallInstruction(output, PyLong_AsSize_t, value);
         } else if (ty <= TCInt64) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxI64, instr->value());
+          bbb.appendCallInstruction(output, PyLong_AsSsize_t, value);
+        } else if (ty <= TCUInt32) {
+          bbb.appendCallInstruction(output, rt::unboxU32, value);
         } else if (ty <= TCInt32) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxI32, instr->value());
+          bbb.appendCallInstruction(output, rt::unboxI32, value);
+        } else if (ty <= TCUInt16) {
+          bbb.appendCallInstruction(output, rt::unboxU16, value);
         } else if (ty <= TCInt16) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxI16, instr->value());
+          bbb.appendCallInstruction(output, rt::unboxI16, value);
+        } else if (ty <= TCUInt8) {
+          bbb.appendCallInstruction(output, rt::unboxU8, value);
         } else if (ty <= TCInt8) {
-          bbb.appendCallInstruction(
-              instr->output(), rt::unboxI8, instr->value());
+          bbb.appendCallInstruction(output, rt::unboxI8, value);
         } else {
-          JIT_ABORT("Cannot unbox type {}", ty.toString());
+          JIT_THROW("Cannot unbox type {}", ty);
         }
         break;
       }

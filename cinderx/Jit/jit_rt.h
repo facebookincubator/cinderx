@@ -299,13 +299,6 @@ int32_t mod32(int32_t x, int32_t y);
 uint64_t modUnsigned64(uint64_t x, uint64_t y);
 uint32_t modUnsigned32(uint32_t x, uint32_t y);
 
-PyObject* boxI32(int32_t i);
-PyObject* boxU32(uint32_t i);
-PyObject* boxBool(uint32_t i);
-PyObject* boxI64(int64_t i);
-PyObject* boxU64(uint64_t i);
-PyObject* boxDouble(double_t d);
-
 double powerDouble(double x, double y);
 double sqrtDouble(double x);
 double power32(int32_t x, int32_t y);
@@ -313,11 +306,9 @@ double powerUnsigned32(uint32_t x, uint32_t y);
 double power64(int64_t x, int64_t y);
 double powerUnsigned64(uint64_t x, uint64_t y);
 
-uint64_t unboxU64(PyObject* obj);
 uint32_t unboxU32(PyObject* obj);
 uint16_t unboxU16(PyObject* obj);
 uint8_t unboxU8(PyObject* obj);
-int64_t unboxI64(PyObject* obj);
 int32_t unboxI32(PyObject* obj);
 int16_t unboxI16(PyObject* obj);
 int8_t unboxI8(PyObject* obj);
