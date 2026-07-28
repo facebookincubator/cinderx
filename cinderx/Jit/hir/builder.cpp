@@ -3033,8 +3033,8 @@ void HIRBuilder::emitLoadSmallInt(
     [[maybe_unused]] const jit::BytecodeInstruction& bc_instr) {
 #if PY_VERSION_HEX >= 0x030E0000
   Register* tmp = allocateTemp();
-  BorrowedRef<PyLongObject> small = smallInt(bc_instr.oparg());
-  tc.emit<LoadConst>(tmp, Type::fromObject(small.getObj()));
+  BorrowedRef<PyLongObject> small_int = smallInt(bc_instr.oparg());
+  tc.emit<LoadConst>(tmp, Type::fromObject(small_int.getObj()));
   tc.frame.stack.push(tmp);
 #else
   BUILDER_THROW("LOAD_SMALL_INT not supported on this Python version");
