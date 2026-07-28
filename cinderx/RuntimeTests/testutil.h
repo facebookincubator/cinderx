@@ -21,6 +21,8 @@ struct HIRTestSuite {
   std::vector<HIRTestCase> test_cases;
 };
 
+std::string runtimeTestPythonVersion();
+
 // Read an HIR test suite specified via a text file.
 //
 // The text file specifies the test suite name, an optional

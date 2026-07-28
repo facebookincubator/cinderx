@@ -2,6 +2,8 @@
 
 #include "cinderx/RuntimeTests/testutil.h"
 
+#include "cinderx/Common/define.h"
+
 #include <fmt/format.h>
 
 #include <filesystem>
@@ -182,6 +184,14 @@ ScanStatus scanUntilExpected(Reader& reader, std::string_view delim) {
 
 } // namespace
 
+std::string runtimeTestPythonVersion() {
+  return fmt::format(
+      "{}.{}{}",
+      PY_MAJOR_VERSION,
+      PY_MINOR_VERSION,
+      kFreeThreadedBuild ? "t" : "");
+}
+
 std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
   std::filesystem::path path =
       std::filesystem::path(__FILE__).parent_path().parent_path().append(
@@ -200,11 +210,7 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
 
   const std::string expected_prefix = fmt::format("{} Expected", kDelimPrefix);
   const std::string expected_delimiter = fmt::format(
-      "{} {}.{} {}",
-      expected_prefix,
-      PY_MAJOR_VERSION,
-      PY_MINOR_VERSION,
-      kDelimPrefix);
+      "{} {} {}", expected_prefix, runtimeTestPythonVersion(), kDelimPrefix);
 
   reader.readDelim("Test Name");
 

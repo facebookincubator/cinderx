@@ -234,8 +234,7 @@ int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
 
   // Needed for update_hir_expected.py to know which expected output to update.
-  std::cout << "Python Version: " << PY_MAJOR_VERSION << "." << PY_MINOR_VERSION
-            << '\n';
+  std::cout << "Python Version: " << runtimeTestPythonVersion() << '\n';
 
   register_test("clean_cfg_test.txt");
   register_test("dynamic_comparison_elimination_test.txt");
