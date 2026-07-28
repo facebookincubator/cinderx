@@ -1143,16 +1143,16 @@ void LinearScanAllocator::rewriteLIR() {
       auto instr = instr_iter->get();
       TRACE("{} - {} - {}", instr_id, process_input ? "in" : "out", *instr);
 
-      auto copies = std::make_unique<CopyGraphWithOperand>();
+      CopyGraphWithOperand copies;
       // check for new allocated intervals and update register mappings
       while (allocated_iter != allocated_.end() &&
              (*allocated_iter)->startLocation() <= instr_id) {
         auto& interval = *allocated_iter;
-        rewriteLIRUpdateMapping(mapping, interval.get(), copies.get());
+        rewriteLIRUpdateMapping(mapping, interval.get(), &copies);
         ++allocated_iter;
       }
 
-      rewriteLIREmitCopies(bb, instr_iter, std::move(copies));
+      rewriteLIREmitCopies(bb, instr_iter, copies);
 
       if (process_input) {
         // phi node inputs have to be handled by its predecessor
@@ -1435,7 +1435,7 @@ void LinearScanAllocator::resolveEdges() {
           last_instr->getInput(0)->type());
 
       rewriteLIREmitCopies(
-          basic_block, basic_block->instructions().end(), std::move(copies));
+          basic_block, basic_block->instructions().end(), *copies);
 
       if (is_exit) {
         basic_block->removeInstr(last_instr_iter);
@@ -1566,8 +1566,8 @@ LinearScanAllocator::resolveEdgesGenCopies(
 void LinearScanAllocator::rewriteLIREmitCopies(
     BasicBlock* block,
     instr_iter_t instr_iter,
-    std::unique_ptr<CopyGraphWithOperand> copies) {
-  for (auto op : copies->process()) {
+    CopyGraphWithOperand& copies) {
+  for (auto op : copies.process()) {
     PhyLocation from = op.from;
     PhyLocation to = op.to;
     [[maybe_unused]] auto orig_opnd_size = op.type;
@@ -1730,7 +1730,7 @@ void LinearScanAllocator::resolveEdgesInsertBasicBlocks(
     rewriteLIREmitCopies(
         new_bb,
         new_bb->instructions().end(),
-        std::move(bb == true_bb ? true_copies : false_copies));
+        *(bb == true_bb ? true_copies : false_copies));
   };
 
   emit_copies(new_bb1, bb1);

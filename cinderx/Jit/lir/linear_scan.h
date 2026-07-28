@@ -221,7 +221,7 @@ class LinearScanAllocator : public RegisterAllocator {
   void rewriteLIREmitCopies(
       BasicBlock* block,
       instr_iter_t instr_iter,
-      std::unique_ptr<CopyGraphWithOperand> copies);
+      CopyGraphWithOperand& copies);
 
   // Resolve allocations across block boundaries by emitting extra copies.
   void resolveEdges();
