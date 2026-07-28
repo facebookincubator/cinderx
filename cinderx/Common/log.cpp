@@ -2,6 +2,7 @@
 
 #include "cinderx/Common/log.h"
 
+#include <mutex>
 #include <stdexcept>
 
 namespace cinderx {
