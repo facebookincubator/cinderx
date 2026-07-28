@@ -31,6 +31,9 @@
     "@docusaurus/types": "^3.7.0",
     "typescript": "~5.6.2"
   },
+  "resolutions": {
+    "**/brace-expansion": "5.0.8"
+  },
   "browserslist": {
     "production": [
       ">0.5%",
