@@ -63,7 +63,6 @@ class CopyGraph {
   struct Node : public IntrusiveListNode<Node, ChildListTag>,
                 public IntrusiveListNode<Node, LeafListTag> {
     explicit Node(int loc) : loc{loc} {}
-    ~Node();
 
     bool operator<(const Node& other) const {
       return loc < other.loc;

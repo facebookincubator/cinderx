@@ -214,105 +214,68 @@ TEST(InstrusiveListTest, CanBeUsedInRangeExpressionsWithConstReference) {
   EXPECT_EQ(visited[2], 300);
 }
 
-TEST(IntrusiveListTest, CanSpliceEmptyRange) {
-  EntryList list1;
-  Entry entry1(100);
-  list1.pushBack(entry1);
-  EntryList list2;
-  list2.spliceAfter(entry1, list1);
-  ASSERT_TRUE(list2.isEmpty());
+TEST(IntrusiveListTest, EmptyListHasZeroSize) {
+  EntryList entries;
+  EXPECT_EQ(entries.size(), 0u);
 }
 
-TEST(IntrusiveListTest, CanSpliceOneElementRangeOntoEmptyList) {
-  EntryList list1;
+TEST(IntrusiveListTest, SizeTracksPushAndPop) {
+  EntryList entries;
   Entry entry1(100);
-  list1.pushBack(entry1);
   Entry entry2(200);
-  list1.pushBack(entry2);
-
-  EntryList list2;
-  list2.spliceAfter(entry1, list1);
-
-  ASSERT_FALSE(list2.isEmpty());
-  auto it = list2.begin();
-  ASSERT_EQ(it->value, 200);
-  it++;
-  ASSERT_EQ(it, list2.end());
-}
-
-TEST(IntrusiveListTest, CanSpliceMultiElementRangeOntoEmptyList) {
-  EntryList list1;
-  Entry entry1(100);
-  list1.pushBack(entry1);
-  Entry entry2(200);
-  list1.pushBack(entry2);
   Entry entry3(300);
-  list1.pushBack(entry3);
 
-  EntryList list2;
-  list2.spliceAfter(entry1, list1);
+  entries.pushBack(entry1);
+  EXPECT_EQ(entries.size(), 1u);
+  entries.pushFront(entry2);
+  EXPECT_EQ(entries.size(), 2u);
+  entries.pushBack(entry3);
+  EXPECT_EQ(entries.size(), 3u);
 
-  ASSERT_FALSE(list2.isEmpty());
-  auto it = list2.begin();
-  ASSERT_EQ(it->value, 200);
-  it++;
-  ASSERT_EQ(it->value, 300);
-  it++;
-  ASSERT_EQ(it, list2.end());
+  entries.popFront();
+  EXPECT_EQ(entries.size(), 2u);
+  entries.popBack();
+  EXPECT_EQ(entries.size(), 1u);
+  entries.popFront();
+  EXPECT_EQ(entries.size(), 0u);
+  EXPECT_TRUE(entries.isEmpty());
 }
 
-TEST(IntrusiveListTest, CanSpliceOneElementRangeOntoNonEmptyList) {
-  EntryList list1;
+TEST(IntrusiveListTest, SizeTracksExtract) {
+  EntryList entries;
   Entry entry1(100);
-  list1.pushBack(entry1);
   Entry entry2(200);
-  list1.pushBack(entry2);
+  entries.pushBack(entry1);
+  entries.pushBack(entry2);
+  EXPECT_EQ(entries.size(), 2u);
 
-  EntryList list2;
-  Entry entry3(300);
-  list2.pushBack(entry3);
-  Entry entry4(400);
-  list2.pushBack(entry4);
-  list2.spliceAfter(entry1, list1);
-
-  ASSERT_FALSE(list2.isEmpty());
-  auto it = list2.begin();
-  ASSERT_EQ(it->value, 300);
-  it++;
-  ASSERT_EQ(it->value, 400);
-  it++;
-  ASSERT_EQ(it->value, 200);
-  it++;
-  ASSERT_EQ(it, list2.end());
+  entries.extractFront();
+  EXPECT_EQ(entries.size(), 1u);
+  entries.extractBack();
+  EXPECT_EQ(entries.size(), 0u);
 }
 
-TEST(IntrusiveListTest, CanSpliceMultiElementRangeOntoNonEmptyList) {
-  EntryList list1;
+TEST(IntrusiveListTest, SizeTracksInsertAndRemove) {
+  EntryList entries;
   Entry entry1(100);
-  list1.pushBack(entry1);
   Entry entry2(200);
-  list1.pushBack(entry2);
   Entry entry3(300);
-  list1.pushBack(entry3);
+  entries.pushBack(entry1);
+  entries.pushBack(entry3);
 
-  EntryList list2;
-  Entry entry4(400);
-  list2.pushBack(entry4);
-  Entry entry5(500);
-  list2.pushBack(entry5);
-  list2.spliceAfter(entry1, list1);
+  // Insert entry2 before entry3.
+  entries.insert(entry2, entries.iterator_to(entry3));
+  EXPECT_EQ(entries.size(), 3u);
+  auto it = entries.begin();
+  EXPECT_EQ(it->value, 100);
+  EXPECT_EQ((++it)->value, 200);
+  EXPECT_EQ((++it)->value, 300);
 
-  ASSERT_FALSE(list2.isEmpty());
-  auto it = list2.begin();
-  ASSERT_EQ(it->value, 400);
-  it++;
-  ASSERT_EQ(it->value, 500);
-  it++;
-  ASSERT_EQ(it->value, 200);
-  it++;
-  ASSERT_EQ(it->value, 300);
-  it++;
-  ASSERT_EQ(it, list2.end());
+  entries.remove(entry2);
+  EXPECT_EQ(entries.size(), 2u);
+  entries.remove(entry1);
+  entries.remove(entry3);
+  EXPECT_EQ(entries.size(), 0u);
 }
 
 TEST(InstrusiveListTest, CanGetReverseIteratorsToElements) {

@@ -89,7 +89,7 @@ void CFG::insertBlock(BasicBlock* block) {
 }
 
 void CFG::removeBlock(BasicBlock* block) {
-  block->unlink();
+  blocks.remove(*block);
 }
 
 BasicBlock* CFG::splitAfter(Instr& target) {
@@ -173,13 +173,13 @@ const BasicBlock* CFG::getBlockById(int id) const {
 }
 
 size_t CFG::numBlocks() const {
-  return std::distance(blocks.begin(), blocks.end());
+  return blocks.size();
 }
 
 size_t CFG::numInstrs() const {
   size_t result = 0;
   for (const auto& block : blocks) {
-    result += std::distance(block.begin(), block.end());
+    result += block.size();
   }
   return result;
 }

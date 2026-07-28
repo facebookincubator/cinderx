@@ -4083,42 +4083,55 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 
   // BasicBlock holds a list of instructions, delegating most operations
   // directly to its IntrusiveList.
-  auto empty() const {
-    return instrs_.isEmpty();
-  }
-  auto& front() {
+  bool empty() const;
+
+  // Number of instructions in the block.
+  size_t size() const;
+
+  Instr& front() {
     return instrs_.front();
   }
-  auto& front() const {
+
+  const Instr& front() const {
     return instrs_.front();
   }
-  auto& back() {
+
+  Instr& back() {
     return instrs_.back();
   }
-  auto& back() const {
+
+  const Instr& back() const {
     return instrs_.back();
   }
-  auto iterator_to(Instr& instr) {
+
+  Instr::List::iterator iterator_to(Instr& instr) {
     return instrs_.iterator_to(instr);
   }
-  auto const_iterator_to(const Instr& instr) const {
+
+  Instr::List::const_iterator const_iterator_to(const Instr& instr) const {
     return instrs_.const_iterator_to(instr);
   }
-  auto begin() {
+
+  Instr::List::iterator begin() {
     return instrs_.begin();
   }
-  auto begin() const {
+
+  Instr::List::const_iterator begin() const {
     return instrs_.begin();
   }
-  auto end() {
+
+  Instr::List::iterator end() {
     return instrs_.end();
   }
-  auto end() const {
+
+  Instr::List::const_iterator end() const {
     return instrs_.end();
   }
+
   auto reverse_iterator_to(Instr& instr) {
     return instrs_.reverse_iterator_to(instr);
   }
+
   auto const_reverse_iterator_to(const Instr& instr) const {
     return instrs_.const_reverse_iterator_to(instr);
   }

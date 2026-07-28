@@ -4,15 +4,6 @@
 
 namespace cinderx::jit::codegen {
 
-CopyGraph::Node::~Node() {
-  if (this->ChildLink::isLinked()) {
-    this->ChildLink::unlink();
-  }
-  if (this->LeafLink::isLinked()) {
-    this->LeafLink::unlink();
-  }
-}
-
 void CopyGraph::addEdge(int from, int to) {
   auto parent = getNode(from);
   auto child = getNode(to);
@@ -41,14 +32,20 @@ CopyGraph::Node* CopyGraph::getNode(int loc) {
 
 void CopyGraph::setParent(Node* child, Node* parent) {
   JIT_DCHECK(child != parent, "Can't make node its own parent");
-  if (child->ChildLink::isLinked()) {
-    child->ChildLink::unlink();
+
+  // Remove pre-existing parent if it exists.
+  if (child->parent != nullptr) {
+    child->parent->children.remove(*child);
   }
+
+  // Set the new parent.
   child->parent = parent;
+
+  // If the new parent was a leaf, it no longer is one.
   if (parent != nullptr) {
     parent->children.pushBack(*child);
     if (parent->LeafLink::isLinked()) {
-      parent->LeafLink::unlink();
+      leaf_nodes_.remove(*parent);
     }
   }
 }
@@ -103,6 +100,7 @@ std::vector<CopyGraph::Op> CopyGraph::process() {
       while (node->parent != nullptr) {
         ops.emplace_back(Op::Kind::kExchange, node->loc, node->parent->loc);
         auto parent = node->parent;
+        parent->children.remove(*node);
         nodes_.erase(node->loc);
         node = parent;
       }
@@ -128,6 +126,7 @@ void CopyGraph::processLeafNodes(std::vector<Op>& ops) {
     auto parent = node->parent;
 
     ops.emplace_back(Op::Kind::kCopy, parent->loc, node->loc);
+    parent->children.remove(*node);
     nodes_.erase(node->loc);
 
     if (parent->children.isEmpty()) {

@@ -992,6 +992,14 @@ void BasicBlock::clear() {
   }
 }
 
+bool BasicBlock::empty() const {
+  return instrs_.isEmpty();
+}
+
+size_t BasicBlock::size() const {
+  return instrs_.size();
+}
+
 BasicBlock::~BasicBlock() {
   JIT_DCHECK(
       in_edges_.empty(), "Attempt to destroy a block with in-edges, {}", id);

@@ -63,14 +63,6 @@ class IntrusiveListNode {
     return prev_ != this;
   }
 
-  void unlink() {
-    JIT_DCHECK(isLinked(), "Item is not in a list");
-    prev()->setNext(next());
-    next()->setPrev(prev());
-    setNext(this);
-    setPrev(this);
-  }
-
  private:
   friend class IntrusiveList<T, Tag>;
   friend class IntrusiveListIterator<T, Tag, false>;
@@ -81,12 +73,19 @@ class IntrusiveListNode {
     return prev_;
   }
 
-  void setPrev(IntrusiveListNode* prev) {
-    prev_ = prev;
-  }
-
   IntrusiveListNode* next() const {
     return next_;
+  }
+
+ private:
+  // Membership is only ever mutated by the owning IntrusiveList, so that the
+  // list can keep an accurate element count.  These low-level operations are
+  // private and reachable only through the container.
+  template <class T2, class Tag2>
+  friend class IntrusiveList;
+
+  void setPrev(IntrusiveListNode* prev) {
+    prev_ = prev;
   }
 
   void setNext(IntrusiveListNode* next) {
@@ -109,6 +108,14 @@ class IntrusiveListNode {
     setNext(next_node);
     node->setNext(this);
     setPrev(node);
+  }
+
+  void unlink() {
+    JIT_DCHECK(isLinked(), "Item is not in a list");
+    prev()->setNext(next());
+    next()->setPrev(prev());
+    setNext(this);
+    setPrev(this);
   }
 
   DISALLOW_COPY_AND_ASSIGN(IntrusiveListNode);
@@ -140,6 +147,13 @@ class IntrusiveList {
     return root_.next() == &root_;
   }
 
+  // Number of elements in the list, maintained in O(1).  All membership
+  // changes go through this container (the raw IntrusiveListNode operations are
+  // private to it), so the count is always accurate.
+  size_type size() const {
+    return size_;
+  }
+
   reference front() {
     JIT_DCHECK(!isEmpty(), "list cannot be empty");
     return *getOwner(root_.next());
@@ -152,17 +166,20 @@ class IntrusiveList {
 
   void pushFront(reference node) {
     node.NodeType::insertAfter(&root_);
+    ++size_;
   }
 
   void popFront() {
     JIT_DCHECK(!isEmpty(), "list cannot be empty");
     root_.next()->unlink();
+    --size_;
   }
 
   reference extractFront() {
     JIT_DCHECK(!isEmpty(), "list cannot be empty");
     NodeType* old_front = root_.next();
     old_front->unlink();
+    --size_;
     return *getOwner(old_front);
   }
 
@@ -186,38 +203,21 @@ class IntrusiveList {
 
   void pushBack(reference node) {
     node.NodeType::insertAfter(root_.prev());
+    ++size_;
   }
 
   void popBack() {
     JIT_DCHECK(!isEmpty(), "list cannot be empty");
     root_.prev()->unlink();
+    --size_;
   }
 
   reference extractBack() {
     JIT_DCHECK(!isEmpty(), "list cannot be empty");
     NodeType* old_back = root_.prev();
     old_back->unlink();
+    --size_;
     return *getOwner(old_back);
-  }
-
-  void spliceAfter(reference node, IntrusiveList& other) {
-    NodeType* lnode = &node;
-    if (lnode->next() == &other.root_) {
-      // node is the last element in other, or other is empty
-      return;
-    }
-    NodeType* other_root = &(other.root_);
-    NodeType* spliced_head = lnode->next();
-    NodeType* spliced_tail = other_root->prev();
-    // Splice the remainder out of the other list
-    lnode->setNext(other_root);
-    other_root->setPrev(lnode);
-    // Insert it into our list
-    NodeType* tail = root_.prev();
-    tail->setNext(spliced_head);
-    spliced_head->setPrev(tail);
-    spliced_tail->setNext(&root_);
-    root_.setPrev(spliced_tail);
   }
 
   void insert(reference r, iterator it) {
@@ -227,10 +227,13 @@ class IntrusiveList {
         reinterpret_cast<void*>(it.list()),
         reinterpret_cast<void*>(this));
     r.NodeType::insertBefore(it.node());
+    ++size_;
   }
 
+  // Remove an element that is known to be a member of this list.
   void remove(reference r) {
     r.NodeType::unlink();
+    --size_;
   }
 
   // Return an iterator to the given object, assuming it's in this list.
@@ -304,6 +307,7 @@ class IntrusiveList {
   friend class IntrusiveListIterator<T, Tag, false>;
 
   NodeType root_;
+  size_type size_{0};
 };
 
 template <class T, class Tag, bool is_const>
