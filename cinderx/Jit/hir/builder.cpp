@@ -9,7 +9,6 @@
 extern "C" {
 
 #include "internal/pycore_intrinsics.h"
-#include "internal/pycore_long.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_runtime.h"
 
@@ -17,6 +16,7 @@ extern "C" {
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/containers.h"
+#include "cinderx/Common/long.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
@@ -3033,13 +3033,8 @@ void HIRBuilder::emitLoadSmallInt(
     [[maybe_unused]] const jit::BytecodeInstruction& bc_instr) {
 #if PY_VERSION_HEX >= 0x030E0000
   Register* tmp = allocateTemp();
-  JIT_CHECK(
-      bc_instr.oparg() < _PY_NSMALLPOSINTS, "LOAD_SMALL_INT out of range");
-  tc.emit<LoadConst>(
-      tmp,
-      Type::fromObject(
-          reinterpret_cast<PyObject*>(
-              &_PyLong_SMALL_INTS[_PY_NSMALLNEGINTS + bc_instr.oparg()])));
+  BorrowedRef<PyLongObject> small = smallInt(bc_instr.oparg());
+  tc.emit<LoadConst>(tmp, Type::fromObject(small.getObj()));
   tc.frame.stack.push(tmp);
 #else
   BUILDER_THROW("LOAD_SMALL_INT not supported on this Python version");

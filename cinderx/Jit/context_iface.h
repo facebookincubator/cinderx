@@ -17,8 +17,6 @@ class IJitContext {
 
   virtual CodeRuntime* lookupCodeRuntime(
       BorrowedRef<PyFunctionObject> func) = 0;
-
-  virtual BorrowedRef<> zero() = 0;
 };
 
 } // namespace cinderx::jit

@@ -453,7 +453,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       CompilationKey& key,
       CompiledFunctionData&& compiled_func);
 
-  BorrowedRef<> zero() override;
   BorrowedRef<> strBuildClass();
 
   void watchPendingTypes();
@@ -532,7 +531,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       std::unordered_set<TypeDeoptPatcher*>>
       type_deopt_patchers_;
 
-  Ref<> zero_;
   Ref<> str_build_class_;
   std::unordered_set<BorrowedRef<PyTypeObject>> pending_watches_;
 

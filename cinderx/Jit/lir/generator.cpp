@@ -25,6 +25,7 @@ extern "C" {
 
 #include "cinderx/Common/containers.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/long.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/iter_helpers.h"
@@ -2779,7 +2780,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
         // Special case for an uninitialized variable, we'll load zero.
         if (src_type == TNullptr) {
-          bbb.appendCallInstruction(output, PyLong_FromSize_t, size_t{0});
+          auto zero = reinterpret_cast<uint64_t>(smallInt(0).get());
+          bbb.appendInstr(
+              output, Instruction::kMove, Imm{zero, DataType::kObject});
           break;
         }
         if (src_type <= TCDouble) {

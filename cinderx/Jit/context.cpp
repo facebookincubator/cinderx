@@ -122,9 +122,7 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
   return result->second;
 }
 
-Context::Context()
-    : zero_(Ref<>::steal(PyLong_FromLong(0))),
-      str_build_class_(Ref<>::create(&_Py_ID(__build_class__))) {
+Context::Context() : str_build_class_(Ref<>::create(&_Py_ID(__build_class__))) {
 #if PY_VERSION_HEX >= 0x030E0000
   for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
     JIT_CHECK(Ci_common_consts[i] != nullptr, "common_consts[{}] is null", i);
@@ -411,10 +409,6 @@ void Context::watchType(
       cinderx::getModuleState()->watcher_state.watchType(type) == 0,
       "Failed to watch type {}",
       type->tp_name);
-}
-
-BorrowedRef<> Context::zero() {
-  return zero_.get();
 }
 
 BorrowedRef<> Context::strBuildClass() {
