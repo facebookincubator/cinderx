@@ -229,6 +229,10 @@ class IntrusiveList {
     r.NodeType::insertBefore(it.node());
   }
 
+  void remove(reference r) {
+    r.NodeType::unlink();
+  }
+
   // Return an iterator to the given object, assuming it's in this list.
   iterator iterator_to(reference r) {
     return iterator(this, &r);

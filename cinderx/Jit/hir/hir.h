@@ -4034,8 +4034,18 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
   void push_front(Instr* instr);
   Instr* pop_front();
 
+  void insertBefore(Instr& existing, Instr& new_instr);
+  void insertAfter(Instr& existing, Instr& new_instr);
+
+  void replace(Instr& existing, Instr& new_instr);
+
+  void expand(Instr& existing, std::span<Instr* const> expansion);
+
   // Insert the given Instr before `it'.
   void insert(Instr* instr, Instr::List::iterator it);
+
+  // Remove an instruction from this block, but don't free it.
+  void remove(Instr& instr);
 
   template <typename T, typename... Args>
   T* append(Args&&... args) {

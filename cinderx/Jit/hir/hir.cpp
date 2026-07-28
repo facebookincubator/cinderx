@@ -574,29 +574,25 @@ void Instr::setBlock(BasicBlock* block) {
 }
 
 void Instr::insertBefore(Instr& instr) {
-  BaseNode::insertBefore(&instr);
-  link(instr.block());
+  JIT_THROW_IF(
+      instr.block() == nullptr, "Inserting before unlinked instruction");
+  instr.block()->insertBefore(instr, *this);
 }
 
 void Instr::insertAfter(Instr& instr) {
-  BaseNode::insertAfter(&instr);
-  link(instr.block());
+  JIT_THROW_IF(
+      instr.block() == nullptr, "Inserting after unlinked instruction");
+  instr.block()->insertAfter(instr, *this);
 }
 
 void Instr::replaceWith(Instr& instr) {
-  instr.insertBefore(*this);
-  instr.setBytecodeOffset(bytecodeOffset());
-  unlink();
+  JIT_THROW_IF(block_ == nullptr, "Replacing unlinked instruction");
+  block()->replace(*this, instr);
 }
 
 void Instr::expandInto(const std::vector<Instr*>& expansion) {
-  Instr* last = this;
-  for (Instr* instr : expansion) {
-    instr->insertAfter(*last);
-    instr->setBytecodeOffset(bytecodeOffset());
-    last = instr;
-  }
-  unlink();
+  JIT_THROW_IF(block_ == nullptr, "Expanding unlinked instruction");
+  block()->expand(*this, {expansion.data(), expansion.size()});
 }
 
 void Instr::link(BasicBlock* block) {
@@ -606,8 +602,7 @@ void Instr::link(BasicBlock* block) {
 
 void Instr::unlink() {
   JIT_CHECK(block_ != nullptr, "Instr isn't linked");
-  BaseNode::unlink();
-  setBlock(nullptr);
+  block_->remove(*this);
 }
 
 BasicBlock* Instr::block() const {
@@ -922,6 +917,13 @@ Instr* BasicBlock::append(Instr* instr) {
   return instr;
 }
 
+void BasicBlock::remove(Instr& instr) {
+  JIT_THROW_IF(
+      instr.block() != this, "Removing instr but it isn't in this block");
+  instrs_.remove(instr);
+  instr.setBlock(nullptr);
+}
+
 void BasicBlock::retargetPreds(BasicBlock* target) {
   JIT_CHECK(target != this, "Can't retarget to self");
   for (auto it = in_edges_.begin(); it != in_edges_.end();) {
@@ -940,6 +942,32 @@ Instr* BasicBlock::pop_front() {
   Instr* result = &(instrs_.extractFront());
   result->setBlock(nullptr);
   return result;
+}
+
+void BasicBlock::insertBefore(Instr& existing, Instr& new_instr) {
+  JIT_THROW_IF(existing.block() != this, "Existing instr isn't in this block");
+  insert(&new_instr, instrs_.iterator_to(existing));
+}
+
+void BasicBlock::insertAfter(Instr& existing, Instr& new_instr) {
+  JIT_THROW_IF(existing.block() != this, "Existing instr isn't in this block");
+  insert(&new_instr, std::next(instrs_.iterator_to(existing)));
+}
+
+void BasicBlock::replace(Instr& existing, Instr& new_instr) {
+  insertBefore(existing, new_instr);
+  new_instr.setBytecodeOffset(existing.bytecodeOffset());
+  remove(existing);
+}
+
+void BasicBlock::expand(Instr& existing, std::span<Instr* const> expansion) {
+  Instr* last = &existing;
+  for (Instr* new_instr : expansion) {
+    insertAfter(*last, *new_instr);
+    new_instr->setBytecodeOffset(existing.bytecodeOffset());
+    last = new_instr;
+  }
+  remove(existing);
 }
 
 void BasicBlock::insert(Instr* instr, Instr::List::iterator it) {
