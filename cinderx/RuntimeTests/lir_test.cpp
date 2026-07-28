@@ -774,6 +774,17 @@ def func(value):
   Ref<PyObject> pyfunc(compileAndGet(src, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
+  if constexpr (kFreeThreadedBuild) {
+    auto lir_func = getLIRFunction(pyfunc.get());
+    EXPECT_LIR(Query(*lir_func)
+                   .opcode(Instruction::kCall)
+                   .inAddr(0, reinterpret_cast<uint64_t>(rt::listSubscript)));
+    EXPECT_LIR(Query(*lir_func)
+                   .opcode(Instruction::kCall)
+                   .inAddr(0, reinterpret_cast<uint64_t>(PyObject_SetItem)));
+    return;
+  }
+
   auto lir_str = getLIRString(pyfunc.get());
   const std::regex scaled_array_load{
       R"(:Object = Move \[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object)"};
