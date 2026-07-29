@@ -33,6 +33,8 @@
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/Jit/lir/printer.h"
+#include "cinderx/Jit/lir/regalloc.h"
+#include "cinderx/Jit/lir/spill_alloc.h"
 #include "cinderx/Jit/lir/target_select.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -845,15 +847,25 @@ void* NativeGenerator::getVectorcallEntry() {
   reserved_stack_space += 16;
 #endif
 
-  LinearScanAllocator lsalloc(lir_func.get(), reserved_stack_space);
+  std::unique_ptr<RegisterAllocator> allocator;
+  switch (getConfig().reg_alloc) {
+    case RegAllocKind::kLinearScan:
+      allocator = std::make_unique<LinearScanAllocator>(
+          lir_func.get(), reserved_stack_space);
+      break;
+    case RegAllocKind::kSpill:
+      allocator = std::make_unique<SpillAllocator>(
+          lir_func.get(), reserved_stack_space);
+      break;
+  }
 
   COMPILE_TIMER(
       getFunction()->compilation_phase_timer,
       "Register Allocation",
-      lsalloc.run())
+      allocator->run())
 
-  env_.shadow_frames_and_spill_size = lsalloc.getFrameSize();
-  env_.changed_regs = lsalloc.getChangedRegs();
+  env_.shadow_frames_and_spill_size = allocator->getFrameSize();
+  env_.changed_regs = allocator->getChangedRegs();
   env_.exit_label = as_->newLabel();
   env_.can_deopt = getFunction()->canDeopt();
 

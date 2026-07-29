@@ -234,6 +234,22 @@ void setASMSyntax(const std::string& asm_syntax) {
   }
 }
 
+// Select the register allocator.  On an invalid value this sets a Python
+// exception, which initialize() turns into an initialization failure.
+void setRegAlloc(const std::string& reg_alloc) {
+  if (reg_alloc == "linear-scan") {
+    getMutableConfig().reg_alloc = RegAllocKind::kLinearScan;
+  } else if (reg_alloc == "spill") {
+    getMutableConfig().reg_alloc = RegAllocKind::kSpill;
+  } else {
+    PyErr_Format(
+        PyExc_ValueError,
+        "Invalid value for -X cinderx-jit-reg-alloc: '%s'. Valid choices are "
+        "'linear-scan' or 'spill'.",
+        reg_alloc.c_str());
+  }
+}
+
 size_t parse_sized_argument(const std::string& val) {
   std::string parsed;
   // " 1024 k" should parse OK - so remove the space.
@@ -324,6 +340,15 @@ FlagProcessor initFlagProcessor() {
           "set the assembly syntax used in log files")
       .withFlagParamName("intel|att")
       .withDebugMessageOverride("Sets the assembly syntax used in log files");
+
+  flag_processor
+      .addOption(
+          "cinderx-jit-reg-alloc",
+          "CINDERX_JIT_REG_ALLOC",
+          [](const std::string& reg_alloc) { setRegAlloc(reg_alloc); },
+          "select the register allocator: 'linear-scan' (default) or 'spill'")
+      .withFlagParamName("linear-scan|spill")
+      .withDebugMessageOverride("Sets the register allocator");
 
   flag_processor.addOption(
       "cinderx-jit-debug-guard-removal",
@@ -3377,6 +3402,12 @@ int initialize() {
   getMutableConfig().use_stable_pointers = use_stable_pointers;
 
   FlagProcessor flag_processor = initFlagProcessor();
+  // A flag callback may have rejected an invalid value by setting a Python
+  // exception.  Fail initialization cleanly.
+  if (PyErr_Occurred()) {
+    return -1;
+  }
+
   if (flag_processor.hasHandled("cinderx-jit-help")) {
     std::cout << flag_processor.jitXOptionHelpMessage() << '\n';
     // Return rather than exit here for arg printing test doesn't end early.

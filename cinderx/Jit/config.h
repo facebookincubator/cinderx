@@ -115,6 +115,16 @@ enum class AsmSyntax : uint8_t {
   Intel,
 };
 
+// Which register allocator the JIT should use to lower LIR virtual registers to
+// physical locations.
+enum class RegAllocKind : uint8_t {
+  // Optimizing linear scan allocator (the default).
+  kLinearScan,
+  // Trivial allocator that spills everything to the stack.  Intended for
+  // testing and isolating the rest of the JIT pipeline.
+  kSpill,
+};
+
 // Collection of configuration values for the JIT.
 //
 // Note: It's fine to store non-trivially destructible objects like std::string
@@ -220,6 +230,9 @@ struct Config {
 
   // The ASM syntax the JIT should use when disassembling.
   AsmSyntax asm_syntax{AsmSyntax::ATT};
+
+  // The register allocator the JIT should use.
+  RegAllocKind reg_alloc{RegAllocKind::kLinearScan};
 
   // List of function name patterns for which to capture compilation times.
   std::vector<std::string> capture_compilation_times_for;
