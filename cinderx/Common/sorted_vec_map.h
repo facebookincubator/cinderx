@@ -3,6 +3,7 @@
 #pragma once
 
 #include <algorithm>
+#include <concepts>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -18,6 +19,14 @@ namespace cinderx {
 // small sizes we use it for.
 template <typename Key, typename Value, typename Compare = std::less<Key>>
 class SortedVecMap {
+  template <typename K>
+  static constexpr bool kIsTransparentLookup =
+      requires(const Compare& comp, const Key& key, const K& lookup) {
+        typename Compare::is_transparent;
+        { comp(key, lookup) } -> std::convertible_to<bool>;
+        { comp(lookup, key) } -> std::convertible_to<bool>;
+      };
+
  public:
   using key_type = Key;
   using mapped_type = Value;
@@ -61,6 +70,20 @@ class SortedVecMap {
     return matches(it, key) ? it : data_.end();
   }
 
+  template <typename K>
+    requires kIsTransparentLookup<K>
+  iterator find(const K& key) {
+    iterator it = lowerBound(key);
+    return matches(it, key) ? it : data_.end();
+  }
+
+  template <typename K>
+    requires kIsTransparentLookup<K>
+  const_iterator find(const K& key) const {
+    const_iterator it = lowerBound(key);
+    return matches(it, key) ? it : data_.end();
+  }
+
   // Insert a key/value pair, keeping the backing vector sorted by key. If the
   // key is already present nothing is inserted.  Return an iterator to the
   // element with that key and whether a new element was inserted.
@@ -76,28 +99,27 @@ class SortedVecMap {
   }
 
  private:
-  bool matches(const_iterator it, const Key& key) const {
+  template <typename K>
+  bool matches(const_iterator it, const K& key) const {
     return it != data_.end() && !comp_(key, it->first);
   }
 
-  iterator lowerBound(const Key& key) {
+  template <typename K>
+  iterator lowerBound(const K& key) {
     return std::lower_bound(
         data_.begin(),
         data_.end(),
         key,
-        [this](const value_type& a, const Key& b) {
-          return comp_(a.first, b);
-        });
+        [this](const value_type& a, const K& b) { return comp_(a.first, b); });
   }
 
-  const_iterator lowerBound(const Key& key) const {
+  template <typename K>
+  const_iterator lowerBound(const K& key) const {
     return std::lower_bound(
         data_.begin(),
         data_.end(),
         key,
-        [this](const value_type& a, const Key& b) {
-          return comp_(a.first, b);
-        });
+        [this](const value_type& a, const K& b) { return comp_(a.first, b); });
   }
 
   container_type data_;

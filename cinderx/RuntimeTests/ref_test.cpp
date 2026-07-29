@@ -9,6 +9,30 @@
 using BorrowedRefTest = RuntimeTest;
 using RefTest = RuntimeTest;
 
+template <typename Compare, typename L, typename R>
+concept RefComparable = requires(
+    const Compare& comp,
+    const RefBase<L>& lhs,
+    const RefBase<R>& rhs) {
+  { comp(lhs, rhs) } -> std::same_as<bool>;
+};
+
+static_assert(RefComparable<RefLess<PyObject>, PyObject, PyObject>);
+static_assert(RefComparable<RefLess<PyObject>, PyObject, PyUnicodeObject>);
+static_assert(RefComparable<RefLess<PyObject>, PyUnicodeObject, PyObject>);
+static_assert(!RefComparable<RefLess<PyObject>, PyUnicodeObject, PyLongObject>);
+static_assert(!RefComparable<RefLess<PyObject>, PyLongObject, PyUnicodeObject>);
+static_assert(
+    RefComparable<RefLess<PyUnicodeObject>, PyUnicodeObject, PyUnicodeObject>);
+static_assert(
+    RefComparable<RefLess<PyUnicodeObject>, PyUnicodeObject, PyObject>);
+static_assert(
+    RefComparable<RefLess<PyUnicodeObject>, PyObject, PyUnicodeObject>);
+static_assert(
+    !RefComparable<RefLess<PyUnicodeObject>, PyUnicodeObject, PyLongObject>);
+static_assert(
+    !RefComparable<RefLess<PyUnicodeObject>, PyLongObject, PyUnicodeObject>);
+
 static void takeObject(PyObject*) {}
 static void takeType(PyTypeObject*) {}
 static void stealRef(Ref<>) {}

@@ -5,8 +5,6 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/config.h"
 
-#include <algorithm>
-
 namespace cinderx::jit::hir {
 
 std::unique_ptr<AnnotationIndex> AnnotationIndex::fromFunction(
@@ -37,16 +35,8 @@ BorrowedRef<> AnnotationIndex::find(BorrowedRef<> name) const {
   JIT_DCHECK(
       reinterpret_cast<PyASCIIObject*>(name.getObj())->state.interned != 0,
       "should be interned");
-  // annotations_ is sorted by key pointer (via std::less<Ref<>>), so this is a
-  // binary search by pointer identity.  It deliberately does not call
-  // SortedVecMap::find, which would require constructing an owning Ref<> and
-  // thus touch the Python C-API.
-  auto it = std::lower_bound(
-      annotations_.begin(),
-      annotations_.end(),
-      name,
-      [](const auto& entry, PyObject* rhs) { return entry.first.get() < rhs; });
-  if (it != annotations_.end() && it->first.get() == name) {
+  auto it = annotations_.find(name);
+  if (it != annotations_.end()) {
     return it->second.get();
   }
   return nullptr;

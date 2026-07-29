@@ -285,7 +285,7 @@ struct std::hash<Ref<T>> {
 };
 
 template <typename T>
-struct TransparentRefHasher {
+struct RefHasher {
   using is_transparent = void;
 
   size_t operator()(const BorrowedRef<T>& ref) const {
@@ -294,5 +294,27 @@ struct TransparentRefHasher {
 
   size_t operator()(const Ref<T>& ref) const {
     return std::hash<Ref<T>>{}(ref);
+  }
+};
+
+// Comparison implementation for Ref<T> and BorrowedRef<T>.
+template <typename T>
+struct RefLess {
+  using is_transparent = void;
+
+  bool operator()(const RefBase<T>& lhs, const RefBase<T>& rhs) const {
+    return std::less<T*>{}(lhs.get(), rhs.get());
+  }
+
+  template <typename U>
+    requires(!std::same_as<T, U> && (IsPyObject<T> || IsPyObject<U>))
+  bool operator()(const RefBase<T>& lhs, const RefBase<U>& rhs) const {
+    return std::less<PyObject*>{}(lhs.getObj(), rhs.getObj());
+  }
+
+  template <typename U>
+    requires(!std::same_as<T, U> && (IsPyObject<T> || IsPyObject<U>))
+  bool operator()(const RefBase<U>& lhs, const RefBase<T>& rhs) const {
+    return std::less<PyObject*>{}(lhs.getObj(), rhs.getObj());
   }
 };

@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -14,6 +15,13 @@ namespace {
 using namespace cinderx;
 
 using IntMap = SortedVecMap<int, std::string>;
+using TransparentStringMap = SortedVecMap<std::string, int, std::less<>>;
+
+template <typename Map, typename Key>
+concept FindableWith = requires(Map& map, const Key& key) { map.find(key); };
+
+static_assert(FindableWith<TransparentStringMap, std::string_view>);
+static_assert(!FindableWith<SortedVecMap<std::string, int>, std::string_view>);
 
 } // namespace
 
@@ -34,6 +42,21 @@ TEST(SortedVecMapTest, EmplaceThenFind) {
   EXPECT_EQ(map.find(1)->second, "one");
   EXPECT_EQ(map.find(2)->second, "two");
   EXPECT_EQ(map.find(3), map.end());
+}
+
+TEST(SortedVecMapTest, FindSupportsTransparentComparator) {
+  TransparentStringMap map;
+  map.emplace("alpha", 1);
+  map.emplace("gamma", 3);
+
+  std::string_view alpha = "alpha";
+  std::string_view beta = "beta";
+  EXPECT_EQ(map.find(alpha)->second, 1);
+  EXPECT_EQ(map.find(beta), map.end());
+
+  const TransparentStringMap& const_map = map;
+  EXPECT_EQ(const_map.find(alpha)->second, 1);
+  EXPECT_EQ(const_map.find(beta), const_map.end());
 }
 
 TEST(SortedVecMapTest, IteratesInAscendingKeyOrder) {

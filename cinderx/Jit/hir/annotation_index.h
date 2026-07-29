@@ -39,7 +39,7 @@ class AnnotationIndex {
   explicit AnnotationIndex(BorrowedRef<PyDictObject> dict);
 
   Ref<> owner_;
-  SortedVecMap<Ref<>, Ref<>> annotations_;
+  SortedVecMap<Ref<>, Ref<>, RefLess<PyObject>> annotations_;
 };
 
 } // namespace cinderx::jit::hir
