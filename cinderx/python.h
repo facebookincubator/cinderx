@@ -11,6 +11,8 @@
 #ifdef WIN32
 #define NOMINMAX
 #include <windows.h>
+// Avoid conflicts with the `small` macro defined by Windows headers.
+#undef small
 #endif
 
 #include <Python.h>
