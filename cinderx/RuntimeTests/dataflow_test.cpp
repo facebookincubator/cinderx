@@ -9,10 +9,20 @@ using namespace cinderx::jit::optimizer;
 // the book Advanced Compiler Design And Implementation
 TEST(DataFlowTest, ReachingTest) {
   DataFlowAnalyzer<std::string> analyzer;
-  analyzer.addObjects(
+  auto objects = std::to_array<std::string>(
       {"m:1", "f0:2", "f1:3", "i:5", "f2:8", "f0:9", "f1:10", "i:11"});
+  for (const std::string& obj : objects) {
+    analyzer.addObject(obj);
+  }
 
-  DataFlowBlock b1, b2, b3, b4, b5, b6, ENTRY, EXIT;
+  DataFlowBlock& ENTRY = analyzer.createBlock();
+  DataFlowBlock& EXIT = analyzer.createBlock();
+  DataFlowBlock& b1 = analyzer.createBlock();
+  DataFlowBlock& b2 = analyzer.createBlock();
+  DataFlowBlock& b3 = analyzer.createBlock();
+  DataFlowBlock& b4 = analyzer.createBlock();
+  DataFlowBlock& b5 = analyzer.createBlock();
+  DataFlowBlock& b6 = analyzer.createBlock();
 
   ENTRY.connectTo(b1);
   b1.connectTo(b2);
@@ -24,28 +34,26 @@ TEST(DataFlowTest, ReachingTest) {
   b5.connectTo(EXIT);
   b6.connectTo(b4);
 
-  analyzer.addBlock(ENTRY);
-  analyzer.addBlock(EXIT);
-  analyzer.addBlock(b1);
-  analyzer.addBlock(b2);
-  analyzer.addBlock(b3);
-  analyzer.addBlock(b4);
-  analyzer.addBlock(b5);
-  analyzer.addBlock(b6);
+  analyzer.setBlockGenBit(b1, "m:1");
+  analyzer.setBlockGenBit(b1, "f0:2");
+  analyzer.setBlockGenBit(b1, "f1:3");
 
-  analyzer.setBlockGenBits(b1, {"m:1", "f0:2", "f1:3"});
-  analyzer.setBlockKillBits(b1, {"f0:9", "f1:10"});
+  analyzer.setBlockKillBit(b1, "f0:9");
+  analyzer.setBlockKillBit(b1, "f1:10");
 
-  analyzer.setBlockGenBits(b3, {"i:5"});
-  analyzer.setBlockKillBits(b3, {"i:11"});
+  analyzer.setBlockGenBit(b3, "i:5");
+  analyzer.setBlockKillBit(b3, "i:11");
 
-  analyzer.setBlockGenBits(b6, {"f2:8", "f0:9", "f1:10", "i:11"});
-  analyzer.setBlockKillBits(b6, {"f0:2", "f1:3", "i:5"});
+  analyzer.setBlockGenBit(b6, "f2:8");
+  analyzer.setBlockGenBit(b6, "f0:9");
+  analyzer.setBlockGenBit(b6, "f1:10");
+  analyzer.setBlockGenBit(b6, "i:11");
 
-  analyzer.setEntryBlock(ENTRY);
-  analyzer.setEntryBlock(EXIT);
+  analyzer.setBlockKillBit(b6, "f0:2");
+  analyzer.setBlockKillBit(b6, "f1:3");
+  analyzer.setBlockKillBit(b6, "i:5");
 
-  analyzer.runAnalysis();
+  analyzer.solve(Direction::Forward);
 
   ASSERT_EQ(ENTRY.in_.getBitChunk(), 0);
   ASSERT_EQ(b1.in_.getBitChunk(), 0);

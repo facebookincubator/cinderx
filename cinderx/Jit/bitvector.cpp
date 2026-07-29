@@ -289,12 +289,6 @@ void BitVector::setBitChunk(size_t chunk, uint64_t bits) {
   cs[chunk] = bits;
 }
 
-size_t BitVector::addBits(size_t i) {
-  auto new_num_bits = num_bits_ + i;
-  setBitWidth(new_num_bits);
-  return new_num_bits;
-}
-
 void BitVector::setBitWidth(size_t size) {
   if (num_bits_ == size) {
     return;

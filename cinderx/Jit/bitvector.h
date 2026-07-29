@@ -80,9 +80,6 @@ class BitVector {
   uint64_t getBitChunk(size_t chunk = 0) const;
   void setBitChunk(size_t chunk, uint64_t bits);
 
-  // Add number of bits specified in i to the bit vector.  Returns the new size.
-  size_t addBits(size_t i);
-
   // Resize the bit vector to the number of bits specified in size. If size is
   // less than the current number of bits, the bit vector will be truncated.
   void setBitWidth(size_t size);

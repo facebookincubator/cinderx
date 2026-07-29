@@ -51,11 +51,6 @@ TEST(BitVectorTest, Others) {
   bv1.setBit(126);
   ASSERT_EQ(bv1.getPopCount(), 1);
 
-  auto size = bv1.addBits(2);
-  ASSERT_EQ(size, 129);
-  ASSERT_EQ(bv1.getPopCount(), 1);
-  ASSERT_EQ(bv1.getBit(126), true);
-
   bv1.setBitWidth(124);
   ASSERT_EQ(bv1.getPopCount(), 0);
   bv1.setBitWidth(128);

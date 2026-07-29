@@ -135,83 +135,65 @@ bool funcTypeChecks(const Function& func, std::ostream& err) {
   return true;
 }
 
-void DataflowAnalysis::addBasicBlock(const BasicBlock* cfg_block) {
-  auto res = df_blocks_.emplace(
-      std::piecewise_construct,
-      std::forward_as_tuple(cfg_block),
-      std::forward_as_tuple());
-  auto& df_block = res.first->second;
-  df_analyzer_.addBlock(df_block);
-  setUninitialized(&df_block);
-
-  std::unordered_set<Register*> gen, kill;
-  computeGenKill(cfg_block, gen, kill);
-
-  for (auto reg : gen) {
-    df_analyzer_.setBlockGenBit(df_block, reg);
-  }
-  for (auto reg : kill) {
-    df_analyzer_.setBlockKillBit(df_block, reg);
-  }
-}
-
-void DataflowAnalysis::initialize() {
-  // Add all registers -- this sets up the correct number of bits for the
-  // analysis
-  num_bits_ = irfunc_.env.getRegisters().size();
+void RegisterAnalysis::run() {
+  // Register every HIR register as a dataflow object (one bit each). This must
+  // happen before any blocks are created, as it fixes the bit width.
   for (const auto& it : irfunc_.env.getRegisters()) {
-    df_analyzer_.addObject(it.second.get());
+    analyzer_.addObject(it.second.get());
   }
 
-  // Compute the initial state for each block
+  // Create a dataflow block per CFG block and record its gen/kill sets.
   for (const auto& cfg_block : irfunc_.cfg.blocks) {
-    addBasicBlock(&cfg_block);
-  }
+    auto& df_block = analyzer_.createBlock();
+    blocks_.emplace(&cfg_block, &df_block);
 
-  // Set up dataflow graph
-  df_analyzer_.addBlock(df_entry_);
-  df_analyzer_.setEntryBlock(df_entry_);
-
-  df_analyzer_.addBlock(df_exit_);
-  df_analyzer_.setExitBlock(df_exit_);
-
-  for (const auto& cfg_block : irfunc_.cfg.blocks) {
-    auto& df_block = df_blocks_[&cfg_block];
-
-    if (&cfg_block == irfunc_.cfg.entry_block) {
-      df_entry_.connectTo(df_block);
+    RegisterSet gen, kill;
+    computeGenKill(&cfg_block, gen, kill);
+    for (auto reg : gen) {
+      analyzer_.setBlockGenBit(df_block, reg);
     }
-
-    if (cfg_block.outEdges().empty()) {
-      df_block.connectTo(df_exit_);
-    } else {
-      for (auto cfg_edge : cfg_block.outEdges()) {
-        auto succ_cfg_block = cfg_edge->to();
-        JIT_CHECK(
-            df_blocks_.contains(succ_cfg_block),
-            "succ_cfg_block has to be in the hash table df_blocks_.");
-        auto& succ_df_block = df_blocks_.at(succ_cfg_block);
-        df_block.connectTo(succ_df_block);
-      }
+    for (auto reg : kill) {
+      analyzer_.setBlockKillBit(df_block, reg);
     }
   }
+
+  // Mirror the CFG edges onto the dataflow blocks. The entry block has no
+  // predecessors and terminal blocks have no successors; the solver treats
+  // those as boundary blocks.
+  for (const auto& cfg_block : irfunc_.cfg.blocks) {
+    auto* df_block = blocks_.at(&cfg_block);
+    for (auto cfg_edge : cfg_block.outEdges()) {
+      df_block->connectTo(*blocks_.at(cfg_edge->to()));
+    }
+  }
+
+  analyzer_.solve(dir_, meet_);
+  dump();
 }
 
-RegisterSet DataflowAnalysis::getIn(const BasicBlock* cfg_block) {
+RegisterSet RegisterAnalysis::getIn(const BasicBlock* block) const {
   RegisterSet in;
-  const auto& df_block = df_blocks_[cfg_block];
-  df_analyzer_.forEachBlockIn(df_block, [&](Register* r) { in.insert(r); });
+  analyzer_.forEachBlockIn(
+      *blocks_.at(block), [&](Register* r) { in.insert(r); });
   return in;
 }
 
-RegisterSet DataflowAnalysis::getOut(const BasicBlock* cfg_block) {
+RegisterSet RegisterAnalysis::getOut(const BasicBlock* block) const {
   RegisterSet out;
-  const auto& df_block = df_blocks_[cfg_block];
-  df_analyzer_.forEachBlockOut(df_block, [&](Register* r) { out.insert(r); });
+  analyzer_.forEachBlockOut(
+      *blocks_.at(block), [&](Register* r) { out.insert(r); });
   return out;
 }
 
-void DataflowAnalysis::dump() {
+bool RegisterAnalysis::inBit(const BasicBlock* block, Register* reg) const {
+  return analyzer_.getBlockInBit(*blocks_.at(block), reg);
+}
+
+bool RegisterAnalysis::outBit(const BasicBlock* block, Register* reg) const {
+  return analyzer_.getBlockOutBit(*blocks_.at(block), reg);
+}
+
+void RegisterAnalysis::dump() const {
   if (!getConfig().log.debug) {
     return;
   }
@@ -232,63 +214,6 @@ void DataflowAnalysis::dump() {
   }
 
   JIT_DLOG("{}", out);
-}
-
-void BackwardDataflowAnalysis::run() {
-  initialize();
-
-  std::list<jit::optimizer::DataFlowBlock*> blocks;
-  for (auto& it : df_blocks_) {
-    if (&it.second != &df_entry_) {
-      blocks.emplace_back(&it.second);
-    }
-  }
-
-  while (!blocks.empty()) {
-    auto block = blocks.front();
-    blocks.pop_front();
-
-    auto new_out = computeNewOut(block);
-    bool changed = (new_out != block->out_);
-    block->out_ = std::move(new_out);
-
-    auto new_in = computeNewIn(block);
-    changed |= (new_in != block->in_);
-    block->in_ = std::move(new_in);
-
-    if (changed) {
-      std::copy(
-          block->pred_.begin(), block->pred_.end(), std::back_inserter(blocks));
-    }
-  }
-}
-
-void ForwardDataflowAnalysis::run() {
-  initialize();
-
-  std::list<jit::optimizer::DataFlowBlock*> blocks;
-  for (auto& it : df_blocks_) {
-    if (&it.second != &df_exit_) {
-      blocks.emplace_back(&it.second);
-    }
-  }
-
-  while (!blocks.empty()) {
-    auto block = blocks.front();
-    blocks.pop_front();
-
-    auto new_in = computeNewIn(block);
-    bool changed = (new_in != block->in_);
-    block->in_ = std::move(new_in);
-
-    auto new_out = computeNewOut(block);
-    changed |= (new_out != block->out_);
-    block->out_ = std::move(new_out);
-
-    if (changed) {
-      blocks.insert(blocks.end(), block->succ_.begin(), block->succ_.end());
-    }
-  }
 }
 
 template <typename OutputFunc, typename UseFunc>
@@ -334,7 +259,7 @@ static void analyzeInstrLiveness(
 LivenessAnalysis::LastUses LivenessAnalysis::getLastUses() {
   LastUses last_uses;
 
-  for (auto& pair : df_blocks_) {
+  for (auto& pair : blocks_) {
     auto block = pair.first;
     auto live = getOut(block);
 
@@ -376,57 +301,18 @@ void LivenessAnalysis::computeGenKill(
   }
 }
 
-jit::util::BitVector LivenessAnalysis::computeNewIn(
-    const jit::optimizer::DataFlowBlock* block) {
-  jit::util::BitVector new_in(num_bits_);
-  new_in = block->gen_ | (block->out_ - block->kill_);
-  return new_in;
-}
-
-jit::util::BitVector LivenessAnalysis::computeNewOut(
-    const jit::optimizer::DataFlowBlock* block) {
-  jit::util::BitVector new_out(num_bits_);
-  for (auto& succ : block->succ_) {
-    new_out |= succ->in_;
-  }
-  return new_out;
-}
-
-void LivenessAnalysis::setUninitialized(jit::optimizer::DataFlowBlock*) {
-  // Do nothing.
-}
-
-bool LivenessAnalysis::isLiveIn(const BasicBlock* cfg_block, Register* reg) {
-  const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.getBlockInBit(df_block, reg);
-}
-
-bool LivenessAnalysis::isLiveOut(const BasicBlock* cfg_block, Register* reg) {
-  const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.getBlockOutBit(df_block, reg);
-}
-
 AssignmentAnalysis::AssignmentAnalysis(const Function& irfunc, bool is_definite)
-    : ForwardDataflowAnalysis(irfunc), args_(), is_definite_(is_definite) {
+    : RegisterAnalysis(
+          irfunc,
+          jit::optimizer::Direction::Forward,
+          is_definite ? jit::optimizer::Meet::Intersect
+                      : jit::optimizer::Meet::Union),
+      is_definite_{is_definite} {
   for (const auto& instr : *irfunc_.cfg.entry_block) {
     if (instr.isLoadArg()) {
       args_.insert(instr.output());
     }
   }
-}
-
-bool AssignmentAnalysis::isAssignedIn(
-    const BasicBlock* cfg_block,
-    Register* reg) {
-  const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.getBlockInBit(df_block, reg);
-}
-
-bool AssignmentAnalysis::isAssignedOut(
-    const BasicBlock* cfg_block,
-    Register* reg) {
-  const auto& df_block = df_blocks_[cfg_block];
-  return df_analyzer_.getBlockOutBit(df_block, reg);
 }
 
 void AssignmentAnalysis::computeGenKill(
@@ -439,40 +325,6 @@ void AssignmentAnalysis::computeGenKill(
     if (output != nullptr) {
       gen.insert(output);
     }
-  }
-}
-
-jit::util::BitVector AssignmentAnalysis::computeNewIn(
-    const jit::optimizer::DataFlowBlock* block) {
-  if (block->pred_.empty()) {
-    jit::util::BitVector new_in(num_bits_);
-    return new_in;
-  }
-  auto it = block->pred_.begin();
-  auto pred = *it++;
-  jit::util::BitVector new_in = pred->out_;
-  while (it != block->pred_.end()) {
-    if (is_definite_) {
-      new_in &= (*it)->out_;
-    } else {
-      new_in |= (*it)->out_;
-    }
-    it++;
-  }
-  return new_in;
-}
-
-jit::util::BitVector AssignmentAnalysis::computeNewOut(
-    const jit::optimizer::DataFlowBlock* block) {
-  jit::util::BitVector new_out(num_bits_);
-  new_out = block->gen_ | (block->in_ - block->kill_);
-  return new_out;
-}
-
-void AssignmentAnalysis::setUninitialized(
-    jit::optimizer::DataFlowBlock* block) {
-  if (is_definite_) {
-    block->out_.fill(true);
   }
 }
 
