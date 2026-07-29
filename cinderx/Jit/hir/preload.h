@@ -200,6 +200,11 @@ class Preloader {
   // GlobalCacheManager, which is unsafe with the GIL released in a background
   // compile.
   GlobalsCacheMap global_caches_;
+  // Strong references to global values preloaded during LOAD_GLOBAL handling.
+  // Keeps the values alive during background compilation even if the Python
+  // dict deletes them, avoiding UAF when the compiler infers types via
+  // Type::fromObject. See test_delete_global_during_background_compile.
+  SortedVecMap<int, Ref<>> global_values_;
   OwnedType return_type_;
   // for primitive args only, null unless has_primitive_args_
   Ref<_PyTypedArgsInfo> prim_args_info_;
