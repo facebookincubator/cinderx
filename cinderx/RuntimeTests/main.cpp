@@ -112,6 +112,13 @@ void remap_txt_path(std::string& path) {
 void register_test(
     std::string path,
     RuntimeTest::Flags extra_flags = RuntimeTest::Flags{}) {
+#ifdef CINDERX_RUNTIME_TESTS_FEATURE_FREE
+  // Feature-free builds cannot execute Static Python bytecode.
+  if (extra_flags & RuntimeTest::kStaticCompiler) {
+    return;
+  }
+#endif
+
   remap_txt_path(path);
   auto suite = ReadHIRTestSuite(path.c_str());
   if (suite == nullptr) {
@@ -260,7 +267,10 @@ int main(int argc, char* argv[]) {
       RuntimeTest::kStaticCompiler);
   register_test("builtin_load_method_elimination_test.txt");
   register_test("leaf_function_test.txt");
+#ifndef CINDERX_RUNTIME_TESTS_FEATURE_FREE
+  // These goldens depend on lightweight frames and symbolized call targets.
   register_test("all_passes_test.txt");
+#endif
   register_test("all_passes_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test("native_calls_test.txt", RuntimeTest::kStaticCompiler);
   register_test("static_array_item_test.txt", RuntimeTest::kStaticCompiler);

@@ -7,6 +7,8 @@
 
 #include <sstream>
 
+#ifdef ENABLE_ELF_READER
+
 using namespace cinderx::jit;
 
 using ElfTest = RuntimeTest;
@@ -109,3 +111,5 @@ def func(x):
   ASSERT_LT(note_data.normal_entry_offset, 10000);
   ASSERT_EQ(note_data.static_entry_offset, std::nullopt);
 }
+
+#endif

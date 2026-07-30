@@ -293,6 +293,8 @@ def test(num):
   ASSERT_EQ(PyLong_AsLong(result), 120);
 }
 
+#ifdef ENABLE_INTERPRETER_LOOP
+// Reification resumes Static Python bytecode in the CinderX interpreter.
 TEST_F(ReifyFrameTest, ReifyStaticCompareWithBool) {
   const char* src = R"(
 import cinderx
@@ -356,6 +358,7 @@ def test(x, y):
     ASSERT_EQ(result, i ? Py_True : Py_False);
   }
 }
+#endif
 
 TEST_F(ReifyFrameTest, ReadOwnedDoubleReinterpretsBits) {
   uint64_t regs[NUM_GP_REGS] = {};

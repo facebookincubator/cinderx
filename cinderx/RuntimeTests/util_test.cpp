@@ -57,6 +57,7 @@ TEST(UtilTest, SymbolizerWithNonexistentSymbolReturnsNull) {
   EXPECT_FALSE(result.has_value());
 }
 
+#ifdef ENABLE_SYMBOLIZER
 TEST(UtilTest, SymbolizerResolvesDynamicSymbol) {
   jit::Symbolizer symbolizer;
   std::optional<std::string_view> result =
@@ -72,6 +73,7 @@ TEST(UtilTest, SymbolizerResolvesStaticSymbol) {
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(*result, "PyObject_Size");
 }
+#endif
 
 TEST(UtilTest, DemangleWithCNameReturnsName) {
   jit::Symbolizer symbolizer;

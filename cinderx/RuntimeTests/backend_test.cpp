@@ -360,6 +360,8 @@ def get_user_id(user):
       << "Incorrect user id returned";
 }
 
+#ifdef ENABLE_INTERPRETER_LOOP
+// Call counts are maintained by the CinderX interpreter.
 TEST_F(BackendTest, CallCountTest) {
   const char* src = R"(
 def foo(x: int) -> int:
@@ -383,6 +385,7 @@ for i in range(30):
   // Once we have that in place, we can start incrementing call counts in 3.12.
   ASSERT_EQ(ncalls, 30);
 }
+#endif
 
 TEST_F(BackendTest, ExplicitLIRSubKeepsRhsRegisterLiveAcrossOutputDefine) {
 #if !defined(CINDER_X86_64)

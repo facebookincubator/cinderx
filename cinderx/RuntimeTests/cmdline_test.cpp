@@ -156,7 +156,14 @@ TEST_F(CmdLineTest, BasicFlags) {
           L"jit-dump-asm",
           "PYTHONJITDUMPASM",
           []() { getMutableConfig().log.dump_asm = false; },
-          []() { ASSERT_TRUE(getConfig().log.dump_asm); }),
+          []() {
+#ifdef ENABLE_DISASSEMBLER
+            ASSERT_TRUE(getConfig().log.dump_asm);
+#else
+            // Assembly dumping remains disabled without a disassembler.
+            ASSERT_FALSE(getConfig().log.dump_asm);
+#endif
+          }),
       0);
 
   ASSERT_EQ(
