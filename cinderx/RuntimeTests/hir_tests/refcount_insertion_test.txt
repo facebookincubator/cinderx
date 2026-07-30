@@ -6227,4 +6227,91 @@ fun test {
     Return v1
   }
 }
+--- Test Name ---
+LeafScalarDeathDoesNotPromoteHeapBorrow
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadGlobalCached<0>
+    v1 = LoadConst<CInt64[5]>
+    v2 = PrimitiveBox<CInt64> v1
+    UseObj v2
+    UseObj v0
+    v3 = LoadConst<ImmortalNoneType>
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:OptObject = LoadGlobalCached<0>
+    v1:CInt64[5] = LoadConst<CInt64[5]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      LiveValues<2> b:v0 s:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseObj v2
+    Decref v2
+    UseObj v0
+    v3:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:OptObject = LoadGlobalCached<0>
+    v1:CInt64[5] = LoadConst<CInt64[5]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      LiveValues<2> b:v0 s:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseObj v2
+    Decref v2
+    UseObj v0
+    v3:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:OptObject = LoadGlobalCached<0>
+    v1:CInt64[5] = LoadConst<CInt64[5]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      LiveValues<2> b:v0 s:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseObj v2
+    Decref v2
+    UseObj v0
+    v3:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v3
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:OptObject = LoadGlobalCached<0>
+    v1:CInt64[5] = LoadConst<CInt64[5]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      LiveValues<2> b:v0 s:v1
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseObj v2
+    Decref v2
+    UseObj v0
+    v3:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v3
+  }
+}
 --- End ---

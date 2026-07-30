@@ -680,6 +680,14 @@ unsigned int Type::sizeInBytes() const {
   JIT_ABORT("Unexpected type {}", *this);
 }
 
+bool Type::isLeafScalar() const {
+  // bool is included because it cannot be subclassed; TNullptr allows the same
+  // reasoning to apply to XDecref of an optional value.
+  static const Type kLeafScalarTypes =
+      TLongExact | TFloatExact | TUnicodeExact | TBytesExact | TBool | TNullptr;
+  return *this <= kLeafScalarTypes;
+}
+
 Type OwnedType::toHir() const {
   int prim_type = _PyClassLoader_GetTypeCode(type);
   if (prim_type != TYPED_OBJECT) {

@@ -174,6 +174,15 @@ class Type {
   // a subtype of all builtin exact types.
   bool isExact() const;
 
+  // Return true iff decref-ing a value of this type can neither run arbitrary
+  // Python code nor free a container that backs a live borrowed reference.
+  // These are the exact builtin scalar types: their tp_dealloc doesn't re-enter
+  // the interpreter, and they hold no borrowable PyObject* elements, so nothing
+  // can be borrowed from them.  bool is included because it cannot be
+  // subclassed; TNullptr allows the same reasoning to apply to XDecref of an
+  // optional value.
+  bool isLeafScalar() const;
+
   // Equality.
   bool operator==(Type other) const;
   bool operator!=(Type other) const;

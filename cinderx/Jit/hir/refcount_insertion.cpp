@@ -582,9 +582,13 @@ void killRegisterImpl(
     //    destructor.
     // 2. The value we're losing a reference to could be a container supporting
     //    a borrowed value.
-    // It's possible to do better in the future on both of these points, with
-    // more complexity.
-    invalidateBorrowSupport(env, cursor, AManagedHeapAny);
+    // Neither reason applies to exact builtin scalars, so for those we skip the
+    // blanket invalidation and avoid promoting (then decref-ing) every live
+    // heap borrow across the decref.  This mirrors memoryEffects(), which
+    // already models a Decref of such a value as writing only AOther.
+    if (!model->type().isLeafScalar()) {
+      invalidateBorrowSupport(env, cursor, AManagedHeapAny);
+    }
     if (env.mutate) {
       insertDecref(env, copy, cursor);
     }
