@@ -109,6 +109,37 @@ fun jittestmodule:test {
     Return v11
   }
 }
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v7:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    AtQuiescentState
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v13:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    Snapshot
+    v11:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Snapshot
+    Return v11
+  }
+}
 --- Test Name ---
 DeadCodeEliminationCannotRemoveIter
 --- Input ---
@@ -430,6 +461,86 @@ fun jittestmodule:test {
     Return v20
   }
 }
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v16:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    AtQuiescentState
+    v17:CInt64 = LoadEvalBreaker
+    CondBranch<6, 5> v17
+  }
+
+  bb 6 (preds 0) {
+    Snapshot
+    v33:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<3> v16 v16 v16
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    Snapshot
+    v18:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Snapshot
+    v20:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    Snapshot
+    v22:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
+    v23:Object = GetIter v22 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<3> v18 v20 v16
+      }
+    }
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v25:Object = Phi<2, 5> v28 v20
+    v26:OptObject = Phi<2, 5> v28 v16
+    AtQuiescentState
+    v27:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v27
+  }
+
+  bb 8 (preds 7) {
+    Snapshot
+    v32:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 14
+        Locals<3> v18 v25 v26
+        Stack<1> v23
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    Snapshot
+    v28:Object = InvokeIterNext v23 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<3> v18 v25 v26
+        Stack<1> v23
+      }
+    }
+    CondBranchIterNotDone<2, 4> v28
+  }
+
+  bb 2 (preds 1) {
+    Snapshot
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Snapshot
+    Return v18
+  }
+}
 --- Test Name ---
 DeadCodeEliminationDoesNotRemoveInitFunction
 --- Input ---
@@ -611,6 +722,50 @@ fun jittestmodule:test {
     Return v19
   }
 }
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v11:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    AtQuiescentState
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:MortalCode["inner"] = LoadConst<MortalCode["inner"]>
+    v14:Nullptr = LoadConst<Nullptr>
+    v15:MortalFunc = MakeFunction v13 v14 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v11
+      }
+    }
+    Snapshot
+    v21:Object = VectorCall<0> v15 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<1> v15
+      }
+    }
+    Snapshot
+    v19:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v19
+  }
+}
 --- Test Name ---
 DeadCodeEliminationRemovesPrimitiveBox
 --- Input ---
@@ -644,6 +799,13 @@ fun test {
   }
 }
 --- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt32 = LoadArg<0, CInt32>
+    Return<CInt32> v0
+  }
+}
+--- Expected 3.14t ---
 fun test {
   bb 0 {
     v0:CInt32 = LoadArg<0, CInt32>
