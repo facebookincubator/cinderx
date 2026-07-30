@@ -109,7 +109,7 @@ def _gen_source(name: str, segments: int, num_vars: int, nest_depth: int) -> str
     return "\n".join(lines)
 
 
-def _make_function(
+def make_function(
     name: str, segments: int, num_vars: int, nest_depth: int
 ) -> Callable[..., int]:
     source = _gen_source(name, segments, num_vars, nest_depth)
@@ -136,7 +136,7 @@ class JitPipelineStressTest(unittest.TestCase):
 
     def test_pipeline_stress(self) -> None:
         # First, a small copy for a correctness check (cheap to compile/run).
-        checker = _make_function("stress_check", 8, _NUM_VARS, _NEST_DEPTH)
+        checker = make_function("stress_check", 8, _NUM_VARS, _NEST_DEPTH)
         args = [0] * _NUM_VARS
         seq = [1, 2.0, "s", b"b", [1], (1,), {1: 1}, {1}] * 4
         self.assertIsInstance(checker(seq, *args), int)
@@ -150,7 +150,7 @@ class JitPipelineStressTest(unittest.TestCase):
         deadline = time.perf_counter() + _TARGET_SECONDS
         reps = 0
         while time.perf_counter() < deadline:
-            func = _make_function(f"stress_{reps}", _SEGMENTS, _NUM_VARS, _NEST_DEPTH)
+            func = make_function(f"stress_{reps}", _SEGMENTS, _NUM_VARS, _NEST_DEPTH)
             try:
                 elapsed_ms = self._compile_and_time(func)
             except RuntimeError:

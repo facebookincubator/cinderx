@@ -40,22 +40,28 @@
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/module_state.h"
 
 #ifndef WIN32
 #include <dlfcn.h>
+#include <pthread.h>
 #endif
 #include <fmt/std.h>
 
 #include <atomic>
 #include <charconv>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <mutex>
+#include <new>
 #include <thread>
 #include <unordered_set>
 #include <utility>
@@ -145,6 +151,11 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
+// Simple wrapper functions to turn nullptr or -1 return values from C-API
+// functions into a thrown exception. Meant for repetitive runs of C-API calls
+// and not intended for use in public APIs.
+class CAPIError : public std::exception {};
+
 // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
 // "annotations" which doesn't impact bytecode execution.)
 constexpr int required_code_flags = CO_OPTIMIZED | CO_NEWLOCALS;
@@ -178,6 +189,15 @@ bool shouldAlwaysScheduleCompile(BorrowedRef<PyCodeObject> code) {
 bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
   return hir::preloaderManager().find(func) != nullptr;
 }
+
+// Background compilation (see CINDERX_JIT_BACKGROUND_COMPILE).  Defined later
+// in this file; forward-declared here so jitVectorcall() and finalize() can use
+// them.
+//
+// Schedule func to be compiled on a background thread without holding the GIL.
+// Must be called with the GIL held.  A no-op if the function is already
+// compiled, already being background-compiled, or the JIT isn't usable.
+void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func);
 
 // Like jitVectorcall(), but ignores any call count requirements.
 PyObject* forcedJitVectorcall(
@@ -251,6 +271,23 @@ PyObject* jitVectorcall(
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
     }
+  }
+
+  // In background-compile mode, kick off compilation on the worker thread and
+  // run this (and subsequent) calls through the interpreter until the
+  // background compile finishes and swaps in the compiled entry point.  The
+  // worker releases the GIL for the bulk of the compile, so the interpreter
+  // runs concurrently with most of the compilation work.
+  try {
+    if (getConfig().background_compile) {
+      scheduleBackgroundCompile(func);
+      auto entry = getInterpretedVectorcall(func);
+      return entry(func_obj, stack, nargsf, kwnames);
+    }
+  } catch (CAPIError&) {
+    return nullptr;
+  } catch (std::exception& exn) {
+    JIT_DLOG("{}", exn.what());
   }
 
   return forcedJitVectorcall(func_obj, stack, nargsf, kwnames);
@@ -688,6 +725,17 @@ FlagProcessor initFlagProcessor() {
           getMutableConfig().batch_compile_workers,
           "set the number of batch compile workers to <COUNT>")
       .withFlagParamName("COUNT");
+
+  flag_processor.addOption(
+      "cinderx-jit-background-compile",
+      "CINDERX_JIT_BACKGROUND_COMPILE",
+      getMutableConfig().background_compile,
+      "compile lazily-triggered functions on a background worker thread, "
+      "running through the interpreter until compilation finishes.  The worker "
+      "releases the GIL for the bulk of the compile (reacquiring it only for "
+      "the compiler's shared-state critical sections), so the interpreter runs "
+      "concurrently with most of the compilation work even under a standard "
+      "GIL build");
 
   flag_processor
       .addOption(
@@ -1755,6 +1803,38 @@ PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
   Py_RETURN_NONE;
 }
 
+PyObject* background_compile(PyObject* /* self */, PyObject* arg) {
+  int enabled = -1;
+  if (!PyArg_Parse(arg, "p:background_compile", &enabled)) {
+    return nullptr;
+  }
+
+  getMutableConfig().background_compile = enabled;
+
+  Py_RETURN_NONE;
+}
+
+PyObject* get_background_compile(PyObject* /* self */, PyObject*) {
+  return PyBool_FromLong(getConfig().background_compile);
+}
+
+PyObject* wait_for_background_compiles(
+    PyObject* /* self */,
+    PyObject* /* args */) {
+  // Test helper: block until all background compiles currently in flight have
+  // completed.
+  auto* ctx = getContext();
+  if (ctx == nullptr) {
+    Py_RETURN_NONE;
+  }
+  auto& reg = ctx->backgroundCompileRegistry();
+
+  PyBeginAllowThreads allow_threads;
+  std::unique_lock<std::mutex> lock(reg.mutex);
+  reg.drain_cv.wait(lock, [&reg] { return reg.in_flight.empty(); });
+  Py_RETURN_NONE;
+}
+
 PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
   // Default value that works well for most applications.
   if (compile_after_n_calls_impl(1000) < 0) {
@@ -2419,11 +2499,6 @@ PyObject* page_in_profiler_dependencies(PyObject*, PyObject*) {
   return qualnames.release();
 }
 
-// Simple wrapper functions to turn nullptr or -1 return values from C-API
-// functions into a thrown exception. Meant for repetitive runs of C-API calls
-// and not intended for use in public APIs.
-class CAPIError : public std::exception {};
-
 PyObject* check(PyObject* obj) {
   if (obj == nullptr) {
     throw CAPIError();
@@ -3005,6 +3080,23 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Configure the JIT to automatically compile functions after "
          "they are called a set number of times.")},
+    {"background_compile",
+     background_compile,
+     METH_O,
+     PyDoc_STR(
+         "Enable or disable background compilation.  When enabled, functions "
+         "are compiled on a background thread without holding the GIL, "
+         "running through the interpreter until compilation finishes.")},
+    {"get_background_compile",
+     get_background_compile,
+     METH_NOARGS,
+     PyDoc_STR("Return True if background compilation is enabled.")},
+    {"wait_for_background_compiles",
+     wait_for_background_compiles,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Test helper: block until all background compiles currently in flight "
+         "have completed. Does not shut down the background worker.")},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions."},
 #ifndef WIN32
     {"dump_elf",
@@ -3486,6 +3578,271 @@ int register_gc_callback() {
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Background compilation (CINDERX_JIT_BACKGROUND_COMPILE)
+// ---------------------------------------------------------------------------
+//
+// When enabled, jitVectorcall() schedules a function to be compiled on a
+// separate worker thread and keeps running it through the interpreter until the
+// compiled entry point is ready.  This is functionally the same as our existing
+// multi-threaded compile support. First we preload the function w/ the GIL held
+// and then we perform the background thread with the GIL released.
+
+// Mark a code object as no longer being background-compiled and wake any waiter
+// (e.g. JIT finalization) that is draining in-flight compiles.
+// Uses the registry member of the JIT Context; if context is null (e.g.
+// during fork child handling when JIT not initialized), no-op.
+void finishBackgroundCompile(BorrowedRef<PyCodeObject> code) {
+  auto* ctx = getContext();
+  if (ctx == nullptr) {
+    return;
+  }
+  auto& reg = ctx->backgroundCompileRegistry();
+  std::lock_guard<std::mutex> guard(reg.mutex);
+  reg.in_flight.erase(code);
+  reg.drain_cv.notify_all();
+}
+
+#ifndef WIN32
+
+// fork() safety for the background compilation thread
+
+void backgroundCompileAtForkPrepare() {
+  // Quiesce the registry so the child snapshots it at a consistent point.
+  // The registry now lives inside the JIT Context, so if JIT is not
+  // initialized there is nothing to quiesce.
+  auto* ctx = getContext();
+  if (ctx != nullptr) {
+    ctx->backgroundCompileRegistry().mutex.lock();
+  }
+}
+
+void backgroundCompileAtForkParent() {
+  auto* ctx = getContext();
+  if (ctx != nullptr) {
+    ctx->backgroundCompileRegistry().mutex.unlock();
+  }
+}
+
+void backgroundCompileAtForkChild() {
+  auto* ctx = getContext();
+  if (ctx != nullptr) {
+    ctx->backgroundCompileRegistry().~BackgroundCompileRegistry();
+    new (&ctx->backgroundCompileRegistry()) BackgroundCompileRegistry();
+  }
+}
+
+// Register the fork handlers exactly once for the process.  pthread_atfork
+// handlers cannot be unregistered and persist across JIT finalize/re-init, so
+// registering more than once would stack duplicate prepare handlers and
+// self-deadlock on the non-recursive registry mutex.
+void ensureForkHandlersRegistered() {
+  static std::once_flag flag;
+  std::call_once(flag, [] {
+    pthread_atfork(
+        backgroundCompileAtForkPrepare,
+        backgroundCompileAtForkParent,
+        backgroundCompileAtForkChild);
+  });
+}
+
+#else
+
+void ensureForkHandlersRegistered() {}
+
+#endif
+
+// Compile a single task.  Called only from the background worker thread w/o
+// the GIL held.
+void processBackgroundCompile(
+    CompilerContext<Compiler>* jit_ctx,
+    std::unique_ptr<BackgroundCompileTask>& task) {
+  PyCodeObject* code = task->code.get();
+
+  // Re-install the preloaders into this thread's isolated preloader manager
+  // so the inliner can find dependent preloaders during compilation.
+
+  std::optional<CompiledFunctionData> compiled_func;
+  hir::Preloader* preloader = hir::preloaderManager().find(code);
+  if (preloader != nullptr && !isOverMaxCodeSize()) {
+    {
+      Result result;
+      if ((result = compilePreloaderImpl(jit_ctx, *preloader, task->func)) !=
+          Result::OK) {
+        JIT_DLOG(
+            "Background compile failed: {} for {}",
+            result,
+            preloader->fullname());
+        return;
+      }
+    }
+  }
+}
+
+// Main loop of the single long-lived background compilation worker thread.
+// Consumes tasks from the queue until a stop is requested and the queue is
+// drained.
+void backgroundCompileWorkerLoop(
+    CompilerContext<Compiler>* jit_ctx,
+    PyThreadState* initial_tstate) {
+  JIT_DLOG(
+      "Background compile worker thread started: {}",
+      std::this_thread::get_id());
+#ifndef WIN32
+  pthread_setname_np(pthread_self(), "cinderx_compile");
+#endif
+  PyEval_AcquireThread(initial_tstate);
+
+  ThreadedCompileContext bgContext;
+  BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
+  for (;;) {
+    std::unique_ptr<BackgroundCompileTask> task;
+    hir::IsolatedPreloaders isolated_preloaders;
+    {
+      PyBeginAllowThreads allow_threads;
+      {
+        std::unique_lock<std::mutex> lock(reg.mutex);
+        reg.queue_cv.wait(
+            lock, [&reg] { return !reg.queue.empty() || reg.shutdown; });
+        if (!reg.shutdown && !reg.queue.empty()) {
+          task = std::move(reg.queue.front());
+          reg.queue.pop_front();
+        }
+      }
+      if (!task) {
+        // Stop requested and queue empty.
+        JIT_DCHECK(reg.shutdown, "we should be shutting down");
+        break;
+      }
+      hir::preloaderManager().install(std::move(task->preloaders));
+      processBackgroundCompile(jit_ctx, task);
+    }
+
+    jitCtx()->finalizeMultiThreadedCompile();
+    finishBackgroundCompile(task->code);
+  }
+
+  // Now we hold GIL again with initial_tstate as current.
+  // Clean up the worker threadstate.
+  PyThreadState_Clear(PyThreadState_Get());
+  PyThreadState_DeleteCurrent();
+
+  JIT_DLOG(
+      "Background compile worker thread exiting: {}",
+      std::this_thread::get_id());
+}
+
+bool startBackgroundWorkerThread(
+    CompilerContext<Compiler>* jit_ctx,
+    BackgroundCompileRegistry& reg) {
+  // Pre-warm lazily-initialized JIT state that reads raw interpreter
+  // state (e.g. Builtins::init() -> findBuiltinsModule() ->
+  // _PyInterpreterState_GET()) while the GIL is still held.
+  jit_ctx->builtins();
+
+  // Create a dedicated PyThreadState for the background worker while
+  // holding the GIL, so the worker can attach via PyEval_AcquireThread
+  // instead of the sub-interpreter-unsafe PyGILState_Ensure.
+  PyInterpreterState* interp = PyInterpreterState_Get();
+  PyThreadState* tstate = PyThreadState_New(interp);
+  if (tstate == nullptr) {
+    throw CAPIError();
+  }
+
+  // Make background compilation fork-safe: a child that inherits a worker-held
+  // lock would otherwise deadlock on the first JIT activity after fork.
+  ensureForkHandlersRegistered();
+
+  try {
+    reg.worker = std::thread(backgroundCompileWorkerLoop, jit_ctx, tstate);
+    reg.worker_started = true;
+  } catch (const std::system_error& exn) {
+    JIT_LOG("Failed to start background compile worker: {}", exn.what());
+    // Clean up the thread state we created for the worker.
+    PyThreadState_Clear(tstate);
+    PyThreadState_Delete(tstate);
+    return false;
+  }
+  return true;
+}
+
+void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
+  if (!isJitUsable() || isJitCompiled(func)) {
+    return;
+  }
+  FreeThreadedJITEntrypointGuard guard;
+
+  CompilerContext<Compiler>* jit_ctx = jitCtx();
+  if (jit_ctx == nullptr) {
+    return;
+  }
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+
+  // Don't background-compile functions with prohibited code flags (e.g.,
+  // async generators), mirroring the check in compileFunction().  Otherwise
+  // Compiler::compile() will run on unsupported bytecode and generate
+  // incorrect code -- e.g., an async_generator function compiled as a regular
+  // generator, causing anext() to fail with "'generator' object is not an
+  // async iterator".
+  constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
+  if (code->co_flags & forbidden_flags) {
+    return;
+  }
+
+  // We are taking over compilation of this function, so remove it from the set
+  // of units pending batch compilation, mirroring compileFunction.
+  cinderx::getModuleState()->registered_compilation_units.erase(func);
+
+  BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
+
+  // Avoid scheduling a duplicate compile of the same code object.  Marking it
+  // in-flight here reserves it until finishBackgroundCompile.
+  {
+    std::lock_guard<std::mutex> lock(reg.mutex);
+    if (reg.shutdown || !reg.in_flight.insert(code.get()).second) {
+      return;
+    }
+  }
+
+  // Preload on this (GIL-holding) thread, then take ownership of the resulting
+  // preloaders so they outlive this call.
+  hir::PreloaderMap preloaders;
+  {
+    hir::IsolatedPreloaders isolated_preloaders;
+    trackEligibleCodeObjects(func, func->func_code);
+    std::vector<BorrowedRef<PyFunctionObject>> targets =
+        preloadFuncAndDeps(func);
+    if (targets.empty()) {
+      // Preloading hit a Python error; clear it and give up on this function.
+      setVectorcall(func, getInterpretedVectorcall(func));
+      finishBackgroundCompile(code.get());
+      throw CAPIError();
+    }
+    preloaders = hir::preloaderManager().extract();
+  }
+
+  auto task = std::make_unique<BackgroundCompileTask>(
+      Ref<PyFunctionObject>::create(func),
+      std::move(preloaders),
+      Ref<PyCodeObject>::create(code.get()));
+
+  // Enqueue the task and lazily start the single worker thread.  If the worker
+  // can't be started, release the task's Python references under the guard we
+  // already hold and leave the function interpreted.
+  std::lock_guard<std::mutex> lock(reg.mutex);
+  if (!reg.worker_started && !startBackgroundWorkerThread(jit_ctx, reg)) {
+    reg.in_flight.erase(code.get());
+    reg.drain_cv.notify_all();
+    return;
+  }
+  reg.queue.push_back(std::move(task));
+  reg.queue_cv.notify_one();
+
+  // Just interpret the function until the compile succeeds
+  setVectorcall(func, getInterpretedVectorcall(func));
+}
+
 } // namespace
 
 namespace cinderx::jit {
@@ -3615,19 +3972,60 @@ int initialize() {
   return 0;
 }
 
+void cancelBackgroundCompiles() {
+  auto* ctx = getContext();
+  if (ctx == nullptr) {
+    return;
+  }
+  BackgroundCompileRegistry& reg = ctx->backgroundCompileRegistry();
+
+  std::thread worker_to_join;
+  // Release the GIL so the worker (which holds its own dedicated thread state
+  // and acquires the GIL to compile and finalize) can make progress while we
+  // drain.
+  {
+    PyBeginAllowThreads allow_threads;
+    {
+      std::unique_lock<std::mutex> lock(reg.mutex);
+      // Notify the worker to shutdown immediately
+      reg.shutdown = true;
+      reg.queue_cv.notify_all();
+      worker_to_join = std::move(reg.worker);
+      reg.worker_started = false;
+    }
+    if (worker_to_join.joinable()) {
+      worker_to_join.join();
+    }
+  }
+  {
+    // Clear out any remaining work
+    std::unique_lock<std::mutex> lock(reg.mutex);
+    reg.in_flight.clear();
+    reg.queue.clear();
+    reg.shutdown = false;
+  }
+}
+
 void finalize() {
-  FreeThreadedJITEntrypointGuard guard;
   if (!isJitInitialized()) {
     return;
   }
 
-  // Disable the JIT first so nothing we do in here ends up attempting to
-  // invoke the JIT while we're finalizing our data structures.
+  // Disable the JIT first so nothing we do in here ends up attempting to invoke
+  // the JIT while we're finalizing our data structures.  Setting the state to
+  // kFinalizing makes isJitUsable() false, so no new background compiles will
+  // be scheduled.
   getMutableConfig().state = State::kFinalizing;
 
-  // Wait for any background compile worker threads to finish before tearing
+  // Wait for any multi-threaded compile worker threads to finish before tearing
   // down the JIT state they depend on.
   cinderx::getModuleState()->joinCompileWorkers();
+
+  // Drain any in-flight background compiles before tearing down JIT state they
+  // depend on.
+  cancelBackgroundCompiles();
+
+  FreeThreadedJITEntrypointGuard guard;
 
   // Deopt all JIT generators, since JIT generators reference code and other
   // metadata that we will be freeing later in this function.

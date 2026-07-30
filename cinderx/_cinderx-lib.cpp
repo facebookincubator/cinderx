@@ -792,6 +792,13 @@ void module_free(void* raw_mod) {
 // cleanup. Currently this includes clearing out all strict modules which the
 // interpreter won't do because it only supports clearing normal module objects.
 static PyObject* clear_strict_modules(PyObject*, PyObject*) {
+  // Drain any in-flight background JIT compiles here, at atexit time, while the
+  // interpreter is still alive and worker threads can still acquire the GIL.
+  // If we waited until jit::finalize() (during module teardown) the runtime has
+  // already set `finalizing`, after which a worker re-acquiring the GIL is hung
+  // forever, deadlocking the drain.
+  jit::cancelBackgroundCompiles();
+
   BorrowedRef<> modules = PyImport_GetModuleDict();
   Ref<> clearing;
   if (PyDict_CheckExact(modules)) {

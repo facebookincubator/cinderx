@@ -36,6 +36,12 @@ int initialize();
 void finalize();
 
 /*
+ * Stop the background-compilation worker (if any) and cancel all in-flight
+ * background compiles to finish.
+ */
+void cancelBackgroundCompiles();
+
+/*
  * Overwrite the entry point of a function so that it tries to JIT-compile
  * itself in the future.
  *

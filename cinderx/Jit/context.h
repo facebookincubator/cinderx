@@ -22,10 +22,13 @@
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 
+#include <condition_variable>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -61,6 +64,45 @@ class FreeThreadedJITEntrypointGuard {
   FreeThreadedJITEntrypointGuard(FreeThreadedJITEntrypointGuard&&) = delete;
   FreeThreadedJITEntrypointGuard& operator=(FreeThreadedJITEntrypointGuard&&) =
       delete;
+};
+
+// State handed off to the background compilation worker. Holds Python
+// references (via the preloaders, func, and code) that must be released while
+// attached to the interpreter.
+struct BackgroundCompileTask {
+  Ref<PyFunctionObject> func;
+  hir::PreloaderMap preloaders;
+  Ref<PyCodeObject> code;
+};
+
+// Process-wide state for background compilation. A single long-lived worker
+// thread (started lazily on the first scheduled compile) consumes `queue`.
+// Lives as a member of Context.
+struct BackgroundCompileRegistry {
+  BackgroundCompileRegistry() = default;
+
+  BackgroundCompileRegistry(const BackgroundCompileRegistry&) = delete;
+  BackgroundCompileRegistry& operator=(const BackgroundCompileRegistry&) =
+      delete;
+
+  // Guards every field below.
+  std::mutex mutex;
+  // Notified when work is enqueued or a stop is requested; the worker waits on
+  // it.
+  std::condition_variable queue_cv;
+  // Notified when a compile finishes; finalization waits on it to drain.
+  std::condition_variable drain_cv;
+  // Pending compilation tasks waiting for the worker.
+  std::deque<std::unique_ptr<BackgroundCompileTask>> queue;
+  // Code objects with a background compile scheduled but not yet finished
+  // (covers both queued and in-progress tasks).
+  std::unordered_set<PyCodeObject*> in_flight;
+  // The single worker thread, and whether it has been started.
+  std::thread worker;
+  bool worker_started{false};
+  // Set when we want the background compilation thread to shutdown and
+  // stop processing further requests
+  bool shutdown{false};
 };
 
 PyObject* yieldFromValue(
@@ -498,6 +540,18 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   SlabArena<void*> pointer_caches_;
 
   FunctionEntryCacheMap function_entry_caches_;
+
+  // Background compilation state: a single long-lived worker consuming the
+  // queue. Lives as a member of Context so its lifetime is tied to the JIT
+  // context.
+  BackgroundCompileRegistry background_compile_registry_;
+
+  BackgroundCompileRegistry& backgroundCompileRegistry() {
+    return background_compile_registry_;
+  }
+  const BackgroundCompileRegistry& backgroundCompileRegistry() const {
+    return background_compile_registry_;
+  }
 
   template <typename F>
   decltype(auto) withLock(std::mutex& lock, F&& f) const {

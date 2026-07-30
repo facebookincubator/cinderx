@@ -466,10 +466,10 @@ void Context::addDeferredFinalization(
 }
 
 void Context::finalizeMultiThreadedCompile() {
+  JITCompilationLock lock;
   fixupFunctionEntryCachePostMultiThreadedCompile();
   watchPendingTypes();
 
-  JITCompilationLock lock;
   for (auto& codes : completed_compiles_) {
     makeCompiledFunction(
         codes.second.second, codes.first, std::move(codes.second.first));

@@ -233,6 +233,16 @@ class PreloaderManager {
   // Clear out all preloaders.
   void clear();
 
+  // Move all preloaders out of this manager, leaving it empty.  Used to hand
+  // ownership of a set of preloaders to a background compilation thread.
+  PreloaderMap extract();
+
+  // Take ownership of a set of preloaders, replacing any current contents.
+  // Used by a background compilation thread to re-install preloaders that were
+  // created on the GIL-holding thread, so the inliner can find dependent
+  // preloaders during compilation.
+  void install(PreloaderMap preloaders);
+
  private:
   PreloaderMap preloaders_;
 };

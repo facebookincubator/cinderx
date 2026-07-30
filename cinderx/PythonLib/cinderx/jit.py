@@ -19,6 +19,7 @@ try:
         _would_tag_if_deferred,
         append_jit_list,
         auto,
+        background_compile,
         clear_runtime_stats,
         compile_after_n_calls,
         count_interpreted_calls,
@@ -36,6 +37,7 @@ try:
         get_allocator_stats,
         get_and_clear_inline_cache_stats,
         get_and_clear_runtime_stats,
+        get_background_compile,
         get_compilation_time,
         get_compile_after_n_calls,
         get_compiled_functions,
@@ -60,6 +62,7 @@ try:
         precompile_all,
         read_jit_list,
         set_max_code_size,
+        wait_for_background_compiles,
     )
 
 except ImportError:
@@ -84,6 +87,9 @@ except ImportError:
         return None
 
     def clear_runtime_stats() -> None:
+        return None
+
+    def background_compile(enabled: bool) -> None:
         return None
 
     def compile_after_n_calls(calls: int) -> None:
@@ -143,6 +149,9 @@ except ImportError:
 
     def get_compile_after_n_calls() -> int | None:
         return None
+
+    def get_background_compile() -> bool:
+        return False
 
     def get_compiled_functions() -> list[FuncAny]:
         return []
@@ -208,6 +217,9 @@ except ImportError:
         return None
 
     def set_max_code_size(max_code_size: int) -> None:
+        return None
+
+    def wait_for_background_compiles() -> None:
         return None
 
 

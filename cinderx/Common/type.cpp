@@ -39,11 +39,13 @@ BorrowedRef<> typeLookupSafe(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name) {
   JIT_CHECK(PyUnicode_CheckExact(name), "name must be a str");
-#if CINDER_JIT_TSAN_ENABLED
+
+#if defined(Py_GIL_DISABLED) || CINDER_JIT_TSAN_ENABLED
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
   // This flag should never change during compilation although other
-  // flags may.
-  ThreadedCompileGILHolder guard;
+  // flags may. We also need an attached thread state in free-threaded
+  // builds for the dict lookup.
+  jit::ThreadedCompileGILHolder guard;
 #endif
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};

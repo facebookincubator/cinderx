@@ -11,6 +11,15 @@ thread_local PyThreadState* ThreadedCompileContext::threaded_compile_tstate_ =
     nullptr;
 thread_local int ThreadedCompileContext::gil_lock_depth_ = 0;
 
+ThreadedCompileContext::ThreadedCompileContext() {
+  JIT_DCHECK(current_ == nullptr, "should have no current context");
+  JIT_DCHECK(
+      threaded_compile_tstate_ == nullptr, "should have no saved thread state");
+  interpreter_ = PyInterpreterState_Get();
+  current_ = this;
+  threaded_compile_tstate_ = PyThreadState_Get();
+}
+
 ThreadedCompileContext::ThreadedCompileContext(WorkList&& work_list) {
   JIT_DCHECK(current_ == nullptr, "should have no current context");
   JIT_DCHECK(

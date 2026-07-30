@@ -704,6 +704,14 @@ void PreloaderManager::clear() {
   preloaders_.clear();
 }
 
+PreloaderMap PreloaderManager::extract() {
+  return std::move(preloaders_);
+}
+
+void PreloaderManager::install(PreloaderMap preloaders) {
+  preloaders_ = std::move(preloaders);
+}
+
 PreloaderManager& preloaderManager() {
   JIT_DCHECK(
       tls_manager != nullptr, "Should have isolated preloader installed");

@@ -21,12 +21,15 @@ namespace cinderx::jit {
   }
 
 // Threaded-compile state. Stack-allocated in pyjit.cpp when a multi-threaded
-// compile starts. Its address is published via thread-local storage so workers
-// can find it.
+// or background compile starts. Its address is published via thread-local
+// storage so workers can find it.
 class ThreadedCompileContext {
  public:
   using WorkList = std::vector<BorrowedRef<>>;
 
+  // Used for background compilation (single background thread, no work list).
+  ThreadedCompileContext();
+  // Used for batch multi-threaded compilation.
   explicit ThreadedCompileContext(WorkList&& work_list);
   ~ThreadedCompileContext();
 
@@ -46,7 +49,7 @@ class ThreadedCompileContext {
   void retryUnit(BorrowedRef<> unit);
 
   // Check if the current thread is currently participating in a multi-threaded
-  // compile.
+  // or background compile.
   static bool compileRunning();
 
   // Worker-side: set TLS to indicate we are inside a worker with a saved
@@ -90,7 +93,8 @@ class ThreadedCompileContext {
   // GIL-based lock.
   static thread_local PyThreadState* threaded_compile_tstate_;
   static thread_local int gil_lock_depth_;
-  // Saved main thread state when GIL is released.
+
+  // Saved main thread state when GIL is released (batch compile).
   PyThreadState* main_{nullptr};
   bool ended_{false};
 };
