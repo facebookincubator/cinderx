@@ -191,9 +191,6 @@ class AttributeCache {
 
   void fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set);
 
-  void
-  fill(BorrowedRef<> obj, BorrowedRef<> name, BorrowedRef<> descr, bool is_set);
-
   AttributeMutator entries_[0];
 };
 
