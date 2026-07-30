@@ -54,7 +54,7 @@ This will configure the CinderX extension to automatically compile Python
 functions to machine code.  It will track what functions are called frequently
 and compile the hottest ones automatically.
 
-See [the JIT documentation](https://facebookincubator.github.io/cinderx/docs/jit) for
+See [the JIT documentation](https://facebookincubator.github.io/cinderx/jit) for
 more details, or browse the full [CinderX documentation
 site](https://facebookincubator.github.io/cinderx/).
 
