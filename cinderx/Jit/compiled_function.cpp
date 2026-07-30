@@ -60,6 +60,40 @@ int compiledfunc_clear(PyObject* self) {
   return 0;
 }
 
+// A CompiledFunction holds per-process JIT state (machine code, native entry
+// point, CodeRuntime) stashed under a function's __dict__.  It cannot and need
+// not survive pickling or copying: the underlying function serializes normally
+// and is re-JIT'd in the destination process.  Reduce it to a call that yields
+// a harmless None placeholder so cloudpickle/pickle/copy of any JIT-compiled
+// function succeed.
+PyObject* compiledfunc_reduce(PyObject* /*self*/, PyObject* /*ignored*/) {
+  // The reconstructor lives in the native cinderjit module (not the cinderx
+  // Python layer), keeping this a native -> native reference.  It is always
+  // loaded when a CompiledFunction exists.
+  auto jit_module = Ref<>::steal(PyImport_ImportModule("cinderjit"));
+  if (jit_module == nullptr) {
+    return nullptr;
+  }
+  auto reconstructor = Ref<>::steal(PyObject_GetAttrString(
+      jit_module.get(), "_reconstruct_pickled_compiled_function"));
+  if (reconstructor == nullptr) {
+    return nullptr;
+  }
+  // The 2-tuple (reconstructor, ()) tells pickle/copy to rebuild the value by
+  // calling reconstructor(), which returns None.
+  return Py_BuildValue("(O())", reconstructor.get());
+}
+
+PyMethodDef compiledfunc_methods[] = {
+    {"__reduce__",
+     compiledfunc_reduce,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Reduce to a picklable None placeholder, dropping JIT machine "
+         "code so a JIT-compiled function can be pickled/copied.")},
+    {nullptr, nullptr, 0, nullptr},
+};
+
 static PyTypeObject _CiCompiledFunction_Type = {
     .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "CompiledFunction",
     .tp_basicsize = sizeof(CompiledFunction),
@@ -67,6 +101,7 @@ static PyTypeObject _CiCompiledFunction_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_traverse = compiledfunc_traverse,
     .tp_clear = compiledfunc_clear,
+    .tp_methods = compiledfunc_methods,
 };
 
 void compiledfuncdata_dealloc(PyObject* self) {

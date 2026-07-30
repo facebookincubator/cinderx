@@ -2855,6 +2855,15 @@ void restoreSysSetProfileAndSetTrace() {
   }
 }
 
+// Referenced by CompiledFunction.__reduce__ (Jit/compiled_function.cpp) as the
+// picklable-by-reference target that rebuilds a CompiledFunction dropped during
+// pickling as None.
+PyObject* reconstruct_pickled_compiled_function(
+    PyObject* /* self */,
+    PyObject* /* ignored */) {
+  Py_RETURN_NONE;
+}
+
 PyMethodDef jit_methods[] = {
     {"disable",
      reinterpret_cast<PyCFunction>(disable_jit),
@@ -2964,6 +2973,12 @@ PyMethodDef jit_methods[] = {
      force_uncompile,
      METH_O,
      PyDoc_STR("Uncompile a function that has been JIT compiled.")},
+    {"_reconstruct_pickled_compiled_function",
+     reconstruct_pickled_compiled_function,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Internal helper referenced by CompiledFunction.__reduce__ to rebuild "
+         "a CompiledFunction dropped during pickling as None.")},
     {"lazy_compile",
      lazy_compile,
      METH_O,

@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import asyncio
+import copy
 import faulthandler
 import gc
 import sys
@@ -2409,6 +2410,35 @@ def compiled_code_func_with_nested():
         del d
         cinder_support.failUnlessJITCompiled(nested)
         self.assertIn("__cinderx_compiled_func__", nested.__dict__)
+
+    @skip_if_prefork(
+        "Prefork builds immortalize compiled functions and do not publish "
+        "__cinderx_compiled_func__"
+    )
+    def test_compiled_func_reduces_to_none_for_pickle_and_copy(self) -> None:
+        # The CompiledFunction stashed in a JIT'd function's __dict__ holds per-process
+        # machine code and must not block pickling/copying of the function.  It reduces
+        # to a None placeholder.
+        def local_func(x: int) -> int:
+            return x + 1
+
+        force_compile(local_func)
+        compiled = local_func.__dict__["__cinderx_compiled_func__"]
+        self.assertEqual(type(compiled).__name__, "CompiledFunction")
+
+        # __reduce__ yields (callable, ()) where the callable rebuilds None...
+        reconstructor, args = compiled.__reduce__()
+        self.assertEqual(args, ())
+        self.assertIsNone(reconstructor())
+        # ...and that callable is picklable by reference (a module-level function),
+        # which is what lets cloudpickle drop the artifact when serializing a JIT'd
+        # function's __dict__ by value.
+        self.assertIs(
+            getattr(sys.modules[reconstructor.__module__], reconstructor.__qualname__),
+            reconstructor,
+        )
+        # End-to-end via the reduce protocol, the same machinery pickle uses.
+        self.assertIsNone(copy.deepcopy(compiled))
 
 
 @passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
