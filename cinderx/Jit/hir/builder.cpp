@@ -615,15 +615,12 @@ void HIRBuilder::emitTypeAnnotationGuards(TranslationContext& tc) {
   bool first = true;
 
   for (int arg_idx = 0; arg_idx < preloader_.numArgs(); arg_idx++) {
-    PyObject* annotation = index->find(getVarname(code, arg_idx));
+    BorrowedRef<> arg_name = getVarname(code, arg_idx);
+    const OwnedType* annotation = index->find(arg_name);
 
-    // If there is no annotation or if the annotation is an unexpected type,
-    // then skip over this argument.
-    //
-    // Note that this also skips over more complex types like unions. It could
-    // be beneficial in the future to support runtime checks for these kinds of
-    // annotations.
-    if (!annotation || !PyType_Check(annotation)) {
+    // If there is no annotation (or the annotation was filtered out because it
+    // is not a supported type such as a union), skip this argument.
+    if (annotation == nullptr) {
       continue;
     }
 
@@ -644,8 +641,10 @@ void HIRBuilder::emitTypeAnnotationGuards(TranslationContext& tc) {
     auto arg = tc.frame.localsplus.at(arg_idx);
     JIT_CHECK(arg != nullptr, "No register for argument {}", arg_idx);
 
-    Type type =
-        Type::fromTypeExact(reinterpret_cast<PyTypeObject*>(annotation));
+    Type type = annotation->toHir();
+    if (!type.isExact() || type.uniquePyType() == nullptr) {
+      continue;
+    }
 
     tc.emit<GuardType>(arg, type, arg);
   }

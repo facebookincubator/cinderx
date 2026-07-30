@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/sorted_vec_map.h"
+#include "cinderx/Jit/hir/type.h"
 
 #include <memory>
 
@@ -29,7 +30,7 @@ class AnnotationIndex {
 
   // Retrieve the annotation for the given name, or return nullptr.  Pure C++;
   // safe to call with the GIL released.
-  BorrowedRef<> find(BorrowedRef<> name) const;
+  const OwnedType* find(BorrowedRef<> name) const;
 
  private:
   // Built from the flattened (name, annotation, ...) tuple used before 3.14.
@@ -38,8 +39,18 @@ class AnnotationIndex {
   // Built from the __annotations__ dict used on 3.14+.
   explicit AnnotationIndex(BorrowedRef<PyDictObject> dict);
 
+  // Add a new annotation to the index.
+  void addAnnotation(BorrowedRef<> key, BorrowedRef<> value);
+
+  // Handle annotations that are parameterized generic aliases by reducing them
+  // down to their origin type (e.g. `list[int]` -> `list`).  This gives us a
+  // type that can be guarded against.
+  Ref<> handleGeneric(BorrowedRef<> annotation);
+
   Ref<> owner_;
-  SortedVecMap<Ref<>, Ref<>, RefLess<PyObject>> annotations_;
+  SortedVecMap<Ref<PyUnicodeObject>, OwnedType, RefLess<PyUnicodeObject>>
+      annotations_;
+  Ref<PyUnicodeObject> origin_;
 };
 
 } // namespace cinderx::jit::hir
