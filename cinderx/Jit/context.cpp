@@ -12,6 +12,7 @@
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/module_state.h"
 #include "cinderx/python_runtime.h"

@@ -230,8 +230,6 @@ class PreloaderManager {
 
   size_t size() const;
 
-  bool isGlobalManager() const;
-
   // Clear out all preloaders.
   void clear();
 
@@ -242,6 +240,11 @@ class PreloaderManager {
 // Get the global PreloaderManager object.
 PreloaderManager& preloaderManager();
 
+// Set the thread-local preloader manager to a specific manager. This is used
+// to share an isolated manager with worker threads during multi-threaded
+// compile.
+void setThreadLocalPreloaderManager(PreloaderManager* mgr);
+
 // RAII device for isolating preloaders state.
 // Uses thread-local storage to give each thread its own PreloaderManager
 // while isolation is active, avoiding race conditions between threads.
@@ -249,6 +252,9 @@ class IsolatedPreloaders {
  public:
   IsolatedPreloaders();
   ~IsolatedPreloaders();
+
+  PreloaderManager* manager();
+  const PreloaderManager* manager() const;
 
  private:
   PreloaderManager local_manager_;

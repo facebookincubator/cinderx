@@ -2,11 +2,11 @@
 
 #pragma once
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/compilation_lock.h"
 
 #include <atomic>
-#include <cassert>
 #include <functional>
 #include <mutex>
 #include <thread>
@@ -20,18 +20,20 @@ namespace cinderx::jit {
     return RETVAL;                                \
   }
 
-class ThreadedCompileContext;
-// Get a reference to the global ThreadedCompileContext.
-ThreadedCompileContext& getThreadedCompileContext();
-
-// Threaded-compile state for the whole process.
+// Threaded-compile state. Stack-allocated in pyjit.cpp when a multi-threaded
+// compile starts. Its address is published via thread-local storage so workers
+// can find it.
 class ThreadedCompileContext {
  public:
   using WorkList = std::vector<BorrowedRef<>>;
 
-  // Accept a list of translation units and set them as being compiled by
-  // multiple worker threads.
-  void startCompile(WorkList&& work_list);
+  explicit ThreadedCompileContext(WorkList&& work_list);
+  ~ThreadedCompileContext();
+
+  ThreadedCompileContext(const ThreadedCompileContext&) = delete;
+  ThreadedCompileContext(ThreadedCompileContext&&) = delete;
+  ThreadedCompileContext& operator=(const ThreadedCompileContext&) = delete;
+  ThreadedCompileContext& operator=(ThreadedCompileContext&&) = delete;
 
   // Stop the current iteration of the multi-threaded compile, and return the
   // list of translation units that failed to compile.
@@ -43,55 +45,32 @@ class ThreadedCompileContext {
   // Mark a unit as having failed to compile and to be retried in the future.
   void retryUnit(BorrowedRef<> unit);
 
-  // Check if there's a multi-threaded compile currently running.
+  // Check if the current thread is currently participating in a multi-threaded
+  // compile.
   static bool compileRunning();
+
+  // Worker-side: set TLS to indicate we are inside a worker with a saved
+  // tstate.
+  void beginWorker(PyThreadState* tstate);
+  void endWorker();
+
+  void releaseGil();
 
   // Returns true if it's safe for the current thread to access data protected
   // by the threaded compile lock, either because no threaded compile is active
-  // or the current thread holds the lock. May return true erroneously, but
-  // shouldn't return false erroneously.
+  // or the current thread holds the GIL via ThreadedCompileGILHolder.
   static bool canAccessSharedData();
 
   static PyInterpreterState* interpreter();
-
   static PyThreadState* tstate();
 
+  static ThreadedCompileContext* current();
+
  private:
-  friend class ThreadedCompileSerialize;
+  friend class ThreadedCompileGILHolder;
 
-  void lock();
-
-  void unlock();
-
-  std::thread::id holder() const;
-
-  void setHolder(std::thread::id holder);
-
-  // This is only written by the main thread, and only when no worker threads
-  // exist. While worker threads exist, it is only read (mostly by the worker
-  // threads).
-  bool compile_running_{false};
-
-  // Despite the compiler not being recursive, it is not yet disciplined enough
-  // to acquire the lock only when it absolutely knows it doesn't already have
-  // it.
-  std::recursive_mutex mutex_;
-
-  // mutex_holder_ and mutex_recursion_ are used only in assertions, to protect
-  // against one thread accessing data it shouldn't while a threaded compile is
-  // active. False negatives in these assertions are OK, and can't be prevented
-  // without additional locking that wouldn't be worth the overhead.
-  //
-  // False positives are not OK, and would be caused either by a thread reading
-  // compile_running_ == true after the threaded compile has finished, or by a
-  // thread reading someone else's id from mutex_holder_ while the first thread
-  // has the lock. The former shouldn't happen because all stores to
-  // compile_running_ happen while no worker threads exist, so there's no
-  // opportunity for a data race. The latter shouldn't be possible because a
-  // thread writes its own id to mutex_holder_, and within that thread the write
-  // is sequenced before any reads of mutex_holder_ while doing work later.
-  std::atomic<std::thread::id> mutex_holder_;
-  std::atomic_size_t mutex_recursion_{0};
+  static void lock();
+  static void unlock();
 
   // List of translation units to iterate through and compile.
   WorkList work_list_;
@@ -100,24 +79,37 @@ class ThreadedCompileContext {
   WorkList retry_list_;
 
   // The interpreter state that kicked off the multi-threaded compile.
-  PyInterpreterState* interpreter_;
+  PyInterpreterState* interpreter_{nullptr};
 
-  // Only used in free-threaded builds to update per-thread reftotal in debug
-  // mode. Kept unconditional so callers can use kFreeThreadedBuild instead of
-  // #ifdefs.
-  PyThreadState* tstate_;
+  static thread_local ThreadedCompileContext* current_;
+  // Thread-local state for GIL-based serialization.
+  // threaded_compile_tstate_ holds the PyThreadState* that was saved when the
+  // GIL was released. When non-null, the thread is running without the GIL and
+  // threaded_compile_tstate_ is the threadstate needed to restore (acquire) the
+  // GIL via PyEval_RestoreThread. gil_lock_depth_ tracks recursion of the
+  // GIL-based lock.
+  static thread_local PyThreadState* threaded_compile_tstate_;
+  static thread_local int gil_lock_depth_;
+  // Saved main thread state when GIL is released.
+  PyThreadState* main_{nullptr};
+  bool ended_{false};
 };
 
-// RAII device for acquiring the global threaded-compile lock.
-class ThreadedCompileSerialize {
+// RAII device for acquiring the GIL when doing multi-threaded compilation.
+class ThreadedCompileGILHolder {
  public:
-  ThreadedCompileSerialize() {
-    getThreadedCompileContext().lock();
+  ThreadedCompileGILHolder() {
+    ThreadedCompileContext::lock();
   }
 
-  ~ThreadedCompileSerialize() {
-    getThreadedCompileContext().unlock();
+  ~ThreadedCompileGILHolder() {
+    ThreadedCompileContext::unlock();
   }
+
+  ThreadedCompileGILHolder(const ThreadedCompileGILHolder&) = delete;
+  ThreadedCompileGILHolder(ThreadedCompileGILHolder&&) = delete;
+  ThreadedCompileGILHolder& operator=(const ThreadedCompileGILHolder&) = delete;
+  ThreadedCompileGILHolder& operator=(ThreadedCompileGILHolder&&) = delete;
 };
 
 /*

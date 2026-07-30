@@ -98,11 +98,7 @@ class BytecodeInstruction {
 // BytecodeInstructionBlock borrows the code object - it does NOT keep it alive.
 // Callers must ensure the code object outlives the block, which is true for
 // all current uses (HIR building holds Ref<> / ThreadedRef<> to the code
-// object in Preloader / Function).  Previously this held a ThreadedRef and
-// did refcounting under ThreadedCompileSerialize for background-compile safety,
-// but that caused significant GIL contention during background compilation
-// (one acquire/release per block).  Switching to BorrowedRef eliminates that
-// overhead while remaining safe due to external lifetime guarantees.
+// object in Preloader / Function).
 class BytecodeInstructionBlock {
  public:
   explicit BytecodeInstructionBlock(BorrowedRef<PyCodeObject> code);

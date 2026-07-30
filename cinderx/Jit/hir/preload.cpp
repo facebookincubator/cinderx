@@ -137,7 +137,6 @@ std::unique_ptr<NativeTarget> resolve_native_target(
 }
 #endif
 
-PreloaderManager s_manager;
 thread_local PreloaderManager* tls_manager = nullptr;
 
 } // namespace
@@ -705,15 +704,14 @@ void PreloaderManager::clear() {
   preloaders_.clear();
 }
 
-bool PreloaderManager::isGlobalManager() const {
-  return tls_manager == nullptr;
+PreloaderManager& preloaderManager() {
+  JIT_DCHECK(
+      tls_manager != nullptr, "Should have isolated preloader installed");
+  return *tls_manager;
 }
 
-PreloaderManager& preloaderManager() {
-  if (tls_manager != nullptr) {
-    return *tls_manager;
-  }
-  return s_manager;
+void setThreadLocalPreloaderManager(PreloaderManager* mgr) {
+  tls_manager = mgr;
 }
 
 IsolatedPreloaders::IsolatedPreloaders() : prev_manager_(tls_manager) {
@@ -722,6 +720,14 @@ IsolatedPreloaders::IsolatedPreloaders() : prev_manager_(tls_manager) {
 
 IsolatedPreloaders::~IsolatedPreloaders() {
   tls_manager = prev_manager_;
+}
+
+PreloaderManager* IsolatedPreloaders::manager() {
+  return &local_manager_;
+}
+
+const PreloaderManager* IsolatedPreloaders::manager() const {
+  return &local_manager_;
 }
 
 } // namespace cinderx::jit::hir

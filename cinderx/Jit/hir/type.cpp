@@ -427,7 +427,7 @@ Type Type::fromObject(PyObject* obj) {
     // which can change during compilation. However, this is really a false
     // positive as the mortality of an object should not change during
     // compilation.
-    ThreadedCompileSerialize guard;
+    ThreadedCompileGILHolder guard;
 #endif
     return _Py_IsImmortal(obj) ? kLifetimeImmortal : kLifetimeMortal;
   }();

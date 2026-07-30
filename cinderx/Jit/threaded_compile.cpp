@@ -2,31 +2,50 @@
 
 #include "cinderx/Jit/threaded_compile.h"
 
+#include "cinderx/Common/py-portability.h"
+
 namespace cinderx::jit {
 
-namespace {
+thread_local ThreadedCompileContext* ThreadedCompileContext::current_ = nullptr;
+thread_local PyThreadState* ThreadedCompileContext::threaded_compile_tstate_ =
+    nullptr;
+thread_local int ThreadedCompileContext::gil_lock_depth_ = 0;
 
-ThreadedCompileContext s_threaded_compile_context;
-
-} // namespace
-
-ThreadedCompileContext& getThreadedCompileContext() {
-  return s_threaded_compile_context;
+ThreadedCompileContext::ThreadedCompileContext(WorkList&& work_list) {
+  JIT_DCHECK(current_ == nullptr, "should have no current context");
+  JIT_DCHECK(
+      threaded_compile_tstate_ == nullptr, "should have no saved thread state");
+  work_list_ = std::move(work_list);
+  interpreter_ = PyInterpreterState_Get();
+  current_ = this;
+  threaded_compile_tstate_ = PyThreadState_Get();
 }
 
-void ThreadedCompileContext::startCompile(WorkList&& work_list) {
-  // Can't use JIT_CHECK because this is included by log.h.
-  assert(!compile_running_);
-  work_list_ = std::move(work_list);
-  compile_running_ = true;
-  interpreter_ = PyInterpreterState_Get();
-  tstate_ = PyThreadState_Get();
+ThreadedCompileContext::~ThreadedCompileContext() {
+  if (!ended_) {
+    endCompile();
+  }
 }
 
 ThreadedCompileContext::WorkList ThreadedCompileContext::endCompile() {
-  assert(compile_running_);
-  compile_running_ = false;
+  if (ended_) {
+    return {};
+  }
+
+  if (main_ != nullptr) {
+    // Re-acquire GIL for finalization.
+    PyEval_RestoreThread(main_);
+    main_ = nullptr;
+  }
+  ended_ = true;
+  threaded_compile_tstate_ = nullptr;
+  current_ = nullptr;
   return std::move(retry_list_);
+}
+
+void ThreadedCompileContext::releaseGil() {
+  JIT_DCHECK(main_ == nullptr, "main already saved");
+  main_ = PyEval_SaveThread();
 }
 
 BorrowedRef<> ThreadedCompileContext::nextUnit() {
@@ -45,24 +64,28 @@ void ThreadedCompileContext::retryUnit(BorrowedRef<> unit) {
 }
 
 bool ThreadedCompileContext::compileRunning() {
-  return getThreadedCompileContext().compile_running_;
+  return threaded_compile_tstate_ != nullptr;
 }
 
 bool ThreadedCompileContext::canAccessSharedData() {
-  return !compileRunning() ||
-      getThreadedCompileContext().holder() == std::this_thread::get_id();
+  return !compileRunning() || gil_lock_depth_ > 0 ||
+      PyThreadState_GetUnchecked() != nullptr;
 }
 
 PyInterpreterState* ThreadedCompileContext::interpreter() {
   if (compileRunning()) {
-    return getThreadedCompileContext().interpreter_;
+    ThreadedCompileContext* cur = current_;
+    JIT_DCHECK(
+        cur != nullptr && cur->interpreter_ != nullptr,
+        "should be set while compiling");
+    return cur->interpreter_;
   }
   return PyInterpreterState_Get();
 }
 
 PyThreadState* ThreadedCompileContext::tstate() {
   if (compileRunning()) {
-    return getThreadedCompileContext().tstate_;
+    return threaded_compile_tstate_;
   }
   return PyThreadState_Get();
 }
@@ -72,18 +95,16 @@ void ThreadedCompileContext::lock() {
     return;
   }
 
-  mutex_.lock();
-
-  auto us = std::this_thread::get_id();
-
-  auto prev_level = mutex_recursion_.fetch_add(1, std::memory_order_relaxed);
-  if (prev_level == 0) {
-    assert(holder() == std::thread::id{});
-  } else {
-    assert(holder() == us);
+  if (gil_lock_depth_ == 0) {
+    JIT_DCHECK(
+        threaded_compile_tstate_ != nullptr,
+        "should only be used on worker threads");
+    JIT_DCHECK(PyThreadState_GetUnchecked() == nullptr, "should not have GIL");
+    // Acquire GIL by restoring thread-local worker threadstate.
+    PyEval_RestoreThread(threaded_compile_tstate_);
   }
 
-  setHolder(us);
+  gil_lock_depth_++;
 }
 
 void ThreadedCompileContext::unlock() {
@@ -91,22 +112,30 @@ void ThreadedCompileContext::unlock() {
     return;
   }
 
-  auto prev_level = mutex_recursion_.fetch_sub(1, std::memory_order_relaxed);
-  if (prev_level == 1) {
-    setHolder(std::thread::id{});
-  } else {
-    assert(holder() == std::this_thread::get_id());
+  gil_lock_depth_--;
+  if (gil_lock_depth_ == 0) {
+    PyThreadState* save = PyEval_SaveThread();
+    JIT_DCHECK(
+        threaded_compile_tstate_ == save, "should have saved the same thread");
   }
-
-  mutex_.unlock();
 }
 
-std::thread::id ThreadedCompileContext::holder() const {
-  return mutex_holder_.load(std::memory_order_relaxed);
+void ThreadedCompileContext::beginWorker(PyThreadState* tstate) {
+  JIT_DCHECK(
+      threaded_compile_tstate_ == nullptr,
+      "should not have saved thread state");
+  JIT_DCHECK(current_ == nullptr, "shouldn't have an existing context");
+  current_ = this;
+  threaded_compile_tstate_ = tstate;
 }
 
-void ThreadedCompileContext::setHolder(std::thread::id holder) {
-  mutex_holder_.store(holder, std::memory_order_relaxed);
+void ThreadedCompileContext::endWorker() {
+  threaded_compile_tstate_ = nullptr;
+  current_ = nullptr;
+}
+
+ThreadedCompileContext* ThreadedCompileContext::current() {
+  return current_;
 }
 
 } // namespace cinderx::jit

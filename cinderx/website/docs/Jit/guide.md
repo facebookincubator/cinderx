@@ -159,8 +159,8 @@ attributes, subscripting, etc.)
 Mutating Python objects (most commonly by touching their reference counts)
 during JIT compilation is permitted but should be avoided as much as possible
 by pushing work into the preloader. Where it occurs during compilation, it
-must be wrapped in a `ThreadedCompileSerialize` guard to take the compile
-lock, otherwise threads may race resulting in invalid mutations.
+must be wrapped in a `ThreadedCompileGILHolder` guard to take the GIL,
+otherwise threads may race resulting in invalid mutations.
 
 ## Lowering to HIR
 

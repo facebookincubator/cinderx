@@ -270,7 +270,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
   // Flush Environ pending references to CodeRuntime so that they are
   // kept alive during the lifetime of the compiled code.
   {
-    ThreadedCompileSerialize guard;
+    ThreadedCompileGILHolder guard;
     ngen->transferReferences();
     auto code_runtime = ngen->codeRuntime();
     code_runtime->transferReferences(irfunc->env.stealStrongReferences());

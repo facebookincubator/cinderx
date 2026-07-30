@@ -17,6 +17,7 @@
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/gen_data_footer.h"
+#include "cinderx/Jit/threaded_compile.h"
 #if defined(CINDER_X86_64)
 #include "cinderx/Jit/symbolizer.h"
 #endif

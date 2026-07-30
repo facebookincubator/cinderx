@@ -76,6 +76,15 @@ void ModuleState::afterForkChild() {
   }
 }
 
+void ModuleState::joinCompileWorkers() {
+  for (std::thread& worker : compile_worker_threads) {
+    if (worker.joinable()) {
+      worker.join();
+    }
+  }
+  compile_worker_threads.clear();
+}
+
 ModuleState* getModuleState() {
   return s_cinderx_state;
 }

@@ -43,7 +43,7 @@ BorrowedRef<> typeLookupSafe(
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
   // This flag should never change during compilation although other
   // flags may.
-  ThreadedCompileSerialize guard;
+  ThreadedCompileGILHolder guard;
 #endif
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};

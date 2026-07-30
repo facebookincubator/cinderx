@@ -8,7 +8,7 @@ namespace cinderx::jit {
 
 // Dedicated lock for protecting JIT compilation data structures such as
 // compiled_funcs_, compiled_codes_, active_compiles_, completed_compiles_, etc.
-// This is a simple mutex, unlike ThreadedCompileSerialize which has additional
+// This is a simple mutex, unlike ThreadedCompileGILHolder which has additional
 // logic for GIL handling during threaded compiles.
 std::recursive_mutex& jitCompilationMutex();
 

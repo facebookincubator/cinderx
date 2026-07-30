@@ -17,7 +17,9 @@
 
 #include <functional>
 #include <memory>
+#include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace cinderx {
 
@@ -41,6 +43,10 @@ struct ModuleState {
   std::shared_ptr<HugePageArena> getSharedHugePageArena();
 
   void afterForkChild();
+
+  // Wait for any background multi-threaded compile worker threads to finish
+  // and drop them.  Safe to call when no compile is in progress (no-op).
+  void joinCompileWorkers();
 
   // State for dict/type/code/func watchers registered with CPython.
   WatcherState watcher_state;
@@ -133,6 +139,11 @@ struct ModuleState {
   // Counters for multithreaded compilation diagnostics.
   std::atomic<int> compile_workers_attempted{0};
   std::atomic<int> compile_workers_retries{0};
+
+  // Background worker threads spawned for the current multi-threaded compile.
+  // Tracked here so the runtime can wait for them to finish before finalizing
+  // JIT state they depend on.
+  std::vector<std::thread> compile_worker_threads;
 
   // Callback invoked when a compilation unit is deleted during preloading.
   std::function<void(BorrowedRef<>)> unit_deleted_during_preload;

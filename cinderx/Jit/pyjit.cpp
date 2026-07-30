@@ -70,19 +70,71 @@ TaggedPyObject tagIfDeferred(PyObject* obj);
 
 namespace {
 
-// RAII device for disabling GIL checking.
-class DisableGilCheck {
+// RAII wrapper for PyThreadState* similar to Ref<>.
+// Owns a PyThreadState created via PyThreadState_New and frees it via
+// Clear + Delete/DeleteCurrent. Move-only, like Ref.
+class PyThreadStateHandle {
  public:
-  DisableGilCheck() : old_check_enabled_{_PyRuntime.gilstate.check_enabled} {
-    _PyRuntime.gilstate.check_enabled = 0;
+  explicit PyThreadStateHandle(PyThreadState* tstate) : ptr_{tstate} {}
+
+  ~PyThreadStateHandle() {
+    reset(nullptr);
   }
 
-  ~DisableGilCheck() {
-    _PyRuntime.gilstate.check_enabled = old_check_enabled_;
+  PyThreadStateHandle(PyThreadStateHandle&& other) noexcept : ptr_{other.ptr_} {
+    other.ptr_ = nullptr;
+  }
+
+  PyThreadStateHandle(const PyThreadStateHandle&) = delete;
+  PyThreadStateHandle& operator=(const PyThreadStateHandle&) = delete;
+  PyThreadStateHandle& operator=(PyThreadStateHandle&& other) noexcept {
+    reset(nullptr);
+    ptr_ = other.ptr_;
+    other.ptr_ = nullptr;
+    return *this;
+  }
+
+  PyThreadState* release() {
+    PyThreadState* tmp = ptr_;
+    ptr_ = nullptr;
+    return tmp;
+  }
+
+  void reset(PyThreadState* tstate = nullptr) {
+    if (ptr_ != nullptr) {
+      // Caller must hold GIL when freeing a threadstate.
+      PyThreadState_Clear(ptr_);
+      if (ptr_ == PyThreadState_Get()) {
+        PyThreadState_DeleteCurrent();
+      } else {
+        PyThreadState_Delete(ptr_);
+      }
+    }
+    ptr_ = tstate;
   }
 
  private:
-  int old_check_enabled_;
+  PyThreadState* ptr_{nullptr};
+};
+
+// RAII equivalent of the Py_BEGIN_ALLOW_THREADS / Py_END_ALLOW_THREADS macro
+// pair.  Saves and releases the current thread state on construction, and
+// restores it (reacquiring the GIL) on destruction.
+class PyBeginAllowThreads {
+ public:
+  PyBeginAllowThreads() : save_{PyEval_SaveThread()} {}
+
+  ~PyBeginAllowThreads() {
+    PyEval_RestoreThread(save_);
+  }
+
+  PyBeginAllowThreads(const PyBeginAllowThreads&) = delete;
+  PyBeginAllowThreads(PyBeginAllowThreads&&) = delete;
+  PyBeginAllowThreads& operator=(const PyBeginAllowThreads&) = delete;
+  PyBeginAllowThreads& operator=(PyBeginAllowThreads&&) = delete;
+
+ private:
+  PyThreadState* save_;
 };
 
 CompilerContext<Compiler>* jitCtx() {
@@ -971,34 +1023,62 @@ Result tryCompilePreloaded(BorrowedRef<> unit) {
   return preloader ? compilePreloader(*preloader, func) : Result::NO_PRELOADER;
 }
 
-void compile_worker_thread() {
+void compile_worker_thread(
+    PyThreadState* initial_tstate,
+    std::shared_ptr<ThreadedCompileContext> context,
+    std::shared_ptr<hir::IsolatedPreloaders> isolated) {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
 
-  int attempts = 0;
-  int retries = 0;
+  // Publish the context and isolated preload manager via TLS so that
+  // compileRunning()/preloaderManager() work on this worker.
+  hir::setThreadLocalPreloaderManager(isolated->manager());
 
-  while (BorrowedRef<> unit = getThreadedCompileContext().nextUnit()) {
-    attempts++;
-    auto result = tryCompilePreloaded(unit);
-    if (result == Result::ALREADY_SCHEDULED) {
-      retries++;
-      getThreadedCompileContext().retryUnit(unit);
+  // Acquire GIL with the pre-created worker threadstate.
+  PyEval_AcquireThread(initial_tstate);
+  context->beginWorker(initial_tstate);
+
+  {
+    // Release the GIL for the lifetime of this scope, saving our tstate so it
+    // can be restored (reacquiring the GIL) when the scope exits.  Workers
+    // reacquire the GIL as needed via ThreadedCompileGILHolder.
+    PyBeginAllowThreads allow_threads;
+
+    int attempts = 0;
+    int retries = 0;
+
+    while (BorrowedRef<> unit = context->nextUnit()) {
+      attempts++;
+      auto result = tryCompilePreloaded(unit);
+      if (result == Result::ALREADY_SCHEDULED) {
+        retries++;
+        context->retryUnit(unit);
+      }
+      JIT_CHECK(
+          result != Result::NO_PRELOADER,
+          "Cannot find a JIT preloader for {}",
+          unitFullname(unit));
     }
-    JIT_CHECK(
-        result != Result::NO_PRELOADER,
-        "Cannot find a JIT preloader for {}",
-        unitFullname(unit));
+
+    cinderx::getModuleState()->compile_workers_attempted.fetch_add(attempts);
+    cinderx::getModuleState()->compile_workers_retries.fetch_add(retries);
+
+    JIT_DLOG(
+        "Finished compile worker in thread {}. Compile attempts: {}, scheduled "
+        "retries: {}",
+        std::this_thread::get_id(),
+        attempts,
+        retries);
   }
+  // GIL reacquired here, restoring threaded_compile_tstate as current.
+  context->endWorker();
 
-  cinderx::getModuleState()->compile_workers_attempted.fetch_add(attempts);
-  cinderx::getModuleState()->compile_workers_retries.fetch_add(retries);
+  // Clear TLS for preload manager (context TLS already cleared by endWorker).
+  hir::setThreadLocalPreloaderManager(nullptr);
 
-  JIT_DLOG(
-      "Finished compile worker in thread {}. Compile attempts: {}, scheduled "
-      "retries: {}",
-      std::this_thread::get_id(),
-      attempts,
-      retries);
+  // Now we hold GIL again with initial_tstate as current.
+  // Clean up the worker threadstate.
+  PyThreadState_Clear(PyThreadState_Get());
+  PyThreadState_DeleteCurrent();
 }
 
 void compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
@@ -1007,9 +1087,10 @@ void compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
   }
 }
 
-void multithread_compile_units_preloaded(
+bool multithread_compile_units_preloaded(
     std::vector<BorrowedRef<>>&& units,
-    size_t worker_count) {
+    size_t worker_count,
+    std::shared_ptr<hir::IsolatedPreloaders> isolated) {
   JIT_CHECK(worker_count > 1, "Expecting >1 workers but got {}", worker_count);
 
   JIT_DLOG(
@@ -1018,33 +1099,43 @@ void multithread_compile_units_preloaded(
       units.size(),
       worker_count);
 
-  // Disable checks for using GIL protected data across threads.
-  // Conceptually what we're doing here is saying we're taking our own
-  // responsibility for managing locking of CPython runtime data structures.
-  // Instead of holding the GIL to serialize execution to one thread, we're
-  // holding the GIL for a group of co-operating threads which are aware of each
-  // other. We still need the GIL as this protects the cooperating threads from
-  // unknown other threads. Within our group of cooperating threads we can
-  // safely do any read-only operations in parallel, but we grab our own lock if
-  // we do a write (e.g. an incref).
-  DisableGilCheck gil_check_guard;
+  // Allocate the compile context as a shared_ptr so it is ref-counted and
+  // kept alive by the workers
+  auto compilation = std::make_shared<ThreadedCompileContext>(std::move(units));
 
-  getThreadedCompileContext().startCompile(std::move(units));
-  std::vector<std::thread> worker_threads;
-  {
-    // Ensure that no worker threads start compiling until they are all created,
-    // in case something else in the process has hooked thread creation to run
-    // arbitrary code.
-    JITCompilationLock lock;
-    for (size_t i = 0; i < worker_count; i++) {
-      worker_threads.emplace_back(compile_worker_thread);
-    }
-  }
-  for (std::thread& worker_thread : worker_threads) {
-    worker_thread.join();
+  // Pre-create a PyThreadState for each worker while holding the GIL.
+  // This avoids needing the GIL to be held inside the worker just to call
+  // PyThreadState_New, and lets workers block on GIL acquisition until we
+  // release it. Use RAII handle similar to Ref<> for exception safety.
+  PyInterpreterState* interp = ThreadedCompileContext::interpreter();
+  std::vector<PyThreadStateHandle> worker_tstates;
+  worker_tstates.reserve(worker_count);
+  for (size_t i = 0; i < worker_count; i++) {
+    auto* tstate = PyThreadState_New(interp);
+    JIT_CHECK(tstate != nullptr, "Failed to allocate thread state");
+    worker_tstates.emplace_back(tstate);
   }
 
-  auto retry_list = getThreadedCompileContext().endCompile();
+  // Track the worker threads on the module state so the runtime can wait for
+  // them to finish (e.g. during finalization) if we don't get to join them
+  // here.
+  auto* mod_state = cinderx::getModuleState();
+  std::vector<std::thread>& worker_threads = mod_state->compile_worker_threads;
+  for (auto& worker_tstate : worker_tstates) {
+    // Transfer ownership to the worker thread via release().
+    PyThreadState* raw = worker_tstate.release();
+    worker_threads.emplace_back(
+        compile_worker_thread, raw, compilation, isolated);
+  }
+  // Ensure that no worker threads start compiling until they are all created,
+  // in case something else in the process has hooked thread creation to run
+  // arbitrary code (the worker threads need the GIL to initialize their thread
+  // state).
+  compilation->releaseGil();
+
+  mod_state->joinCompileWorkers();
+
+  auto retry_list = compilation->endCompile();
 
   jitCtx()->finalizeMultiThreadedCompile();
 
@@ -1052,6 +1143,7 @@ void multithread_compile_units_preloaded(
       "multithread_compile_units_preloaded retrying {} units serially",
       retry_list.size());
   compile_units_preloaded(std::move(retry_list));
+  return true;
 }
 
 // Compile all functions registered via a JIT list that haven't been executed
@@ -1095,6 +1187,12 @@ bool compile_all(size_t workers = 0) {
       workers,
       jit_reg_units.size());
 
+  // Isolate preloaders for this batch-compile so that re-entrant compiles
+  // don't race, and so we can share the same isolated manager with worker
+  // threads. Allocated as shared_ptr so it is ref-counted and kept alive by
+  // the workers.
+  auto isolated = std::make_shared<hir::IsolatedPreloaders>();
+
   // First we have to preload everything we are going to compile.
   while (jit_reg_units.size() > 0) {
     auto preload_units = std::move(jit_reg_units);
@@ -1120,7 +1218,6 @@ bool compile_all(size_t workers = 0) {
       };
       hir::Preloader* preloader = preload(unit);
       if (!preloader) {
-        hir::preloaderManager().clear();
         mod_state->unit_deleted_during_preload = nullptr;
         return false;
       }
@@ -1140,16 +1237,11 @@ bool compile_all(size_t workers = 0) {
       deleted_units.size());
 
   if (workers > 1) {
-    multithread_compile_units_preloaded(std::move(compilation_units), workers);
+    return multithread_compile_units_preloaded(
+        std::move(compilation_units), workers, isolated);
   } else {
     compile_units_preloaded(std::move(compilation_units));
   }
-
-  // Can't use IsolatedPreloaders here because worker threads need to access the
-  // preloader manager via the global (non-TLS) path.  Isolation from re-entrant
-  // compiles during preloading is already handled by compileFunction's own
-  // IsolatedPreloaders.
-  hir::preloaderManager().clear();
 
   return true;
 }
@@ -3533,6 +3625,10 @@ void finalize() {
   // invoke the JIT while we're finalizing our data structures.
   getMutableConfig().state = State::kFinalizing;
 
+  // Wait for any background compile worker threads to finish before tearing
+  // down the JIT state they depend on.
+  cinderx::getModuleState()->joinCompileWorkers();
+
   // Deopt all JIT generators, since JIT generators reference code and other
   // metadata that we will be freeing later in this function.
   PyUnstable_GC_VisitObjects(deopt_gen_visitor, nullptr);
@@ -3569,13 +3665,6 @@ void finalize() {
   auto& jit_reg_units = mod_state->registered_compilation_units;
   jit_code_outer_funcs.clear();
   jit_reg_units.clear();
-  JIT_CHECK(
-      hir::preloaderManager().empty(),
-      "JIT cannot be finalized while batch compilation is active size:{} "
-      "is_global:{}",
-      hir::preloaderManager().size(),
-      hir::preloaderManager().isGlobalManager());
-
   mod_state->jit_context.reset();
   mod_state->code_allocator.reset();
 

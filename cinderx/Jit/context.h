@@ -38,8 +38,8 @@ std::recursive_mutex& freeThreadedJITEntrypointMutex();
 
 // Free-threaded builds can enter top-level JIT operations concurrently:
 // function/code registration, compilation, and destruction hooks.
-// Use a dedicated lock instead of ThreadedCompileSerialize, which is acquired
-// deeper in the threaded-compile internals.
+// Use a dedicated lock instead of ThreadedCompileGILHolder which is a nop
+// in GIL disabled builds.
 class FreeThreadedJITEntrypointGuard {
  public:
   FreeThreadedJITEntrypointGuard() {

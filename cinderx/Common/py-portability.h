@@ -54,6 +54,7 @@ static inline int PyTime_MonotonicRaw(PyTime_t* result) {
 
 // Basic renames that went into 3.14.
 #define _PyGen_GetGeneratorFromFrame _PyFrame_GetGenerator
+#define PyThreadState_GetUnchecked _PyThreadState_UncheckedGet
 
 // Technically the internal version is different in that it doesn't check types,
 // but we always use it with unicode objects.

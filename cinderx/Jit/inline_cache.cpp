@@ -14,6 +14,7 @@
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"

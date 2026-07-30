@@ -2,6 +2,8 @@
 
 #include "cinderx/Common/log.h"
 
+#include "cinderx/Common/py-portability.h"
+
 #include <mutex>
 #include <stdexcept>
 

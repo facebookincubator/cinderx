@@ -1297,7 +1297,7 @@ Environment::~Environment() {
   // Serialize as we modify the ref-count of objects which may be widely
   // accessible.
   if (strong_references_.size()) {
-    ThreadedCompileSerialize guard;
+    ThreadedCompileGILHolder guard;
     strong_references_.clear();
   }
 }
