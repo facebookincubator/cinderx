@@ -199,6 +199,56 @@ fun jittestmodule:test {
     Return<CInt64> v9
   }
 }
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "a", Array>
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot
+    AtQuiescentState
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v5 = LoadConst<ImmortalLongExact[2]>
+    Snapshot
+    v5 = RefineType<LongExact> v5
+    v6 = PrimitiveUnbox<CInt64> v5
+    v7 = IsNegativeAndErrOccurred v6 {
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v2
+        Stack<1> v2
+      }
+    }
+    v8 = CheckSequenceBounds v2 v6 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v2
+      }
+    }
+    v11 = LoadConst<CInt64[40]>
+    v9 = LoadFieldAddress v2 v11
+    v10 = LoadArrayItem v9 v8 v2
+    Snapshot
+    Return<CInt64> v10
+  }
+}
 --- Test Name ---
 ArrayAssignEmitsStoreArrayItem
 --- Input ---
@@ -409,6 +459,59 @@ fun jittestmodule:test {
     Snapshot
     v11 = RefineType<NoneType> v11
     Return<NoneType> v11
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "a", Array>
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot
+    AtQuiescentState
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v5 = LoadConst<CInt64[3]>
+    v6 = LoadConst<ImmortalLongExact[2]>
+    Snapshot
+    v6 = RefineType<LongExact> v6
+    v7 = PrimitiveUnbox<CInt64> v6
+    v8 = IsNegativeAndErrOccurred v7 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v2
+        Stack<2> v5 v2
+      }
+    }
+    v9 = CheckSequenceBounds v2 v7 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v2
+      }
+    }
+    v11 = LoadConst<CInt64[40]>
+    v10 = LoadFieldAddress v2 v11
+    StoreArrayItem v10 v9 v5 v2
+    Snapshot
+    v12 = LoadConst<ImmortalNoneType>
+    v12 = RefineType<NoneType> v12
+    Return<NoneType> v12
   }
 }
 --- End ---
