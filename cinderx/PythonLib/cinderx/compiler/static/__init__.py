@@ -13,7 +13,6 @@ from ast import (
     AsyncFunctionDef,
     Attribute,
     BinOp,
-    BoolOp,
     Call,
     ClassDef,
     cmpop,
