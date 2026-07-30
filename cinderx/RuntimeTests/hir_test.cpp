@@ -579,6 +579,35 @@ TEST_F(HIRBuildTest, GetLength) {
   uint8_t bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v2
+    }
+    v3 = GetLength v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v2
+        Stack<1> v2
+      }
+    }
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v2
+      Stack<2> v2 v3
+    }
+    v4 = Assign v2
+    Return v3
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -605,6 +634,7 @@ TEST_F(HIRBuildTest, GetLength) {
   }
 }
 )";
+#endif
   EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
@@ -722,6 +752,38 @@ TEST_F(HIRBuildTest, SetUpdate) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadArg<1; "param1">
+    v2 = LoadArg<2; "param2">
+    v3 = LoadCurrentFunc
+    LoadFrame
+    v4 = TagIfDeferred v0
+    v5 = TagIfDeferred v1
+    v6 = TagIfDeferred v2
+    Snapshot {
+      CurInstrOffset 0
+      Locals<3> v4 v5 v6
+    }
+    v7 = SetUpdate v5 v6 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v4 v5 v6
+        Stack<2> v4 v5
+      }
+    }
+    Snapshot {
+      CurInstrOffset 8
+      Locals<3> v4 v5 v6
+      Stack<2> v4 v5
+    }
+    Return v5
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -749,6 +811,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
   }
 }
 )";
+#endif
   EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
@@ -1102,7 +1165,46 @@ TEST_F(HIRBuildTest, MatchMapping) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v2
+    }
+    v3 = LoadField<ob_type@24, Type, borrowed> v2
+    v4 = LoadField<tp_flags@184, CUInt64, borrowed> v3
+    v5 = LoadConst<CUInt64[64]>
+    v6 = IntBinaryOp<And> v4 v5
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v7 = LoadConst<ImmortalBool[True]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v7 = LoadConst<ImmortalBool[False]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v2
+      Stack<2> v2 v7
+    }
+    v8 = Assign v2
+    Return v7
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030E0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1186,7 +1288,46 @@ TEST_F(HIRBuildTest, MatchSequence) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v2
+    }
+    v3 = LoadField<ob_type@24, Type, borrowed> v2
+    v4 = LoadField<tp_flags@184, CUInt64, borrowed> v3
+    v5 = LoadConst<CUInt64[32]>
+    v6 = IntBinaryOp<And> v4 v5
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v7 = LoadConst<ImmortalBool[True]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v7 = LoadConst<ImmortalBool[False]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v2
+      Stack<2> v2 v7
+    }
+    v8 = Assign v2
+    Return v7
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030E0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1270,6 +1411,52 @@ TEST_F(HIRBuildTest, MatchKeys) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
+    LoadFrame
+    v3 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v3 v1
+    }
+    v4 = MatchKeys v3 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+        Stack<2> v3 v1
+      }
+    }
+    v5 = LoadConst<ImmortalNoneType>
+    v6 = PrimitiveCompare<Equal> v4 v5
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v4 = RefineType<NoneType> v4
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v4 = RefineType<TupleExact> v4
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v3 v1
+      Stack<3> v3 v1 v4
+    }
+    v7 = Assign v3
+    v8 = Assign v1
+    Return v4
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1313,6 +1500,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
   }
 }
 )";
+#endif
   EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
@@ -1320,6 +1508,34 @@ TEST_F(HIRBuildTest, ListExtend) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, LIST_EXTEND, 1, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
+    LoadFrame
+    v3 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v3 v1
+    }
+    v4 = ListExtend v3 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+        Stack<1> v3
+      }
+    }
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v3 v1
+      Stack<1> v3
+    }
+    Return v3
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1345,6 +1561,7 @@ TEST_F(HIRBuildTest, ListExtend) {
   }
 }
 )";
+#endif
   EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
 
@@ -1353,7 +1570,28 @@ TEST_F(HIRBuildTest, ListToTuple) {
       LOAD_FAST, 0, CALL_INTRINSIC_1, INTRINSIC_LIST_TO_TUPLE, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v2
+    }
+    v3 = CallIntrinsic<INTRINSIC_LIST_TO_TUPLE> v2
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v2
+      Stack<1> v3
+    }
+    Return v3
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030E0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1403,6 +1641,31 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
 
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(Py_GIL_DISABLED)
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
+    LoadFrame
+    v3 = TagIfDeferred v0
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v3 v1
+    }
+    v4 = Assign v1
+    v1 = LoadConst<Nullptr>
+    v3 = CheckVar<"param0"> v3 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v3 v1
+        Stack<1> v4
+      }
+    }
+    Return v4
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -1425,6 +1688,7 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
   }
 }
 )";
+#endif
 
   EXPECT_EQ(fullPrinter().toString(*(irfunc)), expected);
 }
