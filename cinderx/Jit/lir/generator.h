@@ -6,6 +6,7 @@
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/inline_cache_storage.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
 #include "cinderx/Jit/lir/function.h"
@@ -79,6 +80,7 @@ class LIRGenerator {
   const jit::hir::Function* func_{nullptr};
 
   jit::codegen::Environ* env_{nullptr};
+  InlineCacheStorage& inline_cache_storage_;
 
   bool is_gen_{false};
 

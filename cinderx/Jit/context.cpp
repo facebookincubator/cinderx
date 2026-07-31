@@ -298,6 +298,14 @@ void Context::clearDeoptStats() {
 }
 
 InlineCacheStats Context::getAndClearLoadMethodCacheStats() {
+  return inline_cache_storage_.getAndClearLoadMethodCacheStats();
+}
+
+InlineCacheStats Context::getAndClearLoadTypeMethodCacheStats() {
+  return inline_cache_storage_.getAndClearLoadTypeMethodCacheStats();
+}
+
+InlineCacheStats ContextInlineCacheStorage::getAndClearLoadMethodCacheStats() {
   InlineCacheStats stats;
   for (auto& cache : load_method_caches_) {
     if (cache.cacheStats() == nullptr) {
@@ -311,7 +319,8 @@ InlineCacheStats Context::getAndClearLoadMethodCacheStats() {
   return stats;
 }
 
-InlineCacheStats Context::getAndClearLoadTypeMethodCacheStats() {
+InlineCacheStats
+ContextInlineCacheStorage::getAndClearLoadTypeMethodCacheStats() {
   InlineCacheStats stats;
   for (auto& cache : load_type_method_caches_) {
     if (cache.cacheStats() == nullptr) {
@@ -349,27 +358,41 @@ void Context::releaseReferences() {
   type_deopt_patchers_.clear();
 }
 
-LoadAttrCache* Context::allocateLoadAttrCache() {
+InlineCacheStorage& Context::inlineCacheStorage(
+    [[maybe_unused]] CodeRuntime& code_runtime) {
+  return inline_cache_storage_;
+}
+
+LoadAttrCache* ContextInlineCacheStorage::allocateLoadAttrCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
   return load_attr_caches_.allocate();
 }
 
-LoadTypeAttrCache* Context::allocateLoadTypeAttrCache() {
+LoadTypeAttrCache* ContextInlineCacheStorage::allocateLoadTypeAttrCache() {
   return load_type_attr_caches_.allocate();
 }
 
-LoadMethodCache* Context::allocateLoadMethodCache() {
+LoadTypeAttrCache* ContextInlineCacheStorage::allocateLoadTypeAttrCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
+  return allocateLoadTypeAttrCache();
+}
+
+LoadMethodCache* ContextInlineCacheStorage::allocateLoadMethodCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
   return load_method_caches_.allocate();
 }
 
-LoadModuleAttrCache* Context::allocateLoadModuleAttrCache() {
+LoadModuleAttrCache* ContextInlineCacheStorage::allocateLoadModuleAttrCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
   return load_module_attr_caches_.allocate();
 }
 
-LoadModuleMethodCache* Context::allocateLoadModuleMethodCache() {
+LoadModuleMethodCache* ContextInlineCacheStorage::allocateLoadModuleMethodCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
   return load_module_method_caches_.allocate();
 }
 
-LoadTypeMethodCache* Context::allocateLoadTypeMethodCache() {
+LoadTypeMethodCache* ContextInlineCacheStorage::allocateLoadTypeMethodCache() {
   return load_type_method_caches_.allocate();
 }
 
@@ -377,9 +400,23 @@ BinaryOpCache* Context::allocateBinaryOpCache(hir::BinaryOpKind op) {
   return binary_op_caches_.allocate(op);
 }
 
-StoreAttrCache* Context::allocateStoreAttrCache() {
+LoadTypeMethodCache* ContextInlineCacheStorage::allocateLoadTypeMethodCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
+  return allocateLoadTypeMethodCache();
+}
+
+StoreAttrCache* ContextInlineCacheStorage::allocateStoreAttrCache(
+    [[maybe_unused]] BCOffset bytecode_offset) {
   return store_attr_caches_.allocate();
 }
+
+void ContextInlineCacheStorage::addLoadTypeAttrCacheSite(
+    [[maybe_unused]] BCOffset bytecode_offset,
+    [[maybe_unused]] LoadTypeAttrCache* cache) {}
+
+void ContextInlineCacheStorage::addLoadTypeMethodCacheSite(
+    [[maybe_unused]] BCOffset bytecode_offset,
+    [[maybe_unused]] LoadTypeMethodCache* cache) {}
 
 const Builtins& Context::builtins() {
   // Lock-free fast path followed by single-lock slow path during

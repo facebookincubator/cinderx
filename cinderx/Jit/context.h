@@ -19,6 +19,7 @@
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
+#include "cinderx/Jit/inline_cache_storage.h"
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 
@@ -124,6 +125,41 @@ using DeoptStats =
     UnorderedMap<const CodeRuntime*, UnorderedMap<std::size_t, DeoptStat>>;
 
 using InlineCacheStats = std::vector<CacheStats>;
+
+class ContextInlineCacheStorage final {
+ public:
+  LoadAttrCache* allocateLoadAttrCache(BCOffset bytecode_offset);
+  LoadTypeAttrCache* allocateLoadTypeAttrCache();
+  LoadTypeAttrCache* allocateLoadTypeAttrCache(BCOffset bytecode_offset);
+  LoadMethodCache* allocateLoadMethodCache(BCOffset bytecode_offset);
+  LoadModuleAttrCache* allocateLoadModuleAttrCache(BCOffset bytecode_offset);
+  LoadModuleMethodCache* allocateLoadModuleMethodCache(
+      BCOffset bytecode_offset);
+  LoadTypeMethodCache* allocateLoadTypeMethodCache();
+  LoadTypeMethodCache* allocateLoadTypeMethodCache(BCOffset bytecode_offset);
+  StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
+  void addLoadTypeAttrCacheSite(
+      BCOffset bytecode_offset,
+      LoadTypeAttrCache* cache);
+  void addLoadTypeMethodCacheSite(
+      BCOffset bytecode_offset,
+      LoadTypeMethodCache* cache);
+
+  InlineCacheStats getAndClearLoadMethodCacheStats();
+  InlineCacheStats getAndClearLoadTypeMethodCacheStats();
+
+ private:
+  // These SlabAreas hold data that is allocated at compile-time and likely to
+  // change at runtime, and should be isolated from other data to avoid COW
+  // casualties.
+  SlabArena<LoadAttrCache, AttributeCacheSizeTrait> load_attr_caches_;
+  SlabArena<LoadTypeAttrCache> load_type_attr_caches_;
+  SlabArena<LoadMethodCache> load_method_caches_;
+  SlabArena<LoadModuleAttrCache> load_module_attr_caches_;
+  SlabArena<LoadModuleMethodCache> load_module_method_caches_;
+  SlabArena<LoadTypeMethodCache> load_type_method_caches_;
+  SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
+};
 
 class Builtins {
  public:
@@ -429,13 +465,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   void releaseReferences();
 
   // Allocate a new attribute cache.
-  LoadAttrCache* allocateLoadAttrCache();
-  LoadTypeAttrCache* allocateLoadTypeAttrCache();
-  LoadMethodCache* allocateLoadMethodCache();
-  LoadModuleAttrCache* allocateLoadModuleAttrCache();
-  LoadModuleMethodCache* allocateLoadModuleMethodCache();
-  LoadTypeMethodCache* allocateLoadTypeMethodCache();
-  StoreAttrCache* allocateStoreAttrCache();
+  InlineCacheStorage& inlineCacheStorage(CodeRuntime& code_runtime);
   BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
 
   const Builtins& builtins();
@@ -526,16 +556,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // including any other data that happened to be on the same page.
   SlabArena<CodeRuntime> code_runtimes_;
 
-  // These SlabAreas hold data that is allocated at compile-time and likely to
-  // change at runtime, and should be isolated from other data to avoid COW
-  // casualties.
-  SlabArena<LoadAttrCache, AttributeCacheSizeTrait> load_attr_caches_;
-  SlabArena<LoadTypeAttrCache> load_type_attr_caches_;
-  SlabArena<LoadMethodCache> load_method_caches_;
-  SlabArena<LoadModuleAttrCache> load_module_attr_caches_;
-  SlabArena<LoadModuleMethodCache> load_module_method_caches_;
-  SlabArena<LoadTypeMethodCache> load_type_method_caches_;
-  SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
+  ContextInlineCacheStorage inline_cache_storage_;
   SlabArena<BinaryOpCache> binary_op_caches_;
   SlabArena<void*> pointer_caches_;
 

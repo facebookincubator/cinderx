@@ -237,16 +237,17 @@ LIRGenerator::LIRGenerator(
     jit::codegen::Environ* env)
     : func_(func),
       env_(env),
+      inline_cache_storage_(getContext()->inlineCacheStorage(*env->code_rt)),
       is_gen_(
           func->code != nullptr &&
           (func->code->co_flags & kCoFlagsAnyGenerator)) {
   for (int i = 0, n = func->env.numLoadTypeAttrCaches(); i < n; i++) {
     load_type_attr_caches_.emplace_back(
-        getContext()->allocateLoadTypeAttrCache());
+        inline_cache_storage_.allocateLoadTypeAttrCache());
   }
   for (int i = 0, n = func->env.numLoadTypeMethodCaches(); i < n; i++) {
     load_type_method_caches_.emplace_back(
-        getContext()->allocateLoadTypeMethodCache());
+        inline_cache_storage_.allocateLoadTypeMethodCache());
   }
 }
 
@@ -3129,7 +3130,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = getContext()->allocateLoadAttrCache();
+        auto cache = inline_cache_storage_.allocateLoadAttrCache(
+            instr->bytecodeOffset());
         bbb.appendCallInstruction(
             dst, jit::LoadAttrCache::invoke, cache, base, name);
         break;
@@ -3170,6 +3172,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Inline caches must be enabled to use FillTypeAttrCacheItem");
         auto instr = static_cast<const FillTypeAttrCache*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
+        inline_cache_storage_.addLoadTypeAttrCacheSite(
+            instr->bytecodeOffset(),
+            load_type_attr_caches_.at(instr->cacheId()));
         bbb.appendCallInstruction(
             instr->output(),
             LoadTypeAttrCache::invoke,
@@ -3185,6 +3190,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = static_cast<const FillTypeMethodCache*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache_entry = load_type_method_caches_.at(instr->cacheId());
+        inline_cache_storage_.addLoadTypeMethodCacheSite(
+            instr->bytecodeOffset(), cache_entry);
         if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
           cache_entry->initCacheStats(
@@ -3244,7 +3251,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = getContext()->allocateLoadMethodCache();
+        auto cache = inline_cache_storage_.allocateLoadMethodCache(
+            instr->bytecodeOffset());
         if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
           cache->initCacheStats(
@@ -3261,7 +3269,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Inline caches must be enabled to use LoadModuleAttrCached");
         auto instr = static_cast<const LoadModuleAttrCached*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = getContext()->allocateLoadModuleAttrCache();
+        auto cache = inline_cache_storage_.allocateLoadModuleAttrCache(
+            instr->bytecodeOffset());
         bbb.appendCallInstruction(
             instr->output(),
             LoadModuleAttrCache::lookupHelper,
@@ -3276,7 +3285,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Inline caches must be enabled to use LoadModuleMethodCached");
         auto instr = static_cast<const LoadModuleMethodCached*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache_entry = getContext()->allocateLoadModuleMethodCache();
+        auto cache_entry = inline_cache_storage_.allocateLoadModuleMethodCache(
+            instr->bytecodeOffset());
         appendCall2RetValues(
             bbb,
             instr->output(),
@@ -3834,7 +3844,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         hir::Register* value = instr->getOperand(1);
-        auto cache = getContext()->allocateStoreAttrCache();
+        auto cache = inline_cache_storage_.allocateStoreAttrCache(
+            instr->bytecodeOffset());
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{Operand::k32bit},
             jit::StoreAttrCache::invoke,
