@@ -182,20 +182,34 @@ constexpr bool isPowerOfTwo(T x) {
 }
 
 template <typename T>
+  requires std::is_integral_v<T>
 constexpr T roundDown(T x, size_t n) {
   if (n == 0) {
     return n;
   }
+
   JIT_DCHECK(isPowerOfTwo(n), "Must be 0 or a power of 2");
   return (x & -n);
 }
 
 template <typename T>
+  requires std::is_integral_v<T>
 constexpr T roundUp(T x, size_t n) {
   if (n == 0) {
-    return n;
+    return T{0};
   }
-  return roundDown(x + n - 1, n);
+
+  JIT_DCHECK(isPowerOfTwo(n), "Must be 0 or a power of 2");
+
+  using UnsignedT = std::make_unsigned_t<T>;
+  constexpr auto max = static_cast<UnsignedT>(std::numeric_limits<T>::max());
+  JIT_CHECK(n - 1 <= max, "roundUp overflow");
+
+  const auto mask = static_cast<UnsignedT>(n - 1);
+  const auto value = static_cast<UnsignedT>(x);
+  JIT_CHECK(value <= max - mask, "roundUp overflow");
+
+  return static_cast<T>((value + mask) & ~mask);
 }
 
 template <typename T1, typename T2>
