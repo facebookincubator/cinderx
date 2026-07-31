@@ -1455,7 +1455,9 @@ static PyObject* _static___build_cinder_class__(
     PyObject* self,
     PyObject* const* args,
     Py_ssize_t nargs) {
+#ifndef Py_GIL_DISABLED
   DEFINE_STATIC_STRING(__final_method_names__);
+#endif
 
   PyObject* mkw;
   PyObject* type = NULL;
@@ -1539,7 +1541,14 @@ static PyObject* _static___build_cinder_class__(
   }
 
   int res;
+#ifdef Py_GIL_DISABLED
+  // FT interning expects a non-interned string to be mortal before promoting
+  // it. DEFINE_STATIC_STRING creates an immortal string without interning it.
+  res = PyObject_SetAttrString(
+      type, "__final_method_names__", final_method_names);
+#else
   res = PyObject_SetAttr(type, s___final_method_names__, final_method_names);
+#endif
   if (res != 0) {
     goto error;
   }
