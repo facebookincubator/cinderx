@@ -50,31 +50,6 @@ bool shouldReplaceOperand(const Operand& operand) {
   return operand.isVreg() || operand.isLinked();
 }
 
-// Sort an interval's ranges by start and merge overlapping or adjacent ones.
-// Used to finalize fixed physical-register intervals, whose ranges are appended
-// out of order during live-interval construction.
-void sortAndMergeRanges(std::vector<LiveRange>& ranges) {
-  if (ranges.size() < 2) {
-    return;
-  }
-  std::sort(
-      ranges.begin(), ranges.end(), [](const LiveRange& a, const LiveRange& b) {
-        return a.start < b.start;
-      });
-  size_t w = 0;
-  for (size_t r = 1; r < ranges.size(); ++r) {
-    // Half-open ranges merge when the next one starts at or before this one
-    // ends (overlap or adjacency).
-    if (ranges[r].start <= ranges[w].end) {
-      ranges[w].end = std::max(ranges[w].end, ranges[r].end);
-    } else {
-      ranges[++w] = ranges[r];
-    }
-  }
-  // LiveRange has no default constructor, so truncate with erase, not resize.
-  ranges.erase(ranges.begin() + (w + 1), ranges.end());
-}
-
 } // namespace
 
 RegallocBlockState::RegallocBlockState(
@@ -102,30 +77,30 @@ bool LiveRange::intersectsWith(const LiveRange& range) const {
   return b->start < a->end;
 }
 
-LiveInterval::LiveInterval(const Operand* operand) : operand{operand} {
-  allocated_loc = PhyLocation{PhyLocation::REG_INVALID, operand->sizeInBits()};
-}
+LiveInterval::LiveInterval(const Operand* operand)
+    : operand_{operand},
+      allocated_loc_{PhyLocation::REG_INVALID, operand->sizeInBits()} {}
 
 void LiveInterval::addRange(LiveRange range) {
   constexpr int kInitRangeSize = 8;
-  if (ranges.empty()) {
-    ranges.reserve(kInitRangeSize);
-    ranges.push_back(std::move(range));
+  if (ranges_.empty()) {
+    ranges_.reserve(kInitRangeSize);
+    ranges_.push_back(std::move(range));
     return;
   }
 
   auto& start = range.start;
   auto& end = range.end;
 
-  auto iter =
-      std::lower_bound(ranges.begin(), ranges.end(), start, LiveRangeCompare());
+  auto iter = std::lower_bound(
+      ranges_.begin(), ranges_.end(), start, LiveRangeCompare());
 
   // Can't use INVALID_LOCATION here, use a different value.
   constexpr int kRemovedRange = std::numeric_limits<int>::min();
 
   auto cur_iter = iter;
   // check if can merge with *cur_iter
-  while (cur_iter != ranges.end() && end >= cur_iter->start) {
+  while (cur_iter != ranges_.end() && end >= cur_iter->start) {
     end = std::max(end, cur_iter->end);
     cur_iter->start = kRemovedRange;
     ++cur_iter;
@@ -138,7 +113,7 @@ void LiveInterval::addRange(LiveRange range) {
 
   // check if we can merge with iter - 1
   bool merged = false;
-  if (iter != ranges.begin()) {
+  if (iter != ranges_.begin()) {
     auto prev_iter = std::prev(iter);
     if (start <= prev_iter->end) {
       prev_iter->end = std::max(end, prev_iter->end);
@@ -147,22 +122,55 @@ void LiveInterval::addRange(LiveRange range) {
   }
 
   if (!merged) {
-    if (iter != ranges.end() && iter->start == kRemovedRange) {
+    if (iter != ranges_.end() && iter->start == kRemovedRange) {
       *iter = std::move(range);
     } else {
-      ranges.insert(iter, std::move(range));
+      ranges_.insert(iter, std::move(range));
     }
   }
 
   if (merged_forward) {
-    std::erase_if(ranges, [](const LiveRange& range) {
+    std::erase_if(ranges_, [](const LiveRange& range) {
       return range.start == kRemovedRange;
     });
   }
 }
 
+void LiveInterval::appendFixedRange(LIRLocation start, LIRLocation end) {
+  constexpr int kInitRangeSize = 8;
+  if (ranges_.empty()) {
+    ranges_.reserve(kInitRangeSize);
+    // A sentinel range at the very beginning of the function so that fixed
+    // intervals join the active/inactive sets before any other intervals.
+    ranges_.emplace_back(-1, 0);
+  }
+  ranges_.emplace_back(start, end);
+}
+
+void LiveInterval::sortAndMergeRanges() {
+  if (ranges_.size() < 2) {
+    return;
+  }
+  std::sort(
+      ranges_.begin(),
+      ranges_.end(),
+      [](const LiveRange& a, const LiveRange& b) { return a.start < b.start; });
+  size_t w = 0;
+  for (size_t r = 1; r < ranges_.size(); ++r) {
+    // Half-open ranges merge when the next one starts at or before this one
+    // ends (overlap or adjacency).
+    if (ranges_[r].start <= ranges_[w].end) {
+      ranges_[w].end = std::max(ranges_[w].end, ranges_[r].end);
+    } else {
+      ranges_[++w] = ranges_[r];
+    }
+  }
+  // LiveRange has no default constructor, so truncate with erase, not resize.
+  ranges_.erase(ranges_.begin() + (w + 1), ranges_.end());
+}
+
 void LiveInterval::setFrom(LIRLocation loc) {
-  if (ranges.empty()) {
+  if (ranges_.empty()) {
     return;
   }
 
@@ -174,10 +182,10 @@ void LiveInterval::setFrom(LIRLocation loc) {
   // in reverse order, it should be always the first element.
   // For the case of loop, the above may not be always true, but it will be
   // handled separately.
-  auto iter = ranges.begin();
+  auto iter = ranges_.begin();
 
   if (loc >= iter->end) {
-    ranges.erase(iter);
+    ranges_.erase(iter);
   } else {
     iter->start = std::max(loc, iter->start);
   }
@@ -185,17 +193,17 @@ void LiveInterval::setFrom(LIRLocation loc) {
 
 LIRLocation LiveInterval::startLocation() const {
   JIT_CHECK(
-      !ranges.empty(), "Cannot get start location for an empty interval.");
-  return ranges.begin()->start;
+      !ranges_.empty(), "Cannot get start location for an empty interval.");
+  return ranges_.begin()->start;
 }
 
 LIRLocation LiveInterval::endLocation() const {
-  JIT_CHECK(!ranges.empty(), "Cannot get end location for an empty interval.");
-  return ranges.rbegin()->end;
+  JIT_CHECK(!ranges_.empty(), "Cannot get end location for an empty interval.");
+  return ranges_.rbegin()->end;
 }
 
 bool LiveInterval::covers(LIRLocation loc) const {
-  const size_t n = ranges.size();
+  const size_t n = ranges_.size();
   if (n == 0) {
     return false;
   }
@@ -204,43 +212,43 @@ bool LiveInterval::covers(LIRLocation loc) const {
   // at or before loc; otherwise the hint is stale/ahead and we fall back to a
   // binary search.  Either way we land on the last range whose start <= loc.
   size_t i = range_hint_;
-  if (i < n && ranges[i].start <= loc) {
-    while (i + 1 < n && ranges[i + 1].start <= loc) {
+  if (i < n && ranges_[i].start <= loc) {
+    while (i + 1 < n && ranges_[i + 1].start <= loc) {
       ++i;
     }
   } else {
-    auto iter =
-        std::upper_bound(ranges.begin(), ranges.end(), loc, LiveRangeCompare());
-    if (iter == ranges.begin()) {
+    auto iter = std::upper_bound(
+        ranges_.begin(), ranges_.end(), loc, LiveRangeCompare());
+    if (iter == ranges_.begin()) {
       range_hint_ = 0;
       return false;
     }
-    i = static_cast<size_t>((iter - ranges.begin()) - 1);
+    i = static_cast<size_t>((iter - ranges_.begin()) - 1);
   }
   range_hint_ =
       i < std::numeric_limits<uint32_t>::max() ? static_cast<uint32_t>(i) : 0;
-  return ranges[i].end > loc;
+  return ranges_[i].end > loc;
 }
 
 bool LiveInterval::isEmpty() const {
-  return ranges.empty();
+  return ranges_.empty();
 }
 
 LIRLocation LiveInterval::intersectWith(const LiveRange& range) const {
-  if (ranges.empty()) {
+  if (ranges_.empty()) {
     return INVALID_LOCATION;
   }
 
   auto iter = std::lower_bound(
-      ranges.begin(), ranges.end(), range.start, LiveRangeCompare());
+      ranges_.begin(), ranges_.end(), range.start, LiveRangeCompare());
 
   // iter is the first candidate that starts at or after range.start. The
   // intersection could be with the previous candidate, so check that first.
-  if (iter != ranges.begin() && std::prev(iter)->intersectsWith(range)) {
+  if (iter != ranges_.begin() && std::prev(iter)->intersectsWith(range)) {
     return range.start;
   }
 
-  if (iter != ranges.end() && iter->intersectsWith(range)) {
+  if (iter != ranges_.end() && iter->intersectsWith(range)) {
     return iter->start;
   }
 
@@ -251,11 +259,11 @@ LIRLocation LiveInterval::intersectWith(const LiveInterval& interval) const {
   const auto* a = this;
   const auto* b = &interval;
 
-  if (a->ranges.size() > b->ranges.size()) {
+  if (a->ranges_.size() > b->ranges_.size()) {
     std::swap(a, b);
   }
 
-  for (auto& range : a->ranges) {
+  for (auto& range : a->ranges_) {
     auto loc = b->intersectWith(range);
     if (loc != INVALID_LOCATION) {
       return loc;
@@ -272,40 +280,41 @@ std::unique_ptr<LiveInterval> LiveInterval::splitAt(LIRLocation loc) {
     return nullptr;
   }
 
-  auto new_interval = std::make_unique<LiveInterval>(operand);
-  new_interval->allocated_loc = allocated_loc;
+  auto new_interval = std::make_unique<LiveInterval>(operand_);
+  new_interval->allocated_loc_ = allocated_loc_;
 
   auto iter =
-      std::lower_bound(ranges.begin(), ranges.end(), loc, LiveRangeCompare());
+      std::lower_bound(ranges_.begin(), ranges_.end(), loc, LiveRangeCompare());
 
   --iter;
 
   // if loc is within the range pointed by iter
   if (loc < iter->end) {
     // need to split the current range
-    new_interval->ranges.emplace_back(loc, iter->end);
+    new_interval->ranges_.emplace_back(loc, iter->end);
     iter->end = loc;
   }
 
   ++iter;
 
-  new_interval->ranges.insert(new_interval->ranges.end(), iter, ranges.end());
-  ranges.erase(iter, ranges.end());
+  new_interval->ranges_.insert(
+      new_interval->ranges_.end(), iter, ranges_.end());
+  ranges_.erase(iter, ranges_.end());
 
   return new_interval;
 }
 
 void LiveInterval::allocateTo(PhyLocation loc) {
   JIT_CHECK(
-      allocated_loc.bitSize == loc.bitSize,
+      allocated_loc_.bitSize == loc.bitSize,
       "Trying to change size of live interval: {} -> {}, with location {} -> "
       "{}, for operand {}",
-      allocated_loc.bitSize,
+      allocated_loc_.bitSize,
       loc.bitSize,
-      allocated_loc,
+      allocated_loc_,
       loc,
-      *operand);
-  allocated_loc = loc;
+      *operand_);
+  allocated_loc_ = loc;
 }
 
 void LiveInterval::fixTo(PhyLocation loc) {
@@ -314,15 +323,27 @@ void LiveInterval::fixTo(PhyLocation loc) {
 }
 
 bool LiveInterval::isAllocated() const {
-  return allocated_loc != PhyLocation::REG_INVALID;
+  return allocated_loc_ != PhyLocation::REG_INVALID;
 }
 
 bool LiveInterval::isRegisterAllocated() const {
-  return isAllocated() && allocated_loc.isRegister();
+  return isAllocated() && allocated_loc_.isRegister();
 }
 
 bool LiveInterval::isFixed() const {
   return fixed_;
+}
+
+const Operand* LiveInterval::operand() const {
+  return operand_;
+}
+
+const std::vector<LiveRange>& LiveInterval::ranges() const {
+  return ranges_;
+}
+
+PhyLocation LiveInterval::allocatedLoc() const {
+  return allocated_loc_;
 }
 
 LinearScanAllocator::LinearScanAllocator(
@@ -634,7 +655,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
   // (see reserveRegisters); sort and merge them now that construction is done.
   for (auto& [operand, interval] : intervals_) {
     if (interval.isFixed()) {
-      sortAndMergeRanges(interval.ranges);
+      interval.sortAndMergeRanges();
     }
   }
 }
@@ -689,17 +710,9 @@ void LinearScanAllocator::reserveRegisters(
     const Operand* vreg = &(vregs.at(reg));
     LiveInterval& interval = getInterval(vreg);
 
-    // Intervals will be sorted and merged at the end of
-    // calculateLiveIntervals().
-    //
-    // The first range sits at the very beginning of the function so that fixed
-    // intervals join the active/inactive sets before any other intervals.
-    if (interval.ranges.empty()) {
-      interval.ranges.reserve(8);
-      interval.ranges.emplace_back(-1, 0);
-    }
-
-    interval.ranges.emplace_back(instr_id, instr_id + 1);
+    // Ranges are appended out of order here; they are finalized with
+    // sortAndMergeRanges() at the end of calculateLiveIntervals().
+    interval.appendFixedRange(instr_id, instr_id + 1);
     interval.fixTo(reg);
 
     vreg_phy_uses_[vreg].emplace(instr_id);
@@ -732,7 +745,7 @@ void LinearScanAllocator::linearScan() {
       const auto& rhs_end = rhs->endLocation();
 
       if (lhs_end == rhs_end) {
-        return lhs->operand < rhs->operand;
+        return lhs->operand() < rhs->operand();
       }
       return lhs_end < rhs_end;
     }
@@ -753,7 +766,7 @@ void LinearScanAllocator::linearScan() {
 
     // Return no longer needed stack slots to the allocator.
     for (LiveInterval* interval : stack_intervals) {
-      auto operand = interval->operand;
+      auto operand = interval->operand();
       auto iter = vreg_global_last_use_.find(operand);
       if (iter != vreg_global_last_use_.end() && iter->second < position) {
         freeStackSlot(operand);
@@ -792,7 +805,7 @@ void LinearScanAllocator::linearScan() {
     }
 
     if (current->isRegisterAllocated()) {
-      changed_regs_.set(current->allocated_loc);
+      changed_regs_.set(current->allocatedLoc());
       active.insert(current);
     } else {
       stack_intervals.emplace(current);
@@ -820,25 +833,25 @@ bool LinearScanAllocator::tryAllocateFreeReg(
   // think about optimizations in the future.
   std::vector<LIRLocation> freeUntilPos(NUM_REGS, MAX_LOCATION);
 
-  bool is_fp = current->operand->isFp();
+  bool is_fp = current->operand()->isFp();
 
   for (auto& interval : active) {
-    if (interval->operand->isFp() != is_fp) {
+    if (interval->operand()->isFp() != is_fp) {
       continue;
     }
 
-    freeUntilPos[interval->allocated_loc.loc] = START_LOCATION;
+    freeUntilPos[interval->allocatedLoc().loc] = START_LOCATION;
   }
 
   for (auto& interval : inactive) {
-    if (interval->operand->isFp() != is_fp) {
+    if (interval->operand()->isFp() != is_fp) {
       continue;
     }
 
     auto intersect = interval->intersectWith(*current);
     if (intersect != INVALID_LOCATION) {
-      freeUntilPos[interval->allocated_loc.loc] =
-          std::min(freeUntilPos[interval->allocated_loc.loc], intersect);
+      freeUntilPos[interval->allocatedLoc().loc] =
+          std::min(freeUntilPos[interval->allocatedLoc().loc], intersect);
     }
   }
 
@@ -851,7 +864,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
   // the preallocated register is a soft constraint to the register
   // allocator. It will be satisfied with the best effort.
   if (current->isRegisterAllocated()) {
-    PhyLocation allocated = current->allocated_loc;
+    PhyLocation allocated = current->allocatedLoc();
     JIT_CHECK(
         is_fp == allocated.isFpRegister(),
         "Operand is allocated to register {} of incorrect type",
@@ -872,7 +885,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
       return false;
     }
     regFreeUntil = *max_iter;
-    size_t bit_size = current->operand->sizeInBits();
+    size_t bit_size = current->operand()->sizeInBits();
     reg = PhyLocation(std::distance(freeUntilPos.begin(), max_iter), bit_size);
   }
 
@@ -895,28 +908,28 @@ void LinearScanAllocator::allocateBlockedReg(
   UnorderedMap<PhyLocation, LiveInterval*> reg_active_interval;
   UnorderedMap<PhyLocation, std::vector<LiveInterval*>> reg_inactive_intervals;
 
-  bool is_fp = current->operand->isFp();
+  bool is_fp = current->operand()->isFp();
 
   auto current_start = current->startLocation();
   for (auto& interval : active) {
-    if (interval->operand->isFp() != is_fp) {
+    if (interval->operand()->isFp() != is_fp) {
       continue;
     }
-    auto allocated_loc = interval->allocated_loc.loc;
+    auto allocated_loc = interval->allocatedLoc().loc;
     nextUsePos[allocated_loc] =
-        getUseAtOrAfter(interval->operand, current_start);
+        getUseAtOrAfter(interval->operand(), current_start);
     reg_active_interval.emplace(allocated_loc, interval);
   }
   for (auto& interval : inactive) {
-    if (interval->operand->isFp() != is_fp) {
+    if (interval->operand()->isFp() != is_fp) {
       continue;
     }
     auto intersect = interval->intersectWith(*current);
-    auto allocated_loc = interval->allocated_loc.loc;
+    auto allocated_loc = interval->allocatedLoc().loc;
     if (intersect != INVALID_LOCATION) {
       nextUsePos[allocated_loc] = std::min(
           nextUsePos[allocated_loc],
-          getUseAtOrAfter(interval->operand, current_start));
+          getUseAtOrAfter(interval->operand(), current_start));
     }
 
     reg_inactive_intervals[allocated_loc].push_back(interval);
@@ -930,12 +943,12 @@ void LinearScanAllocator::allocateBlockedReg(
   auto reg_iter = std::max_element(start, end);
   PhyLocation reg(
       std::distance(nextUsePos.begin(), reg_iter),
-      current->operand->sizeInBits());
+      current->operand()->sizeInBits());
   auto& reg_use = *reg_iter;
 
-  auto first_current_use = getUseAtOrAfter(current->operand, current_start);
+  auto first_current_use = getUseAtOrAfter(current->operand(), current_start);
   if (first_current_use >= reg_use) {
-    auto stack_slot = getStackSlot(current->operand);
+    auto stack_slot = getStackSlot(current->operand());
     TRACE(
         "Allocating blocked location {} to interval {}", stack_slot, *current);
     current->allocateTo(stack_slot);
@@ -1095,11 +1108,11 @@ void LinearScanAllocator::rewriteLIR() {
   while (allocated_iter != allocated_.end() &&
          (*allocated_iter)->startLocation() <= START_LOCATION) {
     auto& interval = *allocated_iter;
-    auto [_, inserted] = mapping.emplace(interval->operand, interval.get());
+    auto [_, inserted] = mapping.emplace(interval->operand(), interval.get());
     JIT_CHECK(
         inserted,
         "Created duplicate mapping for operand {} in the entry block",
-        *interval->operand);
+        *interval->operand());
     ++allocated_iter;
   }
 
@@ -1113,7 +1126,7 @@ void LinearScanAllocator::rewriteLIR() {
     for (auto map_iter = mapping.begin(); map_iter != mapping.end();) {
       auto [operand, interval] = *map_iter;
       JIT_CHECK(
-          operand == interval->operand,
+          operand == interval->operand(),
           "Mapping is not consistent: {} -> {}",
           *operand,
           *interval);
@@ -1212,7 +1225,7 @@ void LinearScanAllocator::rewriteInstrOutput(
 
   auto interval = map_get(mapping, output, nullptr);
   if (interval != nullptr) {
-    output->setPhyRegOrStackSlot(interval->allocated_loc);
+    output->setPhyRegOrStackSlot(interval->allocatedLoc());
     return;
   }
 
@@ -1268,7 +1281,7 @@ void LinearScanAllocator::rewriteInstrOneInput(
     return;
   }
 
-  auto phyreg = iter->second->allocated_loc;
+  auto phyreg = iter->second->allocatedLoc();
   auto new_input = std::make_unique<Operand>();
   new_input->setDataType(input->dataType());
   new_input->setPhyRegOrStackSlot(phyreg);
@@ -1287,7 +1300,7 @@ void LinearScanAllocator::rewriteInstrOneIndirectOperand(
   auto base = indirect->getBaseRegOperand();
   JIT_CHECK(base != nullptr, "MemoryIndirect has null base operand");
   PhyLocation base_phy_reg = shouldReplaceOperand(*base)
-      ? map_get(mapping, base->getDefine())->allocated_loc
+      ? map_get(mapping, base->getDefine())->allocatedLoc()
       : PhyLocation(base->getPhyRegister());
 
   bool base_last_use = last_use_vregs != nullptr && base->isLinked() &&
@@ -1298,7 +1311,7 @@ void LinearScanAllocator::rewriteInstrOneIndirectOperand(
   bool index_last_use = false;
   if (index != nullptr) {
     index_phy_reg = shouldReplaceOperand(*index)
-        ? map_get(mapping, index->getDefine())->allocated_loc
+        ? map_get(mapping, index->getDefine())->allocatedLoc()
         : PhyLocation(index->getPhyRegister());
 
     index_last_use = last_use_vregs != nullptr && index->isLinked() &&
@@ -1323,7 +1336,7 @@ void LinearScanAllocator::rewriteLIRUpdateMapping(
     UnorderedMap<const lir::Operand*, const LiveInterval*>& mapping,
     LiveInterval* interval,
     CopyGraphWithOperand* copies) {
-  auto operand = interval->operand;
+  auto operand = interval->operand();
   auto [mapping_iter, inserted] = mapping.emplace(operand, interval);
   if (inserted) {
     TRACE("Adding interval {} for operand {}", *interval, *operand);
@@ -1331,8 +1344,8 @@ void LinearScanAllocator::rewriteLIRUpdateMapping(
   }
 
   if (copies != nullptr) {
-    auto from = mapping_iter->second->allocated_loc;
-    auto to = interval->allocated_loc;
+    auto from = mapping_iter->second->allocatedLoc();
+    auto to = interval->allocatedLoc();
     if (from != to) {
       auto data_type = operand->dataType();
       TRACE("Adding copy {} -> {} with data type {}", from, to, data_type);
@@ -1502,7 +1515,7 @@ LinearScanAllocator::resolveEdgesGenCopies(
       // vreg instead of linear scan.
       successor->foreachPhiInstr([&](const Instruction* instr) {
         if (instr->output()->getPhyRegOrStackSlot() ==
-            interval->allocated_loc) {
+            interval->allocatedLoc()) {
           phi = instr;
         }
       });
@@ -1528,24 +1541,24 @@ LinearScanAllocator::resolveEdgesGenCopies(
       // Even though LIR is in SSA, when the successor is a loop head, the
       // first instruction could be a define of the same vreg.  In that case,
       // we don't need to generate move instructions.
-      if (succ_first_instr->output() == interval->operand) {
+      if (succ_first_instr->output() == interval->operand()) {
         continue;
       }
 
-      auto operand = interval->operand;
+      auto operand = interval->operand();
       auto from_interval = map_get(end_mapping, operand, nullptr);
       if (from_interval == nullptr) {
         continue;
       }
-      from = from_interval->allocated_loc;
-      to = interval->allocated_loc;
-      data_type = from_interval->operand->dataType();
+      from = from_interval->allocatedLoc();
+      to = interval->allocatedLoc();
+      data_type = from_interval->operand()->dataType();
     } else {
-      auto operand = interval->operand;
+      auto operand = interval->operand();
       auto from_interval = map_get(end_mapping, operand);
-      from = from_interval->allocated_loc;
-      to = interval->allocated_loc;
-      data_type = from_interval->operand->dataType();
+      from = from_interval->allocatedLoc();
+      to = interval->allocatedLoc();
+      data_type = from_interval->operand()->dataType();
     }
 
     if (from != to) {
@@ -1743,7 +1756,7 @@ std::ostream& operator<<(std::ostream& out, const LiveRange& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs) {
-  auto loc = rhs.allocated_loc;
+  auto loc = rhs.allocatedLoc();
   if (loc != PhyLocation::REG_INVALID) {
     out << "->";
     if (loc.isRegister()) {
@@ -1755,7 +1768,7 @@ std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs) {
   }
 
   auto sep = "";
-  for (auto& range : rhs.ranges) {
+  for (auto& range : rhs.ranges()) {
     out << sep << range;
     sep = ", ";
   }

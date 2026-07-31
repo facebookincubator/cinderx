@@ -23,10 +23,10 @@ class LinearScanAllocatorTest : public ::testing::Test {
   static bool LiveIntervalPtrLess(
       const LiveInterval* lhs,
       const LiveInterval* rhs) {
-    if (lhs->operand == rhs->operand) {
+    if (lhs->operand() == rhs->operand()) {
       return lhs->startLocation() < rhs->startLocation();
     }
-    return lhs->operand < rhs->operand;
+    return lhs->operand() < rhs->operand();
   }
 
   UnorderedMap<const Operand*, int> buildOperandToIndexMap(
@@ -70,7 +70,7 @@ class LinearScanAllocatorTest : public ::testing::Test {
     for (const auto& pair : allocator.intervalMap()) {
       const LiveInterval& interval = pair.second;
       if (interval.isFixed() && interval.isRegisterAllocated()) {
-        result.set(interval.allocated_loc);
+        result.set(interval.allocatedLoc());
       }
     }
     return result;
@@ -200,8 +200,8 @@ BB %14
     fmt::print(
         allocated,
         "{}->{}\n",
-        opnd_id_map.at(interval->operand),
-        interval->allocated_loc.loc);
+        opnd_id_map.at(interval->operand()),
+        interval->allocatedLoc().loc);
   }
 
   std::string allocated_expected = R"(1->0
@@ -265,11 +265,11 @@ BB %28
   UnorderedMap<int, std::vector<LiveInterval*>> loc_interval_map;
   UnorderedMap<const Operand*, std::vector<LiveInterval*>> vreg_location_map;
   for (auto& alloc : lsallocator.intervalList()) {
-    if (!opnd_id_map.contains(alloc->operand)) {
+    if (!opnd_id_map.contains(alloc->operand())) {
       continue;
     }
-    loc_interval_map[alloc->allocated_loc.loc].push_back(alloc.get());
-    vreg_location_map[alloc->operand].push_back(alloc.get());
+    loc_interval_map[alloc->allocatedLoc().loc].push_back(alloc.get());
+    vreg_location_map[alloc->operand()].push_back(alloc.get());
   }
 
   // check if the intervals allocated to the same location do not overlop

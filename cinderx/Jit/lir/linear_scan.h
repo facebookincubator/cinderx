@@ -57,6 +57,15 @@ class LiveInterval {
   void addRange(LiveRange range);
   void setFrom(LIRLocation loc);
 
+  // Append a range for a fixed physical-register reservation.  Unlike addRange,
+  // ranges are appended out of order (cheap) and must be finalized with
+  // sortAndMergeRanges() once all reservations have been added.
+  void appendFixedRange(LIRLocation start, LIRLocation end);
+
+  // Sort ranges by start and merge overlapping or adjacent ones.  Used to
+  // finalize fixed intervals built up with appendFixedRange().
+  void sortAndMergeRanges();
+
   LIRLocation startLocation() const;
   LIRLocation endLocation() const;
 
@@ -86,14 +95,15 @@ class LiveInterval {
   bool isRegisterAllocated() const;
   bool isFixed() const;
 
- public:
-  const Operand* operand;
-
-  std::vector<LiveRange> ranges;
-  PhyLocation allocated_loc;
+  const Operand* operand() const;
+  const std::vector<LiveRange>& ranges() const;
+  PhyLocation allocatedLoc() const;
 
  private:
-  friend class LinearScanAllocator;
+  const Operand* operand_;
+
+  std::vector<LiveRange> ranges_;
+  PhyLocation allocated_loc_;
 
   // Index of the range examined by the last covers() call, used as a hint for
   // covers().
