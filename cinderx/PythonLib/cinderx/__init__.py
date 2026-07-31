@@ -556,6 +556,11 @@ def init() -> None:
 
     maybe_enable_parallel_gc()
 
+    # Install CinderX-optimized replacements for hot stdlib paths.
+    from cinderx import _context
+
+    _context.install()
+
     _is_init = True
 
 

@@ -119,6 +119,11 @@ struct ModuleState {
   // Reference to builtins.next so the JIT can recognize and inline calls to it.
   Ref<> builtin_next;
 
+  // Unique sentinel returned by the _next_or_sentinel helper when an iterator
+  // is exhausted, letting callers detect completion without raising and
+  // catching StopIteration. Exposed to Python as _cinderx._NEXT_SENTINEL.
+  Ref<> next_sentinel;
+
   // Original references to instrumentation functions that CinderX patches over.
   Ref<> orig_sys_monitoring_register_callback;
   Ref<> orig_sys_monitoring_free_tool_id;

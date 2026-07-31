@@ -32,6 +32,7 @@ int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(weakref_callback);
   Py_VISIT(indexerr);
   Py_VISIT(builtin_next);
+  Py_VISIT(next_sentinel);
   Py_VISIT(object_getattribute);
   return 0;
 }
@@ -51,6 +52,7 @@ int ModuleState::clear() {
   indexerr.reset();
   sys_clear_caches.reset();
   builtin_next.reset();
+  next_sentinel.reset();
   object_getattribute.reset();
   return 0;
 }
