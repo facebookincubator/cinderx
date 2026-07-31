@@ -4007,24 +4007,9 @@ Register* modelReg(Register* reg);
 
 class BasicBlock : public IntrusiveListNode<BasicBlock> {
  public:
-  BasicBlock() : BasicBlock(0) {}
-  explicit BasicBlock(int id_) : id(id_) {}
+  BasicBlock() = default;
+  explicit BasicBlock(int id);
   ~BasicBlock();
-
-  // Replace any references to old_pred in this block's Phis with new_pred.
-  void fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred);
-  // Adds a new predecessor to the phi that follows from the old predecessor
-  void addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred);
-  // Removes any references to old_pred in this block's Phis
-  void removePhiPredecessor(BasicBlock* old_pred);
-
-  // Read-only access to the incoming and outgoing edges.
-  const std::unordered_set<const Edge*>& inEdges() const {
-    return in_edges_;
-  }
-  const std::unordered_set<const Edge*>& outEdges() const {
-    return out_edges_;
-  }
 
   // Append or prepend an instruction to the instructions in the basic block.
   //
@@ -4070,13 +4055,8 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 
   void retargetPreds(BasicBlock* target);
 
-  BasicBlock* successor(std::size_t i) const {
-    return getTerminator()->successor(i);
-  }
-
-  void setSuccessor(std::size_t i, BasicBlock* succ) {
-    getTerminator()->setSuccessor(i, succ);
-  }
+  BasicBlock* successor(std::size_t i) const;
+  void setSuccessor(std::size_t i, BasicBlock* succ);
 
   // Remove and delete all contained instructions, leaving the block empty.
   void clear();
@@ -4088,80 +4068,56 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
   // Number of instructions in the block.
   size_t size() const;
 
-  Instr& front() {
-    return instrs_.front();
-  }
+  // Accessors for the first and last instructions in the block.
 
-  const Instr& front() const {
-    return instrs_.front();
-  }
+  Instr& front();
+  const Instr& front() const;
 
-  Instr& back() {
-    return instrs_.back();
-  }
+  Instr& back();
+  const Instr& back() const;
 
-  const Instr& back() const {
-    return instrs_.back();
-  }
+  // Instruction iterators.
 
-  Instr::List::iterator iterator_to(Instr& instr) {
-    return instrs_.iterator_to(instr);
-  }
+  Instr::List::iterator iterator_to(Instr& instr);
+  Instr::List::const_iterator const_iterator_to(const Instr& instr) const;
 
-  Instr::List::const_iterator const_iterator_to(const Instr& instr) const {
-    return instrs_.const_iterator_to(instr);
-  }
+  Instr::List::iterator begin();
+  Instr::List::const_iterator begin() const;
 
-  Instr::List::iterator begin() {
-    return instrs_.begin();
-  }
+  Instr::List::iterator end();
+  Instr::List::const_iterator end() const;
 
-  Instr::List::const_iterator begin() const {
-    return instrs_.begin();
-  }
+  Instr::List::reverse_iterator reverse_iterator_to(Instr& instr);
+  Instr::List::const_reverse_iterator const_reverse_iterator_to(
+      const Instr& instr) const;
 
-  Instr::List::iterator end() {
-    return instrs_.end();
-  }
+  Instr::List::reverse_iterator rbegin();
+  Instr::List::const_reverse_iterator rbegin() const;
 
-  Instr::List::const_iterator end() const {
-    return instrs_.end();
-  }
+  Instr::List::reverse_iterator rend();
+  Instr::List::const_reverse_iterator rend() const;
+  Instr::List::const_reverse_iterator crend() const;
 
-  auto reverse_iterator_to(Instr& instr) {
-    return instrs_.reverse_iterator_to(instr);
-  }
-
-  auto const_reverse_iterator_to(const Instr& instr) const {
-    return instrs_.const_reverse_iterator_to(instr);
-  }
-  auto rbegin() {
-    return instrs_.rbegin();
-  }
-  auto rbegin() const {
-    return instrs_.rbegin();
-  }
-  auto rend() {
-    return instrs_.rend();
-  }
-  auto rend() const {
-    return instrs_.rend();
-  }
-  auto crend() const {
-    return instrs_.crend();
-  }
+  // Read-only access to the incoming and outgoing edges.
+  const std::unordered_set<const Edge*>& inEdges() const;
+  const std::unordered_set<const Edge*>& outEdges() const;
 
   // Return the snapshot on entry to this block
   Snapshot* entrySnapshot();
 
   // Return the last instruction in the block
   Instr* getTerminator();
-  const Instr* getTerminator() const {
-    return const_cast<BasicBlock*>(this)->getTerminator();
-  }
+  const Instr* getTerminator() const;
 
   // A trampoline block consists of a single direct jump to another block
   bool isTrampoline();
+
+  // Replace any references to old_pred in this block's Phis with new_pred.
+  void fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred);
+  // Adds a new predecessor to the phi that follows from the old predecessor
+  void addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred);
+  // Removes any references to old_pred in this block's Phis
+  void removePhiPredecessor(BasicBlock* old_pred);
 
   // Call f with each Phi instruction at the beginning of this block.
   template <typename F>
@@ -4174,7 +4130,7 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
     }
   }
 
-  int id;
+  int id{0};
 
  private:
   DISALLOW_COPY_AND_ASSIGN(BasicBlock);
@@ -4184,13 +4140,7 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 
   // Instructions for this basic block.
   //
-  // The last instruction is guaranteed to be a terminator, which must be one
-  // of:
-  //
-  // - Branch
-  // - CondBranch
-  // - Return
-  //
+  // The last instruction is guaranteed to be a terminator.
   Instr::List instrs_;
 
   // Outgoing edges.

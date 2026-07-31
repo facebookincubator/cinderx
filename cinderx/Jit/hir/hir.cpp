@@ -911,6 +911,16 @@ Register* modelReg(Register* reg) {
   return reg;
 }
 
+BasicBlock::BasicBlock(int id) : id{id} {}
+
+BasicBlock::~BasicBlock() {
+  JIT_DCHECK(
+      in_edges_.empty(), "Attempt to destroy a block with in-edges, {}", id);
+  clear();
+  JIT_DCHECK(
+      out_edges_.empty(), "out_edges not empty after deleting all instrs");
+}
+
 Instr* BasicBlock::append(Instr* instr) {
   instrs_.pushBack(*instr);
   instr->link(this);
@@ -985,6 +995,14 @@ void BasicBlock::insert(Instr* instr, Instr::List::iterator it) {
   instr->link(this);
 }
 
+BasicBlock* BasicBlock::successor(std::size_t i) const {
+  return getTerminator()->successor(i);
+}
+
+void BasicBlock::setSuccessor(std::size_t i, BasicBlock* succ) {
+  getTerminator()->setSuccessor(i, succ);
+}
+
 void BasicBlock::clear() {
   while (!instrs_.isEmpty()) {
     Instr* instr = &(instrs_.extractFront());
@@ -1000,12 +1018,74 @@ size_t BasicBlock::size() const {
   return instrs_.size();
 }
 
-BasicBlock::~BasicBlock() {
-  JIT_DCHECK(
-      in_edges_.empty(), "Attempt to destroy a block with in-edges, {}", id);
-  clear();
-  JIT_DCHECK(
-      out_edges_.empty(), "out_edges not empty after deleting all instrs");
+Instr& BasicBlock::front() {
+  return instrs_.front();
+}
+
+const Instr& BasicBlock::front() const {
+  return instrs_.front();
+}
+
+Instr& BasicBlock::back() {
+  return instrs_.back();
+}
+
+const Instr& BasicBlock::back() const {
+  return instrs_.back();
+}
+
+Instr::List::iterator BasicBlock::iterator_to(Instr& instr) {
+  return instrs_.iterator_to(instr);
+}
+
+Instr::List::const_iterator BasicBlock::const_iterator_to(
+    const Instr& instr) const {
+  return instrs_.const_iterator_to(instr);
+}
+
+Instr::List::iterator BasicBlock::begin() {
+  return instrs_.begin();
+}
+
+Instr::List::const_iterator BasicBlock::begin() const {
+  return instrs_.begin();
+}
+
+Instr::List::iterator BasicBlock::end() {
+  return instrs_.end();
+}
+
+Instr::List::const_iterator BasicBlock::end() const {
+  return instrs_.end();
+}
+
+Instr::List::reverse_iterator BasicBlock::reverse_iterator_to(Instr& instr) {
+  return instrs_.reverse_iterator_to(instr);
+}
+
+Instr::List::const_reverse_iterator BasicBlock::const_reverse_iterator_to(
+    const Instr& instr) const {
+  return instrs_.const_reverse_iterator_to(instr);
+}
+
+Instr::List::reverse_iterator BasicBlock::rbegin() {
+  return instrs_.rbegin();
+}
+
+Instr::List::const_reverse_iterator BasicBlock::rbegin() const {
+  return instrs_.rbegin();
+}
+
+Instr::List::reverse_iterator BasicBlock::rend() {
+  return instrs_.rend();
+}
+
+Instr::List::const_reverse_iterator BasicBlock::rend() const {
+  return instrs_.rend();
+}
+
+Instr::List::const_reverse_iterator BasicBlock::crend() const {
+  return instrs_.crend();
 }
 
 Instr* BasicBlock::getTerminator() {
@@ -1013,6 +1093,18 @@ Instr* BasicBlock::getTerminator() {
     return nullptr;
   }
   return &instrs_.back();
+}
+
+const Instr* BasicBlock::getTerminator() const {
+  return const_cast<BasicBlock*>(this)->getTerminator();
+}
+
+const std::unordered_set<const Edge*>& BasicBlock::inEdges() const {
+  return in_edges_;
+}
+
+const std::unordered_set<const Edge*>& BasicBlock::outEdges() const {
+  return out_edges_;
 }
 
 Snapshot* BasicBlock::entrySnapshot() {
