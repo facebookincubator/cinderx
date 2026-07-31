@@ -856,38 +856,35 @@ bool removeUnreachableInstructions(Function& func) {
 }
 
 void simplifyRedundantCondBranches(CFG* cfg) {
-  std::vector<BasicBlock*> to_simplify;
-  for (auto& block : cfg->blocks) {
+  for (BasicBlock& block : cfg->blocks) {
     if (block.empty()) {
       continue;
     }
-    auto term = block.getTerminator();
-    std::size_t num_edges = term->numEdges();
-    if (num_edges < 2) {
+
+    // Only optimize branches with two identical successors.
+    Instr* term = block.getTerminator();
+    if (term->numEdges() != 2) {
       continue;
     }
-    JIT_CHECK(num_edges == 2, "only two edges are supported");
-    if (term->successor(0) != term->successor(1)) {
+    BasicBlock* succ0 = term->successor(0);
+    if (succ0 != term->successor(1)) {
       continue;
     }
+
+    // Verify the instruction is known to be safe to replace.
     switch (term->opcode()) {
       case Opcode::kCondBranch:
       case Opcode::kCondBranchIterNotDone:
       case Opcode::kCondBranchCheckType:
         break;
       default:
-        // Can't be sure that it's safe to replace the instruction with a branch
-        JIT_ABORT("Unknown side effects of {} instruction", term->opname());
+        continue;
     }
-    to_simplify.emplace_back(&block);
-  }
-  for (auto& block : to_simplify) {
-    auto term = block->getTerminator();
-    term->unlink();
-    auto branch = block->appendWithOff<Branch>(
-        term->bytecodeOffset(), term->successor(0));
-    branch->copyBytecodeOffset(*term);
-    delete term;
+
+    // Replace with an unconditional branch.
+    block.remove(*term);
+    std::unique_ptr<Instr> deleter{term};
+    block.appendWithOff<Branch>(term->bytecodeOffset(), succ0);
   }
 }
 
