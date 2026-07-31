@@ -1013,11 +1013,11 @@ Register* simplifySubscript(Env& env, const BinaryOp* instr) {
 
   // Unicode subscript.
   if (lhs_type <= TUnicodeExact && rhs_type <= TLongExact) {
-    // Constant fold.  This isn't safe in multi-threaded compilation because the
-    // worker doesn't hold the GIL and that's required for creating a new
+    // Constant fold.  Every Python C-API call below needs the GIL, both to read
+    // the error indicator (PyErr_Occurred) and to create the new interned
     // string.
-    if (!ThreadedCompileContext::compileRunning() && lhs_type.hasObjectSpec() &&
-        rhs_type.hasObjectSpec()) {
+    if (lhs_type.hasObjectSpec() && rhs_type.hasObjectSpec()) {
+      ThreadedCompileGILHolder lock;
       Py_ssize_t idx = PyLong_AsSsize_t(rhs_type.objectSpec());
       if (idx == -1 && PyErr_Occurred()) {
         PyErr_Clear();
@@ -1279,13 +1279,10 @@ Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
 }
 
 Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
-  // This isn't safe in the multi-threaded compilation on 3.12 because
-  // we don't hold the GIL which is required for allocation.
-  RETURN_MULTITHREADED_COMPILE(nullptr);
-
   Type left_type = instr->left()->type();
   Type right_type = instr->right()->type();
   if (left_type.hasObjectSpec() && right_type.hasObjectSpec()) {
+    ThreadedCompileGILHolder lock;
     Ref<> result;
     if (instr->op() == BinaryOpKind::kPower) {
       result = Ref<>::steal(PyLong_Type.tp_as_number->nb_power(
@@ -1347,10 +1344,6 @@ Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
     }
   }
 
-  // This isn't safe in the multi-threaded compilation on 3.12 because
-  // we don't hold the GIL which is required for allocation.
-  RETURN_MULTITHREADED_COMPILE(nullptr);
-
   Type left_type = instr->left()->type();
   Type right_type = instr->right()->type();
 
@@ -1358,6 +1351,7 @@ Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
     return nullptr;
   }
 
+  ThreadedCompileGILHolder lock;
   Ref<> result;
 
   if (instr->op() == BinaryOpKind::kPower) {
@@ -1484,22 +1478,21 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
 }
 
 Register* simplifyPrimitiveBox(Env& env, const PrimitiveBox* instr) {
-  // This isn't safe in the multi-threaded compilation on 3.12 because
-  // we don't hold the GIL which is required for allocation.
-  RETURN_MULTITHREADED_COMPILE(nullptr);
-
   Register* input = instr->getOperand(0);
   Type ty = instr->type();
 
+  if (!ty.hasIntSpec() && !ty.hasDoubleSpec()) {
+    return nullptr;
+  }
+
+  ThreadedCompileGILHolder lock;
   Ref<> boxed;
   if (ty.hasIntSpec()) {
     boxed = Ref<>::steal(
         ty <= TCSigned ? PyLong_FromSsize_t(ty.intSpec())
                        : PyLong_FromSize_t(static_cast<size_t>(ty.intSpec())));
-  } else if (ty.hasDoubleSpec()) {
-    boxed = Ref<>::steal(PyFloat_FromDouble(ty.doubleSpec()));
   } else {
-    return nullptr;
+    boxed = Ref<>::steal(PyFloat_FromDouble(ty.doubleSpec()));
   }
 
   if (boxed == nullptr) {
@@ -1843,13 +1836,7 @@ Register* simplifyLoadAttrInstanceReceiver(
       py_type->tp_getattro != PyObject_GenericGetAttr) {
     return nullptr;
   }
-  if (ThreadedCompileContext::compileRunning()) {
-    // Calling ensureVersionTag() in 3.12+ doesn't work during multi-threaded
-    // compile as it wants to access tstate.
-    if (!Ci_Type_HasValidVersionTag(py_type)) {
-      return nullptr;
-    }
-  } else if (!ensureVersionTag(py_type)) {
+  if (!ensureVersionTag(py_type)) {
     return nullptr;
   }
 
@@ -1917,6 +1904,12 @@ BorrowedRef<> loadModuleAttrSafe(
           tp->tp_getattro == Ci_StrictModule_Type.tp_getattro,
       "should be module");
 
+  if constexpr (kFreeThreadedBuild) {
+    // In free-threaded builds, we can't cache module attributes safely, so we
+    // skip this optimization.
+    return nullptr;
+  }
+
   if (typeLookupSafe(tp, name) != nullptr) {
     return nullptr;
   }
@@ -1927,15 +1920,28 @@ BorrowedRef<> loadModuleAttrSafe(
   }
 
   BorrowedRef<> value;
+#ifdef META_PYTHON
+// Lazy import support
 #if PY_VERSION_HEX >= 0x030E0000
 #if PY_VERSION_HEX < 0x030F0000
-  // We don't have a version of _PyDict_GetItemKeepLazy which is compatible w/
-  // multi-threaded compile on 3.14.
-  RETURN_MULTITHREADED_COMPILE(nullptr);
-#endif
+  ThreadedCompileGILHolder lock;
+  PyObject* tmp;
+  if (_PyDict_GetItemRefKeepLazy(dict, name, &tmp) < 0) {
+    PyErr_Clear();
+    return nullptr;
+  }
+  value = tmp;
+  // rely on dict keeping it alive
+  Py_XDECREF(tmp);
+#else
   value = PyDict_GetItemWithError(dict, name);
+#endif
 #else
   value = _PyDict_GetItemKeepLazy(dict, name);
+#endif
+#else
+  // No lazy imports
+  value = PyDict_GetItemWithError(dict, name);
 #endif
   JIT_DCHECK(
       !_PyErr_Occurred(ThreadedCompileContext::tstate()),

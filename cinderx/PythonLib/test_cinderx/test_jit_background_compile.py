@@ -2,7 +2,9 @@
 
 # pyre-strict
 
+import collections
 import gc
+import os
 import sys
 import time
 import unittest
@@ -11,7 +13,18 @@ from types import FunctionType
 from typing import Any, Callable, cast
 
 import cinderx.jit
-from cinderx.test_support import failUnlessJITCompiled, skip_if_prefork
+from cinderx.test_support import failUnlessJITCompiled, skip_if_ft, skip_if_prefork
+
+
+class AttrLoadType:
+    """Module-level type used to give the JIT an exact receiver type so
+    LoadAttr on an instance goes through simplifyLoadAttrInstanceReceiver."""
+
+    cls_attr = 123
+
+    def __init__(self) -> None:
+        self.inst_attr = 7
+
 
 from .test_jit_pipeline_stress import make_function
 
@@ -622,6 +635,136 @@ def target_func(obj):
                 self.assertEqual(exc.name, "GuardedType")
 
         self.assertTrue(True)
+
+    # --- Constant-folding / preload optimizations that previously punted out
+    # of multi-threaded compilation via RETURN_MULTITHREADED_COMPILE (or a
+    # canAccessSharedData JIT_CHECK) and now run on the background worker under
+    # a ThreadedCompileGILHolder.  Each test forces the optimization to fire
+    # during a background compile and asserts (a) no crash, (b) correct
+    # results, and (c) via the HIR opcode histogram, that the fold actually
+    # happened (the pre-fold opcode is gone from the final HIR). ---
+
+    def _assert_folded_in_background(
+        self,
+        func: Any,
+        absent_opcodes: tuple[str, ...],
+        *args: Any,
+    ) -> Any:
+        """Trigger a background compile of ``func``, wait for it, and assert it
+        JIT-compiled with every opcode in ``absent_opcodes`` folded away.
+        Returns the interpreted result from the first (triggering) call."""
+        # First call runs interpreted and enqueues the background compile.
+        result = func(*args)
+        _wait_for_jit_compile(func, timeout=5.0)
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
+        counts = cinderx.jit.get_function_hir_opcode_counts(func)
+        self.assertIsNotNone(counts)
+        for opcode in absent_opcodes:
+            self.assertNotIn(opcode, cast(dict[str, int], counts))
+        return result
+
+    def test_int_constant_binary_op_background_compile(self) -> None:
+        """Integer binary ops on compile-time-constant operands are constant-
+        folded during background compilation.  simplifyLongBinaryOp no longer
+        punts via RETURN_MULTITHREADED_COMPILE; it takes a
+        ThreadedCompileGILHolder to allocate the resulting PyLong off the main
+        thread, so the LongBinaryOp is gone from the compiled HIR.
+        """
+
+        def test_func() -> tuple[int, ...]:
+            # CPython does not fold these across statements, but the JIT const-
+            # propagates the locals into LongBinaryOp operands with object
+            # specs, so simplifyLongBinaryOp folds each result at compile time.
+            a = 7
+            b = 13
+            c = 1000
+            return (a**b, c // a, c % a, a << b, c & a, c | a, c ^ a)
+
+        result = self._assert_folded_in_background(test_func, ("LongBinaryOp",))
+        self.assertEqual(test_func(), result)
+
+    def test_float_constant_binary_op_background_compile(self) -> None:
+        """Float binary ops on constant operands are constant-folded during
+        background compilation.  The object-spec fold path in
+        simplifyFloatBinaryOp (power / floor-divide / modulo) previously
+        RETURN_MULTITHREADED_COMPILE'd; it now boxes the folded PyFloat under a
+        ThreadedCompileGILHolder, so the FloatBinaryOp is gone.
+        """
+
+        def test_func() -> tuple[float, ...]:
+            a = 3.5
+            b = 4.0
+            # Power (non-0.5 exponent), floor-divide, and modulo all reach the
+            # object-spec constant-fold fallback rather than the unboxed
+            # DoubleBinaryOp lowering used for +/-/*/(/).
+            return (b**a, a // b, a % b)
+
+        result = self._assert_folded_in_background(test_func, ("FloatBinaryOp",))
+        self.assertEqual(test_func(), result)
+
+    def test_unicode_subscript_constant_fold_background_compile(self) -> None:
+        """Subscripting a constant string with a constant index folds during
+        background compilation.  The unicode-subscript fold in simplifySubscript
+        creates a new interned substring and now does so under a
+        ThreadedCompileGILHolder, replacing the runtime UnicodeSubscr.
+        """
+
+        def test_func() -> tuple[str, ...]:
+            s = "background-compile"
+            i = 3
+            j = -1
+            return (s[i], s[j], s[0])
+
+        result = self._assert_folded_in_background(test_func, ("UnicodeSubscr",))
+        self.assertEqual(test_func(), result)
+
+    @skip_if_ft(
+        "simplifyLoadAttr instance fast path is disabled on free-threaded builds"
+    )
+    def test_load_attr_instance_background_compile(self) -> None:
+        """Loading an attribute off an instance of a known exact type goes
+        through simplifyLoadAttrInstanceReceiver -> ensureVersionTag.
+        ensureVersionTag previously required the shared-data lock (a JIT_CHECK
+        that would abort during a GIL-free background compile); it now assigns
+        the type version tag under a ThreadedCompileGILHolder.  Constructing the
+        instance in-function gives the receiver an exact type so the fast path
+        (LoadField / split-dict) is taken instead of a generic LoadAttr.
+        """
+
+        def test_func() -> int:
+            obj = AttrLoadType()
+            return obj.inst_attr
+
+        result = self._assert_folded_in_background(test_func, ("LoadAttr",))
+        self.assertEqual(result, 7)
+        self.assertEqual(test_func(), result)
+
+    @skip_if_ft("loadModuleAttrSafe returns nullptr on free-threaded builds")
+    def test_module_attr_load_background_compile(self) -> None:
+        """Resolving a module attribute at compile time (loadModuleAttrSafe) now
+        runs during background compilation instead of punting via
+        RETURN_MULTITHREADED_COMPILE.  On 3.14 it reads the module dict with
+        _PyDict_GetItemRefKeepLazy under a ThreadedCompileGILHolder (lazy import
+        support).  Attributes that resolve to a type or submodule are exactly
+        the values pinModuleAttr keeps alive with a GuardIs, so this exercises
+        that off-GIL dict read + pin path (the runtime LoadModuleAttrCached is
+        retained for correctness, so the fold is a pin, not a removal).
+        """
+
+        # `collections` / `os` are module-level globals so the JIT resolves the
+        # module receiver to an object spec, which is what loadModuleAttrSafe
+        # needs to read the attribute at compile time.
+        def test_func() -> tuple[Any, ...]:
+            # OrderedDict/defaultdict resolve to types; os.path is a submodule -
+            # loadModuleAttrSafe resolves each and pinModuleAttr pins them.
+            return (
+                collections.OrderedDict,
+                collections.defaultdict,
+                os.path.sep,
+            )
+
+        result = self._assert_folded_in_background(test_func, ())
+        self.assertEqual(test_func(), result)
 
 
 if __name__ == "__main__":

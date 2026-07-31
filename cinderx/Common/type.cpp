@@ -66,12 +66,12 @@ BorrowedRef<> typeLookupSafe(
 }
 
 bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
-  JIT_CHECK(
-      jit::ThreadedCompileContext::canAccessSharedData(),
-      "Accessing type object needs lock");
+  // We may be racing with the GIL here but we can tolerate it, we could
+  // invalidate the version tag after releasing the GIL anyway.
   if (Ci_Type_HasValidVersionTag(type)) {
     return true;
   }
+  jit::ThreadedCompileGILHolder lock;
   return PyUnstable_Type_AssignVersionTag(type);
 }
 

@@ -14,12 +14,6 @@
 
 namespace cinderx::jit {
 
-// Used to punt out of optimizations that require holding the GIL.
-#define RETURN_MULTITHREADED_COMPILE(RETVAL)      \
-  if (ThreadedCompileContext::compileRunning()) { \
-    return RETVAL;                                \
-  }
-
 // Threaded-compile state. Stack-allocated in pyjit.cpp when a multi-threaded
 // or background compile starts. Its address is published via thread-local
 // storage so workers can find it.
