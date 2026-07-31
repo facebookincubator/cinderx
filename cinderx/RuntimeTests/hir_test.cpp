@@ -9,6 +9,7 @@
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
@@ -217,13 +218,13 @@ fun test {
 }
 
 TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
-  CFG cfg;
-  Environment env;
+  Function func;
+  auto& cfg = func.cfg;
 
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(cfg.entry_block);
 
-  removeTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(func);
 
   auto s = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 0 (preds 0) {
@@ -234,15 +235,15 @@ TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
 }
 
 TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
-  CFG cfg;
-  Environment env;
+  Function func;
+  auto& cfg = func.cfg;
 
   auto t1 = cfg.allocateBlock();
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(t1);
   t1->append<Branch>(cfg.entry_block);
 
-  removeTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(func);
 
   auto s = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 1 (preds 1) {
@@ -253,8 +254,9 @@ TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
 }
 
 TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
-  CFG cfg;
-  Environment env;
+  Function func;
+  auto& cfg = func.cfg;
+  auto& env = func.env;
 
   // This constructs a CFG that looks like
   //
@@ -274,7 +276,9 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(t2);
 
-  removeTrampolineBlocks(&cfg);
+  EXPECT_EQ(func.domTree().immediateDominator(exit_block), t1);
+  removeTrampolineBlocks(func);
+  EXPECT_EQ(func.domTree().immediateDominator(exit_block), nullptr);
 
   auto s = HIRPrinter().toString(cfg);
   auto expected = R"(bb 0 {
@@ -285,8 +289,9 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
 }
 
 TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
-  CFG cfg;
-  Environment env;
+  Function func;
+  auto& cfg = func.cfg;
+  auto& env = func.env;
 
   // This constructs a CFG that look like
   //
@@ -326,7 +331,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<CondBranch>(v0, exit_block, t1);
 
-  removeTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(func);
 
   auto after = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 5 {
@@ -345,8 +350,9 @@ bb 4 (preds 4, 5) {
 }
 
 TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
-  CFG cfg;
-  Environment env;
+  Function func;
+  auto& cfg = func.cfg;
+  auto& env = func.env;
 
   // This constructs a CFG that look like
   //
@@ -389,7 +395,7 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<CondBranch>(v0, t4, t3);
 
-  removeTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(func);
 
   auto after = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 5 {

@@ -1349,9 +1349,7 @@ void RefcountInsertion::run(Function& func) {
   // Clean up any trampoline blocks that weren't necessary.
   //
   // Consider having a separate run of CleanCFG between passes clean this up.
-  if (removeTrampolineBlocks(&func.cfg)) {
-    func.invalidateDomTree();
-  }
+  removeTrampolineBlocks(func);
 
   // Optimize long decref runs
   optimizeLongDecrefRuns(func);

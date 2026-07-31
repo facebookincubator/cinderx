@@ -616,7 +616,9 @@ void reflowTypes(Function& func, BasicBlock* start) {
   }
 }
 
-bool removeTrampolineBlocks(CFG* cfg) {
+void removeTrampolineBlocks(Function& func) {
+  auto cfg = &func.cfg;
+
   std::vector<BasicBlock*> trampolines;
   for (auto& block : cfg->blocks) {
     if (!block.isTrampoline()) {
@@ -639,12 +641,17 @@ bool removeTrampolineBlocks(CFG* cfg) {
     block.setSuccessor(0, nullptr);
     trampolines.emplace_back(&block);
   }
+
   for (auto& block : trampolines) {
     cfg->removeBlock(block);
     delete block;
   }
+
   simplifyRedundantCondBranches(cfg);
-  return trampolines.size() > 0;
+
+  if (trampolines.size() > 0) {
+    func.invalidateDomTree();
+  }
 }
 
 bool removeUnreachableBlocks(Function& func) {

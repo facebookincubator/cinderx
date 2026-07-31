@@ -60,7 +60,7 @@ void reflowTypes(Function& func);
 void reflowTypes(Function& func, BasicBlock* start);
 
 // Remove any blocks that consist of a single jump to another block.
-bool removeTrampolineBlocks(CFG* cfg);
+void removeTrampolineBlocks(Function& func);
 
 // Remove blocks that aren't reachable from the entry, whether or not they're
 // empty. Return true if it changed the graph and false otherwise.

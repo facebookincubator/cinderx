@@ -44,9 +44,7 @@ void PhiElimination::run(Function& func) {
   }
 
   // Consider having a separate run of CleanCFG between passes clean this up.
-  if (removeTrampolineBlocks(&func.cfg)) {
-    func.invalidateDomTree();
-  }
+  removeTrampolineBlocks(func);
 }
 
 } // namespace cinderx::jit::hir
