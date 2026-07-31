@@ -52,12 +52,6 @@ bool shouldReplaceOperand(const Operand& operand) {
 
 } // namespace
 
-RegallocBlockState::RegallocBlockState(
-    const BasicBlock* b,
-    int index,
-    Instruction* instr)
-    : bb(b), block_start_index(index), block_first_instr(instr) {}
-
 LiveRange::LiveRange(LIRLocation s, LIRLocation e) : start{s}, end{e} {
   JIT_CHECK(s < e, "Invalid live range: {}:{}", s, e);
 }
@@ -346,6 +340,12 @@ PhyLocation LiveInterval::allocatedLoc() const {
   return allocated_loc_;
 }
 
+RegallocBlockState::RegallocBlockState(
+    const BasicBlock* bb,
+    LIRLocation start,
+    Instruction* first_instr)
+    : bb{bb}, start{start}, first_instr{first_instr} {}
+
 LinearScanAllocator::LinearScanAllocator(
     Function* func,
     int reserved_stack_space)
@@ -389,10 +389,9 @@ LiveInterval& LinearScanAllocator::getInterval(const Operand* operand) {
 void LinearScanAllocator::calculateLiveIntervals() {
   const auto& basic_blocks = func_->basicBlocks();
 
-  // This table maps loop headers to all their loop ends. A loop end basic
-  // block is the last block of a loop starting at the loop header.
-  // The key is the pointer to the loop header and the value std::vector<int>
-  // is a vector of the block ids of all the associated loop ends.
+  // This table maps loop headers to all their loop ends.  A loop end is the
+  // last basic block of a loop starting at the loop header.  The mapped value
+  // is a vector of the LIRLocations of all the associated loop ends.
   UnorderedMap<const BasicBlock*, std::vector<int>> loop_ends;
   UnorderedSet<const Operand*> seen_outputs;
 
@@ -407,29 +406,26 @@ void LinearScanAllocator::calculateLiveIntervals() {
     BasicBlock* bb = *iter;
 
     // bb_start_id and bb_end_id do not point to any instructions.
-    // each instrution is associated to two ids, where the first id
-    // is for using its inputs, and the second id is for defining
-    // its output.
 
     // Basic block M
     // x   <- bb_start_id
-    // x + 1  instructions1
+    // x + 1  instr1
     // x + 2
-    // x + 3  instructions2
+    // x + 3  instr2
     // x + 4
     // ...
-    // x + 2N - 1  instructionsN
+    // x + 2N - 1  instrN
     // x + 2N
     // basic block M + 1
     // x + 2N + 1   <- bb_end_id of bb M, bb_start_id of block M + 1
     constexpr int kIdsPerInstr = 2;
-    auto bb_end_id = total_ids;
+    LIRLocation bb_end_id = total_ids;
     auto bb_instrs = bb->getNumInstrs() * kIdsPerInstr;
     total_ids -= bb_instrs;
     total_ids--;
-    auto bb_start_id = total_ids;
+    LIRLocation bb_start_id = total_ids;
 
-    auto lir_bb_iter =
+    auto state_iter =
         regalloc_blocks_
             .emplace(
                 std::piecewise_construct,
@@ -442,14 +438,14 @@ void LinearScanAllocator::calculateLiveIntervals() {
     UnorderedSet<const Operand*> live;
 
     for (BasicBlock* succ : successors) {
-      // each successor's livein is live
+      // Each successor's livein is live.
       auto live_iter = regalloc_blocks_.find(succ);
       if (live_iter != regalloc_blocks_.end()) {
         auto& livein = live_iter->second.livein;
         live.insert(livein.begin(), livein.end());
       }
 
-      // each successor's phi inputs are live
+      // Each successor's phi inputs are live.
       succ->foreachPhiInstr([&](const Instruction* instr) {
         auto opnd = instr->getOperandByPredecessor(bb)->getDefine();
         live.insert(opnd);
@@ -460,10 +456,10 @@ void LinearScanAllocator::calculateLiveIntervals() {
       getInterval(live_opnd).addRange({bb_start_id, bb_end_id});
     }
 
-    int instr_id = bb_end_id - kIdsPerInstr;
+    LIRLocation instr_loc = bb_end_id - kIdsPerInstr;
     auto& instrs = bb->instructions();
     for (auto instr_iter = instrs.rbegin(); instr_iter != instrs.rend();
-         ++instr_iter, instr_id -= kIdsPerInstr) {
+         ++instr_iter, instr_loc -= kIdsPerInstr) {
       auto instr = instr_iter->get();
       auto instr_opcode = instr->opcode();
       if (instr_opcode == Instruction::kPhi) {
@@ -481,11 +477,11 @@ void LinearScanAllocator::calculateLiveIntervals() {
               "LIR not in SSA form, output {} defined twice",
               *output_opnd);
         }
-        getInterval(output_opnd).setFrom(instr_id + 1);
+        getInterval(output_opnd).setFrom(instr_loc + 1);
         live.erase(output_opnd);
 
         if (instr->getOutputPhyRegUse()) {
-          vreg_phy_uses_[output_opnd].emplace(instr_id + 1);
+          vreg_phy_uses_[output_opnd].emplace(instr_loc + 1);
         }
       }
 
@@ -495,18 +491,18 @@ void LinearScanAllocator::calculateLiveIntervals() {
         auto pair = intervals_.emplace(def, def);
 
         bool live_across = operand->instr()->inputsLiveAcross();
-        int range_end = live_across ? instr_id + kIdsPerInstr : instr_id + 1;
+        int range_end = live_across ? instr_loc + kIdsPerInstr : instr_loc + 1;
         pair.first->second.addRange({bb_start_id, range_end});
 
         if (!live.count(def) && operand->isLinked()) {
-          vreg_last_use_[def].emplace(operand, instr_id);
+          vreg_last_use_[def].emplace(operand, instr_loc);
         }
 
         live.insert(def);
         if (reguse) {
-          vreg_phy_uses_[def].emplace(instr_id);
+          vreg_phy_uses_[def].emplace(instr_loc);
           if (live_across) {
-            vreg_phy_uses_[def].emplace(instr_id + 1);
+            vreg_phy_uses_[def].emplace(instr_loc + 1);
           }
         }
       };
@@ -554,7 +550,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       if (instr_opcode == Instruction::kCall ||
           instr_opcode == Instruction::kVarArgCall ||
           instr_opcode == Instruction::kVectorCallTstate) {
-        reserveRegistersForCall(*instr, instr_id);
+        reserveRegistersForCall(*instr, instr_loc);
       }
       // kLoadThreadState needs caller-save reservation when the TLS offset is
       // unavailable, forcing a function call fallback.  When the TLS offset IS
@@ -563,10 +559,10 @@ void LinearScanAllocator::calculateLiveIntervals() {
       // reserve it.
       if (instr_opcode == Instruction::kLoadThreadState) {
         if (cinderx::getModuleState()->tstate_offset == -1) {
-          reserveCallerSaveRegisters(instr_id);
+          reserveRegisters(instr_loc, CALLER_SAVE_REGS);
         } else {
           // TLS path still uses rax/x0 as scratch for stack outputs.
-          reserveRegisters(instr_id, PhyRegisterSet(RETURN_REGS[0]));
+          reserveRegisters(instr_loc, PhyRegisterSet(RETURN_REGS[0]));
         }
       }
 
@@ -574,7 +570,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       if ((instr_opcode == Instruction::kMul) &&
           (instr->getInput(0)->dataType() == Operand::k8bit)) {
         // see rewriteByteMultiply
-        reserveRegisters(instr_id, PhyRegisterSet(RAX));
+        reserveRegisters(instr_loc, PhyRegisterSet(RAX));
       } else if (
           instr_opcode == Instruction::kDiv ||
           instr_opcode == Instruction::kDivUn) {
@@ -584,12 +580,12 @@ void LinearScanAllocator::calculateLiveIntervals() {
           reserved = reserved | RDX;
         }
 
-        reserveRegisters(instr_id, reserved);
+        reserveRegisters(instr_loc, reserved);
       }
 #endif
 
       if (instr->isAnyYield()) {
-        spillRegistersForYield(instr_id);
+        reserveRegisters(instr_loc, INIT_REGISTERS);
       }
 
       if (instr_opcode == Instruction::kBind) {
@@ -637,7 +633,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       }
     }
 
-    lir_bb_iter->second.livein = std::move(live);
+    state_iter->second.livein = std::move(live);
 
     // record a loop end
     for (auto& succ : bb->successors()) {
@@ -660,33 +656,25 @@ void LinearScanAllocator::calculateLiveIntervals() {
   }
 }
 
-void LinearScanAllocator::spillRegistersForYield(int instr_id) {
-  reserveRegisters(instr_id, INIT_REGISTERS);
-}
-
-void LinearScanAllocator::reserveCallerSaveRegisters(int instr_id) {
-  reserveRegisters(instr_id, CALLER_SAVE_REGS);
-}
-
 void LinearScanAllocator::reserveRegistersForCall(
     const Instruction& instr,
-    int instr_id) {
+    LIRLocation instr_loc) {
   if constexpr (kFreeThreadedBuild) {
     const hir::Instr* origin = instr.origin();
     if (origin != nullptr && hir::hasArbitraryExecution(*origin)) {
       // Free-threaded GC must be able to read every live value for active JIT
       // frames, so arbitrary-execution calls cannot keep values in registers
       // that the callee may clobber.
-      reserveRegisters(instr_id, INIT_REGISTERS);
+      reserveRegisters(instr_loc, INIT_REGISTERS);
       return;
     }
   }
 
-  reserveCallerSaveRegisters(instr_id);
+  reserveRegisters(instr_loc, CALLER_SAVE_REGS);
 }
 
 void LinearScanAllocator::reserveRegisters(
-    int instr_id,
+    LIRLocation instr_loc,
     PhyRegisterSet phy_regs) {
   static const UnorderedStablePointerMap<PhyLocation, Operand> vregs = []() {
     UnorderedStablePointerMap<PhyLocation, Operand> result;
@@ -712,10 +700,10 @@ void LinearScanAllocator::reserveRegisters(
 
     // Ranges are appended out of order here; they are finalized with
     // sortAndMergeRanges() at the end of calculateLiveIntervals().
-    interval.appendFixedRange(instr_id, instr_id + 1);
+    interval.appendFixedRange(instr_loc, instr_loc + 1);
     interval.fixTo(reg);
 
-    vreg_phy_uses_[vreg].emplace(instr_id);
+    vreg_phy_uses_[vreg].emplace(instr_loc);
   }
 }
 
@@ -1116,10 +1104,10 @@ void LinearScanAllocator::rewriteLIR() {
     ++allocated_iter;
   }
 
-  int instr_id = -1;
+  LIRLocation instr_loc = -1;
   for (BasicBlock* bb : func_->basicBlocks()) {
-    ++instr_id;
-    TRACE("{} - Start basic block {}", instr_id, bb->id());
+    ++instr_loc;
+    TRACE("{} - Start basic block {}", instr_loc, bb->id());
 
     // Remove mappings that end at the last basic block.
     // Inter-basic block resolution will be done later separately.
@@ -1131,7 +1119,7 @@ void LinearScanAllocator::rewriteLIR() {
           *operand,
           *interval);
 
-      if (interval->endLocation() <= instr_id) {
+      if (interval->endLocation() <= instr_loc) {
         TRACE("Removing interval {} for operand {}", *interval, *operand);
         map_iter = mapping.erase(map_iter);
       } else {
@@ -1141,7 +1129,7 @@ void LinearScanAllocator::rewriteLIR() {
 
     // handle the basic block id before instructions start
     while (allocated_iter != allocated_.end() &&
-           (*allocated_iter)->startLocation() <= instr_id) {
+           (*allocated_iter)->startLocation() <= instr_loc) {
       auto& interval = *allocated_iter;
       rewriteLIRUpdateMapping(mapping, interval.get(), nullptr);
       ++allocated_iter;
@@ -1150,16 +1138,16 @@ void LinearScanAllocator::rewriteLIR() {
     auto& instrs = bb->instructions();
     bool process_input = false;
     for (auto instr_iter = instrs.begin(); instr_iter != instrs.end();) {
-      ++instr_id;
+      ++instr_loc;
       process_input = !process_input;
 
       auto instr = instr_iter->get();
-      TRACE("{} - {} - {}", instr_id, process_input ? "in" : "out", *instr);
+      TRACE("{} - {} - {}", instr_loc, process_input ? "in" : "out", *instr);
 
       CopyGraphWithOperand copies;
       // check for new allocated intervals and update register mappings
       while (allocated_iter != allocated_.end() &&
-             (*allocated_iter)->startLocation() <= instr_id) {
+             (*allocated_iter)->startLocation() <= instr_loc) {
         auto& interval = *allocated_iter;
         rewriteLIRUpdateMapping(mapping, interval.get(), &copies);
         ++allocated_iter;
@@ -1373,13 +1361,13 @@ void LinearScanAllocator::resolveEdges() {
         start,
         [this](const auto& block, const auto start) -> bool {
           BasicBlock* bb = block;
-          auto block_start = map_get(regalloc_blocks_, bb).block_start_index;
+          auto block_start = map_get(regalloc_blocks_, bb).start;
           return block_start < start;
         });
 
     for (; iter != blocks.end(); ++iter) {
       BasicBlock* block = *iter;
-      auto block_start = map_get(regalloc_blocks_, block).block_start_index;
+      auto block_start = map_get(regalloc_blocks_, block).start;
       // if the block starts after the interval, no need to check further.
       if (block_start >= end) {
         break;
@@ -1506,7 +1494,7 @@ LinearScanAllocator::resolveEdgesGenCopies(
     // 2. The basic block has no phi instruction, and the vreg is defined by the
     //    first instruction.
     bool interval_starts_from_beginning =
-        interval->startLocation() == succ_regalloc_block.block_start_index;
+        interval->startLocation() == succ_regalloc_block.start;
 
     // Phi will be set if case 1.
     const Instruction* phi = nullptr;
@@ -1536,7 +1524,7 @@ LinearScanAllocator::resolveEdgesGenCopies(
       // successor->getFirstInstr(), because the successor block may already
       // been rewritten, and the first instruction may not be the original
       // first instruction any more.
-      auto succ_first_instr = succ_regalloc_block.block_first_instr;
+      auto succ_first_instr = succ_regalloc_block.first_instr;
 
       // Even though LIR is in SSA, when the successor is a loop head, the
       // first instruction could be a define of the same vreg.  In that case,
