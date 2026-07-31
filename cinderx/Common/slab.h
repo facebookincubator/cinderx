@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Common/aligned_memory.h"
 #include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
@@ -10,7 +11,7 @@
 #endif
 
 #include <cstddef>
-#include <cstdlib>
+#include <optional>
 #include <utility>
 
 namespace cinderx {
@@ -75,9 +76,8 @@ class Slab {
     }
 
     if (ptr == nullptr) {
-      ptr = malloc_aligned(kSlabSize, kPageSize);
-      JIT_CHECK(ptr != nullptr, "Failed to allocate {} bytes", kSlabSize);
-      owned_base_.reset(static_cast<char*>(ptr));
+      owned_base_.emplace(kSlabSize, kPageSize);
+      ptr = owned_base_->get();
     }
     base_ = fill_ = static_cast<char*>(ptr);
   }
@@ -146,7 +146,7 @@ class Slab {
  private:
   char* base_;
   std::shared_ptr<HugePageArena> arena_;
-  unique_aligned_ptr<char> owned_base_;
+  std::optional<AlignedMemory<char>> owned_base_;
   char* fill_{nullptr};
   size_t increment_{0};
   size_t mlocks_{0};
