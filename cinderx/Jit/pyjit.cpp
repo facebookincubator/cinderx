@@ -3671,7 +3671,7 @@ void processBackgroundCompile(
           Result::OK) {
         JIT_DLOG(
             "Background compile failed: {} for {}",
-            result,
+            static_cast<int>(result),
             preloader->fullname());
         return;
       }
@@ -3689,7 +3689,11 @@ void backgroundCompileWorkerLoop(
       "Background compile worker thread started: {}",
       std::this_thread::get_id());
 #ifndef WIN32
-  pthread_setname_np(pthread_self(), "cinderx_compile");
+  pthread_setname_np(
+#ifndef __APPLE__
+      pthread_self(),
+#endif
+      "cinderx_compile");
 #endif
   PyEval_AcquireThread(initial_tstate);
 
