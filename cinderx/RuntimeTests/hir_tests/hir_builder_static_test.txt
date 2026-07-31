@@ -490,6 +490,126 @@ fun jittestmodule:test {
     Branch<1>
   }
 }
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "c", User[C]>
+    v1 = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v2 = InitialYield {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    Snapshot
+    AtQuiescentState
+    v3 = LoadEvalBreaker
+    CondBranch<7, 6> v3
+  }
+
+  bb 7 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v0
+      }
+    }
+    Branch<6>
+  }
+
+  bb 6 (preds 0, 7) {
+    Snapshot
+    v5 = LoadField<ob_type@24, Type, borrowed> v0
+    v6 = LoadField<tp_cache@368, Object, borrowed> v5
+    v7 = LoadField<vte_state@96, Object, borrowed> v6
+    v9 = LoadField<vte_load@104, CPtr, borrowed> v6
+    v7 = CallInd<vte_load> v9 v7 v0 {
+      FrameState {
+        CurInstrOffset 8
+        Locals<1> v0
+      }
+    }
+    v8 = GetSecondOutput<CPtr> v7
+    Snapshot
+    v10 = CallInd<vtable invoke> v8 v7 v0 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<1> v0
+      }
+    }
+    Snapshot
+    v11 = CallCFunc<JitCoro_GetAwaitableIter> v10
+    v11 = CheckExc v11 {
+      FrameState {
+        CurInstrOffset 16
+        Locals<1> v0
+      }
+    }
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v11
+  }
+
+  bb 10 (preds 6) {
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v11
+  }
+
+  bb 8 (preds 6, 10) {
+    v12 = CallCFunc<JitGen_yf> v11
+    CondBranch<11, 9> v12
+  }
+
+  bb 11 (preds 8) {
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
+      FrameState {
+        CurInstrOffset 16
+        Locals<1> v0
+      }
+    }
+  }
+
+  bb 9 (preds 8, 10) {
+    Snapshot
+    v13 = LoadConst<ImmortalNoneType>
+    v14 = Assign v11
+    v15 = Assign v13
+    Branch<1>
+  }
+
+  bb 1 (preds 2, 9) {
+    Snapshot
+    v16 = Send v14 v15 {
+      FrameState {
+        CurInstrOffset 20
+        Locals<1> v0
+        Stack<1> v14
+      }
+    }
+    v17 = GetSecondOutput<CInt64> v16
+    v15 = Assign v16
+    CondBranch<3, 2> v17
+  }
+
+  bb 3 (preds 1) {
+    Snapshot
+    Return v15
+  }
+
+  bb 2 (preds 1) {
+    Snapshot
+    v18 = YieldValue v15 {
+      FrameState {
+        CurInstrOffset 24
+        Locals<1> v0
+        Stack<1> v14
+      }
+    }
+    Snapshot
+    v15 = Assign v18
+    Branch<1>
+  }
+}
 --- Test Name ---
 TestLoadField
 --- Input ---
@@ -644,6 +764,44 @@ fun jittestmodule:test {
     Return v4
   }
 }
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "c", User[C]>
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot
+    AtQuiescentState
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v5 = LoadField<x@32, OptObject, borrowed> v2
+    v5 = CheckField<"x"> v5 {
+      GuiltyReg v2
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v2
+      }
+    }
+    Snapshot
+    Return v5
+  }
+}
 --- Test Name ---
 TestStoreField
 --- Input ---
@@ -783,6 +941,41 @@ fun jittestmodule:test {
     v6 = LoadConst<ImmortalNoneType>
     Snapshot
     Return v6
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "c", User[C]>
+    v1 = LoadArg<1; "x", Long>
+    v2 = LoadCurrentFunc
+    LoadFrame
+    v3 = TagIfDeferred v0
+    v4 = TagIfDeferred v1
+    Snapshot
+    AtQuiescentState
+    v5 = LoadEvalBreaker
+    CondBranch<2, 1> v5
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v6 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v3 v4
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v7 = LoadField<x@32, OptObject, owned> v3
+    StoreField<x@32> v3 v4 v7
+    Snapshot
+    v8 = LoadConst<ImmortalNoneType>
+    Return v8
   }
 }
 --- Test Name ---
@@ -3802,6 +3995,56 @@ fun jittestmodule:test {
     v7 = LoadConst<ImmortalNoneType>
     Snapshot
     Return v7
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "self", User[A]>
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot
+    AtQuiescentState
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v5 = LoadField<_field@32, OptObject, borrowed> v2
+    v5 = CheckField<"_field"> v5 {
+      GuiltyReg v2
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v2
+      }
+    }
+    Snapshot
+    v5 = RefineType<List> v5
+    v6 = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v7 = ListAppend v5 v6 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v2
+        Stack<1> v5
+      }
+    }
+    Snapshot
+    v8 = LoadConst<ImmortalNoneType>
+    Return v8
   }
 }
 --- Test Name ---
