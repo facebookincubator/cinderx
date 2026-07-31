@@ -229,11 +229,11 @@ asmjit::Error CodeAllocator::releaseCode(void* code) {
     return error;
   }
 
-  if constexpr (kPyDebug) {
+  // The allocator may not actually free the code.  Zero it out in debug builds
+  // so we know the memory is freed.
+  if constexpr (kDebug) {
     auto rw = span.rw();
     if (rw != nullptr) {
-      // The allocator may not actually free the code, in debug builds zero it
-      // so we know the memory is freed.
       memset(rw, 0, span.size());
     }
   }

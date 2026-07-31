@@ -42,7 +42,7 @@ void LiveValuesBase::sortLiveRegs() {
         return a.reg->id() < b.reg->id();
       });
 
-  if constexpr (kPyDebug) {
+  if constexpr (kDebug) {
     auto it = std::adjacent_find(
         live_regs_.begin(),
         live_regs_.end(),
