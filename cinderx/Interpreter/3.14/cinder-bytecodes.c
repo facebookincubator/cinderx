@@ -507,9 +507,17 @@ dummy_func(
 
         override inst(LIST_APPEND, (list, unused[oparg-1], v -- list, unused[oparg-1])) {
 #ifdef Py_GIL_DISABLED
-            // T250369690: Need thread-safe checked collections
-            int err = _PyList_AppendTakeRef((PyListObject *)PyStackRef_AsPyObjectBorrow(list),
-                                           PyStackRef_AsPyObjectSteal(v));
+            PyObject *lst = PyStackRef_AsPyObjectBorrow(list);
+            int err;
+            if (PyList_Check(lst)) {
+                err = PyList_Append(lst, PyStackRef_AsPyObjectBorrow(v));
+            }
+            else {
+                // T250369690: Need thread-safe checked collections
+                err = Ci_ListOrCheckedList_Append(
+                    (PyListObject *)lst, PyStackRef_AsPyObjectBorrow(v));
+            }
+            PyStackRef_CLOSE(v);
             ERROR_IF(err < 0);
 #else
             int err = Ci_ListOrCheckedList_Append(

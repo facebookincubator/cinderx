@@ -9460,11 +9460,26 @@
             v = stack_pointer[-1];
             list = stack_pointer[-2 - (oparg-1)];
             #ifdef Py_GIL_DISABLED
-
-            int err = _PyList_AppendTakeRef((PyListObject *)PyStackRef_AsPyObjectBorrow(list),
-                PyStackRef_AsPyObjectSteal(v));
+            PyObject *lst = PyStackRef_AsPyObjectBorrow(list);
+            int err;
+            if (PyList_Check(lst)) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                err = PyList_Append(lst, PyStackRef_AsPyObjectBorrow(v));
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            }
+            else {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                err = Ci_ListOrCheckedList_Append(
+                    (PyListObject *)lst, PyStackRef_AsPyObjectBorrow(v));
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            }
+            stack_pointer += -1;
+            assert(WITHIN_STACK_BOUNDS());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            PyStackRef_CLOSE(v);
+            stack_pointer = _PyFrame_GetStackPointer(frame);
             if (err < 0) {
-                JUMP_TO_LABEL(pop_1_error);
+                JUMP_TO_LABEL(error);
             }
             #else
             _PyFrame_SetStackPointer(frame, stack_pointer);
@@ -9479,10 +9494,7 @@
             if (err < 0) {
                 JUMP_TO_LABEL(error);
             }
-            stack_pointer += 1;
             #endif
-            stack_pointer += -1;
-            assert(WITHIN_STACK_BOUNDS());
             DISPATCH();
         }
 
