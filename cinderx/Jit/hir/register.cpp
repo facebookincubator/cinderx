@@ -10,15 +10,8 @@
 
 namespace cinderx::jit::hir {
 
-const std::string& Register::name() const {
-  if (name_.empty()) {
-    name_ = fmt::format("v{}", id_);
-  }
-  return name_;
-}
-
 std::ostream& operator<<(std::ostream& os, const Register& reg) {
-  return os << reg.name();
+  return os << 'v' << reg.id();
 }
 
 std::ostream& operator<<(std::ostream& os, RefKind kind) {

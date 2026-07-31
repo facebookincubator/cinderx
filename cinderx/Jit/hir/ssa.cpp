@@ -158,7 +158,7 @@ void checkRegisters(CheckEnv& env) {
             env.err,
             "ERROR: Phi input '{}' to instruction '{}' in bb {} not "
             "defined at end of bb {}\n",
-            operand->name(),
+            *operand,
             *phi,
             env.block->id,
             phi->basicBlocks()[i]->id);
@@ -173,7 +173,7 @@ void checkRegisters(CheckEnv& env) {
             env.err,
             "ERROR: Operand '{}' of instruction '{}' not defined at use in "
             "bb {}\n",
-            operand->name(),
+            *operand,
             *env.instr,
             env.block->id);
         env.ok = false;
@@ -186,7 +186,7 @@ void checkRegisters(CheckEnv& env) {
       fmt::print(
           env.err,
           "ERROR: {}'s instr is not '{}', which claims to define it\n",
-          output->name(),
+          *output,
           *env.instr);
       env.ok = false;
     }
@@ -196,7 +196,7 @@ void checkRegisters(CheckEnv& env) {
       fmt::print(
           env.err,
           "ERROR: {} redefined in bb {}; previous definition was in bb {}\n",
-          output->name(),
+          *output,
           env.block->id,
           pair.first->second->id);
       env.ok = false;

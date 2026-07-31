@@ -115,7 +115,7 @@ struct RegState {
   // The most recently defined copy of the model, which may still be the model
   // itself.
   Register* current() const {
-    JIT_DCHECK(!copies_.empty(), "{} has no live copies", model_->name());
+    JIT_DCHECK(!copies_.empty(), "{} has no live copies", *model_);
     return copies_.back();
   }
 
@@ -130,10 +130,7 @@ struct RegState {
     // copies of a value is rare.
     auto it = std::find(copies_.begin(), copies_.end(), copy);
     JIT_DCHECK(
-        it != copies_.end(),
-        "{} isn't a live copy of {}",
-        copy->name(),
-        model_->name());
+        it != copies_.end(), "{} isn't a live copy of {}", *copy, *model_);
     copies_.erase(it);
     return copies_.empty();
   }
@@ -325,7 +322,7 @@ std::ostream& operator<<(std::ostream& os, const RegState& rstate) {
   os << "RegState{[";
   auto sep = "";
   for (int i = 0, n = rstate.numCopies(); i < n; ++i) {
-    fmt::print(os, "{}{}", sep, rstate.copy(i)->name());
+    fmt::print(os, "{}{}", sep, *rstate.copy(i));
     sep = ", ";
   }
   fmt::print(os, "], {}", rstate.kind());
@@ -347,8 +344,7 @@ std::ostream& operator<<(std::ostream& os, const StateMap& regs) {
   std::sort(states.begin(), states.end(), RegStateLess{});
   fmt::print(os, "StateMap[{}] = {{\n", states.size());
   for (auto state : states) {
-    fmt::print(
-        os, "  {} -> {}\n", state->model()->name(), fmt::streamed(*state));
+    fmt::print(os, "  {} -> {}\n", *state->model(), fmt::streamed(*state));
   }
   return os << "}";
 }
@@ -1047,7 +1043,7 @@ void processOutput(Env& env, const Instr& instr, const MemoryEffects& effects) {
   }
 
   auto pair = env.live_regs.emplace(output, output);
-  JIT_DCHECK(pair.second, "Register {} already defined", output->name());
+  JIT_DCHECK(pair.second, "Register {} already defined", *output);
   auto& rstate = pair.first->second;
   if (isUncounted(output)) {
     // Do nothing. rstate is already Uncounted by default.

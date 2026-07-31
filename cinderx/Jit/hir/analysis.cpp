@@ -26,7 +26,7 @@ std::ostream& operator<<(std::ostream& os, const RegisterSet& regs) {
   });
   auto sep = "";
   for (auto reg : sorted_regs) {
-    fmt::print(os, "{}{}", sep, reg->name());
+    fmt::print(os, "{}{}", sep, *reg);
     sep = ", ";
   }
   return os << "}";
@@ -203,7 +203,7 @@ void RegisterAnalysis::dump() const {
     format_to(out, "  bb {}\n", block.id);
     auto format_set = [&](const RegisterSet& regs) {
       for (auto reg : regs) {
-        format_to(out, "    {}\n", reg->name());
+        format_to(out, "    {}\n", *reg);
       }
     };
     format_to(out, "  In:\n");

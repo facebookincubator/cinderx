@@ -156,7 +156,7 @@ static void print_reg_states(
         break;
       }
     }
-    os << fmt::format("{}{}:{}", sep, prefix, reg_state.reg->name());
+    os << fmt::format("{}{}:{}", sep, prefix, *reg_state.reg);
     sep = " ";
   }
 }
@@ -827,7 +827,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
 void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   indented(os);
   if (Register* dst = instr.output()) {
-    os << dst->name();
+    os << *dst;
     if (dst->type() != TTop) {
       os << ":" << dst->type();
     }
@@ -842,7 +842,7 @@ void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   for (size_t i = 0, n = instr.numOperands(); i < n; ++i) {
     auto op = instr.getOperand(i);
     if (op != nullptr) {
-      os << " " << op->name();
+      os << " " << *op;
     } else {
       os << " nullptr";
     }
@@ -896,7 +896,7 @@ void HIRPrinter::print(std::ostream& os, const FrameState& state) {
       if (reg == nullptr) {
         os << " <null>";
       } else {
-        os << " " << reg->name();
+        os << " " << *reg;
       }
     }
     os << '\n';
@@ -911,7 +911,7 @@ void HIRPrinter::print(std::ostream& os, const FrameState& state) {
       if (reg == nullptr) {
         os << " <null>";
       } else {
-        os << " " << reg->name();
+        os << " " << *reg;
       }
     }
     os << '\n';
@@ -921,7 +921,7 @@ void HIRPrinter::print(std::ostream& os, const FrameState& state) {
   if (opstack_size > 0) {
     indented(os) << "Stack<" << opstack_size << ">";
     for (std::size_t i = 0; i < opstack_size; i++) {
-      os << " " << state.stack.at(i)->name();
+      os << " " << *state.stack.at(i);
     }
     os << '\n';
   }

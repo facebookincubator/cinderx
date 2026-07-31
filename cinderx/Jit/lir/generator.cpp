@@ -1611,7 +1611,7 @@ Instruction* LIRGenerator::createCallSiteLiveValuesInstr(
     JIT_CHECK(
         def != nullptr,
         "No LIR definition for callsite live reg {}",
-        reg_state.reg->name());
+        *reg_state.reg);
     live_values_instr->addOperands(VReg{def});
   }
   return live_values_instr;

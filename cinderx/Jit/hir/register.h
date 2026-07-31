@@ -46,17 +46,12 @@ class Register {
     instr_ = instr;
   }
 
-  // A unique name for this value. This name has no connection to the original
-  // Python program.
-  const std::string& name() const;
-
  private:
   DISALLOW_COPY_AND_ASSIGN(Register);
 
   Type type_{TTop};
   Instr* instr_{nullptr};
   int id_{-1};
-  mutable std::string name_;
 };
 
 // The refcount semantics of a value held in a Register.

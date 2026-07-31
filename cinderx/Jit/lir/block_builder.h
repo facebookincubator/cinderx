@@ -71,7 +71,7 @@ class BasicBlockBuilder {
     auto dest_lir = OutVReg{hirTypeToDataType(dest->type())};
     auto instr = appendInstr(opcode, dest_lir, std::forward<Args>(args)...);
     auto [it, inserted] = env_->output_map.emplace(dest, instr);
-    JIT_CHECK(inserted, "HIR value '{}' defined twice in LIR", dest->name());
+    JIT_CHECK(inserted, "HIR value '{}' defined twice in LIR", *dest);
     return instr;
   }
 

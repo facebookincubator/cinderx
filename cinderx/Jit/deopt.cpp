@@ -507,7 +507,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
       return -1;
     }
     auto it = reg_idx.find(reg);
-    JIT_CHECK(it != reg_idx.end(), "register {} not live", reg->name());
+    JIT_CHECK(it != reg_idx.end(), "register {} not live", *reg);
     return it->second;
   };
 

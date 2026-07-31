@@ -99,7 +99,7 @@ void BasicBlockBuilder::createInstrOutput(
   JIT_DCHECK(
       pair.second,
       "Multiple outputs with the same name ({})- HIR is not in SSA form.",
-      dst->name());
+      *dst);
   auto output = instr->output();
   output->setVirtualRegister();
   output->setDataType(hirTypeToDataType(dst->type()));

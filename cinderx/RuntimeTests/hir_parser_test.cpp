@@ -9,7 +9,13 @@
 
 using namespace cinderx::jit::hir;
 
+namespace {
+
 using HIRParserTest = RuntimeTest;
+
+std::string name(Register* reg) {
+  return fmt::format("{}", *reg);
+}
 
 TEST_F(HIRParserTest, ParsesHIR) {
   const char* ir =
@@ -79,7 +85,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   {
     auto& initial_yield = static_cast<InitialYield&>(*it);
     ASSERT_EQ(initial_yield.liveRegs().size(), 0);
-    ASSERT_EQ(initial_yield.output()->name(), "v0");
+    ASSERT_EQ(name(initial_yield.output()), "v0");
   }
   ++it;
   ASSERT_EQ(it->opcode(), Opcode::kCheckVar);
@@ -99,10 +105,10 @@ TEST_F(HIRParserTest, ParsesHIR) {
     auto& yield_value = static_cast<YieldValue&>(*it);
     const auto& reg_states = yield_value.liveRegs();
     ASSERT_EQ(reg_states.size(), 1);
-    ASSERT_EQ(reg_states.at(0).reg->name(), "v1");
+    ASSERT_EQ(name(reg_states.at(0).reg), "v1");
     ASSERT_EQ(reg_states.at(0).ref_kind, RefKind::kOwned);
-    ASSERT_EQ(yield_value.output()->name(), "v0");
-    ASSERT_EQ(yield_value.reg()->name(), "v2");
+    ASSERT_EQ(name(yield_value.output()), "v0");
+    ASSERT_EQ(name(yield_value.reg()), "v2");
   }
   ++it;
   ASSERT_NE(it, end);
@@ -111,12 +117,12 @@ TEST_F(HIRParserTest, ParsesHIR) {
     auto& yield_value = static_cast<YieldValue&>(*it);
     const auto& reg_states = yield_value.liveRegs();
     ASSERT_EQ(reg_states.size(), 2);
-    ASSERT_EQ(reg_states.at(0).reg->name(), "v1");
+    ASSERT_EQ(name(reg_states.at(0).reg), "v1");
     ASSERT_EQ(reg_states.at(0).ref_kind, RefKind::kOwned);
-    ASSERT_EQ(reg_states.at(1).reg->name(), "v3");
+    ASSERT_EQ(name(reg_states.at(1).reg), "v3");
     ASSERT_EQ(reg_states.at(1).ref_kind, RefKind::kOwned);
-    ASSERT_EQ(yield_value.output()->name(), "v0");
-    ASSERT_EQ(yield_value.reg()->name(), "v2");
+    ASSERT_EQ(name(yield_value.output()), "v0");
+    ASSERT_EQ(name(yield_value.reg()), "v2");
   }
   ++it;
   ASSERT_NE(it, end);
@@ -144,52 +150,52 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
   ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::None);
   ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).output()), "v1");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).func()), "v2");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).arg(0)), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
   ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::KwArgs);
   ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).output()), "v1");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).func()), "v2");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).arg(0)), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
   ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::Static);
   ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).output()), "v1");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).func()), "v2");
+  ASSERT_EQ(name(static_cast<VectorCall&>(*it).arg(0)), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCallEx);
   ASSERT_EQ(static_cast<CallEx&>(*it).flags(), CallFlags::KwArgs);
-  ASSERT_EQ(static_cast<CallEx&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<CallEx&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<CallEx&>(*it).pargs()->name(), "v3");
-  ASSERT_EQ(static_cast<CallEx&>(*it).kwargs()->name(), "v4");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).output()), "v1");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).func()), "v2");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).pargs()), "v3");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).kwargs()), "v4");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCallEx);
-  ASSERT_EQ(static_cast<CallEx&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<CallEx&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<CallEx&>(*it).pargs()->name(), "v3");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).output()), "v1");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).func()), "v2");
+  ASSERT_EQ(name(static_cast<CallEx&>(*it).pargs()), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kImportFrom);
-  ASSERT_EQ(static_cast<ImportFrom&>(*it).output()->name(), "v1");
+  ASSERT_EQ(name(static_cast<ImportFrom&>(*it).output()), "v1");
   ASSERT_EQ(static_cast<ImportFrom&>(*it).nameIdx(), 2);
-  ASSERT_EQ(static_cast<ImportFrom&>(*it).module()->name(), "v3");
+  ASSERT_EQ(name(static_cast<ImportFrom&>(*it).module()), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kImportName);
-  ASSERT_EQ(static_cast<ImportName&>(*it).output()->name(), "v1");
+  ASSERT_EQ(name(static_cast<ImportName&>(*it).output()), "v1");
   ASSERT_EQ(static_cast<ImportName&>(*it).nameIdx(), 2);
-  ASSERT_EQ(static_cast<ImportName&>(*it).getFromList()->name(), "v3");
-  ASSERT_EQ(static_cast<ImportName&>(*it).getLevel()->name(), "v4");
+  ASSERT_EQ(name(static_cast<ImportName&>(*it).getFromList()), "v3");
+  ASSERT_EQ(name(static_cast<ImportName&>(*it).getLevel()), "v4");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kDecref);
@@ -210,24 +216,24 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kPhi);
   auto phi = static_cast<const Phi*>(&*it);
-  ASSERT_EQ(phi->output()->name(), "v3");
+  ASSERT_EQ(name(phi->output()), "v3");
   ASSERT_EQ(phi->basicBlocks().size(), 2);
   ASSERT_EQ(phi->basicBlocks()[0]->id, 0);
   ASSERT_EQ(phi->basicBlocks()[1]->id, 1);
   ASSERT_EQ(phi->numOperands(), 2);
-  ASSERT_EQ(phi->getOperand(0)->name(), "v1");
-  ASSERT_EQ(phi->getOperand(1)->name(), "v2");
+  ASSERT_EQ(name(phi->getOperand(0)), "v1");
+  ASSERT_EQ(name(phi->getOperand(1)), "v2");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kPhi);
   phi = static_cast<const Phi*>(&*it);
-  ASSERT_EQ(phi->output()->name(), "v4");
+  ASSERT_EQ(name(phi->output()), "v4");
   ASSERT_EQ(phi->basicBlocks().size(), 2);
   ASSERT_EQ(phi->basicBlocks()[0]->id, 0);
   ASSERT_EQ(phi->basicBlocks()[1]->id, 1);
   ASSERT_EQ(phi->numOperands(), 2);
-  ASSERT_EQ(phi->getOperand(0)->name(), "v0");
-  ASSERT_EQ(phi->getOperand(1)->name(), "v2");
+  ASSERT_EQ(name(phi->getOperand(0)), "v0");
+  ASSERT_EQ(name(phi->getOperand(1)), "v2");
   ++it;
   ASSERT_EQ(it->opcode(), Opcode::kReturn);
   ++it;
@@ -241,7 +247,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kRaiseAwaitableError);
   auto rae = static_cast<const RaiseAwaitableError*>(&*it);
-  ASSERT_EQ(rae->getOperand(0)->name(), "v1");
+  ASSERT_EQ(name(rae->getOperand(0)), "v1");
   ASSERT_TRUE(rae->isAEnter());
   ++blocks_it;
 
@@ -457,3 +463,5 @@ TEST_F(HIRParserTest, ParsePyObject) {
   EXPECT_EQ(
       parser.parseType("Long[123123123123123123123123123123123123]"), TBottom);
 }
+
+} // namespace
