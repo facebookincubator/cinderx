@@ -1172,6 +1172,8 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
   // Return the index of the given predecessor in basic_blocks.
   std::size_t blockIndex(const BasicBlock* block) const;
 
+  void replacePredecessor(BasicBlock* old_pred, BasicBlock* new_pred);
+
   const std::vector<BasicBlock*> basicBlocks() const {
     return basic_blocks_;
   }

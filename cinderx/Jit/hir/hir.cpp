@@ -194,6 +194,38 @@ std::size_t Phi::blockIndex(const BasicBlock* block) const {
   return std::distance(basic_blocks_.begin(), it);
 }
 
+void Phi::replacePredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
+  auto it = std::lower_bound(
+      basic_blocks_.begin(),
+      basic_blocks_.end(),
+      old_pred->id,
+      [](auto block, int id) { return block->id < id; });
+  if (it == basic_blocks_.end() || *it != old_pred) {
+    return;
+  }
+
+  std::size_t i = std::distance(basic_blocks_.begin(), it);
+  Register* value = getOperand(i);
+
+  // Move the updated pair left until block IDs are sorted.
+  while (i > 0 && new_pred->id < basic_blocks_[i - 1]->id) {
+    basic_blocks_[i] = basic_blocks_[i - 1];
+    operandAt(i) = getOperand(i - 1);
+    --i;
+  }
+
+  // Move the updated pair right until block IDs are sorted.
+  while (i + 1 < basic_blocks_.size() &&
+         basic_blocks_[i + 1]->id < new_pred->id) {
+    basic_blocks_[i] = basic_blocks_[i + 1];
+    operandAt(i) = getOperand(i + 1);
+    ++i;
+  }
+
+  basic_blocks_[i] = new_pred;
+  operandAt(i) = value;
+}
+
 Edge::Edge(const Edge& other) {
   setFrom(other.from_);
   setTo(other.to_);
@@ -1145,17 +1177,7 @@ void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
   // same block, but we already can't handle that correctly with our current Phi
   // setup.
 
-  forEachPhi([&](Phi& phi) {
-    std::unordered_map<BasicBlock*, Register*> args;
-    for (size_t i = 0, n = phi.numOperands(); i < n; ++i) {
-      auto block = phi.basicBlocks()[i];
-      if (block == old_pred) {
-        block = new_pred;
-      }
-      args[block] = phi.getOperand(i);
-    }
-    phi.setArgs(args);
-  });
+  forEachPhi([&](Phi& phi) { phi.replacePredecessor(old_pred, new_pred); });
 }
 
 void BasicBlock::addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
