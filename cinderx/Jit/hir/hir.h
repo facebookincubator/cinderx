@@ -18,6 +18,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -1144,12 +1145,11 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
  public:
   explicit Phi(Register* dst) : InstrT(dst) {}
 
-  static Phi* create(
-      Register* dst,
-      const std::unordered_map<BasicBlock*, Register*>& args) {
+  template <typename PhiArgs>
+  static Phi* create(Register* dst, PhiArgs&& args) {
     void* ptr = Instr::allocate(sizeof(Phi), args.size());
     auto phi = new (ptr) Phi(dst);
-    phi->setArgs(args);
+    phi->setArgs(std::forward<PhiArgs>(args));
     return phi;
   }
 
@@ -1172,15 +1172,22 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
   // Return the index of the given predecessor in basic_blocks.
   std::size_t blockIndex(const BasicBlock* block) const;
 
+  // Replace a predecessor block with a new block in the phi, keeping the same
+  // associated value.
   void replacePredecessor(BasicBlock* old_pred, BasicBlock* new_pred);
 
   const std::vector<BasicBlock*> basicBlocks() const {
     return basic_blocks_;
   }
 
+ private:
+  // Set a phi's arguments through a block -> value map.
   void setArgs(const std::unordered_map<BasicBlock*, Register*>& args);
 
- private:
+  // Set a phi's arguments through a (block, value) list.  The list must already
+  // be sorted by the block's ID.
+  void setArgs(std::span<std::tuple<BasicBlock*, Register*>> args);
+
   // List of incoming blocks, sorted by ascending block ID.
   std::vector<BasicBlock*> basic_blocks_;
 };
@@ -4116,9 +4123,8 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 
   // Replace any references to old_pred in this block's Phis with new_pred.
   void fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred);
-  // Adds a new predecessor to the phi that follows from the old predecessor
-  void addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred);
-  // Removes any references to old_pred in this block's Phis
+
+  // Removes any references to old_pred in this block's Phis.
   void removePhiPredecessor(BasicBlock* old_pred);
 
   // Call f with each Phi instruction at the beginning of this block.

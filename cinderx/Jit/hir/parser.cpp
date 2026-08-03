@@ -805,6 +805,10 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       for (auto& input : info.inputs) {
         input.value = parseRegister();
       }
+      std::sort(
+          info.inputs.begin(),
+          info.inputs.end(),
+          [](const PhiInput& a, const PhiInput& b) { return a.bb < b.bb; });
       phis_[bb_index].emplace_back(std::move(info));
       break;
     }
@@ -1316,9 +1320,10 @@ void HIRParser::realizePhis() {
     auto& front = block->front();
 
     for (auto& phi : pair.second) {
-      std::unordered_map<BasicBlock*, Register*> inputs;
+      std::vector<std::tuple<BasicBlock*, Register*>> inputs;
+      inputs.reserve(phi.inputs.size());
       for (auto& info : phi.inputs) {
-        inputs.emplace(index_to_bb_[info.bb], info.value);
+        inputs.emplace_back(index_to_bb_[info.bb], info.value);
       }
       (Phi::create(phi.dst, inputs))->insertBefore(front);
     }

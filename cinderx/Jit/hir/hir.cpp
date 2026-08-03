@@ -6,6 +6,7 @@
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <algorithm>
+#include <ranges>
 
 namespace cinderx::jit::hir {
 
@@ -161,7 +162,12 @@ std::string_view CallCFunc::funcName() const {
 }
 
 void Phi::setArgs(const std::unordered_map<BasicBlock*, Register*>& args) {
-  JIT_DCHECK(numOperands() == args.size(), "arg mismatch");
+  // Can't resize a phi, the operands have already been allocated inline.
+  JIT_THROW_IF(
+      numOperands() != args.size(),
+      "Trying to update phi with {} arguments to one with {} arguments",
+      numOperands(),
+      args.size());
 
   basic_blocks_.clear();
   basic_blocks_.reserve(args.size());
@@ -181,6 +187,31 @@ void Phi::setArgs(const std::unordered_map<BasicBlock*, Register*>& args) {
   for (auto& block : basic_blocks_) {
     operandAt(i) = map_get(args, block);
     i++;
+  }
+}
+
+void Phi::setArgs(std::span<std::tuple<BasicBlock*, Register*>> args) {
+  // Can't resize a phi, the operands have already been allocated inline.
+  JIT_THROW_IF(
+      numOperands() != args.size(),
+      "Trying to update phi with {} arguments to one with {} arguments",
+      numOperands(),
+      args.size());
+
+  JIT_DCHECK(
+      std::ranges::is_sorted(
+          args,
+          [](const auto& a, const auto& b) {
+            return std::get<0>(a)->id < std::get<0>(b)->id;
+          }),
+      "Phi must be created with a (block,value) list sorted by block ID");
+
+  basic_blocks_.clear();
+  basic_blocks_.reserve(args.size());
+
+  for (size_t i = 0; i < args.size(); ++i) {
+    basic_blocks_.push_back(std::get<0>(args[i]));
+    operandAt(i) = std::get<1>(args[i]);
   }
 }
 
@@ -1180,32 +1211,6 @@ void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
   forEachPhi([&](Phi& phi) { phi.replacePredecessor(old_pred, new_pred); });
 }
 
-void BasicBlock::addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
-  std::vector<Phi*> replacements;
-  forEachPhi([&](Phi& phi) {
-    for (auto block : phi.basicBlocks()) {
-      if (block == old_pred) {
-        replacements.push_back(&phi);
-        break;
-      }
-    }
-  });
-
-  for (auto phi : replacements) {
-    std::unordered_map<BasicBlock*, Register*> args;
-    for (size_t i = 0, n = phi->numOperands(); i < n; ++i) {
-      auto block = phi->basicBlocks()[i];
-      if (block == old_pred) {
-        args[new_pred] = phi->getOperand(i);
-      }
-      args[block] = phi->getOperand(i);
-    }
-
-    phi->replaceWith(*Phi::create(phi->output(), args));
-    delete phi;
-  }
-}
-
 void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
   for (auto it = instrs_.begin(); it != instrs_.end();) {
     auto& instr = *it;
@@ -1214,14 +1219,15 @@ void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
       break;
     }
 
-    Phi* phi = static_cast<Phi*>(&instr);
-    std::unordered_map<BasicBlock*, Register*> args;
-    for (size_t i = 0, n = phi->numOperands(); i < n; ++i) {
-      auto block = phi->basicBlocks()[i];
-      if (block == old_pred) {
-        continue;
+    auto phi = static_cast<Phi*>(&instr);
+    auto num_operands = phi->numOperands();
+    std::vector<std::tuple<BasicBlock*, Register*>> args;
+    args.reserve(num_operands);
+    for (size_t i = 0; i < num_operands; ++i) {
+      BasicBlock* block = phi->basicBlocks()[i];
+      if (block != old_pred) {
+        args.emplace_back(block, phi->getOperand(i));
       }
-      args[block] = phi->getOperand(i);
     }
     phi->replaceWith(*Phi::create(phi->output(), args));
     delete phi;
