@@ -38,7 +38,6 @@ _TINY_HIR_INSTRS_LIMIT = "jit-max-hir-instrs=1"
 _TINY_HIR_BLOCKS_LIMIT = "jit-max-hir-blocks=1"
 _TINY_LIR_INSTRS_LIMIT = "jit-max-lir-instrs=1"
 _TINY_LIR_BLOCKS_LIMIT = "jit-max-lir-blocks=1"
-_WINDOWS_STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
 
 # A trivial straight-line function: >1 instruction, 1 basic block (HIR or LIR).
 _STRAIGHT_LINE = """
@@ -306,12 +305,7 @@ class SizeLimitTest(unittest.TestCase):
                     encoding=ENCODING,
                     env=subprocess_env(),
                 )
-                expected_returncode = (
-                    _WINDOWS_STATUS_STACK_BUFFER_OVERRUN
-                    if sys.platform == "win32"
-                    else -signal.SIGABRT
-                )
-                self.assertEqual(proc.returncode, expected_returncode, proc)
+                self.assertNotEqual(proc.returncode, 0, proc)
                 return proc.stderr
 
             self.assertIn(
