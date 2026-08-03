@@ -3,10 +3,16 @@
 #include "cinderx/python.h"
 
 #include "internal/pycore_call.h"
+#include "internal/pycore_object.h"
 #include "internal/pycore_pystate.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_object_deferred.h"
+#include "internal/pycore_uniqueid.h"
 #endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
@@ -25,6 +31,39 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+
+static int type_refcount_indicates_escape(
+    PyObject* type,
+    Py_ssize_t expected_refcount) {
+  assert(PyType_Check(type));
+  assert(PyType_HasFeature((PyTypeObject*)type, Py_TPFLAGS_HEAPTYPE));
+  Py_ssize_t refcount = Py_REFCNT(type);
+
+#ifdef Py_GIL_DISABLED
+  // TODO: Pending references owned by other threads cannot be read safely
+  // here. If a metaclass or base publishes the type, this check can miss
+  // instances created by another thread. Closing that race requires
+  // synchronizing all threads across both this check and the layout update, or
+  // finalizing the layout before user callbacks can publish the type.
+  PyHeapTypeObject* heap_type = (PyHeapTypeObject*)type;
+  Py_ssize_t unique_id = heap_type->unique_id;
+
+  if (unique_id != _Py_INVALID_UNIQUE_ID) {
+    Py_ssize_t index = unique_id - 1;
+    _PyThreadStateImpl* tstate = (_PyThreadStateImpl*)_PyThreadState_GET();
+
+    if (index < tstate->refcounts.size) {
+      refcount += tstate->refcounts.values[index];
+    }
+  }
+
+  if (_PyObject_HasDeferredRefcount(type)) {
+    refcount -= _Py_REF_DEFERRED;
+  }
+#endif
+
+  return refcount != expected_refcount;
+}
 
 PyDoc_STRVAR(
     _static__doc__,
@@ -1595,9 +1634,10 @@ static PyObject* _static___build_cinder_class__(
       slot_count++;
     }
 #endif
+
     // Type by default has 2 references, the one which we'll return, and one
     // which is a circular reference between the type and its MRO
-    if (Py_REFCNT(type) != 2 + slot_count) {
+    if (type_refcount_indicates_escape(type, 2 + slot_count)) {
       leaked_type = 1;
     }
   }
