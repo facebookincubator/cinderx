@@ -75,35 +75,44 @@ class MyDeoptPatcher : public JumpPatcher {
 };
 
 TEST_F(CodePatcherTest, CodePatch) {
-  // Intentionally leaving these together to catch accidental stack scribbling.
-  uint16_t x = 123;
-  uint16_t y = 456;
-  uint16_t z = 789;
+  struct PatchpointMemory {
+    uint64_t before;
+    alignas(8) std::array<uint8_t, 8> patchpoint;
+    uint64_t after;
+  };
 
+  const std::array<uint8_t, 8> unpatched{
+      0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+  const std::array<uint8_t, 8> patched{
+      0xef, 0xbe, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+
+  constexpr uint64_t kBefore = 0x123456789abcdef0;
+  constexpr uint64_t kAfter = 0xfedcba9876543210;
+  PatchpointMemory memory{kBefore, unpatched, kAfter};
   std::array<uint8_t, 2> bytes{0xef, 0xbe};
 
   CodePatcher patcher;
   EXPECT_FALSE(patcher.isLinked());
   EXPECT_FALSE(patcher.isPatched());
 
-  patcher.link(reinterpret_cast<uintptr_t>(&y), bytes);
+  patcher.link(reinterpret_cast<uintptr_t>(memory.patchpoint.data()), bytes);
   EXPECT_TRUE(patcher.isLinked());
   EXPECT_FALSE(patcher.isPatched());
-  EXPECT_EQ(x, 123);
-  EXPECT_EQ(y, 456);
-  EXPECT_EQ(z, 789);
+  EXPECT_EQ(memory.before, kBefore);
+  EXPECT_EQ(memory.patchpoint, unpatched);
+  EXPECT_EQ(memory.after, kAfter);
 
   patcher.patch();
   EXPECT_TRUE(patcher.isPatched());
-  EXPECT_EQ(x, 123);
-  EXPECT_EQ(y, 0xbeef);
-  EXPECT_EQ(z, 789);
+  EXPECT_EQ(memory.before, kBefore);
+  EXPECT_EQ(memory.patchpoint, patched);
+  EXPECT_EQ(memory.after, kAfter);
 
   patcher.unpatch();
   EXPECT_FALSE(patcher.isPatched());
-  EXPECT_EQ(x, 123);
-  EXPECT_EQ(y, 456);
-  EXPECT_EQ(z, 789);
+  EXPECT_EQ(memory.before, kBefore);
+  EXPECT_EQ(memory.patchpoint, unpatched);
+  EXPECT_EQ(memory.after, kAfter);
 }
 
 TEST_F(CodePatcherTest, DeoptPatch) {
