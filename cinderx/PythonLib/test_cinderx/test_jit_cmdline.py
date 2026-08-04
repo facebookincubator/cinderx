@@ -155,7 +155,7 @@ class CmdLineTest(unittest.TestCase):
     def test_debug(self) -> None:
         def check(proc: subprocess.CompletedProcess[str]) -> None:
             self._assert_ok(proc)
-            self.assertIn("JIT: cinderx/", proc.stderr)
+            self.assertRegex(proc.stderr, r"JIT: cinderx[/\\]")
 
         self._check_both_forms("jit-debug", "PYTHONJITDEBUG", ["-c", _HELLO], check)
 
@@ -256,7 +256,7 @@ class CmdLineTest(unittest.TestCase):
         # GDB support also turns on JIT debug logging.
         def check(proc: subprocess.CompletedProcess[str]) -> None:
             self._assert_ok(proc)
-            self.assertIn("JIT: cinderx/", proc.stderr)
+            self.assertRegex(proc.stderr, r"JIT: cinderx[/\\]")
 
         self._check_both_forms(
             "jit-gdb-support", "PYTHONJITGDBSUPPORT", ["-c", _HELLO], check
@@ -265,7 +265,7 @@ class CmdLineTest(unittest.TestCase):
     def test_gdb_write_elf(self) -> None:
         def check(proc: subprocess.CompletedProcess[str]) -> None:
             self._assert_ok(proc)
-            self.assertIn("JIT: cinderx/", proc.stderr)
+            self.assertRegex(proc.stderr, r"JIT: cinderx[/\\]")
 
         self._check_both_forms(
             "jit-gdb-write-elf", "PYTHONJITGDBWRITEELF", ["-c", _HELLO], check
@@ -298,7 +298,7 @@ class CmdLineTest(unittest.TestCase):
             def check(proc: subprocess.CompletedProcess[str]) -> None:
                 self._assert_ok(proc)
                 self.assertEqual(proc.stderr, "")
-                self.assertIn("JIT: cinderx/", log_file.read_text())
+                self.assertRegex(log_file.read_text(), r"JIT: cinderx[/\\]")
                 log_file.unlink()
 
             self._check_both_forms(
