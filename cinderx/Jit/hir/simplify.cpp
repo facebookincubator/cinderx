@@ -901,7 +901,14 @@ Register* unboxAndCheckListOrTupleIndex(
       lhs->type());
   JIT_CHECK(
       rhs->isA(TLongExact), "rhs must be a TLongExact, not a {}", rhs->type());
-  JIT_CHECK(!kFreeThreadedBuild, "only valid for the default build");
+  // A free-threaded build must not hand out a borrowed reference to a list
+  // slot; another thread can overwrite it at any time.  Exact tuples are
+  // immutable once published, so their items stay valid while the tuple is
+  // alive.
+  JIT_CHECK(
+      !kFreeThreadedBuild || lhs->isA(TTupleExact),
+      "only valid for exact tuples in a free-threaded build, not a {}",
+      lhs->type());
 
   if (rhs->type().hasObjectSpec()) {
     return checkConstantListOrTupleIndex(env, lhs, rhs);
@@ -982,33 +989,32 @@ Register* simplifySubscript(Env& env, const BinaryOp* instr) {
     }
   }
 
-  if constexpr (kFreeThreadedBuild) {
-    // In free-threaded builds we can't use the borrowed LoadArrayItem path
-    // for lists because another thread may overwrite the slot at any time.
-    // With an exact list, we can still skip PyObject_GetItem's generic
-    // dispatch by emitting ListSubscr, which returns an owned reference
-    // via PyList_GetItemRef.
+  // In free-threaded builds we can't use the borrowed LoadArrayItem path for
+  // lists because another thread may overwrite the slot at any time.  With an
+  // exact list, we can still skip PyObject_GetItem's generic dispatch by
+  // emitting ListSubscr, which returns an owned reference via
+  // PyList_GetItemRef.  Exact tuples are immutable once published, so their
+  // items stay alive as long as the tuple does and keep the direct path.
+  if (kFreeThreadedBuild && lhs->isA(TListExact)) {
+    return env.emit<ListSubscr>(lhs, rhs, *instr->frameState());
+  }
+
+  if (lhs->isA(TListExact) || lhs->isA(TTupleExact)) {
+    Register* adjusted_idx =
+        unboxAndCheckListOrTupleIndex(env, instr, lhs, rhs);
+    if (adjusted_idx == nullptr) {
+      return nullptr;
+    }
+    Py_ssize_t offset = offsetof(PyTupleObject, ob_item);
+    Register* array = lhs;
+    // Lists carry a nested array of ob_item whereas tuples are variable-sized
+    // structs.
     if (lhs->isA(TListExact)) {
-      return env.emit<ListSubscr>(lhs, rhs, *instr->frameState());
+      array = env.emit<LoadField>(
+          lhs, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
+      offset = 0;
     }
-  } else {
-    if (lhs->isA(TListExact) || lhs->isA(TTupleExact)) {
-      Register* adjusted_idx =
-          unboxAndCheckListOrTupleIndex(env, instr, lhs, rhs);
-      if (adjusted_idx == nullptr) {
-        return nullptr;
-      }
-      Py_ssize_t offset = offsetof(PyTupleObject, ob_item);
-      Register* array = lhs;
-      // Lists carry a nested array of ob_item whereas tuples are variable-sized
-      // structs.
-      if (lhs->isA(TListExact)) {
-        array = env.emit<LoadField>(
-            lhs, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
-        offset = 0;
-      }
-      return env.emit<LoadArrayItem>(array, adjusted_idx, lhs, offset, TObject);
-    }
+    return env.emit<LoadArrayItem>(array, adjusted_idx, lhs, offset, TObject);
   }
 
   // Unicode subscript.

@@ -2145,12 +2145,36 @@ fun test {
     v2:TupleExact = RefineType<TupleExact> v0
     v3:LongExact = RefineType<LongExact> v1
     Snapshot
-    v4:Object = BinaryOp<Subscript> v2 v3 {
-      FrameState {
-        CurInstrOffset -2
-      }
+    UseType<TupleExact> v2
+    UseType<LongExact> v3
+    v5:CBool = IsCompactLong v3
+    Guard v5 {
     }
-    Return v4
+    v6:CInt64 = CompactLongUnbox v3
+    UseType<TupleExact> v2
+    v7:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v2
+    v8:CInt64[0] = LoadConst<CInt64[0]>
+    v9:CBool = PrimitiveCompare<LessThan> v6 v8
+    CondBranch<1, 2> v9
+  }
+
+  bb 1 (preds 0) {
+    v10:CInt64 = IntBinaryOp<Add> v6 v7
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v11:CInt64 = Phi<1, 2> v10 v6
+    Snapshot
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
+    Guard v12 {
+    }
+    v13:Object = LoadArrayItem<Offset[48]> v2 v11 v2
+    Return v13
   }
 }
 --- Test Name ---
@@ -13046,14 +13070,13 @@ fun jittestmodule:test {
     Snapshot
     v24:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    v25:Object = BinaryOp<Subscript> v22 v24 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<4> v17 v18 v19 v22
-      }
-    }
+    UseType<MortalTupleExact> v22
+    UseType<ImmortalLongExact[1]> v24
+    v27:CInt64[1] = LoadConst<CInt64[1]>
+    UseType<TupleExact> v22
+    UseType<CInt64[1]> v27
     Snapshot
-    Return v25
+    Return v18
   }
 }
 --- Test Name ---
