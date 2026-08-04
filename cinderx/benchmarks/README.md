@@ -57,10 +57,9 @@ timed runs. Each run prints the receiver layout it measured and whether the hot
 function was actually JIT-compiled, so a suspicious number can be traced back to
 what really ran.
 
-A `attr-cache-315` variant exists for the 3.15-only layouts, notably `__slots__`
-on a `tuple` subclass. The `_cinderx` native extension is not wired into
-`python_binary` for 3.15, so that variant measures the interpreter only and says
-so on stderr.
+An `attr-cache-315` variant covers the 3.15-only layouts, notably `__slots__` on
+a `tuple` subclass, whose member offsets are only known at runtime and which the
+interpreter therefore refuses to specialize.
 
 ## JIT Compilation Time Benchmark
 
