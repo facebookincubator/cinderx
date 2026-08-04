@@ -1297,9 +1297,10 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           re->_sourceOffset = codeOffset;
           re->_payload = targetAddress;
 
-          // Emit adr Rd, #0 (encodes Rd in bits [4:0]) + NOP placeholder.
+          // A page-aligned target never needs the second instruction.
           writer.emit32uLE(opcode.get());
-          writer.emit32uLE(0xD503201Fu); // NOP
+          if ((targetAddress & 0xFFFu) != 0)
+            writer.emit32uLE(0xD503201Fu); // NOP
           goto EmitDone;
         }
 

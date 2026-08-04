@@ -92,8 +92,14 @@ static uint32_t estimateNodeSize(BaseNode* node, uint32_t currentOffset) noexcep
     for (uint32_t i = 0; i < inst->opCount(); i++) {
       const Operand_& op = inst->op(i);
 
-      if (realId == Inst::kIdAdr && (op.isLabel() || op.isImm()))
-        return 8;
+      if (realId == Inst::kIdAdr) {
+        if (op.isLabel())
+          return 8;
+        if (op.isImm() &&
+            op.as<Imm>().predicate() == Predicate::kAbsoluteAddress &&
+            (op.as<Imm>().valueAs<uint64_t>() & 0xFFFu) != 0)
+          return 8;
+      }
       if (realId == Inst::kIdLdr && op.isMem() && op.as<Mem>().hasBaseLabel())
         return 8;
       if (realId == Inst::kIdMov && op.isImm() && op.as<Imm>().valueAs<uint64_t>() > 0xFFFF)

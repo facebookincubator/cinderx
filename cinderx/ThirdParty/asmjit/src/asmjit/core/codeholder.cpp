@@ -1195,10 +1195,10 @@ size_t CodeHolder::codeSize() const noexcept {
   return size_t(offset);
 }
 
-// Tries to encode a PC-relative address load into the 8-byte slot at
-// `buffer + offset` using `adr Rd, target` (±1MB) or `adrp Rd, page;
-// add Rd, Rd, #off` (±4GB). Returns true on success, false if the
-// displacement is too large for either encoding.
+// Tries to encode a PC-relative address load at `buffer + offset` using
+// `adr Rd, target` (±1MB) or `adrp Rd, page` with an optional
+// `add Rd, Rd, #off` (±4GB). Returns true on success, false if the displacement
+// is too large for either encoding.
 static bool tryEncodeAdrOrAdrpAdd(uint8_t* buffer, size_t offset, uint64_t targetAddress, uint64_t pc, uint32_t rd) noexcept {
   int64_t displacement = int64_t(targetAddress - pc);
 
@@ -1207,7 +1207,6 @@ static bool tryEncodeAdrOrAdrpAdd(uint8_t* buffer, size_t offset, uint64_t targe
     uint32_t immHi = (uint32_t(displacement) >> 2) & 0x7FFFFu;
     uint32_t adrOpcode = 0x10000000u | (immLo << 29) | (immHi << 5) | rd;
     Support::writeU32uLE(buffer + offset, adrOpcode);
-    Support::writeU32uLE(buffer + offset + 4, 0xD503201Fu); // NOP
     return true;
   }
 
@@ -1217,9 +1216,11 @@ static bool tryEncodeAdrOrAdrpAdd(uint8_t* buffer, size_t offset, uint64_t targe
     uint32_t immLo = uint32_t(pageDelta) & 3u;
     uint32_t immHi = (uint32_t(pageDelta) >> 2) & 0x7FFFFu;
     uint32_t adrpOpcode = 0x90000000u | (immLo << 29) | (immHi << 5) | rd;
-    uint32_t addOpcode = 0x91000000u | (pageOffset << 10) | (rd << 5) | rd;
     Support::writeU32uLE(buffer + offset, adrpOpcode);
-    Support::writeU32uLE(buffer + offset + 4, addOpcode);
+    if (pageOffset != 0) {
+      uint32_t addOpcode = 0x91000000u | (pageOffset << 10) | (rd << 5) | rd;
+      Support::writeU32uLE(buffer + offset + 4, addOpcode);
+    }
     return true;
   }
 
@@ -1474,8 +1475,8 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
       }
 
       case RelocType::kA64AdrAbsEntry: {
-        // AArch64: absolute address payload. Relaxes to `adr` (±1MB),
-        // `adrp+add` (±4GB), or `ldr Rd, [pc+off]` from the address table.
+        // AArch64: absolute address payload. Page-aligned targets reserve one
+        // instruction; other targets reserve two in case `adrp+add` is needed.
         uint64_t targetAddress = re->payload();
         uint64_t pc = baseAddress + sectionOffset + sourceOffset;
         uint32_t rd = Support::readU32uLE(buffer + sourceOffset) & 0x1Fu;
@@ -1502,7 +1503,6 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
 
           uint32_t ldrOpcode = 0x58000000u | ((uint32_t(ldrImm19) & 0x7FFFFu) << 5) | rd;
           Support::writeU32uLE(buffer + sourceOffset, ldrOpcode);
-          Support::writeU32uLE(buffer + sourceOffset + 4, 0xD503201Fu); // NOP
 
           Support::writeU64uLE(addressTableEntryData + atEntryIndex, targetAddress);
         }

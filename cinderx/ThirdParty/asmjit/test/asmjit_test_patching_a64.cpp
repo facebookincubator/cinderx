@@ -952,17 +952,15 @@ UNIT(a64_load_addr_reloc_ldr) {
   const Section* text = code.textSection();
   const uint8_t* buf = text->data();
   uint32_t instr0 = readU32LE(buf);
-  uint32_t instr1 = readU32LE(buf + 4);
 
   // Should be ldr x4, [pc+off]: opcode 0x58000000 | (imm19 << 5) | 4
-  // The address table is right after the text section. Text = 8 bytes,
-  // so address table is at offset 8. ldr displacement = 8 - 0 = 8.
+  // The address table is aligned to offset 8. ldr displacement = 8 - 0 = 8.
   // imm19 = 8 / 4 = 2
   // ldr x4, [pc+8]: 0x58000000 | (2 << 5) | 4 = 0x58000044
+  EXPECT_EQ(text->bufferSize(), 4u)
+    .message("Expected a single ldr instruction");
   EXPECT_EQ(instr0, 0x58000044u)
     .message("Expected ldr x4, [pc+off], got: 0x%08X", instr0);
-  EXPECT_EQ(instr1, 0xD503201Fu)
-    .message("Expected NOP, got: 0x%08X", instr1);
 }
 
 // Test load_addr with negative displacement (target address < PC).
@@ -983,15 +981,14 @@ UNIT(a64_load_addr_reloc_adr_negative) {
   const Section* text = code.textSection();
   const uint8_t* buf = text->data();
   uint32_t instr0 = readU32LE(buf);
-  uint32_t instr1 = readU32LE(buf + 4);
 
   // displacement = -128 = 0xFFFFFF80 (as uint32)
   // immLo = 0xFFFFFF80 & 3 = 0, immHi = (0xFFFFFF80 >> 2) & 0x7FFFF = 0x7FFE0
   // adr x5: 0x10000000 | (0 << 29) | (0x7FFE0 << 5) | 5 = 0x10FFFC05
+  EXPECT_EQ(text->bufferSize(), 4u)
+    .message("Expected a single adr instruction");
   EXPECT_EQ(instr0, 0x10FFFC05u)
     .message("Expected adr x5, #-128, got: 0x%08X", instr0);
-  EXPECT_EQ(instr1, 0xD503201Fu)
-    .message("Expected NOP, got: 0x%08X", instr1);
 }
 
 // Test load_addr with a non-zero base address that still fits in adr range.
@@ -1107,7 +1104,7 @@ UNIT(a64_load_addr_reloc_adr_max_negative) {
     .message("Expected adr x7 with displacement -0x100000, got: 0x%08X", instr0);
 }
 
-// Test load_addr just past adr range should use adrp+add.
+// Test load_addr just past adr range should use adrp without a zero add.
 UNIT(a64_load_addr_reloc_adr_to_adrp_boundary) {
   CodeHolder code;
   a64::Assembler as;
@@ -1126,14 +1123,39 @@ UNIT(a64_load_addr_reloc_adr_to_adrp_boundary) {
   const uint8_t* buf = text->data();
   uint32_t instr0 = readU32LE(buf);
 
-  uint32_t instr1 = readU32LE(buf + 4);
-
-  // Should be adrp+add, not adr, since 0x100000 = 2^20 exceeds 21-bit signed max.
+  // Should be adrp, not adr, since 0x100000 = 2^20 exceeds 21-bit signed max.
   // pageDelta = (0x100000 >> 12) - 0 = 0x100, pageOffset = 0
   // adrp x8: 0x90000000 | (0x40 << 5) | 8 = 0x90000808
-  // add x8, x8, #0: 0x91000000 | (0 << 10) | (8 << 5) | 8 = 0x91000108
+  EXPECT_EQ(text->bufferSize(), 4u)
+    .message("Expected a single adrp instruction");
   EXPECT_EQ(instr0, 0x90000808u)
     .message("Expected adrp x8 (just past adr range), got: 0x%08X", instr0);
-  EXPECT_EQ(instr1, 0x91000108u)
-    .message("Expected add x8, x8, #0, got: 0x%08X", instr1);
+}
+
+// Test that Builder accounts for a page-aligned load_addr as one instruction
+// when deciding whether a branch needs relaxation.
+UNIT(a64_load_addr_builder_single_instruction_size) {
+  CodeHolder code;
+  Environment env(Arch::kAArch64);
+  code.init(env, 0);
+
+  a64::Builder as(&code);
+  Label target = as.newLabel();
+  as.tbz(a64::x0, 0, target);
+  as.load_addr(a64::x1, uint64_t(0x200000));
+  for (uint32_t i = 0; i < 8189; i++)
+    as.nop();
+  as.bind(target);
+  as.nop();
+
+  EXPECT_EQ(as.finalize(), kErrorOk);
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  EXPECT_EQ(text->bufferSize(), 32768u)
+    .message("Expected tbz and load_addr to remain single instructions");
+  EXPECT_EQ(Support::readU32uLE(buf + 4), 0x90001001u)
+    .message("Expected page-aligned load_addr immediately after tbz");
 }
