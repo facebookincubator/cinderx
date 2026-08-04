@@ -882,8 +882,8 @@ checkConstantListOrTupleIndex(Env& env, Register* container, Register* index) {
   } else {
     index = env.emit<LoadConst>(Type::fromCInt(index_val, TCInt64));
   }
-  Register* in_bounds =
-      env.emit<PrimitiveCompare>(PrimitiveCompareOp::kLessThan, index, length);
+  Register* in_bounds = env.emit<PrimitiveCompare>(
+      PrimitiveCompareOp::kLessThanUnsigned, index, length);
   env.emit<Guard>(in_bounds);
   return index;
 }
@@ -939,7 +939,7 @@ Register* unboxAndCheckListOrTupleIndex(
   // Check bounds
   env.emit<Snapshot>(*dominating_fs);
   Register* in_bounds = env.emit<PrimitiveCompare>(
-      PrimitiveCompareOp::kLessThan, normalized_index, length);
+      PrimitiveCompareOp::kLessThanUnsigned, normalized_index, length);
   env.emit<Guard>(in_bounds);
 
   return normalized_index;

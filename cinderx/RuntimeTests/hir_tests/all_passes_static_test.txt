@@ -87,7 +87,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v54:CInt64 = Phi<8, 9> v53 v28
-    v55:CBool = PrimitiveCompare<LessThan> v54 v50
+    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
     Guard v55 {
       LiveValues<5> b:v21 s:v28 o:v29 s:v54 bool:v55
       FrameState {
@@ -208,7 +208,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v53:CInt64 = Phi<8, 9> v52 v28
-    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
     Guard v54 {
       LiveValues<5> b:v21 s:v28 o:v29 s:v53 bool:v54
       FrameState {
@@ -330,7 +330,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v53:CInt64 = Phi<8, 9> v52 v28
-    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
     Guard v54 {
       LiveValues<5> b:v21 s:v28 o:v29 s:v53 bool:v54
       FrameState {
@@ -454,7 +454,7 @@ fun jittestmodule:test {
 
   bb 10 (preds 8, 9) {
     v53:CInt64 = Phi<8, 9> v52 v28
-    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
     Guard v54 {
       LiveValues<5> b:v21 s:v28 o:v29 s:v53 bool:v54
       FrameState {

@@ -158,6 +158,21 @@ class SpecializationTests(unittest.TestCase):
             self.assertIn("BINARY_SUBSCR_LIST_INT", opnames(f))
         self.assertEqual(f(["c", "d"], 0), "c")
 
+    def test_store_subscr_list_int_bounds(self) -> None:
+        def f(a: list[str], b: int, value: str) -> None:
+            a[b] = value
+
+        specialize(f, lambda: f(["a", "b", "c"], 0, "x"))
+
+        self.assertNotIn("STORE_SUBSCR", opnames(f))
+        self.assertIn("STORE_SUBSCR_LIST_INT", opnames(f))
+
+        seq = ["a", "b", "c"]
+        f(seq, -len(seq), "x")
+        self.assertEqual(seq, ["x", "b", "c"])
+        with self.assertRaises(IndexError):
+            f(seq, -len(seq) - 1, "x")
+
     def test_binary_subscr_tuple_int(self) -> None:
         def f(a: tuple[str, str], b: int) -> str:
             return a[b]
@@ -170,7 +185,11 @@ class SpecializationTests(unittest.TestCase):
         else:
             self.assertNotIn("BINARY_SUBSCR", opnames(f))
             self.assertIn("BINARY_SUBSCR_TUPLE_INT", opnames(f))
-        self.assertEqual(f(("c", "d"), 0), "c")
+        seq = ("c", "d")
+        self.assertEqual(f(seq, 0), "c")
+        self.assertEqual(f(seq, -len(seq)), "c")
+        with self.assertRaises(IndexError):
+            f(seq, -len(seq) - 1)
 
     def test_compare_op_float(self) -> None:
         def f(a: float, b: float) -> bool:

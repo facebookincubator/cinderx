@@ -1651,7 +1651,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v12
     v19:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v12
     v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CBool = PrimitiveCompare<LessThan> v20 v19
+    v21:CBool = PrimitiveCompare<LessThanUnsigned> v20 v19
     Guard v21 {
     }
     v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v12
@@ -1707,7 +1707,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v12
     v19:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v12
     v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CBool = PrimitiveCompare<LessThan> v20 v19
+    v21:CBool = PrimitiveCompare<LessThanUnsigned> v20 v19
     Guard v21 {
     }
     v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v12
@@ -1763,7 +1763,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v12
     v19:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v12
     v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CBool = PrimitiveCompare<LessThan> v20 v19
+    v21:CBool = PrimitiveCompare<LessThanUnsigned> v20 v19
     Guard v21 {
     }
     v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v12
@@ -1819,7 +1819,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v12
     v19:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v12
     v20:CInt64[1] = LoadConst<CInt64[1]>
-    v21:CBool = PrimitiveCompare<LessThan> v20 v19
+    v21:CBool = PrimitiveCompare<LessThanUnsigned> v20 v19
     Guard v21 {
     }
     v22:CPtr = LoadField<ob_item@24, CPtr, borrowed> v12
@@ -2010,7 +2010,7 @@ fun test {
   bb 3 (preds 1, 2) {
     v11:CInt64 = Phi<1, 2> v10 v6
     Snapshot
-    v12:CBool = PrimitiveCompare<LessThan> v11 v7
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
     Guard v12 {
     }
     v13:Object = LoadArrayItem<Offset[24]> v2 v11 v2
@@ -2050,7 +2050,7 @@ fun test {
   bb 3 (preds 1, 2) {
     v11:CInt64 = Phi<1, 2> v10 v6
     Snapshot
-    v12:CBool = PrimitiveCompare<LessThan> v11 v7
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
     Guard v12 {
     }
     v13:Object = LoadArrayItem<Offset[32]> v2 v11 v2
@@ -2090,7 +2090,7 @@ fun test {
   bb 3 (preds 1, 2) {
     v11:CInt64 = Phi<1, 2> v10 v6
     Snapshot
-    v12:CBool = PrimitiveCompare<LessThan> v11 v7
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
     Guard v12 {
     }
     v13:Object = LoadArrayItem<Offset[32]> v2 v11 v2
@@ -2130,7 +2130,7 @@ fun test {
   bb 3 (preds 1, 2) {
     v11:CInt64 = Phi<1, 2> v10 v6
     Snapshot
-    v12:CBool = PrimitiveCompare<LessThan> v11 v7
+    v12:CBool = PrimitiveCompare<LessThanUnsigned> v11 v7
     Guard v12 {
     }
     v13:Object = LoadArrayItem<Offset[32]> v2 v11 v2
@@ -21263,7 +21263,7 @@ fun jittestmodule:test {
   bb 3 (preds 1, 2) {
     v12:CInt64 = Phi<1, 2> v11 v7
     Snapshot
-    v13:CBool = PrimitiveCompare<LessThan> v12 v8
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
     Guard v13 {
     }
     v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
@@ -21307,7 +21307,7 @@ fun jittestmodule:test {
   bb 3 (preds 1, 2) {
     v12:CInt64 = Phi<1, 2> v11 v7
     Snapshot
-    v13:CBool = PrimitiveCompare<LessThan> v12 v8
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
     Guard v13 {
     }
     v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
@@ -21351,7 +21351,7 @@ fun jittestmodule:test {
   bb 3 (preds 1, 2) {
     v12:CInt64 = Phi<1, 2> v11 v7
     Snapshot
-    v13:CBool = PrimitiveCompare<LessThan> v12 v8
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
     Guard v13 {
     }
     v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4
@@ -21395,7 +21395,7 @@ fun jittestmodule:test {
   bb 3 (preds 1, 2) {
     v12:CInt64 = Phi<1, 2> v11 v7
     Snapshot
-    v13:CBool = PrimitiveCompare<LessThan> v12 v8
+    v13:CBool = PrimitiveCompare<LessThanUnsigned> v12 v8
     Guard v13 {
     }
     v14:CPtr = LoadField<ob_item@24, CPtr, borrowed> v4

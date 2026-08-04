@@ -1697,7 +1697,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v54:CInt64 = Phi<8, 9> v53 v28
     Snapshot
-    v55:CBool = PrimitiveCompare<LessThan> v54 v50
+    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
     Guard v55 {
     }
     v56:Object = LoadArrayItem<Offset[24]> v21 v54 v21
@@ -1818,7 +1818,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v53:CInt64 = Phi<8, 9> v52 v28
     Snapshot
-    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
     Guard v54 {
     }
     v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
@@ -1939,7 +1939,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v53:CInt64 = Phi<8, 9> v52 v28
     Snapshot
-    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
     Guard v54 {
     }
     v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
@@ -2061,7 +2061,7 @@ fun jittestmodule:test {
   bb 10 (preds 8, 9) {
     v53:CInt64 = Phi<8, 9> v52 v28
     Snapshot
-    v54:CBool = PrimitiveCompare<LessThan> v53 v49
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
     Guard v54 {
     }
     v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21

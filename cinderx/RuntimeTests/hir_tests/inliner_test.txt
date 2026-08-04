@@ -891,7 +891,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
     v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThan> v40 v39
+    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
     Guard v41 {
     }
     v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
@@ -980,7 +980,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
     v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThan> v40 v39
+    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
     Guard v41 {
     }
     v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
@@ -1069,7 +1069,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
     v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThan> v40 v39
+    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
     Guard v41 {
     }
     v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
@@ -1158,7 +1158,7 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
     v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThan> v40 v39
+    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
     Guard v41 {
     }
     v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
