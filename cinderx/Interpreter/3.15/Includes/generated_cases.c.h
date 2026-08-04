@@ -1867,7 +1867,7 @@
                 stack_pointer += -1 - oparg;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2365,7 +2365,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2453,7 +2453,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2537,7 +2537,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2644,7 +2644,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -2750,7 +2750,7 @@
                 stack_pointer += 1;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -3057,7 +3057,7 @@
                 stack_pointer += 1;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -3545,7 +3545,7 @@
                 stack_pointer += -2 - oparg;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -3944,7 +3944,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4056,7 +4056,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4174,7 +4174,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4304,7 +4304,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4379,7 +4379,7 @@
                 stack_pointer += -1 - oparg;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4669,7 +4669,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -4744,7 +4744,7 @@
             // _CHECK_PERIODIC_AT_END
             {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -8375,7 +8375,7 @@
                 stack_pointer += -1 - oparg;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
@@ -8543,7 +8543,7 @@
                 stack_pointer += 1;
                 ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                int err = check_periodics(tstate);
+                int err = check_periodics_at_end(tstate, frame);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 if (err != 0) {
                     JUMP_TO_LABEL(error);
