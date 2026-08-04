@@ -450,16 +450,13 @@ def update_cpp_tests(  # noqa: C901
     failed_cpp_tests: set[tuple[str, str]],
     py_version: str,
 ) -> None:
-    # Validate Python version format
-    try:
-        parts = py_version.split(".")
-        if len(parts) != 2 or parts[0] != "3":
-            raise ValueError()
-        int(parts[1])  # Ensure minor version is a number
-    except (ValueError, IndexError):
+    version_match = re.fullmatch(r"(3\.\d+)t?", py_version)
+    if version_match is None:
         raise AssertionError(
-            f"Invalid Python version format: {py_version}. Expected format: '3.X'"
+            f"Invalid Python version format: {py_version}. "
+            "Expected format: '3.X' or '3.Xt'"
         )
+    py_version = version_match[1]
 
     def expect_state(estate: State) -> None:
         nonlocal state, lineno, cpp_filename
