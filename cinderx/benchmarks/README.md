@@ -30,6 +30,38 @@ uv run python benchmarks/spectral_norm.py 3
 
 The numeric argument controls the number of iterations (higher = longer run).
 
+## Attribute Cache Benchmark
+
+`attr-cache` hammers `LOAD_ATTR` and `STORE_ATTR` against one receiver per
+distinct object layout, so CinderX's inline caches can be measured against the
+CPython interpreter's adaptive specializations one cache shape at a time. There
+is a workload for each of inline values, split and combined dicts, exhausted
+shared keys, a fixed `tp_dictoffset`, `__slots__`, variable-sized types,
+properties and other descriptors, class/type/module attributes and the
+`__getattr__` / `__getattribute__` hooks, plus polymorphic and megamorphic
+variants of a single site.
+
+```bash
+# One layout, plus which adaptive-interpreter specialization CPython chose:
+buck run fbcode//cinderx/benchmarks:attr-cache-314 -- --workload inline --specialization
+
+# Baseline vs JIT across every workload:
+buck run fbcode//cinderx/benchmarks:attr-cache-314 -- --compare
+
+# What layout each workload's receivers actually ended up with:
+buck run fbcode//cinderx/benchmarks:attr-cache-314 -- --describe
+```
+
+Results are nanoseconds per attribute operation, reported as the median of the
+timed runs. Each run prints the receiver layout it measured and whether the hot
+function was actually JIT-compiled, so a suspicious number can be traced back to
+what really ran.
+
+A `attr-cache-315` variant exists for the 3.15-only layouts, notably `__slots__`
+on a `tuple` subclass. The `_cinderx` native extension is not wired into
+`python_binary` for 3.15, so that variant measures the interpreter only and says
+so on stderr.
+
 ## JIT Compilation Time Benchmark
 
 Measures how long the JIT takes to compile functions (not runtime performance):
@@ -130,6 +162,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `richards` | Operating system task scheduler simulation (object-oriented workload) |
 | `spectral_norm` | Numerical computation of the spectral norm of a matrix |
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
+| `attr-cache` | LOAD_ATTR/STORE_ATTR against every receiver layout, monomorphic through megamorphic |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |
 | `torchbench` | Run of a real TorchBench model (default `pyhpc_equation_of_state`), kept Python-bound for the JIT |
 
