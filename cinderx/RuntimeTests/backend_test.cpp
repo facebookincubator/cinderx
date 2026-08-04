@@ -1331,6 +1331,66 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
   post_gen.run();
 
   // Check that caller LIR is as expected.
+#ifdef Py_GIL_DISABLED
+  auto expected_caller = fmt::format(
+      R"(Function:
+BB %0 - succs: %8
+       %1:Object = Bind {0}:Object
+       %2:Object = Bind {1}:Object
+
+BB %8 - preds: %0 - succs: %10 %9
+      %29:Object = Move %1:Object
+%30:ObjectUntagged = And %29:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %15:Object = Move [%30:ObjectUntagged + 0x18]:Object
+      %31:Object = Move %15:Object
+%32:ObjectUntagged = And %31:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %33:Object = Move %2:Object
+%34:ObjectUntagged = And %33:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %16:Object = Equal %32:ObjectUntagged, %34:ObjectUntagged
+                   CondBranch %16:Object
+
+BB %9 - preds: %8 - succs: %10 %11
+      %35:Object = Move %15:Object
+%36:ObjectUntagged = And %35:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %37:Object = Move %2:Object
+%38:ObjectUntagged = And %37:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %18:Object = Call {2}({2:#x}):Object, %36:ObjectUntagged, %38:ObjectUntagged
+                   CondBranch %18:Object
+
+BB %11 - preds: %9 - succs: %12
+      %39:Object = Move %15:Object
+%40:ObjectUntagged = And %39:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %22:Object = Move [%40:ObjectUntagged + 0x28]:Object
+      %41:Object = Move %2:Object
+%42:ObjectUntagged = And %41:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %23:Object = Move [%42:ObjectUntagged + 0x28]:Object
+      %43:Object = Move %23:Object
+%44:ObjectUntagged = And %43:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+      %45:Object = Move %22:Object
+%46:ObjectUntagged = And %45:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %44:ObjectUntagged, %46:ObjectUntagged
+      %25:Object = Move 0(0x0):Object
+
+BB %10 - preds: %8 %9 - succs: %12
+
+BB %12 - preds: %10 %11 - succs: %7
+      %28:Object = Phi (BB%10, %1:Object), (BB%11, %25:Object)
+
+BB %7 - preds: %12 - succs: %6
+       %3:Object = Move %28:Object
+{5:>16} = Move %3:Object
+                   Return
+
+BB %6 - preds: %7
+
+)",
+      ARGUMENT_REGS[0],
+      ARGUMENT_REGS[1],
+      reinterpret_cast<uint64_t>(PyType_IsSubtype),
+      reinterpret_cast<uint64_t>(PyErr_Format),
+      reinterpret_cast<uint64_t>(PyExc_TypeError),
+      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
+#else
   auto expected_caller = fmt::format(
       R"(Function:
 BB %0 - succs: %8
@@ -1375,13 +1435,15 @@ BB %6 - preds: %7
       reinterpret_cast<uint64_t>(PyErr_Format),
       reinterpret_cast<uint64_t>(PyExc_TypeError),
       fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
+#endif
   std::stringstream ss;
   caller->sortBasicBlocks();
   ss << *caller;
   // Replace the string literal address
-  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
+  std::regex reg(
+      R"((Call \d+\(0x[0-9a-fA-F]+\):Object, \d+\(0x[0-9a-fA-F]+\):Object, )\d+\(0x[0-9a-fA-F]+\):Object, (%[0-9]+:Object[A-Za-z]*), (%[0-9]+:Object[A-Za-z]*))");
   std::string caller_str =
-      regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
+      regex_replace(ss.str(), reg, "$1string_literal, $2, $3");
   ASSERT_EQ(expected_caller, caller_str);
 }
 
