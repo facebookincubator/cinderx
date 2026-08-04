@@ -215,7 +215,6 @@ class TemplateFileProcessor:
         self.version = version
         self.input_lines = []
         self.output_lines = []
-        # pyre-ignore[8]: Incompatible attribute type
         self.needed = defaultdict(lambda: defaultdict(set))
         self.decls = defaultdict(dict)
 

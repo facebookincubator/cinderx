@@ -461,9 +461,6 @@ def update_cpp_tests(  # noqa: C901
             f"Invalid Python version format: {py_version}. Expected format: '3.X'"
         )
 
-    # pyre-fixme[53]: Captured variable `cpp_filename` is not annotated.
-    # pyre-fixme[53]: Captured variable `lineno` is not annotated.
-    # pyre-fixme[53]: Captured variable `state` is not annotated.
     def expect_state(estate: State) -> None:
         nonlocal state, lineno, cpp_filename
         if state is not estate:
@@ -471,9 +468,6 @@ def update_cpp_tests(  # noqa: C901
                 f"Expected state {estate} at {cpp_filename}:{lineno}, actual {state}"
             )
 
-    # pyre-fixme[53]: Captured variable `suite_name` is not annotated.
-    # pyre-fixme[53]: Captured variable `test_dict` is not annotated.
-    # pyre-fixme[53]: Captured variable `test_name` is not annotated.
     def expect_empty_test_dict() -> None:
         if test_dict is not None and len(test_dict) > 0:
             print(
