@@ -709,7 +709,7 @@ void jitFrameInit(
     _PyInterpreterFrame* frame,
     PyFunctionObject* func,
     PyCodeObject* code,
-    int null_locals_from,
+    [[maybe_unused]] int null_locals_from,
     _frameowner owner,
     _PyInterpreterFrame* previous,
     PyObject* reifier) {
