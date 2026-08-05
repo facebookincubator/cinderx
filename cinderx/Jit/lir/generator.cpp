@@ -5518,6 +5518,8 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         OutPhyReg{codegen::arch::reg_frame_pointer_loc},
         Instruction::kMove,
         VReg{footer});
+    bbb.annotateNext("Load current interpreter frame");
+    env_->asm_interpreter_frame = makeCurrentFrameAccessor(bbb).load();
 #if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
     defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Now that FP points at the heap-allocated GenDataFooter, compute the
@@ -5556,6 +5558,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 
     int fh_size = jit::frameHeaderSize(func_->code);
     // The _PyInterpreterFrame starts after the FrameHeader.
+    bbb.annotateNext("Lightweight frame: load frame addr");
     Instruction* frame = bbb.appendInstr(
         OutVReg{},
         Instruction::kLea,
@@ -5563,6 +5566,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
             static_cast<int32_t>(-fh_size + jit::kFrameHeaderOverhead))});
 
     // Load previous frame from tstate before we overwrite current_frame.
+    bbb.annotateNext("Lightweight frame: load prev frame");
     CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
     Instruction* prev_frame = cfa.load();
 
@@ -5575,6 +5579,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     BorrowedRef<> executable_or_reifier_obj = nullptr;
     Instruction* zero_reg = nullptr;
 
+    bbb.annotateNext("Lightweight frame: initialize frame");
     auto plan = FrameInitPlan::build(
         [&](FrameFieldKind kind, DataType dt) -> Instruction* {
           switch (kind) {
@@ -5706,9 +5711,8 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     // Link frame into tstate.
     bbb.annotateNext("Set _PyInterpreterFrame as topmost frame");
     cfa.store(frame);
+    env_->asm_interpreter_frame = frame;
   }
-  bbb.annotateNext("Load current interpreter frame");
-  env_->asm_interpreter_frame = makeCurrentFrameAccessor(bbb).load();
 }
 
 void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
