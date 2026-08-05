@@ -6387,14 +6387,12 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
   // --- Shared: store CodeRuntime and epilogue addresses, jump to trampoline
   // ---
 
-  // Jump to the global deopt trampoline.
+  // Jump to the global deopt trampoline. Asmjit handles out-of-range branches
+  // on aarch64 by automatically using conditional branches.
   stage2_block->allocateInstr(
-      Instruction::kMove,
+      Instruction::kBranch,
       nullptr,
-      OutPhyReg{scratch_deopt},
       Imm{reinterpret_cast<uint64_t>(env->deopt_trampoline)});
-  stage2_block->allocateInstr(
-      Instruction::kBranch, nullptr, PhyReg{scratch_deopt});
 
   // Now fill in the kCall label operands in each stage 1 block.
   for (auto& [deopt_id, stage1_block] : env->deopt_exit_blocks) {
