@@ -112,8 +112,10 @@ void remap_txt_path(std::string& path) {
 void register_test(
     std::string path,
     RuntimeTest::Flags extra_flags = RuntimeTest::Flags{}) {
-#ifdef CINDERX_RUNTIME_TESTS_FEATURE_FREE
-  // Feature-free builds cannot execute Static Python bytecode.
+#if defined(CINDERX_RUNTIME_TESTS_FEATURE_FREE) || \
+    defined(CINDERX_RUNTIME_TESTS_INTERP_LOOP_ONLY)
+  // Minimal builds do not support the full set of features assumed by Static
+  // Python goldens.
   if (extra_flags & RuntimeTest::kStaticCompiler) {
     return;
   }
@@ -267,7 +269,8 @@ int main(int argc, char* argv[]) {
       RuntimeTest::kStaticCompiler);
   register_test("builtin_load_method_elimination_test.txt");
   register_test("leaf_function_test.txt");
-#ifndef CINDERX_RUNTIME_TESTS_FEATURE_FREE
+#if !defined(CINDERX_RUNTIME_TESTS_FEATURE_FREE) && \
+    !defined(CINDERX_RUNTIME_TESTS_INTERP_LOOP_ONLY)
   // These goldens depend on lightweight frames and symbolized call targets.
   register_test("all_passes_test.txt");
 #endif
