@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <span>
 #include <utility>
 
 using namespace cinderx::jit::codegen;
@@ -34,7 +35,7 @@ struct LiveRangeCompare {
   }
 };
 
-void markDisallowedRegisters(std::vector<LIRLocation>& locs) {
+void markDisallowedRegisters(std::span<LIRLocation> locs) {
   auto disallowed_registers = DISALLOWED_REGISTERS;
   while (!disallowed_registers.empty()) {
     auto reg = disallowed_registers.getFirst();
@@ -820,7 +821,8 @@ bool LinearScanAllocator::tryAllocateFreeReg(
 
   // XXX: Feel that we may not need to calculate freeUntilPos every time. Will
   // think about optimizations in the future.
-  std::vector<LIRLocation> freeUntilPos(NUM_REGS, MAX_LOCATION);
+  std::array<LIRLocation, NUM_REGS> freeUntilPos{};
+  freeUntilPos.fill(MAX_LOCATION);
 
   bool is_fp = current->operand()->isFp();
 
