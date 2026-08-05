@@ -9,6 +9,7 @@
 #include "cinderx/module_state.h"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <utility>
 
@@ -1678,7 +1679,7 @@ void LinearScanAllocator::resolveEdgesInsertBasicBlocks(
     std::unique_ptr<CopyGraphWithOperand> false_copies) {
   // convert {true_need_copy, false_need_copy, next_true, next_false}
   // => {bb1_is_true_bb, gen_new_bb1, gen_new_bb2}
-  static std::vector<std::tuple<bool, bool, bool>> truth_table{
+  static constexpr std::array<std::tuple<bool, bool, bool>, 16> truth_table{{
       {0, 1, 0},
       {0, 0, 0},
       {1, 0, 0},
@@ -1695,7 +1696,7 @@ void LinearScanAllocator::resolveEdgesInsertBasicBlocks(
       {1, 1, 1},
       {0, 1, 1},
       {0, 0, 0} // don't care
-  };
+  }};
 
   bool next_true = next_basic_block == true_bb;
   bool next_false = next_basic_block == false_bb;
