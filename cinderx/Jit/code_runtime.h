@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/threaded_compile.h"
@@ -94,6 +95,12 @@ class alignas(16) CodeRuntime {
   uint32_t spillWords() const;
   void setSpillWords(uint32_t words);
 
+  // Get and set the address a generator resumes execution at.  Only meaningful
+  // for generators, and only resolvable once code generation has bound the
+  // resume entry label to an address.
+  GenResumeFunc genResumeEntry() const;
+  void setGenResumeEntry(GenResumeFunc resume_entry);
+
   DebugInfo* debugInfo();
 
   // Allocate a jump table for static type check dispatch.
@@ -153,6 +160,8 @@ class alignas(16) CodeRuntime {
   // Backpointer to the CompiledFunction that owns this CodeRuntime.
   // Set after CompiledFunction::create() in makeCompiledFunction().
   BorrowedRef<CompiledFunction> compiled_function_;
+
+  GenResumeFunc gen_resume_entry_{nullptr};
 
   int frame_size_{-1};
   uint32_t spill_words_{0};

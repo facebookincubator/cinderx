@@ -716,10 +716,11 @@ void initFrameCellVars(
 #endif
 }
 
-std::pair<PyThreadState*, GenDataFooter*> allocateAndLinkGenAndInterpreterFrame(
+std::pair<_PyInterpreterFrame*, GenDataFooter*>
+allocateAndLinkGenAndInterpreterFrame(
+    PyThreadState* tstate,
     PyFunctionObject* func,
     CodeRuntime* code_rt,
-    GenResumeFunc resume_func,
     uint64_t original_frame_pointer) {
   JIT_DCHECK(
       PyCode_Check(func->func_code),
@@ -729,7 +730,6 @@ std::pair<PyThreadState*, GenDataFooter*> allocateAndLinkGenAndInterpreterFrame(
   JIT_DCHECK(co == code_rt->code(), "Code object mismatch");
 
   uint64_t spill_words = code_rt->spillWords();
-  PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
   auto [gen, gen_size] = cinderx::getModuleState()->jit_gen_free_list->allocate(
       co, spill_words * sizeof(uint64_t) + sizeof(GenDataFooter));
@@ -777,6 +777,11 @@ std::pair<PyThreadState*, GenDataFooter*> allocateAndLinkGenAndInterpreterFrame(
   init_and_link_interpreter_frame(
       func, co, tstate, FRAME_OWNED_BY_GENERATOR, frame, code_rt);
 
+  GenResumeFunc resume_func = code_rt->genResumeEntry();
+  JIT_DCHECK(
+      resume_func != nullptr,
+      "CodeRuntime has no resume entry: {}",
+      PyUnicode_AsUTF8(co->co_qualname));
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
   footer->gen = static_cast<PyGenObject*>(gen);
@@ -812,7 +817,7 @@ std::pair<PyThreadState*, GenDataFooter*> allocateAndLinkGenAndInterpreterFrame(
 
   PyObject_GC_Track(gen);
 
-  return {tstate, footer};
+  return {frame, footer};
 }
 
 std::pair<JitGenObject*, GenDataFooter*> unlinkGenFrameAndReturnGenDataFooter(

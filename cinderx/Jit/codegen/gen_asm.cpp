@@ -1431,6 +1431,17 @@ void NativeGenerator::generateCode(
         codeholder.baseAddress());
   }
 
+  // allocateAndLinkGenAndInterpreterFrame reads the resume entry out of the
+  // CodeRuntime rather than taking it as an argument, which keeps that call
+  // down to four arguments.
+  if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {
+    auto resume_entry = static_cast<uintptr_t>(
+        codeholder.baseAddress() +
+        codeholder.labelOffsetFromBase(env_.gen_resume_entry_label));
+    env_.code_rt->setGenResumeEntry(
+        reinterpret_cast<GenResumeFunc>(resume_entry));
+  }
+
   // Resolve the static type check jump table entries now that block labels
   // have been bound to code addresses.
   for (auto& [index, block] : env_.static_typecheck_jt_entries) {

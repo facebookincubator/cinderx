@@ -4,6 +4,12 @@
 
 #include "cinderx/python.h"
 
+#include "internal/pycore_frame.h"
+
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_interpframe_structs.h"
+#endif
+
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
@@ -36,10 +42,14 @@ PyThreadState* allocateAndLinkInterpreterFrame_Debug(
 
 PyThreadState* allocateAndLinkInterpreterFrame_Release(PyFunctionObject* func);
 
-std::pair<PyThreadState*, GenDataFooter*> allocateAndLinkGenAndInterpreterFrame(
+// Allocate a generator and its interpreter frame, and link the frame into
+// tstate.  Returns the newly linked interpreter frame and the generator's
+// GenDataFooter.
+std::pair<_PyInterpreterFrame*, GenDataFooter*>
+allocateAndLinkGenAndInterpreterFrame(
+    PyThreadState* tstate,
     PyFunctionObject* func,
     CodeRuntime* code_rt,
-    GenResumeFunc resume_entry,
     uint64_t original_frame_pointer);
 
 void initFrameCellVars(

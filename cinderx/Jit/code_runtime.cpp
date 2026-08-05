@@ -130,6 +130,14 @@ void CodeRuntime::setSpillWords(uint32_t words) {
   spill_words_ = words;
 }
 
+GenResumeFunc CodeRuntime::genResumeEntry() const {
+  return gen_resume_entry_;
+}
+
+void CodeRuntime::setGenResumeEntry(GenResumeFunc resume_entry) {
+  gen_resume_entry_ = resume_entry;
+}
+
 DebugInfo* CodeRuntime::debugInfo() {
   return &debug_info_;
 }

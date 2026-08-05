@@ -5494,23 +5494,22 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
   bool is_gen =
       func_->code != nullptr && (func_->code->co_flags & kCoFlagsAnyGenerator);
   if (is_gen) {
-    // Load the resume entry label address.
+    bbb.annotateNext("Allocate generator + interpreter frame: load tstate");
+    env_->asm_tstate =
+        bbb.appendInstr(OutVReg{}, Instruction::kLoadThreadState);
+    // spill_words and the resume entry address are read from CodeRuntime by
+    // the runtime function, so we don't need to pass them explicitly.
     bbb.annotateNext("Allocate generator + interpreter frame");
-    Instruction* resume_label = bbb.appendInstr(
-        OutVReg{DataType::k64bit},
-        Instruction::kLea,
-        AsmLbl{env_->gen_resume_entry_label});
-    // spill_words is read from CodeRuntime by the runtime function,
-    // so we don't need to pass it explicitly.
+    Instruction* frame;
     Instruction* footer;
     appendCall2RetValues(
         bbb,
-        env_->asm_tstate,
+        frame,
         footer,
         rt::allocateAndLinkGenAndInterpreterFrame,
+        env_->asm_tstate,
         env_->asm_func,
         Imm{reinterpret_cast<uint64_t>(env_->code_rt)},
-        VReg{resume_label},
         PhyReg{codegen::arch::reg_frame_pointer_loc});
     // Swap RBP to point at the generator data so spills go there.
     bbb.annotateNext("Set frame pointer to GenDataFooter");
@@ -5518,8 +5517,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         OutPhyReg{codegen::arch::reg_frame_pointer_loc},
         Instruction::kMove,
         VReg{footer});
-    bbb.annotateNext("Load current interpreter frame");
-    env_->asm_interpreter_frame = makeCurrentFrameAccessor(bbb).load();
+    env_->asm_interpreter_frame = frame;
 #if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
     defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Now that FP points at the heap-allocated GenDataFooter, compute the
