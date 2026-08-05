@@ -5,7 +5,6 @@
 import collections
 import gc
 import os
-import sys
 import time
 import unittest
 import weakref
