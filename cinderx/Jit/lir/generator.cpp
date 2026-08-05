@@ -6301,39 +6301,6 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
     stage2_block->allocateInstr(
         Instruction::kPush, nullptr, PhyReg{scratch_deopt});
   }
-#elif defined(CINDER_AARCH64)
-  constexpr auto fp_reg = codegen::arch::reg_frame_pointer_loc;
-
-  // Allocate 8 slots. Store x28, fp, and the stage 1 values (LR, x13)
-  // that on x86 would have been pushed by stage 1 / the call instruction.
-  stage2_block->allocateInstr(
-      Instruction::kLea,
-      nullptr,
-      OutPhyReg{sp_reg},
-      Ind(sp_reg, -kStage2Slots * kPointerSize));
-  stage2_block->allocateInstr(
-      Instruction::kMove, nullptr, OutInd(sp_reg, 0), PhyReg{scratch_deopt});
-  stage2_block->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutInd(sp_reg, kPointerSize),
-      PhyReg{fp_reg});
-  // Store return address (LR) and deopt metadata index (x13) into the
-  // slots that correspond to the stage 1 push on x86.
-  stage2_block->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutInd(sp_reg, kSavedPcOffset),
-      PhyReg{codegen::X30});
-  stage2_block->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutInd(sp_reg, kDeoptIdxOffset),
-      PhyReg{codegen::arch::reg_scratch_0_loc});
-#endif
-
-  // --- Shared: store CodeRuntime and epilogue addresses, jump to trampoline
-  // ---
 
   // Store CodeRuntime address.
   stage2_block->allocateInstr(
@@ -6358,6 +6325,63 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
       nullptr,
       OutInd(sp_reg, kEpilogueOffset),
       PhyReg{scratch_deopt});
+#elif defined(CINDER_AARCH64)
+  constexpr auto fp_reg = codegen::arch::reg_frame_pointer_loc;
+
+  // Allocate 8 slots. Store x28, fp, and the stage 1 values (LR, x13)
+  // that on x86 would have been pushed by stage 1 / the call instruction.
+  stage2_block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg{sp_reg},
+      Ind(sp_reg, -kStage2Slots * kPointerSize));
+  stage2_block->allocateInstr(
+      Instruction::kStorePair,
+      nullptr,
+      Imm{0},
+      PhyReg{sp_reg},
+      PhyReg{scratch_deopt},
+      PhyReg{fp_reg});
+  static_assert(
+      kDeoptIdxOffset == kSavedPcOffset + kPointerSize,
+      "wrong layout for store pair optimization");
+  // Store return address (LR) and deopt metadata index (x13) into the
+  // slots that correspond to the stage 1 push on x86.
+  stage2_block->allocateInstr(
+      Instruction::kStorePair,
+      nullptr,
+      Imm{kSavedPcOffset},
+      PhyReg{sp_reg},
+      PhyReg{codegen::X30},
+      PhyReg{codegen::arch::reg_scratch_0_loc});
+
+  // Store CodeRuntime address.
+  stage2_block->allocateInstr(
+      Instruction::kMove,
+      nullptr,
+      OutPhyReg{codegen::X30}, // freed by our use to store above
+      Imm{reinterpret_cast<uint64_t>(env->code_rt)});
+
+  // Store epilogue address.
+  stage2_block->allocateInstr(
+      Instruction::kLea,
+      nullptr,
+      OutPhyReg{scratch_deopt},
+      AsmLbl{env->hard_exit_label});
+  static_assert(
+      kCodeRtOffset == kEpilogueOffset + kPointerSize,
+      "wrong layout for store pair optimization");
+  stage2_block->allocateInstr(
+      Instruction::kStorePair,
+      nullptr,
+      Imm{kEpilogueOffset},
+      PhyReg{sp_reg},
+      PhyReg{scratch_deopt},
+      PhyReg{codegen::X30});
+#endif
+
+  // --- Shared: store CodeRuntime and epilogue addresses, jump to trampoline
+  // ---
 
   // Jump to the global deopt trampoline.
   stage2_block->allocateInstr(
