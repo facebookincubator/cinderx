@@ -639,53 +639,6 @@ BB %10
   ASSERT_EQ(ss.str(), lir_expected.c_str());
 }
 
-TEST_F(LIRGeneratorTest, UnstableGlobals) {
-  getMutableConfig().stable_frame = false;
-
-  const char* src = R"(
-def func1(x):
-  return x + 1
-
-def func2(x):
-  return func1(x) + 2
-
-def func3(x):
-  def inner(x2):
-    return func1(x2) + 4
-  return inner(3)
-)";
-
-  Ref<PyObject> pyfunc2(compileAndGet(src, "func2"));
-  ASSERT_NE(pyfunc2.get(), nullptr) << "Failed compiling func";
-
-  auto lir_func2 = getLIRFunction(pyfunc2.get());
-
-  auto fast_addr = reinterpret_cast<uint64_t>(rt::loadGlobal);
-  auto slow_addr = reinterpret_cast<uint64_t>(rt::loadGlobalFromThreadState);
-
-  EXPECT_FALSE(getConfig().stable_frame);
-
-  EXPECT_NO_LIR(
-      Query(*lir_func2).opcode(Instruction::kCall).inAddr(0, fast_addr))
-      << "Should not call out to rt::loadGlobal as globals aren't stable";
-  EXPECT_LIR(Query(*lir_func2).opcode(Instruction::kCall).inAddr(0, slow_addr))
-      << "Should be calling out to rt::loadGlobalFromThreadState as globals "
-         "aren't stable";
-
-  Ref<PyObject> pyfunc3(compileAndGet(src, "func3"));
-  ASSERT_NE(pyfunc3.get(), nullptr) << "Failed compiling func";
-
-  auto lir_func3 = getLIRFunction(pyfunc3.get());
-
-  auto slow_addr2 = reinterpret_cast<uint64_t>(rt::loadGlobalsDict);
-
-  EXPECT_FALSE(getConfig().stable_frame);
-
-  EXPECT_LIR(Query(*lir_func3).opcode(Instruction::kCall).inAddr(0, slow_addr2))
-      << "Should be calling out to rt::loadGlobalsDict as globals "
-         "aren't stable";
-}
-
 TEST_F(LIRGeneratorTest, AttrCachesOff) {
   getMutableConfig().attr_caches = false;
 
@@ -713,30 +666,6 @@ def func():
       Query(*lir_func).opcode(Instruction::kCall).inAddr(0, fast_addr))
       << "Should not be calling out to LoadAttrCache::invoke as inline caches "
          "are disabled";
-}
-
-TEST_F(LIRGeneratorTest, UnstableCode) {
-  getMutableConfig().stable_frame = false;
-
-  const char* src = R"(
-import sys
-
-def func():
-  return sys.argv
-)";
-
-  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
-  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
-
-  auto lir_func = getLIRFunction(pyfunc.get());
-
-  auto slow_addr = reinterpret_cast<uint64_t>(rt::loadName);
-
-  EXPECT_FALSE(getConfig().stable_frame);
-
-  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCall).inAddr(0, slow_addr))
-      << "Should be calling out to rt::loadName as code objects aren't "
-         "stable";
 }
 
 TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesMoveRelaxed) {

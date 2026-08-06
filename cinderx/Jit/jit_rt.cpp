@@ -915,16 +915,6 @@ PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
   return result;
 }
 
-PyObject* loadGlobalFromThreadState(PyThreadState* tstate, PyObject* name) {
-  _PyInterpreterFrame* frame = currentFrame(tstate);
-  return loadGlobal(frame->f_globals, frame->f_builtins, name);
-}
-
-PyObject* loadGlobalsDict(PyThreadState* tstate) {
-  _PyInterpreterFrame* frame = currentFrame(tstate);
-  return frame->f_globals;
-}
-
 PyObject* loadFunctionIndirect(PyObject** func, PyObject* descr) {
   PyObject* res = *func;
   if (!res) {
@@ -2037,11 +2027,6 @@ PyObject* copyDictWithoutKeys(PyObject* subject, PyObject* keys) {
     }
   }
   return rest.release();
-}
-
-PyObject* loadName(PyThreadState* tstate, int name_idx) {
-  _PyInterpreterFrame* frame = currentFrame(tstate);
-  return PyTuple_GET_ITEM(frameCode(frame)->co_names, name_idx);
 }
 
 void formatAwaitableError(

@@ -149,10 +149,6 @@ struct Config {
   // instruction cache / TLB locality. Falls back to unhinted allocation when
   // the kernel can't place the allocation near the hint.
   bool hinted_code_allocation{false};
-  // Assume that data found in the Python frame is unchanged across function
-  // calls.  This includes the code object, and the globals and builtins
-  // dictionaries (but not their contents).
-  bool stable_frame{true};
   // Use inline caches for attribute accesses.
   //
   // TODO(T250369692): FT support for inline-caches.

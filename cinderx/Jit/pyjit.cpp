@@ -616,13 +616,6 @@ FlagProcessor initFlagProcessor() {
       "disable the JIT");
 
   flag_processor.addOption(
-      "cinderx-jit-stable-frame",
-      "CINDERX_JIT_STABLE_FRAME",
-      getMutableConfig().stable_frame,
-      "Assume that data found in the Python frame is unchanged across "
-      "function calls");
-
-  flag_processor.addOption(
       "cinderx-jit-preload-dependent-limit",
       "CINDERX_JIT_PRELOAD_DEPENDENT_LIMIT",
       getMutableConfig().preload_dependent_limit,

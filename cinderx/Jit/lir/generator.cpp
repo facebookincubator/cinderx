@@ -3786,10 +3786,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         break;
       }
       case Opcode::kLoadGlobalCached: {
-        JIT_DCHECK(
-            getConfig().stable_frame,
-            "Can only use LoadGlobalCached when frame data is stable across "
-            "function calls");
         auto instr = static_cast<const LoadGlobalCached*>(&i);
         PyObject* globals = instr->globals();
         JIT_CHECK(
@@ -3810,14 +3806,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case Opcode::kLoadGlobal: {
         auto instr = static_cast<const LoadGlobal*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        if (!getConfig().stable_frame) {
-          bbb.appendCallInstruction(
-              instr->output(),
-              rt::loadGlobalFromThreadState,
-              env_->asm_tstate,
-              name);
-          break;
-        }
         PyObject* builtins = instr->frameState()->builtins;
         env_->addReference(builtins);
         PyObject* globals = instr->frameState()->globals;
@@ -4517,23 +4505,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto code = instr->getOperand(0);
         auto qualname = instr->getOperand(1);
 
-        Instruction* globals;
-        if (getConfig().stable_frame) {
-          BorrowedRef<> obj = instr->frameState()->globals;
-          env_->addReference(obj);
-          globals = bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              // TASK(T140174965): This should be MemImm.
-              Imm{reinterpret_cast<uint64_t>(obj.get()), Operand::kObject});
-        } else {
-          globals = bbb.appendInstr(
-              OutVReg{},
-              Instruction::kCall,
-              // TASK(T140174965): This should be MemImm.
-              Imm{reinterpret_cast<uint64_t>(rt::loadGlobalsDict)},
-              env_->asm_tstate);
-        }
+        BorrowedRef<> globals_obj = instr->frameState()->globals;
+        env_->addReference(globals_obj);
+        Instruction* globals = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            // TASK(T140174965): This should be MemImm.
+            Imm{reinterpret_cast<uint64_t>(globals_obj.get()),
+                Operand::kObject});
 
         if (!qualname->isA(TNullptr)) {
           bbb.appendCallInstruction(
@@ -4662,9 +4641,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         break;
       }
       case Opcode::kBeginInlinedFunction: {
-        JIT_DCHECK(
-            getConfig().stable_frame,
-            "Inlined code stores references to code objects");
         auto instr = static_cast<const BeginInlinedFunction*>(&i);
         // Track references for code, globals, builtins, func.
         BorrowedRef<PyCodeObject> code = instr->code();
@@ -5402,15 +5378,6 @@ void LIRGenerator::resolvePhiOperands(
 Instruction* LIRGenerator::getNameFromIdx(
     BasicBlockBuilder& bbb,
     const hir::DeoptBaseWithNameIdx* instr) {
-  if (!getConfig().stable_frame) {
-    return bbb.appendInstr(
-        OutVReg{},
-        Instruction::kCall,
-        rt::loadName,
-        env_->asm_tstate,
-        instr->nameIdx());
-  }
-
   BorrowedRef<PyUnicodeObject> name = instr->name();
   return bbb.appendInstr(
       OutVReg{},

@@ -142,16 +142,6 @@ StaticCallFPReturn reportStaticArgTypecheckErrorsWithDoubleReturn(
 PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name);
 
 /*
- * Load a global value given a Python thread state.
- */
-PyObject* loadGlobalFromThreadState(PyThreadState* tstate, PyObject* name);
-
-/*
- * Load the globals dict from a Python thread state.
- */
-PyObject* loadGlobalsDict(PyThreadState* tstate);
-
-/*
  * Helper to perform a Python call with dynamically determined arguments.
  *
  * pargs will be a possibly empty tuple of positional arguments, kwargs will be
@@ -511,11 +501,6 @@ int dictMerge(
 /* Returns nullptr on error and an exact dict otherwise. Used by
  * COPY_DICT_WITHOUT_KEYS implementation. */
 PyObject* copyDictWithoutKeys(PyObject* subject, PyObject* keys);
-
-/*
- * Load a name from a Python thread's code object.
- */
-PyObject* loadName(PyThreadState* tstate, int name_idx);
 
 /*
  * Reimplements the format_awaitable_error() function from the CPython
