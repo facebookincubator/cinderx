@@ -19,7 +19,7 @@ namespace cinderx::jit {
 // storage so workers can find it.
 class ThreadedCompileContext {
  public:
-  using WorkList = std::vector<BorrowedRef<>>;
+  using WorkList = std::vector<Ref<>>;
 
   // Used for background compilation (single background thread, no work list).
   ThreadedCompileContext();
@@ -36,11 +36,13 @@ class ThreadedCompileContext {
   // list of translation units that failed to compile.
   WorkList endCompile();
 
-  // Fetch the next translation unit to compile.
-  BorrowedRef<> nextUnit();
+  Ref<> nextUnit();
 
   // Mark a unit as having failed to compile and to be retried in the future.
-  void retryUnit(BorrowedRef<> unit);
+  void retryUnit(Ref<>&& unit);
+
+  // Mark a unit as being compiled and store it's reference for releasing later.
+  void retireUnit(Ref<>&& unit);
 
   // Check if the current thread is currently participating in a multi-threaded
   // or background compile.
@@ -74,6 +76,9 @@ class ThreadedCompileContext {
 
   // List of translation units that have failed to compile.
   WorkList retry_list_;
+
+  // References handed back by workers, released by endCompile().
+  WorkList retired_list_;
 
   // The interpreter state that kicked off the multi-threaded compile.
   PyInterpreterState* interpreter_{nullptr};

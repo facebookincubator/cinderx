@@ -25,6 +25,7 @@ from cinderx.jit import (
 )
 from cinderx.test_support import (
     compiles_after_one_call,
+    is_jit_compiled_after_call,
     is_oss,
     passIf,
     passUnless,
@@ -178,9 +179,13 @@ class FaulthandlerTracebackTests(unittest.TestCase):
             f.seek(0)
             output = f.read().decode("ascii")
             lines = output.split("\n")
-            self.assertGreaterEqual(len(lines), len(expected) + 1)
-            # Ignore first line, which is 'Current thread: ...'
-            self.assertEqual(lines[1:4], expected)
+            # dump_traceback() dumps every thread, and other threads (e.g. the
+            # JIT's background compile worker) can come first, so look for this
+            # thread's section rather than assuming it's at the top.
+            header = next(
+                i for i, line in enumerate(lines) if line.startswith("Current thread")
+            )
+            self.assertEqual(lines[header + 1 : header + 1 + len(expected)], expected)
 
 
 def _simpleFunc(a, b):
@@ -833,10 +838,10 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             asyncio.run(main())
 
         if compiles_after_one_call():
-            self.assertTrue(is_jit_compiled(a))
-            self.assertTrue(is_jit_compiled(b))
-            self.assertTrue(is_jit_compiled(c.__wrapped__))
-            self.assertTrue(is_jit_compiled(d))
+            self.assertTrue(is_jit_compiled_after_call(a))
+            self.assertTrue(is_jit_compiled_after_call(b))
+            self.assertTrue(is_jit_compiled_after_call(c.__wrapped__))
+            self.assertTrue(is_jit_compiled_after_call(d))
 
     def test_delete_fast_return(self) -> None:
         def foo(hmm):
@@ -1447,7 +1452,7 @@ class RegressionTests(StaticTestBase):
             self.assertTrue(testfunc())
 
             if compiles_after_one_call():
-                self.assertTrue(is_jit_compiled(testfunc))
+                self.assertTrue(is_jit_compiled_after_call(testfunc))
 
 
 @skip_test_if_oss("xxclassloader")
@@ -1486,7 +1491,7 @@ class CinderJitModuleTests(StaticTestBase):
             self.assertFalse(is_jit_compiled(f))
 
             if compiles_after_one_call():
-                self.assertTrue(is_jit_compiled(g))
+                self.assertTrue(is_jit_compiled_after_call(g))
 
     @passIf(
         not cinderx.jit.is_hir_inliner_enabled(),
@@ -1511,7 +1516,7 @@ class CinderJitModuleTests(StaticTestBase):
             self.assertFalse(is_jit_compiled(f))
 
             if compiles_after_one_call():
-                self.assertTrue(is_jit_compiled(g))
+                self.assertTrue(is_jit_compiled_after_call(g))
                 self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
 
@@ -2199,7 +2204,9 @@ class LoadMethodEliminationTests(unittest.TestCase):
         self.assertEqual(self.lme_test_func(), "1")
         self.assertEqual(self.lme_test_func(True), "1 flag")
         if compiles_after_one_call():
-            self.assertTrue(is_jit_compiled(LoadMethodEliminationTests.lme_test_func))
+            self.assertTrue(
+                is_jit_compiled_after_call(LoadMethodEliminationTests.lme_test_func)
+            )
 
 
 @passUnless(cinderx.jit.is_enabled(), "Tests functionality on cinderjit module")

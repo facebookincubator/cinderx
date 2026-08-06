@@ -7,7 +7,7 @@ import unittest
 import cinderx
 import cinderx.jit
 from cinderx.jit import count_interpreted_calls
-from cinderx.test_support import passIf, passUnless
+from cinderx.test_support import no_background_compile, passIf, passUnless
 
 
 # Defined here because pyre is limited to typing constants in decorators.
@@ -66,7 +66,9 @@ class CountCallsTest(unittest.TestCase):
         def func() -> int:
             return 15
 
-        for _ in range(2000):
-            # Will never count any calls as the function gets compiled immediately.
-            self.assertEqual(count_interpreted_calls(func), 0)
-            func()
+        with no_background_compile():
+            for _ in range(2000):
+                # Will never count any calls as the function gets compiled
+                # immediately.
+                self.assertEqual(count_interpreted_calls(func), 0)
+                func()

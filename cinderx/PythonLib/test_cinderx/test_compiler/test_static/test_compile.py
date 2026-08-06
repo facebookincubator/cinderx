@@ -37,6 +37,7 @@ from cinderx.compiler.static.types import (
     Value,
 )
 from cinderx.test_support import (
+    no_background_compile,
     passIf,
     passUnless,
     skip_test_if_oss,
@@ -5191,7 +5192,8 @@ class StaticCompilationTests(StaticTestBase):
 
         codestr += "def g(x): return 0 if x else f0()\n"
 
-        with self.in_strict_module(codestr) as mod:
+        # Pre-jitting only happens when the caller is compiled on this thread.
+        with self.in_strict_module(codestr) as mod, no_background_compile():
             g = mod.g
             self.assertEqual(g(True), 0)
             # we should have done some level of pre-jitting
@@ -5268,7 +5270,9 @@ class StaticCompilationTests(StaticTestBase):
                     return number
                 return(fib1(number-1) + fib1(number-2))
         """
-        with self.in_strict_module(codestr) as mod:
+        # fib1 is only compiled as a dependency of fib, which the background
+        # worker doesn't do.
+        with self.in_strict_module(codestr) as mod, no_background_compile():
             fib = mod.fib
             fib1 = mod.fib1
             self.assertInBytecode(

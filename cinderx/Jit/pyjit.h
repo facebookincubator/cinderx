@@ -89,9 +89,17 @@ void typeModified(BorrowedRef<PyTypeObject> type);
 void typeNameModified(BorrowedRef<PyTypeObject> type);
 
 // Exposed for unit tests
-Result compilePreloaderImpl(
+//
+// Takes ownership of `func`, which the caller must have referenced while it
+// held the GIL, and hands it to whichever structure ends up keeping the
+// function alive past this call.  The returned reference is whatever was left
+// over -- null once something took the function over.  Threaded compiles run
+// with the GIL released and so cannot reference or release the function
+// themselves; they must pass one in and give the leftover back to someone who
+// releases it under the GIL.
+std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
-    BorrowedRef<PyFunctionObject> func);
+    Ref<PyFunctionObject>&& func);
 
 } // namespace cinderx::jit

@@ -51,7 +51,8 @@ foo = "hello"
   std::unique_ptr<hir::Preloader> preloader(
       hir::Preloader::make(func, makeFrameReifier(func->func_code)));
 
-  auto comp_result = compilePreloaderImpl(jit_ctx_.get(), *preloader, func);
+  auto [comp_result, unclaimed] = compilePreloaderImpl(
+      jit_ctx_.get(), *preloader, Ref<PyFunctionObject>::create(func));
   ASSERT_EQ(comp_result, Result::OK);
 
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));

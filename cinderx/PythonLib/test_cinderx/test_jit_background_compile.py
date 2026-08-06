@@ -5,14 +5,24 @@
 import collections
 import gc
 import os
+import subprocess
+import sys
+import tempfile
+import textwrap
 import time
 import unittest
 import weakref
+from pathlib import Path
 from types import FunctionType
 from typing import Any, Callable, cast
 
 import cinderx.jit
-from cinderx.test_support import failUnlessJITCompiled, skip_if_ft, skip_if_prefork
+from cinderx.test_support import (
+    failUnlessJITCompiled,
+    skip_if_ft,
+    skip_if_prefork,
+    subprocess_env,
+)
 
 
 class AttrLoadType:
@@ -79,6 +89,80 @@ class BackgroundCompileTest(unittest.TestCase):
         self.assertTrue(cinderx.jit.is_jit_compiled(test_func))
         result2 = test_func(10)
         self.assertEqual(result2, 21)
+
+    @unittest.skipUnless(hasattr(os, "fork"), "requires os.fork()")
+    def test_fork_after_background_compile(self) -> None:
+        """Forking once the background compile worker thread exists must leave
+        a usable child.
+
+        The worker does not survive the fork, but the child still inherits its
+        std::thread handle in a joinable state and the registry mutex locked by
+        the pthread_atfork prepare handler.  Running the registry's destructor
+        in the child would abort in ~thread(); the child has to reset the
+        registry without destroying the inherited one.
+
+        Runs out-of-process so the auto-compile threshold can be set low enough
+        to guarantee the compile goes through the background worker rather than
+        being forced onto this thread.
+        """
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import os
+            import sys
+            import time
+
+            import cinderx.jit
+
+            def parent_func(x):
+                return x * 3 + 1
+
+            for i in range(2000):
+                parent_func(i)
+
+            deadline = time.time() + 10
+            while time.time() < deadline and not cinderx.jit.is_jit_compiled(
+                parent_func
+            ):
+                time.sleep(0.01)
+            # The worker thread only exists if a background compile ran.
+            assert cinderx.jit.is_jit_compiled(parent_func)
+
+            pid = os.fork()
+            if pid == 0:
+                # Compile in the child too: it should start its own worker off
+                # the freshly reset registry, not the dead inherited one.
+                status = 0
+                try:
+                    def child_func(y):
+                        return y + 4
+
+                    for i in range(2000):
+                        child_func(i)
+                    if child_func(1) != 5:
+                        status = 1
+                except Exception:
+                    status = 2
+                os._exit(status)
+
+            _, status = os.waitpid(pid, 0)
+            if not os.WIFEXITED(status):
+                sys.exit(f"child died from signal {os.WTERMSIG(status)}")
+            sys.exit(os.WEXITSTATUS(status))
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={
+                    **subprocess_env(),
+                    "CINDERX_JIT_AUTO": "200",
+                    "CINDERX_JIT_BACKGROUND_COMPILE": "1",
+                },
+            )
 
     def test_delete_function_during_background_compile(self) -> None:
         """Test that deleting a function object during background compilation

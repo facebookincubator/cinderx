@@ -415,11 +415,11 @@ bool Context::hasCompletedCompile(CompilationKey& key) {
 }
 
 void Context::addDeferredFinalization(
-    BorrowedRef<PyFunctionObject> func,
-    BorrowedRef<CompiledFunction> compiled) {
+    const CompilationKey& key,
+    Ref<PyFunctionObject>&& func) {
   JITCompilationLock lock;
   deferred_finalizations_.emplace_back(
-      ThreadedRef<PyFunctionObject>::create(func), compiled);
+      ThreadedRef<PyFunctionObject>::steal(func.release()), key);
 }
 
 void Context::finalizeMultiThreadedCompile() {
@@ -433,8 +433,15 @@ void Context::finalizeMultiThreadedCompile() {
   }
   completed_compiles_.clear();
 
-  for (auto& [func, compiled] : deferred_finalizations_) {
-    finalizeFunc(func, compiled);
+  for (auto& [func, key] : deferred_finalizations_) {
+    // Re-resolve the compile rather than trusting a pointer cached while the
+    // GIL was released; the CompiledFunction may have been freed since, in
+    // which case it has already erased itself from compiled_codes_ and there
+    // is nothing left to attach the function to.
+    auto it = compiled_codes_.find(key);
+    if (it != compiled_codes_.end()) {
+      finalizeFunc(func, it->second);
+    }
   }
   deferred_finalizations_.clear();
 }
@@ -465,27 +472,27 @@ bool Context::finalizeFunc(
   return associateFunctionWithCompiled(func, compiled, false /* is_nested */);
 }
 
-void Context::codeCompiled(
-    BorrowedRef<PyFunctionObject> func,
+Ref<PyFunctionObject> Context::codeCompiled(
     CompilationKey& key,
-    CompiledFunctionData&& compiled_func) {
+    CompiledFunctionData&& compiled_func,
+    Ref<PyFunctionObject>&& func) {
   addCompileTime(compiled_func.compile_time);
 
   if (ThreadedCompileContext::compileRunning()) {
-    // ThreadedRef::create touches the function's refcount, which races the
-    // interpreter during a background compile (GIL released).  Serialize to
-    // keep it safe -- a no-op for batch compile where the interpreter is
-    // frozen, but necessary for background compile.
     JITCompilationLock lock;
+    // Stealing rather than referencing: no refcount is touched, so this is
+    // safe with the GIL released.
     completed_compiles_.emplace(
         key,
         std::pair(
             std::move(compiled_func),
-            ThreadedRef<PyFunctionObject>::create(func)));
-    return;
+            ThreadedRef<PyFunctionObject>::steal(func.release())));
+    return nullptr;
   }
 
-  makeCompiledFunction(func, key, std::move(compiled_func));
+  makeCompiledFunction(
+      BorrowedRef<PyFunctionObject>{func}, key, std::move(compiled_func));
+  return std::move(func);
 }
 
 const hir::Type& Context::typeForCommonConstant([[maybe_unused]] int i) const {

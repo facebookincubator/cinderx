@@ -473,9 +473,13 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Defers finalization of a function with an already-compiled
   // CompiledFunction during multi-threaded compile. The finalization will
   // be performed in finalizeMultiThreadedCompile.
+  //
+  // Takes over `func`, an owned reference the caller acquired while it held
+  // the GIL.  Referencing the function here instead would poke a refcount with
+  // the GIL released and race the interpreter.
   void addDeferredFinalization(
-      BorrowedRef<PyFunctionObject> func,
-      BorrowedRef<CompiledFunction> compiled);
+      const CompilationKey& key,
+      Ref<PyFunctionObject>&& func);
 
   void finalizeMultiThreadedCompile();
 
@@ -483,10 +487,13 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // compile the CompiledFunction will immediately be created, otherwise the
   // CompiledFunctionData will be preserved until the multi-threaded compile can
   // finalize things.
-  void codeCompiled(
-      BorrowedRef<PyFunctionObject> func,
+  //
+  // Takes over `func` as addDeferredFinalization() does, and returns it again
+  // if it wasn't needed.
+  Ref<PyFunctionObject> codeCompiled(
       CompilationKey& key,
-      CompiledFunctionData&& compiled_func);
+      CompiledFunctionData&& compiled_func,
+      Ref<PyFunctionObject>&& func);
 
   BorrowedRef<> strBuildClass();
 
@@ -612,9 +619,15 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * CompiledFunctions. This happens when lookupCode finds a pre-existing
    * CompiledFunction during multi-threaded compile - we can't call
    * finalizeFunc on a worker thread because it does Python allocations.
+   *
+   * Stores the compilation key rather than the CompiledFunction that lookupCode
+   * returned.  compiled_codes_ only holds borrowed references, kept alive by
+   * the owning function's dict, so a CompiledFunction found on a worker can be
+   * freed by the interpreter before finalization runs.  Looking it up again at
+   * finalization time keeps the borrow within a single GIL-holding critical
+   * section, and a compile that has since gone away simply isn't found.
    */
-  std::vector<
-      std::pair<ThreadedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>>
+  std::vector<std::pair<ThreadedRef<PyFunctionObject>, CompilationKey>>
       deferred_finalizations_;
 
   /*

@@ -65,6 +65,34 @@ def compiles_after_one_call() -> bool:
     return cinderx.jit.get_compile_after_n_calls() == 0
 
 
+def is_jit_compiled_after_call(func: Callable[..., object]) -> bool:
+    """
+    Check if a function has been compiled by the calls made to it so far.
+
+    Background compilation runs on a worker thread, so the compile a call kicks
+    off is not necessarily finished by the time that call returns.
+    """
+    cinderx.jit.wait_for_background_compiles()
+    return cinderx.jit.is_jit_compiled(func)
+
+
+@contextmanager
+def no_background_compile() -> Generator[None, None, None]:
+    """
+    Compile on the calling thread rather than on the background worker.
+
+    For tests that need a function to be compiled by the time a call to it
+    returns, or that rely on the functions a compiled function calls being
+    compiled along with it, which the background worker doesn't do.
+    """
+    prev = cinderx.jit.get_background_compile()
+    cinderx.jit.background_compile(False)
+    try:
+        yield
+    finally:
+        cinderx.jit.background_compile(prev)
+
+
 _FT = TypeVar("_FT", bound=Callable[..., object])
 
 

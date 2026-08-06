@@ -47,7 +47,7 @@ from cinderx.static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
-from cinderx.test_support import compiles_after_one_call
+from cinderx.test_support import compiles_after_one_call, is_jit_compiled_after_call
 
 from ..common import CompilerTest
 
@@ -614,7 +614,7 @@ __slot_types__ = {slot_types!r}
         if not compiles_after_one_call():
             return
 
-        self.assertTrue(cinderx.jit.is_jit_compiled(func), func.__name__)
+        self.assertTrue(is_jit_compiled_after_call(func), func.__name__)
 
     def assert_not_jitted(self, func: Callable[..., object]) -> None:
         if not cinderx.jit.is_enabled():

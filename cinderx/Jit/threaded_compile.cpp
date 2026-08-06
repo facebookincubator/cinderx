@@ -49,6 +49,9 @@ ThreadedCompileContext::WorkList ThreadedCompileContext::endCompile() {
   ended_ = true;
   threaded_compile_tstate_ = nullptr;
   current_ = nullptr;
+  // The GIL is held again, so it is safe to drop the references the workers
+  // handed back.
+  retired_list_.clear();
   return std::move(retry_list_);
 }
 
@@ -57,8 +60,8 @@ void ThreadedCompileContext::releaseGil() {
   main_ = PyEval_SaveThread();
 }
 
-BorrowedRef<> ThreadedCompileContext::nextUnit() {
-  BorrowedRef<> unit;
+Ref<> ThreadedCompileContext::nextUnit() {
+  Ref<> unit;
   JITCompilationLock lock;
   if (!work_list_.empty()) {
     unit = std::move(work_list_.back());
@@ -67,9 +70,14 @@ BorrowedRef<> ThreadedCompileContext::nextUnit() {
   return unit;
 }
 
-void ThreadedCompileContext::retryUnit(BorrowedRef<> unit) {
+void ThreadedCompileContext::retryUnit(Ref<>&& unit) {
   JITCompilationLock lock;
   retry_list_.emplace_back(std::move(unit));
+}
+
+void ThreadedCompileContext::retireUnit(Ref<>&& unit) {
+  JITCompilationLock lock;
+  retired_list_.emplace_back(std::move(unit));
 }
 
 bool ThreadedCompileContext::compileRunning() {
