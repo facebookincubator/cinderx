@@ -75,7 +75,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v12 = CallCFunc<JitGen_yf> v11
+    v13 = RefineType<ObjectUser> v11
+    v12 = CallCFunc<JitGen_yf> v13
     CondBranch<11, 9> v12
   }
 
@@ -90,42 +91,42 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v13 = LoadConst<ImmortalNoneType>
-    v14 = Assign v11
-    v15 = Assign v13
+    v14 = LoadConst<ImmortalNoneType>
+    v15 = Assign v11
+    v16 = Assign v14
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v16 = Send v14 v15 {
+    v17 = Send v15 v16 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<1> v14
+        Stack<1> v15
       }
     }
-    v17 = GetSecondOutput<CInt64> v16
-    v15 = Assign v16
-    CondBranch<3, 2> v17
+    v18 = GetSecondOutput<CInt64> v17
+    v16 = Assign v17
+    CondBranch<3, 2> v18
   }
 
   bb 3 (preds 1) {
     Snapshot
-    Return v15
+    Return v16
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v18 = YieldValue v15 {
+    v19 = YieldValue v16 {
       FrameState {
         CurInstrOffset 28
         Locals<1> v0
-        Stack<1> v14
+        Stack<1> v15
       }
     }
     Snapshot
-    v15 = Assign v18
+    v16 = Assign v19
     Branch<1>
   }
 }
@@ -194,7 +195,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v12 = CallCFunc<JitGen_yf> v11
+    v13 = RefineType<ObjectUser> v11
+    v12 = CallCFunc<JitGen_yf> v13
     CondBranch<11, 9> v12
   }
 
@@ -209,42 +211,42 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v13 = LoadConst<ImmortalNoneType>
-    v14 = Assign v11
-    v15 = Assign v13
+    v14 = LoadConst<ImmortalNoneType>
+    v15 = Assign v11
+    v16 = Assign v14
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v16 = Send v14 v15 {
+    v17 = Send v15 v16 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
-        Stack<1> v14
+        Stack<1> v15
       }
     }
-    v17 = GetSecondOutput<CInt64> v16
-    v15 = Assign v16
-    CondBranch<3, 2> v17
+    v18 = GetSecondOutput<CInt64> v17
+    v16 = Assign v17
+    CondBranch<3, 2> v18
   }
 
   bb 3 (preds 1) {
     Snapshot
-    Return v15
+    Return v16
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v18 = YieldValue v15 {
+    v19 = YieldValue v16 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<1> v14
+        Stack<1> v15
       }
     }
     Snapshot
-    v15 = Assign v18
+    v16 = Assign v19
     Branch<1>
   }
 }
@@ -313,7 +315,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v12 = CallCFunc<JitGen_yf> v11
+    v13 = RefineType<ObjectUser> v11
+    v12 = CallCFunc<JitGen_yf> v13
     CondBranch<11, 9> v12
   }
 
@@ -328,44 +331,44 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v13 = LoadConst<Nullptr>
-    v14 = LoadConst<ImmortalNoneType>
-    v15 = Assign v11
-    v16 = Assign v13
+    v14 = LoadConst<Nullptr>
+    v15 = LoadConst<ImmortalNoneType>
+    v16 = Assign v11
     v17 = Assign v14
+    v18 = Assign v15
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v18 = Send v15 v17 {
+    v19 = Send v16 v18 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<2> v15 v16
+        Stack<2> v16 v17
       }
     }
-    v19 = GetSecondOutput<CInt64> v18
-    v17 = Assign v18
-    CondBranch<3, 2> v19
+    v20 = GetSecondOutput<CInt64> v19
+    v18 = Assign v19
+    CondBranch<3, 2> v20
   }
 
   bb 3 (preds 1) {
     Snapshot
-    Return v17
+    Return v18
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v20 = YieldValue v17 {
+    v21 = YieldValue v18 {
       FrameState {
         CurInstrOffset 28
         Locals<1> v0
-        Stack<2> v15 v16
+        Stack<2> v16 v17
       }
     }
     Snapshot
-    v17 = Assign v20
+    v18 = Assign v21
     Branch<1>
   }
 }
@@ -434,7 +437,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v12 = CallCFunc<JitGen_yf> v11
+    v13 = RefineType<ObjectUser> v11
+    v12 = CallCFunc<JitGen_yf> v13
     CondBranch<11, 9> v12
   }
 
@@ -449,44 +453,44 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v13 = LoadConst<Nullptr>
-    v14 = LoadConst<ImmortalNoneType>
-    v15 = Assign v11
-    v16 = Assign v13
+    v14 = LoadConst<Nullptr>
+    v15 = LoadConst<ImmortalNoneType>
+    v16 = Assign v11
     v17 = Assign v14
+    v18 = Assign v15
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v18 = Send v15 v17 {
+    v19 = Send v16 v18 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<2> v15 v16
+        Stack<2> v16 v17
       }
     }
-    v19 = GetSecondOutput<CInt64> v18
-    v17 = Assign v18
-    CondBranch<3, 2> v19
+    v20 = GetSecondOutput<CInt64> v19
+    v18 = Assign v19
+    CondBranch<3, 2> v20
   }
 
   bb 3 (preds 1) {
     Snapshot
-    Return v17
+    Return v18
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v20 = YieldValue v17 {
+    v21 = YieldValue v18 {
       FrameState {
         CurInstrOffset 28
         Locals<1> v0
-        Stack<2> v15 v16
+        Stack<2> v16 v17
       }
     }
     Snapshot
-    v17 = Assign v20
+    v18 = Assign v21
     Branch<1>
   }
 }
@@ -556,7 +560,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v12 = CallCFunc<JitGen_yf> v11
+    v13 = RefineType<ObjectUser> v11
+    v12 = CallCFunc<JitGen_yf> v13
     CondBranch<11, 9> v12
   }
 
@@ -571,42 +576,42 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v13 = LoadConst<ImmortalNoneType>
-    v14 = Assign v11
-    v15 = Assign v13
+    v14 = LoadConst<ImmortalNoneType>
+    v15 = Assign v11
+    v16 = Assign v14
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v16 = Send v14 v15 {
+    v17 = Send v15 v16 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
-        Stack<1> v14
+        Stack<1> v15
       }
     }
-    v17 = GetSecondOutput<CInt64> v16
-    v15 = Assign v16
-    CondBranch<3, 2> v17
+    v18 = GetSecondOutput<CInt64> v17
+    v16 = Assign v17
+    CondBranch<3, 2> v18
   }
 
   bb 3 (preds 1) {
     Snapshot
-    Return v15
+    Return v16
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v18 = YieldValue v15 {
+    v19 = YieldValue v16 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
-        Stack<1> v14
+        Stack<1> v15
       }
     }
     Snapshot
-    v15 = Assign v18
+    v16 = Assign v19
     Branch<1>
   }
 }
@@ -1461,7 +1466,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v9 = CallCFunc<JitGen_yf> v8
+    v10 = RefineType<ObjectUser> v8
+    v9 = CallCFunc<JitGen_yf> v10
     CondBranch<11, 9> v9
   }
 
@@ -1475,41 +1481,41 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v10 = LoadConst<ImmortalNoneType>
-    v11 = Assign v8
-    v12 = Assign v10
+    v11 = LoadConst<ImmortalNoneType>
+    v12 = Assign v8
+    v13 = Assign v11
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v13 = Send v11 v12 {
+    v14 = Send v12 v13 {
       FrameState {
         CurInstrOffset 26
-        Stack<1> v11
+        Stack<1> v12
       }
     }
-    v14 = GetSecondOutput<CInt64> v13
-    v12 = Assign v13
-    CondBranch<3, 2> v14
+    v15 = GetSecondOutput<CInt64> v14
+    v13 = Assign v14
+    CondBranch<3, 2> v15
   }
 
   bb 3 (preds 1) {
     Snapshot
-    v12 = RefineType<Unicode> v12
-    Return<Unicode> v12
+    v13 = RefineType<Unicode> v13
+    Return<Unicode> v13
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v15 = YieldValue v12 {
+    v16 = YieldValue v13 {
       FrameState {
         CurInstrOffset 30
-        Stack<1> v11
+        Stack<1> v12
       }
     }
     Snapshot
-    v12 = Assign v15
+    v13 = Assign v16
     Branch<1>
   }
 }
@@ -1565,7 +1571,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v9 = CallCFunc<JitGen_yf> v8
+    v10 = RefineType<ObjectUser> v8
+    v9 = CallCFunc<JitGen_yf> v10
     CondBranch<11, 9> v9
   }
 
@@ -1579,41 +1586,41 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v10 = LoadConst<ImmortalNoneType>
-    v11 = Assign v8
-    v12 = Assign v10
+    v11 = LoadConst<ImmortalNoneType>
+    v12 = Assign v8
+    v13 = Assign v11
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v13 = Send v11 v12 {
+    v14 = Send v12 v13 {
       FrameState {
         CurInstrOffset 18
-        Stack<1> v11
+        Stack<1> v12
       }
     }
-    v14 = GetSecondOutput<CInt64> v13
-    v12 = Assign v13
-    CondBranch<3, 2> v14
+    v15 = GetSecondOutput<CInt64> v14
+    v13 = Assign v14
+    CondBranch<3, 2> v15
   }
 
   bb 3 (preds 1) {
     Snapshot
-    v12 = RefineType<Unicode> v12
-    Return<Unicode> v12
+    v13 = RefineType<Unicode> v13
+    Return<Unicode> v13
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v15 = YieldValue v12 {
+    v16 = YieldValue v13 {
       FrameState {
         CurInstrOffset 22
-        Stack<1> v11
+        Stack<1> v12
       }
     }
     Snapshot
-    v12 = Assign v15
+    v13 = Assign v16
     Branch<1>
   }
 }
@@ -1669,7 +1676,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v9 = CallCFunc<JitGen_yf> v8
+    v10 = RefineType<ObjectUser> v8
+    v9 = CallCFunc<JitGen_yf> v10
     CondBranch<11, 9> v9
   }
 
@@ -1683,43 +1691,43 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v10 = LoadConst<Nullptr>
-    v11 = LoadConst<ImmortalNoneType>
-    v12 = Assign v8
-    v13 = Assign v10
+    v11 = LoadConst<Nullptr>
+    v12 = LoadConst<ImmortalNoneType>
+    v13 = Assign v8
     v14 = Assign v11
+    v15 = Assign v12
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v15 = Send v12 v14 {
+    v16 = Send v13 v15 {
       FrameState {
         CurInstrOffset 22
-        Stack<2> v12 v13
+        Stack<2> v13 v14
       }
     }
-    v16 = GetSecondOutput<CInt64> v15
-    v14 = Assign v15
-    CondBranch<3, 2> v16
+    v17 = GetSecondOutput<CInt64> v16
+    v15 = Assign v16
+    CondBranch<3, 2> v17
   }
 
   bb 3 (preds 1) {
     Snapshot
-    v14 = RefineType<Unicode> v14
-    Return<Unicode> v14
+    v15 = RefineType<Unicode> v15
+    Return<Unicode> v15
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v17 = YieldValue v14 {
+    v18 = YieldValue v15 {
       FrameState {
         CurInstrOffset 26
-        Stack<2> v12 v13
+        Stack<2> v13 v14
       }
     }
     Snapshot
-    v14 = Assign v17
+    v15 = Assign v18
     Branch<1>
   }
 }
@@ -1775,7 +1783,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v9 = CallCFunc<JitGen_yf> v8
+    v10 = RefineType<ObjectUser> v8
+    v9 = CallCFunc<JitGen_yf> v10
     CondBranch<11, 9> v9
   }
 
@@ -1789,43 +1798,43 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v10 = LoadConst<Nullptr>
-    v11 = LoadConst<ImmortalNoneType>
-    v12 = Assign v8
-    v13 = Assign v10
+    v11 = LoadConst<Nullptr>
+    v12 = LoadConst<ImmortalNoneType>
+    v13 = Assign v8
     v14 = Assign v11
+    v15 = Assign v12
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v15 = Send v12 v14 {
+    v16 = Send v13 v15 {
       FrameState {
         CurInstrOffset 22
-        Stack<2> v12 v13
+        Stack<2> v13 v14
       }
     }
-    v16 = GetSecondOutput<CInt64> v15
-    v14 = Assign v15
-    CondBranch<3, 2> v16
+    v17 = GetSecondOutput<CInt64> v16
+    v15 = Assign v16
+    CondBranch<3, 2> v17
   }
 
   bb 3 (preds 1) {
     Snapshot
-    v14 = RefineType<Unicode> v14
-    Return<Unicode> v14
+    v15 = RefineType<Unicode> v15
+    Return<Unicode> v15
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v17 = YieldValue v14 {
+    v18 = YieldValue v15 {
       FrameState {
         CurInstrOffset 26
-        Stack<2> v12 v13
+        Stack<2> v13 v14
       }
     }
     Snapshot
-    v14 = Assign v17
+    v15 = Assign v18
     Branch<1>
   }
 }
@@ -1882,7 +1891,8 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 6, 10) {
-    v9 = CallCFunc<JitGen_yf> v8
+    v10 = RefineType<ObjectUser> v8
+    v9 = CallCFunc<JitGen_yf> v10
     CondBranch<11, 9> v9
   }
 
@@ -1896,41 +1906,41 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v10 = LoadConst<ImmortalNoneType>
-    v11 = Assign v8
-    v12 = Assign v10
+    v11 = LoadConst<ImmortalNoneType>
+    v12 = Assign v8
+    v13 = Assign v11
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
     Snapshot
-    v13 = Send v11 v12 {
+    v14 = Send v12 v13 {
       FrameState {
         CurInstrOffset 18
-        Stack<1> v11
+        Stack<1> v12
       }
     }
-    v14 = GetSecondOutput<CInt64> v13
-    v12 = Assign v13
-    CondBranch<3, 2> v14
+    v15 = GetSecondOutput<CInt64> v14
+    v13 = Assign v14
+    CondBranch<3, 2> v15
   }
 
   bb 3 (preds 1) {
     Snapshot
-    v12 = RefineType<Unicode> v12
-    Return<Unicode> v12
+    v13 = RefineType<Unicode> v13
+    Return<Unicode> v13
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v15 = YieldValue v12 {
+    v16 = YieldValue v13 {
       FrameState {
         CurInstrOffset 22
-        Stack<1> v11
+        Stack<1> v12
       }
     }
     Snapshot
-    v12 = Assign v15
+    v13 = Assign v16
     Branch<1>
   }
 }
@@ -1975,7 +1985,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v7 = Assign v0
+    v7 = RefineType<Tuple> v0
     Branch<5>
   }
 
@@ -2022,7 +2032,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 5) {
     Snapshot
-    v12 = Assign v7
+    v12 = RefineType<Tuple> v7
     Branch<8>
   }
 
@@ -2061,7 +2071,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8) {
     Snapshot
-    v16 = Assign v12
+    v16 = RefineType<Tuple> v12
     Branch<11>
   }
 
@@ -2141,7 +2151,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v7 = Assign v0
+    v7 = RefineType<Tuple> v0
     Branch<5>
   }
 
@@ -2188,7 +2198,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 5) {
     Snapshot
-    v12 = Assign v7
+    v12 = RefineType<Tuple> v7
     Branch<8>
   }
 
@@ -2227,7 +2237,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8) {
     Snapshot
-    v16 = Assign v12
+    v16 = RefineType<Tuple> v12
     Branch<11>
   }
 
@@ -2307,7 +2317,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v7 = Assign v0
+    v7 = RefineType<Tuple> v0
     Branch<5>
   }
 
@@ -2354,7 +2364,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 5) {
     Snapshot
-    v12 = Assign v7
+    v12 = RefineType<Tuple> v7
     Branch<8>
   }
 
@@ -2393,7 +2403,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8) {
     Snapshot
-    v16 = Assign v12
+    v16 = RefineType<Tuple> v12
     Branch<11>
   }
 
@@ -2473,7 +2483,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v7 = Assign v0
+    v7 = RefineType<Tuple> v0
     Branch<5>
   }
 
@@ -2520,7 +2530,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 5) {
     Snapshot
-    v12 = Assign v7
+    v12 = RefineType<Tuple> v7
     Branch<8>
   }
 
@@ -2559,7 +2569,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8) {
     Snapshot
-    v16 = Assign v12
+    v16 = RefineType<Tuple> v12
     Branch<11>
   }
 
@@ -2640,7 +2650,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v7 = Assign v0
+    v7 = RefineType<Tuple> v0
     Branch<5>
   }
 
@@ -2687,7 +2697,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 5) {
     Snapshot
-    v12 = Assign v7
+    v12 = RefineType<Tuple> v7
     Branch<8>
   }
 
@@ -2726,7 +2736,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8) {
     Snapshot
-    v16 = Assign v12
+    v16 = RefineType<Tuple> v12
     Branch<11>
   }
 

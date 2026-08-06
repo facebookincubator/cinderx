@@ -2226,7 +2226,7 @@ void HIRBuilder::emitLoadIterableArg(
     tc.frame.stack.topPut(0, tuple);
     tc.emitSnapshot();
 
-    tuple_path.emit<Assign>(tuple, iterable);
+    tuple_path.emit<RefineType>(tuple, TTuple, iterable);
     tuple_path.emit<Branch>(tc.block);
 
     non_tuple_path.emit<GetTuple>(tuple, iterable, non_tuple_path.frame);
@@ -3410,7 +3410,6 @@ void HIRBuilder::emitFastLen(
     BasicBlock* fast_path = cfg.allocateBlock();
     tc.emit<CondBranchCheckType>(collection, type, fast_path, deopt_path.block);
     tc.block = fast_path;
-    // TASK(T105038867): Remove once we have RefineTypeInsertion
     tc.emit<RefineType>(collection, type, collection);
   } else {
     collection = tc.frame.stack.pop();
@@ -4031,7 +4030,7 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
   tc.emit<Branch>(done_block);
 
   tc.block = nop_block;
-  tc.emit<Assign>(iter_out, iter_in);
+  tc.emit<RefineType>(iter_out, TGen, iter_in);
   tc.emit<Branch>(done_block);
 
   tc.block = done_block;
@@ -4142,23 +4141,29 @@ void HIRBuilder::emitUnpackSequence(
   }
 
   tc.block = tuple_fast_path;
+  Register* tuple_seq = allocateTemp();
   Register* offset_reg = allocateTemp();
+  tc.emit<RefineType>(tuple_seq, TTupleExact, seq);
   tc.emit<LoadConst>(
       offset_reg, Type::fromCInt(offsetof(PyTupleObject, ob_item), TCInt64));
-  tc.emit<LoadFieldAddress>(list_mem, seq, offset_reg);
+  tc.emit<LoadFieldAddress>(list_mem, tuple_seq, offset_reg);
   tc.emit<Branch>(fast_path);
 
   tc.block = list_fast_path;
+  Register* list_seq = allocateTemp();
+  tc.emit<RefineType>(list_seq, TListExact, seq);
   tc.emit<LoadField>(
-      list_mem, seq, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
+      list_mem, list_seq, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
   tc.emit<Branch>(fast_path);
 
   tc.block = fast_path;
 
+  Register* fast_seq = allocateTemp();
   Register* seq_size = allocateTemp();
   Register* target_size = allocateTemp();
   Register* is_equal = allocateTemp();
-  tc.emit<LoadVarObjectSize>(seq_size, seq);
+  tc.emit<RefineType>(fast_seq, TListExact | TTupleExact, seq);
+  tc.emit<LoadVarObjectSize>(seq_size, fast_seq);
   tc.emit<LoadConst>(target_size, Type::fromCInt(count, TCInt64));
   tc.emit<PrimitiveCompare>(
       is_equal, PrimitiveCompareOp::kEqual, seq_size, target_size);
@@ -4171,7 +4176,8 @@ void HIRBuilder::emitUnpackSequence(
     // Write to pre-allocated items[] registers shared with the slow path.
     for (int idx = count - 1; idx >= 0; --idx) {
       tc.emit<LoadConst>(idx_reg, Type::fromCInt(idx, TCInt64));
-      tc.emit<LoadArrayItem>(items[idx], list_mem, idx_reg, seq, 0, TObject);
+      tc.emit<LoadArrayItem>(
+          items[idx], list_mem, idx_reg, fast_seq, 0, TObject);
     }
     tc.emit<Branch>(done_path);
 
@@ -4601,21 +4607,22 @@ void HIRBuilder::emitGetAwaitable(
   BasicBlock* block_assert_not_awaited_coro = cfg.allocateBlock();
   BasicBlock* block_done = cfg.allocateBlock();
   BasicBlock* block_check_coro = cfg.allocateBlock();
+
+  auto our_coro_type =
+      Type::fromTypeExact(cinderx::getModuleState()->coro_type);
+  auto coro_type = Type::fromTypeExact(&PyCoro_Type);
+
   tc.emit<CondBranchCheckType>(
-      iter,
-      Type::fromTypeExact(cinderx::getModuleState()->coro_type),
-      block_assert_not_awaited_coro,
-      block_check_coro);
+      iter, our_coro_type, block_assert_not_awaited_coro, block_check_coro);
   tc.block = block_check_coro;
   tc.emit<CondBranchCheckType>(
-      iter,
-      Type::fromTypeExact(&PyCoro_Type),
-      block_assert_not_awaited_coro,
-      block_done);
+      iter, coro_type, block_assert_not_awaited_coro, block_done);
   Register* yf = allocateTemp();
   tc.block = block_assert_not_awaited_coro;
+  Register* coro_iter = allocateTemp();
+  tc.emit<RefineType>(coro_iter, our_coro_type | coro_type, iter);
   tc.emit<CallCFunc>(
-      1, yf, CallCFunc::Func::kJitGen_yf, std::vector<Register*>{iter});
+      1, yf, CallCFunc::Func::kJitGen_yf, std::vector<Register*>{coro_iter});
   BasicBlock* block_coro_already_awaited = cfg.allocateBlock();
   tc.emit<CondBranch>(yf, block_coro_already_awaited, block_done);
   tc.block = block_coro_already_awaited;
@@ -4714,7 +4721,8 @@ void HIRBuilder::emitDispatchEagerCoroResult(
   tc.emit<CondBranchCheckType>(
       stack_top, TWaitHandle, has_wh_block.block, await_block);
 
-  Register* wait_handle = stack_top;
+  Register* wait_handle = allocateTemp();
+  has_wh_block.emit<RefineType>(wait_handle, TWaitHandle, stack_top);
   Register* wh_coro_or_result = allocateTemp();
   Register* wh_waiter = allocateTemp();
   has_wh_block.emit<WaitHandleLoadCoroOrResult>(wh_coro_or_result, wait_handle);

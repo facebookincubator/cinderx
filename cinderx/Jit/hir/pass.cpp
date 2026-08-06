@@ -834,15 +834,6 @@ bool removeUnreachableBlocks(Function& func) {
 
 bool removeUnreachableInstructions(Function& func) {
   bool modified = false;
-  RegUses reg_uses = collectDirectRegUses(func);
-  auto remove_reg_uses = [&reg_uses](Instr* instr) {
-    for (auto op : instr->getOperands()) {
-      auto instrs = reg_uses.find(op);
-      if (instrs != reg_uses.end()) {
-        instrs->second.erase(instr);
-      }
-    }
-  };
 
   // Post-order traversal.
   const DominatorTree& dom = func.domTree();
@@ -891,13 +882,6 @@ bool removeUnreachableInstructions(Function& func) {
       // Clean up dangling phi references
       if (Instr* old_term = block->getTerminator()) {
         for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
-          auto bb = old_term->successor(i);
-          for (auto& potential_phi : *bb) {
-            if (potential_phi.isPhi()) {
-              remove_reg_uses(&potential_phi);
-            }
-          }
-
           old_term->successor(i)->removePhiPredecessor(block);
         }
       }
@@ -906,7 +890,6 @@ bool removeUnreachableInstructions(Function& func) {
         Instr& instrToDelete = *it;
         ++it;
         instrToDelete.unlink();
-        remove_reg_uses(&instrToDelete);
         delete &instrToDelete;
       }
     }
@@ -932,39 +915,10 @@ bool removeUnreachableInstructions(Function& func) {
                 "true branch must be unreachable");
             target = cond_branch->false_bb();
           }
-
-          if (branch->isCondBranchCheckType()) {
-            // Before replacing a CondBranchCheckType with a Branch to the
-            // reachable block, insert a RefineType to preserve the type
-            // information implied by following that path.
-            auto check_type_branch = static_cast<CondBranchCheckType*>(branch);
-            Register* refined_value = func.env.allocateRegister();
-            Type check_type = check_type_branch->type();
-            if (target == cond_branch->false_bb()) {
-              check_type = TTop - check_type_branch->type();
-            }
-
-            Register* operand = check_type_branch->getOperand(0);
-            RefineType::create(refined_value, check_type, operand)
-                ->insertBefore(*cond_branch);
-            auto uses = reg_uses.find(operand);
-            if (uses == reg_uses.end()) {
-              break;
-            }
-            std::unordered_set<Instr*>& instrs_using_reg = uses->second;
-            const std::unordered_set<const BasicBlock*>& dom_set =
-                dom.getBlocksDominatedBy(target);
-            for (Instr* instr : instrs_using_reg) {
-              if (dom_set.contains(instr->block())) {
-                instr->replaceUsesOf(operand, refined_value);
-              }
-            }
-          }
           cond_branch->replaceWith(*Branch::create(target));
         } else {
           JIT_ABORT("Unexpected branch instruction {}", *branch);
         }
-        remove_reg_uses(branch);
         delete branch;
       }
     }

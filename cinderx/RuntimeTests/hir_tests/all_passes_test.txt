@@ -1830,104 +1830,105 @@ async def test():
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v18:Nullptr = LoadConst<Nullptr>
-    v19:OptImmortalNoneType = InitialYield {
-      LiveValues<1> unc:v18
+    v19:Nullptr = LoadConst<Nullptr>
+    v20:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v19
       FrameState {
         CurInstrOffset 0
-        Locals<1> v18
+        Locals<1> v19
       }
     }
     UpdatePrevInstr<idx:2 line_no:1: no parent>
-    v20:CInt32 = LoadEvalBreaker
-    CondBranch<7, 6> v20
+    v21:CInt32 = LoadEvalBreaker
+    CondBranch<7, 6> v21
   }
 
   bb 7 (preds 0) {
-    v38:CInt32 = RunPeriodicTasks {
-      LiveValues<1> unc:v18
+    v40:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v19
       FrameState {
         CurInstrOffset 4
-        Locals<1> v18
+        Locals<1> v19
       }
     }
     Branch<6>
   }
 
   bb 6 (preds 0, 7) {
-    v21:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v40:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v21
-    v41:UnicodeExact = CheckExc v40 {
-      LiveValues<2> unc:v21 o:v40
+    v22:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v42:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v22
+    v43:UnicodeExact = CheckExc v42 {
+      LiveValues<2> unc:v22 o:v42
       FrameState {
         CurInstrOffset 32
-        Locals<1> v21
+        Locals<1> v22
       }
     }
-    v26:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v41
-    Decref v41
-    v27:Object = CheckExc v26 {
-      LiveValues<2> unc:v21 o:v26
+    v27:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v43
+    Decref v43
+    v28:Object = CheckExc v27 {
+      LiveValues<2> unc:v22 o:v27
       FrameState {
         CurInstrOffset 40
-        Locals<1> v21
+        Locals<1> v22
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v28
   }
 
   bb 10 (preds 6) {
-    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v28
   }
 
   bb 8 (preds 6, 10) {
-    v28:OptObject = CallCFunc<JitGen_yf> v27
-    CondBranch<11, 9> v28
+    v29:ObjectUser = RefineType<ObjectUser> v28
+    v30:OptObject = CallCFunc<JitGen_yf> v29
+    CondBranch<11, 9> v30
   }
 
   bb 11 (preds 8) {
-    Decref v27
-    XDecref v28
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v21>> {
-      LiveValues<1> unc:v21
+    Decref v28
+    XDecref v30
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v22>> {
+      LiveValues<1> unc:v22
       FrameState {
         CurInstrOffset 40
-        Locals<1> v21
+        Locals<1> v22
       }
     }
   }
 
   bb 9 (preds 8, 10) {
-    v29:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v31:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
-    v32:Object = Phi<2, 9> v36 v29
-    v33:Object = Send v27 v32 {
-      LiveValues<3> unc:v21 o:v27 b:v32
+    v34:Object = Phi<2, 9> v38 v31
+    v35:Object = Send v28 v34 {
+      LiveValues<3> unc:v22 o:v28 b:v34
       FrameState {
         CurInstrOffset 44
-        Locals<1> v21
-        Stack<1> v27
+        Locals<1> v22
+        Stack<1> v28
       }
     }
-    v34:CInt64 = GetSecondOutput<CInt64> v33
-    CondBranch<3, 2> v34
+    v36:CInt64 = GetSecondOutput<CInt64> v35
+    CondBranch<3, 2> v36
   }
 
   bb 3 (preds 1) {
-    Decref v27
-    Return v33
+    Decref v28
+    Return v35
   }
 
   bb 2 (preds 1) {
-    v36:Object = YieldValue v33 {
-      LiveValues<3> unc:v21 o:v27 b:v33
+    v38:Object = YieldValue v35 {
+      LiveValues<3> unc:v22 o:v28 b:v35
       FrameState {
         CurInstrOffset 48
-        Locals<1> v21
-        Stack<1> v27
+        Locals<1> v22
+        Stack<1> v28
       }
     }
     Branch<1>
@@ -1937,104 +1938,105 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v18:Nullptr = LoadConst<Nullptr>
-    v19:OptImmortalNoneType = InitialYield {
-      LiveValues<1> unc:v18
+    v19:Nullptr = LoadConst<Nullptr>
+    v20:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v19
       FrameState {
         CurInstrOffset 0
-        Locals<1> v18
+        Locals<1> v19
       }
     }
     UpdatePrevInstr<idx:2 line_no:1: no parent>
-    v20:CInt64 = LoadEvalBreaker
-    CondBranch<7, 6> v20
+    v21:CInt64 = LoadEvalBreaker
+    CondBranch<7, 6> v21
   }
 
   bb 7 (preds 0) {
-    v38:CInt32 = RunPeriodicTasks {
-      LiveValues<1> unc:v18
+    v40:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v19
       FrameState {
         CurInstrOffset 4
-        Locals<1> v18
+        Locals<1> v19
       }
     }
     Branch<6>
   }
 
   bb 6 (preds 0, 7) {
-    v21:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v40:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v21
-    v41:UnicodeExact = CheckExc v40 {
-      LiveValues<2> unc:v21 o:v40
+    v22:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v42:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v22
+    v43:UnicodeExact = CheckExc v42 {
+      LiveValues<2> unc:v22 o:v42
       FrameState {
         CurInstrOffset 32
-        Locals<1> v21
+        Locals<1> v22
       }
     }
-    v26:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v41
-    Decref v41
-    v27:Object = CheckExc v26 {
-      LiveValues<2> unc:v21 o:v26
+    v27:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v43
+    Decref v43
+    v28:Object = CheckExc v27 {
+      LiveValues<2> unc:v22 o:v27
       FrameState {
         CurInstrOffset 40
-        Locals<1> v21
+        Locals<1> v22
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v28
   }
 
   bb 10 (preds 6) {
-    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v28
   }
 
   bb 8 (preds 6, 10) {
-    v28:OptObject = CallCFunc<JitGen_yf> v27
-    CondBranch<11, 9> v28
+    v29:ObjectUser = RefineType<ObjectUser> v28
+    v30:OptObject = CallCFunc<JitGen_yf> v29
+    CondBranch<11, 9> v30
   }
 
   bb 11 (preds 8) {
-    Decref v27
-    XDecref v28
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v21>> {
-      LiveValues<1> unc:v21
+    Decref v28
+    XDecref v30
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v22>> {
+      LiveValues<1> unc:v22
       FrameState {
         CurInstrOffset 40
-        Locals<1> v21
+        Locals<1> v22
       }
     }
   }
 
   bb 9 (preds 8, 10) {
-    v29:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v31:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
-    v32:Object = Phi<2, 9> v36 v29
-    v33:Object = Send v27 v32 {
-      LiveValues<3> unc:v21 o:v27 b:v32
+    v34:Object = Phi<2, 9> v38 v31
+    v35:Object = Send v28 v34 {
+      LiveValues<3> unc:v22 o:v28 b:v34
       FrameState {
         CurInstrOffset 44
-        Locals<1> v21
-        Stack<1> v27
+        Locals<1> v22
+        Stack<1> v28
       }
     }
-    v34:CInt64 = GetSecondOutput<CInt64> v33
-    CondBranch<3, 2> v34
+    v36:CInt64 = GetSecondOutput<CInt64> v35
+    CondBranch<3, 2> v36
   }
 
   bb 3 (preds 1) {
-    Decref v27
-    Return v33
+    Decref v28
+    Return v35
   }
 
   bb 2 (preds 1) {
-    v36:Object = YieldValue v33 {
-      LiveValues<3> unc:v21 o:v27 b:v33
+    v38:Object = YieldValue v35 {
+      LiveValues<3> unc:v22 o:v28 b:v35
       FrameState {
         CurInstrOffset 48
-        Locals<1> v21
-        Stack<1> v27
+        Locals<1> v22
+        Stack<1> v28
       }
     }
     Branch<1>
@@ -2044,111 +2046,112 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v20:Nullptr = LoadConst<Nullptr>
+    v21:Nullptr = LoadConst<Nullptr>
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v21:OptImmortalNoneType = InitialYield {
-      LiveValues<1> unc:v20
+    v22:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v21
       FrameState {
         CurInstrOffset 0
-        Locals<1> v20
+        Locals<1> v21
       }
     }
-    v22:CInt64 = LoadEvalBreaker
-    CondBranch<7, 6> v22
+    v23:CInt64 = LoadEvalBreaker
+    CondBranch<7, 6> v23
   }
 
   bb 7 (preds 0) {
     UpdatePrevInstr<idx:2 line_no:1: no parent>
-    v42:CInt32 = RunPeriodicTasks {
-      LiveValues<1> unc:v20
+    v44:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v21
       FrameState {
         CurInstrOffset 4
-        Locals<1> v20
+        Locals<1> v21
       }
     }
     Branch<6>
   }
 
   bb 6 (preds 0, 7) {
-    v23:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v24:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     UpdatePrevInstr<idx:17 line_no:3: no parent>
-    v44:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v23
-    v45:UnicodeExact = CheckExc v44 {
-      LiveValues<2> unc:v23 o:v44
+    v46:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v24
+    v47:UnicodeExact = CheckExc v46 {
+      LiveValues<2> unc:v24 o:v46
       FrameState {
         CurInstrOffset 34
-        Locals<1> v23
+        Locals<1> v24
       }
     }
-    v28:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v45
-    Decref v45
-    v29:Object = CheckExc v28 {
-      LiveValues<2> unc:v23 o:v28
+    v29:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v47
+    Decref v47
+    v30:Object = CheckExc v29 {
+      LiveValues<2> unc:v24 o:v29
       FrameState {
         CurInstrOffset 42
-        Locals<1> v23
+        Locals<1> v24
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v29
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v30
   }
 
   bb 10 (preds 6) {
-    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v29
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v30
   }
 
   bb 8 (preds 6, 10) {
-    v30:OptObject = CallCFunc<JitGen_yf> v29
-    CondBranch<11, 9> v30
+    v31:ObjectUser = RefineType<ObjectUser> v30
+    v32:OptObject = CallCFunc<JitGen_yf> v31
+    CondBranch<11, 9> v32
   }
 
   bb 11 (preds 8) {
     UpdatePrevInstr<idx:21 line_no:3: no parent>
-    Decref v29
-    XDecref v30
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v23>> {
-      LiveValues<1> unc:v23
+    Decref v30
+    XDecref v32
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v24>> {
+      LiveValues<1> unc:v24
       FrameState {
         CurInstrOffset 42
-        Locals<1> v23
+        Locals<1> v24
       }
     }
   }
 
   bb 9 (preds 8, 10) {
-    v31:Nullptr = LoadConst<Nullptr>
-    v32:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v33:Nullptr = LoadConst<Nullptr>
+    v34:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
-    v36:Object = Phi<2, 9> v40 v32
+    v38:Object = Phi<2, 9> v42 v34
     UpdatePrevInstr<idx:24 line_no:3: no parent>
-    v37:Object = Send v29 v36 {
-      LiveValues<4> unc:v23 o:v29 unc:v31 b:v36
+    v39:Object = Send v30 v38 {
+      LiveValues<4> unc:v24 o:v30 unc:v33 b:v38
       FrameState {
         CurInstrOffset 48
-        Locals<1> v23
-        Stack<2> v29 v31
+        Locals<1> v24
+        Stack<2> v30 v33
       }
     }
-    v38:CInt64 = GetSecondOutput<CInt64> v37
-    CondBranch<3, 2> v38
+    v40:CInt64 = GetSecondOutput<CInt64> v39
+    CondBranch<3, 2> v40
   }
 
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:31 line_no:3: no parent>
-    Decref v29
-    Return v37
+    Decref v30
+    Return v39
   }
 
   bb 2 (preds 1) {
     UpdatePrevInstr<idx:26 line_no:3: no parent>
-    v40:Object = YieldValue v37 {
-      LiveValues<4> unc:v23 o:v29 unc:v31 b:v37
+    v42:Object = YieldValue v39 {
+      LiveValues<4> unc:v24 o:v30 unc:v33 b:v39
       FrameState {
         CurInstrOffset 52
-        Locals<1> v23
-        Stack<2> v29 v31
+        Locals<1> v24
+        Stack<2> v30 v33
       }
     }
     Branch<1>
@@ -2158,111 +2161,112 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v20:Nullptr = LoadConst<Nullptr>
+    v21:Nullptr = LoadConst<Nullptr>
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v21:OptImmortalNoneType = InitialYield {
-      LiveValues<1> unc:v20
+    v22:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v21
       FrameState {
         CurInstrOffset 0
-        Locals<1> v20
+        Locals<1> v21
       }
     }
-    v22:CInt64 = LoadEvalBreaker
-    CondBranch<7, 6> v22
+    v23:CInt64 = LoadEvalBreaker
+    CondBranch<7, 6> v23
   }
 
   bb 7 (preds 0) {
     UpdatePrevInstr<idx:2 line_no:1: no parent>
-    v42:CInt32 = RunPeriodicTasks {
-      LiveValues<1> unc:v20
+    v44:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v21
       FrameState {
         CurInstrOffset 4
-        Locals<1> v20
+        Locals<1> v21
       }
     }
     Branch<6>
   }
 
   bb 6 (preds 0, 7) {
-    v23:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v24:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     UpdatePrevInstr<idx:17 line_no:3: no parent>
-    v44:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v23
-    v45:UnicodeExact = CheckExc v44 {
-      LiveValues<2> unc:v23 o:v44
+    v46:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v24
+    v47:UnicodeExact = CheckExc v46 {
+      LiveValues<2> unc:v24 o:v46
       FrameState {
         CurInstrOffset 34
-        Locals<1> v23
+        Locals<1> v24
       }
     }
-    v28:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v45
-    Decref v45
-    v29:Object = CheckExc v28 {
-      LiveValues<2> unc:v23 o:v28
+    v29:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v47
+    Decref v47
+    v30:Object = CheckExc v29 {
+      LiveValues<2> unc:v24 o:v29
       FrameState {
         CurInstrOffset 42
-        Locals<1> v23
+        Locals<1> v24
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v29
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v30
   }
 
   bb 10 (preds 6) {
-    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v29
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v30
   }
 
   bb 8 (preds 6, 10) {
-    v30:OptObject = CallCFunc<JitGen_yf> v29
-    CondBranch<11, 9> v30
+    v31:ObjectUser = RefineType<ObjectUser> v30
+    v32:OptObject = CallCFunc<JitGen_yf> v31
+    CondBranch<11, 9> v32
   }
 
   bb 11 (preds 8) {
     UpdatePrevInstr<idx:21 line_no:3: no parent>
-    Decref v29
-    XDecref v30
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v23>> {
-      LiveValues<1> unc:v23
+    Decref v30
+    XDecref v32
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v24>> {
+      LiveValues<1> unc:v24
       FrameState {
         CurInstrOffset 42
-        Locals<1> v23
+        Locals<1> v24
       }
     }
   }
 
   bb 9 (preds 8, 10) {
-    v31:Nullptr = LoadConst<Nullptr>
-    v32:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v33:Nullptr = LoadConst<Nullptr>
+    v34:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
-    v36:Object = Phi<2, 9> v40 v32
+    v38:Object = Phi<2, 9> v42 v34
     UpdatePrevInstr<idx:24 line_no:3: no parent>
-    v37:Object = Send v29 v36 {
-      LiveValues<4> unc:v23 o:v29 unc:v31 b:v36
+    v39:Object = Send v30 v38 {
+      LiveValues<4> unc:v24 o:v30 unc:v33 b:v38
       FrameState {
         CurInstrOffset 48
-        Locals<1> v23
-        Stack<2> v29 v31
+        Locals<1> v24
+        Stack<2> v30 v33
       }
     }
-    v38:CInt64 = GetSecondOutput<CInt64> v37
-    CondBranch<3, 2> v38
+    v40:CInt64 = GetSecondOutput<CInt64> v39
+    CondBranch<3, 2> v40
   }
 
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:31 line_no:3: no parent>
-    Decref v29
-    Return v37
+    Decref v30
+    Return v39
   }
 
   bb 2 (preds 1) {
     UpdatePrevInstr<idx:26 line_no:3: no parent>
-    v40:Object = YieldValue v37 {
-      LiveValues<4> unc:v23 o:v29 unc:v31 b:v37
+    v42:Object = YieldValue v39 {
+      LiveValues<4> unc:v24 o:v30 unc:v33 b:v39
       FrameState {
         CurInstrOffset 52
-        Locals<1> v23
-        Stack<2> v29 v31
+        Locals<1> v24
+        Stack<2> v30 v33
       }
     }
     Branch<1>
@@ -2272,110 +2276,111 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v18:Nullptr = LoadConst<Nullptr>
-    v19:OptImmortalNoneType = InitialYield {
-      LiveValues<1> unc:v18
+    v19:Nullptr = LoadConst<Nullptr>
+    v20:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v19
       FrameState {
         CurInstrOffset 0
-        Locals<1> v18
+        Locals<1> v19
       }
     }
     AtQuiescentState
     UpdatePrevInstr<idx:2 line_no:1: no parent>
-    v20:CInt64 = LoadEvalBreaker
-    CondBranch<7, 6> v20
+    v21:CInt64 = LoadEvalBreaker
+    CondBranch<7, 6> v21
   }
 
   bb 7 (preds 0) {
-    v38:CInt32 = RunPeriodicTasks {
-      LiveValues<1> unc:v18
+    v40:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v19
       FrameState {
         CurInstrOffset 4
-        Locals<1> v18
+        Locals<1> v19
       }
     }
     Branch<6>
   }
 
   bb 6 (preds 0, 7) {
-    v21:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v39:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v21
-    v40:UnicodeExact = CheckExc v39 {
-      LiveValues<2> unc:v21 o:v39
+    v22:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v41:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v22
+    v42:UnicodeExact = CheckExc v41 {
+      LiveValues<2> unc:v22 o:v41
       FrameState {
         CurInstrOffset 32
-        Locals<1> v21
+        Locals<1> v22
       }
     }
-    v26:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v40
-    Decref v40
-    v27:Object = CheckExc v26 {
-      LiveValues<2> unc:v21 o:v26
+    v27:OptObject = CallCFunc<JitCoro_GetAwaitableIter> v42
+    Decref v42
+    v28:Object = CheckExc v27 {
+      LiveValues<2> unc:v22 o:v27
       FrameState {
         CurInstrOffset 40
-        Locals<1> v21
+        Locals<1> v22
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v28
   }
 
   bb 10 (preds 6) {
-    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v28
   }
 
   bb 8 (preds 6, 10) {
-    v28:OptObject = CallCFunc<JitGen_yf> v27
-    CondBranch<11, 9> v28
+    v29:ObjectUser = RefineType<ObjectUser> v28
+    v30:OptObject = CallCFunc<JitGen_yf> v29
+    CondBranch<11, 9> v30
   }
 
   bb 11 (preds 8) {
-    v44:Object = MaterializeRef v27
-    Decref v44
-    v45:OptObject = MaterializeRef v28
-    XDecref v45
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v21>> {
-      LiveValues<1> unc:v21
+    v46:Object = MaterializeRef v28
+    Decref v46
+    v47:OptObject = MaterializeRef v30
+    XDecref v47
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v22>> {
+      LiveValues<1> unc:v22
       FrameState {
         CurInstrOffset 40
-        Locals<1> v21
+        Locals<1> v22
       }
     }
   }
 
   bb 9 (preds 8, 10) {
-    v29:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v31:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 
   bb 1 (preds 2, 9) {
-    v32:Object = Phi<2, 9> v36 v29
-    v33:Object = Send v27 v32 {
-      LiveValues<3> unc:v21 o:v27 b:v32
+    v34:Object = Phi<2, 9> v38 v31
+    v35:Object = Send v28 v34 {
+      LiveValues<3> unc:v22 o:v28 b:v34
       FrameState {
         CurInstrOffset 44
-        Locals<1> v21
-        Stack<1> v27
+        Locals<1> v22
+        Stack<1> v28
       }
     }
-    v34:CInt64 = GetSecondOutput<CInt64> v33
-    CondBranch<3, 2> v34
+    v36:CInt64 = GetSecondOutput<CInt64> v35
+    CondBranch<3, 2> v36
   }
 
   bb 3 (preds 1) {
-    v42:Object = MaterializeRef v27
-    Decref v42
-    v43:Object = MaterializeRef v33
-    Return v43
+    v44:Object = MaterializeRef v28
+    Decref v44
+    v45:Object = MaterializeRef v35
+    Return v45
   }
 
   bb 2 (preds 1) {
-    v41:Object = MaterializeRef v33
-    v36:Object = YieldValue v41 {
-      LiveValues<3> unc:v21 o:v27 b:v33
+    v43:Object = MaterializeRef v35
+    v38:Object = YieldValue v43 {
+      LiveValues<3> unc:v22 o:v28 b:v35
       FrameState {
         CurInstrOffset 48
-        Locals<1> v21
-        Stack<1> v27
+        Locals<1> v22
+        Stack<1> v28
       }
     }
     Branch<1>
