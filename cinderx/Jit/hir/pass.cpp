@@ -99,6 +99,20 @@ Register* chaseAssignOperand(Register* value) {
   return value;
 }
 
+Instr* collapseTrivialPhi(Phi& phi) {
+  Register* value = phi.isTrivial();
+  if (value == nullptr) {
+    return nullptr;
+  }
+  Register* output = phi.output();
+  // A trivial Phi that only references itself can never be initialized, so use
+  // a LoadConst<Bottom> to signify that.
+  if (chaseAssignOperand(value) == output) {
+    return LoadConst::create(output, TBottom);
+  }
+  return Assign::create(output, value);
+}
+
 RegUses collectDirectRegUses(Function& func) {
   RegUses uses;
   for (auto& block : func.cfg.blocks) {
@@ -616,42 +630,154 @@ void reflowTypes(Function& func, BasicBlock* start) {
   }
 }
 
-void removeTrampolineBlocks(Function& func) {
-  auto cfg = &func.cfg;
+namespace {
 
-  std::vector<BasicBlock*> trampolines;
-  for (auto& block : cfg->blocks) {
-    if (!block.isTrampoline()) {
+// Get the block that `block` unconditionally jumps to, or nullptr if it ends in
+// anything other than a Branch.
+BasicBlock* branchTarget(BasicBlock& block) {
+  Instr* term = block.getTerminator();
+  if (term == nullptr || term->opcode() != Opcode::kBranch) {
+    return nullptr;
+  }
+  return static_cast<Branch*>(term)->target();
+}
+
+// Absorb the sole successor of `block` into it, deleting the successor.  Return
+// false if `block` doesn't end a linear A -> B pair.
+bool absorbSuccessor(Function& func, BasicBlock& block) {
+  // Identify linear blocks, A -> B.
+  BasicBlock* target = branchTarget(block);
+  if (target == nullptr || target == &block || target->empty() ||
+      target->inEdges().size() != 1) {
+    return false;
+  }
+  // The entry block's instructions have to run first, so it can never be
+  // absorbed into one of its own successors.
+  if (target == func.cfg.entry_block) {
+    return false;
+  }
+
+  // Any phis in B are trivial because B only has one predecessor.  They can't
+  // move to the end of A as phis only live at the start of a block, so collapse
+  // them into assignments in place.
+  for (auto it = target->begin(); it != target->end();) {
+    Instr& instr = *it;
+    ++it;
+    if (!instr.isPhi()) {
+      break;
+    }
+    Instr* new_instr = collapseTrivialPhi(static_cast<Phi&>(instr));
+    JIT_THROW_IF(
+        new_instr == nullptr,
+        "Non-trivial Phi '{}' in bb {} of {}, which only has one predecessor",
+        instr,
+        target->id,
+        func.fullname);
+    target->replace(instr, *new_instr);
+    delete &instr;
+  }
+
+  // Drop the branch, then append all instructions from B onto A.  The branch
+  // has to go before B does, it owns the last edge pointing at B.
+  Instr* branch = block.getTerminator();
+  branch->unlink();
+  delete branch;
+  while (!target->empty()) {
+    block.append(target->pop_front());
+  }
+
+  // The successors of B might still have phis that refer to it.  Retarget them
+  // to A.
+  Instr* new_term = block.getTerminator();
+  for (std::size_t i = 0, n = new_term->numEdges(); i < n; ++i) {
+    new_term->successor(i)->fixupPhis(target, &block);
+  }
+
+  // B can now be deleted.
+  func.cfg.removeBlock(target);
+  delete target;
+  return true;
+}
+
+// A trampoline block does nothing but jump to another block.  Snapshots are
+// ignored as they're only metadata.
+bool isTrampoline(BasicBlock& block) {
+  for (Instr& instr : block) {
+    if (instr.isSnapshot()) {
       continue;
     }
-    BasicBlock* succ = block.successor(0);
-    // if this is the entry block and its successor has multiple
-    // predecessors, don't remove it; it's necessary to maintain isolated
-    // entries
-    if (&block == cfg->entry_block) {
-      if (succ->inEdges().size() > 1) {
-        continue;
-      } else {
-        cfg->entry_block = succ;
-      }
+    if (!instr.isBranch()) {
+      return false;
     }
-    // Update all predecessors to jump directly to our successor
-    block.retargetPreds(succ);
-    // Finish splicing the trampoline out of the cfg
-    block.setSuccessor(0, nullptr);
-    trampolines.emplace_back(&block);
+    BasicBlock* succ = instr.successor(0);
+    // Don't treat a block as a trampoline if its successor has Phis, this
+    // block may be necessary to pass a specific value to one of them.  That's
+    // correct but conservative: it's often safe to eliminate such trampolines,
+    // but it needs more involved analysis.
+    return succ != &block && (succ->empty() || !succ->front().isPhi());
+  }
+  // Empty block.
+  return false;
+}
+
+// Splice a trampoline block out of the CFG by pointing all of its predecessors
+// at its successor, deleting the block.  Return false if `block` isn't a
+// trampoline.
+//
+// This is the other half of a linear A -> B merge: it applies when B has other
+// predecessors and so can't be absorbed into A.
+bool spliceTrampoline(Function& func, BasicBlock& block) {
+  // Keep the entry block around, it's needed to maintain an isolated entry.
+  // When its successor only has one predecessor absorbSuccessor() handles it.
+  if (&block == func.cfg.entry_block || !isTrampoline(block)) {
+    return false;
   }
 
-  for (auto& block : trampolines) {
-    cfg->removeBlock(block);
-    delete block;
+  block.retargetPreds(block.successor(0));
+  block.setSuccessor(0, nullptr);
+  func.cfg.removeBlock(&block);
+  delete &block;
+  return true;
+}
+
+// Run a single merge pass over every block in the CFG, returning true if any
+// blocks were removed.
+bool mergeLinearBlocksOnce(Function& func) {
+  bool changed = false;
+  for (auto it = func.cfg.blocks.begin(); it != func.cfg.blocks.end();) {
+    BasicBlock& block = *it;
+
+    // Keep absorbing successors, chains of them collapse into a single block.
+    // This only ever unlinks the successor, never `block`, so the iterator
+    // stays valid.
+    while (absorbSuccessor(func, block)) {
+      changed = true;
+    }
+
+    // Splicing deletes `block`, so step past it first.
+    ++it;
+    changed |= spliceTrampoline(func, block);
+  }
+  return changed;
+}
+
+} // namespace
+
+bool mergeLinearBlocks(Function& func) {
+  bool changed = false;
+  for (bool modified = true; modified;) {
+    // Folding CondBranch<X, X> into Branch<X> leaves X with one fewer
+    // predecessor, which can make it a merge candidate.  Splicing trampolines
+    // out below is what tends to create these.
+    simplifyRedundantCondBranches(&func.cfg);
+    modified = mergeLinearBlocksOnce(func);
+    changed |= modified;
   }
 
-  simplifyRedundantCondBranches(cfg);
-
-  if (trampolines.size() > 0) {
+  if (changed) {
     func.invalidateDomTree();
   }
+  return changed;
 }
 
 bool removeUnreachableBlocks(Function& func) {

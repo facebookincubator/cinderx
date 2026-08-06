@@ -1183,26 +1183,6 @@ Snapshot* BasicBlock::entrySnapshot() {
   return nullptr;
 }
 
-bool BasicBlock::isTrampoline() {
-  for (auto& instr : instrs_) {
-    if (instr.isBranch()) {
-      auto succ = instr.successor(0);
-      // Don't consider a block a trampoline if its successor has one or more
-      // Phis, since this block may be necessary to pass a specific value to
-      // the Phi. This is correct but conservative: it's often safe to
-      // eliminate trampolines that jump to Phis, but that requires more
-      // involved analysis in the caller.
-      return succ != this && (succ->empty() || !succ->front().isPhi());
-    }
-    if (instr.isSnapshot()) {
-      continue;
-    }
-    return false;
-  }
-  // empty block
-  return false;
-}
-
 void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
   // This won't work correctly if this block has two incoming edges from the
   // same block, but we already can't handle that correctly with our current Phi

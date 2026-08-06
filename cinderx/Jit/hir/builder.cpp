@@ -594,9 +594,9 @@ std::unique_ptr<Function> HIRBuilder::buildHIR() {
 
   std::unique_ptr<Function> irfunc = preloader_.makeFunction();
   buildHIRImpl(irfunc.get(), /*frame_state=*/nullptr);
-  // Use removeTrampolineBlocks and removeUnreachableBlocks directly instead of
-  // Run because the rest of CleanCFG requires SSA.
-  removeTrampolineBlocks(*irfunc);
+  // Use mergeLinearBlocks and removeUnreachableBlocks directly instead of
+  // CleanCFG because the rest of CleanCFG requires SSA.
+  mergeLinearBlocks(*irfunc);
   removeUnreachableBlocks(*irfunc);
   return irfunc;
 }

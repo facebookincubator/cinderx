@@ -7,8 +7,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-#include <ostream>
-
 class SSAifyTest : public RuntimeTest {};
 
 using namespace cinderx::jit::hir;
@@ -614,10 +612,6 @@ fun test {
       }
     }
     v4:NoneType = LoadConst<NoneType>
-    Branch<4>
-  }
-
-  bb 4 (preds 1) {
     Return v4
   }
 

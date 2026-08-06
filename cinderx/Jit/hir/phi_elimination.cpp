@@ -21,16 +21,7 @@ void PhiElimination::run(Function& func) {
           }
           break;
         }
-        if (auto value = static_cast<Phi&>(instr).isTrivial()) {
-          // If a trivial Phi references itself then it can never be
-          // initialized, and we can use a LoadConst<Bottom> to signify that.
-          Register* model_value = chaseAssignOperand(value);
-          Instr* new_instr;
-          if (model_value == instr.output()) {
-            new_instr = LoadConst::create(instr.output(), TBottom);
-          } else {
-            new_instr = Assign::create(instr.output(), value);
-          }
+        if (auto new_instr = collapseTrivialPhi(static_cast<Phi&>(instr))) {
           new_instr->copyBytecodeOffset(instr);
           assigns_or_loads.emplace_back(new_instr);
           instr.unlink();
@@ -44,7 +35,7 @@ void PhiElimination::run(Function& func) {
   }
 
   // Consider having a separate run of CleanCFG between passes clean this up.
-  removeTrampolineBlocks(func);
+  mergeLinearBlocks(func);
 }
 
 } // namespace cinderx::jit::hir

@@ -217,14 +217,14 @@ fun test {
   EXPECT_EQ(HIRPrinter{}.toString(*func), expected_hir);
 }
 
-TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
+TEST(MergeLinearBlocksTest, DoesntModifySingleBlockLoops) {
   Function func;
   auto& cfg = func.cfg;
 
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<Branch>(cfg.entry_block);
 
-  removeTrampolineBlocks(func);
+  EXPECT_FALSE(mergeLinearBlocks(func));
 
   auto s = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 0 (preds 0) {
@@ -234,7 +234,7 @@ TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
   ASSERT_EQ(s, expected);
 }
 
-TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
+TEST(MergeLinearBlocksTest, ReducesSimpleLoops) {
   Function func;
   auto& cfg = func.cfg;
 
@@ -243,7 +243,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
   cfg.entry_block->append<Branch>(t1);
   t1->append<Branch>(cfg.entry_block);
 
-  removeTrampolineBlocks(func);
+  EXPECT_TRUE(mergeLinearBlocks(func));
 
   auto s = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 1 (preds 1) {
@@ -253,7 +253,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
   ASSERT_EQ(s, expected);
 }
 
-TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
+TEST(MergeLinearBlocksTest, MergesSimpleChain) {
   Function func;
   auto& cfg = func.cfg;
   auto& env = func.env;
@@ -262,8 +262,7 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
   //
   // entry -> t2 -> t1 -> exit
   //
-  // after removing tramponline blocks we should be left
-  // with only the exit block
+  // Every block is linear, so they all collapse into the entry block.
   auto exit_block = cfg.allocateBlock();
   exit_block->append<Return>(env.allocateRegister());
 
@@ -277,18 +276,20 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
   cfg.entry_block->append<Branch>(t2);
 
   EXPECT_EQ(func.domTree().immediateDominator(exit_block), t1);
-  removeTrampolineBlocks(func);
-  EXPECT_EQ(func.domTree().immediateDominator(exit_block), nullptr);
+  EXPECT_TRUE(mergeLinearBlocks(func));
+  // The merged-away blocks are gone, so the cached dominator tree has to have
+  // been invalidated.  Debug builds verify that when it's recomputed here.
+  EXPECT_EQ(func.domTree().immediateDominator(cfg.entry_block), nullptr);
 
   auto s = HIRPrinter().toString(cfg);
-  auto expected = R"(bb 0 {
+  auto expected = R"(bb 3 {
   Return v0
 }
 )";
   ASSERT_EQ(s, expected);
 }
 
-TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
+TEST(MergeLinearBlocksTest, MergesChainsInsideLoops) {
   Function func;
   auto& cfg = func.cfg;
   auto& env = func.env;
@@ -304,14 +305,15 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
   //                                 |       |
   //                                 +-------+
   //
-  // the loop of trampoline blocks on the right should be
-  // reduced to a single block that loops back on itself:
+  // Blocks 2, 3, and 4 form a linear chain and collapse into a single block
+  // that loops back on itself.  Block 1 is a trampoline into that loop and
+  // gets spliced out:
   //
   //              entry
   //                |
   //   +--- true ---+--- false ---+
   //   |                          |
-  //  exit                        4--+
+  //  exit                        2--+
   //                              ^  |
   //                              |  |
   //                              +--+
@@ -331,25 +333,25 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<CondBranch>(v0, exit_block, t1);
 
-  removeTrampolineBlocks(func);
+  EXPECT_TRUE(mergeLinearBlocks(func));
 
   auto after = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 5 {
-  CondBranch<0, 4> v0
+  CondBranch<0, 2> v0
 }
 
 bb 0 (preds 5) {
   Return v0
 }
 
-bb 4 (preds 4, 5) {
-  Branch<4>
+bb 2 (preds 2, 5) {
+  Branch<2>
 }
 )";
   ASSERT_EQ(after, expected);
 }
 
-TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
+TEST(MergeLinearBlocksTest, UpdatesAllPredecessors) {
   Function func;
   auto& cfg = func.cfg;
   auto& env = func.env;
@@ -370,12 +372,11 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
   //                v
   //               exit
   //
-  // After removing trampoline blocks this should look like
+  // The 2 -> 1 -> exit chain collapses into block 2, and blocks 3 and 4 are
+  // trampolines into it.  Splicing them out leaves entry with both sides of
+  // its CondBranch going to block 2, so that folds down to a single block:
   //
   //              entry
-  //                |
-  //                v
-  //               exit
   Register* v0 = env.allocateRegister();
   auto exit_block = cfg.allocateBlock();
   exit_block->append<Return>(v0);
@@ -395,18 +396,222 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
   cfg.entry_block = cfg.allocateBlock();
   cfg.entry_block->append<CondBranch>(v0, t4, t3);
 
-  removeTrampolineBlocks(func);
+  EXPECT_TRUE(mergeLinearBlocks(func));
 
   auto after = HIRPrinter().toString(cfg);
   const char* expected = R"(bb 5 {
-  Branch<0>
-}
-
-bb 0 (preds 5) {
   Return v0
 }
 )";
   ASSERT_EQ(after, expected);
+}
+
+TEST(MergeLinearBlocksTest, MergesNonEmptyBlocks) {
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    Branch<1>
+  }
+
+  bb 1 {
+    v1 = LoadConst<NoneType>
+    Branch<2>
+  }
+
+  bb 2 {
+    Return v1
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_TRUE(mergeLinearBlocks(*func));
+
+  const char* expected = R"(fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    v1 = LoadConst<NoneType>
+    Return v1
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
+}
+
+TEST(MergeLinearBlocksTest, CollapsesTrivialPhis) {
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    Branch<1>
+  }
+
+  bb 1 {
+    v1 = Phi<0> v0
+    Return v1
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_TRUE(mergeLinearBlocks(*func));
+
+  // Phis can't live in the middle of a block, so the trivial Phi has to become
+  // an Assign.
+  const char* expected = R"(fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    v1 = Assign v0
+    Return v1
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
+}
+
+TEST(MergeLinearBlocksTest, LeavesEntryBlockAlone) {
+  // The entry block has a single predecessor here, but its instructions have
+  // to run first so it can't be absorbed into that predecessor.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 {
+    v1 = LoadConst<NoneType>
+    Branch<0>
+  }
+
+  bb 2 {
+    Return v0
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+  BasicBlock* entry = func->cfg.entry_block;
+
+  EXPECT_FALSE(mergeLinearBlocks(*func));
+  EXPECT_EQ(func->cfg.entry_block, entry);
+}
+
+TEST(MergeLinearBlocksTest, SplicesOutTrampolines) {
+  // Block 1 can't absorb block 3 because block 2 jumps to it as well, but it
+  // does nothing besides jump there so it can be spliced out.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 {
+    Branch<3>
+  }
+
+  bb 2 {
+    v1 = LoadConst<NoneType>
+    Branch<3>
+  }
+
+  bb 3 {
+    Return v0
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_TRUE(mergeLinearBlocks(*func));
+
+  const char* expected = R"(fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<3, 2> v0
+  }
+
+  bb 2 (preds 0) {
+    v1 = LoadConst<NoneType>
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 2) {
+    Return v0
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
+}
+
+TEST(MergeLinearBlocksTest, KeepsTrampolinesThatFeedPhis) {
+  // Block 1 has to stay, it's what tells the Phi in block 3 to pick v1.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 {
+    Branch<3>
+  }
+
+  bb 2 {
+    v1 = LoadConst<NoneType>
+    Branch<3>
+  }
+
+  bb 3 {
+    v2 = Phi<1, 2> v0 v1
+    Return v2
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_FALSE(mergeLinearBlocks(*func));
+}
+
+TEST(MergeLinearBlocksTest, MergesThroughRedundantCondBranches) {
+  // Both sides of the CondBranch go to the same block, which makes the two
+  // blocks linear once the branch is folded.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<1, 1> v0
+  }
+
+  bb 1 {
+    Return v0
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_TRUE(mergeLinearBlocks(*func));
+
+  const char* expected = R"(fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    Return v0
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
 }
 
 TEST(RemoveUnreachableBlocks, RemovesTransitivelyUnreachableBlocks) {

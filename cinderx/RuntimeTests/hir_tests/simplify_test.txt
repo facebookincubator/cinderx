@@ -13657,13 +13657,13 @@ fun jittestmodule:test {
     InitTupleElements<3> v32 v27 v28 v29
     Snapshot
     UseType<MortalTupleExact> v32
-    v33:CInt64[48] = LoadConst<CInt64[48]>
-    v34:CPtr = LoadFieldAddress v32 v33
+    v40:CInt64[48] = LoadConst<CInt64[48]>
+    v41:CPtr = LoadFieldAddress v32 v40
     UseType<MortalTupleExact> v32
     v54:CInt64[3] = LoadConst<CInt64[3]>
-    v36:CInt64[2] = LoadConst<CInt64[2]>
+    v43:CInt64[2] = LoadConst<CInt64[2]>
     UseType<CInt64[3]> v54
-    UseType<CInt64[2]> v36
+    UseType<CInt64[2]> v43
     v55:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     Deopt {
@@ -15289,26 +15289,26 @@ fun jittestmodule:test {
     InitTupleElements<4> v38 v32 v33 v34 v37
     Snapshot
     UseType<MortalTupleExact> v38
-    v39:CInt64[48] = LoadConst<CInt64[48]>
-    v40:CPtr = LoadFieldAddress v38 v39
+    v50:CInt64[48] = LoadConst<CInt64[48]>
+    v51:CPtr = LoadFieldAddress v38 v50
     UseType<MortalTupleExact> v38
     v72:CInt64[4] = LoadConst<CInt64[4]>
-    v42:CInt64[4] = LoadConst<CInt64[4]>
+    v53:CInt64[4] = LoadConst<CInt64[4]>
     UseType<CInt64[4]> v72
-    UseType<CInt64[4]> v42
+    UseType<CInt64[4]> v53
     v73:CBool[true] = LoadConst<CBool[true]>
-    v44:CInt64[3] = LoadConst<CInt64[3]>
+    v55:CInt64[3] = LoadConst<CInt64[3]>
     UseType<TupleExact> v38
-    UseType<CInt64[3]> v44
-    v46:CInt64[2] = LoadConst<CInt64[2]>
+    UseType<CInt64[3]> v55
+    v57:CInt64[2] = LoadConst<CInt64[2]>
     UseType<TupleExact> v38
-    UseType<CInt64[2]> v46
-    v48:CInt64[1] = LoadConst<CInt64[1]>
+    UseType<CInt64[2]> v57
+    v59:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v38
-    UseType<CInt64[1]> v48
-    v50:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[1]> v59
+    v61:CInt64[0] = LoadConst<CInt64[0]>
     UseType<TupleExact> v38
-    UseType<CInt64[0]> v50
+    UseType<CInt64[0]> v61
     Snapshot
     Return v32
   }

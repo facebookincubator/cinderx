@@ -2,72 +2,37 @@
 
 #include "cinderx/Jit/hir/clean_cfg.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
-#include "cinderx/Jit/hir/printer.h"
 
 namespace cinderx::jit::hir {
 
-namespace {
-
-bool absorbDstBlock(BasicBlock* block) {
-  if (block->getTerminator()->opcode() != Opcode::kBranch) {
-    return false;
-  }
-  auto branch = dynamic_cast<Branch*>(block->getTerminator());
-  BasicBlock* target = branch->target();
-  if (target == block) {
-    return false;
-  }
-  if (target->inEdges().size() != 1) {
-    return false;
-  }
-  if (target == block) {
-    return false;
-  }
-  branch->unlink();
-  while (!target->empty()) {
-    Instr* instr = target->pop_front();
-    JIT_CHECK(!instr->isPhi(), "Expected no Phi but found {}", *instr);
-    block->append(instr);
-  }
-  // The successors to target might have Phis that still refer to target.
-  // Retarget them to refer to block.
-  Instr* old_term = block->getTerminator();
-  JIT_CHECK(old_term != nullptr, "block must have a terminator");
-  for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
-    old_term->successor(i)->fixupPhis(
-        /*old_pred=*/target, /*new_pred=*/block);
-  }
-  // Target block becomes unreachable and gets picked up by
-  // removeUnreachableBlocks.
-  delete branch;
-  return true;
-}
-
-} // namespace
-
 void CleanCFG::run(Function& irfunc) {
+  constexpr size_t kRunLimit = 10;
+  size_t run = 0;
   bool changed = false;
 
-  do {
+  for (; run < kRunLimit; ++run) {
     removeUnreachableInstructions(irfunc);
-    // Remove any trivial Phis; absorbDstBlock cannot handle them.
+    // Collapse trivial Phis everywhere, not just in the blocks that get merged
+    // below.
     PhiElimination{}.run(irfunc);
-    std::vector<BasicBlock*> blocks = irfunc.cfg.getRPOTraversal();
-    for (auto block : blocks) {
-      // Ignore transient empty blocks.
-      if (block->empty()) {
-        continue;
-      }
-      // Keep working on the current block until no further changes are made.
-      for (;; changed = true) {
-        if (absorbDstBlock(block)) {
-          continue;
-        }
-        break;
-      }
+
+    bool modified = mergeLinearBlocks(irfunc);
+    modified |= removeUnreachableBlocks(irfunc);
+    changed |= modified;
+
+    if (!modified) {
+      break;
     }
-  } while (removeUnreachableBlocks(irfunc));
+  }
+
+  JIT_THROW_IF(
+      run == kRunLimit,
+      "CleanCFG for function '{}' did not complete in the maximum number of "
+      "runs ({})",
+      irfunc.fullname,
+      kRunLimit);
 
   if (changed) {
     reflowTypes(irfunc);
