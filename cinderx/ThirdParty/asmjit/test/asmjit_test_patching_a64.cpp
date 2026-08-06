@@ -933,15 +933,43 @@ UNIT(a64_load_addr_reloc_adrp_add) {
     .message("Expected add x3, x3, #0xABC, got: 0x%08X", instr1);
 }
 
+// Test that load_addr materializes an out-of-range target with movz/movk when
+// the sequence fits the space reserved for the placeholder.
+UNIT(a64_load_addr_reloc_movz) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  // Target 256GB away: beyond ±4GB adrp range, but a single halfword.
+  uint64_t target = 0x4000000000ULL;
+  as.load_addr(a64::x4, target);
+
+  EXPECT_EQ(code.flatten(), kErrorOk)
+    .message("flatten failed");
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk)
+    .message("relocateToBase failed");
+
+  const Section* text = code.textSection();
+  uint32_t instr0 = readU32LE(text->data());
+
+  // movz x4, #0x40, lsl #32: 0xD2800000 | (2 << 21) | (0x40 << 5) | 4
+  EXPECT_EQ(text->bufferSize(), 4u)
+    .message("Expected a single movz instruction");
+  EXPECT_EQ(instr0, 0xD2C00804u)
+    .message("Expected movz x4, #0x40, lsl #32, got: 0x%08X", instr0);
+}
+
 // Test that load_addr falls back to `ldr Rd, [pc+off]` from the address table
-// when target is beyond ±4GB.
+// when the target is beyond ±4GB and needs more movz/movk instructions than
+// the placeholder reserved room for.
 UNIT(a64_load_addr_reloc_ldr) {
   CodeHolder code;
   a64::Assembler as;
   setupCodeNoBase(code, as);
 
-  // Target 256GB away: beyond ±4GB adrp range.
-  uint64_t target = 0x4000000000ULL;
+  // Beyond ±4GB adrp range, page-aligned so only one instruction is reserved,
+  // and spread over three halfwords so movz/movk cannot fit.
+  uint64_t target = 0x4000300020000ULL;
   as.load_addr(a64::x4, target);
 
   EXPECT_EQ(code.flatten(), kErrorOk)

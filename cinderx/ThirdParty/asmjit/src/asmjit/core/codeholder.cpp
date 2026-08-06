@@ -1195,6 +1195,63 @@ size_t CodeHolder::codeSize() const noexcept {
   return size_t(offset);
 }
 
+// Materialize `value` into `rd` with a movz/movk (or movn/movk) sequence,
+// provided it fits in `reservedSize` bytes. Returns true when the sequence was
+// written.
+//
+// This mirrors a64::Assembler's encodeMovSequence64(), but always emits the
+// 64-bit forms since the destination of a materialized address is always an X
+// register.
+static bool tryEncodeMovSequence(uint8_t* buffer, size_t offset, uint64_t value, uint32_t rd, uint32_t reservedSize) noexcept {
+  constexpr uint32_t kMovZ = 0xD2800000u;
+  constexpr uint32_t kMovN = 0x92800000u;
+  constexpr uint32_t kMovK = 0xF2800000u;
+
+  uint32_t zeroHalfWords = 0;
+  uint32_t onesHalfWords = 0;
+
+  for (uint32_t i = 0; i < 4; i++) {
+    uint32_t hw = uint32_t((value >> (i * 16)) & 0xFFFFu);
+    zeroHalfWords += uint32_t(hw == 0x0000u);
+    onesHalfWords += uint32_t(hw == 0xFFFFu);
+  }
+
+  // movz needs one instruction per non-zero halfword, movn one per
+  // non-all-ones halfword; take whichever covers the value in fewer.
+  bool useMovz = zeroHalfWords >= onesHalfWords;
+  uint32_t skip = useMovz ? 0x0000u : 0xFFFFu;
+  uint32_t count = 4u - (useMovz ? zeroHalfWords : onesHalfWords);
+
+  // Every halfword is skippable, so the value is 0 (movz) or ~0 (movn) and a
+  // single instruction covers it.
+  if (count == 0)
+    count = 1;
+
+  if (count * 4u > reservedSize)
+    return false;
+
+  uint32_t op = useMovz ? kMovZ : kMovN;
+  uint32_t written = 0;
+
+  for (uint32_t i = 0; i < 4; i++) {
+    uint32_t hw = uint32_t((value >> (i * 16)) & 0xFFFFu);
+    if (hw == skip)
+      continue;
+
+    // movn stores the inverted halfword; the movk instructions that follow it
+    // store the halfword as-is.
+    uint32_t imm16 = op == kMovN ? hw ^ 0xFFFFu : hw;
+    Support::writeU32uLE(buffer + offset + written * 4u, op | (i << 21) | (imm16 << 5) | rd);
+    op = kMovK;
+    written++;
+  }
+
+  if (written == 0)
+    Support::writeU32uLE(buffer + offset, (useMovz ? kMovZ : kMovN) | rd);
+
+  return true;
+}
+
 // Tries to encode a PC-relative address load at `buffer + offset` using
 // `adr Rd, target` (±1MB) or `adrp Rd, page` with an optional
 // `add Rd, Rd, #off` (±4GB). Returns true on success, false if the displacement
@@ -1481,8 +1538,17 @@ Error CodeHolder::relocateToBase(uint64_t baseAddress) noexcept {
         uint64_t pc = baseAddress + sectionOffset + sourceOffset;
         uint32_t rd = Support::readU32uLE(buffer + sourceOffset) & 0x1Fu;
 
-        if (!tryEncodeAdrOrAdrpAdd(buffer, sourceOffset, targetAddress, pc, rd)) {
-          // Fall back to ldr from the address table.
+        // The reservation the assembler made for this entry, which bounds what
+        // can be written back over it.
+        uint32_t reservedSize = (targetAddress & 0xFFFu) != 0 ? 8u : 4u;
+
+        if (!tryEncodeAdrOrAdrpAdd(buffer, sourceOffset, targetAddress, pc, rd) &&
+            !tryEncodeMovSequence(buffer, sourceOffset, targetAddress, rd, reservedSize)) {
+          // Neither a PC-relative form nor a materialized constant fits, so
+          // load the address from the address table. Statically allocated data
+          // is typically far outside adrp's +/-4GB range from JIT-allocated
+          // code, which is what makes materializing it worth trying first: it
+          // avoids both the table entry and the load.
           AddressTableEntry* atEntry = _addressTableEntries.get(targetAddress);
           if (ASMJIT_UNLIKELY(!atEntry))
             return DebugUtils::errored(kErrorInvalidRelocEntry);
