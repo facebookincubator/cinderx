@@ -51,16 +51,15 @@ struct CheckEnv {
   const Instr* instr{nullptr};
 };
 
-// Verify the following:
-// - All blocks reachable from the entry block are part of this CFG.
-// - The CFG's block list contains no unreachable blocks.
-// - No reachable blocks have any unreachable predecessors.
-// - No blocks have > 1 edge from the same predecessor
+// Verify that a function's control-flow graph is valid and can be successfully
+// lowered to LIR.
 bool checkCFG(const Function& func, std::ostream& err) {
   std::queue<const BasicBlock*> queue;
   std::unordered_set<const BasicBlock*> reachable;
   queue.push(func.cfg.entry_block);
   reachable.insert(func.cfg.entry_block);
+
+  // All blocks reachable from the entry block are part of this CFG.
   while (!queue.empty()) {
     auto block = queue.front();
     queue.pop();
@@ -78,23 +77,11 @@ bool checkCFG(const Function& func, std::ostream& err) {
     }
   }
 
+  // No blocks have >1 edge from the same predecessor.
   for (auto& block : func.cfg.blocks) {
-    if (!reachable.contains(&block)) {
-      fmt::print(err, "ERROR: CFG contains unreachable bb {}\n", block.id);
-      return false;
-    }
-
     std::unordered_set<BasicBlock*> seen;
     for (auto edge : block.inEdges()) {
       auto pred = edge->from();
-      if (!reachable.contains(pred)) {
-        fmt::print(
-            err,
-            "ERROR: bb {} has unreachable predecessor bb {}\n",
-            block.id,
-            pred->id);
-        return false;
-      }
       if (seen.contains(pred)) {
         fmt::print(
             err,

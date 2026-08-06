@@ -7,11 +7,13 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-class SSAifyTest : public RuntimeTest {};
-
 using namespace cinderx::jit::hir;
 
-static void testCheckFunc(const char* hir_source, const char* expected_err) {
+namespace {
+
+class SSAifyTest : public RuntimeTest {};
+
+void testCheckFunc(const char* hir_source, const char* expected_err) {
   std::ostringstream err;
   auto func = HIRParser().parseHIR(hir_source);
   ASSERT_NE(func, nullptr);
@@ -269,47 +271,7 @@ TEST(CheckFuncTest, BadCFG) {
   b0->getTerminator()->edge(0)->setTo(nullptr);
 }
 
-TEST(CheckFuncTest, UnlinkedPredecessor) {
-  Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
-  auto b1 = func.cfg.allocateBlock();
-  std::unique_ptr<BasicBlock> b2{func.cfg.allocateUnlinkedBlock()};
-  auto tmp = func.env.allocateRegister();
-
-  b0->append<Branch>(b1);
-
-  b1->append<LoadConst>(tmp, TNoneType);
-  b1->append<Return>(tmp);
-
-  b2->append<Branch>(b1);
-
-  std::ostringstream err;
-  ASSERT_FALSE(checkFunc(func, err));
-  EXPECT_EQ(err.str(), "ERROR: bb 1 has unreachable predecessor bb 2\n");
-}
-
-TEST(CheckFuncTest, UnreachableBlock) {
-  Function func;
-  auto b0 = func.cfg.entry_block = func.cfg.allocateBlock();
-  auto b1 = func.cfg.allocateBlock();
-  auto b2 = func.cfg.allocateBlock();
-  auto tmp0 = func.env.allocateRegister();
-  auto tmp1 = func.env.allocateRegister();
-
-  b0->append<Branch>(b1);
-
-  b1->append<LoadConst>(tmp0, TNoneType);
-  b1->append<Return>(tmp0);
-
-  b2->append<LoadConst>(tmp1, TNoneType);
-  b2->append<Return>(tmp1);
-
-  std::ostringstream err;
-  ASSERT_FALSE(checkFunc(func, err));
-  EXPECT_EQ(err.str(), "ERROR: CFG contains unreachable bb 2\n");
-}
-
-static void testSSAify(const char* hir_source, const char* expected) {
+void testSSAify(const char* hir_source, const char* expected) {
   std::unique_ptr<Function> func(HIRParser().parseHIR(hir_source));
   ASSERT_NE(func, nullptr);
   SSAify().run(*func);
@@ -845,3 +807,5 @@ fun test {
 )";
   EXPECT_NO_FATAL_FAILURE(testSSAify(hir_source, expected));
 }
+
+} // namespace
