@@ -95,13 +95,10 @@ void logInlineFailure(
 // Assigns a cost to every function, to be used when determining whether it
 // makes sense to inline or not.
 size_t codeCost(BorrowedRef<PyCodeObject> code) {
-  // Manually iterating through the code block to count real opcodes and not
-  // inline caches.  Not the best metric but it's something to start with.
-  size_t num_opcodes = 0;
-  for ([[maybe_unused]] auto& instr : BytecodeInstructionBlock{code}) {
-    num_opcodes++;
-  }
-  return num_opcodes;
+  // Use the number of opcodes as the cost.  Not the best metric but it's
+  // something to start with.
+  BytecodeInstructionBlock instructions{code};
+  return std::distance(instructions.begin(), instructions.end());
 }
 
 // Most of these checks are only temporary and do not in perpetuity prohibit
