@@ -5992,8 +5992,13 @@ class CodeGenerator314(CodeGenerator312):
                 "__conditional_annotations__",
             )
             self.emit("LOAD_CONST", conditional_index)
-            self.emit("SET_ADD", 1)
+            self.emit_add_conditional_annotation()
             self.emit("POP_TOP")
+
+    def emit_add_conditional_annotation(self) -> None:
+        # Register the annotation's index into the `__conditional_annotations__`
+        # set that is on top of the stack (below the just-loaded index).
+        self.emit("SET_ADD", 1)
 
     def setup_annotations(
         self,
@@ -6853,6 +6858,11 @@ class CodeGenerator316(CodeGenerator315):
     # gh-issue-151907: 3.16 skips building a list for a list comprehension whose
     # result is discarded (used as an expression statement).
     _unused_listcomp_avoids_creation: bool = True
+
+    def emit_add_conditional_annotation(self) -> None:
+        # gh-154902: 3.16 registers a conditional annotation's index via the new
+        # INTRINSIC_ADD_CONDITIONAL_ANNOTATION binary intrinsic instead of SET_ADD.
+        self.emit_call_intrinsic_2("INTRINSIC_ADD_CONDITIONAL_ANNOTATION")
 
     def make_annotations_code_holder(self, code_gen: CodeGenerator) -> CodeHolder:
         # 3.16 extended the ".format" -> "format" rename to the
