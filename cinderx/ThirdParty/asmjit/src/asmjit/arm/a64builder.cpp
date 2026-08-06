@@ -100,8 +100,12 @@ static uint32_t estimateNodeSize(BaseNode* node, uint32_t currentOffset) noexcep
             (op.as<Imm>().valueAs<uint64_t>() & 0xFFFu) != 0)
           return 8;
       }
-      if (realId == Inst::kIdLdr && op.isMem() && op.as<Mem>().hasBaseLabel())
-        return 8;
+      if (realId == Inst::kIdLdr && op.isMem() && op.as<Mem>().hasBaseLabel()) {
+        // `kShortForm` means relaxBranches() proved the literal is within
+        // imm19 reach, so the assembler emits the plain 4-byte encoding
+        // instead of reserving room to relax to `adrp+ldr`.
+        return Support::test(inst->options(), InstOptions::kShortForm) ? 4 : 8;
+      }
       if (realId == Inst::kIdMov && op.isImm() && op.as<Imm>().valueAs<uint64_t>() > 0xFFFF)
         return 16;
     }
@@ -153,11 +157,19 @@ Error Builder::relaxBranches() {
   ZoneVector<uint32_t> labelSections;
   ASMJIT_PROPAGATE(labelSections.resize(&_allocator, labelCount));
 
+  // Whether the label is bound somewhere in the node list. `_labelNodes` holds
+  // a node for every label that has merely been referenced, and an unbound
+  // one's position is meaningless, so it can't be used on its own to decide
+  // that a displacement is known.
+  ZoneVector<uint8_t> labelBound;
+  ASMJIT_PROPAGATE(labelBound.resize(&_allocator, labelCount));
+
   auto updateNodePositions = [&]() noexcept {
     uint32_t sectionId = 0;
     uint32_t offset = 0;
 
     memset(labelSections.data(), 0, labelCount * sizeof(uint32_t));
+    memset(labelBound.data(), 0, labelCount * sizeof(uint8_t));
 
     for (BaseNode* node = firstNode(); node; node = node->next()) {
       if (node->isSection()) {
@@ -170,8 +182,10 @@ Error Builder::relaxBranches() {
 
       if (node->isLabel()) {
         uint32_t labelId = node->as<LabelNode>()->labelId();
-        if (labelId < labelCount)
+        if (labelId < labelCount) {
           labelSections[labelId] = sectionId;
+          labelBound[labelId] = 1;
+        }
       }
 
       offset += size;
@@ -237,6 +251,65 @@ Error Builder::relaxBranches() {
       addAfter(uncondBranch, inst);
       addAfter(skipLabel, uncondBranch);
 
+      changed = true;
+    }
+
+    if (!changed)
+      break;
+  }
+
+  // Shrink `ldr Xd, [label]` to its plain 4-byte encoding wherever the literal
+  // is provably within the +/-1MB reach of the imm19 offset. This runs after
+  // the previous pass because it only shrinks instructions and the previous
+  // one can expand them.
+  for (;;) {
+    updateNodePositions();
+
+    bool changed = false;
+    uint32_t sectionId = 0;
+
+    for (BaseNode* node = firstNode(); node; node = node->next()) {
+      if (node->isSection()) {
+        sectionId = node->as<SectionNode>()->id();
+        continue;
+      }
+
+      if (!node->isInst())
+        continue;
+
+      InstNode* inst = node->as<InstNode>();
+      if (BaseInst::extractRealId(inst->id()) != Inst::kIdLdr)
+        continue;
+
+      if (Support::test(inst->options(), InstOptions::kShortForm))
+        continue;
+
+      uint32_t targetLabelId = Globals::kInvalidId;
+      for (uint32_t i = 0; i < inst->opCount(); i++) {
+        const Operand_& op = inst->op(i);
+        if (op.isMem() && op.as<Mem>().hasBaseLabel()) {
+          targetLabelId = op.as<Mem>().baseId();
+          break;
+        }
+      }
+
+      if (targetLabelId >= labelCount || !labelBound[targetLabelId])
+        continue;
+
+      // Across sections the displacement isn't settled until the sections are
+      // laid out, which happens after this runs.
+      if (labelSections[targetLabelId] != sectionId)
+        continue;
+
+      LabelNode* targetNode = _labelNodes[targetLabelId];
+      if (!targetNode)
+        continue;
+
+      int64_t displacement = int64_t(targetNode->position()) - int64_t(inst->position());
+      if ((displacement & 3) != 0 || !Support::isEncodableOffset64(displacement >> 2, 19))
+        continue;
+
+      inst->addOptions(InstOptions::kShortForm);
       changed = true;
     }
 

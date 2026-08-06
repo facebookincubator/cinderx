@@ -370,7 +370,9 @@ TEST_F(BranchRelaxationTest, AdrForwardRefUsesReloc) {
   EXPECT_EQ(finalizeAndGetSize(as, code), 16u);
 }
 
-TEST_F(BranchRelaxationTest, LdrLiteralForwardRefUsesReloc) {
+// A forward literal reference that the relaxation pass can prove reaches gets
+// the plain 4-byte encoding, with no room reserved for adrp+ldr.
+TEST_F(BranchRelaxationTest, InRangeLdrLiteralUsesShortForm) {
   asmjit::CodeHolder code;
   code.init(code_allocator_->asmJitEnvironment());
   arch::Builder as(&code);
@@ -383,8 +385,41 @@ TEST_F(BranchRelaxationTest, LdrLiteralForwardRefUsesReloc) {
   uint64_t value = 0xDEADBEEFCAFEBABEull;
   as.embed(&value, sizeof(value));
 
-  // ldr(4) + nop(4) + ret(4) + data(8) = 20 bytes.
-  EXPECT_EQ(finalizeAndGetSize(as, code), 20u);
+  // ldr(4) + ret(4) + data(8) = 16 bytes, no padding NOP.
+  EXPECT_EQ(finalizeAndGetSize(as, code), 16u);
+  EXPECT_EQ(countNops(code), 0u);
+}
+
+// Beyond the imm19 reach the 8-byte reservation is still needed so that
+// relocation can relax the load to adrp+ldr.
+TEST_F(BranchRelaxationTest, OutOfRangeLdrLiteralUsesReloc) {
+  asmjit::CodeHolder code;
+  code.init(code_allocator_->asmJitEnvironment());
+  arch::Builder as(&code);
+
+  asmjit::Label pool_entry = as.newLabel();
+
+  as.ldr(asmjit::a64::x0, asmjit::a64::ptr(pool_entry));
+  as.ret(asmjit::a64::x30);
+
+  // Odd count so the entry lands 8-byte aligned: the load reserves 8 bytes
+  // here and `ret` takes 4, so an even count would leave it 4-byte aligned and
+  // the adrp+ldr relaxation would reject it (its unsigned offset is scaled by
+  // the load size).
+  for (int i = 0; i < 270001; i++) {
+    as.nop();
+  }
+
+  as.bind(pool_entry);
+  uint64_t value = 42;
+  as.embed(&value, sizeof(value));
+
+  void* fn = compileBuilder(as, code);
+  ASSERT_NE(fn, nullptr);
+
+  auto func = reinterpret_cast<uint64_t (*)()>(fn);
+  EXPECT_EQ(func(), 42u);
+  EXPECT_EQ(countNops(code), 270001u);
 }
 
 TEST_F(BranchRelaxationTest, LdrLiteralLoadsCorrectValue) {

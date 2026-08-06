@@ -2587,7 +2587,14 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           // mechanism so that large displacements can be relaxed to adrp+ldr.
           // ldr literal has a 19-bit signed offset (±1MB), which can overflow for
           // large functions with distant constant pools.
-          if (rmRel->isMem() && rmRel->as<Mem>().hasBaseLabel()) {
+          //
+          // `kShortForm` means a64::Builder::relaxBranches() already proved the
+          // displacement reaches, so the plain 4-byte relative encoding below is
+          // used instead and no room is reserved for the adrp+ldr relaxation. If
+          // that ever turns out to be wrong the offset fails to encode and the
+          // emit reports kErrorInvalidDisplacement rather than emitting garbage.
+          if (rmRel->isMem() && rmRel->as<Mem>().hasBaseLabel() &&
+              !Support::test(options, InstOptions::kShortForm)) {
             uint32_t labelId = rmRel->as<Mem>().baseId();
             LabelEntry* label = _code->labelEntry(labelId);
             if (ASMJIT_UNLIKELY(!label))
