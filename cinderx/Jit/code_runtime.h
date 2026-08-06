@@ -59,8 +59,8 @@ class alignas(16) CodeRuntime {
   // new owner of the object.
   void addReference(BorrowedRef<> obj);
 
-  // Transfer threaded references to be owned by the CodeRuntime.
-  void transferReferences(std::unordered_set<ThreadedRef<>>&& refs);
+  // Transfer references to be owned by the CodeRuntime.
+  void transferReferences(std::unordered_set<Ref<>>&& refs);
 
   // Release any references this CodeRuntime holds to Python objects.
   void releaseReferences();
@@ -122,7 +122,7 @@ class alignas(16) CodeRuntime {
 
   void addCallsiteDeoptExit(uintptr_t return_addr, uintptr_t deopt_exit_addr);
 
-  void setReifier(ThreadedRef<>&& reifier);
+  void setReifier(Ref<>&& reifier);
 
   BorrowedRef<> reifier();
 
@@ -136,7 +136,7 @@ class alignas(16) CodeRuntime {
   BorrowedRef<PyDictObject> globals_;
 
   // References owned by this CodeRuntime.
-  std::unordered_set<ThreadedRef<PyObject>> references_;
+  std::unordered_set<Ref<PyObject>> references_;
 
   // Metadata about yield points. Deque so we can have raw pointers to content.
   std::deque<GenYieldPoint> gen_yield_points_;
@@ -146,7 +146,7 @@ class alignas(16) CodeRuntime {
   std::vector<DeoptMetadata> deopt_metadatas_;
 
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  ThreadedRef<> reifier_;
+  Ref<> reifier_;
 #endif
 
   // Jump table for static type check dispatch (indexed by defaulted_arg_count).

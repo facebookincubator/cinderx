@@ -1435,8 +1435,7 @@ BorrowedRef<> Environment::addReference(BorrowedRef<> obj) {
 }
 
 BorrowedRef<> Environment::addReference(Ref<>&& obj) {
-  return strong_references_.emplace(ThreadedRef<>::steal(obj.release()))
-      .first->get();
+  return strong_references_.emplace(std::move(obj)).first->get();
 }
 
 const Environment::ReferenceSet& Environment::references() const {

@@ -62,11 +62,11 @@ void CodeRuntime::addReference(BorrowedRef<> obj) {
   JIT_DCHECK(
       ThreadedCompileContext::canAccessSharedData(), "lock should be held");
   if (!_Py_IsImmortal(obj)) {
-    references_.emplace(ThreadedRef<>::create(obj));
+    references_.emplace(Ref<>::create(obj));
   }
 }
 
-void CodeRuntime::transferReferences(std::unordered_set<ThreadedRef<>>&& refs) {
+void CodeRuntime::transferReferences(std::unordered_set<Ref<>>&& refs) {
   JIT_DCHECK(
       ThreadedCompileContext::canAccessSharedData(), "lock should be held");
   references_.merge(std::move(refs));
@@ -79,9 +79,9 @@ void CodeRuntime::releaseReferences() {
   JIT_DCHECK(
       ThreadedCompileContext::canAccessSharedData(), "lock should be held");
 
-  std::unordered_set<ThreadedRef<>> refs;
+  std::unordered_set<Ref<>> refs;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  ThreadedRef<> tmp;
+  Ref<> tmp;
 #endif
   {
     refs = std::move(references_);
@@ -155,7 +155,7 @@ bool CodeRuntime::isCleared() const {
 
 int CodeRuntime::traverse(visitproc visit, void* arg) {
   // Only traverse objects that this CodeRuntime owns strong references to.
-  // The references_ set contains ThreadedRef which hold strong references.
+  // The references_ set holds strong references.
   // code_, builtins_, globals_ are BorrowedRef pointing to the same objects
   // already in references_ - don't double-count.
   for (const auto& ref : references_) {
@@ -197,7 +197,7 @@ void CodeRuntime::addCallsiteDeoptExit(
   callsite_deopt_exits_[return_addr] = deopt_exit_addr;
 }
 
-void CodeRuntime::setReifier([[maybe_unused]] ThreadedRef<>&& reifier) {
+void CodeRuntime::setReifier([[maybe_unused]] Ref<>&& reifier) {
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   reifier_ = std::move(reifier);
 #endif

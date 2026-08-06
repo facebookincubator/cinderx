@@ -4162,7 +4162,7 @@ class Environment {
  public:
   using RegisterMap = std::unordered_map<int, std::unique_ptr<Register>>;
   using ReferenceSet = std::unordered_set<BorrowedRef<>>;
-  using StrongReferenceSet = std::unordered_set<ThreadedRef<>>;
+  using StrongReferenceSet = std::unordered_set<Ref<>>;
 
   Environment() = default;
   ~Environment();

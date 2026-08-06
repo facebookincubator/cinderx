@@ -611,7 +611,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    */
   UnorderedMap<
       CompilationKey,
-      std::pair<CompiledFunctionData, ThreadedRef<PyFunctionObject>>>
+      std::pair<CompiledFunctionData, Ref<PyFunctionObject>>>
       completed_compiles_;
 
   /*
@@ -627,7 +627,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * finalization time keeps the borrow within a single GIL-holding critical
    * section, and a compile that has since gone away simply isn't found.
    */
-  std::vector<std::pair<ThreadedRef<PyFunctionObject>, CompilationKey>>
+  std::vector<std::pair<Ref<PyFunctionObject>, CompilationKey>>
       deferred_finalizations_;
 
   /*

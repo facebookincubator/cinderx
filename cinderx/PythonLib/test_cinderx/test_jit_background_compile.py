@@ -166,7 +166,7 @@ class BackgroundCompileTest(unittest.TestCase):
 
     def test_delete_function_during_background_compile(self) -> None:
         """Test that deleting a function object during background compilation
-        doesn't crash.  The BackgroundCompileTask holds a ThreadedRef to the
+        doesn't crash.  The BackgroundCompileTask holds a Ref to the
         function, keeping it alive across the GIL-free compile, even if Python
         code drops all references.
 
@@ -189,7 +189,7 @@ class BackgroundCompileTest(unittest.TestCase):
         self.assertEqual(result1, 19167)
 
         # Immediately delete all Python references to the function
-        # The background compile task should keep it alive via ThreadedRef
+        # The background compile task should keep it alive via its Ref
         func_weak = weakref.ref(target_func)
         del target_func
         gc.collect()
@@ -200,7 +200,7 @@ class BackgroundCompileTest(unittest.TestCase):
         gc.collect()
 
         # Function object may still be alive due to BackgroundCompileTask holding
-        # a ThreadedRef, or it may be dead if compilation finished quickly and
+        # a Ref, or it may be dead if compilation finished quickly and
         # no other references exist - either is fine, we just must not crash.
         # The important thing is that the background compile didn't crash
         # accessing freed memory.
@@ -228,7 +228,7 @@ class BackgroundCompileTest(unittest.TestCase):
         This exercises:
         - Preloader::types_ OwnedType keeping PyTypeObject alive during compile
         - GuardType CodeRuntime::addReference keeping type alive at runtime
-        - TypedArgument pytype ThreadedRef with ThreadedCompileGILHolder guard
+        - TypedArgument pytype kept alive by the Preloader across the compile
         """
         namespace: dict[str, Any] = {}
         exec(

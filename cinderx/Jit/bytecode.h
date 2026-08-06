@@ -97,7 +97,7 @@ class BytecodeInstruction {
 //
 // BytecodeInstructionBlock borrows the code object - it does NOT keep it alive.
 // Callers must ensure the code object outlives the block, which is true for
-// all current uses (HIR building holds Ref<> / ThreadedRef<> to the code
+// all current uses (HIR building holds a Ref<> to the code
 // object in Preloader / Function).
 class BytecodeInstructionBlock {
  public:

@@ -419,7 +419,7 @@ void Context::addDeferredFinalization(
     Ref<PyFunctionObject>&& func) {
   JITCompilationLock lock;
   deferred_finalizations_.emplace_back(
-      ThreadedRef<PyFunctionObject>::steal(func.release()), key);
+      Ref<PyFunctionObject>::steal(func.release()), key);
 }
 
 void Context::finalizeMultiThreadedCompile() {
@@ -486,7 +486,7 @@ Ref<PyFunctionObject> Context::codeCompiled(
         key,
         std::pair(
             std::move(compiled_func),
-            ThreadedRef<PyFunctionObject>::steal(func.release())));
+            Ref<PyFunctionObject>::steal(func.release())));
     return nullptr;
   }
 

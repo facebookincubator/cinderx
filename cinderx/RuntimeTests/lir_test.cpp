@@ -64,7 +64,7 @@ class LIRGeneratorTest : public RuntimeTest {
 
     std::unique_ptr<CodeRuntime>& runtime =
         runtimes_.emplace_back(std::make_unique<CodeRuntime>(func));
-    runtime->setReifier(ThreadedRef<>::create(irfunc->env.reifier));
+    runtime->setReifier(Ref<>::create(irfunc->env.reifier));
 
     codegen::Environ env;
     env.reifier = irfunc->env.reifier;

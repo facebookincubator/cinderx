@@ -124,7 +124,7 @@ struct Environ {
   void transferReferences() {
     JIT_DCHECK(
         ThreadedCompileContext::canAccessSharedData(), "lock should be held");
-    code_rt->setReifier(ThreadedRef<>::create(reifier));
+    code_rt->setReifier(Ref<>::create(reifier));
     auto pending = std::move(pending_references_);
     for (BorrowedRef<> obj : pending) {
       code_rt->addReference(obj);
