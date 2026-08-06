@@ -2,6 +2,7 @@
 
 # pyre-strict
 
+import os
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +12,7 @@ from cinderx.test_support import run_in_subprocess
 
 
 class FibonacciTest(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_calls_trigger_jit_compilation(self) -> None:
         cinderx.jit.compile_after_n_calls(3)
