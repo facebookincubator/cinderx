@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Callable
 from functools import wraps
 from types import TracebackType
 
@@ -17,10 +18,23 @@ from types import TracebackType
 # finishes, returning a sentinel object instead.
 
 
+# The installed replacement, kept so install() can tell it has already run.
+#
+# Type dictionaries are never cleared during interpreter shutdown, so whatever
+# this closure captures outlives finalize_modules(). It must not reach the
+# _cinderx module so it's properly finalized.
+_patched_exit: Callable[..., bool | None] | None = None
+
+
 def install() -> None:
     """Replace contextlib._GeneratorContextManager.__exit__ with a version
     that avoids the StopIteration round-trip on the normal (no-exception) exit
     path. No-op if the CinderX native helper is unavailable."""
+    global _patched_exit
+
+    if _patched_exit is not None:
+        return
+
     try:
         # pyre-ignore[21]: _cinderx is only importable where CinderX is
         # supported, which is the only place install() is called.
@@ -54,6 +68,8 @@ def install() -> None:
                 self.gen.close()
         # Exception path is unchanged; defer to the stdlib implementation.
         return original_exit(self, typ, value, traceback)
+
+    _patched_exit = __exit__
 
     # pyre-ignore[8]: Monkeypatching the stdlib method; the replacement is
     # behaviorally compatible but its unparameterized self type does not match

@@ -684,6 +684,8 @@ PyDoc_STRVAR(
 \n\
 Marks a type as being frozen and disallows any future mutations to it.");
 
+// `self` is the sentinel object rather than the module; see where this is bound
+// in _cinderx_exec_impl().
 static PyObject* cinderx_next_or_sentinel(PyObject* self, PyObject* iterator) {
   iternextfunc iternext = Py_TYPE(iterator)->tp_iternext;
   if (iternext == nullptr) {
@@ -706,7 +708,7 @@ static PyObject* cinderx_next_or_sentinel(PyObject* self, PyObject* iterator) {
     }
     PyErr_Clear();
   }
-  return Py_NewRef(cinderx::getModuleState(self)->next_sentinel.get());
+  return Py_NewRef(self);
 }
 
 PyDoc_STRVAR(
@@ -716,6 +718,12 @@ PyDoc_STRVAR(
 Advance an iterator like next(), returning the next value. When the iterator\n\
 is exhausted, return the _NEXT_SENTINEL object instead of raising\n\
 StopIteration. Any other exception raised while advancing propagates.");
+
+static PyMethodDef next_or_sentinel_def = {
+    "_next_or_sentinel",
+    cinderx_next_or_sentinel,
+    METH_O,
+    next_or_sentinel_doc};
 
 PyDoc_STRVAR(
     install_frame_evaluator_doc,
@@ -879,10 +887,6 @@ PyMethodDef _cinderx_methods[] = {
          "Clears caches associated with the JIT.  This may have a "
          "negative effect on performance of existing JIT compiled code.")},
     {"freeze_type", cinderx_freeze_type, METH_O, freeze_type_doc},
-    {"_next_or_sentinel",
-     cinderx_next_or_sentinel,
-     METH_O,
-     next_or_sentinel_doc},
     {"strict_module_patch",
      strict_module_patch,
      METH_VARARGS,
@@ -1023,8 +1027,8 @@ int _cinderx_exec_impl(PyObject* m) {
   state->builtin_next = Ref<>::create(next);
 
   // Unique sentinel object returned by _next_or_sentinel() on iterator
-  // exhaustion. Stored in module state and also exposed to Python as
-  // _cinderx._NEXT_SENTINEL so callers can compare against it by identity.
+  // exhaustion. Exposed to Python as _cinderx._NEXT_SENTINEL so callers can
+  // compare against it by identity.
   Ref<> next_sentinel = Ref<>::steal(
       PyObject_CallNoArgs(reinterpret_cast<PyObject*>(&PyBaseObject_Type)));
   if (next_sentinel == nullptr) {
@@ -1033,7 +1037,17 @@ int _cinderx_exec_impl(PyObject* m) {
   if (PyModule_AddObjectRef(m, "_NEXT_SENTINEL", next_sentinel) < 0) {
     return -1;
   }
-  state->next_sentinel = Ref<>::create(next_sentinel);
+
+  // Bound to the sentinel rather than added through the module's method table
+  // to avoid keeping _cinderx's module alive.
+  Ref<> next_or_sentinel = Ref<>::steal(
+      PyCFunction_NewEx(&next_or_sentinel_def, next_sentinel, nullptr));
+  if (next_or_sentinel == nullptr) {
+    return -1;
+  }
+  if (PyModule_AddObjectRef(m, "_next_or_sentinel", next_or_sentinel) < 0) {
+    return -1;
+  }
 
   auto async_lazy_value = new (std::nothrow) cinderx::AsyncLazyValueState();
   if (async_lazy_value == nullptr) {
