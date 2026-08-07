@@ -38,6 +38,12 @@ void finalize();
 /*
  * Stop the background-compilation worker (if any) and cancel all in-flight
  * background compiles to finish.
+ *
+ * Background compilation stays disabled afterwards; this is only meant to be
+ * called on the way out of the interpreter, and a worker started after the
+ * drain can no longer be joined once the runtime is finalizing.  Background
+ * compilation comes back when the JIT is re-initialized, which builds a fresh
+ * registry.
  */
 void cancelBackgroundCompiles();
 

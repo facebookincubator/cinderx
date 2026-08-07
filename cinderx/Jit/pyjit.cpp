@@ -3885,6 +3885,14 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   // can't be started, release the task's Python references under the guard we
   // already hold and leave the function interpreted.
   std::lock_guard<std::mutex> lock(reg.mutex);
+  // Re-check for shutdown: preloading above ran without the registry lock, so a
+  // drain could have completed in the meantime.  Starting a worker now would
+  // resurrect the thread that drain just joined.
+  if (reg.shutdown) {
+    reg.in_flight.erase(code.get());
+    reg.drain_cv.notify_all();
+    return;
+  }
   if (!reg.worker_started && !startBackgroundWorkerThread(jit_ctx, reg)) {
     reg.in_flight.erase(code.get());
     reg.drain_cv.notify_all();
@@ -4051,12 +4059,20 @@ void cancelBackgroundCompiles() {
       worker_to_join.join();
     }
   }
+  // Take the remaining work out of the registry, but destroy it further down
+  // with the lock released.  Dropping a task's references can run a __del__,
+  // which calls back into jitVectorcall() and deadlocks on reg.mutex.
+  std::deque<std::unique_ptr<BackgroundCompileTask>> abandoned;
   {
-    // Clear out any remaining work
+    // `shutdown` deliberately stays set: this only runs while the interpreter
+    // is going away, and re-enabling background compilation here would let the
+    // Python code that runs during the rest of shutdown start a fresh worker.
+    // Once the runtime marks itself finalizing that worker hangs forever in
+    // PyThread_hang_thread() the moment it re-acquires the GIL, and the join()
+    // above would never return.
     std::unique_lock<std::mutex> lock(reg.mutex);
     reg.in_flight.clear();
-    reg.queue.clear();
-    reg.shutdown = false;
+    abandoned.swap(reg.queue);
   }
 }
 
