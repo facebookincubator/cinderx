@@ -16,6 +16,25 @@ This runs all benchmarks whose dependencies are available, skipping the rest wit
 a helpful message about what to install. Lightweight benchmarks run with 3 iterations
 by default — use `--iterations N` for more.
 
+## Python 3.14 Free-Threading
+
+Buck benchmark targets have a `-314t` variant that runs with the free-threaded
+Python 3.14 runtime:
+
+```bash
+# Run the lightweight suite.
+buck run fbcode//cinderx/benchmarks:benchmarks-314t -- \
+  --iterations 3 binary_trees fannkuch nbody richards spectral_norm
+
+# Run one benchmark with progress and elapsed-time output.
+buck run fbcode//cinderx/benchmarks:benchmarks-314t -- \
+  --iterations 3 richards
+
+# Compare against the interpreter without CinderX.
+CINDERX_DISABLE=1 buck run fbcode//cinderx/benchmarks:benchmarks-314t -- \
+  --iterations 3 richards
+```
+
 ## Lightweight Benchmarks
 
 These benchmarks have no extra dependencies beyond cinderx itself:
