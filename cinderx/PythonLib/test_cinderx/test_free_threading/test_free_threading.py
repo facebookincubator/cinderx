@@ -12,6 +12,13 @@ from cinderx.test_support import run_in_subprocess
 
 
 class FibonacciTest(unittest.TestCase):
+    def setUp(self):
+        self.bg_compile = cinderx.jit.get_background_compile()
+        cinderx.jit.background_compile(False)
+
+    def tearDown(self):
+        cinderx.jit.background_compile(self.bg_compile)
+
     @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_calls_trigger_jit_compilation(self) -> None:

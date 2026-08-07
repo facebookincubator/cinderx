@@ -60,7 +60,11 @@ class PreloadTests(unittest.TestCase):
             cwd=os.path.dirname(__file__),
             capture_output=True,
             encoding=ENCODING,
-            env={**subprocess_env(), "DISABLE_LAZY_IMPORTS": "1"},
+            env={
+                **subprocess_env(),
+                "DISABLE_LAZY_IMPORTS": "1",
+                "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+            },
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("ok ", proc.stdout, proc.stdout)
@@ -88,7 +92,11 @@ class PreloadTests(unittest.TestCase):
             # DISABLE_LAZY_IMPORTS prevents the safer_lazy_imports startup
             # function from overriding -L with selective lazy imports, which
             # would make the helper modules' imports eager and break this test.
-            env={**subprocess_env(), "DISABLE_LAZY_IMPORTS": "1"},
+            env={
+                **subprocess_env(),
+                "DISABLE_LAZY_IMPORTS": "1",
+                "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+            },
         )
         self.assertEqual(proc.returncode, 0)
         expected_stdout = """resolving a_func

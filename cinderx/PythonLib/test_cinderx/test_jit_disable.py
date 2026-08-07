@@ -265,7 +265,7 @@ class DisableEnableTests(unittest.TestCase):
             subprocess.run(
                 [sys.executable, str(test_file)],
                 check=True,
-                env=subprocess_env(),
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
     def test_auto_predefined(self) -> None:
@@ -298,7 +298,7 @@ class DisableEnableTests(unittest.TestCase):
             subprocess.run(
                 [sys.executable, str(test_file)],
                 check=True,
-                env=subprocess_env(),
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
     def test_compile_after_n_calls(self) -> None:
@@ -348,7 +348,7 @@ class DisableEnableTests(unittest.TestCase):
             subprocess.run(
                 [sys.executable, str(test_file)],
                 check=True,
-                env=subprocess_env(),
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
     def test_compile_after_n_calls_predefined(self) -> None:
@@ -381,7 +381,7 @@ class DisableEnableTests(unittest.TestCase):
             subprocess.run(
                 [sys.executable, str(test_file)],
                 check=True,
-                env=subprocess_env(),
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
 

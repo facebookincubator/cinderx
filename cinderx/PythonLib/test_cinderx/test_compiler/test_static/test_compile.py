@@ -5369,7 +5369,10 @@ class StaticCompilationTests(StaticTestBase):
                 "main.py",
             ]
             proc = subprocess.run(
-                cmd, capture_output=True, cwd=str(d), env=subprocess_env()
+                cmd,
+                capture_output=True,
+                cwd=str(d),
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
