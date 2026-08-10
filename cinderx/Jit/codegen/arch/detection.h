@@ -2,33 +2,15 @@
 
 #pragma once
 
+#include "cinderx/Common/define.h"
+
 namespace cinderx::jit::codegen::arch {
 
-// The CPU architecture targeted by the current build.
-enum class Arch {
-  kX86_64,
-  kAarch64,
-  kUnknown,
-};
+// For temporary backwards compatibility, prefer using the `cinderx` namespaced
+// symbols rather than `cinderx::jit::codegen::arch`.
 
-// This macro is a marker for places that need platform-specific code.
-#define CINDER_UNSUPPORTED
+using cinderx::Arch;
 
-#if defined(__x86_64__) || defined(_M_AMD64)
-
-#define CINDER_X86_64
-constexpr Arch kBuildArch = Arch::kX86_64;
-
-#elif defined(__aarch64__)
-
-#define CINDER_AARCH64
-constexpr Arch kBuildArch = Arch::kAarch64;
-
-#else
-
-#define CINDER_UNKNOWN
-constexpr Arch kBuildArch = Arch::kUnknown;
-
-#endif
+constexpr Arch kBuildArch = cinderx::kBuildArch;
 
 } // namespace cinderx::jit::codegen::arch

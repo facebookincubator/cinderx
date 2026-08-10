@@ -3,9 +3,12 @@
 // A collection of preprocessor defines converted into `constexpr` values that
 // can be used unconditionally.
 //
-// This header should never depend on any other file.
+// This header should never depend on any other file, except for
+// cinderx/python.h.
 
 #pragma once
+
+#include "cinderx/python.h"
 
 namespace cinderx {
 
@@ -56,6 +59,33 @@ constexpr bool kPreforkModel =
     true;
 #else
     false;
+#endif
+
+// The CPU architecture targeted by the current build.
+enum class Arch {
+  kX86_64,
+  kAarch64,
+  kUnknown,
+};
+
+// This macro is a marker for places that need platform-specific code.
+#define CINDER_UNSUPPORTED
+
+#if defined(__x86_64__) || defined(_M_AMD64)
+
+#define CINDER_X86_64
+constexpr Arch kBuildArch = Arch::kX86_64;
+
+#elif defined(__aarch64__)
+
+#define CINDER_AARCH64
+constexpr Arch kBuildArch = Arch::kAarch64;
+
+#else
+
+#define CINDER_UNKNOWN
+constexpr Arch kBuildArch = Arch::kUnknown;
+
 #endif
 
 } // namespace cinderx
