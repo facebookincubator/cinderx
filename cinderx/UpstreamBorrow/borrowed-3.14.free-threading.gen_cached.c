@@ -4035,8 +4035,12 @@ call_one_instrument(
     if (res == NULL) {
         return -1;
     }
+    if (res == &_PyInstrumentation_DISABLE) {
+        assert(_Py_IsImmortal(res));
+        return 1;
+    }
     Py_DECREF(res);
-    return (res == &_PyInstrumentation_DISABLE);
+    return 0;
 }
 static inline int most_significant_bit(uint8_t bits) {
     assert(bits != 0);
