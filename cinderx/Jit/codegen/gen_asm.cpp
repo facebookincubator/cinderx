@@ -735,6 +735,7 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.as = as_;
   env_.hard_exit_label = as_->newLabel();
   env_.gen_resume_entry_label = as_->newLabel();
+  env_.is_generator = isGen();
 
   // Prepare the location for where our arguments will go.  This just
   // uses general purpose registers while available for non-floating
