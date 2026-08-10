@@ -469,6 +469,9 @@ void LinearScanAllocator::calculateLiveIntervals() {
         continue;
       }
 
+      JIT_DCHECK(
+          instr_opcode != Instruction::kLoadPair,
+          "load pair can only be generated after register allocation");
       // output
       auto output_opnd = instr->output();
       if (output_opnd->isVreg()) {
