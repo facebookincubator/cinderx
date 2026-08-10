@@ -2,9 +2,9 @@
 
 #include "cinderx/Jit/code_patcher.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/codegen/arch/detection.h"
 
 #include <algorithm>
 #include <array>

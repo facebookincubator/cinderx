@@ -2,9 +2,9 @@
 
 #include "cinderx/Jit/lir/target_select.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch.h"
-#include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"

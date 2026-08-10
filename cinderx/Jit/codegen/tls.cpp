@@ -6,8 +6,8 @@
 
 #include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
-#include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/module_state.h"
 
 namespace cinderx::jit::codegen {

@@ -2,8 +2,7 @@
 
 #include "cinderx/Jit/codegen/arch/unknown.h"
 
-// NOLINTNEXTLINE(facebook-unused-include-check)
-#include "cinderx/Jit/codegen/arch/detection.h"
+#include "cinderx/Common/define.h"
 
 #ifdef CINDER_UNKNOWN
 

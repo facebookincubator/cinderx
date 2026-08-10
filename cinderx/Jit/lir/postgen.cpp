@@ -2,8 +2,8 @@
 
 #include "cinderx/Jit/lir/postgen.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/codegen/arch/detection.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
 

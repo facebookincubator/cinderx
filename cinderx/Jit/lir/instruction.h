@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "cinderx/Jit/codegen/arch/detection.h"
+#include "cinderx/Common/define.h"
 #include "cinderx/Jit/lir/operand.h"
 
 #include <memory>

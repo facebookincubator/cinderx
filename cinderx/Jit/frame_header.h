@@ -4,8 +4,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/codegen/arch/detection.h"
 
 #include <cstddef>
 #include <cstdint>

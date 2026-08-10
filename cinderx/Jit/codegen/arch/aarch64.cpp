@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/codegen/arch/aarch64.h"
 
-#include "cinderx/Jit/codegen/arch/detection.h"
+#include "cinderx/Common/define.h"
 
 #ifdef CINDER_AARCH64
 
