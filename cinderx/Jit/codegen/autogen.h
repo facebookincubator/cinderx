@@ -121,7 +121,7 @@ class AutoTranslator {
     // AArch64 has no sub-32-bit GP registers. Values in registers are
     // guaranteed to be properly zero-extended by ldrb/ldrh/cset.
     // For signed operations, use the postgen sign-extension pass instead.
-    if constexpr (arch::kBuildArch == arch::Arch::kAarch64) {
+    if constexpr (kBuildArch == Arch::kAarch64) {
       if (data_type == jit::lir::Operand::k8bit ||
           data_type == jit::lir::Operand::k16bit) {
         data_type = jit::lir::Operand::k32bit;

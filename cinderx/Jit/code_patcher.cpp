@@ -124,9 +124,7 @@ void CodePatcher::swap() {
   // On x86 the patchpoint is up to 7 bytes (aligned to 8 bytes by the code
   // generator). However, we work with 8 bytes here as that should be an
   // atomically writable size on x86.
-  if constexpr (
-      kFreeThreadedBuild &&
-      codegen::arch::kBuildArch == codegen::arch::Arch::kX86_64) {
+  if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
     static_assert(sizeof(uint64_t) >= sizeof(data_));
     static_assert(std::atomic_ref<uint64_t>::is_always_lock_free == true);
     JIT_CHECK(

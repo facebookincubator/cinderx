@@ -664,7 +664,7 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
     // On aarch64, leave immediate call targets as-is so translateCall can emit
     // bl(imm) which uses asmjit's relaxation to pick the optimal encoding
     // (direct bl or ldr+blr via address table).
-    if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
+    if constexpr (kBuildArch == Arch::kAarch64) {
       return kUnchanged;
     }
     auto move = block->allocateInstrBefore(
@@ -964,7 +964,7 @@ void PostGenerationRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteGuardLargeConstant, 1);
   registerOneRewriteFunction(rewriteLoadArg, 1);
 
-  if constexpr (codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64) {
+  if constexpr (kBuildArch == Arch::kAarch64) {
     registerOneRewriteFunction(rewriteGuardHasType, 1);
     registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
     registerOneRewriteFunction(rewriteStackInputToVreg, 1);

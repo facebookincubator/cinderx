@@ -43,8 +43,7 @@ void insertMoveToMemoryLocation(
 
   if (operand->isImm()) {
     auto constant = operand->getConstant();
-    if ((arch::kBuildArch == arch::Arch::kX86_64 &&
-         !fitsSignedInt<32>(constant)) ||
+    if ((kBuildArch == Arch::kX86_64 && !fitsSignedInt<32>(constant)) ||
         operand->isFp()) {
       block->allocateInstrBefore(
           instr_iter,
@@ -810,7 +809,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     return kRemoved;
   }
 
-  if constexpr (arch::kBuildArch == arch::Arch::kX86_64) {
+  if constexpr (kBuildArch == Arch::kX86_64) {
     if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
       JIT_CHECK(
           !in->isLinked(),
@@ -856,7 +855,7 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   // check for bounds here and return an unchanged instruction if possible.
   // aarch64 does not support absolute addressing, so we will always need to
   // rewrite the instruction.
-  if (arch::kBuildArch == arch::Arch::kX86_64 && fitsSignedInt<32>(mem_addr)) {
+  if (kBuildArch == Arch::kX86_64 && fitsSignedInt<32>(mem_addr)) {
     return kUnchanged;
   }
 

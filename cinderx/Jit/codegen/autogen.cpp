@@ -526,7 +526,7 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   //
   // Not needed on Arm as fixed instructions are a fixed size and updates
   // naturally atomic.
-  if constexpr (kFreeThreadedBuild && arch::kBuildArch == arch::Arch::kX86_64) {
+  if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
     as->align(AlignMode::kCode, 8);
   }
   auto patchpoint_label = as->newLabel();
@@ -1597,11 +1597,11 @@ void translateShift(Environ* env, const Instruction* instr) {
       (instr->getNumOutputs() > 0) ? getReg(instr, instr->output()) : in0_reg;
   // Currently just a limitation of x86-64 register allocation.
   JIT_CHECK(
-      arch::kBuildArch != arch::Arch::kX86_64 || in1->isImm(),
+      kBuildArch != Arch::kX86_64 || in1->isImm(),
       "Cannot emit non-immediate RHS for instruction '{}'",
       *instr);
 
-  if (instr->getNumOutputs() > 0 && arch::kBuildArch != arch::Arch::kAarch64) {
+  if (instr->getNumOutputs() > 0 && kBuildArch != Arch::kAarch64) {
     env->as->mov(out_reg, in0_reg);
   }
 

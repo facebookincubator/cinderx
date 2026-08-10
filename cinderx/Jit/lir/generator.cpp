@@ -1275,8 +1275,8 @@ void GenerateBoxedReturnWrapperBlocks(
     // there arg0 == ret64, but PyLong_FromSize_t reads all 64 bits and AAPCS64
     // leaves the upper half of a 32-bit return unspecified, so we must still
     // clear it.
-    bool needs_extend = PY_VERSION_HEX < 0x030E0000 &&
-        codegen::arch::kBuildArch == codegen::arch::Arch::kAarch64;
+    bool needs_extend =
+        PY_VERSION_HEX < 0x030E0000 && kBuildArch == Arch::kAarch64;
     if (arg0 != ret64 || needs_extend) {
       box_block->allocateInstr(
           Instruction::kMove,
@@ -6021,9 +6021,7 @@ void GenerateDeoptTrampolineBlocks(
   emitAnnotation(block, "prepareForDeopt");
 
   // Windows x64: reserve shadow space for the callee.
-  if constexpr (
-      arch::kBuildArch == arch::Arch::kX86_64 &&
-      codegen::kShadowSpaceSize > 0) {
+  if constexpr (kBuildArch == Arch::kX86_64 && codegen::kShadowSpaceSize > 0) {
     block->allocateInstr(
         Instruction::kLea,
         nullptr,
@@ -6037,9 +6035,7 @@ void GenerateDeoptTrampolineBlocks(
       Imm{reinterpret_cast<uint64_t>(prepare_for_deopt)});
 
   // Windows x64: free shadow space.
-  if constexpr (
-      arch::kBuildArch == arch::Arch::kX86_64 &&
-      codegen::kShadowSpaceSize > 0) {
+  if constexpr (kBuildArch == Arch::kX86_64 && codegen::kShadowSpaceSize > 0) {
     block->allocateInstr(
         Instruction::kLea,
         nullptr,
@@ -6117,9 +6113,7 @@ void GenerateDeoptTrampolineBlocks(
       Ind(fp_reg, -2 * kPointerSize));
 
   // Windows x64: reserve shadow space for the callee.
-  if constexpr (
-      arch::kBuildArch == arch::Arch::kX86_64 &&
-      codegen::kShadowSpaceSize > 0) {
+  if constexpr (kBuildArch == Arch::kX86_64 && codegen::kShadowSpaceSize > 0) {
     block->allocateInstr(
         Instruction::kLea,
         nullptr,
