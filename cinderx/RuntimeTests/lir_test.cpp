@@ -25,6 +25,7 @@
 #include <vector>
 
 using namespace asmjit;
+using namespace cinderx;
 using namespace cinderx::jit;
 using namespace cinderx::jit::lir;
 

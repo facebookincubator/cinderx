@@ -6,6 +6,8 @@
 
 #include <stdbool.h>
 
+namespace cinderx {
+
 /*
  * Immortalizes a Python object but does not check if that makes sense to do so.
  * You probably want to use the `immortalize()` function instead.
@@ -33,3 +35,5 @@ bool immortalize(PyObject* obj);
  * Immortalize the Python objects currently on the heap.
  */
 PyObject* immortalize_heap(PyObject* mod);
+
+} // namespace cinderx

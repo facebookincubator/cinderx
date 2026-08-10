@@ -189,7 +189,7 @@ std::string runtimeTestPythonVersion() {
       "{}.{}{}",
       PY_MAJOR_VERSION,
       PY_MINOR_VERSION,
-      kFreeThreadedBuild ? "t" : "");
+      cinderx::kFreeThreadedBuild ? "t" : "");
 }
 
 std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {

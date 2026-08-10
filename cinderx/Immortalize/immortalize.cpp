@@ -8,30 +8,18 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
+namespace cinderx {
+
+namespace {
+
 #define FROM_GC(g) ((PyObject*)(((PyGC_Head*)g) + 1))
 #define GEN_HEAD(state, n) (&(state)->generations[n].head)
-using GCState = struct _gc_runtime_state;
 
 struct _gc_runtime_state* get_gc_state() {
   return &PyInterpreterState_Get()->gc;
 }
 
-bool can_immortalize(PyObject* obj) {
-  if (obj == nullptr || _Py_IsImmortal(obj)) {
-    return false;
-  }
-
-  // Python 3.12 will assert that strings that are immortalized are also
-  // interned in debug builds.  This is purely a debug check, it's fine to do in
-  // optimized builds.
-  if constexpr (kPyDebug) {
-    return !PyUnicode_Check(obj);
-  }
-
-  return true;
-}
-
-static void immortalize_exact_dict_entries(PyObject* obj) {
+void immortalize_exact_dict_entries(PyObject* obj) {
   PyObject* key;
   PyObject* value;
   Py_ssize_t pos = 0;
@@ -51,7 +39,7 @@ static void immortalize_exact_dict_entries(PyObject* obj) {
 // Code objects are not GC-traversed in 3.12, so their tuple fields can be
 // immortal leaves with mortal entries. Keep this scoped to direct code tuple
 // entries rather than changing global tuple semantics.
-static void immortalize_code_tuple_field(BorrowedRef<> obj) {
+void immortalize_code_tuple_field(BorrowedRef<> obj) {
   PyObject* tuple = obj.get();
   if (tuple == nullptr) {
     return;
@@ -67,6 +55,23 @@ static void immortalize_code_tuple_field(BorrowedRef<> obj) {
   for (Py_ssize_t i = 0; i < size; i++) {
     immortalize(PyTuple_GET_ITEM(tuple, i));
   }
+}
+
+} // namespace
+
+bool can_immortalize(PyObject* obj) {
+  if (obj == nullptr || _Py_IsImmortal(obj)) {
+    return false;
+  }
+
+  // Python 3.12 will assert that strings that are immortalized are also
+  // interned in debug builds.  This is purely a debug check, it's fine to do in
+  // optimized builds.
+  if constexpr (kPyDebug) {
+    return !PyUnicode_Check(obj);
+  }
+
+  return true;
 }
 
 bool immortalize(PyObject* obj) {
@@ -149,3 +154,5 @@ PyObject* immortalize_heap([[maybe_unused]] PyObject* mod) {
 
   Py_RETURN_NONE;
 }
+
+} // namespace cinderx

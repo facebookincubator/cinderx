@@ -24,6 +24,7 @@ extern "C" {
 
 } // extern "C"
 
+using namespace cinderx;
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 

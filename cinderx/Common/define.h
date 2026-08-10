@@ -7,6 +7,8 @@
 
 #pragma once
 
+namespace cinderx {
+
 // Whether CinderX is being built with a debug build configuration.
 constexpr bool kDebug =
 #ifdef NDEBUG
@@ -55,3 +57,5 @@ constexpr bool kPreforkModel =
 #else
     false;
 #endif
+
+} // namespace cinderx
