@@ -998,12 +998,74 @@ void BasicBlock::remove(Instr& instr) {
 }
 
 void BasicBlock::retargetPreds(BasicBlock* target) {
-  JIT_CHECK(target != this, "Can't retarget to self");
+  JIT_THROW_IF(target == this, "Can't retarget to self");
   for (auto it = in_edges_.begin(); it != in_edges_.end();) {
     auto edge = *it;
     ++it;
     const_cast<Edge*>(edge)->setTo(target);
   }
+}
+
+void BasicBlock::becomeUnreachable() {
+  // Collect all branches leading to this block.  Has to be a set in case a
+  // predecessor block has more than one edge leading to this block, such as
+  // `CondBranch C, B1, B1`.
+  std::unordered_set<Instr*> pred_branches;
+  pred_branches.reserve(in_edges_.size());
+  for (const Edge* edge : in_edges_) {
+    BasicBlock* predecessor = edge->from();
+    pred_branches.emplace(predecessor->getTerminator());
+  }
+
+  for (Instr* branch : pred_branches) {
+    switch (branch->opcode()) {
+      case Opcode::kBranch:
+        branch->replaceWith(*Unreachable::create());
+        break;
+      case Opcode::kCondBranch:
+      case Opcode::kCondBranchCheckType:
+      case Opcode::kCondBranchIterNotDone: {
+        // Find the other successor that doesn't match this block.
+        BasicBlock* target = nullptr;
+        for (size_t i = 0; i < 2; ++i) {
+          if (branch->successor(i) == this) {
+            target = branch->successor(1 - i);
+            break;
+          }
+        }
+
+        JIT_THROW_IF(
+            target == nullptr,
+            "Expecting branch {} to have {} in successor list [{}, {}]",
+            branch->opname(),
+            id,
+            branch->successor(0)->id,
+            branch->successor(1)->id);
+
+        // Handle case where conditional branch had this block as both
+        // successors.
+        if (target != this) {
+          branch->replaceWith(*Branch::create(target));
+        } else {
+          branch->replaceWith(*Unreachable::create());
+        }
+
+        break;
+      }
+      default:
+        JIT_THROW(
+            "Unexpected branch instruction {} in block {}",
+            branch->opname(),
+            id);
+    }
+
+    delete branch;
+  }
+
+  JIT_THROW_IF(
+      in_edges_.size() != 0,
+      "Made block {} unreachable, but it still has in edges",
+      id);
 }
 
 void BasicBlock::push_front(Instr* instr) {

@@ -783,6 +783,7 @@ bool mergeLinearBlocks(Function& func) {
 bool removeUnreachableBlocks(Function& func) {
   auto cfg = &func.cfg;
 
+  // DFS through the graph and find all reachable blocks.
   std::unordered_set<BasicBlock*> visited;
   std::vector<BasicBlock*> stack;
   stack.emplace_back(cfg->entry_block);
@@ -804,32 +805,37 @@ bool removeUnreachableBlocks(Function& func) {
     }
   }
 
-  std::vector<BasicBlock*> unreachable;
+  // Unlink and delete all the unreachable blocks.
+  size_t deleted = 0;
   for (auto it = cfg->blocks.begin(); it != cfg->blocks.end();) {
     BasicBlock* block = &*it;
     ++it;
-    if (!visited.contains(block)) {
-      if (Instr* old_term = block->getTerminator()) {
-        for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
-          old_term->successor(i)->removePhiPredecessor(block);
-        }
-      }
-      cfg->removeBlock(block);
-      block->clear();
-      unreachable.emplace_back(block);
-    }
-  }
 
-  for (BasicBlock* block : unreachable) {
+    if (visited.contains(block)) {
+      continue;
+    }
+
+    // Update any phis that are still referencing this block.
+    if (Instr* old_term = block->getTerminator()) {
+      for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
+        old_term->successor(i)->removePhiPredecessor(block);
+      }
+    }
+
+    cfg->removeBlock(block);
+    // Block is unreachable, but it might have other unreachable predecessors.
+    // Clear them out first so we can delete it safely.
+    block->becomeUnreachable();
     delete block;
+    deleted += 1;
   }
 
   // Removing blocks changes the CFG and invalidates the dominator tree.
-  if (unreachable.size() > 0) {
+  if (deleted > 0) {
     func.invalidateDomTree();
   }
 
-  return unreachable.size() > 0;
+  return deleted > 0;
 }
 
 bool removeUnreachableInstructions(Function& func) {
@@ -893,42 +899,27 @@ bool removeUnreachableInstructions(Function& func) {
         delete &instrToDelete;
       }
     }
+
+    // If the first instruction in the block is now an Unreachable, then all
+    // predecessors can be optimized.  A predecessor with a conditional branch
+    // transforms into an unconditional branch to the opposite block, and a
+    // predecessor with an unconditional branch itself gets an Unreachable.
     if (block->begin()->isUnreachable()) {
-      std::vector<Instr*> interesting_branches;
-      // If one edge of a conditional branch leads to an Unreachable, it can be
-      // replaced with a Branch to the other target. If a Branch leads to an
-      // Unreachable, it is replaced with an Unreachable.
-      for (const Edge* edge : block->inEdges()) {
-        BasicBlock* predecessor = edge->from();
-        interesting_branches.emplace_back(predecessor->getTerminator());
-      }
-      for (Instr* branch : interesting_branches) {
-        if (branch->isBranch()) {
-          branch->replaceWith(*Unreachable::create());
-        } else if (auto cond_branch = dynamic_cast<CondBranchBase*>(branch)) {
-          BasicBlock* target;
-          if (cond_branch->false_bb() == block) {
-            target = cond_branch->true_bb();
-          } else {
-            JIT_CHECK(
-                cond_branch->true_bb() == block,
-                "true branch must be unreachable");
-            target = cond_branch->false_bb();
-          }
-          cond_branch->replaceWith(*Branch::create(target));
-        } else {
-          JIT_ABORT("Unexpected branch instruction {}", *branch);
-        }
-        delete branch;
+      block->becomeUnreachable();
+
+      // All of the block's predecessors no longer point to it and all phis
+      // pointing to it have been updated.  Unless it's the entry block, we can
+      // delete it.
+      if (block != func.cfg.entry_block) {
+        func.cfg.removeBlock(block);
+        delete block;
       }
     }
   }
 
   if (modified) {
-    removeUnreachableBlocks(func);
     // We rewrote branches and/or dropped blocks above, so any cached dominance
-    // is no longer valid.  (removeUnreachableBlocks invalidates too when it
-    // drops blocks, but the branch rewrites alone can change dominance.)
+    // is no longer valid.
     func.invalidateDomTree();
     reflowTypes(func);
   }

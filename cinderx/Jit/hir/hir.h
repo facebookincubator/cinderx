@@ -4064,6 +4064,10 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 
   void retargetPreds(BasicBlock* target);
 
+  // Tell all predecessors that this block is no longer reachable, and update
+  // their terminator instructions.
+  void becomeUnreachable();
+
   BasicBlock* successor(std::size_t i) const;
   void setSuccessor(std::size_t i, BasicBlock* succ);
 
