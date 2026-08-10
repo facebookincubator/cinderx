@@ -124,6 +124,151 @@ void insertStorePairToMemoryLocation(
 }
 #endif
 
+#if defined(CINDER_AARCH64)
+// A 64-bit general-purpose move between a register and memory.
+struct PairCandidate {
+  bool is_load;
+  // Frame slots report the frame pointer; their offset is the slot location.
+  PhyLocation base;
+  int32_t offset;
+  PhyLocation reg;
+
+  bool isAdjacentLoad(const PairCandidate& other) const {
+    return is_load == other.is_load && base == other.base &&
+        std::abs(
+            static_cast<int64_t>(offset) -
+            static_cast<int64_t>(other.offset)) == kPointerSize;
+  }
+};
+
+std::optional<std::pair<PhyLocation, int32_t>> pairMemoryLocation(
+    const Operand* operand) {
+  if (operand->isStack()) {
+    return std::make_pair(
+        codegen::arch::reg_frame_pointer_loc, operand->getStackSlot().loc);
+  }
+  if (operand->isInd()) {
+    MemoryIndirect* ind = operand->getMemoryIndirect();
+    // An index register would need scaling that ldp/stp can't express.
+    if (ind->getIndexRegOperand() != nullptr) {
+      return std::nullopt;
+    }
+    const Operand* base = ind->getBaseRegOperand();
+    if (base == nullptr || !base->isReg()) {
+      return std::nullopt;
+    }
+    return std::make_pair(base->getPhyRegister(), ind->getOffset());
+  }
+  return std::nullopt;
+}
+
+std::optional<PairCandidate> describePairCandidate(const Instruction* instr) {
+  if (!instr->isMove() || instr->getNumInputs() != 1 ||
+      instr->getNumOutputs() != 1) {
+    return std::nullopt;
+  }
+
+  const Operand* out = instr->output();
+  const Operand* in = instr->getInput(0);
+
+  // ldp/stp only come in general-purpose and floating-point flavours that
+  // can't be mixed, and only the 64-bit width is worth matching here. The
+  // access width is decided by the memory operand for a store and by the
+  // destination register for a load; requiring both to be 64-bit covers it.
+  if (out->isFp() || in->isFp() || out->sizeInBits() != 64 ||
+      in->sizeInBits() != 64) {
+    return std::nullopt;
+  }
+
+  if (out->isReg()) {
+    auto loc = pairMemoryLocation(in);
+    if (!loc.has_value()) {
+      return std::nullopt;
+    }
+    return PairCandidate{true, loc->first, loc->second, out->getPhyRegister()};
+  }
+
+  if (in->isReg()) {
+    auto loc = pairMemoryLocation(out);
+    if (!loc.has_value()) {
+      return std::nullopt;
+    }
+    return PairCandidate{false, loc->first, loc->second, in->getPhyRegister()};
+  }
+
+  return std::nullopt;
+}
+
+// Merge adjacent 64-bit loads or stores of neighbouring memory into ldp/stp.
+//
+// Spill traffic is the main source of these: the register allocator emits one
+// move per slot, and consecutive slots are a pointer apart. Argument loading
+// off the vectorcall array has the same shape.
+//
+// Only directly adjacent instructions are considered, which keeps this honest
+// about ordering without needing an aliasing check — nothing runs in between,
+// so the only reordering is between the two accesses themselves, and they
+// cover disjoint memory.
+void pairAdjacentMemoryOps(BasicBlock* block) {
+  auto& instrs = block->instructions();
+
+  for (auto it = instrs.begin(); it != instrs.end();) {
+    auto second = std::next(it);
+    if (second == instrs.end()) {
+      break;
+    }
+
+    auto first_desc = describePairCandidate(it->get());
+    auto second_desc = describePairCandidate(second->get());
+    if (!first_desc.has_value() || !second_desc.has_value() ||
+        !first_desc->isAdjacentLoad(*second_desc)) {
+      ++it;
+      continue;
+    }
+
+    // ldp/stp always take the lower address first.
+    bool in_order = first_desc->offset < second_desc->offset;
+    const PairCandidate& low = in_order ? *first_desc : *second_desc;
+    const PairCandidate& high = in_order ? *second_desc : *first_desc;
+
+    if (low.is_load) {
+      // ldp with a repeated destination, or with a destination that is also
+      // the base, is architecturally unpredictable. The unmerged pair would
+      // also have fed the first load's result into the second's address.
+      if (low.reg == high.reg || low.reg == low.base || high.reg == low.base) {
+        ++it;
+        continue;
+      }
+    }
+
+    auto offset = static_cast<uint64_t>(static_cast<int64_t>(low.offset));
+    // describePairCandidate filtered out floating point and non-64 bit regs
+    if (low.is_load) {
+      block->allocateInstrBefore(
+          it,
+          Instruction::kLoadPair,
+          OutPhyReg{low.reg, DataType::k64bit},
+          Imm{offset},
+          PhyReg{low.base, DataType::k64bit},
+          PhyReg{high.reg, DataType::k64bit});
+    } else {
+      block->allocateInstrBefore(
+          it,
+          Instruction::kStorePair,
+          Imm{offset},
+          PhyReg{low.base, DataType::k64bit},
+          PhyReg{low.reg, DataType::k64bit},
+          PhyReg{high.reg, DataType::k64bit});
+    }
+
+    auto next = std::next(second);
+    block->removeInstr(it);
+    block->removeInstr(second);
+    it = next;
+  }
+}
+#endif
+
 int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
@@ -1627,5 +1772,13 @@ void PostRegAllocRewrite::registerRewrites() {
   registerOneRewriteFunction(rewriteDivide);
 #endif
 }
+
+#if defined(CINDER_AARCH64)
+void runPostRegAllocPeephole(Function* func) {
+  for (auto& block : func->basicBlocks()) {
+    pairAdjacentMemoryOps(block);
+  }
+}
+#endif
 
 } // namespace cinderx::jit::lir
