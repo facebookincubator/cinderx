@@ -1150,7 +1150,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kReserveStack:
     case Instruction::kVariadicPush:
     case Instruction::kStorePair:
-    case Instruction::kLoadPair:
     case Instruction::kLeave:
     case Instruction::kRet:
     case Instruction::kCmpBranchZero:

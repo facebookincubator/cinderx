@@ -153,7 +153,6 @@ enum OperandSizeType {
   X(SetupFrame, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)          \
   X(VariadicPush, false, FlagEffects::kNone, kDefault, 0, {}, 1)              \
   X(StorePair, false, FlagEffects::kNone, kDefault, 0, {0, 1, 1, 1}, 1)       \
-  X(LoadPair, false, FlagEffects::kNone, kDefault, 1, {0, 1, 1}, 1)           \
   X(Leave, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)               \
   X(Ret, false, FlagEffects::kInvalidate, kDefault, 0, {}, 1)                 \
   X(CmpBranchZero, false, FlagEffects::kNone, kDefault, 0, {1}, 1)            \

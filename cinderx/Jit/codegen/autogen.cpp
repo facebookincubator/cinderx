@@ -1527,35 +1527,6 @@ void translateStorePair(Environ* env, const Instruction* instr) {
 #endif
 }
 
-void translateLoadPair(Environ* env, const Instruction* instr) {
-  arch::Builder* as = env->as;
-  JIT_DCHECK(
-      instr->getNumInputs() == 3,
-      "LoadPair expects exactly 3 inputs (offset, base, dst1)");
-  int32_t offset = static_cast<int32_t>(instr->getInput(0)->getConstant());
-  auto base_reg = instr->getInput(1)->getPhyRegister();
-  auto dst0_loc = instr->output()->getPhyRegister();
-  auto dst1_loc = instr->getInput(2)->getPhyRegister();
-
-#if defined(CINDER_X86_64)
-  auto base = x86::gpq(base_reg.loc);
-  as->mov(x86::gpq(dst0_loc.loc), x86::qword_ptr(base, offset));
-  as->mov(x86::gpq(dst1_loc.loc), x86::qword_ptr(base, offset + kPointerSize));
-#elif defined(CINDER_AARCH64)
-  auto dst0 = a64::x(dst0_loc.loc);
-  auto dst1 = a64::x(dst1_loc.loc);
-
-  if (auto ptr = getPairPtr(env, base_reg, offset)) {
-    as->ldp(dst0, dst1, *ptr);
-  } else {
-    as->ldr(dst0, getPairElementPtr(env, base_reg, offset));
-    as->ldr(dst1, getPairElementPtr(env, base_reg, offset + kPointerSize));
-  }
-#else
-  CINDER_UNSUPPORTED
-#endif
-}
-
 // Tear down the frame. On x86, this executes 'leave' (mov rsp, rbp; pop rbp).
 // On aarch64, this restores sp from fp and pops the frame record (fp + lr).
 //
@@ -3254,9 +3225,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kStorePair:
       translateStorePair(env, instr);
       return;
-    case Instruction::kLoadPair:
-      translateLoadPair(env, instr);
-      return;
     case Instruction::kLeave:
       translateLeave(env);
       return;
@@ -3534,9 +3502,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Instruction::kStorePair:
       translateStorePair(env, instr);
-      return;
-    case Instruction::kLoadPair:
-      translateLoadPair(env, instr);
       return;
     case Instruction::kLeave:
       translateLeave(env);
