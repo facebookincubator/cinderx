@@ -10,7 +10,7 @@ namespace cinderx::jit::codegen::arch {
 
 // Attempt to build a pointer using an offset from a base register. If it is
 // not possible to do so, return std::nullopt.
-std::optional<a64::Mem>
+static std::optional<a64::Mem>
 ptr_offset_try(const a64::Gp& base, int32_t offset, AccessSize access_size) {
   if (offset >= -256 && offset < 256) {
     // Unscaled immediate offset

@@ -147,15 +147,6 @@ namespace cinderx::jit::codegen::arch {
 
 enum class AccessSize : int32_t { k8 = 1, k16 = 2, k32 = 4, k64 = 8 };
 
-// Sentinel for Environ::sp_to_fp_delta meaning SP is not at its frame
-// position, so frame slots can only be reached through FP.
-constexpr int32_t kSpPositionUnknown = -1;
-
-std::optional<asmjit::a64::Mem> ptr_offset_try(
-    const asmjit::a64::Gp& base,
-    int32_t offset,
-    AccessSize access_size);
-
 asmjit::a64::Mem ptr_offset(
     const asmjit::a64::Gp& base,
     int32_t offset,

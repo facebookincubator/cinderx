@@ -38,18 +38,6 @@ struct Environ {
   // on the stack.
   int last_callee_saved_reg_off{-1};
 
-#if defined(CINDER_AARCH64)
-  // Distance from SP to FP at the point autogen has emitted code up to, or
-  // arch::kSpPositionUnknown outside of an established frame. Frame slots are
-  // named by their (negative) FP offset but are much cheaper to address
-  // through SP, so translators consult this to pick a base.
-  //
-  // Always kSpPositionUnknown for generators: they re-point FP at the
-  // heap-allocated GenDataFooter, so FP and SP no longer address the same
-  // memory region and no delta between them exists. See is_generator.
-  int32_t sp_to_fp_delta{arch::kSpPositionUnknown};
-#endif
-
   // Various Labels that span major sections of the function.
   asmjit::Label static_arg_typecheck_failed_label;
   asmjit::Label hard_exit_label;
@@ -166,14 +154,6 @@ struct Environ {
     annotations.add(std::forward<T>(item), as, start_cursor);
   }
 
-#if defined(CINDER_AARCH64)
-  void adjustSp(int32_t delta) {
-    if (sp_to_fp_delta != arch::kSpPositionUnknown) {
-      sp_to_fp_delta += delta;
-    }
-  }
-#endif
-
   // When true, addAnnotation() calls are suppressed. Set by
   // generateAssemblyBody() while a text annotation is active so that
   // translator-internal annotations (e.g. "Set up frame pointer") don't
@@ -237,9 +217,6 @@ struct Environ {
   // When false, the interpreter frame can never be materialized, enabling a
   // cheaper inline frame unlink at exit.
   bool can_deopt{true};
-
-  // True if the function being compiled is a generator or coroutine.
-  bool is_generator{false};
 
 #if defined(CINDER_AARCH64)
   // Constant pool for large immediate values. translateMovConstPool populates

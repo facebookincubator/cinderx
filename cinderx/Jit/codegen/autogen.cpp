@@ -185,34 +185,6 @@ asmjit::Label getLabel(Environ* env, const lir::Operand* operand) {
 
 namespace {
 
-#if defined(CINDER_AARCH64)
-
-// Address the frame slot at |loc| (a negative offset from FP), preferring
-// SP-relative addressing so that the access usually needs no scratch base.
-asmjit::a64::Mem getStackSlotPtr(
-    Environ* env,
-    int32_t loc,
-    const asmjit::a64::Gp& scratch = arch::reg_scratch_0,
-    arch::AccessSize access_size = arch::AccessSize::k64) {
-  if (env->sp_to_fp_delta != arch::kSpPositionUnknown) {
-    JIT_DCHECK(
-        loc < 0, "Frame slot offsets must be negative FP offsets, got {}", loc);
-    JIT_DCHECK(
-        loc + env->sp_to_fp_delta >= 0,
-        "SP-relative frame slot at {} must not be below SP (delta {})",
-        loc,
-        env->sp_to_fp_delta);
-    auto opt =
-        arch::ptr_offset_try(a64::sp, loc + env->sp_to_fp_delta, access_size);
-    if (opt.has_value()) {
-      return opt.value();
-    }
-  }
-  return ptr_resolve(env->as, arch::fp, loc, scratch, access_size);
-}
-
-#endif
-
 void fillLiveValueLocations(
     CodeRuntime* code_runtime,
     std::size_t deopt_idx,
@@ -761,11 +733,10 @@ void emitStoreGenYieldPoint(
 }
 
 void emitLoadResumedYieldInputs(
-    Environ* env,
+    arch::Builder* as,
     const Instruction* instr,
     PhyLocation sent_in_source_loc,
     arch::Gp tstate_reg) {
-  arch::Builder* as = env->as;
 #if defined(CINDER_X86_64)
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
   as->mov(x86::ptr(x86::rbp, tstate.loc), tstate_reg);
@@ -793,14 +764,17 @@ void emitLoadResumedYieldInputs(
       target->type());
 #elif defined(CINDER_AARCH64)
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  as->str(tstate_reg, getStackSlotPtr(env, tstate.loc));
+  as->str(
+      tstate_reg,
+      arch::ptr_resolve(as, arch::fp, tstate.loc, arch::reg_scratch_0));
 
   const lir::Operand* target = instr->output();
 
   if (target->isStack()) {
     as->str(
         a64::x(sent_in_source_loc.loc),
-        getStackSlotPtr(env, target->getStackSlot().loc));
+        arch::ptr_resolve(
+            as, arch::fp, target->getStackSlot().loc, arch::reg_scratch_0));
     return;
   }
 
@@ -882,7 +856,10 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
   }
 
   if (output->isStack()) {
-    as->str(dst, getStackSlotPtr(env, output->getStackSlot().loc));
+    as->str(
+        dst,
+        arch::ptr_resolve(
+            as, arch::fp, output->getStackSlot().loc, arch::reg_scratch_0));
   }
 
 #else
@@ -960,7 +937,7 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
   // Sent in value and tstate arrive in the argument registers for the
   // GenResumeFunc signature: arg[1] = sent value, arg[3] = tstate.
   emitLoadResumedYieldInputs(
-      env, instr, ARGUMENT_REGS[1], x86::gpq(ARGUMENT_REGS[3].loc));
+      as, instr, ARGUMENT_REGS[1], x86::gpq(ARGUMENT_REGS[3].loc));
 #elif defined(CINDER_AARCH64)
   a64::Builder* as = env->as;
 
@@ -968,7 +945,7 @@ void translateResumeGenYield(Environ* env, const Instruction* instr) {
   as->bind(env->pending_yield_resume_label);
 
   // Sent in value is in x1, and tstate is in x3 from resume entry-point args
-  emitLoadResumedYieldInputs(env, instr, X1, a64::x3);
+  emitLoadResumedYieldInputs(as, instr, X1, a64::x3);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1102,7 +1079,7 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   // Move return value to ABI return register
   if (is_double) {
     if (ret_val->isStack()) {
-      as->ldr(a64::d0, getStackSlotPtr(env, ret_val->getStackSlot().loc));
+      as->ldr(a64::d0, a64::ptr(arch::fp, ret_val->getStackSlot().loc));
     } else if (
         ret_val->isReg() &&
         ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
@@ -1110,7 +1087,7 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
     }
   } else {
     if (ret_val->isStack()) {
-      as->ldr(a64::x0, getStackSlotPtr(env, ret_val->getStackSlot().loc));
+      as->ldr(a64::x0, a64::ptr(arch::fp, ret_val->getStackSlot().loc));
     } else if (
         ret_val->isReg() &&
         ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
@@ -1193,7 +1170,6 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   as->mov(a64::sp, arch::fp);
   as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
   as->ret(arch::lr);
-  env->sp_to_fp_delta = arch::kSpPositionUnknown;
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1279,15 +1255,6 @@ void translateSetupFrame(Environ* env, const Instruction*) {
       a64::sp,
       a64::sp,
       static_cast<uint64_t>(env->resume_frame_total_size));
-  // A generator's body runs with FP pointing at its heap-allocated
-  // GenDataFooter rather than at the machine stack (see
-  // LIRGenerator::emitLoadFrame), so there is no delta to track and SP-relative
-  // frame slots would address unrelated memory. The FP swap already invalidates
-  // the delta via the SP/FP write guard in AutoTranslator::translateInstr, but
-  // never establish one in the first place so that a future change which
-  // re-establishes it mid-body can't silently resurrect the hazard.
-  env->sp_to_fp_delta = env->is_generator ? arch::kSpPositionUnknown
-                                          : env->resume_frame_total_size;
   env->addAnnotation(std::string("Allocate stack frame"), alloc_cursor);
 
   // saveCallerRegisters()
@@ -1426,8 +1393,6 @@ void translateVariadicPush(Environ* env, const Instruction* instr) {
         a64::x(instr->getInput(i)->getPhyRegister().loc),
         a64::ptr(a64::sp, pair_idx * bytes_per_store));
   }
-
-  env->adjustSp(alloc);
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1436,66 +1401,6 @@ void translateVariadicPush(Environ* env, const Instruction* instr) {
 // Store a pair of GP register values at consecutive pointer-sized slots.
 // Input 0: immediate offset. Input 1: base register.
 // Inputs 2, 3: values stored at [base+offset] and [base+offset+8].
-#if defined(CINDER_AARCH64)
-
-// Resolve the address of a load/store pair, preferring the single-instruction
-// stp/ldp form. Returns nullopt when the pair can't be encoded and the caller
-// has to fall back to two separate accesses.
-//
-// A frame-pointer-relative pair is also reachable from SP while the frame is
-// established (see getStackSlotPtr), and the two bases have very different
-// reach: the scaled 7-bit offset covers -512..504 either way, but the SP form
-// measures from the other end of the frame, so one can encode where the other
-// can't. Both are tried before giving up.
-std::optional<asmjit::a64::Mem>
-getPairPtr(Environ* env, PhyLocation base_reg, int32_t offset) {
-  auto encodable = [](int32_t off) {
-    return (off & (kPointerSize - 1)) == 0 && Support::isInt7(off >> 3);
-  };
-
-  if (base_reg == arch::reg_frame_pointer_loc) {
-    if (env->sp_to_fp_delta != arch::kSpPositionUnknown) {
-      // pairMemoryLocation() reports the same base for real frame slots and for
-      // genuine FP-relative indirects (which a generator uses to reach its
-      // GenDataFooter). Only the former may be rewritten, and the delta is only
-      // ever known while FP is a real frame pointer, so assert that here.
-      JIT_DCHECK(
-          offset < 0,
-          "Frame slot offsets must be negative FP offsets, got {}",
-          offset);
-      int32_t sp_offset = offset + env->sp_to_fp_delta;
-      JIT_DCHECK(
-          sp_offset >= 0,
-          "SP-relative frame slot at {} must not be below SP (delta {})",
-          offset,
-          env->sp_to_fp_delta);
-      if (encodable(sp_offset)) {
-        return a64::ptr(a64::sp, sp_offset);
-      }
-    }
-  }
-
-  if (encodable(offset)) {
-    auto base = base_reg == SP ? a64::sp : a64::x(base_reg.loc);
-    return a64::ptr(base, offset);
-  }
-
-  return std::nullopt;
-}
-
-// Address one element of a pair that couldn't be merged. Frame slots go
-// through getStackSlotPtr so they still get the cheaper SP-relative form.
-asmjit::a64::Mem
-getPairElementPtr(Environ* env, PhyLocation base_reg, int32_t offset) {
-  if (base_reg == arch::reg_frame_pointer_loc) {
-    return getStackSlotPtr(env, offset);
-  }
-  auto base = base_reg == SP ? a64::sp : a64::x(base_reg.loc);
-  return arch::ptr_resolve(env->as, base, offset, arch::reg_scratch_0);
-}
-
-#endif
-
 void translateStorePair(Environ* env, const Instruction* instr) {
   arch::Builder* as = env->as;
   JIT_DCHECK(
@@ -1513,14 +1418,21 @@ void translateStorePair(Environ* env, const Instruction* instr) {
       x86::gpq(instr->getInput(3)->getPhyRegister().loc));
 #elif defined(CINDER_AARCH64)
   auto base_reg = instr->getInput(1)->getPhyRegister();
-  auto val0 = a64::x(instr->getInput(2)->getPhyRegister().loc);
-  auto val1 = a64::x(instr->getInput(3)->getPhyRegister().loc);
-
-  if (auto ptr = getPairPtr(env, base_reg, offset)) {
-    as->stp(val0, val1, *ptr);
+  auto base = base_reg == SP ? a64::sp : a64::x(base_reg.loc);
+  // stp signed offset range is -512..504. Fall back to two str instructions
+  // when the offset is out of range.
+  if (Support::isInt7(offset >> 3)) {
+    as->stp(
+        a64::x(instr->getInput(2)->getPhyRegister().loc),
+        a64::x(instr->getInput(3)->getPhyRegister().loc),
+        a64::ptr(base, offset));
   } else {
-    as->str(val0, getPairElementPtr(env, base_reg, offset));
-    as->str(val1, getPairElementPtr(env, base_reg, offset + kPointerSize));
+    as->str(
+        a64::x(instr->getInput(2)->getPhyRegister().loc),
+        a64::ptr(base, offset));
+    as->str(
+        a64::x(instr->getInput(3)->getPhyRegister().loc),
+        a64::ptr(base, offset + kPointerSize));
   }
 #else
   CINDER_UNSUPPORTED
@@ -1539,7 +1451,6 @@ void translateLeave(Environ* env) {
 #elif defined(CINDER_AARCH64)
   as->mov(a64::sp, arch::fp);
   as->ldp(arch::fp, arch::lr, a64::ptr_post(a64::sp, arch::kFrameRecordSize));
-  env->sp_to_fp_delta = arch::kSpPositionUnknown;
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -1815,8 +1726,10 @@ void translateCall(Environ* env, const Instruction* instr) {
   } else if (input->isReg()) {
     as->blr(AT::getGp(input));
   } else if (input->isStack()) {
+    auto loc = input->getStackSlot().loc;
     as->ldr(
-        arch::reg_scratch_br, getStackSlotPtr(env, input->getStackSlot().loc));
+        arch::reg_scratch_br,
+        arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_0));
     as->blr(arch::reg_scratch_br);
   } else if (input->isImm()) {
     as->mov(arch::reg_scratch_br, input->getConstant());
@@ -1895,7 +1808,8 @@ void translateMove(Environ* env, const Instruction* instr) {
           break;
         case lir::OperandType::kStack: {
           // Loading a value from the stack into a register.
-          auto ptr = getStackSlotPtr(env, input->getStackSlot().loc);
+          auto ptr = arch::ptr_resolve(
+              as, arch::fp, input->getStackSlot().loc, arch::reg_scratch_0);
           if (output->isVecD()) {
             as->ldr(AT::getVecD(output), ptr);
           } else {
@@ -1957,7 +1871,8 @@ void translateMove(Environ* env, const Instruction* instr) {
       }
       break;
     case lir::OperandType::kStack: {
-      auto ptr = getStackSlotPtr(env, output->getStackSlot().loc);
+      auto ptr = arch::ptr_resolve(
+          as, arch::fp, output->getStackSlot().loc, arch::reg_scratch_0);
 
       if (input->isReg()) {
         // Storing the value of a register to the stack
@@ -2104,21 +2019,21 @@ void translateMovExtOp(
         emit_load8(
             as,
             output,
-            getStackSlotPtr(
-                env, loc, arch::reg_scratch_0, arch::AccessSize::k8));
+            arch::ptr_resolve(
+                as, arch::fp, loc, arch::reg_scratch_0, arch::AccessSize::k8));
         break;
       case 16:
         emit_load16(
             as,
             output,
-            getStackSlotPtr(
-                env, loc, arch::reg_scratch_0, arch::AccessSize::k16));
+            arch::ptr_resolve(
+                as, arch::fp, loc, arch::reg_scratch_0, arch::AccessSize::k16));
         break;
       case 32:
         as->ldr(
             a64::w(output.id()),
-            getStackSlotPtr(
-                env, loc, arch::reg_scratch_0, arch::AccessSize::k32));
+            arch::ptr_resolve(
+                as, arch::fp, loc, arch::reg_scratch_0, arch::AccessSize::k32));
         break;
       default:
         JIT_ABORT("Unsupported input size for {}: {}", opname, input_size);
@@ -2172,8 +2087,8 @@ void translateMovSXD(Environ* env, const Instruction* instr) {
     as->sxtw(output, input_reg);
   } else if (input->isStack()) {
     auto loc = input->getStackSlot().loc;
-    auto ptr =
-        getStackSlotPtr(env, loc, arch::reg_scratch_0, arch::AccessSize::k32);
+    auto ptr = arch::ptr_resolve(
+        as, arch::fp, loc, arch::reg_scratch_0, arch::AccessSize::k32);
     as->ldrsw(output, ptr);
   } else {
     JIT_ABORT("Unsupported operand type for MovSXD: {}", input->type());
@@ -2413,16 +2328,13 @@ void translatePush(Environ* env, const Instruction* instr) {
     auto reg = AT::getGpWiden(operand);
     as->str(reg, a64::ptr_pre(a64::sp, -16));
   } else if (operand->isStack()) {
-    // Resolve the source slot before SP moves.
-    auto ptr =
-        getStackSlotPtr(env, operand->getStackSlot().loc, arch::reg_scratch_1);
+    auto loc = operand->getStackSlot().loc;
+    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_1);
     as->ldr(arch::reg_scratch_0, ptr);
     as->str(arch::reg_scratch_0, a64::ptr_pre(a64::sp, -16));
   } else {
     JIT_ABORT("Unsupported operand type for push: {}", operand->type());
   }
-
-  env->adjustSp(16);
 }
 
 void translatePop(Environ* env, const Instruction* instr) {
@@ -2430,18 +2342,14 @@ void translatePop(Environ* env, const Instruction* instr) {
 
   const lir::Operand* operand = instr->output();
 
-  // SP is released by the load below, so the destination slot has to be
-  // resolved against the post-pop position.
-  env->adjustSp(-16);
-
   if (operand->isReg()) {
     auto reg = AT::getGpWiden(operand);
     as->ldr(reg, a64::ptr_post(a64::sp, 16));
   } else if (operand->isStack()) {
+    auto loc = operand->getStackSlot().loc;
+    auto ptr = arch::ptr_resolve(as, arch::fp, loc, arch::reg_scratch_1);
     as->ldr(arch::reg_scratch_0, a64::ptr_post(a64::sp, 16));
-    as->str(
-        arch::reg_scratch_0,
-        getStackSlotPtr(env, operand->getStackSlot().loc, arch::reg_scratch_1));
+    as->str(arch::reg_scratch_0, ptr);
   } else {
     JIT_ABORT("Unsupported operand type for pop: {}", operand->type());
   }
@@ -2605,25 +2513,6 @@ void translateSelect(Environ* env, const Instruction* instr) {
 void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     const {
   auto opcode = instr->opcode();
-
-#if defined(CINDER_AARCH64)
-  // Addressing frame slots through SP is only valid while SP and FP both hold
-  // their frame positions, so writing either one gives up on it. Generators
-  // are the reason this is not just a prologue/epilogue concern: they re-point
-  // FP at the heap-allocated GenDataFooter partway through the function.
-  // Translators that re-establish a known position (kSetupFrame, kPush, kPop)
-  // do so after this runs.
-  if (instr->getNumOutputs() > 0) {
-    const lir::Operand* out = instr->output();
-    if (out->isReg()) {
-      auto loc = out->getPhyRegister();
-      if (loc == SP || loc == arch::reg_frame_pointer_loc) {
-        env->sp_to_fp_delta = arch::kSpPositionUnknown;
-      }
-    }
-  }
-#endif
-
   switch (opcode) {
     case Instruction::kBind:
     case Instruction::kCallSiteLiveValues:
