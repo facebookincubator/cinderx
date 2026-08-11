@@ -31,6 +31,11 @@ vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func);
 // interpreter.  Called during interpreter initialization.
 void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall);
 
+// Access the CinderX evaluator used by borrowed specialization code to
+// distinguish CinderX from other PEP 523 evaluators.
+_PyFrameEvalFunction Ci_GetEvalFrameFunc(void);
+void Ci_SetEvalFrameFunc(_PyFrameEvalFunction eval_frame);
+
 // Get the StaticTypeError exception type.
 PyObject* Ci_GetStaticTypeError(void);
 
