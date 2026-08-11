@@ -15,6 +15,7 @@
 #include "cinderx/Jit/symbolizer_iface.h"
 #include "cinderx/async_lazy_value_iface.h"
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <thread>
@@ -159,7 +160,7 @@ struct ModuleState {
   // interpreter.  Set when the interpreter feature is enabled, otherwise
   // nullptr which causes getInterpretedVectorcall to fall back to
   // Ci_PyFunction_Vectorcall.
-  vectorcallfunc static_function_vectorcall{nullptr};
+  std::atomic<vectorcallfunc> static_function_vectorcall{nullptr};
 
   // Whether runtime modification of Strict Module types is allowed.
   bool enable_patching{false};

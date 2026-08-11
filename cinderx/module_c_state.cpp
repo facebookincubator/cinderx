@@ -15,10 +15,13 @@ vectorcallfunc Ci_PyFunction_Vectorcall;
 
 vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func) {
   auto state = cinderx::getModuleState();
-  if (state != nullptr && state->static_function_vectorcall != nullptr) {
+  vectorcallfunc static_function_vectorcall = state != nullptr
+      ? state->static_function_vectorcall.load(std::memory_order_relaxed)
+      : nullptr;
+  if (static_function_vectorcall != nullptr) {
     const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
     if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
-      return state->static_function_vectorcall;
+      return static_function_vectorcall;
     }
   }
   return Ci_PyFunction_Vectorcall;
@@ -27,7 +30,7 @@ vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func) {
 void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall) {
   auto state = cinderx::getModuleState();
   if (state != nullptr) {
-    state->static_function_vectorcall = vcall;
+    state->static_function_vectorcall.store(vcall, std::memory_order_relaxed);
   }
 }
 
