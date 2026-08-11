@@ -882,15 +882,6 @@ void* NativeGenerator::getVectorcallEntry() {
       "Post Reg Alloc Rewrite",
       post_rewrite.run())
 
-#if defined(CINDER_AARCH64)
-  // Peepholes go last, once nothing else will add to or remove from the
-  // instruction stream.
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "Post Reg Alloc Peephole",
-      runPostRegAllocPeephole(lir_func.get()))
-#endif
-
   JIT_LOGIF(
       getConfig().log.dump_lir,
       "LIR for {} after postalloc rewrites:\n{}",
