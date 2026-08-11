@@ -19,8 +19,9 @@ int Ci_InitFrameEvalFunc() {
 #ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = Ci_EvalFrame;
 #elif defined(ENABLE_PEP523_HOOK)
-  // Allow borrowed specialization code to recognize CinderX's evaluator.
-  Ci_SetEvalFrameFunc(Ci_EvalFrame);
+  // Let borrowed.h know the eval frame pointer
+  Ci_EvalFrameFunc = Ci_EvalFrame;
+
   auto interp = _PyInterpreterState_GET();
   auto current_eval_frame = _PyInterpreterState_GetEvalFrameFunc(interp);
   if (current_eval_frame == Ci_EvalFrame) {
@@ -51,7 +52,6 @@ void Ci_FiniFrameEvalFunc() {
   Ci_hook_EvalFrame = nullptr;
 #elif defined(ENABLE_PEP523_HOOK)
   _PyInterpreterState_SetEvalFrameFunc(_PyInterpreterState_GET(), nullptr);
-  Ci_SetEvalFrameFunc(nullptr);
 #endif
 #endif
 }

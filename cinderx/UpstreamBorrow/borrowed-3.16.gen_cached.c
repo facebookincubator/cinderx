@@ -19,6 +19,12 @@
 
 getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;
 
+#ifdef ENABLE_PEP523_HOOK
+_PyFrameEvalFunction Ci_EvalFrameFunc;
+#else
+#define Ci_EvalFrameFunc NULL
+#endif
+
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
   return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
 }

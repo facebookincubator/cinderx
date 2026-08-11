@@ -295,9 +295,9 @@ uint32_t _CiDict_GetKeysVersionForCurrentState(
 extern PyDictKeysObject* ci_dict_empty_keys;
 #endif
 
-// Access the CinderX evaluator used by borrowed specialization code to
-// distinguish CinderX from other PEP 523 evaluators.
-_PyFrameEvalFunction Ci_GetEvalFrameFunc(void);
+#ifdef ENABLE_PEP523_HOOK
+extern _PyFrameEvalFunction Ci_EvalFrameFunc;
+#endif
 
 int init_upstream_borrow(void);
 
