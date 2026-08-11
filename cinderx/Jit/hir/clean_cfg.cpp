@@ -3,7 +3,6 @@
 #include "cinderx/Jit/hir/clean_cfg.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Jit/hir/phi_elimination.h"
 
 namespace cinderx::jit::hir {
 
@@ -14,9 +13,6 @@ void CleanCFG::run(Function& irfunc) {
 
   for (; run < kRunLimit; ++run) {
     removeUnreachableInstructions(irfunc);
-    // Collapse trivial Phis everywhere, not just in the blocks that get merged
-    // below.
-    PhiElimination{}.run(irfunc);
 
     bool modified = mergeLinearBlocks(irfunc);
     modified |= removeUnreachableBlocks(irfunc);

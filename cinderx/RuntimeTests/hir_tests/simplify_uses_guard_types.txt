@@ -293,7 +293,8 @@ fun test {
     UseType<ImmortalNoneType> v7
     v8:CBool[false] = LoadConst<CBool[false]>
     v4:NoneType = LoadConst<NoneType>
-    Return v4
+    v6:NoneType = Assign v4
+    Return v6
   }
 }
 --- Expected 3.14 ---
@@ -306,7 +307,8 @@ fun test {
     UseType<ImmortalNoneType> v7
     v8:CBool[false] = LoadConst<CBool[false]>
     v4:NoneType = LoadConst<NoneType>
-    Return v4
+    v6:NoneType = Assign v4
+    Return v6
   }
 }
 --- Expected 3.15 ---
@@ -319,7 +321,8 @@ fun test {
     UseType<ImmortalNoneType> v7
     v8:CBool[false] = LoadConst<CBool[false]>
     v4:NoneType = LoadConst<NoneType>
-    Return v4
+    v6:NoneType = Assign v4
+    Return v6
   }
 }
 --- Expected 3.16 ---
@@ -332,7 +335,8 @@ fun test {
     UseType<ImmortalNoneType> v7
     v8:CBool[false] = LoadConst<CBool[false]>
     v4:NoneType = LoadConst<NoneType>
-    Return v4
+    v6:NoneType = Assign v4
+    Return v6
   }
 }
 --- Expected 3.14t ---
@@ -345,7 +349,8 @@ fun test {
     UseType<ImmortalNoneType> v7
     v8:CBool[false] = LoadConst<CBool[false]>
     v4:NoneType = LoadConst<NoneType>
-    Return v4
+    v6:NoneType = Assign v4
+    Return v6
   }
 }
 --- End ---

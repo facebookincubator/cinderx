@@ -314,6 +314,7 @@ fun test {
         CurInstrOffset -2
       }
     }
+    v3:Tuple = Assign v2
     v4:Tuple = GuardType<Tuple> v1 {
       FrameState {
         CurInstrOffset -2
@@ -333,6 +334,7 @@ fun test {
         CurInstrOffset -2
       }
     }
+    v3:Tuple = Assign v2
     v4:Tuple = GuardType<Tuple> v1 {
       FrameState {
         CurInstrOffset -2
@@ -352,6 +354,7 @@ fun test {
         CurInstrOffset -2
       }
     }
+    v3:Tuple = Assign v2
     v4:Tuple = GuardType<Tuple> v1 {
       FrameState {
         CurInstrOffset -2
@@ -371,6 +374,7 @@ fun test {
         CurInstrOffset -2
       }
     }
+    v3:Tuple = Assign v2
     v4:Tuple = GuardType<Tuple> v1 {
       FrameState {
         CurInstrOffset -2
@@ -390,6 +394,7 @@ fun test {
         CurInstrOffset -2
       }
     }
+    v3:Tuple = Assign v2
     v4:Tuple = GuardType<Tuple> v1 {
       FrameState {
         CurInstrOffset -2
@@ -438,7 +443,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    Return v3
+    v4:ImmortalBool = Assign v3
+    Return v4
   }
 }
 --- Expected 3.14 ---
@@ -450,7 +456,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    Return v3
+    v4:ImmortalBool = Assign v3
+    Return v4
   }
 }
 --- Expected 3.15 ---
@@ -462,7 +469,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    Return v3
+    v4:ImmortalBool = Assign v3
+    Return v4
   }
 }
 --- Expected 3.16 ---
@@ -474,7 +482,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    Return v3
+    v4:ImmortalBool = Assign v3
+    Return v4
   }
 }
 --- Expected 3.14t ---
@@ -486,7 +495,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    Return v3
+    v4:ImmortalBool = Assign v3
+    Return v4
   }
 }
 --- Test Name ---
@@ -982,7 +992,8 @@ fun test {
   }
 
   bb 3 (preds 1, 4) {
-    Return v1
+    v4:Object = Phi<1> v1
+    Return v4
   }
 }
 --- Expected 3.14 ---
@@ -1011,7 +1022,8 @@ fun test {
   }
 
   bb 3 (preds 1, 4) {
-    Return v1
+    v4:Object = Phi<1> v1
+    Return v4
   }
 }
 --- Expected 3.15 ---
@@ -1040,7 +1052,8 @@ fun test {
   }
 
   bb 3 (preds 1, 4) {
-    Return v1
+    v4:Object = Phi<1> v1
+    Return v4
   }
 }
 --- Expected 3.16 ---
@@ -1069,7 +1082,8 @@ fun test {
   }
 
   bb 3 (preds 1, 4) {
-    Return v1
+    v4:Object = Phi<1> v1
+    Return v4
   }
 }
 --- Expected 3.14t ---
@@ -1098,7 +1112,8 @@ fun test {
   }
 
   bb 3 (preds 1, 4) {
-    Return v1
+    v4:Object = Phi<1> v1
+    Return v4
   }
 }
 --- Test Name ---

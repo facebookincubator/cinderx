@@ -6396,7 +6396,8 @@ fun test {
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
     v10:CBool[true] = LoadConst<CBool[true]>
-    Return v1
+    v7:NoneType = Assign v1
+    Return v7
   }
 }
 --- Expected 3.14 ---
@@ -6411,7 +6412,8 @@ fun test {
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
     v10:CBool[true] = LoadConst<CBool[true]>
-    Return v1
+    v7:NoneType = Assign v1
+    Return v7
   }
 }
 --- Expected 3.15 ---
@@ -6426,7 +6428,8 @@ fun test {
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
     v10:CBool[true] = LoadConst<CBool[true]>
-    Return v1
+    v7:NoneType = Assign v1
+    Return v7
   }
 }
 --- Expected 3.16 ---
@@ -6441,7 +6444,8 @@ fun test {
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
     v10:CBool[true] = LoadConst<CBool[true]>
-    Return v1
+    v7:NoneType = Assign v1
+    Return v7
   }
 }
 --- Expected 3.14t ---
@@ -6456,7 +6460,8 @@ fun test {
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v9
     v10:CBool[true] = LoadConst<CBool[true]>
-    Return v1
+    v7:NoneType = Assign v1
+    Return v7
   }
 }
 --- Test Name ---
