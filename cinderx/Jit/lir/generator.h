@@ -116,8 +116,8 @@ class LIRGenerator {
 
   std::vector<BasicBlock*> basic_blocks_;
 
-  // Borrowed pointers so the caches can be looked up by index; they're
-  // allocated from and owned by Runtime.
+  // Borrowed pointers so type caches can be looked up by cache id. Ownership
+  // is provided by the selected inline cache storage implementation.
   std::vector<LoadTypeAttrCache*> load_type_attr_caches_;
   std::vector<LoadTypeMethodCache*> load_type_method_caches_;
 #if PY_VERSION_HEX >= 0x030E0000

@@ -237,7 +237,7 @@ LIRGenerator::LIRGenerator(
     jit::codegen::Environ* env)
     : func_(func),
       env_(env),
-      inline_cache_storage_(getContext()->inlineCacheStorage(*env->code_rt)),
+      inline_cache_storage_(env->inlineCacheStorage()),
       is_gen_(
           func->code != nullptr &&
           (func->code->co_flags & kCoFlagsAnyGenerator)) {
@@ -3172,13 +3172,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Inline caches must be enabled to use FillTypeAttrCacheItem");
         auto instr = static_cast<const FillTypeAttrCache*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
+        auto cache = load_type_attr_caches_.at(instr->cacheId());
         inline_cache_storage_.addLoadTypeAttrCacheSite(
-            instr->bytecodeOffset(),
-            load_type_attr_caches_.at(instr->cacheId()));
+            instr->bytecodeOffset(), cache);
         bbb.appendCallInstruction(
             instr->output(),
             LoadTypeAttrCache::invoke,
-            load_type_attr_caches_.at(instr->cacheId()),
+            cache,
             instr->receiver(),
             name);
         break;
@@ -3372,7 +3372,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case Opcode::kBinaryOpCached: {
         auto instr = static_cast<const BinaryOpCached*>(&i);
-        BinaryOpCache* cache = getContext()->allocateBinaryOpCache(instr->op());
+        BinaryOpCache* cache = inline_cache_storage_.allocateBinaryOpCache(
+            instr->bytecodeOffset(), instr->op());
         // Emit a direct call to the op-specific dispatch entry point: add() for
         // kAdd, multiply() for kMultiply.  Each switches on the cache's per-op
         // specialization enum -- there is no indirect call through a function

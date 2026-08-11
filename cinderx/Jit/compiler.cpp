@@ -308,6 +308,9 @@ std::optional<CompiledFunctionData> Compiler::compile(
   compiled_data.runtime = code_runtime;
   compiled_data.compile_time = compile_time;
   compiled_data.code_patchers = std::move(irfunc->code_patchers);
+#ifndef ENABLE_PREFORK_MODEL
+  compiled_data.inline_cache_storage = ngen->takeInlineCacheStorage();
+#endif
   if (getConfig().log.debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_data.irfunc = std::move(irfunc);

@@ -78,6 +78,12 @@ class NativeGenerator {
     env_.transferReferences();
   }
 
+#ifndef ENABLE_PREFORK_MODEL
+  std::unique_ptr<PerCompilationInlineCacheStorage> takeInlineCacheStorage() {
+    return env_.takeInlineCacheStorage();
+  }
+#endif
+
   bool isGen() const {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }

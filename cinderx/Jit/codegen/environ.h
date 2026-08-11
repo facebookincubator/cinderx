@@ -8,9 +8,11 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/debug_info.h"
+#include "cinderx/Jit/inline_cache_storage.h"
 
 #include <asmjit/asmjit.h>
 
+#include <memory>
 #include <vector>
 
 namespace cinderx::jit::codegen {
@@ -108,6 +110,26 @@ struct Environ {
 
   // Runtime data for this function.
   jit::CodeRuntime* code_rt{nullptr};
+
+  InlineCacheStorage& inlineCacheStorage() {
+#ifdef ENABLE_PREFORK_MODEL
+    return ctx->inlineCacheStorage(*code_rt);
+#else
+    JIT_DCHECK(
+        inline_cache_storage_ != nullptr,
+        "inline cache storage has already been transferred");
+    return *inline_cache_storage_;
+#endif
+  }
+
+#ifndef ENABLE_PREFORK_MODEL
+  std::unique_ptr<PerCompilationInlineCacheStorage> takeInlineCacheStorage() {
+    JIT_DCHECK(
+        inline_cache_storage_ != nullptr,
+        "inline cache storage has already been transferred");
+    return std::move(inline_cache_storage_);
+  }
+#endif
 
   // Pending references to be added to CodeRuntime at end of compilation.
   // During threaded compilation, we record borrowed references here without
@@ -235,6 +257,11 @@ struct Environ {
   Py_ssize_t gi_jit_data_offset{0};
 
   BorrowedRef<> reifier;
+
+#ifndef ENABLE_PREFORK_MODEL
+  std::unique_ptr<PerCompilationInlineCacheStorage> inline_cache_storage_{
+      std::make_unique<PerCompilationInlineCacheStorage>()};
+#endif
 };
 
 } // namespace cinderx::jit::codegen

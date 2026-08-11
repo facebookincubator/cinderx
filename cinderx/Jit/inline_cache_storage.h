@@ -66,6 +66,13 @@ class PerCompilationInlineCacheStorage final {
       hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
 
+#ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
+  template <typename T, typename... Args>
+  T* allocateForTesting(Args&&... args) {
+    return inline_cache_arena_.allocate<T>(std::forward<Args>(args)...);
+  }
+#endif
+
   void addLoadTypeAttrCacheSite(
       BCOffset bytecode_offset,
       LoadTypeAttrCache* cache);
@@ -116,6 +123,10 @@ class ContextInlineCacheStorage final {
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
 };
 
+#ifdef ENABLE_PREFORK_MODEL
 using InlineCacheStorage = ContextInlineCacheStorage;
+#else
+using InlineCacheStorage = PerCompilationInlineCacheStorage;
+#endif
 
 } // namespace cinderx::jit

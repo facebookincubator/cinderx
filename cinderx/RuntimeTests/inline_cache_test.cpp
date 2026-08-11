@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -17,6 +19,76 @@ using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 
 class InlineCacheTest : public RuntimeTest {};
+
+#ifndef ENABLE_PREFORK_MODEL
+namespace {
+
+struct InlineCacheLifetime {
+  explicit InlineCacheLifetime(int& count) : live_count{count} {
+    live_count++;
+  }
+
+  ~InlineCacheLifetime() noexcept {
+    live_count--;
+  }
+
+  int& live_count;
+};
+
+} // namespace
+
+TEST_F(InlineCacheTest, CompiledDataOwnsAndReclaimsDiscoverableInlineCaches) {
+  int live_count = 0;
+  {
+    CompiledFunctionData original;
+    original.inline_cache_storage =
+        std::make_unique<PerCompilationInlineCacheStorage>();
+    original.inline_cache_storage->allocateForTesting<InlineCacheLifetime>(
+        live_count);
+
+    const BCOffset bytecode_offset{24};
+    BinaryOpCache* cache = original.inline_cache_storage->allocateBinaryOpCache(
+        bytecode_offset, BinaryOpKind::kAdd);
+
+    CompiledFunctionData moved{std::move(original)};
+
+    const std::vector<InlineCacheSite>& sites =
+        moved.inline_cache_storage->inlineCacheSites();
+    ASSERT_EQ(sites.size(), 1);
+    EXPECT_EQ(sites.front().kind, InlineCacheSite::Kind::kBinaryOp);
+    EXPECT_EQ(sites.front().bytecode_offset, bytecode_offset);
+    EXPECT_EQ(sites.front().cache.binary_op, cache);
+    EXPECT_EQ(live_count, 1);
+  }
+  EXPECT_EQ(live_count, 0);
+}
+
+TEST_F(InlineCacheTest, DeferredCompiledDataContributesInlineCacheStats) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
+  Context* context = getContext();
+  ASSERT_NE(context, nullptr);
+
+  CompiledFunctionData data;
+  data.runtime = context->allocateCodeRuntime(func);
+  data.inline_cache_storage =
+      std::make_unique<PerCompilationInlineCacheStorage>();
+  LoadMethodCache* cache =
+      data.inline_cache_storage->allocateLoadMethodCache(BCOffset{24});
+  cache->initCacheStats("deferred.py", "func");
+
+  {
+    Ref<CompiledFunction> compiled =
+        CompiledFunction::create(std::move(data), false);
+    ASSERT_NE(compiled, nullptr);
+    compiled->setOwner(context);
+  }
+
+  InlineCacheStats stats = context->getAndClearLoadMethodCacheStats();
+  ASSERT_EQ(stats.size(), 1);
+  EXPECT_EQ(stats.front().filename, "deferred.py");
+  EXPECT_EQ(stats.front().method_name, "func");
+}
+#endif
 
 TEST_F(InlineCacheTest, LoadTypeMethodCacheLookUp) {
   const char* src = R"(

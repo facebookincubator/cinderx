@@ -364,6 +364,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   template <typename... Args>
   CodeRuntime* allocateCodeRuntime(Args&&... args) {
+    JITCompilationLock lock;
     return code_runtimes_.allocate(std::forward<Args>(args)...);
   }
 
@@ -427,9 +428,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Release any references this Context holds to Python objects.
   void releaseReferences();
 
-  // Allocate a new attribute cache.
+#ifdef ENABLE_PREFORK_MODEL
   InlineCacheStorage& inlineCacheStorage(CodeRuntime& code_runtime);
-  BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
+#endif
 
   const Builtins& builtins();
 
@@ -526,8 +527,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // including any other data that happened to be on the same page.
   SlabArena<CodeRuntime> code_runtimes_;
 
+#ifdef ENABLE_PREFORK_MODEL
   ContextInlineCacheStorage inline_cache_storage_;
-  SlabArena<BinaryOpCache> binary_op_caches_;
+#endif
   SlabArena<void*> pointer_caches_;
 
   FunctionEntryCacheMap function_entry_caches_;
@@ -584,6 +586,10 @@ class Context : public IJitContext, public CompiledFunctionOwner {
  private:
   /* Deopts a function but doesn't touch deopted_funcs_. */
   bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
+
+#ifndef ENABLE_PREFORK_MODEL
+  InlineCacheStats getAndClearInlineCacheStats(InlineCacheSite::Kind kind);
+#endif
 
   /*
    * Map of all compiled code objects, keyed by their address and also their

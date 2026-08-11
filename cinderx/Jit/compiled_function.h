@@ -72,6 +72,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/hir/function.h"
+#include "cinderx/Jit/inline_cache_storage.h"
 
 #include <chrono>
 #include <cstddef>
@@ -111,6 +112,11 @@ struct CompiledFunctionData {
   hir::OpcodeCounts hir_opcode_counts{};
   // All the code patchers pointing to patch points in this function.
   std::vector<std::unique_ptr<CodePatcher>> code_patchers;
+#ifndef ENABLE_PREFORK_MODEL
+  // Inline caches referenced by this generated code. Keeping them with the
+  // compiled data preserves them during deferred code destruction.
+  std::unique_ptr<PerCompilationInlineCacheStorage> inline_cache_storage;
+#endif
   // The HIR representation of this code object.  Optional, only used when debug
   // logging.
   std::unique_ptr<hir::Function> irfunc;
@@ -214,6 +220,10 @@ class CompiledFunction {
   const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const;
 
   const hir::OpcodeCounts& hirOpcodeCounts() const;
+
+#ifndef ENABLE_PREFORK_MODEL
+  const std::vector<InlineCacheSite>& inlineCacheSites() const;
+#endif
 
   // Associate a function with this CompiledFunction. The function will be
   // tracked and deopted if the CompiledFunction is cleared.

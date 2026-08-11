@@ -228,6 +228,15 @@ const hir::OpcodeCounts& CompiledFunction::hirOpcodeCounts() const {
   return data_->hir_opcode_counts;
 }
 
+#ifndef ENABLE_PREFORK_MODEL
+const std::vector<InlineCacheSite>& CompiledFunction::inlineCacheSites() const {
+  JIT_DCHECK(
+      data_ != nullptr && data_->inline_cache_storage != nullptr,
+      "inline cache storage is not available");
+  return data_->inline_cache_storage->inlineCacheSites();
+}
+#endif
+
 void CompiledFunction::setOwner(CompiledFunctionOwner* owner) {
   owner_ = owner;
 }

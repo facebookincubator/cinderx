@@ -49,6 +49,34 @@ PyModuleDef* findBuiltinsModule() {
   return nullptr;
 }
 
+#ifndef ENABLE_PREFORK_MODEL
+void collectAndClearInlineCacheStats(
+    InlineCacheStats& stats,
+    const std::vector<InlineCacheSite>& sites,
+    InlineCacheSite::Kind kind) {
+  for (const auto& site : sites) {
+    if (site.kind != kind) {
+      continue;
+    }
+    auto collect = [&stats](auto* cache) {
+      if (cache->cacheStats() == nullptr) {
+        return;
+      }
+      stats.push_back(*cache->cacheStats());
+      cache->clearCacheStats();
+    };
+    if (kind == InlineCacheSite::Kind::kLoadMethod) {
+      collect(site.cache.load_method);
+    } else {
+      JIT_DCHECK(
+          kind == InlineCacheSite::Kind::kLoadTypeMethod,
+          "unsupported inline cache stats kind");
+      collect(site.cache.load_type_method);
+    }
+  }
+}
+#endif
+
 } // namespace
 
 AotContext g_aot_ctx;
@@ -297,12 +325,45 @@ void Context::clearDeoptStats() {
   withLock(deopt_stats_mutex_, [&]() { deopt_stats_.clear(); });
 }
 
+#ifndef ENABLE_PREFORK_MODEL
+InlineCacheStats Context::getAndClearInlineCacheStats(
+    InlineCacheSite::Kind kind) {
+  JITCompilationLock lock;
+  InlineCacheStats stats;
+  for (auto& code_rt : code_runtimes_) {
+    if (code_rt.isCleared()) {
+      continue;
+    }
+    BorrowedRef<CompiledFunction> compiled = code_rt.compiledFunction();
+    if (compiled != nullptr) {
+      collectAndClearInlineCacheStats(
+          stats, compiled->inlineCacheSites(), kind);
+    }
+  }
+  withLock(deferred_compile_data_mutex_, [&]() {
+    for (auto& entry : deferred_compiled_data_) {
+      collectAndClearInlineCacheStats(
+          stats, entry.second->inline_cache_storage->inlineCacheSites(), kind);
+    }
+  });
+  return stats;
+}
+#endif
+
 InlineCacheStats Context::getAndClearLoadMethodCacheStats() {
+#ifdef ENABLE_PREFORK_MODEL
   return inline_cache_storage_.getAndClearLoadMethodCacheStats();
+#else
+  return getAndClearInlineCacheStats(InlineCacheSite::Kind::kLoadMethod);
+#endif
 }
 
 InlineCacheStats Context::getAndClearLoadTypeMethodCacheStats() {
+#ifdef ENABLE_PREFORK_MODEL
   return inline_cache_storage_.getAndClearLoadTypeMethodCacheStats();
+#else
+  return getAndClearInlineCacheStats(InlineCacheSite::Kind::kLoadTypeMethod);
+#endif
 }
 
 void Context::setGuardFailureCallback(Context::GuardFailureCallback cb) {
@@ -329,14 +390,12 @@ void Context::releaseReferences() {
   type_deopt_patchers_.clear();
 }
 
+#ifdef ENABLE_PREFORK_MODEL
 InlineCacheStorage& Context::inlineCacheStorage(
     [[maybe_unused]] CodeRuntime& code_runtime) {
   return inline_cache_storage_;
 }
-
-BinaryOpCache* Context::allocateBinaryOpCache(hir::BinaryOpKind op) {
-  return binary_op_caches_.allocate(op);
-}
+#endif
 
 const Builtins& Context::builtins() {
   // Lock-free fast path followed by single-lock slow path during
