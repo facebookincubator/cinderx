@@ -378,8 +378,7 @@ Instruction* getSecondCallResult(
     instr->setNumInputs(0);
   }
 
-  Instruction::Opcode new_op =
-      is_call_like ? Instruction::kMove : Instruction::kPhi;
+  Opcode new_op = is_call_like ? Instruction::kMove : Instruction::kPhi;
   if (instr) {
     instr->setOpcode(new_op);
   } else {

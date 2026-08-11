@@ -457,7 +457,7 @@ TEST_F(BackendTest, FPArithmetic) {
   double a = 3.12;
   double b = 1.1616;
 
-  auto test = [&](Instruction::Opcode opcode) -> double {
+  auto test = [&](Opcode opcode) -> double {
     auto lirfunc = std::make_unique<Function>();
     auto bb = lirfunc->allocateBasicBlock();
 
@@ -506,7 +506,7 @@ TEST_F(BackendTest, FPCompare) {
   double a = 3.12;
   double b = 1.1616;
 
-  auto test = [&](Instruction::Opcode opcode) -> double {
+  auto test = [&](Opcode opcode) -> double {
     auto lirfunc = std::make_unique<Function>();
     auto bb = lirfunc->allocateBasicBlock();
 

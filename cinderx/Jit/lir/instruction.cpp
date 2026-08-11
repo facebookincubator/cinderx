@@ -11,16 +11,6 @@
 
 namespace cinderx::jit::lir {
 
-#define COUNT_INSTR(...) +1
-constexpr size_t kNumOpcodes = FOREACH_INSTR_TYPE(COUNT_INSTR);
-#undef COUNT_INSTR
-
-constexpr std::array<std::string_view, kNumOpcodes> kOpcodeNames = {
-#define INSTR_DECL_TYPE(v, ...) #v,
-    FOREACH_INSTR_TYPE(INSTR_DECL_TYPE)
-#undef INSTR_DECL_TYPE
-};
-
 Instruction::Instruction(
     BasicBlock* basic_block,
     Opcode opcode,
@@ -140,7 +130,7 @@ const BasicBlock* Instruction::basicBlock() const {
   return basic_block_;
 }
 
-Instruction::Opcode Instruction::opcode() const {
+Opcode Instruction::opcode() const {
   return opcode_;
 }
 
@@ -149,7 +139,7 @@ void Instruction::setOpcode(Opcode opcode) {
 }
 
 std::string_view Instruction::opname() const {
-  return kOpcodeNames[opcode_];
+  return lir::opname(opcode());
 }
 
 void Instruction::setInput(size_t i, std::unique_ptr<Operand> input) {
@@ -206,7 +196,7 @@ const Operand* Instruction::getOperandByPredecessor(
 }
 
 bool Instruction::getOutputPhyRegUse() const {
-  return InstrProperty::getProperties(opcode_).output_phy_use;
+  return outputMustBeRegister(opcode_);
 }
 
 bool Instruction::getInputPhyRegUse(size_t i) const {
@@ -218,16 +208,11 @@ bool Instruction::getInputPhyRegUse(size_t i) const {
     return true;
   }
 
-  auto& uses = InstrProperty::getProperties(opcode_).input_phy_uses;
-  if (i >= uses.size()) {
-    return false;
-  }
-
-  return uses.at(i);
+  return inputMustBeRegister(opcode_, i);
 }
 
 bool Instruction::inputsLiveAcross() const {
-  return InstrProperty::getProperties(opcode_).inputs_live_across;
+  return lir::inputsLiveAcross(opcode_);
 }
 
 bool Instruction::isCompare() const {
@@ -304,47 +289,47 @@ bool Instruction::isAnyYield() const {
   }
 }
 
-#define CASE_FLIP(op1, op2) \
-  case op1:                 \
-    return op2;             \
-  case op2:                 \
-    return op1;
+#define CASE_FLIP(A, B)  \
+  case Opcode::k##A:     \
+    return Opcode::k##B; \
+  case Opcode::k##B:     \
+    return Opcode::k##A;
 
-Instruction::Opcode Instruction::negateBranchCC(Opcode opcode) {
+Opcode Instruction::negateBranchCC(Opcode opcode) {
   switch (opcode) {
-    CASE_FLIP(kBranchC, kBranchNC)
-    CASE_FLIP(kBranchO, kBranchNO)
-    CASE_FLIP(kBranchS, kBranchNS)
-    CASE_FLIP(kBranchZ, kBranchNZ)
-    CASE_FLIP(kBranchA, kBranchBE)
-    CASE_FLIP(kBranchB, kBranchAE)
-    CASE_FLIP(kBranchL, kBranchGE)
-    CASE_FLIP(kBranchG, kBranchLE)
-    CASE_FLIP(kBranchE, kBranchNE)
+    CASE_FLIP(BranchC, BranchNC)
+    CASE_FLIP(BranchO, BranchNO)
+    CASE_FLIP(BranchS, BranchNS)
+    CASE_FLIP(BranchZ, BranchNZ)
+    CASE_FLIP(BranchA, BranchBE)
+    CASE_FLIP(BranchB, BranchAE)
+    CASE_FLIP(BranchL, BranchGE)
+    CASE_FLIP(BranchG, BranchLE)
+    CASE_FLIP(BranchE, BranchNE)
     default:
-      JIT_ABORT("Not a conditional branch opcode: {}", kOpcodeNames[opcode]);
+      JIT_ABORT("Not a conditional branch opcode: {}", lir::opname(opcode));
   }
 }
 
-Instruction::Opcode Instruction::flipBranchCCDirection(Opcode opcode) {
+Opcode Instruction::flipBranchCCDirection(Opcode opcode) {
   switch (opcode) {
-    CASE_FLIP(kBranchA, kBranchB)
-    CASE_FLIP(kBranchAE, kBranchBE)
-    CASE_FLIP(kBranchL, kBranchG)
-    CASE_FLIP(kBranchLE, kBranchGE)
+    CASE_FLIP(BranchA, BranchB)
+    CASE_FLIP(BranchAE, BranchBE)
+    CASE_FLIP(BranchL, BranchG)
+    CASE_FLIP(BranchLE, BranchGE)
     default:
       JIT_ABORT(
           "Unable to flip branch condition for opcode: {}",
-          kOpcodeNames[opcode]);
+          lir::opname(opcode));
   }
 }
 
-Instruction::Opcode Instruction::flipComparisonDirection(Opcode opcode) {
+Opcode Instruction::flipComparisonDirection(Opcode opcode) {
   switch (opcode) {
-    CASE_FLIP(kGreaterThanEqualSigned, kLessThanEqualSigned)
-    CASE_FLIP(kGreaterThanEqualUnsigned, kLessThanEqualUnsigned)
-    CASE_FLIP(kGreaterThanSigned, kLessThanSigned)
-    CASE_FLIP(kGreaterThanUnsigned, kLessThanUnsigned)
+    CASE_FLIP(GreaterThanEqualSigned, LessThanEqualSigned)
+    CASE_FLIP(GreaterThanEqualUnsigned, LessThanEqualUnsigned)
+    CASE_FLIP(GreaterThanSigned, LessThanSigned)
+    CASE_FLIP(GreaterThanUnsigned, LessThanUnsigned)
     case kEqual:
       return kEqual;
     case kNotEqual:
@@ -352,57 +337,37 @@ Instruction::Opcode Instruction::flipComparisonDirection(Opcode opcode) {
     default:
       JIT_ABORT(
           "Unable to flip comparison direction for opcode: {}",
-          kOpcodeNames[opcode]);
+          lir::opname(opcode));
   }
 }
 
 #undef CASE_FLIP
 
-Instruction::Opcode Instruction::compareToBranchCC(Opcode opcode) {
+Opcode Instruction::compareToBranchCC(Opcode opcode) {
   switch (opcode) {
-    case kEqual:
-      return kBranchE;
-    case kNotEqual:
-      return kBranchNE;
-    case kGreaterThanUnsigned:
-      return kBranchA;
-    case kLessThanUnsigned:
-      return kBranchB;
-    case kGreaterThanEqualUnsigned:
-      return kBranchAE;
-    case kLessThanEqualUnsigned:
-      return kBranchBE;
-    case kGreaterThanSigned:
-      return kBranchG;
-    case kLessThanSigned:
-      return kBranchL;
-    case kGreaterThanEqualSigned:
-      return kBranchGE;
-    case kLessThanEqualSigned:
-      return kBranchLE;
+    case Opcode::kEqual:
+      return Opcode::kBranchE;
+    case Opcode::kNotEqual:
+      return Opcode::kBranchNE;
+    case Opcode::kGreaterThanUnsigned:
+      return Opcode::kBranchA;
+    case Opcode::kLessThanUnsigned:
+      return Opcode::kBranchB;
+    case Opcode::kGreaterThanEqualUnsigned:
+      return Opcode::kBranchAE;
+    case Opcode::kLessThanEqualUnsigned:
+      return Opcode::kBranchBE;
+    case Opcode::kGreaterThanSigned:
+      return Opcode::kBranchG;
+    case Opcode::kLessThanSigned:
+      return Opcode::kBranchL;
+    case Opcode::kGreaterThanEqualSigned:
+      return Opcode::kBranchGE;
+    case Opcode::kLessThanEqualSigned:
+      return Opcode::kBranchLE;
     default:
-      JIT_ABORT("Not a compare opcode.");
+      JIT_ABORT("Not a compare opcode, {}", lir::opname(opcode));
   }
 }
-
-InstrProperty::InstrInfo& InstrProperty::getProperties(
-    Instruction::Opcode opcode) {
-  return prop_map_.at(opcode);
-}
-
-#define BEGIN_INSTR_PROPERTY \
-  std::vector<InstrProperty::InstrInfo> InstrProperty::prop_map_ = {
-#define END_INSTR_PROPERTY \
-  }                        \
-  ;
-
-#define PROPERTY(__t, __p...) {#__t, __p},
-
-// clang-format off
-// This table contains definitions of all the properties for each instruction type.
-BEGIN_INSTR_PROPERTY
-  FOREACH_INSTR_TYPE(PROPERTY)
-END_INSTR_PROPERTY
-// clang-format on
 
 } // namespace cinderx::jit::lir

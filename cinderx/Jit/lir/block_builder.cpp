@@ -62,7 +62,7 @@ void BasicBlockBuilder::switchBlock(BasicBlock* block) {
   cur_bb_ = block;
 }
 
-Instruction* BasicBlockBuilder::createInstr(Instruction::Opcode opcode) {
+Instruction* BasicBlockBuilder::createInstr(Opcode opcode) {
   return cur_bb_->allocateInstr(opcode, cur_hir_instr_);
 }
 

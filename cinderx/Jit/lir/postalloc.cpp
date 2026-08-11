@@ -616,8 +616,9 @@ RewriteResult rewriteBranchInstrs(Function* function) {
     }
 
     auto last_instr = block->getLastInstr();
-    auto last_opcode =
-        last_instr != nullptr ? last_instr->opcode() : Instruction::kNone;
+    std::optional<Opcode> last_opcode = last_instr != nullptr
+        ? std::make_optional(last_instr->opcode())
+        : std::nullopt;
     if (last_opcode == Instruction::kReturn ||
         last_opcode == Instruction::kEpilogueEnd) {
       continue;
@@ -746,16 +747,9 @@ Instruction* findFusibleCompare(
       return candidate;
     }
 
-    // If this instruction clobbers flags, we can't fuse past it.
-    auto effects =
-        InstrProperty::getProperties(candidate->opcode()).flag_effects;
-    if (effects == FlagEffects::kInvalidate) {
-      return nullptr;
-    }
-
-    // If this instruction sets flags (but isn't our compare), we can't
-    // use the flags from an earlier compare.
-    if (effects == FlagEffects::kSet) {
+    // If this instruction clobbers flags (but isn't our compare), we can't fuse
+    // past it.
+    if (writesFlags(candidate->opcode())) {
       return nullptr;
     }
 
@@ -785,7 +779,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   // Try to fuse with a preceding compare instruction. If we find one, we
   // can use its flags directly (cmp + jcc) instead of setcc + test + je.
   Instruction* compare = findFusibleCompare(instr_iter, block);
-  Instruction::Opcode opcode;
+  Opcode opcode;
   if (compare != nullptr) {
     // Use the compare's condition directly for the branch.
     opcode = Instruction::compareToBranchCC(compare->opcode());
@@ -799,7 +793,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   } else {
 #if defined(CINDER_AARCH64)
     // On aarch64, use cbz/cbnz directly instead of test+branch.
-    Instruction::Opcode cbz_opcode;
+    Opcode cbz_opcode;
     if (true_block == next_block) {
       cbz_opcode = Instruction::kCmpBranchZero;
       target_block = false_block;
@@ -885,7 +879,7 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   }
 }
 
-Instruction::Opcode negateBranchBit(Instruction::Opcode opcode) {
+Opcode negateBranchBit(Opcode opcode) {
   switch (opcode) {
     case Instruction::kBranchBitSet:
       return Instruction::kBranchBitNotSet;
@@ -1088,7 +1082,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
       break;
     // Instructions that natively support memory operands or don't have
     // register-only constraints — no rewriting needed.
-    case Instruction::kNone:
     case Instruction::kBind:
     case Instruction::kNop:
     case Instruction::kUnreachable:
@@ -1149,6 +1142,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Instruction::kSetupFrame:
     case Instruction::kReserveStack:
     case Instruction::kVariadicPush:
+    case Instruction::kLoadPair:
     case Instruction::kStorePair:
     case Instruction::kLeave:
     case Instruction::kRet:
@@ -1411,7 +1405,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
 
       if (instr->isDiv()) {
         // extend rax into rdx
-        Instruction::Opcode extend;
+        Opcode extend;
         switch (dividend_lower->sizeInBits()) {
           case 16:
             extend = Instruction::kX64Cwd;

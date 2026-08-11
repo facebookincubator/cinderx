@@ -44,7 +44,7 @@ bool matchesInputImm(const Instruction& ins, size_t index, uint64_t imm) {
 
 Query::Query(const Function& func) : func_(func) {}
 
-Query& Query::opcode(Instruction::Opcode op) {
+Query& Query::opcode(Opcode op) {
   opcode_ = op;
   return *this;
 }
@@ -126,7 +126,7 @@ Query::guard(uint64_t deopt_id, uint64_t frame_index, DataType guard_type) {
   input(2).type = guard_type;
   return *this;
 }
-Query& Query::inDefOpcode(size_t index, Instruction::Opcode op) {
+Query& Query::inDefOpcode(size_t index, Opcode op) {
   input(index).def_opcode = op;
   return *this;
 }

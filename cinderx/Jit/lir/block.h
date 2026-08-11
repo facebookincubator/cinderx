@@ -57,10 +57,8 @@ class BasicBlock {
   // instruction list. For the details on how to allocate instruction
   // operands, please refer to Instruction::addOperands() function.
   template <typename... T>
-  Instruction* allocateInstr(
-      Instruction::Opcode opcode,
-      const hir::Instr* origin,
-      T&&... args) {
+  Instruction*
+  allocateInstr(Opcode opcode, const hir::Instr* origin, T&&... args) {
     instrs_.emplace_back(std::make_unique<Instruction>(this, opcode, origin));
     auto instr = instrs_.back().get();
 
@@ -73,10 +71,8 @@ class BasicBlock {
   // instruction specified by iter. For the details on how to allocate
   // instruction operands, please refer to Instruction::addOperands() function.
   template <typename... T>
-  Instruction* allocateInstrBefore(
-      instr_iter_t iter,
-      Instruction::Opcode opcode,
-      T&&... args) {
+  Instruction*
+  allocateInstrBefore(instr_iter_t iter, Opcode opcode, T&&... args) {
     const hir::Instr* origin = nullptr;
     if (iter != instrs_.end()) {
       origin = (*iter)->origin();

@@ -78,7 +78,7 @@ void Printer::print(std::ostream& out, const Instruction& instr) {
     print(ss, *output_opnd);
     out << std::setw(16) << ss.str() << " = ";
   }
-  out << InstrProperty::getProperties(&instr).name;
+  out << instr.opname();
   const char* sep = " ";
   if (instr.opcode() == Instruction::kPhi) {
     auto num_inputs = instr.getNumInputs();

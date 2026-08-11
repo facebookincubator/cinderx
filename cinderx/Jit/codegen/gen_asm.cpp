@@ -1499,7 +1499,7 @@ int NativeGenerator::calcInlineStackSize(const hir::Function* func) {
   int result = 0;
   for (const auto& block : func->cfg.blocks) {
     for (const auto& instr : block) {
-      if (instr.opcode() != Opcode::kBeginInlinedFunction) {
+      if (instr.opcode() != hir::Opcode::kBeginInlinedFunction) {
         continue;
       }
       auto bif = dynamic_cast<const BeginInlinedFunction*>(&instr);

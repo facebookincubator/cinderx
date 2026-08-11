@@ -55,7 +55,7 @@ class BasicBlockBuilder {
 
   // Allocate and append a new instruction to the instruction stream.
   template <class... Args>
-  Instruction* appendInstr(Instruction::Opcode opcode, Args&&... args) {
+  Instruction* appendInstr(Opcode opcode, Args&&... args) {
     auto instr = cur_bb_->allocateInstr(opcode, cur_hir_instr_);
 
     return appendInstrArguments(instr, std::forward<Args>(args)...);
@@ -66,8 +66,7 @@ class BasicBlockBuilder {
   // The instruction is expecting to produce a VReg and match it to an HIR
   // register.
   template <class... Args>
-  Instruction*
-  appendInstr(hir::Register* dest, Instruction::Opcode opcode, Args&&... args) {
+  Instruction* appendInstr(hir::Register* dest, Opcode opcode, Args&&... args) {
     auto dest_lir = OutVReg{hirTypeToDataType(dest->type())};
     auto instr = appendInstr(opcode, dest_lir, std::forward<Args>(args)...);
     auto [it, inserted] = env_->output_map.emplace(dest, instr);
@@ -77,8 +76,7 @@ class BasicBlockBuilder {
 
   // Allocate and append a new instruction to the instruction stream.
   template <class... Args>
-  Instruction*
-  appendInstr(OutInd dest, Instruction::Opcode opcode, Args&&... args) {
+  Instruction* appendInstr(OutInd dest, Opcode opcode, Args&&... args) {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     instr->output()->setMemoryIndirect(
         dest.base, dest.index, dest.multiplier, dest.offset);
@@ -91,8 +89,7 @@ class BasicBlockBuilder {
   // The instruction is expecting to produce a VReg and match it to an HIR
   // register.
   template <class... Args>
-  Instruction*
-  appendInstr(OutMemImm dest, Instruction::Opcode opcode, Args&&... args) {
+  Instruction* appendInstr(OutMemImm dest, Opcode opcode, Args&&... args) {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     instr->output()->setMemoryAddress(dest.value);
     return instr;
@@ -103,8 +100,7 @@ class BasicBlockBuilder {
   // The instruction is expecting to produce a VReg and match it to an HIR
   // register.
   template <class... Args>
-  Instruction*
-  appendInstr(OutVReg dest, Instruction::Opcode opcode, Args&&... args) {
+  Instruction* appendInstr(OutVReg dest, Opcode opcode, Args&&... args) {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     instr->output()->setVirtualRegister();
     instr->output()->setDataType(dest.data_type);
@@ -116,8 +112,7 @@ class BasicBlockBuilder {
   // The instruction is expecting to produce a VReg and match it to an HIR
   // register.
   template <class... Args>
-  Instruction*
-  appendInstr(OutPhyReg dest, Instruction::Opcode opcode, Args&&... args) {
+  Instruction* appendInstr(OutPhyReg dest, Opcode opcode, Args&&... args) {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     instr->output()->setPhyRegister(dest.value);
     instr->output()->setDataType(dest.data_type);
@@ -127,7 +122,7 @@ class BasicBlockBuilder {
   // Allocate and append a new branching instruction to the instruction stream.
   template <class Arg>
   Instruction* appendBranch(
-      Instruction::Opcode opcode,
+      Opcode opcode,
       Arg&& arg,
       BasicBlock* true_bb,
       BasicBlock* false_bb) {
@@ -139,10 +134,8 @@ class BasicBlockBuilder {
 
   // Allocate and append a new branching instruction which is checking a flag
   template <class... Args>
-  Instruction* appendBranch(
-      Instruction::Opcode opcode,
-      BasicBlock* true_bb,
-      Args&&... args) {
+  Instruction*
+  appendBranch(Opcode opcode, BasicBlock* true_bb, Args&&... args) {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     cur_bb_->addSuccessor(true_bb);
     return instr;
@@ -200,7 +193,7 @@ class BasicBlockBuilder {
   }
 
   // Create a new LIR instruction for the current HIR instruction.
-  Instruction* createInstr(Instruction::Opcode opcode);
+  Instruction* createInstr(Opcode opcode);
 
   Instruction* getDefInstr(const hir::Register* reg);
 

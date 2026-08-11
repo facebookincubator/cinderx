@@ -31,7 +31,7 @@ class LIRABITest : public RuntimeTest {
   // it through autogen to lower it.
   template <typename... T>
   void translateInstrWithOrigin(
-      Instruction::Opcode opcode,
+      Opcode opcode,
       const hir::Instr* origin,
       T&&... args) {
     hir::Function hirFunction;
@@ -108,7 +108,7 @@ class LIRABITest : public RuntimeTest {
   }
 
   template <typename... T>
-  void translateInstr(Instruction::Opcode opcode, T&&... args) {
+  void translateInstr(Opcode opcode, T&&... args) {
     translateInstrWithOrigin(opcode, nullptr /* origin */, args...);
   }
 

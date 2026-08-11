@@ -29,7 +29,7 @@ class Query {
  public:
   explicit Query(const Function& func);
 
-  Query& opcode(Instruction::Opcode op);
+  Query& opcode(Opcode op);
   // Match the output operand's data type / LIR id (`%id`).
   Query& outType(DataType dt);
   Query& outVreg(int id);
@@ -53,7 +53,7 @@ class Query {
   Query& inType(size_t index, DataType dt);
   Query& guard(uint64_t deopt_id, uint64_t frame_index, DataType guard_type);
   // Match properties of the instruction defining linked input operand `index`.
-  Query& inDefOpcode(size_t index, Instruction::Opcode op);
+  Query& inDefOpcode(size_t index, Opcode op);
   Query& inDefImm(size_t index, size_t def_input_index, uint64_t v);
   // Arbitrary extra predicate on the instruction.
   Query& with(std::function<bool(const Instruction*)> pred);
@@ -75,7 +75,7 @@ class Query {
     std::optional<uint64_t> addr;
     std::optional<int> vreg;
     std::optional<DataType> type;
-    std::optional<Instruction::Opcode> def_opcode;
+    std::optional<Opcode> def_opcode;
     std::vector<DefInputMatch> def_inputs;
   };
 
@@ -87,7 +87,7 @@ class Query {
   const Instruction* find() const;
 
   const Function& func_;
-  std::optional<Instruction::Opcode> opcode_;
+  std::optional<Opcode> opcode_;
   std::optional<DataType> out_type_;
   std::optional<int> out_vreg_;
   std::optional<int> out_ind_base_vreg_;

@@ -124,8 +124,7 @@ UseCounts countUses(Function* func) {
  * flags in any way. This allows the two endpoints to reliably set/get flags. */
 bool flagsPreservedBetween(instr_iter_t begin, instr_iter_t end) {
   for (instr_iter_t iter = begin; iter != end; iter++) {
-    if (InstrProperty::getProperties(iter->get()->opcode()).flag_effects !=
-        FlagEffects::kNone) {
+    if (writesFlags(iter->get()->opcode())) {
       return false;
     }
   }
@@ -384,8 +383,7 @@ void selectA64CondBranch(
   }
 
   /* Convert to a conditional compare and branch instruction. */
-  Instruction::Opcode branch_opcode =
-      Instruction::compareToBranchCC(compare->opcode());
+  Opcode branch_opcode = Instruction::compareToBranchCC(compare->opcode());
 
   compare->setOpcode(Instruction::kCmp);
   compare->output()->setNone();
@@ -440,8 +438,7 @@ void selectA64Guard(
   }
 
   /* Convert to a conditional compare and branch instruction. */
-  Instruction::Opcode branch_opcode =
-      Instruction::compareToBranchCC(compare->opcode());
+  Opcode branch_opcode = Instruction::compareToBranchCC(compare->opcode());
   if (kind == InstrGuardKind::kNotZero) {
     branch_opcode = Instruction::negateBranchCC(branch_opcode);
   }
@@ -481,8 +478,7 @@ void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
   while (cursor != block->instructions().begin()) {
     --cursor;
     Instruction* instr = cursor->get();
-    if (InstrProperty::getProperties(instr->opcode()).flag_effects ==
-        FlagEffects::kNone) {
+    if (!writesFlags(instr->opcode())) {
       continue;
     }
 

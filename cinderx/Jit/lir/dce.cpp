@@ -21,15 +21,14 @@ static inline bool operandAffectsMemory(const Operand* operand) {
 // live set - that is, whether it contains control flow or memory effects which
 // mean that we should unconditionally keep this instruction.
 static bool isUseful(const Instruction* instruction) {
-  const InstrProperty::InstrInfo& properties =
-      InstrProperty::getProperties(instruction);
+  Opcode opcode = instruction->opcode();
   JIT_CHECK(
-      instruction->output() != nullptr || properties.is_essential,
+      instruction->output() != nullptr || isEssential(opcode),
       "Any instruction without an output must be marked as essential.");
   return (
       instruction->isAnyBranch() || instruction->isTerminator() ||
-      properties.flag_effects != FlagEffects::kNone ||
-      properties.is_essential || operandAffectsMemory(instruction->output()));
+      writesFlags(opcode) || isEssential(opcode) ||
+      operandAffectsMemory(instruction->output()));
 }
 
 void eliminateDeadCode(Function* function) {

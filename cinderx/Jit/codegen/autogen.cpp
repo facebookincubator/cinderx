@@ -80,11 +80,10 @@ arch::Mem AsmIndirectOperandBuilder(const lir::Operand* operand) {
 // Resolves the operand size in bits, respecting the instruction's
 // OperandSizeType property.
 int getOperandSize(const Instruction* instr, const lir::Operand* operand) {
-  auto size_type = InstrProperty::getProperties(instr).opnd_size_type;
-  switch (size_type) {
-    case kAlways64:
+  switch (operandSizeType(instr->opcode())) {
+    case OperandSizeType::kAlways64:
       return 64;
-    case kOut: {
+    case OperandSizeType::kOut: {
       // Match LIROperandMapper<0> behavior: use the output if present,
       // otherwise use input 0 (which post-alloc rewrites may have resized).
       if (instr->getNumOutputs() > 0) {
@@ -92,7 +91,7 @@ int getOperandSize(const Instruction* instr, const lir::Operand* operand) {
       }
       return static_cast<int>(instr->getInput(0)->sizeInBits());
     }
-    case kDefault:
+    case OperandSizeType::kDefault:
     default:
       return static_cast<int>(operand->sizeInBits());
   }
@@ -239,7 +238,7 @@ void fillCallSiteLiveValueLocations(Environ* env, const Instruction* instr) {
 #if defined(CINDER_AARCH64)
 void translateBranchCC(
     a64::Builder* as,
-    Instruction::Opcode opcode,
+    Opcode opcode,
     const asmjit::Label& label) {
   switch (opcode) {
     case Instruction::kBranchZ:
@@ -303,8 +302,7 @@ void translateA64GuardCC(Environ* env, const Instruction* instr) {
   auto index = static_cast<size_t>(instr->getInput(1)->getConstant());
   auto* block = map_get(env->deopt_exit_blocks, index);
   auto label = map_get(env->block_label_map, block);
-  auto opcode =
-      static_cast<Instruction::Opcode>(instr->getInput(0)->getConstant());
+  auto opcode = static_cast<Opcode>(instr->getInput(0)->getConstant());
 
   translateBranchCC(env->as, opcode, label);
   fillLiveValueLocations(env->code_rt, index, instr, 2, instr->getNumInputs());
@@ -3120,7 +3118,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kRet:
       translateRet(env);
       return;
-    case Instruction::kNone:
     case Instruction::kNop:
     case Instruction::kVectorCallTstate:
     case Instruction::kVarArgCall:
@@ -3398,7 +3395,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kRet:
       translateRet(env);
       return;
-    case Instruction::kNone:
     case Instruction::kNop:
     case Instruction::kVectorCallTstate:
     case Instruction::kVarArgCall:
@@ -3409,11 +3405,16 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Instruction::kCondBranch:
     case Instruction::kPhi:
     case Instruction::kReturn:
-      JIT_ABORT("Unexpected opcode {} in translateInstr", (int)opcode);
+      JIT_ABORT(
+          "Unexpected opcode {} ({}) in translateInstr",
+          opname(opcode),
+          static_cast<int>(opcode));
 #endif
     default:
       JIT_ABORT(
-          "No handler for opcode {}", InstrProperty::getProperties(instr).name);
+          "No handler for opcode {} ({})",
+          opname(opcode),
+          static_cast<int>(opcode));
   }
 }
 

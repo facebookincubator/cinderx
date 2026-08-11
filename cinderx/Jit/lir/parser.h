@@ -47,7 +47,7 @@ class Parser {
 
   DataType getOperandDataType(const std::string& name) const;
 
-  Instruction::Opcode getInstrOpcode(const std::string& name) const;
+  Opcode getInstrOpcode(const std::string& name) const;
 
   enum TokenType {
     kFunctionStart,

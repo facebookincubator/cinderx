@@ -1400,8 +1400,9 @@ void LinearScanAllocator::resolveEdges() {
     auto last_instr_iter = empty ? instrs.end() : std::prev(instrs.end());
     auto last_instr = empty ? nullptr : last_instr_iter->get();
 
-    auto last_instr_opcode =
-        last_instr != nullptr ? last_instr->opcode() : Instruction::kNone;
+    std::optional<Opcode> last_instr_opcode = last_instr != nullptr
+        ? std::make_optional(last_instr->opcode())
+        : std::nullopt;
 
     // Yield blocks (ending with BranchToYieldExit) have two successors:
     // the exit epilogue and the resume block. The resume successor is a

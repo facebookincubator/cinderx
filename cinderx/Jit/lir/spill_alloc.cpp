@@ -417,8 +417,8 @@ void SpillAllocator::resolveControlFlow() {
     }
 
     Instruction* last = pred->getLastInstr();
-    Instruction::Opcode last_op =
-        last != nullptr ? last->opcode() : Instruction::kNone;
+    std::optional<Opcode> last_op =
+        last != nullptr ? std::make_optional(last->opcode()) : std::nullopt;
 
     // Yield blocks (ending with BranchToYieldExit) carry a second, "phantom"
     // resume successor used only for liveness in the linear scan allocator.
