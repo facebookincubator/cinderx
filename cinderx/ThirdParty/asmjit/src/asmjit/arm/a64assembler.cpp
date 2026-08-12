@@ -1299,7 +1299,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
 
           // A page-aligned target never needs the second instruction.
           writer.emit32uLE(opcode.get());
-          if ((targetAddress & 0xFFFu) != 0)
+          if (a64AdrAbsRegionSize(targetAddress) > 4u)
             writer.emit32uLE(0xD503201Fu); // NOP
           goto EmitDone;
         }
@@ -5186,6 +5186,38 @@ EmitOp_Rel:
       LabelEntry* label = _code->labelEntry(labelId);
       if (ASMJIT_UNLIKELY(!label))
         goto InvalidLabel;
+
+      if (label->isBound() &&
+          (instId == Inst::kIdBl || instId == Inst::kIdB) &&
+          offsetFormat.immBitCount() == 26) {
+        size_t codeOffset = writer.offsetFrom(_bufferData);
+
+        if (label->isBoundTo(_section)) {
+          offsetValue = label->offset() - uint64_t(codeOffset) + uint64_t(labelOffset);
+          int64_t dispImm = int64_t(offsetValue) >> 2;
+          if ((offsetValue & 3) == 0 && Support::isEncodableOffset64(dispImm, 26))
+            goto EmitOp_DispImm;
+        }
+
+        RelocEntry* re;
+        err = _code->newRelocEntry(
+          &re,
+          instId == Inst::kIdBl
+            ? RelocType::kA64AddressEntry
+            : RelocType::kA64JumpAddressEntry);
+        if (err)
+          goto Failed;
+
+        re->_sourceSectionId = _section->id();
+        re->_sourceOffset = codeOffset;
+        re->_format = offsetFormat;
+
+        re->_payload = label->offset() + uint64_t(labelOffset);
+        re->_targetSectionId = label->section()->id();
+
+        writer.emit32uLE(opcode.get());
+        goto EmitDone;
+      }
 
       if (offsetFormat.type() == OffsetType::kAArch64_ADRP) {
         // TODO: [ARM] Always create relocation entry.

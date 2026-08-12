@@ -311,7 +311,12 @@ public:
   //! \}
 };
 
-//! Local AArch64 branch stub island inserted into a source section.
+enum class A64BranchStubIslandUse : uint8_t {
+  kBranch,
+  kAddressLiteral,
+};
+
+//! Local AArch64 branch stub island appended to a source section.
 class A64BranchStubIsland {
 public:
   ASMJIT_NONCOPYABLE(A64BranchStubIsland)
@@ -347,22 +352,33 @@ public:
   //! \name Members
   //! \{
 
-  //! Address.
-  uint64_t _address;
+  //! Absolute address or target-section offset.
+  uint64_t _target;
+  //! Target section id, or `Globals::kInvalidId` for an absolute address.
+  uint32_t _targetSectionId;
   //! Source section id.
   uint32_t _sourceSectionId;
   //! Offset of the stub in the source section.
   uint32_t _offset;
+  //! How the entry is referenced.
+  A64BranchStubIslandUse _use;
 
   //! \}
 
   //! \name Construction & Destruction
   //! \{
 
-  ASMJIT_INLINE_NODEBUG A64BranchStubIslandEntry(uint64_t address, uint32_t sourceSectionId, uint32_t offset) noexcept
-    : _address(address),
+  ASMJIT_INLINE_NODEBUG A64BranchStubIslandEntry(
+    uint64_t target,
+    uint32_t targetSectionId,
+    uint32_t sourceSectionId,
+    uint32_t offset,
+    A64BranchStubIslandUse use) noexcept
+    : _target(target),
+      _targetSectionId(targetSectionId),
       _sourceSectionId(sourceSectionId),
-      _offset(offset) {}
+      _offset(offset),
+      _use(use) {}
 
   //! \}
 };
@@ -618,17 +634,21 @@ enum class RelocType : uint32_t {
   kAbsToRel = 4,
   //! Relocate absolute to relative or use trampoline.
   kX64AddressEntry = 5,
-  //! AArch64: Relocate absolute to relative `bl` or branch to an out-of-line stub.
+  //! AArch64: Relocate absolute or label `bl` to a direct branch or an out-of-line stub.
   kA64AddressEntry = 6,
-  //! AArch64: Relocate `adr` or relax to `adrp+add` if displacement > ±1MB.
+  //! AArch64: Relocate `adr`, relax to `adrp+add`, or use a local address literal.
   kA64AdrEntry = 7,
-  //! AArch64: Relocate absolute to relative `b` or branch to an out-of-line stub.
+  //! AArch64: Relocate absolute or label `b` to a direct branch or an out-of-line stub.
   kA64JumpAddressEntry = 8,
-  //! AArch64: Relocate `ldr Xd, [PC+imm19]` literal or relax to `adrp Xd, page; ldr Xd, [Xd, #off]`.
+  //! AArch64: Relocate a literal `ldr`, relax to `adrp+ldr`, or load through a local address literal.
   kA64LdrLiteralEntry = 9,
   //! AArch64: Relocate absolute address into register via `adr`, `adrp+add`, or `ldr` from address table.
   kA64AdrAbsEntry = 10
 };
+
+static constexpr uint32_t a64AdrAbsRegionSize(uint64_t targetAddress) noexcept {
+  return (targetAddress & 0xFFFu) != 0 ? 8u : 4u;
+}
 
 //! Relocation entry.
 struct RelocEntry {

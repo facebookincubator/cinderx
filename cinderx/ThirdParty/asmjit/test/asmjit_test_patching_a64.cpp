@@ -276,6 +276,49 @@ UNIT(a64_bl_patching_absolute_addr_uses_in_section_island_for_huge_section) {
     .message("Expected target literal in local stub");
 }
 
+UNIT(a64_branch_uses_new_island_when_reachable_island_is_not_at_section_end) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr = 0x100000000ULL;
+  as.b(Imm(farAddr));
+  as.nop();
+  as.nop();
+
+  Section* text = code.textSection();
+  EXPECT_EQ(code._a64BranchStubIslands.willGrow(code.allocator(), 2), kErrorOk);
+  A64BranchStubIsland* firstIsland =
+    code._zone.newT<A64BranchStubIsland>(text->id(), 4, 4);
+  A64BranchStubIsland* secondIsland =
+    code._zone.newT<A64BranchStubIsland>(text->id(), 8, 4);
+  EXPECT(firstIsland != nullptr && secondIsland != nullptr);
+  if (!firstIsland || !secondIsland)
+    return;
+  code._a64BranchStubIslands.appendUnsafe(firstIsland);
+  code._a64BranchStubIslands.appendUnsafe(secondIsland);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+  padding->setVirtualSize(0x08000000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const uint8_t* buf = text->data();
+  EXPECT_EQ(text->bufferSize(), 32u)
+    .message("Expected a new guarded island at the section end");
+  if (text->bufferSize() < 32)
+    return;
+
+  EXPECT_EQ(a64BranchTargetOffset(buf, 0), 16u)
+    .message("Expected the branch to target the new tail island");
+  EXPECT_EQ(Support::readU64uLE(buf + 24), farAddr)
+    .message("Expected the new island to contain the branch target");
+}
+
 UNIT(a64_b_patching_absolute_addr_uses_local_island_when_global_stub_out_of_range) {
   CodeHolder code;
   a64::Assembler as;
@@ -320,6 +363,81 @@ UNIT(a64_b_patching_absolute_addr_uses_local_island_when_global_stub_out_of_rang
     .message("Expected br x16 in local stub");
   EXPECT_EQ(Support::readU64uLE(buf + 16), farAddr)
     .message("Expected target literal in local stub");
+}
+
+UNIT(a64_local_island_preserves_crossing_branch_and_alignment) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  Label target = as.newLabel();
+  as.cbz(a64::x0, target);
+  as.bl(Imm(uint64_t(0x100000000ULL)));
+  as.align(AlignMode::kCode, 16);
+  as.bind(target);
+  as.nop();
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+  padding->setVirtualSize(0x08000000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  uint64_t targetOffset = code.labelEntry(target.id())->offset();
+  uint32_t branchOpcode = Support::readU32uLE(code.textSection()->data());
+  int32_t branchDisplacement = (int32_t(branchOpcode << 8) >> 13) * 4;
+
+  EXPECT_EQ(uint64_t(branchDisplacement), targetOffset)
+    .message("Expected the conditional branch to retain its target across island creation");
+  EXPECT_EQ(targetOffset % 16u, 0u)
+    .message("Expected island creation to preserve downstream alignment");
+}
+
+UNIT(a64_label_branches_use_local_island_when_target_out_of_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+  padding->setVirtualSize(0x08000000u);
+
+  Section* targetSection = nullptr;
+  EXPECT_EQ(code.newSection(&targetSection, ".target", SIZE_MAX, SectionFlags::kExecutable, 4, 2), kErrorOk);
+  if (!targetSection)
+    return;
+
+  Label target = as.newLabel();
+  as.b(target);
+  as.bl(target);
+  as.section(targetSection);
+  as.bind(target);
+  as.nop();
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint64_t targetAddress = targetSection->offset() + code.labelEntry(target.id())->offset();
+  uint32_t stubOffset = findA64BranchStubForTarget(buf, text->bufferSize(), targetAddress);
+
+  EXPECT_NE(stubOffset, Globals::kNotFound)
+    .message("Expected an in-section stub for the far label");
+  if (stubOffset == Globals::kNotFound)
+    return;
+
+  EXPECT_EQ(a64BranchTargetOffset(buf, 0), stubOffset)
+    .message("Expected b to target the local label stub");
+  EXPECT_EQ(a64BranchTargetOffset(buf, 4), stubOffset)
+    .message("Expected bl to reuse the local label stub");
+  EXPECT(code.sectionByName(".a64stubs") == nullptr)
+    .message("Expected label branches not to allocate an absolute-address stub table");
 }
 
 // Test that Builder leaves far absolute branches to relocation-time patching
@@ -767,7 +885,7 @@ UNIT(a64_ldr_literal_in_range) {
 UNIT(a64_ldr_literal_out_of_range) {
   CodeHolder code;
   a64::Assembler as;
-  setupCode(code, as);
+  setupCodeNoBase(code, as);
 
   Label pool = as.newLabel();
   as.ldr(a64::x0, a64::ptr(pool));
@@ -989,6 +1107,252 @@ UNIT(a64_load_addr_reloc_ldr) {
     .message("Expected a single ldr instruction");
   EXPECT_EQ(instr0, 0x58000044u)
     .message("Expected ldr x4, [pc+off], got: 0x%08X", instr0);
+}
+
+UNIT(a64_load_addr_reloc_uses_local_literal_island) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr = 0x4000300020000ULL;
+  as.load_addr(a64::x9, farAddr);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+
+  padding->setVirtualSize(0x00100000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  EXPECT_EQ(text->bufferSize(), 16u)
+    .message("Expected load_addr + guarded local literal");
+  if (text->bufferSize() < 16)
+    return;
+
+  EXPECT_EQ(Support::readU32uLE(buf), 0x58000049u)
+    .message("Expected ldr x9 to target the local address literal");
+  EXPECT_EQ(Support::readU32uLE(buf + 4), 0x14000003u)
+    .message("Expected guard branch to skip the local literal");
+  EXPECT_EQ(Support::readU64uLE(buf + 8), farAddr)
+    .message("Expected the local literal to contain the absolute target");
+}
+
+UNIT(a64_branch_and_load_addr_use_distinct_local_entries) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t farAddr = 0x4000300020000ULL;
+  as.b(Imm(farAddr));
+  as.load_addr(a64::x9, farAddr);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+
+  padding->setVirtualSize(0x08000000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  const RelocEntry* branchReloc = code.relocEntries()[0];
+  const RelocEntry* loadReloc = code.relocEntries()[1];
+  uint64_t branchSourceOffset = branchReloc->sourceOffset();
+  uint64_t loadSourceOffset = loadReloc->sourceOffset();
+
+  uint32_t branchOpcode = Support::readU32uLE(buf + branchSourceOffset);
+  int32_t branchDisplacement = int32_t(branchOpcode << 6) >> 4;
+  uint64_t branchEntryOffset = uint64_t(int64_t(branchSourceOffset) + branchDisplacement);
+
+  uint32_t loadOpcode = Support::readU32uLE(buf + loadSourceOffset);
+  int32_t literalDisplacement = (int32_t(loadOpcode << 8) >> 13) * 4;
+  uint64_t literalOffset = uint64_t(int64_t(loadSourceOffset) + literalDisplacement);
+
+  EXPECT_EQ(Support::readU32uLE(buf + branchEntryOffset), 0x58000050u)
+    .message("Expected the branch to use a full local stub");
+  EXPECT_EQ(Support::readU64uLE(buf + branchEntryOffset + 8), farAddr)
+    .message("Expected the branch stub to contain the absolute target");
+  EXPECT_EQ(Support::readU64uLE(buf + literalOffset), farAddr)
+    .message("Expected load_addr to use a separate compact literal");
+  EXPECT_NE(branchEntryOffset + 8, literalOffset)
+    .message("Expected branch and load_addr entries to remain distinct");
+}
+
+UNIT(a64_load_addr_reloc_does_not_add_unused_island) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t target = 0x200ABC;
+  as.load_addr(a64::x3, target);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+
+  padding->setVirtualSize(0x00100000u);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  EXPECT_EQ(text->bufferSize(), 8u)
+    .message("Expected load_addr not to allocate an unused local literal");
+  if (text->bufferSize() < 8)
+    return;
+
+  EXPECT_EQ(Support::readU32uLE(buf), 0x90001003u)
+    .message("Expected adrp x3 at the load_addr site");
+  EXPECT_EQ(Support::readU32uLE(buf + 4), 0x912AF063u)
+    .message("Expected add x3, x3, #0xABC");
+}
+
+UNIT(a64_load_addr_materializable_target_does_not_require_reachable_island) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  uint64_t target = 0x4000000000ULL;
+  as.load_addr(a64::x4, target);
+  emitNops(as, 262200);
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  EXPECT_EQ(Support::readU32uLE(code.textSection()->data()), 0xD2C00804u)
+    .message("Expected the target to materialize with movz");
+}
+
+UNIT(a64_adr_label_uses_local_literal_beyond_adrp_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+  padding->setVirtualSize(0x100000000ULL);
+
+  Section* targetSection = nullptr;
+  EXPECT_EQ(code.newSection(&targetSection, ".target", SIZE_MAX, SectionFlags::kNone, 4, 2), kErrorOk);
+  if (!targetSection)
+    return;
+
+  Label target = as.newLabel();
+  as.adr(a64::x2, target);
+  as.section(targetSection);
+  as.bind(target);
+  as.nop();
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t ldrOpcode = Support::readU32uLE(buf);
+  int32_t literalDisplacement = (int32_t(ldrOpcode << 8) >> 13) * 4;
+  uint64_t literalOffset = uint64_t(literalDisplacement);
+  uint64_t targetAddress = targetSection->offset() + code.labelEntry(target.id())->offset();
+
+  EXPECT_EQ(ldrOpcode & 0xFF00001Fu, 0x58000002u)
+    .message("Expected adr to relax to a local address-literal load");
+  EXPECT_EQ(Support::readU64uLE(buf + literalOffset), targetAddress)
+    .message("Expected the local literal to contain the far label address");
+}
+
+UNIT(a64_ldr_label_uses_local_address_literal_beyond_adrp_range) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+  padding->setVirtualSize(0x100000000ULL);
+
+  Section* targetSection = nullptr;
+  EXPECT_EQ(code.newSection(&targetSection, ".target", SIZE_MAX, SectionFlags::kNone, 8, 2), kErrorOk);
+  if (!targetSection)
+    return;
+
+  Label target = as.newLabel();
+  as.ldr(a64::x3, a64::ptr(target));
+  as.section(targetSection);
+  as.bind(target);
+  uint64_t value = 42;
+  as.embed(&value, sizeof(value));
+
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(0), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t addressLdrOpcode = Support::readU32uLE(buf);
+  int32_t literalDisplacement = (int32_t(addressLdrOpcode << 8) >> 13) * 4;
+  uint64_t literalOffset = uint64_t(literalDisplacement);
+  uint64_t targetAddress = targetSection->offset() + code.labelEntry(target.id())->offset();
+
+  EXPECT_EQ(addressLdrOpcode & 0xFF00001Fu, 0x58000003u)
+    .message("Expected a local address-literal load");
+  EXPECT_EQ(Support::readU32uLE(buf + 4), 0xF9400063u)
+    .message("Expected the original value load through the materialized address");
+  EXPECT_EQ(Support::readU64uLE(buf + literalOffset), targetAddress)
+    .message("Expected the local literal to contain the far label address");
+}
+
+UNIT(a64_ldr_label_uses_local_address_literal_for_misaligned_base) {
+  CodeHolder code;
+  a64::Assembler as;
+  setupCodeNoBase(code, as);
+
+  Section* padding = nullptr;
+  EXPECT_EQ(code.newSection(&padding, ".padding", SIZE_MAX, SectionFlags::kNone, 1, 1), kErrorOk);
+  if (!padding)
+    return;
+  padding->setVirtualSize(0x00100000u);
+
+  Section* targetSection = nullptr;
+  EXPECT_EQ(code.newSection(&targetSection, ".target", SIZE_MAX, SectionFlags::kNone, 8, 2), kErrorOk);
+  if (!targetSection)
+    return;
+
+  Label target = as.newLabel();
+  as.ldr(a64::x3, a64::ptr(target));
+  as.section(targetSection);
+  as.bind(target);
+  uint64_t value = 42;
+  as.embed(&value, sizeof(value));
+
+  constexpr uint64_t baseAddress = 4;
+  EXPECT_EQ(code.flatten(), kErrorOk);
+  EXPECT_EQ(code.relocateToBase(baseAddress), kErrorOk);
+
+  const Section* text = code.textSection();
+  const uint8_t* buf = text->data();
+  uint32_t addressLdrOpcode = Support::readU32uLE(buf);
+  int32_t literalDisplacement = (int32_t(addressLdrOpcode << 8) >> 13) * 4;
+  uint64_t literalOffset = uint64_t(literalDisplacement);
+  uint64_t targetAddress =
+    baseAddress + targetSection->offset() + code.labelEntry(target.id())->offset();
+
+  EXPECT_EQ(addressLdrOpcode & 0xFF00001Fu, 0x58000003u)
+    .message("Expected a local address-literal load for the misaligned target");
+  EXPECT_EQ(Support::readU32uLE(buf + 4), 0xF9400063u)
+    .message("Expected the original value load through the materialized address");
+  EXPECT_EQ(Support::readU64uLE(buf + literalOffset), targetAddress)
+    .message("Expected the local literal to contain the misaligned target address");
 }
 
 // Test load_addr with negative displacement (target address < PC).
