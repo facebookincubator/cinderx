@@ -181,7 +181,7 @@ def transform_eval_frame(lines: list[str]) -> list[str]:
     return [
         line.replace(
             "_PyInterpreterState_GET()->eval_frame",
-            "(_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)",
+            "(_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())",
         )
         for line in lines
     ]

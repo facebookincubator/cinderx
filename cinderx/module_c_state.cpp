@@ -7,6 +7,16 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/module_state.h"
 
+#include <atomic>
+
+namespace {
+
+// Borrowed specialization code can run without a live CinderX ModuleState, so
+// its evaluator identity needs process-lifetime storage.
+std::atomic<_PyFrameEvalFunction> cinderx_eval_frame{nullptr};
+
+} // namespace
+
 extern "C" {
 
 #if PY_VERSION_HEX < 0x030F0000
@@ -32,6 +42,14 @@ void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall) {
   if (state != nullptr) {
     state->static_function_vectorcall.store(vcall, std::memory_order_relaxed);
   }
+}
+
+_PyFrameEvalFunction Ci_GetEvalFrameFunc(void) {
+  return cinderx_eval_frame.load(std::memory_order_relaxed);
+}
+
+void Ci_SetEvalFrameFunc(_PyFrameEvalFunction eval_frame) {
+  cinderx_eval_frame.store(eval_frame, std::memory_order_relaxed);
 }
 
 PyObject* Ci_GetStaticTypeError(void) {

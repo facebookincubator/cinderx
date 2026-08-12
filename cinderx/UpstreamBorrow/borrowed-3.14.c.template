@@ -71,12 +71,6 @@ _PyType_LookupRefAndVersion(PyTypeObject *type, PyObject *name, unsigned int *ve
   return res;
 }
 
-#ifdef ENABLE_PEP523_HOOK
-_PyFrameEvalFunction Ci_EvalFrameFunc;
-#else
-#define Ci_EvalFrameFunc NULL
-#endif
-
 // In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
 // the JIT we could get the value from the thread-state register. This would be
 // slightly more efficient, but quite a bit more work and async-generators are

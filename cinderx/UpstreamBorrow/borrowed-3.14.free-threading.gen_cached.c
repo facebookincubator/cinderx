@@ -85,12 +85,6 @@ ASSERT_DICT_LOCKED(PyObject *op)
 }
 #endif
 
-#ifdef ENABLE_PEP523_HOOK
-_PyFrameEvalFunction Ci_EvalFrameFunc;
-#else
-#define Ci_EvalFrameFunc NULL
-#endif
-
 // In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
 // the JIT we could get the value from the thread-state register. This would be
 // slightly more efficient, but quite a bit more work and async-generators are
@@ -5577,7 +5571,7 @@ do_specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject*
                 return -1;
             }
             /* Don't specialize if PEP 523 is active */
-            if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
+            if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
                 SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
                 return -1;
             }
@@ -5652,7 +5646,7 @@ do_specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject*
                 return -1;
             }
             /* Don't specialize if PEP 523 is active */
-            if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
+            if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
                 SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
                 return -1;
             }
@@ -6054,7 +6048,7 @@ specialize_py_call(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
     PyCodeObject *code = (PyCodeObject *)func->func_code;
     int kind = function_kind(code);
     /* Don't specialize if PEP 523 is active */
-    if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
+    if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
         return -1;
     }
@@ -6258,7 +6252,7 @@ specialize_py_call_kw(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
     PyCodeObject *code = (PyCodeObject *)func->func_code;
     int kind = function_kind(code);
     /* Don't specialize if PEP 523 is active */
-    if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
+    if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
         return -1;
     }
@@ -6536,7 +6530,7 @@ _Py_Specialize_BinaryOp(_PyStackRef lhs_st, _PyStackRef rhs_st, _Py_CODEUNIT *in
                 PyHeapTypeObject *ht = (PyHeapTypeObject *)container_type;
                 if (kind == SIMPLE_FUNCTION &&
                     fcode->co_argcount == 2 &&
-                    !(_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc) && /* Don't specialize if PEP 523 is active */
+                    !(_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc()) && /* Don't specialize if PEP 523 is active */
                     _PyType_CacheGetItemForSpecialization(ht, descriptor, (uint32_t)tp_version))
                 {
                     specialize(instr, BINARY_OP_SUBSCR_GETITEM);
@@ -6684,7 +6678,7 @@ _Py_Specialize_ForIter(_PyStackRef iter, _Py_CODEUNIT *instr, int oparg)
             instr[oparg + INLINE_CACHE_ENTRIES_FOR_ITER + 1].op.code == INSTRUMENTED_END_FOR
         );
         /* Don't specialize if PEP 523 is active */
-        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc))
+        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc()))
             goto failure;
         specialize(instr, FOR_ITER_GEN);
         return;
@@ -6704,7 +6698,7 @@ _Py_Specialize_Send(_PyStackRef receiver_st, _Py_CODEUNIT *instr)
     PyTypeObject *tp = Py_TYPE(receiver);
     if (tp == &PyGen_Type || tp == &PyCoro_Type) {
         /* Don't specialize if PEP 523 is active */
-        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_EvalFrameFunc)) {
+        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
             SPECIALIZATION_FAIL(SEND, SPEC_FAIL_OTHER);
             goto failure;
         }
