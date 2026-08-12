@@ -61,3 +61,6 @@ race:codeExtraReadOnly
 # CinderX JIT signal safety: frame reification allocates memory inside
 # signal handlers, which TSAN flags as signal-unsafe.
 signal:jit::DebugInfo::getUnitCallStack
+
+# Concurrent JIT frame-evaluator initialization.
+race:Ci_InitFrameEvalFunc
