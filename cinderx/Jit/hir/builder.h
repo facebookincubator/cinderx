@@ -133,8 +133,7 @@ class HIRBuilder {
   void emitAnyCall(
       CFG& cfg,
       TranslationContext& tc,
-      jit::BytecodeInstructionBlock::Iterator& bc_it,
-      const jit::BytecodeInstructionBlock& bc_instrs);
+      jit::BytecodeInstructionBlock::Iterator& bc_it);
   void emitCallEx(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
