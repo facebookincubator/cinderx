@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <concepts>
 #include <cstddef>
 #include <initializer_list>
@@ -19,32 +18,36 @@ template <typename T>
 class FrozenList {
  public:
   FrozenList() = default;
-  ~FrozenList() = default;
+  ~FrozenList() {
+    if (ptr_) {
+      std::destroy_n(ptr_, size_);
+      std::allocator<T>{}.deallocate(ptr_, size_);
+    }
+  }
 
   // Construct a frozen list from the given initializer list.
   /* implicit */ FrozenList(std::initializer_list<T> values) {
-    initializeStorage(values.size());
-    std::copy(values.begin(), values.end(), ptr_.get());
+    allocateAndConstruct(values.size(), [&values](T* storage) {
+      std::uninitialized_copy(values.begin(), values.end(), storage);
+    });
   }
 
   FrozenList(const FrozenList& other) {
-    initializeStorage(other.size_);
-    std::copy(other.begin(), other.end(), ptr_.get());
+    allocateAndConstruct(other.size_, [&other](T* storage) {
+      std::uninitialized_copy(other.begin(), other.end(), storage);
+    });
   }
 
-  FrozenList(FrozenList&& other) noexcept {
-    *this = std::move(other);
-  }
+  FrozenList(FrozenList&& other) noexcept
+      : ptr_{std::exchange(other.ptr_, nullptr)},
+        size_{std::exchange(other.size_, 0)} {}
 
   FrozenList& operator=(FrozenList&& other) noexcept {
     if (this != &other) {
       ensureUninitialized();
 
-      size_ = other.size_;
-      ptr_ = std::move(other.ptr_);
-
-      other.size_ = 0;
-      other.ptr_ = nullptr;
+      ptr_ = std::exchange(other.ptr_, nullptr);
+      size_ = std::exchange(other.size_, 0);
     }
 
     return *this;
@@ -52,8 +55,9 @@ class FrozenList {
 
   FrozenList& operator=(const FrozenList& other) {
     if (this != &other) {
-      initializeStorage(other.size_);
-      std::copy(other.begin(), other.end(), ptr_.get());
+      allocateAndConstruct(other.size_, [&other](T* storage) {
+        std::uninitialized_copy(other.begin(), other.end(), storage);
+      });
     }
 
     return *this;
@@ -64,27 +68,28 @@ class FrozenList {
     return size_;
   }
 
-  // Initialize the frozen list with the given size, then fill the data with the
-  // default value for the type.
+  // Initialize the list with size value-initialized elements.
   void initialize(size_t size) {
-    initialize(size, T{});
+    allocateAndConstruct(size, [size](T* storage) {
+      std::uninitialized_value_construct_n(storage, size);
+    });
   }
 
-  // Initialize the frozen list with the given size, then fill the data with a
-  // copy of the given value.
+  // Initialize the list with size copies of the given value.
   void initialize(size_t size, const T& val) {
-    initializeStorage(size);
-    std::fill(ptr_.get(), ptr_.get() + size, val);
+    allocateAndConstruct(size, [&val, size](T* storage) {
+      std::uninitialized_fill_n(storage, size, val);
+    });
   }
 
   // Provide the begin function for immutable range-based for-loop support.
   const T* begin() const {
-    return ptr_.get();
+    return ptr_;
   }
 
   // Provide the end function for immutable range-based for-loop support.
   const T* end() const {
-    return ptr_.get() + size_;
+    return ptr_ + size_;
   }
 
   // Provide the [] operator for accessing elements by index.
@@ -109,25 +114,41 @@ class FrozenList {
   }
 
  private:
-  // Raise an exception if the list has already been initialized.
+  // Raise an exception if the list already owns element storage.
   void ensureUninitialized() {
     if (ptr_ != nullptr) {
       throw std::runtime_error("Cannot initialize FrozenList more than once");
     }
   }
 
-  // Set the size of the frozen list and build a new pointer to the data.
-  void initializeStorage(size_t size) {
+  // Construct size elements in newly allocated storage, publishing it only
+  // after all construction succeeds. constructElements must destroy any
+  // partially constructed elements before throwing; the uninitialized
+  // algorithms used by callers provide this guarantee.
+  template <typename ConstructElements>
+  void allocateAndConstruct(size_t size, ConstructElements constructElements) {
     ensureUninitialized();
-    size_ = size;
 
-    if (size != 0) {
-      ptr_ = std::make_unique<T[]>(size);
+    if (size == 0) {
+      return;
     }
+
+    T* storage = std::allocator<T>{}.allocate(size);
+
+    try {
+      constructElements(storage);
+    } catch (...) {
+      // constructElements has already destroyed any partially built elements.
+      std::allocator<T>{}.deallocate(storage, size);
+      throw;
+    }
+
+    ptr_ = storage;
+    size_ = size;
   }
 
+  T* ptr_{nullptr};
   size_t size_{0};
-  std::unique_ptr<T[]> ptr_;
 };
 
 } // namespace cinderx

@@ -138,22 +138,20 @@ TEST(FrozenListTest, DestructorDestroysEveryElement) {
   EXPECT_EQ(Tracked::live, 0);
 }
 
-// Pins current behaviour, which is not what we want: initialize(size) routes
-// through initialize(size, T{}), so it builds a temporary, default-initializes
-// the whole array, then copies the temporary over every element.
+// Each element is built exactly once, directly in the list's storage: no
+// temporary to copy from and no separate default-initialization pass.
 TEST(FrozenListTest, InitializeConstructionCounts) {
   Tracked::reset();
   FrozenList<Tracked> list;
   list.initialize(4);
 
-  EXPECT_EQ(Tracked::constructions, 5); // 4 elements plus the temporary
-  EXPECT_EQ(Tracked::copies, 4);
+  EXPECT_EQ(Tracked::constructions, 4);
+  EXPECT_EQ(Tracked::copies, 0);
 }
 
-// Pins current behaviour, which is not what we want: the size and the storage
-// are both published before the elements are filled in, so a throwing element
-// copy leaves the list reporting a full-size range that is only partially
-// assigned, and refusing to be initialized again.
+// A failed initialize is a no-op: it destroys whatever it managed to build and
+// leaves the list uninitialized, so it reports no elements and still accepts a
+// later initialize.
 TEST(FrozenListTest, InitializeWhenElementCopyThrows) {
   Tracked::reset();
   const Tracked probe;
@@ -163,9 +161,9 @@ TEST(FrozenListTest, InitializeWhenElementCopyThrows) {
   EXPECT_THROW(list.initialize(5, probe), std::runtime_error);
   Tracked::copies_before_throw = -1;
 
-  // Nothing is leaked: the 5 elements are still owned and readable. Only the
-  // first 2 received the probe; the rest are left default-constructed.
-  EXPECT_EQ(Tracked::live, 6); // the probe plus the 5 elements
-  EXPECT_EQ(list.size(), 5);
-  EXPECT_THROW(list.initialize(2, probe), std::runtime_error);
+  EXPECT_EQ(Tracked::live, 1); // only the probe
+  EXPECT_EQ(list.size(), 0);
+
+  list.initialize(2, probe);
+  EXPECT_EQ(list.size(), 2);
 }
