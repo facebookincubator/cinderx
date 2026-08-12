@@ -64,3 +64,6 @@ signal:jit::DebugInfo::getUnitCallStack
 
 # Concurrent JIT frame-evaluator initialization.
 race:Ci_InitFrameEvalFunc
+
+# Races while updating func_code.
+race:cinderx_func_watcher
