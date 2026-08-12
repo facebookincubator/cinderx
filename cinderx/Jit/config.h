@@ -205,7 +205,7 @@ struct Config {
   // the GIL, instead of compiling inline on the calling thread.  The calling
   // thread keeps running through the interpreter until the background
   // compilation finishes and swaps in the JIT-compiled entry point.
-  bool background_compile{true};
+  bool background_compile{false};
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.
   size_t preload_dependent_limit{99};
