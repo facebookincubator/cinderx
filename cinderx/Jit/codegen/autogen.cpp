@@ -193,6 +193,13 @@ void fillLiveValueLocations(
   DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   for (size_t i = begin_input; i < end_input; i++) {
     auto loc = instr->getInput(i)->getPhyRegOrStackSlot();
+    JIT_THROW_IF(
+        loc.isFpRegister(),
+        "Deopt live value {} of {} is in vector register {}, which the deopt "
+        "trampoline does not spill",
+        i - begin_input,
+        instr->opname(),
+        loc.toString());
     deopt_meta.live_values[i - begin_input].location = loc;
   }
 }

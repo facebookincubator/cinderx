@@ -590,6 +590,14 @@ void LinearScanAllocator::calculateLiveIntervals() {
         reserveRegisters(instr_loc, INIT_REGISTERS);
       }
 
+      // The deopt trampoline only spills the general-purpose registers, and
+      // MemoryView::readRaw indexes that array with a live value's PhyLocation
+      // (see Jit/deopt.h).  A live value left in a vector register would be
+      // read from past the end of it, so force those into memory here.
+      if (instr->isDeoptExit()) {
+        reserveRegisters(instr_loc, ALL_VECD_REGISTERS);
+      }
+
       if (instr_opcode == Instruction::kBind) {
         auto& interval = getInterval(instr->output());
         interval.allocateTo(instr->getInput(0)->getPhyRegister());

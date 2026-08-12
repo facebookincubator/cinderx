@@ -236,6 +236,11 @@ class Instruction {
   bool isTerminator() const;
   bool isAnyYield() const;
 
+  // Whether this instruction records the physical locations of deopt live
+  // values, i.e. its trailing inputs are read back by MemoryView at deopt
+  // time.  Yields do this too, but are covered by isAnyYield().
+  bool isDeoptExit() const;
+
   // negate the branch condition:
   // e.g. A >= B -> !(A < B)
   static Opcode negateBranchCC(Opcode opcode);

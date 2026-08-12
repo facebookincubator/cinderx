@@ -335,6 +335,22 @@ TEST_F(
   EXPECT_EQ(fixedRegisterIntervals(allocator), expected);
 }
 
+TEST_F(LinearScanAllocatorTest, DeoptExitReservesVectorRegisters) {
+  auto lir_func = std::make_unique<Function>();
+  BasicBlock* block = lir_func->allocateBasicBlock();
+  block->allocateInstr(Instruction::kGuard, nullptr);
+  BasicBlock* epilogue = lir_func->allocateBasicBlock();
+  block->addSuccessor(epilogue);
+
+  LinearScanAllocator allocator(lir_func.get());
+  lir_func->sortBasicBlocks();
+  allocator.calculateLiveIntervals();
+
+  // The deopt trampoline only spills general-purpose registers, so no live
+  // value may be in a vector register at a deopt exit.
+  EXPECT_EQ(fixedRegisterIntervals(allocator), codegen::ALL_VECD_REGISTERS);
+}
+
 TEST_F(LinearScanAllocatorTest, InoutRegTest) {
   // OptimizeMoveSequence should not set reg operands that are also output
   auto lirfunc = std::make_unique<Function>();

@@ -1525,8 +1525,15 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
        instr_iter != basicblock->instructions().end();
        ++instr_iter) {
     auto& instr = *instr_iter;
-    // TODO: do not optimize for yield for now. They need to be special cased.
-    if (!instr->isAnyYield()) {
+    // Yields and deopt exits record the physical location of each live value
+    // for the deopt machinery to read back later, so folding a spill slot into
+    // the register it was copied from would leave that record pointing
+    // somewhere the value no longer reliably is.  For a deopt exit that is not
+    // merely stale: the deopt trampoline never spills the vector registers,
+    // so an FP live value has to stay in memory.
+    // TODO: yields and deopt exits need to be special cased so their non-live
+    // value operands can still be optimized.
+    if (!instr->isAnyYield() && !instr->isDeoptExit()) {
       auto out_reg = instr->output()->isReg()
           ? instr->output()->getPhyRegister()
           : PhyLocation::REG_INVALID;

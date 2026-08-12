@@ -289,6 +289,19 @@ bool Instruction::isAnyYield() const {
   }
 }
 
+bool Instruction::isDeoptExit() const {
+  switch (opcode_) {
+    case kGuard:
+    case kDeoptPatchpoint:
+#if defined(CINDER_AARCH64)
+    case kA64GuardCC:
+#endif
+      return true;
+    default:
+      return false;
+  }
+}
+
 #define CASE_FLIP(A, B)  \
   case Opcode::k##A:     \
     return Opcode::k##B; \
