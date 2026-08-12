@@ -2506,7 +2506,9 @@ PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
   return dict.release();
 }
 
-PyObject* would_tag_if_deferred(PyObject* /* self */, PyObject* arg) {
+PyObject* would_tag_if_deferred(
+    PyObject* /* self */,
+    [[maybe_unused]] PyObject* arg) {
 #ifdef Py_GIL_DISABLED
   if (jit::taggedPyObjectBits(rt::tagIfDeferred(arg)) !=
       reinterpret_cast<uintptr_t>(arg)) {
