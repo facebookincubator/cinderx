@@ -384,7 +384,7 @@ PyDoc_STRVAR(
     "--\n"
     "\n"
     "Gets the adaptive delay");
-PyObject* cinder_get_adaptive_delay(PyObject* mod, PyObject*) {
+PyObject* cinder_get_adaptive_delay(PyObject*, PyObject*) {
 #ifdef ENABLE_INTERPRETER_LOOP
   return PyLong_FromUnsignedLongLong(jit::getConfig().adaptive_threshold);
 #else
