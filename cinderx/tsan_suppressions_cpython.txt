@@ -27,20 +27,6 @@ race:store_instance_attr_lock_held
 # CPython dict insertion order race (upstream issue).
 race:_PyDictValues_AddToInsertionOrder
 
-# CinderX JIT inline cache races. Caches use a release-acquire guard
-# (type_) to protect data fields, but TSAN can't verify the cross-field
-# ordering between the atomic guard and non-atomic payload fields.
-race:jit::AttributeMutator::
-race:jit::CombinedMutator::
-race:jit::SplitMutator::
-race:jit::StoreAttrCache::
-race:jit::LoadAttrCache::
-race:jit::AttributeCache::fill
-race:jit::LoadMethodCache::
-race:jit::LoadTypeMethodCache::
-race:jit::LoadTypeAttrCache::
-race:jit::rt::loadSpecial
-
 # CinderX JIT compilation tracking: parallel-hashmap races between JIT
 # compilation threads and main-thread lookups in jit::Context maps.
 race:jit::Context::addCompiledFunc
