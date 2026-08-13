@@ -12,8 +12,45 @@
 #include <memory>
 
 class LivenessAnalysisTest : public RuntimeTest {};
+class CollectDataUsesTest : public RuntimeTest {};
 
 using namespace cinderx::jit::hir;
+
+TEST_F(CollectDataUsesTest, SeparatesDataUsesFromRestoreOnlyUses) {
+  Function func;
+  auto block = func.cfg.allocateBlock();
+  func.cfg.entry_block = block;
+
+  auto operand = func.env.allocateRegister();
+  auto frame_only = func.env.allocateRegister();
+  auto guilty_only = func.env.allocateRegister();
+  auto unused = func.env.allocateRegister();
+
+  block->append<LoadConst>(operand, TNoneType);
+  block->append<LoadConst>(frame_only, TNoneType);
+  block->append<LoadConst>(guilty_only, TNoneType);
+  block->append<LoadConst>(unused, TNoneType);
+
+  // Only referenced by deopt frame state and by a type assertion, neither of
+  // which consumes the value.
+  FrameState frame_state;
+  frame_state.stack.push(frame_only);
+  block->append<Snapshot>(frame_state);
+  block->append<UseType>(frame_only, TNoneType);
+
+  // Only referenced as a patchpoint's guilty register, which is a real use
+  // even though DeoptPatchpoint has no operands.
+  auto patchpoint = block->append<DeoptPatchpoint>(nullptr);
+  patchpoint->setGuiltyReg(guilty_only);
+
+  block->append<Return>(operand);
+
+  RegisterSet uses = collectDataUses(func);
+  EXPECT_TRUE(uses.contains(operand));
+  EXPECT_TRUE(uses.contains(guilty_only));
+  EXPECT_FALSE(uses.contains(frame_only));
+  EXPECT_FALSE(uses.contains(unused));
+}
 
 TEST_F(LivenessAnalysisTest, SingleBlockHasNoLiveInOut) {
   Function func;

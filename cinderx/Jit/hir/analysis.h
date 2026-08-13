@@ -33,6 +33,15 @@ bool operandsMustMatch(OperandType op_type);
 // Returns true if the type satisfies the passed in OperandType
 bool registerTypeMatches(Type op_type, OperandType expected_type);
 
+// Collect the registers that some instruction in `func` consumes as data, which
+// is every use except a deopt frame-state reference or a UseType assertion.
+//
+// A register missing from the result is only kept around so a deopt can restore
+// it; nothing on the fast path reads it.  That is what lets a pass rewrite
+// frame state to hold a cheaper equivalent of the value, such as replacing a
+// boxed float with its unboxed source.
+RegisterSet collectDataUses(const Function& func);
+
 // Base class for dataflow analyses that compute facts about registers in the
 // HIR.
 //

@@ -84,6 +84,34 @@ bool operandsMustMatch(OperandType op_type) {
   JIT_ABORT("unknown constraint");
 }
 
+RegisterSet collectDataUses(const Function& func) {
+  RegisterSet uses;
+  for (auto& block : func.cfg.blocks) {
+    for (const Instr& instr : block) {
+      // UseType exists to tell GuardTypeRemoval that a type is relied upon; it
+      // is a no-op assertion rather than a consumer of the value.
+      if (instr.isUseType()) {
+        continue;
+      }
+      for (std::size_t i = 0, n = instr.numOperands(); i < n; ++i) {
+        if (Register* operand = instr.getOperand(i)) {
+          uses.insert(operand);
+        }
+      }
+      if (const DeoptBase* deopt = instr.asDeoptBase()) {
+        // The guilty register is reported to the deopt machinery, so it has to
+        // survive as a real object.  Its frame state deliberately does not
+        // count, and neither do its live registers, which are the same kind of
+        // restore-only reference (and are empty until RefcountInsertion).
+        if (Register* guilty = deopt->guiltyReg()) {
+          uses.insert(guilty);
+        }
+      }
+    }
+  }
+  return uses;
+}
+
 bool funcTypeChecks(const Function& func, std::ostream& err) {
   for (auto& block : func.cfg.blocks) {
     for (const Instr& instr : block) {
