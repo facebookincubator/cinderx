@@ -51,6 +51,8 @@
 #include <dlfcn.h>
 #endif
 
+#include <utility>
+
 using namespace cinderx;
 
 namespace {
@@ -630,11 +632,18 @@ int cinderx_func_watcher(
     case PyFunction_EVENT_MODIFY_QUALNAME:
       // allow reconsideration of whether this function should be compiled
       if (!isJitCompiled(func)) {
-        // func_set_qualname will assign this again, but we need to assign it
-        // now so that CiSetJITEntryOnPyFunctionObject can consider the new
-        // qualname.
+        // func_set_qualname will assign this again, but scheduleCompile() must
+        // check JIT-list eligibility using the new qualname now.
         Py_INCREF(new_value);
+#ifdef Py_GIL_DISABLED
+        PyInterpreterState* interp = _PyInterpreterState_GET();
+        _PyEval_StopTheWorld(interp);
+        PyObject* old_qualname = std::exchange(func->func_qualname, new_value);
+        _PyEval_StartTheWorld(interp);
+        Py_XDECREF(old_qualname);
+#else
         Py_XSETREF(func->func_qualname, new_value);
+#endif
         scheduleCompile(func);
       }
       break;
