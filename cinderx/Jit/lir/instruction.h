@@ -25,10 +25,6 @@ class BasicBlock;
 // has an output data member with the type kNone.
 class Instruction {
  public:
-#define ALIAS_OPCODE(NAME) using Opcode::k##NAME;
-  FOREACH_LIR_OPCODE(ALIAS_OPCODE)
-#undef ALIAS_OPCODE
-
 #define DECL_OPCODE_TEST(v, ...)     \
   bool is##v() const {               \
     return opcode() == Opcode::k##v; \
