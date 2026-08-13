@@ -209,6 +209,10 @@ uintptr_t prepareForDeopt(
 
   _PyInterpreterFrame* frame_iter = frame;
 
+  // Shared by every frame of this deopt so that a live value referenced by
+  // more than one of them is only boxed once.
+  MemoryView mem{regs};
+
   // Iterate one past the inline depth because that is the caller frame.
   for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
     // Transfer ownership of a light weight frame to the interpreter. The
@@ -218,7 +222,7 @@ uintptr_t prepareForDeopt(
         frame_iter,
         deopt_meta,
         deopt_meta.frame_meta.at(i),
-        regs,
+        mem,
         is_instrumentation_deopt);
     frame_iter = frame_iter->previous;
   }
@@ -248,7 +252,6 @@ uintptr_t prepareForDeopt(
     }
   }
   // Clear our references now that we've transferred them to the frame
-  MemoryView mem{regs};
   Ref<> deopt_obj;
   if (!is_instrumentation_deopt) {
     // TODO(T262342844): Add USDT support for instrumentation-related deopts.

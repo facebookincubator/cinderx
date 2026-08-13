@@ -4,6 +4,7 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/frozen_list.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/codegen/arch.h"
@@ -216,14 +217,40 @@ struct DeoptMetadata {
   static DeoptMetadata fromInstr(const jit::hir::LiveValuesBase& instr);
 };
 
+// A simple interface for reading the contents of registers + memory.
+//
+// One instance should cover a whole deopt: reading a primitive live value has
+// to box it, and the cache below is what keeps every frame-state slot backed
+// by that value pointing at a single object.
+struct MemoryView {
+  const uint64_t* regs;
+
+  // Objects materialized for primitive live values, keyed by the value they
+  // came from.  Holds a reference for as long as this view is alive.
+  mutable UnorderedMap<const LiveValue*, Ref<>> boxed_primitives;
+
+  BorrowedRef<> readBorrowed(const LiveValue& value) const;
+  Ref<> readOwned(const LiveValue& value) const;
+
+  uint64_t readRaw(const LiveValue& value) const {
+    codegen::PhyLocation loc = value.location;
+    if (loc.isRegister()) {
+      return regs[loc.loc];
+    }
+    uint64_t frame_pointer = regs[codegen::arch::reg_frame_pointer_loc.loc];
+    // loc.loc is relative offset from RBP (i.e. negative as stack grows down)
+    return *(reinterpret_cast<uint64_t*>(frame_pointer + loc.loc));
+  }
+};
+
 // Update `frame` so that execution can resume in the interpreter.
 //
 // `deopt_idx` is the index of `meta` in the Runtime's list of
 // DeoptMetadatas. It may be size_t(-1) to indicate that `meta` is transient
 // and not in Runtime's list.
 //
-// The `regs` argument contains the values of all general purpose registers,
-// in the same order as they appear in `jit::codegen::PhyLocation`.
+// Reifying several frames of one deopt must share a single `mem`, so that a
+// live value referenced by more than one frame yields the same object.
 //
 // After this function is called, ownership of all references specified by
 // deopt_meta have been transferred to `frame`.
@@ -237,7 +264,7 @@ void reifyFrame(
     _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
-    const uint64_t* regs,
+    const MemoryView& mem,
     bool is_instrumentation_deopt = false);
 
 // Like reifyFrame(), but for a suspended generator. Takes a single base
@@ -247,25 +274,6 @@ void reifyGeneratorFrame(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base);
-
-// A simple interface for reading the contents of registers + memory
-struct MemoryView {
-  const uint64_t* regs;
-
-  BorrowedRef<> readBorrowed(const LiveValue& value) const;
-  Ref<> readOwned(const LiveValue& value) const;
-
-  uint64_t readRaw(const LiveValue& value) const {
-    jit::codegen::PhyLocation loc = value.location;
-    if (loc.isRegister()) {
-      return regs[loc.loc];
-    } else {
-      uint64_t frame_pointer = regs[codegen::arch::reg_frame_pointer_loc.loc];
-      // loc.loc is relative offset from RBP (i.e. negative as stack grows down)
-      return *(reinterpret_cast<uint64_t*>(frame_pointer + loc.loc));
-    }
-  }
-};
 
 // Release any owned references in the given set of registers or spill data.
 void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem);

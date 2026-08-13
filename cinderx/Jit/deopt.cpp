@@ -42,6 +42,28 @@ const std::string& internDescr(const std::string& descr) {
   return *s_descrs.emplace(descr).first;
 }
 
+// Materialize an object for a primitive live value holding the raw bits `raw`.
+// Boxing is what makes primitives need the identity cache in
+// MemoryView::readOwned; kObject is handled separately by its caller.
+Ref<> boxPrimitive(hir::ValueKind kind, uint64_t raw) {
+  switch (kind) {
+    case hir::ValueKind::kSigned:
+      return Ref<>::steal(
+          PyLong_FromSsize_t(std::bit_cast<Py_ssize_t, uint64_t>(raw)));
+    case hir::ValueKind::kUnsigned:
+      return Ref<>::steal(PyLong_FromSize_t(raw));
+    case hir::ValueKind::kDouble:
+      return Ref<>::steal(
+          PyFloat_FromDouble(std::bit_cast<double, uint64_t>(raw)));
+    case hir::ValueKind::kBool:
+      return Ref<>::create(raw ? Py_True : Py_False);
+    default:
+      break;
+  }
+  JIT_THROW(
+      "Unexpected ValueKind {} in primitive boxing", static_cast<int>(kind));
+}
+
 std::unordered_set<hir::Register*> collectFrameStateRegs(hir::FrameState* fs) {
   std::unordered_set<hir::Register*> regs;
   for (; fs != nullptr; fs = fs->parent) {
@@ -191,7 +213,7 @@ void reifyFrameImpl(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     bool forced_deopt,
-    const uint64_t* regs,
+    const MemoryView& mem,
     bool is_instrumentation_deopt = false) {
   // Note frame->prev_instr doesn't point to the previous instruction, it
   // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
@@ -219,7 +241,6 @@ void reifyFrameImpl(
   frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx;
 #endif
 
-  MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);
   reifyStack(frame, meta, frame_meta, mem);
 }
@@ -333,28 +354,21 @@ BorrowedRef<> MemoryView::readBorrowed(const LiveValue& value) const {
 Ref<> MemoryView::readOwned(const LiveValue& value) const {
   uint64_t raw = readRaw(value);
 
-  switch (value.value_kind) {
-    case jit::hir::ValueKind::kSigned: {
-      Py_ssize_t raw_signed = std::bit_cast<Py_ssize_t, uint64_t>(raw);
-      return Ref<>::steal(PyLong_FromSsize_t(raw_signed));
+  if (value.value_kind == jit::hir::ValueKind::kObject) {
+    if constexpr (kFreeThreadedBuild) {
+      raw = stripDeferredRcTag(raw);
     }
-    case jit::hir::ValueKind::kUnsigned:
-      return Ref<>::steal(PyLong_FromSize_t(raw));
-    case hir::ValueKind::kDouble:
-      // `raw` holds the IEEE-754 bit pattern of the unboxed CDouble, not a
-      // numeric integer, so reinterpret the bits rather than converting.
-      return Ref<>::steal(
-          PyFloat_FromDouble(std::bit_cast<double, uint64_t>(raw)));
-    case jit::hir::ValueKind::kBool:
-      return Ref<>::create(raw ? Py_True : Py_False);
-    case jit::hir::ValueKind::kObject: {
-      if constexpr (kFreeThreadedBuild) {
-        raw = stripDeferredRcTag(raw);
-      }
-      return Ref<>::create(reinterpret_cast<PyObject*>(raw));
-    }
+    return Ref<>::create(reinterpret_cast<PyObject*>(raw));
   }
-  JIT_ABORT("Unhandled ValueKind");
+
+  // Everything else is a primitive that has to be boxed into a new object.  A
+  // single LiveValue can back several frame-state slots, which all held one
+  // object in the interpreter, so box it once and hand out references to that.
+  Ref<>& boxed = boxed_primitives[&value];
+  if (boxed == nullptr) {
+    boxed = boxPrimitive(value.value_kind, raw);
+  }
+  return Ref<>::create(boxed.get());
 }
 
 Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
@@ -386,14 +400,14 @@ void reifyFrame(
     _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
-    const uint64_t* regs,
+    const MemoryView& mem,
     [[maybe_unused]] bool is_instrumentation_deopt) {
   reifyFrameImpl(
       frame,
       meta,
       frame_meta,
       false /* forced_deopt */,
-      regs,
+      mem,
       is_instrumentation_deopt);
 }
 
@@ -406,7 +420,8 @@ void reifyGeneratorFrame(
   regs[codegen::arch::reg_frame_pointer_loc.loc] =
       reinterpret_cast<uint64_t>(base);
   constexpr bool force_deopt = false;
-  reifyFrameImpl(frame, meta, frame_meta, force_deopt, regs);
+  // Generators are never inlined, so one frame is the whole deopt.
+  reifyFrameImpl(frame, meta, frame_meta, force_deopt, MemoryView{regs});
 }
 
 void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {

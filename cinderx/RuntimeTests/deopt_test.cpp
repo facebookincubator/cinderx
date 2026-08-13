@@ -60,7 +60,7 @@ static inline Ref<> runInInterpreterViaReify(
   jitFramePopulateFrame(interp_frame);
   jitFrameRemoveReifier(interp_frame);
 #endif
-  reifyFrame(interp_frame, dm, dfm, regs);
+  reifyFrame(interp_frame, dm, dfm, MemoryView{regs});
   // If we're at the start of the function, push IP past RESUME instruction
 #if PY_VERSION_HEX >= 0x030E0000
   if (interp_frame->instr_ptr == _PyCode_CODE(code)) {
@@ -380,6 +380,44 @@ TEST_F(ReifyFrameTest, ReadOwnedDoubleReinterpretsBits) {
   // A buggy uint64_t -> double conversion would turn the IEEE-754 bit pattern
   // of 3.5 into a ~4.6e18 float, verify we get the same 3.5 back.
   ASSERT_EQ(PyFloat_AsDouble(result), expected);
+}
+
+TEST_F(ReifyFrameTest, ReadOwnedBoxesEachPrimitiveOnlyOnce) {
+  uint64_t regs[NUM_GP_REGS] = {};
+  regs[ARGUMENT_REGS[0].loc] = std::bit_cast<uint64_t, double>(3.5);
+  regs[ARGUMENT_REGS[1].loc] = std::bit_cast<uint64_t, double>(3.5);
+
+  LiveValue value{
+      PhyLocation{ARGUMENT_REGS[0].loc},
+      RefKind::kUncounted,
+      ValueKind::kDouble,
+      LiveValue::Source::kUnknown};
+  // A distinct live value that happens to hold the same bits.
+  LiveValue other{
+      PhyLocation{ARGUMENT_REGS[1].loc},
+      RefKind::kUncounted,
+      ValueKind::kDouble,
+      LiveValue::Source::kUnknown};
+
+  MemoryView mem{regs};
+
+  // Frame-state slots backed by one live value held a single object in the
+  // interpreter, so they have to reify to a single object here too.
+  Ref<> first = mem.readOwned(value);
+  Ref<> second = mem.readOwned(value);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first, second);
+
+  // Distinct live values stay distinct, equal bits or not.
+  Ref<> unrelated = mem.readOwned(other);
+  ASSERT_NE(unrelated, nullptr);
+  EXPECT_NE(first, unrelated);
+  EXPECT_EQ(PyFloat_AsDouble(unrelated), 3.5);
+
+  // The objects outlive the references handed out to the frame.
+  first.reset();
+  second.reset();
+  EXPECT_EQ(PyFloat_AsDouble(mem.readOwned(value)), 3.5);
 }
 
 class DeoptStressTest : public RuntimeTest {
