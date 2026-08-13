@@ -464,7 +464,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
          ++instr_iter, instr_loc -= kIdsPerInstr) {
       auto instr = instr_iter->get();
       auto instr_opcode = instr->opcode();
-      if (instr_opcode == Instruction::kPhi) {
+      if (instr_opcode == Opcode::kPhi) {
         // ignore phi instructions
         continue;
       }
@@ -549,9 +549,9 @@ void LinearScanAllocator::calculateLiveIntervals() {
         register_input(opnd, instr->getInputPhyRegUse(idx));
       }
 
-      if (instr_opcode == Instruction::kCall ||
-          instr_opcode == Instruction::kVarArgCall ||
-          instr_opcode == Instruction::kVectorCallTstate) {
+      if (instr_opcode == Opcode::kCall ||
+          instr_opcode == Opcode::kVarArgCall ||
+          instr_opcode == Opcode::kVectorCallTstate) {
         reserveRegistersForCall(*instr, instr_loc);
       }
       // kLoadThreadState needs caller-save reservation when the TLS offset is
@@ -559,7 +559,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       // known translateLoadThreadState may use the return register (rax/x0) as
       // an implicit scratch when the output is a stack slot, so we must always
       // reserve it.
-      if (instr_opcode == Instruction::kLoadThreadState) {
+      if (instr_opcode == Opcode::kLoadThreadState) {
         if (cinderx::getModuleState()->tstate_offset == -1) {
           reserveRegisters(instr_loc, CALLER_SAVE_REGS);
         } else {
@@ -569,13 +569,12 @@ void LinearScanAllocator::calculateLiveIntervals() {
       }
 
 #if defined(CINDER_X86_64)
-      if ((instr_opcode == Instruction::kMul) &&
+      if ((instr_opcode == Opcode::kMul) &&
           (instr->getInput(0)->dataType() == Operand::k8bit)) {
         // see rewriteByteMultiply
         reserveRegisters(instr_loc, PhyRegisterSet(RAX));
       } else if (
-          instr_opcode == Instruction::kDiv ||
-          instr_opcode == Instruction::kDivUn) {
+          instr_opcode == Opcode::kDiv || instr_opcode == Opcode::kDivUn) {
         PhyRegisterSet reserved(RAX);
 
         if (instr->getInput(1)->dataType() != Operand::k8bit) {
@@ -598,7 +597,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
         reserveRegisters(instr_loc, ALL_VECD_REGISTERS);
       }
 
-      if (instr_opcode == Instruction::kBind) {
+      if (instr_opcode == Opcode::kBind) {
         auto& interval = getInterval(instr->output());
         interval.allocateTo(instr->getInput(0)->getPhyRegister());
       }
@@ -1234,13 +1233,13 @@ void LinearScanAllocator::rewriteInstrOutput(
   // Avoid removing call instructions that may have side effects.
   // TODO: Fix HIR generator to avoid generating unused output/variables.
   // Need a separate pass in HIR to handle the dead code more gracefully.
-  if (instr->opcode() == Instruction::kCall ||
-      instr->opcode() == Instruction::kVarArgCall ||
-      instr->opcode() == Instruction::kVectorCallTstate ||
-      instr->opcode() == Instruction::kLoadThreadState) {
+  if (instr->opcode() == Opcode::kCall ||
+      instr->opcode() == Opcode::kVarArgCall ||
+      instr->opcode() == Opcode::kVectorCallTstate ||
+      instr->opcode() == Opcode::kLoadThreadState) {
     output->setNone();
   } else {
-    instr->setOpcode(Instruction::kNop);
+    instr->setOpcode(Opcode::kNop);
   }
 }
 
@@ -1418,7 +1417,7 @@ void LinearScanAllocator::resolveEdges() {
     // restored from spills by ResumeGenYield, not carried across the edge.
     // Treat yield blocks as unconditional for edge resolution purposes.
     bool is_yield_with_resume =
-        last_instr_opcode == Instruction::kBranchToYieldExit &&
+        last_instr_opcode == Opcode::kBranchToYieldExit &&
         successors.size() == 2;
 
     // for unconditional branch (or yield block with phantom resume edge)
@@ -1429,15 +1428,15 @@ void LinearScanAllocator::resolveEdges() {
 
       // kReturn and kBranchToYieldExit are pseudo-terminators removed after
       // edge resolution; postalloc inserts a real branch to the successor.
-      bool is_exit = last_instr_opcode == Instruction::kReturn ||
-          last_instr_opcode == Instruction::kBranchToYieldExit;
+      bool is_exit = last_instr_opcode == Opcode::kReturn ||
+          last_instr_opcode == Opcode::kBranchToYieldExit;
 
       // Label-targeted branches are inserted by postalloc, so they should
       // not exist yet. Indirect branches (MemoryIndirect operand) and
       // direct-address branches (Imm operand) are created in the generator
       // and are expected here.
       JIT_CHECK(
-          last_instr_opcode != Instruction::kBranch ||
+          last_instr_opcode != Opcode::kBranch ||
               (last_instr->getNumInputs() > 0 &&
                (last_instr->getInput(0)->isInd() ||
                 last_instr->getInput(0)->isImm() ||
@@ -1590,18 +1589,15 @@ void LinearScanAllocator::rewriteLIREmitCopies(
     switch (op.kind) {
       case CopyGraph::Op::Kind::kCopy: {
         if (to == CopyGraph::kTempLoc) {
-          auto instr =
-              block->allocateInstrBefore(instr_iter, Instruction::kPush);
+          auto instr = block->allocateInstrBefore(instr_iter, Opcode::kPush);
           instr->allocatePhyRegOrStackInput(from)->setDataType(
               DataType::k64bit);
         } else if (from == CopyGraph::kTempLoc) {
-          auto instr =
-              block->allocateInstrBefore(instr_iter, Instruction::kPop);
+          auto instr = block->allocateInstrBefore(instr_iter, Opcode::kPop);
           instr->output()->setPhyRegOrStackSlot(to);
           instr->output()->setDataType(DataType::k64bit);
         } else if (to.isRegister() || from.isRegister()) {
-          auto instr =
-              block->allocateInstrBefore(instr_iter, Instruction::kMove);
+          auto instr = block->allocateInstrBefore(instr_iter, Opcode::kMove);
 #if defined(CINDER_AARCH64)
           // ARM64: always use 64-bit moves for edge-resolution copies
           // involving GP registers.  During a register swap (cycle in the
@@ -1628,24 +1624,21 @@ void LinearScanAllocator::rewriteLIREmitCopies(
           // (excluded from register allocation via DISALLOWED_REGISTERS) to
           // mediate the copy directly, saving 2 instructions and 16 bytes of
           // temporary stack space per copy.
-          auto load =
-              block->allocateInstrBefore(instr_iter, Instruction::kMove);
+          auto load = block->allocateInstrBefore(instr_iter, Opcode::kMove);
           load->allocatePhyRegOrStackInput(from)->setDataType(DataType::k64bit);
           load->output()->setPhyRegister(arch::reg_scratch_1_loc);
           load->output()->setDataType(DataType::k64bit);
 
-          auto store =
-              block->allocateInstrBefore(instr_iter, Instruction::kMove);
+          auto store = block->allocateInstrBefore(instr_iter, Opcode::kMove);
           store->allocatePhyRegOrStackInput(arch::reg_scratch_1_loc)
               ->setDataType(DataType::k64bit);
           store->output()->setPhyRegOrStackSlot(to);
           store->output()->setDataType(DataType::k64bit);
 #else
-          auto push =
-              block->allocateInstrBefore(instr_iter, Instruction::kPush);
+          auto push = block->allocateInstrBefore(instr_iter, Opcode::kPush);
           push->allocatePhyRegOrStackInput(from)->setDataType(DataType::k64bit);
 
-          auto pop = block->allocateInstrBefore(instr_iter, Instruction::kPop);
+          auto pop = block->allocateInstrBefore(instr_iter, Opcode::kPop);
           pop->output()->setPhyRegOrStackSlot(to);
           pop->output()->setDataType(DataType::k64bit);
 #endif
@@ -1658,8 +1651,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
             "Can only exchange registers, got {} and {}",
             from,
             to);
-        auto instr =
-            block->allocateInstrBefore(instr_iter, Instruction::kExchange);
+        auto instr = block->allocateInstrBefore(instr_iter, Opcode::kExchange);
 #if defined(CINDER_AARCH64)
         // ARM64: always use 64-bit for GP register exchanges (same
         // reasoning as the kCopy case above — a narrower exchange

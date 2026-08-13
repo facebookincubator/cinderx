@@ -111,7 +111,7 @@ class BasicBlock {
   void foreachPhiInstr(const Func& f) const {
     for (auto& instr : instrs_) {
       auto opcode = instr->opcode();
-      if (opcode == Instruction::kPhi) {
+      if (opcode == Opcode::kPhi) {
         f(instr.get());
       }
     }

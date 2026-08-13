@@ -139,7 +139,7 @@ def f() -> int64:
   // Check that the resulting LIR has the unboxed constant we care about,
   // without hardcoding a variable name or the program structure.
   EXPECT_LIR(Query(*lir_func)
-                 .opcode(Instruction::kMove)
+                 .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, 12));
 }
@@ -160,7 +160,7 @@ def f() -> double:
   // Check that the resulting LIR has the unboxed constant we care about,
   // without hardcoding a variable name or the program structure.
   EXPECT_LIR(Query(*lir_func)
-                 .opcode(Instruction::kMove)
+                 .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, 4614256447914709615ULL));
 }
@@ -180,11 +180,10 @@ def f() -> float:
   auto lir_func = getLIRFunction(pyfunc.get());
 
   EXPECT_LIR(Query(*lir_func)
-                 .opcode(Instruction::kMove)
+                 .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, 4614256447914709615ULL));
-  EXPECT_LIR(
-      Query(*lir_func).opcode(Instruction::kCall).outType(DataType::kObject));
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCall).outType(DataType::kObject));
 }
 
 TEST_F(LIRGeneratorTest, StaticAddDouble) {
@@ -202,7 +201,7 @@ def f() -> float:
 
   auto lir_func = getLIRFunction(pyfunc.get());
   // `d + e` on doubles should lower to an Fadd.
-  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kFadd));
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kFadd));
 }
 
 // disabled due to unstable Guard instruction
@@ -660,11 +659,10 @@ def func():
 
   EXPECT_FALSE(getConfig().attr_caches);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kCall).inAddr(0, slow_addr))
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCall).inAddr(0, slow_addr))
       << "Should be calling out to PyObject_GetAttr as inline caches are "
          "disabled";
-  EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Instruction::kCall).inAddr(0, fast_addr))
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCall).inAddr(0, fast_addr))
       << "Should not be calling out to LoadAttrCache::invoke as inline caches "
          "are disabled";
 }
@@ -685,7 +683,7 @@ def func():
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
   auto lir_func = getLIRFunction(pyfunc.get());
-  EXPECT_LIR(Query(*lir_func).opcode(Instruction::kMoveRelaxed))
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kMoveRelaxed))
       << "LoadEvalBreaker should lower to MoveRelaxed";
 }
 
@@ -707,10 +705,10 @@ def func(value):
   if constexpr (kFreeThreadedBuild) {
     auto lir_func = getLIRFunction(pyfunc.get());
     EXPECT_LIR(Query(*lir_func)
-                   .opcode(Instruction::kCall)
+                   .opcode(Opcode::kCall)
                    .inAddr(0, reinterpret_cast<uint64_t>(rt::listSubscript)));
     EXPECT_LIR(Query(*lir_func)
-                   .opcode(Instruction::kCall)
+                   .opcode(Opcode::kCall)
                    .inAddr(0, reinterpret_cast<uint64_t>(PyObject_SetItem)));
     return;
   }

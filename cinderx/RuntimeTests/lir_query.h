@@ -23,7 +23,7 @@ namespace cinderx::jit::lir {
 // EXPECT_LIR / EXPECT_NO_LIR macros below to assert on a query.
 //
 // Example:
-//   EXPECT_LIR(Query(func).opcode(Instruction::kMove)
+//   EXPECT_LIR(Query(func).opcode(Opcode::kMove)
 //                  .outType(DataType::k64bit).inImm(0, 12));
 class Query {
  public:
@@ -109,8 +109,8 @@ bool hasLIRSequence(const Function& func, std::initializer_list<Query> queries);
 
 // Assert that a Query matches (or does not match) an instruction, dumping
 // the queried function on failure. A custom message can still be chained:
-//   EXPECT_LIR(Query(func).opcode(Instruction::kMove).inImm(0, 12));
-//   EXPECT_NO_LIR(Query(func).opcode(Instruction::kCall)) << "unexpected";
+//   EXPECT_LIR(Query(func).opcode(Opcode::kMove).inImm(0, 12));
+//   EXPECT_NO_LIR(Query(func).opcode(Opcode::kCall)) << "unexpected";
 // The function dump (and any chained message) is only evaluated on failure.
 #define EXPECT_LIR(query)       \
   EXPECT_TRUE((query).exists()) \

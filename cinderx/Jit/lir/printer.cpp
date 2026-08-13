@@ -80,7 +80,7 @@ void Printer::print(std::ostream& out, const Instruction& instr) {
   }
   out << instr.opname();
   const char* sep = " ";
-  if (instr.opcode() == Instruction::kPhi) {
+  if (instr.opcode() == Opcode::kPhi) {
     auto num_inputs = instr.getNumInputs();
     for (size_t i = 0; i < num_inputs; i += 2) {
       out << sep << "(";

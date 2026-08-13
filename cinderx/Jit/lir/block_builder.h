@@ -237,7 +237,7 @@ class BasicBlockBuilder {
         "The number of parameters the function accepts and the number of "
         "arguments passed is different.");
 
-    auto instr = createInstr(Instruction::kCall);
+    auto instr = createInstr(Opcode::kCall);
     genericCreateInstrInput(instr, func);
 
     // Although the static_assert above will fail if this is false, the compiler

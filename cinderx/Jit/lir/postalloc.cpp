@@ -20,7 +20,7 @@ namespace {
 RewriteResult removePhiInstructions(instr_iter_t instr_iter) {
   auto& instr = *instr_iter;
 
-  if (instr->opcode() == Instruction::kPhi) {
+  if (instr->opcode() == Opcode::kPhi) {
     auto block = instr->basicBlock();
     block->removeInstr(instr_iter);
     return kRemoved;
@@ -47,18 +47,18 @@ void insertMoveToMemoryLocation(
         operand->isFp()) {
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutPhyReg{temp, DataType::k64bit},
           Imm{constant, DataType::k64bit});
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutInd{base, index, DataType::k64bit},
           PhyReg{temp, DataType::k64bit});
     } else {
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutInd{base, index, data_type},
           Imm{constant, data_type});
     }
@@ -69,7 +69,7 @@ void insertMoveToMemoryLocation(
     PhyLocation loc = operand->getPhyRegister();
     block->allocateInstrBefore(
         instr_iter,
-        Instruction::kMove,
+        Opcode::kMove,
         OutInd{base, index, data_type},
         PhyReg{loc, data_type});
     return;
@@ -83,13 +83,10 @@ void insertMoveToMemoryLocation(
 
   PhyLocation loc = operand->getStackSlot();
   block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kMove,
-      OutPhyReg{temp, scratch_data_type},
-      Stk{loc});
+      instr_iter, Opcode::kMove, OutPhyReg{temp, scratch_data_type}, Stk{loc});
   block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutInd{base, index, scratch_data_type},
       PhyReg{temp, scratch_data_type});
 }
@@ -115,7 +112,7 @@ void insertStorePairToMemoryLocation(
 
   block->allocateInstrBefore(
       instr_iter,
-      Instruction::kStorePair,
+      Opcode::kStorePair,
       Imm{static_cast<uint64_t>(index)},
       PhyReg{base, DataType::k64bit},
       PhyReg{first->getPhyRegister(), DataType::k64bit},
@@ -144,11 +141,11 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
         if (operand_imm) {
           block->allocateInstrBefore(
               instr_iter,
-              Instruction::kMove,
+              Opcode::kMove,
               OutPhyReg(arch::reg_scratch_0_loc),
               Imm(operand->getConstant()));
         }
-        auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
         move->output()->setPhyRegister(FP_ARGUMENT_REGS[arg_pos]);
         move->output()->setDataType(Operand::kDouble);
 
@@ -158,7 +155,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
           move->appendInput(instr->releaseInput(i));
         }
       } else {
-        auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
         move->output()->setPhyRegister(ARGUMENT_REGS[arg_pos]);
         move->output()->setDataType(operand->dataType());
         move->appendInput(instr->releaseInput(i));
@@ -188,11 +185,11 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
         if (operand_imm) {
           block->allocateInstrBefore(
               instr_iter,
-              Instruction::kMove,
+              Opcode::kMove,
               OutPhyReg(arch::reg_scratch_0_loc),
               Imm(operand->getConstant()));
         }
-        auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
         move->output()->setPhyRegister(FP_ARGUMENT_REGS[fp_arg_reg++]);
         move->output()->setDataType(Operand::kDouble);
 
@@ -214,7 +211,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
     }
 
     if (arg_reg < ARGUMENT_REGS.size()) {
-      auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+      auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
       move->output()->setPhyRegister(ARGUMENT_REGS[arg_reg++]);
       move->output()->setDataType(operand->dataType());
       move->appendInput(instr->releaseInput(i));
@@ -275,7 +272,7 @@ int prepareArgsArray(
   // lea dest, [sp + base_offset + kVectorcallArgsOffset * PTR_SIZE]
   block->allocateInstrBefore(
       instr_iter,
-      Instruction::kLea,
+      Opcode::kLea,
       OutPhyReg(dest),
       Ind(arch::reg_stack_pointer_loc,
           base_offset + static_cast<int>(kVectorcallArgsOffset * PTR_SIZE)));
@@ -283,9 +280,9 @@ int prepareArgsArray(
   // mov arg2, num_args
   block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
-      OutPhyReg(size_dest, lir::Operand::k64bit),
-      Imm(num_args | flags, lir::Operand::k64bit));
+      Opcode::kMove,
+      OutPhyReg(size_dest, DataType::k64bit),
+      Imm(num_args | flags, DataType::k64bit));
 
   for (size_t i = first_arg; i < first_arg + num_args; i++) {
     auto arg = instr->getInput(i);
@@ -324,7 +321,7 @@ int rewriteVectorCallCommon(
   auto flag = instr->getInput(1)->getConstant();
   auto num_args = instr->getNumInputs() - first_arg - 1;
 
-  auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+  auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
   move->output()->setPhyRegister(ARGUMENT_REGS[reg_offset]);
   move->output()->setDataType(instr->getInput(callable_input)->dataType());
   move->appendInput(instr->releaseInput(callable_input));
@@ -357,26 +354,24 @@ int rewriteVectorCallCommon(
           last_input->getConstant() == 0, "kwnames must be 0 or variable");
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kXor,
+          Opcode::kXor,
           PhyReg(ARGUMENT_REGS[kwnames_idx]),
           PhyReg(ARGUMENT_REGS[kwnames_idx]));
     } else {
       auto move_2 = block->allocateInstrBefore(
-          instr_iter,
-          Instruction::kMove,
-          OutPhyReg(ARGUMENT_REGS[kwnames_idx]));
+          instr_iter, Opcode::kMove, OutPhyReg(ARGUMENT_REGS[kwnames_idx]));
       move_2->appendInput(std::move(last_input));
 
       size_t ob_size_offs = offsetof(PyVarObject, ob_size);
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutPhyReg(TMP_REG),
           Ind(ARGUMENT_REGS[kwnames_idx], (int32_t)ob_size_offs));
 
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kSub,
+          Opcode::kSub,
           PhyReg(ARGUMENT_REGS[reg_offset + 2]),
           PhyReg(TMP_REG));
     }
@@ -392,7 +387,7 @@ int rewriteVectorCallCommon(
           last_input->getConstant() == 0, "kwnames must be 0 or variable");
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutInd{sp, kwnames_stk_offset, DataType::k64bit},
           Imm{0, DataType::k64bit});
     } else {
@@ -402,20 +397,20 @@ int rewriteVectorCallCommon(
       // Subtract kwnames tuple length from nargsf.
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutPhyReg(TMP_REG),
           Ind(sp, kwnames_stk_offset));
 
       size_t ob_size_offs = offsetof(PyVarObject, ob_size);
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutPhyReg(TMP_REG),
           Ind(TMP_REG, (int32_t)ob_size_offs));
 
       block->allocateInstrBefore(
           instr_iter,
-          Instruction::kSub,
+          Opcode::kSub,
           PhyReg(ARGUMENT_REGS[reg_offset + 2]),
           PhyReg(TMP_REG));
     }
@@ -436,7 +431,7 @@ int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
 
-  auto move_tstate = block->allocateInstrBefore(instr_iter, Instruction::kMove);
+  auto move_tstate = block->allocateInstrBefore(instr_iter, Opcode::kMove);
   move_tstate->output()->setPhyRegister(ARGUMENT_REGS[0]);
   move_tstate->output()->setDataType(Operand::kObject);
   move_tstate->appendInput(instr->releaseInput(2));
@@ -446,7 +441,7 @@ int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
 
 int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
-  instr->setOpcode(Instruction::kCall);
+  instr->setOpcode(Opcode::kCall);
   auto res = prepareArgsArray(
       instr_iter,
       instr->getNumInputs() - 1, // func is 1st argument
@@ -493,7 +488,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   }
 
   instr->setNumInputs(1); // leave function self operand only
-  instr->setOpcode(Instruction::kCall);
+  instr->setOpcode(Opcode::kCall);
 
   auto next_iter = std::next(instr_iter);
 
@@ -512,13 +507,13 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     if (output->isReg()) {
       block->allocateInstrBefore(
           next_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutPhyReg(output->getPhyRegister(), output->dataType()),
           PhyReg(kReturnRegister, output->dataType()));
     } else {
       block->allocateInstrBefore(
           next_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutStk(output->getStackSlot(), output->dataType()),
           PhyReg(kReturnRegister, output->dataType()));
     }
@@ -532,8 +527,8 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
 RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
-  bool is_sext = instr->opcode() == Instruction::kSext;
-  bool is_zext = instr->opcode() == Instruction::kZext;
+  bool is_sext = instr->opcode() == Opcode::kSext;
+  bool is_zext = instr->opcode() == Opcode::kZext;
 
   if (!is_sext && !is_zext) {
     return kUnchanged;
@@ -554,28 +549,28 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
       mask = 0xffffffffffffffffl;
     }
     in->setConstant(in->getConstant() & mask, out_size);
-    instr->setOpcode(Instruction::kMove);
+    instr->setOpcode(Opcode::kMove);
     return kChanged;
   }
 
   auto in_size = in->dataType();
   if (in_size >= out_size) {
-    instr->setOpcode(Instruction::kMove);
+    instr->setOpcode(Opcode::kMove);
     return kChanged;
   }
 
   switch (in_size) {
     case Operand::k8bit:
     case Operand::k16bit:
-      instr->setOpcode(is_sext ? Instruction::kMovSX : Instruction::kMovZX);
+      instr->setOpcode(is_sext ? Opcode::kMovSX : Opcode::kMovZX);
       break;
     case Operand::k32bit:
       if (is_sext) {
-        instr->setOpcode(Instruction::kMovSXD);
+        instr->setOpcode(Opcode::kMovSXD);
       } else {
         // must be unsigned extension from 32 bits to 64 bits.
         // in this case, a 32-bit move will do the work.
-        instr->setOpcode(Instruction::kMove);
+        instr->setOpcode(Opcode::kMove);
         instr->output()->setDataType(lir::Operand::k32bit);
       }
       break;
@@ -619,8 +614,7 @@ RewriteResult rewriteBranchInstrs(Function* function) {
     std::optional<Opcode> last_opcode = last_instr != nullptr
         ? std::make_optional(last_instr->opcode())
         : std::nullopt;
-    if (last_opcode == Instruction::kReturn ||
-        last_opcode == Instruction::kEpilogueEnd) {
+    if (last_opcode == Opcode::kReturn || last_opcode == Opcode::kEpilogueEnd) {
       continue;
     }
 
@@ -629,12 +623,12 @@ RewriteResult rewriteBranchInstrs(Function* function) {
       continue;
     }
 
-    if (last_opcode == Instruction::kBranch) {
+    if (last_opcode == Opcode::kBranch) {
       continue;
     }
 
     auto branch = block->allocateInstr(
-        Instruction::kBranch,
+        Opcode::kBranch,
         last_instr != nullptr ? last_instr->origin() : nullptr);
     branch->allocateLabelInput(succs[0]);
 
@@ -651,7 +645,7 @@ RewriteResult rewriteBranchInstrs(Function* function) {
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto instr_opcode = instr->opcode();
-  if (instr_opcode != Instruction::kMove) {
+  if (instr_opcode != Opcode::kMove) {
     return kUnchanged;
   }
 
@@ -671,7 +665,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
           !in->isLinked(),
           "Register allocation should have replaced linked operand {}",
           *in);
-      instr->setOpcode(Instruction::kXor);
+      instr->setOpcode(Opcode::kXor);
       auto reg = out->getPhyRegister();
       auto data_type = out->dataType();
       out->setNone();
@@ -718,7 +712,7 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto block = instr->basicBlock();
   block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutPhyReg(out->getPhyRegister()),
       Imm(mem_addr, in->dataType()));
 
@@ -795,11 +789,11 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
     // On aarch64, use cbz/cbnz directly instead of test+branch.
     Opcode cbz_opcode;
     if (true_block == next_block) {
-      cbz_opcode = Instruction::kCmpBranchZero;
+      cbz_opcode = Opcode::kCmpBranchZero;
       target_block = false_block;
       fallthrough_block = true_block;
     } else {
-      cbz_opcode = Instruction::kCmpBranchNonZero;
+      cbz_opcode = Opcode::kCmpBranchNonZero;
       target_block = true_block;
       fallthrough_block = false_block;
     }
@@ -815,7 +809,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
     if (fallthrough_block != next_block ||
         block->section() != next_block->section()) {
       auto fallthrough_branch =
-          block->allocateInstr(Instruction::kBranch, instr->origin());
+          block->allocateInstr(Opcode::kBranch, instr->origin());
       fallthrough_branch->allocateLabelInput(fallthrough_block);
     }
     return;
@@ -824,10 +818,10 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
     auto size = input->dataType();
     block->allocateInstrBefore(
         instr_iter,
-        Instruction::kTest,
+        Opcode::kTest,
         PhyReg(input->getPhyRegister(), size),
         PhyReg(input->getPhyRegister(), size));
-    opcode = Instruction::kBranchNZ;
+    opcode = Opcode::kBranchNZ;
 #endif
   }
 
@@ -848,7 +842,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   if (fallthrough_block != next_block ||
       block->section() != next_block->section()) {
     auto fallthrough_branch =
-        block->allocateInstr(Instruction::kBranch, instr->origin());
+        block->allocateInstr(Opcode::kBranch, instr->origin());
     fallthrough_branch->allocateLabelInput(fallthrough_block);
   }
 }
@@ -874,17 +868,17 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   if (fallthrough_bb != next_block ||
       block->section() != next_block->section()) {
     auto fallthrough_branch =
-        block->allocateInstr(Instruction::kBranch, instr->origin());
+        block->allocateInstr(Opcode::kBranch, instr->origin());
     fallthrough_branch->allocateLabelInput(fallthrough_bb);
   }
 }
 
 Opcode negateBranchBit(Opcode opcode) {
   switch (opcode) {
-    case Instruction::kBranchBitSet:
-      return Instruction::kBranchBitNotSet;
-    case Instruction::kBranchBitNotSet:
-      return Instruction::kBranchBitSet;
+    case Opcode::kBranchBitSet:
+      return Opcode::kBranchBitNotSet;
+    case Opcode::kBranchBitNotSet:
+      return Opcode::kBranchBitSet;
     default:
       JIT_ABORT("Not a bit branch opcode: {}", static_cast<int>(opcode));
   }
@@ -911,7 +905,7 @@ void doRewriteBranchBit(instr_iter_t instr_iter, BasicBlock* next_block) {
   if (fallthrough_bb != next_block ||
       block->section() != next_block->section()) {
     auto fallthrough_branch =
-        block->allocateInstr(Instruction::kBranch, instr->origin());
+        block->allocateInstr(Opcode::kBranch, instr->origin());
     fallthrough_branch->allocateLabelInput(fallthrough_bb);
   }
 }
@@ -1046,109 +1040,109 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
 
   // Only rewrite instructions that cannot handle memory operands.
   switch (instr->opcode()) {
-    case Instruction::kAdd:
-    case Instruction::kSub:
-    case Instruction::kAnd:
-    case Instruction::kOr:
-    case Instruction::kXor:
-    case Instruction::kMul:
-    case Instruction::kDiv:
-    case Instruction::kDivUn:
-    case Instruction::kNegate:
-    case Instruction::kInvert:
-    case Instruction::kInc:
-    case Instruction::kDec:
-    case Instruction::kCmp:
-    case Instruction::kTest:
-    case Instruction::kTest32:
-    case Instruction::kEqual:
-    case Instruction::kNotEqual:
-    case Instruction::kGreaterThanSigned:
-    case Instruction::kGreaterThanEqualSigned:
-    case Instruction::kLessThanSigned:
-    case Instruction::kLessThanEqualSigned:
-    case Instruction::kGreaterThanUnsigned:
-    case Instruction::kGreaterThanEqualUnsigned:
-    case Instruction::kLessThanUnsigned:
-    case Instruction::kLessThanEqualUnsigned:
-    case Instruction::kIntToBool:
-    case Instruction::kBranchBitSet:
-    case Instruction::kBranchBitNotSet:
-    case Instruction::kExchange:
-    case Instruction::kFadd:
-    case Instruction::kFsub:
-    case Instruction::kFmul:
-    case Instruction::kFdiv:
+    case Opcode::kAdd:
+    case Opcode::kAnd:
+    case Opcode::kBranchBitNotSet:
+    case Opcode::kBranchBitSet:
+    case Opcode::kCmp:
+    case Opcode::kDec:
+    case Opcode::kDiv:
+    case Opcode::kDivUn:
+    case Opcode::kEqual:
+    case Opcode::kExchange:
+    case Opcode::kFadd:
+    case Opcode::kFdiv:
+    case Opcode::kFmul:
+    case Opcode::kFsub:
+    case Opcode::kGreaterThanEqualSigned:
+    case Opcode::kGreaterThanEqualUnsigned:
+    case Opcode::kGreaterThanSigned:
+    case Opcode::kGreaterThanUnsigned:
+    case Opcode::kInc:
+    case Opcode::kIntToBool:
+    case Opcode::kInvert:
+    case Opcode::kLessThanEqualSigned:
+    case Opcode::kLessThanEqualUnsigned:
+    case Opcode::kLessThanSigned:
+    case Opcode::kLessThanUnsigned:
+    case Opcode::kMul:
+    case Opcode::kNegate:
+    case Opcode::kNotEqual:
+    case Opcode::kOr:
+    case Opcode::kSub:
+    case Opcode::kTest32:
+    case Opcode::kTest:
+    case Opcode::kXor:
       break;
     // Instructions that natively support memory operands or don't have
     // register-only constraints — no rewriting needed.
-    case Instruction::kBind:
-    case Instruction::kNop:
-    case Instruction::kUnreachable:
-    case Instruction::kCall:
-    case Instruction::kVectorCallTstate:
-    case Instruction::kVarArgCall:
-    case Instruction::kA64GuardCC:
-    case Instruction::kGuard:
-    case Instruction::kDeoptPatchpoint:
-    case Instruction::kSelect:
-    case Instruction::kMulAdd:
-    case Instruction::kSext:
-    case Instruction::kZext:
-    case Instruction::kInt64ToDouble:
-    case Instruction::kLShift:
-    case Instruction::kRShift:
-    case Instruction::kRShiftUn:
-    case Instruction::kLea:
-    case Instruction::kLoadArg:
-    case Instruction::kLoadSecondCallResult:
-    case Instruction::kMove:
-    case Instruction::kMoveRelaxed:
-    case Instruction::kMovConstPool:
-    case Instruction::kPush:
-    case Instruction::kPop:
-    case Instruction::kBranch:
-    case Instruction::kBranchNZ:
-    case Instruction::kBranchZ:
-    case Instruction::kBranchA:
-    case Instruction::kBranchB:
-    case Instruction::kBranchAE:
-    case Instruction::kBranchBE:
-    case Instruction::kBranchG:
-    case Instruction::kBranchL:
-    case Instruction::kBranchGE:
-    case Instruction::kBranchLE:
-    case Instruction::kBranchC:
-    case Instruction::kBranchNC:
-    case Instruction::kBranchO:
-    case Instruction::kBranchNO:
-    case Instruction::kBranchS:
-    case Instruction::kBranchNS:
-    case Instruction::kBranchE:
-    case Instruction::kBranchNE:
-    case Instruction::kCondBranch:
-    case Instruction::kPhi:
-    case Instruction::kReturn:
-    case Instruction::kMovZX:
-    case Instruction::kMovSX:
-    case Instruction::kMovSXD:
-    case Instruction::kLoadThreadState:
-    case Instruction::kStoreGenYieldPoint:
-    case Instruction::kStoreGenYieldFromPoint:
-    case Instruction::kBranchToYieldExit:
-    case Instruction::kResumeGenYield:
-    case Instruction::kEpilogueEnd:
-    case Instruction::kPrologue:
-    case Instruction::kSetupFrame:
-    case Instruction::kReserveStack:
-    case Instruction::kVariadicPush:
-    case Instruction::kLoadPair:
-    case Instruction::kStorePair:
-    case Instruction::kLeave:
-    case Instruction::kRet:
-    case Instruction::kCmpBranchZero:
-    case Instruction::kCmpBranchNonZero:
-    case Instruction::kCallSiteLiveValues:
+    case Opcode::kA64GuardCC:
+    case Opcode::kBind:
+    case Opcode::kBranch:
+    case Opcode::kBranchA:
+    case Opcode::kBranchAE:
+    case Opcode::kBranchB:
+    case Opcode::kBranchBE:
+    case Opcode::kBranchC:
+    case Opcode::kBranchE:
+    case Opcode::kBranchG:
+    case Opcode::kBranchGE:
+    case Opcode::kBranchL:
+    case Opcode::kBranchLE:
+    case Opcode::kBranchNC:
+    case Opcode::kBranchNE:
+    case Opcode::kBranchNO:
+    case Opcode::kBranchNS:
+    case Opcode::kBranchNZ:
+    case Opcode::kBranchO:
+    case Opcode::kBranchS:
+    case Opcode::kBranchToYieldExit:
+    case Opcode::kBranchZ:
+    case Opcode::kCall:
+    case Opcode::kCallSiteLiveValues:
+    case Opcode::kCmpBranchNonZero:
+    case Opcode::kCmpBranchZero:
+    case Opcode::kCondBranch:
+    case Opcode::kDeoptPatchpoint:
+    case Opcode::kEpilogueEnd:
+    case Opcode::kGuard:
+    case Opcode::kInt64ToDouble:
+    case Opcode::kLShift:
+    case Opcode::kLea:
+    case Opcode::kLeave:
+    case Opcode::kLoadArg:
+    case Opcode::kLoadPair:
+    case Opcode::kLoadSecondCallResult:
+    case Opcode::kLoadThreadState:
+    case Opcode::kMovConstPool:
+    case Opcode::kMovSX:
+    case Opcode::kMovSXD:
+    case Opcode::kMovZX:
+    case Opcode::kMove:
+    case Opcode::kMoveRelaxed:
+    case Opcode::kMulAdd:
+    case Opcode::kNop:
+    case Opcode::kPhi:
+    case Opcode::kPop:
+    case Opcode::kPrologue:
+    case Opcode::kPush:
+    case Opcode::kRShift:
+    case Opcode::kRShiftUn:
+    case Opcode::kReserveStack:
+    case Opcode::kResumeGenYield:
+    case Opcode::kRet:
+    case Opcode::kReturn:
+    case Opcode::kSelect:
+    case Opcode::kSetupFrame:
+    case Opcode::kSext:
+    case Opcode::kStoreGenYieldFromPoint:
+    case Opcode::kStoreGenYieldPoint:
+    case Opcode::kStorePair:
+    case Opcode::kUnreachable:
+    case Opcode::kVarArgCall:
+    case Opcode::kVariadicPush:
+    case Opcode::kVectorCallTstate:
+    case Opcode::kZext:
       return kUnchanged;
   }
 
@@ -1173,11 +1167,11 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
   // destroying the sign extension. Load as k32bit instead to preserve it.
   bool needs_sign_preserved = false;
   switch (instr->opcode()) {
-    case Instruction::kGreaterThanSigned:
-    case Instruction::kGreaterThanEqualSigned:
-    case Instruction::kLessThanSigned:
-    case Instruction::kLessThanEqualSigned:
-    case Instruction::kDiv:
+    case Opcode::kDiv:
+    case Opcode::kGreaterThanEqualSigned:
+    case Opcode::kGreaterThanSigned:
+    case Opcode::kLessThanEqualSigned:
+    case Opcode::kLessThanSigned:
       needs_sign_preserved = true;
       break;
     default:
@@ -1228,7 +1222,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
 
     block->allocateInstrBefore(
         instr_iter,
-        Instruction::kMove,
+        Opcode::kMove,
         OutPhyReg{scratch_loc, load_dt},
         Stk{loc, load_dt});
 
@@ -1244,7 +1238,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     auto next_iter = std::next(instr_iter);
     block->allocateInstrBefore(
         next_iter,
-        Instruction::kMove,
+        Opcode::kMove,
         OutStk{*inc_dec_stack_loc, *inc_dec_dt},
         PhyReg{gp_scratch_locs[0], *inc_dec_dt});
   }
@@ -1280,9 +1274,9 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   if (in_reg != AL) {
     block->allocateInstrBefore(
         instr_iter,
-        Instruction::kMove,
-        OutPhyReg(AL, Operand::k8bit),
-        PhyReg(in_reg, Operand::k8bit));
+        Opcode::kMove,
+        OutPhyReg(AL, DataType::k8bit),
+        PhyReg(in_reg, DataType::k8bit));
     input0->setPhyRegister(AL);
   }
   // asmjit only recognizes 8-bit imul if RAX is passed as 16-bit.
@@ -1291,9 +1285,9 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   if (out_reg != RAX) {
     block->allocateInstrBefore(
         std::next(instr_iter),
-        Instruction::kMove,
-        OutPhyReg(out_reg, Operand::k8bit),
-        PhyReg(AL, Operand::k8bit));
+        Opcode::kMove,
+        OutPhyReg(out_reg, DataType::k8bit),
+        PhyReg(AL, DataType::k8bit));
   }
   return kChanged;
 }
@@ -1311,7 +1305,7 @@ bool insertMoveToRegister(
 
   auto data_type = op->dataType();
   auto move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutPhyReg(location, data_type));
+      instr_iter, Opcode::kMove, OutPhyReg(location, data_type));
   if (op->isReg()) {
     move->addOperands(PhyReg(op->getPhyRegister(), data_type));
   } else if (op->isImm()) {
@@ -1373,13 +1367,13 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
         "8-bit should always start with 3 operands");
     auto move = block->allocateInstrBefore(
         instr_iter,
-        dividend_lower->isImm() ? Instruction::kMove
-            : instr->isDiv()    ? Instruction::kMovSX
-                                : Instruction::kMovZX,
-        OutPhyReg(AX, Operand::k16bit));
+        dividend_lower->isImm() ? Opcode::kMove
+            : instr->isDiv()    ? Opcode::kMovSX
+                                : Opcode::kMovZX,
+        OutPhyReg(AX, DataType::k16bit));
 
     if (dividend_lower->isImm()) {
-      dividend_lower->setDataType(Operand::k16bit);
+      dividend_lower->setDataType(DataType::k16bit);
     }
 
     auto divisor_removed = instr->removeInput(2);
@@ -1388,7 +1382,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
 
     instr->removeInput(0); // Imm/rdx, no longer used
 
-    instr->addOperands(PhyReg(AX, Operand::k16bit));
+    instr->addOperands(PhyReg(AX, DataType::k16bit));
     instr->appendInput(std::move(divisor_removed));
     changed = true;
   } else {
@@ -1408,13 +1402,13 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
         Opcode extend;
         switch (dividend_lower->sizeInBits()) {
           case 16:
-            extend = Instruction::kX64Cwd;
+            extend = Opcode::kX64Cwd;
             break;
           case 32:
-            extend = Instruction::kX64Cdq;
+            extend = Opcode::kX64Cdq;
             break;
           case 64:
-            extend = Instruction::kX64Cqo;
+            extend = Opcode::kX64Cqo;
             break;
           default:
             Py_UNREACHABLE();
@@ -1424,7 +1418,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
       } else {
         // zero rdx
         block->allocateInstrBefore(
-            instr_iter, Instruction::kXor, PhyReg(RDX), PhyReg(RDX));
+            instr_iter, Opcode::kXor, PhyReg(RDX), PhyReg(RDX));
       }
 
       dividend_upper->setPhyRegister(PhyLocation::RDX);
@@ -1436,7 +1430,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
   if (out_reg != RAX) {
     block->allocateInstrBefore(
         std::next(instr_iter),
-        Instruction::kMove,
+        Opcode::kMove,
         OutPhyReg(out_reg, dividend_lower->dataType()),
         PhyReg(PhyLocation::RAX, dividend_lower->dataType()));
     changed = true;

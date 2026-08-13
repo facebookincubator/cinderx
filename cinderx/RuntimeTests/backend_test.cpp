@@ -406,34 +406,34 @@ TEST_F(BackendTest, ExplicitLIRSubKeepsRhsRegisterLiveAcrossOutputDefine) {
   // allocator has to make a real choice at the Sub instruction.
   for (PhyLocation reg : kPressureRegs) {
     pressure.push_back(bb->allocateInstr(
-        Instruction::kBind,
+        Opcode::kBind,
         nullptr,
         OutVReg{Operand::k64bit},
         PhyReg{reg, Operand::k64bit}));
   }
 
   bb->allocateInstr(
-      Instruction::kMove, nullptr, OutPhyReg{kLhsReg, Operand::k64bit}, Imm{7});
+      Opcode::kMove, nullptr, OutPhyReg{kLhsReg, Operand::k64bit}, Imm{7});
   auto rhs = bb->allocateInstr(
-      Instruction::kMove, nullptr, OutVReg{Operand::k64bit}, Imm{3});
+      Opcode::kMove, nullptr, OutVReg{Operand::k64bit}, Imm{3});
   auto sub = bb->allocateInstr(
-      Instruction::kSub,
+      Opcode::kSub,
       nullptr,
       OutVReg{Operand::k64bit},
       PhyReg{kLhsReg, Operand::k64bit},
       VReg{rhs});
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
       VReg{sub});
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
   bb->addSuccessor(epilogue);
   // Keep the bound registers live across the Sub by threading them into the
   // successor block. Without this, the pressure would end before the bug site.
   for (Instruction* live_out : pressure) {
     epilogue->allocateInstr(
-        Instruction::kPhi,
+        Opcode::kPhi,
         nullptr,
         OutVReg{Operand::k64bit},
         Lbl{bb},
@@ -462,29 +462,23 @@ TEST_F(BackendTest, FPArithmetic) {
     auto bb = lirfunc->allocateBasicBlock();
 
     auto pa = bb->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutVReg(),
-        Imm(reinterpret_cast<uint64_t>(&a)));
+        Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&a)));
     auto fa = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
+        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
 
     auto pb = bb->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutVReg(),
-        Imm(reinterpret_cast<uint64_t>(&b)));
+        Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&b)));
     auto fb = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
+        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
     auto sum = bb->allocateInstr(
         opcode, nullptr, OutVReg(Operand::kDouble), VReg(fa), VReg(fb));
     bb->allocateInstr(
-        Instruction::kMove,
+        Opcode::kMove,
         nullptr,
         OutPhyReg{arch::reg_double_return_loc, Operand::kDouble},
         VReg(sum));
-    bb->allocateInstr(Instruction::kReturn, nullptr);
+    bb->allocateInstr(Opcode::kReturn, nullptr);
 
     // need this because the register allocator assumes the basic blocks
     // end with Return should have one and only one successor.
@@ -496,10 +490,10 @@ TEST_F(BackendTest, FPArithmetic) {
     return func();
   };
 
-  ASSERT_DOUBLE_EQ(test(Instruction::kFadd), a + b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kFsub), a - b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kFmul), a * b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kFdiv), a / b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kFadd), a + b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kFsub), a - b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kFmul), a * b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kFdiv), a / b);
 }
 
 TEST_F(BackendTest, FPCompare) {
@@ -511,29 +505,23 @@ TEST_F(BackendTest, FPCompare) {
     auto bb = lirfunc->allocateBasicBlock();
 
     auto pa = bb->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutVReg(),
-        Imm(reinterpret_cast<uint64_t>(&a)));
+        Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&a)));
     auto fa = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
+        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
 
     auto pb = bb->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutVReg(),
-        Imm(reinterpret_cast<uint64_t>(&b)));
+        Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&b)));
     auto fb = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
+        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
     auto compare =
         bb->allocateInstr(opcode, nullptr, OutVReg(), VReg(fa), VReg(fb));
     bb->allocateInstr(
-        Instruction::kMove,
+        Opcode::kMove,
         nullptr,
         OutPhyReg{arch::reg_general_return_loc},
         VReg(compare));
-    bb->allocateInstr(Instruction::kReturn, nullptr);
+    bb->allocateInstr(Opcode::kReturn, nullptr);
 
     // need this because the register allocator assumes the basic blocks
     // end with Return should have one and only one successor.
@@ -545,12 +533,12 @@ TEST_F(BackendTest, FPCompare) {
     return func();
   };
 
-  ASSERT_DOUBLE_EQ(test(Instruction::kEqual), a == b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kNotEqual), a != b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kGreaterThanUnsigned), a > b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kLessThanUnsigned), a < b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kGreaterThanEqualUnsigned), a >= b);
-  ASSERT_DOUBLE_EQ(test(Instruction::kLessThanEqualUnsigned), a <= b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kEqual), a == b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kNotEqual), a != b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kGreaterThanUnsigned), a > b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kLessThanUnsigned), a < b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kGreaterThanEqualUnsigned), a >= b);
+  ASSERT_DOUBLE_EQ(test(Opcode::kLessThanEqualUnsigned), a <= b);
 }
 
 namespace {
@@ -635,7 +623,7 @@ TEST_F(BackendTest, ManyArguments) {
   auto bb = lirfunc->allocateBasicBlock();
 
   Instruction* call = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(rt_func)));
@@ -643,11 +631,11 @@ TEST_F(BackendTest, ManyArguments) {
   std::apply(getAllocateOperand(call, args), args);
 
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg(call));
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
 
   // need this because the register allocator assumes the basic blocks
   // end with Return should have one and only one successor.
@@ -680,19 +668,16 @@ TEST_F(BackendTest, FPMultipleCalls) {
 
   auto loadFP = [&](double* n) {
     auto m1 = bb->allocateInstr(
-        Instruction::kMove,
-        nullptr,
-        OutVReg(),
-        Imm(reinterpret_cast<uint64_t>(n)));
+        Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(n)));
     auto m2 = bb->allocateInstr(
-        Instruction::kMove, nullptr, OutVReg(Operand::kDouble), Ind(m1));
+        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(m1));
     return m2;
   };
 
   auto la = loadFP(&a);
   auto lb = loadFP(&b);
   auto sum1 = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(Operand::kDouble),
       Imm(reinterpret_cast<uint64_t>(add)),
@@ -702,7 +687,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
   auto lc = loadFP(&c);
   auto ld = loadFP(&d);
   auto sum2 = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(Operand::kDouble),
       Imm(reinterpret_cast<uint64_t>(add)),
@@ -710,7 +695,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
       VReg(ld));
 
   auto sum = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(Operand::kDouble),
       Imm(reinterpret_cast<uint64_t>(add)),
@@ -718,11 +703,11 @@ TEST_F(BackendTest, FPMultipleCalls) {
       VReg(sum2));
 
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_double_return_loc, Operand::kDouble},
       VReg(sum));
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
@@ -738,20 +723,14 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   auto bb = lirfunc->allocateBasicBlock();
 
   bb->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutStk(-16),
-      PhyReg(arch::reg_scratch_0_loc));
+      Opcode::kMove, nullptr, OutStk(-16), PhyReg(arch::reg_scratch_0_loc));
   bb->allocateInstr(
-      Instruction::kMove, nullptr, OutStk(-24), PhyReg(ARGUMENT_REGS[1].loc));
+      Opcode::kMove, nullptr, OutStk(-24), PhyReg(ARGUMENT_REGS[1].loc));
   bb->allocateInstr(
-      lir::Instruction::kMove,
-      nullptr,
-      OutStk(-32),
-      PhyReg(ARGUMENT_REGS[3].loc));
+      lir::Opcode::kMove, nullptr, OutStk(-32), PhyReg(ARGUMENT_REGS[3].loc));
 
   auto call = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       Imm(0),
       lir::Stk(-16),
@@ -788,14 +767,14 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   auto* arg2 = (*(iter++)).get();
   auto* call_instr = (*(iter++)).get();
 
-  ASSERT_EQ(spill0->opcode(), Instruction::kMove);
-  ASSERT_EQ(spill1->opcode(), Instruction::kMove);
-  ASSERT_EQ(arg0->opcode(), Instruction::kMove);
+  ASSERT_EQ(spill0->opcode(), Opcode::kMove);
+  ASSERT_EQ(spill1->opcode(), Opcode::kMove);
+  ASSERT_EQ(arg0->opcode(), Opcode::kMove);
   ASSERT_EQ(arg0->getInput(0)->type(), Operand::kReg);
-  ASSERT_EQ(arg1->opcode(), Instruction::kMove);
+  ASSERT_EQ(arg1->opcode(), Opcode::kMove);
   ASSERT_EQ(arg1->getInput(0)->type(), Operand::kStack);
-  ASSERT_EQ(arg2->opcode(), Instruction::kMove);
-  ASSERT_EQ(call_instr->opcode(), Instruction::kCall);
+  ASSERT_EQ(arg2->opcode(), Opcode::kMove);
+  ASSERT_EQ(call_instr->opcode(), Opcode::kCall);
 }
 
 TEST_F(BackendTest, MoveSequenceOpt2Test) {
@@ -804,13 +783,13 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   auto bb = lirfunc->allocateBasicBlock();
 
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutStk(-16),
       PhyReg(arch::reg_general_return_loc));
 
   bb->allocateInstr(
-      Instruction::kAdd,
+      Opcode::kAdd,
       nullptr,
       OutPhyReg(arch::reg_general_return_loc),
       PhyReg(ARGUMENT_REGS[1].loc),
@@ -831,8 +810,8 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
 
   auto iter = instrs.begin();
 
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*iter)->opcode(), Instruction::kAdd);
+  ASSERT_EQ((*(iter++))->opcode(), Opcode::kMove);
+  ASSERT_EQ((*iter)->opcode(), Opcode::kAdd);
   ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kStack);
 #elif defined(CINDER_AARCH64)
   ASSERT_EQ(bb->getNumInstrs(), 3);
@@ -840,9 +819,9 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
 
   auto iter = instrs.begin();
 
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*iter)->opcode(), Instruction::kAdd);
+  ASSERT_EQ((*(iter++))->opcode(), Opcode::kMove);
+  ASSERT_EQ((*(iter++))->opcode(), Opcode::kMove);
+  ASSERT_EQ((*iter)->opcode(), Opcode::kAdd);
   ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kReg);
   ASSERT_NE(
       (*iter)->getInput(1)->getPhyRegister(), arch::reg_general_return_loc);
@@ -869,33 +848,33 @@ TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
   // spill store and the explicit self-reload in the block.
   // Make a deleted spill observable instead of reading arbitrary stack data.
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutStk{kSharedSlot, Operand::k64bit},
       Imm{kExpected - kExpected, Operand::k64bit});
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReloadReg, Operand::k64bit},
       Imm{kExpected, Operand::k64bit});
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutStk{kSharedSlot, Operand::k64bit},
       PhyReg{kReloadReg, Operand::k64bit});
 
   auto self_reload = bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReloadReg, Operand::k64bit},
       Stk{kSharedSlot, Operand::k64bit});
   self_reload->getInput(0)->setLastUse();
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
       Stk{kSharedSlot, Operand::k64bit});
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
   bb->addSuccessor(epilogue);
 
   auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
@@ -935,69 +914,61 @@ TEST_F(BackendTest, CastTest) {
   auto epilogue = lirfunc->allocateBasicBlock();
 
   // BB 1 : Py_TYPE(ob) == (tp)
-  auto a =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
-  auto b =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(1));
+  auto a = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(0));
+  auto b = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(1));
 
   auto a_tp = bb1->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutVReg(),
-      Ind(a, offsetof(PyObject, ob_type)));
+      Opcode::kMove, nullptr, OutVReg(), Ind(a, offsetof(PyObject, ob_type)));
   auto eq1 = bb1->allocateInstr(
-      Instruction::kEqual, nullptr, OutVReg(), VReg(a_tp), VReg(b));
-  bb1->allocateInstr(Instruction::kCondBranch, nullptr, VReg(eq1));
+      Opcode::kEqual, nullptr, OutVReg(), VReg(a_tp), VReg(b));
+  bb1->allocateInstr(Opcode::kCondBranch, nullptr, VReg(eq1));
   bb1->addSuccessor(bb3); // true
   bb1->addSuccessor(bb2); // false
 
   // BB2 : PyType_IsSubtype(Py_TYPE(ob), (tp))
   auto subtype = bb2->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(PyType_IsSubtype)),
       VReg(a_tp),
       VReg(b));
-  bb2->allocateInstr(Instruction::kCondBranch, nullptr, VReg(subtype));
+  bb2->allocateInstr(Opcode::kCondBranch, nullptr, VReg(subtype));
   bb2->addSuccessor(bb3); // true
   bb2->addSuccessor(bb4); // false
 
   // BB3 : return object
   bb3->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutPhyReg{arch::reg_general_return_loc},
-      VReg(a));
-  bb3->allocateInstr(Instruction::kReturn, nullptr);
+      Opcode::kMove, nullptr, OutPhyReg{arch::reg_general_return_loc}, VReg(a));
+  bb3->allocateInstr(Opcode::kReturn, nullptr);
   bb3->addSuccessor(epilogue);
 
   // BB4 : return null
   auto a_name = bb4->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutVReg(),
       Ind(a_tp, offsetof(PyTypeObject, tp_name)));
   auto b_name = bb4->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutVReg(),
       Ind(b, offsetof(PyTypeObject, tp_name)));
   bb4->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       Imm(reinterpret_cast<uint64_t>(PyErr_Format)),
       Imm(reinterpret_cast<uint64_t>(PyExc_TypeError)),
       Imm(reinterpret_cast<uint64_t>(errmsg)),
       VReg(b_name),
       VReg(a_name));
-  auto nll = bb4->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(0));
+  auto nll = bb4->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(0));
   bb4->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg(nll));
-  bb4->allocateInstr(Instruction::kReturn, nullptr);
+  bb4->allocateInstr(Opcode::kReturn, nullptr);
   bb4->addSuccessor(epilogue);
 
   CheckCast(lirfunc.get());
@@ -1064,43 +1035,37 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
   auto bb_not_taken = lirfunc->allocateBasicBlock();
   auto epilogue = lirfunc->allocateBasicBlock();
 
-  auto lhs = bb0->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm{1});
-  auto rhs = bb0->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm{1});
-  bb0->allocateInstr(Instruction::kCmp, nullptr, VReg(lhs), VReg(rhs));
+  auto lhs = bb0->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm{1});
+  auto rhs = bb0->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm{1});
+  bb0->allocateInstr(Opcode::kCmp, nullptr, VReg(lhs), VReg(rhs));
 
   auto loaded = bb0->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutVReg(Operand::k64bit),
       MemImm{&src, Operand::k64bit});
   bb0->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{R10},
       Imm{reinterpret_cast<uint64_t>(&dst)});
   bb0->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutInd{R10, 0, Operand::k64bit},
-      VReg{loaded});
-  bb0->allocateInstr(Instruction::kBranchZ, nullptr, Lbl{bb_taken});
+      Opcode::kMove, nullptr, OutInd{R10, 0, Operand::k64bit}, VReg{loaded});
+  bb0->allocateInstr(Opcode::kBranchZ, nullptr, Lbl{bb_taken});
   bb0->addSuccessor(bb_taken);
   bb0->addSuccessor(bb_not_taken);
 
   bb_taken->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg{loaded});
-  bb_taken->allocateInstr(Instruction::kReturn, nullptr);
+  bb_taken->allocateInstr(Opcode::kReturn, nullptr);
   bb_taken->addSuccessor(epilogue);
 
   bb_not_taken->allocateInstr(
-      Instruction::kMove,
-      nullptr,
-      OutPhyReg{arch::reg_general_return_loc},
-      Imm{0});
-  bb_not_taken->allocateInstr(Instruction::kReturn, nullptr);
+      Opcode::kMove, nullptr, OutPhyReg{arch::reg_general_return_loc}, Imm{0});
+  bb_not_taken->allocateInstr(Opcode::kReturn, nullptr);
   bb_not_taken->addSuccessor(epilogue);
 
   auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
@@ -1129,36 +1094,35 @@ TEST_F(BackendTest, TsanMoveRelaxedUsesAtomicAccesses) {
   auto epilogue = lirfunc->allocateBasicBlock();
 
   // RDI is also TSAN's address argument; the store must still use its value.
+  bb0->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{RDI}, Imm{expected});
   bb0->allocateInstr(
-      Instruction::kMove, nullptr, OutPhyReg{RDI}, Imm{expected});
-  bb0->allocateInstr(
-      Instruction::kMoveRelaxed,
+      Opcode::kMoveRelaxed,
       nullptr,
       OutMemImm{&value, Operand::k64bit},
       PhyReg{RDI});
 
   auto byte = bb0->allocateInstr(
-      Instruction::kMoveRelaxed,
+      Opcode::kMoveRelaxed,
       nullptr,
       OutVReg(Operand::k8bit),
       MemImm{&byte_src, Operand::k8bit});
   bb0->allocateInstr(
-      Instruction::kMoveRelaxed,
+      Opcode::kMoveRelaxed,
       nullptr,
       OutMemImm{&byte_dst, Operand::k8bit},
       VReg(byte));
 
   auto word = bb0->allocateInstr(
-      Instruction::kMoveRelaxed,
+      Opcode::kMoveRelaxed,
       nullptr,
       OutVReg(Operand::k64bit),
       MemImm{&value, Operand::k64bit});
   bb0->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg{word});
-  bb0->allocateInstr(Instruction::kReturn, nullptr);
+  bb0->allocateInstr(Opcode::kReturn, nullptr);
   bb0->addSuccessor(epilogue);
 
   auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
@@ -1177,36 +1141,29 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
   auto bb4 = lirfunc->allocateBasicBlock();
   auto epilogue = lirfunc->allocateBasicBlock();
 
-  auto r1 =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
-  bb1->allocateInstr(Instruction::kCondBranch, nullptr, VReg(r1));
+  auto r1 = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(0));
+  bb1->allocateInstr(Opcode::kCondBranch, nullptr, VReg(r1));
   bb1->addSuccessor(bb2);
   bb1->addSuccessor(bb3);
 
-  auto r2 = bb2->allocateInstr(
-      Instruction::kAdd, nullptr, OutVReg(), VReg(r1), Imm(8));
+  auto r2 =
+      bb2->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(r1), Imm(8));
   bb2->addSuccessor(bb4);
 
-  auto r3 = bb3->allocateInstr(
-      Instruction::kAdd, nullptr, OutVReg(), VReg(r1), Imm(8));
-  auto r4 = bb3->allocateInstr(
-      Instruction::kAdd, nullptr, OutVReg(), VReg(r3), Imm(8));
+  auto r3 =
+      bb3->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(r1), Imm(8));
+  auto r4 =
+      bb3->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(r3), Imm(8));
   bb3->addSuccessor(bb4);
 
   auto r5 = bb4->allocateInstr(
-      Instruction::kPhi,
-      nullptr,
-      OutVReg(),
-      Lbl(bb2),
-      VReg(r2),
-      Lbl(bb3),
-      VReg(r4));
+      Opcode::kPhi, nullptr, OutVReg(), Lbl(bb2), VReg(r2), Lbl(bb3), VReg(r4));
   bb4->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg(r5));
-  bb4->allocateInstr(Instruction::kReturn, nullptr);
+  bb4->allocateInstr(Opcode::kReturn, nullptr);
   bb4->addSuccessor(epilogue);
 
   // split blocks and then test that function output is still correct
@@ -1226,23 +1183,21 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
 TEST_F(BackendTest, InlineJITRTCastTest) {
   Function caller;
   auto bb = caller.allocateBasicBlock();
-  auto r1 =
-      bb->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
-  auto r2 =
-      bb->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(1));
+  auto r1 = bb->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(0));
+  auto r2 = bb->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(1));
   auto call_instr = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(rt::cast)),
       VReg(r1),
       VReg(r2));
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg(call_instr));
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
   auto epilogue = caller.allocateBasicBlock();
   bb->addSuccessor(epilogue);
   LIRInliner inliner{&caller, call_instr};
@@ -1305,23 +1260,21 @@ BB %6 - preds: %7
 TEST_F(BackendTest, PostgenJITRTCastTest) {
   auto caller = std::make_unique<Function>();
   auto bb = caller->allocateBasicBlock();
-  auto r1 =
-      bb->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
-  auto r2 =
-      bb->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(1));
+  auto r1 = bb->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(0));
+  auto r2 = bb->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(1));
   auto call_instr = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(rt::cast)),
       VReg(r1),
       VReg(r2));
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc},
       VReg(call_instr));
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
   auto epilogue = caller->allocateBasicBlock();
   bb->addSuccessor(epilogue);
 
@@ -1522,39 +1475,39 @@ TEST_F(BackendTest, RegSwapPreserves64BitPointers) {
   // emitting with kObject width — this is what the FIXED regalloc emits.
   // (The buggy version would use k32bit for the second edge, truncating.)
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_A, DataType::kObject},
       PhyReg{ARGUMENT_REGS[0], DataType::kObject});
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_B, DataType::k32bit},
       PhyReg{ARGUMENT_REGS[1], DataType::k32bit});
 
   // Swap X19↔X21 via X13, using k64bit (the fix) — preserves all 64 bits.
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_scratch_0_loc, DataType::kObject},
       PhyReg{kReg_A, DataType::kObject});
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_A, DataType::kObject},
       PhyReg{kReg_B, DataType::kObject});
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_B, DataType::kObject},
       PhyReg{arch::reg_scratch_0_loc, DataType::kObject});
 
-  bb1->allocateInstr(Instruction::kBranch, nullptr, Lbl{bb2});
+  bb1->allocateInstr(Opcode::kBranch, nullptr, Lbl{bb2});
   bb1->addSuccessor(bb2);
 
   // BB2: Return X21 (should hold the original 64-bit pointer from X19).
   bb2->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
       PhyReg{kReg_B, DataType::kObject});
@@ -1591,38 +1544,38 @@ TEST_F(BackendTest, RegSwapK32bitTruncates64BitValues) {
   // Same setup as RegSwapPreserves64BitPointers, but swap uses k32bit
   // (the buggy data type that the unfixed regalloc would emit).
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_A, DataType::kObject},
       PhyReg{ARGUMENT_REGS[0], DataType::kObject});
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_B, DataType::k32bit},
       PhyReg{ARGUMENT_REGS[1], DataType::k32bit});
 
   // Swap using k32bit — this SHOULD truncate the 64-bit pointer.
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_scratch_0_loc, DataType::k32bit},
       PhyReg{kReg_A, DataType::k32bit});
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_A, DataType::k32bit},
       PhyReg{kReg_B, DataType::k32bit});
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{kReg_B, DataType::k32bit},
       PhyReg{arch::reg_scratch_0_loc, DataType::k32bit});
 
-  bb1->allocateInstr(Instruction::kBranch, nullptr, Lbl{bb2});
+  bb1->allocateInstr(Opcode::kBranch, nullptr, Lbl{bb2});
   bb1->addSuccessor(bb2);
 
   bb2->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
       PhyReg{kReg_B, DataType::kObject});

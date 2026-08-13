@@ -36,9 +36,9 @@ RewriteResult rewriteConstantFoldUnaryOps(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
   switch (instr->opcode()) {
-    case Instruction::kNegate:
-    case Instruction::kInvert:
-    case Instruction::kIntToBool:
+    case Opcode::kIntToBool:
+    case Opcode::kInvert:
+    case Opcode::kNegate:
       break;
     default:
       return kUnchanged;
@@ -52,20 +52,20 @@ RewriteResult rewriteConstantFoldUnaryOps(instr_iter_t instr_iter) {
   uint64_t constant = input->getConstant();
   uint64_t result;
   switch (instr->opcode()) {
-    case Instruction::kNegate:
+    case Opcode::kNegate:
       result = static_cast<uint64_t>(-static_cast<int64_t>(constant));
       break;
-    case Instruction::kInvert:
+    case Opcode::kInvert:
       result = ~constant;
       break;
-    case Instruction::kIntToBool:
+    case Opcode::kIntToBool:
       result = constant ? 1 : 0;
       break;
     default:
       return kUnchanged;
   }
 
-  instr->setOpcode(Instruction::kMove);
+  instr->setOpcode(Opcode::kMove);
   auto dt = input->dataType();
   input->setConstant(result, dt);
   return kChanged;
@@ -94,7 +94,7 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
 
       auto move = block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutVReg{constant_size},
           Imm{constant, constant_size});
 
@@ -137,7 +137,7 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
 
   auto move = block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutVReg{constant_size},
       Imm{constant, constant_size});
   instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
@@ -207,7 +207,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   auto block = instr->basicBlock();
   auto move = block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutVReg{in1->dataType()},
       Imm{constant, in1->dataType()});
 
@@ -216,7 +216,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   // second operand.
   if (instr->getInput(0)->sizeInBits() < in1->sizeInBits()) {
     auto movsx = block->allocateInstrBefore(
-        instr_iter, Instruction::kMovSX, OutVReg{in1->dataType()});
+        instr_iter, Opcode::kMovSX, OutVReg{in1->dataType()});
     movsx->appendInput(instr->releaseInput(0));
     instr->setInput(0, std::make_unique<Operand>(movsx, Operand::kLinked));
   }
@@ -259,7 +259,7 @@ RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
   auto block = instr->basicBlock();
   auto move = block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutVReg(),
       Imm(target_imm, target_opnd->dataType()));
   instr->setInput(
@@ -273,7 +273,7 @@ RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
   if (!instr->isLoadArg()) {
     return kUnchanged;
   }
-  instr->setOpcode(Instruction::kBind);
+  instr->setOpcode(Opcode::kBind);
   JIT_CHECK(instr->getNumInputs() == 1, "expected one input");
   Operand* input = instr->getInput(0);
   JIT_CHECK(input->isImm(), "expected constant arg index as input");
@@ -379,7 +379,7 @@ Instruction* getSecondCallResult(
     instr->setNumInputs(0);
   }
 
-  Opcode new_op = is_call_like ? Instruction::kMove : Instruction::kPhi;
+  Opcode new_op = is_call_like ? Opcode::kMove : Opcode::kPhi;
   if (instr) {
     instr->setOpcode(new_op);
   } else {
@@ -387,7 +387,7 @@ Instruction* getSecondCallResult(
         std::next(src_it), new_op, OutVReg(data_type));
   }
   seen_srcs[src] = instr;
-  if (new_op == Instruction::kMove) {
+  if (new_op == Opcode::kMove) {
     instr->addOperands(PhyReg(RETURN_REGS[1], data_type));
   } else {
     // instr is now a Phi (either newly-created or a replacement for
@@ -464,7 +464,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 
   // type_vreg = Move([guard_var + ob_type_offset])
   auto type_load = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
+      instr_iter, Opcode::kMove, OutVReg{DataType::k64bit});
   type_load->allocateMemoryIndirectInput(guard_var_def, kObTypeOffset);
 
   // Replace guard var with the loaded type and change kind to kIs.
@@ -497,7 +497,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   // addr_vreg = Move(Imm{addr})
   auto addr_move = block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutVReg{DataType::kObject},
       Imm{addr, DataType::kObject});
 
@@ -536,7 +536,7 @@ bool lowerStackInputToVreg(instr_iter_t instr_iter, size_t idx) {
   auto loc = input->getStackSlot();
   auto dt = input->dataType();
   auto move = instr->basicBlock()->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+      instr_iter, Opcode::kMove, OutVReg{dt}, Stk{loc, dt});
   instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
   return true;
 }
@@ -569,7 +569,7 @@ RewriteResult rewriteSingleStackInputToVreg(
   }
 
   switch (instr->opcode()) {
-    case Instruction::kPush:
+    case Opcode::kPush:
       return rewriteSingleStackInputToVreg(instr_iter, 0);
     default:
       return kUnchanged;
@@ -597,7 +597,7 @@ bool lowerImmediateInputToVreg(instr_iter_t instr_iter, size_t idx) {
 
   auto move = instr->basicBlock()->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutVReg{input->dataType()},
       Imm{input->getConstant(), input->dataType()});
   instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
@@ -628,12 +628,12 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
   switch (instr->opcode()) {
-    case Instruction::kPush:
+    case Opcode::kPush:
       return rewritePushImmediateToVreg(instr_iter);
-    case Instruction::kSelect:
+    case Opcode::kSelect:
       return rewriteSelectFalseImmediateToVreg(instr_iter);
-    case Instruction::kMove:
-    case Instruction::kMoveRelaxed:
+    case Opcode::kMove:
+    case Opcode::kMoveRelaxed:
       // Lower immediate input ONLY when the output is memory (Ind or Stack).
       // Do NOT lower "Ri" (register = immediate) — that's the load-immediate
       // instruction and is the target of all other lowerings.
@@ -669,7 +669,7 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
     }
     auto move = block->allocateInstrBefore(
         instr_iter,
-        Instruction::kMove,
+        Opcode::kMove,
         OutVReg{DataType::k64bit},
         Imm{input->getConstant(), DataType::k64bit});
     instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
@@ -680,7 +680,7 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
     auto loc = input->getStackSlot();
     auto dt = input->dataType();
     auto move = block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+        instr_iter, Opcode::kMove, OutVReg{dt}, Stk{loc, dt});
     instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
     return kChanged;
   }
@@ -770,13 +770,13 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
           // This avoids scratch register clobbering in autogen.
           auto pool_load = block->allocateInstrBefore(
               it,
-              Instruction::kMovConstPool,
+              Opcode::kMovConstPool,
               OutVReg{input->dataType()},
               Imm{input->getConstant(), input->dataType()});
           instr->setInput(
               0, std::make_unique<Operand>(pool_load, Operand::kLinked));
         } else {
-          instr->setOpcode(Instruction::kMovConstPool);
+          instr->setOpcode(Opcode::kMovConstPool);
         }
         changed = true;
       }
@@ -846,7 +846,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
               ~static_cast<uint64_t>(kPyObjectTagBits);
           Instruction* strip = block->allocateInstrBefore(
               it,
-              Instruction::kMove,
+              Opcode::kMove,
               OutVReg{DataType::kObjectUntagged},
               Imm{value, DataType::k64bit});
           strip_cache[base] = strip;
@@ -863,13 +863,10 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
         // so regalloc sees a local copy-then-strip def-use and cannot rewrite
         // the strip to read a stale reused register.
         Instruction* copy = block->allocateInstrBefore(
-            it,
-            Instruction::kMove,
-            OutVReg{base->output()->dataType()},
-            VReg{base});
+            it, Opcode::kMove, OutVReg{base->output()->dataType()}, VReg{base});
         Instruction* strip = block->allocateInstrBefore(
             it,
-            Instruction::kAnd,
+            Opcode::kAnd,
             OutVReg{DataType::kObjectUntagged},
             VReg{copy},
             Imm{~static_cast<uint64_t>(kPyObjectTagBits), DataType::k64bit});

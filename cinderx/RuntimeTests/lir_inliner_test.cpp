@@ -19,11 +19,11 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
   Function caller;
   auto caller_bb1 = caller.allocateBasicBlock();
   auto caller_r1 =
-      caller_bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(2));
+      caller_bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(2));
   auto caller_r2 =
-      caller_bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(4));
+      caller_bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(4));
   auto call_instr = caller_bb1->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(123), // random call address
@@ -34,37 +34,33 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
 
   // Let's temporarily add the callee basic blocks after the caller's
   auto bb1 = caller.allocateBasicBlock();
-  auto a =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
-  auto b =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(1));
-  auto c =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(2));
-  auto d =
-      bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(3));
+  auto a = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(0));
+  auto b = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(1));
+  auto c = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(2));
+  auto d = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(3));
 
   // instructions that don't use arguments
-  auto e = bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(8));
-  auto f = bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), VReg(e));
+  auto e = bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(8));
+  auto f = bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), VReg(e));
 
   // use immediate argument
-  auto g = bb1->allocateInstr(
-      Instruction::kAdd, nullptr, OutVReg(), VReg(f), VReg(a));
+  auto g =
+      bb1->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(f), VReg(a));
 
   // indirect operands that contain linked argument
-  bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Ind(b, c));
-  bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Ind(c, b));
+  bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Ind(b, c));
+  bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Ind(c, b));
 
   // use linked argument
-  auto h = bb1->allocateInstr(
-      Instruction::kAdd, nullptr, OutVReg(), VReg(g), VReg(d));
+  auto h =
+      bb1->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(g), VReg(d));
 
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{codegen::arch::reg_general_return_loc},
       VReg(h));
-  bb1->allocateInstr(Instruction::kReturn, nullptr);
+  bb1->allocateInstr(Opcode::kReturn, nullptr);
 
   LIRInliner inliner{&caller, call_instr};
   inliner.callee_start_ = 1;
@@ -105,7 +101,7 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
   Function caller;
   auto caller_bb1 = caller.allocateBasicBlock();
   auto call_instr = caller_bb1->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(123), // random call address
@@ -117,21 +113,21 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
   auto bb1 = caller.allocateBasicBlock();
   auto bb2 = caller.allocateBasicBlock();
   auto epilogue = caller.allocateBasicBlock();
-  auto r1 = bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(1));
+  auto r1 = bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(1));
   bb1->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{codegen::arch::reg_general_return_loc},
       VReg(r1));
-  bb1->allocateInstr(Instruction::kReturn, nullptr);
+  bb1->allocateInstr(Opcode::kReturn, nullptr);
   bb1->addSuccessor(epilogue);
-  auto r2 = bb2->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(2));
+  auto r2 = bb2->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(2));
   bb2->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       OutPhyReg{codegen::arch::reg_general_return_loc},
       VReg(r2));
-  bb2->allocateInstr(Instruction::kReturn, nullptr);
+  bb2->allocateInstr(Opcode::kReturn, nullptr);
   bb2->addSuccessor(epilogue);
 
   LIRInliner inliner{&caller, call_instr};
@@ -162,7 +158,7 @@ TEST_F(LIRInlinerTest, ResolveReturnWithoutPhiTest) {
   Function caller;
   auto caller_bb1 = caller.allocateBasicBlock();
   auto call_instr = caller_bb1->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(123), // random call address
@@ -172,9 +168,9 @@ TEST_F(LIRInlinerTest, ResolveReturnWithoutPhiTest) {
   auto bb1 = caller.allocateBasicBlock();
   auto bb2 = caller.allocateBasicBlock();
   auto epilogue = caller.allocateBasicBlock();
-  bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(1));
+  bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(1));
   bb1->addSuccessor(epilogue);
-  bb2->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(2));
+  bb2->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(2));
   bb2->addSuccessor(epilogue);
 
   LIRInliner inliner{&caller, call_instr};
@@ -205,7 +201,7 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionSuccessTest) {
   Function caller;
   auto bb = caller.allocateBasicBlock();
   auto call_instr = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(rt::cast)));
@@ -222,7 +218,7 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionFailureTest) {
   Function caller;
   auto bb = caller.allocateBasicBlock();
   auto call_instr = bb->allocateInstr(
-      Instruction::kCall,
+      Opcode::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(rt::powerDouble)));

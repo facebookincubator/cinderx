@@ -54,10 +54,7 @@ void selectX64MoveToMemoryLargeConstant(
   }
 
   auto move = block->allocateInstrBefore(
-      instr_iter,
-      Instruction::kMove,
-      OutVReg(),
-      Imm(constant, input->dataType()));
+      instr_iter, Opcode::kMove, OutVReg(), Imm(constant, input->dataType()));
 
   instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
 }
@@ -68,8 +65,8 @@ void selectX64Opcodes(Function* func) {
     for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {
       instr_iter_t cur_iter = iter++;
       switch (cur_iter->get()->opcode()) {
-        case Instruction::kMove:
-        case Instruction::kMoveRelaxed:
+        case Opcode::kMove:
+        case Opcode::kMoveRelaxed:
           selectX64MoveToMemoryLargeConstant(block, cur_iter);
           break;
         default:
@@ -152,11 +149,11 @@ void legalizeA64SignedSubWordInputs(
     instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   JIT_DCHECK(
-      instr->opcode() == Instruction::kGreaterThanSigned ||
-          instr->opcode() == Instruction::kGreaterThanEqualSigned ||
-          instr->opcode() == Instruction::kLessThanSigned ||
-          instr->opcode() == Instruction::kLessThanEqualSigned ||
-          instr->opcode() == Instruction::kDiv,
+      instr->opcode() == Opcode::kGreaterThanSigned ||
+          instr->opcode() == Opcode::kGreaterThanEqualSigned ||
+          instr->opcode() == Opcode::kLessThanSigned ||
+          instr->opcode() == Opcode::kLessThanEqualSigned ||
+          instr->opcode() == Opcode::kDiv,
       "Expected signed comparison or Div, got {}",
       instr->opname());
 
@@ -172,7 +169,7 @@ void legalizeA64SignedSubWordInputs(
     }
 
     Instruction* sext = block->allocateInstrBefore(
-        instr_iter, Instruction::kSext, OutVReg{DataType::k32bit});
+        instr_iter, Opcode::kSext, OutVReg{DataType::k32bit});
     sext->appendInput(instr->releaseInput(i));
     instr->setInput(i, std::make_unique<Operand>(sext, Operand::kLinked));
   }
@@ -193,7 +190,7 @@ void legalizeA64GuardFPInput(BasicBlock* block, instr_iter_t instr_iter) {
   }
 
   Instruction* move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{DataType::k64bit});
+      instr_iter, Opcode::kMove, OutVReg{DataType::k64bit});
   move->appendInput(instr->releaseInput(kGuardVarIndex));
   instr->setInput(
       kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
@@ -210,7 +207,7 @@ Instruction* moveA64StackInputToVreg(
   PhyLocation loc = input->getStackSlot();
   DataType dt = input->dataType();
   Instruction* move = block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutVReg{dt}, Stk{loc, dt});
+      instr_iter, Opcode::kMove, OutVReg{dt}, Stk{loc, dt});
   instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
   return move;
 }
@@ -264,7 +261,7 @@ void legalizeA64StackInputForIncDec(
   Instruction* move = moveA64StackInputToVreg(block, instr_iter, 0);
 
   block->allocateInstrBefore(
-      std::next(instr_iter), Instruction::kMove, OutStk{loc, dt}, VReg{move});
+      std::next(instr_iter), Opcode::kMove, OutStk{loc, dt}, VReg{move});
 }
 
 /* Convert from:
@@ -308,12 +305,12 @@ void selectA64LeaLargeMultiplier(BasicBlock* block, instr_iter_t instr_iter) {
 
   Instruction* scale_move = block->allocateInstrBefore(
       instr_iter,
-      Instruction::kMove,
+      Opcode::kMove,
       OutVReg{DataType::k64bit},
       Imm{uint64_t{1} << mult, DataType::k64bit});
 
   Instruction* muladd = block->allocateInstrBefore(
-      instr_iter, Instruction::kMulAdd, OutVReg{DataType::k64bit});
+      instr_iter, Opcode::kMulAdd, OutVReg{DataType::k64bit});
   muladd->appendInput(std::move(index));
   muladd->appendInput(std::make_unique<Operand>(scale_move, Operand::kLinked));
   muladd->appendInput(std::move(base));
@@ -323,13 +320,13 @@ void selectA64LeaLargeMultiplier(BasicBlock* block, instr_iter_t instr_iter) {
     uint64_t offset_value = static_cast<uint64_t>(static_cast<int64_t>(offset));
 
     Instruction* add = block->allocateInstrBefore(
-        instr_iter, Instruction::kAdd, OutVReg{DataType::k64bit}, VReg{muladd});
+        instr_iter, Opcode::kAdd, OutVReg{DataType::k64bit}, VReg{muladd});
     if (asmjit::arm::Utils::isAddSubImm(offset_value)) {
       add->addOperands(Imm{offset_value, DataType::k64bit});
     } else {
       Instruction* offset_move = block->allocateInstrBefore(
           instr_iter,
-          Instruction::kMove,
+          Opcode::kMove,
           OutVReg{DataType::k64bit},
           Imm{offset_value, DataType::k64bit});
       add->addOperands(VReg{offset_move});
@@ -338,7 +335,7 @@ void selectA64LeaLargeMultiplier(BasicBlock* block, instr_iter_t instr_iter) {
     final_result = add;
   }
 
-  instr->setOpcode(Instruction::kMove);
+  instr->setOpcode(Opcode::kMove);
   instr->appendInput(std::make_unique<Operand>(final_result, Operand::kLinked));
 }
 
@@ -385,7 +382,7 @@ void selectA64CondBranch(
   /* Convert to a conditional compare and branch instruction. */
   Opcode branch_opcode = compareToBranchCC(compare->opcode());
 
-  compare->setOpcode(Instruction::kCmp);
+  compare->setOpcode(Opcode::kCmp);
   compare->output()->setNone();
   branch->setOpcode(branch_opcode);
   branch->setNumInputs(0);
@@ -443,10 +440,10 @@ void selectA64Guard(
     branch_opcode = negateBranchCC(branch_opcode);
   }
 
-  compare->setOpcode(Instruction::kCmp);
+  compare->setOpcode(Opcode::kCmp);
   compare->output()->setNone();
 
-  guard->setOpcode(Instruction::kA64GuardCC);
+  guard->setOpcode(Opcode::kA64GuardCC);
   guard->getInput(0)->setConstant(static_cast<uint64_t>(branch_opcode));
 
   /* A64GuardCC branches using the condition encoded above. The original Guard
@@ -504,8 +501,7 @@ void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
   }
 
   branch->setOpcode(
-      branch->isBranchS() ? Instruction::kBranchBitSet
-                          : Instruction::kBranchBitNotSet);
+      branch->isBranchS() ? Opcode::kBranchBitSet : Opcode::kBranchBitNotSet);
 
   /* Test the sign bit of the register. */
   auto bit = std::make_unique<Operand>();
@@ -529,52 +525,52 @@ void selectA64Opcodes(Function* func) {
       instr_iter_t cur_iter = iter++;
 
       switch (cur_iter->get()->opcode()) {
-        case Instruction::kEqual:
-        case Instruction::kNotEqual:
+        case Opcode::kEqual:
+        case Opcode::kNotEqual:
           legalizeA64Min32BitOutput(cur_iter);
           break;
-        case Instruction::kGreaterThanSigned:
-        case Instruction::kGreaterThanEqualSigned:
-        case Instruction::kLessThanSigned:
-        case Instruction::kLessThanEqualSigned:
+        case Opcode::kGreaterThanSigned:
+        case Opcode::kGreaterThanEqualSigned:
+        case Opcode::kLessThanSigned:
+        case Opcode::kLessThanEqualSigned:
           legalizeA64SignedSubWordInputs(block, cur_iter);
           legalizeA64Min32BitOutput(cur_iter);
           break;
-        case Instruction::kGreaterThanUnsigned:
-        case Instruction::kGreaterThanEqualUnsigned:
-        case Instruction::kLessThanUnsigned:
-        case Instruction::kLessThanEqualUnsigned:
-        case Instruction::kAnd:
-        case Instruction::kXor:
-        case Instruction::kOr:
+        case Opcode::kGreaterThanUnsigned:
+        case Opcode::kGreaterThanEqualUnsigned:
+        case Opcode::kLessThanUnsigned:
+        case Opcode::kLessThanEqualUnsigned:
+        case Opcode::kAnd:
+        case Opcode::kXor:
+        case Opcode::kOr:
           legalizeA64Min32BitOutput(cur_iter);
           break;
-        case Instruction::kDiv:
+        case Opcode::kDiv:
           legalizeA64SignedSubWordInputs(block, cur_iter);
           break;
-        case Instruction::kLea:
+        case Opcode::kLea:
           selectA64LeaLargeMultiplier(block, cur_iter);
           break;
-        case Instruction::kCondBranch:
+        case Opcode::kCondBranch:
           selectA64CondBranch(block, cur_iter, use_counts);
           break;
-        case Instruction::kGuard:
+        case Opcode::kGuard:
           legalizeA64GuardFPInput(block, cur_iter);
           selectA64Guard(block, cur_iter, use_counts);
           break;
-        case Instruction::kNegate:
-        case Instruction::kInvert:
+        case Opcode::kNegate:
+        case Opcode::kInvert:
           legalizeA64UnaryStackInput(block, cur_iter);
           break;
-        case Instruction::kSelect:
+        case Opcode::kSelect:
           legalizeA64SelectStackInputs(block, cur_iter);
           break;
-        case Instruction::kInc:
-        case Instruction::kDec:
+        case Opcode::kInc:
+        case Opcode::kDec:
           legalizeA64StackInputForIncDec(block, cur_iter);
           break;
-        case Instruction::kBranchS:
-        case Instruction::kBranchNS:
+        case Opcode::kBranchS:
+        case Opcode::kBranchNS:
           selectA64BranchSigned(block, cur_iter);
           break;
         default:

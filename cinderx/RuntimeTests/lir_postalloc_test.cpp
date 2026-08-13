@@ -249,7 +249,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteAddWithStackInput) {
 
   // Add X0:64bit, [X29(-16)]:64bit
   bb->allocateInstr(
-      Instruction::kAdd,
+      Opcode::kAdd,
       nullptr,
       OutPhyReg{X0, DataType::k64bit},
       PhyReg{X0, DataType::k64bit},
@@ -283,7 +283,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteIncWithStackInput) {
 
   // Inc [X29(-24)]:Object
   bb->allocateInstr(
-      Instruction::kInc,
+      Opcode::kInc,
       nullptr,
       OutStk{PhyLocation(-24, 64), DataType::kObject},
       Stk{PhyLocation(-24, 64), DataType::kObject});
@@ -321,7 +321,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteFaddWithFPStackInput) {
 
   // Fadd D0:Double, [X29(-32)]:Double
   bb->allocateInstr(
-      Instruction::kFadd,
+      Opcode::kFadd,
       nullptr,
       OutPhyReg{D0, DataType::kDouble},
       PhyReg{D0, DataType::kDouble},
@@ -355,7 +355,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
 
   // LessThanSigned X0:8bit, [X29(-8)]:8bit
   bb->allocateInstr(
-      Instruction::kLessThanSigned,
+      Opcode::kLessThanSigned,
       nullptr,
       OutPhyReg{X0, DataType::k8bit},
       PhyReg{X0, DataType::k8bit},

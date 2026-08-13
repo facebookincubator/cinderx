@@ -120,7 +120,7 @@ Query& Query::inType(size_t index, DataType dt) {
 }
 Query&
 Query::guard(uint64_t deopt_id, uint64_t frame_index, DataType guard_type) {
-  opcode_ = Instruction::kGuard;
+  opcode_ = Opcode::kGuard;
   input(0).imm = deopt_id;
   input(1).imm = frame_index;
   input(2).type = guard_type;

@@ -153,10 +153,7 @@ PhyLocation SpillAllocator::loadToScratch(
     bool is_fp) {
   PhyLocation reg = takeScratch(is_fp);
   block->allocateInstrBefore(
-      iter,
-      Instruction::kMove,
-      OutPhyReg{reg, data_type},
-      Stk{slot, data_type});
+      iter, Opcode::kMove, OutPhyReg{reg, data_type}, Stk{slot, data_type});
   return reg;
 }
 
@@ -209,13 +206,13 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
 
     auto next_iter = std::next(iter);
     block->allocateInstrBefore(
-        next_iter, Instruction::kMove, OutStk{in_slot, dt}, PhyReg{reg, dt});
+        next_iter, Opcode::kMove, OutStk{in_slot, dt}, PhyReg{reg, dt});
 
     Operand* out = instr->output();
     if (out->isVreg()) {
       PhyLocation out_slot = slotFor(out);
       block->allocateInstrBefore(
-          next_iter, Instruction::kMove, OutStk{out_slot, dt}, PhyReg{reg, dt});
+          next_iter, Opcode::kMove, OutStk{out_slot, dt}, PhyReg{reg, dt});
       out->setPhyRegOrStackSlot(out_slot);
     }
     return;
@@ -255,10 +252,7 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
       PhyLocation reg = takeScratch(out->isFp());
       out->setPhyRegister(reg);
       block->allocateInstrBefore(
-          std::next(iter),
-          Instruction::kMove,
-          OutStk{slot, dt},
-          PhyReg{reg, dt});
+          std::next(iter), Opcode::kMove, OutStk{slot, dt}, PhyReg{reg, dt});
     } else {
       out->setPhyRegOrStackSlot(slot);
     }
@@ -303,7 +297,7 @@ void SpillAllocator::rewriteBind(BasicBlock* /* block */, instr_iter_t iter) {
   // code.  Turn it into a store of that register into the value's home slot.
   constexpr DataType dt = DataType::k64bit;
   instr->getInput(0)->setDataType(dt);
-  instr->setOpcode(Instruction::kMove);
+  instr->setOpcode(Opcode::kMove);
   out->setDataType(dt);
   out->setPhyRegOrStackSlot(slotFor(out));
 }
@@ -346,12 +340,9 @@ void SpillAllocator::handleFramePointerSwitch(
           ? codegen::arch::reg_double_return_loc
           : codegen::arch::reg_general_return_loc;
       block->allocateInstrBefore(
-          iter, Instruction::kMove, OutPhyReg{reg, dt}, Stk{slot, dt});
+          iter, Opcode::kMove, OutPhyReg{reg, dt}, Stk{slot, dt});
       block->allocateInstrBefore(
-          std::next(iter),
-          Instruction::kMove,
-          OutStk{slot, dt},
-          PhyReg{reg, dt});
+          std::next(iter), Opcode::kMove, OutStk{slot, dt}, PhyReg{reg, dt});
       changed_regs_.set(reg);
       return;
     }
@@ -375,7 +366,7 @@ void SpillAllocator::handleFramePointerSwitch(
       DataType dt = out->dataType();
       block->allocateInstrBefore(
           std::next(iter),
-          Instruction::kMove,
+          Opcode::kMove,
           OutStk{out->getStackSlot(), dt},
           PhyReg{codegen::arch::reg_general_return_loc, dt});
       changed_regs_.set(codegen::arch::reg_general_return_loc);
@@ -426,15 +417,14 @@ void SpillAllocator::resolveControlFlow() {
     // With per-slot spilling, liveness is irrelevant, so treat the block as
     // unconditional and drop the phantom edge.
     bool yield_with_resume =
-        last_op == Instruction::kBranchToYieldExit && succs.size() == 2;
+        last_op == Opcode::kBranchToYieldExit && succs.size() == 2;
 
     if (succs.size() == 1 || yield_with_resume) {
       emitPhiCopies(pred, succs.front());
 
       // kReturn and kBranchToYieldExit are pseudo-terminators; remove them so
       // PostRegAllocRewrite can insert a real branch to the successor.
-      if (last_op == Instruction::kReturn ||
-          last_op == Instruction::kBranchToYieldExit) {
+      if (last_op == Opcode::kReturn || last_op == Opcode::kBranchToYieldExit) {
         pred->removeInstr(pred->getLastInstrIter());
       }
       if (yield_with_resume) {
@@ -489,17 +479,17 @@ void SpillAllocator::emitPhiCopies(BasicBlock* pred, BasicBlock* succ) {
           dt,
           phi->output()->isFp());
       pred->allocateInstrBefore(
-          insert_at, Instruction::kMove, OutStk{dst, dt}, PhyReg{reg, dt});
+          insert_at, Opcode::kMove, OutStk{dst, dt}, PhyReg{reg, dt});
     } else if (src->isImm()) {
       pred->allocateInstrBefore(
           insert_at,
-          Instruction::kMove,
+          Opcode::kMove,
           OutStk{dst, dt},
           Imm{src->getConstant(), dt});
     } else if (src->isReg()) {
       pred->allocateInstrBefore(
           insert_at,
-          Instruction::kMove,
+          Opcode::kMove,
           OutStk{dst, dt},
           PhyReg{src->getPhyRegister(), dt});
     } else {

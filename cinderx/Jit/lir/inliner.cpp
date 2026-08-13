@@ -276,7 +276,7 @@ void LIRInliner::resolveLoadArg(
   // Based on the parameter type, resolve the kLoadArg.
   if (param->isImm()) {
     // For immediate values, change kLoadArg to kMove.
-    instr->setOpcode(Instruction::kMove);
+    instr->setOpcode(Opcode::kMove);
     auto param_copy = std::make_unique<Operand>(instr, param);
     param_copy->setConstant(param->getConstant());
     instr->setInput(0, std::move(param_copy));
@@ -325,8 +325,7 @@ void LIRInliner::resolveReturnValue() {
   auto epilogue = caller_->basicBlocks().at(callee_end_ - 1);
 
   // Create phi instruction.
-  auto phi_instr =
-      epilogue->allocateInstr(Instruction::kPhi, nullptr, OutVReg());
+  auto phi_instr = epilogue->allocateInstr(Opcode::kPhi, nullptr, OutVReg());
 
   // Find return instructions from predecessor of epilogue.
   for (auto pred : epilogue->predecessors()) {
@@ -355,9 +354,9 @@ void LIRInliner::resolveReturnValue() {
     // Callee has no return statements.
     // Remove phi instruction.
     epilogue->removeInstr(epilogue->getLastInstrIter());
-    call_instr_->setOpcode(Instruction::kNop);
+    call_instr_->setOpcode(Opcode::kNop);
   } else {
-    call_instr_->setOpcode(Instruction::kMove);
+    call_instr_->setOpcode(Opcode::kMove);
     // Remove all inputs.
     while (call_instr_->getNumInputs() > 0) {
       call_instr_->removeInput(call_instr_->getNumInputs() - 1);

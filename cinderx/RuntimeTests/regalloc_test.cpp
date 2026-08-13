@@ -320,7 +320,7 @@ TEST_F(
 
   auto lir_func = std::make_unique<Function>();
   BasicBlock* block = lir_func->allocateBasicBlock();
-  block->allocateInstr(Instruction::kCall, origin.get(), OutVReg());
+  block->allocateInstr(Opcode::kCall, origin.get(), OutVReg());
   BasicBlock* epilogue = lir_func->allocateBasicBlock();
   block->addSuccessor(epilogue);
 
@@ -338,7 +338,7 @@ TEST_F(
 TEST_F(LinearScanAllocatorTest, DeoptExitReservesVectorRegisters) {
   auto lir_func = std::make_unique<Function>();
   BasicBlock* block = lir_func->allocateBasicBlock();
-  block->allocateInstr(Instruction::kGuard, nullptr);
+  block->allocateInstr(Opcode::kGuard, nullptr);
   BasicBlock* epilogue = lir_func->allocateBasicBlock();
   block->addSuccessor(epilogue);
 
@@ -356,20 +356,18 @@ TEST_F(LinearScanAllocatorTest, InoutRegTest) {
   auto lirfunc = std::make_unique<Function>();
   auto bb = lirfunc->allocateBasicBlock();
 
-  auto a =
-      bb->allocateInstr(Instruction::kMove, nullptr, lir::OutVReg(), Imm(0));
-  auto b =
-      bb->allocateInstr(Instruction::kMove, nullptr, lir::OutVReg(), Imm(0));
+  auto a = bb->allocateInstr(Opcode::kMove, nullptr, lir::OutVReg(), Imm(0));
+  auto b = bb->allocateInstr(Opcode::kMove, nullptr, lir::OutVReg(), Imm(0));
 
   auto add = bb->allocateInstr(
-      Instruction::kAdd, nullptr, lir::OutVReg(), lir::VReg(a), lir::VReg(b));
+      Opcode::kAdd, nullptr, lir::OutVReg(), lir::VReg(a), lir::VReg(b));
 
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       lir::OutPhyReg{codegen::arch::reg_general_return_loc},
       lir::VReg(add));
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
@@ -387,24 +385,23 @@ TEST_F(LinearScanAllocatorTest, CallWithSideEffectTest) {
   auto lirfunc = std::make_unique<Function>();
   auto bb = lirfunc->allocateBasicBlock();
 
-  auto a = bb->allocateInstr(Instruction::kCall, nullptr, lir::OutVReg());
+  auto a = bb->allocateInstr(Opcode::kCall, nullptr, lir::OutVReg());
 
-  auto b =
-      bb->allocateInstr(Instruction::kMove, nullptr, lir::OutVReg(), Imm(0));
+  auto b = bb->allocateInstr(Opcode::kMove, nullptr, lir::OutVReg(), Imm(0));
 
   bb->allocateInstr(
-      Instruction::kMove,
+      Opcode::kMove,
       nullptr,
       lir::OutPhyReg{codegen::arch::reg_general_return_loc},
       lir::VReg(b));
-  bb->allocateInstr(Instruction::kReturn, nullptr);
+  bb->allocateInstr(Opcode::kReturn, nullptr);
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
-  ASSERT_TRUE(a->opcode() == Instruction::kCall);
+  ASSERT_TRUE(a->opcode() == Opcode::kCall);
   ASSERT_TRUE(a->output()->type() == lir::Operand::kVreg);
   runAllocator(lirfunc.get());
-  ASSERT_TRUE(a->opcode() == Instruction::kCall);
+  ASSERT_TRUE(a->opcode() == Opcode::kCall);
   ASSERT_TRUE(a->output()->type() == lir::Operand::kNone);
 }
 

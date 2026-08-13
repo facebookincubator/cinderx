@@ -142,22 +142,20 @@ class LIRGenerator {
       Args&&... args) {
 #if defined(CINDER_X86_64) && defined(_WIN32)
     Instruction* ret_struct = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kLea,
-        Stk{PhyLocation(env_->win_struct_ret_offset)});
+        OutVReg{}, Opcode::kLea, Stk{PhyLocation(env_->win_struct_ret_offset)});
     bbb.appendInstr(
         OutVReg{},
-        Instruction::kCall,
+        Opcode::kCall,
         func,
         VReg{ret_struct},
         std::forward<Args>(args)...);
-    bbb.appendInstr(dst, Instruction::kMove, Ind{ret_struct, 0});
+    bbb.appendInstr(dst, Opcode::kMove, Ind{ret_struct, 0});
     bbb.appendInstr(
         OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
-        Instruction::kMove,
+        Opcode::kMove,
         Ind{ret_struct, 8});
 #else
-    bbb.appendInstr(dst, Instruction::kCall, func, std::forward<Args>(args)...);
+    bbb.appendInstr(dst, Opcode::kCall, func, std::forward<Args>(args)...);
 #endif
   }
 
@@ -171,25 +169,21 @@ class LIRGenerator {
       Args&&... args) {
 #if defined(CINDER_X86_64) && defined(_WIN32)
     Instruction* ret_struct = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kLea,
-        Stk{PhyLocation(env_->win_struct_ret_offset)});
+        OutVReg{}, Opcode::kLea, Stk{PhyLocation(env_->win_struct_ret_offset)});
     bbb.appendInstr(
         OutVReg{},
-        Instruction::kCall,
+        Opcode::kCall,
         func,
         VReg{ret_struct},
         std::forward<Args>(args)...);
-    first_out =
-        bbb.appendInstr(OutVReg{}, Instruction::kMove, Ind{ret_struct, 0});
-    second_out =
-        bbb.appendInstr(OutVReg{}, Instruction::kMove, Ind{ret_struct, 8});
+    first_out = bbb.appendInstr(OutVReg{}, Opcode::kMove, Ind{ret_struct, 0});
+    second_out = bbb.appendInstr(OutVReg{}, Opcode::kMove, Ind{ret_struct, 8});
 #else
     first_out = bbb.appendInstr(
-        OutVReg{}, Instruction::kCall, func, std::forward<Args>(args)...);
+        OutVReg{}, Opcode::kCall, func, std::forward<Args>(args)...);
     second_out = bbb.appendInstr(
         OutVReg{},
-        Instruction::kMove,
+        Opcode::kMove,
         PhyReg{codegen::arch::reg_general_auxilary_return_loc});
 #endif
   }
@@ -211,7 +205,7 @@ class LIRGenerator {
     JIT_CHECK(kind != InstrGuardKind::kAlwaysFail, "Use appendGuardAlwaysFail");
     auto deopt_id = bbb.makeDeoptMetadata();
     auto instr = bbb.appendInstr(
-        Instruction::kGuard,
+        Opcode::kGuard,
         Imm{static_cast<uint64_t>(kind)},
         Imm{deopt_id},
         std::forward<TOperand>(guard_var));

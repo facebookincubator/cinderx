@@ -229,12 +229,12 @@ BB %0
   // A local copy of the long-lived object %10 is made before stripping:
   //   %copy:Object = Move %10:Object
   EXPECT_LIR(Query(*pre_alloc_func)
-                 .opcode(Instruction::kMove)
+                 .opcode(Opcode::kMove)
                  .outType(DataType::kObject)
                  .inVreg(0, 10));
   // ...and the strip produces the untagged value.
   EXPECT_LIR(Query(*pre_alloc_func)
-                 .opcode(Instruction::kAnd)
+                 .opcode(Opcode::kAnd)
                  .outType(DataType::kObjectUntagged));
   // Post-allocation the strip reads the register holding the adjacent copy.
   // Query doesn't model physical-register shapes, so check these by text.
@@ -248,7 +248,7 @@ BB %0
   // They do not need a register-producing strip: the tag can be removed while
   // materializing the immediate as an ObjectUntagged value.
   EXPECT_LIR(Query(*pre_alloc_func)
-                 .opcode(Instruction::kMove)
+                 .opcode(Opcode::kMove)
                  .outType(DataType::kObjectUntagged)
                  .inImm(0, 4660));
   EXPECT_NE(
@@ -259,8 +259,8 @@ BB %0
   // tagged object definition. The `And` must not strip directly from a
   // long-lived definition: neither the call result %10 nor the immediate %60
   // (each is copied locally first).
-  EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Instruction::kAnd).inVreg(0, 10));
-  EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Instruction::kAnd).inVreg(0, 60));
+  EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Opcode::kAnd).inVreg(0, 10));
+  EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Opcode::kAnd).inVreg(0, 60));
 #endif
 }
 

@@ -189,7 +189,7 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
             continue;
           }
 
-          instr_ = block_->allocateInstr(Instruction::kNop, nullptr);
+          instr_ = block_->allocateInstr(Opcode::kNop, nullptr);
           instr_->setId(-1);
           auto output = instr_->output();
           if (type == kId) {
@@ -388,7 +388,7 @@ DataType Parser::getOperandDataType(const std::string& name) const {
 
 Opcode Parser::getInstrOpcode(const std::string& name) const {
   static const std::unordered_map<std::string, Opcode> instr_name_to_opcode = {
-#define INSTR_NAME_TO_OPCODE(v, ...) {#v, Instruction::k##v},
+#define INSTR_NAME_TO_OPCODE(v, ...) {#v, Opcode::k##v},
       FOREACH_LIR_OPCODE(INSTR_NAME_TO_OPCODE)
 #undef INSTR_NAME_TO_OPCODE
   };
