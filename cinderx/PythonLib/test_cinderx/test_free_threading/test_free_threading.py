@@ -17,6 +17,34 @@ def fibonacci(n: int) -> int:
     return fibonacci(n - 1) + fibonacci(n - 2)
 
 
+class FunctionWatcherTest(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @run_in_subprocess
+    def test_concurrent_qualname_updates(self) -> None:
+        worker_count = 10
+        iterations = 1_000
+        start = threading.Barrier(worker_count)
+
+        def target() -> None:
+            pass
+
+        cinderx.jit.jit_suppress(target)
+        self.assertFalse(cinderx.jit.is_jit_compiled(target))
+
+        @cinderx.jit.jit_suppress
+        def update_qualname(worker: int) -> None:
+            start.wait()
+            for iteration in range(iterations):
+                target.__qualname__ = f"target_{worker}_{iteration}"
+
+        # Unsynchronized updates can underflow the old qualname's refcount.
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            list(executor.map(update_qualname, range(worker_count)))
+
+        self.assertFalse(cinderx.jit.is_jit_compiled(target))
+        self.assertRegex(target.__qualname__, r"^target_\d+_\d+$")
+
+
 class JITCompilationTest(unittest.TestCase):
     def setUp(self):
         self.bg_compile = cinderx.jit.get_background_compile()
