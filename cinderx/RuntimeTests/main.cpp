@@ -276,12 +276,7 @@ int main(int argc, char* argv[]) {
   register_test("native_calls_test.txt", RuntimeTest::kStaticCompiler);
   register_test("static_array_item_test.txt", RuntimeTest::kStaticCompiler);
 
-  wchar_t* argv0 = Py_DecodeLocale(argv[0], nullptr);
-  if (argv0 == nullptr) {
-    std::cerr << "Py_DecodeLocale() failed to allocate\n";
-    std::abort();
-  }
-  Py_SetProgramName(argv0);
+  setPythonProgramName(argv[0]);
 
   // Prevent any test failures due to transient pointer values.
   setUseStablePointers(true);
@@ -292,8 +287,5 @@ int main(int argc, char* argv[]) {
   rl.rlim_max = RLIM_INFINITY;
   setrlimit(RLIMIT_STACK, &rl);
 
-  int result = RUN_ALL_TESTS();
-
-  PyMem_RawFree(argv0);
-  return result;
+  return RUN_ALL_TESTS();
 }

@@ -12,6 +12,31 @@
 
 using namespace cinderx;
 
+namespace {
+std::string s_program_name;
+} // namespace
+
+void setPythonProgramName(std::string name) {
+  s_program_name = std::move(name);
+}
+
+void initializePython() {
+  PyConfig config;
+  PyConfig_InitPythonConfig(&config);
+
+  PyStatus status = PyConfig_SetBytesString(
+      &config, &config.program_name, s_program_name.c_str());
+  if (!PyStatus_Exception(status)) {
+    status = Py_InitializeFromConfig(&config);
+  }
+  PyConfig_Clear(&config);
+
+  JIT_CHECK(
+      !PyStatus_Exception(status),
+      "Failed to initialize Python: {}",
+      status.err_msg != nullptr ? status.err_msg : "<no error message>");
+}
+
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {
   // Force preloading dependent functions to test the inliner.

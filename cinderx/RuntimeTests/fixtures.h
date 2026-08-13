@@ -14,7 +14,13 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_state.h"
 
+#include <string>
+
 #define JIT_TEST_MOD_NAME "jittestmodule"
+
+void setPythonProgramName(std::string name);
+
+void initializePython();
 
 #define THROW(...)                                      \
   {                                                     \
@@ -55,7 +61,7 @@ class RuntimeTest : public ::testing::Test {
       cinderx::jit::getMutableConfig().force_init = true;
     }
 
-    Py_Initialize();
+    initializePython();
     ASSERT_TRUE(Py_IsInitialized());
 
     auto cinderx_mod = Ref<>::steal(PyImport_ImportModule("cinderx"));
