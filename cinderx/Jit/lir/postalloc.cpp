@@ -742,7 +742,7 @@ Instruction* findFusibleCompare(
     auto* candidate = it->get();
 
     // Check if this is a compare that writes to our input register.
-    if (candidate->isCompare() && candidate->output()->isReg() &&
+    if (isCompare(candidate->opcode()) && candidate->output()->isReg() &&
         candidate->output()->getPhyRegister() == input_reg) {
       return candidate;
     }
@@ -782,7 +782,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   Opcode opcode;
   if (compare != nullptr) {
     // Use the compare's condition directly for the branch.
-    opcode = Instruction::compareToBranchCC(compare->opcode());
+    opcode = compareToBranchCC(compare->opcode());
     // If no instruction between the compare and the CondBranch reads the
     // compare's output register, we could convert to kCmp to skip emitting the
     // (now dead) setcc. However, the register allocator may have assigned the
@@ -832,7 +832,7 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   }
 
   if (true_block == next_block) {
-    opcode = Instruction::negateBranchCC(opcode);
+    opcode = negateBranchCC(opcode);
     target_block = false_block;
     fallthrough_block = true_block;
   } else {
@@ -863,7 +863,7 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   BasicBlock* fallthrough_bb = nullptr;
 
   if (true_bb == next_block) {
-    instr->setOpcode(Instruction::negateBranchCC(instr->opcode()));
+    instr->setOpcode(negateBranchCC(instr->opcode()));
     instr->allocateLabelInput(false_bb);
     fallthrough_bb = true_bb;
   } else {
@@ -937,7 +937,7 @@ RewriteResult rewriteCondBranch(Function* function) {
     if (instr->isCondBranch()) {
       doRewriteCondBranch(instr_iter, next_block);
       changed = true;
-    } else if (instr->isBranchCC() && instr->getNumInputs() == 0) {
+    } else if (isBranchCC(instr->opcode()) && instr->getNumInputs() == 0) {
       doRewriteBranchCC(instr_iter, next_block);
       changed = true;
     } else if (
@@ -1533,7 +1533,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
     // so an FP live value has to stay in memory.
     // TODO: yields and deopt exits need to be special cased so their non-live
     // value operands can still be optimized.
-    if (!instr->isAnyYield() && !instr->isDeoptExit()) {
+    if (!isAnyYield(instr->opcode()) && !isDeoptExit(instr->opcode())) {
       auto out_reg = instr->output()->isReg()
           ? instr->output()->getPhyRegister()
           : PhyLocation::REG_INVALID;

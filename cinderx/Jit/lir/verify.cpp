@@ -16,8 +16,8 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
     BasicBlock* next_block = iter == blocks.end() ? nullptr : *iter;
     std::unordered_set<BasicBlock*> branched_blocks;
     for (auto& instr : block->instructions()) {
-      if (instr->isBranch() || instr->isBranchCC() || instr->isBranchBitSet() ||
-          instr->isBranchBitNotSet()) {
+      if (instr->isBranch() || isBranchCC(instr->opcode()) ||
+          instr->isBranchBitSet() || instr->isBranchBitNotSet()) {
         size_t label_input_idx = 0;
         if (instr->isBranchBitSet() || instr->isBranchBitNotSet()) {
           JIT_DCHECK(
@@ -37,7 +37,7 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
         JIT_DCHECK(
             operand->type() == Operand::kLabel, "Branch must jump to a label.");
         branched_blocks.insert(operand->getBasicBlock());
-      } else if (instr->isCmpBranch()) {
+      } else if (isCmpBranch(instr->opcode())) {
         JIT_DCHECK(
             instr->getNumInputs() == 2,
             "CmpBranch must have register and label inputs.");

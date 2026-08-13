@@ -229,30 +229,6 @@ class Instruction {
   bool getInputPhyRegUse(size_t i) const;
   bool inputsLiveAcross() const;
 
-  bool isCompare() const;
-  bool isBranchCC() const;
-  bool isCmpBranch() const;
-  bool isAnyBranch() const;
-  bool isTerminator() const;
-  bool isAnyYield() const;
-
-  // Whether this instruction records the physical locations of deopt live
-  // values, i.e. its trailing inputs are read back by MemoryView at deopt
-  // time.  Yields do this too, but are covered by isAnyYield().
-  bool isDeoptExit() const;
-
-  // negate the branch condition:
-  // e.g. A >= B -> !(A < B)
-  static Opcode negateBranchCC(Opcode opcode);
-
-  // flipping the direction of comparison:
-  // e.g. A >= B -> B <= A
-  static Opcode flipBranchCCDirection(Opcode opcode);
-
-  static Opcode flipComparisonDirection(Opcode opcode);
-
-  static Opcode compareToBranchCC(Opcode opcode);
-
  private:
   template <typename FType, typename... AType>
   Operand* allocateOperand(FType&& set_func, AType&&... arg) {

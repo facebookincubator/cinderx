@@ -25,7 +25,8 @@ bool shouldReplaceOperand(const Operand& operand) {
 // Whether phi copies must be inserted before this instruction (a control
 // transfer at the end of a block) rather than at the very end of the block.
 bool isBlockTerminator(const Instruction* instr) {
-  return instr->isBranch() || instr->isAnyBranch() || instr->isTerminator();
+  return instr->isBranch() || isAnyBranch(instr->opcode()) ||
+      isTerminator(instr->opcode());
 }
 
 } // namespace

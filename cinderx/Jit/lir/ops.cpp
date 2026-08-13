@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/lir/ops.h"
 
+#include "cinderx/Common/log.h"
+
 namespace cinderx::jit::lir {
 
 std::string_view opname(Opcode opcode) {
@@ -15,6 +17,182 @@ std::string_view opname(Opcode opcode) {
       break;
   }
   return "<unknown opcode>";
+}
+
+bool isCompare(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kEqual:
+    case Opcode::kGreaterThanEqualSigned:
+    case Opcode::kGreaterThanEqualUnsigned:
+    case Opcode::kGreaterThanSigned:
+    case Opcode::kGreaterThanUnsigned:
+    case Opcode::kLessThanEqualSigned:
+    case Opcode::kLessThanEqualUnsigned:
+    case Opcode::kLessThanSigned:
+    case Opcode::kLessThanUnsigned:
+    case Opcode::kNotEqual:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool isBranchCC(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kBranchA:
+    case Opcode::kBranchAE:
+    case Opcode::kBranchB:
+    case Opcode::kBranchBE:
+    case Opcode::kBranchC:
+    case Opcode::kBranchE:
+    case Opcode::kBranchG:
+    case Opcode::kBranchGE:
+    case Opcode::kBranchL:
+    case Opcode::kBranchLE:
+    case Opcode::kBranchNC:
+    case Opcode::kBranchNE:
+    case Opcode::kBranchNO:
+    case Opcode::kBranchNS:
+    case Opcode::kBranchNZ:
+    case Opcode::kBranchO:
+    case Opcode::kBranchS:
+    case Opcode::kBranchZ:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool isCmpBranch(Opcode opcode) {
+  return opcode == Opcode::kCmpBranchZero ||
+      opcode == Opcode::kCmpBranchNonZero;
+}
+
+bool isAnyBranch(Opcode opcode) {
+  return opcode == Opcode::kCondBranch || opcode == Opcode::kBranchBitSet ||
+      opcode == Opcode::kBranchBitNotSet || isBranchCC(opcode) ||
+      isCmpBranch(opcode);
+}
+
+bool isTerminator(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kBranchToYieldExit:
+    case Opcode::kEpilogueEnd:
+    case Opcode::kReturn:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool isDeoptExit(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kGuard:
+    case Opcode::kDeoptPatchpoint:
+#if defined(CINDER_AARCH64)
+    case Opcode::kA64GuardCC:
+#endif
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool isAnyYield(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kStoreGenYieldFromPoint:
+    case Opcode::kStoreGenYieldPoint:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+#define CASE_FLIP(A, B)  \
+  case Opcode::k##A:     \
+    return Opcode::k##B; \
+  case Opcode::k##B:     \
+    return Opcode::k##A;
+
+Opcode negateBranchCC(Opcode opcode) {
+  switch (opcode) {
+    CASE_FLIP(BranchA, BranchBE)
+    CASE_FLIP(BranchB, BranchAE)
+    CASE_FLIP(BranchC, BranchNC)
+    CASE_FLIP(BranchE, BranchNE)
+    CASE_FLIP(BranchG, BranchLE)
+    CASE_FLIP(BranchL, BranchGE)
+    CASE_FLIP(BranchO, BranchNO)
+    CASE_FLIP(BranchS, BranchNS)
+    CASE_FLIP(BranchZ, BranchNZ)
+    default:
+      break;
+  }
+  JIT_THROW("Not a conditional branch opcode: {}", opname(opcode));
+}
+
+Opcode flipBranchCCDirection(Opcode opcode) {
+  switch (opcode) {
+    CASE_FLIP(BranchA, BranchB)
+    CASE_FLIP(BranchAE, BranchBE)
+    CASE_FLIP(BranchL, BranchG)
+    CASE_FLIP(BranchLE, BranchGE)
+    default:
+      break;
+  }
+  JIT_THROW("Unable to flip branch condition for opcode: {}", opname(opcode));
+}
+
+Opcode flipComparisonDirection(Opcode opcode) {
+  switch (opcode) {
+    CASE_FLIP(GreaterThanEqualSigned, LessThanEqualSigned)
+    CASE_FLIP(GreaterThanEqualUnsigned, LessThanEqualUnsigned)
+    CASE_FLIP(GreaterThanSigned, LessThanSigned)
+    CASE_FLIP(GreaterThanUnsigned, LessThanUnsigned)
+    case Opcode::kEqual:
+      return Opcode::kEqual;
+    case Opcode::kNotEqual:
+      return Opcode::kNotEqual;
+    default:
+      break;
+  }
+  JIT_THROW(
+      "Unable to flip comparison direction for opcode: {}", opname(opcode));
+}
+
+#undef CASE_FLIP
+
+Opcode compareToBranchCC(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kEqual:
+      return Opcode::kBranchE;
+    case Opcode::kNotEqual:
+      return Opcode::kBranchNE;
+    case Opcode::kGreaterThanUnsigned:
+      return Opcode::kBranchA;
+    case Opcode::kLessThanUnsigned:
+      return Opcode::kBranchB;
+    case Opcode::kGreaterThanEqualUnsigned:
+      return Opcode::kBranchAE;
+    case Opcode::kLessThanEqualUnsigned:
+      return Opcode::kBranchBE;
+    case Opcode::kGreaterThanSigned:
+      return Opcode::kBranchG;
+    case Opcode::kLessThanSigned:
+      return Opcode::kBranchL;
+    case Opcode::kGreaterThanEqualSigned:
+      return Opcode::kBranchGE;
+    case Opcode::kLessThanEqualSigned:
+      return Opcode::kBranchLE;
+    default:
+      break;
+  }
+  JIT_THROW("Not a compare opcode, {}", opname(opcode));
 }
 
 bool writesFlags(Opcode opcode) {

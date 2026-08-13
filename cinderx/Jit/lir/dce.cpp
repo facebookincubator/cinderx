@@ -26,9 +26,8 @@ static bool isUseful(const Instruction* instruction) {
       instruction->output() != nullptr || isEssential(opcode),
       "Any instruction without an output must be marked as essential.");
   return (
-      instruction->isAnyBranch() || instruction->isTerminator() ||
-      writesFlags(opcode) || isEssential(opcode) ||
-      operandAffectsMemory(instruction->output()));
+      isAnyBranch(opcode) || isTerminator(opcode) || writesFlags(opcode) ||
+      isEssential(opcode) || operandAffectsMemory(instruction->output()));
 }
 
 void eliminateDeadCode(Function* function) {

@@ -105,7 +105,8 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   }
 
   bool is_commutative_or_compare = instr->isAdd() || instr->isAnd() ||
-      instr->isMul() || instr->isOr() || instr->isXor() || instr->isCompare();
+      instr->isMul() || instr->isOr() || instr->isXor() ||
+      isCompare(instr->opcode());
   bool is_shift = instr->isLShift() || instr->isRShift() || instr->isRShiftUn();
   if (!is_commutative_or_compare && !is_shift && !instr->isSub()) {
     return kUnchanged;
@@ -122,8 +123,8 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   if (is_commutative_or_compare && !input1->isImm()) {
     // if the operation is commutative and the second input is not also an
     // immediate, just swap the operands
-    if (instr->isCompare()) {
-      instr->setOpcode(Instruction::flipComparisonDirection(instr->opcode()));
+    if (isCompare(instr->opcode())) {
+      instr->setOpcode(flipComparisonDirection(instr->opcode()));
     }
     auto imm = instr->removeInput(0);
     instr->appendInput(std::move(imm));
@@ -155,7 +156,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   if (!instr->isAdd() && !instr->isSub() && !instr->isXor() &&
       !instr->isAnd() && !instr->isOr() && !instr->isMul() &&
-      !instr->isCompare()) {
+      !isCompare(instr->opcode())) {
     return kUnchanged;
   }
 
@@ -183,7 +184,7 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 #elif defined(CINDER_AARCH64)
-  if (instr->isAdd() || instr->isSub() || instr->isCompare()) {
+  if (instr->isAdd() || instr->isSub() || isCompare(instr->opcode())) {
     // add, sub, and cmp (which is a pseudo-instruction aliased to subs) all
     // support a 12-bit immediate optionally shifted by 20 bits.
     if (asmjit::arm::Utils::isAddSubImm(constant)) {
@@ -559,7 +560,7 @@ RewriteResult rewriteSingleStackInputToVreg(
     instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (instr->isAdd() || instr->isSub() || instr->isXor() || instr->isAnd() ||
-      instr->isOr() || instr->isMul() || instr->isCompare()) {
+      instr->isOr() || instr->isMul() || isCompare(instr->opcode())) {
     return rewriteAllStackInputsToVreg(instr_iter);
   }
 

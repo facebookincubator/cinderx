@@ -155,6 +155,44 @@ enum class OperandSizeType {
 // Get the string name of an opcode.  This is a null-terminated literal value.
 std::string_view opname(Opcode opcode);
 
+// Whether the opcode compares two values and writes a boolean output.
+bool isCompare(Opcode opcode);
+
+// Whether the opcode branches on the machine's status flags.
+bool isBranchCC(Opcode opcode);
+
+// Whether the opcode compares a value against zero and branches on the result.
+bool isCmpBranch(Opcode opcode);
+
+// Whether the opcode is any kind of conditional branch.
+bool isAnyBranch(Opcode opcode);
+
+// Whether the opcode ends a basic block by leaving the function.
+bool isTerminator(Opcode opcode);
+
+// Whether this instruction records the physical locations of deopt live values,
+// i.e. its trailing inputs are read back by MemoryView at deopt time.  Yields
+// do this too, but are covered by isAnyYield().
+bool isDeoptExit(Opcode opcode);
+
+// Whether the opcode is a generator yield point.
+bool isAnyYield(Opcode opcode);
+
+// Negate the branch condition:
+// e.g. A >= B -> !(A < B)
+Opcode negateBranchCC(Opcode opcode);
+
+// Flip the direction of a conditional branch:
+// e.g. A >= B -> B <= A
+Opcode flipBranchCCDirection(Opcode opcode);
+
+// Flip the direction of a comparison:
+// e.g. A >= B -> B <= A
+Opcode flipComparisonDirection(Opcode opcode);
+
+// Get the conditional branch opcode matching a comparison opcode.
+Opcode compareToBranchCC(Opcode opcode);
+
 // Whether the opcode will modify the machine's status flags.
 bool writesFlags(Opcode opcode);
 

@@ -586,7 +586,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       }
 #endif
 
-      if (instr->isAnyYield()) {
+      if (isAnyYield(instr_opcode)) {
         reserveRegisters(instr_loc, INIT_REGISTERS);
       }
 
@@ -594,7 +594,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       // MemoryView::readRaw indexes that array with a live value's PhyLocation
       // (see Jit/deopt.h).  A live value left in a vector register would be
       // read from past the end of it, so force those into memory here.
-      if (instr->isDeoptExit()) {
+      if (isDeoptExit(instr->opcode())) {
         reserveRegisters(instr_loc, ALL_VECD_REGISTERS);
       }
 

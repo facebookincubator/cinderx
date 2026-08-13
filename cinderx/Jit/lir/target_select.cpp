@@ -370,7 +370,7 @@ void selectA64CondBranch(
   /* Check that the input to this conditional branch is a compare in the same
    * block and that it is not used by any other instruction. */
   Instruction* compare = input->getLinkedInstr();
-  if (!compare->isCompare() || compare->basicBlock() != block ||
+  if (!isCompare(compare->opcode()) || compare->basicBlock() != block ||
       use_counts.at(compare) != 1) {
     return;
   }
@@ -383,7 +383,7 @@ void selectA64CondBranch(
   }
 
   /* Convert to a conditional compare and branch instruction. */
-  Opcode branch_opcode = Instruction::compareToBranchCC(compare->opcode());
+  Opcode branch_opcode = compareToBranchCC(compare->opcode());
 
   compare->setOpcode(Instruction::kCmp);
   compare->output()->setNone();
@@ -425,7 +425,7 @@ void selectA64Guard(
   /* Check that the input to this guard is a compare in the same block and that
    * it is not used by any other instruction. */
   Instruction* compare = input->getLinkedInstr();
-  if (!compare->isCompare() || compare->basicBlock() != block ||
+  if (!isCompare(compare->opcode()) || compare->basicBlock() != block ||
       use_counts.at(compare) != 1) {
     return;
   }
@@ -438,9 +438,9 @@ void selectA64Guard(
   }
 
   /* Convert to a conditional compare and branch instruction. */
-  Opcode branch_opcode = Instruction::compareToBranchCC(compare->opcode());
+  Opcode branch_opcode = compareToBranchCC(compare->opcode());
   if (kind == InstrGuardKind::kNotZero) {
-    branch_opcode = Instruction::negateBranchCC(branch_opcode);
+    branch_opcode = negateBranchCC(branch_opcode);
   }
 
   compare->setOpcode(Instruction::kCmp);
