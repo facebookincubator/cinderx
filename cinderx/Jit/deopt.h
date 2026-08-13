@@ -222,25 +222,20 @@ struct DeoptMetadata {
 // One instance should cover a whole deopt: reading a primitive live value has
 // to box it, and the cache below is what keeps every frame-state slot backed
 // by that value pointing at a single object.
-struct MemoryView {
-  const uint64_t* regs;
-
-  // Objects materialized for primitive live values, keyed by the value they
-  // came from.  Holds a reference for as long as this view is alive.
-  mutable UnorderedMap<const LiveValue*, Ref<>> boxed_primitives;
+class MemoryView {
+ public:
+  explicit MemoryView(const uint64_t* regs);
 
   BorrowedRef<> readBorrowed(const LiveValue& value) const;
   Ref<> readOwned(const LiveValue& value) const;
+  uint64_t readRaw(const LiveValue& value) const;
 
-  uint64_t readRaw(const LiveValue& value) const {
-    codegen::PhyLocation loc = value.location;
-    if (loc.isRegister()) {
-      return regs[loc.loc];
-    }
-    uint64_t frame_pointer = regs[codegen::arch::reg_frame_pointer_loc.loc];
-    // loc.loc is relative offset from RBP (i.e. negative as stack grows down)
-    return *(reinterpret_cast<uint64_t*>(frame_pointer + loc.loc));
-  }
+ private:
+  const uint64_t* regs_;
+
+  // Objects materialized for primitive live values, keyed by the value they
+  // came from.  Holds a reference for as long as this view is alive.
+  mutable UnorderedMap<const LiveValue*, Ref<>> boxed_primitives_;
 };
 
 // Update `frame` so that execution can resume in the interpreter.

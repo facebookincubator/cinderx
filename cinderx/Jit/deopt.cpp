@@ -340,6 +340,8 @@ const char* deoptReasonName(DeoptReason reason) {
   JIT_ABORT("Invalid DeoptReason {}", static_cast<int>(reason));
 }
 
+MemoryView::MemoryView(const uint64_t* regs) : regs_{regs} {}
+
 BorrowedRef<> MemoryView::readBorrowed(const LiveValue& value) const {
   JIT_CHECK(
       value.value_kind == jit::hir::ValueKind::kObject,
@@ -364,11 +366,21 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
   // Everything else is a primitive that has to be boxed into a new object.  A
   // single LiveValue can back several frame-state slots, which all held one
   // object in the interpreter, so box it once and hand out references to that.
-  Ref<>& boxed = boxed_primitives[&value];
+  Ref<>& boxed = boxed_primitives_[&value];
   if (boxed == nullptr) {
     boxed = boxPrimitive(value.value_kind, raw);
   }
   return Ref<>::create(boxed.get());
+}
+
+uint64_t MemoryView::readRaw(const LiveValue& value) const {
+  codegen::PhyLocation loc = value.location;
+  if (loc.isRegister()) {
+    return regs_[loc.loc];
+  }
+  uint64_t frame_pointer = regs_[codegen::arch::reg_frame_pointer_loc.loc];
+  // loc.loc is relative offset from RBP (i.e. negative as stack grows down)
+  return *(reinterpret_cast<uint64_t*>(frame_pointer + loc.loc));
 }
 
 Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
