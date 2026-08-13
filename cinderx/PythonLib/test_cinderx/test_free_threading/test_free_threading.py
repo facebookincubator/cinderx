@@ -2,7 +2,6 @@
 
 # pyre-strict
 
-import os
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -18,7 +17,6 @@ def fibonacci(n: int) -> int:
 
 
 class FunctionWatcherTest(unittest.TestCase):
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_qualname_updates(self) -> None:
         worker_count = 10
@@ -53,7 +51,6 @@ class JITCompilationTest(unittest.TestCase):
     def tearDown(self):
         cinderx.jit.background_compile(self.bg_compile)
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_force_compile(self) -> None:
         worker_count = 10
@@ -87,7 +84,6 @@ class JITCompilationTest(unittest.TestCase):
         )
         self.assertTrue(cinderx.jit.is_jit_compiled(fibonacci))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_calls_trigger_jit_compilation(self) -> None:
         cinderx.jit.compile_after_n_calls(3)

@@ -5,7 +5,6 @@
 """Free-threaded JIT regression tests for tuple subscripts."""
 
 import dis
-import os
 import threading
 import unittest
 from collections.abc import Callable, Sequence
@@ -57,7 +56,6 @@ class JITTupleTest(unittest.TestCase):
         self.assertEqual(results, [True] * worker_count)
         return worker_count * iterations
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_subscript_without_specialized_opcodes(self) -> None:
         """Keep generic HIR when compiling an adaptive tuple opcode."""
@@ -78,7 +76,6 @@ class JITTupleTest(unittest.TestCase):
         values = (object(),)
         self.exercise_concurrent_reads(read_item, values)
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_subscript_with_simplify(self) -> None:
         """Keep the direct LoadArrayItem path for exact tuples.
@@ -104,7 +101,6 @@ class JITTupleTest(unittest.TestCase):
         values = (object(),)
         self.exercise_concurrent_reads(read_item, values)
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_deopt_on_guard_failure(self) -> None:
         """Concurrent list calls deopt at the exact-tuple guard."""

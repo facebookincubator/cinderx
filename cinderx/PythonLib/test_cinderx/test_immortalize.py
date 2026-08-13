@@ -2,7 +2,6 @@
 # pyre-unsafe
 
 import gc
-import os
 import sys
 import unittest
 
@@ -24,14 +23,12 @@ class ImmortalizeTests(unittest.TestCase):
         obj = []
         self.assertFalse(cinderx.is_immortal(obj))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_is_immortal(self) -> None:
         obj = []
         cinderx.immortalize_heap()
         self.assertTrue(cinderx.is_immortal(obj))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_post_immortalize(self) -> None:
         cinderx.immortalize_heap()
@@ -42,7 +39,6 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_exact_dict_unicode_keys(self) -> None:
         key = "".join(("qe2_", "param"))
@@ -61,7 +57,6 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_gc_collected_exact_dict_entries(self) -> None:
         key = "".join(("gc_collected_", "param"))
@@ -83,7 +78,6 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_nested_exact_dict_entries(self) -> None:
         outer_key = "".join(("outer_", "param"))
@@ -106,7 +100,6 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_self_referential_exact_dict_entries(self) -> None:
         key = "".join(("self_", "param"))
@@ -125,7 +118,6 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(self_key))
         self.assertIs(mapping[self_key], mapping)
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_code_consts_entries(self) -> None:
         def target() -> None:
@@ -143,7 +135,6 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(consts))
         self.assertTrue(cinderx.is_immortal(const))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_code_consts_tuple_entry(self) -> None:
         def target() -> None:
@@ -162,7 +153,6 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(consts))
         self.assertTrue(cinderx.is_immortal(tuple_const))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_code_consts_nested_exact_dict_entries(self) -> None:
         def target() -> None:
@@ -184,7 +174,6 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(key))
         self.assertTrue(cinderx.is_immortal(value))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_nested_code_object_consts(self) -> None:
         def inner() -> None:
@@ -210,7 +199,6 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_code_name_tuple_entries(self) -> None:
         def target() -> None:
@@ -233,7 +221,6 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(name))
         self.assertTrue(cinderx.is_immortal(local_name))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_code_exceptiontable(self) -> None:
         def target() -> None:
@@ -251,7 +238,6 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(target.__code__))
         self.assertTrue(cinderx.is_immortal(exceptiontable))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_refcount(self) -> None:
         from cinderx import jit
@@ -274,7 +260,6 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_immortalize_code_qualname(self) -> None:
         def target() -> None:

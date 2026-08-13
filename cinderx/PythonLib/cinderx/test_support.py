@@ -338,11 +338,15 @@ class _ExceptionResult:
         self.exc = exc
 
 
-def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
+def run_in_subprocess(func: Callable[..., None]) -> Callable[..., None]:
     """
-    Run a function in a subprocess.  This enables modifying process state in a
-    test without affecting other test functions.
+    Run a test function in a subprocess.  This enables modifying process state
+    without affecting other test functions.  Pass the test without running it
+    when fork is unavailable.
     """
+
+    if "fork" not in multiprocessing.get_all_start_methods():
+        return passAlways(f"fork is unavailable on {platform.system()}")(func)
 
     queue: multiprocessing.Queue = multiprocessing.Queue()
 
@@ -353,7 +357,7 @@ def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
         except Exception as e:
             queue.put(_ExceptionResult(e), timeout=SUBPROCESS_TIMEOUT_SEC)
 
-    def wrapped(*args: object) -> TRet:
+    def wrapped(*args: object) -> None:
         fork = multiprocessing.get_context("fork")
         p = fork.Process(target=wrapper, args=(queue, *args))
         p.start()
@@ -361,7 +365,6 @@ def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
         p.join(timeout=SUBPROCESS_TIMEOUT_SEC)
         if isinstance(value, _ExceptionResult):
             raise value.exc
-        return value
 
     return wrapped
 

@@ -5,7 +5,6 @@
 """Free-threaded JIT regression tests for closure cell access."""
 
 import gc
-import os
 import queue
 import threading
 import unittest
@@ -18,7 +17,6 @@ from cinderx.test_support import run_in_subprocess
 class JITCellTest(unittest.TestCase):
     """Exercises closure cells shared by concurrently executing JIT code."""
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_load_deref(self) -> None:
         """A loaded cell value must remain alive while writers replace it."""
@@ -63,7 +61,6 @@ class JITCellTest(unittest.TestCase):
 
         self.assertTrue(value.startswith("w"))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_store_deref_releases_each_value_once(self) -> None:
         """Concurrent cell stores must transfer ownership exactly once."""

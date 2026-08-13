@@ -5,7 +5,6 @@
 """Free-threaded JIT regression tests for list subscripts."""
 
 import dis
-import os
 import threading
 import unittest
 from collections.abc import Callable
@@ -71,7 +70,6 @@ class JITListTest(unittest.TestCase):
 
         self.assertTrue(values[0].startswith("w"))
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_concurrent_subscript_without_specialized_opcodes(self) -> None:
         """Keep generic HIR when compiling an adaptive list opcode."""
@@ -92,7 +90,6 @@ class JITListTest(unittest.TestCase):
 
         self.exercise_concurrent_access(read_item)
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @unittest.skipUnless(FREE_THREADING_BUILD, "requires free-threaded build")
     @run_in_subprocess
     def test_concurrent_subscript_with_simplify(self) -> None:

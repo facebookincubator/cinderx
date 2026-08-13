@@ -5,7 +5,6 @@
 # pyre-unsafe
 
 import builtins
-import os
 import unittest
 from textwrap import dedent
 
@@ -142,7 +141,6 @@ class LoadGlobalCacheTests(unittest.TestCase):
         # pyrefly: ignore [unsupported-operation]
         builtins.__dict__[42] = 42
 
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
     @run_in_subprocess
     def test_unwatch_builtins(self):
         try:
@@ -152,8 +150,8 @@ class LoadGlobalCacheTests(unittest.TestCase):
             del builtins.__dict__[42]
 
     @skip_unless_lazy_imports()
-    @failUnlessHasOpcodes("LOAD_GLOBAL")
     @run_in_subprocess
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_preload_side_effect_modifies_globals(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -226,8 +224,8 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 self.assertEqual(relevant_deopts, [])
 
     @skip_unless_lazy_imports()
-    @failUnlessHasOpcodes("LOAD_GLOBAL")
     @run_in_subprocess
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_preload_side_effect_makes_globals_unwatchable(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -274,8 +272,8 @@ class LoadGlobalCacheTests(unittest.TestCase):
             )
 
     @skip_unless_lazy_imports()
-    @failUnlessHasOpcodes("LOAD_GLOBAL")
     @run_in_subprocess
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_preload_side_effect_makes_builtins_unwatchable(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
