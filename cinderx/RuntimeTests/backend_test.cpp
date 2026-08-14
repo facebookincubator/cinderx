@@ -1451,9 +1451,9 @@ BB %1
   }
 }
 
-// Sign-extending 32 bits to 64 has to fill the upper half of the destination
-// with the sign bit.  x86-64 spells that `movsxd` rather than the `movsx` used
-// for narrower widths, so it gets its own codegen path.
+// Widening 32 bits to 64 has to reach the upper half of the destination: Zext
+// must clear it and Sext must fill it with the sign bit.  Neither lowers to the
+// movzx/movsx that the narrower widths use, so both get their own codegen path.
 TEST_F(BackendTest, Extend32BitsTo64Bits) {
   auto compile = [this](Opcode extend) {
     auto lirfunc = std::make_unique<Function>();
@@ -1479,6 +1479,11 @@ TEST_F(BackendTest, Extend32BitsTo64Bits) {
     return reinterpret_cast<uint64_t (*)(uint64_t)>(
         SimpleCompile(lirfunc.get()));
   };
+
+  auto zext = compile(Opcode::kZext);
+  ASSERT_NE(zext, nullptr);
+  EXPECT_EQ(zext(0xDEADBEEFCAFEBABEULL), 0x00000000CAFEBABEULL);
+  EXPECT_EQ(zext(0xDEADBEEF0000002AULL), 0x000000000000002AULL);
 
   auto sext = compile(Opcode::kSext);
   ASSERT_NE(sext, nullptr);

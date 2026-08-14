@@ -562,17 +562,8 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
   switch (in_size) {
     case Operand::k8bit:
     case Operand::k16bit:
-      instr->setOpcode(is_sext ? Opcode::kMovSX : Opcode::kMovZX);
-      break;
     case Operand::k32bit:
-      if (is_sext) {
-        instr->setOpcode(Opcode::kMovSX);
-      } else {
-        // must be unsigned extension from 32 bits to 64 bits.
-        // in this case, a 32-bit move will do the work.
-        instr->setOpcode(Opcode::kMove);
-        instr->output()->setDataType(lir::Operand::k32bit);
-      }
+      instr->setOpcode(is_sext ? Opcode::kMovSX : Opcode::kMovZX);
       break;
     case Operand::k64bit:
     case Operand::kObject:

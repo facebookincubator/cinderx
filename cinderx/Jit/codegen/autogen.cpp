@@ -2576,6 +2576,27 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
+      // x86-64 has no `movzx r64, r/m32`; writing a 32-bit register already
+      // zeroes the upper half of its 64-bit counterpart, so a plain MOV between
+      // the 32-bit halves is the zero-extend.  This stays a MOV even when the
+      // source and destination registers are the same, as the upper half is not
+      // known to be clear.
+      if (input->sizeInBits() == 32) {
+        JIT_THROW_IF(
+            output->sizeInBits() != 64,
+            "Zero-extend from 32-bits should always go to 64-bits, got '{}' "
+            "instead",
+            *instr);
+
+        auto output_reg = asmjit::x86::gpd(output->getPhyRegister().loc);
+        if (input->isReg()) {
+          env->as->mov(output_reg, getReg(instr, input));
+        } else {
+          env->as->mov(output_reg, getMem(instr, input));
+        }
+        return;
+      }
+
       if (input->isReg()) {
         env->as->movzx(getReg(instr, output), getReg(instr, input));
       } else {
