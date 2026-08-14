@@ -425,6 +425,9 @@ class MultiWorkerCinderRegrtest:
         if sys.version_info >= (3, 14):
             extra_opts["coverage"] = False
             extra_opts["parallel_threads"] = num_workers
+        if sys.version_info >= (3, 16):
+            extra_opts["single_process_per_case"] = False
+            extra_opts["case_groups"] = None
 
         self._runtests_config = libregrtest_runtests.RunTests(
             tests=tuple(tests),
