@@ -518,7 +518,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 //
 // NOT handled here:
 //   - Move/MoveRelaxed "Rm": IS the canonical load (the lowering target)
-//   - MovZX/MovSX/MovSXD: specialized sign/zero-extending loads from stack
+//   - MovZX/MovSX: specialized sign/zero-extending loads from stack
 //   - Lea: takes the ADDRESS of a stack slot, not the value
 //   - Call: late-created by PostRegAllocRewrite via setOpcode()
 //   - Negate/Invert: handled by AArch64 target selection

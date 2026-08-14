@@ -515,22 +515,6 @@ TEST_F(LIRABITest, TestkMovSX_OutPhyReg_Mem) {
       makeStk(-16, DataType::k32bit));
 }
 
-// kMovSXD R r
-TEST_F(LIRABITest, TestkMovSXD_OutPhyReg_PhyReg) {
-  translateInstr(
-      Opcode::kMovSXD,
-      makeOutPhyReg(0, DataType::k64bit),
-      makePhyReg(1, DataType::k32bit));
-}
-
-// kMovSXD R m
-TEST_F(LIRABITest, TestkMovSXD_OutPhyReg_Mem) {
-  translateInstr(
-      Opcode::kMovSXD,
-      makeOutPhyReg(0, DataType::k64bit),
-      makeStk(-16, DataType::k32bit));
-}
-
 // kUnreachable
 TEST_F(LIRABITest, TestkUnreachable) {
   translateInstr(Opcode::kUnreachable);

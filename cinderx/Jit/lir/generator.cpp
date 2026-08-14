@@ -1190,9 +1190,8 @@ void GenerateBoxedReturnWrapperBlocks(
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret16, DataType::k16bit});
   } else if (return_type <= TCInt32) {
-    // Signed 32->64 must use movsxd, movsx cannot encode a 32-bit source.
     box_block->allocateInstr(
-        Opcode::kMovSXD,
+        Opcode::kMovSX,
         nullptr,
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret32, DataType::k32bit});

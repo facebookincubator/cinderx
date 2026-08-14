@@ -1451,6 +1451,41 @@ BB %1
   }
 }
 
+// Sign-extending 32 bits to 64 has to fill the upper half of the destination
+// with the sign bit.  x86-64 spells that `movsxd` rather than the `movsx` used
+// for narrower widths, so it gets its own codegen path.
+TEST_F(BackendTest, Extend32BitsTo64Bits) {
+  auto compile = [this](Opcode extend) {
+    auto lirfunc = std::make_unique<Function>();
+    auto bb = lirfunc->allocateBasicBlock();
+
+    // Read only the lower half of the argument register, leaving the upper half
+    // holding bits that the extension is responsible for overwriting.
+    auto extended = bb->allocateInstr(
+        extend,
+        nullptr,
+        OutVReg{Operand::k64bit},
+        PhyReg{ARGUMENT_REGS[0], Operand::k32bit});
+    bb->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
+        VReg{extended});
+    bb->allocateInstr(Opcode::kReturn, nullptr);
+
+    auto epilogue = lirfunc->allocateBasicBlock();
+    bb->addSuccessor(epilogue);
+
+    return reinterpret_cast<uint64_t (*)(uint64_t)>(
+        SimpleCompile(lirfunc.get()));
+  };
+
+  auto sext = compile(Opcode::kSext);
+  ASSERT_NE(sext, nullptr);
+  EXPECT_EQ(sext(0xDEADBEEFCAFEBABEULL), 0xFFFFFFFFCAFEBABEULL);
+  EXPECT_EQ(sext(0xDEADBEEF0000002AULL), 0x000000000000002AULL);
+}
+
 #if defined(CINDER_AARCH64)
 // This test uses CompilePreAllocated to construct the exact instruction
 // sequence the buggy register allocator would emit:

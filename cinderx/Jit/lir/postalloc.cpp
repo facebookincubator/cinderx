@@ -566,7 +566,7 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
       break;
     case Operand::k32bit:
       if (is_sext) {
-        instr->setOpcode(Opcode::kMovSXD);
+        instr->setOpcode(Opcode::kMovSX);
       } else {
         // must be unsigned extension from 32 bits to 64 bits.
         // in this case, a 32-bit move will do the work.
@@ -1116,7 +1116,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
     case Opcode::kMovSX:
-    case Opcode::kMovSXD:
     case Opcode::kMovZX:
     case Opcode::kMove:
     case Opcode::kMoveRelaxed:

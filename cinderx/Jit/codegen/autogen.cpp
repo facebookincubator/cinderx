@@ -2071,6 +2071,33 @@ void translateMovZX(Environ* env, const Instruction* instr) {
 }
 
 void translateMovSX(Environ* env, const Instruction* instr) {
+  // The shared helper's 32-bit path only zero-extends, so sign-extending from
+  // 32 bits needs sxtw/ldrsw here.
+  const lir::Operand* input = instr->getInput(0);
+  if (input->sizeInBits() == 32) {
+    a64::Builder* as = env->as;
+
+    JIT_THROW_IF(
+        instr->output()->sizeInBits() != 64,
+        "Sign-extend from 32-bits should always go to 64-bits, got '{}' "
+        "instead",
+        *instr);
+    auto output = AT::getGpOutput(instr->output());
+
+    if (input->isReg()) {
+      as->sxtw(output, asmjit::a64::w(input->getPhyRegister().loc));
+    } else if (input->isStack()) {
+      auto loc = input->getStackSlot().loc;
+      as->ldrsw(
+          output,
+          arch::ptr_resolve(
+              as, arch::fp, loc, arch::reg_scratch_0, arch::AccessSize::k32));
+    } else {
+      JIT_THROW("Unsupported operand type for '{}'", *instr);
+    }
+    return;
+  }
+
   translateMovExtOp(
       env,
       instr,
@@ -2079,25 +2106,6 @@ void translateMovSX(Environ* env, const Instruction* instr) {
       [](a64::Builder* as, auto... args) { as->sxth(args...); },
       [](a64::Builder* as, auto... args) { as->ldrsb(args...); },
       [](a64::Builder* as, auto... args) { as->ldrsh(args...); });
-}
-
-void translateMovSXD(Environ* env, const Instruction* instr) {
-  a64::Builder* as = env->as;
-
-  auto output = AT::getGpOutput(instr->output());
-  const lir::Operand* input = instr->getInput(0);
-
-  if (input->isReg()) {
-    auto input_reg = asmjit::a64::w(input->getPhyRegister().loc);
-    as->sxtw(output, input_reg);
-  } else if (input->isStack()) {
-    auto loc = input->getStackSlot().loc;
-    auto ptr = arch::ptr_resolve(
-        as, arch::fp, loc, arch::reg_scratch_0, arch::AccessSize::k32);
-    as->ldrsw(output, ptr);
-  } else {
-    JIT_ABORT("Unsupported operand type for MovSXD: {}", input->type());
-  }
 }
 
 void translateUnreachable(Environ* env, const Instruction* instr) {
@@ -2579,21 +2587,27 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
+      // x86-64 spells the 32 -> 64 bit sign-extend `movsxd`; `movsx` cannot
+      // encode a 32-bit source.
+      if (input->sizeInBits() == 32) {
+        JIT_THROW_IF(
+            output->sizeInBits() != 64,
+            "Sign-extend from 32-bits should always go to 64-bits, got '{}' "
+            "instead",
+            *instr);
+
+        if (input->isReg()) {
+          env->as->movsxd(getReg(instr, output), getReg(instr, input));
+        } else {
+          env->as->movsxd(getReg(instr, output), getMem(instr, input));
+        }
+        return;
+      }
+
       if (input->isReg()) {
         env->as->movsx(getReg(instr, output), getReg(instr, input));
       } else {
         env->as->movsx(getReg(instr, output), getMem(instr, input));
-      }
-      return;
-    }
-    case Opcode::kMovSXD: {
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (input->isReg()) {
-        env->as->movsxd(getReg(instr, output), getReg(instr, input));
-      } else {
-        env->as->movsxd(getReg(instr, output), getMem(instr, input));
       }
       return;
     }
@@ -3159,9 +3173,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Opcode::kMovSX:
       translateMovSX(env, instr);
-      return;
-    case Opcode::kMovSXD:
-      translateMovSXD(env, instr);
       return;
     case Opcode::kUnreachable:
       translateUnreachable(env, instr);
