@@ -636,6 +636,9 @@ RewriteResult rewriteBranchInstrs(Function* function) {
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto instr_opcode = instr->opcode();
+  // Deliberately not MovZX/MovSX: a widening move still has to write the part
+  // of the destination that the source does not cover, even when the two name
+  // the same register.
   if (instr_opcode != Opcode::kMove) {
     return kUnchanged;
   }
@@ -1560,19 +1563,16 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
       }
     };
 
-    if (instr->isMove() || instr->isPush() || instr->isPop()) {
-      if (instr->isMove()) {
-        Operand* out = instr->output();
-        Operand* in = instr->getInput(0);
-        if (out->isStack() && in->isReg()) {
-          registerMemoryMoves.addRegisterToMemoryMove(
-              in->getPhyRegister(), out->getStackSlot(), instr_iter);
-        } else {
-          invalidateOperand(out);
-        }
-      } else if (instr->isPop()) {
-        auto opnd = instr->output();
-        invalidateOperand(opnd);
+    if (instr->isMove() || instr->isPush() || instr->isPop() ||
+        instr->isMovZX() || instr->isMovSX()) {
+      Operand* out = instr->output();
+      if (instr->isMove() && out->isStack() && instr->getInput(0)->isReg()) {
+        registerMemoryMoves.addRegisterToMemoryMove(
+            instr->getInput(0)->getPhyRegister(),
+            out->getStackSlot(),
+            instr_iter);
+      } else {
+        invalidateOperand(out);
       }
     } else {
       // TODO: for now, we always clear the cache when we hit an instruction

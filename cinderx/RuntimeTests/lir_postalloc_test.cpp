@@ -230,7 +230,6 @@ BB %1 - preds: %0 - section: .coldtext
   ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
 }
 
-#if defined(CINDER_AARCH64)
 // Helper to collect instructions from a block into a vector for easy indexing.
 static std::vector<Instruction*> collectInstrs(BasicBlock& bb) {
   std::vector<Instruction*> result;
@@ -240,6 +239,49 @@ static std::vector<Instruction*> collectInstrs(BasicBlock& bb) {
   return result;
 }
 
+// optimizeMoveSequence forwards a spill slot back to the register it was
+// copied from.  A widening move in between only writes its own output, so it
+// must not throw away the rest of what the pass knows.
+TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
+  constexpr PhyLocation kSpilled = ARGUMENT_REGS[0];
+  constexpr PhyLocation kWidenOut = ARGUMENT_REGS[1];
+  constexpr PhyLocation kReloaded = ARGUMENT_REGS[2];
+  constexpr PhyLocation kWidenIn = ARGUMENT_REGS[3];
+  constexpr PhyLocation kSlot{-16, 64};
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutStk{kSlot, DataType::k64bit},
+      PhyReg{kSpilled, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kMovZX,
+      nullptr,
+      OutPhyReg{kWidenOut, DataType::k64bit},
+      PhyReg{kWidenIn, DataType::k32bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kReloaded, DataType::k64bit},
+      Stk{kSlot, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 3);
+
+  // The reload reads the register the spill came from rather than the slot.
+  EXPECT_TRUE(instrs[2]->isMove());
+  EXPECT_TRUE(instrs[2]->getInput(0)->isReg());
+  EXPECT_EQ(instrs[2]->getInput(0)->getPhyRegister(), kSpilled);
+}
+
+#if defined(CINDER_AARCH64)
 // kAdd with one register input and one stack input should insert a Move from
 // stack to GP scratch register before the Add, then rewrite the Add's stack
 // input to use the scratch register.

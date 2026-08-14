@@ -1196,7 +1196,6 @@ void GenerateBoxedReturnWrapperBlocks(
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret32, DataType::k32bit});
   } else if (return_type <= TCUInt32) {
-    // Unsigned 32->64: a 32-bit move zero-extends into the full register.
     // Skippable when the registers already match, except on aarch64 pre-3.14:
     // there arg0 == ret64, but PyLong_FromSize_t reads all 64 bits and AAPCS64
     // leaves the upper half of a 32-bit return unspecified, so we must still
@@ -1205,9 +1204,9 @@ void GenerateBoxedReturnWrapperBlocks(
         PY_VERSION_HEX < 0x030E0000 && kBuildArch == Arch::kAarch64;
     if (arg0 != ret64 || needs_extend) {
       box_block->allocateInstr(
-          Opcode::kMove,
+          Opcode::kMovZX,
           nullptr,
-          OutPhyReg{arg0, DataType::k32bit},
+          OutPhyReg{arg0, DataType::k64bit},
           PhyReg{ret32, DataType::k32bit});
     }
   } else if (return_type <= (TCInt64 | TCUInt64) && arg0 != ret64) {
