@@ -27,7 +27,7 @@ class RefBase {
     return getObj();
   }
 
-  T* release() {
+  [[nodiscard]] T* release() {
     auto ref = ptr_;
     ptr_ = nullptr;
     return ref;

@@ -188,10 +188,10 @@ Context::~Context() {
   if (Py_IsFinalizing()) {
     for (auto& entry : deferred_compiled_data_) {
       OwnedCompilationKey& key = const_cast<OwnedCompilationKey&>(entry.first);
-      key.code.release();
-      key.builtins.release();
-      key.globals.release();
-      entry.second.release();
+      (void)key.code.release();
+      (void)key.builtins.release();
+      (void)key.globals.release();
+      (void)entry.second.release();
     }
   }
 }

@@ -15,7 +15,7 @@ class CFG {
   BasicBlock* allocateBlock();
 
   // Allocate a block without linking it into the CFG
-  BasicBlock* allocateUnlinkedBlock();
+  [[nodiscard]] BasicBlock* allocateUnlinkedBlock();
 
   // Insert a block into the CFG. The CFG takes ownership and will free it
   // upon destruction of the CFG.

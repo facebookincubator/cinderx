@@ -33,7 +33,7 @@ class CodeAllocator : public ICodeAllocator {
 
   // To be called once by JIT initialization after enough configuration has been
   // loaded to determine which global code allocator type to use.
-  static ICodeAllocator* make();
+  [[nodiscard]] static ICodeAllocator* make();
 
   AllocateResult addCode(asmjit::CodeHolder* code) override;
   asmjit::Error releaseCode(void* code) override;

@@ -253,7 +253,7 @@ class CompiledFunction {
 
   // Transfer ownership of the CompiledFunctionData out of this object.
   // After this call, the CF no longer owns or references the data.
-  CompiledFunctionData* stealData();
+  [[nodiscard]] CompiledFunctionData* stealData();
 
  private:
   explicit CompiledFunction(CompiledFunctionData* data, bool contiguous);
