@@ -22,7 +22,7 @@ from importlib.machinery import SOURCE_SUFFIXES, SourceFileLoader
 from importlib.util import cache_from_source
 from os import path
 from py_compile import PycInvalidationMode
-from types import ModuleType
+from types import CodeType, ModuleType
 from typing import cast, final, List, TYPE_CHECKING, TypeVar
 from unittest.mock import patch
 
@@ -515,10 +515,23 @@ class StrictLoaderTest(StrictTestBase):
         fn = self.sbx.write_file("a.py", "import __strict__\nx = 2")
         strict_compile(str(fn), cache_from_source(fn))
 
-        # patch source_to_code on the loader to ensure we are loading from pyc
-        with patch.object(
-            StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
-        ):
+        orig_source_to_code = StrictSourceFileLoader.source_to_code
+
+        # Break compilation of 'a.py' only, so the test fails if it is not
+        # loaded from the pyc.  Modules pulled in by executing it, notably
+        # `__strict__` itself, still have to compile normally.
+        def source_to_code(
+            loader: StrictSourceFileLoader,
+            data: bytes | str,
+            path: str,
+            *,
+            _optimize: int = -1,
+        ) -> CodeType | None:
+            if path == str(fn):
+                return None
+            return orig_source_to_code(loader, data, path, _optimize=_optimize)
+
+        with patch.object(StrictSourceFileLoader, "source_to_code", source_to_code):
             mod = self.sbx.strict_import("a")
 
         self.assertEqual(type(mod), StrictModule)
