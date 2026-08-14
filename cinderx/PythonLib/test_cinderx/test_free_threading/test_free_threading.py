@@ -85,6 +85,57 @@ class JITCompilationTest(unittest.TestCase):
         self.assertTrue(cinderx.jit.is_jit_compiled(fibonacci))
 
     @run_in_subprocess
+    def test_get_compiled_functions_during_compilation(self) -> None:
+        """
+        TSAN reproducer when these suppressions are removed from
+        `tsan_suppressions_cpython.txt`:
+
+        race:jit::Context::addCompiledFunc
+        race:jit::Context::finalizeFunc
+        race:jit::Context::codeCompiled
+        race:jit::Context::makeCompiledFunction
+        race:phmap::priv::raw_hash_set
+        """
+        reader_count = 9
+        iterations = 50
+        start = threading.Barrier(reader_count + 1)
+        compilation_finished = threading.Event()
+
+        def target(value: int) -> int:
+            return value + 1
+
+        def recompile() -> int:
+            start.wait()
+            compiled = 0
+            try:
+                for _ in range(iterations):
+                    cinderx.jit.force_uncompile(target)
+                    compiled += cinderx.jit.force_compile(target)
+            finally:
+                compilation_finished.set()
+            return compiled
+
+        def read_compiled_functions(_: int) -> None:
+            start.wait()
+            while True:
+                compiled_functions = cinderx.jit.get_compiled_functions()
+                self.assertTrue(all(callable(func) for func in compiled_functions))
+                if compilation_finished.is_set():
+                    return
+
+        cinderx.jit.jit_suppress(recompile)
+        cinderx.jit.jit_suppress(read_compiled_functions)
+
+        with ThreadPoolExecutor(max_workers=reader_count + 1) as executor:
+            compiler = executor.submit(recompile)
+            list(executor.map(read_compiled_functions, range(reader_count)))
+
+            self.assertEqual(compiler.result(), iterations)
+
+        self.assertTrue(cinderx.jit.is_jit_compiled(target))
+        self.assertEqual(target(1), 2)
+
+    @run_in_subprocess
     def test_concurrent_calls_trigger_jit_compilation(self) -> None:
         cinderx.jit.compile_after_n_calls(3)
 
