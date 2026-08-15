@@ -523,14 +523,12 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   return kChanged;
 }
 
-// Replaces ZEXT and SEXT with appropriate MOVE instructions.
+// Replaces the Zext and Sext instructions that aren't really extending
+// anything with plain Moves.
 RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
-  bool is_sext = instr->opcode() == Opcode::kSext;
-  bool is_zext = instr->opcode() == Opcode::kZext;
-
-  if (!is_sext && !is_zext) {
+  if (!instr->isSext() && !instr->isZext()) {
     return kUnchanged;
   }
 
@@ -563,8 +561,7 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
     case Operand::k8bit:
     case Operand::k16bit:
     case Operand::k32bit:
-      instr->setOpcode(is_sext ? Opcode::kMovSX : Opcode::kMovZX);
-      break;
+      return kUnchanged;
     case Operand::k64bit:
     case Operand::kObject:
     case Operand::kObjectUntagged:
@@ -573,7 +570,7 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
       JIT_ABORT("A float point number cannot be the input of the instruction.");
   }
 
-  return kChanged;
+  JIT_ABORT("Unhandled input data type in '{}'", *instr);
 }
 
 // Add (conditional) branch instructions to the end of each basic blocks when
@@ -636,7 +633,7 @@ RewriteResult rewriteBranchInstrs(Function* function) {
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto instr_opcode = instr->opcode();
-  // Deliberately not MovZX/MovSX: a widening move still has to write the part
+  // Deliberately not Sext/Zext: a widening move still has to write the part
   // of the destination that the source does not cover, even when the two name
   // the same register.
   if (instr_opcode != Opcode::kMove) {
@@ -1027,7 +1024,7 @@ RewriteResult rewriteSubWordRegMoves(instr_iter_t instr_iter) {
 
 // After register allocation, spilled values become stack operands. ARM64 ALU
 // instructions require register operands, so load stack inputs into scratch
-// registers. Move/MovZX/MovSX/etc. natively support memory inputs and are
+// registers. Move/Zext/Sext/etc. natively support memory inputs and are
 // excluded.
 RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
@@ -1109,8 +1106,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kLoadSecondCallResult:
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
-    case Opcode::kMovSX:
-    case Opcode::kMovZX:
     case Opcode::kMove:
     case Opcode::kMoveRelaxed:
     case Opcode::kMulAdd:
@@ -1361,8 +1356,8 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
     auto move = block->allocateInstrBefore(
         instr_iter,
         dividend_lower->isImm() ? Opcode::kMove
-            : instr->isDiv()    ? Opcode::kMovSX
-                                : Opcode::kMovZX,
+            : instr->isDiv()    ? Opcode::kSext
+                                : Opcode::kZext,
         OutPhyReg(AX, DataType::k16bit));
 
     if (dividend_lower->isImm()) {
@@ -1564,7 +1559,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
     };
 
     if (instr->isMove() || instr->isPush() || instr->isPop() ||
-        instr->isMovZX() || instr->isMovSX()) {
+        instr->isZext() || instr->isSext()) {
       Operand* out = instr->output();
       if (instr->isMove() && out->isStack() && instr->getInput(0)->isReg()) {
         registerMemoryMoves.addRegisterToMemoryMove(

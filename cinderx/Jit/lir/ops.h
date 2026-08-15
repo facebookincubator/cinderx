@@ -75,8 +75,6 @@ namespace cinderx::jit::lir {
   X(LoadSecondCallResult)                                      \
   X(LoadThreadState)                                           \
   X(MovConstPool)                                              \
-  X(MovSX)                                                     \
-  X(MovZX)                                                     \
   X(Move)                                                      \
   X(MoveRelaxed)                                               \
   X(Mul)                                                       \

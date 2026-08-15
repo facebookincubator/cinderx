@@ -2048,14 +2048,14 @@ void translateMovExtOp(
   }
 }
 
-void translateMovZX(Environ* env, const Instruction* instr) {
+void translateZext(Environ* env, const Instruction* instr) {
   // ARM64 uxtb/uxth/ldrb/ldrh only accept W-register destinations.
   // Writing to W implicitly zeros the upper 32 bits of the X register,
   // so this correctly zero-extends to 64 bits even for k64bit outputs.
   translateMovExtOp(
       env,
       instr,
-      "MovZX",
+      "Zext",
       [](a64::Builder* as, auto output, auto input) {
         as->uxtb(a64::w(output.id()), input);
       },
@@ -2070,7 +2070,7 @@ void translateMovZX(Environ* env, const Instruction* instr) {
       });
 }
 
-void translateMovSX(Environ* env, const Instruction* instr) {
+void translateSext(Environ* env, const Instruction* instr) {
   // The shared helper's 32-bit path only zero-extends, so sign-extending from
   // 32 bits needs sxtw/ldrsw here.
   const lir::Operand* input = instr->getInput(0);
@@ -2101,7 +2101,7 @@ void translateMovSX(Environ* env, const Instruction* instr) {
   translateMovExtOp(
       env,
       instr,
-      "MovSX",
+      "Sext",
       [](a64::Builder* as, auto... args) { as->sxtb(args...); },
       [](a64::Builder* as, auto... args) { as->sxth(args...); },
       [](a64::Builder* as, auto... args) { as->ldrsb(args...); },
@@ -2572,7 +2572,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kMovZX: {
+    case Opcode::kZext: {
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
@@ -2604,7 +2604,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kMovSX: {
+    case Opcode::kSext: {
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
@@ -3163,8 +3163,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kNop:
     case Opcode::kVectorCallTstate:
     case Opcode::kVarArgCall:
-    case Opcode::kSext:
-    case Opcode::kZext:
     case Opcode::kMulAdd:
     case Opcode::kLoadArg:
     case Opcode::kLoadSecondCallResult:
@@ -3189,11 +3187,11 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kMoveRelaxed:
       translateMove(env, instr);
       return;
-    case Opcode::kMovZX:
-      translateMovZX(env, instr);
+    case Opcode::kZext:
+      translateZext(env, instr);
       return;
-    case Opcode::kMovSX:
-      translateMovSX(env, instr);
+    case Opcode::kSext:
+      translateSext(env, instr);
       return;
     case Opcode::kUnreachable:
       translateUnreachable(env, instr);
@@ -3437,8 +3435,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kNop:
     case Opcode::kVectorCallTstate:
     case Opcode::kVarArgCall:
-    case Opcode::kSext:
-    case Opcode::kZext:
     case Opcode::kLoadArg:
     case Opcode::kLoadSecondCallResult:
     case Opcode::kCondBranch:

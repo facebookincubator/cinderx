@@ -483,34 +483,34 @@ TEST_F(LIRABITest, TestkInvert_OutPhyReg_Mem) {
 }
 #endif
 
-// kMovZX R r
-TEST_F(LIRABITest, TestkMovZX_OutPhyReg_PhyReg) {
+// kZext R r
+TEST_F(LIRABITest, TestkZext_OutPhyReg_PhyReg) {
   translateInstr(
-      Opcode::kMovZX,
+      Opcode::kZext,
       makeOutPhyReg(0, DataType::k64bit),
       makePhyReg(1, DataType::k32bit));
 }
 
-// kMovZX R m
-TEST_F(LIRABITest, TestkMovZX_OutPhyReg_Mem) {
+// kZext R m
+TEST_F(LIRABITest, TestkZext_OutPhyReg_Mem) {
   translateInstr(
-      Opcode::kMovZX,
+      Opcode::kZext,
       makeOutPhyReg(0, DataType::k64bit),
       makeStk(-16, DataType::k32bit));
 }
 
-// kMovSX R r
-TEST_F(LIRABITest, TestkMovSX_OutPhyReg_PhyReg) {
+// kSext R r
+TEST_F(LIRABITest, TestkSext_OutPhyReg_PhyReg) {
   translateInstr(
-      Opcode::kMovSX,
+      Opcode::kSext,
       makeOutPhyReg(0, DataType::k64bit),
       makePhyReg(1, DataType::k32bit));
 }
 
-// kMovSX R m
-TEST_F(LIRABITest, TestkMovSX_OutPhyReg_Mem) {
+// kSext R m
+TEST_F(LIRABITest, TestkSext_OutPhyReg_Mem) {
   translateInstr(
-      Opcode::kMovSX,
+      Opcode::kSext,
       makeOutPhyReg(0, DataType::k64bit),
       makeStk(-16, DataType::k32bit));
 }

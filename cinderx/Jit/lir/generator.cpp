@@ -1173,25 +1173,25 @@ void GenerateBoxedReturnWrapperBlocks(
   auto arg0 = ARGUMENT_REGS[0];
   if (return_type <= TCBool) {
     box_block->allocateInstr(
-        Opcode::kMovZX,
+        Opcode::kZext,
         nullptr,
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret8, DataType::k8bit});
   } else if (return_type <= TCInt8 || return_type <= TCUInt8) {
     box_block->allocateInstr(
-        return_type <= TCInt8 ? Opcode::kMovSX : Opcode::kMovZX,
+        return_type <= TCInt8 ? Opcode::kSext : Opcode::kZext,
         nullptr,
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret8, DataType::k8bit});
   } else if (return_type <= TCInt16 || return_type <= TCUInt16) {
     box_block->allocateInstr(
-        return_type <= TCInt16 ? Opcode::kMovSX : Opcode::kMovZX,
+        return_type <= TCInt16 ? Opcode::kSext : Opcode::kZext,
         nullptr,
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret16, DataType::k16bit});
   } else if (return_type <= TCInt32) {
     box_block->allocateInstr(
-        Opcode::kMovSX,
+        Opcode::kSext,
         nullptr,
         OutPhyReg{arg0, DataType::k64bit},
         PhyReg{ret32, DataType::k32bit});
@@ -1204,7 +1204,7 @@ void GenerateBoxedReturnWrapperBlocks(
         PY_VERSION_HEX < 0x030E0000 && kBuildArch == Arch::kAarch64;
     if (arg0 != ret64 || needs_extend) {
       box_block->allocateInstr(
-          Opcode::kMovZX,
+          Opcode::kZext,
           nullptr,
           OutPhyReg{arg0, DataType::k64bit},
           PhyReg{ret32, DataType::k32bit});

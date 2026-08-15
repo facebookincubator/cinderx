@@ -215,10 +215,10 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   // the first operand with a sign-extended version that matches the size of the
   // second operand.
   if (instr->getInput(0)->sizeInBits() < in1->sizeInBits()) {
-    auto movsx = block->allocateInstrBefore(
-        instr_iter, Opcode::kMovSX, OutVReg{in1->dataType()});
-    movsx->appendInput(instr->releaseInput(0));
-    instr->setInput(0, std::make_unique<Operand>(movsx, Operand::kLinked));
+    auto sext = block->allocateInstrBefore(
+        instr_iter, Opcode::kSext, OutVReg{in1->dataType()});
+    sext->appendInput(instr->releaseInput(0));
+    instr->setInput(0, std::make_unique<Operand>(sext, Operand::kLinked));
   }
 
   // Replace the constant with the move.
@@ -518,7 +518,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 //
 // NOT handled here:
 //   - Move/MoveRelaxed "Rm": IS the canonical load (the lowering target)
-//   - MovZX/MovSX: specialized sign/zero-extending loads from stack
+//   - Zext/Sext: specialized sign/zero-extending loads from stack
 //   - Lea: takes the ADDRESS of a stack slot, not the value
 //   - Call: late-created by PostRegAllocRewrite via setOpcode()
 //   - Negate/Invert: handled by AArch64 target selection

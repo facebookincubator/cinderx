@@ -233,8 +233,6 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kLoadPair:
     case Opcode::kLoadSecondCallResult:
     case Opcode::kMovConstPool:
-    case Opcode::kMovSX:
-    case Opcode::kMovZX:
     case Opcode::kMove:
     case Opcode::kMoveRelaxed:
     case Opcode::kMulAdd:
@@ -312,8 +310,6 @@ bool isEssential(Opcode opcode) {
     case Opcode::kLoadSecondCallResult:
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
-    case Opcode::kMovSX:
-    case Opcode::kMovZX:
     case Opcode::kMove:
     case Opcode::kMoveRelaxed:
     case Opcode::kMul:

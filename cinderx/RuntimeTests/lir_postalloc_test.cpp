@@ -258,7 +258,7 @@ TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
       OutStk{kSlot, DataType::k64bit},
       PhyReg{kSpilled, DataType::k64bit});
   bb->allocateInstr(
-      Opcode::kMovZX,
+      Opcode::kZext,
       nullptr,
       OutPhyReg{kWidenOut, DataType::k64bit},
       PhyReg{kWidenIn, DataType::k32bit});
