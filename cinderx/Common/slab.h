@@ -46,10 +46,6 @@ class SlabIterator {
     return ptr_ == o.ptr_;
   }
 
-  bool operator!=(const SlabIterator& o) const {
-    return !operator==(o);
-  }
-
  private:
   char* ptr_{nullptr};
   size_t increment_{0};

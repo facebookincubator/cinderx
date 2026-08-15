@@ -158,10 +158,6 @@ class BytecodeInstructionBlock {
       return bci_ == other.bci_;
     }
 
-    bool operator!=(const Iterator& other) const {
-      return !(*this == other);
-    }
-
    private:
     BytecodeInstruction bci_;
     BCIndex end_idx_;

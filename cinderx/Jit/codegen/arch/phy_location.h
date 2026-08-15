@@ -51,10 +51,6 @@ struct PhyLocationBase {
   constexpr bool operator==(const PhyLocationBase& rhs) const {
     return loc == rhs.loc;
   }
-
-  constexpr bool operator!=(const PhyLocationBase& rhs) const {
-    return loc != rhs.loc;
-  }
 };
 
 } // namespace cinderx::jit::codegen

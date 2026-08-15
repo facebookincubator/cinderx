@@ -337,10 +337,6 @@ class IntrusiveListIterator {
     return current_ == other.current_;
   }
 
-  bool operator!=(IntrusiveListIterator const& other) const {
-    return !(*this == other);
-  }
-
   reference operator*() const {
     JIT_DCHECK(current_ != &(list_->root_), "iterator exhausted");
     return *(list_->getOwner(current_));

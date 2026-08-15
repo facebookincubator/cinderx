@@ -35,7 +35,6 @@ class BitVector {
   // analysis), we only support operations between two bit vectors with the same
   // width.
   bool operator==(const BitVector& rhs) const;
-  bool operator!=(const BitVector& rhs) const;
   BitVector operator&(const BitVector& rhs) const;
   BitVector operator|(const BitVector& rhs) const;
   BitVector operator-(const BitVector& rhs) const;

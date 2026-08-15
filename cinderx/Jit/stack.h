@@ -72,10 +72,6 @@ class Stack {
     return stack_ == other.stack_;
   }
 
-  bool operator!=(const Stack& other) const {
-    return !(*this == other);
-  }
-
   auto begin() {
     return stack_.begin();
   }

@@ -179,10 +179,6 @@ inline bool Type::operator==(Type other) const {
   return memcmp(this, &other, sizeof(*this)) == 0;
 }
 
-inline bool Type::operator!=(Type other) const {
-  return !operator==(other);
-}
-
 inline bool Type::operator<(Type other) const {
   return *this != other && *this <= other;
 }

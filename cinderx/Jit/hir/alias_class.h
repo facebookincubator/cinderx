@@ -70,9 +70,6 @@ class AliasClass {
   bool operator==(AliasClass other) const {
     return bits_ == other.bits_;
   }
-  bool operator!=(AliasClass other) const {
-    return !operator==(other);
-  }
 
   bool operator<=(AliasClass other) const {
     return (bits_ & other.bits_) == bits_;

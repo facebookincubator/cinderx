@@ -95,10 +95,6 @@ bool BitVector::operator==(const BitVector& rhs) const {
   return std::equal(cs.begin(), cs.end(), rhs.chunks().begin());
 }
 
-bool BitVector::operator!=(const BitVector& rhs) const {
-  return !(*this == rhs);
-}
-
 template <typename Op>
 BitVector BitVector::binaryOp(const BitVector& rhs, const Op& op) const {
   JIT_THROW_IF(

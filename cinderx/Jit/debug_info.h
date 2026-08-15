@@ -104,7 +104,6 @@ class DebugInfo {
     }
 
     bool operator==(const LocNode& other) const = default;
-    bool operator!=(const LocNode& other) const = default;
   };
 
   static const uint16_t kNoCallerID = UINT16_MAX;

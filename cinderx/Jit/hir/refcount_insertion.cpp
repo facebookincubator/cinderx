@@ -278,9 +278,6 @@ class StateMap {
   bool operator==(const StateMap& other) const {
     return map_ == other.map_;
   }
-  bool operator!=(const StateMap& other) const {
-    return !operator==(other);
-  }
 
  private:
   map_t map_;

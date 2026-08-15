@@ -25,10 +25,6 @@ struct ExecutionBlock {
         (stack_level == other.stack_level);
   }
 
-  bool operator!=(const ExecutionBlock& other) const {
-    return !(*this == other);
-  }
-
   bool isTryBlock() const {
     return opcode == SETUP_FINALLY;
   }
@@ -61,7 +57,6 @@ struct FrameState {
   FrameState& operator=(const FrameState& other) = default;
 
   bool operator==(const FrameState& other) const = default;
-  bool operator!=(const FrameState& other) const = default;
 
   // If the function is inlined into another function, the depth at which it
   // is inlined (nested function calls may be inlined). Starts at 1. If the

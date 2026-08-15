@@ -41,7 +41,6 @@ class SlabArenaIterator {
   }
 
   bool operator==(const SlabArenaIterator& other) const = default;
-  bool operator!=(const SlabArenaIterator& other) const = default;
 
   T& operator*() {
     return *slab_iter_;

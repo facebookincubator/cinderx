@@ -185,7 +185,6 @@ class Type {
 
   // Equality.
   bool operator==(Type other) const;
-  bool operator!=(Type other) const;
 
   // Strict and non-strict subtype checking.
   bool operator<(Type other) const;
