@@ -57,8 +57,8 @@ class BasicBlockBuilder {
   template <class... Args>
   Instruction* appendInstr(Opcode opcode, Args&&... args) {
     auto instr = cur_bb_->allocateInstr(opcode, cur_hir_instr_);
-
-    return appendInstrArguments(instr, std::forward<Args>(args)...);
+    (genericCreateInstrInput(instr, args), ...);
+    return instr;
   }
 
   // Allocate and append a new instruction to the instruction stream.
@@ -213,17 +213,6 @@ class BasicBlockBuilder {
   std::vector<BasicBlock*> bbs_;
   jit::codegen::Environ* env_;
   Function* func_;
-
-  constexpr Instruction* appendInstrArguments(Instruction* instr) {
-    return instr;
-  }
-
-  template <typename FirstT, typename... T>
-  Instruction*
-  appendInstrArguments(Instruction* instr, FirstT&& first_arg, T&&... args) {
-    genericCreateInstrInput(instr, first_arg);
-    return appendInstrArguments(instr, std::forward<T>(args)...);
-  }
 
   template <
       typename FuncReturnType,
