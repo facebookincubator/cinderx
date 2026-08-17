@@ -496,6 +496,7 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 // @Borrow function load_counter from Python/specialize.c [3.14]
 // @Borrow function unspecialize from Python/specialize.c [3.14]
 // @Borrow function _Py_Specialize_LoadSuperAttr from Python/specialize.c [3.14]
+// @Borrow function maybe_enable_deferred_ref_count from Python/specialize.c [3.14]
 // @Borrow function specialize_module_load_attr_lock_held from Python/specialize.c [3.14]
 // @Borrow function specialize_module_load_attr from Python/specialize.c [3.14]
 // @Borrow function classify_descriptor from Python/specialize.c [3.14]
