@@ -1110,7 +1110,7 @@ pop_1_error:
       assert(!_PyErr_Occurred(tstate));
 #endif
       RELOAD_STACK();
-#if Py_TAIL_CALL_INTERP
+#if _Py_TAIL_CALL_INTERP
       int opcode;
 #endif
       DISPATCH();
