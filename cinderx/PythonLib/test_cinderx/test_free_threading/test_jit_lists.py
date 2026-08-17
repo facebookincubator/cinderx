@@ -11,7 +11,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import FREE_THREADING_BUILD, run_in_subprocess
+from cinderx.test_support import FREE_THREADING_BUILD, passUnless, run_in_subprocess
 
 
 class JITListTest(unittest.TestCase):
@@ -90,7 +90,7 @@ class JITListTest(unittest.TestCase):
 
         self.exercise_concurrent_access(read_item)
 
-    @unittest.skipUnless(FREE_THREADING_BUILD, "requires free-threaded build")
+    @passUnless(FREE_THREADING_BUILD, "requires free-threaded build")
     @run_in_subprocess
     def test_concurrent_subscript_with_simplify(self) -> None:
         """Use the owned-reference ListSubscr path for exact lists."""
