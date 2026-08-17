@@ -380,6 +380,22 @@ TEST_F(HIRParserTest, ParsesReturnType) {
   EXPECT_EQ(HIRPrinter{}.toString(*func), hir_source);
 }
 
+TEST_F(HIRParserTest, ParsesDoubleBinaryOp) {
+  const char* hir_source = R"(fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = PrimitiveUnbox<CDouble> v0
+    v3 = PrimitiveUnbox<CDouble> v1
+    v4 = DoubleBinaryOp<Add> v2 v3
+    Return v4
+  }
+}
+)";
+  auto func = HIRParser{}.parseHIR(hir_source);
+  EXPECT_EQ(HIRPrinter{}.toString(*func), hir_source);
+}
+
 TEST_F(HIRParserTest, PartialRoundtripWithNames) {
   const char* py_src = R"(
 def my_func(a, b, c):

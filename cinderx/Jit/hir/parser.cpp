@@ -595,6 +595,15 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<FloatBinaryOp>(dst, op, left, right);
       break;
     }
+    case Opcode::kDoubleBinaryOp: {
+      expect("<");
+      BinaryOpKind op = ParseBinaryOpName(getNextToken());
+      expect(">");
+      auto left = parseRegister();
+      auto right = parseRegister();
+      NEW_INSTR(DoubleBinaryOp, dst, op, left, right);
+      break;
+    }
     case Opcode::kCompare: {
       expect("<");
       CompareOp op = ParseCompareOpName(getNextToken());
@@ -1052,7 +1061,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kDeoptPatchpoint:
     case Opcode::kDictMerge:
     case Opcode::kDictUpdate:
-    case Opcode::kDoubleBinaryOp:
     case Opcode::kEndInlinedFunction:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kGetAIter:

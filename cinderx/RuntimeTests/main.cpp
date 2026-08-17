@@ -19,6 +19,7 @@
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/simplify.h"
+#include "cinderx/Jit/hir/sink_primitive_box.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
@@ -67,6 +68,7 @@ class TestPassRegistry {
     addPass(PhiElimination::factory);
     addPass(InlineFunctionCalls::factory);
     addPass(Simplify::factory);
+    addPass(SinkPrimitiveBox::factory);
     addPass(DeadCodeElimination::factory);
     addPass(GuardTypeRemoval::factory);
     addPass(BeginInlinedFunctionElimination::factory);
@@ -262,6 +264,7 @@ int main(int argc, char* argv[]) {
   register_test("simplify_test.txt");
   register_test("simplify_uses_guard_types.txt");
   register_test("simplify_static_test.txt", RuntimeTest::kStaticCompiler);
+  register_test("sink_primitive_box_test.txt");
   register_test("dead_code_elimination_test.txt");
   register_test(
       "dead_code_elimination_and_simplify_test.txt",

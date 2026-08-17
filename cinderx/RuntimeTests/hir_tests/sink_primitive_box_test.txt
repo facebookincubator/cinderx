@@ -1,0 +1,387 @@
+--- Test Suite Name ---
+SinkPrimitiveBoxTest
+--- Passes ---
+SinkPrimitiveBox
+--- Test Name ---
+SinksNonEscapingFloatBoxIntoDeoptFrameState
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = LoadArg<2>
+    v3 = RefineType<FloatExact> v0
+    v4 = RefineType<FloatExact> v1
+    v5 = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v9:FloatExact = PrimitiveBox<CDouble> v8 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<3> v3 v4 v5
+      }
+    }
+    UseType<FloatExact> v9
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v9 v4 v5
+      }
+    }
+    Return v12
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:FloatExact = RefineType<FloatExact> v0
+    v4:FloatExact = RefineType<FloatExact> v1
+    v5:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v8 v4 v5
+      }
+    }
+    Return v12
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:FloatExact = RefineType<FloatExact> v0
+    v4:FloatExact = RefineType<FloatExact> v1
+    v5:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v8 v4 v5
+      }
+    }
+    Return v12
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:FloatExact = RefineType<FloatExact> v0
+    v4:FloatExact = RefineType<FloatExact> v1
+    v5:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v8 v4 v5
+      }
+    }
+    Return v12
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:FloatExact = RefineType<FloatExact> v0
+    v4:FloatExact = RefineType<FloatExact> v1
+    v5:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v8 v4 v5
+      }
+    }
+    Return v12
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:FloatExact = RefineType<FloatExact> v0
+    v4:FloatExact = RefineType<FloatExact> v1
+    v5:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v8 v4 v5
+      }
+    }
+    Return v12
+  }
+}
+--- Test Name ---
+KeepsEscapingFloatBox
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:FloatExact = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:FloatExact = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:FloatExact = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:FloatExact = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:FloatExact = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Test Name ---
+DoesNotSinkNonEscapingIntBox
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2:CInt64 = LoadConst<CInt64[7]>
+    v3:LongExact = PrimitiveBox<CInt64> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    UseType<LongExact> v3
+    v4:CInt64 = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CInt64[7] = LoadConst<CInt64[7]>
+    v3:LongExact = PrimitiveBox<CInt64> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    UseType<LongExact> v3
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CInt64[7] = LoadConst<CInt64[7]>
+    v3:LongExact = PrimitiveBox<CInt64> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    UseType<LongExact> v3
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CInt64[7] = LoadConst<CInt64[7]>
+    v3:LongExact = PrimitiveBox<CInt64> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    UseType<LongExact> v3
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CInt64[7] = LoadConst<CInt64[7]>
+    v3:LongExact = PrimitiveBox<CInt64> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    UseType<LongExact> v3
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CInt64[7] = LoadConst<CInt64[7]>
+    v3:LongExact = PrimitiveBox<CInt64> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    UseType<LongExact> v3
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- End ---
