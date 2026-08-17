@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <new>
 #include <vector>
 
 #ifndef WIN32
@@ -117,6 +118,21 @@ void HugePageArena::afterForkChild() {
   }
   free(tmp);
 #endif
+}
+
+void HugePageArena::atForkPrepare() {
+  mutex_.lock();
+}
+
+void HugePageArena::atForkParent() {
+  mutex_.unlock();
+}
+
+void HugePageArena::atForkChild() {
+  // Reuse the storage to get a fresh, unlocked mutex.  The inherited one is
+  // still locked by atForkPrepare() and destroying a locked mutex is
+  // undefined, so its lifetime is ended without running its destructor.
+  new (&mutex_) std::mutex{};
 }
 
 } // namespace cinderx

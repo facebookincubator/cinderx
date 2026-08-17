@@ -35,6 +35,10 @@ class HugePageArena {
   // Re-establish huge page backing for every chunk after a fork().
   void afterForkChild();
 
+  void atForkPrepare();
+  void atForkParent();
+  void atForkChild();
+
  private:
   struct Chunk {
     void* ptr;

@@ -12,6 +12,13 @@ namespace cinderx::jit {
 // logic for GIL handling during threaded compiles.
 std::recursive_mutex& jitCompilationMutex();
 
+// pthread_atfork() handlers for the compilation lock.  Compile threads hold it
+// with the GIL released, so a child forked at the wrong moment would otherwise
+// inherit it locked by a thread that no longer exists.
+void jitCompilationAtForkPrepare();
+void jitCompilationAtForkParent();
+void jitCompilationAtForkChild();
+
 // Uses to track if the current thread holds the lock for assertion purposes.
 inline thread_local int jitCompilationLockDepth = 0;
 

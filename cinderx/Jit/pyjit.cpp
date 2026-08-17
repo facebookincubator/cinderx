@@ -16,6 +16,7 @@
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/slab_arena.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
@@ -3637,26 +3638,58 @@ void finishBackgroundCompile(BorrowedRef<PyCodeObject> code) {
 
 #ifndef WIN32
 
-// fork() safety for the background compilation thread
+// fork() safety for the JIT's locks.
+//
+// A fork only carries over the forking thread, so any lock a compile thread
+// held at that instant would stay locked forever in the child.  Compiles run
+// with the GIL released, so the window is wide open for both the background
+// compile worker and the multi-threaded compile workers.
+//
+// The prepare handler takes every one of those locks, outermost first, in the
+// same order the running code takes them; taking them in any other order would
+// risk deadlocking the prepare handler itself against a compile in progress.
+// The parent hands them back, and the child -- where they can only be held by
+// the forking thread -- resets them.
 
-void backgroundCompileAtForkPrepare() {
-  // Quiesce the registry so the child snapshots it at a consistent point.
-  // The registry now lives inside the JIT Context, so if JIT is not
-  // initialized there is nothing to quiesce.
+void jitAtForkPrepare() {
+  // Quiesce the background compile registry so the child snapshots it at a
+  // consistent point.  The registry lives inside the JIT Context, so if JIT is
+  // not initialized there is nothing to quiesce.
   auto* ctx = getContext();
   if (ctx != nullptr) {
     ctx->backgroundCompileRegistry().mutex.lock();
   }
+  jitCompilationAtForkPrepare();
+  codeAllocatorAtForkPrepare();
+  SlabArenaForkRegistry::get().atForkPrepare();
+  // Innermost: SlabArena::allocate() reaches the module state and, through it,
+  // the shared HugePageArena while holding its own lock.
+  if (auto* state = getModuleState(); state != nullptr) {
+    state->atForkPrepare();
+  }
 }
 
-void backgroundCompileAtForkParent() {
+void jitAtForkParent() {
+  if (auto* state = getModuleState(); state != nullptr) {
+    state->atForkParent();
+  }
+  SlabArenaForkRegistry::get().atForkParent();
+  codeAllocatorAtForkParent();
+  jitCompilationAtForkParent();
   auto* ctx = getContext();
   if (ctx != nullptr) {
     ctx->backgroundCompileRegistry().mutex.unlock();
   }
 }
 
-void backgroundCompileAtForkChild() {
+void jitAtForkChild() {
+  if (auto* state = getModuleState(); state != nullptr) {
+    state->atForkChild();
+  }
+  SlabArenaForkRegistry::get().atForkChild();
+  codeAllocatorAtForkChild();
+  jitCompilationAtForkChild();
+
   auto* ctx = getContext();
   if (ctx == nullptr) {
     return;
@@ -3669,8 +3702,8 @@ void backgroundCompileAtForkChild() {
   //  - Destroying `queue` would drop the tasks' references to Python objects,
   //    and this handler runs inside fork(), before PyOS_AfterFork_Child() has
   //    reinitialized the runtime.
-  //  - `mutex` is still locked by backgroundCompileAtForkPrepare(), and
-  //    destroying a locked mutex is undefined.
+  //  - `mutex` is still locked by jitAtForkPrepare(), and destroying a locked
+  //    mutex is undefined.
   //
   // Reusing the storage ends the old registry's lifetime without those side
   // effects.  Whatever it owned is leaked, but it is a private copy of the
@@ -3681,14 +3714,11 @@ void backgroundCompileAtForkChild() {
 // Register the fork handlers exactly once for the process.  pthread_atfork
 // handlers cannot be unregistered and persist across JIT finalize/re-init, so
 // registering more than once would stack duplicate prepare handlers and
-// self-deadlock on the non-recursive registry mutex.
+// self-deadlock on the non-recursive locks they take.
 void ensureForkHandlersRegistered() {
   static std::once_flag flag;
   std::call_once(flag, [] {
-    pthread_atfork(
-        backgroundCompileAtForkPrepare,
-        backgroundCompileAtForkParent,
-        backgroundCompileAtForkChild);
+    pthread_atfork(jitAtForkPrepare, jitAtForkParent, jitAtForkChild);
   });
 }
 
@@ -3805,8 +3835,8 @@ bool startBackgroundWorkerThread(
     throw CAPIError();
   }
 
-  // Make background compilation fork-safe: a child that inherits a worker-held
-  // lock would otherwise deadlock on the first JIT activity after fork.
+  // Normally already registered by jit::initialize(), but re-check here since
+  // the worker is the widest source of locks held across a fork.
   ensureForkHandlersRegistered();
 
   try {
@@ -3985,6 +4015,13 @@ int initialize() {
   if (jit::initCompiledFunctionType() < 0) {
     return -1;
   }
+
+  // Make the JIT's locks fork-safe before anything can start compiling.  A
+  // child that inherits a lock held by a compile thread, which no longer
+  // exists there, would otherwise deadlock on the first JIT activity after the
+  // fork.  This covers the multi-threaded compile workers as well as the
+  // background compile worker.
+  ensureForkHandlersRegistered();
 
   // Create code allocator after jit::Config has been filled out.
   cinderx::ModuleState* mod_state = cinderx::getModuleState();

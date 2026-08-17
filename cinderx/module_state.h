@@ -45,6 +45,13 @@ struct ModuleState {
 
   void afterForkChild();
 
+  // pthread_atfork() handlers for this state's own lock and the shared
+  // HugePageArena behind it.  These are the innermost of the JIT's fork
+  // handlers, matching the order SlabArena::allocate() takes them in.
+  void atForkPrepare();
+  void atForkParent();
+  void atForkChild();
+
   // Wait for any background multi-threaded compile worker threads to finish
   // and drop them.  Safe to call when no compile is in progress (no-op).
   void joinCompileWorkers();

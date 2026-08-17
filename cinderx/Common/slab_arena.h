@@ -92,6 +92,28 @@ class SlabArenaIterator {
 
 std::shared_ptr<HugePageArena> getSharedHugePageArena();
 
+// The mutexes of every live SlabArena, so that pthread_atfork() handlers can
+// quiesce them across a fork().
+//
+// SlabArena is a template with instances scattered across JIT state, so they
+// register themselves here instead of being enumerated by hand.  No SlabArena
+// ever locks another, so the handlers may take them in any order.
+class SlabArenaForkRegistry {
+ public:
+  static SlabArenaForkRegistry& get();
+
+  void add(std::mutex* mutex);
+  void remove(std::mutex* mutex);
+
+  void atForkPrepare();
+  void atForkParent();
+  void atForkChild();
+
+ private:
+  std::mutex lock_;
+  std::vector<std::mutex*> mutexes_;
+};
+
 // SlabArena is a simple arena allocator, using slabs that are multiples of the
 // system's page size. Allocated objects never move after creation, and all
 // objects will be kept alive until the SlabArena they came from is destroyed.
@@ -118,7 +140,19 @@ class SlabArena {
 
   SlabArena() {
     slabs_.emplace_back(SizeTrait::size(), getSharedHugePageArena());
+    // Registered last so a throwing constructor can't leave a dangling pointer
+    // behind, as the destructor won't run for a half-constructed arena.
+    SlabArenaForkRegistry::get().add(&mutex_);
   }
+
+  ~SlabArena() {
+    SlabArenaForkRegistry::get().remove(&mutex_);
+  }
+
+  SlabArena(const SlabArena&) = delete;
+  SlabArena(SlabArena&&) = delete;
+  SlabArena& operator=(const SlabArena&) = delete;
+  SlabArena& operator=(SlabArena&&) = delete;
 
   // Allocate a new instance of T using the given constructor arguments.
   template <typename... Args>

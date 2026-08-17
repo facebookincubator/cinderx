@@ -6,6 +6,8 @@
 
 #include "cinderx/Common/log.h"
 
+#include <new>
+
 #if PY_VERSION_HEX >= 0x030E0000
 #include "pycore_opcode_utils.h"
 #endif
@@ -74,6 +76,30 @@ void ModuleState::afterForkChild() {
   if (arena != nullptr) {
     arena->afterForkChild();
   }
+}
+
+void ModuleState::atForkPrepare() {
+  mutex_.lock();
+  if (std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock()) {
+    arena->atForkPrepare();
+  }
+}
+
+void ModuleState::atForkParent() {
+  if (std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock()) {
+    arena->atForkParent();
+  }
+  mutex_.unlock();
+}
+
+void ModuleState::atForkChild() {
+  if (std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock()) {
+    arena->atForkChild();
+  }
+  // Reuse the storage to get a fresh, unlocked mutex.  The inherited one is
+  // still locked by atForkPrepare() and destroying a locked mutex is
+  // undefined, so its lifetime is ended without running its destructor.
+  new (&mutex_) std::mutex{};
 }
 
 void ModuleState::joinCompileWorkers() {

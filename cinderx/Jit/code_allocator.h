@@ -41,9 +41,20 @@ class CodeAllocator : public ICodeAllocator {
   size_t usedBytes() const override;
   const asmjit::Environment& asmJitEnvironment() const override;
 
+  void atForkPrepare() override;
+  void atForkParent() override;
+  void atForkChild() override;
+
  protected:
   asmjit::JitRuntime runtime_;
   std::atomic<size_t> used_bytes_{0};
+
+  // Serializes every operation that reaches asmjit's own JitAllocator lock.
+  // That lock is private to asmjit with no way to reset it in a forked child,
+  // so this makes it observably free at fork time instead: atForkPrepare()
+  // holds this, which means no thread can be inside asmjit when the fork
+  // happens.
+  mutable std::mutex runtime_mutex_;
 };
 
 // A code allocator which tries to allocate all code on huge pages.
@@ -70,6 +81,10 @@ class CodeAllocatorCinder : public CodeAllocator {
   AllocateResult addCode(asmjit::CodeHolder* code) override;
   asmjit::Error releaseCode(void* code) override;
   bool contains(const void* ptr) const override;
+
+  void atForkPrepare() override;
+  void atForkParent() override;
+  void atForkChild() override;
 
  private:
   // Add code with hot/cold section splitting. Called by addCode() when
@@ -113,6 +128,12 @@ class CodeAllocatorCinder : public CodeAllocator {
   // Number of chunks allocated which did not use huge pages.
   std::atomic<size_t> fragmented_allocs_{0};
 };
+
+// pthread_atfork() handlers covering both the process-global code-allocation
+// state and the current ICodeAllocator, if one exists.
+void codeAllocatorAtForkPrepare();
+void codeAllocatorAtForkParent();
+void codeAllocatorAtForkChild();
 
 void populateCodeSections(
     std::vector<std::pair<void*, std::size_t>>& output_vector,

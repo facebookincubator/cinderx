@@ -5,6 +5,7 @@
 import collections
 import gc
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -18,9 +19,12 @@ from typing import Any, Callable, cast
 
 import cinderx.jit
 from cinderx.test_support import (
+    ENCODING,
     failUnlessJITCompiled,
+    is_sanitizer_build,
     skip_if_ft,
     skip_if_prefork,
+    skip_unless_jit,
     subprocess_env,
 )
 
@@ -36,16 +40,6 @@ class AttrLoadType:
 
 
 from .test_jit_pipeline_stress import make_function
-
-
-class AttrLoadType:
-    """Module-level type used to give the JIT an exact receiver type so
-    LoadAttr on an instance goes through simplifyLoadAttrInstanceReceiver."""
-
-    cls_attr = 123
-
-    def __init__(self) -> None:
-        self.inst_attr = 7
 
 
 def _wait_for_jit_compile(func: Callable[..., object], timeout: float = 5.0) -> bool:
@@ -848,6 +842,289 @@ def target_func(obj):
 
         result = self._assert_folded_in_background(test_func, ())
         self.assertEqual(test_func(), result)
+
+
+# Workload for BackgroundCompilePoolForkTest, run out-of-process so the
+# auto-JIT threshold and background_compile can be set from the environment.
+#
+# Shaped after the mezql fragment serializers (the binaries that wedged in
+# S695342): a `jit = True` python_binary that farms work out to a
+# multiprocessing.Pool created with the *fork* start method and
+# maxtasksperchild=1, while the parent keeps running JIT-eligible Python.
+_POOL_FORK_SCRIPT = '''
+import faulthandler
+import multiprocessing
+import os
+import signal
+import sys
+import time
+
+START = time.time()
+
+# The parent and every forked worker dump all thread stacks on SIGUSR1, so a
+# timeout in the test can show where the processes are wedged.
+faulthandler.register(signal.SIGUSR1, all_threads=True, chain=False)
+
+import cinderx.jit
+
+# Sized so the parent's worker is compiling essentially all of the time: a
+# batch takes well under a second to queue up but much longer to compile, so
+# the queue never empties and every fork lands mid-compile.  The function size
+# and the fork count are handed down by the parent test because how long a
+# compile takes is build-dependent; see SEGMENTS/TASKS there.
+SEGMENTS = int(os.environ["POOL_FORK_SEGMENTS"])
+TASKS = int(os.environ["POOL_FORK_TASKS"])
+FUNCS_PER_BATCH = 2
+SMALL_FUNCS = 100
+CALLS_PER_FUNC = 4
+WORKERS = 8
+
+
+def progress(message):
+    """Report progress with a raw write().
+
+    Never print() while the pool is forking: buffered stdio takes a lock, and a
+    worker forked while the main thread holds it inherits it locked and then
+    wedges flushing its streams on the way out.  That hazard is Python\'s, not
+    the JIT\'s, and it would mask the deadlock this test is looking for.
+    """
+    os.write(2, ("[%7.2fs] %s\\n" % (time.time() - START, message)).encode())
+
+
+def source(name):
+    lines = ["def " + name + "(a, b):", "    t = 0"]
+    for i in range(SEGMENTS):
+        lines.append("    if isinstance(a, int) and a > %d:" % i)
+        lines.append("        t += a * %d + b" % i)
+        lines.append("    else:")
+        lines.append("        t -= b // %d" % (i + 1))
+    lines.append("    return t")
+    return "\\n".join(lines)
+
+
+def churn(tag):
+    """exec fresh functions and call them past the auto-JIT threshold.
+
+    Every function is a new code object, so each one schedules its own
+    background compile.  We deliberately never wait for them here: the point is
+    to keep the worker thread compiling across the fork.
+    """
+    total = 0
+    for i in range(FUNCS_PER_BATCH):
+        name = "f_%s_%d" % (tag, i)
+        namespace = {}
+        exec(source(name), namespace)
+        func = namespace[name]
+        for _ in range(CALLS_PER_FUNC):
+            total += func(i, 3)
+    return total
+
+
+def small_churn(n):
+    """Create and drop JIT-tracked functions, which is what drives the
+    funcDestroyed() bookkeeping that takes the JIT compilation lock."""
+    total = 0
+    for i in range(n):
+
+        def inner(x=i):
+            return x + 1
+
+        total += inner()
+    return total
+
+
+def task(n):
+    # Runs in a freshly forked pool worker.  Everything in here needs the JIT
+    # state the child inherited through fork(), including whatever lock the
+    # parent's background compile worker happened to be holding at the time.
+    #
+    # The wait at the end is what makes a wedged child *observable*: without
+    # it the child would return before its own background compile got far
+    # enough to touch the inherited locks, and a deadlocked compile thread
+    # would go unnoticed because pool workers exit with os._exit().
+    total = churn("child%d_%d" % (n, os.getpid()))
+    total += small_churn(SMALL_FUNCS)
+    cinderx.jit.wait_for_background_compiles()
+    return total
+
+
+def main():
+    # Prime the parent so the background compile worker thread exists, and is
+    # busy, before the first fork.
+    churn("warmup")
+    progress("bg compile %s" % cinderx.jit.get_background_compile())
+
+    ctx = multiprocessing.get_context("fork")
+    total = 0
+    # maxtasksperchild=1 makes the pool fork a replacement worker after every
+    # single task, so forks keep coming from the pool's non-main
+    # _handle_workers thread while the main thread queues more compiles.
+    pool = ctx.Pool(processes=WORKERS, maxtasksperchild=1)
+    try:
+        for i, result in enumerate(pool.imap_unordered(task, range(TASKS))):
+            total += result
+            if i % max(1, TASKS // 4) == 0:
+                progress("task %d done" % i)
+            churn("parent%d" % i)
+        # close()/join() rather than terminate(): joining is where a child that
+        # wedged after fork never lets the parent go, which is how this showed
+        # up in the fragment serializers.
+        pool.close()
+        pool.join()
+    except BaseException:
+        pool.terminate()
+        pool.join()
+        raise
+
+    print("ok", total)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+
+@unittest.skipUnless(hasattr(os, "fork"), "requires fork()")
+class BackgroundCompilePoolForkTest(unittest.TestCase):
+    """Forking a multiprocessing.Pool while background compiles are in flight.
+
+    Regression test for the CI hang in S695342, where `jit = True` build tools
+    that fan work out over a fork-start-method Pool started wedging silently
+    once background compile became the default.
+
+    The hazard: a fork only carries over the forking thread, so any lock the
+    background compile worker held at that instant stays locked forever in the
+    child.  A child that blocks on one of them goes quiet with no output, and
+    since pool workers are what produce results, the parent blocks in join()
+    and the whole tree wedges with nothing on stdout.
+
+    jitAtForkPrepare/Parent/Child in pyjit.cpp now cover every lock a compile
+    thread can hold: the background compile registry mutex, jitCompilationMutex,
+    the code allocator (including asmjit's own lock, behind runtime_mutex_),
+    every live SlabArena::mutex_, ModuleState::mutex_, and
+    HugePageArena::mutex_.
+
+    HugePageArena is the worst of these because cinderjit.after_fork_child
+    re-takes its mutex in the child before any user code runs.  It is only
+    wired up on aarch64 (ALLOCATE_HUGE_PAGES in Common/slab_arena.cpp), which
+    is also where the parent's hold window is widest -- allocateChunk() does a
+    2MB-aligned malloc plus madvise() under the lock.
+
+    The workload was never observed to deadlock on x86-64, where the windows on
+    the remaining locks are only a few instructions wide.  It stays as a
+    stress/regression guard: it forks TASKS times with the compile queue
+    permanently backlogged, and reports a wedge as a failure with stacks rather
+    than hanging the suite.
+
+    Both tests run the same workload; the only difference is
+    CINDERX_JIT_BACKGROUND_COMPILE.  The one with it off is the control: if it
+    also times out, the workload (not background compile) is at fault.
+    """
+
+    # Healthy runs take well under a minute, but they are dominated by fork and
+    # compile throughput and stretch badly on a loaded host.  A hang is
+    # unbounded, so a wide margin costs nothing but keeps contention from
+    # looking like a deadlock.
+    TIMEOUT: float = 600.0
+
+    # A debug + sanitizer build compiles roughly twenty times slower than an
+    # optimized one, so the workload has to be sized for the build it runs in.
+    # At the optimized sizes it grinds for ~8.5 minutes per test there with no
+    # output at all -- indistinguishable from the hang this test exists to catch,
+    # and close enough to TIMEOUT that a loaded host reports a deadlock that
+    # isn't there.  The control run is the worse of the two: with background
+    # compile off, the parent compiles inline, so its per-task churn is serial.
+    #
+    # gettotalrefcount only exists on a Py_DEBUG build.
+    _SLOW_BUILD: bool = is_sanitizer_build() or hasattr(sys, "gettotalrefcount")
+
+    # How many if/else segments each churned function gets.  Large enough that
+    # compiling one takes far longer than queueing it -- that is what keeps the
+    # compile queue permanently backlogged so every fork lands mid-compile -- and
+    # under the JIT's size ceiling, above which functions are refused outright.
+    # Shrinking it on a slow build costs the test nothing: a slower compiler
+    # backs the queue up more easily, not less.
+    SEGMENTS: int = 20 if _SLOW_BUILD else 120
+
+    # How many pool tasks, and so how many forks, the workload drives.  This is
+    # the one knob a slow build really gives up coverage on, so it is cut only
+    # as far as the runtime budget demands.
+    TASKS: int = 24 if _SLOW_BUILD else 80
+
+    def _run_pool_workload(
+        self, background_compile: str
+    ) -> tuple[bool, int | None, str, str]:
+        """Run the fork+pool workload out-of-process.
+
+        Returns (timed_out, returncode, stdout, stderr).  On timeout the whole
+        process group is asked for a traceback and then killed, so a hang is
+        reported as a test failure instead of hanging the suite.
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "pool_fork.py"
+            script.write_text(_POOL_FORK_SCRIPT)
+
+            # start_new_session so the pool's workers land in their own process
+            # group: killing just the direct child would leave them holding the
+            # pipes open and communicate() would block anyway.
+            proc = subprocess.Popen(
+                [sys.executable, str(script)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding=ENCODING,
+                env={
+                    **subprocess_env(),
+                    "CINDERX_JIT_AUTO": "2",
+                    "CINDERX_JIT_BACKGROUND_COMPILE": background_compile,
+                    "POOL_FORK_SEGMENTS": str(self.SEGMENTS),
+                    "POOL_FORK_TASKS": str(self.TASKS),
+                },
+                start_new_session=True,
+            )
+            try:
+                stdout, stderr = proc.communicate(timeout=self.TIMEOUT)
+                return False, proc.returncode, stdout, stderr
+            except subprocess.TimeoutExpired:
+                self._dump_and_kill(proc)
+                stdout, stderr = proc.communicate()
+                return True, proc.returncode, stdout, stderr
+
+    def _dump_and_kill(self, proc: "subprocess.Popen[str]") -> None:
+        """Ask every process in the group for a traceback, then kill them."""
+        try:
+            os.killpg(proc.pid, signal.SIGUSR1)
+            time.sleep(2)
+        except OSError:
+            pass
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
+    def test_pool_fork_during_background_compile(self) -> None:
+        timed_out, returncode, stdout, stderr = self._run_pool_workload("1")
+        self.assertFalse(
+            timed_out,
+            f"multiprocessing.Pool(fork) deadlocked with background compile "
+            f"enabled\nstdout:\n{stdout}\nstderr:\n{stderr}",
+        )
+        self.assertEqual(returncode, 0, stderr)
+        self.assertIn("ok ", stdout, stderr)
+
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
+    def test_pool_fork_without_background_compile(self) -> None:
+        """Control: the same workload must be fine without background compile."""
+        timed_out, returncode, stdout, stderr = self._run_pool_workload("0")
+        self.assertFalse(
+            timed_out,
+            f"multiprocessing.Pool(fork) deadlocked with background compile "
+            f"disabled, so the workload itself is broken\nstdout:\n{stdout}\n"
+            f"stderr:\n{stderr}",
+        )
+        self.assertEqual(returncode, 0, stderr)
+        self.assertIn("ok ", stdout, stderr)
 
 
 if __name__ == "__main__":

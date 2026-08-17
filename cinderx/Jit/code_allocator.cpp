@@ -6,6 +6,7 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/module_state.h"
 
 #ifdef WIN32
 #include <Windows.h>
@@ -22,6 +23,7 @@
 #endif
 
 #include <cstring>
+#include <new>
 
 namespace cinderx::jit {
 
@@ -211,6 +213,8 @@ ICodeAllocator* CodeAllocator::make() {
 }
 
 AllocateResult CodeAllocator::addCode(asmjit::CodeHolder* code) {
+  std::lock_guard lock{runtime_mutex_};
+
   void* addr = nullptr;
   asmjit::Error error = runtime_.add(&addr, code);
 
@@ -222,6 +226,8 @@ AllocateResult CodeAllocator::addCode(asmjit::CodeHolder* code) {
 }
 
 asmjit::Error CodeAllocator::releaseCode(void* code) {
+  std::lock_guard lock{runtime_mutex_};
+
   // Find the size of the allocated region.
   asmjit::JitAllocator* inner = runtime_.allocator();
   asmjit::JitAllocator::Span span;
@@ -247,9 +253,12 @@ asmjit::Error CodeAllocator::releaseCode(void* code) {
 }
 
 bool CodeAllocator::contains(const void* ptr) const {
+  // query() is internally thread-safe, but it takes asmjit's own lock, which
+  // can't be recovered in a forked child.  Going through runtime_mutex_ keeps
+  // that lock free whenever a fork can happen.
+  std::lock_guard lock{runtime_mutex_};
+
   asmjit::JitAllocator::Span unused;
-  // asmjit docs don't say that query() is thread-safe, but peeking at the
-  // implementation shows that it is.
   return runtime_.allocator()->query(unused, const_cast<void*>(ptr)) ==
       asmjit::kErrorOk;
 }
@@ -260,6 +269,21 @@ size_t CodeAllocator::usedBytes() const {
 
 const asmjit::Environment& CodeAllocator::asmJitEnvironment() const {
   return runtime_.environment();
+}
+
+void CodeAllocator::atForkPrepare() {
+  runtime_mutex_.lock();
+}
+
+void CodeAllocator::atForkParent() {
+  runtime_mutex_.unlock();
+}
+
+void CodeAllocator::atForkChild() {
+  // Reuse the storage to get a fresh, unlocked mutex.  The inherited one is
+  // still locked by atForkPrepare() and destroying a locked mutex is
+  // undefined, so its lifetime is ended without running its destructor.
+  new (&runtime_mutex_) std::mutex{};
 }
 
 CodeAllocatorCinder::~CodeAllocatorCinder() {
@@ -482,6 +506,52 @@ bool CodeAllocatorCinder::contains(const void* ptr) const {
     }
   }
   return false;
+}
+
+void CodeAllocatorCinder::atForkPrepare() {
+  CodeAllocator::atForkPrepare();
+  allocator_mutex_.lock();
+}
+
+void CodeAllocatorCinder::atForkParent() {
+  allocator_mutex_.unlock();
+  CodeAllocator::atForkParent();
+}
+
+void CodeAllocatorCinder::atForkChild() {
+  new (&allocator_mutex_) std::mutex{};
+  CodeAllocator::atForkChild();
+}
+
+void codeAllocatorAtForkPrepare() {
+  ModuleState* state = cinderx::getModuleState();
+  if (state != nullptr && state->code_allocator != nullptr) {
+    state->code_allocator->atForkPrepare();
+  }
+#if defined(__linux__)
+  // Innermost: ensureSpace() reaches this while holding allocator_mutex_.
+  cinder_jit_region_mutex_.lock();
+#endif
+}
+
+void codeAllocatorAtForkParent() {
+#if defined(__linux__)
+  cinder_jit_region_mutex_.unlock();
+#endif
+  ModuleState* state = cinderx::getModuleState();
+  if (state != nullptr && state->code_allocator != nullptr) {
+    state->code_allocator->atForkParent();
+  }
+}
+
+void codeAllocatorAtForkChild() {
+#if defined(__linux__)
+  new (&cinder_jit_region_mutex_) std::mutex{};
+#endif
+  ModuleState* state = cinderx::getModuleState();
+  if (state != nullptr && state->code_allocator != nullptr) {
+    state->code_allocator->atForkChild();
+  }
 }
 
 } // namespace cinderx::jit

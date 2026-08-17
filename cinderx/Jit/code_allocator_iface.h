@@ -34,6 +34,14 @@ class ICodeAllocator {
 
   // Get the asmjit environment used by this allocator.
   virtual const asmjit::Environment& asmJitEnvironment() const = 0;
+
+  // pthread_atfork() handlers, called via codeAllocatorAtFork*().  Compile
+  // threads allocate code with the GIL released, so a child forked at the
+  // wrong moment would otherwise inherit an allocator lock held by a thread
+  // that no longer exists.
+  virtual void atForkPrepare() {}
+  virtual void atForkParent() {}
+  virtual void atForkChild() {}
 };
 
 } // namespace cinderx::jit
