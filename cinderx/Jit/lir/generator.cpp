@@ -5423,13 +5423,17 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     // deopt_idx address.  This must happen after the FP swap above —
     // the kLea uses FP as its base register.
     // TranslateOneBasicBlock reuses this for all deopt index stores.
+    //
+    // The deopt index sits at a positive offset from FP, so this is an indirect
+    // rather than a Stk operand.  A PhyLocation only reads as a stack slot when
+    // its offset is negative.
     int32_t deopt_idx_offset = static_cast<int32_t>(
         offsetof(GenDataFooter, frame_header) +
         offsetof(FrameHeader, deopt_idx));
     deopt_idx_addr_ = bbb.appendInstr(
         OutVReg{DataType::k64bit},
         Opcode::kLea,
-        Stk{PhyLocation(deopt_idx_offset)});
+        Ind{codegen::arch::reg_frame_pointer_loc, deopt_idx_offset});
 #endif
   } else {
 #if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
