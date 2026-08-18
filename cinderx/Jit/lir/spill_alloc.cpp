@@ -172,6 +172,10 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
     return;
   }
 
+  JIT_DCHECK(
+      !instr->isLoadPair(),
+      "load pair can only be generated after register allocation");
+
   // Generator frame migration: a Move into the frame-pointer register swaps the
   // frame pointer between the machine stack and the heap-allocated generator
   // data.  Handle values that must cross the switch, then fall through so the

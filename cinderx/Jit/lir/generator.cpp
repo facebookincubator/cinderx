@@ -573,28 +573,79 @@ void PopulateEntryBlock(
   auto kPointerSize = static_cast<int32_t>(sizeof(void*));
 
   bool has_extra_args = false;
+
+  // Consecutive general-purpose arguments live in adjacent slots, so they can
+  // be loaded a pair at a time. This block is built after the post-allocation
+  // pairing pass has run, so the pairs are formed here instead. A double
+  // argument, a gap left by an overflow argument, or a destination that would
+  // clobber the array pointer ends the run.
+#if defined(CINDER_AARCH64)
+  constexpr bool kCanPairArgLoads = true;
+#else
+  constexpr bool kCanPairArgLoads = false;
+#endif
+
+  std::optional<std::pair<int32_t, PhyLocation>> pending;
+  auto flushPending = [&]() {
+    if (!pending.has_value()) {
+      return;
+    }
+    entry_block->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutPhyReg(pending->second),
+        Ind(args_reg, pending->first));
+    pending.reset();
+  };
+
   for (size_t i = 0; i < arg_locations.size(); i++) {
     PhyLocation arg = arg_locations[i];
     if (arg == PhyLocation::REG_INVALID) {
       has_extra_args = true;
+      flushPending();
       continue;
     }
-    if (arg.isGpRegister()) {
-      entry_block->allocateInstr(
-          Opcode::kMove,
-          nullptr,
-          OutPhyReg(arg),
-          Ind(args_reg, static_cast<int32_t>(i * kPointerSize)));
-    } else {
+
+    auto offset = static_cast<int32_t>(i * kPointerSize);
+
+    if (!arg.isGpRegister()) {
+      flushPending();
       entry_block->allocateInstr(
           Opcode::kMove,
           nullptr,
           OutPhyReg(arg, Operand::kDouble),
-          Ind(args_reg,
-              static_cast<int32_t>(i * kPointerSize),
-              Operand::kDouble));
+          Ind(args_reg, offset, Operand::kDouble));
+      continue;
     }
+
+    // defense in depth: we don't know this will use hardware load pair so
+    // don't generate load pair if the registers overlap.
+    if (arg == args_reg) {
+      flushPending();
+      entry_block->allocateInstr(
+          Opcode::kMove, nullptr, OutPhyReg(arg), Ind(args_reg, offset));
+      continue;
+    }
+
+    if (kCanPairArgLoads && pending.has_value() && pending->second != arg) {
+      JIT_DCHECK(
+          offset == pending->first + kPointerSize,
+          "pending arg load should be for the preceding slot");
+      entry_block->allocateInstr(
+          Opcode::kLoadPair,
+          nullptr,
+          OutPhyReg(pending->second),
+          Imm{static_cast<uint64_t>(pending->first)},
+          PhyReg{args_reg},
+          PhyReg{arg});
+      pending.reset();
+      continue;
+    }
+
+    flushPending();
+    pending = std::make_pair(offset, arg);
   }
+  flushPending();
   if (has_extra_args) {
     // Point extra_args register past the register-bound args to the
     // start of the overflow args in the vectorcall array.
