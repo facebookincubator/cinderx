@@ -2007,8 +2007,13 @@ Register* pinModuleAttr(
   // Unlike LoadGlobalCached, LoadModuleAttrCached is not replayable (its slow
   // path can run arbitrary code), so it resets the guard-binding pass's notion
   // of the dominating FrameState. Emit a Snapshot with the load's FrameState so
-  // the following GuardIs deopts back to re-executing this load.
-  env.emit<Snapshot>(*load_attr->frameState());
+  // the following GuardIs deopts back to re-executing this load. The load's
+  // FrameState was captured after the receiver was popped off the operand
+  // stack, so push it back on: re-executing LOAD_ATTR reads the receiver from
+  // the top of the interpreter's stack.
+  FrameState frame{*load_attr->frameState()};
+  frame.stack.push(load_attr->getOperand(0));
+  env.emit<Snapshot>(frame);
   return env.emit<GuardIs>(env.func.env.addReference(value), cached);
 }
 

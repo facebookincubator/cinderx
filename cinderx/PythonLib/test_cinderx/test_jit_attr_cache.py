@@ -2,14 +2,22 @@
 
 # pyre-unsafe
 
+import importlib
 import sys
 import unittest
 from textwrap import dedent
+from unittest.mock import patch
 
 import cinderx
 import cinderx.jit
 import cinderx.test_support as cinder_support
-from cinderx.test_support import passIf, passUnless, skip_if_ft, skip_module_if_oss
+from cinderx.test_support import (
+    passIf,
+    passUnless,
+    skip_if_ft,
+    skip_if_prefork,
+    skip_module_if_oss,
+)
 
 skip_module_if_oss()
 
@@ -907,6 +915,215 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         # prime the cache
         self.assertEqual(tmp_b.test(), 3)
         self.assertEqual(tmp_b.test(), 3)
+
+
+LEAF_SOURCE = """
+    class Klass:
+        pass
+
+    attr = Klass
+    """
+
+
+@passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
+@skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
+@skip_if_prefork("the compiled function shows up as a leak due to immortalization")
+class ModuleAttrPinTests(unittest.TestCase):
+    """The JIT resolves a module attribute at compile time and pins it with a
+    GuardIs when the value is a module or a type.  Rebinding such an attribute
+    has to deopt and re-execute the LOAD_ATTR in the interpreter, which only
+    works if the deopt's FrameState still holds the module receiver on the
+    operand stack.  Before T284563326 was fixed the receiver was missing, so
+    the interpreter read the stack slot underneath it: a segfault with nothing
+    below, a wrong receiver otherwise.
+    """
+
+    def _import(self, tmp, name, source):
+        (tmp / f"{name}.py").write_text(dedent(source), encoding="utf8")
+        return importlib.import_module(name)
+
+    def _assert_attr_pinned(self, func, num_pins=1):
+        """Without the pin there's no GuardIs on the attribute, and the deopt
+        path these tests are about never runs."""
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
+        counts = cinderx.jit.get_function_hir_opcode_counts(func)
+        self.assertIsNotNone(counts)
+        self.assertIn("LoadModuleAttrCached", counts)
+        # One GuardIs pins the module global, the rest pin attribute values.
+        self.assertGreaterEqual(counts.get("GuardIs", 0), num_pins + 1)
+
+    def _guard_deopts(self, qualname):
+        deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or []
+        return sum(
+            event["int"]["count"]
+            for event in deopts
+            if event["normal"]["func_qualname"] == qualname
+            and event["normal"]["reason"] == "GuardFailure"
+        )
+
+    def test_rebind_class_valued_attr(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def load():
+                    return pin_leaf.attr
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            self._assert_attr_pinned(user.load)
+            self.assertIs(user.load(), leaf.Klass)
+
+            cinderx.jit.get_and_clear_runtime_stats()
+            leaf.attr = 2
+            self.assertEqual(user.load(), 2)
+            self.assertGreaterEqual(self._guard_deopts("load"), 1)
+
+    def test_rebind_class_valued_attr_with_stack_underneath(self):
+        """The receiver isn't at the bottom of the operand stack here, so a
+        deopt that drops it loads the attribute off the wrong object rather
+        than crashing."""
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def load(other):
+                    return [other, pin_leaf.attr]
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            self._assert_attr_pinned(user.load)
+            self.assertEqual(user.load("sentinel"), ["sentinel", leaf.Klass])
+
+            cinderx.jit.get_and_clear_runtime_stats()
+            leaf.attr = 2
+            self.assertEqual(user.load("sentinel"), ["sentinel", 2])
+            self.assertGreaterEqual(self._guard_deopts("load"), 1)
+
+    def test_rebind_module_valued_attr(self):
+        with cinder_support.temp_sys_path() as tmp:
+            self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            mid = self._import(tmp, "pin_mid", "import pin_leaf")
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_mid
+
+                def load():
+                    return pin_mid.pin_leaf
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            self._assert_attr_pinned(user.load)
+            self.assertIs(user.load(), sys.modules["pin_leaf"])
+
+            cinderx.jit.get_and_clear_runtime_stats()
+            mid.pin_leaf = "rebound"
+            self.assertEqual(user.load(), "rebound")
+            self.assertGreaterEqual(self._guard_deopts("load"), 1)
+
+    def test_rebind_leaf_of_module_chain(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            self._import(tmp, "pin_mid", "import pin_leaf")
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_mid
+
+                def load():
+                    return pin_mid.pin_leaf.Klass
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            # Both levels of the chain are pinned: the submodule and the class.
+            self._assert_attr_pinned(user.load, num_pins=2)
+            self.assertIs(user.load(), leaf.Klass)
+
+            cinderx.jit.get_and_clear_runtime_stats()
+            leaf.Klass = "rebound"
+            self.assertEqual(user.load(), "rebound")
+            self.assertGreaterEqual(self._guard_deopts("load"), 1)
+
+    def test_rebind_intermediate_module_of_chain(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            mid = self._import(tmp, "pin_mid", "import pin_leaf")
+            other = self._import(tmp, "pin_other", "Klass = 'other-klass'")
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_mid
+
+                def load():
+                    return pin_mid.pin_leaf.Klass
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            self._assert_attr_pinned(user.load, num_pins=2)
+            self.assertIs(user.load(), leaf.Klass)
+
+            # Deopts on the first of the two loads, so the interpreter has to
+            # re-execute both of them.
+            cinderx.jit.get_and_clear_runtime_stats()
+            mid.pin_leaf = other
+            self.assertEqual(user.load(), "other-klass")
+            self.assertGreaterEqual(self._guard_deopts("load"), 1)
+
+    def test_mock_patch_class_valued_attr(self):
+        """`mock.patch` of a class-valued module attribute, the idiom that
+        made test_webbrowser crash."""
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def load():
+                    return pin_leaf.attr
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            self._assert_attr_pinned(user.load)
+            self.assertIs(user.load(), leaf.Klass)
+
+            with patch.object(leaf, "attr") as mock_attr:
+                self.assertIs(user.load(), mock_attr)
+            self.assertIs(user.load(), leaf.Klass)
+
+    def test_delete_class_valued_attr(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def load():
+                    return pin_leaf.attr
+                """,
+            )
+            cinderx.jit.force_compile(user.load)
+            self._assert_attr_pinned(user.load)
+            self.assertIs(user.load(), leaf.Klass)
+
+            del leaf.attr
+            with self.assertRaises(AttributeError):
+                user.load()
 
 
 @cinder_support.failUnlessJITCompiled
