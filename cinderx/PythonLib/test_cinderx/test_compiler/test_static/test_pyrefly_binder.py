@@ -43,7 +43,6 @@ class PyreBinderTests(StaticTestBase):
         )
         self.assertTrue(static)
         self.assertFalse(strict)
-        # pyrefly: ignore [missing-attribute]
         self.assertIn("<fixed-modules>", code.co_names)
 
     def test_opt_in_static(self):
@@ -53,7 +52,6 @@ class PyreBinderTests(StaticTestBase):
         )
         self.assertTrue(static)
         self.assertFalse(strict)
-        # pyrefly: ignore [missing-attribute]
         self.assertIn("<fixed-modules>", code.co_names)
 
     def test_non_force_static(self):
@@ -63,7 +61,6 @@ class PyreBinderTests(StaticTestBase):
         )
         self.assertFalse(static)
         self.assertFalse(strict)
-        # pyrefly: ignore [missing-attribute]
         self.assertNotIn("<fixed-modules>", code.co_names)
 
     def test_non_opt_in(self):
@@ -73,9 +70,7 @@ class PyreBinderTests(StaticTestBase):
         )
         self.assertFalse(static)
         self.assertFalse(strict)
-        # pyrefly: ignore [missing-attribute]
         self.assertNotIn("<fixed-modules>", code.co_names)
-        # pyrefly: ignore [missing-attribute]
         self.assertNotIn("<fixed-modules>", code.co_names)
 
     def test_lambda_arg_types(self):

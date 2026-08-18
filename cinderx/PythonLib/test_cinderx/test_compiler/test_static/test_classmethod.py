@@ -490,7 +490,6 @@ class Child(C):
                     C = mod.C
                     f = mod.f
 
-                    # pyre-ignore[53]: C and f are dynamically defined.
                     async def make_hot() -> None:
                         c = C()  # noqa: B023
                         for _ in range(50):

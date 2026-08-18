@@ -146,7 +146,6 @@ class StaticTests(unittest.TestCase):
 
     def test_rand(self) -> None:
         self.assertEqual(type(RAND_MAX), int)
-        # pyre-ignore[16]: no attribute RAND_MAX
         self.assertLessEqual(rand(), RAND_MAX)
         self.assertGreaterEqual(rand(), 0)
 

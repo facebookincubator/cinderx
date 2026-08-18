@@ -3248,11 +3248,9 @@ class CodeGenerator312(CodeGenerator):
             assert 0
 
     def emit_call_intrinsic_1(self, oparg: str) -> None:
-        # pyre-fixme[16]: Module `opcodes` has no attribute `INTRINSIC_1`.
         self.emit("CALL_INTRINSIC_1", INTRINSIC_1.index(oparg))
 
     def emit_call_intrinsic_2(self, oparg: str) -> None:
-        # pyre-fixme[16]: Module `opcodes` has no attribute `INTRINSIC_2`.
         self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
 
     def emit_import_star(self) -> None:
@@ -6464,7 +6462,6 @@ class CodeGenerator315(CodeGenerator314):
             name = alias.name
             asname = alias.asname
             if name == "*":
-                # pyre-fixme[16] This field does not appear to be used.
                 self.namespace = 0
                 self.emit_import_star()
                 # There can only be one name w/ from ... import *

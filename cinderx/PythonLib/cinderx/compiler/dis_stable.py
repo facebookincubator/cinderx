@@ -74,7 +74,6 @@ def _disassemble_bytes(
     # Omit the line number column entirely if we have no line number info
     show_lineno = linestarts is not None
     if show_lineno:
-        # pyre-fixme [16]: `Optional` has no attribute `values`.
         maxlineno = max(linestarts.values()) + line_offset
         if maxlineno >= 1000:
             lineno_width = len(str(maxlineno))

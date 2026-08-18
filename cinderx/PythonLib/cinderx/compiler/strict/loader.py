@@ -15,8 +15,6 @@ try:  # ensure all imports in this module are eager, to avoid cycles
 
     # pyre-ignore[21]: typeshed doesn't know about this
     from importlib import _bootstrap, _pack_uint32
-
-    # pyre-ignore[21]: typeshed doesn't know about this
     from importlib._bootstrap_external import (
         # pyrefly: ignore [missing-module-attribute]
         _classify_pyc,
@@ -192,7 +190,6 @@ class StrictBytecodeError(ImportError):
 def classify_strict_pyc(
     data: bytes, name: str, exc_details: dict[str, str]
 ) -> tuple[int, bool]:
-    # pyre-ignore[16]: typeshed doesn't know about this
     flags = _classify_pyc(data[_MAGIC_LEN:], name, exc_details)
     magic = data[:_MAGIC_LEN]
     if magic == _MAGIC_NEITHER_STRICT_NOR_STATIC:
@@ -259,7 +256,6 @@ def get_dependency_data(source_info: SourceInfo, hash_based: bool) -> bytes:
         assert source_info.source is not None
         return importlib.util.source_hash(source_info.source)
     else:
-        # pyre-ignore[16]: typeshed doesn't know about this
         return _pack_uint32(source_info.mtime) + _pack_uint32(source_info.size)
 
 
@@ -277,11 +273,8 @@ def code_to_strict_timestamp_pyc(
         else _MAGIC_NEITHER_STRICT_NOR_STATIC
     )
     data.extend(MAGIC_NUMBER)
-    # pyre-ignore[16]: typeshed doesn't know about this
     data.extend(_pack_uint32(0))
-    # pyre-ignore[16]: typeshed doesn't know about this
     data.extend(_pack_uint32(mtime))
-    # pyre-ignore[16]: typeshed doesn't know about this
     data.extend(_pack_uint32(source_size))
     data.extend(marshal.dumps(get_deps(deps, hash_based=False)))
     data.extend(marshal.dumps(code))
@@ -303,7 +296,6 @@ def code_to_strict_hash_pyc(
     )
     data.extend(MAGIC_NUMBER)
     flags = 0b1 | checked << 1
-    # pyre-ignore[16]: typeshed doesn't know about this
     data.extend(_pack_uint32(flags))
     assert len(source_hash) == 8
     data.extend(source_hash)
@@ -447,7 +439,6 @@ class StrictSourceFileLoader(SourceFileLoader):
                             ):
                                 source_bytes = self.get_data(source_path)
                                 source_hash = importlib.util.source_hash(source_bytes)
-                                # pyre-ignore[16]: typeshed doesn't know about this
                                 _validate_hash_pyc(
                                     data[_MAGIC_LEN:],
                                     source_hash,
@@ -459,7 +450,6 @@ class StrictSourceFileLoader(SourceFileLoader):
                                         self.get_compiler(), deps, hash_based=True
                                     )
                         else:
-                            # pyre-ignore[16]: typeshed doesn't know about this
                             _validate_timestamp_pyc(
                                 data[_MAGIC_LEN:],
                                 source_mtime,
@@ -478,7 +468,6 @@ class StrictSourceFileLoader(SourceFileLoader):
                         _bootstrap._verbose_message(
                             "{} matches {}", bytecode_path, source_path
                         )
-                        # pyre-ignore[16]: typeshed doesn't know about this
                         return _compile_bytecode(
                             memoryview(data)[bytes_data.tell() :],
                             name=fullname,
@@ -534,7 +523,6 @@ class StrictSourceFileLoader(SourceFileLoader):
         log_source_load = self.log_source_load
         if log_source_load is not None:
             log_source_load(path, self.bytecode_path, self.bytecode_found)
-        # pyre-ignore[28]: typeshed doesn't know about _optimize arg
         code = super().source_to_code(data, path, _optimize=_optimize)
         force = self.should_force_strict()
         if force or "__strict__" in code.co_names or "__static__" in code.co_names:

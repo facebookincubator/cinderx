@@ -108,7 +108,6 @@ def on_sys_path(dir: str) -> Generator[None, None, None]:
 
 
 @contextmanager
-# pyrefly: ignore [bad-function-definition]
 def sandbox(cls: type[_SandboxT] = Sandbox) -> Generator[_SandboxT, None, None]:
     with TemporaryDirectory() as root:
         yield cls(Path(root))
@@ -117,10 +116,8 @@ def sandbox(cls: type[_SandboxT] = Sandbox) -> Generator[_SandboxT, None, None]:
 _T = TypeVar("_T")
 
 
-# pyre-fixme[34]: `Variable[_T]` isn't present in the function's parameters.
 def use_cm(cm_factory: Callable[[], ContextManager[_T]], testcase: TestCase) -> _T:
     cm = cm_factory()
     ret = cm.__enter__()
     testcase.addCleanup(cm.__exit__, None, None, None)
-    # pyre-fixme[7]: Expected `_T` but got `_T_co`.
     return ret

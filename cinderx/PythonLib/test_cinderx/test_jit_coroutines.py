@@ -93,7 +93,6 @@ class CoroutinesTest(unittest.TestCase):
 
         @failUnlessJITCompiled
         async def jit_coro():
-            # pyrefly: ignore [not-async]
             await eager_suspend("bob")
 
         coro = jit_coro()

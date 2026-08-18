@@ -215,7 +215,6 @@ class CinderX_DebuggerTests(unittest.TestCase):
         # Use "commands" to generate the arguments with which to invoke "gdb":
         args = ["--eval-command=%s" % cmd for cmd in commands]
         args += ["--args", sys.executable]
-        # pyrefly: ignore [missing-attribute]
         args.extend(subprocess._args_from_interpreter_flags())
 
         if not import_site:

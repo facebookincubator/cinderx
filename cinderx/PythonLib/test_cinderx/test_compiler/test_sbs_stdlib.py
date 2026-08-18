@@ -68,7 +68,6 @@ def add_test(modname, fname):
                 node = ast.parse(code, modname, "exec")
             except SyntaxError:
                 return
-            # pyre-ignore[16]: module doesn't have filename
             node.filename = modname
 
             try:
@@ -80,7 +79,6 @@ def add_test(modname, fname):
 
             codeobj = py_compile(node, modname, "exec")
             newdump = StringIO()
-            # pyre-ignore[6]: maybe not CodeType
             Disassembler().dump_code(codeobj, newdump)
 
             try:

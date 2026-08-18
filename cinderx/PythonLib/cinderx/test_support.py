@@ -96,7 +96,6 @@ def no_background_compile() -> Generator[None, None, None]:
 _FT = TypeVar("_FT", bound=Callable[..., object])
 
 
-# pyre-ignore[34]: Type variable isn't present in parameters
 def passAlways(reason: str) -> Callable[[_FT], _FT]:
     """
     Pass a test without running it.
@@ -139,7 +138,6 @@ def passAlways(reason: str) -> Callable[[_FT], _FT]:
     return decorator
 
 
-# pyre-ignore[34]: Type variable isn't present in parameters
 def passIf(condition: object, reason: str) -> Callable[[_FT], _FT]:
     """
     Force a test to pass if the condition is true.
@@ -149,7 +147,6 @@ def passIf(condition: object, reason: str) -> Callable[[_FT], _FT]:
     return lambda obj: obj
 
 
-# pyre-ignore[34]: Type variable isn't present in parameters
 def passUnless(condition: object, reason: str) -> Callable[[_FT], _FT]:
     """
     Force a test to pass unless the condition is true.
@@ -300,12 +297,10 @@ def undo_fail_decorators(func: Callable[..., object]) -> Callable[..., object]:
 
 def is_sanitizer_build() -> bool:
     try:
-        # pyrefly: ignore [no-access]
         ctypes.pythonapi.__asan_init
         return True
     except AttributeError:
         try:
-            # pyrefly: ignore [no-access]
             ctypes.pythonapi.__tsan_init
             return True
         except AttributeError:

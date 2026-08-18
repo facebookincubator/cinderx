@@ -1565,7 +1565,7 @@ class StrictLoaderTest(StrictTestBase):
 
     def test_source_callback(self) -> None:
         calls: list[str] = []
-        # pyre-fixme[21]: Could not find module `__strict__`.
+        # pyrefly: ignore [missing-import]
         import __strict__
 
         def log(filename: str, bytecode_path: str | None, bytecode_found: bool) -> None:
@@ -1608,7 +1608,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
             self.assertEqual(a.x, 2)
 
@@ -1620,7 +1620,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
                 proxy.x = 200
                 self.assertEqual(a.x, 200)
@@ -1634,7 +1634,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertFalse(hasattr(a, "x"))
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
                 proxy.x = 200
                 self.assertEqual(a.x, 200)
@@ -1648,7 +1648,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertFalse(hasattr(a, "x"))
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
                 del proxy.x
                 self.assertFalse(hasattr(a, "x"))
@@ -1662,7 +1662,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
                 proxy.x = 2
                 self.assertEqual(a.x, 2)
@@ -1677,7 +1677,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                del proxy.x  # pyre-ignore[16]: no attribute x
+                del proxy.x
                 self.assertFalse(hasattr(a, "x"))
             self.assertEqual(a.x, 2)
 
@@ -1689,7 +1689,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                del proxy.x  # pyre-ignore[16]: no attribute x
+                del proxy.x
                 self.assertFalse(hasattr(a, "x"))
                 proxy.x = 2
                 self.assertEqual(a.x, 2)
@@ -1704,7 +1704,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             proxy = StrictModuleTestingPatchProxy(a)
-            proxy.x = 100  # pyre-ignore[16]: no attribute x
+            proxy.x = 100
             abort_called = False
 
             def abort() -> None:
@@ -1739,7 +1739,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
                 with StrictModuleTestingPatchProxy(a) as proxy2:
                     proxy2.x = 200
@@ -1755,7 +1755,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                proxy.x = 100  # pyre-ignore[16]: no attribute x
+                proxy.x = 100
                 self.assertEqual(a.x, 100)
                 with StrictModuleTestingPatchProxy(a) as proxy2:
                     proxy2.x = 200
@@ -1778,7 +1778,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                del proxy.x  # pyre-ignore[16]: no attribute x
+                del proxy.x
                 self.assertFalse(hasattr(a, "x"))
                 with StrictModuleTestingPatchProxy(a) as proxy2:
                     proxy2.x = 100
@@ -1794,7 +1794,7 @@ class StrictLoaderTest(StrictTestBase):
             assert isinstance(a, StrictModule)
             self.assertEqual(a.x, 2)
             with StrictModuleTestingPatchProxy(a) as proxy:
-                del proxy.x  # pyre-ignore[16]: no attribute x
+                del proxy.x
                 self.assertFalse(hasattr(a, "x"))
                 with StrictModuleTestingPatchProxy(a) as proxy2:
                     proxy2.x = 3
@@ -2059,7 +2059,6 @@ class StrictLoaderTest(StrictTestBase):
                     AttributeError, "Cannot patch Final attribute `a` of module `a`"
                 ),
             ):
-                # pyre-ignore [16]: `proxy` has no attribute `a`
                 proxy.a = 0xDEADBEEF
 
             with (
@@ -2309,7 +2308,6 @@ class StrictLoaderTest(StrictTestBase):
             )
             (stubs_path / "c.pys").write_text(stub_contents)
 
-            # pyrefly: ignore [no-matching-overload]
             res = subprocess.run(
                 [sys.executable, "-X", "install-strict-loader", "a.py"],
                 cwd=str(self.sbx.root),
@@ -2414,16 +2412,11 @@ class StrictLoaderTest(StrictTestBase):
         with self.sbx.isolated_strict_loader(), write_bytecode(False):
             # import bad version of 'mod' to populate class loader cache and then roll back import
             with self.assertRaisesRegex(ImportError, "this module fails to import"):
-                # pyre-ignore[21]: Intentionally meant to fail.
                 import mod
-            # pyre-ignore[21]: Loaded dynamically.
             import flag
 
             flag.val = False
-            # pyrefly: ignore [missing-import]
             import mod  # noqa: E401, F811
-
-            # pyre-ignore[21]: Loaded dynamically.
             import other  # noqa: E401, F811
 
             c = mod.C()
@@ -2459,12 +2452,9 @@ class StrictLoaderTest(StrictTestBase):
         )
         for lazy in [True, False]:
             with self.subTest(lazy=lazy):
-                # pyrefly: ignore [missing-attribute]
                 orig = _imp._set_lazy_imports(lazy)
                 try:
                     mod = self.sbx.strict_import("entry")
                 finally:
-                    # pyrefly: ignore [missing-attribute]
                     _imp._set_lazy_imports(*orig)
-                # pyrefly: ignore [missing-attribute]
                 self.assertEqual(mod.v, 1)

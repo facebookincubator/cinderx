@@ -43,7 +43,6 @@ def add_test(modname, fname):
             encoding, _lines = detect_encoding(inp.readline)
             code = b"".join(list(_lines) + inp.readlines()).decode(encoding)
             node = ast.parse(code, modname, "exec")
-            # pyre-ignore[16]: module doesn't have filename
             node.filename = modname
 
             orig = compile(node, modname, "exec")
@@ -52,7 +51,6 @@ def add_test(modname, fname):
 
             codeobj = py_compile(node, modname, "exec")
             newdump = StringIO()
-            # pyre-ignore[6]: maybe not CodeType
             Disassembler().dump_code(codeobj, newdump)
 
             try:

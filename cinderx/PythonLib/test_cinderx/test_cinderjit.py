@@ -414,7 +414,6 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
         def setter(self, obj, val):
             self.invoked = True
 
-        # pyre-ignore[16]: Pyre doesn't recognize __set__.
         self.descr.__class__.__set__ = setter
 
         # setter doesn't modify the object, so obj.foo shouldn't change
@@ -482,7 +481,6 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
         def setter(self, obj, val):
             pass
 
-        # pyre-ignore[16]: Pyre doesn't recognize __set__.
         self.descr.__class__.__set__ = setter
 
         # cached; __get__ should be invoked as self.descr is now a data descr
@@ -508,7 +506,6 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
         class ClassVar:
             pass
 
-        # pyrefly: ignore [bad-argument-type]
         self.descr.__class__ = ClassVar
 
         # Cached; type check on descriptor's type should fail
@@ -559,7 +556,6 @@ class ClosureTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _cellvar_unbound(self):
-        # pyrefly: ignore [unbound-name]
         b = a  # noqa: F821, F841
         a = 1
 
@@ -630,7 +626,6 @@ class ClosureTests(unittest.TestCase):
         @cinder_support.failUnlessJITCompiled
         @with_globals({"A_GLOBAL_CONSTANT": 0xDEADBEEF})
         def return_global():
-            # pyrefly: ignore [unknown-name]
             return A_GLOBAL_CONSTANT  # noqa: F821
 
         self.assertEqual(return_global(), 0xDEADBEEF)
@@ -706,12 +701,10 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             return 1
 
         with self.assertRaises(StopIteration) as exc:
-            # pyre-ignore[1001]: Pyre thinks this is never awaited, doesn't recognize the .send()
             self._sharedAwait(zero, True, one).send(None)
         self.assertEqual(exc.exception.value, 0)
 
         with self.assertRaises(StopIteration) as exc:
-            # pyre-ignore[1001]: Pyre thinks this is never awaited, doesn't recognize the .send()
             self._sharedAwait(zero, False, one).send(None)
         self.assertEqual(exc.exception.value, 1)
 
@@ -724,7 +717,6 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             pass
         except:  # noqa: B001
             x = 1
-        # pyrefly: ignore [unbound-name]
         return x.__index__()
 
     def test_load_method_on_maybe_defined_value(self) -> None:
@@ -747,7 +739,6 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             if hasattr(gc, "immortalize_heap"):
-                # pyre-ignore[16]: Pyre doesn't know about immortalize_heap().
                 gc.immortalize_heap()
             force_compile(mod.Foo.__init__)
             mod.Foo(True)
@@ -825,7 +816,6 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             main_fut = asyncio.Future()
             box = [None]
             coro = a(child_fut, main_fut, box)
-            # pyrefly: ignore [unsupported-operation]
             box[0] = coro
             t = asyncio.create_task(coro)
             # wait for d to have started
@@ -933,7 +923,6 @@ class ImportTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _fail_to_import_name(self):
-        # pyre-ignore[21]: Intentionally testing non-existent import behavior.
         import non_existent_module  # noqa: F401
 
     def test_import_name_failure(self) -> None:
@@ -948,7 +937,6 @@ class ImportTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _fail_to_import_from(self):
-        # pyre-ignore[21]: Intentionally testing non-existent import behavior.
         from math import non_existent_attr  # noqa: F401
 
     def test_import_from_failure(self) -> None:
@@ -987,7 +975,6 @@ class RaiseTests(unittest.TestCase):
         with self.assertRaises(ValueError) as exc:
             self._jitRaiseCause(ValueError(1), cause)
         self.assertIs(exc.exception.__cause__, cause)
-        # pyre-ignore[16]: Ignoring the possible None case here.
         self.assertEqual(f"{exc.exception.__cause__.__traceback__}", cause_tb_str)
 
     def test_reraise(self) -> None:
@@ -1013,7 +1000,6 @@ class SpecializeCCallTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     def _c_func_that_sets_pyerr(self):
         s = "abc"
-        # pyrefly: ignore [no-matching-overload]
         return s.removeprefix(1)
 
     def test_c_call_error_raised(self) -> None:
@@ -1069,7 +1055,6 @@ class UnpackSequenceTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_EX")
     def _unpack_not_iterable(self):
-        # pyrefly: ignore [not-iterable]
         (a, b, *c) = 1
 
     @cinder_support.failUnlessJITCompiled
@@ -1205,14 +1190,12 @@ class DeleteFastTests(unittest.TestCase):
     def _del_and_raise(self):
         x = 2
         del x
-        # pyrefly: ignore [unbound-name]
         return x
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("DELETE_FAST")
     def _del_arg_and_raise(self, a):
         del a
-        # pyrefly: ignore [unbound-name]
         return a  # noqa: F821
 
     @failUnlessHasOpcodes("DELETE_FAST")
@@ -1230,7 +1213,6 @@ class DeleteFastTests(unittest.TestCase):
             raise Exception()
         except Exception as e:  # noqa: F841
             pass
-        # pyrefly: ignore [unbound-name]
         return e  # noqa: F821
 
     def test_del_local(self) -> None:
@@ -1468,7 +1450,6 @@ class CinderJitModuleTests(StaticTestBase):
         def x():
             pass
 
-        # pyre-ignore[16]: Pyre doesn't know about __code__.
         self.assertEqual(x.__code__.co_flags & CO_SUPPRESS_JIT, CO_SUPPRESS_JIT)
 
     def test_jit_suppress_static(self) -> None:
@@ -1936,11 +1917,8 @@ class SetupWithTests(unittest.TestCase):
         mgr = MyCtxMgr(should_suppress_exc=False)
         with self.assertRaisesRegex(SetupWithException, "foo"):
             self.with_raises(mgr)
-        # pyrefly: ignore [unsupported-operation]
         self.assertEqual(mgr.exit_args[0], SetupWithException)
-        # pyrefly: ignore [unsupported-operation]
         self.assertTrue(isinstance(mgr.exit_args[1], SetupWithException))
-        # pyrefly: ignore [unsupported-operation]
         self.assertNotEqual(mgr.exit_args[2], None)
 
         mgr = MyCtxMgr(should_suppress_exc=True)
@@ -2084,7 +2062,6 @@ class MatchTests(unittest.TestCase):
         point = self.Point(x, y)
         # will raise because Point.__match_args__ is not a tuple
         match point:
-            # pyrefly: ignore [bad-match]
             case self.Point(x, y):
                 pass
 
@@ -2478,7 +2455,6 @@ class CompileTimeTests(unittest.TestCase):
         # This will only work if the function takes more than 1ms to compile.  Use the
         # output from PYTHONJITDEBUG=1 to see if that is the case.
         self.assertGreater(cinderx.jit.get_compilation_time(), 0)
-        # pyre-ignore[16]: Pyre doesn't know about this function.
         self.assertGreater(cinderx.jit.get_function_compilation_time(_compile), 0)
 
 

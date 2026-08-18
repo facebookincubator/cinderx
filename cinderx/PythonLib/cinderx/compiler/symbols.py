@@ -43,7 +43,6 @@ class TypeParams(ast.AST):
 
     _fields = ("params",)
 
-    # pyre-ignore[11]: Annotation `NodeWithTypeParams` is not defined as a type.
     def __init__(self, node: NodeWithTypeParams) -> None:
         params = getattr(node, "type_params", None)
         assert params, "TypeParams needs a node with a type_params field"

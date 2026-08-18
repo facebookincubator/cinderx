@@ -88,7 +88,6 @@ except ImportError:
 
                 self.state = _AsyncLazyValueState.Done
 
-                # pyre-ignore[1001]: Pyre is worried about how we're accessing futures
                 # without awaiting them.
                 for value in futures:
                     if not value.done():
@@ -102,7 +101,6 @@ except ImportError:
                 return res
 
             except (Exception, CancelledError) as e:
-                # pyre-ignore[1001]: Pyre is worried about how we're accessing futures
                 # without awaiting them.
                 for value in futures:
                     if not value.done():

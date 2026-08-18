@@ -38,7 +38,6 @@ class ResolveRelativeImportTests(unittest.TestCase):
         visitor.module_name = module_name
         visitor.filename = filename
         errors: list[str] = []
-        # pyre-ignore[8]: Attribute has type `(self: GenericVisitor[TVisitRet], msg: str, node: AST) -> None`
         visitor.syntax_error = lambda msg, node: errors.append(msg)
         result = visitor._resolve_relative_import(node)
         if errors:

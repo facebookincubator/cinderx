@@ -30,7 +30,6 @@ class GetFrameInFinalizer:
 def _create_getframe_cycle():
     a = {"fg": GetFrameInFinalizer()}
     b = {"a": a}
-    # pyrefly: ignore [bad-typed-dict-key]
     a["b"] = b
     return a
 
@@ -106,9 +105,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
             try:
                 yield "hello"
             except TestException:
-                # pyrefly: ignore [missing-attribute]
                 gen1_frame = gen1.gi_frame
-                # pyrefly: ignore [missing-attribute]
                 gen2_frame = gen2.gi_frame
                 raise
 

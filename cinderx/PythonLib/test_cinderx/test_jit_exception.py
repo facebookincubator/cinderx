@@ -196,7 +196,6 @@ class ExceptionHandlingTests(unittest.TestCase):
         try:
             pass
         finally:
-            # pyrefly: ignore [invalid-syntax]
             return v  # noqa: B012
 
     @cinder_support.failUnlessJITCompiled
@@ -205,7 +204,6 @@ class ExceptionHandlingTests(unittest.TestCase):
         try:
             return v
         finally:
-            # pyrefly: ignore [invalid-syntax]
             return 100  # noqa: B012
 
     @cinder_support.failUnlessJITCompiled
@@ -214,7 +212,6 @@ class ExceptionHandlingTests(unittest.TestCase):
         try:
             1 / 0
         finally:
-            # pyrefly: ignore [invalid-syntax]
             return v  # noqa: B012
 
     @cinder_support.failUnlessJITCompiled
@@ -226,7 +223,6 @@ class ExceptionHandlingTests(unittest.TestCase):
             try:
                 1 / 0
             finally:
-                # pyrefly: ignore [invalid-syntax]
                 return v  # noqa: B012
 
     def test_return_in_finally(self) -> None:
@@ -245,7 +241,6 @@ class ExceptionHandlingTests(unittest.TestCase):
                     return count + count2
                 finally:
                     if x:
-                        # pyrefly: ignore [invalid-syntax]
                         break  # noqa: B012
         return "end", count, count2
 
@@ -257,7 +252,6 @@ class ExceptionHandlingTests(unittest.TestCase):
                     return count + count2
                 finally:
                     if x:
-                        # pyrefly: ignore [invalid-syntax]
                         break  # noqa: B012
         return "end", count, count2
 
@@ -276,7 +270,6 @@ class ExceptionHandlingTests(unittest.TestCase):
                 return count
             finally:
                 if x:
-                    # pyrefly: ignore [invalid-syntax]
                     continue  # noqa: B012
         return "end", count
 
@@ -287,7 +280,6 @@ class ExceptionHandlingTests(unittest.TestCase):
                 return count
             finally:
                 if x:
-                    # pyrefly: ignore [invalid-syntax]
                     continue  # noqa: B012
         return "end", count
 

@@ -610,7 +610,6 @@ class ModuleTable:
             and len(targets) == 1
             and isinstance(targets[0], ast.Name)
         ):
-            # pyre-ignore[16]: `ast.expr` has no attribute `id`
             return self.maybe_set_type_alias(node, targets[0].id)
 
         for target in targets:

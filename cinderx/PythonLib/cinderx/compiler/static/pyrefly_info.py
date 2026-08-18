@@ -151,7 +151,6 @@ class PyreflyTypeInfo:
                         member,
                     )
         elif entry["kind"] == "callable" and "defining_func" in entry:
-            # pyre-ignore[27]: We need a more elaborate type declaration to represent tagged union data layout
             defining_func_qname = str(entry["defining_func"])
             resolved_func = self.resolve_func(defining_func_qname, modules, type_env)
             if resolved_func is not None:
@@ -318,7 +317,6 @@ class Pyrefly:
         # Buck always specifies the top-level directory, so double-check if there's a
         # types/ subdirectory and use that if it exists.
         types_subdir = os.path.join(type_dir, "types")
-        # pyre-fixme[4]: Attribute must be annotated.
         self.type_dir = types_subdir if os.path.isdir(types_subdir) else type_dir
 
     def load_type_info(self, module_name: str) -> PyreflyTypeInfo | None:

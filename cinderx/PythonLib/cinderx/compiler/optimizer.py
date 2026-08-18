@@ -33,7 +33,6 @@ INVERSE_OPS: Mapping[type[cmpop], type[cmpop]] = {
     ast.NotIn: ast.In,
 }
 
-# pyrefly: ignore [bad-assignment]
 BIN_OPS: Mapping[type[ast.operator], Callable[[object, object], object]] = {
     # pyrefly: ignore [bad-assignment]
     ast.Add: operator.add,
@@ -240,7 +239,7 @@ class AstOptimizer(ASTRewriter):
             # pyre-ignore[6]: Can't type walk_list fully yet.
             res = self.makeConstTuple(elts)
             if res is not None:
-                # pyrefly: ignore [bad-argument-type, no-matching-overload]
+                # pyrefly: ignore [bad-argument-type]
                 return copy_location(Constant(frozenset(res.value)), node)
 
             return self.update_node(node, elts=elts)
@@ -534,9 +533,7 @@ class AstOptimizer314(AstOptimizer312):
                 node = self.update_node(
                     node, left=self.fold_const_match_patterns(node.left)
                 )
-                # pyrefly: ignore [missing-attribute]
                 if isinstance(node.left, ast.Constant):
-                    # pyrefly: ignore [bad-argument-type]
                     return super().visitBinOp(node)
 
         return node

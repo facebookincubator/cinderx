@@ -50,11 +50,8 @@ if sys.version_info >= (3, 12):
         hasjabs,
         STATIC_CONST_OPCODES if sys.version_info >= (3, 14) else hasconst,
         hasarg,
-        # pyre-fixme[16]: Module `opcode` has no attribute `_cache_format`.
         _cache_format,
-        # pyre-fixme[16]: Module `opcode` has no attribute `_specializations`.
         _specializations,
-        # pyre-fixme[16]: Module `opcode` has no attribute `_inline_cache_entries`.
         _inline_cache_entries,
     )
     if sys.version_info >= (3, 14):
@@ -254,9 +251,6 @@ opcode.stack_effects.update(
 )
 
 if sys.version_info >= (3, 12):
-    # pyre-fixme[21]: Could not find name `_intrinsic_1_descs` in `opcode` (stubbed).
-    # pyre-fixme[21]: Could not find name `_intrinsic_2_descs` in `opcode` (stubbed).
-    # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
     from opcode import (
         # pyrefly: ignore [missing-module-attribute]
         _intrinsic_1_descs as INTRINSIC_1,
@@ -972,7 +966,6 @@ elif sys.version_info >= (3, 12):
 
 
 def find_op_idx(opname: str) -> int:
-    # pyre-fixme[16]: Module `opcode` has no attribute `_nb_ops`.
     for i, (name, _symbol) in enumerate(NB_OPS):
         if name == opname:
             return i

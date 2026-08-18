@@ -119,7 +119,6 @@ def init_xxclassloader():
 
     exec(code, d, d)
 
-    # pyrefly: ignore [missing-attribute]
     xxclassloader.XXGeneric = d["XXGeneric"]
 
 
@@ -142,7 +141,6 @@ class StaticCompilationTests(StaticTestBase):
         try:
             import xxclassloader
 
-            # pyrefly: ignore [missing-attribute]
             del xxclassloader.XXGeneric
         except ImportError:
             pass
@@ -4845,7 +4843,6 @@ class StaticCompilationTests(StaticTestBase):
             d = D()
             for _ in range(100):
                 try:
-                    # pyre-ignore[16]: Superclass is dynamically compiled and invisible
                     # to pyre.
                     d.g().send(None)
                 except StopIteration as e:
@@ -4872,7 +4869,6 @@ class StaticCompilationTests(StaticTestBase):
 
             d = D()
             with self.assertRaises(TypeError):
-                # pyre-ignore[16]: Superclass is dynamically compiled and invisible to
                 # pyre.
                 d.g().send(None)
             loop.close()

@@ -19,7 +19,6 @@ class CinderX_UnionTests(unittest.TestCase):
         # CinderX: This is changed from 30 to 1000
         for _ in range(1000):
             T = typing.TypeVar("T")
-            # pyre-ignore[16]: list has no attr __getitem__
             U = int | list[T]
             # pyre-ignore[16]: TypeVar doesn't have blah
             T.blah = U

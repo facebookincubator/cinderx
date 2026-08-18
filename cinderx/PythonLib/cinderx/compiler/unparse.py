@@ -364,7 +364,6 @@ def _format_constant(node: ast.Constant, level: int) -> str:
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=DeprecationWarning)
 
-    # pyre-ignore[9]: Pyre tries to union all the keys and values into concrete types.
     _FORMATTERS: dict[type[ast.AST], Callable[[ast.AST, int], str]] = {
         # pyrefly: ignore [bad-assignment]
         ast.Attribute: _format_attribute,

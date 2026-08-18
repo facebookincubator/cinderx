@@ -153,7 +153,6 @@ class CompilerTest(TestCase):
         # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
         from opcode import _nb_ops
 
-        # pyre-fixme[16]: Module `opcode` has no attribute `_nb_ops`.
         for i, (name, _sign) in enumerate(_nb_ops):
             if name == binop:
                 self.assertInBytecode(x, "BINARY_OP", i)

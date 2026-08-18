@@ -20,7 +20,6 @@ class CinderX_TestSignatureBind(unittest.TestCase):
             return (z * z for z in range(5))
 
         gencomp_code = (
-            # pyre-ignore[16]: no attribute __code__
             make_gen.__code__.co_consts[0]
             if sys.version_info >= (3, 14)
             else make_gen.__code__.co_consts[1]

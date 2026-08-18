@@ -535,7 +535,6 @@ class ContextDecoratorTests(StaticTestBase):
         async def caller() -> int:
             return await f()
 
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = caller()
         with self.assertRaises(StopIteration) as si:
             x.send(None)
@@ -554,7 +553,6 @@ class ContextDecoratorTests(StaticTestBase):
         async def caller() -> int:
             return await f()
 
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = caller()
         with self.assertRaises(ValueError):
             x.send(None)

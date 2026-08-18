@@ -250,7 +250,6 @@ except ImportError as e:
 
                 self.state = _AsyncLazyValueState.Done
 
-                # pyre-fixme[1001]: Awaitable assigned to `value` is never awaited.
                 for value in futures:
                     if not value.done():
                         value.set_result(self.res)
@@ -263,7 +262,6 @@ except ImportError as e:
                 return res
 
             except (Exception, asyncio.CancelledError) as e:
-                # pyre-fixme[1001]: Awaitable assigned to `value` is never awaited.
                 for value in futures:
                     if not value.done():
                         value.set_exception(e)

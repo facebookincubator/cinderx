@@ -535,7 +535,6 @@ class StaticPatchTests(StaticTestBase):
 
             C.f = 42
             a = D()
-            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             a.f = 100
             # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             self.assertEqual(a.get_f(), 100)

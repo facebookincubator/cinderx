@@ -448,7 +448,6 @@ class TypeEnvironment:
 
         # This exception is added as a builtin by implementations of Lazy Imports.
         self.import_cycle_error: Class | None = None
-        # pyre-ignore[16]: Pyre assumes it knows the exact shape of the builtins module.
         if import_cycle_error := getattr(builtins, "ImportCycleError", None):
             self.import_cycle_error = self._builtin_exception_class(import_cycle_error)
 

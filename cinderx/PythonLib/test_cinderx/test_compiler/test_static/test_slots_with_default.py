@@ -410,7 +410,6 @@ class SlotsWithDefaultTests(StaticTestBase):
 
             self.assertEqual(mod.C().get_x(), 2)
             with self.assertRaises(AttributeError):
-                # pyre-ignore[16]: Intentionally testing AttributeError case at runtime.
                 D().get_x()
 
     def test_override_property_with_slot_bad_type(

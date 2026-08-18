@@ -34,7 +34,6 @@ class CinderX_GeneratorTest(unittest.TestCase):
 
         # modify names of the function creating the generator
         func.__qualname__ = "func_qualname"
-        # pyre-ignore[16]: no attribute __name__
         func.__name__ = "func_name"
         gen = func()
 

@@ -47,8 +47,6 @@ def get_disassembly_as_string(co: object, recurse: bool = False) -> str:
         dis.dis(co, file=s)
         return s.getvalue()
 
-    # pyre-fixme[21]: Could not find name `Formatter` in `dis` (stubbed).
-    # pyre-fixme[21]: Could not find name `_get_code_object` in `dis` (stubbed).
     from dis import _get_code_object, Bytecode, Formatter
 
     formatter = Formatter(file=s, offset_width=3)

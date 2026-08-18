@@ -49,7 +49,6 @@ class RewriterTestCase(StrictTestWithCheckerBase):
         def strict_slots(typ: type[object]) -> type[object]:
             return typ
 
-        # pyrefly: ignore [no-matching-overload]
         fixed_modules = modules or dict(FIXED_MODULES)
         fixed_modules.update(
             __strict__={
@@ -270,7 +269,6 @@ z = y
 
     def get_annotations(self, mod: object) -> dict[str, type]:
         if sys.version_info >= (3, 14):
-            # pyre-fixme[21]: Could not find module `annotationlib`.
             import annotationlib
 
             return annotationlib.get_annotations(mod)

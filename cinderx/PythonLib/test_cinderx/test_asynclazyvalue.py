@@ -53,7 +53,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             await fut
 
         # close non-started asynclazy value is no-op
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(g, asyncio.Future())
         i = alv.__await__()  # get main coro
         i1 = alv.__await__()  # get future
@@ -77,7 +76,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             except GeneratorExit:
                 raise Exc("error")
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(g, asyncio.Future())
         i = alv.__await__()  # get main coro
         i1 = alv.__await__()  # get future
@@ -103,7 +101,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         async def g() -> None:
             pass
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(g)
         c = alv.__await__()
         try:
@@ -124,7 +121,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
                 return 10
             return None
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(g, asyncio.Future())
         c = alv.__await__()
         c1 = alv.__await__()
@@ -151,7 +147,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             except Exc:
                 raise IndexError
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(g, asyncio.Future())
         c = alv.__await__()
         c1 = alv.__await__()
@@ -202,7 +197,6 @@ class AsyncLazyValueTest(unittest.TestCase):
         async def async_func(arg1: int, arg2: int) -> int:
             return arg1 + arg2
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(async_func, 1000, 2000)
         self.assertEqual(await alv, 3000)
 
@@ -215,7 +209,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             call_count += 1
             return arg1 + arg2
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(async_func, 1, 2)
         ta = asyncio.ensure_future(alv)
         tb = asyncio.ensure_future(alv)
@@ -245,7 +238,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             task.cancel()
             self.log("cancelled")
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(async_func, 1, 2)
         ta = asyncio.ensure_future(alv)
         tc = asyncio.ensure_future(async_cancel(ta, alv))
@@ -286,7 +278,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             task.cancel()
             self.log("cancelled")
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(async_func, 1, 2)
         ta = asyncio.ensure_future(alv)
         tb = asyncio.ensure_future(alv)
@@ -331,7 +322,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             self.cancelled.set()
             self.log("cancelled")
 
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(async_func, 1, 2)
         ta = asyncio.ensure_future(alv)
         tb = asyncio.ensure_future(alv)
@@ -365,7 +355,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             return 42
 
         f = asyncio.Future()
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         alv = AsyncLazyValue(val, f)
 
         loop = asyncio.get_running_loop()

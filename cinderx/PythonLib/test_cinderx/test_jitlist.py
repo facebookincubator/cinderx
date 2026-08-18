@@ -109,7 +109,7 @@ class JitListTest(unittest.TestCase):
         def victim() -> None:
             pass
 
-        # pyre-ignore[16]: Pyre doesn't know about __code__.
+        # Keep this line: the JIT-list entry below depends on code_func's source line.
         victim_code = victim.__code__
         victim_name = victim.__qualname__
 
@@ -130,7 +130,6 @@ class JitListTest(unittest.TestCase):
         def code_func_nojit() -> None:
             pass
 
-        # pyre-ignore[16]: Pyre doesn't know about __code__.
         code_obj = code_func.__code__
         code_name = code_obj.co_qualname
 

@@ -23,7 +23,6 @@ if not hasattr(os, "fork"):
     raise unittest.SkipTest("Fork not supported")
 
 
-# pyre-ignore[11]: Invalid type ForkWait
 class CinderX_ForkTest(ForkWait):
     def test_threaded_import_lock_fork(self) -> None:
         """Check fork() in main thread works while a subthread is doing an import"""
@@ -35,12 +34,10 @@ class CinderX_ForkTest(ForkWait):
         def importer():
             imp.acquire_lock()
 
-            # pyrefly: ignore [unsupported-operation]
             sys.modules[fake_module_name] = partial_module
             import_started.set()
             # CinderX: This time.sleep is added to improve test reliability.
             time.sleep(0.01)  # Give the other thread time to try and acquire.
-            # pyrefly: ignore [unsupported-operation]
             sys.modules[fake_module_name] = complete_module
             imp.release_lock()
 
@@ -66,7 +63,6 @@ class CinderX_ForkTest(ForkWait):
                 # Exitcode 1 means the child got a partial module (bad.) No
                 # exitcode (but a hang, which manifests as 'got pid 0')
                 # means the child deadlocked (also bad.)
-                # pyre-ignore[16]: no attribute wait_impl
                 self.wait_impl(pid, exitcode=exitcode)
         finally:
             try:

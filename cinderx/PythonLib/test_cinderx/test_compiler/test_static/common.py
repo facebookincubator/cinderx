@@ -398,12 +398,9 @@ class StaticTestBase(CompilerTest):
         if offset is not None:
             self.assertEqual(exc.offset, offset)
 
-    # pyre-fixme[34]: `Variable[contextlib._ExitT_co (bound to
     #  typing.Optional[bool])]` isn't present in the function's parameters.
-    # pyre-fixme[34]: `Variable[contextlib._T_co]` isn't present in the function's
     #  parameters.
     def revealed_type_ctx(self, code: str, type: str) -> ContextManager[None]:
-        # pyre-fixme[7]: Expected `AbstractContextManager[_T_co, _ExitT_co]` but got
         #  `_GeneratorContextManager[None]`.
         return self.type_error_ctx(
             code, rf"reveal_type\(.+\): '{re.escape(type)}'", at="reveal_type("
@@ -583,7 +580,6 @@ class StaticTestBase(CompilerTest):
         class C:
             __slots__ = ()
 
-        # pyre-ignore[16]: Pyre is confused and thinks we're accessing attribute `C`
         # from `int`.
         return C().__sizeof__()
 

@@ -2,7 +2,6 @@
 
 # pyre-strict
 
-# pyre-ignore[21]: Pyre doesn't know about dataclass internals.
 from dataclasses import (
     # pyrefly: ignore [missing-module-attribute]
     _DataclassParams,
@@ -709,7 +708,6 @@ class DataclassTests(StaticTestBase):
                 "bar",
             )
 
-            # pyre-ignore[16]: Intentionally testing behavior of assigning a dynamic
             # attribute to a subclass of a frozen dataclass.
             d.y = "bar"
             self.assertEqual(d.y, "bar")
@@ -740,7 +738,6 @@ class DataclassTests(StaticTestBase):
 
             d = D()
 
-            # pyre-ignore[16]: Intentionally testing behavior of assigning a dynamic
             # attribute to a subclass of a frozen dataclass.
             d.x = "foo"
             self.assertEqual(d.x, "foo")
@@ -1242,11 +1239,8 @@ class DataclassTests(StaticTestBase):
             self.assertEqual(len(fields), 3)
 
             for name, type, kind in (
-                # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
                 ("x", "str", _FIELD),
-                # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
                 ("y", "ClassVar[int]", _FIELD_CLASSVAR),
-                # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
                 ("z", "InitVar[SomeField]", _FIELD_INITVAR),
             ):
                 with self.subTest(name=name, type=type, kind=kind):

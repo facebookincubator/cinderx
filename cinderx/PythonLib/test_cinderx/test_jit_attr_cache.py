@@ -67,7 +67,6 @@ class LoadMethodCacheTests(unittest.TestCase):
         def new_meaning_of_life(x):
             return 0
 
-        # pyrefly: ignore [bad-assignment]
         Oracle.meaning_of_life = new_meaning_of_life
 
         self.assertEqual(get_meaning_of_life(obj), 0)
@@ -90,7 +89,6 @@ class LoadMethodCacheTests(unittest.TestCase):
         def new_meaning_of_life(x):
             return 0
 
-        # pyrefly: ignore [bad-assignment]
         Base.meaning_of_life = new_meaning_of_life
 
         self.assertEqual(get_meaning_of_life(obj), 0)
@@ -131,7 +129,6 @@ class LoadMethodCacheTests(unittest.TestCase):
         # shadowing flag should be set
         obj1 = Derived()
         obj2 = Derived()
-        # pyrefly: ignore [missing-attribute]
         obj2.meaning_of_life = nothing
 
         # Now obj2.meaning_of_life shadows Base.meaning_of_life
@@ -182,7 +179,6 @@ class LoadMethodCacheTests(unittest.TestCase):
             pass
 
         other = Other()
-        # pyrefly: ignore [missing-attribute]
         other.meaning_of_life = nothing
         other.__class__ = obj.__class__
         self.assertEqual(get_meaning_of_life(other), 0)
@@ -286,7 +282,6 @@ class LoadMethodStaticMethodTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
         # Replace with a different staticmethod; the cache must be invalidated.
-        # pyrefly: ignore [bad-assignment]
         Oracle.meaning_of_life = staticmethod(lambda: 0)
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -304,7 +299,6 @@ class LoadMethodStaticMethodTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
         # Mutating the base should propagate to Derived and invalidate the cache.
-        # pyrefly: ignore [bad-assignment]
         Base.meaning_of_life = staticmethod(lambda: 0)
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -320,7 +314,6 @@ class LoadMethodStaticMethodTests(unittest.TestCase):
 
         # Replace the staticmethod with a regular (bound) method. The cache must
         # switch from an unbound to a bound result.
-        # pyrefly: ignore [bad-assignment]
         Oracle.meaning_of_life = lambda self: 0
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -337,7 +330,6 @@ class LoadMethodStaticMethodTests(unittest.TestCase):
 
         # A staticmethod is a non-data descriptor, so an instance attribute
         # shadows it.
-        # pyrefly: ignore [missing-attribute]
         obj.meaning_of_life = nothing
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -407,7 +399,6 @@ class LoadMethodClassVarTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
         # A class variable can be shadowed by an instance attribute.
-        # pyrefly: ignore [bad-assignment]
         obj.meaning_of_life = nothing
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -481,7 +472,6 @@ class LoadMethodClassMethodTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
         # Replace with a different classmethod; the cache must be invalidated.
-        # pyrefly: ignore [bad-assignment]
         Oracle.meaning_of_life = classmethod(lambda cls: 0)
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -499,7 +489,6 @@ class LoadMethodClassMethodTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
         # Mutating the base should propagate to Derived and invalidate the cache.
-        # pyrefly: ignore [bad-assignment]
         Base.meaning_of_life = classmethod(lambda cls: 0)
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -516,7 +505,6 @@ class LoadMethodClassMethodTests(unittest.TestCase):
 
         # A classmethod is a non-data descriptor, so an instance attribute
         # shadows it.
-        # pyrefly: ignore [missing-attribute]
         obj.meaning_of_life = nothing
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -639,7 +627,6 @@ class LoadMethodGetAttrTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             get_meaning_of_life(obj)
 
-        # pyrefly: ignore [bad-assignment]
         Oracle.__getattr__ = lambda self, name: (lambda: 0)
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -673,7 +660,6 @@ class LoadMethodGetAttrTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), -1)
         self.assertEqual(get_meaning_of_life(obj), -1)
 
-        # pyrefly: ignore [bad-assignment]
         Oracle.meaning_of_life = lambda self: 42
         self.assertEqual(get_meaning_of_life(obj), 42)
 
@@ -818,7 +804,6 @@ class LoadMethodGetAttributeTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
         self.assertEqual(get_meaning_of_life(obj), 42)
 
-        # pyrefly: ignore [bad-assignment]
         Oracle.__getattribute__ = lambda self, name: (lambda: 0)
         self.assertEqual(get_meaning_of_life(obj), 0)
 
@@ -871,7 +856,6 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
                 encoding="utf8",
             )
 
-            # pyre-ignore[21]: Dynamically generated as part of this test.
             import tmp_b
 
             cinderx.jit.force_compile(tmp_b.test)
@@ -880,11 +864,9 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
             self.assertIn(
                 "LoadModuleAttrCached",
-                # pyrefly: ignore [bad-argument-type]
                 cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
             )
 
-            # pyre-ignore[21]: Dynamically generated as part of this test.
             import tmp_a
 
             tmp_a.get_a = lambda: 10
@@ -916,19 +898,14 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         """
         strict_sandbox.write_file("tmp_b.py", code_str)
         tmp_b = strict_sandbox.strict_import("tmp_b")
-        # pyrefly: ignore [missing-attribute]
         cinderx.jit.force_compile(tmp_b.test)
-        # pyrefly: ignore [missing-attribute]
         self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
         self.assertIn(
             "LoadModuleAttrCached",
-            # pyrefly: ignore [bad-argument-type, missing-attribute]
             cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
         )
         # prime the cache
-        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tmp_b.test(), 3)
-        # pyrefly: ignore [missing-attribute]
         self.assertEqual(tmp_b.test(), 3)
 
 
@@ -995,11 +972,9 @@ class LoadAttrCacheTests(unittest.TestCase):
         # cached
         self.assertEqual(get_foo(obj1), 100)
         obj2 = Base(200)
-        # pyrefly: ignore [missing-attribute]
         obj2.bar = 300
         # At this point the dictionary should still be split
         obj3 = Base(400)
-        # pyrefly: ignore [missing-attribute]
         obj3.baz = 500
         # Assigning 'baz' should clear the cached key object for Base and leave
         # existing instance dicts in the following states:
@@ -1375,7 +1350,6 @@ class StoreAttrCacheTests(unittest.TestCase):
         # Attaching a data descriptor to the type should invalidate the cache
         # and prevent future caching
         descr = DataDescr(300)
-        # pyrefly: ignore [no-access]
         Base.foo = descr
         set_foo(obj, 200)
         self.assertEqual(obj.foo, 300)
@@ -1436,7 +1410,6 @@ class StoreAttrCacheTests(unittest.TestCase):
 
         # obj is a split dict
         obj = Base()
-        # pyrefly: ignore [missing-attribute]
         obj.quox = 42
 
         # obj1 is no longer split, but the assignment
@@ -1450,7 +1423,6 @@ class StoreAttrCacheTests(unittest.TestCase):
         # with an invalid val_offset because there's no foo
         # entry in the cached keys.
         set_foo(obj1, 300)
-        # pyrefly: ignore [missing-attribute]
         self.assertEqual(obj1.foo, 300)
 
         set_foo(obj, 400)
@@ -1841,12 +1813,10 @@ class GetAttrMutationTests(unittest.TestCase):
             get_foo(c)
 
         # Add the attribute to the instance
-        # pyrefly: ignore  no foo
         c.foo = 100
         self.assertEqual(get_foo(c), 100)
 
         # Remove instance attribute and add __getattr__
-        # pyrefly: ignore  no foo
         del c.foo
         C.__getattr__ = lambda self, name: f"dynamic:{name}"
 

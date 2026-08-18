@@ -60,7 +60,6 @@ class ParallelGCAPITests(unittest.TestCase):
 if test_gc_module is not None:
 
     @passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
-    # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
     class ParallelGCTests(test_gc_module.GCTests):
         @passIf(cinderx.jit.is_enabled(), "Implementation detail of the interpreter")
         def test_frame(self) -> None:
@@ -71,7 +70,7 @@ if test_gc_module is not None:
             pass
 
     if cinderx.has_parallel_gc():
-        # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
+
         class ParallelGCCallbackTests(test_gc_module.GCCallbackTests):
             # Tests implementation details of serial collector
             def test_refcount_errors(self) -> None:
@@ -80,7 +79,6 @@ if test_gc_module is not None:
                 self.visit = None
 
     @passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
-    # pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
     class ParallelGCFinalizationTests(test_gc_module.PythonFinalizationTests):
         pass
 

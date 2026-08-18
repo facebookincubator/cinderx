@@ -1010,7 +1010,6 @@ class PyFlowGraph(FlowGraph):
         return self.closure.get_index(arg)
 
     # similarly for other opcodes...
-    # pyrefly: ignore [bad-assignment]
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         # pyrefly: ignore [bad-assignment]
         "LOAD_CLASS": _convert_LOAD_CONST,
@@ -1289,11 +1288,9 @@ class PyFlowGraph(FlowGraph):
                     target.num_predecessors -= 1
                     new_target.num_predecessors = 1
                     target.insert_next(new_target)
-                    # pyrefly: ignore [missing-attribute]
                     append_after.setdefault(target, []).append(new_target)
         for after, to_append in append_after.items():
             idx = self.ordered_blocks.index(after) + 1
-            # pyrefly: ignore [no-matching-overload]
             self.ordered_blocks[idx:idx] = reversed(to_append)
 
         for block in self.ordered_blocks:
@@ -2516,7 +2513,7 @@ class PyFlowGraph314(PyFlowGraph312):
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         **PyFlowGraph312._converters,
         "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],
-        # pyrefly: ignore [bad-index, bad-typed-dict-key]
+        # pyrefly: ignore [bad-index]
         "LOAD_SPECIAL": lambda self, val: PyFlowGraph314._load_special_idx[val],
         "COMPARE_OP": _convert_compare_op,
     }

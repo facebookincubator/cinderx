@@ -665,7 +665,6 @@ class InvokeTests(StaticTestBase):
                             raise Exception("no-way")
                         return 100
 
-                    # pyrefly: ignore [bad-assignment]
                     self.f = f
 
                 f = Callable()
@@ -781,7 +780,6 @@ class InvokeTests(StaticTestBase):
 
             d = D()
 
-            # pyre-ignore[53]: Can't type captured `d` because its superclass is
             # dynamically compiled.
             def mutate() -> int:
                 del d.f

@@ -194,7 +194,6 @@ class LinePositionTests(CompilerTest):
                 positions.append(
                     (
                         SrcLocation(
-                            # pyrefly: ignore [not-iterable]
                             *(val if val is not None else -1 for val in lastpos)
                         ),
                         length,
@@ -214,7 +213,6 @@ class LinePositionTests(CompilerTest):
     def get_position(self, compiled: CodeType, opcode: str) -> tuple[...] | None:
         for instr in get_instructions(compiled):
             if instr.opname == opcode:
-                # pyre-fixme[16]: `CodeType` has no attribute `co_positions`.
                 return list(compiled.co_positions())[instr.offset // 2]
         else:
             self.fail(f"Could not find opcode {opcode} in bytecode")

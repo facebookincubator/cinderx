@@ -59,7 +59,6 @@ class ContextTest(unittest.TestCase):
         self.assertIs(contextlib._GeneratorContextManager.__exit__, installed)
 
     def test_next_or_sentinel(self) -> None:
-        # pyre-ignore[21]: _cinderx is only importable where CinderX is
         # supported, which is where this test runs.
         from _cinderx import _next_or_sentinel, _NEXT_SENTINEL
 
@@ -72,7 +71,6 @@ class ContextTest(unittest.TestCase):
         # anything the replacement captures outlives finalize_modules().  A
         # reference to _cinderx there keeps module_free() -- and with it the
         # deopt of every JIT-compiled function -- from ever running.
-        # pyre-ignore[21]: See the matching ignore above.
         import _cinderx
 
         patched = cast(FunctionType, _context._patched_exit)

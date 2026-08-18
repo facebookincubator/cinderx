@@ -360,7 +360,6 @@ class FlowGraphOptimizer:
     ) -> int | None:
         block.insts = block.insts[: instr_index + 1]
 
-    # pyrefly: ignore [bad-assignment]
     handlers: dict[str, Handler] = {
         # pyrefly: ignore [bad-assignment]
         "JUMP_IF_FALSE_OR_POP": opt_jump_if_false_or_pop,
@@ -1097,7 +1096,6 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         block: Block,
     ) -> int | None:
         assert isinstance(self, FlowGraphOptimizer314)
-        # pyre-fixme[16]: Module `opcodes` has no attribute `INTRINSIC_1`.
         intrins = INTRINSIC_1[instr.ioparg]
         if intrins == "INTRINSIC_LIST_TO_TUPLE":
             if next_instr is not None and next_instr.opname == "GET_ITER":
