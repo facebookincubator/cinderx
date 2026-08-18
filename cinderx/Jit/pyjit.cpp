@@ -441,6 +441,12 @@ FlagProcessor initFlagProcessor() {
       .withDebugMessageOverride("Sets the register allocator");
 
   flag_processor.addOption(
+      "cinderx-jit-debug-dataflow-analysis",
+      "CINDERX_JIT_DEBUG_DATAFLOW_ANALYSIS",
+      getMutableConfig().log.debug_dataflow_analysis,
+      "Enable or disable debug logging for the JIT's HIR dataflow analysis");
+
+  flag_processor.addOption(
       "cinderx-jit-debug-guard-removal",
       "CINDERX_JIT_DEBUG_GUARD_REMOVAL",
       getMutableConfig().log.debug_guard_removal,

@@ -196,7 +196,10 @@ void RegisterAnalysis::run() {
   }
 
   analyzer_.solve(dir_, meet_);
-  dump();
+
+  if (getConfig().log.debug_dataflow_analysis) {
+    dump();
+  }
 }
 
 RegisterSet RegisterAnalysis::getIn(const BasicBlock* block) const {
@@ -222,10 +225,6 @@ bool RegisterAnalysis::outBit(const BasicBlock* block, Register* reg) const {
 }
 
 void RegisterAnalysis::dump() const {
-  if (!getConfig().log.debug) {
-    return;
-  }
-
   std::string out = fmt::format("{} complete:\n", name());
   for (auto& block : irfunc_.cfg.blocks) {
     format_to(out, "  bb {}\n", block.id);
@@ -241,7 +240,7 @@ void RegisterAnalysis::dump() const {
     format_to(out, "\n");
   }
 
-  JIT_DLOG("{}", out);
+  JIT_LOG("{}", out);
 }
 
 template <typename OutputFunc, typename UseFunc>

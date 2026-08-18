@@ -78,6 +78,8 @@ struct JitListOptions {
 struct LogOptions {
   // Log general debug messages from the JIT.
   bool debug{false};
+  // Log debug messages in dataflow analysis.
+  bool debug_dataflow_analysis{false};
   // Log debug messages in the guard removal pass.
   bool debug_guard_removal{false};
   // Log debug messages in the inlining pass.
