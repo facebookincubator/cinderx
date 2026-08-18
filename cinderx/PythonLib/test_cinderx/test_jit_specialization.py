@@ -463,6 +463,37 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(None), "n")
 
     @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
+    def test_to_bool_list_then_none(self) -> None:
+        # Both TO_BOOL sites read `defaults`, but only calls with a non-empty
+        # `args` reach the second one, so they specialize on different types.
+        # The JIT ends up with contradictory guards, proves the code after the
+        # second one unreachable and traps there. The list guard is the only
+        # thing left that can send this call back to the interpreter.
+        def f(defaults: object, args: list[str]) -> list[str]:
+            first = 0 if defaults else -1
+            out: list[str] = []
+            for i, arg in enumerate(args):
+                if defaults and i >= first:
+                    out.append("d")
+                out.append(arg)
+            return out
+
+        def warm() -> None:
+            # An empty `args` keeps the loop body cold, so only the first
+            # TO_BOOL specializes here.
+            for _ in range(20):
+                f([1], [])
+            f(None, ["a"])
+
+        specialize(f, warm)
+
+        ops = opnames(f)
+        self.assertIn("TO_BOOL_LIST", ops)
+        self.assertIn("TO_BOOL_NONE", ops)
+        self.assertEqual(f(None, ["a", "b"]), ["a", "b"])
+        self.assertEqual(f([1], ["a", "b"]), ["d", "a", "d", "b"])
+
+    @passUnless(sys.version_info >= (3, 14), "TO_BOOL was added in Python 3.13")
     def test_to_bool_str(self) -> None:
         def f(a: str) -> str:
             return "y" if a else "n"
