@@ -14,7 +14,7 @@ def test():
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v12:Nullptr = LoadConst<Nullptr>
+    v12:CInt64[0] = LoadConst<CInt64[0]>
     Snapshot
     v13:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -52,7 +52,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v12:Nullptr = LoadConst<Nullptr>
+    v12:CInt64[0] = LoadConst<CInt64[0]>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -90,7 +90,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v12:Nullptr = LoadConst<Nullptr>
+    v12:CInt64[0] = LoadConst<CInt64[0]>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -128,7 +128,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v12:Nullptr = LoadConst<Nullptr>
+    v12:CInt64[0] = LoadConst<CInt64[0]>
     Snapshot
     v13:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v13
@@ -166,7 +166,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v12:Nullptr = LoadConst<Nullptr>
+    v12:CInt64[0] = LoadConst<CInt64[0]>
     Snapshot
     AtQuiescentState
     v13:CInt64 = LoadEvalBreaker
@@ -216,7 +216,7 @@ def test() -> double:
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v8:Nullptr = LoadConst<Nullptr>
+    v8:CDouble[0] = LoadConst<CDouble[0]>
     Snapshot
     v9:CInt32 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -245,7 +245,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v8:Nullptr = LoadConst<Nullptr>
+    v8:CDouble[0] = LoadConst<CDouble[0]>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -274,7 +274,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v8:Nullptr = LoadConst<Nullptr>
+    v8:CDouble[0] = LoadConst<CDouble[0]>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -303,7 +303,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v8:Nullptr = LoadConst<Nullptr>
+    v8:CDouble[0] = LoadConst<CDouble[0]>
     Snapshot
     v9:CInt64 = LoadEvalBreaker
     CondBranch<2, 1> v9
@@ -332,7 +332,7 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     LoadFrame
-    v8:Nullptr = LoadConst<Nullptr>
+    v8:CDouble[0] = LoadConst<CDouble[0]>
     Snapshot
     AtQuiescentState
     v9:CInt64 = LoadEvalBreaker

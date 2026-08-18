@@ -126,6 +126,10 @@ class Preloader {
   // return TObject for untyped values.
   Type checkArgType(int local_idx) const;
 
+  // Locals index -> declared type, for the Static Python locals that hold an
+  // unboxed primitive.
+  const ArgTypeMap& primitiveLocalTypes() const;
+
   // Get the global value at a given name index.
   BorrowedRef<> global(int name_idx) const;
 
@@ -192,6 +196,8 @@ class Preloader {
 
   // Keyed by locals index.
   SortedVecMap<int, OwnedType> check_arg_types_;
+  // Keyed by locals index, primitive-typed locals only.
+  ArgTypeMap primitive_local_types_;
   // Keyed by name index, names borrowed from code object.
   GlobalNamesMap global_names_;
   // keyed by name index; stable GlobalCache value slots captured during

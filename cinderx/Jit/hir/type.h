@@ -342,6 +342,10 @@ struct OwnedType {
 // Convert a Static Python primitive type code to an HIR type.
 Type prim_type_to_type(int prim_type);
 
+// The zero value of an unspecialized primitive type, e.g. CDouble ->
+// CDouble[0].
+Type primitiveZero(Type type);
+
 inline std::ostream& operator<<(std::ostream& os, const Type& ty) {
   return os << ty.toString();
 }

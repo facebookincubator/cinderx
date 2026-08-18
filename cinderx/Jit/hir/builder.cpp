@@ -382,6 +382,20 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
   }
 }
 
+// Give every primitive local a definition at function entry.  Without one, a
+// local first assigned inside a loop is undefined on the path into the loop
+// header, and SSAify models that with LoadConst<Nullptr>, leaving the header's
+// Phi with a type like {CDouble|Nullptr} that straddles two register banks.
+void HIRBuilder::addPrimitiveLocalInits(TranslationContext& tc, int num_args) {
+  for (auto [index, type] : preloader_.primitiveLocalTypes()) {
+    // Arguments are already defined by their LoadArg.
+    if (index < num_args) {
+      continue;
+    }
+    tc.emit<LoadConst>(tc.frame.localsplus[index], primitiveZero(type));
+  }
+}
+
 void HIRBuilder::addTagIfDeferredArgs(TranslationContext& tc, int num_args) {
   if constexpr (!kFreeThreadedBuild) {
     return;
@@ -694,6 +708,8 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   if (frame_state == nullptr) {
     entry_tc.emit<LoadFrame>();
   }
+
+  addPrimitiveLocalInits(entry_tc, preloader_.numArgs());
 
   // Generators tag their args after GEN_START.
   if ((code_->co_flags & kCoFlagsAnyGenerator) == 0) {

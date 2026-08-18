@@ -488,6 +488,7 @@ class HIRBuilder {
   void addInitialYield(TranslationContext& tc);
   void addTagIfDeferredArgs(TranslationContext& tc, int num_args);
   void addLoadArgs(TranslationContext& tc, int num_args);
+  void addPrimitiveLocalInits(TranslationContext& tc, int num_args);
   void allocateLocalsplus(Environment* env, FrameState& state);
   void moveOverwrittenStackRegisters(TranslationContext& tc, Register* dst);
   bool tryEmitDirectMethodCall(

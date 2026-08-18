@@ -233,6 +233,10 @@ Type Preloader::checkArgType(int local_idx) const {
   return it != check_arg_types_.end() ? it->second.toHir() : TObject;
 }
 
+const ArgTypeMap& Preloader::primitiveLocalTypes() const {
+  return primitive_local_types_;
+}
+
 PyObject** Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
   JIT_THROW_IF(
       !canCacheGlobals(),
@@ -454,6 +458,22 @@ bool Preloader::preload() {
             repr(descr),
             fullname());
         types_.emplace(descr, std::move(alloc_type));
+        break;
+      }
+      case LOAD_LOCAL:
+      case STORE_LOCAL: {
+        BorrowedRef<PyTupleObject> index_and_descr{constArg(bc_instr)};
+        BorrowedRef<> descr = PyTuple_GET_ITEM(index_and_descr, 1);
+        int prim_type = _PyClassLoader_ResolvePrimitiveType(descr);
+        JIT_THROW_IF(
+            prim_type == -1,
+            "Unknown local type descr {} during preloading of {}",
+            repr(descr),
+            fullname());
+        if (prim_type != TYPED_OBJECT) {
+          int index = PyLong_AsLong(PyTuple_GET_ITEM(index_and_descr, 0));
+          primitive_local_types_.emplace(index, prim_type_to_type(prim_type));
+        }
         break;
       }
       case LOAD_FIELD:

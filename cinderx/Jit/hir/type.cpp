@@ -734,4 +734,20 @@ Type prim_type_to_type(int prim_type) {
   }
 }
 
+Type primitiveZero(Type type) {
+  if (type <= TCDouble) {
+    return Type::fromCDouble(0.0);
+  }
+  if (type <= TCBool) {
+    return Type::fromCBool(false);
+  }
+  if (type <= TCSigned) {
+    return Type::fromCInt(0, type);
+  }
+  if (type <= TCUnsigned) {
+    return Type::fromCUInt(0, type);
+  }
+  JIT_THROW("No zero value for type {}", type);
+}
+
 } // namespace cinderx::jit::hir

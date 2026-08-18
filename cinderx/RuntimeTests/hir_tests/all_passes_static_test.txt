@@ -13,41 +13,42 @@ fun jittestmodule:test {
   bb 0 {
     v21:TupleExact = LoadArg<0; "x", TupleExact>
     LoadFrame
-    v23:Nullptr = LoadConst<Nullptr>
+    v24:Nullptr = LoadConst<Nullptr>
+    v23:CInt64[0] = LoadConst<CInt64[0]>
     UpdatePrevInstr<idx:0 line_no:0: no parent>
-    v24:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v24
+    v25:CInt32 = LoadEvalBreaker
+    CondBranch<5, 4> v25
   }
 
   bb 5 (preds 0) {
-    v47:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v21 unc:v23
+    v48:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v23 unc:v24
       FrameState {
         CurInstrOffset 0
-        Locals<3> v21 v23 v23
+        Locals<3> v21 v23 v24
       }
     }
     Branch<4>
   }
 
   bb 4 (preds 0, 5) {
-    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v28:CInt64 = Phi<4, 10> v25 v37
-    v29:OptObject = Phi<4, 10> v23 v56
-    v30:CInt32 = LoadEvalBreaker
-    CondBranch<7, 1> v30
+    v29:CInt64 = Phi<4, 10> v26 v38
+    v30:OptObject = Phi<4, 10> v24 v57
+    v31:CInt32 = LoadEvalBreaker
+    CondBranch<7, 1> v31
   }
 
   bb 7 (preds 6) {
-    v46:CInt32 = RunPeriodicTasks {
-      LiveValues<3> b:v21 s:v28 o:v29
+    v47:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v29 o:v30
       FrameState {
         CurInstrOffset 10
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<1> v21
       }
     }
@@ -55,29 +56,29 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 6, 7) {
-    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
-    CondBranch<2, 3> v32
+    v32:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v33:CBool = PrimitiveCompare<GreaterThan> v32 v29
+    CondBranch<2, 3> v33
   }
 
   bb 2 (preds 1) {
-    v58:CBool = IsCompactLong v28
-    Guard v58 {
-      LiveValues<4> b:v21 s:v28 o:v29 bool:v58
+    v59:CBool = IsCompactLong v29
+    Guard v59 {
+      LiveValues<4> b:v21 s:v29 o:v30 bool:v59
       FrameState {
         CurInstrOffset 22
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<2> v21 v21
       }
     }
-    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v51:CInt64[0] = LoadConst<CInt64[0]>
-    v52:CBool = PrimitiveCompare<LessThan> v28 v51
-    CondBranch<8, 9> v52
+    v51:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v52:CInt64[0] = LoadConst<CInt64[0]>
+    v53:CBool = PrimitiveCompare<LessThan> v29 v52
+    CondBranch<8, 9> v53
   }
 
   bb 8 (preds 2) {
-    v53:CInt64 = IntBinaryOp<Add> v28 v50
+    v54:CInt64 = IntBinaryOp<Add> v29 v51
     Branch<10>
   }
 
@@ -86,36 +87,158 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v54:CInt64 = Phi<8, 9> v53 v28
-    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
-    Guard v55 {
-      LiveValues<5> b:v21 s:v28 o:v29 s:v54 bool:v55
+    v55:CInt64 = Phi<8, 9> v54 v29
+    v56:CBool = PrimitiveCompare<LessThanUnsigned> v55 v51
+    Guard v56 {
+      LiveValues<5> b:v21 s:v29 o:v30 s:v55 bool:v56
       FrameState {
         CurInstrOffset 22
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<2> v21 v21
       }
     }
-    v56:Object = LoadArrayItem<Offset[24]> v21 v54 v21
-    v36:CInt64[1] = LoadConst<CInt64[1]>
-    v37:CInt64 = IntBinaryOp<Add> v28 v36
+    v57:Object = LoadArrayItem<Offset[24]> v21 v55 v21
+    v37:CInt64[1] = LoadConst<CInt64[1]>
+    v38:CInt64 = IntBinaryOp<Add> v29 v37
+    v42:OptObject = LoadGlobalCached<0; "print">
+    v43:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v42 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<6> b:v21 s:v29 o:v30 s:v38 b:v42 b:v57
+      FrameState {
+        CurInstrOffset 36
+        Locals<3> v21 v29 v30
+        Stack<3> v21 v57 v38
+      }
+    }
+    Incref v57
+    XDecref v30
+    v58:Object = VectorCall<1> v43 v57 {
+      LiveValues<4> b:v21 s:v38 b:v43 o:v57
+      FrameState {
+        CurInstrOffset 54
+        Locals<3> v21 v38 v57
+        Stack<1> v21
+      }
+    }
+    Decref v58
+    Branch<6>
+  }
+
+  bb 3 (preds 1) {
+    XDecref v30
+    v45:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v45
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v21:TupleExact = LoadArg<0; "x", TupleExact>
+    LoadFrame
+    v24:Nullptr = LoadConst<Nullptr>
+    v23:CInt64[0] = LoadConst<CInt64[0]>
+    UpdatePrevInstr<idx:0 line_no:0: no parent>
+    v25:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v25
+  }
+
+  bb 5 (preds 0) {
+    v47:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v23 unc:v24
+      FrameState {
+        CurInstrOffset 0
+        Locals<3> v21 v23 v24
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    v26:CInt64[0] = LoadConst<CInt64[0]>
+    Branch<6>
+  }
+
+  bb 6 (preds 4, 10) {
+    v29:CInt64 = Phi<4, 10> v26 v38
+    v30:OptObject = Phi<4, 10> v24 v56
+    v31:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v31
+  }
+
+  bb 7 (preds 6) {
+    v46:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v29 o:v30
+      FrameState {
+        CurInstrOffset 12
+        Locals<3> v21 v29 v30
+        Stack<1> v21
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 6, 7) {
+    v32:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v33:CBool = PrimitiveCompare<GreaterThan> v32 v29
+    CondBranch<2, 3> v33
+  }
+
+  bb 2 (preds 1) {
+    v58:CBool = IsCompactLong v29
+    Guard v58 {
+      LiveValues<4> b:v21 s:v29 o:v30 bool:v58
+      FrameState {
+        CurInstrOffset 34
+        Locals<3> v21 v29 v30
+        Stack<2> v21 v21
+      }
+    }
+    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v51:CInt64[0] = LoadConst<CInt64[0]>
+    v52:CBool = PrimitiveCompare<LessThan> v29 v51
+    CondBranch<8, 9> v52
+  }
+
+  bb 8 (preds 2) {
+    v53:CInt64 = IntBinaryOp<Add> v29 v50
+    Branch<10>
+  }
+
+  bb 9 (preds 2) {
+    Branch<10>
+  }
+
+  bb 10 (preds 8, 9) {
+    v54:CInt64 = Phi<8, 9> v53 v29
+    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
+    Guard v55 {
+      LiveValues<5> b:v21 s:v29 o:v30 s:v54 bool:v55
+      FrameState {
+        CurInstrOffset 34
+        Locals<3> v21 v29 v30
+        Stack<2> v21 v21
+      }
+    }
+    v56:Object = LoadArrayItem<Offset[32]> v21 v54 v21
+    v37:CInt64[1] = LoadConst<CInt64[1]>
+    v38:CInt64 = IntBinaryOp<Add> v29 v37
     v41:OptObject = LoadGlobalCached<0; "print">
     v42:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v41 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v21 s:v28 o:v29 s:v37 b:v41 b:v56
+      LiveValues<6> b:v21 s:v29 o:v30 s:v38 b:v41 b:v56
       FrameState {
-        CurInstrOffset 36
-        Locals<3> v21 v28 v29
-        Stack<3> v21 v56 v37
+        CurInstrOffset 66
+        Locals<3> v21 v29 v30
+        Stack<3> v21 v56 v38
       }
     }
     Incref v56
-    XDecref v29
+    XDecref v30
     v57:Object = VectorCall<1> v42 v56 {
-      LiveValues<4> b:v21 s:v37 b:v42 o:v56
+      LiveValues<4> b:v21 s:v38 b:v42 o:v56
       FrameState {
-        CurInstrOffset 54
-        Locals<3> v21 v37 v56
+        CurInstrOffset 84
+        Locals<3> v21 v38 v56
         Stack<1> v21
       }
     }
@@ -124,130 +247,9 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    XDecref v29
-    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return<ImmortalNoneType> v44
-  }
-}
---- Expected 3.14 ---
-fun jittestmodule:test {
-  bb 0 {
-    v21:TupleExact = LoadArg<0; "x", TupleExact>
-    LoadFrame
-    v23:Nullptr = LoadConst<Nullptr>
-    UpdatePrevInstr<idx:0 line_no:0: no parent>
-    v24:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v24
-  }
-
-  bb 5 (preds 0) {
-    v46:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v21 unc:v23
-      FrameState {
-        CurInstrOffset 0
-        Locals<3> v21 v23 v23
-      }
-    }
-    Branch<4>
-  }
-
-  bb 4 (preds 0, 5) {
-    v25:CInt64[0] = LoadConst<CInt64[0]>
-    Branch<6>
-  }
-
-  bb 6 (preds 4, 10) {
-    v28:CInt64 = Phi<4, 10> v25 v37
-    v29:OptObject = Phi<4, 10> v23 v55
-    v30:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v30
-  }
-
-  bb 7 (preds 6) {
-    v45:CInt32 = RunPeriodicTasks {
-      LiveValues<3> b:v21 s:v28 o:v29
-      FrameState {
-        CurInstrOffset 12
-        Locals<3> v21 v28 v29
-        Stack<1> v21
-      }
-    }
-    Branch<1>
-  }
-
-  bb 1 (preds 6, 7) {
-    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
-    CondBranch<2, 3> v32
-  }
-
-  bb 2 (preds 1) {
-    v57:CBool = IsCompactLong v28
-    Guard v57 {
-      LiveValues<4> b:v21 s:v28 o:v29 bool:v57
-      FrameState {
-        CurInstrOffset 34
-        Locals<3> v21 v28 v29
-        Stack<2> v21 v21
-      }
-    }
-    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v50:CInt64[0] = LoadConst<CInt64[0]>
-    v51:CBool = PrimitiveCompare<LessThan> v28 v50
-    CondBranch<8, 9> v51
-  }
-
-  bb 8 (preds 2) {
-    v52:CInt64 = IntBinaryOp<Add> v28 v49
-    Branch<10>
-  }
-
-  bb 9 (preds 2) {
-    Branch<10>
-  }
-
-  bb 10 (preds 8, 9) {
-    v53:CInt64 = Phi<8, 9> v52 v28
-    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
-    Guard v54 {
-      LiveValues<5> b:v21 s:v28 o:v29 s:v53 bool:v54
-      FrameState {
-        CurInstrOffset 34
-        Locals<3> v21 v28 v29
-        Stack<2> v21 v21
-      }
-    }
-    v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
-    v36:CInt64[1] = LoadConst<CInt64[1]>
-    v37:CInt64 = IntBinaryOp<Add> v28 v36
-    v40:OptObject = LoadGlobalCached<0; "print">
-    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
-      Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v21 s:v28 o:v29 s:v37 b:v40 b:v55
-      FrameState {
-        CurInstrOffset 66
-        Locals<3> v21 v28 v29
-        Stack<3> v21 v55 v37
-      }
-    }
-    Incref v55
-    XDecref v29
-    v56:Object = VectorCall<1> v41 v55 {
-      LiveValues<4> b:v21 s:v37 b:v41 o:v55
-      FrameState {
-        CurInstrOffset 84
-        Locals<3> v21 v37 v55
-        Stack<1> v21
-      }
-    }
-    Decref v56
-    Branch<6>
-  }
-
-  bb 3 (preds 1) {
-    XDecref v29
-    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v44
+    XDecref v30
+    v45:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v45
   }
 }
 --- Expected 3.15 ---
@@ -255,42 +257,43 @@ fun jittestmodule:test {
   bb 0 {
     v21:TupleExact = LoadArg<0; "x", TupleExact>
     LoadFrame
-    v23:Nullptr = LoadConst<Nullptr>
-    v24:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v24
+    v24:Nullptr = LoadConst<Nullptr>
+    v23:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v25
   }
 
   bb 5 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:0: no parent>
-    v46:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v21 unc:v23
+    v47:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v23 unc:v24
       FrameState {
         CurInstrOffset 0
-        Locals<3> v21 v23 v23
+        Locals<3> v21 v23 v24
       }
     }
     Branch<4>
   }
 
   bb 4 (preds 0, 5) {
-    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v28:CInt64 = Phi<4, 10> v25 v37
-    v29:OptObject = Phi<4, 10> v23 v55
-    v30:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v30
+    v29:CInt64 = Phi<4, 10> v26 v38
+    v30:OptObject = Phi<4, 10> v24 v56
+    v31:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v31
   }
 
   bb 7 (preds 6) {
     UpdatePrevInstr<idx:7 line_no:2: no parent>
-    v45:CInt32 = RunPeriodicTasks {
-      LiveValues<3> b:v21 s:v28 o:v29
+    v46:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v29 o:v30
       FrameState {
         CurInstrOffset 14
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<1> v21
       }
     }
@@ -298,29 +301,29 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 6, 7) {
-    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
-    CondBranch<2, 3> v32
+    v32:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v33:CBool = PrimitiveCompare<GreaterThan> v32 v29
+    CondBranch<2, 3> v33
   }
 
   bb 2 (preds 1) {
-    v57:CBool = IsCompactLong v28
-    Guard v57 {
-      LiveValues<4> b:v21 s:v28 o:v29 bool:v57
+    v58:CBool = IsCompactLong v29
+    Guard v58 {
+      LiveValues<4> b:v21 s:v29 o:v30 bool:v58
       FrameState {
         CurInstrOffset 36
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<2> v21 v21
       }
     }
-    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v50:CInt64[0] = LoadConst<CInt64[0]>
-    v51:CBool = PrimitiveCompare<LessThan> v28 v50
-    CondBranch<8, 9> v51
+    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v51:CInt64[0] = LoadConst<CInt64[0]>
+    v52:CBool = PrimitiveCompare<LessThan> v29 v51
+    CondBranch<8, 9> v52
   }
 
   bb 8 (preds 2) {
-    v52:CInt64 = IntBinaryOp<Add> v28 v49
+    v53:CInt64 = IntBinaryOp<Add> v29 v50
     Branch<10>
   }
 
@@ -329,49 +332,49 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v53:CInt64 = Phi<8, 9> v52 v28
-    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
-    Guard v54 {
-      LiveValues<5> b:v21 s:v28 o:v29 s:v53 bool:v54
+    v54:CInt64 = Phi<8, 9> v53 v29
+    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
+    Guard v55 {
+      LiveValues<5> b:v21 s:v29 o:v30 s:v54 bool:v55
       FrameState {
         CurInstrOffset 36
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<2> v21 v21
       }
     }
-    v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
-    v36:CInt64[1] = LoadConst<CInt64[1]>
-    v37:CInt64 = IntBinaryOp<Add> v28 v36
-    v40:OptObject = LoadGlobalCached<0; "print">
-    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
+    v56:Object = LoadArrayItem<Offset[32]> v21 v54 v21
+    v37:CInt64[1] = LoadConst<CInt64[1]>
+    v38:CInt64 = IntBinaryOp<Add> v29 v37
+    v41:OptObject = LoadGlobalCached<0; "print">
+    v42:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v41 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v21 s:v28 o:v29 s:v37 b:v40 b:v55
+      LiveValues<6> b:v21 s:v29 o:v30 s:v38 b:v41 b:v56
       FrameState {
         CurInstrOffset 68
-        Locals<3> v21 v28 v29
-        Stack<3> v21 v55 v37
+        Locals<3> v21 v29 v30
+        Stack<3> v21 v56 v38
       }
     }
-    Incref v55
+    Incref v56
     UpdatePrevInstr<idx:43 line_no:3: no parent>
-    XDecref v29
-    v56:Object = VectorCall<1> v41 v55 {
-      LiveValues<4> b:v21 s:v37 b:v41 o:v55
+    XDecref v30
+    v57:Object = VectorCall<1> v42 v56 {
+      LiveValues<4> b:v21 s:v38 b:v42 o:v56
       FrameState {
         CurInstrOffset 86
-        Locals<3> v21 v37 v55
+        Locals<3> v21 v38 v56
         Stack<1> v21
       }
     }
-    Decref v56
+    Decref v57
     Branch<6>
   }
 
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:52 line_no:-1: no parent>
-    XDecref v29
-    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v44
+    XDecref v30
+    v45:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v45
   }
 }
 --- Expected 3.16 ---
@@ -379,42 +382,43 @@ fun jittestmodule:test {
   bb 0 {
     v21:TupleExact = LoadArg<0; "x", TupleExact>
     LoadFrame
-    v23:Nullptr = LoadConst<Nullptr>
-    v24:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v24
+    v24:Nullptr = LoadConst<Nullptr>
+    v23:CInt64[0] = LoadConst<CInt64[0]>
+    v25:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v25
   }
 
   bb 5 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:0: no parent>
-    v46:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v21 unc:v23
+    v47:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v23 unc:v24
       FrameState {
         CurInstrOffset 0
-        Locals<3> v21 v23 v23
+        Locals<3> v21 v23 v24
       }
     }
     Branch<4>
   }
 
   bb 4 (preds 0, 5) {
-    v25:CInt64[0] = LoadConst<CInt64[0]>
+    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v28:CInt64 = Phi<4, 10> v25 v37
-    v29:OptObject = Phi<4, 10> v23 v55
-    v30:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v30
+    v29:CInt64 = Phi<4, 10> v26 v38
+    v30:OptObject = Phi<4, 10> v24 v56
+    v31:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v31
   }
 
   bb 7 (preds 6) {
     UpdatePrevInstr<idx:7 line_no:2: no parent>
-    v45:CInt32 = RunPeriodicTasks {
-      LiveValues<3> b:v21 s:v28 o:v29
+    v46:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v21 s:v29 o:v30
       FrameState {
         CurInstrOffset 14
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<1> v21
       }
     }
@@ -422,29 +426,29 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 6, 7) {
-    v31:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v32:CBool = PrimitiveCompare<GreaterThan> v31 v28
-    CondBranch<2, 3> v32
+    v32:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v33:CBool = PrimitiveCompare<GreaterThan> v32 v29
+    CondBranch<2, 3> v33
   }
 
   bb 2 (preds 1) {
-    v57:CBool = IsCompactLong v28
-    Guard v57 {
-      LiveValues<4> b:v21 s:v28 o:v29 bool:v57
+    v58:CBool = IsCompactLong v29
+    Guard v58 {
+      LiveValues<4> b:v21 s:v29 o:v30 bool:v58
       FrameState {
         CurInstrOffset 36
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<2> v21 v21
       }
     }
-    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v50:CInt64[0] = LoadConst<CInt64[0]>
-    v51:CBool = PrimitiveCompare<LessThan> v28 v50
-    CondBranch<8, 9> v51
+    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v51:CInt64[0] = LoadConst<CInt64[0]>
+    v52:CBool = PrimitiveCompare<LessThan> v29 v51
+    CondBranch<8, 9> v52
   }
 
   bb 8 (preds 2) {
-    v52:CInt64 = IntBinaryOp<Add> v28 v49
+    v53:CInt64 = IntBinaryOp<Add> v29 v50
     Branch<10>
   }
 
@@ -453,49 +457,49 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v53:CInt64 = Phi<8, 9> v52 v28
-    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
-    Guard v54 {
-      LiveValues<5> b:v21 s:v28 o:v29 s:v53 bool:v54
+    v54:CInt64 = Phi<8, 9> v53 v29
+    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
+    Guard v55 {
+      LiveValues<5> b:v21 s:v29 o:v30 s:v54 bool:v55
       FrameState {
         CurInstrOffset 36
-        Locals<3> v21 v28 v29
+        Locals<3> v21 v29 v30
         Stack<2> v21 v21
       }
     }
-    v55:Object = LoadArrayItem<Offset[32]> v21 v53 v21
-    v36:CInt64[1] = LoadConst<CInt64[1]>
-    v37:CInt64 = IntBinaryOp<Add> v28 v36
-    v40:OptObject = LoadGlobalCached<0; "print">
-    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
+    v56:Object = LoadArrayItem<Offset[32]> v21 v54 v21
+    v37:CInt64[1] = LoadConst<CInt64[1]>
+    v38:CInt64 = IntBinaryOp<Add> v29 v37
+    v41:OptObject = LoadGlobalCached<0; "print">
+    v42:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v41 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v21 s:v28 o:v29 s:v37 b:v40 b:v55
+      LiveValues<6> b:v21 s:v29 o:v30 s:v38 b:v41 b:v56
       FrameState {
         CurInstrOffset 68
-        Locals<3> v21 v28 v29
-        Stack<3> v21 v55 v37
+        Locals<3> v21 v29 v30
+        Stack<3> v21 v56 v38
       }
     }
-    Incref v55
+    Incref v56
     UpdatePrevInstr<idx:43 line_no:3: no parent>
-    XDecref v29
-    v56:Object = VectorCall<1> v41 v55 {
-      LiveValues<4> b:v21 s:v37 b:v41 o:v55
+    XDecref v30
+    v57:Object = VectorCall<1> v42 v56 {
+      LiveValues<4> b:v21 s:v38 b:v42 o:v56
       FrameState {
         CurInstrOffset 86
-        Locals<3> v21 v37 v55
+        Locals<3> v21 v38 v56
         Stack<1> v21
       }
     }
-    Decref v56
+    Decref v57
     Branch<6>
   }
 
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:52 line_no:-1: no parent>
-    XDecref v29
-    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v44
+    XDecref v30
+    v45:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v45
   }
 }
 --- Expected 3.14t ---
@@ -503,74 +507,75 @@ fun jittestmodule:test {
   bb 0 {
     v22:TupleExact = LoadArg<0; "x", TupleExact>
     LoadFrame
-    v25:Nullptr = LoadConst<Nullptr>
-    v24:TupleExact = TagIfDeferred v22
+    v26:Nullptr = LoadConst<Nullptr>
+    v24:CInt64[0] = LoadConst<CInt64[0]>
+    v25:TupleExact = TagIfDeferred v22
     AtQuiescentState
     UpdatePrevInstr<idx:0 line_no:0: no parent>
-    v26:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v26
+    v27:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v27
   }
 
   bb 5 (preds 0) {
-    v48:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v24 unc:v25
+    v49:CInt32 = RunPeriodicTasks {
+      LiveValues<3> s:v24 b:v25 unc:v26
       FrameState {
         CurInstrOffset 0
-        Locals<3> v24 v25 v25
+        Locals<3> v25 v24 v26
       }
     }
     Branch<4>
   }
 
   bb 4 (preds 0, 5) {
-    v27:CInt64[0] = LoadConst<CInt64[0]>
+    v28:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v30:CInt64 = Phi<4, 10> v27 v39
-    v31:OptObject = Phi<4, 10> v25 v57
+    v31:CInt64 = Phi<4, 10> v28 v40
+    v32:OptObject = Phi<4, 10> v26 v58
     AtQuiescentState
-    v32:CInt64 = LoadEvalBreaker
-    CondBranch<7, 1> v32
+    v33:CInt64 = LoadEvalBreaker
+    CondBranch<7, 1> v33
   }
 
   bb 7 (preds 6) {
-    v47:CInt32 = RunPeriodicTasks {
-      LiveValues<3> b:v24 s:v30 o:v31
+    v48:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v25 s:v31 o:v32
       FrameState {
         CurInstrOffset 12
-        Locals<3> v24 v30 v31
-        Stack<1> v24
+        Locals<3> v25 v31 v32
+        Stack<1> v25
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 6, 7) {
-    v33:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v24
-    v34:CBool = PrimitiveCompare<GreaterThan> v33 v30
-    CondBranch<2, 3> v34
+    v34:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v25
+    v35:CBool = PrimitiveCompare<GreaterThan> v34 v31
+    CondBranch<2, 3> v35
   }
 
   bb 2 (preds 1) {
-    v59:CBool = IsCompactLong v30
-    Guard v59 {
-      LiveValues<4> b:v24 s:v30 o:v31 bool:v59
+    v60:CBool = IsCompactLong v31
+    Guard v60 {
+      LiveValues<4> b:v25 s:v31 o:v32 bool:v60
       FrameState {
         CurInstrOffset 34
-        Locals<3> v24 v30 v31
-        Stack<2> v24 v24
+        Locals<3> v25 v31 v32
+        Stack<2> v25 v25
       }
     }
-    v51:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v24
-    v52:CInt64[0] = LoadConst<CInt64[0]>
-    v53:CBool = PrimitiveCompare<LessThan> v30 v52
-    CondBranch<8, 9> v53
+    v52:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v25
+    v53:CInt64[0] = LoadConst<CInt64[0]>
+    v54:CBool = PrimitiveCompare<LessThan> v31 v53
+    CondBranch<8, 9> v54
   }
 
   bb 8 (preds 2) {
-    v54:CInt64 = IntBinaryOp<Add> v30 v51
+    v55:CInt64 = IntBinaryOp<Add> v31 v52
     Branch<10>
   }
 
@@ -579,51 +584,51 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v55:CInt64 = Phi<8, 9> v54 v30
-    v56:CBool = PrimitiveCompare<LessThanUnsigned> v55 v51
-    Guard v56 {
-      LiveValues<5> b:v24 s:v30 o:v31 s:v55 bool:v56
+    v56:CInt64 = Phi<8, 9> v55 v31
+    v57:CBool = PrimitiveCompare<LessThanUnsigned> v56 v52
+    Guard v57 {
+      LiveValues<5> b:v25 s:v31 o:v32 s:v56 bool:v57
       FrameState {
         CurInstrOffset 34
-        Locals<3> v24 v30 v31
-        Stack<2> v24 v24
+        Locals<3> v25 v31 v32
+        Stack<2> v25 v25
       }
     }
-    v57:Object = LoadArrayItem<Offset[48]> v24 v55 v24
-    v38:CInt64[1] = LoadConst<CInt64[1]>
-    v39:CInt64 = IntBinaryOp<Add> v30 v38
-    v42:OptObject = LoadGlobalCached<0; "print">
-    v43:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v42 {
+    v58:Object = LoadArrayItem<Offset[48]> v25 v56 v25
+    v39:CInt64[1] = LoadConst<CInt64[1]>
+    v40:CInt64 = IntBinaryOp<Add> v31 v39
+    v43:OptObject = LoadGlobalCached<0; "print">
+    v44:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v43 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v24 s:v30 o:v31 s:v39 b:v42 b:v57
+      LiveValues<6> b:v25 s:v31 o:v32 s:v40 b:v43 b:v58
       FrameState {
         CurInstrOffset 66
-        Locals<3> v24 v30 v31
-        Stack<3> v24 v57 v39
+        Locals<3> v25 v31 v32
+        Stack<3> v25 v58 v40
       }
     }
-    Incref v57
-    v62:OptObject = MaterializeRef v31
-    XDecref v62
-    v58:Object = VectorCall<1> v43 v57 {
-      LiveValues<4> b:v24 s:v39 b:v43 o:v57
+    Incref v58
+    v63:OptObject = MaterializeRef v32
+    XDecref v63
+    v59:Object = VectorCall<1> v44 v58 {
+      LiveValues<4> b:v25 s:v40 b:v44 o:v58
       FrameState {
         CurInstrOffset 84
-        Locals<3> v24 v39 v57
-        Stack<1> v24
+        Locals<3> v25 v40 v58
+        Stack<1> v25
       }
     }
-    v63:Object = MaterializeRef v58
-    Decref v63
+    v64:Object = MaterializeRef v59
+    Decref v64
     Branch<6>
   }
 
   bb 3 (preds 1) {
-    v60:OptObject = MaterializeRef v31
-    XDecref v60
-    v46:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    v61:ImmortalNoneType = MaterializeRef v46
-    Return v61
+    v61:OptObject = MaterializeRef v32
+    XDecref v61
+    v47:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    v62:ImmortalNoneType = MaterializeRef v47
+    Return v62
   }
 }
 --- End ---

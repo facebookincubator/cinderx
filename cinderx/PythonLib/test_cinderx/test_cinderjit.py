@@ -743,6 +743,30 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             force_compile(mod.Foo.__init__)
             mod.Foo(True)
 
+    @run_in_subprocess
+    @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
+    def test_double_undefined_on_loop_entry(self) -> None:
+        # `step` is never read, so Static Python skips the zero-initializer it
+        # emits for primitives that are read while possibly-undefined (see
+        # test_uninit_for).  Its loop-header Phi then merges a double with the
+        # undefined-local sentinel, which used to leave the Phi in an integer
+        # register while its input stayed in a vector one.
+        codestr = """
+            from __static__ import box, double
+
+            def f(n: int) -> float:
+                total: double = 0.0
+                for _ in range(n):
+                    step: double = 1.5
+                    total += step
+
+                return box(total)
+        """
+        with self.in_module(codestr) as mod:
+            force_compile(mod.f)
+            self.assertEqual(mod.f(0), 0.0)
+            self.assertEqual(mod.f(3), 4.5)
+
     def test_restore_materialized_parent_pyframe_in_gen_throw(self) -> None:
         # This reproduces a bug that causes the top frame in the shadow stack
         # to be out of sync with the top frame on the Python stack.

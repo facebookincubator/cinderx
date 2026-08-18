@@ -3014,6 +3014,7 @@ fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
     LoadFrame
+    v1 = LoadConst<CInt64[0]>
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -3086,6 +3087,7 @@ fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
     LoadFrame
+    v1 = LoadConst<CInt64[0]>
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -3158,6 +3160,7 @@ fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
     LoadFrame
+    v1 = LoadConst<CInt64[0]>
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -3230,6 +3233,7 @@ fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
     LoadFrame
+    v1 = LoadConst<CInt64[0]>
     Snapshot
     v3 = LoadEvalBreaker
     CondBranch<2, 1> v3
@@ -3302,6 +3306,7 @@ fun jittestmodule:test {
   bb 0 {
     v2 = LoadCurrentFunc
     LoadFrame
+    v1 = LoadConst<CInt64[0]>
     Snapshot
     AtQuiescentState
     v3 = LoadEvalBreaker
@@ -4070,6 +4075,7 @@ fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
     LoadFrame
+    v0 = LoadConst<CInt64[0]>
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -4106,6 +4112,7 @@ fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
     LoadFrame
+    v0 = LoadConst<CInt64[0]>
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -4142,6 +4149,7 @@ fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
     LoadFrame
+    v0 = LoadConst<CInt64[0]>
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -4178,6 +4186,7 @@ fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
     LoadFrame
+    v0 = LoadConst<CInt64[0]>
     Snapshot
     v2 = LoadEvalBreaker
     CondBranch<2, 1> v2
@@ -4214,6 +4223,7 @@ fun jittestmodule:test {
   bb 0 {
     v1 = LoadCurrentFunc
     LoadFrame
+    v0 = LoadConst<CInt64[0]>
     Snapshot
     AtQuiescentState
     v2 = LoadEvalBreaker
