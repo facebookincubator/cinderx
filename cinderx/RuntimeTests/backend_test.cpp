@@ -1713,6 +1713,69 @@ TEST_F(BackendTest, OutOfRangePairMergesOffScratchBase) {
   }
 }
 
+// PostRegAllocRewrite lowers an instruction's memory operands by loading each
+// into a scratch register, so the first operand's value sits in x13 while the
+// second operand's address is being computed. Materializing that address in
+// the shared scratch destroyed the first value; the address now goes in the
+// destination register instead.
+TEST_F(BackendTest, FarStackOperandsDoNotClobberEachOther) {
+  for (int32_t lo : {-24, -520}) {
+    auto func = std::make_unique<Function>();
+    auto* bb = func->allocateBasicBlock();
+    // Seed the slots with a hand-built StorePair: a Move-based seed would be
+    // store-to-load forwarded by PostRegAllocRewrite and the loads under test
+    // would never be emitted.
+    bb->allocateInstr(
+        Opcode::kStorePair,
+        nullptr,
+        Imm{static_cast<uint64_t>(static_cast<int64_t>(lo))},
+        PhyReg{arch::reg_frame_pointer_loc, DataType::k64bit},
+        PhyReg{ARGUMENT_REGS[0], DataType::k64bit},
+        PhyReg{ARGUMENT_REGS[1], DataType::k64bit});
+    bb->allocateInstr(
+        Opcode::kAdd,
+        nullptr,
+        OutPhyReg{arch::reg_general_return_loc, DataType::k64bit},
+        Stk{PhyLocation(lo, 64), DataType::k64bit},
+        Stk{PhyLocation(lo + 8, 64), DataType::k64bit});
+
+    auto fn = (uint64_t (*)(uint64_t, uint64_t))CompilePreAllocated(
+        func.release(), 1024);
+    ASSERT_NE(fn, nullptr);
+    EXPECT_EQ(fn(3, 4), 7u) << "adding slots " << lo << " and " << (lo + 8);
+  }
+}
+
+// The same collision on the store side: the value being written must not be
+// evicted by the address computation.
+TEST_F(BackendTest, FarStackStoreDoesNotClobberItsValue) {
+  for (int32_t slot : {-24, -520}) {
+    auto func = std::make_unique<Function>();
+    auto* bb = func->allocateBasicBlock();
+    bb->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutPhyReg{arch::reg_scratch_0_loc, DataType::k64bit},
+        PhyReg{ARGUMENT_REGS[0], DataType::k64bit});
+    bb->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutStk{PhyLocation(slot, 64), DataType::k64bit},
+        PhyReg{arch::reg_scratch_0_loc, DataType::k64bit});
+    bb->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutPhyReg{arch::reg_general_return_loc, DataType::k64bit},
+        Stk{PhyLocation(slot, 64), DataType::k64bit});
+
+    auto fn = (uint64_t (*)(uint64_t, uint64_t))CompilePreAllocated(
+        func.release(), 1024);
+    ASSERT_NE(fn, nullptr);
+    EXPECT_EQ(fn(0x1234567890abcdefULL, 0), 0x1234567890abcdefULL)
+        << "storing x13 to slot " << slot;
+  }
+}
+
 #endif // CINDER_AARCH64
 
 } // namespace cinderx::jit::codegen

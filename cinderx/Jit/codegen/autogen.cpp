@@ -1951,21 +1951,27 @@ void translateMove(Environ* env, const Instruction* instr) {
           break;
         case lir::OperandType::kStack: {
           // Loading a value from the stack into a register.
-          auto ptr = getStackSlotPtr(env, input->getStackSlot().loc);
           if (output->isVecD()) {
-            as->ldr(AT::getVecD(output), ptr);
-          } else {
-            switch (output->dataType()) {
-              case lir::Operand::k8bit:
-                as->ldrb(AT::getGpOutput(output), ptr);
-                break;
-              case lir::Operand::k16bit:
-                as->ldrh(AT::getGpOutput(output), ptr);
-                break;
-              default:
-                as->ldr(AT::getGp(output), ptr);
-                break;
-            }
+            as->ldr(
+                AT::getVecD(output),
+                getStackSlotPtr(env, input->getStackSlot().loc));
+            break;
+          }
+          // We use dst here rather than scratch because postalloc could
+          // have inserted use of the scratch register and we're about
+          // to clobber dst anyway.
+          auto dst = a64::x(output->getPhyRegister().loc);
+          auto ptr = getStackSlotPtr(env, input->getStackSlot().loc, dst);
+          switch (output->dataType()) {
+            case lir::Operand::k8bit:
+              as->ldrb(AT::getGpOutput(output), ptr);
+              break;
+            case lir::Operand::k16bit:
+              as->ldrh(AT::getGpOutput(output), ptr);
+              break;
+            default:
+              as->ldr(AT::getGp(output), ptr);
+              break;
           }
           break;
         }
@@ -2013,14 +2019,21 @@ void translateMove(Environ* env, const Instruction* instr) {
       }
       break;
     case lir::OperandType::kStack: {
-      auto ptr = getStackSlotPtr(env, output->getStackSlot().loc);
-
-      if (input->isReg()) {
-        // Storing the value of a register to the stack
-        storeFromReg(as, input, output, ptr);
-      } else {
+      if (!input->isReg()) {
         JIT_ABORT("Unsupported operand type for Move: Stk + {}", input->type());
       }
+      // A store has no spare destination to build the address in, so it has to
+      // use a scratch -- but not the one holding the value it is about to
+      // write, or the address would overwrite it first.
+      auto scratch = input->getPhyRegister() == arch::reg_scratch_0_loc
+          ? arch::reg_scratch_1
+          : arch::reg_scratch_0;
+      // Storing the value of a register to the stack
+      storeFromReg(
+          as,
+          input,
+          output,
+          getStackSlotPtr(env, output->getStackSlot().loc, scratch));
       break;
     }
     case lir::OperandType::kMem:
@@ -2154,27 +2167,24 @@ void translateMovExtOp(
     }
   } else if (input->isStack()) {
     auto loc = input->getStackSlot().loc;
+    // Address goes in the destination, not the shared scratch; see the kStack
+    // load in translateMove for why. Each of these emits a single load, so the
+    // address is consumed before the destination is written.
+    auto dst = a64::x(output.id());
 
     switch (input_size) {
       case 8:
         emit_load8(
-            as,
-            output,
-            getStackSlotPtr(
-                env, loc, arch::reg_scratch_0, arch::AccessSize::k8));
+            as, output, getStackSlotPtr(env, loc, dst, arch::AccessSize::k8));
         break;
       case 16:
         emit_load16(
-            as,
-            output,
-            getStackSlotPtr(
-                env, loc, arch::reg_scratch_0, arch::AccessSize::k16));
+            as, output, getStackSlotPtr(env, loc, dst, arch::AccessSize::k16));
         break;
       case 32:
         as->ldr(
             a64::w(output.id()),
-            getStackSlotPtr(
-                env, loc, arch::reg_scratch_0, arch::AccessSize::k32));
+            getStackSlotPtr(env, loc, dst, arch::AccessSize::k32));
         break;
       default:
         JIT_ABORT("Unsupported input size for {}: {}", opname, input_size);
