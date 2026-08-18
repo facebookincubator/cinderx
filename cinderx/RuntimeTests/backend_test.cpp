@@ -1635,6 +1635,84 @@ TEST_F(BackendTest, RegSwapK32bitTruncates64BitValues) {
       << "k32bit swap should zero upper 32 bits, got 0x" << std::hex << result;
 }
 
+// pairAdjacentMemoryOps must not merge two moves whose offset is out of
+// stp/ldp range when either register is a scratch: the merged form has to
+// materialize its address in that same scratch, and for a store that would
+// overwrite the value before it is written out. PostRegAllocRewrite lowers
+// memory inputs by loading them into x13/x14, so this shape is routine.
+TEST_F(BackendTest, PeepholeSkipsScratchPairWhenOffsetOutOfRange) {
+  auto build = [](PhyLocation reg0, PhyLocation reg1, int32_t lo) {
+    auto func = std::make_unique<Function>();
+    auto* bb = func->allocateBasicBlock();
+    bb->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutStk{PhyLocation(lo, 64), DataType::k64bit},
+        PhyReg{reg0, DataType::k64bit});
+    bb->allocateInstr(
+        Opcode::kMove,
+        nullptr,
+        OutStk{PhyLocation(lo + 8, 64), DataType::k64bit},
+        PhyReg{reg1, DataType::k64bit});
+    runPostRegAllocPeephole(func.get());
+    int pairs = 0;
+    for (auto& instr : bb->instructions()) {
+      pairs += instr->isStorePair() ? 1 : 0;
+    }
+    return pairs;
+  };
+
+  // Out of range and holding a scratch register: must be left unmerged.
+  EXPECT_EQ(build(arch::reg_scratch_0_loc, X5, -520), 0);
+  EXPECT_EQ(build(X4, arch::reg_scratch_1_loc, -520), 0);
+  // Out of range but no scratch involved: still merged, off a scratch base.
+  EXPECT_EQ(build(X4, X5, -520), 1);
+  // In range: encodes directly, so scratch registers are harmless.
+  EXPECT_EQ(build(arch::reg_scratch_0_loc, arch::reg_scratch_1_loc, -24), 1);
+}
+
+// A pair whose offset is out of stp/ldp range is still issued as a single
+// instruction, with its address materialized in the scratch register once.
+// Resolving each half separately used to recompute the address into that same
+// scratch, so the second computation destroyed the first half's register.
+TEST_F(BackendTest, OutOfRangePairMergesOffScratchBase) {
+  constexpr uint64_t kLow = 0x1111111111111111ULL;
+  constexpr uint64_t kHigh = 0x2222222222222222ULL;
+  for (int32_t lo : {-24, -520}) {
+    for (int word = 0; word < 2; ++word) {
+      auto func = std::make_unique<Function>();
+      auto* bb = func->allocateBasicBlock();
+      // Hand-built pairs: a Move-based seed would be store-to-load forwarded
+      // by PostRegAllocRewrite and the memory traffic would vanish.
+      bb->allocateInstr(
+          Opcode::kStorePair,
+          nullptr,
+          Imm{static_cast<uint64_t>(static_cast<int64_t>(lo))},
+          PhyReg{arch::reg_frame_pointer_loc, DataType::k64bit},
+          PhyReg{ARGUMENT_REGS[0], DataType::k64bit},
+          PhyReg{ARGUMENT_REGS[1], DataType::k64bit});
+      bb->allocateInstr(
+          Opcode::kLoadPair,
+          nullptr,
+          OutPhyReg{X4, DataType::k64bit},
+          Imm{static_cast<uint64_t>(static_cast<int64_t>(lo))},
+          PhyReg{arch::reg_frame_pointer_loc, DataType::k64bit},
+          PhyReg{X5, DataType::k64bit});
+      bb->allocateInstr(
+          Opcode::kMove,
+          nullptr,
+          OutPhyReg{arch::reg_general_return_loc, DataType::k64bit},
+          PhyReg{word == 0 ? X4 : X5, DataType::k64bit});
+
+      auto fn = (uint64_t (*)(uint64_t, uint64_t))CompilePreAllocated(
+          func.release(), 1024);
+      ASSERT_NE(fn, nullptr);
+      EXPECT_EQ(fn(kLow, kHigh), word == 0 ? kLow : kHigh)
+          << "slot " << lo << " word " << word;
+    }
+  }
+}
+
 #endif // CINDER_AARCH64
 
 } // namespace cinderx::jit::codegen

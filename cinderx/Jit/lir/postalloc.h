@@ -18,4 +18,11 @@ class PostRegAllocRewrite : public Rewrite {
   void registerRewrites();
 };
 
+#if defined(CINDER_AARCH64)
+
+// Peephole rewrites run once the instruction stream is otherwise final.
+void runPostRegAllocPeephole(Function* func);
+
+#endif
+
 } // namespace cinderx::jit::lir
