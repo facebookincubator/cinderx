@@ -22,7 +22,6 @@
 #include "internal/pycore_call.h"
 #include "internal/pycore_floatobject.h"
 #include "internal/pycore_tuple.h"
-#include "Python/ceval_macros.h"
 
 #define _PyCoro_GetAwaitableIter JitCoro_GetAwaitableIter
 #define _PyEval_GetAwaitable Ci_PyEval_GetAwaitable
@@ -93,8 +92,3 @@ _PyEval_GetAwaitable(PyObject *iterable, int oparg)
 #undef _PyCoro_GetAwaitableIter
 #undef _PyEval_GetAwaitable
 #undef _PyEval_GetANext
-
-#if Py_TAIL_CALL_INTERP
-#include "cinderx/Interpreter/cinderx_opcode_targets.h"
-#include "cinderx/Interpreter/3.16/Includes/generated_cases.c.h"
-#endif

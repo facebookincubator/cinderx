@@ -406,6 +406,7 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
 
 #include "cinderx/Interpreter/3.16/ceval.h"
 #include "Python/ceval.h"
+#include "cinderx/Interpreter/3.16/Includes/ceval_macros.h"
 
 #endif
 
@@ -506,14 +507,17 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
   (tstate->interp->eval_frame != NULL && \
    tstate->interp->eval_frame != Ci_EvalFrame)
 
-
-
 #ifdef ENABLE_INTERPRETER_LOOP
+
+#if _Py_TAIL_CALL_INTERP
+#include "cinderx/Interpreter/cinderx_opcode_targets.h"
+#include "cinderx/Interpreter/3.16/Includes/generated_cases.c.h"
+#endif
 
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
-#if USE_COMPUTED_GOTOS && !Py_TAIL_CALL_INTERP
+#if USE_COMPUTED_GOTOS && !_Py_TAIL_CALL_INTERP
 /* Import the static jump table */
 #include "cinderx/Interpreter/cinderx_opcode_targets.h"
 void **opcode_targets = opcode_targets_table;
@@ -522,7 +526,7 @@ void **opcode_targets = opcode_targets_table;
 #ifdef Py_STATS
     int lastopcode = 0;
 #endif
-#if !Py_TAIL_CALL_INTERP
+#if !_Py_TAIL_CALL_INTERP
     uint8_t opcode;        /* Current opcode */
     int oparg;         /* Current opcode argument, if any */
     assert(tstate->current_frame == NULL || tstate->current_frame->stackpointer != NULL);
@@ -602,11 +606,11 @@ void **opcode_targets = opcode_targets_table;
         monitor_throw(tstate, frame, next_instr);
         stack_pointer = _PyFrame_GetStackPointer(frame);
         _PyFrame_StackPointerInvalidate(frame);
-#if Py_TAIL_CALL_INTERP
+#if _Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, lastopcode, adaptive_enabled);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, instruction_funcptr_handler_table, 0, lastopcode, adaptive_enabled);
 #   else
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, adaptive_enabled);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, instruction_funcptr_handler_table, 0, adaptive_enabled);
 #   endif
 #else
         goto error;
@@ -618,11 +622,11 @@ void **opcode_targets = opcode_targets_table;
     _PyExecutorObject *current_executor = NULL;
     const _PyUOpInstruction *next_uop = NULL;
 #endif
-#if Py_TAIL_CALL_INTERP
+#if _Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, lastopcode, adaptive_enabled);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, instruction_funcptr_handler_table, 0, lastopcode, adaptive_enabled);
 #   else
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, adaptive_enabled);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, instruction_funcptr_handler_table, 0, adaptive_enabled);
 #   endif
 #else
     goto start_frame;

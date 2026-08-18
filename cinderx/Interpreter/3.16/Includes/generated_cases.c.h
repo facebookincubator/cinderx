@@ -15475,7 +15475,7 @@ JUMP_TO_LABEL(error);
             #endif
             stack_pointer = _PyFrame_GetStackPointer(frame);
             _PyFrame_StackPointerInvalidate(frame);
-            #if Py_TAIL_CALL_INTERP
+            #if _Py_TAIL_CALL_INTERP
             int opcode;
             #endif
             DISPATCH();
