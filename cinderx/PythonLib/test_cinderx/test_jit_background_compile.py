@@ -22,6 +22,7 @@ from cinderx.test_support import (
     ENCODING,
     failUnlessJITCompiled,
     is_sanitizer_build,
+    passUnless,
     skip_if_ft,
     skip_if_prefork,
     skip_unless_jit,
@@ -985,6 +986,10 @@ if __name__ == "__main__":
 '''
 
 
+# macOS deprecated fork() in a threaded process, and this workload is nothing
+# but that: the pool wedges in multiprocessing's own queue lock rather than in
+# anything the JIT holds, so a failure there says nothing about the locks below.
+@passUnless(sys.platform == "linux", "JIT fork safety is a Linux-only concern")
 @unittest.skipUnless(hasattr(os, "fork"), "requires fork()")
 class BackgroundCompilePoolForkTest(unittest.TestCase):
     """Forking a multiprocessing.Pool while background compiles are in flight.
