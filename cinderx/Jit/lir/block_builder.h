@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -229,75 +228,54 @@ class BasicBlockBuilder {
     auto instr = createInstr(Opcode::kCall);
     genericCreateInstrInput(instr, func);
 
-    // Although the static_assert above will fail if this is false, the compiler
-    // will still attempt to instatiate appendCallInstructionArguments, which
-    // will result in a ton of error spew that hides the actual error that we've
-    // generated.
+    // Avoid expanding mismatched packs when the arity check fails. Otherwise,
+    // the compiler produces additional errors that obscure the static_assert
+    // above.
     if constexpr (sizeof...(FuncArgs) == sizeof...(AppendArgs)) {
-      appendCallInstructionArguments<
-          sizeof...(FuncArgs),
-          0,
-          std::tuple<FuncArgs...>>(instr, std::forward<AppendArgs>(args)...);
+      (appendCallInstructionArgument<FuncArgs>(instr, args), ...);
     }
 
     return instr;
   }
 
-  template <
-      size_t ArgsLeft,
-      size_t CurArg,
-      typename FuncArgTuple,
-      typename... AppendArgs>
-  std::enable_if_t<ArgsLeft == 0, void> appendCallInstructionArguments(
-      Instruction*,
-      AppendArgs&&...) {}
+  template <typename ExpectedArgType, typename Arg>
+  void appendCallInstructionArgument(Instruction* instr, const Arg& arg) {
+    using ActualArgType = std::remove_cv_t<std::remove_reference_t<Arg>>;
 
-  template <
-      size_t ArgsLeft,
-      size_t CurArg,
-      typename FuncArgTuple,
-      typename... AppendArgs>
-  std::enable_if_t<ArgsLeft != 0, void> appendCallInstructionArguments(
-      Instruction* instr,
-      AppendArgs&&... args) {
-    using CurArgType = std::remove_cv_t<std::remove_reference_t<
-        std::tuple_element_t<CurArg, std::tuple<AppendArgs...>>>>;
-    using CurFuncArgType = std::tuple_element_t<CurArg, FuncArgTuple>;
-    auto&& cur_arg = std::get<CurArg>(std::forward_as_tuple(args...));
-    if constexpr (std::is_same_v<CurFuncArgType, PyThreadState*>) {
+    if constexpr (std::is_same_v<ExpectedArgType, PyThreadState*>) {
       JIT_CHECK(
-          cur_arg == env_->asm_tstate,
+          arg == env_->asm_tstate,
           "The thread state was passed as a different value than "
           "env_->asm_tstate");
     } else if constexpr (
-        std::is_same_v<CurArgType, hir::Register*> ||
-        std::is_same_v<CurArgType, std::string>) {
+        std::is_same_v<ActualArgType, hir::Register*> ||
+        std::is_same_v<ActualArgType, std::string>) {
       // Could add a runtime check here to ensure the type of the register is
       // correct, at least for non-temp-register args, but not doing that
       // currently.
-    } else if constexpr (std::is_same_v<CurArgType, Instruction*>) {
-    } else if constexpr (std::is_pointer_v<CurFuncArgType>) {
-      if constexpr (std::is_function_v<CurArgType>) {
-        // This came in as a reference to a function, as a bare function is
-        // not a valid parameter type. The ref was removed as part of the
-        // uniform handling above, so compare without the pointer on the
-        // CurFuncArgType.
+    } else if constexpr (std::is_same_v<ActualArgType, Instruction*>) {
+    } else if constexpr (std::is_pointer_v<ExpectedArgType>) {
+      if constexpr (std::is_function_v<ActualArgType>) {
+        // A bare function is passed by reference. ActualArgType has the
+        // reference removed, so compare it with the type pointed to by
+        // ExpectedArgType.
         static_assert(
-            std::is_same_v<CurArgType, std::remove_pointer_t<CurFuncArgType>>,
+            std::is_same_v<
+                ActualArgType,
+                std::remove_pointer_t<ExpectedArgType>>,
             "Mismatched function pointer parameter types!");
-      } else if constexpr (!std::is_same_v<CurArgType, std::nullptr_t>) {
+      } else if constexpr (!std::is_same_v<ActualArgType, std::nullptr_t>) {
         static_assert(
-            std::is_same_v<CurArgType, CurFuncArgType>,
+            std::is_same_v<ActualArgType, ExpectedArgType>,
             "Mismatched function parameter types!");
       }
     } else {
       static_assert(
-          std::is_same_v<CurArgType, CurFuncArgType>,
+          std::is_same_v<ActualArgType, ExpectedArgType>,
           "Mismatched function parameter types!");
     }
-    genericCreateInstrInput(instr, cur_arg);
-    appendCallInstructionArguments<ArgsLeft - 1, CurArg + 1, FuncArgTuple>(
-        instr, std::forward<AppendArgs>(args)...);
+
+    genericCreateInstrInput(instr, arg);
   }
 
   bool usesImmediateInput(hir::Type const& tp);
