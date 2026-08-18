@@ -3,8 +3,10 @@
 import sys
 import unittest
 
+from cinderx.test_support import passUnless
 
-@unittest.skipUnless(sys.version_info >= (3, 14), "subinterpreter test requires 3.14+")
+
+@passUnless(sys.version_info >= (3, 14), "subinterpreter test requires 3.14+")
 class SubinterpreterTest(unittest.TestCase):
     def test_cinderx_import_fails_in_subinterpreter(self) -> None:
         """Verify that _cinderx cannot be loaded in a subinterpreter."""

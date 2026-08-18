@@ -10,7 +10,7 @@ import unittest
 from re._constants import BIGCHARSET
 
 import cinderx
-from cinderx.test_support import passUnless, run_in_subprocess, skip_if_ft
+from cinderx.test_support import passIf, passUnless, run_in_subprocess, skip_if_ft
 
 _PY_DEBUG_BUILD = hasattr(sys, "gettotalrefcount")
 _PY312_BUILD = sys.version_info[:2] == (3, 12)
@@ -35,7 +35,7 @@ class ImmortalizeTests(unittest.TestCase):
         obj = []
         self.assertFalse(cinderx.is_immortal(obj))
 
-    @unittest.skipIf(
+    @passIf(
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
@@ -53,7 +53,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(key))
         self.assertTrue(cinderx.is_immortal(value))
 
-    @unittest.skipIf(
+    @passIf(
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
@@ -74,7 +74,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(key))
         self.assertTrue(cinderx.is_immortal(value))
 
-    @unittest.skipIf(
+    @passIf(
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
@@ -96,7 +96,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(inner_key))
         self.assertTrue(cinderx.is_immortal(inner_value))
 
-    @unittest.skipIf(
+    @passIf(
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
@@ -195,7 +195,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(inner_code.co_consts))
         self.assertTrue(cinderx.is_immortal(const))
 
-    @unittest.skipIf(
+    @passIf(
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
@@ -256,7 +256,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertEqual(rc, sys.getrefcount(BIGCHARSET))
         self.assertTrue(cinderx.is_immortal(x))
 
-    @unittest.skipIf(
+    @passIf(
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )

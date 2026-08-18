@@ -11,6 +11,7 @@ from types import FunctionType
 from typing import cast
 
 from cinderx import _context
+from cinderx.test_support import passIf
 
 
 @contextlib.contextmanager
@@ -24,9 +25,7 @@ def _two_yields() -> Iterator[int]:
     yield 2
 
 
-@unittest.skipIf(
-    _context._patched_exit is None, "CinderX __exit__ replacement is not installed"
-)
+@passIf(_context._patched_exit is None, "CinderX __exit__ replacement is not installed")
 class ContextTest(unittest.TestCase):
     def test_normal_exit(self) -> None:
         with _one() as value:

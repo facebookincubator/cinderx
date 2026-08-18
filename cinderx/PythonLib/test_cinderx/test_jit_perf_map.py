@@ -12,11 +12,11 @@ import cinderx
 
 cinderx.init()
 
-from cinderx.test_support import ENCODING, skip_unless_jit, subprocess_env
+from cinderx.test_support import ENCODING, passUnless, skip_unless_jit, subprocess_env
 
 
 class PerfMapTests(unittest.TestCase):
-    @unittest.skipUnless(hasattr(os, "fork"), "fork not available on Windows")
+    @passUnless(hasattr(os, "fork"), "fork not available on Windows")
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_forked_pid_map(self) -> None:
         helper_file = os.path.join(

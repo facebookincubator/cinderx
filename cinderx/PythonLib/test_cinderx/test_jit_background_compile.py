@@ -85,7 +85,7 @@ class BackgroundCompileTest(unittest.TestCase):
         result2 = test_func(10)
         self.assertEqual(result2, 21)
 
-    @unittest.skipUnless(hasattr(os, "fork"), "requires os.fork()")
+    @passUnless(hasattr(os, "fork"), "requires os.fork()")
     def test_fork_after_background_compile(self) -> None:
         """Forking once the background compile worker thread exists must leave
         a usable child.
@@ -990,7 +990,7 @@ if __name__ == "__main__":
 # but that: the pool wedges in multiprocessing's own queue lock rather than in
 # anything the JIT holds, so a failure there says nothing about the locks below.
 @passUnless(sys.platform == "linux", "JIT fork safety is a Linux-only concern")
-@unittest.skipUnless(hasattr(os, "fork"), "requires fork()")
+@passUnless(hasattr(os, "fork"), "requires fork()")
 class BackgroundCompilePoolForkTest(unittest.TestCase):
     """Forking a multiprocessing.Pool while background compiles are in flight.
 

@@ -12,6 +12,7 @@ import cinderx.jit
 from cinderx.test_support import (
     ENCODING,
     has_meta_lazy_imports,
+    passIf,
     passUnless,
     skip_if_ft,
     skip_unless_jit,
@@ -110,7 +111,7 @@ hello from b_func!
 """
         self.assertEqual(proc.stdout, expected_stdout)
 
-    @unittest.skipIf(
+    @passIf(
         sys.platform == "win32", "asyncio is failing to load in subprocess on Windows"
     )
     def test_preload_error(self) -> None:
@@ -157,7 +158,7 @@ hello from b_func!
                 self.assertEqual(proc.returncode, 1, proc.stderr)
                 self.assertIn(b"RuntimeError: boom\n", proc.stderr)
 
-    @unittest.skipIf(
+    @passIf(
         sys.platform == "win32", "asyncio is failing to load in subprocess on Windows"
     )
     def test_error_preloading_inlined(self) -> None:
