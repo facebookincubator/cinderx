@@ -77,53 +77,6 @@ TaggedPyObject tagIfDeferred(PyObject* obj);
 
 namespace {
 
-// RAII wrapper for PyThreadState* similar to Ref<>.
-// Owns a PyThreadState created via PyThreadState_New and frees it via
-// Clear + Delete/DeleteCurrent. Move-only, like Ref.
-class PyThreadStateHandle {
- public:
-  explicit PyThreadStateHandle(PyThreadState* tstate) : ptr_{tstate} {}
-
-  ~PyThreadStateHandle() {
-    reset(nullptr);
-  }
-
-  PyThreadStateHandle(PyThreadStateHandle&& other) noexcept : ptr_{other.ptr_} {
-    other.ptr_ = nullptr;
-  }
-
-  PyThreadStateHandle(const PyThreadStateHandle&) = delete;
-  PyThreadStateHandle& operator=(const PyThreadStateHandle&) = delete;
-  PyThreadStateHandle& operator=(PyThreadStateHandle&& other) noexcept {
-    reset(nullptr);
-    ptr_ = other.ptr_;
-    other.ptr_ = nullptr;
-    return *this;
-  }
-
-  PyThreadState* release() {
-    PyThreadState* tmp = ptr_;
-    ptr_ = nullptr;
-    return tmp;
-  }
-
-  void reset(PyThreadState* tstate = nullptr) {
-    if (ptr_ != nullptr) {
-      // Caller must hold GIL when freeing a threadstate.
-      PyThreadState_Clear(ptr_);
-      if (ptr_ == PyThreadState_Get()) {
-        PyThreadState_DeleteCurrent();
-      } else {
-        PyThreadState_Delete(ptr_);
-      }
-    }
-    ptr_ = tstate;
-  }
-
- private:
-  PyThreadState* ptr_{nullptr};
-};
-
 // RAII equivalent of the Py_BEGIN_ALLOW_THREADS / Py_END_ALLOW_THREADS macro
 // pair.  Saves and releases the current thread state on construction, and
 // restores it (reacquiring the GIL) on destruction.
@@ -993,6 +946,16 @@ std::string unitFullname(BorrowedRef<> unit) {
   return codeFullname(iter->second->func_module, code);
 }
 
+PyThreadState* acquireCompileWorkerThreadState(PyInterpreterState* interp) {
+  // Create the state on its owning worker so thread-local runtime state is
+  // initialized for the thread that uses it. Passing the interpreter avoids
+  // the subinterpreter-unsafe PyGILState_Ensure().
+  PyThreadState* tstate = PyThreadState_New(interp);
+  JIT_THROW_IF(tstate == nullptr, "Failed to allocate worker thread state");
+  PyEval_AcquireThread(tstate);
+  return tstate;
+}
+
 // Load the preloader for a given function or code object.  If it doesn't exist
 // yet, then preload the function and return the new preloader.
 //
@@ -1101,18 +1064,18 @@ std::pair<Result, Ref<>> tryCompilePreloaded(Ref<>&& unit) {
 }
 
 void compile_worker_thread(
-    PyThreadState* initial_tstate,
+    PyInterpreterState* interp,
     std::shared_ptr<ThreadedCompileContext> context,
     std::shared_ptr<hir::IsolatedPreloaders> isolated) {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
+
+  PyThreadState* tstate = acquireCompileWorkerThreadState(interp);
 
   // Publish the context and isolated preload manager via TLS so that
   // compileRunning()/preloaderManager() work on this worker.
   hir::setThreadLocalPreloaderManager(isolated->manager());
 
-  // Acquire GIL with the pre-created worker threadstate.
-  PyEval_AcquireThread(initial_tstate);
-  context->beginWorker(initial_tstate);
+  context->beginWorker(tstate);
 
   {
     // Release the GIL for the lifetime of this scope, saving our tstate so it
@@ -1158,15 +1121,16 @@ void compile_worker_thread(
         attempts,
         retries);
   }
-  // GIL reacquired here, restoring threaded_compile_tstate as current.
+  // Leaving the scope reattached the worker state and reacquired the GIL when
+  // it is enabled.
   context->endWorker();
 
   // Clear TLS for preload manager (context TLS already cleared by endWorker).
   hir::setThreadLocalPreloaderManager(nullptr);
 
-  // Now we hold GIL again with initial_tstate as current.
-  // Clean up the worker threadstate.
-  PyThreadState_Clear(PyThreadState_Get());
+  // The worker state is current and attached, so it can be cleared and
+  // deleted by its owning thread.
+  PyThreadState_Clear(tstate);
   PyThreadState_DeleteCurrent();
 }
 
@@ -1193,34 +1157,20 @@ bool multithread_compile_units_preloaded(
   // kept alive by the workers
   auto compilation = std::make_shared<ThreadedCompileContext>(std::move(units));
 
-  // Pre-create a PyThreadState for each worker while holding the GIL.
-  // This avoids needing the GIL to be held inside the worker just to call
-  // PyThreadState_New, and lets workers block on GIL acquisition until we
-  // release it. Use RAII handle similar to Ref<> for exception safety.
   PyInterpreterState* interp = ThreadedCompileContext::interpreter();
-  std::vector<PyThreadStateHandle> worker_tstates;
-  worker_tstates.reserve(worker_count);
-  for (size_t i = 0; i < worker_count; i++) {
-    auto* tstate = PyThreadState_New(interp);
-    JIT_CHECK(tstate != nullptr, "Failed to allocate thread state");
-    worker_tstates.emplace_back(tstate);
-  }
 
   // Track the worker threads on the module state so the runtime can wait for
   // them to finish (e.g. during finalization) if we don't get to join them
   // here.
   auto* mod_state = cinderx::getModuleState();
   std::vector<std::thread>& worker_threads = mod_state->compile_worker_threads;
-  for (auto& worker_tstate : worker_tstates) {
-    // Transfer ownership to the worker thread via release().
-    PyThreadState* raw = worker_tstate.release();
+  for (size_t i = 0; i < worker_count; i++) {
     worker_threads.emplace_back(
-        compile_worker_thread, raw, compilation, isolated);
+        compile_worker_thread, interp, compilation, isolated);
   }
-  // Ensure that no worker threads start compiling until they are all created,
-  // in case something else in the process has hooked thread creation to run
-  // arbitrary code (the worker threads need the GIL to initialize their thread
-  // state).
+  // Keep the coordinator attached until every worker is launched in case
+  // thread creation has been hooked to run arbitrary code. In GIL builds,
+  // workers wait in PyEval_AcquireThread() until this point.
   compilation->releaseGil();
 
   mod_state->joinCompileWorkers();
@@ -3777,7 +3727,7 @@ void processBackgroundCompile(
 // drained.
 void backgroundCompileWorkerLoop(
     CompilerContext<Compiler>* jit_ctx,
-    PyThreadState* initial_tstate) {
+    PyInterpreterState* interp) {
   JIT_DLOG(
       "Background compile worker thread started: {}",
       std::this_thread::get_id());
@@ -3788,7 +3738,7 @@ void backgroundCompileWorkerLoop(
 #endif
       "cinderx_compile");
 #endif
-  PyEval_AcquireThread(initial_tstate);
+  PyThreadState* tstate = acquireCompileWorkerThreadState(interp);
 
   ThreadedCompileContext bgContext;
   BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
@@ -3819,9 +3769,9 @@ void backgroundCompileWorkerLoop(
     finishBackgroundCompile(task->code);
   }
 
-  // Now we hold GIL again with initial_tstate as current.
-  // Clean up the worker threadstate.
-  PyThreadState_Clear(PyThreadState_Get());
+  // The worker state is current and attached, so it can be cleared and
+  // deleted by its owning thread.
+  PyThreadState_Clear(tstate);
   PyThreadState_DeleteCurrent();
 
   JIT_DLOG(
@@ -3837,27 +3787,22 @@ bool startBackgroundWorkerThread(
   // _PyInterpreterState_GET()) while the GIL is still held.
   jit_ctx->builtins();
 
-  // Create a dedicated PyThreadState for the background worker while
-  // holding the GIL, so the worker can attach via PyEval_AcquireThread
-  // instead of the sub-interpreter-unsafe PyGILState_Ensure.
+  // The worker creates its own thread state, because PyThreadState_New() binds
+  // mimalloc and biased-reference-counting state to the calling thread.  The
+  // interpreter is guaranteed to still be alive when it does: reg.worker is
+  // published under reg.mutex here, and cancelBackgroundCompiles() joins it
+  // before the interpreter is torn down.
   PyInterpreterState* interp = PyInterpreterState_Get();
-  PyThreadState* tstate = PyThreadState_New(interp);
-  if (tstate == nullptr) {
-    throw CAPIError();
-  }
 
   // Normally already registered by jit::initialize(), but re-check here since
   // the worker is the widest source of locks held across a fork.
   ensureForkHandlersRegistered();
 
   try {
-    reg.worker = std::thread(backgroundCompileWorkerLoop, jit_ctx, tstate);
+    reg.worker = std::thread(backgroundCompileWorkerLoop, jit_ctx, interp);
     reg.worker_started = true;
   } catch (const std::system_error& exn) {
     JIT_LOG("Failed to start background compile worker: {}", exn.what());
-    // Clean up the thread state we created for the worker.
-    PyThreadState_Clear(tstate);
-    PyThreadState_Delete(tstate);
     return false;
   }
   return true;
