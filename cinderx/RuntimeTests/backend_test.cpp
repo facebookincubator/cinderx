@@ -565,36 +565,13 @@ double rt_func(
       f + g + h;
 }
 
-template <typename... Arg>
-struct AllocateOperand;
-
-template <typename Arg, typename... Args>
-struct AllocateOperand<Arg, Args...> {
-  Instruction* instr;
-  explicit AllocateOperand(Instruction* i) : instr(i) {}
-
-  void operator()(Arg arg, Args... args) {
-    if constexpr (std::is_same_v<int, Arg>) {
-      instr->allocateImmediateInput(arg);
-    } else {
-      instr->allocateFPImmediateInput(arg);
-    }
-
-    (AllocateOperand<Args...>(instr))(args...);
+template <typename Arg>
+auto makeOperand(Arg arg) {
+  if constexpr (std::is_same_v<int, Arg>) {
+    return Imm{static_cast<uint64_t>(arg)};
+  } else {
+    return FPImm{arg};
   }
-};
-
-template <>
-struct AllocateOperand<> {
-  Instruction* instr;
-  explicit AllocateOperand(Instruction* i) : instr(i) {}
-
-  void operator()() {}
-};
-
-template <typename... Ts>
-auto getAllocateOperand(Instruction* instr, std::tuple<Ts...>) {
-  return AllocateOperand<Ts...>(instr);
 }
 } // namespace
 
@@ -628,7 +605,14 @@ TEST_F(BackendTest, ManyArguments) {
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(rt_func)));
 
-  std::apply(getAllocateOperand(call, args), args);
+  ASSERT_NE(call, nullptr);
+  Instruction& call_instr = *call;
+
+  std::apply(
+      [&call_instr](auto... args) {
+        call_instr.addOperands(makeOperand(args)...);
+      },
+      args);
 
   bb->allocateInstr(
       Opcode::kMove,
