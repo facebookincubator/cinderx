@@ -169,11 +169,13 @@ BB %0
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
   EXPECT_LIR(Query(*lir_func)
-                 .opcode(Opcode::kEqual)
+                 .opcode(Opcode::kCompare)
+                 .condition(Condition::kEqual)
                  .outVreg(3)
                  .outType(DataType::k32bit));
   EXPECT_NO_LIR(Query(*lir_func)
-                    .opcode(Opcode::kEqual)
+                    .opcode(Opcode::kCompare)
+                    .condition(Condition::kEqual)
                     .outVreg(3)
                     .outType(DataType::k8bit));
 }
@@ -217,8 +219,9 @@ BB %2 - preds: %0
   EXPECT_LIR_SEQUENCE(
       *lir_func,
       Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
-      Query(*lir_func).opcode(Opcode::kBranchE));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kEqual));
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kCompare).condition(Condition::kEqual));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCondBranch));
 }
 
@@ -244,8 +247,9 @@ BB %2 - preds: %0
       *lir_func,
       Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
       Query(*lir_func).opcode(Opcode::kMove).outVreg(4).inImm(0, 3),
-      Query(*lir_func).opcode(Opcode::kBranchE));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kEqual));
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kCompare).condition(Condition::kEqual));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCondBranch));
 }
 
@@ -268,7 +272,8 @@ BB %2 - preds: %0
   EXPECT_LIR_SEQUENCE(
       *lir_func,
       Query(*lir_func)
-          .opcode(Opcode::kEqual)
+          .opcode(Opcode::kCompare)
+          .condition(Condition::kEqual)
           .outVreg(3)
           .outType(DataType::k32bit),
       Query(*lir_func)
@@ -277,7 +282,8 @@ BB %2 - preds: %0
           .inVreg(0, 1)
           .inVreg(1, 2),
       Query(*lir_func).opcode(Opcode::kCondBranch).inVreg(0, 3));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchE));
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCForSingleUseCompareGuard) {
@@ -294,7 +300,9 @@ BB %0
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2));
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kA64GuardCC));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kLessThanUnsigned));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kCompare)
+                    .condition(Condition::kUnsignedLT));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
 }
 
@@ -313,7 +321,9 @@ BB %0
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2));
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kA64GuardCC));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kLessThanUnsigned));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kCompare)
+                    .condition(Condition::kUnsignedLT));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
 }
 
@@ -353,7 +363,8 @@ BB %2 - preds: %0
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet).inImm(1, 31));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kTest32));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchS));
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitNotSetForTest32BranchNS) {
@@ -372,7 +383,9 @@ BB %2 - preds: %0
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchBitNotSet).inImm(1, 31));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kTest32));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchNS));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kBranchCC)
+                    .condition(Condition::kNotSign));
 }
 
 TEST_F(
@@ -412,7 +425,8 @@ BB %2 - preds: %0
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest32));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchS));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet));
 }
 
@@ -433,7 +447,8 @@ BB %2 - preds: %0
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest32));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchS));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet));
 }
 
@@ -450,7 +465,8 @@ BB %2 - preds: %0
 
   auto lir_func = runTargetSelectFunc(lir_input_str);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchS));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet));
 }
 
@@ -471,7 +487,8 @@ BB %2 - preds: %0
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet).inImm(1, 31));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kTest32));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchS));
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForPythonCompareBranch) {
@@ -488,8 +505,10 @@ def func(x, y):
   auto lir_func = getSelectedLIRFunction(pyfunc.get());
 
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCmp));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchE));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kEqual));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kCompare).condition(Condition::kEqual));
 }
 #endif
 

@@ -938,10 +938,10 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   // Try to fuse with a preceding compare instruction. If we find one, we
   // can use its flags directly (cmp + jcc) instead of setcc + test + je.
   Instruction* compare = findFusibleCompare(instr_iter, block);
-  Opcode opcode;
+  Condition cond;
   if (compare != nullptr) {
     // Use the compare's condition directly for the branch.
-    opcode = compareToBranchCC(compare->opcode());
+    cond = compare->condition();
     // If no instruction between the compare and the CondBranch reads the
     // compare's output register, we could convert to kCmp to skip emitting the
     // (now dead) setcc. However, the register allocator may have assigned the
@@ -986,12 +986,12 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
         Opcode::kTest,
         PhyReg(input->getPhyRegister(), size),
         PhyReg(input->getPhyRegister(), size));
-    opcode = Opcode::kBranchNZ;
+    cond = Condition::kNotZero;
 #endif
   }
 
   if (true_block == next_block) {
-    opcode = negateBranchCC(opcode);
+    cond = negate(cond);
     target_block = false_block;
     fallthrough_block = true_block;
   } else {
@@ -999,7 +999,8 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
     fallthrough_block = false_block;
   }
 
-  instr->setOpcode(opcode);
+  instr->setOpcode(Opcode::kBranchCC);
+  instr->setCondition(cond);
   instr->setNumInputs(0);
 
   instr->allocateLabelInput(target_block);
@@ -1022,7 +1023,7 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   BasicBlock* fallthrough_bb = nullptr;
 
   if (true_bb == next_block) {
-    instr->setOpcode(negateBranchCC(instr->opcode()));
+    instr->setCondition(negate(instr->condition()));
     instr->allocateLabelInput(false_bb);
     fallthrough_bb = true_bb;
   } else {
@@ -1213,26 +1214,17 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kDec:
     case Opcode::kDiv:
     case Opcode::kDivUn:
-    case Opcode::kEqual:
+    case Opcode::kCompare:
     case Opcode::kExchange:
     case Opcode::kFadd:
     case Opcode::kFdiv:
     case Opcode::kFmul:
     case Opcode::kFsub:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kGreaterThanEqualUnsigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kGreaterThanUnsigned:
     case Opcode::kInc:
     case Opcode::kIntToBool:
     case Opcode::kInvert:
-    case Opcode::kLessThanEqualSigned:
-    case Opcode::kLessThanEqualUnsigned:
-    case Opcode::kLessThanSigned:
-    case Opcode::kLessThanUnsigned:
     case Opcode::kMul:
     case Opcode::kNegate:
-    case Opcode::kNotEqual:
     case Opcode::kOr:
     case Opcode::kSub:
     case Opcode::kTest32:
@@ -1244,25 +1236,8 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kA64GuardCC:
     case Opcode::kBind:
     case Opcode::kBranch:
-    case Opcode::kBranchA:
-    case Opcode::kBranchAE:
-    case Opcode::kBranchB:
-    case Opcode::kBranchBE:
-    case Opcode::kBranchC:
-    case Opcode::kBranchE:
-    case Opcode::kBranchG:
-    case Opcode::kBranchGE:
-    case Opcode::kBranchL:
-    case Opcode::kBranchLE:
-    case Opcode::kBranchNC:
-    case Opcode::kBranchNE:
-    case Opcode::kBranchNO:
-    case Opcode::kBranchNS:
-    case Opcode::kBranchNZ:
-    case Opcode::kBranchO:
-    case Opcode::kBranchS:
+    case Opcode::kBranchCC:
     case Opcode::kBranchToYieldExit:
-    case Opcode::kBranchZ:
     case Opcode::kCall:
     case Opcode::kCallSiteLiveValues:
     case Opcode::kCmpBranchNonZero:
@@ -1330,10 +1305,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
   bool needs_sign_preserved = false;
   switch (instr->opcode()) {
     case Opcode::kDiv:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kLessThanEqualSigned:
-    case Opcode::kLessThanSigned:
+    case Opcode::kCompare:
       needs_sign_preserved = true;
       break;
     default:

@@ -123,8 +123,8 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   if (is_commutative_or_compare && !input1->isImm()) {
     // if the operation is commutative and the second input is not also an
     // immediate, just swap the operands
-    if (isCompare(instr->opcode())) {
-      instr->setOpcode(flipComparisonDirection(instr->opcode()));
+    if (instr->isCompare()) {
+      instr->setCondition(swapOperands(instr->condition()));
     }
     auto imm = instr->removeInput(0);
     instr->appendInput(std::move(imm));
@@ -925,7 +925,9 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       bool is_call = instr->isCall() || instr->isVectorCallTstate() ||
           instr->isVarArgCall();
       bool strip_call_args = is_call && !shouldPreserveTaggedCallArgs(*instr);
-      bool is_compare = instr->isEqual() || instr->isNotEqual();
+      bool is_compare = instr->isCompare() &&
+          (instr->condition() == Condition::kEqual ||
+           instr->condition() == Condition::kNotEqual);
       bool is_epilogue = instr->isEpilogueEnd();
       if (!strip_call_args && !is_compare && !is_epilogue) {
         continue;

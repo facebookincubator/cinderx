@@ -500,7 +500,7 @@ TEST_F(BackendTest, FPCompare) {
   double a = 3.12;
   double b = 1.1616;
 
-  auto test = [&](Opcode opcode) -> double {
+  auto test = [&](Condition cond) -> double {
     auto lirfunc = std::make_unique<Function>();
     auto bb = lirfunc->allocateBasicBlock();
 
@@ -514,8 +514,8 @@ TEST_F(BackendTest, FPCompare) {
     auto fb = bb->allocateInstr(
         Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
-    auto compare =
-        bb->allocateInstr(opcode, nullptr, OutVReg(), VReg(fa), VReg(fb));
+    auto compare = bb->allocateInstr(
+        Opcode::kCompare, nullptr, cond, OutVReg(), VReg(fa), VReg(fb));
     bb->allocateInstr(
         Opcode::kMove,
         nullptr,
@@ -533,12 +533,12 @@ TEST_F(BackendTest, FPCompare) {
     return func();
   };
 
-  ASSERT_DOUBLE_EQ(test(Opcode::kEqual), a == b);
-  ASSERT_DOUBLE_EQ(test(Opcode::kNotEqual), a != b);
-  ASSERT_DOUBLE_EQ(test(Opcode::kGreaterThanUnsigned), a > b);
-  ASSERT_DOUBLE_EQ(test(Opcode::kLessThanUnsigned), a < b);
-  ASSERT_DOUBLE_EQ(test(Opcode::kGreaterThanEqualUnsigned), a >= b);
-  ASSERT_DOUBLE_EQ(test(Opcode::kLessThanEqualUnsigned), a <= b);
+  ASSERT_DOUBLE_EQ(test(Condition::kEqual), a == b);
+  ASSERT_DOUBLE_EQ(test(Condition::kNotEqual), a != b);
+  ASSERT_DOUBLE_EQ(test(Condition::kUnsignedGT), a > b);
+  ASSERT_DOUBLE_EQ(test(Condition::kUnsignedLT), a < b);
+  ASSERT_DOUBLE_EQ(test(Condition::kUnsignedGE), a >= b);
+  ASSERT_DOUBLE_EQ(test(Condition::kUnsignedLE), a <= b);
 }
 
 namespace {
@@ -920,7 +920,12 @@ TEST_F(BackendTest, CastTest) {
   auto a_tp = bb1->allocateInstr(
       Opcode::kMove, nullptr, OutVReg(), Ind(a, offsetof(PyObject, ob_type)));
   auto eq1 = bb1->allocateInstr(
-      Opcode::kEqual, nullptr, OutVReg(), VReg(a_tp), VReg(b));
+      Opcode::kCompare,
+      nullptr,
+      Condition::kEqual,
+      OutVReg(),
+      VReg(a_tp),
+      VReg(b));
   bb1->allocateInstr(Opcode::kCondBranch, nullptr, VReg(eq1));
   bb1->addSuccessor(bb3); // true
   bb1->addSuccessor(bb2); // false
@@ -1051,7 +1056,8 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
       Imm{reinterpret_cast<uint64_t>(&dst)});
   bb0->allocateInstr(
       Opcode::kMove, nullptr, OutInd{R10, 0, Operand::k64bit}, VReg{loaded});
-  bb0->allocateInstr(Opcode::kBranchZ, nullptr, Lbl{bb_taken});
+  bb0->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kZero, Lbl{bb_taken});
   bb0->addSuccessor(bb_taken);
   bb0->addSuccessor(bb_not_taken);
 

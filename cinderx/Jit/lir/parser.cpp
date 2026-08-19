@@ -236,7 +236,11 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
         }
         case INSTR_NAME: {
           expect(type == kId, cur, "Expect an instruction name.");
-          instr_->setOpcode(getInstrOpcode(std::string(cur, token.length)));
+          InstrKind kind = getInstrKind(std::string(cur, token.length));
+          instr_->setOpcode(kind.opcode);
+          if (kind.cond != Condition::kInvalid) {
+            instr_->setCondition(kind.cond);
+          }
           state = INSTR_INPUT;
           break;
         }
@@ -386,15 +390,29 @@ DataType Parser::getOperandDataType(const std::string& name) const {
       type_name_to_data_type, name, "DataType for {}", name);
 }
 
-Opcode Parser::getInstrOpcode(const std::string& name) const {
-  static const std::unordered_map<std::string, Opcode> instr_name_to_opcode = {
-#define INSTR_NAME_TO_OPCODE(v, ...) {#v, Opcode::k##v},
-      FOREACH_LIR_OPCODE(INSTR_NAME_TO_OPCODE)
+// BranchCC and Compare are spelled with the per-condition names their opcodes
+// used to have, so the same LIR text still parses.
+Parser::InstrKind Parser::getInstrKind(const std::string& name) const {
+  static const std::unordered_map<std::string, InstrKind> instr_name_to_kind =
+      [] {
+        std::unordered_map<std::string, InstrKind> map;
+#define INSTR_NAME_TO_OPCODE(v, ...) \
+  map.emplace(#v, InstrKind{Opcode::k##v, Condition::kInvalid});
+        FOREACH_LIR_OPCODE(INSTR_NAME_TO_OPCODE)
 #undef INSTR_NAME_TO_OPCODE
-  };
+#define BRANCH_NAME_TO_KIND(NAME, NEGATED, SWAPPED, BRANCH) \
+  map.emplace(#BRANCH, InstrKind{Opcode::kBranchCC, Condition::k##NAME});
+        FOREACH_LIR_CONDITION(BRANCH_NAME_TO_KIND)
+#undef BRANCH_NAME_TO_KIND
+#define COMPARE_NAME_TO_KIND(COMPARE, CONDITION) \
+  map.emplace(#COMPARE, InstrKind{Opcode::kCompare, Condition::k##CONDITION});
+        FOREACH_LIR_COMPARE(COMPARE_NAME_TO_KIND)
+#undef COMPARE_NAME_TO_KIND
+        return map;
+      }();
 
   return map_get_throw<ParserException>(
-      instr_name_to_opcode, name, "Opcode for {}", name);
+      instr_name_to_kind, name, "Opcode for {}", name);
 }
 
 void Parser::parseInput(const Token& token, const char* code) {

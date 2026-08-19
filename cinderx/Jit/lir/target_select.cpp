@@ -149,10 +149,7 @@ void legalizeA64SignedSubWordInputs(
     instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   JIT_DCHECK(
-      instr->opcode() == Opcode::kGreaterThanSigned ||
-          instr->opcode() == Opcode::kGreaterThanEqualSigned ||
-          instr->opcode() == Opcode::kLessThanSigned ||
-          instr->opcode() == Opcode::kLessThanEqualSigned ||
+      (instr->isCompare() && isSignedCompare(instr->condition())) ||
           instr->opcode() == Opcode::kDiv,
       "Expected signed comparison or Div, got {}",
       instr->opname());
@@ -380,11 +377,12 @@ void selectA64CondBranch(
   }
 
   /* Convert to a conditional compare and branch instruction. */
-  Opcode branch_opcode = compareToBranchCC(compare->opcode());
+  Condition cond = compare->condition();
 
   compare->setOpcode(Opcode::kCmp);
   compare->output()->setNone();
-  branch->setOpcode(branch_opcode);
+  branch->setOpcode(Opcode::kBranchCC);
+  branch->setCondition(cond);
   branch->setNumInputs(0);
 }
 
@@ -435,16 +433,16 @@ void selectA64Guard(
   }
 
   /* Convert to a conditional compare and branch instruction. */
-  Opcode branch_opcode = compareToBranchCC(compare->opcode());
+  Condition cond = compare->condition();
   if (kind == InstrGuardKind::kNotZero) {
-    branch_opcode = negateBranchCC(branch_opcode);
+    cond = negate(cond);
   }
 
   compare->setOpcode(Opcode::kCmp);
   compare->output()->setNone();
 
   guard->setOpcode(Opcode::kA64GuardCC);
-  guard->getInput(0)->setConstant(static_cast<uint64_t>(branch_opcode));
+  guard->getInput(0)->setConstant(static_cast<uint64_t>(cond));
 
   /* A64GuardCC branches using the condition encoded above. The original Guard
    * variable and target operands are no longer needed. */
@@ -464,9 +462,13 @@ void selectA64Guard(
 void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
   Instruction* branch = instr_iter->get();
   JIT_DCHECK(
-      branch->isBranchS() || branch->isBranchNS(),
-      "Expected BranchS or BranchNS, got {}",
-      branch->opname());
+      branch->isBranchCC(), "Expected BranchCC, got {}", branch->opname());
+
+  /* Only a branch on the sign flag can become a test-bit-and-branch. */
+  Condition cond = branch->condition();
+  if (cond != Condition::kSign && cond != Condition::kNotSign) {
+    return;
+  }
 
   /* Find the flag producer that this conditional branch is implicitly relying
    * on. */
@@ -501,7 +503,8 @@ void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
   }
 
   branch->setOpcode(
-      branch->isBranchS() ? Opcode::kBranchBitSet : Opcode::kBranchBitNotSet);
+      cond == Condition::kSign ? Opcode::kBranchBitSet
+                               : Opcode::kBranchBitNotSet);
 
   /* Test the sign bit of the register. */
   auto bit = std::make_unique<Operand>();
@@ -525,21 +528,12 @@ void selectA64Opcodes(Function* func) {
       instr_iter_t cur_iter = iter++;
 
       switch (cur_iter->get()->opcode()) {
-        case Opcode::kEqual:
-        case Opcode::kNotEqual:
+        case Opcode::kCompare:
+          if (isSignedCompare(cur_iter->get()->condition())) {
+            legalizeA64SignedSubWordInputs(block, cur_iter);
+          }
           legalizeA64Min32BitOutput(cur_iter);
           break;
-        case Opcode::kGreaterThanSigned:
-        case Opcode::kGreaterThanEqualSigned:
-        case Opcode::kLessThanSigned:
-        case Opcode::kLessThanEqualSigned:
-          legalizeA64SignedSubWordInputs(block, cur_iter);
-          legalizeA64Min32BitOutput(cur_iter);
-          break;
-        case Opcode::kGreaterThanUnsigned:
-        case Opcode::kGreaterThanEqualUnsigned:
-        case Opcode::kLessThanUnsigned:
-        case Opcode::kLessThanEqualUnsigned:
         case Opcode::kAnd:
         case Opcode::kXor:
         case Opcode::kOr:
@@ -569,8 +563,7 @@ void selectA64Opcodes(Function* func) {
         case Opcode::kDec:
           legalizeA64StackInputForIncDec(block, cur_iter);
           break;
-        case Opcode::kBranchS:
-        case Opcode::kBranchNS:
+        case Opcode::kBranchCC:
           selectA64BranchSigned(block, cur_iter);
           break;
         default:

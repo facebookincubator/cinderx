@@ -30,6 +30,8 @@ class Query {
   explicit Query(const Function& func);
 
   Query& opcode(Opcode op);
+  // Match the condition carried by a Compare or a BranchCC.
+  Query& condition(Condition cond);
   // Match the output operand's data type / LIR id (`%id`).
   Query& outType(DataType dt);
   Query& outVreg(int id);
@@ -88,6 +90,7 @@ class Query {
 
   const Function& func_;
   std::optional<Opcode> opcode_;
+  std::optional<Condition> condition_;
   std::optional<DataType> out_type_;
   std::optional<int> out_vreg_;
   std::optional<int> out_ind_base_vreg_;

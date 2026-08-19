@@ -67,24 +67,7 @@ class LIRABITest : public RuntimeTest {
           insn->addOperands(Lbl{&bb});
         }
         break;
-      case Opcode::kBranchZ:
-      case Opcode::kBranchNZ:
-      case Opcode::kBranchA:
-      case Opcode::kBranchB:
-      case Opcode::kBranchAE:
-      case Opcode::kBranchBE:
-      case Opcode::kBranchG:
-      case Opcode::kBranchL:
-      case Opcode::kBranchGE:
-      case Opcode::kBranchLE:
-      case Opcode::kBranchC:
-      case Opcode::kBranchNC:
-      case Opcode::kBranchO:
-      case Opcode::kBranchNO:
-      case Opcode::kBranchS:
-      case Opcode::kBranchNS:
-      case Opcode::kBranchE:
-      case Opcode::kBranchNE:
+      case Opcode::kBranchCC:
       case Opcode::kBranchBitSet:
       case Opcode::kBranchBitNotSet:
         environ.block_label_map.emplace(&bb, as.newLabel());
@@ -957,27 +940,27 @@ TEST_F(LIRABITest, TestkTest32_PhyReg_PhyReg) {
   translateInstr(Opcode::kTest32, makePhyReg(0), makePhyReg(1));
 }
 
-// kBranch* b
+// kBranchCC b
 TEST_F(LIRABITest, TestkBranch_Label) {
   translateInstr(Opcode::kBranch);
-  translateInstr(Opcode::kBranchZ);
-  translateInstr(Opcode::kBranchNZ);
-  translateInstr(Opcode::kBranchA);
-  translateInstr(Opcode::kBranchB);
-  translateInstr(Opcode::kBranchAE);
-  translateInstr(Opcode::kBranchBE);
-  translateInstr(Opcode::kBranchG);
-  translateInstr(Opcode::kBranchL);
-  translateInstr(Opcode::kBranchGE);
-  translateInstr(Opcode::kBranchLE);
-  translateInstr(Opcode::kBranchC);
-  translateInstr(Opcode::kBranchNC);
-  translateInstr(Opcode::kBranchO);
-  translateInstr(Opcode::kBranchNO);
-  translateInstr(Opcode::kBranchS);
-  translateInstr(Opcode::kBranchNS);
-  translateInstr(Opcode::kBranchE);
-  translateInstr(Opcode::kBranchNE);
+  translateInstr(Opcode::kBranchCC, Condition::kZero);
+  translateInstr(Opcode::kBranchCC, Condition::kNotZero);
+  translateInstr(Opcode::kBranchCC, Condition::kUnsignedGT);
+  translateInstr(Opcode::kBranchCC, Condition::kUnsignedLT);
+  translateInstr(Opcode::kBranchCC, Condition::kUnsignedGE);
+  translateInstr(Opcode::kBranchCC, Condition::kUnsignedLE);
+  translateInstr(Opcode::kBranchCC, Condition::kSignedGT);
+  translateInstr(Opcode::kBranchCC, Condition::kSignedLT);
+  translateInstr(Opcode::kBranchCC, Condition::kSignedGE);
+  translateInstr(Opcode::kBranchCC, Condition::kSignedLE);
+  translateInstr(Opcode::kBranchCC, Condition::kCarry);
+  translateInstr(Opcode::kBranchCC, Condition::kNotCarry);
+  translateInstr(Opcode::kBranchCC, Condition::kOverflow);
+  translateInstr(Opcode::kBranchCC, Condition::kNotOverflow);
+  translateInstr(Opcode::kBranchCC, Condition::kSign);
+  translateInstr(Opcode::kBranchCC, Condition::kNotSign);
+  translateInstr(Opcode::kBranchCC, Condition::kEqual);
+  translateInstr(Opcode::kBranchCC, Condition::kNotEqual);
 }
 
 // kBranch with MemoryIndirect (indirect jump)
@@ -992,331 +975,450 @@ TEST_F(LIRABITest, TestkBranch_Imm) {
       Opcode::kBranch, Imm{reinterpret_cast<uint64_t>(testImmPtrTarget)});
 }
 
-// kEqual R r r
-TEST_F(LIRABITest, TestkEqual_OutPhyReg_PhyReg_PhyReg) {
+// kCompare<Equal> R r r
+TEST_F(LIRABITest, TestkCompare_Equal_OutPhyReg_PhyReg_PhyReg) {
   translateInstr(
-      Opcode::kEqual, makeOutPhyReg(0), makePhyReg(1), makePhyReg(2));
-}
-
-// kEqual R r i
-TEST_F(LIRABITest, TestkEqual_OutPhyReg_PhyReg_Imm) {
-  translateInstr(Opcode::kEqual, makeOutPhyReg(0), makePhyReg(1), Imm{0});
-  translateInstr(
-      Opcode::kEqual, makeOutPhyReg(0), makePhyReg(1), Imm{UINT64_MAX});
-}
-
-#if !defined(CINDER_AARCH64)
-// kEqual R r m
-TEST_F(LIRABITest, TestkEqual_OutPhyReg_PhyReg_Mem) {
-  translateInstr(Opcode::kEqual, makeOutPhyReg(0), makePhyReg(1), makeImmPtr());
-}
-#endif
-
-// kEqual R x x
-TEST_F(LIRABITest, TestkEqual_OutPhyReg_FPPhyReg_FPPhyReg) {
-  translateInstr(
-      Opcode::kEqual, makeOutPhyReg(), makePhyRegFP(), makePhyRegFP());
-}
-
-// kNotEqual R r r
-TEST_F(LIRABITest, TestkNotEqual_OutPhyReg_PhyReg_PhyReg) {
-  translateInstr(
-      Opcode::kNotEqual, makeOutPhyReg(0), makePhyReg(1), makePhyReg(2));
-}
-
-// kNotEqual R r i
-TEST_F(LIRABITest, TestkNotEqual_OutPhyReg_PhyReg_Imm) {
-  translateInstr(Opcode::kNotEqual, makeOutPhyReg(0), makePhyReg(1), Imm{0});
-  translateInstr(
-      Opcode::kNotEqual, makeOutPhyReg(0), makePhyReg(1), Imm{UINT64_MAX});
-}
-
-#if !defined(CINDER_AARCH64)
-// kNotEqual R r m
-TEST_F(LIRABITest, TestkNotEqual_OutPhyReg_PhyReg_Mem) {
-  translateInstr(
-      Opcode::kNotEqual, makeOutPhyReg(0), makePhyReg(1), makeImmPtr());
-}
-#endif
-
-// kNotEqual R x x
-TEST_F(LIRABITest, TestkNotEqual_OutPhyReg_FPPhyReg_FPPhyReg) {
-  translateInstr(
-      Opcode::kNotEqual, makeOutPhyReg(), makePhyRegFP(), makePhyRegFP());
-}
-
-// kGreaterThanUnsigned R r r
-TEST_F(LIRABITest, TestkGreaterThanUnsigned_OutPhyReg_PhyReg_PhyReg) {
-  translateInstr(
-      Opcode::kGreaterThanUnsigned,
+      Opcode::kCompare,
+      Condition::kEqual,
       makeOutPhyReg(0),
       makePhyReg(1),
       makePhyReg(2));
 }
 
-// kGreaterThanUnsigned R r i
-TEST_F(LIRABITest, TestkGreaterThanUnsigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<Equal> R r i
+TEST_F(LIRABITest, TestkCompare_Equal_OutPhyReg_PhyReg_Imm) {
   translateInstr(
-      Opcode::kGreaterThanUnsigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
-  translateInstr(
-      Opcode::kGreaterThanUnsigned,
-      makeOutPhyReg(0),
-      makePhyReg(1),
-      Imm{UINT64_MAX});
-}
-
-#if !defined(CINDER_AARCH64)
-// kGreaterThanUnsigned R r m
-TEST_F(LIRABITest, TestkGreaterThanUnsigned_OutPhyReg_PhyReg_Mem) {
-  translateInstr(
-      Opcode::kGreaterThanUnsigned,
-      makeOutPhyReg(0),
-      makePhyReg(1),
-      makeImmPtr());
-}
-#endif
-
-// kGreaterThanUnsigned R x x
-TEST_F(LIRABITest, TestkGreaterThanUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
-  translateInstr(
-      Opcode::kGreaterThanUnsigned,
-      makeOutPhyReg(),
-      makePhyRegFP(),
-      makePhyRegFP());
-}
-
-// kGreaterThanEqualUnsigned R r r
-TEST_F(LIRABITest, TestkGreaterThanEqualUnsigned_OutPhyReg_PhyReg_PhyReg) {
-  translateInstr(
-      Opcode::kGreaterThanEqualUnsigned,
-      makeOutPhyReg(0),
-      makePhyReg(1),
-      makePhyReg(2));
-}
-
-// kGreaterThanEqualUnsigned R r i
-TEST_F(LIRABITest, TestkGreaterThanEqualUnsigned_OutPhyReg_PhyReg_Imm) {
-  translateInstr(
-      Opcode::kGreaterThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kEqual,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{0});
   translateInstr(
-      Opcode::kGreaterThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kEqual,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{UINT64_MAX});
 }
 
 #if !defined(CINDER_AARCH64)
-// kGreaterThanEqualUnsigned R r m
-TEST_F(LIRABITest, TestkGreaterThanEqualUnsigned_OutPhyReg_PhyReg_Mem) {
+// kCompare<Equal> R r m
+TEST_F(LIRABITest, TestkCompare_Equal_OutPhyReg_PhyReg_Mem) {
   translateInstr(
-      Opcode::kGreaterThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kEqual,
       makeOutPhyReg(0),
       makePhyReg(1),
       makeImmPtr());
 }
 #endif
 
-// kGreaterThanEqualUnsigned R x x
-TEST_F(LIRABITest, TestkGreaterThanEqualUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
+// kCompare<Equal> R x x
+TEST_F(LIRABITest, TestkCompare_Equal_OutPhyReg_FPPhyReg_FPPhyReg) {
   translateInstr(
-      Opcode::kGreaterThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kEqual,
       makeOutPhyReg(),
       makePhyRegFP(),
       makePhyRegFP());
 }
 
-// kLessThanUnsigned R r r
-TEST_F(LIRABITest, TestkLessThanUnsigned_OutPhyReg_PhyReg_PhyReg) {
+// kCompare<NotEqual> R r r
+TEST_F(LIRABITest, TestkCompare_NotEqual_OutPhyReg_PhyReg_PhyReg) {
   translateInstr(
-      Opcode::kLessThanUnsigned,
+      Opcode::kCompare,
+      Condition::kNotEqual,
       makeOutPhyReg(0),
       makePhyReg(1),
       makePhyReg(2));
 }
 
-// kLessThanUnsigned R r i
-TEST_F(LIRABITest, TestkLessThanUnsigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<NotEqual> R r i
+TEST_F(LIRABITest, TestkCompare_NotEqual_OutPhyReg_PhyReg_Imm) {
   translateInstr(
-      Opcode::kLessThanUnsigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
+      Opcode::kCompare,
+      Condition::kNotEqual,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
   translateInstr(
-      Opcode::kLessThanUnsigned,
+      Opcode::kCompare,
+      Condition::kNotEqual,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{UINT64_MAX});
 }
 
 #if !defined(CINDER_AARCH64)
-// kLessThanUnsigned R r m
-TEST_F(LIRABITest, TestkLessThanUnsigned_OutPhyReg_PhyReg_Mem) {
+// kCompare<NotEqual> R r m
+TEST_F(LIRABITest, TestkCompare_NotEqual_OutPhyReg_PhyReg_Mem) {
   translateInstr(
-      Opcode::kLessThanUnsigned, makeOutPhyReg(0), makePhyReg(1), makeImmPtr());
+      Opcode::kCompare,
+      Condition::kNotEqual,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makeImmPtr());
 }
 #endif
 
-// kLessThanUnsigned R x x
-TEST_F(LIRABITest, TestkLessThanUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
+// kCompare<NotEqual> R x x
+TEST_F(LIRABITest, TestkCompare_NotEqual_OutPhyReg_FPPhyReg_FPPhyReg) {
   translateInstr(
-      Opcode::kLessThanUnsigned,
+      Opcode::kCompare,
+      Condition::kNotEqual,
       makeOutPhyReg(),
       makePhyRegFP(),
       makePhyRegFP());
 }
 
-// kLessThanEqualUnsigned R r r
-TEST_F(LIRABITest, TestkLessThanEqualUnsigned_OutPhyReg_PhyReg_PhyReg) {
+// kCompare<GreaterThanUnsigned> R r r
+TEST_F(LIRABITest, TestkCompare_GreaterThanUnsigned_OutPhyReg_PhyReg_PhyReg) {
   translateInstr(
-      Opcode::kLessThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGT,
       makeOutPhyReg(0),
       makePhyReg(1),
       makePhyReg(2));
 }
 
-// kLessThanEqualUnsigned R r i
-TEST_F(LIRABITest, TestkLessThanEqualUnsigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<GreaterThanUnsigned> R r i
+TEST_F(LIRABITest, TestkCompare_GreaterThanUnsigned_OutPhyReg_PhyReg_Imm) {
   translateInstr(
-      Opcode::kLessThanEqualUnsigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
+      Opcode::kCompare,
+      Condition::kUnsignedGT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
   translateInstr(
-      Opcode::kLessThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGT,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{UINT64_MAX});
 }
 
 #if !defined(CINDER_AARCH64)
-// kLessThanEqualUnsigned R r m
-TEST_F(LIRABITest, TestkLessThanEqualUnsigned_OutPhyReg_PhyReg_Mem) {
+// kCompare<GreaterThanUnsigned> R r m
+TEST_F(LIRABITest, TestkCompare_GreaterThanUnsigned_OutPhyReg_PhyReg_Mem) {
   translateInstr(
-      Opcode::kLessThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGT,
       makeOutPhyReg(0),
       makePhyReg(1),
       makeImmPtr());
 }
 #endif
 
-// kLessThanEqualUnsigned R x x
-TEST_F(LIRABITest, TestkLessThanEqualUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
+// kCompare<GreaterThanUnsigned> R x x
+TEST_F(
+    LIRABITest,
+    TestkCompare_GreaterThanUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
   translateInstr(
-      Opcode::kLessThanEqualUnsigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGT,
       makeOutPhyReg(),
       makePhyRegFP(),
       makePhyRegFP());
 }
 
-// kGreaterThanSigned R r r
-TEST_F(LIRABITest, TestkGreaterThanSigned_OutPhyReg_PhyReg_PhyReg) {
+// kCompare<GreaterThanEqualUnsigned> R r r
+TEST_F(
+    LIRABITest,
+    TestkCompare_GreaterThanEqualUnsigned_OutPhyReg_PhyReg_PhyReg) {
   translateInstr(
-      Opcode::kGreaterThanSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGE,
       makeOutPhyReg(0),
       makePhyReg(1),
       makePhyReg(2));
 }
 
-// kGreaterThanSigned R r i
-TEST_F(LIRABITest, TestkGreaterThanSigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<GreaterThanEqualUnsigned> R r i
+TEST_F(LIRABITest, TestkCompare_GreaterThanEqualUnsigned_OutPhyReg_PhyReg_Imm) {
   translateInstr(
-      Opcode::kGreaterThanSigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
+      Opcode::kCompare,
+      Condition::kUnsignedGE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
   translateInstr(
-      Opcode::kGreaterThanSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGE,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{UINT64_MAX});
 }
 
 #if !defined(CINDER_AARCH64)
-// kGreaterThanSigned R r m
-TEST_F(LIRABITest, TestkGreaterThanSigned_OutPhyReg_PhyReg_Mem) {
+// kCompare<GreaterThanEqualUnsigned> R r m
+TEST_F(LIRABITest, TestkCompare_GreaterThanEqualUnsigned_OutPhyReg_PhyReg_Mem) {
   translateInstr(
-      Opcode::kGreaterThanSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGE,
       makeOutPhyReg(0),
       makePhyReg(1),
       makeImmPtr());
 }
 #endif
 
-// kGreaterThanEqualSigned R r r
-TEST_F(LIRABITest, TestkGreaterThanEqualSigned_OutPhyReg_PhyReg_PhyReg) {
+// kCompare<GreaterThanEqualUnsigned> R x x
+TEST_F(
+    LIRABITest,
+    TestkCompare_GreaterThanEqualUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
   translateInstr(
-      Opcode::kGreaterThanEqualSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedGE,
+      makeOutPhyReg(),
+      makePhyRegFP(),
+      makePhyRegFP());
+}
+
+// kCompare<LessThanUnsigned> R r r
+TEST_F(LIRABITest, TestkCompare_LessThanUnsigned_OutPhyReg_PhyReg_PhyReg) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kUnsignedLT,
       makeOutPhyReg(0),
       makePhyReg(1),
       makePhyReg(2));
 }
 
-// kGreaterThanEqualSigned R r i
-TEST_F(LIRABITest, TestkGreaterThanEqualSigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<LessThanUnsigned> R r i
+TEST_F(LIRABITest, TestkCompare_LessThanUnsigned_OutPhyReg_PhyReg_Imm) {
   translateInstr(
-      Opcode::kGreaterThanEqualSigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
+      Opcode::kCompare,
+      Condition::kUnsignedLT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
   translateInstr(
-      Opcode::kGreaterThanEqualSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedLT,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{UINT64_MAX});
 }
 
 #if !defined(CINDER_AARCH64)
-// kGreaterThanEqualSigned R r m
-TEST_F(LIRABITest, TestkGreaterThanEqualSigned_OutPhyReg_PhyReg_Mem) {
+// kCompare<LessThanUnsigned> R r m
+TEST_F(LIRABITest, TestkCompare_LessThanUnsigned_OutPhyReg_PhyReg_Mem) {
   translateInstr(
-      Opcode::kGreaterThanEqualSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedLT,
       makeOutPhyReg(0),
       makePhyReg(1),
       makeImmPtr());
 }
 #endif
 
-// kLessThanSigned R r r
-TEST_F(LIRABITest, TestkLessThanSigned_OutPhyReg_PhyReg_PhyReg) {
+// kCompare<LessThanUnsigned> R x x
+TEST_F(LIRABITest, TestkCompare_LessThanUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
   translateInstr(
-      Opcode::kLessThanSigned, makeOutPhyReg(0), makePhyReg(1), makePhyReg(2));
+      Opcode::kCompare,
+      Condition::kUnsignedLT,
+      makeOutPhyReg(),
+      makePhyRegFP(),
+      makePhyRegFP());
 }
 
-// kLessThanSigned R r i
-TEST_F(LIRABITest, TestkLessThanSigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<LessThanEqualUnsigned> R r r
+TEST_F(LIRABITest, TestkCompare_LessThanEqualUnsigned_OutPhyReg_PhyReg_PhyReg) {
   translateInstr(
-      Opcode::kLessThanSigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
-  translateInstr(
-      Opcode::kLessThanSigned,
-      makeOutPhyReg(0),
-      makePhyReg(1),
-      Imm{UINT64_MAX});
-}
-
-#if !defined(CINDER_AARCH64)
-// kLessThanSigned R r m
-TEST_F(LIRABITest, TestkLessThanSigned_OutPhyReg_PhyReg_Mem) {
-  translateInstr(
-      Opcode::kLessThanSigned, makeOutPhyReg(0), makePhyReg(1), makeImmPtr());
-}
-#endif
-
-// kLessThanEqualSigned R r r
-TEST_F(LIRABITest, TestkLessThanEqualSigned_OutPhyReg_PhyReg_PhyReg) {
-  translateInstr(
-      Opcode::kLessThanEqualSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedLE,
       makeOutPhyReg(0),
       makePhyReg(1),
       makePhyReg(2));
 }
 
-// kLessThanEqualSigned R r i
-TEST_F(LIRABITest, TestkLessThanEqualSigned_OutPhyReg_PhyReg_Imm) {
+// kCompare<LessThanEqualUnsigned> R r i
+TEST_F(LIRABITest, TestkCompare_LessThanEqualUnsigned_OutPhyReg_PhyReg_Imm) {
   translateInstr(
-      Opcode::kLessThanEqualSigned, makeOutPhyReg(0), makePhyReg(1), Imm{0});
+      Opcode::kCompare,
+      Condition::kUnsignedLE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
   translateInstr(
-      Opcode::kLessThanEqualSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedLE,
       makeOutPhyReg(0),
       makePhyReg(1),
       Imm{UINT64_MAX});
 }
 
 #if !defined(CINDER_AARCH64)
-// kLessThanEqualSigned R r m
-TEST_F(LIRABITest, TestkLessThanEqualSigned_OutPhyReg_PhyReg_Mem) {
+// kCompare<LessThanEqualUnsigned> R r m
+TEST_F(LIRABITest, TestkCompare_LessThanEqualUnsigned_OutPhyReg_PhyReg_Mem) {
   translateInstr(
-      Opcode::kLessThanEqualSigned,
+      Opcode::kCompare,
+      Condition::kUnsignedLE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makeImmPtr());
+}
+#endif
+
+// kCompare<LessThanEqualUnsigned> R x x
+TEST_F(
+    LIRABITest,
+    TestkCompare_LessThanEqualUnsigned_OutPhyReg_FPPhyReg_FPPhyReg) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kUnsignedLE,
+      makeOutPhyReg(),
+      makePhyRegFP(),
+      makePhyRegFP());
+}
+
+// kCompare<GreaterThanSigned> R r r
+TEST_F(LIRABITest, TestkCompare_GreaterThanSigned_OutPhyReg_PhyReg_PhyReg) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makePhyReg(2));
+}
+
+// kCompare<GreaterThanSigned> R r i
+TEST_F(LIRABITest, TestkCompare_GreaterThanSigned_OutPhyReg_PhyReg_Imm) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{UINT64_MAX});
+}
+
+#if !defined(CINDER_AARCH64)
+// kCompare<GreaterThanSigned> R r m
+TEST_F(LIRABITest, TestkCompare_GreaterThanSigned_OutPhyReg_PhyReg_Mem) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makeImmPtr());
+}
+#endif
+
+// kCompare<GreaterThanEqualSigned> R r r
+TEST_F(
+    LIRABITest,
+    TestkCompare_GreaterThanEqualSigned_OutPhyReg_PhyReg_PhyReg) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makePhyReg(2));
+}
+
+// kCompare<GreaterThanEqualSigned> R r i
+TEST_F(LIRABITest, TestkCompare_GreaterThanEqualSigned_OutPhyReg_PhyReg_Imm) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{UINT64_MAX});
+}
+
+#if !defined(CINDER_AARCH64)
+// kCompare<GreaterThanEqualSigned> R r m
+TEST_F(LIRABITest, TestkCompare_GreaterThanEqualSigned_OutPhyReg_PhyReg_Mem) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedGE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makeImmPtr());
+}
+#endif
+
+// kCompare<LessThanSigned> R r r
+TEST_F(LIRABITest, TestkCompare_LessThanSigned_OutPhyReg_PhyReg_PhyReg) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makePhyReg(2));
+}
+
+// kCompare<LessThanSigned> R r i
+TEST_F(LIRABITest, TestkCompare_LessThanSigned_OutPhyReg_PhyReg_Imm) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{UINT64_MAX});
+}
+
+#if !defined(CINDER_AARCH64)
+// kCompare<LessThanSigned> R r m
+TEST_F(LIRABITest, TestkCompare_LessThanSigned_OutPhyReg_PhyReg_Mem) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLT,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makeImmPtr());
+}
+#endif
+
+// kCompare<LessThanEqualSigned> R r r
+TEST_F(LIRABITest, TestkCompare_LessThanEqualSigned_OutPhyReg_PhyReg_PhyReg) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makePhyReg(2));
+}
+
+// kCompare<LessThanEqualSigned> R r i
+TEST_F(LIRABITest, TestkCompare_LessThanEqualSigned_OutPhyReg_PhyReg_Imm) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{0});
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLE,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      Imm{UINT64_MAX});
+}
+
+#if !defined(CINDER_AARCH64)
+// kCompare<LessThanEqualSigned> R r m
+TEST_F(LIRABITest, TestkCompare_LessThanEqualSigned_OutPhyReg_PhyReg_Mem) {
+  translateInstr(
+      Opcode::kCompare,
+      Condition::kSignedLE,
       makeOutPhyReg(0),
       makePhyReg(1),
       makeImmPtr());

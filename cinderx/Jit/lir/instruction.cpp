@@ -27,6 +27,7 @@ Instruction::Instruction(
     const hir::Instr* origin)
     : id_(bb->function()->allocateId()),
       opcode_(instr->opcode_),
+      cond_(instr->cond_),
       output_(this, &instr->output_),
       basic_block_(bb),
       origin_(origin) {}
@@ -138,7 +139,33 @@ void Instruction::setOpcode(Opcode opcode) {
   opcode_ = opcode;
 }
 
+Condition Instruction::condition() const {
+  JIT_DCHECK(
+      carriesCondition(opcode_),
+      "{} carries no condition",
+      lir::opname(opcode_));
+  return cond_;
+}
+
+void Instruction::setCondition(Condition cond) {
+  JIT_DCHECK(
+      carriesCondition(opcode_),
+      "{} carries no condition",
+      lir::opname(opcode_));
+  cond_ = cond;
+}
+
 std::string_view Instruction::opname() const {
+  // BranchCC and Compare print under the per-condition names the opcodes used
+  // to have, so LIR dumps read the same as before the condition became a field.
+  switch (opcode_) {
+    case Opcode::kBranchCC:
+      return branchCCName(cond_);
+    case Opcode::kCompare:
+      return compareName(cond_);
+    default:
+      break;
+  }
   return lir::opname(opcode());
 }
 

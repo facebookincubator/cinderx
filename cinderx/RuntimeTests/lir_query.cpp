@@ -48,6 +48,10 @@ Query& Query::opcode(Opcode op) {
   opcode_ = op;
   return *this;
 }
+Query& Query::condition(Condition cond) {
+  condition_ = cond;
+  return *this;
+}
 Query& Query::outType(DataType dt) {
   out_type_ = dt;
   return *this;
@@ -142,6 +146,9 @@ Query& Query::with(std::function<bool(const Instruction*)> pred) {
 
 bool Query::matches(const Instruction& ins) const {
   if (opcode_ && ins.opcode() != *opcode_) {
+    return false;
+  }
+  if (condition_ && ins.condition() != *condition_) {
     return false;
   }
   return matchesOutput(ins) && matchesInputs(ins) && (!extra_ || extra_(&ins));

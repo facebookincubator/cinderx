@@ -38,6 +38,63 @@ TEST(LIRTypeTest, DataTypeByteShift) {
   EXPECT_EQ(byteShift(DataType::kObject), 3);
 }
 
+// Conditions drive both the encoding and the printed spelling now, so a
+// transcription slip in the table would quietly mis-encode a comparison rather
+// than fail to build.
+TEST(LIRConditionTest, NegationAndSwapAreInvolutions) {
+#define CHECK_NEGATE(NAME, ...)                                      \
+  EXPECT_EQ(negate(negate(Condition::k##NAME)), Condition::k##NAME); \
+  EXPECT_NE(negate(Condition::k##NAME), Condition::k##NAME);
+  FOREACH_LIR_CONDITION(CHECK_NEGATE)
+#undef CHECK_NEGATE
+
+#define CHECK_SWAP(NAME, NEGATED, SWAPPED, ...)                              \
+  if (Condition::k##SWAPPED != Condition::kInvalid) {                        \
+    EXPECT_EQ(                                                               \
+        swapOperands(swapOperands(Condition::k##NAME)), Condition::k##NAME); \
+  }
+  FOREACH_LIR_CONDITION(CHECK_SWAP)
+#undef CHECK_SWAP
+}
+
+TEST(LIRConditionTest, MnemonicNamesKeepTheirMeaning) {
+  // BranchCC and Compare still print under the per-condition names the opcodes
+  // used to have.  "Above" and "below" are the unsigned comparisons and
+  // "greater" and "less" the signed ones, which is the easy thing to get
+  // backwards in a table this shape.
+  EXPECT_EQ(branchCCName(Condition::kUnsignedGT), "BranchA");
+  EXPECT_EQ(branchCCName(Condition::kUnsignedGE), "BranchAE");
+  EXPECT_EQ(branchCCName(Condition::kUnsignedLT), "BranchB");
+  EXPECT_EQ(branchCCName(Condition::kUnsignedLE), "BranchBE");
+  EXPECT_EQ(branchCCName(Condition::kSignedGT), "BranchG");
+  EXPECT_EQ(branchCCName(Condition::kSignedGE), "BranchGE");
+  EXPECT_EQ(branchCCName(Condition::kSignedLT), "BranchL");
+  EXPECT_EQ(branchCCName(Condition::kSignedLE), "BranchLE");
+  EXPECT_EQ(branchCCName(Condition::kZero), "BranchZ");
+  EXPECT_EQ(branchCCName(Condition::kNotZero), "BranchNZ");
+  EXPECT_EQ(branchCCName(Condition::kEqual), "BranchE");
+  EXPECT_EQ(branchCCName(Condition::kSign), "BranchS");
+
+  EXPECT_EQ(compareName(Condition::kUnsignedGT), "GreaterThanUnsigned");
+  EXPECT_EQ(compareName(Condition::kSignedGT), "GreaterThanSigned");
+  EXPECT_EQ(compareName(Condition::kUnsignedLE), "LessThanEqualUnsigned");
+  EXPECT_EQ(compareName(Condition::kSignedLE), "LessThanEqualSigned");
+  EXPECT_EQ(compareName(Condition::kEqual), "Equal");
+
+  // Negation and operand swapping mirror the relation the right way round.
+  EXPECT_EQ(negate(Condition::kUnsignedGT), Condition::kUnsignedLE);
+  EXPECT_EQ(negate(Condition::kSignedLT), Condition::kSignedGE);
+  EXPECT_EQ(negate(Condition::kZero), Condition::kNotZero);
+  EXPECT_EQ(swapOperands(Condition::kSignedGT), Condition::kSignedLT);
+  EXPECT_EQ(swapOperands(Condition::kUnsignedLE), Condition::kUnsignedGE);
+  EXPECT_EQ(swapOperands(Condition::kEqual), Condition::kEqual);
+
+  // Only the comparisons are signed or unsigned; a flag test is neither.
+  EXPECT_TRUE(isSignedCompare(Condition::kSignedGE));
+  EXPECT_FALSE(isSignedCompare(Condition::kUnsignedGE));
+  EXPECT_FALSE(isSignedCompare(Condition::kSign));
+}
+
 class LIRGeneratorTest : public RuntimeTest {
  public:
   std::unique_ptr<Function> getLIRFunction(PyObject* func_obj) {

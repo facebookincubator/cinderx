@@ -100,11 +100,15 @@ class Instruction {
   // the output operand must be the first argument of this function.
   template <typename FirstT, typename... T>
   Instruction* addOperands(FirstT&& first_arg, T&&... args) {
-    static_assert(
-        !(std::decay_t<decltype(args)>::is_output || ... || false),
-        "output must be the first argument.");
-
     using FT = std::decay_t<FirstT>;
+
+    // A Condition is not an operand, so it doesn't count as coming "before"
+    // the output.
+    if constexpr (!std::is_same_v<FT, Condition>) {
+      static_assert(
+          !(isOutputArg<std::decay_t<decltype(args)>>() || ... || false),
+          "output must be the first argument.");
+    }
 
     if constexpr (std::is_same_v<FT, PhyReg>) {
       allocatePhyRegisterInput(first_arg.value)
@@ -119,6 +123,8 @@ class Instruction {
       allocateAddressInput(first_arg.value)->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, Lbl>) {
       allocateLabelInput(first_arg.value);
+    } else if constexpr (std::is_same_v<FT, Condition>) {
+      setCondition(first_arg);
     } else if constexpr (std::is_same_v<FT, AsmLbl>) {
       allocateAsmLabelInput(first_arg.value);
     } else if constexpr (std::is_same_v<FT, VReg>) {
@@ -173,6 +179,10 @@ class Instruction {
 
   Opcode opcode() const;
   void setOpcode(Opcode opcode);
+
+  // The condition a BranchCC branches on, or that a Compare materialises.
+  Condition condition() const;
+  void setCondition(Condition cond);
 
   // Get the name of this instruction's opcode.  This is a null-terminated
   // literal value.
@@ -237,6 +247,7 @@ class Instruction {
 
   int id_;
   Opcode opcode_;
+  Condition cond_{Condition::kInvalid};
   Operand output_;
   BasicBlock* basic_block_;
   const hir::Instr* origin_;

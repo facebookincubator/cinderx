@@ -25,6 +25,39 @@ namespace cinderx::jit::codegen::autogen {
 
 namespace {
 
+#if defined(CINDER_X86_64)
+using AsmCondCode = x86::CondCode;
+#elif defined(CINDER_AARCH64)
+using AsmCondCode = arm::CondCode;
+#endif
+
+#if defined(CINDER_X86_64) || defined(CINDER_AARCH64)
+// LIR spells its conditions the same way asmjit does, on both targets.
+AsmCondCode asmCondCode(lir::Condition cond) {
+  switch (cond) {
+#define TO_ASMJIT(NAME, ...)    \
+  case lir::Condition::k##NAME: \
+    return AsmCondCode::k##NAME;
+    FOREACH_LIR_CONDITION(TO_ASMJIT)
+#undef TO_ASMJIT
+    case lir::Condition::kInvalid:
+      break;
+  }
+  JIT_THROW("Cannot encode invalid condition code {}", static_cast<int>(cond));
+}
+
+void emitBranchCC(
+    arch::Builder* as,
+    lir::Condition cond,
+    const asmjit::Label& label) {
+#if defined(CINDER_X86_64)
+  as->j(asmCondCode(cond), label);
+#else
+  as->b(asmCondCode(cond), label);
+#endif
+}
+#endif
+
 bool isMemoryMoveOperand(const lir::Operand* operand) {
   return operand->isStack() || operand->isMem() || operand->isInd();
 }
@@ -271,75 +304,13 @@ void fillCallSiteLiveValueLocations(Environ* env, const Instruction* instr) {
 } // namespace
 
 #if defined(CINDER_AARCH64)
-void translateBranchCC(
-    a64::Builder* as,
-    Opcode opcode,
-    const asmjit::Label& label) {
-  switch (opcode) {
-    case Opcode::kBranchZ:
-    case Opcode::kBranchE:
-      as->b_eq(label);
-      break;
-    case Opcode::kBranchNZ:
-    case Opcode::kBranchNE:
-      as->b_ne(label);
-      break;
-    case Opcode::kBranchC:
-      as->b_cs(label);
-      break;
-    case Opcode::kBranchNC:
-      as->b_cc(label);
-      break;
-    case Opcode::kBranchO:
-      as->b_vs(label);
-      break;
-    case Opcode::kBranchNO:
-      as->b_vc(label);
-      break;
-    case Opcode::kBranchS:
-      as->b_mi(label);
-      break;
-    case Opcode::kBranchNS:
-      as->b_pl(label);
-      break;
-    case Opcode::kBranchA:
-      as->b_hi(label);
-      break;
-    case Opcode::kBranchB:
-      as->b_lo(label);
-      break;
-    case Opcode::kBranchAE:
-      as->b_hs(label);
-      break;
-    case Opcode::kBranchBE:
-      as->b_ls(label);
-      break;
-    case Opcode::kBranchG:
-      as->b_gt(label);
-      break;
-    case Opcode::kBranchL:
-      as->b_lt(label);
-      break;
-    case Opcode::kBranchGE:
-      as->b_ge(label);
-      break;
-    case Opcode::kBranchLE:
-      as->b_le(label);
-      break;
-    default:
-      JIT_ABORT(
-          "Unsupported AArch64 condition branch opcode {}",
-          static_cast<int>(opcode));
-  }
-}
-
 void translateA64GuardCC(Environ* env, const Instruction* instr) {
   auto index = static_cast<size_t>(instr->getInput(1)->getConstant());
   auto* block = map_get(env->deopt_exit_blocks, index);
   auto label = map_get(env->block_label_map, block);
-  auto opcode = static_cast<Opcode>(instr->getInput(0)->getConstant());
+  auto cond = static_cast<lir::Condition>(instr->getInput(0)->getConstant());
 
-  translateBranchCC(env->as, opcode, label);
+  emitBranchCC(env->as, cond, label);
   fillLiveValueLocations(env->code_rt, index, instr, 2, instr->getNumInputs());
 }
 #endif
@@ -566,48 +537,15 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
   } else {
     // Floating-point comparison; both operands are in XMM registers.  `comisd`
     // sets the flags in the unsigned sense (CF/ZF) and reports unordered (NaN)
-    // operands as CF=ZF=PF=1; the shared condition switch below then reads
-    // those flags.  NaN-correctness and the comparison direction are chosen
-    // when the compare is lowered to LIR, so a compare fused into a branch,
-    // which reuses these flags via compareToBranchCC on the LIR opcode, stays
-    // consistent with the standalone setcc emitted here.
+    // operands as CF=ZF=PF=1; the setcc below then reads those flags.
+    // NaN-correctness and the comparison direction are chosen when the compare
+    // is lowered to LIR, so a compare fused into a branch, which reuses these
+    // flags via compareToBranchCC on the LIR opcode, stays consistent with the
+    // standalone setcc emitted here.
     as->comisd(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
   auto output = AutoTranslator::getGp(instr->output());
-  switch (instr->opcode()) {
-    case Opcode::kEqual:
-      as->sete(output);
-      break;
-    case Opcode::kNotEqual:
-      as->setne(output);
-      break;
-    case Opcode::kGreaterThanSigned:
-      as->setg(output);
-      break;
-    case Opcode::kGreaterThanEqualSigned:
-      as->setge(output);
-      break;
-    case Opcode::kLessThanSigned:
-      as->setl(output);
-      break;
-    case Opcode::kLessThanEqualSigned:
-      as->setle(output);
-      break;
-    case Opcode::kGreaterThanUnsigned:
-      as->seta(output);
-      break;
-    case Opcode::kGreaterThanEqualUnsigned:
-      as->setae(output);
-      break;
-    case Opcode::kLessThanUnsigned:
-      as->setb(output);
-      break;
-    case Opcode::kLessThanEqualUnsigned:
-      as->setbe(output);
-      break;
-    default:
-      JIT_ABORT("Bad instruction for TranslateCompare {}", instr->opname());
-  }
+  as->set(asmCondCode(instr->condition()), output);
   if (instr->output()->dataType() != lir::Operand::k8bit) {
     as->movzx(
         AutoTranslator::getGp(instr->output()),
@@ -634,48 +572,15 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
     as->cmp(AutoTranslator::getGpWiden(inp0), AutoTranslator::getGpWiden(inp1));
   } else {
     // Floating-point comparison, see the note in the x86-64 path.  `fcmp` sets
-    // NZCV (unordered/NaN operands set C=1, V=1 while leaving Z=0), the shared
-    // condition switch below picks the cset. NaN-correctness and the comparison
+    // NZCV (unordered/NaN operands set C=1, V=1 while leaving Z=0), and the
+    // cset below reads them. NaN-correctness and the comparison
     // direction are chosen when the compare is lowered to LIR, keeping the
     // standalone cset and any fused b.cc consistent.
     as->fcmp(AutoTranslator::getVecD(inp0), AutoTranslator::getVecD(inp1));
   }
 
   auto output = AutoTranslator::getGpOutput(instr->output());
-  switch (instr->opcode()) {
-    case Opcode::kEqual:
-      as->cset(output, arm::CondCode::kEQ);
-      break;
-    case Opcode::kNotEqual:
-      as->cset(output, arm::CondCode::kNE);
-      break;
-    case Opcode::kGreaterThanSigned:
-      as->cset(output, arm::CondCode::kGT);
-      break;
-    case Opcode::kGreaterThanEqualSigned:
-      as->cset(output, arm::CondCode::kGE);
-      break;
-    case Opcode::kLessThanSigned:
-      as->cset(output, arm::CondCode::kLT);
-      break;
-    case Opcode::kLessThanEqualSigned:
-      as->cset(output, arm::CondCode::kLE);
-      break;
-    case Opcode::kGreaterThanUnsigned:
-      as->cset(output, arm::CondCode::kHI);
-      break;
-    case Opcode::kGreaterThanEqualUnsigned:
-      as->cset(output, arm::CondCode::kHS);
-      break;
-    case Opcode::kLessThanUnsigned:
-      as->cset(output, arm::CondCode::kLO);
-      break;
-    case Opcode::kLessThanEqualUnsigned:
-      as->cset(output, arm::CondCode::kLS);
-      break;
-    default:
-      JIT_ABORT("Bad instruction for TranslateCompare {}", instr->opname());
-  }
+  as->cset(output, asmCondCode(instr->condition()));
 #else
   CINDER_UNSUPPORTED
 #endif
@@ -2698,6 +2603,14 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
   }
 #endif
 
+  // Every conditional branch reads its condition out of the status flags and
+  // jumps to the label in its first input, so they all lower the same way.
+  if (opcode == Opcode::kBranchCC) {
+    emitBranchCC(
+        env->as, instr->condition(), getLabel(env, instr->getInput(0)));
+    return;
+  }
+
   switch (opcode) {
     case Opcode::kBind:
     case Opcode::kCallSiteLiveValues:
@@ -2916,60 +2829,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kBranchZ:
-      env->as->jz(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchNZ:
-      env->as->jnz(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchA:
-      env->as->ja(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchB:
-      env->as->jb(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchAE:
-      env->as->jae(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchBE:
-      env->as->jbe(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchG:
-      env->as->jg(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchL:
-      env->as->jl(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchGE:
-      env->as->jge(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchLE:
-      env->as->jle(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchC:
-      env->as->jc(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchNC:
-      env->as->jnc(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchO:
-      env->as->jo(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchNO:
-      env->as->jno(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchS:
-      env->as->js(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchNS:
-      env->as->jns(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchE:
-      env->as->je(getLabel(env, instr->getInput(0)));
-      return;
-    case Opcode::kBranchNE:
-      env->as->jne(getLabel(env, instr->getInput(0)));
-      return;
     case Opcode::kGuard:
       translateGuard(env, instr);
       return;
@@ -3050,16 +2909,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       env->as->cmovnz(output, getReg(instr, instr->getInput(1)));
       return;
     }
-    case Opcode::kEqual:
-    case Opcode::kNotEqual:
-    case Opcode::kGreaterThanUnsigned:
-    case Opcode::kGreaterThanEqualUnsigned:
-    case Opcode::kLessThanUnsigned:
-    case Opcode::kLessThanEqualUnsigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kLessThanSigned:
-    case Opcode::kLessThanEqualSigned:
+    case Opcode::kCompare:
       TranslateCompare(env, instr);
       return;
     case Opcode::kFadd: {
@@ -3397,26 +3247,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kBranchC:
-    case Opcode::kBranchNC:
-    case Opcode::kBranchO:
-    case Opcode::kBranchNO:
-    case Opcode::kBranchS:
-    case Opcode::kBranchNS:
-    case Opcode::kBranchZ:
-    case Opcode::kBranchNZ:
-    case Opcode::kBranchA:
-    case Opcode::kBranchB:
-    case Opcode::kBranchAE:
-    case Opcode::kBranchBE:
-    case Opcode::kBranchG:
-    case Opcode::kBranchL:
-    case Opcode::kBranchGE:
-    case Opcode::kBranchLE:
-    case Opcode::kBranchE:
-    case Opcode::kBranchNE:
-      translateBranchCC(env->as, opcode, getLabel(env, instr->getInput(0)));
-      return;
     case Opcode::kCmpBranchZero:
       env->as->cbz(
           getGpWiden(instr->getInput(0)), getLabel(env, instr->getInput(1)));
@@ -3475,16 +3305,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kSelect:
       translateSelect(env, instr);
       return;
-    case Opcode::kEqual:
-    case Opcode::kNotEqual:
-    case Opcode::kGreaterThanUnsigned:
-    case Opcode::kGreaterThanEqualUnsigned:
-    case Opcode::kLessThanUnsigned:
-    case Opcode::kLessThanEqualUnsigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kLessThanSigned:
-    case Opcode::kLessThanEqualSigned:
+    case Opcode::kCompare:
       TranslateCompare(env, instr);
       return;
     case Opcode::kFadd: {

@@ -140,6 +140,14 @@ class BasicBlockBuilder {
     return instr;
   }
 
+  // Allocate and append a branch on a condition read from the flags.
+  template <class... Args>
+  Instruction*
+  appendBranch(Condition cond, BasicBlock* true_bb, Args&&... args) {
+    return appendBranch(
+        Opcode::kBranchCC, true_bb, cond, std::forward<Args>(args)...);
+  }
+
   template <
       typename FuncReturnType,
       typename... FuncArgs,

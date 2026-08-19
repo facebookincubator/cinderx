@@ -813,7 +813,8 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
           Opcode::kMove, nullptr, OutPhyReg(scratch), Imm(none_type_val));
       bb->allocateInstr(
           Opcode::kCmp, nullptr, PhyReg(tc_scratch), PhyReg(scratch));
-      bb->allocateInstr(Opcode::kBranchE, nullptr, Lbl(next_check));
+      bb->allocateInstr(
+          Opcode::kBranchCC, nullptr, Condition::kEqual, Lbl(next_check));
       bb->addSuccessor(next_check);
     }
 
@@ -823,7 +824,8 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
         Opcode::kMove, nullptr, OutPhyReg(scratch), Imm(type_val));
     bb->allocateInstr(
         Opcode::kCmp, nullptr, PhyReg(tc_scratch), PhyReg(scratch));
-    bb->allocateInstr(Opcode::kBranchE, nullptr, Lbl(next_check));
+    bb->allocateInstr(
+        Opcode::kBranchCC, nullptr, Condition::kEqual, Lbl(next_check));
     if (!arg.optional) {
       // Only add successor once
       bb->addSuccessor(next_check);
@@ -881,7 +883,8 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
           Opcode::kMove, nullptr, OutPhyReg(scratch), Ind(tc_scratch));
       mro_bb->allocateInstr(
           Opcode::kCmp, nullptr, PhyReg(scratch), PhyReg(mro_type));
-      mro_bb->allocateInstr(Opcode::kBranchE, nullptr, Lbl(next_check));
+      mro_bb->allocateInstr(
+          Opcode::kBranchCC, nullptr, Condition::kEqual, Lbl(next_check));
       mro_bb->addSuccessor(next_check);
 
       mro_bb->allocateInstr(
@@ -891,7 +894,8 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
           Imm(static_cast<uint64_t>(sizeof(PyObject*))));
       mro_bb->allocateInstr(
           Opcode::kCmp, nullptr, PhyReg(tc_scratch), PhyReg(mro_end));
-      mro_bb->allocateInstr(Opcode::kBranchNE, nullptr, Lbl(mro_bb));
+      mro_bb->allocateInstr(
+          Opcode::kBranchCC, nullptr, Condition::kNotEqual, Lbl(mro_bb));
       mro_bb->addSuccessor(mro_bb); // self-loop
 
       // Fall through to failure
@@ -941,7 +945,8 @@ void GenerateArgcountCheckBlocks(
 
     kw_dispatch->allocateInstr(
         Opcode::kTest, nullptr, PhyReg{kwnames_reg}, PhyReg{kwnames_reg});
-    kw_dispatch->allocateInstr(Opcode::kBranchZ, nullptr, Lbl{argcount_check});
+    kw_dispatch->allocateInstr(
+        Opcode::kBranchCC, nullptr, Condition::kZero, Lbl{argcount_check});
     kw_dispatch->addSuccessor(argcount_check);
 
     kw_dispatch->allocateInstr(
@@ -974,7 +979,10 @@ void GenerateArgcountCheckBlocks(
         PhyReg{nargsf_reg, Operand::k32bit},
         PhyReg{kwnames_reg, Operand::k32bit});
     argcount_check->allocateInstr(
-        Opcode::kBranchE, nullptr, AsmLbl{correct_args_label});
+        Opcode::kBranchCC,
+        nullptr,
+        Condition::kEqual,
+        AsmLbl{correct_args_label});
 
     // Wrong argcount: kwnames_reg already holds numArgs for the 4th arg.
     auto helper = returns_primitive_double
@@ -1173,7 +1181,8 @@ void GenerateBoxedReturnWrapperBlocks(
       nullptr,
       PhyReg{aux_return_reg, test_size},
       PhyReg{aux_return_reg, test_size});
-  wrapper_entry->allocateInstr(Opcode::kBranchNZ, nullptr, Lbl{box_block});
+  wrapper_entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kNotZero, Lbl{box_block});
   wrapper_entry->addSuccessor(box_block);
 
   // Error path: for doubles, zero out RAX/X0 (integer error path already
@@ -1812,7 +1821,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
   // Increment. If result overflows to 0, ob_ref_local was UINT32_MAX
   // (immortal sentinel) — skip.
   bbb.appendInstr(Opcode::kInc, ref_local);
-  bbb.appendBranch(Opcode::kBranchE, end_incref);
+  bbb.appendBranch(Condition::kEqual, end_incref);
 
   // Check thread ownership: ob_tid vs tstate->thread_id.
   BasicBlock* check_owner = bbb.allocateBlock();
@@ -1827,7 +1836,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
       Ind{env_->asm_tstate,
           static_cast<int>(offsetof(PyThreadState, thread_id))});
   bbb.appendInstr(Opcode::kCmp, ob_tid, thread_id);
-  bbb.appendBranch(Opcode::kBranchNE, slow_incref);
+  bbb.appendBranch(Condition::kNotEqual, slow_incref);
 
   // Fast path: thread-owned, store incremented ob_ref_local with relaxed
   // semantics.
@@ -1937,9 +1946,9 @@ void LIRGenerator::makeIncrefGILEnabled(
       Ind{instr, kRefcountOffset, DataType::k32bit});
   bbb.appendInstr(Opcode::kInc, r1);
 #if PY_VERSION_HEX >= 0x030E0000
-  bbb.appendBranch(Opcode::kBranchS, end_incref);
+  bbb.appendBranch(Condition::kSign, end_incref);
 #else
-  bbb.appendBranch(Opcode::kBranchE, end_incref);
+  bbb.appendBranch(Condition::kEqual, end_incref);
 #endif
   bbb.appendBlock(mortal);
   bbb.appendInstr(
@@ -2020,7 +2029,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // Check immortal via sign bit. Normal refcounts are well below 2^31,
   // so a set sign bit indicates an immortal sentinel.
   bbb.appendInstr(Opcode::kTest32, ref_local, ref_local);
-  bbb.appendBranch(Opcode::kBranchS, end_decref);
+  bbb.appendBranch(Condition::kSign, end_decref);
 
   // Check thread ownership: ob_tid vs tstate->thread_id.
   BasicBlock* check_owner = bbb.allocateBlock();
@@ -2035,7 +2044,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
       Ind{env_->asm_tstate,
           static_cast<int>(offsetof(PyThreadState, thread_id))});
   bbb.appendInstr(Opcode::kCmp, ob_tid, thread_id);
-  bbb.appendBranch(Opcode::kBranchNE, slow_decref);
+  bbb.appendBranch(Condition::kNotEqual, slow_decref);
 
   // Fast path: thread-owned, decrement and store with relaxed semantics.
   BasicBlock* fast_dec = bbb.allocateBlock();
@@ -2052,7 +2061,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // Re-test zero flag after the store (the store may clobber flags).
   bbb.appendInstr(Opcode::kTest32, ref_local, ref_local);
   // If non-zero, done — branch to end. Zero falls through to merge.
-  bbb.appendBranch(Opcode::kBranchNZ, end_decref);
+  bbb.appendBranch(Condition::kNotZero, end_decref);
 
   // Local refcount reached zero — merge with shared refcount. This may
   // deallocate the object if the shared refcount is also zero.
@@ -2113,7 +2122,7 @@ void LIRGenerator::makeDecrefGILEnabled(
 
   auto mortal = bbb.allocateBlock();
   bbb.appendInstr(Opcode::kTest32, r1, r1);
-  bbb.appendBranch(Opcode::kBranchS, end_decref);
+  bbb.appendBranch(Condition::kSign, end_decref);
   bbb.appendBlock(mortal);
 
   updateRefTotal(bbb, Opcode::kDec);
@@ -2121,7 +2130,7 @@ void LIRGenerator::makeDecrefGILEnabled(
   auto dealloc = bbb.allocateBlock();
   bbb.appendInstr(Opcode::kDec, r1);
   bbb.appendInstr(OutInd{instr, kRefcountOffset}, Opcode::kMove, r1);
-  bbb.appendBranch(Opcode::kBranchNZ, end_decref);
+  bbb.appendBranch(Condition::kNotZero, end_decref);
   bbb.appendBlock(dealloc);
   if (getConfig().multiple_code_sections) {
     dealloc->setSection(codegen::CodeSection::kCold);
@@ -2641,33 +2650,51 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             case PrimitiveCompareOp::kGreaterThan:
             case PrimitiveCompareOp::kGreaterThanUnsigned:
               bbb.appendInstr(
-                  instr->output(), Opcode::kGreaterThanUnsigned, lhs, rhs);
+                  instr->output(),
+                  Opcode::kCompare,
+                  Condition::kUnsignedGT,
+                  lhs,
+                  rhs);
               break;
             case PrimitiveCompareOp::kGreaterThanEqual:
             case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
               bbb.appendInstr(
-                  instr->output(), Opcode::kGreaterThanEqualUnsigned, lhs, rhs);
+                  instr->output(),
+                  Opcode::kCompare,
+                  Condition::kUnsignedGE,
+                  lhs,
+                  rhs);
               break;
             case PrimitiveCompareOp::kLessThan: // a < b == b > a
             case PrimitiveCompareOp::kLessThanUnsigned:
               bbb.appendInstr(
-                  instr->output(), Opcode::kGreaterThanUnsigned, rhs, lhs);
+                  instr->output(),
+                  Opcode::kCompare,
+                  Condition::kUnsignedGT,
+                  rhs,
+                  lhs);
               break;
             case PrimitiveCompareOp::kLessThanEqual: // a <= b == b >= a
             case PrimitiveCompareOp::kLessThanEqualUnsigned:
               bbb.appendInstr(
-                  instr->output(), Opcode::kGreaterThanEqualUnsigned, rhs, lhs);
+                  instr->output(),
+                  Opcode::kCompare,
+                  Condition::kUnsignedGE,
+                  rhs,
+                  lhs);
               break;
             case PrimitiveCompareOp::kEqual:
             case PrimitiveCompareOp::kNotEqual: {
               Instruction* le = bbb.appendInstr(
                   OutVReg{Operand::k8bit},
-                  Opcode::kGreaterThanEqualUnsigned,
+                  Opcode::kCompare,
+                  Condition::kUnsignedGE,
                   rhs,
                   lhs); // a <= b
               Instruction* ge = bbb.appendInstr(
                   OutVReg{Operand::k8bit},
-                  Opcode::kGreaterThanEqualUnsigned,
+                  Opcode::kCompare,
+                  Condition::kUnsignedGE,
                   lhs,
                   rhs); // a >= b
               if (instr->op() == PrimitiveCompareOp::kEqual) {
@@ -2692,76 +2719,81 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           // nor unsigned, so the signed and unsigned PrimitiveCompareOp
           // variants denote the same ordering (Static Python `double` emits the
           // unsigned variants; the Python-float path emits the natural ones).
-          Opcode op;
+          Condition cond;
           switch (instr->op()) {
             case PrimitiveCompareOp::kEqual:
-              op = Opcode::kEqual;
+              cond = Condition::kEqual;
               break;
             case PrimitiveCompareOp::kNotEqual:
-              op = Opcode::kNotEqual;
+              cond = Condition::kNotEqual;
               break;
             case PrimitiveCompareOp::kGreaterThan:
             case PrimitiveCompareOp::kGreaterThanUnsigned:
-              op = Opcode::kGreaterThanSigned;
+              cond = Condition::kSignedGT;
               break;
             case PrimitiveCompareOp::kGreaterThanEqual:
             case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
-              op = Opcode::kGreaterThanEqualSigned;
+              cond = Condition::kSignedGE;
               break;
             case PrimitiveCompareOp::kLessThan:
             case PrimitiveCompareOp::kLessThanUnsigned:
-              op = Opcode::kLessThanUnsigned;
+              cond = Condition::kUnsignedLT;
               break;
             case PrimitiveCompareOp::kLessThanEqual:
             case PrimitiveCompareOp::kLessThanEqualUnsigned:
-              op = Opcode::kLessThanEqualUnsigned;
+              cond = Condition::kUnsignedLE;
               break;
             default:
               JIT_ABORT(
                   "Not a float comparison {}", static_cast<int>(instr->op()));
           }
-          bbb.appendInstr(instr->output(), op, lhs, rhs);
+          bbb.appendInstr(instr->output(), Opcode::kCompare, cond, lhs, rhs);
 #else
           CINDER_UNSUPPORTED
 #endif
           break;
         }
-        Opcode op;
+        Condition cond;
         switch (instr->op()) {
           case PrimitiveCompareOp::kEqual:
-            op = Opcode::kEqual;
+            cond = Condition::kEqual;
             break;
           case PrimitiveCompareOp::kNotEqual:
-            op = Opcode::kNotEqual;
+            cond = Condition::kNotEqual;
             break;
           case PrimitiveCompareOp::kGreaterThanUnsigned:
-            op = Opcode::kGreaterThanUnsigned;
+            cond = Condition::kUnsignedGT;
             break;
           case PrimitiveCompareOp::kGreaterThan:
-            op = Opcode::kGreaterThanSigned;
+            cond = Condition::kSignedGT;
             break;
           case PrimitiveCompareOp::kLessThanUnsigned:
-            op = Opcode::kLessThanUnsigned;
+            cond = Condition::kUnsignedLT;
             break;
           case PrimitiveCompareOp::kLessThan:
-            op = Opcode::kLessThanSigned;
+            cond = Condition::kSignedLT;
             break;
           case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
-            op = Opcode::kGreaterThanEqualUnsigned;
+            cond = Condition::kUnsignedGE;
             break;
           case PrimitiveCompareOp::kGreaterThanEqual:
-            op = Opcode::kGreaterThanEqualSigned;
+            cond = Condition::kSignedGE;
             break;
           case PrimitiveCompareOp::kLessThanEqualUnsigned:
-            op = Opcode::kLessThanEqualUnsigned;
+            cond = Condition::kUnsignedLE;
             break;
           case PrimitiveCompareOp::kLessThanEqual:
-            op = Opcode::kLessThanEqualSigned;
+            cond = Condition::kSignedLE;
             break;
           default:
             JIT_ABORT("Not implemented {}", static_cast<int>(instr->op()));
         }
-        bbb.appendInstr(instr->output(), op, instr->left(), instr->right());
+        bbb.appendInstr(
+            instr->output(),
+            Opcode::kCompare,
+            cond,
+            instr->left(),
+            instr->right());
         break;
       }
       case hir::Opcode::kPrimitiveBoxBool: {
@@ -2860,7 +2892,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // signed -1 in the unsigned value, we can likewise just treat unsigned
         // as signed for purposes of checking for -1 here.
         Instruction* is_not_negative = bbb.appendInstr(
-            Opcode::kNotEqual,
+            Opcode::kCompare,
+            Condition::kNotEqual,
             OutVReg{DataType::k8bit},
             src,
             Imm{static_cast<uint64_t>(-1), src->output()->dataType()});
@@ -2879,7 +2912,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             Opcode::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
 
         Instruction* is_no_err_set = bbb.appendInstr(
-            Opcode::kEqual, OutVReg{Operand::k8bit}, curexc, Imm{0});
+            Opcode::kCompare,
+            Condition::kEqual,
+            OutVReg{Operand::k8bit},
+            curexc,
+            Imm{0});
 
         bbb.appendBranch(Opcode::kCondBranch, is_no_err_set, done, set_err);
         bbb.switchBlock(set_err);
@@ -2900,7 +2937,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         if (ty <= TCBool) {
           auto py_true = reinterpret_cast<uint64_t>(Py_True);
           bbb.appendInstr(
-              output, Opcode::kEqual, value, Imm{py_true, Operand::kObject});
+              output,
+              Opcode::kCompare,
+              Condition::kEqual,
+              value,
+              Imm{py_true, Operand::kObject});
           break;
         } else if (ty <= TCDouble) {
           constexpr int32_t offset = offsetof(PyFloatObject, ob_fval);
@@ -2961,7 +3002,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
             bbb.appendInstr(
                 instr->output(),
-                Opcode::kEqual,
+                Opcode::kCompare,
+                Condition::kEqual,
                 instr->value(),
                 Imm{0, hirTypeToDataType(instr->value()->type())});
             break;
@@ -3088,7 +3130,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           Instruction* type_var =
               bbb.appendInstr(Opcode::kMove, OutVReg{}, Ind{reg, kOffset});
           eq_res_var = bbb.appendInstr(
-              Opcode::kEqual,
+              Opcode::kCompare,
+              Condition::kEqual,
               OutVReg{Operand::k8bit},
               type_var,
               Imm{reinterpret_cast<uint64_t>(type.uniquePyType()),
@@ -4876,7 +4919,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               OutVReg{DataType::k64bit}, Opcode::kAdd, val, Imm{kMaxDigit});
           bbb.appendInstr(
               i.output(),
-              Opcode::kLessThanUnsigned,
+              Opcode::kCompare,
+              Condition::kUnsignedLT,
               shifted,
               Imm{2 * kMaxDigit + 1});
         } else {
@@ -4890,7 +4934,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               Ind{obj, lv_tag_offset});
           bbb.appendInstr(
               i.output(),
-              Opcode::kLessThanUnsigned,
+              Opcode::kCompare,
+              Condition::kUnsignedLT,
               lv_tag,
               Imm{2 << _PyLong_NON_SIZE_BITS});
         }
@@ -5765,7 +5810,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
           static_cast<int32_t>(offsetof(_PyInterpreterFrame, frame_obj))});
 
   bbb.appendInstr(Opcode::kTest, frame_obj_reg, frame_obj_reg);
-  bbb.appendBranch(Opcode::kBranchZ, not_materialized);
+  bbb.appendBranch(Condition::kZero, not_materialized);
 #endif
 
   {

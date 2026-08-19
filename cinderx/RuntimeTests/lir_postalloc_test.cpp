@@ -389,7 +389,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteFaddWithFPStackInput) {
       instrs[1]->getInput(1)->getPhyRegister(), arch::reg_fp_scratch_0_loc);
 }
 
-// kLessThanSigned with a k8bit stack input should widen the load to k32bit to
+// A signed compare with a k8bit stack input should widen the load to k32bit to
 // preserve the sign-extended value stored by rewriteSignedSubWordOps.
 TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
   Function func;
@@ -397,8 +397,9 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
 
   // LessThanSigned X0:8bit, [X29(-8)]:8bit
   bb->allocateInstr(
-      Opcode::kLessThanSigned,
+      Opcode::kCompare,
       nullptr,
+      Condition::kSignedLT,
       OutPhyReg{X0, DataType::k8bit},
       PhyReg{X0, DataType::k8bit},
       Stk{PhyLocation(-8, 8), DataType::k8bit});
@@ -416,7 +417,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
   EXPECT_EQ(instrs[0]->getInput(0)->dataType(), DataType::k32bit);
 
   // The comparison input should also be k32bit
-  EXPECT_TRUE(instrs[1]->isLessThanSigned());
+  EXPECT_TRUE(instrs[1]->isCompare());
   EXPECT_EQ(instrs[1]->getInput(1)->dataType(), DataType::k32bit);
 }
 

@@ -47,7 +47,13 @@ class Parser {
 
   DataType getOperandDataType(const std::string& name) const;
 
-  Opcode getInstrOpcode(const std::string& name) const;
+  // An instruction name resolves to an opcode and, for BranchCC and Compare,
+  // the condition its name encodes.
+  struct InstrKind {
+    Opcode opcode;
+    Condition cond;
+  };
+  InstrKind getInstrKind(const std::string& name) const;
 
   enum TokenType {
     kFunctionStart,

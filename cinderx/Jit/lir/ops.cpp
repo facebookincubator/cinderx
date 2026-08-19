@@ -19,18 +19,53 @@ std::string_view opname(Opcode opcode) {
   return "<unknown opcode>";
 }
 
-bool isCompare(Opcode opcode) {
-  switch (opcode) {
-    case Opcode::kEqual:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kGreaterThanEqualUnsigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kGreaterThanUnsigned:
-    case Opcode::kLessThanEqualSigned:
-    case Opcode::kLessThanEqualUnsigned:
-    case Opcode::kLessThanSigned:
-    case Opcode::kLessThanUnsigned:
-    case Opcode::kNotEqual:
+std::string_view conditionName(Condition cond) {
+  switch (cond) {
+#define STRINGIFY(NAME, ...) \
+  case Condition::k##NAME:   \
+    return #NAME;
+    FOREACH_LIR_CONDITION(STRINGIFY)
+#undef STRINGIFY
+    default:
+      break;
+  }
+  return "<invalid condition>";
+}
+
+Condition negate(Condition cond) {
+  switch (cond) {
+#define NEGATE(NAME, NEGATED, ...) \
+  case Condition::k##NAME:         \
+    return Condition::k##NEGATED;
+    FOREACH_LIR_CONDITION(NEGATE)
+#undef NEGATE
+    default:
+      break;
+  }
+  JIT_THROW("Cannot negate an invalid condition ({})", static_cast<int>(cond));
+}
+
+Condition swapOperands(Condition cond) {
+  switch (cond) {
+#define SWAP(NAME, NEGATED, SWAPPED, ...) \
+  case Condition::k##NAME:                \
+    return Condition::k##SWAPPED;
+    FOREACH_LIR_CONDITION(SWAP)
+#undef SWAP
+    default:
+      break;
+  }
+  JIT_THROW(
+      "Cannot swap operands of an invalid condition ({})",
+      static_cast<int>(cond));
+}
+
+bool isSignedCompare(Condition cond) {
+  switch (cond) {
+    case Condition::kSignedLT:
+    case Condition::kSignedLE:
+    case Condition::kSignedGT:
+    case Condition::kSignedGE:
       return true;
     default:
       break;
@@ -38,31 +73,42 @@ bool isCompare(Opcode opcode) {
   return false;
 }
 
-bool isBranchCC(Opcode opcode) {
-  switch (opcode) {
-    case Opcode::kBranchA:
-    case Opcode::kBranchAE:
-    case Opcode::kBranchB:
-    case Opcode::kBranchBE:
-    case Opcode::kBranchC:
-    case Opcode::kBranchE:
-    case Opcode::kBranchG:
-    case Opcode::kBranchGE:
-    case Opcode::kBranchL:
-    case Opcode::kBranchLE:
-    case Opcode::kBranchNC:
-    case Opcode::kBranchNE:
-    case Opcode::kBranchNO:
-    case Opcode::kBranchNS:
-    case Opcode::kBranchNZ:
-    case Opcode::kBranchO:
-    case Opcode::kBranchS:
-    case Opcode::kBranchZ:
-      return true;
+bool carriesCondition(Opcode opcode) {
+  return opcode == Opcode::kBranchCC || opcode == Opcode::kCompare;
+}
+
+std::string_view branchCCName(Condition cond) {
+  switch (cond) {
+#define BRANCH_NAME(NAME, NEGATED, SWAPPED, BRANCH) \
+  case Condition::k##NAME:                          \
+    return #BRANCH;
+    FOREACH_LIR_CONDITION(BRANCH_NAME)
+#undef BRANCH_NAME
     default:
       break;
   }
-  return false;
+  return "<invalid condition>";
+}
+
+std::string_view compareName(Condition cond) {
+  switch (cond) {
+#define COMPARE_NAME(COMPARE, CONDITION) \
+  case Condition::k##CONDITION:          \
+    return #COMPARE;
+    FOREACH_LIR_COMPARE(COMPARE_NAME)
+#undef COMPARE_NAME
+    default:
+      break;
+  }
+  JIT_THROW("Condition {} cannot be compared for", conditionName(cond));
+}
+
+bool isCompare(Opcode opcode) {
+  return opcode == Opcode::kCompare;
+}
+
+bool isBranchCC(Opcode opcode) {
+  return opcode == Opcode::kBranchCC;
 }
 
 bool isCmpBranch(Opcode opcode) {
@@ -113,111 +159,12 @@ bool isAnyYield(Opcode opcode) {
   return false;
 }
 
-#define CASE_FLIP(A, B)  \
-  case Opcode::k##A:     \
-    return Opcode::k##B; \
-  case Opcode::k##B:     \
-    return Opcode::k##A;
-
-Opcode negateBranchCC(Opcode opcode) {
-  switch (opcode) {
-    CASE_FLIP(BranchA, BranchBE)
-    CASE_FLIP(BranchB, BranchAE)
-    CASE_FLIP(BranchC, BranchNC)
-    CASE_FLIP(BranchE, BranchNE)
-    CASE_FLIP(BranchG, BranchLE)
-    CASE_FLIP(BranchL, BranchGE)
-    CASE_FLIP(BranchO, BranchNO)
-    CASE_FLIP(BranchS, BranchNS)
-    CASE_FLIP(BranchZ, BranchNZ)
-    default:
-      break;
-  }
-  JIT_THROW("Not a conditional branch opcode: {}", opname(opcode));
-}
-
-Opcode flipBranchCCDirection(Opcode opcode) {
-  switch (opcode) {
-    CASE_FLIP(BranchA, BranchB)
-    CASE_FLIP(BranchAE, BranchBE)
-    CASE_FLIP(BranchL, BranchG)
-    CASE_FLIP(BranchLE, BranchGE)
-    default:
-      break;
-  }
-  JIT_THROW("Unable to flip branch condition for opcode: {}", opname(opcode));
-}
-
-Opcode flipComparisonDirection(Opcode opcode) {
-  switch (opcode) {
-    CASE_FLIP(GreaterThanEqualSigned, LessThanEqualSigned)
-    CASE_FLIP(GreaterThanEqualUnsigned, LessThanEqualUnsigned)
-    CASE_FLIP(GreaterThanSigned, LessThanSigned)
-    CASE_FLIP(GreaterThanUnsigned, LessThanUnsigned)
-    case Opcode::kEqual:
-      return Opcode::kEqual;
-    case Opcode::kNotEqual:
-      return Opcode::kNotEqual;
-    default:
-      break;
-  }
-  JIT_THROW(
-      "Unable to flip comparison direction for opcode: {}", opname(opcode));
-}
-
-#undef CASE_FLIP
-
-Opcode compareToBranchCC(Opcode opcode) {
-  switch (opcode) {
-    case Opcode::kEqual:
-      return Opcode::kBranchE;
-    case Opcode::kNotEqual:
-      return Opcode::kBranchNE;
-    case Opcode::kGreaterThanUnsigned:
-      return Opcode::kBranchA;
-    case Opcode::kLessThanUnsigned:
-      return Opcode::kBranchB;
-    case Opcode::kGreaterThanEqualUnsigned:
-      return Opcode::kBranchAE;
-    case Opcode::kLessThanEqualUnsigned:
-      return Opcode::kBranchBE;
-    case Opcode::kGreaterThanSigned:
-      return Opcode::kBranchG;
-    case Opcode::kLessThanSigned:
-      return Opcode::kBranchL;
-    case Opcode::kGreaterThanEqualSigned:
-      return Opcode::kBranchGE;
-    case Opcode::kLessThanEqualSigned:
-      return Opcode::kBranchLE;
-    default:
-      break;
-  }
-  JIT_THROW("Not a compare opcode, {}", opname(opcode));
-}
-
 bool writesFlags(Opcode opcode) {
   switch (opcode) {
     case Opcode::kBind:
     case Opcode::kBranch:
-    case Opcode::kBranchA:
-    case Opcode::kBranchAE:
-    case Opcode::kBranchB:
-    case Opcode::kBranchBE:
-    case Opcode::kBranchC:
-    case Opcode::kBranchE:
-    case Opcode::kBranchG:
-    case Opcode::kBranchGE:
-    case Opcode::kBranchL:
-    case Opcode::kBranchLE:
-    case Opcode::kBranchNC:
-    case Opcode::kBranchNE:
-    case Opcode::kBranchNO:
-    case Opcode::kBranchNS:
-    case Opcode::kBranchNZ:
-    case Opcode::kBranchO:
-    case Opcode::kBranchS:
+    case Opcode::kBranchCC:
     case Opcode::kBranchToYieldExit:
-    case Opcode::kBranchZ:
     case Opcode::kCallSiteLiveValues:
     case Opcode::kCmpBranchNonZero:
     case Opcode::kCmpBranchZero:
@@ -264,48 +211,24 @@ bool isEssential(Opcode opcode) {
     case Opcode::kAnd:
     case Opcode::kBind:
     case Opcode::kBranch:
-    case Opcode::kBranchA:
-    case Opcode::kBranchAE:
-    case Opcode::kBranchB:
-    case Opcode::kBranchBE:
-    case Opcode::kBranchC:
-    case Opcode::kBranchE:
-    case Opcode::kBranchG:
-    case Opcode::kBranchGE:
-    case Opcode::kBranchL:
-    case Opcode::kBranchLE:
-    case Opcode::kBranchNC:
-    case Opcode::kBranchNE:
-    case Opcode::kBranchNO:
-    case Opcode::kBranchNS:
-    case Opcode::kBranchNZ:
-    case Opcode::kBranchO:
-    case Opcode::kBranchS:
+    case Opcode::kBranchCC:
     case Opcode::kCmp:
     case Opcode::kCondBranch:
     case Opcode::kDec:
     case Opcode::kDiv:
     case Opcode::kDivUn:
-    case Opcode::kEqual:
+    case Opcode::kCompare:
     case Opcode::kExchange:
     case Opcode::kFadd:
     case Opcode::kFdiv:
     case Opcode::kFmul:
     case Opcode::kFsub:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kGreaterThanEqualUnsigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kGreaterThanUnsigned:
     case Opcode::kInc:
     case Opcode::kInt64ToDouble:
     case Opcode::kIntToBool:
     case Opcode::kInvert:
     case Opcode::kLShift:
     case Opcode::kLea:
-    case Opcode::kLessThanEqualSigned:
-    case Opcode::kLessThanEqualUnsigned:
-    case Opcode::kLessThanSigned:
-    case Opcode::kLessThanUnsigned:
     case Opcode::kLoadArg:
     case Opcode::kLoadSecondCallResult:
     case Opcode::kLoadThreadState:
@@ -316,7 +239,6 @@ bool isEssential(Opcode opcode) {
     case Opcode::kMulAdd:
     case Opcode::kNegate:
     case Opcode::kNop:
-    case Opcode::kNotEqual:
     case Opcode::kOr:
     case Opcode::kPhi:
     case Opcode::kRShift:
@@ -402,22 +324,13 @@ bool inputMustBeRegister(Opcode opcode, size_t idx) {
 
     case Opcode::kCmp:
     case Opcode::kDeoptPatchpoint:
-    case Opcode::kEqual:
+    case Opcode::kCompare:
     case Opcode::kExchange:
     case Opcode::kFadd:
     case Opcode::kFdiv:
     case Opcode::kFmul:
     case Opcode::kFsub:
-    case Opcode::kGreaterThanEqualSigned:
-    case Opcode::kGreaterThanEqualUnsigned:
-    case Opcode::kGreaterThanSigned:
-    case Opcode::kGreaterThanUnsigned:
     case Opcode::kLea:
-    case Opcode::kLessThanEqualSigned:
-    case Opcode::kLessThanEqualUnsigned:
-    case Opcode::kLessThanSigned:
-    case Opcode::kLessThanUnsigned:
-    case Opcode::kNotEqual:
     case Opcode::kSub:
     case Opcode::kTest32:
     case Opcode::kTest:
