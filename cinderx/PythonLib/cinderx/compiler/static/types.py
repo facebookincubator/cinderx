@@ -5930,11 +5930,7 @@ class Dataclass(Class):
         check_args: tuple[object, ...],
         return_type_descr: TypeDescr,
     ) -> PyFlowGraph:
-        # pyre-fixme[6]: Should be passing in ModuleScope as 2nd argument but passing in
-        # ModuleTable instead.
-        #
-        # TODO(T220664156): This is very likely a bug.
-        scope = FunctionScope(func, code_gen.cur_mod, code_gen.scope.klass)
+        scope = FunctionScope(func, code_gen.scope.module, code_gen.scope.klass)
         scope.parent = code_gen.scope
 
         graph = code_gen.flow_graph(
