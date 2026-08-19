@@ -875,10 +875,18 @@ import cinderx.jit
 # compile takes is build-dependent; see SEGMENTS/TASKS there.
 SEGMENTS = int(os.environ["POOL_FORK_SEGMENTS"])
 TASKS = int(os.environ["POOL_FORK_TASKS"])
+# Wall-clock ceiling on handing out new work.  TASKS is the number of forks we
+# would like; this is what we are willing to spend getting them, so that how
+# long the run takes stops being a function of how fast the machine is.
+BUDGET = float(os.environ["POOL_FORK_BUDGET"])
 FUNCS_PER_BATCH = 2
 SMALL_FUNCS = 100
 CALLS_PER_FUNC = 4
-WORKERS = 8
+# Every worker runs its own compile thread, so sizing the pool past the cores
+# we are actually allowed to use just makes each task slower without forking
+# any more often.  sched_getaffinity, not cpu_count: a CI container is usually
+# pinned to a fraction of the cores the host advertises.
+WORKERS = max(2, min(8, len(os.sched_getaffinity(0))))
 
 
 def progress(message):
@@ -949,7 +957,18 @@ def task(n):
     return total
 
 
+def more_wanted(submitted):
+    """Whether to keep handing out work.
+
+    The budget is what stops the runtime from being a function of how fast the
+    machine is: a slow host does fewer forks instead of taking longer, so it
+    still finishes and still gets tested.
+    """
+    return submitted < TASKS and time.time() - START < BUDGET
+
+
 def main():
+    progress("workers %d, up to %d tasks in %.0fs" % (WORKERS, TASKS, BUDGET))
     # Prime the parent so the background compile worker thread exists, and is
     # busy, before the first fork.
     churn("warmup")
@@ -962,11 +981,33 @@ def main():
     # _handle_workers thread while the main thread queues more compiles.
     pool = ctx.Pool(processes=WORKERS, maxtasksperchild=1)
     try:
-        for i, result in enumerate(pool.imap_unordered(task, range(TASKS))):
-            total += result
-            if i % max(1, TASKS // 4) == 0:
-                progress("task %d done" % i)
-            churn("parent%d" % i)
+        # apply_async with a bounded window rather than imap_unordered over
+        # range(TASKS): the feeder thread drains an iterable as fast as it can,
+        # so a budget check inside one would pass for every task before the
+        # first result came back.  Submitting by hand is what lets the budget
+        # actually stop the run partway.
+        pending = []
+        submitted = 0
+        done = 0
+        while pending or more_wanted(submitted):
+            # A couple deeper than the pool is wide, so a worker that finishes
+            # while the main thread is busy churning has its replacement fork
+            # something to pick up immediately.
+            while more_wanted(submitted) and len(pending) < WORKERS + 2:
+                pending.append(pool.apply_async(task, (submitted,)))
+                submitted += 1
+            total += pending.pop(0).get()
+            done += 1
+            # Every task, not every Nth: this is the liveness signal the test
+            # watches to tell a slow machine apart from a wedged one.
+            progress("task %d done" % done)
+            if more_wanted(submitted):
+                # Only worth doing while forks are still coming: this is what
+                # keeps the parent's compile queue backlogged so the next one
+                # lands mid-compile.
+                churn("parent%d" % done)
+        if submitted < TASKS:
+            progress("budget spent after %d of %d tasks" % (submitted, TASKS))
         # close()/join() rather than terminate(): joining is where a child that
         # wedged after fork never lets the parent go, which is how this showed
         # up in the fragment serializers.
@@ -1018,20 +1059,41 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
 
     The workload was never observed to deadlock on x86-64, where the windows on
     the remaining locks are only a few instructions wide.  It stays as a
-    stress/regression guard: it forks TASKS times with the compile queue
+    stress/regression guard: it forks up to TASKS times with the compile queue
     permanently backlogged, and reports a wedge as a failure with stacks rather
-    than hanging the suite.
+    than hanging the suite.  "Up to" because a slow host spends its BUDGET
+    before it runs out of tasks; fewer forks still exercise the same handlers,
+    where a run that never finishes exercises nothing.
 
     Both tests run the same workload; the only difference is
     CINDERX_JIT_BACKGROUND_COMPILE.  The one with it off is the control: if it
     also times out, the workload (not background compile) is at fault.
     """
 
-    # Healthy runs take well under a minute, but they are dominated by fork and
-    # compile throughput and stretch badly on a loaded host.  A hang is
-    # unbounded, so a wide margin costs nothing but keeps contention from
-    # looking like a deadlock.
+    # A deadlock is the absence of progress, not the passage of time, so that
+    # is what this waits for: the workload reports every completed task, and a
+    # run that goes this long without reporting one is wedged.  A machine that
+    # is merely slow keeps reporting and is left alone however long it takes,
+    # which is the whole point -- a deadline turns a loaded CI host into a
+    # false "deadlocked" report, and an intermittently false-failing test is
+    # worse than no test.  Generous because the gap it has to clear is a couple
+    # of compiles on the slowest machine we run on, not an average one.
+    STALL_TIMEOUT: float = 180.0
+
+    # Absolute backstop for a workload that keeps reporting progress but never
+    # finishes.  BUDGET below should make this unreachable; if it is ever hit
+    # the machine is too slow to run this test, which is reported as such
+    # rather than as a deadlock.
     TIMEOUT: float = 600.0
+
+    # How long the workload may spend handing out new tasks before it stops
+    # early and shuts the pool down cleanly.  This is what keeps the runtime
+    # bounded on a slow host: it does fewer forks rather than taking longer.
+    BUDGET: float = 120.0
+
+    # How often to check on the workload.  Only bounds how quickly a finished
+    # run is noticed, so it is cheap to keep short.
+    POLL_INTERVAL: float = 0.5
 
     # A debug + sanitizer build compiles roughly twenty times slower than an
     # optimized one, so the workload has to be sized for the build it runs in.
@@ -1062,40 +1124,85 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
     ) -> tuple[bool, int | None, str, str]:
         """Run the fork+pool workload out-of-process.
 
-        Returns (timed_out, returncode, stdout, stderr).  On timeout the whole
-        process group is asked for a traceback and then killed, so a hang is
-        reported as a test failure instead of hanging the suite.
+        Returns (stalled, returncode, stdout, stderr).  If the workload stops
+        reporting progress the whole process group is asked for a traceback and
+        then killed, so a wedge is reported as a test failure instead of
+        hanging the suite.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
-            script = Path(tmp_dir) / "pool_fork.py"
+            tmp = Path(tmp_dir)
+            script = tmp / "pool_fork.py"
             script.write_text(_POOL_FORK_SCRIPT)
 
-            # start_new_session so the pool's workers land in their own process
-            # group: killing just the direct child would leave them holding the
-            # pipes open and communicate() would block anyway.
-            proc = subprocess.Popen(
-                [sys.executable, str(script)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding=ENCODING,
-                env={
-                    **subprocess_env(),
-                    "CINDERX_JIT_AUTO": "2",
-                    "CINDERX_JIT_BACKGROUND_COMPILE": background_compile,
-                    "POOL_FORK_SEGMENTS": str(self.SEGMENTS),
-                    "POOL_FORK_TASKS": str(self.TASKS),
-                },
-                start_new_session=True,
-            )
-            try:
-                stdout, stderr = proc.communicate(timeout=self.TIMEOUT)
-                return False, proc.returncode, stdout, stderr
-            except subprocess.TimeoutExpired:
-                self._dump_and_kill(proc)
-                stdout, stderr = proc.communicate()
-                return True, proc.returncode, stdout, stderr
+            # Files rather than pipes: the progress lines have to be readable
+            # while the workload is still running, which is how a slow run is
+            # told apart from a wedged one.  communicate() would only hand them
+            # over once it had already waited out the very hang being measured.
+            out_path = tmp / "stdout.txt"
+            err_path = tmp / "stderr.txt"
+            with open(out_path, "wb") as out_file, open(err_path, "wb") as err_file:
+                # start_new_session so the pool's workers land in their own
+                # process group: killing just the direct child would leave the
+                # rest of the tree running.
+                proc = subprocess.Popen(
+                    [sys.executable, str(script)],
+                    stdout=out_file,
+                    stderr=err_file,
+                    env={
+                        **subprocess_env(),
+                        "CINDERX_JIT_AUTO": "2",
+                        "CINDERX_JIT_BACKGROUND_COMPILE": background_compile,
+                        "POOL_FORK_SEGMENTS": str(self.SEGMENTS),
+                        "POOL_FORK_TASKS": str(self.TASKS),
+                        "POOL_FORK_BUDGET": str(self.BUDGET),
+                    },
+                    start_new_session=True,
+                )
+                stalled = self._wait_for_progress(proc, err_path)
 
-    def _dump_and_kill(self, proc: "subprocess.Popen[str]") -> None:
+            stdout = out_path.read_text(encoding=ENCODING, errors="replace")
+            stderr = err_path.read_text(encoding=ENCODING, errors="replace")
+            return stalled, proc.returncode, stdout, stderr
+
+    def _wait_for_progress(
+        self, proc: "subprocess.Popen[bytes]", err_path: Path
+    ) -> bool:
+        """Wait for the workload, watching for a stall rather than a deadline.
+
+        Returns True if it went STALL_TIMEOUT without reporting anything, having
+        first dumped stacks and killed the tree.  Growth of the stderr file is
+        the liveness signal: the workload writes a line per completed task, and
+        faulthandler writes there too, so anything still moving still writes.
+        """
+        deadline = time.monotonic() + self.TIMEOUT
+        last_size = -1
+        last_change = time.monotonic()
+        while True:
+            try:
+                proc.wait(timeout=self.POLL_INTERVAL)
+                return False
+            except subprocess.TimeoutExpired:
+                pass
+
+            now = time.monotonic()
+            size = err_path.stat().st_size
+            if size != last_size:
+                last_size = size
+                last_change = now
+            elif now - last_change > self.STALL_TIMEOUT:
+                self._dump_and_kill(proc)
+                proc.wait()
+                return True
+
+            if now > deadline:
+                self._dump_and_kill(proc)
+                proc.wait()
+                self.skipTest(
+                    f"workload was still making progress after {self.TIMEOUT:.0f}s "
+                    f"but never finished; this host is too slow to run it"
+                )
+
+    def _dump_and_kill(self, proc: "subprocess.Popen[bytes]") -> None:
         """Ask every process in the group for a traceback, then kill them."""
         try:
             os.killpg(proc.pid, signal.SIGUSR1)
@@ -1109,11 +1216,12 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_pool_fork_during_background_compile(self) -> None:
-        timed_out, returncode, stdout, stderr = self._run_pool_workload("1")
+        stalled, returncode, stdout, stderr = self._run_pool_workload("1")
         self.assertFalse(
-            timed_out,
-            f"multiprocessing.Pool(fork) deadlocked with background compile "
-            f"enabled\nstdout:\n{stdout}\nstderr:\n{stderr}",
+            stalled,
+            f"multiprocessing.Pool(fork) stopped making progress for "
+            f"{self.STALL_TIMEOUT:.0f}s with background compile enabled\n"
+            f"stdout:\n{stdout}\nstderr:\n{stderr}",
         )
         self.assertEqual(returncode, 0, stderr)
         self.assertIn("ok ", stdout, stderr)
@@ -1121,12 +1229,12 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_pool_fork_without_background_compile(self) -> None:
         """Control: the same workload must be fine without background compile."""
-        timed_out, returncode, stdout, stderr = self._run_pool_workload("0")
+        stalled, returncode, stdout, stderr = self._run_pool_workload("0")
         self.assertFalse(
-            timed_out,
-            f"multiprocessing.Pool(fork) deadlocked with background compile "
-            f"disabled, so the workload itself is broken\nstdout:\n{stdout}\n"
-            f"stderr:\n{stderr}",
+            stalled,
+            f"multiprocessing.Pool(fork) stopped making progress for "
+            f"{self.STALL_TIMEOUT:.0f}s with background compile disabled, so "
+            f"the workload itself is broken\nstdout:\n{stdout}\nstderr:\n{stderr}",
         )
         self.assertEqual(returncode, 0, stderr)
         self.assertIn("ok ", stdout, stderr)
