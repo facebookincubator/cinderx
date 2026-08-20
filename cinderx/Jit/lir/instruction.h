@@ -98,77 +98,12 @@ class Instruction {
   // - VReg(instr), OutVReg(size): a virtual register
   // the arguments with the names prefixed with `Out` are output operands.
   // the output operand must be the first argument of this function.
-  template <typename FirstT, typename... T>
-  Instruction* addOperands(FirstT&& first_arg, T&&... args) {
-    using FT = std::decay_t<FirstT>;
+  template <typename... Args>
+  Instruction* addOperands(const Args&... args) {
+    static_assert(
+        validOperandOrder<Args...>(), "output must be the first argument.");
 
-    // A Condition is not an operand, so it doesn't count as coming "before"
-    // the output.
-    if constexpr (!std::is_same_v<FT, Condition>) {
-      static_assert(
-          !(isOutputArg<std::decay_t<decltype(args)>>() || ... || false),
-          "output must be the first argument.");
-    }
-
-    if constexpr (std::is_same_v<FT, PhyReg>) {
-      allocatePhyRegisterInput(first_arg.value)
-          ->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, Stk>) {
-      allocateStackInput(first_arg.value)->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, Imm>) {
-      allocateImmediateInput(first_arg.value)->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, FPImm>) {
-      allocateFPImmediateInput(first_arg.value)->setDataType(Operand::kDouble);
-    } else if constexpr (std::is_same_v<FT, MemImm>) {
-      allocateAddressInput(first_arg.value)->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, Lbl>) {
-      allocateLabelInput(first_arg.value);
-    } else if constexpr (std::is_same_v<FT, Condition>) {
-      setCondition(first_arg);
-    } else if constexpr (std::is_same_v<FT, AsmLbl>) {
-      allocateAsmLabelInput(first_arg.value);
-    } else if constexpr (std::is_same_v<FT, VReg>) {
-      allocateLinkedInput(first_arg.value);
-    } else if constexpr (std::is_same_v<FT, Ind>) {
-      allocateMemoryIndirectInput(
-          first_arg.base,
-          first_arg.index,
-          first_arg.multiplier,
-          first_arg.offset);
-    } else if constexpr (std::is_same_v<FT, OutPhyReg>) {
-      output()->setPhyRegister(first_arg.value);
-      output()->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, OutStk>) {
-      output()->setStackSlot(first_arg.value);
-      output()->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, OutImm>) {
-      output()->setConstant(first_arg.value);
-      output()->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, OutFPImm>) {
-      output()->setFPConstant(first_arg.value);
-      output()->setDataType(Operand::kDouble);
-    } else if constexpr (std::is_same_v<FT, OutMemImm>) {
-      output()->setMemoryAddress(first_arg.value);
-      output()->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, OutLbl>) {
-      output()->setBasicBlock(first_arg.value);
-    } else if constexpr (std::is_same_v<FT, OutVReg>) {
-      output()->setVirtualRegister();
-      output()->setDataType(first_arg.data_type);
-    } else if constexpr (std::is_same_v<FT, OutInd>) {
-      output()->setMemoryIndirect(
-          first_arg.base,
-          first_arg.index,
-          first_arg.multiplier,
-          first_arg.offset);
-    } else {
-      static_assert(!sizeof(FT*), "Bad argument type.");
-    }
-
-    return addOperands(std::forward<T>(args)...);
-  }
-
-  constexpr Instruction* addOperands() {
+    (addOperand(args), ...);
     return this;
   }
 
@@ -243,6 +178,81 @@ class Instruction {
     (operand_ptr->*set_func)(std::forward<AType>(arg)...);
     inputs_.push_back(std::move(operand));
     return operand_ptr;
+  }
+
+  template <typename... Args>
+  static constexpr bool validOperandOrder() {
+    bool saw_non_condition_arg = false;
+    bool valid = true;
+
+    (
+        [&] {
+          using Arg = std::decay_t<Args>;
+          // A Condition is not an operand, so it doesn't count as coming
+          // "before" the output.
+          if constexpr (!std::is_same_v<Arg, Condition>) {
+            if (isOutputArg<Arg>() && saw_non_condition_arg) {
+              valid = false;
+            }
+            saw_non_condition_arg = true;
+          }
+        }(),
+        ...);
+
+    return valid;
+  }
+
+  template <typename T>
+  void addOperand(const T& arg) {
+    using ArgType = std::decay_t<T>;
+
+    if constexpr (std::is_same_v<ArgType, PhyReg>) {
+      allocatePhyRegisterInput(arg.value)->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, Stk>) {
+      allocateStackInput(arg.value)->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, Imm>) {
+      allocateImmediateInput(arg.value)->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, FPImm>) {
+      allocateFPImmediateInput(arg.value)->setDataType(Operand::kDouble);
+    } else if constexpr (std::is_same_v<ArgType, MemImm>) {
+      allocateAddressInput(arg.value)->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, Lbl>) {
+      allocateLabelInput(arg.value);
+    } else if constexpr (std::is_same_v<ArgType, Condition>) {
+      setCondition(arg);
+    } else if constexpr (std::is_same_v<ArgType, AsmLbl>) {
+      allocateAsmLabelInput(arg.value);
+    } else if constexpr (std::is_same_v<ArgType, VReg>) {
+      allocateLinkedInput(arg.value);
+    } else if constexpr (std::is_same_v<ArgType, Ind>) {
+      allocateMemoryIndirectInput(
+          arg.base, arg.index, arg.multiplier, arg.offset);
+    } else if constexpr (std::is_same_v<ArgType, OutPhyReg>) {
+      output()->setPhyRegister(arg.value);
+      output()->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, OutStk>) {
+      output()->setStackSlot(arg.value);
+      output()->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, OutImm>) {
+      output()->setConstant(arg.value);
+      output()->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, OutFPImm>) {
+      output()->setFPConstant(arg.value);
+      output()->setDataType(Operand::kDouble);
+    } else if constexpr (std::is_same_v<ArgType, OutMemImm>) {
+      output()->setMemoryAddress(arg.value);
+      output()->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, OutLbl>) {
+      output()->setBasicBlock(arg.value);
+    } else if constexpr (std::is_same_v<ArgType, OutVReg>) {
+      output()->setVirtualRegister();
+      output()->setDataType(arg.data_type);
+    } else if constexpr (std::is_same_v<ArgType, OutInd>) {
+      output()->setMemoryIndirect(
+          arg.base, arg.index, arg.multiplier, arg.offset);
+    } else {
+      static_assert(!sizeof(ArgType*), "Bad argument type.");
+    }
   }
 
   int id_;
