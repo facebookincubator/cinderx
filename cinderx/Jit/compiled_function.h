@@ -271,7 +271,7 @@ class CompiledFunction {
   std::unordered_set<BorrowedRef<PyFunctionObject>> functions_;
 };
 
-// Initialize the CompiledFunction key and type. Should be called during
+// Initialize the CompiledFunction key and types. Should be called during
 // module initialization.
 int initCompiledFunctionType();
 

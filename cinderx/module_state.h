@@ -76,6 +76,11 @@ struct ModuleState {
   // Type for the custom awaitable returned by CinderX's anext() replacement.
   Ref<PyTypeObject> anext_awaitable_type;
 
+  // Types for JIT-compiled functions and their detached data.  Created lazily
+  // when the JIT is initialized.
+  Ref<PyTypeObject> compiled_function_type;
+  Ref<PyTypeObject> compiled_function_data_type;
+
   // The cinderx.StaticTypeError exception type.
   Ref<PyTypeObject> static_type_error;
 

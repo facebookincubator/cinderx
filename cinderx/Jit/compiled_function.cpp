@@ -40,17 +40,21 @@ PyObject *kCompiledFunctionKey, *kNestedCompiledFunctionsKey = nullptr;
 namespace {
 
 void compiledfunc_dealloc(PyObject* self) {
-  CompiledFunction* cf = reinterpret_cast<CompiledFunction*>(self);
+  PyTypeObject* type = Py_TYPE(self);
+  auto cf = reinterpret_cast<CompiledFunction*>(self);
   PyObject_GC_UnTrack(self);
 
   // Call destructor for C++ members.
   cf->~CompiledFunction();
 
-  Py_TYPE(self)->tp_free(self);
+  type->tp_free(self);
+
+  Py_DECREF(type);
 }
 
 int compiledfunc_traverse(PyObject* self, visitproc visit, void* arg) {
-  CompiledFunction* cf = reinterpret_cast<CompiledFunction*>(self);
+  Py_VISIT(Py_TYPE(self));
+  auto cf = reinterpret_cast<CompiledFunction*>(self);
   return cf->traverse(visit, arg);
 }
 
@@ -94,17 +98,15 @@ PyMethodDef compiledfunc_methods[] = {
     {nullptr, nullptr, 0, nullptr},
 };
 
-static PyTypeObject _CiCompiledFunction_Type = {
-    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "CompiledFunction",
-    .tp_basicsize = sizeof(CompiledFunction),
-    .tp_dealloc = compiledfunc_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_traverse = compiledfunc_traverse,
-    .tp_clear = compiledfunc_clear,
-    .tp_methods = compiledfunc_methods,
-};
+PyType_Slot compiled_function_slots[] = {
+    {Py_tp_dealloc, reinterpret_cast<void*>(compiledfunc_dealloc)},
+    {Py_tp_traverse, reinterpret_cast<void*>(compiledfunc_traverse)},
+    {Py_tp_clear, reinterpret_cast<void*>(compiledfunc_clear)},
+    {Py_tp_methods, reinterpret_cast<void*>(compiledfunc_methods)},
+    {0, nullptr}};
 
 void compiledfuncdata_dealloc(PyObject* self) {
+  PyTypeObject* type = Py_TYPE(self);
   CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
   PyObject_GC_UnTrack(self);
 
@@ -120,11 +122,14 @@ void compiledfuncdata_dealloc(PyObject* self) {
   }
 
   cfd->~CompiledFunctionData();
-  Py_TYPE(self)->tp_free(self);
+  type->tp_free(self);
+
+  Py_DECREF(type);
 }
 
 int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
-  CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
+  Py_VISIT(Py_TYPE(self));
+  auto cfd = reinterpret_cast<CompiledFunctionData*>(self);
   if (cfd->runtime != nullptr) {
     // During shutdown the Context (and its CodeRuntime slab) may be destroyed
     // while CFs still exist in function dicts.  Skip traversal if the JIT
@@ -142,28 +147,52 @@ int compiledfuncdata_clear(PyObject* /*self*/) {
   return 0;
 }
 
-static PyTypeObject _CiCompiledFunctionData_Type = {
-    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "CompiledFunctionData",
-    .tp_basicsize = sizeof(CompiledFunctionData),
-    .tp_dealloc = compiledfuncdata_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_traverse = compiledfuncdata_traverse,
-    .tp_clear = compiledfuncdata_clear,
+PyType_Slot compiled_function_data_slots[] = {
+    {Py_tp_dealloc, reinterpret_cast<void*>(compiledfuncdata_dealloc)},
+    {Py_tp_traverse, reinterpret_cast<void*>(compiledfuncdata_traverse)},
+    {Py_tp_clear, reinterpret_cast<void*>(compiledfuncdata_clear)},
+    {0, nullptr}};
+
+PyType_Spec CompiledFunction_Spec = {
+    .name = "cinderjit.CompiledFunction",
+    .basicsize = sizeof(CompiledFunction),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = compiled_function_slots,
+};
+
+PyType_Spec CompiledFunctionData_Spec = {
+    .name = "cinderjit.CompiledFunctionData",
+    .basicsize = sizeof(CompiledFunctionData),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = compiled_function_data_slots,
 };
 
 } // namespace
 
-} // namespace cinderx::jit
-
-namespace cinderx::jit {
-
 int initCompiledFunctionType() {
-  if (PyType_Ready(&_CiCompiledFunctionData_Type) < 0) {
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  if (mod_state == nullptr) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "Can't initialize compiled function types, lacking module state");
     return -1;
   }
-  if (PyType_Ready(&_CiCompiledFunction_Type) < 0) {
+
+  auto data_type = reinterpret_cast<PyTypeObject*>(
+      PyType_FromSpec(&CompiledFunctionData_Spec));
+  if (data_type == nullptr) {
     return -1;
   }
+  mod_state->compiled_function_data_type = Ref<PyTypeObject>::steal(data_type);
+
+  auto func_type =
+      reinterpret_cast<PyTypeObject*>(PyType_FromSpec(&CompiledFunction_Spec));
+  if (func_type == nullptr) {
+    return -1;
+  }
+  mod_state->compiled_function_type = Ref<PyTypeObject>::steal(func_type);
 
   // Create the key used to store CompiledFunction in function's __dict__.
   kCompiledFunctionKey =
@@ -182,7 +211,11 @@ int initCompiledFunctionType() {
 }
 
 BorrowedRef<PyTypeObject> getCompiledFunctionType() {
-  return &_CiCompiledFunction_Type;
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  if (mod_state == nullptr) {
+    return nullptr;
+  }
+  return mod_state->compiled_function_type;
 }
 
 CompiledFunction::CompiledFunction(CompiledFunctionData* data, bool contiguous)
@@ -263,14 +296,20 @@ CompiledFunctionData* CompiledFunction::stealData() {
 Ref<CompiledFunction> CompiledFunction::create(
     CompiledFunctionData&& compiled_func,
     bool immortal) {
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  JIT_DCHECK(
+      mod_state != nullptr && mod_state->compiled_function_type != nullptr &&
+          mod_state->compiled_function_data_type != nullptr,
+      "CompiledFunction types not initialized");
+
   CompiledFunction* cf;
   // If the CompiledFunction is not being allocated as immortal we need a second
   // object to properly track the lifetime and free the underlying code. If it
   // is immortal we'll just never free the code anyway.
   if (!immortal) {
     // Allocate CompiledFunctionData as a separate GC-tracked Python object.
-    CompiledFunctionData* cfd =
-        PyObject_GC_New(CompiledFunctionData, &_CiCompiledFunctionData_Type);
+    CompiledFunctionData* cfd = PyObject_GC_New(
+        CompiledFunctionData, mod_state->compiled_function_data_type);
     if (cfd == nullptr) {
       return nullptr;
     }
@@ -279,7 +318,7 @@ Ref<CompiledFunction> CompiledFunction::create(
     cfd->ob_base = saved_base;
     PyObject_GC_Track(reinterpret_cast<PyObject*>(cfd));
 
-    cf = PyObject_GC_New(CompiledFunction, &_CiCompiledFunction_Type);
+    cf = PyObject_GC_New(CompiledFunction, mod_state->compiled_function_type);
     if (cf == nullptr) {
       Py_DECREF(cfd);
       return nullptr;
@@ -298,7 +337,7 @@ Ref<CompiledFunction> CompiledFunction::create(
         new (raw + cfd_offset) CompiledFunctionData(std::move(compiled_func));
     cf = new (raw) CompiledFunction(cfd, true);
 
-    PyObject_Init(&cf->ob_base, &_CiCompiledFunction_Type);
+    PyObject_Init(&cf->ob_base, mod_state->compiled_function_type);
 #if PY_VERSION_HEX >= 0x030E0000
     _Py_SetImmortalUntracked(&cf->ob_base);
 #else
