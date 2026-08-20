@@ -1048,11 +1048,31 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         assert isinstance(self, FlowGraphOptimizer314)
         self.optimize_one_unary(instr_index, instr, block, operator.not_)
 
-    def fold_constant_intrinsic_list_to_tuple(
-        self, block: Block, instr_index: int
-    ) -> None:
-        consts_found = 0
-        expect_append = True
+    def fold_constant_seq_into_load_const(self, block: Block, instr_index: int) -> None:
+        """Replace:
+            BUILD_LIST/BUILD_SET 0
+            LOAD_CONST c1
+            LIST_APPEND/SET_ADD 1
+            ...
+            LOAD_CONST cN
+            LIST_APPEND/SET_ADD 1
+            [CALL_INTRINSIC_1 INTRINSIC_LIST_TO_TUPLE]   <-- optional
+        with:
+            LOAD_CONST (c1, c2, ... cN)
+
+        The instruction at `instr_index` is either the LIST_TO_TUPLE intrinsic
+        (so only the BUILD_LIST/LIST_APPEND form is considered), or the trailing
+        LIST_APPEND or SET_ADD itself, in which case the matching
+        BUILD_LIST/BUILD_SET start is selected from its opcode and sets are
+        folded into a frozenset.
+        """
+        target = block.insts[instr_index]
+        expected_append = target.opname == "CALL_INTRINSIC_1"
+        append_op = "LIST_APPEND" if expected_append else target.opname
+        build_op = "BUILD_LIST" if append_op == "LIST_APPEND" else "BUILD_SET"
+        # Walking backwards, appends and the constants they push alternate. The
+        # intrinsic is preceded by an append, a trailing append by a constant.
+        expect_append = expected_append
         for i in range(instr_index - 1, -1, -1):
             instr = block.insts[i]
             opcode = instr.opname
@@ -1060,31 +1080,33 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
             if opcode == "NOP":
                 continue
 
-            if opcode == "BUILD_LIST" and oparg == 0:
+            if opcode == build_op and oparg == 0:
                 if not expect_append:
                     # Not a start sequence
                     return
 
                 # Sequence start, we are done.
                 consts = []
-                if opcode == "BUILD_LIST" and oparg == 0:
-                    for newpos in range(instr_index - 1, i - 1, -1):
-                        instr = block.insts[newpos]
-                        if instr.opname in LOAD_CONST_INSTRS:
-                            const = instr.oparg
-                            consts.append(const)
-                        instr.set_to_nop_no_loc()
+                start = instr_index - 1 if expected_append else instr_index
+                for newpos in range(start, i - 1, -1):
+                    instr = block.insts[newpos]
+                    if instr.opname in LOAD_CONST_INSTRS:
+                        const = instr.oparg
+                        consts.append(const)
+                    instr.set_to_nop_no_loc()
 
                 consts.reverse()
-                self.make_load_const(block.insts[instr_index], tuple(consts))
+                newconst: object = (
+                    frozenset(consts) if build_op == "BUILD_SET" else tuple(consts)
+                )
+                self.make_load_const(target, newconst)
                 return
 
             if expect_append:
-                if opcode != "LIST_APPEND" or oparg != 1:
+                if opcode != append_op or oparg != 1:
                     return
             elif opcode not in LOAD_CONST_INSTRS:
                 return
-            consts_found += 1
             expect_append = not expect_append
 
     def optimize_call_intrinsic_1(
@@ -1101,7 +1123,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
             if next_instr is not None and next_instr.opname == "GET_ITER":
                 instr.set_to_nop()
             else:
-                self.fold_constant_intrinsic_list_to_tuple(block, instr_index)
+                self.fold_constant_seq_into_load_const(block, instr_index)
         if intrins == "INTRINSIC_UNARY_POSITIVE":
             # pyrefly: ignore [bad-argument-type]
             self.optimize_one_unary(instr_index, instr, block, operator.pos)
@@ -1152,6 +1174,62 @@ class FlowGraphOptimizer314(BaseFlowGraphOptimizer314):
                 if new_i is not None:
                     i = new_i
             i += 1
+
+
+class FlowGraphOptimizer316(FlowGraphOptimizer314):
+    """Python 3.16-specific optimizations."""
+
+    def optimize_call_intrinsic_1(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer316)
+        intrins = INTRINSIC_1[instr.ioparg]
+        if intrins == "INTRINSIC_LIST_TO_TUPLE":
+            # Unlike 3.14/3.15, folding is attempted even when iterating, so a
+            # big constant tuple becomes a single LOAD_CONST instead of staying
+            # a list build. The intrinsic is only dropped if folding didn't
+            # already rewrite it.
+            self.fold_constant_seq_into_load_const(block, instr_index)
+            if (
+                instr.opname == "CALL_INTRINSIC_1"
+                and next_instr is not None
+                and next_instr.opname == "GET_ITER"
+            ):
+                instr.set_to_nop()
+        if intrins == "INTRINSIC_UNARY_POSITIVE":
+            # pyrefly: ignore [bad-argument-type]
+            self.optimize_one_unary(instr_index, instr, block, operator.pos)
+
+    def optimize_list_append_set_add(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer316)
+        # Sequences too big for optimize_lists_and_sets are built with repeated
+        # appends. When they're only iterated over or tested for membership a
+        # constant tuple/frozenset is a suitable replacement.
+        if (
+            instr.oparg == 1
+            and next_instr is not None
+            and next_instr.opname in ("GET_ITER", "CONTAINS_OP")
+        ):
+            self.fold_constant_seq_into_load_const(block, instr_index)
+
+    handlers: dict[str, Handler] = {
+        **FlowGraphOptimizer314.handlers,
+        "CALL_INTRINSIC_1": optimize_call_intrinsic_1,
+        "LIST_APPEND": optimize_list_append_set_add,
+        "SET_ADD": optimize_list_append_set_add,
+    }
 
 
 class FlowGraphConstOptimizer314(BaseFlowGraphOptimizer314):

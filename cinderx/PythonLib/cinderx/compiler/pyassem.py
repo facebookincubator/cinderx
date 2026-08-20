@@ -55,6 +55,7 @@ from .flow_graph_optimizer import (
     FlowGraphOptimizer,
     FlowGraphOptimizer312,
     FlowGraphOptimizer314,
+    FlowGraphOptimizer316,
 )
 from .opcode_cinder import opcode as cinder_opcode
 from .opcodebase import Opcode
@@ -3305,6 +3306,7 @@ class PyFlowGraph315(PyFlowGraph314):
 
 
 class PyFlowGraph316(PyFlowGraph315):
+    flow_graph_optimizer = FlowGraphOptimizer316
     flow_graph_const_optimizer = FlowGraphConstOptimizer316
 
     def convert_load_const_to_load_common_constant(self) -> None:

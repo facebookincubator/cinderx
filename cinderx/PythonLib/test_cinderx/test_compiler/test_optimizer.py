@@ -30,6 +30,11 @@ from cinderx.test_support import passIf
 
 from .common import CompilerTest
 
+# A constant sequence long enough to exceed STACK_USE_GUIDELINE, so it is built
+# with repeated appends rather than a single BUILD_LIST/BUILD_SET.
+BIG_CONST_TUPLE: tuple[int, ...] = tuple(range(100, 140))
+BIG_CONST_ELTS: str = ", ".join(str(i) for i in BIG_CONST_TUPLE)
+
 
 class AstOptimizerTests(CompilerTest):
     class _Comparer:
@@ -482,6 +487,38 @@ class AstOptimizerTests(CompilerTest):
             self.assertInGraph(graph, "CALL_INTRINSIC_1")
         else:
             self.assertNotInGraph(graph, "CALL_INTRINSIC_1")
+
+    @passIf(sys.version_info < (3, 14), "3.12 folds big constant sequences in codegen")
+    def test_big_const_list_iteration(self) -> None:
+        # Sequences over STACK_USE_GUIDELINE elements are built with repeated
+        # appends. 3.16 folds such a chain into a constant tuple when the
+        # result is only iterated over; earlier versions keep the build.
+        graph = self.to_graph(f"for x in [{BIG_CONST_ELTS}]: pass")
+        if sys.version_info >= (3, 16):
+            self.assertInGraph(graph, "LOAD_CONST", BIG_CONST_TUPLE)
+            self.assertNotInGraph(graph, "BUILD_LIST")
+        else:
+            self.assertInGraph(graph, "BUILD_LIST", 0)
+            self.assertNotInGraph(graph, "LOAD_CONST", BIG_CONST_TUPLE)
+
+    @passIf(sys.version_info < (3, 14), "3.12 folds big constant sequences in codegen")
+    def test_big_const_set_membership(self) -> None:
+        # Same as above for sets, which fold into a frozenset.
+        graph = self.to_graph(f"y = x in {{{BIG_CONST_ELTS}}}")
+        if sys.version_info >= (3, 16):
+            self.assertInGraph(graph, "LOAD_CONST", frozenset(BIG_CONST_TUPLE))
+            self.assertNotInGraph(graph, "BUILD_SET")
+        else:
+            self.assertInGraph(graph, "BUILD_SET", 0)
+            self.assertNotInGraph(graph, "LOAD_CONST", frozenset(BIG_CONST_TUPLE))
+
+    @passIf(sys.version_info < (3, 14), "3.12 folds big constant sequences in codegen")
+    def test_big_const_list_not_folded_when_used_as_a_list(self) -> None:
+        # The fold is only valid when the sequence is consumed by GET_ITER or
+        # CONTAINS_OP; a list that escapes must still be built as a list.
+        graph = self.to_graph(f"x = [{BIG_CONST_ELTS}]")
+        self.assertInGraph(graph, "BUILD_LIST", 0)
+        self.assertNotInGraph(graph, "LOAD_CONST", BIG_CONST_TUPLE)
 
 
 class _FakeInstr:
