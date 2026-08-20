@@ -833,7 +833,12 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
     def visitAugAssign(self, node: AugAssign) -> None:
         self.visit(node.target)
         target_type = self.get_type(node.target).inexact()
-        self.visit(node.value, target_type)
+        if isinstance(target_type.klass, CType):
+            self.visitExpectedType(
+                node.value, target_type, target_type.binop_error("{}", "{}", node.op)
+            )
+        else:
+            self.visit(node.value, target_type)
         self.set_type(node, target_type)
 
     @contextmanager
