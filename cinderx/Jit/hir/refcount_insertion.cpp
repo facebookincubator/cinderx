@@ -519,6 +519,19 @@ void registerBorrowSupport(Env& env, RegState& rstate) {
   env.borrowed_regs.emplace(&rstate);
 }
 
+// Mark the given RegState Uncounted, dropping any registration it had in
+// env.borrowed_regs. An uncounted value never needs promoting to owned, so
+// leaving it registered would trip the invariant in invalidateBorrowSupport().
+//
+// env.borrow_support is deliberately left alone: it's the union of the support
+// of every borrowed value, so bits can't be cleared for one value in
+// isolation, and an over-approximation there only costs a scan that finds
+// nothing to promote.
+void setUncounted(Env& env, RegState& rstate) {
+  env.borrowed_regs.erase(&rstate);
+  rstate.setUncounted();
+}
+
 // Invalidate the borrow support represented by either a bit index or an
 // AliasClass, updating live value state and inserting Increfs to promote
 // values to owned as appropriate.
@@ -664,7 +677,7 @@ void useSimpleInState(Env& env, BasicBlock* block) {
     // immortal sentinel.
     if (block == cond->false_bb()) {
       Register* reg = cond->getOperand(0);
-      map_get(env.live_regs, reg).setUncounted();
+      setUncounted(env, map_get(env.live_regs, reg));
     }
   } else if (term->isCondBranchCheckType()) {
     // Ci_PyWaitHandleObject is an uncounted singleton, so we adjust its
@@ -673,7 +686,7 @@ void useSimpleInState(Env& env, BasicBlock* block) {
     if (cond->type() == TWaitHandle) {
       if (block == cond->true_bb()) {
         Register* reg = cond->getOperand(0);
-        map_get(env.live_regs, reg).setUncounted();
+        setUncounted(env, map_get(env.live_regs, reg));
       }
     }
   }
@@ -1034,7 +1047,7 @@ void processOutput(Env& env, const Instr& instr, const MemoryEffects& effects) {
     auto& rstate = map_get(env.live_regs, output);
     rstate.addCopy(output);
     if (isUncounted(output)) {
-      rstate.setUncounted();
+      setUncounted(env, rstate);
     }
     return;
   }
