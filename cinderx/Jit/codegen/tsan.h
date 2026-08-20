@@ -6,18 +6,6 @@
 
 #include <cstddef>
 
-#if defined(__has_feature)
-#define CINDER_TSAN_HAS_FEATURE(x) __has_feature(x)
-#else
-#define CINDER_TSAN_HAS_FEATURE(x) 0
-#endif
-
-#if defined(__SANITIZE_THREAD__) || CINDER_TSAN_HAS_FEATURE(thread_sanitizer)
-#define CINDER_TSAN_ENABLED 1
-#else
-#define CINDER_TSAN_ENABLED 0
-#endif
-
 // JIT TSAN instrumentation is currently implemented for Linux x86-64. Other
 // platforms can still use TSAN for non-JIT code.
 #if CINDER_TSAN_ENABLED && defined(CINDER_X86_64) && defined(__linux__)

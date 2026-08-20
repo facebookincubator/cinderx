@@ -10,6 +10,18 @@
 
 #include "cinderx/python.h"
 
+#if defined(__has_feature)
+#define CINDER_HAS_FEATURE(x) __has_feature(x)
+#else
+#define CINDER_HAS_FEATURE(x) 0
+#endif
+
+#if defined(__SANITIZE_THREAD__) || CINDER_HAS_FEATURE(thread_sanitizer)
+#define CINDER_TSAN_ENABLED 1
+#else
+#define CINDER_TSAN_ENABLED 0
+#endif
+
 namespace cinderx {
 
 // Whether CinderX is being built with a debug build configuration.
