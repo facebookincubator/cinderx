@@ -4,6 +4,7 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/config.h"
 
@@ -154,23 +155,19 @@ template <typename... Args>
     JIT_THROW(__VA_ARGS__);     \
   }
 
-#ifdef Py_DEBUG
-#define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)
-#define JIT_DCHECK(COND, ...) JIT_CHECK((COND), __VA_ARGS__)
-#define JIT_DCHECK_ONCE(COND, ...) JIT_CHECK_ONCE((COND), __VA_ARGS__)
-#else
 #define JIT_DABORT(...)     \
-  if (0) {                  \
+  if constexpr (kDebug) {   \
     JIT_ABORT(__VA_ARGS__); \
   }
+
 #define JIT_DCHECK(COND, ...)       \
-  if (0) {                          \
+  if constexpr (kDebug) {           \
     JIT_CHECK((COND), __VA_ARGS__); \
   }
+
 #define JIT_DCHECK_ONCE(COND, ...)       \
-  if (0) {                               \
+  if constexpr (kDebug) {                \
     JIT_CHECK_ONCE((COND), __VA_ARGS__); \
   }
-#endif
 
 } // namespace cinderx
