@@ -1191,7 +1191,11 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
   auto epilogue = caller.allocateBasicBlock();
   bb->addSuccessor(epilogue);
   LIRInliner inliner{&caller, call_instr};
-  inliner.inlineCall();
+
+#ifdef __APPLE__
+  ASSERT_FALSE(inliner.inlineCall());
+#else
+  ASSERT_TRUE(inliner.inlineCall());
 
   // Check that caller LIR is as expected.
   auto expected_caller = fmt::format(
@@ -1242,6 +1246,7 @@ BB %6 - preds: %7
   std::string caller_str =
       regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
   ASSERT_EQ(expected_caller, caller_str);
+#endif
 
   // Test execution of caller
   CheckCast(&caller);
@@ -1274,7 +1279,45 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
   post_gen.run();
 
   // Check that caller LIR is as expected.
-#ifdef Py_GIL_DISABLED
+#if defined(__APPLE__) && defined(Py_GIL_DISABLED)
+  auto expected_caller = fmt::format(
+      R"(Function:
+BB %0 - succs: %6
+       %1:Object = Bind {0}:Object
+       %2:Object = Bind {1}:Object
+       %7:Object = Move %1:Object
+ %8:ObjectUntagged = And %7:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+       %9:Object = Move %2:Object
+%10:ObjectUntagged = And %9:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+       %3:Object = Call {2}({2:#x}):64bit, %8:ObjectUntagged, %10:ObjectUntagged
+{3:>16} = Move %3:Object
+                   Return
+
+BB %6 - preds: %0
+
+)",
+      ARGUMENT_REGS[0],
+      ARGUMENT_REGS[1],
+      reinterpret_cast<uint64_t>(rt::cast),
+      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
+#elif defined(__APPLE__)
+  auto expected_caller = fmt::format(
+      R"(Function:
+BB %0 - succs: %6
+       %1:Object = Bind {0}:Object
+       %2:Object = Bind {1}:Object
+       %3:Object = Call {2}({2:#x}):64bit, %1:Object, %2:Object
+{3:>16} = Move %3:Object
+                   Return
+
+BB %6 - preds: %0
+
+)",
+      ARGUMENT_REGS[0],
+      ARGUMENT_REGS[1],
+      reinterpret_cast<uint64_t>(rt::cast),
+      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
+#elif defined(Py_GIL_DISABLED)
   auto expected_caller = fmt::format(
       R"(Function:
 BB %0 - succs: %8
