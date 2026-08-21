@@ -45,6 +45,37 @@ class AugAssignTests(StaticTestBase):
             self.assertInBytecode(a, "PRIMITIVE_BINARY_OP", 0)
             self.assertEqual(a(3), 5)
 
+    def test_primitive_int_dynamic_rhs(self) -> None:
+        codestr = """
+        from __static__ import int64
+
+        class C:
+            def __init__(self) -> None:
+                self.total: int64 = 0
+
+            def add_values(self, values: dict[str, int]) -> None:
+                for _, value in values.items():
+                    self.total += value
+        """
+        self.type_error(codestr, r"cannot add int64 and dynamic", at="value")
+
+    def test_primitive_int_dynamic_rhs_explicit_cast(self) -> None:
+        codestr = """
+        from __static__ import box, int64
+
+        class C:
+            def __init__(self) -> None:
+                self.total: int64 = 0
+
+            def add_values(self, values: dict[str, int]) -> int:
+                for _, value in values.items():
+                    self.total += int64(value)
+                return box(self.total)
+        """
+        with self.in_module(codestr) as mod:
+            instance = mod.C()
+            self.assertEqual(instance.add_values({"a": 2, "b": 3}), 5)
+
     def test_inexact(self) -> None:
         codestr = """
         def something():
