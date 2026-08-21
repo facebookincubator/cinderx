@@ -14,6 +14,7 @@ import sysconfig
 import tempfile
 import types
 import unittest
+import warnings
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Generator, Sequence, TypeVar
@@ -352,10 +353,22 @@ def run_in_subprocess(func: Callable[..., None]) -> Callable[..., None]:
         except Exception as e:
             queue.put(_ExceptionResult(e), timeout=SUBPROCESS_TIMEOUT_SEC)
 
+    @functools.wraps(func)
     def wrapped(*args: object) -> None:
         fork = multiprocessing.get_context("fork")
         p = fork.Process(target=wrapper, args=(queue, *args))
-        p.start()
+
+        # Ignore warnings about running fork in a multi-threaded environment, they're
+        # not helpful.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+                message=r"This process.*is multi-threaded.*",
+            )
+
+            p.start()
+
         value = queue.get(timeout=SUBPROCESS_TIMEOUT_SEC)
         p.join(timeout=SUBPROCESS_TIMEOUT_SEC)
         if isinstance(value, _ExceptionResult):
