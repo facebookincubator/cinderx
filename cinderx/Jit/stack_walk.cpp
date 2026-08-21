@@ -2,10 +2,16 @@
 
 #include "cinderx/Jit/stack_walk.h"
 
+#if defined(__APPLE__) || defined(__linux__)
+
 #include <fmt/format.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
+#ifdef __APPLE__
+#include <sys/ucontext.h>
+#else
 #include <ucontext.h>
+#endif
 #include <unistd.h>
 
 #include <atomic>
@@ -17,10 +23,11 @@
 #include <cstring>
 #include <ctime>
 #include <mutex>
+#include <stdexcept>
+#include <system_error>
 
 namespace cinderx {
 
-#if defined(__APPLE__) || defined(__linux__)
 namespace {
 
 // How far above the previous record a caller's record may sit when the stack's
@@ -393,7 +400,9 @@ static std::atomic<StackWalk*> s_active;
 bool StackWalk::installHandler(int signum, struct sigaction* prev) {
   struct sigaction action = {};
   action.sa_sigaction = handleSignal;
-  ::sigemptyset(&action.sa_mask);
+  // Darwin exposes the signal-set helpers as macros, so they cannot be
+  // namespace-qualified.
+  sigemptyset(&action.sa_mask);
   action.sa_flags = SA_SIGINFO | SA_RESTART;
   return ::sigaction(signum, &action, prev) == 0;
 }
@@ -420,7 +429,7 @@ bool StackWalk::handlerIsOurs(int signum) {
 // terminates the process.
 int StackWalk::claimSignum() {
   sigset_t blocked;
-  ::sigemptyset(&blocked);
+  sigemptyset(&blocked);
   ::pthread_sigmask(SIG_BLOCK, nullptr, &blocked);
 
   auto claim = [&blocked](int signum) {
@@ -429,7 +438,7 @@ int StackWalk::claimSignum() {
     // it reads as unclaimed below and taking it would be undetectable - but a
     // thread that waits on a signal has to block it first, and the convention
     // is to block it in every thread before any of them start.
-    if (::sigismember(&blocked, signum) == 1) {
+    if (sigismember(&blocked, signum) == 1) {
       return false;
     }
     // Already carrying this class's handler, which means an earlier scan
@@ -516,7 +525,7 @@ void StackWalk::resetSignumCache() {
   if (signum > 0 && handlerIsOurs(signum)) {
     struct sigaction action = {};
     action.sa_handler = SIG_DFL;
-    ::sigemptyset(&action.sa_mask);
+    sigemptyset(&action.sa_mask);
     ::sigaction(signum, &action, nullptr);
   }
 }
@@ -837,12 +846,22 @@ StackWalk::Publish StackWalk::publishBatch(size_t count) {
 void StackWalk::captureFrames(const void* ucontext) {
   auto uc = static_cast<const ucontext_t*>(ucontext);
 
-#if defined(__x86_64__)
+#if defined(__APPLE__) && defined(__aarch64__)
+  // StackWalk is compile-only on macOS because sem_init() is unsupported and
+  // its constructor always throws. The context extraction still has to build
+  // as part of the JIT library.
+  const auto& state = uc->uc_mcontext->__ss;
+  auto frame = reinterpret_cast<const StackFrame*>(
+      __darwin_arm_thread_state64_get_fp(state));
+  auto pc =
+      reinterpret_cast<const void*>(__darwin_arm_thread_state64_get_pc(state));
+  auto sp = static_cast<uintptr_t>(__darwin_arm_thread_state64_get_sp(state));
+#elif defined(__linux__) && defined(__x86_64__)
   auto frame =
       reinterpret_cast<const StackFrame*>(uc->uc_mcontext.gregs[REG_RBP]);
   auto pc = reinterpret_cast<const void*>(uc->uc_mcontext.gregs[REG_RIP]);
   auto sp = static_cast<uintptr_t>(uc->uc_mcontext.gregs[REG_RSP]);
-#elif defined(__aarch64__)
+#elif defined(__linux__) && defined(__aarch64__)
   auto frame = reinterpret_cast<const StackFrame*>(uc->uc_mcontext.regs[29]);
   auto pc = reinterpret_cast<const void*>(uc->uc_mcontext.pc);
   auto sp = static_cast<uintptr_t>(uc->uc_mcontext.sp);
@@ -907,5 +926,6 @@ void StackWalk::captureFrames(const void* ucontext) {
     ::sem_post(&handler_exited_);
   }
 }
-#endif
 } // namespace cinderx
+
+#endif

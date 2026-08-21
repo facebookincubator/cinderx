@@ -7,7 +7,11 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/mman.h>
+#ifdef __APPLE__
+#include <sys/ucontext.h>
+#else
 #include <ucontext.h>
+#endif
 #include <unistd.h>
 
 #include <algorithm>
@@ -148,8 +152,8 @@ class SpinningThread {
     // which signals as soon as the thread is up cannot beat it.
     if (deaf_to != 0) {
       sigset_t deaf;
-      ::sigemptyset(&deaf);
-      ::sigaddset(&deaf, deaf_to);
+      sigemptyset(&deaf);
+      sigaddset(&deaf, deaf_to);
       ::pthread_sigmask(SIG_BLOCK, &deaf, nullptr);
     }
     ready_.store(true, std::memory_order_release);
@@ -157,8 +161,8 @@ class SpinningThread {
       if (deaf_to != 0 && !listening_.load(std::memory_order_relaxed) &&
           listen_.load(std::memory_order_acquire)) {
         sigset_t deaf;
-        ::sigemptyset(&deaf);
-        ::sigaddset(&deaf, deaf_to);
+        sigemptyset(&deaf);
+        sigaddset(&deaf, deaf_to);
         ::pthread_sigmask(SIG_UNBLOCK, &deaf, nullptr);
         listening_.store(true, std::memory_order_release);
       }
@@ -866,7 +870,7 @@ class OccupiedSignals {
   OccupiedSignals(const std::vector<int>& signums, void (*handler)(int)) {
     struct sigaction action = {};
     action.sa_handler = handler;
-    ::sigemptyset(&action.sa_mask);
+    sigemptyset(&action.sa_mask);
     for (int signum : signums) {
       struct sigaction prev = {};
       if (::sigaction(signum, &action, &prev) == 0) {
@@ -1081,7 +1085,7 @@ TEST(StackWalkSignalDiscoveryTest, AWalkerRescansAfterItsSignalIsTakenOver) {
 
     struct sigaction action = {};
     action.sa_handler = &occupyingHandler;
-    ::sigemptyset(&action.sa_mask);
+    sigemptyset(&action.sa_mask);
     ASSERT_EQ(::sigaction(taken, &action, nullptr), 0);
 
     size_t frames = 0;

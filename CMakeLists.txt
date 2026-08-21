@@ -505,6 +505,12 @@ if (BUILD_RUNTIME_TESTS)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
   endif()
 
+  # Stack walking is stubbed out on Windows and compile-only on macOS, where
+  # sem_init() fails with ENOSYS.
+  if (WINDOWS OR MACOS)
+    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp)
+  endif()
+
   add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
 
   target_link_libraries(
