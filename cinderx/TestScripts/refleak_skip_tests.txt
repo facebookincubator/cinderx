@@ -13,6 +13,7 @@ test.test_sqlite3.test_dbapi.RowTests.test_row_is_a_sequence
 test.test_sqlite3.test_factory.RowFactoryTests.test_sqlite_row_as_sequence
 
 # These take excessive time, particularly when combined with ASAN + UBSAN.
+test_cinderx.test_compiler.test_sbs_stdlib.SbsCompileTests*.*
 test.test_audit.*
 test.test_concurrent_futures.*
 test.test_importlib.*
