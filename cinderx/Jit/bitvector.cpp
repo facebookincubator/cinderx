@@ -76,9 +76,12 @@ BitVector& BitVector::operator=(BitVector&& rhs) noexcept {
     delete bit_vec;
   }
 
-  // Doesn't matter which union member is being written here.
   num_bits_ = rhs.num_bits_;
-  bits = rhs.bits;
+  if (rhs.isShortVector()) {
+    bits = rhs.bits;
+  } else {
+    bit_vec = rhs.bit_vec;
+  }
   rhs.num_bits_ = 0;
   rhs.bits = 0;
 
