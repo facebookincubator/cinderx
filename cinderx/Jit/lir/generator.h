@@ -293,7 +293,7 @@ class LIRGenerator {
       lir::Instruction* instr,
       BasicBlock* end_decref,
       std::optional<destructor> destructor);
-#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
   void updateDeoptIndex(
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& i,
@@ -359,7 +359,7 @@ class LIRGenerator {
 
   Function* lir_func_{nullptr};
 
-#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
   // Address of the deopt_idx field in the FrameHeader, computed once per
   // function in the entry block. Used by TranslateOneBasicBlock to store the
   // deopt index before each deoptable instruction.

@@ -543,6 +543,19 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
   bb->allocateInstr(
       Opcode::kMove, nullptr, OutPhyReg(fp_reg), PhyReg(jit_data_reg));
 
+#if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  // footer->frame_header.tstate = tstate.  A generator can be resumed on a
+  // different thread than the one it last ran on, so this has to be refreshed
+  // on every resume rather than just at frame setup.
+  constexpr auto fh_tstate_off = static_cast<int32_t>(
+      offsetof(GenDataFooter, frame_header) + offsetof(FrameHeader, tstate));
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutInd(fp_reg, fh_tstate_off),
+      PhyReg(codegen::ARGUMENT_REGS[3]));
+#endif
+
   // scratch = footer->yieldPoint
   bb->allocateInstr(
       Opcode::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg, yp_off));
@@ -1656,7 +1669,7 @@ Instruction* LIRGenerator::createCallSiteLiveValuesInstr(
 void LIRGenerator::storeActiveDeoptIndex(
     BasicBlockBuilder& bbb,
     std::size_t deopt_idx) {
-#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
   if (deopt_idx_addr_ != nullptr) {
     bbb.appendInstr(
         OutInd{deopt_idx_addr_, 0},
@@ -2182,7 +2195,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
   BasicBlock* entry_block = bbb.allocateBlock();
   bbb.switchBlock(entry_block);
 
-#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
   int last_deopt_line = -1;
   const jit::hir::FrameState* caller_fs = initial_caller_fs;
   BorrowedRef<PyCodeObject> inlined_code = initial_inlined_code;
@@ -2192,7 +2205,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
     auto opcode = i.opcode();
     bbb.setCurrentInstr(&i);
 
-#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
     if (opcode == hir::Opcode::kBeginInlinedFunction) {
       auto bif = static_cast<const BeginInlinedFunction*>(&i);
       caller_fs = bif->callerFrameState();
@@ -4770,6 +4783,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                   }
                   return bbb.appendInstr(OutVReg{}, Opcode::kMove, header);
                 }
+                case FrameFieldKind::kThreadState:
+                  return env_->asm_tstate;
                 case FrameFieldKind::kPrevFrame:
                   return caller_frame;
                 case FrameFieldKind::kInstrPtr: {
@@ -5324,7 +5339,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
   return {bbs.front(), bbs.back()};
 }
 
-#if defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
 void LIRGenerator::updateDeoptIndex(
     BasicBlockBuilder& bbb,
     const jit::hir::Instr& i,
@@ -5513,8 +5528,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         Opcode::kMove,
         VReg{footer});
     env_->asm_interpreter_frame = frame;
-#if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
-    defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(Py_GIL_DISABLED) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Now that FP points at the heap-allocated GenDataFooter, compute the
     // deopt_idx address.  This must happen after the FP swap above —
     // the kLea uses FP as its base register.
@@ -5532,8 +5546,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         Ind{codegen::arch::reg_frame_pointer_loc, deopt_idx_offset});
 #endif
   } else {
-#if (defined(CINDER_AARCH64) || defined(Py_GIL_DISABLED)) && \
-    defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(Py_GIL_DISABLED) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
     // Compute the address of the deopt_idx field once
     // TranslateOneBasicBlock reuses this for all deopt index stores.
     if (func_->code != nullptr) {
@@ -5622,6 +5635,8 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
               // 3.12 top-level: FrameHeader.func is the function
               return env_->asm_func;
 #endif
+            case FrameFieldKind::kThreadState:
+              return env_->asm_tstate;
             case FrameFieldKind::kInstrPtr: {
               _Py_CODEUNIT* code_start;
               if constexpr (PY_VERSION_HEX >= 0x030E0000) {

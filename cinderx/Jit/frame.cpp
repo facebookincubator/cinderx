@@ -17,14 +17,16 @@
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/gen_data_footer.h"
-#include "cinderx/Jit/threaded_compile.h"
-#if defined(CINDER_X86_64)
+#include "cinderx/Jit/stack_walk.h"
 #include "cinderx/Jit/symbolizer.h"
-#endif
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
+#include <csignal>
+#include <cstring>
 #include <optional>
+#include <string>
 
 namespace cinderx::jit {
 
@@ -91,7 +93,6 @@ bool isInlined(_PyInterpreterFrame* frame) {
   return isInlinedFrame(frame);
 }
 
-#if defined(CINDER_X86_64)
 // Return the base of the stack frame given its frame.
 uintptr_t getFrameBaseFromOnStackFrame(_PyInterpreterFrame* frame) {
   // The frame is embedded in the frame header at the beginning of the
@@ -100,58 +101,107 @@ uintptr_t getFrameBaseFromOnStackFrame(_PyInterpreterFrame* frame) {
       sizeof(PyObject*) * _PyFrame_GetCode(frame)->co_framesize;
 }
 
-uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
+
+#if defined(CINDER_X86_64)
+
+const void** getIPStackAddr(_PyInterpreterFrame* frame, int frame_size) {
   uintptr_t frame_base;
   if (isGeneratorFrame(frame)) {
+    // A running generator spills to the heap but still executes on the real
+    // stack, so its calls push return addresses relative to the frame pointer
+    // the resume function was entered with.
     PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
-    auto footer = jitGenDataFooter(gen);
-    if (footer->yieldPoint == nullptr) {
-      // The generator is running.
-      // On x86, we read the return address from a fixed offset on the real
-      // stack relative to the resume function's RBP.
-      frame_base = footer->originalFramePointer;
-    } else {
-      // The generator is suspended.
-      return footer->yieldPoint->resumeTarget();
-    }
+    frame_base = jitGenDataFooter(gen)->originalFramePointer;
   } else {
     frame_base = getFrameBaseFromOnStackFrame(frame);
   }
-  // Read the saved IP from the stack.
-  // On x86, `call` pushes the return address on the stack at a fixed
-  // location relative to the caller's frame pointer.
-  uintptr_t ip;
-  auto saved_ip =
-      reinterpret_cast<uintptr_t*>(frame_base - frame_size - kPointerSize);
-  memcpy(&ip, saved_ip, kPointerSize);
-  return ip;
-#else
-  throw std::runtime_error{"getIP: Lightweight frames are not supported"};
-#endif
+  // `call` pushes the return address immediately below the unit's stack frame.
+  return reinterpret_cast<const void**>(frame_base - frame_size - kPointerSize);
 }
+
+#elif defined(CINDER_AARCH64)
+
+// `bl` leaves the return address in LR and the callee spills it into its own
+// frame record, so there is no fixed location relative to the unit's frame to
+// read it back from. Walk the native stack the unit lives on instead, looking
+// for the frame whose caller is the unit.
+const void** getIPStackAddr(_PyInterpreterFrame* frame, int) {
+  // The value the frame-pointer register holds while the unit runs. Resumed
+  // generators point it at their heap-allocated data so that spills survive
+  // suspension; every other unit leaves it at the base of the stack frame the
+  // interpreter frame is embedded in.
+  const StackFrame* unit_frame;
+  if (isGeneratorFrame(frame)) {
+    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
+    unit_frame = reinterpret_cast<const StackFrame*>(jitGenDataFooter(gen));
+  } else {
+    unit_frame = reinterpret_cast<const StackFrame*>(
+        getFrameBaseFromOnStackFrame(frame));
+  }
+
+  const void** result = nullptr;
+  auto visit = [&](const void* frame_pointer, const void* pc) {
+    auto record =
+        const_cast<StackFrame*>(static_cast<const StackFrame*>(frame_pointer));
+    if (record->frame_pointer == unit_frame) {
+      // This frame belongs to the unit's callee, which saved the address the
+      // unit resumes at.
+      result = &record->return_address;
+      return false;
+    }
+    // Keep going as long as we aren't at the running function who would
+    // have no return address.
+    return record != unit_frame;
+  };
+
+  PyThreadState* owner = jitFrameGetHeader(frame)->tstate;
+  JIT_CHECK(owner != nullptr, "JIT frame is not associated with a thread");
+
+  FreeThreadedJITEntrypointGuard guard;
+  StackWalk walker;
+  walker.walk(owner, visit);
+  return result;
+}
+
+#else
+CINDER_UNSUPPORTED
 #endif
 
-void setIP(
-    [[maybe_unused]] _PyInterpreterFrame* frame,
-    [[maybe_unused]] int frame_size,
-    [[maybe_unused]] uintptr_t new_ip) {
-#if defined(__x86_64__) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
   JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
-  uintptr_t frame_base;
   if (isGeneratorFrame(frame)) {
-    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
-    auto footer = jitGenDataFooter(gen);
-    frame_base = footer->originalFramePointer;
-  } else {
-    frame_base = getFrameBaseFromOnStackFrame(frame);
+    auto footer = jitGenDataFooter(_PyGen_GetGeneratorFromFrame(frame));
+    if (footer->yieldPoint != nullptr) {
+      // The generator is suspended, so it has no native frame of its own; it
+      // will resume at its yield point.
+      return footer->yieldPoint->resumeTarget();
+    }
   }
-  auto saved_ip_addr =
-      reinterpret_cast<uintptr_t*>(frame_base - frame_size - kPointerSize);
-  *saved_ip_addr = new_ip;
-#endif
+  const void** saved = getIPStackAddr(frame, frame_size);
+  if (saved != nullptr) {
+    uintptr_t ip;
+    memcpy(&ip, saved, kPointerSize);
+    return ip;
+  }
+  // Callers report a missing IP; they have the code object needed to make the
+  // message useful.
+  return 0;
 }
+
+// Overwrite the address the unit resumes at when its current call returns.
+// Returns false if the unit's IP isn't saved anywhere that can be patched.
+bool setIP(_PyInterpreterFrame* frame, int frame_size, uintptr_t new_ip) {
+  JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
+  const void** saved = getIPStackAddr(frame, frame_size);
+  if (saved == nullptr) {
+    return false;
+  }
+  *saved = reinterpret_cast<const void*>(new_ip);
+  return true;
+}
+
+#endif // ENABLE_LIGHTWEIGHT_FRAMES
 
 // Collect all the frames in the unit, with the frame for the
 // non-inlined function as the first element in the return vector.
@@ -211,46 +261,14 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
     }
   };
 
-#if defined(CINDER_AARCH64)
-  // Look up bytecode offsets using the deopt index stored in the frame header.
-  // The JIT updates this index before each instruction that can deopt, so it
-  // always reflects the current position in the bytecode.
-  std::size_t deopt_idx = jitFrameGetHeader(non_inlined_sf)->deopt_idx;
-  std::optional<UnitCallStack> locs =
-      code_rt->getUnitCallStackFromDeoptIdx(deopt_idx);
-  if (locs.has_value()) {
-    // We may have a different number of unit_frames than locs, this happens
-    // when we're updating the outer frame while we're in an inlined function,
-    // but our code objects should all line up.
-    for (std::size_t i = 0; i < unit_frames.size(); i++) {
-      JIT_DCHECK(
-          _PyFrame_GetCode(unit_frames[i]) == locs->at(i).code,
-          "code mismatch {} vs {}",
-          codeName(_PyFrame_GetCode(unit_frames[i])),
-          codeName(locs->at(i).code));
-      unit_state.emplace_back(unit_frames[i], locs->at(i));
-    }
-  } else {
-    // We might not have debug info for a number of reasons.
-    // The consequences of getting this wrong (incorrect line numbers) don't
-    // warrant aborting in production, but it is worth investigating.
-    JIT_LOG(
-        "No debug info for deopt_idx {} in {}",
-        deopt_idx,
-        PyUnicode_AsUTF8(code_rt->code()->co_qualname));
-    logUnitFrames();
-    JIT_DABORT("No debug info for deopt_idx {}", deopt_idx);
-    for (_PyInterpreterFrame* unit_frame : unit_frames) {
-      unit_state.emplace_back(
-          unit_frame, CodeObjLoc{_PyFrame_GetCode(unit_frame), BCOffset{-1}});
-    }
-  }
-#elif defined(CINDER_X86_64)
-  // On x86-64, look up bytecode offsets using the IP-based symbolizer.
+  // Look up bytecode offsets from the unit's current instruction pointer.
   uintptr_t ip = getIP(non_inlined_sf, code_rt->frameSize());
   std::optional<UnitCallStack> locs =
       code_rt->debugInfo()->getUnitCallStack(ip);
   if (locs.has_value()) {
+    // We may have a different number of unit_frames than locs, this happens
+    // when we're updating the outer frame while we're in an inlined function,
+    // but our code objects should all line up.
     for (std::size_t i = 0; i < unit_frames.size(); i++) {
       JIT_DCHECK(
           _PyFrame_GetCode(unit_frames[i]) == locs->at(i).code,
@@ -271,9 +289,6 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
           unit_frame, CodeObjLoc{_PyFrame_GetCode(unit_frame), BCOffset{-1}});
     }
   }
-#else
-  CINDER_UNSUPPORTED
-#endif
 
   return unit_state;
 #else
@@ -342,12 +357,7 @@ std::optional<ActiveDeoptMetadata> getActiveDeoptMetadata(
     auto footer = jitGenDataFooter(gen);
     frame_base = reinterpret_cast<uintptr_t>(footer);
   } else {
-#if defined(CINDER_X86_64)
     frame_base = getFrameBaseFromOnStackFrame(owning_frame);
-#else
-    frame_base = reinterpret_cast<uintptr_t>(owning_frame) +
-        sizeof(PyObject*) * _PyFrame_GetCode(owning_frame)->co_framesize;
-#endif
   }
   return ActiveDeoptMetadata{
       .meta = &code_rt->getDeoptMetadata(deopt_idx),
@@ -654,9 +664,6 @@ void jitFrameInitLightweight(
   setFrameCode(frame, reifier);
   setFrameFunction(frame, (PyObject*)Py_NewRef(func));
   jitFrameGetHeader(frame)->frame_status = 0;
-#if defined(CINDER_AARCH64)
-  jitFrameGetHeader(frame)->deopt_idx = 0;
-#endif
 #else
   frame->stacktop = 0;
   setFrameInstruction(frame, _PyCode_CODE(code) - 1);
@@ -667,6 +674,14 @@ void jitFrameInitLightweight(
       "frame helper must be immortal");
   setFrameFunction(frame, cinderx::getModuleState()->frame_reifier);
   jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
+#endif
+#if defined(CINDER_AARCH64)
+  // Refreshed on every resume by the generator resume entry, since a generator
+  // can be resumed on a thread other than the one that started it.
+  jitFrameGetHeader(frame)->tstate = tstate;
+#endif
+#if defined(Py_GIL_DISABLED)
+  jitFrameGetHeader(frame)->deopt_idx = 0;
 #endif
   frame->previous = previous;
 }
@@ -830,7 +845,7 @@ void retainActiveDeferredData(
 }
 
 void deoptAllJitFramesOnStack() {
-#if defined(__x86_64__) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   PyInterpreterState* interp = PyInterpreterState_Get();
 
   // In free-threaded builds, other threads are actively running and may be
@@ -879,11 +894,16 @@ void deoptAllJitFramesOnStack() {
               }
 
               jitFramePopulateFrame(frame);
-              setIP(frame, code_rt->frameSize(), deopt_exit.value());
-
-              // Mark frame so updatePrevInstr skips it (deopt exit IP
-              // has no debug info entry).
-              jitFrameGetHeader(frame)->frame_status |= JIT_FRAME_DEOPT_PATCHED;
+              if (setIP(frame, code_rt->frameSize(), deopt_exit.value())) {
+                // Mark frame so updatePrevInstr skips it (deopt exit IP
+                // has no debug info entry).
+                jitFrameGetHeader(frame)->frame_status |=
+                    JIT_FRAME_DEOPT_PATCHED;
+              } else {
+                JIT_DLOG(
+                    "Couldn't patch the IP of the JIT frame at {:#x}",
+                    current_ip);
+              }
             } else {
               JIT_DLOG(
                   "No callsite deopt exit for JIT frame at IP {:#x}",

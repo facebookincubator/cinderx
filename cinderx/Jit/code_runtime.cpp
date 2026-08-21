@@ -168,20 +168,6 @@ int CodeRuntime::traverse(visitproc visit, void* arg) {
   return 0;
 }
 
-std::optional<UnitCallStack> CodeRuntime::getUnitCallStackFromDeoptIdx(
-    std::size_t deopt_idx) const {
-  if (deopt_idx >= deopt_metadatas_.size()) {
-    return std::nullopt;
-  }
-  const DeoptMetadata& meta = deopt_metadatas_[deopt_idx];
-  UnitCallStack stack;
-  stack.reserve(meta.frame_meta.size());
-  for (const auto& frame : meta.frame_meta) {
-    stack.emplace_back(frame.code, frame.cause_instr_idx);
-  }
-  return stack;
-}
-
 std::optional<uintptr_t> CodeRuntime::getCallsiteDeoptExit(
     uintptr_t return_addr) const {
   auto it = callsite_deopt_exits_.find(return_addr);

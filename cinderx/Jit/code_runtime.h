@@ -114,10 +114,6 @@ class alignas(16) CodeRuntime {
   // True if the references have been cleared
   bool isCleared() const;
 
-  // Get the UnitCallStack from a deopt metadata index.
-  std::optional<UnitCallStack> getUnitCallStackFromDeoptIdx(
-      std::size_t deopt_idx) const;
-
   std::optional<uintptr_t> getCallsiteDeoptExit(uintptr_t return_addr) const;
 
   void addCallsiteDeoptExit(uintptr_t return_addr, uintptr_t deopt_exit_addr);

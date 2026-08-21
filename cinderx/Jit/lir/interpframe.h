@@ -31,6 +31,10 @@ enum class FrameFieldKind : uint8_t {
   kZero,
   kOwnerThread,
   kFrameHeaderFunc,
+  // The thread the frame runs on, recorded in the FrameHeader so that its IP
+  // can be recovered later by walking that thread's native stack. AArch64
+  // only.
+  kThreadState,
   // The debug-only byte holding the visited/stackpointer_valid/lltrace
   // bitfields. Initialized so that stackpointer_valid=1 (others 0), matching
   // _PyFrame_Initialize, so the interpreter's first StackPointerInvalidate on a
@@ -62,6 +66,8 @@ constexpr const std::string_view frameFieldKindName(FrameFieldKind kind) {
       return "owner";
     case FrameFieldKind::kFrameHeaderFunc:
       return "frame_header_func";
+    case FrameFieldKind::kThreadState:
+      return "tstate";
     case FrameFieldKind::kDebugFrameByte:
       return "debug_frame_byte";
   }
@@ -122,6 +128,12 @@ consteval FrameInitTable buildFrameInitTable() {
   // FrameHeader fields have negative offsets.
 
   constexpr int32_t fh = -static_cast<int32_t>(sizeof(jit::FrameHeader));
+
+#if defined(CINDER_AARCH64)
+  add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, tstate)),
+      FrameFieldKind::kThreadState,
+      DataType::kObject);
+#endif
 
   add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, frame_status)),
       FrameFieldKind::kFrameHeaderFunc,
