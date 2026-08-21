@@ -160,7 +160,12 @@ const void** getIPStackAddr(_PyInterpreterFrame* frame, int) {
 
   FreeThreadedJITEntrypointGuard guard;
   StackWalk walker;
-  walker.walk(owner, visit);
+  if (walker.walk(owner, visit) != WalkResult::Completed) {
+    // A walk that did not finish leaves nothing worth keeping. It either never
+    // started, or the owner stopped waiting for us part way through - and an
+    // address out of a stack that has resumed is not one to hand back.
+    return nullptr;
+  }
   return result;
 }
 

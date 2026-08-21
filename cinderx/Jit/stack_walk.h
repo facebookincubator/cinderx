@@ -12,6 +12,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -82,6 +83,19 @@ struct StackBounds {
   }
 };
 
+// How a walk ended.
+enum class WalkResult {
+  // The chain was followed to its end, or the callback asked to stop early.
+  Completed,
+  // The target could not be sampled at all, and no frames were delivered.
+  Failed,
+  // The target stopped waiting and resumed before the walk was finished.
+  // Frames already delivered were describing a frozen stack when they were
+  // delivered; nothing beyond that point could be collected, because the
+  // stack started moving again.
+  TimedOut,
+};
+
 // Samples another thread's native call stack by interrupting it with a signal.
 //
 // The target thread walks its own frames inside the handler and parks until the
@@ -95,10 +109,13 @@ struct StackBounds {
 // and the batching is invisible to the callback.
 //
 // The sampling thread should do minimal work while the thread is suspended -
-// this includes not taking any locks. The target thread must destruct the
-// StackWalk object otherwise the suspended thread will remain suspended
-// indefinitely. The suspended thread is stuck in the signal handler so will
-// remain there until the sampling thread is finished.
+// this includes not taking any locks. A target that has been parked for
+// kParkTimeout stops waiting and returns from the handler on its own, so a
+// sampler that stalls, or that is itself suspended by something else, costs a
+// truncated walk rather than a thread wedged in a signal handler for the life
+// of the process. The walk then reports WalkResult::TimedOut, and everything
+// it has not already delivered is lost: the stack those frames describe is
+// running again.
 //
 // Only one instance may exist at a time: a signal handler cannot be given a
 // context pointer, so the active instance is reached through a global.
@@ -106,18 +123,58 @@ class StackWalk {
  public:
   using ThreadId = pthread_t;
 
+  // How long a signalled thread stays parked before it abandons the walk.
+  //
+  // A parked target is entirely at the mercy of its sampler: if that thread
+  // stalls, or is suspended by something else, or dies between startWalk() and
+  // endWalk(), nothing is left to release the target and it sits inside a
+  // signal handler indefinitely. The cap turns that into a bounded delay and a
+  // walk that comes back short.
+  static constexpr std::chrono::nanoseconds kParkTimeout =
+      std::chrono::seconds{1};
+
   // The layout the compilers and the JIT's own prologue all agree on, and that
   // reading a record straight out of a stack depends on. See
   // codegen/arch.h's kFrameRecordSize, which emits it.
   static_assert(sizeof(StackFrame) == 2 * sizeof(void*));
 
+  // Asks the constructor to go and find a signal rather than be told one.
+  //
+  // Not a valid signal number, and deliberately not zero: zero is a legal
+  // argument to kill(2) and so cannot double as "none".
+  static constexpr int kAutoSignum = -1;
+
   // Installs a handler for `signum`, saving whatever was there before, and
   // sets up the fault-safe read if nothing has yet. Doing the latter here as
   // well as lazily is what keeps it off the signalled path: by the time a
   // handler runs, the instance that made the signal possible has seen to it.
-  explicit StackWalk(int signum = SIGUSR1);
+  //
+  // With kAutoSignum the signal is discovered instead of dictated: the
+  // real-time range is scanned for one whose disposition is still the default,
+  // once per process, and every later instance reuses that answer - handler and
+  // all, since a discovered signal is reserved for the life of the process
+  // rather than claimed and released around each walk. Hardcoding a signal
+  // cannot be right in a process the walker does not own - SIGUSR1 in
+  // particular is what CPython's faulthandler is usually registered on - and
+  // quietly displacing the owner's handler is a worse failure than not walking.
+  //
+  // A process with no signal to spare gets an instance that cannot sample other
+  // threads at all rather than one that fights over a signal something else is
+  // relying on. See canSampleOtherThreads().
+  //
+  // Passing a signal explicitly skips the scan and installs on exactly that
+  // one, over whatever is already there. That is what the tests want, and what
+  // an embedder that has reserved a signal of its own wants.
+  //
+  // `park_timeout` controls how long a target signalled by this instance will
+  // wait for it. Worth overriding only in tests, which would otherwise have to
+  // sleep for a whole second to reach the timeout at all.
+  explicit StackWalk(
+      int signum = kAutoSignum,
+      std::chrono::nanoseconds park_timeout = kParkTimeout);
 
-  // Restores the previously installed handler.
+  // Hands back a signal that was named by the caller, and keeps one that
+  // discovery found. See the definition for why the asymmetry is deliberate.
   ~StackWalk();
 
   StackWalk(const StackWalk&) = delete;
@@ -127,6 +184,28 @@ class StackWalk {
 
   // Whether `thread` is the one calling this.
   static bool isCurrentThread(ThreadId thread);
+
+  // Whether this instance owns a signal, and so can sample threads other than
+  // the one calling it.
+  //
+  // False means the scan came up empty: every signal it would consider is
+  // already spoken for. walkSelf(), and the thread-state overload aimed at the
+  // calling thread, still work - neither involves a signal - and every
+  // cross-thread walk reports WalkResult::Failed without disturbing the target.
+  bool canSampleOtherThreads() const {
+    return signum_ > 0;
+  }
+
+  // The signal this instance sends, or kAutoSignum if it has none.
+  int signum() const {
+    return signum_;
+  }
+
+  // Forgets the signal chosen for this process and takes the handler back off
+  // it, so the next instance scans afresh. Only for tests, which need each case
+  // to start from a known state - production never gives a discovered signal
+  // back.
+  static void resetSignumCache();
 
   // Reports the frames of the thread `tstate` is running on, innermost first,
   // as walk(ThreadId) does. Walking the calling thread needs no freezing at
@@ -141,7 +220,7 @@ class StackWalk {
   // inlines. Callers must therefore recognise the frame they want by identity
   // and skip whatever precedes it, never index from the top.
   template <typename F>
-  bool walk(PyThreadState* tstate, F&& callback) {
+  WalkResult walk(PyThreadState* tstate, F&& callback) {
     ThreadId thread = nativeThreadId(tstate);
     return isCurrentThread(thread) ? walkSelf(std::forward<F>(callback))
                                    : walk(thread, std::forward<F>(callback));
@@ -156,9 +235,15 @@ class StackWalk {
   // it named, and freezing a recycled one is undefined. Holding the GIL, or
   // stopping the world, is enough to guarantee that of a thread state's thread.
   //
-  // Returns false without invoking the callback if the target could not be
-  // sampled. Sampling the calling thread would deadlock and is rejected; call
-  // walkSelf(), or the thread-state overload above, for that.
+  // Reports WalkResult::Failed without invoking the callback if the target
+  // could not be sampled. Sampling the calling thread would deadlock and is
+  // rejected; call walkSelf(), or the thread-state overload above, for that.
+  //
+  // Reports WalkResult::TimedOut if the target gave up waiting part way
+  // through, which it does once it has been parked for kParkTimeout. Frames
+  // handed over before that are as good as any other; there are simply no more
+  // of them, and a caller that kept an address out of one is now holding a
+  // pointer into a stack that has resumed.
   //
   // Both addresses arrive as `const void*`, the frame pointer deliberately so.
   // It is only ever a plausible address, never one known to be readable - a
@@ -166,9 +251,9 @@ class StackWalk {
   // never dereferences one itself. Handing over a `const StackFrame*` would
   // advertise a read that is not safe to make.
   template <typename F>
-  bool walk(ThreadId thread, F&& callback) {
+  WalkResult walk(ThreadId thread, F&& callback) {
     if (!startWalk(thread)) {
-      return false;
+      return WalkResult::Failed;
     }
     // The target stays blocked until this runs, so it must happen even if the
     // callback throws.
@@ -176,19 +261,31 @@ class StackWalk {
 
     while (true) {
       for (size_t i = 0; i < num_frames_; i++) {
+        // The batch in hand describes a frozen stack only for as long as the
+        // target is still parked, and the callback is where all the time in a
+        // walk goes. Asking before every frame rather than once per batch is
+        // what stops a slow callback being handed an address belonging to a
+        // stack that has already resumed.
+        if (targetAbandonedWalk()) {
+          return WalkResult::TimedOut;
+        }
         const StackFrame& frame = frames_[i];
         if (!callback(
                 static_cast<const void*>(frame.frame_pointer),
                 frame.return_address)) {
-          return true;
+          return WalkResult::Completed;
         }
       }
       // A batch the target could not fill is the last one: it stopped because
       // the chain ran out, not because the buffer did. A chain that ends
       // exactly on a batch boundary therefore costs one more round trip, to
       // collect the empty batch that says so.
-      if (num_frames_ < kBatchSize || !nextBatch()) {
-        return true;
+      if (num_frames_ < kBatchSize) {
+        return WalkResult::Completed;
+      }
+      if (!nextBatch()) {
+        return targetAbandonedWalk() ? WalkResult::TimedOut
+                                     : WalkResult::Completed;
       }
     }
   }
@@ -198,7 +295,7 @@ class StackWalk {
   // signal is involved: a thread's own frames cannot move while it is the one
   // inspecting them, so this is just a pointer chase and needs no instance.
   template <typename F>
-  static bool walkSelf(F&& callback) {
+  static WalkResult walkSelf(F&& callback) {
     Cursor cursor{
         static_cast<const StackFrame*>(__builtin_frame_address(0)),
         currentStackBounds()};
@@ -207,7 +304,7 @@ class StackWalk {
       const StackFrame* caller = cursor.step();
       if (caller == nullptr ||
           !callback(static_cast<const void*>(caller), return_address)) {
-        return true;
+        return WalkResult::Completed;
       }
     }
   }
@@ -330,6 +427,54 @@ class StackWalk {
   // why nothing signalled can.
   static void ensureSafeReadInitialized();
 
+  // Installs this class's handler on `signum`, whatever is already there,
+  // saving what that was into `prev` if that is not null. Reports whether it
+  // went in.
+  static bool installHandler(int signum, struct sigaction* prev);
+
+  // Whether this class's handler is the one currently installed on `signum`.
+  static bool handlerIsOurs(int signum);
+
+  // Scans for a signal nothing else is using and installs this class's handler
+  // on it, reporting which one or kAutoSignum if the process has none to spare.
+  static int claimSignum();
+
+  // The signal this process has reserved for walking, scanning for one if this
+  // is the first time it has been asked. Reports kAutoSignum if the process has
+  // none to spare.
+  //
+  // The handler goes on once and stays on: see the destructor for why taking it
+  // off again is the dangerous half, and this for why leaving it on is also the
+  // cheap half. Every instance after the first therefore costs no syscall at
+  // all, which matters because frame.cpp builds one per walk.
+  static int acquireSignal();
+
+  // Where the handshake with the target has got to.
+  //
+  // Only one transition is contested, and it is the one the timeout creates:
+  // the target giving up on a park, and the sampler releasing it, can happen
+  // at the same instant. Both are compare-exchanges out of `Parked`, so
+  // exactly one wins and the loser can tell that it lost. That is what keeps
+  // the semaphores balanced - a park that ran out just as `resume_` was posted
+  // would otherwise leave that post uncollected, and the following walk would
+  // read a batch nobody published.
+  enum class State : uint8_t {
+    // No target is parked: either no walk is in progress, or the target is
+    // away collecting the next batch.
+    Running,
+    // The target has published a batch and is waiting on `resume_`.
+    Parked,
+    // The target's park ran out and it has left the handler. The stack it was
+    // holding still is running again.
+    Abandoned,
+  };
+
+  // Whether the target has stopped waiting for us, which invalidates every
+  // frame not yet handed to the callback.
+  bool targetAbandonedWalk() const {
+    return state_.load(std::memory_order_acquire) == State::Abandoned;
+  }
+
   // The stack of `thread`, remembered between walks. Measuring it is cheap for
   // a spawned thread but not for the main one, and the deopt path walks the
   // same thread over and over.
@@ -343,34 +488,104 @@ class StackWalk {
   bool startWalk(ThreadId thread);
 
   // Wakes the parked target to collect the next batch and waits for it.
+  // Returns false if there was no target left to wake.
   bool nextBatch();
 
-  // Tells the parked target to abandon the walk and return from the handler.
+  // Tells the parked target to abandon the walk and return from the handler,
+  // and waits until it has actually left.
+  //
+  // The wait is what makes a walker safe to destroy - or to walk with again -
+  // the instant a walk returns. Releasing the target only wakes it: it still
+  // has to read `stop_requested_` and unwind out of the handler, and every one
+  // of those touches is on this object. A sampler that carried straight on
+  // would be free to run the destructor, and for the stack-allocated walker
+  // frame.cpp builds per call that means nothing more than returning from the
+  // enclosing function.
   void endWalk();
 
+  // Wakes a parked target, reporting whether there was one to wake. A target
+  // whose park ran out is already out of the handler and must not be posted
+  // to: the post would sit uncollected and desync the next walk.
+  bool wakeTarget();
+
   static void handleSignal(int signum, siginfo_t* info, void* ucontext);
+
+  // Whether the calling thread is the one a walk is currently waiting on.
+  //
+  // The handler answers a signal only when this is true, because a delivery to
+  // any other thread is not this walker's to answer. Answering one would park
+  // an uninvolved thread inside the handler and post `frames_ready_` with a
+  // batch describing a stack nobody asked about - and the next walk would drain
+  // that post and hand those frames to its callback.
+  //
+  // Nothing guarantees the only sender is us. Our signal is shared with the
+  // rest of the process: discovery picks one that looked unclaimed, and the gap
+  // between looking and installing cannot be closed, so a previous owner may
+  // still signal it. A stray kill(2) reaches it just as easily.
+  //
+  // Runs inside the handler, so it must be async-signal-safe. An atomic load
+  // and pthread_equal are both nothing more than comparisons.
+  bool isWalkTarget() const;
 
   // Runs on the target thread inside the signal handler, so everything it
   // touches must be async-signal-safe.
   void captureFrames(const void* ucontext);
 
+  // What became of a batch offered to the sampler.
+  enum class Publish : uint8_t {
+    // Taken, and the sampler wants the next one.
+    Taken,
+    // Taken, and the walk is over - either the sampler said so or the park ran
+    // out. Somebody is waiting for this handler to finish.
+    Finished,
+    // Not taken, because the sampler had already given up on this walk before
+    // the batch was offered. Nothing was posted for it and nobody is waiting
+    // for it, which is the difference that matters on the way out.
+    Refused,
+  };
+
   // Publishes the batch built so far and blocks until the sampler asks for
-  // more. Returns false if the sampler is done with this walk.
+  // more.
   //
   // A short batch is how the end of the chain is announced, so a full one
   // always costs another round trip even when nothing is left to send.
-  bool publishBatch(size_t count);
+  Publish publishBatch(size_t count);
 
   // A handler may not touch a lock, so the pointer above has to be reachable
   // without one. True everywhere this builds; asserted so that a port to
   // somewhere it is not fails here rather than deadlocking in a signal.
   static_assert(std::atomic<StackWalk*>::is_always_lock_free);
 
+  std::chrono::nanoseconds park_timeout_;
   struct sigaction prev_action_ = {};
 
   // C++20 semaphore's aren't signal safe, so we use semaphore.h
   sem_t frames_ready_{};
   sem_t resume_{};
+
+  // Posted by the target as the last thing it does inside the handler, and
+  // collected by endWalk(). One post per handler that answered a walk, one
+  // wait per walk that got an answer - the same balance the other two keep,
+  // and for the same reason: a count left behind would be taken by a later
+  // walk in place of its own target's, which is exactly the wait this exists
+  // to perform being silently skipped.
+  sem_t handler_exited_{};
+
+  // Read and written from inside the handler as well as from the sampler, so
+  // it has to be reachable without a lock for the same reason `s_active` does.
+  std::atomic<State> state_ = State::Running;
+  static_assert(std::atomic<State>::is_always_lock_free);
+
+  // The thread the walk in progress is waiting on, or a zeroed id when no walk
+  // is in progress. Written by the sampler either side of a walk and read by
+  // the handler, on whichever thread the signal landed on, so it is held to the
+  // same lock-free standard as `state_`.
+  //
+  // A zeroed id is the "no walk" marker rather than a thread. pthread_self()
+  // never produces one - a thread id is the address of a thread descriptor
+  // everywhere this builds - so nothing real is ever mistaken for it.
+  std::atomic<ThreadId> walk_target_ = {};
+  static_assert(std::atomic<ThreadId>::is_always_lock_free);
 
   // Written by the target thread's handler, read by the sampling thread while
   // the target is parked, and vice versa for `stop_requested_`. The semaphores
@@ -389,10 +604,20 @@ class StackWalk {
   // Last thread stackBoundsFor() was asked about, and its answer.
   ThreadId bounds_cache_thread_ = {};
   StackBounds bounds_cache_ = {};
-  int signum_;
+
+  // The signal this instance sends, settled in the constructor and never
+  // changed after: startWalk() reacts to being displaced by dropping the
+  // process-wide choice, so that the next instance looks elsewhere, rather than
+  // by moving this one to another signal underneath a walk.
+  int signum_ = kAutoSignum;
   bool stop_requested_ = false;
   bool bounds_cache_valid_ = false;
-  bool target_parked_ = false;
+
+  // Whether the signal was taken from somebody rather than reserved by
+  // discovery, and so has to be handed back when this instance goes. Only a
+  // caller who named a signal can produce one: discovery refuses an occupied
+  // signal, so what it claims is owed to nobody.
+  bool signal_is_borrowed_ = false;
 };
 
 } // namespace cinderx
