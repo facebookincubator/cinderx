@@ -482,27 +482,34 @@ void Context::addDeferredFinalization(
 }
 
 void Context::finalizeMultiThreadedCompile() {
-  JITCompilationLock lock;
-  fixupFunctionEntryCachePostMultiThreadedCompile();
-  watchPendingTypes();
+  // Destructed outside the lock: decref can block on the GIL, which deadlocks
+  // against funcDestroyed().
+  decltype(completed_compiles_) completed;
+  decltype(deferred_finalizations_) deferred;
 
-  for (auto& codes : completed_compiles_) {
-    makeCompiledFunction(
-        codes.second.second, codes.first, std::move(codes.second.first));
-  }
-  completed_compiles_.clear();
+  {
+    JITCompilationLock lock;
+    fixupFunctionEntryCachePostMultiThreadedCompile();
+    watchPendingTypes();
 
-  for (auto& [func, key] : deferred_finalizations_) {
-    // Re-resolve the compile rather than trusting a pointer cached while the
-    // GIL was released; the CompiledFunction may have been freed since, in
-    // which case it has already erased itself from compiled_codes_ and there
-    // is nothing left to attach the function to.
-    auto it = compiled_codes_.find(key);
-    if (it != compiled_codes_.end()) {
-      finalizeFunc(func, it->second);
+    for (auto& codes : completed_compiles_) {
+      makeCompiledFunction(
+          codes.second.second, codes.first, std::move(codes.second.first));
     }
+    completed.swap(completed_compiles_);
+
+    for (auto& [func, key] : deferred_finalizations_) {
+      // Re-resolve the compile rather than trusting a pointer cached while the
+      // GIL was released; the CompiledFunction may have been freed since, in
+      // which case it has already erased itself from compiled_codes_ and there
+      // is nothing left to attach the function to.
+      auto it = compiled_codes_.find(key);
+      if (it != compiled_codes_.end()) {
+        finalizeFunc(func, it->second);
+      }
+    }
+    deferred.swap(deferred_finalizations_);
   }
-  deferred_finalizations_.clear();
 }
 
 bool Context::finalizeFunc(
