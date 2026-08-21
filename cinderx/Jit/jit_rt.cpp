@@ -45,6 +45,7 @@
 #include <cmath>
 #include <span>
 #include <type_traits>
+#include <vector>
 
 using namespace cinderx;
 using namespace cinderx::jit;
@@ -1610,20 +1611,21 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
   // ...
 
   PyObject** dest_args;
-  auto final_args = std::make_unique<PyObject*[]>(total_args);
+  std::vector<PyObject*> final_args;
   int cc_reg_args = codegen::ARGUMENT_REGS.size();
 
   if (total_args < cc_reg_args) {
     // no gap in args to worry about
     dest_args = args + 1;
   } else {
+    final_args.resize(total_args);
     for (int i = 0; i < cc_reg_args - 1; i++) {
       final_args[i] = args[i + 1];
     }
     for (int i = cc_reg_args - 1; i < total_args; i++) {
       final_args[i] = args[i + 3];
     }
-    dest_args = final_args.get();
+    dest_args = final_args.data();
   }
 
   _PyTypedArgsInfo* arg_info = getContext()->findFunctionPrimitiveArgInfo(func);
@@ -1678,11 +1680,8 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
   // If we are supposed to be returning a primitive, it needs unboxing because
   // our caller expected this to be a static->static direct invoke, we just
   // failed to JIT the callee.
-  int optional, exact;
-  PyTypeObject* ret_type = _PyClassLoader_ResolveType(
-      _PyClassLoader_GetReturnTypeDescr(func), &optional, &exact);
-  int ret_code = _PyClassLoader_GetTypeCode(ret_type);
-  Py_DECREF(ret_type);
+  int ret_code = _PyClassLoader_ResolvePrimitiveType(
+      _PyClassLoader_GetReturnTypeDescr(func));
   if (ret_code != TYPED_OBJECT) {
     // we can always unbox to 64-bit, the JIT will just ignore the higher bits.
     // This means that overflow here will give weird results, but overflow in
