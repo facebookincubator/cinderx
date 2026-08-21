@@ -1,0 +1,400 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
+#pragma once
+
+#if defined(__APPLE__) || defined(__linux__)
+
+#include "cinderx/Common/util.h"
+
+#include <pthread.h>
+#include <semaphore.h>
+#include <signal.h>
+
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <utility>
+
+namespace cinderx {
+
+// Both the record the hardware pushes and the frame the walker reports.
+// They are the same sixteen bytes, seen from the two ends of a single step.
+//
+// AArch64 (AAPCS64) and x86-64 alike push, at the address held in the
+// frame-pointer register, the caller's frame pointer followed by the address
+// this frame will return to. Both of those describe the *caller*, so the
+// record sitting at one frame's frame pointer already is the description of
+// the frame outside it, and stepping outwards is nothing more than reading
+// one of these and passing it on.
+//
+// Read as a reported frame: `frame_pointer` owns the code that
+// `return_address` points into. That still holds for the innermost frame,
+// the one case the walker synthesises rather than reads, where the
+// return_address is the interrupted PC - an address being executed rather
+// than one that will be returned to, and stored in no record anywhere.
+struct StackFrame {
+  const StackFrame* frame_pointer;
+  const void* return_address;
+};
+
+// The span of a thread's stack that is known to be mapped, as [low, high).
+//
+// Worth having because it turns the question "can this address be read" from
+// something only the kernel can answer into two comparisons. A frame record
+// lying wholly inside a live thread's stack cannot fault, so it can be
+// loaded directly instead of through a syscall.
+//
+// A zeroed value means "unknown", which is always safe: every read then goes
+// the slow way. Always brace-initialise one - it deliberately carries no
+// default member initialisers, because a nested class cannot use them from
+// inside the class that encloses it.
+struct StackBounds {
+  uintptr_t low;
+  uintptr_t high;
+
+  bool known() const {
+    return low < high;
+  }
+
+  // Whether `size` bytes at `addr` lie wholly within the span.
+  bool contains(const void* addr, size_t size) const {
+    auto a = reinterpret_cast<uintptr_t>(addr);
+    return known() && a >= low && a < high && high - a >= size;
+  }
+
+  // Narrows to the portion at or above `sp`, and reports nothing at all if
+  // `sp` lies outside.
+  //
+  // Both halves matter. Only the part of a stack from the stack pointer up
+  // to the base is certainly mapped: glibc reports the main thread's stack
+  // as everything RLIMIT_STACK permits, most of which has never been touched
+  // and some of which is the guard gap. And `sp` belonging to some other
+  // stack entirely is how a thread id that was recycled since these bounds
+  // were measured gives itself away, which is the one way they could
+  // describe the wrong thread.
+  StackBounds clampedToStackPointer(uintptr_t sp) const {
+    if (!known() || sp < low || sp >= high) {
+      return {};
+    }
+    return {sp, high};
+  }
+};
+
+// Samples another thread's native call stack by interrupting it with a signal.
+//
+// The target thread walks its own frames inside the handler and parks until the
+// sampling thread is finished, so the addresses handed to the callback always
+// describe a stack that is still live.
+//
+// Stacks of any depth are supported. The target publishes frames a batch at a
+// time into a fixed buffer; once the sampler has drained a batch it wakes the
+// target, which resumes the walk where it left off. The target stays inside the
+// handler for the whole sequence, so the frames remain frozen across batches
+// and the batching is invisible to the callback.
+//
+// The sampling thread should do minimal work while the thread is suspended -
+// this includes not taking any locks. The target thread must destruct the
+// StackWalk object otherwise the suspended thread will remain suspended
+// indefinitely. The suspended thread is stuck in the signal handler so will
+// remain there until the sampling thread is finished.
+//
+// Only one instance may exist at a time: a signal handler cannot be given a
+// context pointer, so the active instance is reached through a global.
+class StackWalk {
+ public:
+  using ThreadId = pthread_t;
+
+  // The layout the compilers and the JIT's own prologue all agree on, and that
+  // reading a record straight out of a stack depends on. See
+  // codegen/arch.h's kFrameRecordSize, which emits it.
+  static_assert(sizeof(StackFrame) == 2 * sizeof(void*));
+
+  // Installs a handler for `signum`, saving whatever was there before, and
+  // sets up the fault-safe read if nothing has yet. Doing the latter here as
+  // well as lazily is what keeps it off the signalled path: by the time a
+  // handler runs, the instance that made the signal possible has seen to it.
+  explicit StackWalk(int signum = SIGUSR1);
+
+  // Restores the previously installed handler.
+  ~StackWalk();
+
+  StackWalk(const StackWalk&) = delete;
+  StackWalk(StackWalk&&) = delete;
+  StackWalk& operator=(const StackWalk&) = delete;
+  StackWalk& operator=(StackWalk&&) = delete;
+
+  // Whether `thread` is the one calling this.
+  static bool isCurrentThread(ThreadId thread);
+
+  // Reports the frames of the thread `tstate` is running on, innermost first,
+  // as walk(ThreadId) does. Walking the calling thread needs no freezing at
+  // all, so it is dispatched to walkSelf() rather than rejected.
+  //
+  // The self test is on the native thread rather than on tstate identity: one
+  // thread can own several thread states at once, one per interpreter, and all
+  // of them are still the calling thread.
+  //
+  // Which frames the walker's own machinery contributes at the head of the
+  // sequence differs between the two paths, and depends on how much of this
+  // inlines. Callers must therefore recognise the frame they want by identity
+  // and skip whatever precedes it, never index from the top.
+  template <typename F>
+  bool walk(PyThreadState* tstate, F&& callback) {
+    ThreadId thread = nativeThreadId(tstate);
+    return isCurrentThread(thread) ? walkSelf(std::forward<F>(callback))
+                                   : walk(thread, std::forward<F>(callback));
+  }
+
+  // Freezes `thread` and invokes `callback(frame_pointer, return_address)` once
+  // per frame, innermost first, until the stack is exhausted. The callback runs
+  // on the calling thread while `thread` stays frozen; returning false stops
+  // the walk early and lets the target resume without unwinding the rest.
+  //
+  // `thread` must stay alive for the duration: a thread id outlives the thread
+  // it named, and freezing a recycled one is undefined. Holding the GIL, or
+  // stopping the world, is enough to guarantee that of a thread state's thread.
+  //
+  // Returns false without invoking the callback if the target could not be
+  // sampled. Sampling the calling thread would deadlock and is rejected; call
+  // walkSelf(), or the thread-state overload above, for that.
+  //
+  // Both addresses arrive as `const void*`, the frame pointer deliberately so.
+  // It is only ever a plausible address, never one known to be readable - a
+  // chain that has left the stack can point into a guard page - and the walker
+  // never dereferences one itself. Handing over a `const StackFrame*` would
+  // advertise a read that is not safe to make.
+  template <typename F>
+  bool walk(ThreadId thread, F&& callback) {
+    if (!startWalk(thread)) {
+      return false;
+    }
+    // The target stays blocked until this runs, so it must happen even if the
+    // callback throws.
+    SCOPE_EXIT(endWalk());
+
+    while (true) {
+      for (size_t i = 0; i < num_frames_; i++) {
+        const StackFrame& frame = frames_[i];
+        if (!callback(
+                static_cast<const void*>(frame.frame_pointer),
+                frame.return_address)) {
+          return true;
+        }
+      }
+      // A batch the target could not fill is the last one: it stopped because
+      // the chain ran out, not because the buffer did. A chain that ends
+      // exactly on a batch boundary therefore costs one more round trip, to
+      // collect the empty batch that says so.
+      if (num_frames_ < kBatchSize || !nextBatch()) {
+        return true;
+      }
+    }
+  }
+
+  // Walks the calling thread's own stack, invoking the same callback as
+  // walk(), starting with the caller of walkSelf() and working outwards. No
+  // signal is involved: a thread's own frames cannot move while it is the one
+  // inspecting them, so this is just a pointer chase and needs no instance.
+  template <typename F>
+  static bool walkSelf(F&& callback) {
+    Cursor cursor{
+        static_cast<const StackFrame*>(__builtin_frame_address(0)),
+        currentStackBounds()};
+    while (true) {
+      const void* return_address = cursor.returnAddress();
+      const StackFrame* caller = cursor.step();
+      if (caller == nullptr ||
+          !callback(static_cast<const void*>(caller), return_address)) {
+        return true;
+      }
+    }
+  }
+
+  // Follows a chain of frame records outwards from a starting frame.
+  //
+  // Stacks grow down, so each record must sit above the last, and one that is
+  // misaligned or absurdly far away means the chain has run into a frameless
+  // function or garbage rather than the bottom of the stack. A resumed JIT
+  // generator is the one exception: it runs with the frame-pointer register
+  // aimed at its heap-allocated data, so the chain leaves the stack for a
+  // single record before rejoining it just above where it left. Plausibility
+  // is therefore measured against the innermost record seen *on the stack*
+  // rather than against the immediately preceding one.
+  //
+  // Those checks say only that an address is a believable frame pointer, never
+  // that it is readable, and the difference is fatal: a chain that leaves the
+  // stack has nothing to stop it pointing into a guard page or a hole in the
+  // address space. The cursor therefore never dereferences a frame pointer.
+  // Each record is copied in once through a read that cannot fault, and every
+  // subsequent load comes from that copy.
+  //
+  // Given the walked thread's stack bounds that copy is usually free: a record
+  // inside a live stack is readable by definition, so it can just be loaded.
+  // Only records outside the stack - a resumed generator's heap data, and
+  // whatever garbage terminates the chain - need the syscall, which is a
+  // handful per walk rather than one per frame.
+  class Cursor {
+   public:
+    // Reads the record at `frame`. A cursor over an unreadable address starts
+    // out exhausted rather than failing later: step() reports the end of the
+    // chain immediately and returnAddress() is null.
+    //
+    // `bounds` describes the stack being walked. Passing none costs only
+    // speed; the walk is equally correct either way.
+    explicit Cursor(const StackFrame* frame, StackBounds bounds = {});
+
+    // The address being executed in the frame the cursor is on. Read this
+    // before stepping: it is stored in the callee's record, not the caller's.
+    const void* returnAddress() const {
+      return record_.return_address;
+    }
+
+    // Moves to the caller, or returns null at the end of the chain.
+    const StackFrame* step();
+
+   private:
+    // Copies the record at `addr`, directly when the stack bounds prove that
+    // cannot fault and through the fault-safe read otherwise.
+    bool readRecord(const StackFrame* addr, StackFrame* out) const;
+
+    // Whether `frame` is a believable caller of the frame at `anchor_`: a
+    // record further up the same stack. Known bounds make this exact; without
+    // them it falls back to a generous fixed window, which cannot tell a stack
+    // address from something just past the end of the stack.
+    bool isAboveAnchor(const StackFrame* frame) const;
+
+    // The contents of the record at `frame_`, read once when the cursor
+    // arrived there. Reading `frame_` again would be a second chance to fault
+    // on an address that was only ever plausible, so nothing does.
+    StackFrame record_ = {};
+    const StackFrame* frame_ = nullptr;
+    const StackFrame* anchor_ = nullptr;
+    StackBounds bounds_ = {};
+    // Whether `record_` was actually read. A cursor that never got a first
+    // record has no chain to follow.
+    bool valid_ = false;
+  };
+
+  // The native thread `tstate` is running on.
+  //
+  // Reads the field rather than calling into CPython, both because the walker
+  // is used from a signal handler and because it keeps this header free of any
+  // symbol that would have to be linked.
+  static ThreadId nativeThreadId(PyThreadState* tstate) {
+    static_assert(sizeof(ThreadId) <= sizeof(tstate->thread_id));
+    ThreadId thread;
+    std::memcpy(&thread, &tstate->thread_id, sizeof(thread));
+    return thread;
+  }
+
+  // The calling thread's own stack, for walking it directly. Measured once per
+  // thread and remembered, because deriving it for the main thread means
+  // parsing /proc/self/maps.
+  //
+  // Not usable from a signal handler on a thread that has never asked before,
+  // since that first measurement allocates. Nothing on the signalled path does
+  // ask: a sampled thread is handed bounds its sampler measured for it.
+  static StackBounds currentStackBounds();
+
+  // Whether frame records can be read without risking a fault. False means a
+  // sandbox has taken the mechanism away, and every walk will come back empty
+  // rather than crash. Probes if nothing has yet, so it answers the same
+  // whether or not anything has walked.
+  static bool canReadFramesSafely();
+
+  // How many fault-safe reads have been performed across the whole process,
+  // which is to say how many syscalls the walker has spent on frames it could
+  // not prove were on a stack. Expect a couple per walk; one per frame means
+  // the stack bounds are not reaching the walk.
+  static uint64_t safeReadCount();
+
+  // How many frame records have been rejected as unreadable across the whole
+  // process. A chain that simply ran out does not count: the outermost record
+  // holds a null caller, which is recognised without a read. So a non-zero
+  // count means some walk was cut short by an address that looked like a frame
+  // pointer but was not backed by memory, and a count that climbs with every
+  // walk means stacks are being silently truncated.
+  static uint64_t unreadableFrameCount();
+
+  // Sized purely as a memory/round-trip tradeoff; deeper stacks just take more
+  // batches.
+  static constexpr size_t kBatchSize = 64;
+
+ private:
+  // Probes the fault-safe read, once per process. Every entry point that can
+  // start a walk calls this, so no caller has to have arranged it - but only
+  // ever from an ordinary thread. Reaching the probe itself from a signal
+  // handler would mean allocating and blocking there; see the definition for
+  // why nothing signalled can.
+  static void ensureSafeReadInitialized();
+
+  // The stack of `thread`, remembered between walks. Measuring it is cheap for
+  // a spawned thread but not for the main one, and the deopt path walks the
+  // same thread over and over.
+  //
+  // A thread id outliving its thread and being reissued would make this stale.
+  // That is caught on the other side, where the bounds are checked against the
+  // stack pointer of the thread actually holding them.
+  StackBounds stackBoundsFor(ThreadId thread);
+
+  // Signals `thread` and waits for its first batch of frames.
+  bool startWalk(ThreadId thread);
+
+  // Wakes the parked target to collect the next batch and waits for it.
+  bool nextBatch();
+
+  // Tells the parked target to abandon the walk and return from the handler.
+  void endWalk();
+
+  static void handleSignal(int signum, siginfo_t* info, void* ucontext);
+
+  // Runs on the target thread inside the signal handler, so everything it
+  // touches must be async-signal-safe.
+  void captureFrames(const void* ucontext);
+
+  // Publishes the batch built so far and blocks until the sampler asks for
+  // more. Returns false if the sampler is done with this walk.
+  //
+  // A short batch is how the end of the chain is announced, so a full one
+  // always costs another round trip even when nothing is left to send.
+  bool publishBatch(size_t count);
+
+  // A handler may not touch a lock, so the pointer above has to be reachable
+  // without one. True everywhere this builds; asserted so that a port to
+  // somewhere it is not fails here rather than deadlocking in a signal.
+  static_assert(std::atomic<StackWalk*>::is_always_lock_free);
+
+  struct sigaction prev_action_ = {};
+
+  // C++20 semaphore's aren't signal safe, so we use semaphore.h
+  sem_t frames_ready_{};
+  sem_t resume_{};
+
+  // Written by the target thread's handler, read by the sampling thread while
+  // the target is parked, and vice versa for `stop_requested_`. The semaphores
+  // supply the happens-before edges.
+  //
+  // A count below kBatchSize doubles as the end-of-walk signal, which is why
+  // the target publishes an empty batch rather than just returning when a
+  // chain happens to end on a batch boundary.
+  std::array<StackFrame, kBatchSize> frames_ = {};
+  size_t num_frames_ = 0;
+
+  // The target's stack, measured by the sampler before signalling and read by
+  // the target inside the handler. pthread_kill orders the two.
+  StackBounds target_bounds_ = {};
+
+  // Last thread stackBoundsFor() was asked about, and its answer.
+  ThreadId bounds_cache_thread_ = {};
+  StackBounds bounds_cache_ = {};
+  int signum_;
+  bool stop_requested_ = false;
+  bool bounds_cache_valid_ = false;
+  bool target_parked_ = false;
+};
+
+} // namespace cinderx
+
+#endif
