@@ -622,7 +622,7 @@ TEST(StackWalkThreadTest, WalkOfOwnThreadStateWalksSelfRatherThanFailing) {
 
 TEST(StackWalkThreadTest, WalksAnotherThreadThroughItsThreadState) {
   StackWalk sw;
-  SpinningThread other;
+  SpinningThread other{1};
   PyThreadState tstate = fakeThreadState(other.id());
 
   std::vector<FramePair> frames;
@@ -633,7 +633,6 @@ TEST(StackWalkThreadTest, WalksAnotherThreadThroughItsThreadState) {
       });
 
   EXPECT_EQ(walked, WalkResult::Completed);
-  // A parked thread sits several frames deep inside libstdc++ and libc.
   EXPECT_GT(frames.size(), 1u);
 }
 
@@ -642,7 +641,7 @@ TEST(StackWalkThreadTest, WalksAnotherThreadThroughItsThreadState) {
 // directly. Only whatever the chain ends on is off-stack.
 TEST(StackWalkThreadTest, ACrossThreadWalkCostsAFewSafeReadsNotOnePerFrame) {
   StackWalk sw;
-  SpinningThread other;
+  SpinningThread other{8};
   PyThreadState tstate = fakeThreadState(other.id());
 
   const uint64_t before = StackWalk::safeReadCount();
@@ -657,11 +656,11 @@ TEST(StackWalkThreadTest, ACrossThreadWalkCostsAFewSafeReadsNotOnePerFrame) {
       WalkResult::Completed);
   const uint64_t reads = StackWalk::safeReadCount() - before;
 
-  // A parked thread sits several frames deep inside libstdc++ and libc.
-  ASSERT_GT(frames, 3u);
   EXPECT_LE(reads, 2u) << "walked " << frames << " frames but spent " << reads
                        << " safe reads; the target's stack bounds are not "
                           "reaching the walk";
+  EXPECT_GT(frames, 8u) << "the walk did not reach every recursive fixture "
+                           "frame";
 }
 
 // Walking our own stack takes the same fast path, via currentStackBounds().
@@ -676,9 +675,10 @@ TEST(StackWalkThreadTest, WalkingOurOwnStackCostsAFewSafeReadsNotOnePerFrame) {
       WalkResult::Completed);
   const uint64_t reads = StackWalk::safeReadCount() - before;
 
-  ASSERT_GT(frames, 3u);
   EXPECT_LE(reads, 2u) << "walked " << frames << " frames but spent " << reads
                        << " safe reads";
+  EXPECT_GT(frames, reads)
+      << "the walk did not find more frames than it read through the fallback";
 }
 
 TEST(StackWalkThreadTest, CallbackReturningFalseStopsACrossThreadWalk) {

@@ -509,6 +509,12 @@ if (BUILD_RUNTIME_TESTS)
   # sem_init() fails with ENOSYS.
   if (WINDOWS OR MACOS)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # These tests walk native frame-pointer chains in their own fixture code.
+    set_source_files_properties(
+      ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp
+      PROPERTIES COMPILE_OPTIONS -fno-omit-frame-pointer
+    )
   endif()
 
   add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
