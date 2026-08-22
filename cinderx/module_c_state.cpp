@@ -269,4 +269,14 @@ void Ci_SetAdaptiveThreshold(uint64_t threshold) {
   cinderx::jit::getMutableConfig().adaptive_threshold = threshold;
 }
 
+PyTypeObject* Ci_GetAwaitableWrapperType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->awaitable_wrapper_type.get() : nullptr;
+}
+
+void Ci_SetAwaitableWrapperType(PyTypeObject* type) {
+  cinderx::getModuleState()->awaitable_wrapper_type =
+      Ref<PyTypeObject>::create(type);
+}
+
 } // extern "C"

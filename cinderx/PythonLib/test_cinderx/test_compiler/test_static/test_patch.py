@@ -2067,7 +2067,7 @@ class StaticPatchTests(StaticTestBase):
 
             with self.assertRaisesRegex(
                 TypeError,
-                "unexpected return type from awaitable_wrapper.x, expected int, got str",
+                "unexpected return type from _static.awaitable_wrapper.x, expected int, got str",
             ):
                 asyncio.run(mod.f(mod.C()))
 
