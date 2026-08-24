@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/code_allocator.h"
 
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
@@ -519,7 +520,7 @@ void CodeAllocatorCinder::atForkParent() {
 }
 
 void CodeAllocatorCinder::atForkChild() {
-  new (&allocator_mutex_) std::mutex{};
+  resetMutexAfterFork(allocator_mutex_);
   CodeAllocator::atForkChild();
 }
 
