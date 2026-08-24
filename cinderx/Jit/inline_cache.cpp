@@ -79,7 +79,21 @@ TypeWatcher<AttributeCache> ac_descr_watcher;
 TypeWatcher<LoadTypeAttrCache> ltac_watcher;
 TypeWatcher<LoadMethodCache> lm_watcher;
 TypeWatcher<LoadTypeMethodCache> ltm_watcher;
-constexpr uintptr_t kKindMask = 0x07;
+// AttributeMutator bitpacks Kind into the topmost bits of its type pointer.
+//
+// The top bits are used rather than the low alignment bits so the tag clears
+// the widest user-space virtual address either target can produce: x86-64
+// 5-level paging tops out at 57 significant bits and aarch64 LVA at 52.
+//
+// What this layout does NOT tolerate is a pointer carrying a tag in its top
+// byte, as HWASAN and MTE produce on aarch64 -- those overlap the tag directly.
+// setType checks for that rather than silently truncating.
+static_assert(
+    sizeof(uintptr_t) == 8,
+    "The Kind layout assumes 64-bit pointers");
+
+constexpr unsigned kKindShift = 64 - kAttrKindBitCount;
+constexpr uintptr_t kKindMask = (uintptr_t{kAttrKindLimit} - 1) << kKindShift;
 
 // Low-bit tag on a LoadMethodCache entry's cached value. When clear, the value
 // is an untagged PyObject* for a bound method -- the common, hot case -- and is
@@ -355,8 +369,7 @@ void AttributeMutator::changeKindFromSplitInline(
     SplitMutator* split,
     Kind new_kind) {
   AttributeMutator* mutator = from(split);
-  mutator->type_ = reinterpret_cast<uintptr_t>(mutator->type()) |
-      static_cast<uintptr_t>(new_kind);
+  mutator->setType(mutator->type(), new_kind);
 }
 
 PyDictKeysObject* getSplitKeys(BorrowedRef<PyTypeObject> type) {
@@ -1043,13 +1056,16 @@ inline PyObject* AttributeMutator::getAttr(
 
 void AttributeMutator::setType(PyTypeObject* type, Kind kind) {
   auto raw = reinterpret_cast<uintptr_t>(type);
-  JIT_CHECK((raw & kKindMask) == 0, "PyTypeObject* expected to be aligned");
-  auto mask = static_cast<uintptr_t>(kind);
-  type_ = raw | mask;
+  JIT_DCHECK(
+      (raw & kKindMask) == 0,
+      "PyTypeObject* for {} has bits set where the Kind tag goes; a "
+      "top-byte-tagged pointer (HWASAN/MTE) cannot be packed this way",
+      type->tp_name);
+  type_ = raw | (static_cast<uintptr_t>(kind) << kKindShift);
 }
 
 AttributeMutator::Kind AttributeMutator::getKind() const {
-  return static_cast<Kind>(type_ & kKindMask);
+  return static_cast<Kind>((type_ & kKindMask) >> kKindShift);
 }
 
 // AttributeCacheSizeTrait sizes the allocation as sizeof(AttributeCache) plus

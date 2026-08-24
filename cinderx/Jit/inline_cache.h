@@ -48,6 +48,13 @@ constexpr bool kInlineCachesTargetPromote =
     false;
 #endif
 
+// How many of the packed type pointer's top bits are reserved for
+// AttributeMutator::Kind. The field sits above any representable address rather
+// than in the low alignment bits, so it is not capped at the 3 bits
+// PyTypeObject's 8-byte alignment guarantees.
+constexpr unsigned kAttrKindBitCount = 4;
+constexpr unsigned kAttrKindLimit = 1u << kAttrKindBitCount;
+
 class LoadAttrCache;
 class StoreAttrCache;
 
@@ -190,8 +197,8 @@ struct GetAttrMutator {
 // get/set of a particular kind of attribute.
 class AttributeMutator {
  public:
-  // Kind enum is designed to fit within 3 bits and it's value is embedded into
-  // the type_ pointer
+  // Kind's value is bitpacked into the top kAttrKindBitCount bits of the type_
+  // pointer.
   enum class Kind : uint8_t {
 #define CINDERX_ATTR_KIND_ENUMERATOR(name, store_ok) name,
     CINDERX_FOREACH_ATTR_KIND(CINDERX_ATTR_KIND_ENUMERATOR)
@@ -199,8 +206,8 @@ class AttributeMutator {
         kMaxValue,
   };
   static_assert(
-      static_cast<uint8_t>(Kind::kMaxValue) <= 8,
-      "Kind enum should fit in 3 bits");
+      static_cast<uint8_t>(Kind::kMaxValue) <= kAttrKindLimit,
+      "Kind enum does not fit in the bits reserved for it in the type pointer");
 
   AttributeMutator();
   PyTypeObject* type() const;
