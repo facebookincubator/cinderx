@@ -2,15 +2,10 @@
 
 #include "cinderx/Common/slab_arena.h"
 
-#include "cinderx/Common/define.h"
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/module_state.h"
 
-#if CINDER_TSAN_ENABLED
-#include <sanitizer/tsan_interface.h>
-#endif
-
 #include <algorithm>
-#include <new>
 
 #if defined(__linux__) && defined(__aarch64__)
 // On ARM64 we see huge dTLB misses on our inline caches so
@@ -19,25 +14,6 @@
 #endif
 
 namespace cinderx {
-
-namespace {
-
-void resetMutexAfterFork(std::mutex& mutex) {
-#if CINDER_TSAN_ENABLED
-  void* native_mutex = mutex.native_handle();
-  __tsan_mutex_pre_unlock(native_mutex, 0);
-  __tsan_mutex_post_unlock(native_mutex, 0);
-  __tsan_mutex_destroy(native_mutex, 0);
-#endif
-
-  new (&mutex) std::mutex{};
-
-#if CINDER_TSAN_ENABLED
-  __tsan_mutex_create(mutex.native_handle(), 0);
-#endif
-}
-
-} // namespace
 
 std::shared_ptr<HugePageArena> getSharedHugePageArena() {
 #ifdef ALLOCATE_HUGE_PAGES

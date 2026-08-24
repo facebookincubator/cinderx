@@ -2,34 +2,9 @@
 
 #include "cinderx/Jit/compilation_lock.h"
 
-#include "cinderx/Common/define.h"
-
-#if CINDER_TSAN_ENABLED
-#include <sanitizer/tsan_interface.h>
-#endif
-
-#include <new>
+#include "cinderx/Common/fork_support.h"
 
 namespace cinderx::jit {
-
-namespace {
-
-void resetMutexAfterFork(std::recursive_mutex& mutex) {
-#if CINDER_TSAN_ENABLED
-  void* native_mutex = mutex.native_handle();
-  __tsan_mutex_pre_unlock(native_mutex, __tsan_mutex_recursive_unlock);
-  __tsan_mutex_post_unlock(native_mutex, 0);
-  __tsan_mutex_destroy(native_mutex, 0);
-#endif
-
-  new (&mutex) std::recursive_mutex{};
-
-#if CINDER_TSAN_ENABLED
-  __tsan_mutex_create(mutex.native_handle(), __tsan_mutex_write_reentrant);
-#endif
-}
-
-} // namespace
 
 std::recursive_mutex& jitCompilationMutex() {
   static std::recursive_mutex mutex;
