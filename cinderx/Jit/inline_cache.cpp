@@ -156,9 +156,11 @@ PyTypeObject s_empty_type_attr_cache = {
 };
 #pragma clang diagnostic pop
 
-inline Ref<PyDictObject> get_dict(PyObject* obj, Py_ssize_t dictoffset) {
+inline BorrowedRef<PyDictObject> get_dict(
+    PyObject* obj,
+    Py_ssize_t dictoffset) {
   PyObject** dictptr = (PyObject**)((char*)obj + dictoffset);
-  return Ref<PyDictObject>::create((PyDictObject*)*dictptr);
+  return (PyDictObject*)*dictptr;
 }
 
 inline bool is_dict_unmaterialized(PyDictObject* dict) {
@@ -260,6 +262,7 @@ PyObject* callGetAttr(
 // Try __getattr__ fallback for split/combined dict lookups where the value is
 // missing. If the type has __getattr__ (tp_getattro == Ci_tp_getattr_hook),
 // look it up and call it. Otherwise, raise AttributeError as usual.
+CINDERX_NOINLINE
 PyObject* getAttrFallback(PyObject* obj, PyObject* name) {
   BorrowedRef<PyTypeObject> type = Py_TYPE(obj);
   if (type->tp_getattro == Ci_tp_getattr_hook) {
@@ -341,6 +344,7 @@ bool isValidKeysVersion(uint32_t keys_version, BorrowedRef<> obj) {
 // suppress the error and call __getattr__ as a fallback. Returns the
 // __getattr__ result, or nullptr if __getattr__ was not applicable (in
 // which case the original error remains set).
+CINDERX_NOINLINE
 PyObject* tryGetAttrFallback(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> cached_getattr,
@@ -572,22 +576,11 @@ int SplitMutator::setAttr(
   return PyDict_SetItem(dict, name, value);
 }
 
-inline PyObject*
-SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
-  PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
-  if (_PyDictOrValues_IsValues(dorv)) {
-    JIT_DCHECK(split->val_offset != -1, "Should have value offset");
-
-    // Values are stored in values w/o materialized dictionary
-    PyDictValues* values = _PyDictOrValues_GetValues(dorv);
-    PyObject* result = values->values[split->val_offset];
-    if (result == nullptr) {
-      return getAttrFallback(obj, name);
-    }
-    Py_INCREF(result);
-    return result;
-  }
-
+PyObject* getSplitAttrSlow(
+    PyObject* obj,
+    PyObject* name,
+    SplitMutator* split,
+    PyDictOrValues dorv) {
   PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
   if (dict == nullptr) {
     return getAttrFallback(obj, name);
@@ -609,6 +602,24 @@ SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
   Py_INCREF(result);
   return result;
 }
+
+inline PyObject*
+SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
+  PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
+  if (_PyDictOrValues_IsValues(dorv)) [[likely]] {
+    JIT_DCHECK(split->val_offset != -1, "Should have value offset");
+
+    // Values are stored in values w/o materialized dictionary
+    PyDictValues* values = _PyDictOrValues_GetValues(dorv);
+    PyObject* result = values->values[split->val_offset];
+    if (result == nullptr) [[unlikely]] {
+      return getAttrFallback(obj, name);
+    }
+    Py_INCREF(result);
+    return result;
+  }
+  return getSplitAttrSlow(obj, name, split, dorv);
+}
 #endif // PY_VERSION_HEX < 0x030E0000
 
 int CombinedMutator::setAttr(
@@ -616,31 +627,38 @@ int CombinedMutator::setAttr(
     PyObject* name,
     PyObject* value,
     CombinedMutator* combined) {
-  Ref<PyDictObject> dict = get_dict(obj, combined->dict_offset);
+  // Using Ref<>'s here actually impacts the code gen of a hot path, so we
+  // use explicit incref/decref.
+  PyDictObject* dict = get_dict(obj, combined->dict_offset);
   if (dict == nullptr) {
-    dict = Ref<PyDictObject>::steal(
-        reinterpret_cast<PyDictObject*>(PyObject_GenericGetDict(obj, nullptr)));
+    dict =
+        reinterpret_cast<PyDictObject*>(PyObject_GenericGetDict(obj, nullptr));
     if (dict == nullptr) {
       return -1;
     }
+  } else {
+    Py_INCREF(dict);
   }
-  return PyDict_SetItem(dict, name, value);
+  auto res = PyDict_SetItem(&dict->ob_base, name, value);
+  Py_DECREF(dict);
+  return res;
 }
 
-PyObject* CombinedMutator::getAttr(
+inline PyObject* CombinedMutator::getAttr(
     PyObject* obj,
     PyObject* name,
     CombinedMutator* combined) {
-  Ref<PyDictObject> dict = get_dict(obj, combined->dict_offset);
-  if (dict == nullptr) {
-    return getAttrFallback(obj, name);
+  auto dict = get_dict(obj, combined->dict_offset);
+  if (dict != nullptr) [[likely]] {
+    Py_INCREF(dict);
+    PyObject* result = PyDict_GetItem(dict, name);
+    Py_XINCREF(result);
+    Py_DECREF(dict);
+    if (result != nullptr) {
+      return result;
+    }
   }
-  PyObject* result = PyDict_GetItem(dict, name);
-  if (result == nullptr) {
-    return getAttrFallback(obj, name);
-  }
-  Py_INCREF(result);
-  return result;
+  return getAttrFallback(obj, name);
 }
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -1965,14 +1983,17 @@ PyObject* GetAttrMutator::getAttr(
     // dictionary w/o split keys, see if the value has been overridden, if not
     // call __getattr__.
 #if PY_VERSION_HEX >= 0x030E0000
-    Ref<PyDictObject> dict = get_dict(obj, MANAGED_DICT_OFFSET);
+    auto dict = get_dict(obj, MANAGED_DICT_OFFSET);
     if (dict == nullptr) {
       return callGetAttr(getattr_method, obj, name);
     }
+    Py_INCREF(dict);
     PyObject* res =
         PyDict_GetItem(reinterpret_cast<PyObject*>(dict.get()), name);
+    Py_XINCREF(res);
+    Py_DECREF(dict);
     if (res != nullptr) {
-      return Py_NewRef(res);
+      return res;
     }
     return callGetAttr(getattr_method, obj, name);
 #else
