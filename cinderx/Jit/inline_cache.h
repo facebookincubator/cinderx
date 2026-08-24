@@ -183,6 +183,32 @@ struct ModuleMutator {
   BorrowedRef<> module;
   PyObject** cache;
 };
+
+// Mutator for an attribute read off a type object, e.g. `SomeClass.attr`.
+//
+// Unlike every other kind, the enclosing entry's `type_` holds the *receiver*
+// -- the class being read -- rather than Py_TYPE(receiver). A class is a
+// PyTypeObject*, so this is type-correct, and it is what makes the entry cost
+// nothing but the value: `ac_watcher.watch(cls)` plus
+// AttributeCache::typeChanged(cls), which resets entries by matching
+// entry.type(), is the entire invalidation story. PyType_Modified recurses into
+// subclasses and fires the watcher per visited type, so a value inherited from
+// a base is invalidated too, even though the entry names only the subclass.
+//
+// The flip side is that an entry of this kind must never be reached by the
+// generic scan, which matches entry.type() against Py_TYPE(obj) and would
+// therefore hand an *instance* of the cached class the class's own attribute.
+// Nothing does: retarget() monomorphises the cache and points it at
+// LoadAttrCache::invokeType, which matches on entry.type() == obj, and
+// getAttrForKind has no kType arm, so any other route aborts rather than
+// answering wrongly.
+struct TypeMutator {
+  // Null until the first invokeType miss populates it. It stays null for a
+  // class whose read is not cacheable -- a descriptor that has to run, say --
+  // which keeps that class pinned to the slow path instead of retrying an
+  // entry it can never fill.
+  BorrowedRef<> value;
+};
 #endif
 
 // The single source of truth for AttributeMutator::Kind. Everything that has
@@ -198,7 +224,9 @@ struct ModuleMutator {
 // kModule is only registered under target promotion. The non-target promotion
 // path can't handle instance identity checks.
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-#define CINDERX_ATTR_KIND_PROMOTION_ONLY(X) X(kModule, 0)
+#define CINDERX_ATTR_KIND_PROMOTION_ONLY(X) \
+  X(kModule, 0)                             \
+  X(kType, 0)
 #else
 #define CINDERX_ATTR_KIND_PROMOTION_ONLY(X)
 #endif
@@ -272,6 +300,17 @@ class AttributeMutator {
         "should only be used on modules");
     return &module_;
   }
+
+  // `cls` is the class being read, which goes straight into type_. See
+  // TypeMutator.
+  void setTypeAttr(PyTypeObject* cls);
+
+  TypeMutator* asTypeAttr() {
+    JIT_DCHECK(
+        getKind() == AttributeMutator::Kind::kType,
+        "should only be used on type attributes");
+    return &type_attr_;
+  }
 #endif
 
   BorrowedRef<PyTypeObject> watchedDescrType() const;
@@ -340,6 +379,7 @@ class AttributeMutator {
     GetAttrMutator getattr_;
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
     ModuleMutator module_;
+    TypeMutator type_attr_;
 #endif
   };
 };
@@ -515,6 +555,12 @@ class LoadAttrCache : public AttributeCache {
   static PyObject*
   invokeModule(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
+  // The kType counterpart of invokeModule. Owns a cache that retarget() has
+  // monomorphised to class receivers, and matches entry.type() against the
+  // receiver itself rather than against Py_TYPE(receiver). See TypeMutator.
+  static PyObject*
+  invokeType(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
   // Address of the dispatch slot, for codegen to load and call through.
   LoadAttrTarget* targetAddr();
 
@@ -523,6 +569,15 @@ class LoadAttrCache : public AttributeCache {
 
   static PyObject*
   invokeSlowPath(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  // The cold half of invokeType: anything the leading entry did not claim --
+  // a second class, a first read of one, or a receiver that is not a class at
+  // all. Kept out of line so the hit path is a straight line, in the same
+  // shape as invoke/invokeSlowPath.
+  static PyObject*
+  invokeTypeSlow(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+#endif
 
   // See the note on StoreAttrCache::retarget.
   void retarget(AttributeMutator* mut);

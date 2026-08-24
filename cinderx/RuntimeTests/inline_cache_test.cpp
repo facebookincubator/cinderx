@@ -952,6 +952,215 @@ TEST_F(InlineCacheTest, ModuleAttrCacheChecksModuleIdentity) {
   EXPECT_EQ(loadRepeatedly(cache.get(), mod_a, name), 5)
       << "Alternating modules must each read their own value";
 }
+
+namespace {
+
+constexpr const char* kTwoClasses = R"(
+class A:
+  x = 5
+
+class B:
+  x = 11
+)";
+
+} // namespace
+
+TEST_F(InlineCacheTest, AttrCacheSpecializesTypeLoads) {
+  Ref<> locals = runToLocals(this, kTwoClasses);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "A");
+  ASSERT_NE(cls.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), cls, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+
+  // A type receiver must land on the type target. Before kType existed fill()
+  // rejected type objects, because type_getattro is not
+  // PyObject_GenericGetAttr, and the cache stayed empty. retarget()
+  // monomorphises the cache to classes and installs invokeType rather than the
+  // generic single-entry specialization, which could not read a kType entry.
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeType)
+      << "A class-attribute load should install the invokeType target";
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls, name), 5)
+      << "The cached class read should be stable across repeats";
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheSeesTypeMutation) {
+  Ref<> locals = runToLocals(this, kTwoClasses);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "A");
+  ASSERT_NE(cls.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), cls, name), 5);
+
+  // Rebinding the class attribute runs PyType_Modified, which fires the
+  // attribute cache's type watcher for A. The entry is keyed on A itself, so
+  // typeChanged finds and resets it -- there is no version tag involved.
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  ASSERT_EQ(PyObject_SetAttr(cls, name, seven), 0);
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls, name), 7)
+      << "A class mutation must invalidate the cached value";
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheSeesBaseClassMutation) {
+  Ref<> locals = runToLocals(this, R"(
+class Base:
+  x = 5
+
+class Derived(Base):
+  pass
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> base = PyDict_GetItemString(locals, "Base");
+  BorrowedRef<> derived = PyDict_GetItemString(locals, "Derived");
+  ASSERT_NE(base.get(), nullptr);
+  ASSERT_NE(derived.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  // The value is inherited, so it is found on Base but cached against Derived.
+  ASSERT_EQ(loadRepeatedly(cache.get(), derived, name), 5);
+
+  // Mutating Base must invalidate an entry keyed on Derived. PyType_Modified
+  // recurses into subclasses and fires the watcher once per visited type, so
+  // watching only the class that was read is enough to catch a change to
+  // anything it inherits from. That recursion is the whole reason this kind can
+  // get away with watching a single type.
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  ASSERT_EQ(PyObject_SetAttr(base, name, seven), 0);
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), derived, name), 7)
+      << "A base class mutation must invalidate a value cached on the subclass";
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheChecksClassIdentity) {
+  Ref<> locals = runToLocals(this, kTwoClasses);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls_a = PyDict_GetItemString(locals, "A");
+  BorrowedRef<> cls_b = PyDict_GetItemString(locals, "B");
+  ASSERT_NE(cls_a.get(), nullptr);
+  ASSERT_NE(cls_b.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), cls_a, name), 5);
+
+  // invokeType matches entry.type() against the receiver itself, so A's entry
+  // simply does not match B; B gets a second entry of its own rather than A's
+  // value.
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls_b, name), 11)
+      << "A different class must not read the first class's cached value";
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls_a, name), 5)
+      << "Alternating classes must each read their own value";
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheRejectsInstanceOfCachedClass) {
+  // The hazard this kind is built around: the entry holds A in type_, so an
+  // *instance* of A is exactly what the generic scan's entry.type() ==
+  // Py_TYPE(obj) test would match. invokeType compares against the receiver
+  // instead, so the instance must miss and get its own attribute rather than
+  // the class's.
+  Ref<> locals = runToLocals(this, R"(
+class A:
+  x = 5
+
+a = A()
+a.x = 42
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "A");
+  BorrowedRef<> inst = PyDict_GetItemString(locals, "a");
+  ASSERT_NE(cls.get(), nullptr);
+  ASSERT_NE(inst.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), cls, name), 5);
+  ASSERT_EQ(*cache->targetAddr(), LoadAttrCache::invokeType);
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), inst, name), 42)
+      << "An instance of the cached class must not be served the class's "
+      << "attribute";
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls, name), 5)
+      << "...and the class must still read its own";
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheMonomorphisesOverInstanceEntries) {
+  // A site that sees instances first and a class later: retarget must clear the
+  // instance entries out before handing the cache to invokeType, which assumes
+  // every populated entry is a kType keyed on a class.
+  getMutableConfig().attr_cache_size = 4;
+  Ref<> locals = runToLocals(this, R"(
+class A:
+  x = 5
+
+class B:
+  x = 11
+
+a = A()
+a.x = 1
+b = B()
+b.x = 2
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "A");
+  BorrowedRef<> inst_a = PyDict_GetItemString(locals, "a");
+  BorrowedRef<> inst_b = PyDict_GetItemString(locals, "b");
+  ASSERT_NE(cls.get(), nullptr);
+  ASSERT_NE(inst_a.get(), nullptr);
+  ASSERT_NE(inst_b.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), inst_a, name), 1);
+  ASSERT_EQ(loadRepeatedly(cache.get(), inst_b, name), 2);
+  ASSERT_NE(*cache->targetAddr(), LoadAttrCache::invokeType)
+      << "Two instance receivers should still be on a generic target";
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls, name), 5);
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeType)
+      << "A class receiver must monomorphise the cache to invokeType";
+
+  // The instances now take the fallback, but must still be correct.
+  EXPECT_EQ(loadRepeatedly(cache.get(), inst_a, name), 1);
+  EXPECT_EQ(loadRepeatedly(cache.get(), inst_b, name), 2);
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls, name), 5);
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheLeavesDescriptorsUncached) {
+  // A classmethod has tp_descr_get and is not a plain function or staticmethod,
+  // so lookupTypeAttr must run it on every read rather than caching its result.
+  // Getting this wrong would hand back a bound method built against a stale
+  // class.
+  Ref<> locals = runToLocals(this, R"(
+class A:
+  @classmethod
+  def m(cls):
+    return 5
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "A");
+  ASSERT_NE(cls.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("m"));
+
+  CacheStorage<LoadAttrCache> cache;
+  for (int i = 0; i < 3; i++) {
+    auto bound = callLoad(cache.get(), cls, name);
+    ASSERT_NE(bound.get(), nullptr) << "iteration " << i;
+    auto res = Ref<>::steal(PyObject_CallNoArgs(bound));
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 5) << "iteration " << i;
+  }
+}
 #endif
 
 TEST_F(InlineCacheTest, LoadAttrCacheSingleEntryHitsAndMisses) {

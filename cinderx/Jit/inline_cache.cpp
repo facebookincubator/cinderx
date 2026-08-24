@@ -931,6 +931,14 @@ void AttributeMutator::setModule(PyTypeObject* type, PyObject* module) {
   module_.module = module;
   module_.cache = nullptr;
 }
+
+void AttributeMutator::setTypeAttr(PyTypeObject* cls) {
+  // The class itself, not Py_TYPE(cls) -- this kind is keyed on the receiver.
+  setType(cls, Kind::kType);
+  // As with setModule, claiming the receiver is enough to make invokeType's
+  // scan find this entry; the first miss through it populates the value.
+  type_attr_.value = nullptr;
+}
 #endif
 
 BorrowedRef<PyTypeObject> AttributeMutator::watchedDescrType() const {
@@ -1018,6 +1026,11 @@ inline PyObject* AttributeMutator::getAttrForKind(
     return ModuleMutator::getAttr(obj, name, &entry->module_);
 #endif
   } else {
+    // kType lands here on purpose. Its entry is keyed on the receiver rather
+    // than on Py_TYPE(receiver), so answering from any path that got here by
+    // matching Py_TYPE(obj) would return a class's attribute to one of its
+    // instances. LoadAttrCache::invokeType is the only legitimate reader, and
+    // it goes through asTypeAttr() directly. See TypeMutator.
     JIT_ABORT("Cannot invoke getAttr for attr of kind {}", static_cast<int>(K));
   }
 }
@@ -1207,14 +1220,26 @@ void AttributeCache::packEntries() {
 }
 
 void AttributeCache::monomorphise(AttributeMutator::Kind kind) {
-  // module access is exceedingly monomorphic and unlikely
+  // module and class access are exceedingly monomorphic and unlikely
   // to bounce between other attributes
   bool reset = false;
   for (auto& entry : entries()) {
-    if (entry.getKind() != kind) {
-      entry.reset();
-      reset = true;
+    if (entry.isEmpty() || entry.getKind() == kind) {
+      continue;
     }
+    // Drop the watches this entry owned before dropping the type that names
+    // them. ~AttributeCache only unwatches entries that are still populated, so
+    // a bare reset() would leave this cache registered under a type it no
+    // longer mentions -- and that registration outlives the cache, so the next
+    // change to that type would call typeChanged on freed memory.
+    ac_watcher.unwatch(entry.type(), this);
+    if (BorrowedRef<PyTypeObject> descr_tp = entry.watchedDescrType()) {
+      // Unlike typeChanged, no surviving entry can still want this: everything
+      // left is `kind`, which is never a descriptor kind.
+      ac_descr_watcher.unwatch(descr_tp, this);
+    }
+    entry.reset();
+    reset = true;
   }
   if (reset) {
     packEntries();
@@ -1317,6 +1342,35 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
     // other kind for typeChanged purposes. PyModule_Type is immutable, so in
     // practice the watcher declines it.
     ac_watcher.watch(type, this);
+    return mut;
+  }
+
+  // Type objects are rejected by the same test, for the same reason:
+  // type_getattro is not PyObject_GenericGetAttr. Claim them here so that
+  // `SomeClass.attr` at a site with an unknown receiver gets cached rather than
+  // running the full lookup every time.
+  //
+  // Restricted to a plain `type` metatype. That is lookupTypeAttr's own
+  // precondition -- it declines anything whose metatype overrides tp_getattro
+  // -- so an entry is only made where the cached path can actually be taken,
+  // and it keeps the metatype out of the picture entirely: the only type this
+  // entry depends on is the class itself, which is what it watches. Loads only;
+  // kType has no setAttr body.
+  if (!is_set && type == &PyType_Type) {
+    BorrowedRef<PyTypeObject> cls{obj};
+    if (!Ci_Type_HasValidVersionTag(cls)) {
+      // Same rule as the metatype check above, applied to the class, since the
+      // class is what gets watched. PyType_Modified short-circuits on a type
+      // with no valid tag and would never reach the watcher, so there would be
+      // no way to invalidate this entry. The PyObject_GetAttr that our caller
+      // already ran assigns one, so this only bites the first read.
+      return nullptr;
+    }
+    // The receiver goes in type_, not Py_TYPE(receiver) -- see TypeMutator.
+    // That makes the ordinary type watcher do the invalidating: typeChanged
+    // matches on entry.type(), which is now this class.
+    mut->setTypeAttr(cls);
+    ac_watcher.watch(cls, this);
     return mut;
   }
 #endif
@@ -1512,6 +1566,7 @@ StoreAttrTarget StoreAttrCache::targetForKind(AttributeMutator::Kind kind) {
     case Kind::kGetAttr:
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
     case Kind::kModule:
+    case Kind::kType:
 #endif
     case Kind::kMaxValue:
       break;
@@ -1664,13 +1719,24 @@ LoadAttrTarget* LoadAttrCache::targetAddr() {
 void LoadAttrCache::retarget([[maybe_unused]] AttributeMutator* mut) {
   if constexpr (kInlineCachesTargetPromote) {
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-    if (mut->getKind() == AttributeMutator::Kind::kModule) {
-      // Module attributes are exceedingly monomorphic so we
-      // specialize to only support modules and everything else
-      // will fallback to PyObject_GetAttr.
-      monomorphise(AttributeMutator::Kind::kModule);
-      setTargetAddr(invokeModule);
-      return;
+    switch (mut->getKind()) {
+      case AttributeMutator::Kind::kModule:
+        // Module attributes are exceedingly monomorphic so we
+        // specialize to only support modules and everything else
+        // will fallback to PyObject_GetAttr.
+        monomorphise(AttributeMutator::Kind::kModule);
+        setTargetAddr(invokeModule);
+        return;
+      case AttributeMutator::Kind::kType:
+        // Same story for class attributes, and here monomorphising is not just
+        // a bet on the receiver: a kType entry is keyed on the class rather
+        // than on Py_TYPE(class), so it can only be read by a scan that knows
+        // to match it that way. See TypeMutator.
+        monomorphise(AttributeMutator::Kind::kType);
+        setTargetAddr(invokeType);
+        return;
+      default:
+        break;
     }
 #endif
     switch (countEntries()) {
@@ -1741,18 +1807,26 @@ PyObject** LoadTypeAttrCache::valueAddr() {
   return &value_;
 }
 
+// Replicate type_getattro for a type receiver, reporting whether the result may
+// be cached against the type.
+//
+// `cacheable` is false for every path whose answer depends on something other
+// than (type, name) -- a descriptor that has to run, or a fallback to the
+// metatype -- as well as for the error paths. A false with a non-null value
+// still means the value is correct to return, just not to store.
+//
 // NB: This function needs to be kept in sync with PyType_Type.tp_getattro.
-PyObject* LoadTypeAttrCache::invokeSlowPath(
+static std::pair<Ref<>, bool> lookupTypeAttr(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> metatype{Py_TYPE(obj)};
   if (metatype->tp_getattro != PyType_Type.tp_getattro) {
-    return PyObject_GetAttr(obj, name);
+    return {Ref<>::steal(PyObject_GetAttr(obj, name)), false};
   }
 
   BorrowedRef<PyTypeObject> type{obj};
   if (PyType_Ready(type) < 0) {
-    return nullptr;
+    return {nullptr, false};
   }
 
   descrgetfunc meta_get = nullptr;
@@ -1763,7 +1837,7 @@ PyObject* LoadTypeAttrCache::invokeSlowPath(
       // Data descriptors implement tp_descr_set to intercept writes. Assume the
       // attribute is not overridden in type's tp_dict (and bases): call the
       // descriptor now.
-      return meta_get(meta_attribute, type, metatype);
+      return {Ref<>::steal(meta_get(meta_attribute, type, metatype)), false};
     }
   }
 
@@ -1788,27 +1862,36 @@ PyObject* LoadTypeAttrCache::invokeSlowPath(
     if (!is_cachable) {
       // nullptr 2nd argument indicates the descriptor was found on the target
       // object itself (or a base).
-      return local_get(attribute, nullptr, type);
+      return {Ref<>::steal(local_get(attribute, nullptr, type)), false};
     }
 
-    fill(type, attribute);
-    return attribute.release();
+    return {std::move(attribute), true};
   }
 
   // No attribute found in local __dict__ (or bases): use the descriptor from
   // the metatype, if any.
   if (meta_get != nullptr) {
-    return meta_get(meta_attribute, type, metatype);
+    return {Ref<>::steal(meta_get(meta_attribute, type, metatype)), false};
   }
 
   // If an ordinary attribute was found on the metatype, return it now.
   if (meta_attribute != nullptr) {
-    return meta_attribute.release();
+    return {std::move(meta_attribute), false};
   }
 
   // Give up.
   raise_attribute_error(obj, name);
-  return nullptr;
+  return {nullptr, false};
+}
+
+PyObject* LoadTypeAttrCache::invokeSlowPath(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
+  auto [value, cacheable] = lookupTypeAttr(obj, name);
+  if (value != nullptr && cacheable) {
+    fill(BorrowedRef<PyTypeObject>{obj}, value);
+  }
+  return value.release();
 }
 
 void LoadTypeAttrCache::typeChanged(
@@ -2624,6 +2707,87 @@ PyObject* LoadAttrCache::invokeModule(
     }
   } else {
     // polymorphic module + other things, just give up...
+    cache->setTargetAddr(reinterpret_cast<LoadAttrTarget>(PyObject_GetAttr));
+  }
+  return PyObject_GetAttr(obj, name);
+}
+
+// Populate (or re-populate) `entry` for the class `obj`, and return the
+// attribute. Split out of invokeType so the hit path stays a straight line.
+CINDERX_NOINLINE
+static PyObject*
+fillTypeMutator(AttributeMutator& entry, PyObject* obj, PyObject* name) {
+  auto [value, cacheable] = lookupTypeAttr(obj, name);
+  if (value == nullptr || !cacheable) {
+    // Either an error, or an answer that depends on more than (class, name) --
+    // a descriptor that has to run, or a metatype fallback. Return it without
+    // caching. The entry stays claimed for this class, so the read keeps
+    // landing here rather than burning another slot on a retry that would
+    // reach the same conclusion.
+    return value.release();
+  }
+
+  // No version tag is recorded: this entry is watched, and typeChanged resets
+  // it on any change to the class or to anything it derives from.
+  entry.asTypeAttr()->value = value.get();
+  return value.release();
+}
+
+PyObject*
+LoadAttrCache::invokeType(PyObject* obj, PyObject* name, LoadAttrCache* cache) {
+  // Class-attribute sites are overwhelmingly monomorphic, so the leading entry
+  // is checked on its own rather than through entries(), whose extent is a
+  // runtime config value and so costs a load and an unknown trip count. The
+  // rest is out of line in invokeTypeSlow.
+  AttributeMutator& entry = cache->entries_[0];
+  // Matching the receiver itself, not Py_TYPE(receiver) -- see TypeMutator.
+  if (reinterpret_cast<PyObject*>(entry.type()) == obj) {
+    JIT_DCHECK(
+        entry.getKind() == AttributeMutator::Kind::kType,
+        "should only have type attributes");
+    // Identity is the whole guard. The watcher clears this entry the moment the
+    // class is modified, so a surviving value is by construction current.
+    if (PyObject* value = entry.asTypeAttr()->value.get()) {
+      return Py_NewRef(value);
+    }
+  }
+  return invokeTypeSlow(obj, name, cache);
+}
+
+CINDERX_NOINLINE
+PyObject* LoadAttrCache::invokeTypeSlow(
+    PyObject* obj,
+    PyObject* name,
+    LoadAttrCache* cache) {
+  for (auto& entry : cache->entries()) {
+    PyTypeObject* cls = entry.type();
+    if (cls == nullptr) {
+      break;
+    }
+    JIT_DCHECK(
+        entry.getKind() == AttributeMutator::Kind::kType,
+        "should only have type attributes");
+    if (reinterpret_cast<PyObject*>(cls) == obj) {
+      // Either entry 0 with a value still to fill, or a later entry that the
+      // fast path never looked at.
+      if (PyObject* value = entry.asTypeAttr()->value.get()) {
+        return Py_NewRef(value);
+      }
+      return fillTypeMutator(entry, obj, name);
+    }
+  }
+  if (Py_TYPE(obj) == &PyType_Type) {
+    BorrowedRef<PyTypeObject> cls{obj};
+    AttributeMutator* mut = cache->findEmptyEntry();
+    // The version tag check mirrors fill(); PyObject_GetAttr below assigns one,
+    // so a class that fails it here gets cached on the next read instead.
+    if (mut != nullptr && Ci_Type_HasValidVersionTag(cls)) {
+      mut->setTypeAttr(cls);
+      ac_watcher.watch(cls, cache);
+      return fillTypeMutator(*mut, obj, name);
+    }
+  } else {
+    // polymorphic class + other things, just give up...
     cache->setTargetAddr(reinterpret_cast<LoadAttrTarget>(PyObject_GetAttr));
   }
   return PyObject_GetAttr(obj, name);
