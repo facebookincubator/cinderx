@@ -199,6 +199,24 @@ PyThreadState fakeThreadState(StackWalk::ThreadId thread) {
   return tstate;
 }
 
+// Keeps self-walks below enough frames built as part of this file to prove the
+// walker follows a real chain cheaply. In OSS builds, the GoogleTest caller
+// above TestBody may not have frame pointers of its own.
+constexpr size_t kSelfWalkFixtureDepth = 8;
+
+template <typename F>
+__attribute__((noinline)) WalkResult
+walkBelowKnownFrames(size_t remaining, F&& walk) {
+  if (remaining == 0) {
+    return std::forward<F>(walk)();
+  }
+  WalkResult result =
+      walkBelowKnownFrames(remaining - 1, std::forward<F>(walk));
+  // Stops this being a tail call, which would collapse the fixture chain.
+  asm volatile("");
+  return result;
+}
+
 // The frames a walk of `stack` should produce: the innermost record paired with
 // the interrupted PC, then every caller paired with the address its callee
 // returns to.
@@ -606,9 +624,11 @@ TEST(StackWalkThreadTest, WalkOfOwnThreadStateWalksSelfRatherThanFailing) {
   PyThreadState tstate = fakeThreadState(::pthread_self());
 
   size_t frames = 0;
-  const WalkResult walked = sw.walk(&tstate, [&](const void*, const void*) {
-    frames++;
-    return true;
+  const WalkResult walked = walkBelowKnownFrames(kSelfWalkFixtureDepth, [&] {
+    return sw.walk(&tstate, [&](const void*, const void*) {
+      frames++;
+      return true;
+    });
   });
 
   EXPECT_EQ(walked, WalkResult::Completed);
@@ -668,17 +688,21 @@ TEST(StackWalkThreadTest, WalkingOurOwnStackCostsAFewSafeReadsNotOnePerFrame) {
   const uint64_t before = StackWalk::safeReadCount();
   size_t frames = 0;
   ASSERT_EQ(
-      StackWalk::walkSelf([&](const void*, const void*) {
-        frames++;
-        return true;
-      }),
+      walkBelowKnownFrames(
+          kSelfWalkFixtureDepth,
+          [&] {
+            return StackWalk::walkSelf([&](const void*, const void*) {
+              frames++;
+              return true;
+            });
+          }),
       WalkResult::Completed);
   const uint64_t reads = StackWalk::safeReadCount() - before;
 
   EXPECT_LE(reads, 2u) << "walked " << frames << " frames but spent " << reads
                        << " safe reads";
-  EXPECT_GT(frames, reads)
-      << "the walk did not find more frames than it read through the fallback";
+  EXPECT_GT(frames, kSelfWalkFixtureDepth)
+      << "the walk did not reach every recursive fixture frame";
 }
 
 TEST(StackWalkThreadTest, CallbackReturningFalseStopsACrossThreadWalk) {
@@ -1140,7 +1164,11 @@ TEST(StackWalkSignalDiscoveryTest, NoFreeSignalLeavesOnlySelfWalksWorking) {
   // Walking the calling thread needs no signal at all, so it is unaffected -
   // which is why this is a degraded walker rather than no walker.
   size_t own = 0;
-  EXPECT_EQ(walkCounting(sw, ::pthread_self(), own), WalkResult::Completed);
+  EXPECT_EQ(
+      walkBelowKnownFrames(
+          kSelfWalkFixtureDepth,
+          [&] { return walkCounting(sw, ::pthread_self(), own); }),
+      WalkResult::Completed);
   EXPECT_GT(own, 0u);
 }
 
