@@ -221,10 +221,24 @@ struct TypeMutator {
 // kind. __getattr__ only participates in loads, so kGetAttr is load-only and
 // the store-side tables skip it rather than emitting a body that can only
 // abort.
-// kModule is only registered under target promotion. The non-target promotion
-// path can't handle instance identity checks.
+//
+// CINDERX_ATTR_KIND_PROMOTION_ONLY holds the kinds that are only registered
+// under target promotion. They include a mix of object-identity versions that
+// the non-promotion version can't handle as well as more versions which would
+// bloat the switch.
+//
+// The three *GetAttr kinds are the second half of each descriptor kind: kFoo
+// and kFooGetAttr share a sub-mutator and a getAttrForKind body, and differ
+// only in whether that body runs the __getattr__ fallback after a failed
+// lookup. fill() picks the *GetAttr half exactly when the type has a
+// __getattr__ for the fallback to find, so the half every other type gets is
+// nothing but the descriptor call. Load-only, since __getattr__ does not
+// participate in stores. See baseKind() and runsGetAttrFallback().
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
 #define CINDERX_ATTR_KIND_PROMOTION_ONLY(X) \
+  X(kDataDescrGetAttr, 0)                   \
+  X(kMemberDescrGetAttr, 0)                 \
+  X(kDescrOrClassVarGetAttr, 0)             \
   X(kModule, 0)                             \
   X(kType, 0)
 #else
@@ -269,18 +283,54 @@ class AttributeMutator {
       static_cast<uint8_t>(Kind::kMaxValue) <= kAttrKindLimit,
       "Kind enum does not fit in the bits reserved for it in the type pointer");
 
+  // Maps a kind to the one it is a variant of: each descriptor kind's *GetAttr
+  // twin maps back to the plain kind, and every other kind maps to itself. A
+  // pair shares a sub-mutator, so whatever cares which union member is live --
+  // the get dispatch, watchedDescrType -- matches on this rather than on the
+  // kind directly.
+  static constexpr Kind baseKind(Kind kind) {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    switch (kind) {
+      case Kind::kDataDescrGetAttr:
+        return Kind::kDataDescr;
+      case Kind::kMemberDescrGetAttr:
+        return Kind::kMemberDescr;
+      case Kind::kDescrOrClassVarGetAttr:
+        return Kind::kDescrOrClassVar;
+      default:
+        break;
+    }
+#endif
+    return kind;
+  }
+
+  // Whether a descriptor kind's body runs the __getattr__ fallback after a
+  // failed lookup. Only the *GetAttr half of a pair does. Without the split
+  // there is a single kind per descriptor shape, which has to cover types with
+  // and without __getattr__ and so always carries it.
+  static constexpr bool runsGetAttrFallback(Kind kind) {
+    return !kInlineCachesTargetPromote || kind != baseKind(kind);
+  }
+
   AttributeMutator();
   PyTypeObject* type() const;
   void reset();
   bool isEmpty() const;
   void setCombined(PyTypeObject* type);
   void setDict(PyTypeObject* type);
-  void setDataDescr(PyTypeObject* type, PyObject* descr);
-  void setMemberDescr(PyTypeObject* type, PyObject* descr);
+  // The descriptor kinds take the type's __getattr__ (as getGetAttrForCaching
+  // resolves it, so null when the type has none) rather than looking it up
+  // themselves: it selects between the kind and its *GetAttr twin, and only the
+  // caller knows whether this is a load, which is the only side that has a
+  // twin to pick.
+  void setDataDescr(PyTypeObject* type, PyObject* descr, BorrowedRef<> getattr);
+  void
+  setMemberDescr(PyTypeObject* type, PyObject* descr, BorrowedRef<> getattr);
   void setDescrOrClassvar(
       PyTypeObject* type,
       PyObject* descr,
-      uint32_t keys_version);
+      uint32_t keys_version,
+      BorrowedRef<> getattr);
   void setSplit(
       PyTypeObject* type,
       Py_ssize_t val_offset,

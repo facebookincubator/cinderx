@@ -900,26 +900,47 @@ void AttributeMutator::setDict(PyTypeObject* type) {
   dict_.getattr_method = getGetAttrForCaching(type);
 }
 
-void AttributeMutator::setDataDescr(PyTypeObject* type, PyObject* descr) {
-  setType(type, Kind::kDataDescr);
+// Select between a descriptor kind and its __getattr__-carrying twin. Under
+// target promotion the twin exists and is worth having: it keeps the fallback
+// out of the body every type without a __getattr__ runs. Without promotion
+// there is no twin -- see CINDERX_ATTR_KIND_PROMOTION_ONLY -- and the one kind
+// carries the fallback for both cases.
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+#define CINDERX_ATTR_KIND_FOR_GETATTR(base, getattr) \
+  ((getattr) != nullptr ? Kind::base##GetAttr : Kind::base)
+#else
+#define CINDERX_ATTR_KIND_FOR_GETATTR(base, getattr) (Kind::base)
+#endif
+
+void AttributeMutator::setDataDescr(
+    PyTypeObject* type,
+    PyObject* descr,
+    [[maybe_unused]] BorrowedRef<> getattr) {
+  setType(type, CINDERX_ATTR_KIND_FOR_GETATTR(kDataDescr, getattr));
   data_descr_.descr = descr;
   data_descr_.descr_type = Py_TYPE(descr);
 }
 
-void AttributeMutator::setMemberDescr(PyTypeObject* type, PyObject* descr) {
-  setType(type, Kind::kMemberDescr);
+void AttributeMutator::setMemberDescr(
+    PyTypeObject* type,
+    PyObject* descr,
+    BorrowedRef<> getattr) {
+  setType(type, CINDERX_ATTR_KIND_FOR_GETATTR(kMemberDescr, getattr));
   member_descr_.memberdef = ((PyMemberDescrObject*)descr)->d_member;
-  member_descr_.getattr_method = getGetAttrForCaching(type);
+  member_descr_.getattr_method = getattr;
 }
 
 void AttributeMutator::setDescrOrClassvar(
     PyTypeObject* type,
     PyObject* descr,
-    uint32_t keys_version) {
-  setType(type, Kind::kDescrOrClassVar);
+    uint32_t keys_version,
+    [[maybe_unused]] BorrowedRef<> getattr) {
+  setType(type, CINDERX_ATTR_KIND_FOR_GETATTR(kDescrOrClassVar, getattr));
   descr_or_cvar_.descr = descr;
   descr_or_cvar_.keys_version = keys_version;
 }
+
+#undef CINDERX_ATTR_KIND_FOR_GETATTR
 
 void AttributeMutator::setSplit(
     PyTypeObject* type,
@@ -960,7 +981,7 @@ void AttributeMutator::setTypeAttr(PyTypeObject* cls) {
 #endif
 
 BorrowedRef<PyTypeObject> AttributeMutator::watchedDescrType() const {
-  if (getKind() == Kind::kDataDescr) {
+  if (baseKind(getKind()) == Kind::kDataDescr) {
     return data_descr_.descr_type;
   }
   return nullptr;
@@ -993,8 +1014,11 @@ inline int AttributeMutator::setAttrForKind(
     return DescrOrClassVarMutator::setAttr(
         obj, name, value, &entry->descr_or_cvar_);
   } else {
-    // kGetAttr: __getattr__ only applies to loads, we shouldn't ever populate
-    // it for a set attr cache.
+    // The load-only kinds land here: kGetAttr, and under target promotion the
+    // *GetAttr descriptor twins plus kModule and kType. __getattr__ only
+    // applies to loads, so none of them is ever populated in a store cache and
+    // the store tables never name them -- see the store_ok column on
+    // CINDERX_FOREACH_ATTR_KIND.
     JIT_ABORT("Cannot invoke setAttr for attr of kind {}", static_cast<int>(K));
   }
 }
@@ -1005,42 +1029,55 @@ inline PyObject* AttributeMutator::getAttrForKind(
     PyObject* name,
     AttributeMutator* entry) {
   using Kind = AttributeMutator::Kind;
-  if constexpr (K == Kind::kSplit) {
+  // A descriptor kind and its *GetAttr twin share one body and one sub-mutator,
+  // so match on the pair and let K decide only whether the fallback is compiled
+  // in. Every other kind is its own base.
+  constexpr Kind kBase = baseKind(K);
+  if constexpr (kBase == Kind::kSplit) {
     return SplitMutator::getAttr(obj, name, &entry->split_);
-  } else if constexpr (K == Kind::kSplitInline) {
+  } else if constexpr (kBase == Kind::kSplitInline) {
 #if PY_VERSION_HEX >= 0x030E0000
     return SplitMutator::getAttrInline(obj, name, &entry->split_);
 #else
     JIT_ABORT("kSplitInline is never populated before 3.14");
 #endif
-  } else if constexpr (K == Kind::kCombined) {
+  } else if constexpr (kBase == Kind::kCombined) {
     return CombinedMutator::getAttr(obj, name, &entry->combined_);
-  } else if constexpr (K == Kind::kDict) {
+  } else if constexpr (kBase == Kind::kDict) {
     return DictMutator::getAttr(obj, name, &entry->dict_);
-  } else if constexpr (K == Kind::kDataDescr) {
+  } else if constexpr (kBase == Kind::kDataDescr) {
     PyObject* result = DataDescrMutator::getAttr(obj, &entry->data_descr_);
-    if (result == nullptr) {
-      result = tryGetAttrFallback(entry->type(), nullptr, obj, name);
+    if constexpr (runsGetAttrFallback(K)) {
+      if (result == nullptr) {
+        result = tryGetAttrFallback(entry->type(), nullptr, obj, name);
+      }
     }
     return result;
-  } else if constexpr (K == Kind::kMemberDescr) {
+  } else if constexpr (kBase == Kind::kMemberDescr) {
     PyObject* result = MemberDescrMutator::getAttr(obj, &entry->member_descr_);
-    if (result == nullptr && entry->member_descr_.getattr_method != nullptr) {
-      result = tryGetAttrFallback(
-          entry->type(), entry->member_descr_.getattr_method, obj, name);
+    if constexpr (runsGetAttrFallback(K)) {
+      // The null check is redundant for kMemberDescrGetAttr, which is only
+      // picked for a type that has a __getattr__, but it is what keeps the
+      // undivided kind from calling into the fallback for a type that does not.
+      if (result == nullptr && entry->member_descr_.getattr_method != nullptr) {
+        result = tryGetAttrFallback(
+            entry->type(), entry->member_descr_.getattr_method, obj, name);
+      }
     }
     return result;
-  } else if constexpr (K == Kind::kDescrOrClassVar) {
+  } else if constexpr (kBase == Kind::kDescrOrClassVar) {
     PyObject* result =
         DescrOrClassVarMutator::getAttr(obj, name, &entry->descr_or_cvar_);
-    if (result == nullptr) {
-      result = tryGetAttrFallback(entry->type(), nullptr, obj, name);
+    if constexpr (runsGetAttrFallback(K)) {
+      if (result == nullptr) {
+        result = tryGetAttrFallback(entry->type(), nullptr, obj, name);
+      }
     }
     return result;
-  } else if constexpr (K == Kind::kGetAttr) {
+  } else if constexpr (kBase == Kind::kGetAttr) {
     return GetAttrMutator::getAttr(obj, name, &entry->getattr_);
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-  } else if constexpr (K == Kind::kModule) {
+  } else if constexpr (kBase == Kind::kModule) {
     return ModuleMutator::getAttr(obj, name, &entry->module_);
 #endif
   } else {
@@ -1410,18 +1447,25 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
   BorrowedRef<> descr = _PyType_Lookup(type, name);
 
   if (descr != nullptr) {
+    // Resolve the type's __getattr__ once, for the descriptor kinds to pick the
+    // half of themselves that runs the fallback. Loads only: the store side has
+    // no __getattr__ to run and no twin to pick, so leaving this null keeps it
+    // on the undivided kind. The entry is invalidated whenever the type is
+    // modified, so a __getattr__ appearing or going away later cannot leave a
+    // live entry on the wrong half.
+    BorrowedRef<> getattr = is_set ? nullptr : getGetAttrForCaching(type);
     BorrowedRef<PyTypeObject> descr_type(Py_TYPE(descr));
     if (descr_type->tp_descr_get != nullptr &&
         descr_type->tp_descr_set != nullptr) {
       // Data descriptor
       if (descr_type == &PyMemberDescr_Type) {
-        mut->setMemberDescr(type, descr);
+        mut->setMemberDescr(type, descr, getattr);
       } else {
         // If someone modifies descr_type (e.g., deletes __set__), it may no
         // longer be a data descriptor. Watch it via the descriptor watcher
         // so the cache is invalidated.
         ac_descr_watcher.watch(descr_type, this);
-        mut->setDataDescr(type, descr);
+        mut->setDataDescr(type, descr, getattr);
       }
     } else {
       // Non-data descriptor or class var.
@@ -1430,7 +1474,7 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
       // handling the transition if __set__ is added or removed.
       uint32_t keys_version = 0;
       canCacheAttribute(type, name, keys_version);
-      mut->setDescrOrClassvar(type, descr, keys_version);
+      mut->setDescrOrClassvar(type, descr, keys_version, getattr);
     }
     ac_watcher.watch(type, this);
     return mut;
@@ -1579,10 +1623,12 @@ StoreAttrTarget StoreAttrCache::targetForKind(AttributeMutator::Kind kind) {
     CINDERX_FOREACH_ATTR_KIND(CINDERX_STORE_TARGET_CASE)
 #undef CINDERX_STORE_TARGET_CASE
 #undef CINDERX_STORE_TARGET_BODY
-    // kGetAttr and kModule are load-only, so a store cache should never ask
-    // for either.
+    // These kinds are load-only, so a store cache should never ask for one.
     case Kind::kGetAttr:
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    case Kind::kDataDescrGetAttr:
+    case Kind::kMemberDescrGetAttr:
+    case Kind::kDescrOrClassVarGetAttr:
     case Kind::kModule:
     case Kind::kType:
 #endif

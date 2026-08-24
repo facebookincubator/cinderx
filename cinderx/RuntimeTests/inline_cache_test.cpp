@@ -1306,6 +1306,98 @@ obj = C()
   }
 }
 
+TEST_F(InlineCacheTest, LoadAttrCacheDescriptorsFallBackToGetAttr) {
+  // A descriptor that raises AttributeError on a type with __getattr__ has to
+  // reach it. Each descriptor kind runs that fallback from a different body --
+  // under target promotion, from a kind of its own that fill() picks only for a
+  // type that has a __getattr__ -- so cover all three, and repeat every load so
+  // the answer comes from the Kind-specialized entry point rather than from the
+  // slow path that populated it.
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+def raising_getter(self):
+  raise AttributeError("nope")
+
+class Raiser:
+  def __get__(self, obj, objtype=None):
+    raise AttributeError("nope")
+
+class DataDescr:
+  def __getattr__(self, name):
+    return 1
+
+class MemberDescr:
+  __slots__ = ("x",)
+  def __getattr__(self, name):
+    return 2
+
+class NonDataDescr:
+  def __getattr__(self, name):
+    return 3
+
+# Attached out here because a class body resolves names through globals, and
+# the definitions above land in the locals runToLocals passes separately.
+DataDescr.x = property(raising_getter)
+NonDataDescr.x = Raiser()
+
+data_descr = DataDescr()
+member_descr = MemberDescr()
+non_data_descr = NonDataDescr()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  auto checkFallsBack = [&](const char* var, long expected) {
+    BorrowedRef<> obj = PyDict_GetItemString(locals, var);
+    ASSERT_NE(obj.get(), nullptr) << var;
+    CacheStorage<LoadAttrCache> cache;
+    for (int i = 0; i < 3; i++) {
+      auto res = callLoad(cache.get(), obj, name);
+      ASSERT_NE(res.get(), nullptr) << var << " iteration " << i;
+      EXPECT_EQ(asLong(res), expected) << var << " iteration " << i;
+    }
+  };
+
+  checkFallsBack("data_descr", 1);
+  checkFallsBack("member_descr", 2);
+  checkFallsBack("non_data_descr", 3);
+}
+
+TEST_F(InlineCacheTest, LoadAttrCacheMemberDescrRaisesWithoutGetAttr) {
+  // The counterpart of the above: with no __getattr__ to fall back to, the
+  // descriptor's own AttributeError is the answer. Fill the cache off a slot
+  // that is set and only then unset it, so the failure runs through the
+  // specialized entry point instead of the slow path.
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  __slots__ = ("x",)
+
+obj = C()
+obj.x = 7
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "obj");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), obj, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 7);
+
+  ASSERT_EQ(PyObject_DelAttr(obj, name), 0);
+  for (int i = 0; i < 2; i++) {
+    res = callLoad(cache.get(), obj, name);
+    ASSERT_EQ(res.get(), nullptr) << "iteration " << i;
+    EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_AttributeError))
+        << "iteration " << i;
+    PyErr_Clear();
+  }
+}
+
 TEST_F(InlineCacheTest, StoreAttrCacheSingleEntryHitsAndMisses) {
   getMutableConfig().attr_cache_size = 1;
   auto locals = runToLocals(this, R"(
