@@ -184,6 +184,41 @@ class BasicBlockBuilder {
     return instr;
   }
 
+  // Call through a function pointer held in memory at `slot`, rather than
+  // through an address baked into the instruction stream.
+  //
+  // kCall's backends accept an Imm/Label/Stack/Reg callee but not a memory
+  // operand, so this emits the load and the indirect call as a pair. Arguments
+  // are checked against the pointee's signature exactly as
+  // appendCallInstruction checks a direct callee's.
+  template <
+      typename FuncReturnType,
+      typename... FuncArgs,
+      typename... AppendArgs>
+  Instruction* appendIndirectCallInstruction(
+      hir::Register* dst,
+      FuncReturnType (**slot)(FuncArgs...),
+      AppendArgs&&... args) {
+    auto instr = appendIndirectCallInstructionInternal(
+        slot, std::forward<AppendArgs>(args)...);
+    createInstrOutput(instr, dst);
+    return instr;
+  }
+
+  template <
+      typename FuncReturnType,
+      typename... FuncArgs,
+      typename... AppendArgs>
+  Instruction* appendIndirectCallInstruction(
+      OutVReg dst,
+      FuncReturnType (**slot)(FuncArgs...),
+      AppendArgs&&... args) {
+    auto instr = appendIndirectCallInstructionInternal(
+        slot, std::forward<AppendArgs>(args)...);
+    instr->addOperands(dst);
+    return instr;
+  }
+
   template <
       typename FuncReturnType,
       typename... FuncArgs,
@@ -284,6 +319,34 @@ class BasicBlockBuilder {
     }
 
     genericCreateInstrInput(instr, arg);
+  }
+
+  template <
+      typename FuncReturnType,
+      typename... FuncArgs,
+      typename... AppendArgs>
+  Instruction* appendIndirectCallInstructionInternal(
+      FuncReturnType (**slot)(FuncArgs...),
+      AppendArgs&&... args) {
+    static_assert(
+        !std::is_void_v<FuncReturnType>,
+        "appendIndirectCallInstruction cannot be used with functions that "
+        "return void.");
+    static_assert(
+        sizeof...(FuncArgs) == sizeof...(AppendArgs),
+        "The number of parameters the function accepts and the number of "
+        "arguments passed is different.");
+
+    Instruction* target =
+        appendInstr(OutVReg{Operand::k64bit}, Opcode::kMove, MemImm{slot});
+    auto instr = createInstr(Opcode::kCall);
+    instr->addOperands(VReg{target});
+
+    // See appendCallInstructionInternal for why this is guarded.
+    if constexpr (sizeof...(FuncArgs) == sizeof...(AppendArgs)) {
+      (appendCallInstructionArgument<FuncArgs>(instr, args), ...);
+    }
+    return instr;
   }
 
   bool usesImmediateInput(hir::Type const& tp);

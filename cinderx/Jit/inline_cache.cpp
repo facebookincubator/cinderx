@@ -559,7 +559,7 @@ int SplitMutator::setAttr(
   return PyDict_SetItem(dict, name, value);
 }
 
-PyObject*
+inline PyObject*
 SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
@@ -1052,6 +1052,12 @@ AttributeMutator::Kind AttributeMutator::getKind() const {
   return static_cast<Kind>(type_ & kKindMask);
 }
 
+// AttributeCacheSizeTrait sizes the allocation as sizeof(AttributeCache) plus
+// one AttributeMutator per configured entry, which only holds if entries_
+// starts exactly at the end of everything else.
+static_assert(sizeof(AttributeCache) == sizeof(LoadAttrCache));
+static_assert(sizeof(AttributeCache) == sizeof(StoreAttrCache));
+
 AttributeCache::AttributeCache() {
   for (auto& entry : entries()) {
     entry.reset();
@@ -1097,6 +1103,12 @@ void AttributeCache::typeChanged(PyTypeObject* tp) {
       }
     }
   }
+  // Close up any hole the resets left so the unrolled entry points keep seeing
+  // a contiguous run from index 0.
+  //
+  // We will update the dispatch slot on the first failed invocation rather than
+  // here because we don't know if we have a load or store cache.
+  packEntries();
 }
 
 void AttributeCache::descrTypeChanged(PyTypeObject* tp) {
@@ -1118,13 +1130,47 @@ void AttributeCache::descrTypeChanged(PyTypeObject* tp) {
       }
     }
   }
+  // See the note in typeChanged.
+  packEntries();
 }
 
 std::span<AttributeMutator> AttributeCache::entries() {
   return {entries_, getConfig().attr_cache_size};
 }
 
+unsigned AttributeCache::countEntries() {
+  unsigned count = 0;
+  for (auto& entry : entries()) {
+    if (entry.isEmpty()) {
+      // Entries are packed, so the first hole ends the populated run.
+      break;
+    }
+    if (++count == kScanEntryCount) {
+      break;
+    }
+  }
+  return count;
+}
+
+void AttributeCache::packEntries() {
+  if constexpr (kInlineCachesTargetPromote) {
+    auto all = entries();
+    size_t out = 0;
+    for (size_t in = 0; in < all.size(); in++) {
+      if (all[in].isEmpty()) {
+        continue;
+      }
+      if (in != out) {
+        all[out] = all[in];
+        all[in].reset();
+      }
+      out++;
+    }
+  }
+}
+
 AttributeMutator* AttributeCache::findEmptyEntry() {
+  packEntries();
   auto it = std::ranges::find_if(
       entries(), [](const AttributeMutator& e) { return e.isEmpty(); });
   return it == entries().end() ? nullptr : &*it;
@@ -1172,10 +1218,11 @@ bool canCacheAttribute(
   return true;
 }
 
-void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
+AttributeMutator*
+AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
   AttributeMutator* mut = findEmptyEntry();
   if (mut == nullptr) {
-    return;
+    return nullptr;
   }
 
   BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
@@ -1183,7 +1230,7 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
-    return;
+    return nullptr;
   }
 
   if ((is_set && type->tp_setattro != PyObject_GenericSetAttr) ||
@@ -1194,7 +1241,7 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
     // we can only cache if the hook wraps PyObject_GenericGetAttr. For
     // metaclasses, the hook wraps type_getattro which does MRO search,
     // and our IC cannot replicate that.
-    return;
+    return nullptr;
   }
 
   // Only walk the MRO once we know the type is cacheable. For uncacheable
@@ -1226,11 +1273,11 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
       mut->setDescrOrClassvar(type, descr, keys_version);
     }
     ac_watcher.watch(type, this);
-    return;
+    return mut;
   }
 
   if (!canCacheType(type)) {
-    return;
+    return nullptr;
   }
 
   // Instance attribute with no shadowing. Specialize the lookup based on
@@ -1261,7 +1308,7 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
           }
           mut->setGetattr(type, getattr_method, keys_version);
           ac_watcher.watch(type, this);
-          return;
+          return mut;
         }
       }
 
@@ -1270,9 +1317,9 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
         // dict APIs.
         mut->setDict(type);
         ac_watcher.watch(type, this);
+        return mut;
       }
-
-      return;
+      return nullptr;
     }
 
     // set_split handles __getattr__ fallback too
@@ -1282,6 +1329,16 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
     mut->setCombined(type);
   }
   ac_watcher.watch(type, this);
+  return mut;
+}
+
+StoreAttrCache::StoreAttrCache() {
+  if constexpr (kInlineCachesTargetPromote) {
+    // Every cache starts empty, whatever its configured size. It promotes to a
+    // Kind-specialized entry point once it has exactly one entry, and demotes
+    // to the scan if a second type shows up.
+    setTargetAddr(invokeEmpty);
+  }
 }
 
 int StoreAttrCache::invoke(
@@ -1298,6 +1355,114 @@ int StoreAttrCache::invoke(
   return invokeSlowPath(obj, name, value, cache);
 }
 
+template <AttributeMutator::Kind K>
+int StoreAttrCache::specialized(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    StoreAttrCache* cache) {
+  // A not-yet-filled or invalidated entry holds a null type that no live
+  // receiver can match, so those cases fail this guard too and get re-derived
+  // by the slow path.
+  AttributeMutator& entry = cache->entries_[0];
+  if (entry.type() != Py_TYPE(obj)) [[unlikely]] {
+    return invokeSlowPath(obj, name, value, cache);
+  }
+  if constexpr (AttributeMutator::kCanDriftInPlace<K>) {
+    // This body can rewrite the entry's Kind without touching its type, which
+    // the guard above cannot see. Pick the new entry point up now rather than
+    // leaving the site pinned to a stale specialization.
+    int result = AttributeMutator::setAttrForKind<K>(obj, name, value, &entry);
+    if (entry.getKind() != K) [[unlikely]] {
+      cache->retarget();
+    }
+    return result;
+  } else {
+    return AttributeMutator::setAttrForKind<K>(obj, name, value, &entry);
+  }
+}
+
+template <unsigned N>
+int StoreAttrCache::invokeUnrolled(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    StoreAttrCache* cache) {
+  BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
+  // N is a compile-time constant and the entries are packed, so this is a
+  // straight-line run of compares with no loop and no size lookup.
+  for (unsigned i = 0; i < N; i++) {
+    AttributeMutator& entry = cache->entries_[i];
+    if (entry.type() == tp) {
+      return AttributeMutator::setAttr(obj, name, value, &entry);
+    }
+  }
+  return invokeSlowPath(obj, name, value, cache);
+}
+
+int StoreAttrCache::invokeEmpty(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    StoreAttrCache* cache) {
+  return invokeSlowPath(obj, name, value, cache);
+}
+
+StoreAttrTarget StoreAttrCache::targetForKind(AttributeMutator::Kind kind) {
+  using Kind = AttributeMutator::Kind;
+  switch (kind) {
+#define CINDERX_STORE_TARGET_BODY(KIND) \
+  case Kind::KIND:                      \
+    return specialized<Kind::KIND>;
+#define CINDERX_STORE_TARGET_CASE(KIND, store_ok) \
+  CINDERX_ATTR_KIND_STORE_ONLY(store_ok, CINDERX_STORE_TARGET_BODY(KIND))
+    CINDERX_FOREACH_ATTR_KIND(CINDERX_STORE_TARGET_CASE)
+#undef CINDERX_STORE_TARGET_CASE
+#undef CINDERX_STORE_TARGET_BODY
+    // kGetAttr is load-only, so a store cache should never ask for it.
+    case Kind::kGetAttr:
+    case Kind::kMaxValue:
+      break;
+  }
+  JIT_ABORT(
+      "Cannot specialize a store attr cache for kind {}",
+      static_cast<int>(kind));
+}
+
+StoreAttrTarget* StoreAttrCache::targetAddr() {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  return &target_.store;
+#else
+  JIT_THROW("targetAddr: not supported");
+#endif
+}
+
+void StoreAttrCache::retarget() {
+  if constexpr (kInlineCachesTargetPromote) {
+    switch (countEntries()) {
+      case 0:
+        setTargetAddr(invokeEmpty);
+        break;
+      case 1:
+        setTargetAddr(targetForKind(entries_[0].getKind()));
+        break;
+      case 2:
+        setTargetAddr(invokeUnrolled<2>);
+        break;
+      case 3:
+        setTargetAddr(invokeUnrolled<3>);
+        break;
+      case 4:
+        setTargetAddr(invokeUnrolled<4>);
+        break;
+      default:
+        // Too many types to be worth unrolling; fall back to the general scan.
+        setTargetAddr(invoke);
+        break;
+    }
+  }
+}
+
 CINDERX_NOINLINE
 int StoreAttrCache::invokeSlowPath(
     PyObject* obj,
@@ -1312,8 +1477,17 @@ int StoreAttrCache::invokeSlowPath(
     return result;
   }
 
-  cache->fill(obj, name, /* is_set */ true);
+  if (cache->fill(obj, name, /* is_set */ true)) {
+    cache->retarget();
+  }
   return result;
+}
+
+LoadAttrCache::LoadAttrCache() {
+  if constexpr (kInlineCachesTargetPromote) {
+    // See the note in StoreAttrCache's constructor.
+    setTargetAddr(invokeEmpty);
+  }
 }
 
 PyObject*
@@ -1325,6 +1499,100 @@ LoadAttrCache::invoke(PyObject* obj, PyObject* name, LoadAttrCache* cache) {
     }
   }
   return invokeSlowPath(obj, name, cache);
+}
+
+template <AttributeMutator::Kind K>
+PyObject* LoadAttrCache::specialized(
+    PyObject* obj,
+    PyObject* name,
+    LoadAttrCache* cache) {
+  // See the notes in StoreAttrCache::specialized.
+  AttributeMutator& entry = cache->entries_[0];
+  if (entry.type() == Py_TYPE(obj)) [[likely]] {
+    PyObject* result = AttributeMutator::getAttrForKind<K>(obj, name, &entry);
+    if constexpr (AttributeMutator::kCanDriftInPlace<K>) {
+      if (entry.getKind() != K) [[unlikely]] {
+        cache->retarget();
+      }
+    }
+    return result;
+  }
+
+  return invokeSlowPath(obj, name, cache);
+}
+
+template <unsigned N>
+PyObject* LoadAttrCache::invokeUnrolled(
+    PyObject* obj,
+    PyObject* name,
+    LoadAttrCache* cache) {
+  // See StoreAttrCache::invokeUnrolled.
+  PyTypeObject* tp = Py_TYPE(obj);
+  for (unsigned i = 0; i < N; i++) {
+    AttributeMutator& entry = cache->entries_[i];
+    if (entry.type() == tp) {
+      return AttributeMutator::getAttr(obj, name, &entry);
+    }
+  }
+  return invokeSlowPath(obj, name, cache);
+}
+
+PyObject* LoadAttrCache::invokeEmpty(
+    PyObject* obj,
+    PyObject* name,
+    LoadAttrCache* cache) {
+  return invokeSlowPath(obj, name, cache);
+}
+
+LoadAttrTarget LoadAttrCache::targetForKind(AttributeMutator::Kind kind) {
+  using Kind = AttributeMutator::Kind;
+  switch (kind) {
+#define CINDERX_LOAD_TARGET_CASE(KIND, store_ok) \
+  case Kind::KIND:                               \
+    return specialized<Kind::KIND>;
+    CINDERX_FOREACH_ATTR_KIND(CINDERX_LOAD_TARGET_CASE)
+#undef CINDERX_LOAD_TARGET_CASE
+    case Kind::kMaxValue:
+      break;
+  }
+  JIT_ABORT(
+      "Cannot specialize a load attr cache for kind {}",
+      static_cast<int>(kind));
+}
+
+// Address of the dispatch slot, for codegen to load and call through.
+LoadAttrTarget* LoadAttrCache::targetAddr() {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  return &target_.load;
+#else
+  JIT_THROW("targetAddr: not supported");
+#endif
+}
+
+void LoadAttrCache::retarget() {
+  if constexpr (kInlineCachesTargetPromote) {
+    switch (countEntries()) {
+      case 0:
+        setTargetAddr(invokeEmpty);
+        break;
+      case 1:
+        setTargetAddr(targetForKind(entries_[0].getKind()));
+        break;
+      case 2:
+        setTargetAddr(invokeUnrolled<2>);
+        break;
+      case 3:
+        setTargetAddr(invokeUnrolled<3>);
+        break;
+      case 4:
+        setTargetAddr(invokeUnrolled<4>);
+        break;
+      default:
+        // See the note in StoreAttrCache::retarget.
+        setTargetAddr(invoke);
+        break;
+    }
+  }
 }
 
 CINDERX_NOINLINE
@@ -1339,7 +1607,9 @@ PyObject* LoadAttrCache::invokeSlowPath(
         "PyObject_GetAttr failed so there should be a Python error");
     return nullptr;
   }
-  cache->fill(obj, name, /* is_set */ false);
+  if (cache->fill(obj, name, /* is_set */ false)) {
+    cache->retarget();
+  }
 
   return result.release();
 }
@@ -1545,6 +1815,8 @@ PyObject* GetAttrMutator::getAttr(
     return callGetAttr(getattr_method, obj, name);
   }
 
+  // We leave a hole in the caches here but it's fine, we'll stick with
+  // our existing cache type until we re-fill
   AttributeMutator::from(getattr)->reset();
   return PyObject_GetAttr(obj, name);
 }

@@ -14,6 +14,7 @@
 #include <array>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
@@ -25,12 +26,39 @@ enum class BinaryOpKind;
 
 namespace cinderx::jit {
 
-// The get/set entry points on the mutators below are static and take their
-// mutator as the trailing argument rather than as `this`. That keeps the
-// argument registers aligned along the whole dispatch chain -- specialized
-// entry point -> AttributeMutator::get/setAttrForKind -> mutator get/setAttr --
-// so the receiver and the mutator pointer stay put instead of being shuffled
-// down a register at each hop to make room for an implicit `this`.
+// Gates dispatching attribute inline caches through a function pointer stored
+// in the cache, instead of a fixed address baked into the generated code.
+//
+// When enabled, a cache re-points that slot at the narrowest entry point its
+// currently *populated* entries allow -- the configured attr_cache_size only
+// caps how far the ladder can go:
+//
+//   0 entries  -> invokeEmpty
+//   1 entry    -> specialized<K> for the AttributeMutator::Kind it settled on
+//   2, 3, 4    -> invokeUnrolled<N>
+//   5 or more  -> invoke, the general scan
+#if defined(__aarch64__) || !defined(ENABLE_PREFORK_MODEL)
+#define CINDERX_IC_USE_TARGET_PROMOTION
+#endif
+
+constexpr bool kInlineCachesTargetPromote =
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    true;
+#else
+    false;
+#endif
+
+class LoadAttrCache;
+class StoreAttrCache;
+
+// The signatures codegen calls through. The cache is always the last argument,
+// leaving the leading argument registers to obj/name/value, which the caller is
+// more likely to already have in place.
+using LoadAttrTarget = PyObject* (*)(PyObject * obj,
+                                     PyObject* name,
+                                     LoadAttrCache*);
+using StoreAttrTarget =
+    int (*)(PyObject* obj, PyObject* name, PyObject* value, StoreAttrCache*);
 
 // Mutator for an instance attribute that is stored in a split dictionary
 struct SplitMutator {
@@ -128,13 +156,14 @@ struct GetAttrMutator {
 };
 
 // The single source of truth for AttributeMutator::Kind. Everything that has
-// to enumerate the kinds -- the enum itself and the getAttr/setAttr dispatch
-// switches -- is generated from this list, so a new kind only has to be added
-// here plus given a body in getAttrForKind/setAttrForKind.
+// to enumerate the kinds -- the enum itself, the getAttr/setAttr dispatch
+// switches, and the tables mapping a kind to its specialized entry point -- is
+// generated from this list, so a new kind only has to be added here plus given
+// a body in getAttrForKind/setAttrForKind.
 //
 // X(name, store_ok): store_ok is 1 when a *store* can be specialized for the
 // kind. __getattr__ only participates in loads, so kGetAttr is load-only and
-// the store-side generators skip it rather than emitting a body that can only
+// the store-side tables skip it rather than emitting a body that can only
 // abort.
 #define CINDERX_FOREACH_ATTR_KIND(X) \
   X(kSplit, 1)                       \
@@ -222,6 +251,20 @@ class AttributeMutator {
       PyObject* value,
       AttributeMutator* entry);
 
+  // Whether a mutator of this kind can rewrite its own Kind in place, keeping
+  // the same cached type. Only kSplitInline can: SplitMutator's inline
+  // get/setAttr downgrade it to kSplit when a receiver's inline values go
+  // invalid.
+  //
+  // A Kind-specialized entry point guards on the receiver type alone, which
+  // cannot see such a change, so whoever runs a drifting kind's body has to
+  // re-derive the dispatch slot afterwards. Everything else is pinned by the
+  // type check.
+  template <Kind K>
+  static constexpr bool kCanDriftInPlace = K == Kind::kSplitInline;
+
+  Kind getKind() const;
+
   static void changeKindFromSplitInline(SplitMutator* split, Kind new_kind);
   template <typename T>
   static AttributeMutator* from(T* mutator) {
@@ -232,7 +275,6 @@ class AttributeMutator {
 
  private:
   void setType(PyTypeObject* type, Kind kind);
-  Kind getKind() const;
 
   uintptr_t type_; // This value stores both a PyTypeObject* for the type object
                    // and the Kind enum value which are bitpacked together to
@@ -261,8 +303,47 @@ class AttributeCache {
 
   AttributeMutator* findEmptyEntry();
 
-  void fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set);
+  AttributeMutator* fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set);
 
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  // Dispatch slot. Codegen loads it by absolute address (targetAddr()) and
+  // calls through it.
+  //
+  // It has to live here in the base rather than in the derived classes, and
+  // ahead of entries_. entries_ is a trailing flexible array, which makes
+  // sizeof(AttributeCache) zero without this member, so a pointer declared in a
+  // derived class would land at offset 0 too and alias entries_[0] -- silently
+  // corrupting the first mutator on the first write.
+  //
+  // Load and store need different signatures, hence the union; each derived
+  // class exposes the arm it uses.
+  union Target {
+    LoadAttrTarget load;
+    StoreAttrTarget store;
+  };
+  Target target_{};
+#endif
+
+  // Entry counts at or above this all dispatch to the same general scan, so
+  // countEntries() saturates here rather than walking the rest of the array.
+  static constexpr unsigned kScanEntryCount = 5;
+
+  // Number of populated entries, saturating at kScanEntryCount. Entries are
+  // kept packed at the front of the array, so a result of N means exactly
+  // entries_[0 .. N-1] are live.
+  unsigned countEntries();
+
+  // Restore that packing after an invalidation punches a hole in the middle,
+  // shifting the survivors forward in order and clearing the slots they came
+  // from. The unrolled entry points read entries_[0 .. N-1] unconditionally, so
+  // they depend on there being no gaps.
+  //
+  // Moving an entry between slots is safe for the watchers: they are keyed on
+  // the AttributeCache*, not on an entry index.
+  void packEntries();
+
+  // Must stay the last data member as these are dynamically sized based upon
+  // the configured cache size.
   AttributeMutator entries_[0];
 };
 
@@ -281,11 +362,47 @@ struct AttributeCacheSizeTrait {
 // receiver types that are seen.
 class StoreAttrCache : public AttributeCache {
  public:
-  StoreAttrCache() = default;
+  StoreAttrCache();
 
-  // Return 0 on success and a negative value on failure.
+  // Scan every entry for one matching the receiver's type. Return 0 on success
+  // and a negative value on failure.
   static int
   invoke(PyObject* obj, PyObject* name, PyObject* value, StoreAttrCache* cache);
+
+  // Entry point for a cache with nothing cached yet. Every call goes straight
+  // to the slow path, which installs a Kind-specialized target once the first
+  // entry has been filled.
+  static int invokeEmpty(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      StoreAttrCache* cache);
+
+  // Entry point for a cache whose one populated entry has kind K. Guards on the
+  // receiver type; anything else -- a different type, an invalidated entry, a
+  // second type showing up -- falls into the slow path, which re-derives the
+  // dispatch slot.
+  template <AttributeMutator::Kind K>
+  static int specialized(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      StoreAttrCache* cache);
+
+  // Entry point for a cache with exactly N populated entries, for the small N
+  // worth unrolling. Entries are packed from index 0, so this walks
+  // entries_[0 .. N-1] with the trip count known at compile time -- no loop
+  // bookkeeping and no re-reading of the configured size, which is what the
+  // general scan in doInvoke pays for.
+  template <unsigned N>
+  static int invokeUnrolled(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      StoreAttrCache* cache);
+
+  // Address of the dispatch slot, for codegen to load and call through.
+  StoreAttrTarget* targetAddr();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StoreAttrCache);
@@ -296,6 +413,21 @@ class StoreAttrCache : public AttributeCache {
       PyObject* name,
       PyObject* value,
       StoreAttrCache* cache);
+
+  // Point the dispatch slot at whatever suits the currently populated entries.
+  // Compiles away to nothing when target promotion is disabled, so callers do
+  // not have to guard the call.
+  void retarget();
+
+  void setTargetAddr(StoreAttrTarget target) {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    target_.store = target;
+#else
+    throw std::runtime_error{"setTargetAddr: not supported"};
+#endif
+  }
+
+  static StoreAttrTarget targetForKind(AttributeMutator::Kind kind);
 };
 
 // A cache for an individual LoadAttrCached instruction.
@@ -305,16 +437,46 @@ class StoreAttrCache : public AttributeCache {
 // receiver types that are seen.
 class LoadAttrCache : public AttributeCache {
  public:
-  LoadAttrCache() = default;
+  LoadAttrCache();
 
-  // Returns a new reference to the value or NULL on error.
+  // Scan every entry for one matching the receiver's type. Returns a new
+  // reference to the value or NULL on error.
   static PyObject* invoke(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  // See the notes on StoreAttrCache's equivalents.
+  static PyObject*
+  invokeEmpty(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  template <AttributeMutator::Kind K>
+  static PyObject*
+  specialized(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  // See StoreAttrCache::invokeUnrolled.
+  template <unsigned N>
+  static PyObject*
+  invokeUnrolled(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  // Address of the dispatch slot, for codegen to load and call through.
+  LoadAttrTarget* targetAddr();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(LoadAttrCache);
 
   static PyObject*
   invokeSlowPath(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  // See the note on StoreAttrCache::retarget.
+  void retarget();
+
+  void setTargetAddr(LoadAttrTarget target) {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    target_.load = target;
+#else
+    throw std::runtime_error{"setTargetAddr: not supported"};
+#endif
+  }
+
+  static LoadAttrTarget targetForKind(AttributeMutator::Kind kind);
 };
 
 // A cache for LoadAttr instructions where we expect the receiver to be a type

@@ -3187,8 +3187,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache = inline_cache_storage_.allocateLoadAttrCache(
             instr->bytecodeOffset());
-        bbb.appendCallInstruction(
-            dst, jit::LoadAttrCache::invoke, base, name, cache);
+        if constexpr (kInlineCachesTargetPromote) {
+          // The cache picks its own entry point based on how many entries it
+          // holds, so load the callee from the cache rather than baking it in.
+          bbb.appendIndirectCallInstruction(
+              dst, cache->targetAddr(), base, name, cache);
+        } else {
+          bbb.appendCallInstruction(
+              dst, jit::LoadAttrCache::invoke, base, name, cache);
+        }
         break;
       }
       case hir::Opcode::kLoadAttrSpecial: {
@@ -3888,13 +3895,25 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* value = instr->getOperand(1);
         auto cache = inline_cache_storage_.allocateStoreAttrCache(
             instr->bytecodeOffset());
-        Instruction* result = bbb.appendCallInstruction(
-            OutVReg{Operand::k32bit},
-            jit::StoreAttrCache::invoke,
-            base,
-            name,
-            value,
-            cache);
+        // See kLoadAttrCached: the callee lives in the cache.
+        Instruction* result;
+        if constexpr (kInlineCachesTargetPromote) {
+          result = bbb.appendIndirectCallInstruction(
+              OutVReg{Operand::k32bit},
+              cache->targetAddr(),
+              base,
+              name,
+              value,
+              cache);
+        } else {
+          result = bbb.appendCallInstruction(
+              OutVReg{Operand::k32bit},
+              jit::StoreAttrCache::invoke,
+              base,
+              name,
+              value,
+              cache);
+        }
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }

@@ -562,3 +562,497 @@ TEST_F(InlineCacheTest, BinaryOpCacheCompactAddStepsDownChain) {
       specializeWith(BinaryOpCache::add, cache, big, big),
       sameTypes(SpecializedType::kLong));
 }
+
+// Load/StoreAttrCache dispatch through a function pointer held in the cache
+// (CINDERX_IC_USE_TARGET_PROMOTION). The tests below drive that pointer the
+// same way generated code does: load target_ via targetAddr() and call it with
+// the cache as the last argument.
+
+namespace {
+
+// Attribute caches end in a flexible entries_[0] array, so they cannot be
+// stack- or new-allocated directly; the allocation has to be sized by
+// AttributeCacheSizeTrait. Mirrors what SlabArena does.
+template <typename T>
+class CacheStorage {
+ public:
+  CacheStorage() : raw_{::operator new(AttributeCacheSizeTrait::size())} {
+    cache_ = new (raw_) T();
+  }
+  ~CacheStorage() {
+    cache_->~T();
+    ::operator delete(raw_);
+  }
+  CacheStorage(const CacheStorage&) = delete;
+  CacheStorage& operator=(const CacheStorage&) = delete;
+
+  T* operator->() {
+    return cache_;
+  }
+  T* get() {
+    return cache_;
+  }
+
+ private:
+  void* raw_;
+  T* cache_;
+};
+
+// Runs `src` and returns its locals, or nullptr on failure.
+Ref<> runToLocals(RuntimeTest* test, const char* src) {
+  Ref<PyObject> globals(test->MakeGlobals());
+  if (globals == nullptr) {
+    return nullptr;
+  }
+  auto locals = Ref<>::steal(PyDict_New());
+  if (locals == nullptr) {
+    return nullptr;
+  }
+  auto st = Ref<>::steal(PyRun_String(src, Py_file_input, globals, locals));
+  if (st == nullptr) {
+    PyErr_Print();
+    return nullptr;
+  }
+  return locals;
+}
+
+Ref<> callLoad(LoadAttrCache* cache, BorrowedRef<> obj, BorrowedRef<> name) {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  return Ref<>::steal((*cache->targetAddr())(obj, name, cache));
+#else
+  return Ref<>::steal(LoadAttrCache::invoke(obj, name, cache));
+#endif
+}
+
+int callStore(
+    StoreAttrCache* cache,
+    BorrowedRef<> obj,
+    BorrowedRef<> name,
+    BorrowedRef<> value) {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  return (*cache->targetAddr())(obj, name, value, cache);
+#else
+  return StoreAttrCache::invoke(obj, name, value, cache);
+#endif
+}
+
+long asLong(BorrowedRef<> obj) {
+  return PyLong_AsLong(obj);
+}
+
+constexpr const char* kTwoTypes = R"(
+class C:
+  def __init__(self):
+    self.x = 5
+
+class D:
+  def __init__(self):
+    self.x = 11
+
+c = C()
+d = D()
+)";
+
+} // namespace
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+TEST_F(InlineCacheTest, AttrCacheStartsEmptyWhateverItsSize) {
+  // Every cache begins on the "nothing cached yet" entry point regardless of
+  // attr_cache_size. Size no longer decides the dispatch slot up front; the
+  // number of populated entries does, and that is re-evaluated as the cache
+  // fills.
+  for (uint32_t size : {1u, 4u}) {
+    getMutableConfig().attr_cache_size = size;
+    CacheStorage<LoadAttrCache> load;
+    CacheStorage<StoreAttrCache> store;
+    EXPECT_EQ(*load->targetAddr(), LoadAttrCache::invokeEmpty)
+        << "attr_cache_size = " << size;
+    EXPECT_EQ(*store->targetAddr(), StoreAttrCache::invokeEmpty)
+        << "attr_cache_size = " << size;
+  }
+}
+
+TEST_F(InlineCacheTest, MultiEntryAttrCacheDemotesToScanOnSecondType) {
+  // A multi-entry cache still gets the monomorphic fast path while it has only
+  // seen one type, and falls back to the scan once a second type forces a
+  // second entry.
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, kTwoTypes);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(*cache->targetAddr(), LoadAttrCache::invokeEmpty);
+
+  auto res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+  LoadAttrTarget specialized = *cache->targetAddr();
+  EXPECT_NE(specialized, LoadAttrCache::invokeEmpty)
+      << "One cached type should promote to a specialized entry point";
+  EXPECT_NE(specialized, LoadAttrCache::invoke)
+      << "One cached type should not need the scan";
+
+  // A second receiver type cannot be served from slot 0, so the cache moves to
+  // the two-entry unrolled entry point rather than all the way to the scan.
+  res = callLoad(cache.get(), d, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 11);
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeUnrolled<2>)
+      << "A second cached type should demote to the two-entry entry point";
+
+  // Both types keep working from there.
+  res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+  res = callLoad(cache.get(), d, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 11);
+}
+
+TEST_F(InlineCacheTest, AttrCachePacksEntriesAfterInvalidation) {
+  // Invalidating an entry in the middle has to close the hole, because the
+  // unrolled entry points read entries_[0 .. N-1] straight through and would
+  // otherwise walk past a live entry that had been stranded behind a gap.
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class A:
+  def __init__(self):
+    self.x = 1
+
+class B:
+  def __init__(self):
+    self.x = 2
+
+class C:
+  def __init__(self):
+    self.x = 3
+
+a = A()
+b = B()
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> a = PyDict_GetItemString(locals, "a");
+  BorrowedRef<> b = PyDict_GetItemString(locals, "b");
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<PyTypeObject> type_b = PyDict_GetItemString(locals, "B");
+  ASSERT_NE(a.get(), nullptr);
+  ASSERT_NE(b.get(), nullptr);
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(type_b.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  // Fill three entries, in order, so B lands in the middle.
+  CacheStorage<LoadAttrCache> cache;
+  for (auto obj : {a, b, c}) {
+    auto res = callLoad(cache.get(), obj, name);
+    ASSERT_NE(res.get(), nullptr);
+  }
+  ASSERT_EQ(*cache->targetAddr(), LoadAttrCache::invokeUnrolled<3>)
+      << "Three cached types should use the three-entry entry point";
+
+  // Knock out the middle one.
+  auto st = Ref<>::steal(PyRun_String(
+      "B.x = property(lambda self: 99)\n", Py_file_input, locals, locals));
+  ASSERT_NE(st.get(), nullptr);
+  notifyICsTypeChanged(type_b);
+
+  // A and C must both still be served correctly; if packing left a hole where
+  // B was, C would be stranded at index 2 behind it.
+  auto res = callLoad(cache.get(), a, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 1);
+  res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 3);
+  // And B now resolves through its new descriptor.
+  res = callLoad(cache.get(), b, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 99);
+}
+
+TEST_F(InlineCacheTest, AttrCacheSpecializesTargetOnFirstFill) {
+  // Filling the single entry re-points the dispatch slot at a Kind-specialized
+  // entry point, so the steady-state call never runs the Kind switch. Which
+  // specialization is picked depends on the receiver layout and Python
+  // version, so assert on the transition rather than the identity.
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, kTwoTypes);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(c.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(*cache->targetAddr(), LoadAttrCache::invokeEmpty);
+
+  auto res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+
+  LoadAttrTarget specialized = *cache->targetAddr();
+  EXPECT_NE(specialized, LoadAttrCache::invokeEmpty)
+      << "A filled cache should have left the empty entry point";
+  EXPECT_NE(specialized, LoadAttrCache::invoke)
+      << "A single-entry cache should never fall back to the scan";
+
+  // A steady-state hit must not disturb the specialization.
+  res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+  EXPECT_EQ(*cache->targetAddr(), specialized);
+}
+
+TEST_F(InlineCacheTest, AttrCacheRespecializesAfterInvalidation) {
+  // An invalidated entry is reset to a null type, which no live receiver can
+  // match, so it fails the specialized guard and routes to the miss handler,
+  // which re-specializes against whatever the refill produced.
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  def __init__(self):
+    self.x = 5
+
+obj = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "obj");
+  BorrowedRef<PyTypeObject> type = PyDict_GetItemString(locals, "C");
+  ASSERT_NE(obj.get(), nullptr);
+  ASSERT_NE(type.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), obj, name);
+  ASSERT_NE(res.get(), nullptr);
+  LoadAttrTarget instance_target = *cache->targetAddr();
+  ASSERT_NE(instance_target, LoadAttrCache::invokeEmpty);
+
+  // Shadow the instance attribute with a data descriptor. That is a different
+  // AttributeMutator::Kind, so the cache must land on a different
+  // specialization, not just a different cached type.
+  auto st = Ref<>::steal(PyRun_String(
+      "C.x = property(lambda self: 99)\n", Py_file_input, locals, locals));
+  ASSERT_NE(st.get(), nullptr);
+  notifyICsTypeChanged(type);
+
+  res = callLoad(cache.get(), obj, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 99);
+  EXPECT_NE(*cache->targetAddr(), instance_target)
+      << "A refill with a different Kind must install a different target";
+
+  // And the new specialization must itself be stable and correct.
+  for (int i = 0; i < 2; i++) {
+    res = callLoad(cache.get(), obj, name);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 99) << "iteration " << i;
+  }
+}
+#endif
+
+TEST_F(InlineCacheTest, LoadAttrCacheSingleEntryHitsAndMisses) {
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, kTwoTypes);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+
+  // First call fills the single entry; second is a guard hit.
+  for (int i = 0; i < 2; i++) {
+    auto res = callLoad(cache.get(), c, name);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 5) << "iteration " << i;
+  }
+
+  // A second receiver type cannot fit, so it takes the slow path -- but must
+  // still be correct, and must not disturb the cached type.
+  auto res = callLoad(cache.get(), d, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 11);
+
+  res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+}
+
+TEST_F(InlineCacheTest, LoadAttrCacheMultiEntryCachesSeveralTypes) {
+  // With room for more than one entry the cache keeps its polymorphic
+  // behaviour: both receiver types get cached and both stay correct.
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, kTwoTypes);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  for (int i = 0; i < 3; i++) {
+    auto res = callLoad(cache.get(), c, name);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 5) << "iteration " << i;
+    res = callLoad(cache.get(), d, name);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 11) << "iteration " << i;
+  }
+}
+
+TEST_F(InlineCacheTest, LoadAttrCacheUncacheableTypeStaysCorrect) {
+  // A custom __getattribute__ means the IC cannot replicate the lookup, so
+  // fill() refuses and every call takes the slow path.
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  def __getattribute__(self, name):
+    return 7
+
+obj = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "obj");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  for (int i = 0; i < 3; i++) {
+    auto res = callLoad(cache.get(), obj, name);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 7) << "iteration " << i;
+  }
+}
+
+TEST_F(InlineCacheTest, LoadAttrCacheSeesTypeChangeAfterInvalidation) {
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  def __init__(self):
+    self.x = 5
+
+obj = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "obj");
+  BorrowedRef<PyTypeObject> type = PyDict_GetItemString(locals, "C");
+  ASSERT_NE(obj.get(), nullptr);
+  ASSERT_NE(type.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), obj, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5) << "Instance attribute wins before the property";
+
+  // Shadow the instance attribute with a data descriptor, which takes
+  // precedence over the instance dict. A stale cache would keep answering 5.
+  auto st = Ref<>::steal(PyRun_String(
+      "C.x = property(lambda self: 99)\n", Py_file_input, locals, locals));
+  ASSERT_NE(st.get(), nullptr) << "Failed adding the property";
+
+  // Invalidate explicitly rather than relying on the type-watcher wiring being
+  // installed in this fixture.
+  notifyICsTypeChanged(type);
+
+  for (int i = 0; i < 2; i++) {
+    res = callLoad(cache.get(), obj, name);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 99)
+        << "The invalidated cache must observe the new data descriptor, "
+        << "iteration " << i;
+  }
+}
+
+TEST_F(InlineCacheTest, LoadAttrCacheHandlesGetAttrFallback) {
+  // __getattr__ performs another attribute access while the outer lookup is
+  // still in flight.
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  def __init__(self):
+    self.real = 12
+  def __getattr__(self, name):
+    return self.real + 1
+
+obj = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "obj");
+  ASSERT_NE(obj.get(), nullptr);
+  auto missing = Ref<>::steal(PyUnicode_FromString("missing"));
+
+  CacheStorage<LoadAttrCache> cache;
+  for (int i = 0; i < 3; i++) {
+    auto res = callLoad(cache.get(), obj, missing);
+    ASSERT_NE(res.get(), nullptr) << "iteration " << i;
+    EXPECT_EQ(asLong(res), 13) << "iteration " << i;
+  }
+}
+
+TEST_F(InlineCacheTest, StoreAttrCacheSingleEntryHitsAndMisses) {
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  def __init__(self):
+    self.x = 0
+
+class D:
+  def __init__(self):
+    self.x = 0
+
+c = C()
+d = D()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  auto v1 = Ref<>::steal(PyLong_FromLong(41));
+  auto v2 = Ref<>::steal(PyLong_FromLong(42));
+
+  CacheStorage<StoreAttrCache> cache;
+  for (int i = 0; i < 2; i++) {
+    ASSERT_EQ(callStore(cache.get(), c, name, v1), 0) << "iteration " << i;
+  }
+  auto read = Ref<>::steal(PyObject_GetAttr(c, name));
+  ASSERT_NE(read.get(), nullptr);
+  EXPECT_EQ(asLong(read), 41);
+
+  // Second type does not fit in a single-entry cache; still must be correct.
+  ASSERT_EQ(callStore(cache.get(), d, name, v2), 0);
+  read = Ref<>::steal(PyObject_GetAttr(d, name));
+  ASSERT_NE(read.get(), nullptr);
+  EXPECT_EQ(asLong(read), 42);
+}
+
+TEST_F(InlineCacheTest, StoreAttrCacheReportsErrors) {
+  getMutableConfig().attr_cache_size = 1;
+  auto locals = runToLocals(this, R"(
+class C:
+  __slots__ = ()
+
+obj = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "obj");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("nope"));
+  auto value = Ref<>::steal(PyLong_FromLong(1));
+
+  CacheStorage<StoreAttrCache> cache;
+  EXPECT_LT(callStore(cache.get(), obj, name, value), 0);
+  EXPECT_TRUE(PyErr_Occurred());
+  PyErr_Clear();
+}

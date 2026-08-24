@@ -711,7 +711,6 @@ def func():
 
   auto lir_func = getLIRFunction(pyfunc.get());
 
-  auto fast_addr = reinterpret_cast<uint64_t>(LoadAttrCache::invoke);
   auto slow_addr = reinterpret_cast<uint64_t>(PyObject_GetAttr);
 
   EXPECT_FALSE(getConfig().attr_caches);
@@ -719,9 +718,58 @@ def func():
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCall).inAddr(0, slow_addr))
       << "Should be calling out to PyObject_GetAttr as inline caches are "
          "disabled";
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCall).inAddr(0, fast_addr))
-      << "Should not be calling out to LoadAttrCache::invoke as inline caches "
-         "are disabled";
+  // An inline cache dispatches through a function pointer loaded out of the
+  // cache, so it shows up as a Call whose callee is defined by a Move rather
+  // than as an immediate address. There should be no such call here.
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kMove))
+      << "Should not be emitting an indirect call through an inline cache as "
+         "inline caches are disabled";
+}
+
+TEST_F(LIRGeneratorTest, AttrCachesOn) {
+  if constexpr (kFreeThreadedBuild) {
+    // Attribute inline caches are not supported on free-threaded builds
+    // (Config::attr_caches defaults to false there, see T250369692), so
+    // LoadAttrCached is never emitted and there is nothing to check.
+    GTEST_SKIP();
+  }
+  getMutableConfig().attr_caches = true;
+
+  const char* src = R"(
+def func(o):
+  return o.attr
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+
+  EXPECT_TRUE(getConfig().attr_caches);
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  // The cache picks its own entry point, so codegen loads the callee out of the
+  // cache and calls it indirectly instead of baking an address into the
+  // instruction stream.
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kMove))
+      << "Should be calling indirectly through the inline cache's target";
+#else
+  // Without target promotion the callee is a fixed address again.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kCall)
+                 .inAddr(0, reinterpret_cast<uint64_t>(LoadAttrCache::invoke)))
+      << "Should be calling LoadAttrCache::invoke directly";
+  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kMove))
+      << "Should not emit an indirect call with target promotion disabled";
+#endif
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kCall)
+                    .inAddr(0, reinterpret_cast<uint64_t>(PyObject_GetAttr)))
+      << "Should not be calling PyObject_GetAttr directly as inline caches are "
+         "enabled";
 }
 
 TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesMoveRelaxed) {
