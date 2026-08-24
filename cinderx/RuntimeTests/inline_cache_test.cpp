@@ -854,6 +854,104 @@ obj = C()
     EXPECT_EQ(asLong(res), 99) << "iteration " << i;
   }
 }
+
+namespace {
+
+constexpr const char* kTwoModules = R"(
+import types
+
+a = types.ModuleType("a")
+a.x = 5
+
+b = types.ModuleType("b")
+b.x = 11
+)";
+
+// Repeat a load enough times to get past the two warm-up misses -- the first
+// installs the kModule target, the second populates the mutator -- so that what
+// is being measured is the steady-state cached path.
+long loadRepeatedly(
+    LoadAttrCache* cache,
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
+  long last = -1;
+  for (int i = 0; i < 3; i++) {
+    auto res = callLoad(cache, obj, name);
+    if (res == nullptr) {
+      return -1;
+    }
+    last = asLong(res);
+  }
+  return last;
+}
+
+} // namespace
+
+TEST_F(InlineCacheTest, AttrCacheSpecializesModuleLoads) {
+  Ref<> locals = runToLocals(this, kTwoModules);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> mod = PyDict_GetItemString(locals, "a");
+  ASSERT_NE(mod.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), mod, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 5);
+
+  // A module receiver must land on the module specialization. Before kModule
+  // existed, fill() rejected modules outright and the cache stayed empty.
+  // retarget() monomorphises the cache to modules and installs invokeModule
+  // rather than the generic single-entry specialization.
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeModule)
+      << "A module load should install the invokeModule target";
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), mod, name), 5)
+      << "The cached module read should be stable across repeats";
+}
+
+TEST_F(InlineCacheTest, ModuleAttrCacheSeesDictMutation) {
+  Ref<> locals = runToLocals(this, kTwoModules);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> mod = PyDict_GetItemString(locals, "a");
+  ASSERT_NE(mod.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod, name), 5);
+
+  // Rebinding the attribute bumps the module dict's version tag, which is the
+  // only thing standing between the cache and a stale value -- no type changes
+  // here, so the type watcher never fires.
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  ASSERT_EQ(PyObject_SetAttr(mod, name, seven), 0);
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), mod, name), 7)
+      << "A module dict mutation must invalidate the cached value";
+}
+
+TEST_F(InlineCacheTest, ModuleAttrCacheChecksModuleIdentity) {
+  Ref<> locals = runToLocals(this, kTwoModules);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> mod_a = PyDict_GetItemString(locals, "a");
+  BorrowedRef<> mod_b = PyDict_GetItemString(locals, "b");
+  ASSERT_NE(mod_a.get(), nullptr);
+  ASSERT_NE(mod_b.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod_a, name), 5);
+
+  // Both modules share a type, so the entry's type guard passes for either one.
+  // Only the identity check inside ModuleMutator stops b from being handed a's
+  // cached value.
+  EXPECT_EQ(loadRepeatedly(cache.get(), mod_b, name), 11)
+      << "A different module must not read the first module's cached value";
+
+  // ...and going back to a must not read b's value either.
+  EXPECT_EQ(loadRepeatedly(cache.get(), mod_a, name), 5)
+      << "Alternating modules must each read their own value";
+}
 #endif
 
 TEST_F(InlineCacheTest, LoadAttrCacheSingleEntryHitsAndMisses) {

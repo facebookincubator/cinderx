@@ -162,6 +162,29 @@ struct GetAttrMutator {
   uint32_t keys_version;
 };
 
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+// Mutator for an attribute read off a module.
+//
+// Unlike every other kind, the enclosing entry's type guard is not enough here:
+// it only proves the receiver is *a* module, and the cached value belongs to
+// one specific module's dict. So this additionally checks object identity, then
+// checks that the dict has not changed under it. A receiver that is a different
+// module, or the same module after a mutation, re-populates in place rather
+// than giving up on the entry.
+//
+// Mirrors LoadModuleAttrCache, which does the same job for sites where the
+// compiler already knew the receiver was a module. The validity mechanism
+// differs by version for the same reason it does there: 3.14+ can hold a
+// pointer into the interpreter's global cache and test it in one load, whereas
+// 3.12 has to keep the value alongside the dict version it was read at.
+struct ModuleMutator {
+  static PyObject* getAttr(PyObject* obj, PyObject* name, ModuleMutator* mod);
+
+  BorrowedRef<> module;
+  PyObject** cache;
+};
+#endif
+
 // The single source of truth for AttributeMutator::Kind. Everything that has
 // to enumerate the kinds -- the enum itself, the getAttr/setAttr dispatch
 // switches, and the tables mapping a kind to its specialized entry point -- is
@@ -172,6 +195,14 @@ struct GetAttrMutator {
 // kind. __getattr__ only participates in loads, so kGetAttr is load-only and
 // the store-side tables skip it rather than emitting a body that can only
 // abort.
+// kModule is only registered under target promotion. The non-target promotion
+// path can't handle instance identity checks.
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+#define CINDERX_ATTR_KIND_PROMOTION_ONLY(X) X(kModule, 0)
+#else
+#define CINDERX_ATTR_KIND_PROMOTION_ONLY(X)
+#endif
+
 #define CINDERX_FOREACH_ATTR_KIND(X) \
   X(kSplit, 1)                       \
   X(kSplitInline, 1)                 \
@@ -180,7 +211,8 @@ struct GetAttrMutator {
   X(kMemberDescr, 1)                 \
   X(kDescrOrClassVar, 1)             \
   X(kGetAttr, 0)                     \
-  X(kDict, 1)
+  X(kDict, 1)                        \
+  CINDERX_ATTR_KIND_PROMOTION_ONLY(X)
 
 // Emit `body` only for kinds a store can specialize for, by pasting on the
 // store_ok column above. Used by the store-side generators so they drop
@@ -230,6 +262,18 @@ class AttributeMutator {
       PyTypeObject* type,
       PyObject* getattr_method,
       uint32_t keys_version);
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  // `type` is the module's type, not the module. See ModuleMutator.
+  void setModule(PyTypeObject* type, PyObject* module);
+
+  ModuleMutator* asModule() {
+    JIT_DCHECK(
+        getKind() == AttributeMutator::Kind::kModule,
+        "should only be used on modules");
+    return &module_;
+  }
+#endif
+
   BorrowedRef<PyTypeObject> watchedDescrType() const;
 
   static PyObject*
@@ -294,6 +338,9 @@ class AttributeMutator {
     MemberDescrMutator member_descr_;
     DescrOrClassVarMutator descr_or_cvar_;
     GetAttrMutator getattr_;
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    ModuleMutator module_;
+#endif
   };
 };
 
@@ -348,6 +395,8 @@ class AttributeCache {
   // Moving an entry between slots is safe for the watchers: they are keyed on
   // the AttributeCache*, not on an entry index.
   void packEntries();
+
+  void monomorphise(AttributeMutator::Kind kind);
 
   // Must stay the last data member as these are dynamically sized based upon
   // the configured cache size.
@@ -463,6 +512,9 @@ class LoadAttrCache : public AttributeCache {
   static PyObject*
   invokeUnrolled(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
+  static PyObject*
+  invokeModule(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
   // Address of the dispatch slot, for codegen to load and call through.
   LoadAttrTarget* targetAddr();
 
@@ -473,7 +525,7 @@ class LoadAttrCache : public AttributeCache {
   invokeSlowPath(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
   // See the note on StoreAttrCache::retarget.
-  void retarget();
+  void retarget(AttributeMutator* mut);
 
   void setTargetAddr(LoadAttrTarget target) {
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION

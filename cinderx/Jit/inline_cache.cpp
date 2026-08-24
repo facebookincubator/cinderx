@@ -848,6 +848,12 @@ PyObject* DescrOrClassVarMutator::getAttr(
   return descr_guard.release();
 }
 
+// Every attribute cache entry is one of these, so its size is multiplied by
+// attr_cache_size at every cached site.
+static_assert(
+    sizeof(AttributeMutator) == 24,
+    "AttributeMutator changed size; confirm the growth is intended");
+
 AttributeMutator::AttributeMutator() {
   reset();
 }
@@ -915,6 +921,17 @@ void AttributeMutator::setGetattr(
   getattr_.getattr_method = getattr_method;
   getattr_.keys_version = keys_version;
 }
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+void AttributeMutator::setModule(PyTypeObject* type, PyObject* module) {
+  setType(type, Kind::kModule);
+  // Claim the receiver now so invokeModule's identity scan finds this entry,
+  // but leave the cache empty: the first getAttr fills it, which keeps the dict
+  // lookup and the version read in one place instead of two.
+  module_.module = module;
+  module_.cache = nullptr;
+}
+#endif
 
 BorrowedRef<PyTypeObject> AttributeMutator::watchedDescrType() const {
   if (getKind() == Kind::kDataDescr) {
@@ -996,6 +1013,10 @@ inline PyObject* AttributeMutator::getAttrForKind(
     return result;
   } else if constexpr (K == Kind::kGetAttr) {
     return GetAttrMutator::getAttr(obj, name, &entry->getattr_);
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  } else if constexpr (K == Kind::kModule) {
+    return ModuleMutator::getAttr(obj, name, &entry->module_);
+#endif
   } else {
     JIT_ABORT("Cannot invoke getAttr for attr of kind {}", static_cast<int>(K));
   }
@@ -1185,6 +1206,21 @@ void AttributeCache::packEntries() {
   }
 }
 
+void AttributeCache::monomorphise(AttributeMutator::Kind kind) {
+  // module access is exceedingly monomorphic and unlikely
+  // to bounce between other attributes
+  bool reset = false;
+  for (auto& entry : entries()) {
+    if (entry.getKind() != kind) {
+      entry.reset();
+      reset = true;
+    }
+  }
+  if (reset) {
+    packEntries();
+  }
+}
+
 AttributeMutator* AttributeCache::findEmptyEntry() {
   packEntries();
   auto it = std::ranges::find_if(
@@ -1234,6 +1270,23 @@ bool canCacheAttribute(
   return true;
 }
 
+static BorrowedRef<PyDictObject> getModuleDict(BorrowedRef<> obj) {
+  if (PyModule_Check(obj)) {
+    BorrowedRef<PyModuleObject> mod{obj};
+    return mod->md_dict;
+  } else if (Ci_StrictModule_Check(obj)) {
+    BorrowedRef<Ci_StrictModuleObject> mod{obj};
+    return mod->globals;
+  }
+  return nullptr;
+}
+
+// If we know what a module's getattr is going to do we can cache it.
+static bool isCacheableModuleType(PyTypeObject* type) {
+  return type->tp_getattro == PyModule_Type.tp_getattro ||
+      type->tp_getattro == Ci_StrictModule_Type.tp_getattro;
+}
+
 AttributeMutator*
 AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
   AttributeMutator* mut = findEmptyEntry();
@@ -1248,6 +1301,25 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
     // the top of `PyType_Modified` for more details.
     return nullptr;
   }
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  // Modules have to be claimed before the tp_getattro test below, which is
+  // exactly what rejects them today: module_getattro is not
+  // PyObject_GenericGetAttr, so a module read currently falls all the way
+  // through to PyObject_GetAttr on every access.
+  //
+  // Only for loads. A store to a module attribute is an ordinary dict store
+  // with nothing worth caching, and kModule has no setAttr body.
+  if (!is_set && getModuleDict(obj) != nullptr && isCacheableModuleType(type)) {
+    mut->setModule(type, obj);
+    // Watch the module's type, not the module: invalidation on dict mutation
+    // is the version tag's job, and this keeps the entry consistent with every
+    // other kind for typeChanged purposes. PyModule_Type is immutable, so in
+    // practice the watcher declines it.
+    ac_watcher.watch(type, this);
+    return mut;
+  }
+#endif
 
   if ((is_set && type->tp_setattro != PyObject_GenericSetAttr) ||
       (!is_set && type->tp_getattro != PyObject_GenericGetAttr &&
@@ -1435,8 +1507,12 @@ StoreAttrTarget StoreAttrCache::targetForKind(AttributeMutator::Kind kind) {
     CINDERX_FOREACH_ATTR_KIND(CINDERX_STORE_TARGET_CASE)
 #undef CINDERX_STORE_TARGET_CASE
 #undef CINDERX_STORE_TARGET_BODY
-    // kGetAttr is load-only, so a store cache should never ask for it.
+    // kGetAttr and kModule are load-only, so a store cache should never ask
+    // for either.
     case Kind::kGetAttr:
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    case Kind::kModule:
+#endif
     case Kind::kMaxValue:
       break;
   }
@@ -1528,7 +1604,7 @@ PyObject* LoadAttrCache::specialized(
     PyObject* result = AttributeMutator::getAttrForKind<K>(obj, name, &entry);
     if constexpr (AttributeMutator::kCanDriftInPlace<K>) {
       if (entry.getKind() != K) [[unlikely]] {
-        cache->retarget();
+        cache->retarget(&entry);
       }
     }
     return result;
@@ -1585,8 +1661,18 @@ LoadAttrTarget* LoadAttrCache::targetAddr() {
 #endif
 }
 
-void LoadAttrCache::retarget() {
+void LoadAttrCache::retarget([[maybe_unused]] AttributeMutator* mut) {
   if constexpr (kInlineCachesTargetPromote) {
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    if (mut->getKind() == AttributeMutator::Kind::kModule) {
+      // Module attributes are exceedingly monomorphic so we
+      // specialize to only support modules and everything else
+      // will fallback to PyObject_GetAttr.
+      monomorphise(AttributeMutator::Kind::kModule);
+      setTargetAddr(invokeModule);
+      return;
+    }
+#endif
     switch (countEntries()) {
       case 0:
         setTargetAddr(invokeEmpty);
@@ -1623,8 +1709,9 @@ PyObject* LoadAttrCache::invokeSlowPath(
         "PyObject_GetAttr failed so there should be a Python error");
     return nullptr;
   }
-  if (cache->fill(obj, name, /* is_set */ false)) {
-    cache->retarget();
+
+  if (AttributeMutator* mut = cache->fill(obj, name, /* is_set */ false)) {
+    cache->retarget(mut);
   }
 
   return result.release();
@@ -2329,17 +2416,6 @@ PyObject* LoadModuleAttrCache::lookupHelper(
   return cache->lookup(obj, name);
 }
 
-static BorrowedRef<PyDictObject> getModuleDict(BorrowedRef<> obj) {
-  if (PyModule_Check(obj)) {
-    BorrowedRef<PyModuleObject> mod{obj};
-    return mod->md_dict;
-  } else if (Ci_StrictModule_Check(obj)) {
-    BorrowedRef<Ci_StrictModuleObject> mod{obj};
-    return mod->globals;
-  }
-  return nullptr;
-}
-
 PyObject* LoadModuleAttrCache::lookup(
     BorrowedRef<> object,
     BorrowedRef<> name) {
@@ -2371,9 +2447,7 @@ static std::pair<BorrowedRef<PyDictObject>, Ref<>> getModuleDictAndAttribute(
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
   BorrowedRef<PyDictObject> dict = getModuleDict(obj);
 
-  if (dict != nullptr &&
-      (tp->tp_getattro == PyModule_Type.tp_getattro ||
-       tp->tp_getattro == Ci_StrictModule_Type.tp_getattro) &&
+  if (dict != nullptr && isCacheableModuleType(tp) &&
       _PyType_Lookup(tp, name) == nullptr) {
 #if PY_VERSION_HEX >= 0x030E0000
     PyObject* value = nullptr;
@@ -2485,6 +2559,77 @@ LoadMethodResult LoadModuleMethodCache::lookupSlowPath(
   }
   return {nullptr, nullptr};
 }
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+// Populate (or re-populate) this mutator for `obj`, and return the attribute.
+// Split out of getAttr so the hit path stays a straight line.
+CINDERX_NOINLINE
+static PyObject*
+fillModuleMutator(ModuleMutator* mut, PyObject* obj, PyObject* name) {
+  auto [module_dict, value] = getModuleDictAndAttribute(obj, name);
+  if (value == nullptr) {
+    // Not a cacheable module read -- a shadowing type attribute, a subclass
+    // with its own tp_getattro, or simply absent. Fall back without touching
+    // the cached state, so an existing good entry survives a one-off miss.
+    return PyObject_GetAttr(obj, name);
+  }
+
+  BorrowedRef<PyUnicodeObject> uname{name};
+  mut->cache = hasOnlyUnicodeKeys(module_dict)
+      ? cinderx::getModuleState()->cache_manager->getGlobalCache(
+            module_dict, module_dict, uname)
+      : nullptr;
+  mut->module = obj;
+  return value.release();
+}
+
+PyObject*
+ModuleMutator::getAttr(PyObject* obj, PyObject* name, ModuleMutator* mod) {
+  // The enclosing entry's type guard only established that obj is a module.
+  // Identity says it is *this* module, and the version says its dict has not
+  // moved under us.
+  if (mod->module == obj && mod->cache != nullptr) {
+    BorrowedRef<> res = *mod->cache;
+    if (res != nullptr) {
+      return Py_NewRef(res);
+    }
+  }
+
+  return fillModuleMutator(mod, obj, name);
+}
+
+PyObject* LoadAttrCache::invokeModule(
+    PyObject* obj,
+    PyObject* name,
+    LoadAttrCache* cache) {
+  for (auto& entry : cache->entries()) {
+    if (!entry.type()) {
+      break;
+    }
+    JIT_DCHECK(
+        entry.getKind() == AttributeMutator::Kind::kModule,
+        "should only have modules");
+    ModuleMutator* module = entry.asModule();
+    if (module->module == obj) {
+      return AttributeMutator::getAttrForKind<AttributeMutator::Kind::kModule>(
+          obj, name, &entry);
+    }
+  }
+  PyTypeObject* tp = Py_TYPE(obj);
+  if (isCacheableModuleType(tp)) {
+    AttributeMutator* mut = cache->findEmptyEntry();
+    if (mut != nullptr) {
+      mut->setModule(tp, obj);
+      return fillModuleMutator(mut->asModule(), obj, name);
+    }
+  } else {
+    // polymorphic module + other things, just give up...
+    cache->setTargetAddr(reinterpret_cast<LoadAttrTarget>(PyObject_GetAttr));
+  }
+  return PyObject_GetAttr(obj, name);
+}
+
+#endif
 
 // Single source of truth for BinaryOpCache's specializations, in priority
 // order.  Each row is X(Name, Lhs, Rhs, Ret, Op, Fallback):

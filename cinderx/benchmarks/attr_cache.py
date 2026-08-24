@@ -422,6 +422,17 @@ LAYOUTS: dict[str, Layout] = {
         store=False,
         module=True,
     ),
+    # Same receivers as ``module``, but reached through the untyped loop
+    # variable rather than a module global.  ``module`` above is compiled with
+    # the receiver statically known, so it is served by LoadModuleAttrCache and
+    # never reaches the attribute cache at all; this one leaves the JIT unable
+    # to prove the receiver is a module, so it goes through LoadAttrCached and
+    # is the only workload that exercises discovering a module at runtime.
+    "dynmodule": Layout(
+        "module reached through an untyped local rather than a global",
+        _build_module,
+        store=False,
+    ),
     "getattr": Layout(
         "__getattr__ fallback for a missing attribute",
         _build_getattr,
