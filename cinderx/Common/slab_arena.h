@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -58,7 +59,11 @@ class SlabArenaIterator {
         return *this = SlabArenaIterator{};
       }
       slab_iter_ = currentSlab().begin();
-      JIT_CHECK(slab_iter_ != currentSlab().end(), "Unexpected empty slab");
+      // Only the last slab can be empty: a new slab is appended only when the
+      // previous one is full, and an empty slab accepts the next allocation.
+      if (isSlabEnd()) {
+        return *this = SlabArenaIterator{};
+      }
     }
     return *this;
   }
@@ -167,18 +172,19 @@ class SlabArena {
     }
 #endif
 
-    void* mem = slabs_.back().allocate();
-    if (mem == nullptr) {
-      mem = slabs_.emplace_back(SizeTrait::size(), getSharedHugePageArena())
-                .allocate();
-      JIT_CHECK(mem != nullptr, "Empty slab failed to allocate");
+    T* object = slabs_.back().emplace(std::forward<Args>(args)...);
+    if (object == nullptr) {
+      auto& slab =
+          slabs_.emplace_back(SizeTrait::size(), getSharedHugePageArena());
 #ifndef WIN32
       if (mlocked_) {
-        slabs_.back().mlock();
+        slab.mlock();
       }
 #endif
+      object = slab.emplace(std::forward<Args>(args)...);
+      JIT_CHECK(object != nullptr, "Empty slab failed to allocate");
     }
-    return new (mem) T(std::forward<Args>(args)...);
+    return object;
   }
 
 #ifndef WIN32

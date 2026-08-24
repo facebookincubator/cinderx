@@ -11,6 +11,7 @@
 #endif
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -78,7 +79,7 @@ class Slab {
     base_ = fill_ = static_cast<char*>(ptr);
   }
 
-  Slab(Slab&& other)
+  Slab(Slab&& other) noexcept
       : base_{other.base_},
         arena_(std::move(other.arena_)),
         owned_base_{std::move(other.owned_base_)},
@@ -94,17 +95,19 @@ class Slab {
     }
   }
 
-  // Allocate memory for a new T object. Returns void* because the object is not
-  // constructed yet.
-  void* allocate() {
-    char* new_fill = fill_ + increment_;
-    if (new_fill > base_ + kSlabSize) {
+  // Construct a T in the next slot. Returns nullptr when the slab is full and
+  // leaves the slab unchanged if construction throws.
+  template <typename... Args>
+  T* emplace(Args&&... args) {
+    const size_t used = static_cast<size_t>(fill_ - base_);
+    if (increment_ > kSlabSize - used) {
       return nullptr;
     }
 
-    char* ptr = fill_;
-    fill_ = new_fill;
-    return ptr;
+    T* object = std::construct_at(
+        reinterpret_cast<T*>(fill_), std::forward<Args>(args)...);
+    fill_ += increment_;
+    return object;
   }
 
 #ifndef WIN32

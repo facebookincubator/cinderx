@@ -4,7 +4,10 @@
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include <array>
 #include <cstring>
+#include <stdexcept>
+#include <vector>
 
 namespace {
 
@@ -66,6 +69,23 @@ class Counter {
   int& c_;
 };
 
+struct Thrower {
+  explicit Thrower(int value) : value{value} {
+    if (value < 0) {
+      throw std::runtime_error{"construction failed"};
+    }
+  }
+
+  int value;
+};
+
+// Force a one-page slab to hold exactly one object.
+struct PageSizeTrait {
+  static constexpr size_t size() {
+    return kPageSize;
+  }
+};
+
 } // namespace
 
 TEST(SlabArenaTest, RunsDestructors) {
@@ -104,6 +124,35 @@ TEST(SlabArenaTest, Iterate) {
     count++;
   }
   ASSERT_EQ(count, kNumElems);
+}
+
+TEST(SlabArenaTest, IterateTreatsTrailingEmptySlabAsEnd) {
+  SlabArena<Thrower, PageSizeTrait, 1> arena;
+
+  arena.allocate(1);
+  ASSERT_THROW(arena.allocate(-1), std::runtime_error);
+
+  std::vector<int> seen;
+  for (const Thrower& value : arena) {
+    seen.push_back(value.value);
+  }
+  const std::vector<int> expected{1};
+  EXPECT_EQ(seen, expected);
+}
+
+TEST(SlabArenaTest, ThrowingConstructorLeavesSlotReusable) {
+  SlabArena<Thrower, ObjectSizeTrait<Thrower>, 1> arena;
+
+  arena.allocate(1);
+  ASSERT_THROW(arena.allocate(-1), std::runtime_error);
+  arena.allocate(2);
+
+  std::vector<int> seen;
+  for (const Thrower& value : arena) {
+    seen.push_back(value.value);
+  }
+  const std::vector<int> expected{1, 2};
+  EXPECT_EQ(seen, expected);
 }
 
 namespace {
