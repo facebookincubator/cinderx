@@ -103,6 +103,36 @@ struct GetAttrMutator {
   uint32_t keys_version;
 };
 
+// The single source of truth for AttributeMutator::Kind. Everything that has
+// to enumerate the kinds -- the enum itself and the getAttr/setAttr dispatch
+// switches -- is generated from this list, so a new kind only has to be added
+// here plus given a body in getAttrForKind/setAttrForKind.
+//
+// X(name, store_ok): store_ok is 1 when a *store* can be specialized for the
+// kind. __getattr__ only participates in loads, so kGetAttr is load-only and
+// the store-side generators skip it rather than emitting a body that can only
+// abort.
+#define CINDERX_FOREACH_ATTR_KIND(X) \
+  X(kSplit, 1)                       \
+  X(kSplitInline, 1)                 \
+  X(kCombined, 1)                    \
+  X(kDataDescr, 1)                   \
+  X(kMemberDescr, 1)                 \
+  X(kDescrOrClassVar, 1)             \
+  X(kGetAttr, 0)                     \
+  X(kDict, 1)
+
+// Emit `body` only for kinds a store can specialize for, by pasting on the
+// store_ok column above. Used by the store-side generators so they drop
+// kGetAttr instead of instantiating a body that could only abort.
+//
+// `body` may contain commas as long as they are inside parentheses, which is
+// true of every call expression it is used with.
+#define CINDERX_ATTR_KIND_STORE_ONLY_1(body) body
+#define CINDERX_ATTR_KIND_STORE_ONLY_0(body)
+#define CINDERX_ATTR_KIND_STORE_ONLY(store_ok, body) \
+  CINDERX_ATTR_KIND_STORE_ONLY_##store_ok(body)
+
 // An instance of AttributeMutator is specialized to more efficiently perform a
 // get/set of a particular kind of attribute.
 class AttributeMutator {
@@ -110,15 +140,10 @@ class AttributeMutator {
   // Kind enum is designed to fit within 3 bits and it's value is embedded into
   // the type_ pointer
   enum class Kind : uint8_t {
-    kSplit,
-    kSplitInline,
-    kCombined,
-    kDataDescr,
-    kMemberDescr,
-    kDescrOrClassVar,
-    kGetAttr,
-    kDict,
-    kMaxValue,
+#define CINDERX_ATTR_KIND_ENUMERATOR(name, store_ok) name,
+    CINDERX_FOREACH_ATTR_KIND(CINDERX_ATTR_KIND_ENUMERATOR)
+#undef CINDERX_ATTR_KIND_ENUMERATOR
+        kMaxValue,
   };
   static_assert(
       static_cast<uint8_t>(Kind::kMaxValue) <= 8,
@@ -149,6 +174,19 @@ class AttributeMutator {
 
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
+  // getAttr/setAttr for a Kind that is already known at compile time. Each
+  // instantiation inlines exactly the one sub-mutator body it needs, so a
+  // caller that has already established the kind pays no switch and no jump
+  // table. getAttr/setAttr are themselves written in terms of these, so there
+  // is one copy of each body.
+  //
+  // The caller is responsible for having checked the kind; calling these on a
+  // mutator of a different kind reinterprets the union and is undefined.
+  template <Kind K>
+  PyObject* getAttrForKind(PyObject* obj, PyObject* name);
+  template <Kind K>
+  int setAttrForKind(PyObject* obj, PyObject* name, PyObject* value);
 
   static void changeKindFromSplitInline(SplitMutator* split, Kind new_kind);
   template <typename T>

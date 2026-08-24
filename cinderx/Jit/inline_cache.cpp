@@ -861,6 +861,80 @@ BorrowedRef<PyTypeObject> AttributeMutator::watchedDescrType() const {
   return nullptr;
 }
 
+template <AttributeMutator::Kind K>
+inline int AttributeMutator::setAttrForKind(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value) {
+  using Kind = AttributeMutator::Kind;
+  if constexpr (K == Kind::kSplit) {
+    return split_.setAttr(obj, name, value);
+  } else if constexpr (K == Kind::kSplitInline) {
+#if PY_VERSION_HEX >= 0x030E0000
+    return split_.setAttrInline(obj, name, value);
+#else
+    JIT_ABORT("kSplitInline is never populated before 3.14");
+#endif
+  } else if constexpr (K == Kind::kCombined) {
+    return combined_.setAttr(obj, name, value);
+  } else if constexpr (K == Kind::kDict) {
+    return dict_.setAttr(obj, name, value);
+  } else if constexpr (K == Kind::kDataDescr) {
+    return data_descr_.setAttr(obj, value);
+  } else if constexpr (K == Kind::kMemberDescr) {
+    return member_descr_.setAttr(obj, value);
+  } else if constexpr (K == Kind::kDescrOrClassVar) {
+    return descr_or_cvar_.setAttr(obj, name, value);
+  } else {
+    // kGetAttr: __getattr__ only applies to loads, we shouldn't ever populate
+    // it for a set attr cache.
+    JIT_ABORT("Cannot invoke setAttr for attr of kind {}", static_cast<int>(K));
+  }
+}
+
+template <AttributeMutator::Kind K>
+inline PyObject* AttributeMutator::getAttrForKind(
+    PyObject* obj,
+    PyObject* name) {
+  using Kind = AttributeMutator::Kind;
+  if constexpr (K == Kind::kSplit) {
+    return split_.getAttr(obj, name);
+  } else if constexpr (K == Kind::kSplitInline) {
+#if PY_VERSION_HEX >= 0x030E0000
+    return split_.getAttrInline(obj, name);
+#else
+    JIT_ABORT("kSplitInline is never populated before 3.14");
+#endif
+  } else if constexpr (K == Kind::kCombined) {
+    return combined_.getAttr(obj, name);
+  } else if constexpr (K == Kind::kDict) {
+    return dict_.getAttr(obj, name);
+  } else if constexpr (K == Kind::kDataDescr) {
+    PyObject* result = data_descr_.getAttr(obj);
+    if (result == nullptr) {
+      result = tryGetAttrFallback(type(), nullptr, obj, name);
+    }
+    return result;
+  } else if constexpr (K == Kind::kMemberDescr) {
+    PyObject* result = member_descr_.getAttr(obj);
+    if (result == nullptr && member_descr_.getattr_method != nullptr) {
+      result =
+          tryGetAttrFallback(type(), member_descr_.getattr_method, obj, name);
+    }
+    return result;
+  } else if constexpr (K == Kind::kDescrOrClassVar) {
+    PyObject* result = descr_or_cvar_.getAttr(obj, name);
+    if (result == nullptr) {
+      result = tryGetAttrFallback(type(), nullptr, obj, name);
+    }
+    return result;
+  } else if constexpr (K == Kind::kGetAttr) {
+    return getattr_.getAttr(obj, name);
+  } else {
+    JIT_ABORT("Cannot invoke getAttr for attr of kind {}", static_cast<int>(K));
+  }
+}
+
 inline int
 AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   JIT_CHECK(
@@ -870,25 +944,18 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
       Py_TYPE(obj)->tp_name);
   AttributeMutator::Kind kind = getKind();
   switch (kind) {
-    case AttributeMutator::Kind::kSplit:
-      return split_.setAttr(obj, name, value);
-#if PY_VERSION_HEX >= 0x030E0000
-    case AttributeMutator::Kind::kSplitInline:
-      return split_.setAttrInline(obj, name, value);
-#endif
-    case AttributeMutator::Kind::kCombined:
-      return combined_.setAttr(obj, name, value);
-    case AttributeMutator::Kind::kDict:
-      return dict_.setAttr(obj, name, value);
-    case AttributeMutator::Kind::kDataDescr:
-      return data_descr_.setAttr(obj, value);
-    case AttributeMutator::Kind::kMemberDescr:
-      return member_descr_.setAttr(obj, value);
-    case AttributeMutator::Kind::kDescrOrClassVar:
-      return descr_or_cvar_.setAttr(obj, name, value);
-    case AttributeMutator::Kind::kGetAttr:
-      // __getattr__ only applies to loads, we shouldn't ever populate it for
-      // a set attr cache.
+// KIND rather than `name` on purpose: the body references this function's
+// `name` parameter, which a macro parameter of the same name would eat.
+#define CINDERX_SET_ATTR_BODY(KIND) \
+  case Kind::KIND:                  \
+    return setAttrForKind<Kind::KIND>(obj, name, value);
+#define CINDERX_SET_ATTR_CASE(KIND, store_ok) \
+  CINDERX_ATTR_KIND_STORE_ONLY(store_ok, CINDERX_SET_ATTR_BODY(KIND))
+    CINDERX_FOREACH_ATTR_KIND(CINDERX_SET_ATTR_CASE)
+#undef CINDERX_SET_ATTR_CASE
+#undef CINDERX_SET_ATTR_BODY
+    // kGetAttr is skipped above: __getattr__ only applies to loads, so it
+    // should never be populated in a store cache.
     default:
       JIT_ABORT(
           "Cannot invoke setAttr for attr of kind {}", static_cast<int>(kind));
@@ -903,40 +970,12 @@ inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
       Py_TYPE(obj)->tp_name);
   AttributeMutator::Kind kind = getKind();
   switch (kind) {
-    case AttributeMutator::Kind::kSplit:
-      return split_.getAttr(obj, name);
-#if PY_VERSION_HEX >= 0x030E0000
-    case AttributeMutator::Kind::kSplitInline:
-      return split_.getAttrInline(obj, name);
-#endif
-    case AttributeMutator::Kind::kCombined:
-      return combined_.getAttr(obj, name);
-    case AttributeMutator::Kind::kDict:
-      return dict_.getAttr(obj, name);
-    case AttributeMutator::Kind::kDataDescr: {
-      PyObject* result = data_descr_.getAttr(obj);
-      if (result == nullptr) {
-        result = tryGetAttrFallback(type(), nullptr, obj, name);
-      }
-      return result;
-    }
-    case AttributeMutator::Kind::kMemberDescr: {
-      PyObject* result = member_descr_.getAttr(obj);
-      if (result == nullptr && member_descr_.getattr_method != nullptr) {
-        result =
-            tryGetAttrFallback(type(), member_descr_.getattr_method, obj, name);
-      }
-      return result;
-    }
-    case AttributeMutator::Kind::kDescrOrClassVar: {
-      PyObject* result = descr_or_cvar_.getAttr(obj, name);
-      if (result == nullptr) {
-        result = tryGetAttrFallback(type(), nullptr, obj, name);
-      }
-      return result;
-    }
-    case AttributeMutator::Kind::kGetAttr:
-      return getattr_.getAttr(obj, name);
+// KIND rather than `name` on purpose: see the note in setAttr.
+#define CINDERX_GET_ATTR_CASE(KIND, store_ok) \
+  case Kind::KIND:                            \
+    return getAttrForKind<Kind::KIND>(obj, name);
+    CINDERX_FOREACH_ATTR_KIND(CINDERX_GET_ATTR_CASE)
+#undef CINDERX_GET_ATTR_CASE
     default:
       JIT_ABORT(
           "Cannot invoke getAttr for attr of kind {}", static_cast<int>(kind));
