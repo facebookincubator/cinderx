@@ -2,7 +2,12 @@
 
 #include "cinderx/Common/slab_arena.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/module_state.h"
+
+#if CINDER_TSAN_ENABLED
+#include <sanitizer/tsan_interface.h>
+#endif
 
 #include <algorithm>
 #include <new>
@@ -14,6 +19,25 @@
 #endif
 
 namespace cinderx {
+
+namespace {
+
+void resetMutexAfterFork(std::mutex& mutex) {
+#if CINDER_TSAN_ENABLED
+  void* native_mutex = mutex.native_handle();
+  __tsan_mutex_pre_unlock(native_mutex, 0);
+  __tsan_mutex_post_unlock(native_mutex, 0);
+  __tsan_mutex_destroy(native_mutex, 0);
+#endif
+
+  new (&mutex) std::mutex{};
+
+#if CINDER_TSAN_ENABLED
+  __tsan_mutex_create(mutex.native_handle(), 0);
+#endif
+}
+
+} // namespace
 
 std::shared_ptr<HugePageArena> getSharedHugePageArena() {
 #ifdef ALLOCATE_HUGE_PAGES
@@ -67,9 +91,9 @@ void SlabArenaForkRegistry::atForkChild() {
   // still locked by atForkPrepare() and destroying a locked mutex is
   // undefined, so their lifetimes end without running their destructors.
   for (std::mutex* mutex : mutexes_) {
-    new (mutex) std::mutex{};
+    resetMutexAfterFork(*mutex);
   }
-  new (&lock_) std::mutex{};
+  resetMutexAfterFork(lock_);
 }
 
 } // namespace cinderx
