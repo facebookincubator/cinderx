@@ -26,6 +26,24 @@ select code to target different Python versions. Utilities are provided
 in `Common/` to abstract commonly used features which changed between
 Python versions.
 
+## Different Target Architectures
+
+CinderX supports multiple architectures in its code generation backend
+(e.g. x86-64, aarch64). The preference is to have all code compile under all
+possible architectures, even on architectures where it is not used. Small blocks
+of code can check the value of the `kBuildArch` constant with an `if constexpr`
+statement. For entire functions, it's preferred to keep them unconditionally
+defined, using the `[[maybe_unused]]` attribute to avoid unused code
+warnings. Both of these cases assume that the underlying code can be compiled
+across all architectures. If there is code that can only compile under a
+specific hardware architecture, then that can be conditionally compiled by
+checking preprocessor defines like `CINDER_X86_64` and `CINDER_AARCH64`.
+
+One specific case to highlight is struct/class fields that are only used on
+specific architectures. If they are part of singletons then it's fine to define
+them always even if they are unused, but otherwise they should be conditionally
+compiled via the preprocessor defines, to save on memory usage.
+
 ## Non-public Python APIs
 
 Where possible CinderX tries to use public Python APIs. When not
