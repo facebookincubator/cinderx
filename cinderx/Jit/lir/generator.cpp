@@ -3188,7 +3188,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto cache = inline_cache_storage_.allocateLoadAttrCache(
             instr->bytecodeOffset());
         bbb.appendCallInstruction(
-            dst, jit::LoadAttrCache::invoke, cache, base, name);
+            dst, jit::LoadAttrCache::invoke, base, name, cache);
         break;
       }
       case hir::Opcode::kLoadAttrSpecial: {
@@ -3891,10 +3891,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{Operand::k32bit},
             jit::StoreAttrCache::invoke,
-            cache,
             base,
             name,
-            value);
+            value,
+            cache);
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }

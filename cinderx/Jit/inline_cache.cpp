@@ -381,16 +381,19 @@ bool SplitMutator::canInsertToSplitDict(
 }
 
 #if PY_VERSION_HEX >= 0x030E0000
-PyObject* SplitMutator::getAttrInline(PyObject* obj, PyObject* name) {
-  JIT_DCHECK(val_offset != -1, "Should have value offset");
+PyObject* SplitMutator::getAttrInline(
+    PyObject* obj,
+    PyObject* name,
+    SplitMutator* split) {
+  JIT_DCHECK(split->val_offset != -1, "Should have value offset");
   PyDictValues* values = _PyObject_InlineValues(obj);
   if (!values->valid) {
     // Downgrade to the slightly slower path in future
     AttributeMutator::changeKindFromSplitInline(
-        this, AttributeMutator::Kind::kSplit);
-    return getAttr(obj, name);
+        split, AttributeMutator::Kind::kSplit);
+    return getAttr(obj, name, split);
   }
-  PyObject* result = values->values[val_offset];
+  PyObject* result = values->values[split->val_offset];
   if (result == nullptr) {
     return getAttrFallback(obj, name);
   }
@@ -415,7 +418,8 @@ PyObject* SplitMutator::getAttrSlowPath(
   return attr_o;
 }
 
-PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
+PyObject*
+SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
 
   if (dict == nullptr) {
@@ -423,20 +427,21 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
   JIT_DCHECK(
       PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
-  JIT_DCHECK(val_offset != -1, "Should have value offset");
+  JIT_DCHECK(split->val_offset != -1, "Should have value offset");
 
   if (dict == nullptr) {
     return PyObject_GetAttr(obj, name);
   }
   JIT_DCHECK(
       PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
-  if (dict->ma_keys != keys) {
+  if (dict->ma_keys != split->keys) {
     return getAttrSlowPath(obj, name, dict);
   }
   JIT_DCHECK(
-      DK_IS_UNICODE(keys) && val_offset < keys->dk_nentries,
+      DK_IS_UNICODE(split->keys) &&
+          split->val_offset < split->keys->dk_nentries,
       "Expected dictionary keys object to change");
-  PyObject* attr_o = dict->ma_values->values[val_offset];
+  PyObject* attr_o = dict->ma_values->values[split->val_offset];
   if (attr_o == nullptr) {
     return getAttrFallback(obj, name);
   }
@@ -446,53 +451,62 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
 int SplitMutator::setAttrInline(
     PyObject* obj,
     PyObject* name,
-    PyObject* value) {
-  JIT_DCHECK(val_offset != -1, "Should have value offset");
+    PyObject* value,
+    SplitMutator* split) {
+  JIT_DCHECK(split->val_offset != -1, "Should have value offset");
   PyDictValues* values = _PyObject_InlineValues(obj);
   PyDictObject* dict = _PyObject_GetManagedDict(obj);
   if (!values->valid || dict) {
     // Downgrade to the slightly slower path in future
     AttributeMutator::changeKindFromSplitInline(
-        this, AttributeMutator::Kind::kSplit);
-    return setAttr(obj, name, value);
+        split, AttributeMutator::Kind::kSplit);
+    return setAttr(obj, name, value, split);
   }
-  auto old_value = Ref<>::steal(values->values[val_offset]);
-  values->values[val_offset] = Py_NewRef(value);
+  auto old_value = Ref<>::steal(values->values[split->val_offset]);
+  values->values[split->val_offset] = Py_NewRef(value);
   if (!old_value) {
-    _PyDictValues_AddToInsertionOrder(values, val_offset);
+    _PyDictValues_AddToInsertionOrder(values, split->val_offset);
   }
   return 0;
 }
 
-int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  JIT_DCHECK(val_offset != -1, "Should have value offset");
+int SplitMutator::setAttr(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    SplitMutator* split) {
+  JIT_DCHECK(split->val_offset != -1, "Should have value offset");
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
   if (dict == nullptr) {
     return PyObject_SetAttr(obj, name, value);
   }
-  if (keys != dict->ma_keys) {
+  if (split->keys != dict->ma_keys) {
     // Slow path
     auto strong_ref = Ref<>::create(dict);
     return PyDict_SetItem(dict, name, value);
   }
-  _PyDict_InsertSplitValue(dict, name, value, val_offset);
+  _PyDict_InsertSplitValue(dict, name, value, split->val_offset);
   return 0;
 }
 
 #else
 
-int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+int SplitMutator::setAttr(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    SplitMutator* split) {
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
     // Values are stored in a values array not attached to a dictionary.
-    JIT_DCHECK(val_offset != -1, "Should have value offset");
+    JIT_DCHECK(split->val_offset != -1, "Should have value offset");
 
     PyDictValues* values = _PyDictOrValues_GetValues(dorv);
-    PyObject* old_value = values->values[val_offset];
-    values->values[val_offset] = value;
+    PyObject* old_value = values->values[split->val_offset];
+    values->values[split->val_offset] = value;
     Py_INCREF(value);
     if (old_value == nullptr) {
-      _PyDictValues_AddToInsertionOrder(values, val_offset);
+      _PyDictValues_AddToInsertionOrder(values, split->val_offset);
     } else {
       Py_DECREF(old_value);
     }
@@ -514,11 +528,11 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     return -1;
   }
 
-  if (canInsertToSplitDict(dict, name)) {
-    PyObject* old_value = DICT_VALUES(dict.get())[val_offset];
+  if (split->canInsertToSplitDict(dict, name)) {
+    PyObject* old_value = DICT_VALUES(dict.get())[split->val_offset];
     if (old_value == nullptr) {
       // Track insertion order on 3.12.
-      _PyDictValues_AddToInsertionOrder(dict->ma_values, val_offset);
+      _PyDictValues_AddToInsertionOrder(dict->ma_values, split->val_offset);
     }
     if (!_PyObject_GC_IS_TRACKED(dict.getObj())) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
@@ -530,7 +544,7 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
         _PyDict_NotifyEvent(PyDict_EVENT_MODIFIED, dict, name, value);
 
     Py_INCREF(value);
-    DICT_VALUES(dict.get())[val_offset] = value;
+    DICT_VALUES(dict.get())[split->val_offset] = value;
     dict->ma_version_tag = new_version;
 
     if (old_value == nullptr) {
@@ -545,14 +559,15 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   return PyDict_SetItem(dict, name, value);
 }
 
-PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
+PyObject*
+SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
-    JIT_DCHECK(val_offset != -1, "Should have value offset");
+    JIT_DCHECK(split->val_offset != -1, "Should have value offset");
 
     // Values are stored in values w/o materialized dictionary
     PyDictValues* values = _PyDictOrValues_GetValues(dorv);
-    PyObject* result = values->values[val_offset];
+    PyObject* result = values->values[split->val_offset];
     if (result == nullptr) {
       return getAttrFallback(obj, name);
     }
@@ -565,10 +580,10 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
     return getAttrFallback(obj, name);
   }
   PyObject* result = nullptr;
-  if (dict->ma_keys == keys) {
-    JIT_DCHECK(val_offset != -1, "Should have value offset");
+  if (dict->ma_keys == split->keys) {
+    JIT_DCHECK(split->val_offset != -1, "Should have value offset");
     // We are still sharing keys with the inline object.
-    result = DICT_VALUES(dict)[val_offset];
+    result = DICT_VALUES(dict)[split->val_offset];
   } else {
     auto dictobj = reinterpret_cast<PyObject*>(dict);
     Py_INCREF(dictobj);
@@ -583,8 +598,12 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
 }
 #endif // PY_VERSION_HEX < 0x030E0000
 
-int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  Ref<PyDictObject> dict = get_dict(obj, dict_offset);
+int CombinedMutator::setAttr(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    CombinedMutator* combined) {
+  Ref<PyDictObject> dict = get_dict(obj, combined->dict_offset);
   if (dict == nullptr) {
     dict = Ref<PyDictObject>::steal(
         reinterpret_cast<PyDictObject*>(PyObject_GenericGetDict(obj, nullptr)));
@@ -595,8 +614,11 @@ int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   return PyDict_SetItem(dict, name, value);
 }
 
-PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
-  Ref<PyDictObject> dict = get_dict(obj, dict_offset);
+PyObject* CombinedMutator::getAttr(
+    PyObject* obj,
+    PyObject* name,
+    CombinedMutator* combined) {
+  Ref<PyDictObject> dict = get_dict(obj, combined->dict_offset);
   if (dict == nullptr) {
     return getAttrFallback(obj, name);
   }
@@ -609,7 +631,11 @@ PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
 }
 
 #if PY_VERSION_HEX >= 0x030E0000
-int DictMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+int DictMutator::setAttr(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    DictMutator*) {
   Ref<PyDictObject> dict =
       Ref<PyDictObject>::create(_PyObject_GetManagedDict(obj));
   if (dict == nullptr) {
@@ -623,7 +649,7 @@ int DictMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   return PyDict_SetItem(dict, name, value);
 }
 
-PyObject* DictMutator::getAttr(PyObject* obj, PyObject* name) {
+PyObject* DictMutator::getAttr(PyObject* obj, PyObject* name, DictMutator*) {
   BorrowedRef<PyDictObject> dict = _PyObject_GetManagedDict(obj);
   if (dict == nullptr) {
     return getAttrFallback(obj, name);
@@ -636,7 +662,11 @@ PyObject* DictMutator::getAttr(PyObject* obj, PyObject* name) {
   return Py_NewRef(result);
 }
 #else
-int DictMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+int DictMutator::setAttr(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    DictMutator*) {
   // Materialize the dict if needed (handles DictOrValues on 3.12).
   auto dict = Ref<>::steal(PyObject_GenericGetDict(obj, nullptr));
   if (dict == nullptr) {
@@ -645,7 +675,7 @@ int DictMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   return PyDict_SetItem(dict, name, value);
 }
 
-PyObject* DictMutator::getAttr(PyObject* obj, PyObject* name) {
+PyObject* DictMutator::getAttr(PyObject* obj, PyObject* name, DictMutator*) {
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
     // Inline values are still active. The attribute is not in the shared keys
@@ -666,20 +696,32 @@ PyObject* DictMutator::getAttr(PyObject* obj, PyObject* name) {
 }
 #endif
 
-int DataDescrMutator::setAttr(PyObject* obj, PyObject* value) {
+int DataDescrMutator::setAttr(
+    PyObject* obj,
+    PyObject* value,
+    DataDescrMutator* data_descr) {
+  BorrowedRef<> descr = data_descr->descr;
   return Py_TYPE(descr)->tp_descr_set(descr, obj, value);
 }
 
-PyObject* DataDescrMutator::getAttr(PyObject* obj) {
+PyObject* DataDescrMutator::getAttr(
+    PyObject* obj,
+    DataDescrMutator* data_descr) {
+  BorrowedRef<> descr = data_descr->descr;
   return Py_TYPE(descr)->tp_descr_get(descr, obj, (PyObject*)Py_TYPE(obj));
 }
 
-int MemberDescrMutator::setAttr(PyObject* obj, PyObject* value) {
-  return PyMember_SetOne((char*)obj, memberdef, value);
+int MemberDescrMutator::setAttr(
+    PyObject* obj,
+    PyObject* value,
+    MemberDescrMutator* member_descr) {
+  return PyMember_SetOne((char*)obj, member_descr->memberdef, value);
 }
 
-PyObject* MemberDescrMutator::getAttr(PyObject* obj) {
-  PyMemberDef* def = memberdef;
+PyObject* MemberDescrMutator::getAttr(
+    PyObject* obj,
+    MemberDescrMutator* member_descr) {
+  PyMemberDef* def = member_descr->memberdef;
 
   // Fast path for the common __slots__ member types -- a plain object pointer
   // at a fixed offset -- avoiding PyMember_GetOne's per-member-type dispatch.
@@ -724,7 +766,9 @@ PyObject* MemberDescrMutator::getAttr(PyObject* obj) {
 int DescrOrClassVarMutator::setAttr(
     PyObject* obj,
     PyObject* name,
-    PyObject* value) {
+    PyObject* value,
+    DescrOrClassVarMutator* descr_or_cvar) {
+  BorrowedRef<> descr = descr_or_cvar->descr;
   descrsetfunc setter = Py_TYPE(descr)->tp_descr_set;
   if (setter != nullptr) {
     auto descr_guard = Ref<>::create(descr);
@@ -747,7 +791,11 @@ int DescrOrClassVarMutator::setAttr(
   return st;
 }
 
-PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
+PyObject* DescrOrClassVarMutator::getAttr(
+    PyObject* obj,
+    PyObject* name,
+    DescrOrClassVarMutator* descr_or_cvar) {
+  BorrowedRef<> descr = descr_or_cvar->descr;
   BorrowedRef<PyTypeObject> descr_type(Py_TYPE(descr));
   descrsetfunc setter = descr_type->tp_descr_set;
   descrgetfunc getter = descr_type->tp_descr_get;
@@ -766,6 +814,7 @@ PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
 
   // Check instance dict.
   if (dict != nullptr) {
+    uint32_t keys_version = descr_or_cvar->keys_version;
     if (keys_version == 0 ||
         reinterpret_cast<PyDictObject*>(dict.get())->ma_keys->dk_version !=
             keys_version) {
@@ -865,26 +914,28 @@ template <AttributeMutator::Kind K>
 inline int AttributeMutator::setAttrForKind(
     PyObject* obj,
     PyObject* name,
-    PyObject* value) {
+    PyObject* value,
+    AttributeMutator* entry) {
   using Kind = AttributeMutator::Kind;
   if constexpr (K == Kind::kSplit) {
-    return split_.setAttr(obj, name, value);
+    return SplitMutator::setAttr(obj, name, value, &entry->split_);
   } else if constexpr (K == Kind::kSplitInline) {
 #if PY_VERSION_HEX >= 0x030E0000
-    return split_.setAttrInline(obj, name, value);
+    return SplitMutator::setAttrInline(obj, name, value, &entry->split_);
 #else
     JIT_ABORT("kSplitInline is never populated before 3.14");
 #endif
   } else if constexpr (K == Kind::kCombined) {
-    return combined_.setAttr(obj, name, value);
+    return CombinedMutator::setAttr(obj, name, value, &entry->combined_);
   } else if constexpr (K == Kind::kDict) {
-    return dict_.setAttr(obj, name, value);
+    return DictMutator::setAttr(obj, name, value, &entry->dict_);
   } else if constexpr (K == Kind::kDataDescr) {
-    return data_descr_.setAttr(obj, value);
+    return DataDescrMutator::setAttr(obj, value, &entry->data_descr_);
   } else if constexpr (K == Kind::kMemberDescr) {
-    return member_descr_.setAttr(obj, value);
+    return MemberDescrMutator::setAttr(obj, value, &entry->member_descr_);
   } else if constexpr (K == Kind::kDescrOrClassVar) {
-    return descr_or_cvar_.setAttr(obj, name, value);
+    return DescrOrClassVarMutator::setAttr(
+        obj, name, value, &entry->descr_or_cvar_);
   } else {
     // kGetAttr: __getattr__ only applies to loads, we shouldn't ever populate
     // it for a set attr cache.
@@ -895,60 +946,65 @@ inline int AttributeMutator::setAttrForKind(
 template <AttributeMutator::Kind K>
 inline PyObject* AttributeMutator::getAttrForKind(
     PyObject* obj,
-    PyObject* name) {
+    PyObject* name,
+    AttributeMutator* entry) {
   using Kind = AttributeMutator::Kind;
   if constexpr (K == Kind::kSplit) {
-    return split_.getAttr(obj, name);
+    return SplitMutator::getAttr(obj, name, &entry->split_);
   } else if constexpr (K == Kind::kSplitInline) {
 #if PY_VERSION_HEX >= 0x030E0000
-    return split_.getAttrInline(obj, name);
+    return SplitMutator::getAttrInline(obj, name, &entry->split_);
 #else
     JIT_ABORT("kSplitInline is never populated before 3.14");
 #endif
   } else if constexpr (K == Kind::kCombined) {
-    return combined_.getAttr(obj, name);
+    return CombinedMutator::getAttr(obj, name, &entry->combined_);
   } else if constexpr (K == Kind::kDict) {
-    return dict_.getAttr(obj, name);
+    return DictMutator::getAttr(obj, name, &entry->dict_);
   } else if constexpr (K == Kind::kDataDescr) {
-    PyObject* result = data_descr_.getAttr(obj);
+    PyObject* result = DataDescrMutator::getAttr(obj, &entry->data_descr_);
     if (result == nullptr) {
-      result = tryGetAttrFallback(type(), nullptr, obj, name);
+      result = tryGetAttrFallback(entry->type(), nullptr, obj, name);
     }
     return result;
   } else if constexpr (K == Kind::kMemberDescr) {
-    PyObject* result = member_descr_.getAttr(obj);
-    if (result == nullptr && member_descr_.getattr_method != nullptr) {
-      result =
-          tryGetAttrFallback(type(), member_descr_.getattr_method, obj, name);
+    PyObject* result = MemberDescrMutator::getAttr(obj, &entry->member_descr_);
+    if (result == nullptr && entry->member_descr_.getattr_method != nullptr) {
+      result = tryGetAttrFallback(
+          entry->type(), entry->member_descr_.getattr_method, obj, name);
     }
     return result;
   } else if constexpr (K == Kind::kDescrOrClassVar) {
-    PyObject* result = descr_or_cvar_.getAttr(obj, name);
+    PyObject* result =
+        DescrOrClassVarMutator::getAttr(obj, name, &entry->descr_or_cvar_);
     if (result == nullptr) {
-      result = tryGetAttrFallback(type(), nullptr, obj, name);
+      result = tryGetAttrFallback(entry->type(), nullptr, obj, name);
     }
     return result;
   } else if constexpr (K == Kind::kGetAttr) {
-    return getattr_.getAttr(obj, name);
+    return GetAttrMutator::getAttr(obj, name, &entry->getattr_);
   } else {
     JIT_ABORT("Cannot invoke getAttr for attr of kind {}", static_cast<int>(K));
   }
 }
 
-inline int
-AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+inline int AttributeMutator::setAttr(
+    PyObject* obj,
+    PyObject* name,
+    PyObject* value,
+    AttributeMutator* entry) {
   JIT_CHECK(
-      !isEmpty(),
+      !entry->isEmpty(),
       "Empty attribute mutator setting field {} on object of type {}",
       repr(name),
       Py_TYPE(obj)->tp_name);
-  AttributeMutator::Kind kind = getKind();
+  AttributeMutator::Kind kind = entry->getKind();
   switch (kind) {
 // KIND rather than `name` on purpose: the body references this function's
 // `name` parameter, which a macro parameter of the same name would eat.
 #define CINDERX_SET_ATTR_BODY(KIND) \
   case Kind::KIND:                  \
-    return setAttrForKind<Kind::KIND>(obj, name, value);
+    return setAttrForKind<Kind::KIND>(obj, name, value, entry);
 #define CINDERX_SET_ATTR_CASE(KIND, store_ok) \
   CINDERX_ATTR_KIND_STORE_ONLY(store_ok, CINDERX_SET_ATTR_BODY(KIND))
     CINDERX_FOREACH_ATTR_KIND(CINDERX_SET_ATTR_CASE)
@@ -962,18 +1018,21 @@ AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   }
 }
 
-inline PyObject* AttributeMutator::getAttr(PyObject* obj, PyObject* name) {
+inline PyObject* AttributeMutator::getAttr(
+    PyObject* obj,
+    PyObject* name,
+    AttributeMutator* entry) {
   JIT_CHECK(
-      !isEmpty(),
+      !entry->isEmpty(),
       "Empty attribute mutator getting field {} on object of type {}",
       repr(name),
       Py_TYPE(obj)->tp_name);
-  AttributeMutator::Kind kind = getKind();
+  AttributeMutator::Kind kind = entry->getKind();
   switch (kind) {
 // KIND rather than `name` on purpose: see the note in setAttr.
 #define CINDERX_GET_ATTR_CASE(KIND, store_ok) \
   case Kind::KIND:                            \
-    return getAttrForKind<Kind::KIND>(obj, name);
+    return getAttrForKind<Kind::KIND>(obj, name, entry);
     CINDERX_FOREACH_ATTR_KIND(CINDERX_GET_ATTR_CASE)
 #undef CINDERX_GET_ATTR_CASE
     default:
@@ -1226,28 +1285,25 @@ void AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
 }
 
 int StoreAttrCache::invoke(
-    StoreAttrCache* cache,
     PyObject* obj,
     PyObject* name,
-    PyObject* value) {
-  return cache->doInvoke(obj, name, value);
-}
-
-int StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
+    PyObject* value,
+    StoreAttrCache* cache) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
-  for (auto& entry : entries()) {
+  for (auto& entry : cache->entries()) {
     if (entry.type() == tp) {
-      return entry.setAttr(obj, name, value);
+      return AttributeMutator::setAttr(obj, name, value, &entry);
     }
   }
-  return invokeSlowPath(obj, name, value);
+  return invokeSlowPath(obj, name, value, cache);
 }
 
 CINDERX_NOINLINE
 int StoreAttrCache::invokeSlowPath(
     PyObject* obj,
     PyObject* name,
-    PyObject* value) {
+    PyObject* value,
+    StoreAttrCache* cache) {
   int result = PyObject_SetAttr(obj, name, value);
   if (result < 0) {
     JIT_DCHECK(
@@ -1256,27 +1312,26 @@ int StoreAttrCache::invokeSlowPath(
     return result;
   }
 
-  fill(obj, name, /* is_set */ true);
+  cache->fill(obj, name, /* is_set */ true);
   return result;
 }
 
 PyObject*
-LoadAttrCache::invoke(LoadAttrCache* cache, PyObject* obj, PyObject* name) {
-  return cache->doInvoke(obj, name);
-}
-
-PyObject* LoadAttrCache::doInvoke(PyObject* obj, PyObject* name) {
+LoadAttrCache::invoke(PyObject* obj, PyObject* name, LoadAttrCache* cache) {
   PyTypeObject* tp = Py_TYPE(obj);
-  for (auto& entry : entries()) {
+  for (auto& entry : cache->entries()) {
     if (entry.type() == tp) {
-      return entry.getAttr(obj, name);
+      return AttributeMutator::getAttr(obj, name, &entry);
     }
   }
-  return invokeSlowPath(obj, name);
+  return invokeSlowPath(obj, name, cache);
 }
 
 CINDERX_NOINLINE
-PyObject* LoadAttrCache::invokeSlowPath(PyObject* obj, PyObject* name) {
+PyObject* LoadAttrCache::invokeSlowPath(
+    PyObject* obj,
+    PyObject* name,
+    LoadAttrCache* cache) {
   auto result = Ref<>::steal(PyObject_GetAttr(obj, name));
   if (result == nullptr) {
     JIT_DCHECK(
@@ -1284,7 +1339,7 @@ PyObject* LoadAttrCache::invokeSlowPath(PyObject* obj, PyObject* name) {
         "PyObject_GetAttr failed so there should be a Python error");
     return nullptr;
   }
-  fill(obj, name, /* is_set */ false);
+  cache->fill(obj, name, /* is_set */ false);
 
   return result.release();
 }
@@ -1439,11 +1494,16 @@ LoadMethodResult LoadMethodCache::lookupHelper(
   return cache->lookup(obj, name);
 }
 
-PyObject* GetAttrMutator::getAttr(PyObject* obj, PyObject* name) {
+PyObject* GetAttrMutator::getAttr(
+    PyObject* obj,
+    PyObject* name,
+    GetAttrMutator* getattr) {
   // Make sure the attribute we're cached against isn't overridden. We can
   // either have cached against a dictionary which doesn't have split keys
   // (keys_version == 0) or a dictionary with split keys w/ a valid version
   // which doesn't include the key.
+  BorrowedRef<> getattr_method = getattr->getattr_method;
+  uint32_t keys_version = getattr->keys_version;
 
   if (keys_version == 0) {
     // dictionary w/o split keys, see if the value has been overridden, if not
@@ -1485,7 +1545,7 @@ PyObject* GetAttrMutator::getAttr(PyObject* obj, PyObject* name) {
     return callGetAttr(getattr_method, obj, name);
   }
 
-  AttributeMutator::from(this)->reset();
+  AttributeMutator::from(getattr)->reset();
   return PyObject_GetAttr(obj, name);
 }
 

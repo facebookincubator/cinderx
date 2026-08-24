@@ -25,20 +25,30 @@ enum class BinaryOpKind;
 
 namespace cinderx::jit {
 
+// The get/set entry points on the mutators below are static and take their
+// mutator as the trailing argument rather than as `this`. That keeps the
+// argument registers aligned along the whole dispatch chain -- specialized
+// entry point -> AttributeMutator::get/setAttrForKind -> mutator get/setAttr --
+// so the receiver and the mutator pointer stay put instead of being shuffled
+// down a register at each hop to make room for an implicit `this`.
+
 // Mutator for an instance attribute that is stored in a split dictionary
 struct SplitMutator {
-  PyObject* getAttr(PyObject* obj, PyObject* name);
-  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+  static PyObject* getAttr(PyObject* obj, PyObject* name, SplitMutator* split);
+  static int
+  setAttr(PyObject* obj, PyObject* name, PyObject* value, SplitMutator* split);
 #if PY_VERSION_HEX >= 0x030E0000
-  int setAttrKnownOffset(PyObject* obj, PyObject* name, PyObject* value);
-  PyObject* getAttrInline(PyObject* obj, PyObject* name);
-  PyObject* getAttrSlowPath(
+  static PyObject*
+  getAttrInline(PyObject* obj, PyObject* name, SplitMutator* split);
+  static PyObject* getAttrSlowPath(
       PyObject* obj,
       PyObject* name,
       BorrowedRef<PyDictObject> dict);
-  int setAttrInline(PyObject* obj, PyObject* name, PyObject* value);
-  PyObject* getAttrInlineKnownOffset(PyObject* obj, PyObject* name);
-  int setAttrInlineKnownOffset(PyObject* obj, PyObject* name, PyObject* value);
+  static int setAttrInline(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      SplitMutator* split);
 #endif
   bool canInsertToSplitDict(BorrowedRef<PyDictObject> dict, BorrowedRef<> name);
 
@@ -49,8 +59,13 @@ struct SplitMutator {
 // Mutator for an instance attribute that is stored in a combined dictionary
 // (non-managed-dict types with tp_dictoffset).
 struct CombinedMutator {
-  PyObject* getAttr(PyObject* obj, PyObject* name);
-  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+  static PyObject*
+  getAttr(PyObject* obj, PyObject* name, CombinedMutator* combined);
+  static int setAttr(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      CombinedMutator* combined);
 
   Py_ssize_t dict_offset;
   BorrowedRef<> getattr_method;
@@ -60,16 +75,18 @@ struct CombinedMutator {
 // is not in the shared keys (e.g. shared keys are full). Uses the managed dict
 // APIs directly rather than a stored dict_offset.
 struct DictMutator {
-  PyObject* getAttr(PyObject* obj, PyObject* name);
-  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+  static PyObject* getAttr(PyObject* obj, PyObject* name, DictMutator* dict);
+  static int
+  setAttr(PyObject* obj, PyObject* name, PyObject* value, DictMutator* dict);
 
   BorrowedRef<> getattr_method;
 };
 
 // Mutator for a data descriptor
 struct DataDescrMutator {
-  PyObject* getAttr(PyObject* obj);
-  int setAttr(PyObject* obj, PyObject* value);
+  static PyObject* getAttr(PyObject* obj, DataDescrMutator* data_descr);
+  static int
+  setAttr(PyObject* obj, PyObject* value, DataDescrMutator* data_descr);
 
   BorrowedRef<> descr;
   BorrowedRef<PyTypeObject> descr_type;
@@ -77,8 +94,9 @@ struct DataDescrMutator {
 
 // Mutator for a member descriptor
 struct MemberDescrMutator {
-  PyObject* getAttr(PyObject* obj);
-  int setAttr(PyObject* obj, PyObject* value);
+  static PyObject* getAttr(PyObject* obj, MemberDescrMutator* member_descr);
+  static int
+  setAttr(PyObject* obj, PyObject* value, MemberDescrMutator* member_descr);
 
   PyMemberDef* memberdef;
   BorrowedRef<> getattr_method; // Cached __getattr__ if the type has one
@@ -86,8 +104,13 @@ struct MemberDescrMutator {
 
 // Attribute corresponds to a non-data descriptor or a class variable
 struct DescrOrClassVarMutator {
-  PyObject* getAttr(PyObject* obj, PyObject* name);
-  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+  static PyObject*
+  getAttr(PyObject* obj, PyObject* name, DescrOrClassVarMutator* descr_or_cvar);
+  static int setAttr(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      DescrOrClassVarMutator* descr_or_cvar);
 
   BorrowedRef<> descr;
   uint32_t keys_version;
@@ -97,7 +120,8 @@ struct DescrOrClassVarMutator {
 // Used when a particular attribute name is absent from both the type's MRO
 // and the instance dict, causing __getattr__ to be invoked.
 struct GetAttrMutator {
-  PyObject* getAttr(PyObject* obj, PyObject* name);
+  static PyObject*
+  getAttr(PyObject* obj, PyObject* name, GetAttrMutator* getattr);
 
   BorrowedRef<> getattr_method;
   uint32_t keys_version;
@@ -172,8 +196,13 @@ class AttributeMutator {
       uint32_t keys_version);
   BorrowedRef<PyTypeObject> watchedDescrType() const;
 
-  PyObject* getAttr(PyObject* obj, PyObject* name);
-  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+  static PyObject*
+  getAttr(PyObject* obj, PyObject* name, AttributeMutator* entry);
+  static int setAttr(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      AttributeMutator* entry);
 
   // getAttr/setAttr for a Kind that is already known at compile time. Each
   // instantiation inlines exactly the one sub-mutator body it needs, so a
@@ -184,9 +213,14 @@ class AttributeMutator {
   // The caller is responsible for having checked the kind; calling these on a
   // mutator of a different kind reinterprets the union and is undefined.
   template <Kind K>
-  PyObject* getAttrForKind(PyObject* obj, PyObject* name);
+  static PyObject*
+  getAttrForKind(PyObject* obj, PyObject* name, AttributeMutator* entry);
   template <Kind K>
-  int setAttrForKind(PyObject* obj, PyObject* name, PyObject* value);
+  static int setAttrForKind(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      AttributeMutator* entry);
 
   static void changeKindFromSplitInline(SplitMutator* split, Kind new_kind);
   template <typename T>
@@ -251,13 +285,17 @@ class StoreAttrCache : public AttributeCache {
 
   // Return 0 on success and a negative value on failure.
   static int
-  invoke(StoreAttrCache* cache, PyObject* obj, PyObject* name, PyObject* value);
+  invoke(PyObject* obj, PyObject* name, PyObject* value, StoreAttrCache* cache);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StoreAttrCache);
 
   int doInvoke(PyObject* obj, PyObject* name, PyObject* value);
-  int invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value);
+  static int invokeSlowPath(
+      PyObject* obj,
+      PyObject* name,
+      PyObject* value,
+      StoreAttrCache* cache);
 };
 
 // A cache for an individual LoadAttrCached instruction.
@@ -270,13 +308,13 @@ class LoadAttrCache : public AttributeCache {
   LoadAttrCache() = default;
 
   // Returns a new reference to the value or NULL on error.
-  static PyObject* invoke(LoadAttrCache* cache, PyObject* obj, PyObject* name);
+  static PyObject* invoke(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(LoadAttrCache);
 
-  PyObject* doInvoke(PyObject* obj, PyObject* name);
-  PyObject* invokeSlowPath(PyObject* obj, PyObject* name);
+  static PyObject*
+  invokeSlowPath(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 };
 
 // A cache for LoadAttr instructions where we expect the receiver to be a type
