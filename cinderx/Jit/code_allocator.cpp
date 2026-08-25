@@ -281,10 +281,7 @@ void CodeAllocator::atForkParent() {
 }
 
 void CodeAllocator::atForkChild() {
-  // Reuse the storage to get a fresh, unlocked mutex.  The inherited one is
-  // still locked by atForkPrepare() and destroying a locked mutex is
-  // undefined, so its lifetime is ended without running its destructor.
-  new (&runtime_mutex_) std::mutex{};
+  resetMutexAfterFork(runtime_mutex_);
 }
 
 CodeAllocatorCinder::~CodeAllocatorCinder() {
