@@ -45,6 +45,7 @@ namespace cinderx::jit::lir {
   X(Int64ToDouble)                                              \
   X(IntToBool)                                                  \
   X(Invert)                                                     \
+  X(Load)                                                       \
   X(LShift)                                                     \
   X(Lea)                                                        \
   X(Leave)                                                      \
@@ -73,6 +74,7 @@ namespace cinderx::jit::lir {
   X(Select)                                                     \
   X(SetupFrame)                                                 \
   X(Sext)                                                       \
+  X(Store)                                                      \
   X(StoreGenYieldFromPoint)                                     \
   X(StoreGenYieldPoint)                                         \
   X(StorePair)                                                  \

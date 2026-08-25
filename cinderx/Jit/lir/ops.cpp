@@ -176,6 +176,7 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kInt64ToDouble:
     case Opcode::kInvert:
     case Opcode::kLea:
+    case Opcode::kLoad:
     case Opcode::kLoadArg:
     case Opcode::kLoadPair:
     case Opcode::kLoadSecondCallResult:
@@ -189,6 +190,7 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kPush:
     case Opcode::kReserveStack:
     case Opcode::kSext:
+    case Opcode::kStore:
     case Opcode::kStorePair:
     case Opcode::kUnreachable:
     case Opcode::kVariadicPush:
@@ -227,6 +229,7 @@ bool isEssential(Opcode opcode) {
     case Opcode::kInt64ToDouble:
     case Opcode::kIntToBool:
     case Opcode::kInvert:
+    case Opcode::kLoad:
     case Opcode::kLShift:
     case Opcode::kLea:
     case Opcode::kLoadArg:
@@ -282,6 +285,7 @@ bool outputMustBeRegister(Opcode opcode) {
     case Opcode::kResumeGenYield:
     case Opcode::kRet:
     case Opcode::kSetupFrame:
+    case Opcode::kStore:
     case Opcode::kStoreGenYieldFromPoint:
     case Opcode::kStoreGenYieldPoint:
     case Opcode::kStorePair:
@@ -387,6 +391,7 @@ OperandSizeType operandSizeType(Opcode opcode) {
     case Opcode::kAnd:
     case Opcode::kCmp:
     case Opcode::kInvert:
+    case Opcode::kLoad:
     case Opcode::kLShift:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
@@ -396,6 +401,7 @@ OperandSizeType operandSizeType(Opcode opcode) {
     case Opcode::kOr:
     case Opcode::kRShift:
     case Opcode::kRShiftUn:
+    case Opcode::kStore:
     case Opcode::kSub:
     case Opcode::kXor:
       return OperandSizeType::kOut;

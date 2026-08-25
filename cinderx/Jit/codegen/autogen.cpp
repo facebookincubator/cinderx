@@ -2015,6 +2015,183 @@ void translateMove(Environ* env, const Instruction* instr) {
   }
 }
 
+void translateLoad(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+  const lir::Operand* output = instr->output();
+  const lir::Operand* input = instr->getInput(0);
+
+  JIT_CHECK(
+      output->isReg(),
+      "Load output must be a register, got {}",
+      output->type());
+  JIT_CHECK(
+      isMemoryMoveOperand(input),
+      "Load input must be memory (Stk/Mem/Ind), got {}",
+      input->type());
+
+  switch (input->type()) {
+    case lir::OperandType::kStack: {
+      if (output->isVecD()) {
+        as->ldr(
+            AT::getVecD(output),
+            getStackSlotPtr(env, input->getStackSlot().loc));
+      } else {
+        auto dst = a64::x(output->getPhyRegister().loc);
+        auto ptr = getStackSlotPtr(env, input->getStackSlot().loc, dst);
+        switch (output->dataType()) {
+          case lir::Operand::k8bit:
+            as->ldrb(AT::getGpOutput(output), ptr);
+            break;
+          case lir::Operand::k16bit:
+            as->ldrh(AT::getGpOutput(output), ptr);
+            break;
+          default:
+            as->ldr(AT::getGp(output), ptr);
+            break;
+        }
+      }
+      break;
+    }
+    case lir::OperandType::kInd: {
+      auto ptr = ptrIndirect(
+          as,
+          arch::reg_scratch_0,
+          arch::reg_scratch_1,
+          input->getMemoryIndirect(),
+          output->dataType());
+      loadToReg(as, output, ptr);
+      break;
+    }
+    case lir::OperandType::kMem: {
+      auto scratch0 = arch::reg_scratch_0;
+      as->load_addr(scratch0, input->getMemoryAddress());
+      if (output->isVecD()) {
+        as->ldr(AT::getVecD(output), a64::ptr(scratch0));
+      } else {
+        switch (output->dataType()) {
+          case lir::Operand::k8bit:
+            as->ldrb(AT::getGpOutput(output), a64::ptr(scratch0));
+            break;
+          case lir::Operand::k16bit:
+            as->ldrh(AT::getGpOutput(output), a64::ptr(scratch0));
+            break;
+          default:
+            as->ldr(AT::getGp(output), a64::ptr(scratch0));
+            break;
+        }
+      }
+      break;
+    }
+    default:
+      JIT_ABORT("Unsupported operand type for Load: Reg + {}", input->type());
+  }
+}
+
+void translateStore(Environ* env, const Instruction* instr) {
+  a64::Builder* as = env->as;
+  auto scratch0 = arch::reg_scratch_0;
+  auto scratch1 = arch::reg_scratch_1;
+
+  const lir::Operand* output = instr->output();
+  const lir::Operand* input = instr->getInput(0);
+
+  JIT_CHECK(
+      isMemoryMoveOperand(output),
+      "Store output must be memory (Stk/Mem/Ind), got {}",
+      output->type());
+  JIT_CHECK(
+      input->isReg() || input->isImm(),
+      "Store input must be Reg or Imm, got {}",
+      input->type());
+
+  switch (output->type()) {
+    case lir::OperandType::kStack: {
+      if (!input->isReg()) {
+        as->mov(scratch1, input->getConstant());
+        auto ptr = getStackSlotPtr(env, output->getStackSlot().loc, scratch1);
+        switch (output->dataType()) {
+          case lir::Operand::k8bit:
+            as->strb(a64::w(scratch1.id()), ptr);
+            break;
+          case lir::Operand::k16bit:
+            as->strh(a64::w(scratch1.id()), ptr);
+            break;
+          case lir::Operand::k32bit:
+            as->str(a64::w(scratch1.id()), ptr);
+            break;
+          default:
+            as->str(scratch1, ptr);
+            break;
+        }
+      } else {
+        auto scratch = input->getPhyRegister() == arch::reg_scratch_0_loc
+            ? arch::reg_scratch_1
+            : arch::reg_scratch_0;
+        storeFromReg(
+            as,
+            input,
+            output,
+            getStackSlotPtr(env, output->getStackSlot().loc, scratch));
+      }
+      break;
+    }
+    case lir::OperandType::kMem: {
+      as->load_addr(scratch0, output->getMemoryAddress());
+      if (input->isReg()) {
+        if (input->isVecD()) {
+          as->str(AT::getVecD(input), a64::ptr(scratch0));
+        } else {
+          as->str(AT::getGpWiden(input), a64::ptr(scratch0));
+        }
+      } else {
+        as->mov(scratch1, input->getConstant());
+        as->str(scratch1, a64::ptr(scratch0));
+      }
+      break;
+    }
+    case lir::OperandType::kInd: {
+      if (input->isReg()) {
+        auto ptr = ptrIndirect(
+            as,
+            scratch0,
+            scratch1,
+            output->getMemoryIndirect(),
+            output->dataType());
+        storeFromReg(as, input, output, ptr);
+      } else {
+        auto ptr = ptrIndirect(
+            as,
+            scratch0,
+            scratch1,
+            output->getMemoryIndirect(),
+            output->dataType());
+        switch (output->dataType()) {
+          case lir::Operand::k8bit:
+            as->mov(a64::w(scratch1.id()), input->getConstant());
+            as->strb(a64::w(scratch1.id()), ptr);
+            break;
+          case lir::Operand::k16bit:
+            as->mov(a64::w(scratch1.id()), input->getConstant());
+            as->strh(a64::w(scratch1.id()), ptr);
+            break;
+          case lir::Operand::k32bit:
+            as->mov(a64::w(scratch1.id()), input->getConstant());
+            as->str(a64::w(scratch1.id()), ptr);
+            break;
+          default:
+            as->mov(scratch1, input->getConstant());
+            as->str(scratch1, ptr);
+            break;
+        }
+      }
+      break;
+    }
+    default:
+      JIT_ABORT(
+          "Unsupported output operand type for Store: {}", output->type());
+  }
+}
+
 void translateMovConstPool(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
   auto output = instr->output();
@@ -3167,6 +3344,59 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
+    case Opcode::kLoad: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+      JIT_CHECK(
+          output->isReg(),
+          "Load output must be a register, got {} in {}",
+          output->type(),
+          *instr);
+      JIT_CHECK(
+          isMemoryMoveOperand(input),
+          "Load input must be memory (Stk/Mem/Ind), got {} in {}",
+          input->type(),
+          *instr);
+      if (output->isVecD()) {
+        if constexpr (kCinderJitTsanEnabled) {
+          int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+          emitTsanRead(*env, input, access_size_in_bytes);
+        }
+        env->as->movsd(getVecD(output), getMem(instr, input));
+      } else {
+        if (input->isReg() && input->isVecD()) {
+          JIT_ABORT("Load from VecD register not supported");
+        }
+        if constexpr (kCinderJitTsanEnabled) {
+          int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+          emitTsanRead(*env, input, access_size_in_bytes);
+        }
+        env->as->mov(getReg(instr, output), getMem(instr, input));
+      }
+      return;
+    }
+    case Opcode::kStore: {
+      auto* output = instr->output();
+      auto* input = instr->getInput(0);
+      JIT_CHECK(
+          isMemoryMoveOperand(output),
+          "Store output must be memory (Stk/Mem/Ind), got {}",
+          output->type());
+      if constexpr (kCinderJitTsanEnabled) {
+        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        emitTsanWrite(*env, output, access_size_in_bytes);
+      }
+      if (input->isReg() && input->isVecD()) {
+        env->as->movsd(getMem(instr, output), getVecD(input));
+      } else if (input->isReg()) {
+        env->as->mov(getMem(instr, output), getReg(instr, input));
+      } else if (input->isImm()) {
+        env->as->mov(getMem(instr, output), getImm(input));
+      } else {
+        JIT_ABORT("Store input must be Reg or Imm, got {}", input->type());
+      }
+      return;
+    }
     case Opcode::kReserveStack:
       translateReserveStack(env, instr);
       return;
@@ -3406,6 +3636,12 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Opcode::kMove:
       translateMove(env, instr);
+      return;
+    case Opcode::kLoad:
+      translateLoad(env, instr);
+      return;
+    case Opcode::kStore:
+      translateStore(env, instr);
       return;
     case Opcode::kMovConstPool:
       translateMovConstPool(env, instr);

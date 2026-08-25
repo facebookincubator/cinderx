@@ -227,11 +227,11 @@ bool Instruction::getOutputPhyRegUse() const {
 }
 
 bool Instruction::getInputPhyRegUse(size_t i) const {
-  // If the output of a move instruction is a memory location, then its input
-  // needs to be a physical register. Otherwise we might generate a mem->mem
-  // move, which we can't safely handle for all bit widths in codegen (since
-  // push/pop aren't available for all bit widths).
-  if ((isMove() || isMoveRelaxed()) && output_.isInd()) {
+  // If the output of a move/store instruction is a memory location, then its
+  // input needs to be a physical register. Otherwise we might generate a
+  // mem->mem move, which we can't safely handle for all bit widths in codegen
+  // (since push/pop aren't available for all bit widths).
+  if ((isMove() || isMoveRelaxed() || isStore()) && output_.isInd()) {
     return true;
   }
 

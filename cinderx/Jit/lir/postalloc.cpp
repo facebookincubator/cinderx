@@ -1250,6 +1250,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kLShift:
     case Opcode::kLea:
     case Opcode::kLeave:
+    case Opcode::kLoad:
     case Opcode::kLoadArg:
     case Opcode::kLoadPair:
     case Opcode::kLoadSecondCallResult:
@@ -1272,6 +1273,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kSelect:
     case Opcode::kSetupFrame:
     case Opcode::kSext:
+    case Opcode::kStore:
     case Opcode::kStoreGenYieldFromPoint:
     case Opcode::kStoreGenYieldPoint:
     case Opcode::kStorePair:
