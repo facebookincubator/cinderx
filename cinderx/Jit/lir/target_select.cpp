@@ -33,8 +33,8 @@ void selectX64MoveToMemoryLargeConstant(
     instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   JIT_DCHECK(
-      instr->isMove() || instr->isMoveRelaxed(),
-      "Expected Move or MoveRelaxed, got {}",
+      instr->isMove() || instr->isMoveRelaxed() || instr->isStore(),
+      "Expected Move, MoveRelaxed or Store, got {}",
       instr->opname());
 
   Operand* out = instr->output();
@@ -67,6 +67,7 @@ void selectX64Opcodes(Function* func) {
       switch (cur_iter->get()->opcode()) {
         case Opcode::kMove:
         case Opcode::kMoveRelaxed:
+        case Opcode::kStore:
           selectX64MoveToMemoryLargeConstant(block, cur_iter);
           break;
         default:
@@ -204,7 +205,7 @@ Instruction* moveA64StackInputToVreg(
   PhyLocation loc = input->getStackSlot();
   DataType dt = input->dataType();
   Instruction* move = block->allocateInstrBefore(
-      instr_iter, Opcode::kMove, OutVReg{dt}, Stk{loc, dt});
+      instr_iter, Opcode::kLoad, OutVReg{dt}, Stk{loc, dt});
   instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
   return move;
 }
@@ -258,7 +259,7 @@ void legalizeA64StackInputForIncDec(
   Instruction* move = moveA64StackInputToVreg(block, instr_iter, 0);
 
   block->allocateInstrBefore(
-      std::next(instr_iter), Opcode::kMove, OutStk{loc, dt}, VReg{move});
+      std::next(instr_iter), Opcode::kStore, OutStk{loc, dt}, VReg{move});
 }
 
 /* Convert from:

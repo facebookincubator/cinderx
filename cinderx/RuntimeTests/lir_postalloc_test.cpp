@@ -282,7 +282,7 @@ TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
 }
 
 #if defined(CINDER_AARCH64)
-// kAdd with one register input and one stack input should insert a Move from
+// kAdd with one register input and one stack input should insert a Load from
 // stack to GP scratch register before the Add, then rewrite the Add's stack
 // input to use the scratch register.
 TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteAddWithStackInput) {
@@ -302,11 +302,11 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteAddWithStackInput) {
   rewrite.run();
 
   auto instrs = collectInstrs(*bb);
-  // Should now have: Move (stack→scratch), Add (reg, scratch)
+  // Should now have: Load (stack→scratch), Add (reg, scratch)
   ASSERT_EQ(instrs.size(), 2);
 
-  // First instruction: Move from stack to scratch
-  EXPECT_TRUE(instrs[0]->isMove());
+  // First instruction: Load from stack to scratch
+  EXPECT_TRUE(instrs[0]->isLoad());
   EXPECT_TRUE(instrs[0]->output()->isReg());
   EXPECT_EQ(instrs[0]->output()->getPhyRegister(), arch::reg_scratch_0_loc);
   EXPECT_TRUE(instrs[0]->getInput(0)->isStack());
@@ -318,7 +318,7 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteAddWithStackInput) {
 }
 
 // kInc with a stack input should produce:
-//   Move stack→scratch, Inc scratch, Move scratch→stack
+//   Load stack→scratch, Inc scratch, Store scratch→stack
 TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteIncWithStackInput) {
   Function func;
   auto* bb = func.allocateBasicBlock();
@@ -335,11 +335,11 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteIncWithStackInput) {
   rewrite.run();
 
   auto instrs = collectInstrs(*bb);
-  // Should now have: Move (stack→scratch), Inc (scratch), Move (scratch→stack)
+  // Should now have: Load (stack→scratch), Inc (scratch), Store (scratch→stack)
   ASSERT_EQ(instrs.size(), 3);
 
-  // Move from stack to scratch
-  EXPECT_TRUE(instrs[0]->isMove());
+  // Load from stack to scratch
+  EXPECT_TRUE(instrs[0]->isLoad());
   EXPECT_TRUE(instrs[0]->output()->isReg());
   EXPECT_EQ(instrs[0]->output()->getPhyRegister(), arch::reg_scratch_0_loc);
 
@@ -348,8 +348,8 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteIncWithStackInput) {
   EXPECT_TRUE(instrs[1]->getInput(0)->isReg());
   EXPECT_EQ(instrs[1]->getInput(0)->getPhyRegister(), arch::reg_scratch_0_loc);
 
-  // Move from scratch back to stack
-  EXPECT_TRUE(instrs[2]->isMove());
+  // Store from scratch back to stack
+  EXPECT_TRUE(instrs[2]->isStore());
   EXPECT_TRUE(instrs[2]->output()->isStack());
   EXPECT_TRUE(instrs[2]->getInput(0)->isReg());
   EXPECT_EQ(instrs[2]->getInput(0)->getPhyRegister(), arch::reg_scratch_0_loc);
@@ -376,8 +376,8 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteFaddWithFPStackInput) {
   auto instrs = collectInstrs(*bb);
   ASSERT_EQ(instrs.size(), 2);
 
-  // Move from stack to FP scratch (D16)
-  EXPECT_TRUE(instrs[0]->isMove());
+  // Load from stack to FP scratch (D16)
+  EXPECT_TRUE(instrs[0]->isLoad());
   EXPECT_TRUE(instrs[0]->output()->isReg());
   EXPECT_EQ(instrs[0]->output()->getPhyRegister(), arch::reg_fp_scratch_0_loc);
   EXPECT_EQ(instrs[0]->output()->dataType(), DataType::kDouble);
@@ -411,8 +411,8 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
   auto instrs = collectInstrs(*bb);
   ASSERT_EQ(instrs.size(), 2);
 
-  // Move from stack to scratch — should be widened to k32bit
-  EXPECT_TRUE(instrs[0]->isMove());
+  // Load from stack to scratch — should be widened to k32bit
+  EXPECT_TRUE(instrs[0]->isLoad());
   EXPECT_EQ(instrs[0]->output()->dataType(), DataType::k32bit);
   EXPECT_EQ(instrs[0]->getInput(0)->dataType(), DataType::k32bit);
 

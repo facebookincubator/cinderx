@@ -316,7 +316,7 @@ void emitStorePairs(
     Instruction* v = bbb.getDefInstr(src_instr.getOperand(src_start + i));
     bbb.appendInstr(
         OutInd{base, base_offset + static_cast<int32_t>(i * kPointerSize)},
-        Opcode::kMove,
+        Opcode::kStore,
         v);
   }
 }
@@ -427,14 +427,14 @@ class FrameInitPlan {
           bbb.annotateNext(fmt::format("Store {}", f.name));
           bbb.appendInstr(
               OutInd{frame_base, f.offset, f.data_type},
-              Opcode::kMove,
+              Opcode::kStore,
               f.value);
         }
       } else {
         auto& f = fields_[group.start];
         bbb.annotateNext(fmt::format("Store {}", f.name));
         bbb.appendInstr(
-            OutInd{frame_base, f.offset, f.data_type}, Opcode::kMove, f.value);
+            OutInd{frame_base, f.offset, f.data_type}, Opcode::kStore, f.value);
       }
     }
 
@@ -461,7 +461,7 @@ class FrameInitPlan {
                 frame_base,
                 localsplus_zero_offset_ +
                     static_cast<int32_t>(i * kPointerSize)},
-            Opcode::kMove,
+            Opcode::kStore,
             zero);
       }
     }
@@ -515,26 +515,26 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
 
   // jit_data = gen->gi_jit_data
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutPhyReg(jit_data_reg), Ind(gen_reg, gi_off));
+      Opcode::kLoad, nullptr, OutPhyReg(jit_data_reg), Ind(gen_reg, gi_off));
 
   // scratch = [fp + 0]  (saved frame pointer / link address)
-  bb->allocateInstr(Opcode::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg));
+  bb->allocateInstr(Opcode::kLoad, nullptr, OutPhyReg(scratch), Ind(fp_reg));
 
   // footer->linkAddress = scratch
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutInd(jit_data_reg, link_off), PhyReg(scratch));
+      Opcode::kStore, nullptr, OutInd(jit_data_reg, link_off), PhyReg(scratch));
 
   // scratch = [fp + 8]  (return address)
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg, (int32_t)8));
+      Opcode::kLoad, nullptr, OutPhyReg(scratch), Ind(fp_reg, (int32_t)8));
 
   // footer->returnAddress = scratch
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutInd(jit_data_reg, ret_off), PhyReg(scratch));
+      Opcode::kStore, nullptr, OutInd(jit_data_reg, ret_off), PhyReg(scratch));
 
   // footer->originalFramePointer = fp
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd(jit_data_reg, orig_fp_off),
       PhyReg(fp_reg));
@@ -558,11 +558,11 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
 
   // scratch = footer->yieldPoint
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutPhyReg(scratch), Ind(fp_reg, yp_off));
+      Opcode::kLoad, nullptr, OutPhyReg(scratch), Ind(fp_reg, yp_off));
 
   // footer->yieldPoint = NULL
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutInd(fp_reg, yp_off, DT::kObject), Imm(0));
+      Opcode::kStore, nullptr, OutInd(fp_reg, yp_off, DT::kObject), Imm(0));
 
   // Jump to yieldPoint->resumeTarget
   bb->allocateInstr(Opcode::kBranch, nullptr, Ind(scratch, rt_off));
@@ -604,7 +604,7 @@ void PopulateEntryBlock(
       return;
     }
     entry_block->allocateInstr(
-        Opcode::kMove,
+        Opcode::kLoad,
         nullptr,
         OutPhyReg(pending->second),
         Ind(args_reg, pending->first));
@@ -624,7 +624,7 @@ void PopulateEntryBlock(
     if (!arg.isGpRegister()) {
       flushPending();
       entry_block->allocateInstr(
-          Opcode::kMove,
+          Opcode::kLoad,
           nullptr,
           OutPhyReg(arg, Operand::kDouble),
           Ind(args_reg, offset, Operand::kDouble));
@@ -636,7 +636,7 @@ void PopulateEntryBlock(
     if (arg == args_reg) {
       flushPending();
       entry_block->allocateInstr(
-          Opcode::kMove, nullptr, OutPhyReg(arg), Ind(args_reg, offset));
+          Opcode::kLoad, nullptr, OutPhyReg(arg), Ind(args_reg, offset));
       continue;
     }
 
@@ -807,14 +807,14 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
 
     // Load arg value from vectorcall array: tc_scratch = args[locals_idx]
     bb->allocateInstr(
-        Opcode::kMove,
+        Opcode::kLoad,
         nullptr,
         OutPhyReg(tc_scratch),
         Ind(args_reg, static_cast<int32_t>(arg.locals_idx * 8)));
 
     // Load type: tc_scratch = tc_scratch->ob_type
     bb->allocateInstr(
-        Opcode::kMove,
+        Opcode::kLoad,
         nullptr,
         OutPhyReg(tc_scratch),
         Ind(tc_scratch, static_cast<int32_t>(offsetof(PyObject, ob_type))));
@@ -856,7 +856,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
 
       // tc_scratch = tc_scratch->tp_mro (load MRO tuple)
       bb->allocateInstr(
-          Opcode::kMove,
+          Opcode::kLoad,
           nullptr,
           OutPhyReg(tc_scratch),
           Ind(tc_scratch,
@@ -864,7 +864,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
 
       // mro_end = tc_scratch->ob_size (tuple length)
       bb->allocateInstr(
-          Opcode::kMove,
+          Opcode::kLoad,
           nullptr,
           OutPhyReg(mro_end),
           Ind(tc_scratch,
@@ -893,7 +893,7 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
       //        tc_scratch += 8; cmp tc_scratch, mro_end; jne loop; jmp failure
       emitAnnotation(mro_bb, fmt::format("MRO walk: arg[{}]", arg.locals_idx));
       mro_bb->allocateInstr(
-          Opcode::kMove, nullptr, OutPhyReg(scratch), Ind(tc_scratch));
+          Opcode::kLoad, nullptr, OutPhyReg(scratch), Ind(tc_scratch));
       mro_bb->allocateInstr(
           Opcode::kCmp, nullptr, PhyReg(scratch), PhyReg(mro_type));
       mro_bb->allocateInstr(
@@ -1025,7 +1025,7 @@ void GenerateArgcountCheckBlocks(
 
       // Store argcount (5th arg) at [RSP + 0x20].
       argcount_check->allocateInstr(
-          Opcode::kMove, nullptr, OutInd(sp_reg, 0x20), PhyReg{kwnames_reg});
+          Opcode::kStore, nullptr, OutInd(sp_reg, 0x20), PhyReg{kwnames_reg});
 
       // Shuffle args to make room for the sret pointer in RCX.
       // Before: RCX=func, RDX=args, R8=nargsf, R9=numArgs
@@ -1056,23 +1056,23 @@ void GenerateArgcountCheckBlocks(
 
       if (returns_primitive_double) {
         argcount_check->allocateInstr(
-            Opcode::kMove,
+            Opcode::kLoad,
             nullptr,
             OutPhyReg{codegen::arch::reg_double_return_loc},
             Ind(sp_reg, kSretStructOffset));
         argcount_check->allocateInstr(
-            Opcode::kMove,
+            Opcode::kLoad,
             nullptr,
             OutPhyReg{codegen::arch::reg_double_auxilary_return_loc},
             Ind(sp_reg, kSretStructOffset + 8));
       } else {
         argcount_check->allocateInstr(
-            Opcode::kMove,
+            Opcode::kLoad,
             nullptr,
             OutPhyReg{codegen::arch::reg_general_return_loc},
             Ind(sp_reg, kSretStructOffset));
         argcount_check->allocateInstr(
-            Opcode::kMove,
+            Opcode::kLoad,
             nullptr,
             OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
             Ind(sp_reg, kSretStructOffset + 8));
@@ -1352,14 +1352,14 @@ void LIRGenerator::generateExitBlocks() {
   // Returning from a generator, it is now complete.
   // 3.12+: load gen pointer from GenDataFooter, then store gi_frame_state
   auto* gen_ptr = block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutVReg{},
       Ind{codegen::arch::reg_frame_pointer_loc,
           static_cast<int32_t>(offsetof(GenDataFooter, gen))});
 
   auto* gi_store = block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd{
           gen_ptr, static_cast<int32_t>(offsetof(PyGenObject, gi_frame_state))},
@@ -1391,7 +1391,7 @@ void LIRGenerator::generateExitBlocks() {
   // (if present) since changing RBP makes regalloc spill slots
   // inaccessible.
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{codegen::arch::reg_frame_pointer_loc},
       Ind{codegen::arch::reg_frame_pointer_loc,
@@ -1673,7 +1673,7 @@ void LIRGenerator::storeActiveDeoptIndex(
   if (deopt_idx_addr_ != nullptr) {
     bbb.appendInstr(
         OutInd{deopt_idx_addr_, 0},
-        Opcode::kMove,
+        Opcode::kStore,
         Imm{deopt_idx, DataType::k64bit});
   }
 #else
@@ -1845,7 +1845,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{env_->asm_tstate,
           static_cast<int>(offsetof(PyThreadState, thread_id))});
   bbb.appendInstr(Opcode::kCmp, ob_tid, thread_id);
@@ -1955,7 +1955,7 @@ void LIRGenerator::makeIncrefGILEnabled(
   auto mortal = bbb.allocateBlock();
   Instruction* r1 = bbb.appendInstr(
       OutVReg{Operand::k32bit},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{instr, kRefcountOffset, DataType::k32bit});
   bbb.appendInstr(Opcode::kInc, r1);
 #if PY_VERSION_HEX >= 0x030E0000
@@ -1965,7 +1965,7 @@ void LIRGenerator::makeIncrefGILEnabled(
 #endif
   bbb.appendBlock(mortal);
   bbb.appendInstr(
-      OutInd{instr, kRefcountOffset, DataType::k32bit}, Opcode::kMove, r1);
+      OutInd{instr, kRefcountOffset, DataType::k32bit}, Opcode::kStore, r1);
 
   updateRefTotal(bbb, Opcode::kInc);
 }
@@ -2053,7 +2053,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{env_->asm_tstate,
           static_cast<int>(offsetof(PyThreadState, thread_id))});
   bbb.appendInstr(Opcode::kCmp, ob_tid, thread_id);
@@ -2131,7 +2131,7 @@ void LIRGenerator::makeDecrefGILEnabled(
     BasicBlock* end_decref,
     std::optional<destructor> destructor) {
   Instruction* r1 = bbb.appendInstr(
-      OutVReg{DataType::k64bit}, Opcode::kMove, Ind{instr, kRefcountOffset});
+      OutVReg{DataType::k64bit}, Opcode::kLoad, Ind{instr, kRefcountOffset});
 
   auto mortal = bbb.allocateBlock();
   bbb.appendInstr(Opcode::kTest32, r1, r1);
@@ -2142,7 +2142,7 @@ void LIRGenerator::makeDecrefGILEnabled(
 
   auto dealloc = bbb.allocateBlock();
   bbb.appendInstr(Opcode::kDec, r1);
-  bbb.appendInstr(OutInd{instr, kRefcountOffset}, Opcode::kMove, r1);
+  bbb.appendInstr(OutInd{instr, kRefcountOffset}, Opcode::kStore, r1);
   bbb.appendBranch(Condition::kNotZero, end_decref);
   bbb.appendBlock(dealloc);
   if (getConfig().multiple_code_sections) {
@@ -2241,7 +2241,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* extra_args = env_->asm_extra_args;
         int32_t offset = (instr->argIdx() - reg_count) * kPointerSize;
         bbb.appendInstr(
-            instr->output(), Opcode::kMove, Ind{extra_args, offset});
+            instr->output(), Opcode::kLoad, Ind{extra_args, offset});
         break;
       }
       case hir::Opcode::kLoadCurrentFunc: {
@@ -2269,7 +2269,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dest = i.output();
         Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
         constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
-        bbb.appendInstr(dest, Opcode::kMove, Ind{src_base, kOffset});
+        bbb.appendInstr(dest, Opcode::kLoad, Ind{src_base, kOffset});
         break;
       }
       case hir::Opcode::kSwapCellItem: {
@@ -2300,13 +2300,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           hir::Register* dest = i.output();
           Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
           constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
-          bbb.appendInstr(dest, Opcode::kMove, Ind{src_base, kOffset});
+          bbb.appendInstr(dest, Opcode::kLoad, Ind{src_base, kOffset});
         }
 #else
         hir::Register* dest = i.output();
         Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
         constexpr int32_t kOffset = offsetof(PyCellObject, ob_ref);
-        bbb.appendInstr(dest, Opcode::kMove, Ind{src_base, kOffset});
+        bbb.appendInstr(dest, Opcode::kLoad, Ind{src_base, kOffset});
 #endif
         break;
       }
@@ -2316,7 +2316,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             OutInd{
                 bbb.getDefInstr(instr->getOperand(0)),
                 int32_t{offsetof(PyCellObject, ob_ref)}},
-            Opcode::kMove,
+            Opcode::kStore,
             instr->getOperand(1));
         break;
       }
@@ -2357,7 +2357,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dest = i.output();
         Instruction* src_base = bbb.getDefInstr(i.getOperand(0));
         constexpr int32_t kOffset = offsetof(PyVarObject, ob_size);
-        bbb.appendInstr(dest, Opcode::kMove, Ind{src_base, kOffset});
+        bbb.appendInstr(dest, Opcode::kLoad, Ind{src_base, kOffset});
         break;
       }
       case hir::Opcode::kLoadFunctionIndirect: {
@@ -2922,7 +2922,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
         constexpr int32_t kOffset = offsetof(PyThreadState, current_exception);
         Instruction* curexc = bbb.appendInstr(
-            Opcode::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
+            Opcode::kLoad, OutVReg{}, Ind{env_->asm_tstate, kOffset});
 
         Instruction* is_no_err_set = bbb.appendInstr(
             Opcode::kCompare,
@@ -2958,7 +2958,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           break;
         } else if (ty <= TCDouble) {
           constexpr int32_t offset = offsetof(PyFloatObject, ob_fval);
-          bbb.appendInstr(output, Opcode::kMove, Ind{value, offset});
+          bbb.appendInstr(output, Opcode::kLoad, Ind{value, offset});
           break;
         }
 
@@ -3141,7 +3141,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           Instruction* reg = bbb.getDefInstr(instr.reg());
           constexpr int32_t kOffset = offsetof(PyObject, ob_type);
           Instruction* type_var =
-              bbb.appendInstr(Opcode::kMove, OutVReg{}, Ind{reg, kOffset});
+              bbb.appendInstr(Opcode::kLoad, OutVReg{}, Ind{reg, kOffset});
           eq_res_var = bbb.appendInstr(
               Opcode::kCompare,
               Condition::kEqual,
@@ -3209,7 +3209,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = &i.as<LoadTypeAttrCacheEntryType>();
         LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cacheId());
         PyTypeObject** addr = cache->typeAddr();
-        bbb.appendInstr(instr->output(), Opcode::kMove, MemImm{addr});
+        bbb.appendInstr(instr->output(), Opcode::kLoad, MemImm{addr});
         break;
       }
       case hir::Opcode::kLoadTypeAttrCacheEntryValue: {
@@ -3219,7 +3219,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = &i.as<LoadTypeAttrCacheEntryValue>();
         LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cacheId());
         PyObject** addr = cache->valueAddr();
-        bbb.appendInstr(instr->output(), Opcode::kMove, MemImm{addr});
+        bbb.appendInstr(instr->output(), Opcode::kLoad, MemImm{addr});
         break;
       }
       case hir::Opcode::kFillTypeAttrCache: {
@@ -3272,7 +3272,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         LoadTypeMethodCache* cache =
             load_type_method_caches_.at(instr->cacheId());
         PyTypeObject** addr = cache->typeAddr();
-        bbb.appendInstr(instr->output(), Opcode::kMove, MemImm{addr});
+        bbb.appendInstr(instr->output(), Opcode::kLoad, MemImm{addr});
         break;
       }
       case hir::Opcode::kLoadTypeMethodCacheEntryValue: {
@@ -3775,7 +3775,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         const auto& instr = i.as<DeoptBase>();
         constexpr int32_t kOffset = offsetof(PyThreadState, current_exception);
         Instruction* load = bbb.appendInstr(
-            Opcode::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
+            Opcode::kLoad, OutVReg{}, Ind{env_->asm_tstate, kOffset});
         appendGuard(bbb, InstrGuardKind::kZero, instr, load);
         break;
       }
@@ -4106,7 +4106,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           void** indir = env_->ctx->findFunctionEntryCache(func);
           env_->function_indirections.emplace(func, indir);
           Instruction* move = bbb.appendInstr(
-              OutVReg{Operand::k64bit}, Opcode::kMove, MemImm{indir});
+              OutVReg{Operand::k64bit}, Opcode::kLoad, MemImm{indir});
 
           lir = bbb.appendInstr(instr->output(), Opcode::kCall, move);
         }
@@ -4144,7 +4144,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dest = instr->output();
         Instruction* receiver = bbb.getDefInstr(instr->receiver());
         auto offset = static_cast<int32_t>(instr->offset());
-        bbb.appendInstr(dest, Opcode::kMove, Ind{receiver, offset});
+        bbb.appendInstr(dest, Opcode::kLoad, Ind{receiver, offset});
         break;
       }
 
@@ -4163,7 +4163,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             OutInd{
                 bbb.getDefInstr(instr->receiver()),
                 static_cast<int32_t>(instr->offset())},
-            Opcode::kMove,
+            Opcode::kStore,
             instr->value());
         lir->output()->setDataType(lir->getInput(0)->dataType());
         break;
@@ -4219,7 +4219,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kInitListElements: {
         auto instr = &i.as<InitListElements>();
         Instruction* ob_item = bbb.appendInstr(
-            Opcode::kMove,
+            Opcode::kLoad,
             OutVReg{Operand::k64bit},
             Ind{bbb.getDefInstr(instr->list()),
                 offsetof(PyListObject, ob_item)});
@@ -4266,7 +4266,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* tuple = bbb.getDefInstr(instr->tuple());
         auto item_offset = static_cast<int32_t>(
             offsetof(PyTupleObject, ob_item) + instr->idx() * kPointerSize);
-        bbb.appendInstr(dest, Opcode::kMove, Ind{tuple, item_offset});
+        bbb.appendInstr(dest, Opcode::kLoad, Ind{tuple, item_offset});
         break;
       }
       case hir::Opcode::kCheckSequenceBounds: {
@@ -4304,7 +4304,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               offset);
           ind = Ind{ob_item, scaled_offset};
         }
-        bbb.appendInstr(dest, Opcode::kMove, ind);
+        bbb.appendInstr(dest, Opcode::kLoad, ind);
         break;
       }
       case hir::Opcode::kStoreArrayItem: {
@@ -4321,7 +4321,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               static_cast<int32_t>(instr->idx()->type().intSpec() * sizeBytes);
           ind = OutInd{ob_item, scaled_offset, dt};
         }
-        bbb.appendInstr(ind, Opcode::kMove, value);
+        bbb.appendInstr(ind, Opcode::kStore, value);
         break;
       }
       case hir::Opcode::kLoadSplitDictItem: {
@@ -4332,12 +4332,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // additional checks here.
         Instruction* ma_values = bbb.appendInstr(
             OutVReg{DataType::k64bit},
-            Opcode::kMove,
+            Opcode::kLoad,
             Ind{bbb.getDefInstr(dict),
                 static_cast<int32_t>(offsetof(PyDictObject, ma_values))});
         bbb.appendInstr(
             instr->output(),
-            Opcode::kMove,
+            Opcode::kLoad,
             Ind{ma_values,
                 static_cast<int32_t>(instr->itemIdx() * sizeof(PyObject*))});
         break;
@@ -4590,7 +4590,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             OutInd{
                 bbb.getDefInstr(instr->base()),
                 static_cast<int32_t>(instr->offset())},
-            Opcode::kMove,
+            Opcode::kStore,
             instr->value());
         break;
       }
@@ -4907,7 +4907,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             static_cast<int32_t>(offsetof(PyLongObject, long_value.ob_digit));
         // Load lv_tag
         Instruction* lv_tag = bbb.appendInstr(
-            OutVReg{DataType::k64bit}, Opcode::kMove, Ind{obj, lv_tag_offset});
+            OutVReg{DataType::k64bit}, Opcode::kLoad, Ind{obj, lv_tag_offset});
         // sign = lv_tag & _PyLong_SIGN_MASK (i.e. & 3)
         Instruction* sign_bits = bbb.appendInstr(
             OutVReg{DataType::k64bit},
@@ -4921,7 +4921,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             OutVReg{DataType::k64bit}, Opcode::kSub, one, sign_bits);
         // Load ob_digit[0] as 32-bit unsigned, zero-extend to 64-bit
         Instruction* digit = bbb.appendInstr(
-            OutVReg{DataType::k32bit}, Opcode::kMove, Ind{obj, digit_offset});
+            OutVReg{DataType::k32bit}, Opcode::kLoad, Ind{obj, digit_offset});
         Instruction* digit64 =
             bbb.appendInstr(OutVReg{DataType::k64bit}, Opcode::kZext, digit);
         // result = sign * digit
@@ -4951,7 +4951,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
           Instruction* lv_tag = bbb.appendInstr(
               OutVReg{DataType::k64bit},
-              Opcode::kMove,
+              Opcode::kLoad,
               Ind{obj, lv_tag_offset});
           bbb.appendInstr(
               i.output(),
@@ -5217,13 +5217,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 #if PY_VERSION_HEX >= 0x030E0000
         bbb.appendInstr(
             OutInd{frame, offsetof(_PyInterpreterFrame, instr_ptr)},
-            Opcode::kMove,
+            Opcode::kStore,
             prev_instr_ptr);
 #else
 
         bbb.appendInstr(
             OutInd{frame, offsetof(_PyInterpreterFrame, prev_instr)},
-            Opcode::kMove,
+            Opcode::kStore,
             prev_instr_ptr);
 #endif
         break;
@@ -5462,7 +5462,7 @@ Instruction* CurrentFrameAccessor::loadCFrame() {
   if (cframe_ == nullptr) {
     cframe_ = bbb_.appendInstr(
         OutVReg{},
-        Opcode::kMove,
+        Opcode::kLoad,
         Ind{tstate_, offsetof(PyThreadState, cframe)});
   }
   return cframe_;
@@ -5473,12 +5473,12 @@ Instruction* CurrentFrameAccessor::load() {
 #if PY_VERSION_HEX >= 0x030D0000
   return bbb_.appendInstr(
       OutVReg{},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{tstate_, offsetof(PyThreadState, current_frame)});
 #else
   return bbb_.appendInstr(
       OutVReg{},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{loadCFrame(), offsetof(_PyCFrame, current_frame)});
 #endif
 }
@@ -5487,12 +5487,12 @@ void CurrentFrameAccessor::store(Instruction* frame) {
 #if PY_VERSION_HEX >= 0x030D0000
   bbb_.appendInstr(
       OutInd{tstate_, offsetof(PyThreadState, current_frame)},
-      Opcode::kMove,
+      Opcode::kStore,
       frame);
 #else
   bbb_.appendInstr(
       OutInd{loadCFrame(), offsetof(_PyCFrame, current_frame)},
-      Opcode::kMove,
+      Opcode::kStore,
       frame);
 #endif
 }
@@ -5670,13 +5670,13 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
             case FrameFieldKind::kBuiltins:
               return bbb.appendInstr(
                   OutVReg{},
-                  Opcode::kMove,
+                  Opcode::kLoad,
                   Ind{env_->asm_func,
                       offsetof(PyFunctionObject, func_builtins)});
             case FrameFieldKind::kGlobals:
               return bbb.appendInstr(
                   OutVReg{},
-                  Opcode::kMove,
+                  Opcode::kLoad,
                   Ind{env_->asm_func,
                       offsetof(PyFunctionObject, func_globals)});
             case FrameFieldKind::kZero:
@@ -5777,7 +5777,7 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
 
   Instruction* prev = bbb.appendInstr(
       OutVReg{},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{frame,
           static_cast<int32_t>(offsetof(_PyInterpreterFrame, previous))});
 
@@ -5814,7 +5814,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Instruction* frame_status = bbb.appendInstr(
       OutVReg{DataType::k64bit},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{frame,
           static_cast<int32_t>(
               offsetof(FrameHeader, frame_status) - kFrameHeaderOverhead)});
@@ -5825,7 +5825,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
 #else
   Instruction* frame_obj_reg = bbb.appendInstr(
       OutVReg{},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{frame,
           static_cast<int32_t>(offsetof(_PyInterpreterFrame, frame_obj))});
 
@@ -5847,7 +5847,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
 
   Instruction* prev = bbb.appendInstr(
       OutVReg{},
-      Opcode::kMove,
+      Opcode::kLoad,
       Ind{frame,
           static_cast<int32_t>(offsetof(_PyInterpreterFrame, previous))});
 
@@ -5957,7 +5957,7 @@ void GenerateDeoptTrampolineBlocks(
 
   // Load saved rip/pc from [sp + frame_offset] into scratch.
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{saved_rip_reg},
       Ind(sp_reg, frame_offset));
@@ -5968,12 +5968,12 @@ void GenerateDeoptTrampolineBlocks(
     constexpr auto orig_fp_off =
         static_cast<int32_t>(offsetof(GenDataFooter, originalFramePointer));
     block->allocateInstr(
-        Opcode::kMove, nullptr, OutPhyReg{fp_reg}, Ind(fp_reg, orig_fp_off));
+        Opcode::kLoad, nullptr, OutPhyReg{fp_reg}, Ind(fp_reg, orig_fp_off));
   }
 
   // Save fp (now the original for generators) to [sp + frame_offset].
   block->allocateInstr(
-      Opcode::kMove, nullptr, OutInd(sp_reg, frame_offset), PhyReg{fp_reg});
+      Opcode::kStore, nullptr, OutInd(sp_reg, frame_offset), PhyReg{fp_reg});
 
   // Set up our frame: fp = sp + frame_offset.
   block->allocateInstr(
@@ -5981,28 +5981,28 @@ void GenerateDeoptTrampolineBlocks(
 
   // Load deopt_idx from [fp + 8] (the slot above saved_rbp).
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{deopt_idx_reg},
       Ind(fp_reg, kPointerSize));
 
   // Store saved rip/pc to [fp + 8] (restoring the real return address).
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd(fp_reg, kPointerSize),
       PhyReg{saved_rip_reg});
 
   // Store deopt_idx to [fp - 16] (a padding slot for later retrieval).
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd(fp_reg, -2 * kPointerSize),
       PhyReg{deopt_idx_reg});
 
   // Load code_rt from [fp - 24] (stashed by stage 2).
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{code_rt_reg},
       Ind(fp_reg, -3 * kPointerSize));
@@ -6040,7 +6040,7 @@ void GenerateDeoptTrampolineBlocks(
   // Load the deopt scratch register from its saved position on the stack.
   constexpr auto scratch_deopt_reg = codegen::arch::reg_scratch_deopt_loc;
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{scratch_deopt_reg},
       Ind(sp_reg, cleanup_size));
@@ -6093,13 +6093,13 @@ void GenerateDeoptTrampolineBlocks(
   }
   // arg1 = code_rt from stack (fp - 3*8)
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{codegen::ARGUMENT_REGS[1]},
       Ind(fp_reg, -3 * kPointerSize));
   // arg2 = deopt_idx from stack (fp - 2*8)
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{codegen::ARGUMENT_REGS[2]},
       Ind(fp_reg, -2 * kPointerSize));
@@ -6147,7 +6147,7 @@ void GenerateDeoptTrampolineBlocks(
       PhyReg{ret_reg});
   // Load epilogue address (must be before kLeave which tears down the frame).
   block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{jump_target_reg},
       Ind(fp_reg, -4 * kPointerSize));
@@ -6314,7 +6314,7 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
       OutPhyReg{scratch_deopt},
       Imm{reinterpret_cast<uint64_t>(env->code_rt)});
   stage2_block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd(sp_reg, kCodeRtOffset),
       PhyReg{scratch_deopt});
@@ -6326,7 +6326,7 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
       OutPhyReg{scratch_deopt},
       AsmLbl{env->hard_exit_label});
   stage2_block->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd(sp_reg, kEpilogueOffset),
       PhyReg{scratch_deopt});

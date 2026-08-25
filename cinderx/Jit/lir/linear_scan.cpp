@@ -1600,7 +1600,6 @@ void LinearScanAllocator::rewriteLIREmitCopies(
           instr->output()->setPhyRegOrStackSlot(to);
           instr->output()->setDataType(DataType::k64bit);
         } else if (to.isRegister() || from.isRegister()) {
-          auto instr = block->allocateInstrBefore(instr_iter, Opcode::kMove);
 #if defined(CINDER_AARCH64)
           // ARM64: always use 64-bit moves for edge-resolution copies
           // involving GP registers.  During a register swap (cycle in the
@@ -1618,6 +1617,15 @@ void LinearScanAllocator::rewriteLIREmitCopies(
 #else
           auto copy_dt = orig_opnd_size;
 #endif
+          Opcode opcode;
+          if (from.isRegister() && to.isRegister()) {
+            opcode = Opcode::kMove;
+          } else if (from.isRegister()) {
+            opcode = Opcode::kStore;
+          } else {
+            opcode = Opcode::kLoad;
+          }
+          auto instr = block->allocateInstrBefore(instr_iter, opcode);
           instr->allocatePhyRegOrStackInput(from)->setDataType(copy_dt);
           instr->output()->setPhyRegOrStackSlot(to);
           instr->output()->setDataType(copy_dt);
@@ -1627,12 +1635,12 @@ void LinearScanAllocator::rewriteLIREmitCopies(
           // (excluded from register allocation via DISALLOWED_REGISTERS) to
           // mediate the copy directly, saving 2 instructions and 16 bytes of
           // temporary stack space per copy.
-          auto load = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+          auto load = block->allocateInstrBefore(instr_iter, Opcode::kLoad);
           load->allocatePhyRegOrStackInput(from)->setDataType(DataType::k64bit);
           load->output()->setPhyRegister(arch::reg_scratch_1_loc);
           load->output()->setDataType(DataType::k64bit);
 
-          auto store = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+          auto store = block->allocateInstrBefore(instr_iter, Opcode::kStore);
           store->allocatePhyRegOrStackInput(arch::reg_scratch_1_loc)
               ->setDataType(DataType::k64bit);
           store->output()->setPhyRegOrStackSlot(to);

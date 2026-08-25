@@ -8,6 +8,7 @@
 #include "cinderx/Jit/lir/printer.h"
 
 #include <unordered_map>
+#include <variant>
 
 namespace cinderx::jit::rt {
 void batchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
@@ -462,9 +463,9 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   auto block = instr->basicBlock();
   constexpr int32_t kObTypeOffset = offsetof(PyObject, ob_type);
 
-  // type_vreg = Move([guard_var + ob_type_offset])
+  // type_vreg = Load([guard_var + ob_type_offset])
   auto type_load = block->allocateInstrBefore(
-      instr_iter, Opcode::kMove, OutVReg{DataType::k64bit});
+      instr_iter, Opcode::kLoad, OutVReg{DataType::k64bit});
   type_load->allocateMemoryIndirectInput(guard_var_def, kObTypeOffset);
 
   // Replace guard var with the loaded type and change kind to kIs.
@@ -504,9 +505,14 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   // Replace the Mem input with Ind{addr_vreg, offset=0}. For a simple
   // Ind with no index and offset 0, ptrIndirect resolves to ptr(base)
   // without needing any scratch registers.
+  bool was_move = instr->isMove();
   instr->removeInput(0);
   instr->allocateMemoryIndirectInput(
       static_cast<Instruction*>(addr_move), PhyLocation::REG_INVALID, 0, 0);
+  if (was_move) {
+    // Move with memory is now Load
+    instr->setOpcode(Opcode::kLoad);
+  }
 
   return kChanged;
 }
@@ -536,7 +542,7 @@ bool lowerStackInputToVreg(instr_iter_t instr_iter, size_t idx) {
   auto loc = input->getStackSlot();
   auto dt = input->dataType();
   auto move = instr->basicBlock()->allocateInstrBefore(
-      instr_iter, Opcode::kMove, OutVReg{dt}, Stk{loc, dt});
+      instr_iter, Opcode::kLoad, OutVReg{dt}, Stk{loc, dt});
   instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
   return true;
 }
@@ -680,7 +686,7 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
     auto loc = input->getStackSlot();
     auto dt = input->dataType();
     auto move = block->allocateInstrBefore(
-        instr_iter, Opcode::kMove, OutVReg{dt}, Stk{loc, dt});
+        instr_iter, Opcode::kLoad, OutVReg{dt}, Stk{loc, dt});
     instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
     return kChanged;
   }

@@ -29,7 +29,7 @@ RewriteResult removePhiInstructions(instr_iter_t instr_iter) {
   return kUnchanged;
 }
 
-// Insert a move from an operand to a memory location given by base + index.
+// Insert a store from an operand to a memory location given by base + index.
 // This function handles cases where operand is a >32-bit immediate and operand
 // is a stack location.
 void insertMoveToMemoryLocation(
@@ -52,13 +52,13 @@ void insertMoveToMemoryLocation(
           Imm{constant, DataType::k64bit});
       block->allocateInstrBefore(
           instr_iter,
-          Opcode::kMove,
+          Opcode::kStore,
           OutInd{base, index, DataType::k64bit},
           PhyReg{temp, DataType::k64bit});
     } else {
       block->allocateInstrBefore(
           instr_iter,
-          Opcode::kMove,
+          Opcode::kStore,
           OutInd{base, index, data_type},
           Imm{constant, data_type});
     }
@@ -69,7 +69,7 @@ void insertMoveToMemoryLocation(
     PhyLocation loc = operand->getPhyRegister();
     block->allocateInstrBefore(
         instr_iter,
-        Opcode::kMove,
+        Opcode::kStore,
         OutInd{base, index, data_type},
         PhyReg{loc, data_type});
     return;
@@ -83,10 +83,10 @@ void insertMoveToMemoryLocation(
 
   PhyLocation loc = operand->getStackSlot();
   block->allocateInstrBefore(
-      instr_iter, Opcode::kMove, OutPhyReg{temp, scratch_data_type}, Stk{loc});
+      instr_iter, Opcode::kLoad, OutPhyReg{temp, scratch_data_type}, Stk{loc});
   block->allocateInstrBefore(
       instr_iter,
-      Opcode::kMove,
+      Opcode::kStore,
       OutInd{base, index, scratch_data_type},
       PhyReg{temp, scratch_data_type});
 }
@@ -172,8 +172,8 @@ std::optional<std::pair<PhyLocation, int32_t>> pairMemoryLocation(
 }
 
 std::optional<PairCandidate> describePairCandidate(const Instruction* instr) {
-  if (!instr->isMove() || instr->getNumInputs() != 1 ||
-      instr->getNumOutputs() != 1) {
+  if (!(instr->isMove() || instr->isLoad() || instr->isStore()) ||
+      instr->getNumInputs() != 1 || instr->getNumOutputs() != 1) {
     return std::nullopt;
   }
 
@@ -294,6 +294,13 @@ void pairAdjacentMemoryOps(BasicBlock* block) {
 }
 #endif
 
+// Copy the last-use bit to an operand that is replacing another.
+void syncLastUse(Operand* new_operand, const Operand* existing_operand) {
+  if (existing_operand->isLastUse()) {
+    new_operand->setLastUse();
+  }
+}
+
 int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
@@ -319,20 +326,43 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
               OutPhyReg(arch::reg_scratch_0_loc),
               Imm(operand->getConstant()));
         }
-        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-        move->output()->setPhyRegister(FP_ARGUMENT_REGS[arg_pos]);
-        move->output()->setDataType(Operand::kDouble);
-
-        if (operand_imm) {
-          move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
+        if (operand->isStack()) {
+          auto loc = operand->getStackSlot();
+          auto* load = block->allocateInstrBefore(
+              instr_iter,
+              Opcode::kLoad,
+              OutPhyReg(FP_ARGUMENT_REGS[arg_pos], Operand::kDouble),
+              Stk{loc, Operand::kDouble});
+          syncLastUse(load->getInput(0), operand);
+          instr->releaseInput(i);
         } else {
-          move->appendInput(instr->releaseInput(i));
+          auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+          move->output()->setPhyRegister(FP_ARGUMENT_REGS[arg_pos]);
+          move->output()->setDataType(Operand::kDouble);
+
+          if (operand_imm) {
+            move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
+          } else {
+            move->appendInput(instr->releaseInput(i));
+          }
         }
       } else {
-        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-        move->output()->setPhyRegister(ARGUMENT_REGS[arg_pos]);
-        move->output()->setDataType(operand->dataType());
-        move->appendInput(instr->releaseInput(i));
+        if (operand->isStack()) {
+          auto loc = operand->getStackSlot();
+          auto dt = operand->dataType();
+          auto* load = block->allocateInstrBefore(
+              instr_iter,
+              Opcode::kLoad,
+              OutPhyReg(ARGUMENT_REGS[arg_pos], dt),
+              Stk{loc, dt});
+          syncLastUse(load->getInput(0), operand);
+          instr->releaseInput(i);
+        } else {
+          auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+          move->output()->setPhyRegister(ARGUMENT_REGS[arg_pos]);
+          move->output()->setDataType(operand->dataType());
+          move->appendInput(instr->releaseInput(i));
+        }
       }
       arg_pos++;
     } else {
@@ -363,14 +393,26 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
               OutPhyReg(arch::reg_scratch_0_loc),
               Imm(operand->getConstant()));
         }
-        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-        move->output()->setPhyRegister(FP_ARGUMENT_REGS[fp_arg_reg++]);
-        move->output()->setDataType(Operand::kDouble);
-
-        if (operand_imm) {
-          move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
+        if (operand->isStack()) {
+          auto loc = operand->getStackSlot();
+          auto* load = block->allocateInstrBefore(
+              instr_iter,
+              Opcode::kLoad,
+              OutPhyReg(FP_ARGUMENT_REGS[fp_arg_reg++], Operand::kDouble),
+              Stk{loc, Operand::kDouble});
+          syncLastUse(load->getInput(0), operand);
+          // Release original stack input (keep vector size stable)
+          instr->releaseInput(i);
         } else {
-          move->appendInput(instr->releaseInput(i));
+          auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+          move->output()->setPhyRegister(FP_ARGUMENT_REGS[fp_arg_reg++]);
+          move->output()->setDataType(Operand::kDouble);
+
+          if (operand_imm) {
+            move->allocatePhyRegisterInput(arch::reg_scratch_0_loc);
+          } else {
+            move->appendInput(instr->releaseInput(i));
+          }
         }
       } else {
         insertMoveToMemoryLocation(
@@ -385,10 +427,22 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
     }
 
     if (arg_reg < ARGUMENT_REGS.size()) {
-      auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-      move->output()->setPhyRegister(ARGUMENT_REGS[arg_reg++]);
-      move->output()->setDataType(operand->dataType());
-      move->appendInput(instr->releaseInput(i));
+      if (operand->isStack()) {
+        auto loc = operand->getStackSlot();
+        auto dt = operand->dataType();
+        auto* load = block->allocateInstrBefore(
+            instr_iter,
+            Opcode::kLoad,
+            OutPhyReg(ARGUMENT_REGS[arg_reg++], dt),
+            Stk{loc, dt});
+        syncLastUse(load->getInput(0), operand);
+        instr->releaseInput(i);
+      } else {
+        auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+        move->output()->setPhyRegister(ARGUMENT_REGS[arg_reg++]);
+        move->output()->setDataType(operand->dataType());
+        move->appendInput(instr->releaseInput(i));
+      }
     } else {
 #if defined(CINDER_AARCH64)
       if (i + 1 < num_inputs) {
@@ -495,10 +549,26 @@ int rewriteVectorCallCommon(
   auto flag = instr->getInput(1)->getConstant();
   auto num_args = instr->getNumInputs() - first_arg - 1;
 
-  auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-  move->output()->setPhyRegister(ARGUMENT_REGS[reg_offset]);
-  move->output()->setDataType(instr->getInput(callable_input)->dataType());
-  move->appendInput(instr->releaseInput(callable_input));
+  // Move callable into arg reg, handling stack.
+  {
+    auto* callable_op = instr->getInput(callable_input);
+    if (callable_op->isStack()) {
+      auto loc = callable_op->getStackSlot();
+      auto dt = callable_op->dataType();
+      auto* load = block->allocateInstrBefore(
+          instr_iter,
+          Opcode::kLoad,
+          OutPhyReg(ARGUMENT_REGS[reg_offset], dt),
+          Stk{loc, dt});
+      syncLastUse(load->getInput(0), callable_op);
+      instr->releaseInput(callable_input);
+    } else {
+      auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+      move->output()->setPhyRegister(ARGUMENT_REGS[reg_offset]);
+      move->output()->setDataType(instr->getInput(callable_input)->dataType());
+      move->appendInput(instr->releaseInput(callable_input));
+    }
+  }
 
   constexpr PhyLocation TMP_REG = arch::reg_scratch_0_loc;
 
@@ -532,14 +602,25 @@ int rewriteVectorCallCommon(
           PhyReg(ARGUMENT_REGS[kwnames_idx]),
           PhyReg(ARGUMENT_REGS[kwnames_idx]));
     } else {
-      auto move_2 = block->allocateInstrBefore(
-          instr_iter, Opcode::kMove, OutPhyReg(ARGUMENT_REGS[kwnames_idx]));
-      move_2->appendInput(std::move(last_input));
+      if (last_input->isStack()) {
+        auto loc = last_input->getStackSlot();
+        auto dt = last_input->dataType();
+        auto* load = block->allocateInstrBefore(
+            instr_iter,
+            Opcode::kLoad,
+            OutPhyReg(ARGUMENT_REGS[kwnames_idx], dt),
+            Stk{loc, dt});
+        syncLastUse(load->getInput(0), last_input.get());
+      } else {
+        auto move_2 = block->allocateInstrBefore(
+            instr_iter, Opcode::kMove, OutPhyReg(ARGUMENT_REGS[kwnames_idx]));
+        move_2->appendInput(std::move(last_input));
+      }
 
       size_t ob_size_offs = offsetof(PyVarObject, ob_size);
       block->allocateInstrBefore(
           instr_iter,
-          Opcode::kMove,
+          Opcode::kLoad,
           OutPhyReg(TMP_REG),
           Ind(ARGUMENT_REGS[kwnames_idx], (int32_t)ob_size_offs));
 
@@ -561,7 +642,7 @@ int rewriteVectorCallCommon(
           last_input->getConstant() == 0, "kwnames must be 0 or variable");
       block->allocateInstrBefore(
           instr_iter,
-          Opcode::kMove,
+          Opcode::kStore,
           OutInd{sp, kwnames_stk_offset, DataType::k64bit},
           Imm{0, DataType::k64bit});
     } else {
@@ -571,14 +652,14 @@ int rewriteVectorCallCommon(
       // Subtract kwnames tuple length from nargsf.
       block->allocateInstrBefore(
           instr_iter,
-          Opcode::kMove,
+          Opcode::kLoad,
           OutPhyReg(TMP_REG),
           Ind(sp, kwnames_stk_offset));
 
       size_t ob_size_offs = offsetof(PyVarObject, ob_size);
       block->allocateInstrBefore(
           instr_iter,
-          Opcode::kMove,
+          Opcode::kLoad,
           OutPhyReg(TMP_REG),
           Ind(TMP_REG, (int32_t)ob_size_offs));
 
@@ -605,10 +686,23 @@ int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
 
-  auto move_tstate = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-  move_tstate->output()->setPhyRegister(ARGUMENT_REGS[0]);
-  move_tstate->output()->setDataType(Operand::kObject);
-  move_tstate->appendInput(instr->releaseInput(2));
+  auto* tstate_op = instr->getInput(2);
+  if (tstate_op->isStack()) {
+    auto loc = tstate_op->getStackSlot();
+    auto dt = tstate_op->dataType();
+    auto* load = block->allocateInstrBefore(
+        instr_iter,
+        Opcode::kLoad,
+        OutPhyReg(ARGUMENT_REGS[0], dt),
+        Stk{loc, dt});
+    syncLastUse(load->getInput(0), tstate_op);
+    instr->releaseInput(2);
+  } else {
+    auto move_tstate = block->allocateInstrBefore(instr_iter, Opcode::kMove);
+    move_tstate->output()->setPhyRegister(ARGUMENT_REGS[0]);
+    move_tstate->output()->setDataType(Operand::kObject);
+    move_tstate->appendInput(instr->releaseInput(2));
+  }
 
   return rewriteVectorCallCommon(instr_iter, base_offset, 1, 3, 4);
 }
@@ -687,7 +781,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     } else {
       block->allocateInstrBefore(
           next_iter,
-          Opcode::kMove,
+          Opcode::kStore,
           OutStk(output->getStackSlot(), output->dataType()),
           PhyReg(kReturnRegister, output->dataType()));
     }
@@ -727,7 +821,11 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
 
   auto in_size = in->dataType();
   if (in_size >= out_size) {
-    instr->setOpcode(Opcode::kMove);
+    if (in->isStack() && out->isReg()) {
+      instr->setOpcode(Opcode::kLoad);
+    } else {
+      instr->setOpcode(Opcode::kMove);
+    }
     return kChanged;
   }
 
@@ -846,7 +944,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
 RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
-  if (!(instr->isMove() || instr->isMoveRelaxed()) ||
+  if (!(instr->isMove() || instr->isMoveRelaxed() || instr->isLoad()) ||
       instr->getNumInputs() != 1 || !instr->getInput(0)->isMem()) {
     return kUnchanged;
   }
@@ -1358,7 +1456,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
 
     block->allocateInstrBefore(
         instr_iter,
-        Opcode::kMove,
+        Opcode::kLoad,
         OutPhyReg{scratch_loc, load_dt},
         Stk{loc, load_dt});
 
@@ -1374,7 +1472,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     auto next_iter = std::next(instr_iter);
     block->allocateInstrBefore(
         next_iter,
-        Opcode::kMove,
+        Opcode::kStore,
         OutStk{*inc_dec_stack_loc, *inc_dec_dt},
         PhyReg{gp_scratch_locs[0], *inc_dec_dt});
   }
@@ -1440,8 +1538,9 @@ bool insertMoveToRegister(
   }
 
   auto data_type = op->dataType();
+  Opcode opcode = op->isStack() ? Opcode::kLoad : Opcode::kMove;
   auto move = block->allocateInstrBefore(
-      instr_iter, Opcode::kMove, OutPhyReg(location, data_type));
+      instr_iter, opcode, OutPhyReg(location, data_type));
   if (op->isReg()) {
     move->addOperands(PhyReg(op->getPhyRegister(), data_type));
   } else if (op->isImm()) {
@@ -1689,6 +1788,11 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
             old_opnd,
             *opnd,
             *instr);
+        // If we turned a Load from stack into a reg-reg copy, change opcode
+        // to Move.
+        if (instr->isLoad()) {
+          instr->setOpcode(Opcode::kMove);
+        }
         changed = kChanged;
 
         // If this is the last use of the stack operand, remove the spill.
@@ -1706,10 +1810,12 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
       }
     };
 
-    if (instr->isMove() || instr->isPush() || instr->isPop() ||
-        instr->isZext() || instr->isSext()) {
+    if (instr->isMove() || instr->isLoad() || instr->isStore() ||
+        instr->isPush() || instr->isPop() || instr->isZext() ||
+        instr->isSext()) {
       Operand* out = instr->output();
-      if (instr->isMove() && out->isStack() && instr->getInput(0)->isReg()) {
+      if ((instr->isMove() || instr->isStore()) && out->isStack() &&
+          instr->getInput(0)->isReg()) {
         registerMemoryMoves.addRegisterToMemoryMove(
             instr->getInput(0)->getPhyRegister(),
             out->getStackSlot(),

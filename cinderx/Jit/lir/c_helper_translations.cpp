@@ -25,7 +25,7 @@ const std::string* mapCHelperToLIR(uint64_t addr) {
 BB %0 - succs: %2 %1
        %5:Object = LoadArg 0(0x0):Object
        %6:Object = LoadArg 1(0x1):Object
-       %7:Object = Move [%5:Object + {0:#x}]:Object
+       %7:Object = Load [%5:Object + {0:#x}]:Object
        %8:Object = Equal %7:Object, %6:Object
                    CondBranch %8:Object
 
@@ -38,8 +38,8 @@ BB %2 - preds: %0 %1 - succs: %4
                    Return
 
 BB %3 - preds: %1 - succs: %4
-      %13:Object = Move [%7:Object + {1:#x}]:Object
-      %14:Object = Move [%6:Object + {1:#x}]:Object
+      %13:Object = Load [%7:Object + {1:#x}]:Object
+      %14:Object = Load [%6:Object + {1:#x}]:Object
                    Call PyErr_Format, PyExc_TypeError, "expected '%s', got '%s'", %14:Object, %13:Object
       %16:Object = Move 0(0x0):Object
       %18:Object = Move %16:Object

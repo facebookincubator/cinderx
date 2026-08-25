@@ -48,8 +48,8 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
       bb1->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(f), VReg(a));
 
   // indirect operands that contain linked argument
-  bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Ind(b, c));
-  bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Ind(c, b));
+  bb1->allocateInstr(Opcode::kLoad, nullptr, OutVReg(), Ind(b, c));
+  bb1->allocateInstr(Opcode::kLoad, nullptr, OutVReg(), Ind(c, b));
 
   // use linked argument
   auto h =
@@ -84,8 +84,8 @@ BB %4
        %9:Object = Move 8(0x8):64bit
       %10:Object = Move %9:Object
       %11:Object = Add %10:Object, %5:Object
-      %12:Object = Move [%1:Object + %7:Object]:Object
-      %13:Object = Move [%7:Object + %1:Object]:Object
+      %12:Object = Load [%1:Object + %7:Object]:Object
+      %13:Object = Load [%7:Object + %1:Object]:Object
       %14:Object = Add %11:Object, %2:Object
 {0:>16} = Move %14:Object
                    Return

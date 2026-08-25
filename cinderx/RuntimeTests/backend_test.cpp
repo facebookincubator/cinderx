@@ -464,12 +464,12 @@ TEST_F(BackendTest, FPArithmetic) {
     auto pa = bb->allocateInstr(
         Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&a)));
     auto fa = bb->allocateInstr(
-        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
+        Opcode::kLoad, nullptr, OutVReg(Operand::kDouble), Ind(pa));
 
     auto pb = bb->allocateInstr(
         Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&b)));
     auto fb = bb->allocateInstr(
-        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
+        Opcode::kLoad, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
     auto sum = bb->allocateInstr(
         opcode, nullptr, OutVReg(Operand::kDouble), VReg(fa), VReg(fb));
@@ -507,12 +507,12 @@ TEST_F(BackendTest, FPCompare) {
     auto pa = bb->allocateInstr(
         Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&a)));
     auto fa = bb->allocateInstr(
-        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pa));
+        Opcode::kLoad, nullptr, OutVReg(Operand::kDouble), Ind(pa));
 
     auto pb = bb->allocateInstr(
         Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(&b)));
     auto fb = bb->allocateInstr(
-        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(pb));
+        Opcode::kLoad, nullptr, OutVReg(Operand::kDouble), Ind(pb));
 
     auto compare = bb->allocateInstr(
         Opcode::kCompare, nullptr, cond, OutVReg(), VReg(fa), VReg(fb));
@@ -654,7 +654,7 @@ TEST_F(BackendTest, FPMultipleCalls) {
     auto m1 = bb->allocateInstr(
         Opcode::kMove, nullptr, OutVReg(), Imm(reinterpret_cast<uint64_t>(n)));
     auto m2 = bb->allocateInstr(
-        Opcode::kMove, nullptr, OutVReg(Operand::kDouble), Ind(m1));
+        Opcode::kLoad, nullptr, OutVReg(Operand::kDouble), Ind(m1));
     return m2;
   };
 
@@ -707,11 +707,11 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   auto bb = lirfunc->allocateBasicBlock();
 
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutStk(-16), PhyReg(arch::reg_scratch_0_loc));
+      Opcode::kStore, nullptr, OutStk(-16), PhyReg(arch::reg_scratch_0_loc));
   bb->allocateInstr(
-      Opcode::kMove, nullptr, OutStk(-24), PhyReg(ARGUMENT_REGS[1].loc));
+      Opcode::kStore, nullptr, OutStk(-24), PhyReg(ARGUMENT_REGS[1].loc));
   bb->allocateInstr(
-      lir::Opcode::kMove, nullptr, OutStk(-32), PhyReg(ARGUMENT_REGS[3].loc));
+      lir::Opcode::kStore, nullptr, OutStk(-32), PhyReg(ARGUMENT_REGS[3].loc));
 
   auto call = bb->allocateInstr(
       Opcode::kCall,
@@ -728,15 +728,15 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
 
   /*
   BB %0
-  [RBP - 16]:Object = Move RAX:Object
-  [RBP - 24]:Object = Move RSI:Object
+  [RBP - 16]:Object = Store RAX:Object
+  [RBP - 24]:Object = Store RSI:Object
         RDI:Object = Move RAX:Object
-        RSI:Object = Move [RBP - 24]:Object
+        RSI:Object = Load [RBP - 24]:Object
         RDX:Object = Move RCX:Object
                      Call Object
 
   [RBP - 32] is deleted: lastUse with no later stack reads.
-  RSI = Move [RBP - 24] is a self-reload (RSI spilled and loaded back to RSI).
+  RSI = Load [RBP - 24] is a self-reload (RSI spilled and loaded back to RSI).
   It is left intact because reg == out_reg skips the rewrite.
   */
   ASSERT_EQ(bb->getNumInstrs(), 6);
@@ -751,11 +751,11 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   auto* arg2 = (*(iter++)).get();
   auto* call_instr = (*(iter++)).get();
 
-  ASSERT_EQ(spill0->opcode(), Opcode::kMove);
-  ASSERT_EQ(spill1->opcode(), Opcode::kMove);
+  ASSERT_EQ(spill0->opcode(), Opcode::kStore);
+  ASSERT_EQ(spill1->opcode(), Opcode::kStore);
   ASSERT_EQ(arg0->opcode(), Opcode::kMove);
   ASSERT_EQ(arg0->getInput(0)->type(), Operand::kReg);
-  ASSERT_EQ(arg1->opcode(), Opcode::kMove);
+  ASSERT_EQ(arg1->opcode(), Opcode::kLoad);
   ASSERT_EQ(arg1->getInput(0)->type(), Operand::kStack);
   ASSERT_EQ(arg2->opcode(), Opcode::kMove);
   ASSERT_EQ(call_instr->opcode(), Opcode::kCall);
@@ -767,7 +767,7 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   auto bb = lirfunc->allocateBasicBlock();
 
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutStk(-16),
       PhyReg(arch::reg_general_return_loc));
@@ -786,7 +786,7 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
 #if defined(CINDER_X86_64)
   /*
   BB %0
-  [RBP - 16]:Object = Move RAX:Object
+  [RBP - 16]:Object = Store RAX:Object
         RAX:Object = Add RSI:Object, [RBP - 16]:Object
   */
   ASSERT_EQ(bb->getNumInstrs(), 2);
@@ -794,7 +794,7 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
 
   auto iter = instrs.begin();
 
-  ASSERT_EQ((*(iter++))->opcode(), Opcode::kMove);
+  ASSERT_EQ((*(iter++))->opcode(), Opcode::kStore);
   ASSERT_EQ((*iter)->opcode(), Opcode::kAdd);
   ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kStack);
 #elif defined(CINDER_AARCH64)
@@ -803,7 +803,9 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
 
   auto iter = instrs.begin();
 
-  ASSERT_EQ((*(iter++))->opcode(), Opcode::kMove);
+  ASSERT_EQ((*(iter++))->opcode(), Opcode::kStore);
+  // The scratch reload folds back to the register the spill came from, so it
+  // ends up a reg-to-reg Move rather than a Load.
   ASSERT_EQ((*(iter++))->opcode(), Opcode::kMove);
   ASSERT_EQ((*iter)->opcode(), Opcode::kAdd);
   ASSERT_EQ((*iter)->getInput(1)->type(), Operand::kReg);
@@ -832,7 +834,7 @@ TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
   // spill store and the explicit self-reload in the block.
   // Make a deleted spill observable instead of reading arbitrary stack data.
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutStk{kSharedSlot, Operand::k64bit},
       Imm{kExpected - kExpected, Operand::k64bit});
@@ -842,19 +844,19 @@ TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
       OutPhyReg{kReloadReg, Operand::k64bit},
       Imm{kExpected, Operand::k64bit});
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutStk{kSharedSlot, Operand::k64bit},
       PhyReg{kReloadReg, Operand::k64bit});
 
   auto self_reload = bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{kReloadReg, Operand::k64bit},
       Stk{kSharedSlot, Operand::k64bit});
   self_reload->getInput(0)->setLastUse();
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
       Stk{kSharedSlot, Operand::k64bit});
@@ -866,10 +868,10 @@ TEST_F(BackendTest, MoveSequenceOptLeavesSelfReloadsIntact) {
   bool saw_spill = false;
   bool saw_self_reload = false;
   for (auto& instr : bb->instructions()) {
-    if (!instr->isMove()) {
+    auto* out = instr->output();
+    if (instr->getNumInputs() == 0) {
       continue;
     }
-    auto* out = instr->output();
     auto* in = instr->getInput(0);
     if (out->isStack() && out->getStackSlot().loc == kSharedSlot.loc &&
         in->isReg() && in->getPhyRegister() == kReloadReg) {
@@ -902,7 +904,7 @@ TEST_F(BackendTest, CastTest) {
   auto b = bb1->allocateInstr(Opcode::kLoadArg, nullptr, OutVReg(), Imm(1));
 
   auto a_tp = bb1->allocateInstr(
-      Opcode::kMove, nullptr, OutVReg(), Ind(a, offsetof(PyObject, ob_type)));
+      Opcode::kLoad, nullptr, OutVReg(), Ind(a, offsetof(PyObject, ob_type)));
   auto eq1 = bb1->allocateInstr(
       Opcode::kCompare,
       nullptr,
@@ -934,12 +936,12 @@ TEST_F(BackendTest, CastTest) {
 
   // BB4 : return null
   auto a_name = bb4->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutVReg(),
       Ind(a_tp, offsetof(PyTypeObject, tp_name)));
   auto b_name = bb4->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutVReg(),
       Ind(b, offsetof(PyTypeObject, tp_name)));
@@ -1039,7 +1041,7 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
       OutPhyReg{R10},
       Imm{reinterpret_cast<uint64_t>(&dst)});
   bb0->allocateInstr(
-      Opcode::kMove, nullptr, OutInd{R10, 0, Operand::k64bit}, VReg{loaded});
+      Opcode::kStore, nullptr, OutInd{R10, 0, Operand::k64bit}, VReg{loaded});
   bb0->allocateInstr(
       Opcode::kBranchCC, nullptr, Condition::kZero, Lbl{bb_taken});
   bb0->addSuccessor(bb_taken);
@@ -1205,7 +1207,7 @@ BB %0 - succs: %8
        %2:Object = LoadArg 1(0x1):64bit
 
 BB %8 - preds: %0 - succs: %10 %9
-      %15:Object = Move [%1:Object + {0:#x}]:Object
+      %15:Object = Load [%1:Object + {0:#x}]:Object
       %16:Object = Equal %15:Object, %2:Object
                    CondBranch %16:Object
 
@@ -1214,8 +1216,8 @@ BB %9 - preds: %8 - succs: %10 %11
                    CondBranch %18:Object
 
 BB %11 - preds: %9 - succs: %12
-      %22:Object = Move [%15:Object + {1:#x}]:Object
-      %23:Object = Move [%2:Object + {1:#x}]:Object
+      %22:Object = Load [%15:Object + {1:#x}]:Object
+      %23:Object = Load [%2:Object + {1:#x}]:Object
                    Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
       %25:Object = Move 0(0x0):Object
 
@@ -1327,7 +1329,7 @@ BB %0 - succs: %8
 BB %8 - preds: %0 - succs: %10 %9
       %29:Object = Move %1:Object
 %30:ObjectUntagged = And %29:Object, 18446744073709551614(0xfffffffffffffffe):64bit
-      %15:Object = Move [%30:ObjectUntagged + 0x18]:Object
+      %15:Object = Load [%30:ObjectUntagged + 0x18]:Object
       %31:Object = Move %15:Object
 %32:ObjectUntagged = And %31:Object, 18446744073709551614(0xfffffffffffffffe):64bit
       %33:Object = Move %2:Object
@@ -1346,10 +1348,10 @@ BB %9 - preds: %8 - succs: %10 %11
 BB %11 - preds: %9 - succs: %12
       %39:Object = Move %15:Object
 %40:ObjectUntagged = And %39:Object, 18446744073709551614(0xfffffffffffffffe):64bit
-      %22:Object = Move [%40:ObjectUntagged + 0x28]:Object
+      %22:Object = Load [%40:ObjectUntagged + 0x28]:Object
       %41:Object = Move %2:Object
 %42:ObjectUntagged = And %41:Object, 18446744073709551614(0xfffffffffffffffe):64bit
-      %23:Object = Move [%42:ObjectUntagged + 0x28]:Object
+      %23:Object = Load [%42:ObjectUntagged + 0x28]:Object
       %43:Object = Move %23:Object
 %44:ObjectUntagged = And %43:Object, 18446744073709551614(0xfffffffffffffffe):64bit
       %45:Object = Move %22:Object
@@ -1384,7 +1386,7 @@ BB %0 - succs: %8
        %2:Object = Bind {1}:Object
 
 BB %8 - preds: %0 - succs: %10 %9
-      %15:Object = Move [%1:Object + 0x8]:Object
+      %15:Object = Load [%1:Object + 0x8]:Object
       %16:Object = Equal %15:Object, %2:Object
                    CondBranch %16:Object
 
@@ -1395,8 +1397,8 @@ BB %9 - preds: %8 - succs: %10 %11
       R"(                   CondBranch %18:Object
 
 BB %11 - preds: %9 - succs: %12
-      %22:Object = Move [%15:Object + 0x18]:Object
-      %23:Object = Move [%2:Object + 0x18]:Object
+      %22:Object = Load [%15:Object + 0x18]:Object
+      %23:Object = Load [%2:Object + 0x18]:Object
 )"
       R"(                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
 )"
@@ -1678,12 +1680,12 @@ TEST_F(BackendTest, PeepholeSkipsScratchPairWhenOffsetOutOfRange) {
     auto func = std::make_unique<Function>();
     auto* bb = func->allocateBasicBlock();
     bb->allocateInstr(
-        Opcode::kMove,
+        Opcode::kStore,
         nullptr,
         OutStk{PhyLocation(lo, 64), DataType::k64bit},
         PhyReg{reg0, DataType::k64bit});
     bb->allocateInstr(
-        Opcode::kMove,
+        Opcode::kStore,
         nullptr,
         OutStk{PhyLocation(lo + 8, 64), DataType::k64bit},
         PhyReg{reg1, DataType::k64bit});
@@ -1791,12 +1793,12 @@ TEST_F(BackendTest, FarStackStoreDoesNotClobberItsValue) {
         OutPhyReg{arch::reg_scratch_0_loc, DataType::k64bit},
         PhyReg{ARGUMENT_REGS[0], DataType::k64bit});
     bb->allocateInstr(
-        Opcode::kMove,
+        Opcode::kStore,
         nullptr,
         OutStk{PhyLocation(slot, 64), DataType::k64bit},
         PhyReg{arch::reg_scratch_0_loc, DataType::k64bit});
     bb->allocateInstr(
-        Opcode::kMove,
+        Opcode::kLoad,
         nullptr,
         OutPhyReg{arch::reg_general_return_loc, DataType::k64bit},
         Stk{PhyLocation(slot, 64), DataType::k64bit});

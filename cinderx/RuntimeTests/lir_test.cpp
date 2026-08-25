@@ -820,9 +820,9 @@ def func(value):
 
   auto lir_str = getLIRString(pyfunc.get());
   const std::regex scaled_array_load{
-      R"(:Object = Move \[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object)"};
+      R"(:Object = Load \[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object)"};
   const std::regex scaled_array_store{
-      R"(\[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object = Move %\d+:Object)"};
+      R"(\[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object = Store %\d+:Object)"};
 
   EXPECT_TRUE(std::regex_search(lir_str, scaled_array_load)) << lir_str;
   EXPECT_TRUE(std::regex_search(lir_str, scaled_array_store)) << lir_str;

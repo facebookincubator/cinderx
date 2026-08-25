@@ -278,7 +278,7 @@ BB %0
   const char* expected_lir_str = R"(Function:
 BB %0
       %12:Object = Move 74565(0x12345):Object
-      %10:Object = Move [%12:Object]:Object
+      %10:Object = Load [%12:Object]:Object
                    Return %10:Object
 
 )";

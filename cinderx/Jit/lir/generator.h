@@ -149,10 +149,10 @@ class LIRGenerator {
         func,
         VReg{ret_struct},
         std::forward<Args>(args)...);
-    bbb.appendInstr(dst, Opcode::kMove, Ind{ret_struct, 0});
+    bbb.appendInstr(dst, Opcode::kLoad, Ind{ret_struct, 0});
     bbb.appendInstr(
         OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
-        Opcode::kMove,
+        Opcode::kLoad,
         Ind{ret_struct, 8});
 #else
     bbb.appendInstr(dst, Opcode::kCall, func, std::forward<Args>(args)...);
@@ -176,8 +176,8 @@ class LIRGenerator {
         func,
         VReg{ret_struct},
         std::forward<Args>(args)...);
-    first_out = bbb.appendInstr(OutVReg{}, Opcode::kMove, Ind{ret_struct, 0});
-    second_out = bbb.appendInstr(OutVReg{}, Opcode::kMove, Ind{ret_struct, 8});
+    first_out = bbb.appendInstr(OutVReg{}, Opcode::kLoad, Ind{ret_struct, 0});
+    second_out = bbb.appendInstr(OutVReg{}, Opcode::kLoad, Ind{ret_struct, 8});
 #else
     first_out = bbb.appendInstr(
         OutVReg{}, Opcode::kCall, func, std::forward<Args>(args)...);
