@@ -100,7 +100,6 @@ namespace cinderx::jit::hir {
   V(LoadFieldAddress)              \
   V(LoadArg)                       \
   V(LoadAttr)                      \
-  V(LoadAttrCached)                \
   V(LoadAttrSpecial)               \
   V(LoadAttrSuper)                 \
   V(LoadCellItem)                  \
@@ -161,7 +160,6 @@ namespace cinderx::jit::hir {
   V(SwapCellItem)                  \
   V(StoreArrayItem)                \
   V(StoreAttr)                     \
-  V(StoreAttrCached)               \
   V(StoreField)                    \
   V(StoreSubscr)                   \
   V(TpAlloc)                       \

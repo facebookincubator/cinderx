@@ -3849,9 +3849,8 @@ void HIRBuilder::emitStoreAttr(
   Register* value = tc.frame.stack.pop();
   // Since 3.16 (gh-145855) `del obj.attr` is compiled as PUSH_NULL; STORE_ATTR,
   // where a NULL value performs the delete. Route that to DeleteAttr, which
-  // lowers to PyObject_SetAttr(recv, name, NULL); a plain StoreAttr would be
-  // rewritten to a StoreAttrCached whose inline cache cannot represent a
-  // delete. Earlier versions emit DELETE_ATTR directly (see emitDeleteAttr).
+  // lowers to PyObject_SetAttr(recv, name, NULL); a plain StoreAttr would
+  // use an inline cache that cannot handle delete.
   if constexpr (PY_VERSION_HEX >= 0x03100000) {
     Instr* value_def = value->instr();
     if (value_def != nullptr && value_def->isLoadConst() &&

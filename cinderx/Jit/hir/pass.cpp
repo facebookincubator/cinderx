@@ -222,7 +222,6 @@ Type outputType(
     case Opcode::kInvokeIterNext:
     case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
-    case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
@@ -564,7 +563,6 @@ Type outputType(
     case Opcode::kSnapshot:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
     case Opcode::kStoreField:
     case Opcode::kStoreSubscr:
     case Opcode::kUnreachable:

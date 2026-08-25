@@ -2930,7 +2930,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    StoreAttrCached<0; "foo"> v6 v7 {
+    StoreAttr<0; "foo"> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 6
@@ -2963,7 +2963,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    StoreAttrCached<0; "foo"> v6 v7 {
+    StoreAttr<0; "foo"> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 4
@@ -2996,7 +2996,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    StoreAttrCached<0; "foo"> v6 v7 {
+    StoreAttr<0; "foo"> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 6
@@ -3029,7 +3029,7 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    StoreAttrCached<0; "foo"> v6 v7 {
+    StoreAttr<0; "foo"> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 6

@@ -2443,24 +2443,9 @@ class INSTR_CLASS(
   bool already_optimized_;
 };
 
-// Variant of LoadAttr that uses an inline cache.
-DEFINE_SIMPLE_INSTR(
-    LoadAttrCached,
-    (TObject),
-    HasOutput,
-    Operands<1>,
-    DeoptBaseWithNameIdx);
-
 // Set the attribute of an object.
 DEFINE_SIMPLE_INSTR(
     StoreAttr,
-    (TObject, TObject),
-    Operands<2>,
-    DeoptBaseWithNameIdx);
-
-// Variant of StoreAttr that uses an inline cache.
-DEFINE_SIMPLE_INSTR(
-    StoreAttrCached,
     (TObject, TObject),
     Operands<2>,
     DeoptBaseWithNameIdx);

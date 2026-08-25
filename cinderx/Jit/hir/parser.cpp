@@ -448,14 +448,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<LoadAttr>(dst, receiver, idx);
       break;
     }
-    case Opcode::kLoadAttrCached: {
-      expect("<");
-      int idx = getNextNameIdx();
-      expect(">");
-      auto receiver = parseRegister();
-      instruction = newInstr<LoadAttrCached>(dst, receiver, idx);
-      break;
-    }
     case Opcode::kLoadConst: {
       expect("<");
       Type ty = parseType(getNextToken());
@@ -490,15 +482,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       auto receiver = parseRegister();
       auto value = parseRegister();
       instruction = newInstr<StoreAttr>(receiver, value, idx);
-      break;
-    }
-    case Opcode::kStoreAttrCached: {
-      expect("<");
-      int idx = getNextNameIdx();
-      expect(">");
-      auto receiver = parseRegister();
-      auto value = parseRegister();
-      instruction = newInstr<StoreAttrCached>(receiver, value, idx);
       break;
     }
     case Opcode::kGetLength: {

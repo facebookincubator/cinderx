@@ -148,7 +148,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kIsTruthy:
     case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
-    case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
@@ -191,7 +190,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kSetSetItem:
     case Opcode::kSetUpdate:
     case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
     case Opcode::kStoreSubscr:
       return {true, AEmpty, {}, AManagedHeapAny};
 
@@ -519,7 +517,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kIsTruthy:
     case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
-    case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
@@ -543,7 +540,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kSetSetItem:
     case Opcode::kSetUpdate:
     case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
     case Opcode::kStoreSubscr:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:

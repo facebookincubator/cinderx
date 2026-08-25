@@ -426,7 +426,7 @@ LAYOUTS: dict[str, Layout] = {
     # variable rather than a module global.  ``module`` above is compiled with
     # the receiver statically known, so it is served by LoadModuleAttrCache and
     # never reaches the attribute cache at all; this one leaves the JIT unable
-    # to prove the receiver is a module, so it goes through LoadAttrCached and
+    # to prove the receiver is a module, so it goes through a cache and
     # is the only workload that exercises discovering a module at runtime.
     "dynmodule": Layout(
         "module reached through an untyped local rather than a global",

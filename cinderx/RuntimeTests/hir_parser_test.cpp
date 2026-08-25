@@ -25,7 +25,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
               v0 = InitialYield
               CheckVar<-1> v0 {
               }
-              v1 = LoadAttrCached<0> v0
+              v1 = LoadAttr<0> v0
               CheckExc v1 {
               }
               Incref v1
@@ -91,7 +91,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kCheckVar);
   ++it;
   ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kLoadAttrCached);
+  ASSERT_EQ(it->opcode(), Opcode::kLoadAttr);
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCheckExc);

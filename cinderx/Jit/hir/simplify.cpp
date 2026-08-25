@@ -2047,10 +2047,6 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
     if (Register* reg = simplifyLoadAttrTypeReceiver(env, load_attr)) {
       return reg;
     }
-    return env.emit<LoadAttrCached>(
-        load_attr->getOperand(0),
-        load_attr->nameIdx(),
-        *load_attr->frameState());
   }
   return nullptr;
 }
@@ -2089,17 +2085,6 @@ Register* simplifyIsNegativeAndErrOccurred(
   // still have access to the result. Otherwise, DCE will take care of this.
   Type output_type = instr->output()->type();
   return env.emit<LoadConst>(Type::fromCInt(0, output_type));
-}
-
-Register* simplifyStoreAttr(Env& env, const StoreAttr* store_attr) {
-  if (getConfig().attr_caches) {
-    return env.emit<StoreAttrCached>(
-        store_attr->getOperand(0),
-        store_attr->getOperand(1),
-        store_attr->nameIdx(),
-        *store_attr->frameState());
-  }
-  return nullptr;
 }
 
 static bool isBuiltin(PyMethodDef* meth, const char* name) {
@@ -2637,9 +2622,6 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kIsNegativeAndErrOccurred:
       return simplifyIsNegativeAndErrOccurred(
           env, static_cast<const IsNegativeAndErrOccurred*>(instr));
-
-    case Opcode::kStoreAttr:
-      return simplifyStoreAttr(env, static_cast<const StoreAttr*>(instr));
 
     case Opcode::kCallMethod:
       return simplifyCallMethod(env, static_cast<const CallMethod*>(instr));

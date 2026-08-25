@@ -501,7 +501,7 @@ struct AttributeCacheSizeTrait {
   }
 };
 
-// A cache for an individual StoreAttrCached instruction.
+// A cache for an individual StoreAttr instruction.
 //
 // The logic of StoreAttrCache::invoke is equivalent to PyObject_SetAttr,
 // however, it can be specialized and accelerated depending on the kinds of
@@ -576,7 +576,7 @@ class StoreAttrCache : public AttributeCache {
   static StoreAttrTarget targetForKind(AttributeMutator::Kind kind);
 };
 
-// A cache for an individual LoadAttrCached instruction.
+// A cache for an individual LoadAttr instruction.
 //
 // The logic of LoadAttrCache::invoke is equivalent to PyObject_GetAttr,
 // however, it can be specialized and accelerated depending on the kinds of

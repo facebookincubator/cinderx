@@ -3174,27 +3174,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
-        bbb.appendCallInstruction(dst, PyObject_GetAttr, base, name);
-        break;
-      }
-      case hir::Opcode::kLoadAttrCached: {
-        JIT_DCHECK(
-            getConfig().attr_caches,
-            "Inline caches must be enabled to use LoadAttrCached");
-        auto instr = static_cast<const LoadAttrCached*>(&i);
-        hir::Register* dst = instr->output();
-        hir::Register* base = instr->getOperand(0);
-        Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = inline_cache_storage_.allocateLoadAttrCache(
-            instr->bytecodeOffset());
-        if constexpr (kInlineCachesTargetPromote) {
-          // The cache picks its own entry point based on how many entries it
-          // holds, so load the callee from the cache rather than baking it in.
-          bbb.appendIndirectCallInstruction(
-              dst, cache->targetAddr(), base, name, cache);
+        if (getConfig().attr_caches) {
+          auto cache = inline_cache_storage_.allocateLoadAttrCache(
+              instr->bytecodeOffset());
+          if constexpr (kInlineCachesTargetPromote) {
+            // The cache picks its own entry point based on how many entries it
+            // holds, so load the callee from the cache rather than baking it
+            // in.
+            bbb.appendIndirectCallInstruction(
+                dst, cache->targetAddr(), base, name, cache);
+          } else {
+            bbb.appendCallInstruction(
+                dst, jit::LoadAttrCache::invoke, base, name, cache);
+          }
         } else {
-          bbb.appendCallInstruction(
-              dst, jit::LoadAttrCache::invoke, base, name, cache);
+          bbb.appendCallInstruction(dst, PyObject_GetAttr, base, name);
         }
         break;
       }
@@ -3876,45 +3870,38 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         break;
       }
       case hir::Opcode::kStoreAttr: {
-        auto instr = static_cast<const StoreAttrCached*>(&i);
+        auto instr = static_cast<const StoreAttr*>(&i);
         hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         hir::Register* value = instr->getOperand(1);
-        Instruction* result = bbb.appendCallInstruction(
-            OutVReg{Operand::k32bit}, PyObject_SetAttr, base, name, value);
-        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
-        break;
-      }
-      case hir::Opcode::kStoreAttrCached: {
-        JIT_DCHECK(
-            getConfig().attr_caches,
-            "Inline caches must be enabled to use StoreAttrCached");
-        auto instr = static_cast<const StoreAttrCached*>(&i);
-        hir::Register* base = instr->getOperand(0);
-        Instruction* name = getNameFromIdx(bbb, instr);
-        hir::Register* value = instr->getOperand(1);
-        auto cache = inline_cache_storage_.allocateStoreAttrCache(
-            instr->bytecodeOffset());
-        // See kLoadAttrCached: the callee lives in the cache.
-        Instruction* result;
-        if constexpr (kInlineCachesTargetPromote) {
-          result = bbb.appendIndirectCallInstruction(
-              OutVReg{Operand::k32bit},
-              cache->targetAddr(),
-              base,
-              name,
-              value,
-              cache);
+        if (getConfig().attr_caches) {
+          auto cache = inline_cache_storage_.allocateStoreAttrCache(
+              instr->bytecodeOffset());
+          // See kLoadAttr: the callee lives in the cache.
+          Instruction* result;
+          if constexpr (kInlineCachesTargetPromote) {
+            result = bbb.appendIndirectCallInstruction(
+                OutVReg{Operand::k32bit},
+                cache->targetAddr(),
+                base,
+                name,
+                value,
+                cache);
+          } else {
+            result = bbb.appendCallInstruction(
+                OutVReg{Operand::k32bit},
+                jit::StoreAttrCache::invoke,
+                base,
+                name,
+                value,
+                cache);
+          }
+          appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         } else {
-          result = bbb.appendCallInstruction(
-              OutVReg{Operand::k32bit},
-              jit::StoreAttrCache::invoke,
-              base,
-              name,
-              value,
-              cache);
+          Instruction* result = bbb.appendCallInstruction(
+              OutVReg{Operand::k32bit}, PyObject_SetAttr, base, name, value);
+          appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         }
-        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }
       case hir::Opcode::kVectorCall: {
@@ -5332,7 +5319,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         case hir::Opcode::kRaise:
         case hir::Opcode::kRaiseStatic:
         case hir::Opcode::kStoreAttr:
-        case hir::Opcode::kStoreAttrCached:
         case hir::Opcode::kStoreSubscr: {
           break;
         }

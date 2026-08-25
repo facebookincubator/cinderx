@@ -564,7 +564,6 @@ bool Instr::isReplayable() const {
     case Opcode::kListExtend:
     case Opcode::kListSubscr:
     case Opcode::kLoadAttr:
-    case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
@@ -607,7 +606,6 @@ bool Instr::isReplayable() const {
     case Opcode::kSnapshot:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
     case Opcode::kStoreSubscr:
     case Opcode::kTpAlloc:
     case Opcode::kUnaryOp:
@@ -848,7 +846,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadArg:
     case Opcode::kLoadArrayItem:
     case Opcode::kLoadAttr:
-    case Opcode::kLoadAttrCached:
     case Opcode::kLoadAttrSpecial:
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadCellItem:
@@ -907,7 +904,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kSwapCellItem:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
     case Opcode::kStoreSubscr:
     case Opcode::kTpAlloc:
     case Opcode::kUnaryOp:

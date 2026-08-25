@@ -731,7 +731,7 @@ TEST_F(LIRGeneratorTest, AttrCachesOn) {
   if constexpr (kFreeThreadedBuild) {
     // Attribute inline caches are not supported on free-threaded builds
     // (Config::attr_caches defaults to false there, see T250369692), so
-    // LoadAttrCached is never emitted and there is nothing to check.
+    // Inline caches are never emitted and there is nothing to check.
     GTEST_SKIP();
   }
   getMutableConfig().attr_caches = true;

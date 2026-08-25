@@ -31,13 +31,25 @@ from cinderx.test_support import (
 
 
 class AttrLoadType:
-    """Module-level type used to give the JIT an exact receiver type so
-    LoadAttr on an instance goes through simplifyLoadAttrInstanceReceiver."""
+    """Receiver type for test_load_attr_instance_background_compile.
 
-    cls_attr = 123
+    ``__slots__`` makes ``inst_attr`` a member descriptor, which is the one
+    simplifyLoadAttrInstanceReceiver case that removes the LoadAttr outright on
+    every supported version. The split-dict case leaves a fallback LoadAttr
+    behind on 3.14+, and the property case can be undone by inlining."""
+
+    __slots__ = ("inst_attr",)
 
     def __init__(self) -> None:
         self.inst_attr = 7
+
+
+# simplifyLoadAttrInstanceReceiver only fires when the receiver's type is
+# statically known to be exact. That happens for a global (LoadGlobalCached
+# pins the value with a GuardIs), but not for a locally constructed instance:
+# calling a user-defined type yields a plain TObject, so the LoadAttr stays
+# generic.
+ATTR_LOAD_INSTANCE = AttrLoadType()
 
 
 from .test_jit_pipeline_stress import make_function
@@ -727,9 +739,13 @@ def target_func(obj):
         func: Any,
         absent_opcodes: tuple[str, ...],
         *args: Any,
+        present_opcodes: tuple[str, ...] = (),
     ) -> Any:
         """Trigger a background compile of ``func``, wait for it, and assert it
-        JIT-compiled with every opcode in ``absent_opcodes`` folded away.
+        JIT-compiled with every opcode in ``absent_opcodes`` folded away and
+        every opcode in ``present_opcodes`` emitted. Pass ``present_opcodes``
+        whenever the absence of an opcode would also hold if the optimization
+        being tested never ran at all.
         Returns the interpreted result from the first (triggering) call."""
         # First call runs interpreted and enqueues the background compile.
         result = func(*args)
@@ -739,6 +755,8 @@ def target_func(obj):
         self.assertIsNotNone(counts)
         for opcode in absent_opcodes:
             self.assertNotIn(opcode, cast(dict[str, int], counts))
+        for opcode in present_opcodes:
+            self.assertIn(opcode, cast(dict[str, int], counts))
         return result
 
     def test_int_constant_binary_op_background_compile(self) -> None:
@@ -804,16 +822,20 @@ def target_func(obj):
         through simplifyLoadAttrInstanceReceiver -> ensureVersionTag.
         ensureVersionTag previously required the shared-data lock (a JIT_CHECK
         that would abort during a GIL-free background compile); it now assigns
-        the type version tag under a ThreadedCompileGILHolder.  Constructing the
-        instance in-function gives the receiver an exact type so the fast path
-        (LoadField / split-dict) is taken instead of a generic LoadAttr.
+        the type version tag under a ThreadedCompileGILHolder.  Reading the
+        receiver out of a global gives it an exact type, so the load lowers to
+        the member-descriptor fast path (LoadField + CheckField) rather than a
+        generic LoadAttr.
         """
 
         def test_func() -> int:
-            obj = AttrLoadType()
-            return obj.inst_attr
+            return ATTR_LOAD_INSTANCE.inst_attr
 
-        result = self._assert_folded_in_background(test_func, ("LoadAttr",))
+        result = self._assert_folded_in_background(
+            test_func,
+            ("LoadAttr",),
+            present_opcodes=("LoadField", "CheckField"),
+        )
         self.assertEqual(result, 7)
         self.assertEqual(test_func(), result)
 

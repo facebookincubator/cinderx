@@ -222,8 +222,7 @@ struct Config {
   size_t max_lir_blocks{5000};
   // Maximum number of LIR instructions we can support for a single function.
   size_t max_lir_instrs{80000};
-  // Size (in number of entries) of the LoadAttrCached and StoreAttrCached
-  // inline caches used by the JIT.
+  // Size (in number of entries) of the inline attribute caches used by the JIT.
   uint32_t attr_cache_size{4};
   std::optional<uint32_t> compile_after_n_calls;
   GdbOptions gdb;
