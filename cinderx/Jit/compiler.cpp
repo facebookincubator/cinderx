@@ -191,6 +191,7 @@ PassConfig createConfig() {
       PassConfig::kBeginInlinedFunctionElim);
   set(hir_opts.builtin_load_method_elim, PassConfig::kBuiltinLoadMethodElim);
   set(hir_opts.clean_cfg, PassConfig::kCleanCFG);
+  set(hir_opts.dead_code_elim, PassConfig::kDeadCodeElim);
   set(hir_opts.dynamic_comparison_elim, PassConfig::kDynamicComparisonElim);
   set(hir_opts.guard_type_removal, PassConfig::kGuardTypeRemoval);
   set(hir_opts.inliner, PassConfig::kInliner);
