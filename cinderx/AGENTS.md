@@ -110,7 +110,27 @@ If the instruction needs to call a custom runtime helper function:
 - Declare it in **Jit/jit_rt.h**
 - Implement it in **Jit/jit_rt.cpp**
 
+## Handling JIT compile-time errors
+
+If an error is hit when JIT-compiling a Python function, the preference is to
+raise a C++ exception. This will unwind the stack and silently fail the compile,
+causing the Python function to return back to the interpreter as usual.
+
+The `JIT_THROW` and `JIT_THROW_IF` macros make it easy to raise an exception
+that is tagged with the offending file and line number, to make debugging
+easier. These are the preferred tool for handling irrecoverable JIT-compilation
+errors.
+
+The `JIT_ABORT` and `JIT_CHECK` macros are similar but will crash the entire
+process, which is usually undesirable. They should be used sparingly, and in
+very restricted scenarios where throwing a C++ exception does not make sense.
+
+The `JIT_DCHECK` macro is intended for invariants that we'd like to enforce, but
+cannot do so in production builds because they lie in performance-sensitive code
+paths (e.g. the function vectorcall entry point that we install).
+
 ## Investigating JIT failures
+
 If you're investigating a JIT issue you may want to isolate the issue to a
 single function.  You can use `cinderx.jit.force_compile` to compile an
 individual function if you suspect that a specific function is problematic.
