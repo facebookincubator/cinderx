@@ -4,14 +4,11 @@
 
 #include "cinderx/Jit/stack_walk.h"
 
-#include <pthread.h>
-#include <semaphore.h>
-#include <sys/mman.h>
-#ifdef __APPLE__
-#include <sys/ucontext.h>
-#else
-#include <ucontext.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
 #endif
+#include <pthread.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -20,6 +17,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -83,9 +81,11 @@ namespace {
 
 constexpr size_t kBatchSize = StackWalkTestAccess::kBatchSize;
 
+#if !defined(__APPLE__)
 // Short enough that a test can wait out a park several times over, long enough
-// that ordinary scheduling noise does not trip it.
+// that ordinary scheduling noise does not trip it. Darwin parks nobody.
 constexpr auto kTestParkTimeout = std::chrono::milliseconds{50};
+#endif
 
 // A thread that parks in a known-deep call chain until it is told to stop, so
 // that a cross-thread walk has something stable to find. `extra_frames`
@@ -487,10 +487,39 @@ class HostileAddressTest : public ::testing::Test {
   // readable turns the tests below into no-ops that pass. Checked rather than
   // assumed, so that shows up as this failing instead of as the walker
   // appearing not to reject the address.
+  //
+  // Put to the kernel's map rather than to the walker's own safe read, which
+  // is the thing under test.
   void assertHoleIsUnmapped() {
+#if defined(__APPLE__)
+    // Darwin's mincore() has no ENOMEM case at all: it reports an unmapped
+    // page as merely not resident and succeeds, so only the Linux/BSD
+    // spelling of the call can answer this. vm_region hands back the first
+    // mapping whose end lies above the address it is given, so an unmapped
+    // page is either no mapping at all or one that begins past the end of it.
+    vm_address_t region = reinterpret_cast<vm_address_t>(hole_);
+    vm_size_t region_size = 0;
+    natural_t depth = 0;
+    struct vm_region_submap_info_64 info;
+    mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    const kern_return_t kr = ::vm_region_recurse_64(
+        ::mach_task_self(),
+        &region,
+        &region_size,
+        &depth,
+        reinterpret_cast<vm_region_recurse_info_t>(&info),
+        &count);
+    if (kr == KERN_SUCCESS) {
+      ASSERT_GE(region, reinterpret_cast<vm_address_t>(hole_ + page_))
+          << "something has mapped the hole";
+    } else {
+      ASSERT_EQ(kr, KERN_INVALID_ADDRESS) << "the address space is unreadable";
+    }
+#else
     unsigned char resident = 0;
     ASSERT_EQ(::mincore(hole_, page_, &resident), -1);
     ASSERT_EQ(errno, ENOMEM) << "something has mapped the hole";
+#endif
   }
 
   // Steps a one-record chain whose caller is `next`, and reports where the
@@ -749,6 +778,9 @@ TEST(StackWalkThreadTest, CallbackReturningFalseStopsACrossThreadWalk) {
 // A regression here hangs rather than fails - the sampler's wait for a batch
 // has no timeout, and the target that would have run one out is not parked -
 // so the symptom to expect is a test that never finishes.
+//
+// Darwin has no batch protocol and so no boundary to cross; the sweep still
+// runs there, as a plain check that walks of every depth deliver their frames.
 TEST(StackWalkBatchBoundaryTest, WalksAtEveryDepthResidueFinish) {
   StackWalk sw;
 
@@ -775,6 +807,103 @@ TEST(StackWalkBatchBoundaryTest, WalksAtEveryDepthResidueFinish) {
   // stop exercising the boundary it exists to cover.
   EXPECT_GT(deepest, kBatchSize);
 }
+
+#if defined(__APPLE__)
+
+// Darwin stops a target from the outside instead of signalling it, so
+// everything below this point in the file - parks, signal discovery, the gate
+// that decides which delivery to answer, the handler's way out - describes
+// machinery that does not exist here. What replaces it has one unforgiving
+// requirement of its own, and these cover that.
+
+// thread_suspend is counted: a target that is not resumed never runs again. So
+// every path out of a walk owes exactly one resume, including the paths that do
+// not return normally.
+//
+// A regression hangs rather than fails - waitForProgress() waits for laps a
+// suspended thread will never add - which is the same shape as the batch
+// protocol's failures on the other platform.
+TEST(StackWalkSuspendTest, ATargetIsResumedAfterACallbackThrows) {
+  StackWalk sw;
+  SpinningThread other;
+  PyThreadState tstate = fakeThreadState(other.id());
+
+  EXPECT_THROW(
+      sw.walk(
+          &tstate,
+          [](const void*, const void*) -> bool {
+            throw std::runtime_error{"thrown from the callback"};
+          }),
+      std::runtime_error);
+
+  // Running again is the whole assertion.
+  waitForProgress(other);
+
+  // And the walker is still usable, since nothing was left half done.
+  size_t frames = 0;
+  ASSERT_EQ(
+      sw.walk(
+          &tstate,
+          [&](const void*, const void*) {
+            frames++;
+            return true;
+          }),
+      WalkResult::Completed);
+  EXPECT_GT(frames, 1u);
+}
+
+// The other early exit: a callback that stops the walk part way leaves the rest
+// of the chain unwalked, and the target running again all the same.
+TEST(StackWalkSuspendTest, ATargetIsResumedAfterAnEarlyStop) {
+  StackWalk sw;
+  SpinningThread other;
+  PyThreadState tstate = fakeThreadState(other.id());
+
+  size_t frames = 0;
+  ASSERT_EQ(
+      sw.walk(
+          &tstate,
+          [&](const void*, const void*) {
+            frames++;
+            return false;
+          }),
+      WalkResult::Completed);
+  EXPECT_EQ(frames, 1u);
+
+  waitForProgress(other);
+}
+
+// Nothing is claimed in order to reach a target, so unlike the signalled
+// mechanism there is no process in which cross-thread walking is unavailable.
+TEST(StackWalkSuspendTest, EveryWalkerCanSampleOtherThreads) {
+  StackWalk sw;
+
+  EXPECT_TRUE(sw.canSampleOtherThreads());
+  EXPECT_EQ(sw.signum(), StackWalk::kAutoSignum);
+}
+
+// One instance at a time is a signalled-mechanism restriction: a handler cannot
+// be given a context pointer, so it reaches its instance through a global.
+// Nothing here installs a handler.
+TEST(StackWalkSuspendTest, TwoWalkersCanCoexist) {
+  StackWalk first;
+  StackWalk second;
+  SpinningThread other;
+  PyThreadState tstate = fakeThreadState(other.id());
+
+  size_t frames = 0;
+  ASSERT_EQ(
+      second.walk(
+          &tstate,
+          [&](const void*, const void*) {
+            frames++;
+            return true;
+          }),
+      WalkResult::Completed);
+  EXPECT_GT(frames, 1u);
+}
+
+#else
 
 // A sampler that stalls - or that something else suspends - must not leave the
 // thread it signalled parked in a signal handler for good. The target gives up
@@ -1456,5 +1585,7 @@ TEST(StackWalkHandlerExitTest, AWalkerStaysSafeToDestroyAfterATimedOutWalk) {
     ASSERT_GT(frames, 1u) << "round " << i;
   }
 }
+
+#endif // !defined(__APPLE__)
 
 } // namespace

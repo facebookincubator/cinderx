@@ -505,9 +505,8 @@ if (BUILD_RUNTIME_TESTS)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
   endif()
 
-  # Stack walking is stubbed out on Windows and compile-only on macOS, where
-  # sem_init() fails with ENOSYS.
-  if (WINDOWS OR MACOS)
+  # Stack walking is stubbed out on Windows, so there is nothing there to test.
+  if (WINDOWS)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     # These tests walk native frame-pointer chains in their own fixture code.

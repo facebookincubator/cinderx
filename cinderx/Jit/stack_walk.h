@@ -7,8 +7,16 @@
 #include "cinderx/Common/util.h"
 
 #include <pthread.h>
-#include <semaphore.h>
 #include <signal.h>
+
+#if defined(__APPLE__)
+// Darwin stops a thread through Mach instead of interrupting it with a signal,
+// so it needs a port name here and none of the POSIX semaphore machinery. See
+// the StackWalk class comment for why the two platforms diverge.
+#include <mach/port.h>
+#else
+#include <semaphore.h>
+#endif
 
 #include <array>
 #include <atomic>
@@ -96,29 +104,45 @@ enum class WalkResult {
   TimedOut,
 };
 
-// Samples another thread's native call stack by interrupting it with a signal.
+// Samples another thread's native call stack while it is stopped, so the
+// addresses handed to the callback always describe a stack that is still live.
 //
-// The target thread walks its own frames inside the handler and parks until the
-// sampling thread is finished, so the addresses handed to the callback always
-// describe a stack that is still live.
+// How a thread is stopped is the one thing that differs between platforms, and
+// the difference is large enough that the two mechanisms share only the frame
+// model, the cursor, and the fault-safe read.
 //
-// Stacks of any depth are supported. The target publishes frames a batch at a
-// time into a fixed buffer; once the sampler has drained a batch it wakes the
-// target, which resumes the walk where it left off. The target stays inside the
-// handler for the whole sequence, so the frames remain frozen across batches
-// and the batching is invisible to the callback.
+// On Darwin the thread is stopped from the outside. thread_suspend() holds it,
+// thread_get_state() reads the registers the walk starts from, and the sampler
+// follows the chain itself before thread_resume() lets the target go. Nothing
+// runs on the target thread at all, which is why none of the machinery below
+// this paragraph exists there.
 //
-// The sampling thread should do minimal work while the thread is suspended -
-// this includes not taking any locks. A target that has been parked for
-// kParkTimeout stops waiting and returns from the handler on its own, so a
-// sampler that stalls, or that is itself suspended by something else, costs a
-// truncated walk rather than a thread wedged in a signal handler for the life
-// of the process. The walk then reports WalkResult::TimedOut, and everything
-// it has not already delivered is lost: the stack those frames describe is
-// running again.
+// Everywhere else the thread is stopped from the inside, by interrupting it
+// with a signal. The target walks its own frames within the handler and parks
+// until the sampling thread is finished. Stacks of any depth are supported: the
+// target publishes frames a batch at a time into a fixed buffer, and once the
+// sampler has drained a batch it wakes the target, which resumes the walk where
+// it left off. The target stays inside the handler for the whole sequence, so
+// the frames remain frozen across batches and the batching is invisible to the
+// callback.
 //
-// Only one instance may exist at a time: a signal handler cannot be given a
-// context pointer, so the active instance is reached through a global.
+// The sampling thread should do minimal work while the thread is stopped - this
+// includes not taking any locks, on either mechanism, since a thread held
+// mid-allocation will deadlock a sampler that allocates.
+//
+// The signalled mechanism adds a bound the suspending one does not need. A
+// target that has been parked for kParkTimeout stops waiting and returns from
+// the handler on its own, so a sampler that stalls, or that is itself suspended
+// by something else, costs a truncated walk rather than a thread wedged in a
+// signal handler for the life of the process. The walk then reports
+// WalkResult::TimedOut, and everything it has not already delivered is lost:
+// the stack those frames describe is running again. A suspended target is never
+// waiting on its sampler, so a Darwin walk has nothing to time out and never
+// reports TimedOut.
+//
+// Only one instance may exist at a time, on the signalled mechanism: a signal
+// handler cannot be given a context pointer, so the active instance is reached
+// through a global. Darwin has no handler and so no such restriction.
 class StackWalk {
  public:
   using ThreadId = pthread_t;
@@ -130,6 +154,8 @@ class StackWalk {
   // endWalk(), nothing is left to release the target and it sits inside a
   // signal handler indefinitely. The cap turns that into a bounded delay and a
   // walk that comes back short.
+  //
+  // Means nothing on Darwin, where no target ever waits for its sampler.
   static constexpr std::chrono::nanoseconds kParkTimeout =
       std::chrono::seconds{1};
 
@@ -169,6 +195,10 @@ class StackWalk {
   // `park_timeout` controls how long a target signalled by this instance will
   // wait for it. Worth overriding only in tests, which would otherwise have to
   // sleep for a whole second to reach the timeout at all.
+  //
+  // Both arguments are accepted and ignored on Darwin, which reaches its
+  // targets through Mach rather than through a signal. They stay in the
+  // signature so that callers and tests are written once.
   explicit StackWalk(
       int signum = kAutoSignum,
       std::chrono::nanoseconds park_timeout = kParkTimeout);
@@ -185,26 +215,36 @@ class StackWalk {
   // Whether `thread` is the one calling this.
   static bool isCurrentThread(ThreadId thread);
 
-  // Whether this instance owns a signal, and so can sample threads other than
-  // the one calling it.
+  // Whether this instance can sample threads other than the one calling it.
   //
-  // False means the scan came up empty: every signal it would consider is
-  // already spoken for. walkSelf(), and the thread-state overload aimed at the
-  // calling thread, still work - neither involves a signal - and every
+  // False means the signal scan came up empty: every signal it would consider
+  // is already spoken for. walkSelf(), and the thread-state overload aimed at
+  // the calling thread, still work - neither involves a signal - and every
   // cross-thread walk reports WalkResult::Failed without disturbing the target.
+  //
+  // Always true on Darwin, which needs no signal to reach a target.
   bool canSampleOtherThreads() const {
+#if defined(__APPLE__)
+    return true;
+#else
     return signum_ > 0;
+#endif
   }
 
-  // The signal this instance sends, or kAutoSignum if it has none.
+  // The signal this instance sends, or kAutoSignum if it has none - which on
+  // Darwin is always, since nothing there is reached by signalling it.
   int signum() const {
+#if defined(__APPLE__)
+    return kAutoSignum;
+#else
     return signum_;
+#endif
   }
 
   // Forgets the signal chosen for this process and takes the handler back off
   // it, so the next instance scans afresh. Only for tests, which need each case
   // to start from a known state - production never gives a discovered signal
-  // back.
+  // back. A no-op on Darwin, which claims no signal to give back.
   static void resetSignumCache();
 
   // Reports the frames of the thread `tstate` is running on, innermost first,
@@ -231,6 +271,11 @@ class StackWalk {
   // on the calling thread while `thread` stays frozen; returning false stops
   // the walk early and lets the target resume without unwinding the rest.
   //
+  // Darwin freezes it by suspending it and reads its registers from here;
+  // everywhere else the target is interrupted and freezes itself. Which
+  // mechanism ran is invisible to the callback: both deliver the same frames in
+  // the same order.
+  //
   // `thread` must stay alive for the duration: a thread id outlives the thread
   // it named, and freezing a recycled one is undefined. Holding the GIL, or
   // stopping the world, is enough to guarantee that of a thread state's thread.
@@ -243,7 +288,8 @@ class StackWalk {
   // through, which it does once it has been parked for kParkTimeout. Frames
   // handed over before that are as good as any other; there are simply no more
   // of them, and a caller that kept an address out of one is now holding a
-  // pointer into a stack that has resumed.
+  // pointer into a stack that has resumed. A suspended target waits for nobody,
+  // so a Darwin walk never reports this.
   //
   // Both addresses arrive as `const void*`, the frame pointer deliberately so.
   // It is only ever a plausible address, never one known to be readable - a
@@ -252,6 +298,26 @@ class StackWalk {
   // advertise a read that is not safe to make.
   template <typename F>
   WalkResult walk(ThreadId thread, F&& callback) {
+#if defined(__APPLE__)
+    // Measured before the target is stopped rather than after. Deriving bounds
+    // reads the thread descriptor, and there is no reason to hold a thread
+    // still while doing it.
+    const StackBounds bounds = stackBoundsFor(thread);
+
+    SuspendedThread target{thread};
+    if (!target.valid()) {
+      return WalkResult::Failed;
+    }
+    // Everything from here to the end of the scope runs with `thread` held, so
+    // it is the callback rather than any of this that decides how long the
+    // target stays stopped. The destructor resumes it on every path out,
+    // including a callback that throws.
+    return walkStopped(
+        target.framePointer(),
+        target.programCounter(),
+        bounds.clampedToStackPointer(target.stackPointer()),
+        std::forward<F>(callback));
+#else
     if (!startWalk(thread)) {
       return WalkResult::Failed;
     }
@@ -288,6 +354,7 @@ class StackWalk {
                                      : WalkResult::Completed;
       }
     }
+#endif
   }
 
   // Walks the calling thread's own stack, invoking the same callback as
@@ -427,6 +494,105 @@ class StackWalk {
   // why nothing signalled can.
   static void ensureSafeReadInitialized();
 
+  // The stack of `thread`, remembered between walks. Measuring it is cheap for
+  // a spawned thread but not for the main one, and the deopt path walks the
+  // same thread over and over.
+  //
+  // A thread id outliving its thread and being reissued would make this stale.
+  // That is caught on the other side, where the bounds are checked against the
+  // stack pointer of the thread actually holding them.
+  StackBounds stackBoundsFor(ThreadId thread);
+
+#if defined(__APPLE__)
+  // Holds a thread stopped for as long as it is alive, and captures the
+  // registers a walk of it starts from.
+  //
+  // A scope guard rather than a pair of calls because thread_suspend is
+  // counted: a resume that does not happen leaves a thread that never runs
+  // again, and the walk between the two ends is a callback that may return
+  // early or throw. Tying the resume to a destructor is the only way to owe
+  // exactly one of them on every path out.
+  //
+  // Reading the registers is part of construction so that a caller cannot
+  // reach them without holding the guard that makes them meaningful.
+  class SuspendedThread {
+   public:
+    explicit SuspendedThread(ThreadId thread);
+    ~SuspendedThread();
+
+    SuspendedThread(const SuspendedThread&) = delete;
+    SuspendedThread(SuspendedThread&&) = delete;
+    SuspendedThread& operator=(const SuspendedThread&) = delete;
+    SuspendedThread& operator=(SuspendedThread&&) = delete;
+
+    // Whether the thread was stopped and its registers read, which is the only
+    // state in which the accessors below mean anything. False covers a thread
+    // that could not be suspended and one whose registers could not be read;
+    // the destructor resumes it either way, so the difference matters only to
+    // the walk.
+    bool valid() const {
+      return valid_;
+    }
+
+    // The frame-pointer register, which is where the chain starts.
+    const StackFrame* framePointer() const {
+      return frame_;
+    }
+
+    // The address the target was executing when it was stopped. Stored in no
+    // frame record, which is why the walk emits it separately.
+    const void* programCounter() const {
+      return pc_;
+    }
+
+    // The stack-pointer register, for vouching that the bounds measured
+    // beforehand really do describe this thread.
+    uintptr_t stackPointer() const {
+      return sp_;
+    }
+
+   private:
+    // The thread to resume, or MACH_PORT_NULL if none was ever suspended.
+    // Distinct from `valid_`: a thread whose registers could not be read is
+    // still suspended and still owed a resume.
+    mach_port_t port_ = MACH_PORT_NULL;
+    const StackFrame* frame_ = nullptr;
+    const void* pc_ = nullptr;
+    uintptr_t sp_ = 0;
+    bool valid_ = false;
+  };
+
+  // Reports the frames of a stack that is being held still, innermost first, in
+  // the order walk() promises: the interrupted PC alongside the frame executing
+  // it, then one pair per record in the chain.
+  //
+  // The caller is responsible for the stack actually being still. Nothing here
+  // stops the target, so this must run inside the scope of the guard that does.
+  template <typename F>
+  static WalkResult walkStopped(
+      const StackFrame* frame,
+      const void* pc,
+      StackBounds bounds,
+      F&& callback) {
+    // A target whose frame-pointer register holds nothing usable has no chain
+    // to follow, and no PC worth reporting on its own.
+    if (frame == nullptr) {
+      return WalkResult::Completed;
+    }
+    if (!callback(static_cast<const void*>(frame), pc)) {
+      return WalkResult::Completed;
+    }
+    Cursor cursor{frame, bounds};
+    while (true) {
+      const void* return_address = cursor.returnAddress();
+      const StackFrame* caller = cursor.step();
+      if (caller == nullptr ||
+          !callback(static_cast<const void*>(caller), return_address)) {
+        return WalkResult::Completed;
+      }
+    }
+  }
+#else
   // Installs this class's handler on `signum`, whatever is already there,
   // saving what that was into `prev` if that is not null. Reports whether it
   // went in.
@@ -474,15 +640,6 @@ class StackWalk {
   bool targetAbandonedWalk() const {
     return state_.load(std::memory_order_acquire) == State::Abandoned;
   }
-
-  // The stack of `thread`, remembered between walks. Measuring it is cheap for
-  // a spawned thread but not for the main one, and the deopt path walks the
-  // same thread over and over.
-  //
-  // A thread id outliving its thread and being reissued would make this stale.
-  // That is caught on the other side, where the bounds are checked against the
-  // stack pointer of the thread actually holding them.
-  StackBounds stackBoundsFor(ThreadId thread);
 
   // Signals `thread` and waits for its first batch of frames.
   bool startWalk(ThreadId thread);
@@ -601,23 +758,26 @@ class StackWalk {
   // the target inside the handler. pthread_kill orders the two.
   StackBounds target_bounds_ = {};
 
-  // Last thread stackBoundsFor() was asked about, and its answer.
-  ThreadId bounds_cache_thread_ = {};
-  StackBounds bounds_cache_ = {};
-
   // The signal this instance sends, settled in the constructor and never
   // changed after: startWalk() reacts to being displaced by dropping the
   // process-wide choice, so that the next instance looks elsewhere, rather than
   // by moving this one to another signal underneath a walk.
   int signum_ = kAutoSignum;
   bool stop_requested_ = false;
-  bool bounds_cache_valid_ = false;
 
   // Whether the signal was taken from somebody rather than reserved by
   // discovery, and so has to be handed back when this instance goes. Only a
   // caller who named a signal can produce one: discovery refuses an occupied
   // signal, so what it claims is owed to nobody.
   bool signal_is_borrowed_ = false;
+#endif
+
+  // Last thread stackBoundsFor() was asked about, and its answer. Shared: both
+  // mechanisms measure the target's stack on the sampling thread, and both walk
+  // the same thread repeatedly.
+  ThreadId bounds_cache_thread_ = {};
+  StackBounds bounds_cache_ = {};
+  bool bounds_cache_valid_ = false;
 };
 
 } // namespace cinderx

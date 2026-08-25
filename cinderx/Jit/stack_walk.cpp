@@ -5,13 +5,19 @@
 #if defined(__APPLE__) || defined(__linux__)
 
 #include <fmt/format.h>
+
+#if defined(__APPLE__)
+#include <mach/mach_init.h>
+#include <mach/thread_act.h>
+#include <mach/thread_status.h>
+#include <mach/vm_map.h>
+#include <pthread.h>
+#else
 #include <sys/syscall.h>
 #include <sys/uio.h>
-#ifdef __APPLE__
-#include <sys/ucontext.h>
-#else
 #include <ucontext.h>
 #endif
+
 #include <unistd.h>
 
 #include <atomic>
@@ -25,6 +31,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <system_error>
+#include <type_traits>
 
 namespace cinderx {
 
@@ -36,6 +43,44 @@ namespace {
 // plenty of addresses that are nowhere near the stack.
 constexpr uintptr_t kMaxFrameSize = 16 * 1024 * 1024;
 
+std::atomic<uint64_t> s_unreadable_frames = 0;
+std::atomic<uint64_t> s_safe_reads = 0;
+
+// Both implementations of safeReadUnchecked() below read the whole record
+// rather than one word: a record in the last eight bytes of a mapping has a
+// readable `frame_pointer` and an unreadable `return_address`, and only asking
+// for both catches it, as a short read.
+//
+// Both also ask the kernel to do the read rather than probing the page tables
+// first, because probing answers the wrong question. mincore() and msync()
+// only reveal whether a mapping exists, so a PROT_NONE guard page reads as fine
+// and the load that follows still dies. A SIGSEGV handler would work, but the
+// handler is process-wide and shared with CPython's faulthandler, which any
+// Python code can re-arm underneath us.
+
+#if defined(__APPLE__)
+
+// Copies the record at `addr`, reporting failure for an address that is not
+// backed by readable memory instead of faulting on it.
+//
+// A MIG round trip to the kernel rather than a bare syscall, which is what
+// would rule it out of a signal handler. Nothing calls it from one: Darwin
+// walks a thread it has suspended, so every read happens on the sampling
+// thread in ordinary context. That is the whole reason the suspend mechanism
+// is worth its second implementation.
+bool safeReadUnchecked(const StackFrame* addr, StackFrame* out) {
+  vm_size_t read = 0;
+  return ::vm_read_overwrite(
+             ::mach_task_self(),
+             reinterpret_cast<vm_address_t>(addr),
+             sizeof(*out),
+             reinterpret_cast<vm_address_t>(out),
+             &read) == KERN_SUCCESS &&
+      read == sizeof(*out);
+}
+
+#else
+
 // Our own pid, for the self-reads below. Cached because getpid() is a real
 // syscall - glibc dropped its cache in 2.25 - and this would otherwise double
 // the cost of reading a frame.
@@ -44,22 +89,8 @@ constexpr uintptr_t kMaxFrameSize = 16 * 1024 * 1024;
 // and read from a signal handler on the thread being sampled.
 std::atomic<pid_t> s_pid = -1;
 
-std::atomic<uint64_t> s_unreadable_frames = 0;
-std::atomic<uint64_t> s_safe_reads = 0;
-
 // Copies the record at `addr`, reporting failure for an address that is not
 // backed by readable memory instead of faulting on it.
-//
-// process_vm_readv against our own pid is the mechanism because it is the only
-// one that answers the question actually being asked. Probing the page tables
-// first - mincore(), msync() - only reveals whether a mapping exists, so a
-// PROT_NONE guard page reads as fine and the load that follows still dies. A
-// SIGSEGV handler would work, but the handler is process-wide and shared with
-// CPython's faulthandler, which any Python code can re-arm underneath us.
-//
-// Reads the whole record rather than one word: a record in the last eight
-// bytes of a mapping has a readable `frame_pointer` and an unreadable
-// `return_address`, and only asking for both catches it, as a short read.
 //
 // Safe to call from a signal handler. glibc's wrapper is a bare syscall stub,
 // and self-reads need no ptrace privilege - the kernel lets a thread group
@@ -87,27 +118,35 @@ void refreshPid() {
   s_pid.store(::getpid(), std::memory_order_relaxed);
 }
 
+#endif
+
 // What the probe found. False also covers "not probed yet", which is the safe
-// reading of it: a read attempted before then would be using a pid of -1.
+// reading of it: on the signalled mechanism a read attempted before then would
+// be using a pid of -1.
 std::atomic<bool> s_safe_read_available = false;
 
 // Whether the probe has happened at all, which `s_safe_read_available` cannot
-// say on its own - a process where the syscall is unavailable leaves that
+// say on its own - a process where the mechanism is unavailable leaves that
 // false forever, and every read would go looking for an initialisation that
 // has already been done. The release/acquire pair on this is also what
-// publishes `s_pid` to the threads that read frames.
+// publishes what the reads depend on - `s_pid`, where there is one - to the
+// threads that read frames.
 std::atomic<bool> s_safe_read_initialized = false;
 
 std::once_flag s_safe_read_once;
 
 // Deferred out of process startup, so a process that never walks a stack pays
-// for none of this. Not deferred as far as the reads themselves, which happen
-// inside a signal handler: pthread_atfork may allocate and the once-flag can
-// block, so neither belongs there.
+// for none of this. Not deferred as far as the reads themselves, which on the
+// signalled mechanism happen inside a handler: pthread_atfork may allocate and
+// the once-flag can block, so neither belongs there.
 void initSafeRead() {
+#if !defined(__APPLE__)
   refreshPid();
-  // fork() gives the child a new pid, and process_vm_readv needs it.
+  // fork() gives the child a new pid, and process_vm_readv needs it. Darwin
+  // names the task rather than the process, and mach_task_self() answers
+  // afresh in the child, so it has nothing to refresh.
   ::pthread_atfork(nullptr, nullptr, refreshPid);
+#endif
 
   // Establish up front whether the syscall works at all rather than
   // rediscovering per frame that it does not: a seccomp policy can remove it,
@@ -133,11 +172,22 @@ bool safeRead(const StackFrame* addr, StackFrame* out) {
 // The stack of `thread`, or nothing if it cannot be determined.
 //
 // Reads the thread descriptor, so it must not run on a thread that is parked
-// in a signal handler waiting for us - and for the main thread it parses
-// /proc/self/maps and allocates. Both are reasons this belongs on the sampling
-// thread, before the target is signalled, rather than in the handler.
+// in a signal handler waiting for us - and under glibc, for the main thread, it
+// parses /proc/self/maps and allocates. Both are reasons this belongs on the
+// sampling thread, before the target is stopped, rather than after.
 StackBounds threadStackBounds(pthread_t thread) {
-#if defined(__GLIBC__)
+#if defined(__APPLE__)
+  // Darwin reports the *high* end of the stack, where glibc reports the low
+  // one, so this reads backwards from pthread_attr_getstack below rather than
+  // the same way. Neither call allocates or takes a lock.
+  const auto high =
+      reinterpret_cast<uintptr_t>(::pthread_get_stackaddr_np(thread));
+  const size_t size = ::pthread_get_stacksize_np(thread);
+  if (high == 0 || size == 0 || size > high) {
+    return {};
+  }
+  return {high - size, high};
+#elif defined(__GLIBC__)
   pthread_attr_t attr;
   if (::pthread_getattr_np(thread, &attr) != 0) {
     return {};
@@ -163,6 +213,8 @@ StackBounds threadStackBounds(pthread_t thread) {
 // lazily-run initialiser.
 thread_local StackBounds s_self_bounds = {};
 thread_local bool s_self_bounds_known = false;
+
+#if !defined(__APPLE__)
 
 // The signal every StackWalk in this process uses, or zero if none has been
 // chosen yet. Shared rather than settled per instance because a walker is built
@@ -238,7 +290,6 @@ int semWait(sem_t* sem) {
 // the rest of the handshake: clock_gettime() is async-signal-safe outright,
 // and the timed waits are the same lock-free futex machinery as sem_wait().
 int semWaitFor(sem_t* sem, std::chrono::nanoseconds timeout) {
-#if defined(__linux__)
 #if defined(CINDERX_HAVE_SEM_CLOCKWAIT)
   constexpr clockid_t clock = CLOCK_MONOTONIC;
 #else
@@ -263,14 +314,9 @@ int semWaitFor(sem_t* sem, std::chrono::nanoseconds timeout) {
   }
 #endif
   return rc;
-#else
-  // macOS has no timed semaphore wait. It has no working unnamed semaphores
-  // either - sem_init() fails with ENOSYS - so the constructor has already
-  // thrown and no target can ever get here to park.
-  (void)timeout;
-  return semWait(sem);
-#endif
 }
+
+#endif // !defined(__APPLE__)
 
 } // namespace
 
@@ -385,6 +431,140 @@ bool StackWalk::isCurrentThread(ThreadId thread) {
   return ::pthread_equal(thread, ::pthread_self()) != 0;
 }
 
+StackBounds StackWalk::stackBoundsFor(ThreadId thread) {
+  if (bounds_cache_valid_ && ::pthread_equal(bounds_cache_thread_, thread)) {
+    return bounds_cache_;
+  }
+  bounds_cache_ = threadStackBounds(thread);
+  bounds_cache_thread_ = thread;
+  bounds_cache_valid_ = true;
+  return bounds_cache_;
+}
+
+#if defined(__APPLE__)
+
+namespace {
+
+// The register accessors do not have one return type. The SDK spells
+// arm_thread_state64_get_fp/_get_pc/_get_sp four different ways depending on
+// __DARWIN_UNIX03 and on whether pointer authentication is in play, returning
+// uintptr_t from some and the raw __uint64_t field from others - and those are
+// distinct types even where they are the same width. Funnelling every one of
+// them through here is what stops the call sites below depending on which
+// spelling the target happened to get.
+template <typename T>
+uintptr_t asAddress(T value) {
+  if constexpr (std::is_pointer_v<T>) {
+    return reinterpret_cast<uintptr_t>(value);
+  } else {
+    return static_cast<uintptr_t>(value);
+  }
+}
+
+} // namespace
+
+StackWalk::SuspendedThread::SuspendedThread(ThreadId thread) {
+  // Suspending ourselves would stop the only thread left to resume us.
+  if (isCurrentThread(thread)) {
+    return;
+  }
+  const mach_port_t port = ::pthread_mach_thread_np(thread);
+  if (port == MACH_PORT_NULL) {
+    return;
+  }
+  if (::thread_suspend(port) != KERN_SUCCESS) {
+    return;
+  }
+  // Stopped from here on, and recorded before anything that can fail: this is
+  // what the destructor reads to decide it owes a resume, so a failure below
+  // must already have set it.
+  port_ = port;
+
+  // thread_suspend immediately followed by thread_get_state, with nothing in
+  // between to confirm the thread has come off-core, is the sequence every
+  // macOS profiler uses; see crashpad's ProcessReaderMac. Nothing here relies
+  // on the registers being anything more than a plausible starting point in any
+  // case - the cursor validates every address it is given, and a torn read
+  // would end the chain early rather than fault.
+#if defined(__aarch64__)
+  arm_thread_state64_t state = {};
+  mach_msg_type_number_t count = ARM_THREAD_STATE64_COUNT;
+  if (::thread_get_state(
+          port,
+          ARM_THREAD_STATE64,
+          reinterpret_cast<thread_state_t>(&state),
+          &count) != KERN_SUCCESS) {
+    return;
+  }
+  // Read through the accessors rather than the fields. On arm64e the pc is
+  // signed with a pointer-authentication code and the raw field is not an
+  // address at all; the accessors are what strip it, and they compile to the
+  // plain load everywhere else.
+  frame_ = reinterpret_cast<const StackFrame*>(
+      asAddress(arm_thread_state64_get_fp(state)));
+  pc_ = reinterpret_cast<const void*>(
+      asAddress(arm_thread_state64_get_pc(state)));
+  sp_ = asAddress(arm_thread_state64_get_sp(state));
+#elif defined(__x86_64__)
+  x86_thread_state64_t state = {};
+  mach_msg_type_number_t count = x86_THREAD_STATE64_COUNT;
+  if (::thread_get_state(
+          port,
+          x86_THREAD_STATE64,
+          reinterpret_cast<thread_state_t>(&state),
+          &count) != KERN_SUCCESS) {
+    return;
+  }
+  frame_ = reinterpret_cast<const StackFrame*>(asAddress(state.__rbp));
+  pc_ = reinterpret_cast<const void*>(asAddress(state.__rip));
+  sp_ = asAddress(state.__rsp);
+#else
+#error "StackWalk supports x86-64 and AArch64 only"
+#endif
+
+  valid_ = true;
+}
+
+StackWalk::SuspendedThread::~SuspendedThread() {
+  if (port_ != MACH_PORT_NULL) {
+    // thread_suspend is counted, so this is the exact partner of the single
+    // suspend the constructor made - including on the path where the registers
+    // could not be read and no walk ever ran.
+    ::thread_resume(port_);
+  }
+}
+
+StackWalk::StackWalk(
+    [[maybe_unused]] int signum,
+    [[maybe_unused]] std::chrono::nanoseconds park_timeout) {
+  // Neither argument means anything here: both belong to the signalled
+  // mechanism, and Darwin reaches its targets through Mach instead. They stay
+  // in the signature so callers and tests need no per-platform spelling.
+
+  // Done up front rather than left to the first cursor, so that a process which
+  // cannot read frames at all says so once instead of quietly returning empty
+  // walks forever.
+  ensureSafeReadInitialized();
+
+  if (!canReadFramesSafely()) {
+    // Not fatal - walks come back empty instead of crashing - but the symptom
+    // on its own would just look like stacks mysteriously going missing.
+    fmt::print(
+        stderr,
+        "StackWalk: vm_read_overwrite is unavailable, so frame records cannot "
+        "be read without risking a fault; every walk will report no frames\n");
+  }
+}
+
+// Nothing to undo. No signal was claimed, no handler installed, and no target
+// can still be holding a reference to this: a suspended thread is resumed by
+// the guard that suspended it, before walk() returns.
+StackWalk::~StackWalk() = default;
+
+void StackWalk::resetSignumCache() {}
+
+#else
+
 // The instance the handler dispatches to, published by the constructor once
 // the object is fit to be signalled and cleared before it stops being so. Null
 // therefore doubles as "the slot is free", which is what makes the one-instance
@@ -400,8 +580,8 @@ static std::atomic<StackWalk*> s_active;
 bool StackWalk::installHandler(int signum, struct sigaction* prev) {
   struct sigaction action = {};
   action.sa_sigaction = handleSignal;
-  // Darwin exposes the signal-set helpers as macros, so they cannot be
-  // namespace-qualified.
+  // Unqualified because the signal-set helpers are macros in some libc
+  // configurations, glibc's __USE_EXTERN_INLINES among them.
   sigemptyset(&action.sa_mask);
   action.sa_flags = SA_SIGINFO | SA_RESTART;
   return ::sigaction(signum, &action, prev) == 0;
@@ -470,8 +650,8 @@ int StackWalk::claimSignum() {
   }
 #endif
 
-  // No real-time signal left - or no real-time signals at all, as on macOS - so
-  // fall back to the two the standard sets aside for applications. SIGUSR1
+  // No real-time signal left, or a platform without a real-time range at all,
+  // so fall back to the two the standard sets aside for applications. SIGUSR1
   // first: SIGUSR2 is what common/base's thread stack tracer takes by default.
   constexpr int kFallbacks[] = {SIGUSR1, SIGUSR2};
   for (int signum : kFallbacks) {
@@ -635,16 +815,6 @@ StackWalk::~StackWalk() {
   ::sem_destroy(&frames_ready_);
   ::sem_destroy(&resume_);
   ::sem_destroy(&handler_exited_);
-}
-
-StackBounds StackWalk::stackBoundsFor(ThreadId thread) {
-  if (bounds_cache_valid_ && ::pthread_equal(bounds_cache_thread_, thread)) {
-    return bounds_cache_;
-  }
-  bounds_cache_ = threadStackBounds(thread);
-  bounds_cache_thread_ = thread;
-  bounds_cache_valid_ = true;
-  return bounds_cache_;
 }
 
 bool StackWalk::startWalk(ThreadId thread) {
@@ -846,22 +1016,12 @@ StackWalk::Publish StackWalk::publishBatch(size_t count) {
 void StackWalk::captureFrames(const void* ucontext) {
   auto uc = static_cast<const ucontext_t*>(ucontext);
 
-#if defined(__APPLE__) && defined(__aarch64__)
-  // StackWalk is compile-only on macOS because sem_init() is unsupported and
-  // its constructor always throws. The context extraction still has to build
-  // as part of the JIT library.
-  const auto& state = uc->uc_mcontext->__ss;
-  auto frame = reinterpret_cast<const StackFrame*>(
-      __darwin_arm_thread_state64_get_fp(state));
-  auto pc =
-      reinterpret_cast<const void*>(__darwin_arm_thread_state64_get_pc(state));
-  auto sp = static_cast<uintptr_t>(__darwin_arm_thread_state64_get_sp(state));
-#elif defined(__linux__) && defined(__x86_64__)
+#if defined(__x86_64__)
   auto frame =
       reinterpret_cast<const StackFrame*>(uc->uc_mcontext.gregs[REG_RBP]);
   auto pc = reinterpret_cast<const void*>(uc->uc_mcontext.gregs[REG_RIP]);
   auto sp = static_cast<uintptr_t>(uc->uc_mcontext.gregs[REG_RSP]);
-#elif defined(__linux__) && defined(__aarch64__)
+#elif defined(__aarch64__)
   auto frame = reinterpret_cast<const StackFrame*>(uc->uc_mcontext.regs[29]);
   auto pc = reinterpret_cast<const void*>(uc->uc_mcontext.pc);
   auto sp = static_cast<uintptr_t>(uc->uc_mcontext.sp);
@@ -926,6 +1086,9 @@ void StackWalk::captureFrames(const void* ucontext) {
     ::sem_post(&handler_exited_);
   }
 }
+
+#endif // !defined(__APPLE__)
+
 } // namespace cinderx
 
 #endif
