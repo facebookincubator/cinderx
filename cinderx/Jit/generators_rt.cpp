@@ -398,12 +398,17 @@ PyObject* jitgen_sizeof(PyObject* obj, PyObject*) {
   if (base_size_int == -1 && PyErr_Occurred()) {
     return nullptr;
   }
+  // The base size comes from CPython's gen_sizeof(), which derives everything
+  // from the code object and so cannot see the JIT data in the generator's
+  // tail.  Add:
   // +1 word for storing the GenDataFooter pointer
   // +size of the GenDataFooter
   // +the size of the JIT register spill area.
+  uint32_t spill_words =
+      jit_gen->genDataFooter()->compiled_func->runtime()->spillWords();
   return PyLong_FromSsize_t(
       base_size_int + sizeof(GenDataFooter*) + sizeof(GenDataFooter) +
-      jit_gen->genDataFooter()->spillWords * sizeof(uint64_t));
+      spill_words * sizeof(uint64_t));
 }
 
 PyObject* jitgen_getyieldfrom(PyObject* obj, void*) {

@@ -9,7 +9,7 @@ import unittest
 import weakref
 
 import cinderx.test_support as cinder_support
-from cinderx.jit import _deopt_gen, is_jit_compiled
+from cinderx.jit import _deopt_gen, get_compiled_spill_stack_size, is_jit_compiled
 
 from .common import with_globals
 
@@ -261,6 +261,19 @@ class GeneratorsTest(unittest.TestCase):
         with self.assertRaises(StopIteration) as exc:
             g.send(None)
         self.assertIsInstance(exc.exception.value, X)
+
+    def test_sizeof_reports_the_jit_data_size(self):
+        func = self._f4.__func__
+        g = self._f4(1)
+        next(g)
+        size = g.__sizeof__()
+
+        # A JIT generator carries the GenDataFooter, a pointer to it and the
+        # register spill area on top of what CPython reports.  Only the spill
+        # area varies, and it comes from the compiled function.
+        spill = get_compiled_spill_stack_size(func) if is_jit_compiled(func) else 0
+        self.assertGreater(size, spill)
+        self.assertLess(size - spill, 4096)
 
     @cinder_support.failUnlessJITCompiled
     def _f10(self, X):

@@ -27,11 +27,10 @@ namespace cinderx::jit {
 // of the spill data (i.e. at the start of the footer). This allows us to
 // easily set the frame pointer to the pointer value on generator resume.
 //
-// The base address of the complete heap allocated suspend data is:
-//   PyGenObject::gi_jit_data - GenDataFooter::spillWords
-//
-// TASK(T209500214): In 3.12 we should roll this data directly into memory
-// allocated for a generator rather than having it in a separate heap object.
+// Both live in the generator object's own variable-length tail rather than in
+// a separate heap block, so they are freed along with the generator.  The
+// number of spill words is a property of the compiled code, not of any one
+// generator, and is held by CodeRuntime::spillWords().
 struct GenDataFooter {
   // Tools which examine/walk the stack expect the following two values to be
   // ahead of the frame pointer.
@@ -44,9 +43,6 @@ struct GenDataFooter {
   // Static data specific to the current yield point. Only non-null when we are
   // suspended.
   GenYieldPoint* yieldPoint{};
-
-  // Allocated space before this struct in 64-bit words.
-  size_t spillWords{};
 
   // Entry-point to resume a JIT generator.
   GenResumeFunc resumeEntry{};
