@@ -20,6 +20,7 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <typeinfo>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -252,6 +253,25 @@ class Instr : public IntrusiveListNode<Instr> {
 
   // Inherit the same bytecode offset as another instruction.
   void copyBytecodeOffset(const Instr& instr);
+
+  // Downcast this instruction to one of its subclasses, e.g.
+  // `instr.as<Branch>()`.  T can be a concrete instruction class or one of the
+  // abstract bases like `DeoptBase`.  Debug builds check that the cast is
+  // valid.
+  template <typename T>
+  T& as() {
+    JIT_DCHECK(
+        dynamic_cast<T*>(this) != nullptr,
+        "Cannot cast {} instruction to a {}",
+        opname(),
+        typeid(T).name());
+    return static_cast<T&>(*this);
+  }
+
+  template <typename T>
+  const T& as() const {
+    return const_cast<Instr&>(*this).as<T>();
+  }
 
   // Downcast the Instr to a DeoptBase, returning nullptr if it isn't one.
   virtual DeoptBase* asDeoptBase();
