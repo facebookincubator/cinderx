@@ -9007,6 +9007,16 @@ class CheckedDict(GenericClass):
 
         return NO_EFFECT
 
+    def make_generic_type(
+        self,
+        index: tuple[Class, ...],
+    ) -> Class:
+        for tp in index:
+            if isinstance(tp, CType):
+                raise TypedSyntaxError(
+                    f"Invalid {self.gen_name.qualname} element type: {tp.instance.name}"
+                )
+        return super().make_generic_type(index)
 
 class CheckedDictInstance(Object[CheckedDict]):
     def bind_subscr(
@@ -9121,6 +9131,16 @@ class CheckedList(GenericClass):
             ResolvedTypeRef(self),
         )
 
+    def make_generic_type(
+        self,
+        index: tuple[Class, ...],
+    ) -> Class:
+        for tp in index:
+            if isinstance(tp, CType):
+                raise TypedSyntaxError(
+                    f"Invalid {self.gen_name.qualname} element type: {tp.instance.name}"
+                )
+        return super().make_generic_type(index)
 
 class CheckedListInstance(Object[CheckedList]):
     @property
