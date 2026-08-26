@@ -8664,7 +8664,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v16:CInt32 = RunPeriodicTasks {
+    v17:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -8675,26 +8675,34 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v9:OptObject = LoadGlobalCached<0; "a">
-    v10:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
-      Descr 'LOAD_GLOBAL: a'
+    Guard v9 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v10:Object = RefineType<Object> v9
+    v11:ListExact = GuardType<ListExact> v10 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
     Snapshot
-    UseType<MortalListExact> v10
-    v17:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v10
-    v18:CBool = CIntToCBool v17
-    CondBranch<1, 2> v18
+    UseType<ListExact> v11
+    v18:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v11
+    v19:CBool = CIntToCBool v18
+    CondBranch<1, 2> v19
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v12:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return<ImmortalLongExact[1]> v12
+    v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return<ImmortalLongExact[1]> v13
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v14:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    Return<ImmortalLongExact[2]> v14
+    v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    Return<ImmortalLongExact[2]> v15
   }
 }
 --- Expected 3.14 ---
@@ -8709,7 +8717,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v20:CInt32 = RunPeriodicTasks {
+    v21:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -8720,31 +8728,39 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v12:OptObject = LoadGlobalCached<0; "a">
-    v13:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
-      Descr 'LOAD_GLOBAL: a'
+    Guard v12 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v13:Object = RefineType<Object> v12
+    v14:ListExact = GuardType<ListExact> v13 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
     Snapshot
-    UseType<MortalListExact> v13
-    v21:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v13
-    v22:CBool = CIntToCBool v21
-    v15:ImmortalBool = PrimitiveBoxBool v22
+    UseType<ListExact> v14
+    v22:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v23:CBool = CIntToCBool v22
+    v16:ImmortalBool = PrimitiveBoxBool v23
     Snapshot
-    v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    CondBranch<1, 2> v22
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<1, 2> v23
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    Return v18
+    Return v19
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v19:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v20:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    Return v19
+    Return v20
   }
 }
 --- Expected 3.15 ---
@@ -8759,7 +8775,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v20:CInt32 = RunPeriodicTasks {
+    v21:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -8770,31 +8786,39 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v12:OptObject = LoadGlobalCached<0; "a">
-    v13:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
-      Descr 'LOAD_GLOBAL: a'
+    Guard v12 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    v13:Object = RefineType<Object> v12
+    v14:ListExact = GuardType<ListExact> v13 {
+      FrameState {
+        CurInstrOffset 4
+      }
     }
     Snapshot
-    UseType<MortalListExact> v13
-    v21:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v13
-    v22:CBool = CIntToCBool v21
-    v15:ImmortalBool = PrimitiveBoxBool v22
+    UseType<ListExact> v14
+    v22:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v23:CBool = CIntToCBool v22
+    v16:ImmortalBool = PrimitiveBoxBool v23
     Snapshot
-    v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    CondBranch<1, 2> v22
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<1, 2> v23
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    Return v18
+    Return v19
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v19:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v20:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    Return v19
+    Return v20
   }
 }
 --- Expected 3.16 ---
@@ -8809,7 +8833,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v20:CInt32 = RunPeriodicTasks {
+    v21:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -8820,31 +8844,39 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v12:OptObject = LoadGlobalCached<0; "a">
-    v13:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
-      Descr 'LOAD_GLOBAL: a'
+    Guard v12 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    v13:Object = RefineType<Object> v12
+    v14:ListExact = GuardType<ListExact> v13 {
+      FrameState {
+        CurInstrOffset 4
+      }
     }
     Snapshot
-    UseType<MortalListExact> v13
-    v21:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v13
-    v22:CBool = CIntToCBool v21
-    v15:ImmortalBool = PrimitiveBoxBool v22
+    UseType<ListExact> v14
+    v22:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v23:CBool = CIntToCBool v22
+    v16:ImmortalBool = PrimitiveBoxBool v23
     Snapshot
-    v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    CondBranch<1, 2> v22
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<1, 2> v23
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    Return v18
+    Return v19
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v19:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v20:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    Return v19
+    Return v20
   }
 }
 --- Expected 3.14t ---
@@ -8860,7 +8892,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 0) {
     Snapshot
-    v20:CInt32 = RunPeriodicTasks {
+    v21:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -8871,33 +8903,41 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v12:OptObject = LoadGlobalCached<0; "a">
-    v13:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
-      Descr 'LOAD_GLOBAL: a'
+    Guard v12 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v13:Object = RefineType<Object> v12
+    v14:ListExact = GuardType<ListExact> v13 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
     Snapshot
-    v14:CBool = IsTruthy v13 {
+    v15:CBool = IsTruthy v14 {
       FrameState {
         CurInstrOffset 12
       }
     }
-    v15:ImmortalBool = PrimitiveBoxBool v14
+    v16:ImmortalBool = PrimitiveBoxBool v15
     Snapshot
-    v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    CondBranch<1, 2> v14
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    CondBranch<1, 2> v15
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    Return v18
+    Return v19
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v19:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v20:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    Return v19
+    Return v20
   }
 }
 --- Test Name ---
@@ -19901,7 +19941,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -19912,40 +19952,48 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:OptObject = LoadGlobalCached<0; "X_INST">
-    v8:MortalObjectUser[X:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
-      Descr 'LOAD_GLOBAL: X_INST'
+    Guard v7 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v8:Object = RefineType<Object> v7
+    v9:ObjectUser[X:Exact] = GuardType<ObjectUser[X:Exact]> v8 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
     Snapshot
     DeoptPatchpoint<Patcher 0xdeadbeef> {
       Descr 'SplitDictDeoptPatcher'
-      GuiltyReg v8
+      GuiltyReg v9
     }
-    UseType<MortalObjectUser[X:0xdeadbeef]> v8
-    v11:OptDict = LoadField<__dict__@18446744073709551592, OptDict, borrowed> v8
-    v12:Dict = CheckField<"a1"> v11 {
-      GuiltyReg v8
+    UseType<ObjectUser[X:Exact]> v9
+    v12:OptDict = LoadField<__dict__@18446744073709551592, OptDict, borrowed> v9
+    v13:Dict = CheckField<"a1"> v12 {
+      GuiltyReg v9
       FrameState {
         CurInstrOffset 12
       }
     }
-    v13:CUInt64[1] = LoadConst<CUInt64[1]>
-    v14:CUInt64 = BitCast v12
-    v15:CUInt64 = IntBinaryOp<And> v14 v13
-    Guard v15 {
+    v14:CUInt64[1] = LoadConst<CUInt64[1]>
+    v15:CUInt64 = BitCast v13
+    v16:CUInt64 = IntBinaryOp<And> v15 v14
+    Guard v16 {
       Descr 'dict values check'
-      GuiltyReg v8
+      GuiltyReg v9
     }
-    v16:CUInt64 = IntBinaryOp<Add> v14 v13
-    v17:OptObject = BitCast v16
-    v18:OptObject = LoadField<attr@0, OptObject, borrowed> v17
-    v19:Object = CheckField<"a1"> v18 {
-      GuiltyReg v8
+    v17:CUInt64 = IntBinaryOp<Add> v15 v14
+    v18:OptObject = BitCast v17
+    v19:OptObject = LoadField<attr@0, OptObject, borrowed> v18
+    v20:Object = CheckField<"a1"> v19 {
+      GuiltyReg v9
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v19
+    Return v20
   }
 }
 --- Expected 3.14 ---
@@ -19960,7 +20008,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -19971,23 +20019,31 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:OptObject = LoadGlobalCached<0; "X_INST">
-    v8:MortalObjectUser[X:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
-      Descr 'LOAD_GLOBAL: X_INST'
+    Guard v7 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v8:Object = RefineType<Object> v7
+    v9:ObjectUser[X:Exact] = GuardType<ObjectUser[X:Exact]> v8 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
     Snapshot
     DeoptPatchpoint<Patcher 0xdeadbeef> {
       Descr 'SplitDictDeoptPatcher'
-      GuiltyReg v8
+      GuiltyReg v9
     }
-    UseType<MortalObjectUser[X:0xdeadbeef]> v8
-    v11:CUInt8 = LoadField<inline_values.valid@19, CUInt8, borrowed> v8
-    CondBranch<3, 4> v11
+    UseType<ObjectUser[X:Exact]> v9
+    v12:CUInt8 = LoadField<inline_values.valid@19, CUInt8, borrowed> v9
+    CondBranch<3, 4> v12
   }
 
   bb 3 (preds 1) {
-    v12:OptObject = LoadField<a1@24, OptObject, borrowed> v8
-    v13:Object = CheckField<"a1"> v12 {
-      GuiltyReg v8
+    v13:OptObject = LoadField<a1@24, OptObject, borrowed> v9
+    v14:Object = CheckField<"a1"> v13 {
+      GuiltyReg v9
       FrameState {
         CurInstrOffset 12
       }
@@ -19996,7 +20052,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = LoadAttr<1; "a1"> v8 {
+    v15:Object = LoadAttr<1; "a1"> v9 {
       FrameState {
         CurInstrOffset 12
       }
@@ -20005,9 +20061,9 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v15:Object = Phi<3, 4> v13 v14
+    v16:Object = Phi<3, 4> v14 v15
     Snapshot
-    Return v15
+    Return v16
   }
 }
 --- Expected 3.15 ---
@@ -20022,7 +20078,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -20033,23 +20089,31 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:OptObject = LoadGlobalCached<0; "X_INST">
-    v8:MortalObjectUser[X:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
-      Descr 'LOAD_GLOBAL: X_INST'
+    Guard v7 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    v8:Object = RefineType<Object> v7
+    v9:ObjectUser[X:Exact] = GuardType<ObjectUser[X:Exact]> v8 {
+      FrameState {
+        CurInstrOffset 4
+      }
     }
     Snapshot
     DeoptPatchpoint<Patcher 0xdeadbeef> {
       Descr 'SplitDictDeoptPatcher'
-      GuiltyReg v8
+      GuiltyReg v9
     }
-    UseType<MortalObjectUser[X:0xdeadbeef]> v8
-    v11:CUInt8 = LoadField<inline_values.valid@19, CUInt8, borrowed> v8
-    CondBranch<3, 4> v11
+    UseType<ObjectUser[X:Exact]> v9
+    v12:CUInt8 = LoadField<inline_values.valid@19, CUInt8, borrowed> v9
+    CondBranch<3, 4> v12
   }
 
   bb 3 (preds 1) {
-    v12:OptObject = LoadField<a1@24, OptObject, borrowed> v8
-    v13:Object = CheckField<"a1"> v12 {
-      GuiltyReg v8
+    v13:OptObject = LoadField<a1@24, OptObject, borrowed> v9
+    v14:Object = CheckField<"a1"> v13 {
+      GuiltyReg v9
       FrameState {
         CurInstrOffset 14
       }
@@ -20058,7 +20122,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = LoadAttr<1; "a1"> v8 {
+    v15:Object = LoadAttr<1; "a1"> v9 {
       FrameState {
         CurInstrOffset 14
       }
@@ -20067,9 +20131,9 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v15:Object = Phi<3, 4> v13 v14
+    v16:Object = Phi<3, 4> v14 v15
     Snapshot
-    Return v15
+    Return v16
   }
 }
 --- Expected 3.16 ---
@@ -20084,7 +20148,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -20095,23 +20159,31 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:OptObject = LoadGlobalCached<0; "X_INST">
-    v8:MortalObjectUser[X:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
-      Descr 'LOAD_GLOBAL: X_INST'
+    Guard v7 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    v8:Object = RefineType<Object> v7
+    v9:ObjectUser[X:Exact] = GuardType<ObjectUser[X:Exact]> v8 {
+      FrameState {
+        CurInstrOffset 4
+      }
     }
     Snapshot
     DeoptPatchpoint<Patcher 0xdeadbeef> {
       Descr 'SplitDictDeoptPatcher'
-      GuiltyReg v8
+      GuiltyReg v9
     }
-    UseType<MortalObjectUser[X:0xdeadbeef]> v8
-    v11:CUInt8 = LoadField<inline_values.valid@19, CUInt8, borrowed> v8
-    CondBranch<3, 4> v11
+    UseType<ObjectUser[X:Exact]> v9
+    v12:CUInt8 = LoadField<inline_values.valid@19, CUInt8, borrowed> v9
+    CondBranch<3, 4> v12
   }
 
   bb 3 (preds 1) {
-    v12:OptObject = LoadField<a1@24, OptObject, borrowed> v8
-    v13:Object = CheckField<"a1"> v12 {
-      GuiltyReg v8
+    v13:OptObject = LoadField<a1@24, OptObject, borrowed> v9
+    v14:Object = CheckField<"a1"> v13 {
+      GuiltyReg v9
       FrameState {
         CurInstrOffset 14
       }
@@ -20120,7 +20192,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = LoadAttr<1; "a1"> v8 {
+    v15:Object = LoadAttr<1; "a1"> v9 {
       FrameState {
         CurInstrOffset 14
       }
@@ -20129,9 +20201,9 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v15:Object = Phi<3, 4> v13 v14
+    v16:Object = Phi<3, 4> v14 v15
     Snapshot
-    Return v15
+    Return v16
   }
 }
 --- Expected 3.14t ---
@@ -20147,7 +20219,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v10:CInt32 = RunPeriodicTasks {
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -20158,17 +20230,25 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:OptObject = LoadGlobalCached<0; "X_INST">
-    v8:MortalObjectUser[X:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
-      Descr 'LOAD_GLOBAL: X_INST'
+    Guard v7 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v8:Object = RefineType<Object> v7
+    v9:ObjectUser[X:Exact] = GuardType<ObjectUser[X:Exact]> v8 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
     Snapshot
-    v9:Object = LoadAttr<1; "a1"> v8 {
+    v10:Object = LoadAttr<1; "a1"> v9 {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v9
+    Return v10
   }
 }
 --- Test Name ---

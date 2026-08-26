@@ -1203,6 +1203,67 @@ def f():
   EXPECT_TRUE(isIntEquals(call_result2, 2));
 }
 
+class LoadGlobalGuardTest : public RuntimeTest {
+ public:
+  std::unordered_map<Opcode, int> opcodeCounts(const Function& irfunc) {
+    std::unordered_map<Opcode, int> counts;
+    for (BasicBlock* block :
+         irfunc.cfg.getPostOrderTraversal(irfunc.cfg.entry_block)) {
+      for (Instr& instr : *block) {
+        counts[instr.opcode()]++;
+      }
+    }
+    return counts;
+  }
+};
+
+// A global holding a function is pinned to its exact value, because that is
+// what lets the compiler inline through it.
+TEST_F(LoadGlobalGuardTest, FunctionGlobalIsPinnedToItsValue) {
+  const char* pycode = R"(
+def callee():
+  return 1
+
+def test():
+  return callee()
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  auto irfunc = buildHIR(pyfunc);
+  ASSERT_NE(irfunc, nullptr);
+
+  auto counts = opcodeCounts(*irfunc);
+  EXPECT_EQ(counts[Opcode::kLoadGlobalCached], 1);
+  EXPECT_EQ(counts[Opcode::kGuardIs], 1);
+  EXPECT_EQ(counts[Opcode::kGuardType], 0);
+  EXPECT_EQ(counts[Opcode::kGuard], 0);
+}
+
+// A global holding data is not pinned: rebinding it is ordinary Python and
+// must not deopt. Its type is still guarded, so type-driven rewrites keep
+// working.
+TEST_F(LoadGlobalGuardTest, DataGlobalGuardsTypeNotValue) {
+  const char* pycode = R"(
+FLAG = False
+
+def test():
+  return FLAG
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  auto irfunc = buildHIR(pyfunc);
+  ASSERT_NE(irfunc, nullptr);
+
+  auto counts = opcodeCounts(*irfunc);
+  EXPECT_EQ(counts[Opcode::kLoadGlobalCached], 1);
+  EXPECT_EQ(counts[Opcode::kGuardIs], 0);
+  // Guard, not CheckVar: an unbound global must deopt so the interpreter
+  // raises NameError rather than UnboundLocalError.
+  EXPECT_EQ(counts[Opcode::kGuard], 1);
+  EXPECT_EQ(counts[Opcode::kCheckVar], 0);
+  EXPECT_EQ(counts[Opcode::kGuardType], 1);
+}
+
 class HIRCloneTest : public RuntimeTest {};
 
 TEST_F(HIRCloneTest, CanCloneInstrs) {

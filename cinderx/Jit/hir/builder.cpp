@@ -29,6 +29,7 @@ extern "C" {
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/module_state.h"
 
@@ -288,6 +289,23 @@ bool isSupportedOpcode(int opcode) {
 // Check that a symbol/name is one that the JIT has banned.
 bool isBannedName(std::string_view name) {
   return name == "eval" || name == "exec" || name == "locals";
+}
+
+// Whether a LOAD_GLOBAL should pin the value it saw at compile time with a
+// GuardIs.
+//
+// Pinning is what lets the rest of the compiler treat the global as a constant,
+// which is the enabling step for inlining and devirtualization.  It costs a
+// deopt every time the name is rebound, so it only pays off for values that are
+// rebound approximately never: functions, classes and modules.
+//
+// Mutable data globals are the opposite.  Pinning a bool flag or an int counter
+// buys no optimization, and module-level flags toggled by context managers are
+// a common enough Python idiom that the deopts dominate.
+static bool shouldPinGlobalValue(BorrowedRef<> value) {
+  return PyFunction_Check(value) || PyCFunction_Check(value) ||
+      PyType_Check(value) || PyModule_Check(value) ||
+      Ci_StrictModule_Check(value);
 }
 
 } // namespace
@@ -3556,9 +3574,26 @@ void HIRBuilder::emitLoadGlobal(
         preloader_.globals(),
         name_idx,
         preloader_.globalCache(name_idx));
-    auto guard_is = tc.emit<GuardIs>(result, value, result);
-    guard_is->setDescr(
-        fmt::format("LOAD_GLOBAL: {}", preloader_.name(name_idx)));
+    if (shouldPinGlobalValue(value)) {
+      auto guard_is = tc.emit<GuardIs>(result, value, result);
+      guard_is->setDescr(
+          fmt::format("LOAD_GLOBAL: {}", preloader_.name(name_idx)));
+    } else {
+      // The cache cell tracks rebinding, so the load already produced the live
+      // value. Check that the name is still bound, mirroring CPython's
+      // DEOPT_IF(res_o == NULL), then guard the type rather than the identity.
+      // Rebinding a flag or a counter keeps its type, so this survives the
+      // writes that a GuardIs would deopt on, while still handing the rest of
+      // the compiler the exact type that its rewrites key off.
+      //
+      // Guard rather than CheckVar: an unbound global has to deopt and let the
+      // interpreter re-run LOAD_GLOBAL so it raises NameError. CheckVar would
+      // raise UnboundLocalError, which is the wrong error for a global.
+      tc.emit<Guard>(result, tc.frame);
+      tc.emit<RefineType>(result, TObject, result);
+      tc.emit<GuardType>(
+          result, Type::fromTypeExact(Py_TYPE(value)), result, tc.frame);
+    }
     return true;
   };
 

@@ -3437,7 +3437,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v13:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3449,17 +3449,27 @@ fun jittestmodule:test {
     Snapshot
     v8:Nullptr = LoadConst<Nullptr>
     v9:OptObject = LoadGlobalCached<0; "foo">
-    v10:MortalObjectUser[C:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
-      Descr 'LOAD_GLOBAL: foo'
+    Guard v9 {
+      FrameState {
+        CurInstrOffset 2
+        Stack<1> v8
+      }
+    }
+    v10:Object = RefineType<Object> v9
+    v11:ObjectUser[C:Exact] = GuardType<ObjectUser[C:Exact]> v10 {
+      FrameState {
+        CurInstrOffset 2
+        Stack<1> v8
+      }
     }
     Snapshot
-    v13:Object = VectorCall<0> v10 {
+    v14:Object = VectorCall<0> v11 {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.14 ---
@@ -3474,7 +3484,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v13:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3485,18 +3495,26 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v8:OptObject = LoadGlobalCached<0; "foo">
-    v9:MortalObjectUser[C:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
-      Descr 'LOAD_GLOBAL: foo'
+    Guard v8 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
-    v10:Nullptr = LoadConst<Nullptr>
+    v9:Object = RefineType<Object> v8
+    v10:ObjectUser[C:Exact] = GuardType<ObjectUser[C:Exact]> v9 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v14:Object = VectorCall<0> v10 {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.15 ---
@@ -3511,7 +3529,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v13:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3522,18 +3540,26 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v8:OptObject = LoadGlobalCached<0; "foo">
-    v9:MortalObjectUser[C:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
-      Descr 'LOAD_GLOBAL: foo'
+    Guard v8 {
+      FrameState {
+        CurInstrOffset 4
+      }
     }
-    v10:Nullptr = LoadConst<Nullptr>
+    v9:Object = RefineType<Object> v8
+    v10:ObjectUser[C:Exact] = GuardType<ObjectUser[C:Exact]> v9 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v14:Object = VectorCall<0> v10 {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.16 ---
@@ -3548,7 +3574,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v13:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3559,18 +3585,26 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v8:OptObject = LoadGlobalCached<0; "foo">
-    v9:MortalObjectUser[C:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
-      Descr 'LOAD_GLOBAL: foo'
+    Guard v8 {
+      FrameState {
+        CurInstrOffset 4
+      }
     }
-    v10:Nullptr = LoadConst<Nullptr>
+    v9:Object = RefineType<Object> v8
+    v10:ObjectUser[C:Exact] = GuardType<ObjectUser[C:Exact]> v9 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v14:Object = VectorCall<0> v10 {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.14t ---
@@ -3586,7 +3620,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v12:CInt32 = RunPeriodicTasks {
+    v13:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3597,18 +3631,26 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v8:OptObject = LoadGlobalCached<0; "foo">
-    v9:MortalObjectUser[C:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
-      Descr 'LOAD_GLOBAL: foo'
+    Guard v8 {
+      FrameState {
+        CurInstrOffset 2
+      }
     }
-    v10:Nullptr = LoadConst<Nullptr>
+    v9:Object = RefineType<Object> v8
+    v10:ObjectUser[C:Exact] = GuardType<ObjectUser[C:Exact]> v9 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v14:Object = VectorCall<0> v10 {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Test Name ---

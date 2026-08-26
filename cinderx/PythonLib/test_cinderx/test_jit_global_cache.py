@@ -15,6 +15,16 @@ from cinderx.test_support import run_in_subprocess, skip_unless_lazy_imports
 from .common import failUnlessHasOpcodes, with_globals
 
 
+# Initialized at module scope so they have a value when failUnlessJITCompiled
+# compiles the readers below at decoration time. A global with no value at
+# compile time takes the uncached LoadGlobal path and would not exercise the
+# guard these tests are about. One global per test, because the guard is chosen
+# from the type seen at compile time.
+a_bool_global: bool = False
+an_int_global: int = 0
+a_retyped_global: int = 0
+
+
 class LoadGlobalCacheTests(unittest.TestCase):
     def setUp(self):
         global license, a_global
@@ -85,6 +95,84 @@ class LoadGlobalCacheTests(unittest.TestCase):
         delattr(builtins, "a_global")
         self.assertRaises(NameError, self.get_global)
 
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def read_bool_global(n):
+        total = 0
+        for _ in range(n):
+            if a_bool_global:
+                total += 1
+        return total
+
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def read_int_global(n):
+        total = 0
+        for _ in range(n):
+            total += an_int_global
+        return total
+
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def read_retyped_global(n):
+        total = 0
+        for _ in range(n):
+            total += a_retyped_global
+        return total
+
+    def deopt_count(self, func):
+        stats = cinderx.jit.get_and_clear_runtime_stats()
+        return sum(
+            d["int"]["count"]
+            for d in stats.get("deopt", ())
+            if d["normal"]["func_qualname"] == func.__qualname__
+        )
+
+    # A LOAD_GLOBAL guards a data global's type rather than pinning its value,
+    # so rebinding one is not supposed to invalidate compiled code. Rebinding a
+    # module-level flag or counter is ordinary Python.
+    def test_rebinding_bool_global_does_not_deopt(self):
+        global a_bool_global
+
+        cinderx.jit.clear_runtime_stats()
+        for _ in range(50):
+            a_bool_global = True
+            self.assertEqual(self.read_bool_global(4), 4)
+            a_bool_global = False
+            self.assertEqual(self.read_bool_global(4), 0)
+
+        self.assertEqual(self.deopt_count(self.read_bool_global), 0)
+
+    def test_rebinding_int_global_does_not_deopt(self):
+        global an_int_global
+
+        cinderx.jit.clear_runtime_stats()
+        for i in range(50):
+            an_int_global = i
+            self.assertEqual(self.read_int_global(3), i * 3)
+
+        self.assertEqual(self.deopt_count(self.read_int_global), 0)
+
+    # The type guard is what makes pinning the value unnecessary, so swapping in
+    # a value of a different type still has to fall back to the interpreter.
+    def test_changing_global_type_deopts(self):
+        global a_retyped_global
+
+        try:
+            a_retyped_global = 1
+            self.assertEqual(self.read_retyped_global(2), 2)
+            cinderx.jit.clear_runtime_stats()
+
+            a_retyped_global = 1.5
+            self.assertEqual(self.read_retyped_global(2), 3.0)
+            if cinderx.jit.is_enabled():
+                self.assertGreater(self.deopt_count(self.read_retyped_global), 0)
+        finally:
+            a_retyped_global = 0
+
     class prefix_str(str):
         def __new__(cls, prefix, value):
             s = super().__new__(cls, value)
@@ -97,6 +185,12 @@ class LoadGlobalCacheTests(unittest.TestCase):
         def __eq__(self, other):
             return (self.prefix + self) == other
 
+    # Runs in a subprocess because the weird key is never removed.  CPython converts a
+    # dict's keys to the general kind on a non-exact-str insert and never converts back,
+    # so this module's globals stay unwatchable for the rest of the process.  That nulls
+    # every global cache pointing at them and deopts every LOAD_GLOBAL here, which
+    # breaks the other tests.
+    @run_in_subprocess
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_weird_key_in_globals(self):
