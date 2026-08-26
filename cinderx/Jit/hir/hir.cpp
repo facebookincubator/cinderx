@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <ranges>
+#include <span>
 
 namespace cinderx::jit::hir {
 
@@ -1272,6 +1273,22 @@ void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
   }
 }
 
+namespace {
+
+template <typename Op>
+constexpr Op parseOpName(
+    std::string_view name,
+    std::span<const std::string_view> op_names,
+    std::string_view op_type) {
+  auto it = std::ranges::find(op_names, name);
+  if (it != op_names.end()) {
+    return static_cast<Op>(it - op_names.begin());
+  }
+  JIT_ABORT("Invalid {} '{}'", op_type, name);
+}
+
+} // namespace
+
 constexpr std::array<std::string_view, kNumCompareOps> kCompareOpNames = {
 #define OP_STR(NAME) #NAME,
     FOREACH_COMPARE_OP(OP_STR)
@@ -1283,12 +1300,7 @@ std::string_view GetCompareOpName(CompareOp op) {
 }
 
 CompareOp ParseCompareOpName(std::string_view name) {
-  for (size_t i = 0; i < kCompareOpNames.size(); ++i) {
-    if (name == kCompareOpNames[i]) {
-      return static_cast<CompareOp>(i);
-    }
-  }
-  JIT_ABORT("Invalid CompareOp '{}'", name);
+  return parseOpName<CompareOp>(name, kCompareOpNames, "CompareOp");
 }
 
 constexpr std::array<std::string_view, kNumPrimitiveCompareOps>
@@ -1303,12 +1315,8 @@ std::string_view GetPrimitiveCompareOpName(PrimitiveCompareOp op) {
 }
 
 PrimitiveCompareOp ParsePrimitiveCompareOpName(std::string_view name) {
-  for (size_t i = 0; i < kPrimitiveCompareOpNames.size(); i++) {
-    if (name == kPrimitiveCompareOpNames[i]) {
-      return static_cast<PrimitiveCompareOp>(i);
-    }
-  }
-  JIT_ABORT("Invalid PrimitiveCompareOp '{}'", name);
+  return parseOpName<PrimitiveCompareOp>(
+      name, kPrimitiveCompareOpNames, "PrimitiveCompareOp");
 }
 
 std::optional<PrimitiveCompareOp> toPrimitiveCompareOp(CompareOp op) {
@@ -1349,12 +1357,7 @@ std::string_view GetBinaryOpName(BinaryOpKind op) {
 }
 
 BinaryOpKind ParseBinaryOpName(std::string_view name) {
-  for (size_t i = 0; i < kBinaryOpNames.size(); ++i) {
-    if (name == kBinaryOpNames[i]) {
-      return static_cast<BinaryOpKind>(i);
-    }
-  }
-  JIT_ABORT("Invalid BinaryOpKind '{}'", name);
+  return parseOpName<BinaryOpKind>(name, kBinaryOpNames, "BinaryOpKind");
 }
 
 constexpr std::array<std::string_view, kNumUnaryOpKinds> kUnaryOpNames = {
@@ -1368,12 +1371,7 @@ std::string_view GetUnaryOpName(UnaryOpKind op) {
 }
 
 UnaryOpKind ParseUnaryOpName(std::string_view name) {
-  for (size_t i = 0; i < kUnaryOpNames.size(); ++i) {
-    if (name == kUnaryOpNames[i]) {
-      return static_cast<UnaryOpKind>(i);
-    }
-  }
-  JIT_ABORT("Invalid UnaryOpKind '{}'", name);
+  return parseOpName<UnaryOpKind>(name, kUnaryOpNames, "UnaryOpKind");
 }
 
 constexpr std::array<std::string_view, kNumPrimitiveUnaryOpKinds>
@@ -1388,12 +1386,8 @@ std::string_view GetPrimitiveUnaryOpName(PrimitiveUnaryOpKind op) {
 }
 
 PrimitiveUnaryOpKind ParsePrimitiveUnaryOpName(std::string_view name) {
-  for (size_t i = 0; i < kPrimitiveUnaryOpNames.size(); ++i) {
-    if (name == kPrimitiveUnaryOpNames[i]) {
-      return static_cast<PrimitiveUnaryOpKind>(i);
-    }
-  }
-  JIT_ABORT("Invalid PrimitiveUnaryOpKind '{}'", name);
+  return parseOpName<PrimitiveUnaryOpKind>(
+      name, kPrimitiveUnaryOpNames, "PrimitiveUnaryOpKind");
 }
 
 // NB: This needs to be in the order that the values appear in the InPlaceOpKind
@@ -1409,12 +1403,7 @@ std::string_view GetInPlaceOpName(InPlaceOpKind op) {
 }
 
 InPlaceOpKind ParseInPlaceOpName(std::string_view name) {
-  for (size_t i = 0; i < kInPlaceOpNames.size(); ++i) {
-    if (name == kInPlaceOpNames[i]) {
-      return static_cast<InPlaceOpKind>(i);
-    }
-  }
-  JIT_ABORT("Invalid InPlaceOpKind '{}'", name);
+  return parseOpName<InPlaceOpKind>(name, kInPlaceOpNames, "InPlaceOpKind");
 }
 
 // NB: This needs to be in the order that the values appear in the FunctionAttr
