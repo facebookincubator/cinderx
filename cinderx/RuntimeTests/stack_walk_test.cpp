@@ -4,12 +4,19 @@
 
 #include "cinderx/Jit/stack_walk.h"
 
-#if defined(__APPLE__)
-#include <mach/mach.h>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
 #endif
+#include <windows.h>
+#else
 #include <pthread.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -81,11 +88,32 @@ namespace {
 
 constexpr size_t kBatchSize = StackWalkTestAccess::kBatchSize;
 
-#if !defined(__APPLE__)
+#if !defined(CINDERX_STACK_WALK_SUSPENDS)
 // Short enough that a test can wait out a park several times over, long enough
-// that ordinary scheduling noise does not trip it. Darwin parks nobody.
+// that ordinary scheduling noise does not trip it. A suspended target parks
+// nowhere, so the platforms that stop a thread from the outside have no use
+// for this.
 constexpr auto kTestParkTimeout = std::chrono::milliseconds{50};
 #endif
+
+// The calling thread, named the way StackWalk names threads.
+StackWalk::ThreadId currentThreadId() {
+#if defined(_WIN32)
+  return ::GetCurrentThreadId();
+#else
+  return ::pthread_self();
+#endif
+}
+
+// Whether two ids name the same thread. pthread_t is not required to be
+// comparable with ==, so this is not one comparison everywhere.
+bool sameThread(StackWalk::ThreadId a, StackWalk::ThreadId b) {
+#if defined(_WIN32)
+  return a == b;
+#else
+  return ::pthread_equal(a, b) != 0;
+#endif
+}
 
 // A thread that parks in a known-deep call chain until it is told to stop, so
 // that a cross-thread walk has something stable to find. `extra_frames`
@@ -112,7 +140,13 @@ class SpinningThread {
   }
 
   StackWalk::ThreadId id() {
+#if defined(_WIN32)
+    // std::thread's native handle is a HANDLE on Windows, where StackWalk
+    // names threads by the id underneath it.
+    return ::GetThreadId(static_cast<HANDLE>(thread_.native_handle()));
+#else
     return thread_.native_handle();
+#endif
   }
 
   // How many times the thread has been round its wait loop. A test that
@@ -139,7 +173,11 @@ class SpinningThread {
   }
 
  private:
-  __attribute__((noinline)) void spin(size_t remaining, int deaf_to) {
+  // `deaf_to` is a signal to block, so it means nothing where there are no
+  // signals; the parameter stays so the fixture reads the same everywhere.
+  __attribute__((noinline)) void spin(
+      size_t remaining,
+      [[maybe_unused]] int deaf_to) {
     if (remaining > 0) {
       spin(remaining - 1, deaf_to);
       // Stops this being a tail call, which would collapse the whole chain
@@ -147,6 +185,7 @@ class SpinningThread {
       asm volatile("");
       return;
     }
+#if !defined(_WIN32)
     // A signal mask belongs to the thread that sets it, so this has to happen
     // here rather than in the constructor - and before `ready_`, so that a test
     // which signals as soon as the thread is up cannot beat it.
@@ -156,8 +195,10 @@ class SpinningThread {
       sigaddset(&deaf, deaf_to);
       ::pthread_sigmask(SIG_BLOCK, &deaf, nullptr);
     }
+#endif
     ready_.store(true, std::memory_order_release);
     while (!stop_.load(std::memory_order_acquire)) {
+#if !defined(_WIN32)
       if (deaf_to != 0 && !listening_.load(std::memory_order_relaxed) &&
           listen_.load(std::memory_order_acquire)) {
         sigset_t deaf;
@@ -166,6 +207,7 @@ class SpinningThread {
         ::pthread_sigmask(SIG_UNBLOCK, &deaf, nullptr);
         listening_.store(true, std::memory_order_release);
       }
+#endif
       laps_.fetch_add(1, std::memory_order_release);
       std::this_thread::yield();
     }
@@ -443,6 +485,31 @@ class HostileAddressTest : public ::testing::Test {
     // keeps the hole a hole.
     StackWalk::canReadFramesSafely();
 
+#if defined(_WIN32)
+    SYSTEM_INFO info = {};
+    ::GetSystemInfo(&info);
+    page_ = info.dwPageSize;
+
+    // Two pages with the upper one made unreadable. Leaving it mapped rather
+    // than releasing it pins the boundary in place for the straddling case,
+    // and PAGE_NOACCESS is precisely what a thread stack's guard page is.
+    auto* guarded = ::VirtualAlloc(
+        nullptr, page_ * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    ASSERT_NE(guarded, nullptr);
+    guarded_ = static_cast<char*>(guarded);
+    DWORD was = 0;
+    ASSERT_NE(
+        ::VirtualProtect(guarded_ + page_, page_, PAGE_NOACCESS, &was), 0);
+
+    // A hole in the address space, with no mapping at all. A reservation is
+    // rounded up to the allocation granularity, so releasing it frees rather
+    // more than the page asked for - which only makes the hole bigger.
+    auto* hole = ::VirtualAlloc(
+        nullptr, page_, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    ASSERT_NE(hole, nullptr);
+    ASSERT_NE(::VirtualFree(hole, 0, MEM_RELEASE), 0);
+    hole_ = static_cast<char*>(hole);
+#else
     page_ = static_cast<size_t>(::sysconf(_SC_PAGESIZE));
 
     // Two pages with the upper one made unreadable. Leaving it mapped rather
@@ -470,12 +537,18 @@ class HostileAddressTest : public ::testing::Test {
     ASSERT_NE(hole, MAP_FAILED);
     ASSERT_EQ(::munmap(hole, page_), 0);
     hole_ = static_cast<char*>(hole);
+#endif
   }
 
   void TearDown() override {
-    if (guarded_ != nullptr) {
-      ::munmap(guarded_, page_ * 2);
+    if (guarded_ == nullptr) {
+      return;
     }
+#if defined(_WIN32)
+    ::VirtualFree(guarded_, 0, MEM_RELEASE);
+#else
+    ::munmap(guarded_, page_ * 2);
+#endif
   }
 
   static const StackFrame* asRecord(const void* addr) {
@@ -491,7 +564,14 @@ class HostileAddressTest : public ::testing::Test {
   // Put to the kernel's map rather than to the walker's own safe read, which
   // is the thing under test.
   void assertHoleIsUnmapped() {
-#if defined(__APPLE__)
+#if defined(_WIN32)
+    // VirtualQuery answers this outright, which neither of the others does:
+    // MEM_FREE is the state of address space with nothing reserved in it.
+    MEMORY_BASIC_INFORMATION info = {};
+    ASSERT_EQ(::VirtualQuery(hole_, &info, sizeof(info)), sizeof(info));
+    ASSERT_EQ(info.State, static_cast<DWORD>(MEM_FREE))
+        << "something has mapped the hole";
+#elif defined(__APPLE__)
     // Darwin's mincore() has no ENOMEM case at all: it reports an unmapped
     // page as merely not resident and succeeds, so only the Linux/BSD
     // spelling of the call can answer this. vm_region hands back the first
@@ -633,16 +713,16 @@ TEST(StackWalkSafeReadTest, TheSafeReadMechanismIsAvailable) {
 }
 
 TEST(StackWalkThreadTest, NativeThreadIdRoundTripsThroughAThreadState) {
-  PyThreadState tstate = fakeThreadState(::pthread_self());
+  PyThreadState tstate = fakeThreadState(currentThreadId());
 
   EXPECT_TRUE(
-      ::pthread_equal(StackWalk::nativeThreadId(&tstate), ::pthread_self()));
+      sameThread(StackWalk::nativeThreadId(&tstate), currentThreadId()));
 }
 
 TEST(StackWalkThreadTest, IsCurrentThreadDistinguishesSelfFromOthers) {
   SpinningThread other;
 
-  EXPECT_TRUE(StackWalk::isCurrentThread(::pthread_self()));
+  EXPECT_TRUE(StackWalk::isCurrentThread(currentThreadId()));
   EXPECT_FALSE(StackWalk::isCurrentThread(other.id()));
 }
 
@@ -650,7 +730,7 @@ TEST(StackWalkThreadTest, IsCurrentThreadDistinguishesSelfFromOthers) {
 // walkSelf(); walk(ThreadId) rejects it outright.
 TEST(StackWalkThreadTest, WalkOfOwnThreadStateWalksSelfRatherThanFailing) {
   StackWalk sw;
-  PyThreadState tstate = fakeThreadState(::pthread_self());
+  PyThreadState tstate = fakeThreadState(currentThreadId());
 
   size_t frames = 0;
   const WalkResult walked = walkBelowKnownFrames(kSelfWalkFixtureDepth, [&] {
@@ -665,7 +745,7 @@ TEST(StackWalkThreadTest, WalkOfOwnThreadStateWalksSelfRatherThanFailing) {
   // The same thread by native id is not walkable, which is what makes the
   // dispatch above worth having.
   EXPECT_EQ(
-      sw.walk(::pthread_self(), [](const void*, const void*) { return true; }),
+      sw.walk(currentThreadId(), [](const void*, const void*) { return true; }),
       WalkResult::Failed);
 }
 
@@ -808,17 +888,17 @@ TEST(StackWalkBatchBoundaryTest, WalksAtEveryDepthResidueFinish) {
   EXPECT_GT(deepest, kBatchSize);
 }
 
-#if defined(__APPLE__)
+#if defined(CINDERX_STACK_WALK_SUSPENDS)
 
-// Darwin stops a target from the outside instead of signalling it, so
-// everything below this point in the file - parks, signal discovery, the gate
-// that decides which delivery to answer, the handler's way out - describes
-// machinery that does not exist here. What replaces it has one unforgiving
+// Darwin and Windows stop a target from the outside instead of signalling it,
+// so everything below this point in the file - parks, signal discovery, the
+// gate that decides which delivery to answer, the handler's way out - describes
+// machinery that does not exist there. What replaces it has one unforgiving
 // requirement of its own, and these cover that.
 
-// thread_suspend is counted: a target that is not resumed never runs again. So
-// every path out of a walk owes exactly one resume, including the paths that do
-// not return normally.
+// thread_suspend and SuspendThread are both counted: a target that is not
+// resumed never runs again. So every path out of a walk owes exactly one
+// resume, including the paths that do not return normally.
 //
 // A regression hangs rather than fails - waitForProgress() waits for laps a
 // suspended thread will never add - which is the same shape as the batch
@@ -1586,6 +1666,6 @@ TEST(StackWalkHandlerExitTest, AWalkerStaysSafeToDestroyAfterATimedOutWalk) {
   }
 }
 
-#endif // !defined(__APPLE__)
+#endif // !defined(CINDERX_STACK_WALK_SUSPENDS)
 
 } // namespace

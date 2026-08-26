@@ -2,20 +2,35 @@
 
 #pragma once
 
-#if defined(__APPLE__) || defined(__linux__)
+// Which of the two mechanisms below this platform uses to hold a thread still.
+// Darwin and Windows both stop a thread from the outside and walk it from the
+// sampling thread; everywhere else the target is interrupted and walks itself.
+// Almost every conditional in this header and its implementation is asking
+// which mechanism is in play rather than which operating system it is on, so
+// they ask it by this name. See the StackWalk class comment for the difference.
+#if defined(__APPLE__) || defined(_WIN32)
+#define CINDERX_STACK_WALK_SUSPENDS 1
+#endif
+
+#if defined(CINDERX_STACK_WALK_SUSPENDS) || defined(__linux__)
 
 #include "cinderx/Common/util.h"
 
-#include <pthread.h>
-#include <signal.h>
-
-#if defined(__APPLE__)
+// Only what this header actually names. <windows.h> in particular stays out:
+// this is included by every file that walks a stack, and the macros it brings
+// with it would follow it into all of them. The one Windows type needed below
+// is spelled out by hand instead.
+#if defined(_WIN32)
+// Nothing.
+#elif defined(__APPLE__)
 // Darwin stops a thread through Mach instead of interrupting it with a signal,
-// so it needs a port name here and none of the POSIX semaphore machinery. See
-// the StackWalk class comment for why the two platforms diverge.
+// so it needs a port name here and none of the POSIX semaphore machinery.
 #include <mach/port.h>
+#include <pthread.h>
 #else
+#include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 #endif
 
 #include <array>
@@ -111,11 +126,12 @@ enum class WalkResult {
 // the difference is large enough that the two mechanisms share only the frame
 // model, the cursor, and the fault-safe read.
 //
-// On Darwin the thread is stopped from the outside. thread_suspend() holds it,
-// thread_get_state() reads the registers the walk starts from, and the sampler
-// follows the chain itself before thread_resume() lets the target go. Nothing
-// runs on the target thread at all, which is why none of the machinery below
-// this paragraph exists there.
+// On Darwin and Windows the thread is stopped from the outside. thread_suspend
+// or SuspendThread holds it, thread_get_state or GetThreadContext reads the
+// registers the walk starts from, and the sampler follows the chain itself
+// before thread_resume or ResumeThread lets the target go. Nothing runs on the
+// target thread at all, which is why none of the machinery below this paragraph
+// exists there.
 //
 // Everywhere else the thread is stopped from the inside, by interrupting it
 // with a signal. The target walks its own frames within the handler and parks
@@ -137,15 +153,32 @@ enum class WalkResult {
 // signal handler for the life of the process. The walk then reports
 // WalkResult::TimedOut, and everything it has not already delivered is lost:
 // the stack those frames describe is running again. A suspended target is never
-// waiting on its sampler, so a Darwin walk has nothing to time out and never
-// reports TimedOut.
+// waiting on its sampler, so a suspending walk has nothing to time out and
+// never reports TimedOut.
 //
 // Only one instance may exist at a time, on the signalled mechanism: a signal
 // handler cannot be given a context pointer, so the active instance is reached
-// through a global. Darwin has no handler and so no such restriction.
+// through a global. The suspending mechanism has no handler and so no such
+// restriction.
+//
+// Windows carries one caveat the other two do not. Its x64 code keeps a frame
+// pointer only where it needs one, so a thread stopped in frameless code cannot
+// be walked at all, and one stopped in code that does keep a frame pointer
+// still stops as soon as the chain reaches a caller that does not. That is the
+// ordinary end-of-chain the cursor already recognises, so it costs short walks
+// rather than wrong ones.
 class StackWalk {
  public:
+#if defined(_WIN32)
+  // Windows' DWORD, spelled out so that <windows.h> and the macros it brings
+  // with it stay out of every file that walks a stack. CPython stores exactly
+  // this in PyThreadState::thread_id there, since PyThread_get_thread_ident()
+  // is GetCurrentThreadId(), so nativeThreadId() below hands OpenThread()
+  // precisely what it wants.
+  using ThreadId = unsigned long;
+#else
   using ThreadId = pthread_t;
+#endif
 
   // How long a signalled thread stays parked before it abandons the walk.
   //
@@ -155,7 +188,8 @@ class StackWalk {
   // signal handler indefinitely. The cap turns that into a bounded delay and a
   // walk that comes back short.
   //
-  // Means nothing on Darwin, where no target ever waits for its sampler.
+  // Means nothing on the suspending mechanism, where no target ever waits for
+  // its sampler.
   static constexpr std::chrono::nanoseconds kParkTimeout =
       std::chrono::seconds{1};
 
@@ -196,9 +230,10 @@ class StackWalk {
   // wait for it. Worth overriding only in tests, which would otherwise have to
   // sleep for a whole second to reach the timeout at all.
   //
-  // Both arguments are accepted and ignored on Darwin, which reaches its
-  // targets through Mach rather than through a signal. They stay in the
-  // signature so that callers and tests are written once.
+  // Both arguments are accepted and ignored on the suspending mechanism, which
+  // reaches its targets through Mach or the Win32 thread API rather than
+  // through a signal. They stay in the signature so that callers and tests are
+  // written once.
   explicit StackWalk(
       int signum = kAutoSignum,
       std::chrono::nanoseconds park_timeout = kParkTimeout);
@@ -222,9 +257,10 @@ class StackWalk {
   // the calling thread, still work - neither involves a signal - and every
   // cross-thread walk reports WalkResult::Failed without disturbing the target.
   //
-  // Always true on Darwin, which needs no signal to reach a target.
+  // Always true on the suspending mechanism, which needs no signal to reach a
+  // target.
   bool canSampleOtherThreads() const {
-#if defined(__APPLE__)
+#if defined(CINDERX_STACK_WALK_SUSPENDS)
     return true;
 #else
     return signum_ > 0;
@@ -232,9 +268,10 @@ class StackWalk {
   }
 
   // The signal this instance sends, or kAutoSignum if it has none - which on
-  // Darwin is always, since nothing there is reached by signalling it.
+  // the suspending mechanism is always, since nothing there is reached by
+  // signalling it.
   int signum() const {
-#if defined(__APPLE__)
+#if defined(CINDERX_STACK_WALK_SUSPENDS)
     return kAutoSignum;
 #else
     return signum_;
@@ -244,7 +281,8 @@ class StackWalk {
   // Forgets the signal chosen for this process and takes the handler back off
   // it, so the next instance scans afresh. Only for tests, which need each case
   // to start from a known state - production never gives a discovered signal
-  // back. A no-op on Darwin, which claims no signal to give back.
+  // back. A no-op on the suspending mechanism, which claims no signal to give
+  // back.
   static void resetSignumCache();
 
   // Reports the frames of the thread `tstate` is running on, innermost first,
@@ -271,8 +309,8 @@ class StackWalk {
   // on the calling thread while `thread` stays frozen; returning false stops
   // the walk early and lets the target resume without unwinding the rest.
   //
-  // Darwin freezes it by suspending it and reads its registers from here;
-  // everywhere else the target is interrupted and freezes itself. Which
+  // Darwin and Windows freeze it by suspending it and read its registers from
+  // here; everywhere else the target is interrupted and freezes itself. Which
   // mechanism ran is invisible to the callback: both deliver the same frames in
   // the same order.
   //
@@ -289,7 +327,7 @@ class StackWalk {
   // handed over before that are as good as any other; there are simply no more
   // of them, and a caller that kept an address out of one is now holding a
   // pointer into a stack that has resumed. A suspended target waits for nobody,
-  // so a Darwin walk never reports this.
+  // so a suspending walk never reports this.
   //
   // Both addresses arrive as `const void*`, the frame pointer deliberately so.
   // It is only ever a plausible address, never one known to be readable - a
@@ -298,7 +336,7 @@ class StackWalk {
   // advertise a read that is not safe to make.
   template <typename F>
   WalkResult walk(ThreadId thread, F&& callback) {
-#if defined(__APPLE__)
+#if defined(CINDERX_STACK_WALK_SUSPENDS)
     // Measured before the target is stopped rather than after. Deriving bounds
     // reads the thread descriptor, and there is no reason to hold a thread
     // still while doing it.
@@ -503,15 +541,16 @@ class StackWalk {
   // stack pointer of the thread actually holding them.
   StackBounds stackBoundsFor(ThreadId thread);
 
-#if defined(__APPLE__)
+#if defined(CINDERX_STACK_WALK_SUSPENDS)
   // Holds a thread stopped for as long as it is alive, and captures the
   // registers a walk of it starts from.
   //
-  // A scope guard rather than a pair of calls because thread_suspend is
+  // A scope guard rather than a pair of calls because both suspends are
   // counted: a resume that does not happen leaves a thread that never runs
   // again, and the walk between the two ends is a callback that may return
   // early or throw. Tying the resume to a destructor is the only way to owe
-  // exactly one of them on every path out.
+  // exactly one of them on every path out. Windows additionally owns a thread
+  // handle, which the same destructor closes.
   //
   // Reading the registers is part of construction so that a caller cannot
   // reach them without holding the guard that makes them meaningful.
@@ -552,10 +591,18 @@ class StackWalk {
     }
 
    private:
-    // The thread to resume, or MACH_PORT_NULL if none was ever suspended.
-    // Distinct from `valid_`: a thread whose registers could not be read is
-    // still suspended and still owed a resume.
+    // What the destructor has to undo, or a null value if nothing was ever
+    // suspended. Distinct from `valid_`: a thread whose registers could not be
+    // read is still suspended and still owed a resume.
+#if defined(_WIN32)
+    // Windows' HANDLE, kept as void* so that <windows.h> stays out of this
+    // header. Non-null means both suspended and owned: the constructor closes
+    // the handle itself if the suspend does not land, so there is no state
+    // where this is set but no resume is owed.
+    void* handle_ = nullptr;
+#else
     mach_port_t port_ = MACH_PORT_NULL;
+#endif
     const StackFrame* frame_ = nullptr;
     const void* pc_ = nullptr;
     uintptr_t sp_ = 0;

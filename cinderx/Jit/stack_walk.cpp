@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/stack_walk.h"
 
-#if defined(__APPLE__) || defined(__linux__)
+#if defined(CINDERX_STACK_WALK_SUSPENDS) || defined(__linux__)
 
 #include <fmt/format.h>
 
@@ -12,13 +12,21 @@
 #include <mach/thread_status.h>
 #include <mach/vm_map.h>
 #include <pthread.h>
+#include <unistd.h>
+#elif defined(_WIN32)
+// <windows.h> defines min and max as macros unless told not to, and anything
+// that names std::min or std::max after it has been included then fails to
+// compile. It stays confined to this file; see stack_walk.h for why.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #else
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <ucontext.h>
-#endif
-
 #include <unistd.h>
+#endif
 
 #include <atomic>
 #include <cerrno>
@@ -46,17 +54,17 @@ constexpr uintptr_t kMaxFrameSize = 16 * 1024 * 1024;
 std::atomic<uint64_t> s_unreadable_frames = 0;
 std::atomic<uint64_t> s_safe_reads = 0;
 
-// Both implementations of safeReadUnchecked() below read the whole record
+// Every implementation of safeReadUnchecked() below reads the whole record
 // rather than one word: a record in the last eight bytes of a mapping has a
 // readable `frame_pointer` and an unreadable `return_address`, and only asking
 // for both catches it, as a short read.
 //
-// Both also ask the kernel to do the read rather than probing the page tables
-// first, because probing answers the wrong question. mincore() and msync()
-// only reveal whether a mapping exists, so a PROT_NONE guard page reads as fine
-// and the load that follows still dies. A SIGSEGV handler would work, but the
-// handler is process-wide and shared with CPython's faulthandler, which any
-// Python code can re-arm underneath us.
+// They all also ask the kernel to do the read rather than probing the page
+// tables first, because probing answers the wrong question. mincore() and
+// msync() only reveal whether a mapping exists, so a PROT_NONE guard page reads
+// as fine and the load that follows still dies. A SIGSEGV handler would work,
+// but the handler is process-wide and shared with CPython's faulthandler, which
+// any Python code can re-arm underneath us.
 
 #if defined(__APPLE__)
 
@@ -78,6 +86,27 @@ bool safeReadUnchecked(const StackFrame* addr, StackFrame* out) {
              &read) == KERN_SUCCESS &&
       read == sizeof(*out);
 }
+
+constexpr const char* kSafeReadMechanism = "vm_read_overwrite";
+
+#elif defined(_WIN32)
+
+// Copies the record at `addr`, reporting failure for an address that is not
+// backed by readable memory instead of faulting on it.
+//
+// The pseudo-handle from GetCurrentProcess() needs no rights and no closing,
+// and a read of our own address space needs no debug privilege. Like Darwin's,
+// this is a kernel transition rather than a bare syscall and so has no business
+// in a signal handler; nothing calls it from one, because Windows walks a
+// thread it has suspended.
+bool safeReadUnchecked(const StackFrame* addr, StackFrame* out) {
+  SIZE_T read = 0;
+  return ::ReadProcessMemory(
+             ::GetCurrentProcess(), addr, out, sizeof(*out), &read) != 0 &&
+      read == sizeof(*out);
+}
+
+constexpr const char* kSafeReadMechanism = "ReadProcessMemory";
 
 #else
 
@@ -118,6 +147,8 @@ void refreshPid() {
   s_pid.store(::getpid(), std::memory_order_relaxed);
 }
 
+constexpr const char* kSafeReadMechanism = "process_vm_readv";
+
 #endif
 
 // What the probe found. False also covers "not probed yet", which is the safe
@@ -140,11 +171,12 @@ std::once_flag s_safe_read_once;
 // signalled mechanism happen inside a handler: pthread_atfork may allocate and
 // the once-flag can block, so neither belongs there.
 void initSafeRead() {
-#if !defined(__APPLE__)
+#if !defined(CINDERX_STACK_WALK_SUSPENDS)
   refreshPid();
   // fork() gives the child a new pid, and process_vm_readv needs it. Darwin
   // names the task rather than the process, and mach_task_self() answers
-  // afresh in the child, so it has nothing to refresh.
+  // afresh in the child, so it has nothing to refresh; Windows has no fork at
+  // all.
   ::pthread_atfork(nullptr, nullptr, refreshPid);
 #endif
 
@@ -175,8 +207,24 @@ bool safeRead(const StackFrame* addr, StackFrame* out) {
 // in a signal handler waiting for us - and under glibc, for the main thread, it
 // parses /proc/self/maps and allocates. Both are reasons this belongs on the
 // sampling thread, before the target is stopped, rather than after.
-StackBounds threadStackBounds(pthread_t thread) {
-#if defined(__APPLE__)
+StackBounds threadStackBounds([[maybe_unused]] StackWalk::ThreadId thread) {
+#if defined(_WIN32)
+  // Windows publishes no way to ask for another thread's stack from its id.
+  // GetCurrentThreadStackLimits answers only for the caller, and the routes to
+  // another thread's - the TEB via NtQueryInformationThread, or VirtualQuery on
+  // its stack pointer once it is stopped - are respectively undocumented and
+  // unavailable this early, since the stack pointer does not exist until the
+  // thread has been suspended.
+  //
+  // Unknown bounds are always safe: every frame then goes through the
+  // fault-safe read instead of being loaded directly, and Cursor falls back to
+  // its fixed plausibility window. Two things are lost rather than broken. The
+  // walk costs one ReadProcessMemory per frame rather than a couple per walk,
+  // which safeReadCount() will show. And clampedToStackPointer() reports
+  // nothing for unknown bounds, so the cross-check that catches a ThreadId
+  // which outlived its thread does not happen here.
+  return {};
+#elif defined(__APPLE__)
   // Darwin reports the *high* end of the stack, where glibc reports the low
   // one, so this reads backwards from pthread_attr_getstack below rather than
   // the same way. Neither call allocates or takes a lock.
@@ -204,7 +252,6 @@ StackBounds threadStackBounds(pthread_t thread) {
   auto low = reinterpret_cast<uintptr_t>(base);
   return {low, low + size};
 #else
-  (void)thread;
   return {};
 #endif
 }
@@ -214,7 +261,7 @@ StackBounds threadStackBounds(pthread_t thread) {
 thread_local StackBounds s_self_bounds = {};
 thread_local bool s_self_bounds_known = false;
 
-#if !defined(__APPLE__)
+#if !defined(CINDERX_STACK_WALK_SUSPENDS)
 
 // The signal every StackWalk in this process uses, or zero if none has been
 // chosen yet. Shared rather than settled per instance because a walker is built
@@ -316,7 +363,7 @@ int semWaitFor(sem_t* sem, std::chrono::nanoseconds timeout) {
   return rc;
 }
 
-#endif // !defined(__APPLE__)
+#endif // !defined(CINDERX_STACK_WALK_SUSPENDS)
 
 } // namespace
 
@@ -349,7 +396,21 @@ uint64_t StackWalk::safeReadCount() {
 
 StackBounds StackWalk::currentStackBounds() {
   if (!s_self_bounds_known) {
+#if defined(_WIN32)
+    // The one thread Windows will describe is the calling one, which is
+    // exactly the thread this is about. Any guard region it includes is
+    // harmless: the clamp below raises the floor to the running frame, for the
+    // same reason it does under glibc.
+    ULONG_PTR low = 0;
+    ULONG_PTR high = 0;
+    ::GetCurrentThreadStackLimits(&low, &high);
+    if (low < high) {
+      s_self_bounds = {
+          static_cast<uintptr_t>(low), static_cast<uintptr_t>(high)};
+    }
+#else
     s_self_bounds = threadStackBounds(::pthread_self());
+#endif
     s_self_bounds_known = true;
   }
   // Everything a walk of this thread will read lies at or above the frame this
@@ -428,11 +489,20 @@ const StackFrame* StackWalk::Cursor::step() {
 }
 
 bool StackWalk::isCurrentThread(ThreadId thread) {
+#if defined(_WIN32)
+  return thread == ::GetCurrentThreadId();
+#else
   return ::pthread_equal(thread, ::pthread_self()) != 0;
+#endif
 }
 
 StackBounds StackWalk::stackBoundsFor(ThreadId thread) {
-  if (bounds_cache_valid_ && ::pthread_equal(bounds_cache_thread_, thread)) {
+#if defined(_WIN32)
+  const bool same_thread = bounds_cache_thread_ == thread;
+#else
+  const bool same_thread = ::pthread_equal(bounds_cache_thread_, thread) != 0;
+#endif
+  if (bounds_cache_valid_ && same_thread) {
     return bounds_cache_;
   }
   bounds_cache_ = threadStackBounds(thread);
@@ -441,6 +511,11 @@ StackBounds StackWalk::stackBoundsFor(ThreadId thread) {
   return bounds_cache_;
 }
 
+#if defined(CINDERX_STACK_WALK_SUSPENDS)
+
+// Only SuspendedThread and the near-empty constructor differ between the two
+// suspending platforms; walk(), walkStopped() and the cursor are shared with
+// Darwin as they stand.
 #if defined(__APPLE__)
 
 namespace {
@@ -534,12 +609,97 @@ StackWalk::SuspendedThread::~SuspendedThread() {
   }
 }
 
+#else // _WIN32
+
+StackWalk::SuspendedThread::SuspendedThread(ThreadId thread) {
+  // Suspending ourselves would stop the only thread left to resume us.
+  if (isCurrentThread(thread)) {
+    return;
+  }
+  const HANDLE handle = ::OpenThread(
+      THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT,
+      /*bInheritHandle=*/FALSE,
+      thread);
+  if (handle == nullptr) {
+    return;
+  }
+  if (::SuspendThread(handle) == static_cast<DWORD>(-1)) {
+    // Closed here rather than left to the destructor. `handle_` is what says a
+    // resume is owed, so a handle that never suspended must not go into it.
+    // Darwin needs no equivalent: the port pthread_mach_thread_np() hands back
+    // is a borrowed name that owns nothing.
+    ::CloseHandle(handle);
+    return;
+  }
+  // Stopped from here on, and recorded before anything that can fail: this is
+  // what the destructor reads to decide it owes a resume, so a failure below
+  // must already have set it.
+  handle_ = handle;
+
+  // SuspendThread only asks for the suspension; on a multiprocessor the target
+  // can still be executing when it returns. GetThreadContext is what waits for
+  // it to come off-core, so the registers it reports and the stack they point
+  // into are consistent with each other. Darwin's equivalent promises no such
+  // thing, which is why the two constructors comment the same sequence
+  // differently.
+  //
+  // Aligned because GetThreadContext requires a 16-byte aligned CONTEXT on both
+  // architectures. winnt.h already declares the type that way; this only says
+  // so where it can be seen.
+  alignas(16) CONTEXT context = {};
+  // CONTEXT_INTEGER is not optional on x86-64: CONTEXT_CONTROL covers Rip and
+  // Rsp, but the frame pointer is Rbp, which counts as an integer register.
+  // Asking for control state alone is the classic way to end up walking an
+  // uninitialised frame pointer. On AArch64 all three are control registers and
+  // the extra flag costs nothing.
+  context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+  if (!::GetThreadContext(handle, &context)) {
+    return;
+  }
+
+#if defined(_M_ARM64) || defined(__aarch64__)
+  frame_ =
+      reinterpret_cast<const StackFrame*>(static_cast<uintptr_t>(context.Fp));
+  pc_ = reinterpret_cast<const void*>(static_cast<uintptr_t>(context.Pc));
+  sp_ = static_cast<uintptr_t>(context.Sp);
+#elif defined(_M_X64) || defined(__x86_64__)
+  frame_ =
+      reinterpret_cast<const StackFrame*>(static_cast<uintptr_t>(context.Rbp));
+  pc_ = reinterpret_cast<const void*>(static_cast<uintptr_t>(context.Rip));
+  sp_ = static_cast<uintptr_t>(context.Rsp);
+#else
+#error "StackWalk supports x86-64 and AArch64 only"
+#endif
+
+  // Nothing more is asked of the frame pointer than that it be a plausible
+  // starting point, which matters more here than anywhere else: Windows x64
+  // code keeps a frame pointer only where it needs one, so Rbp may hold
+  // whatever a frameless function was using it for. The cursor validates every
+  // address it is handed, so a register holding something that is not a frame
+  // pointer ends the chain at once rather than faulting.
+  valid_ = true;
+}
+
+StackWalk::SuspendedThread::~SuspendedThread() {
+  if (handle_ == nullptr) {
+    return;
+  }
+  auto handle = static_cast<HANDLE>(handle_);
+  // SuspendThread is counted, so this is the exact partner of the single
+  // suspend the constructor made - including on the path where the registers
+  // could not be read and no walk ever ran.
+  ::ResumeThread(handle);
+  ::CloseHandle(handle);
+}
+
+#endif // defined(__APPLE__)
+
 StackWalk::StackWalk(
     [[maybe_unused]] int signum,
     [[maybe_unused]] std::chrono::nanoseconds park_timeout) {
   // Neither argument means anything here: both belong to the signalled
-  // mechanism, and Darwin reaches its targets through Mach instead. They stay
-  // in the signature so callers and tests need no per-platform spelling.
+  // mechanism, and this one stops its targets from the outside instead. They
+  // stay in the signature so callers and tests need no per-platform spelling.
 
   // Done up front rather than left to the first cursor, so that a process which
   // cannot read frames at all says so once instead of quietly returning empty
@@ -551,8 +711,9 @@ StackWalk::StackWalk(
     // on its own would just look like stacks mysteriously going missing.
     fmt::print(
         stderr,
-        "StackWalk: vm_read_overwrite is unavailable, so frame records cannot "
-        "be read without risking a fault; every walk will report no frames\n");
+        "StackWalk: {} is unavailable, so frame records cannot be read "
+        "without risking a fault; every walk will report no frames\n",
+        kSafeReadMechanism);
   }
 }
 
@@ -722,8 +883,9 @@ StackWalk::StackWalk(int signum, std::chrono::nanoseconds park_timeout)
     // on its own would just look like stacks mysteriously going missing.
     fmt::print(
         stderr,
-        "StackWalk: process_vm_readv is unavailable, so frame records cannot "
-        "be read without risking a fault; every walk will report no frames\n");
+        "StackWalk: {} is unavailable, so frame records cannot be read "
+        "without risking a fault; every walk will report no frames\n",
+        kSafeReadMechanism);
   }
 
   if (::sem_init(&frames_ready_, 0, 0)) {
@@ -1087,7 +1249,7 @@ void StackWalk::captureFrames(const void* ucontext) {
   }
 }
 
-#endif // !defined(__APPLE__)
+#endif // !defined(CINDERX_STACK_WALK_SUSPENDS)
 
 } // namespace cinderx
 

@@ -505,14 +505,18 @@ if (BUILD_RUNTIME_TESTS)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
   endif()
 
-  # Stack walking is stubbed out on Windows, so there is nothing there to test.
-  if (WINDOWS)
-    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp)
+  # These tests walk native frame-pointer chains in their own fixture code.
+  if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    # clang-cl's driver takes MSVC's spelling of this; the clang one has to be
+    # smuggled past it with /clang: and is not worth the indirection.
+    set(STACK_WALK_TEST_FLAGS /Oy-)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    # These tests walk native frame-pointer chains in their own fixture code.
+    set(STACK_WALK_TEST_FLAGS -fno-omit-frame-pointer)
+  endif()
+  if (STACK_WALK_TEST_FLAGS)
     set_source_files_properties(
       ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp
-      PROPERTIES COMPILE_OPTIONS -fno-omit-frame-pointer
+      PROPERTIES COMPILE_OPTIONS "${STACK_WALK_TEST_FLAGS}"
     )
   endif()
 
