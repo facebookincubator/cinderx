@@ -84,8 +84,4 @@ bool removeUnreachableBlocks(Function& func);
 // changed the graph and false otherwise.
 bool removeUnreachableInstructions(Function& func);
 
-// Replace cond branches where both sides go to the same block with a direct
-// branch.
-void simplifyRedundantCondBranches(CFG* cfg);
-
 } // namespace cinderx::jit::hir

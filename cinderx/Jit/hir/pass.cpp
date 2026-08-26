@@ -738,6 +738,35 @@ bool spliceTrampoline(Function& func, BasicBlock& block) {
   return true;
 }
 
+// Replace a conditional branch where both sides go to the same block with a
+// direct branch.  Do nothing for other instructions.
+void simplifyRedundantCondBranch(Instr* instr) {
+  // Only optimize branches with two identical successors.
+  if (instr->numEdges() != 2) {
+    return;
+  }
+  BasicBlock* succ0 = instr->successor(0);
+  if (succ0 != instr->successor(1)) {
+    return;
+  }
+
+  // Verify the instruction is known to be safe to replace.
+  switch (instr->opcode()) {
+    case Opcode::kCondBranch:
+    case Opcode::kCondBranchIterNotDone:
+    case Opcode::kCondBranchCheckType:
+      break;
+    default:
+      return;
+  }
+
+  // Replace with an unconditional branch.
+  auto block = instr->block();
+  block->remove(*instr);
+  std::unique_ptr<Instr> deleter{instr};
+  block->appendWithOff<Branch>(instr->bytecodeOffset(), succ0);
+}
+
 // Run a single merge pass over every block in the CFG, returning true if any
 // blocks were removed.
 bool mergeLinearBlocksOnce(Function& func) {
@@ -745,10 +774,24 @@ bool mergeLinearBlocksOnce(Function& func) {
   for (auto it = func.cfg.blocks.begin(); it != func.cfg.blocks.end();) {
     BasicBlock& block = *it;
 
+    // Empty blocks never have successors to be absorbed, nor are they
+    // trampolines to be spliced out.
+    if (block.empty()) {
+      ++it;
+      continue;
+    }
+
+    // Fold conditional branch first to try to linearize the current block with
+    // a single successor.
+    simplifyRedundantCondBranch(block.getTerminator());
+
     // Keep absorbing successors, chains of them collapse into a single block.
     // This only ever unlinks the successor, never `block`, so the iterator
     // stays valid.
     while (absorbSuccessor(func, block)) {
+      // Keep simplifying branches to try to generate more linear successors to
+      // be absorbed.
+      simplifyRedundantCondBranch(block.getTerminator());
       changed = true;
     }
 
@@ -764,10 +807,6 @@ bool mergeLinearBlocksOnce(Function& func) {
 bool mergeLinearBlocks(Function& func) {
   bool changed = false;
   for (bool modified = true; modified;) {
-    // Folding CondBranch<X, X> into Branch<X> leaves X with one fewer
-    // predecessor, which can make it a merge candidate.  Splicing trampolines
-    // out below is what tends to create these.
-    simplifyRedundantCondBranches(&func.cfg);
     modified = mergeLinearBlocksOnce(func);
     changed |= modified;
   }
@@ -922,39 +961,6 @@ bool removeUnreachableInstructions(Function& func) {
     reflowTypes(func);
   }
   return modified;
-}
-
-void simplifyRedundantCondBranches(CFG* cfg) {
-  for (BasicBlock& block : cfg->blocks) {
-    if (block.empty()) {
-      continue;
-    }
-
-    // Only optimize branches with two identical successors.
-    Instr* term = block.getTerminator();
-    if (term->numEdges() != 2) {
-      continue;
-    }
-    BasicBlock* succ0 = term->successor(0);
-    if (succ0 != term->successor(1)) {
-      continue;
-    }
-
-    // Verify the instruction is known to be safe to replace.
-    switch (term->opcode()) {
-      case Opcode::kCondBranch:
-      case Opcode::kCondBranchIterNotDone:
-      case Opcode::kCondBranchCheckType:
-        break;
-      default:
-        continue;
-    }
-
-    // Replace with an unconditional branch.
-    block.remove(*term);
-    std::unique_ptr<Instr> deleter{term};
-    block.appendWithOff<Branch>(term->bytecodeOffset(), succ0);
-  }
 }
 
 } // namespace cinderx::jit::hir
