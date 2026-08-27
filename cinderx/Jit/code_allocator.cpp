@@ -164,7 +164,7 @@ uint8_t* allocFromCinderJitRegion(size_t size) {
 // Allocate memory for JIT'd code.
 uint8_t* allocPages(size_t size) {
 #if defined(__linux__)
-  if (getConfig().hinted_code_allocation) {
+  if (getConfig().mem.hinted_code_allocation) {
     // Prefer the linker-reserved region near .text when it is
     // present. This region was reserved by the linker and it's up to the
     // build system to reserve this near hot code.
@@ -207,7 +207,7 @@ CodeAllocator::CodeAllocator() {
 }
 
 ICodeAllocator* CodeAllocator::make() {
-  if (getConfig().use_huge_pages) {
+  if (getConfig().mem.huge_pages) {
     return new CodeAllocatorCinder{};
   }
   return new CodeAllocator{};
@@ -387,7 +387,7 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
         cold_alloc_,
         cold_alloc_free_,
         cold_size,
-        getConfig().cold_code_huge_pages);
+        getConfig().mem.cold_code_huge_pages);
 #endif
 
     // Fix up offsets for each code section before resolving links.
@@ -448,7 +448,7 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
 AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
   std::lock_guard lock{allocator_mutex_};
 
-  if (getConfig().multiple_code_sections) {
+  if (getConfig().mem.multiple_code_sections) {
     return addSplitCode(code);
   }
 

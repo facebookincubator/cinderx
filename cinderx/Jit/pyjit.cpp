@@ -529,13 +529,25 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "cinderx-jit-huge-pages",
       "CINDERX_JIT_HUGE_PAGES",
-      getMutableConfig().use_huge_pages,
+      getMutableConfig().mem.huge_pages,
       "Enable or disable huge pages for compiled functions");
+
+  flag_processor.addOption(
+      "cinderx-jit-multiple-code-sections",
+      "CINDERX_JIT_MULTIPLE_CODE_SECTIONS",
+      getMutableConfig().mem.multiple_code_sections,
+      "Enable emitting code into multiple code sections.");
+
+  flag_processor.addOption(
+      "cinderx-jit-cold-code-huge-pages",
+      "CINDERX_JIT_COLD_CODE_HUGE_PAGES",
+      getMutableConfig().mem.cold_code_huge_pages,
+      "Use huge pages for cold code sections.");
 
   flag_processor.addOption(
       "cinderx-jit-hinted-code-allocation",
       "CINDERX_JIT_HINTED_CODE_ALLOCATION",
-      getMutableConfig().hinted_code_allocation,
+      getMutableConfig().mem.hinted_code_allocation,
       "Allocate JIT code near rt::call to keep helper calls in branch range");
 
   flag_processor.addOption(
@@ -724,18 +736,6 @@ FlagProcessor initFlagProcessor() {
       .withFlagParamName("function_list")
       .withDebugMessageOverride(
           "Will capture time taken in compilation phases and output summary");
-
-  flag_processor.addOption(
-      "cinderx-jit-multiple-code-sections",
-      "CINDERX_JIT_MULTIPLE_CODE_SECTIONS",
-      getMutableConfig().multiple_code_sections,
-      "Enable emitting code into multiple code sections.");
-
-  flag_processor.addOption(
-      "cinderx-jit-cold-code-huge-pages",
-      "CINDERX_JIT_COLD_CODE_HUGE_PAGES",
-      getMutableConfig().cold_code_huge_pages,
-      "Use huge pages for cold code sections.");
 
   flag_processor.addOption(
       "cinderx-jit-attr-caches",
@@ -3943,7 +3943,7 @@ int initialize() {
 #endif
 
 #if defined(CINDER_AARCH64)
-  if (getConfig().cold_code_huge_pages) {
+  if (getConfig().mem.cold_code_huge_pages) {
     JIT_LOG(
         "cold_code_huge_pages is not supported on ARM64 (hot and cold code "
         "must share a contiguous allocation to stay within branch range). "

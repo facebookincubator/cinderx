@@ -38,12 +38,12 @@ class HintedCodeAllocationTest : public ::testing::Test {
  public:
   void SetUp() override {
     saved_config_ = getConfig();
-    // use_huge_pages selects CodeAllocatorCinder, whose addCode() routes
+    // huge_pages selects CodeAllocatorCinder, whose addCode() routes
     // through allocPages(); hinted_code_allocation makes allocPages() prefer
     // the linker-reserved __cinder_jit region.
-    getMutableConfig().use_huge_pages = true;
-    getMutableConfig().hinted_code_allocation = true;
-    getMutableConfig().multiple_code_sections = false;
+    getMutableConfig().mem.huge_pages = true;
+    getMutableConfig().mem.hinted_code_allocation = true;
+    getMutableConfig().mem.multiple_code_sections = false;
     code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
   }
 

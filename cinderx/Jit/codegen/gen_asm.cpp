@@ -723,7 +723,7 @@ void* NativeGenerator::getVectorcallEntry() {
   ThrowableErrorHandler eh;
   code.setErrorHandler(&eh);
 
-  if (getConfig().multiple_code_sections) {
+  if (getConfig().mem.multiple_code_sections) {
     Section* cold_text;
     ASM_CHECK_THROW(code.newSection(
         &cold_text,

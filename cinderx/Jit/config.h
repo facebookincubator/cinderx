@@ -113,6 +113,22 @@ struct LogOptions {
   FILE* output_file{stderr};
 };
 
+// Settings related to the memory allocated for JIT-compiled code.
+struct MemoryOptions {
+  // Use huge pages for allocated code.
+  bool huge_pages{true};
+  // Use huge pages for cold code sections as well.  Only applicable when
+  // multiple_code_sections is enabled.
+  bool cold_code_huge_pages{false};
+  // Split allocated code into separate hot and cold sections.
+  bool multiple_code_sections{false};
+  // Allocate JIT code near rt::call by passing an mmap address hint.  This
+  // keeps runtime helper calls within direct branch range and improves
+  // instruction cache / TLB locality.  Falls back to unhinted allocation when
+  // the kernel can't place the allocation near the hint.
+  bool hinted_code_allocation{false};
+};
+
 enum class AsmSyntax : uint8_t {
   ATT,
   Intel,
@@ -141,17 +157,7 @@ struct Config {
   std::optional<bool> force_init;
   bool allow_jit_list_wildcards{false};
   bool compile_all_static_functions{false};
-  bool multiple_code_sections{false};
   bool multithreaded_compile_test{false};
-  bool use_huge_pages{true};
-  // Use huge pages for cold code sections as well. Only applicable when
-  // multiple_code_sections is enabled. Defaults to false (regular pages).
-  bool cold_code_huge_pages{false};
-  // Allocate JIT code near rt::call by passing an mmap address hint. This
-  // keeps runtime helper calls within direct branch range and improves
-  // instruction cache / TLB locality. Falls back to unhinted allocation when
-  // the kernel can't place the allocation near the hint.
-  bool hinted_code_allocation{false};
   // Use inline caches for attribute accesses.
   //
   // TODO(T250369692): FT support for inline-caches.
@@ -228,6 +234,7 @@ struct Config {
   GdbOptions gdb;
   JitListOptions jit_list;
   LogOptions log;
+  MemoryOptions mem;
   bool compile_perf_trampoline_prefork{false};
   bool dump_hir_stats{false};
 

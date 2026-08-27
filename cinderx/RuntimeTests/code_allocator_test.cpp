@@ -21,8 +21,8 @@ class CodeAllocatorTest : public ::testing::Test {
  public:
   void SetUp() override {
     saved_config_ = getConfig();
-    getMutableConfig().multiple_code_sections = true;
-    getMutableConfig().use_huge_pages = true;
+    getMutableConfig().mem.multiple_code_sections = true;
+    getMutableConfig().mem.huge_pages = true;
     code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
   }
 

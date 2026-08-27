@@ -1870,7 +1870,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
   // Use switchBlock (not appendBlock) because fast_store's unconditional
   // branch means slow_incref is not its fallthrough successor.
   bbb.switchBlock(slow_incref);
-  if (getConfig().multiple_code_sections) {
+  if (getConfig().mem.multiple_code_sections) {
     slow_incref->setSection(codegen::CodeSection::kCold);
   }
   // Call rt::incRefShared directly instead of Py_IncRef — we've already
@@ -2079,7 +2079,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // Local refcount reached zero — merge with shared refcount. This may
   // deallocate the object if the shared refcount is also zero.
   bbb.appendBlock(merge_refcount);
-  if (getConfig().multiple_code_sections) {
+  if (getConfig().mem.multiple_code_sections) {
     merge_refcount->setSection(codegen::CodeSection::kCold);
   }
   if (callsite_live_values != nullptr) {
@@ -2105,7 +2105,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // Use switchBlock (not appendBlock) because merge_refcount's
   // unconditional branch means slow_decref is not its fallthrough.
   bbb.switchBlock(slow_decref);
-  if (getConfig().multiple_code_sections) {
+  if (getConfig().mem.multiple_code_sections) {
     slow_decref->setSection(codegen::CodeSection::kCold);
   }
   updateRefTotal(bbb, Opcode::kDec);
@@ -2145,7 +2145,7 @@ void LIRGenerator::makeDecrefGILEnabled(
   bbb.appendInstr(OutInd{instr, kRefcountOffset}, Opcode::kStore, r1);
   bbb.appendBranch(Condition::kNotZero, end_decref);
   bbb.appendBlock(dealloc);
-  if (getConfig().multiple_code_sections) {
+  if (getConfig().mem.multiple_code_sections) {
     dealloc->setSection(codegen::CodeSection::kCold);
   }
 
@@ -5836,7 +5836,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
   {
     BasicBlock* materialized_block = bbb.allocateBlock();
     bbb.appendBlock(materialized_block);
-    if (getConfig().multiple_code_sections) {
+    if (getConfig().mem.multiple_code_sections) {
       materialized_block->setSection(codegen::CodeSection::kCold);
     }
     bbb.appendInvokeInstruction(rt::unlinkFrame, env_->asm_tstate);

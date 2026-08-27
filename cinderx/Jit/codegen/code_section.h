@@ -52,7 +52,7 @@ class CodeSectionOverride {
       CodeHolderMetadata* metadata,
       CodeSection section)
       : as_{as}, code_{code}, metadata_{metadata} {
-    if (getConfig().multiple_code_sections) {
+    if (getConfig().mem.multiple_code_sections) {
       previous_section_ = metadata->section_;
       metadata->section_ = section;
       as->section(code->sectionByName(codeSectionName(section)));
@@ -66,7 +66,7 @@ class CodeSectionOverride {
     if (as_ == nullptr || code_ == nullptr) {
       return;
     }
-    if (getConfig().multiple_code_sections) {
+    if (getConfig().mem.multiple_code_sections) {
       as_->section(code_->sectionByName(codeSectionName(previous_section_)));
       metadata_->section_ = previous_section_;
     }
