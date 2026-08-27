@@ -969,7 +969,7 @@ void HIRBuilder::translate(
         case INVOKE_FUNCTION:
         case INVOKE_METHOD:
         case INVOKE_NATIVE: {
-          emitAnyCall(irfunc.cfg, tc, bc_it);
+          emitAnyCall(tc, bc_it);
           break;
         }
         case CALL_INTRINSIC_1:
@@ -1912,7 +1912,6 @@ void HIRBuilder::emitPushNull(TranslationContext& tc) {
 }
 
 void HIRBuilder::emitAnyCall(
-    CFG& cfg,
     TranslationContext& tc,
     jit::BytecodeInstructionBlock::Iterator& bc_it) {
   BytecodeInstruction bc_instr = *bc_it;
