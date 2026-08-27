@@ -132,7 +132,7 @@ class LIRGenerator {
   //
   // On Windows the struct buffer LEA is emitted first, then the call with
   // the buffer pointer as the first arg.  Post-call loads extract both
-  // fields.  A Move of the second field into the auxiliary return register
+  // fields.  A Load of the second field into the auxiliary return register
   // (RDX) ensures LoadSecondCallResult / GetSecondOutput works unchanged.
   template <typename Func, typename... Args>
   void appendCall2RetValues(

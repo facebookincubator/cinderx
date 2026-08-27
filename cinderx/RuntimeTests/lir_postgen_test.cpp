@@ -58,6 +58,42 @@ BB %0
   EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str.c_str());
 }
 
+#if defined(CINDER_X86_64) && defined(_WIN32)
+TEST_F(
+    LIRPostGenerationRewriteTest,
+    RewritesLoadSecondCallResultFromWindowsStructReturn) {
+  std::string lir_input_str = fmt::format(
+      R"(Function:
+BB %0
+  %10:Object = Move 4096
+  %11:Object = Load [%10:Object]:Object
+  {}:Object = Load [%10:Object + 0x8]:Object
+  %12:Object = LoadSecondCallResult %11:Object
+  Return %12:Object
+)",
+      codegen::arch::reg_general_auxilary_return_loc);
+
+  auto func = runPostGenRewrite(lir_input_str.c_str());
+
+  EXPECT_LIR_SEQUENCE(
+      *func,
+      Query(*func).opcode(Opcode::kLoad).with([](const Instruction* instr) {
+        return instr->output()->isReg() &&
+            instr->output()->getPhyRegister() ==
+            codegen::arch::reg_general_auxilary_return_loc;
+      }),
+      Query(*func)
+          .opcode(Opcode::kMove)
+          .outVreg(12)
+          .with([](const Instruction* instr) {
+            return instr->getNumInputs() == 1 && instr->getInput(0)->isReg() &&
+                instr->getInput(0)->getPhyRegister() ==
+                codegen::arch::reg_general_auxilary_return_loc;
+          }));
+  EXPECT_NO_LIR(Query(*func).opcode(Opcode::kLoadSecondCallResult));
+}
+#endif
+
 TEST_F(LIRPostGenerationRewriteTest, DoesNotAllowMultipleLSCRPerCall) {
   const char* lir_input_str = R"(Function:
 BB %0
