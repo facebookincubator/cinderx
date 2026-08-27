@@ -389,8 +389,7 @@ for i in range(30):
 
 TEST_F(BackendTest, ExplicitLIRSubKeepsRhsRegisterLiveAcrossOutputDefine) {
 #if !defined(CINDER_X86_64)
-  // x86_64-specific allocator/codegen repro.
-  return;
+  SKIP("x86_64-specific allocator/codegen repro");
 #else
   auto lirfunc = std::make_unique<Function>();
   auto bb = lirfunc->allocateBasicBlock();

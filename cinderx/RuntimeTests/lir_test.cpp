@@ -729,10 +729,9 @@ def func():
 
 TEST_F(LIRGeneratorTest, AttrCachesOn) {
   if constexpr (kFreeThreadedBuild) {
-    // Attribute inline caches are not supported on free-threaded builds
-    // (Config::attr_caches defaults to false there, see T250369692), so
-    // Inline caches are never emitted and there is nothing to check.
-    GTEST_SKIP();
+    SKIP(
+        "T250369692: Attribute inline caches are not supported on "
+        "free-threaded builds");
   }
   getMutableConfig().attr_caches = true;
 

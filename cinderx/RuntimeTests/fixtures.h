@@ -14,6 +14,7 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_state.h"
 
+#include <iostream>
 #include <string>
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
@@ -29,6 +30,18 @@ void initializePython();
     }                                                   \
     throw std::runtime_error{fmt::format(__VA_ARGS__)}; \
   }
+
+// Use SKIP(MESSAGE) instead of GTEST_SKIP() << MESSAGE, it's friendier to
+// internal test runs.
+#ifndef TEST_SKIP_IS_SUCCESS
+#define SKIP(MESSAGE) GTEST_SKIP() << (MESSAGE)
+#else
+#define SKIP(MESSAGE)       \
+  {                         \
+    std::cerr << (MESSAGE); \
+    return;                 \
+  }
+#endif
 
 class RuntimeTest : public ::testing::Test {
  public:

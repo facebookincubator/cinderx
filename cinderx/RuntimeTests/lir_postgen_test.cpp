@@ -168,9 +168,9 @@ BB %6
 
 TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
 #if !defined(Py_GIL_DISABLED) || defined(CINDER_AARCH64)
-  // Object pointer stripping is only enabled in free-threaded builds.
   // TODO: Make the post-allocation assertions independent of x86-64 register
   // assignments so this can run on free-threaded AArch64 builds.
+  SKIP("Object pointer stripping is only enabled in free-threadd builds");
 #else
   const char* lir_input_str = R"(Function:
 BB %0
@@ -267,7 +267,7 @@ BB %0
 #if defined(CINDER_AARCH64)
 TEST_F(LIRPostGenerationRewriteTest, MoveAbsoluteAddressUsesObjectDataType) {
 #ifdef Py_GIL_DISABLED
-  // TODO: Add the expected deferred-reference-count tag stripping.
+  SKIP("Doesn't have expected LIR for deferred-refcount tag stripping yet");
 #else
   const char* lir_input_str = R"(Function:
 BB %0

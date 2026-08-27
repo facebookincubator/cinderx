@@ -236,8 +236,10 @@ TEST_F(LIRABITest, TestkStorePair_SPBase) {
 #endif
 
 TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
-  // Callsite live-value locations are only filled in free-threaded builds.
   if constexpr (!kFreeThreadedBuild) {
+    SKIP(
+        "Callsite live-value locations are only filled in free-threaded "
+        "builds");
     return;
   }
 

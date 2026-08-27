@@ -97,7 +97,7 @@ class TestPassRegistry {
 class SkipFixture : public ::testing::Test {
  public:
   void TestBody() override {
-    GTEST_SKIP();
+    SKIP("Skipping from SkipFixture");
   }
 };
 

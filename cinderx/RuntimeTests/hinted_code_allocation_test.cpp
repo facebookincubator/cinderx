@@ -14,6 +14,7 @@
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/RuntimeTests/fixtures.h"
 
 #include <array>
 #include <cstdint>
@@ -63,7 +64,7 @@ TEST_F(HintedCodeAllocationTest, AllocatesWithinCinderJitRegion) {
   char* region_end = __cinder_jit_end;
 
   if (region_start == nullptr) {
-    GTEST_SKIP() << "binary not linked with the .cinder_jit linker script";
+    SKIP("binary not linked with the .cinder_jit linker script");
   }
 
   ASSERT_NE(region_end, nullptr)
@@ -89,7 +90,7 @@ TEST_F(HintedCodeAllocationTest, AllocatesWithinCinderJitRegion) {
   EXPECT_GE(addr, region_start);
   EXPECT_LT(addr, region_end);
 #else
-  GTEST_SKIP() << "cinder_jit region allocation is only supported on Linux";
+  SKIP("cinder_jit region allocation is only supported on Linux");
 #endif
 }
 
@@ -101,7 +102,7 @@ TEST_F(HintedCodeAllocationTest, FallsBackWhenRequestExceedsRegion) {
   char* region_end = __cinder_jit_end;
 
   if (region_start == nullptr) {
-    GTEST_SKIP() << "binary not linked with the .cinder_jit linker script";
+    SKIP("binary not linked with the .cinder_jit linker script");
   }
   ASSERT_NE(region_end, nullptr)
       << "binary not linked with the .cinder_jit linker script";
@@ -132,7 +133,7 @@ TEST_F(HintedCodeAllocationTest, FallsBackWhenRequestExceedsRegion) {
   EXPECT_TRUE(addr < region_start || addr >= region_end)
       << "oversized request was satisfied from inside the reserved region";
 #else
-  GTEST_SKIP() << "cinder_jit region allocation is only supported on Linux";
+  SKIP("cinder_jit region allocation is only supported on Linux");
 #endif
 }
 
