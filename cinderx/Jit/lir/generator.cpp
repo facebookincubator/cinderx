@@ -2189,8 +2189,8 @@ void LIRGenerator::makeDecref(
 
 LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
     const hir::BasicBlock* hir_bb,
-    const jit::hir::FrameState* initial_caller_fs,
-    BorrowedRef<PyCodeObject> initial_inlined_code) {
+    [[maybe_unused]] const jit::hir::FrameState* initial_caller_fs,
+    [[maybe_unused]] BorrowedRef<PyCodeObject> initial_inlined_code) {
   BasicBlockBuilder bbb{env_, lir_func_};
   BasicBlock* entry_block = bbb.allocateBlock();
   bbb.switchBlock(entry_block);
