@@ -1227,6 +1227,10 @@ void LinearScanAllocator::rewriteInstrOutput(
   auto interval = map_get(mapping, output, nullptr);
   if (interval != nullptr) {
     output->setPhyRegOrStackSlot(interval->allocatedLoc());
+    // Spilling the destination of a register copy turns it into a store.
+    if (output->isStack() && instr->isMove()) {
+      instr->setOpcode(Opcode::kStore);
+    }
     return;
   }
 
@@ -1291,7 +1295,13 @@ void LinearScanAllocator::rewriteInstrOneInput(
     new_input->setLastUse();
   }
 
+  bool spilled = new_input->isStack();
   instr->setInput(i, std::move(new_input));
+
+  // Spilling the source of a register copy turns it into a load.
+  if (spilled && instr->isMove()) {
+    instr->setOpcode(Opcode::kLoad);
+  }
 }
 
 void LinearScanAllocator::rewriteInstrOneIndirectOperand(

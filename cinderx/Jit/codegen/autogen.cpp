@@ -1813,58 +1813,97 @@ void translateCall(Environ* env, const Instruction* instr) {
   }
 }
 
-// Our move instruction encapsulates moving a value between registers, setting
-// the value of a register, loading a value from memory, and storing a value to
-// memory. The operation that will be performed is determined by the
-// input/output register combination. In general:
-//
-// * reg           + reg           = moving
-// * reg           + imm           = setting
-// * reg           + stack/mem/ind = loading
-// * stack/mem/ind + reg/imm       = storing
-//
+// Move now only handles register-to-register and immediate-to-register.
 void translateMove(Environ* env, const Instruction* instr) {
   a64::Builder* as = env->as;
-  auto scratch0 = arch::reg_scratch_0;
-  auto scratch1 = arch::reg_scratch_1;
 
   const lir::Operand* output = instr->output();
   const lir::Operand* input = instr->getInput(0);
 
+  // MoveRelaxed still supports memory, keep its old validation but for plain
+  // Move we enforce register-only.
   if (instr->isMoveRelaxed()) {
     checkMoveRelaxedOperandShape(instr);
+    // For MoveRelaxed we fall through to the generic memory-capable path
+    // implemented in translateLoad/Store helpers below, but keep a quick
+    // reg-reg path here for efficiency.
+  } else {
+    JIT_CHECK(
+        output->isReg(),
+        "Move output must be a register, got {} (use Store for memory)",
+        output->type());
+    JIT_CHECK(
+        input->isReg() || input->isImm(),
+        "Move input must be Reg or Imm, got {} (use Load for memory)",
+        input->type());
   }
 
-  switch (output->type()) {
-    case lir::OperandType::kReg:
-      switch (input->type()) {
-        case lir::OperandType::kReg:
-          // Moving a value from a register to a register.
-          if (output->isVecD()) {
-            if (input->isVecD()) {
-              as->fmov(AT::getVecD(output), AT::getVecD(input));
-            } else {
-              as->fmov(AT::getVecD(output), AT::getGp(input));
-            }
+  // Register-to-register / immediate-to-register.
+  if (output->type() == lir::OperandType::kReg) {
+    switch (input->type()) {
+      case lir::OperandType::kReg: {
+        if (output->isVecD()) {
+          if (input->isVecD()) {
+            as->fmov(AT::getVecD(output), AT::getVecD(input));
           } else {
-            if (input->isVecD()) {
-              as->fmov(AT::getGp(output), AT::getVecD(input));
-            } else {
-              as->mov(AT::getGpWiden(output), AT::getGpWiden(input));
-            }
+            as->fmov(AT::getVecD(output), AT::getGp(input));
           }
-          break;
-        case lir::OperandType::kStack: {
-          // Loading a value from the stack into a register.
-          if (output->isVecD()) {
-            as->ldr(
-                AT::getVecD(output),
-                getStackSlotPtr(env, input->getStackSlot().loc));
-            break;
+        } else {
+          if (input->isVecD()) {
+            as->fmov(AT::getGp(output), AT::getVecD(input));
+          } else {
+            as->mov(AT::getGpWiden(output), AT::getGpWiden(input));
           }
-          // We use dst here rather than scratch because postalloc could
-          // have inserted use of the scratch register and we're about
-          // to clobber dst anyway.
+        }
+        return;
+      }
+      case lir::OperandType::kImm: {
+        auto constant = input->getConstant();
+        if (output->isVecD()) {
+          as->fmov(AT::getVecD(output), constant);
+        } else if (constant == 0) {
+          as->mov(
+              AT::getGpWiden(output),
+              AT::getGpWiden(output->dataType(), a64::xzr.id()));
+        } else if (input->dataType() == lir::Operand::kObject) {
+          as->load_addr(
+              a64::x(output->getPhyRegister().loc),
+              static_cast<uint64_t>(constant));
+        } else {
+          as->mov(AT::getGpWiden(output), constant);
+        }
+        return;
+      }
+      default:
+        break;
+    }
+  }
+
+  // If we reach here and it's MoveRelaxed with memory operands, handle via
+  // the shared Load/Store logic below to avoid duplication.
+  if (instr->isMoveRelaxed()) {
+    if (output->isReg() && isMemoryMoveOperand(input)) {
+      // Load path for MoveRelaxed (relaxed atomic load).
+      if (output->isVecD()) {
+        if (input->isStack()) {
+          as->ldr(
+              AT::getVecD(output),
+              getStackSlotPtr(env, input->getStackSlot().loc));
+        } else if (input->isInd()) {
+          auto ptr = ptrIndirect(
+              as,
+              arch::reg_scratch_0,
+              arch::reg_scratch_1,
+              input->getMemoryIndirect(),
+              output->dataType());
+          loadToReg(as, output, ptr);
+        } else {
+          JIT_ABORT(
+              "Unsupported operand type for MoveRelaxed load: Reg + {}",
+              input->type());
+        }
+      } else {
+        if (input->isStack()) {
           auto dst = a64::x(output->getPhyRegister().loc);
           auto ptr = getStackSlotPtr(env, input->getStackSlot().loc, dst);
           switch (output->dataType()) {
@@ -1878,141 +1917,99 @@ void translateMove(Environ* env, const Instruction* instr) {
               as->ldr(AT::getGp(output), ptr);
               break;
           }
-          break;
-        }
-        case lir::OperandType::kInd: {
-          // Loading a value from an address relative to another register into
-          // a register.
+        } else if (input->isInd()) {
           auto ptr = ptrIndirect(
               as,
               arch::reg_scratch_0,
               arch::reg_scratch_1,
               input->getMemoryIndirect(),
               output->dataType());
-
           loadToReg(as, output, ptr);
-          break;
-        }
-        case lir::OperandType::kImm: {
-          // Loading a constant immediate into a register.
-          auto constant = input->getConstant();
-
-          if (output->isVecD()) {
-            as->fmov(AT::getVecD(output), constant);
-          } else if (constant == 0) {
-            as->mov(
-                AT::getGpWiden(output),
-                AT::getGpWiden(output->dataType(), a64::xzr.id()));
-          } else if (input->dataType() == lir::Operand::kObject) {
-            // Pointer constant: use load_addr which relaxes to adr, adrp+add,
-            // or ldr from address table depending on displacement.
-            // load_addr emits adr which requires a 64-bit x register.
-            as->load_addr(
-                a64::x(output->getPhyRegister().loc),
-                static_cast<uint64_t>(constant));
-          } else {
-            as->mov(AT::getGpWiden(output), constant);
-          }
-          break;
-        }
-        case lir::OperandType::kNone:
-        case lir::OperandType::kVreg:
-        case lir::OperandType::kMem:
-        case lir::OperandType::kLabel:
-          JIT_ABORT(
-              "Unsupported operand type for Move: Reg + {}", input->type());
-      }
-      break;
-    case lir::OperandType::kStack: {
-      if (!input->isReg()) {
-        JIT_ABORT("Unsupported operand type for Move: Stk + {}", input->type());
-      }
-      // A store has no spare destination to build the address in, so it has to
-      // use a scratch -- but not the one holding the value it is about to
-      // write, or the address would overwrite it first.
-      auto scratch = input->getPhyRegister() == arch::reg_scratch_0_loc
-          ? arch::reg_scratch_1
-          : arch::reg_scratch_0;
-      // Storing the value of a register to the stack
-      storeFromReg(
-          as,
-          input,
-          output,
-          getStackSlotPtr(env, output->getStackSlot().loc, scratch));
-      break;
-    }
-    case lir::OperandType::kMem:
-      as->load_addr(scratch0, output->getMemoryAddress());
-
-      if (input->isReg()) {
-        // Storing the value of a register to an absolute address.
-        if (input->isVecD()) {
-          as->str(AT::getVecD(input), a64::ptr(scratch0));
         } else {
-          as->str(AT::getGpWiden(input), a64::ptr(scratch0));
+          JIT_ABORT(
+              "Unsupported operand type for MoveRelaxed load: Reg + {}",
+              input->type());
         }
-      } else if (input->isImm()) {
-        // Storing a constant immediate to an absolute address.
-        as->mov(scratch1, input->getConstant());
-        as->str(scratch1, a64::ptr(scratch0));
-      } else {
-        JIT_ABORT("Unsupported operand type for Move: Mem + {}", input->type());
       }
-      break;
-    case lir::OperandType::kInd: {
-      if (input->isReg()) {
-        // Storing the value of a register to an address relative to another
-        // register.
-        auto ptr = ptrIndirect(
+      return;
+    } else if (isMemoryMoveOperand(output)) {
+      auto scratch0 = arch::reg_scratch_0;
+      auto scratch1 = arch::reg_scratch_1;
+      if (output->type() == lir::OperandType::kStack) {
+        auto scratch = input->getPhyRegister() == arch::reg_scratch_0_loc
+            ? arch::reg_scratch_1
+            : arch::reg_scratch_0;
+        storeFromReg(
             as,
-            scratch0,
-            scratch1,
-            output->getMemoryIndirect(),
-            output->dataType());
-
-        storeFromReg(as, input, output, ptr);
-      } else if (input->isImm()) {
-        // Storing a constant immediate to an address relative to another
-        // register.
-        auto ptr = ptrIndirect(
-            as,
-            scratch0,
-            scratch1,
-            output->getMemoryIndirect(),
-            output->dataType());
-
-        // Use the output's data type to determine the store width.
-        switch (output->dataType()) {
-          case lir::Operand::k8bit:
-            as->mov(a64::w(scratch1.id()), input->getConstant());
-            as->strb(a64::w(scratch1.id()), ptr);
-            break;
-          case lir::Operand::k16bit:
-            as->mov(a64::w(scratch1.id()), input->getConstant());
-            as->strh(a64::w(scratch1.id()), ptr);
-            break;
-          case lir::Operand::k32bit:
-            // Use w register for 4-byte store to avoid overflowing
-            // tightly-packed fields.
-            as->mov(a64::w(scratch1.id()), input->getConstant());
-            as->str(a64::w(scratch1.id()), ptr);
-            break;
-          default:
-            as->mov(scratch1, input->getConstant());
-            as->str(scratch1, ptr);
-            break;
+            input,
+            output,
+            getStackSlotPtr(env, output->getStackSlot().loc, scratch));
+        return;
+      } else if (output->type() == lir::OperandType::kMem) {
+        as->load_addr(scratch0, output->getMemoryAddress());
+        if (input->isReg()) {
+          if (input->isVecD()) {
+            as->str(AT::getVecD(input), a64::ptr(scratch0));
+          } else {
+            as->str(AT::getGpWiden(input), a64::ptr(scratch0));
+          }
+        } else if (input->isImm()) {
+          as->mov(scratch1, input->getConstant());
+          as->str(scratch1, a64::ptr(scratch0));
+        } else {
+          JIT_ABORT(
+              "Unsupported operand type for MoveRelaxed store: Mem + {}",
+              input->type());
         }
-      } else {
-        JIT_ABORT("Unsupported operand type for Move: Ind + {}", input->type());
+        return;
+      } else if (output->type() == lir::OperandType::kInd) {
+        if (input->isReg()) {
+          auto ptr = ptrIndirect(
+              as,
+              scratch0,
+              scratch1,
+              output->getMemoryIndirect(),
+              output->dataType());
+          storeFromReg(as, input, output, ptr);
+        } else if (input->isImm()) {
+          auto ptr = ptrIndirect(
+              as,
+              scratch0,
+              scratch1,
+              output->getMemoryIndirect(),
+              output->dataType());
+          switch (output->dataType()) {
+            case lir::Operand::k8bit:
+              as->mov(a64::w(scratch1.id()), input->getConstant());
+              as->strb(a64::w(scratch1.id()), ptr);
+              break;
+            case lir::Operand::k16bit:
+              as->mov(a64::w(scratch1.id()), input->getConstant());
+              as->strh(a64::w(scratch1.id()), ptr);
+              break;
+            case lir::Operand::k32bit:
+              as->mov(a64::w(scratch1.id()), input->getConstant());
+              as->str(a64::w(scratch1.id()), ptr);
+              break;
+            default:
+              as->mov(scratch1, input->getConstant());
+              as->str(scratch1, ptr);
+              break;
+          }
+        } else {
+          JIT_ABORT(
+              "Unsupported operand type for MoveRelaxed store: Ind + {}",
+              input->type());
+        }
+        return;
       }
-      break;
     }
-    case lir::OperandType::kNone:
-    case lir::OperandType::kVreg:
-    case lir::OperandType::kImm:
-    case lir::OperandType::kLabel:
-      JIT_ABORT("Unsupported output operand type for Move: {}", output->type());
   }
+
+  JIT_ABORT(
+      "Unsupported operand type for Move: {} + {}",
+      output->type(),
+      input->type());
 }
 
 void translateLoad(Environ* env, const Instruction* instr) {
@@ -2063,6 +2060,7 @@ void translateLoad(Environ* env, const Instruction* instr) {
       break;
     }
     case lir::OperandType::kMem: {
+      // AArch64 has no direct absolute load; materialize address then load.
       auto scratch0 = arch::reg_scratch_0;
       as->load_addr(scratch0, input->getMemoryAddress());
       if (output->isVecD()) {
@@ -2107,6 +2105,7 @@ void translateStore(Environ* env, const Instruction* instr) {
   switch (output->type()) {
     case lir::OperandType::kStack: {
       if (!input->isReg()) {
+        // For Imm store to stack, we need to materialize via scratch.
         as->mov(scratch1, input->getConstant());
         auto ptr = getStackSlotPtr(env, output->getStackSlot().loc, scratch1);
         switch (output->dataType()) {
@@ -3303,17 +3302,17 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       auto* output = instr->output();
       auto* input = instr->getInput(0);
 
+      // Move is restricted to register-to-register and immediate-to-register.
       if (output->isReg() && output->isVecD()) {
         if (input->isReg() && input->isVecD()) {
           env->as->movsd(getVecD(output), getVecD(input));
         } else if (input->isReg()) {
           env->as->movq(getVecD(output), getReg(instr, input));
         } else {
-          if constexpr (kCinderJitTsanEnabled) {
-            int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-            emitTsanRead(*env, input, access_size_in_bytes);
-          }
-          env->as->movsd(getVecD(output), getMem(instr, input));
+          JIT_ABORT(
+              "Move with VecD output only supports Reg inputs, got {} in {}",
+              input->type(),
+              *instr);
         }
       } else if (output->isReg()) {
         if (input->isReg() && input->isVecD()) {
@@ -3323,24 +3322,18 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         } else if (input->isImm()) {
           env->as->mov(getReg(instr, output), getImm(input));
         } else {
-          if constexpr (kCinderJitTsanEnabled) {
-            int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-            emitTsanRead(*env, input, access_size_in_bytes);
-          }
-          env->as->mov(getReg(instr, output), getMem(instr, input));
+          JIT_ABORT(
+              "Move with Reg output only supports Reg/VecD/Imm inputs, got {} "
+              "(use Load for memory) in {}",
+              input->type(),
+              *instr);
         }
       } else {
-        if constexpr (kCinderJitTsanEnabled) {
-          int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-          emitTsanWrite(*env, output, access_size_in_bytes);
-        }
-        if (input->isReg() && input->isVecD()) {
-          env->as->movsd(getMem(instr, output), getVecD(input));
-        } else if (input->isReg()) {
-          env->as->mov(getMem(instr, output), getReg(instr, input));
-        } else {
-          env->as->mov(getMem(instr, output), getImm(input));
-        }
+        JIT_ABORT(
+            "Move output must be a register, got {} (use Store for memory) in "
+            "{}",
+            output->type(),
+            *instr);
       }
       return;
     }
@@ -3364,9 +3357,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         }
         env->as->movsd(getVecD(output), getMem(instr, input));
       } else {
-        if (input->isReg() && input->isVecD()) {
-          JIT_ABORT("Load from VecD register not supported");
-        }
         if constexpr (kCinderJitTsanEnabled) {
           int access_size_in_bytes = getOperandSizeInBytes(instr, output);
           emitTsanRead(*env, input, access_size_in_bytes);

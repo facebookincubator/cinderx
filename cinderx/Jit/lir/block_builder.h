@@ -338,7 +338,7 @@ class BasicBlockBuilder {
         "arguments passed is different.");
 
     Instruction* target =
-        appendInstr(OutVReg{Operand::k64bit}, Opcode::kMove, MemImm{slot});
+        appendInstr(OutVReg{Operand::k64bit}, Opcode::kLoad, MemImm{slot});
     auto instr = createInstr(Opcode::kCall);
     instr->addOperands(VReg{target});
 

@@ -242,7 +242,13 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
     } else {
       new_input->setPhyRegOrStackSlot(slot);
     }
+    bool spilled = new_input->isStack();
     instr->setInput(i, std::move(new_input));
+
+    // Spilling the source of a register copy turns it into a load.
+    if (spilled && instr->isMove()) {
+      instr->setOpcode(Opcode::kLoad);
+    }
   }
 
   // Rewrite output.
@@ -259,6 +265,10 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
           std::next(iter), Opcode::kStore, OutStk{slot, dt}, PhyReg{reg, dt});
     } else {
       out->setPhyRegOrStackSlot(slot);
+      // Spilling the destination of a register copy turns it into a store.
+      if (out->isStack() && instr->isMove()) {
+        instr->setOpcode(Opcode::kStore);
+      }
     }
   }
 }

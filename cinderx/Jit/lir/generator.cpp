@@ -550,7 +550,7 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
   constexpr auto fh_tstate_off = static_cast<int32_t>(
       offsetof(GenDataFooter, frame_header) + offsetof(FrameHeader, tstate));
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutInd(fp_reg, fh_tstate_off),
       PhyReg(codegen::ARGUMENT_REGS[3]));

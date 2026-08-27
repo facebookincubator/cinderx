@@ -375,7 +375,7 @@ BB %0 - succs: %7 %10
                    CondBranch %5:Object, BB%7, BB%10
 
 BB %7 - preds: %0 - succs: %10
-       %8:Object = Move [0x5]:Object
+       %8:Object = Load [0x5]:Object
                    Return %8:Object
 
 BB %10 - preds: %0 %7
@@ -403,10 +403,10 @@ TEST_F(LIRGeneratorTest, ParserMemIndTest) {
       R"(Function:
 BB %0
         %1:64bit = Bind {}:Object
-        %2:64bit = Move [{}:Object + {}:Object * 8 + 0x8]:Object
-        %3:64bit = Move [%2:64bit + 0x3]:Object
-        %4:64bit = Move [%2:64bit + %3:64bit * 16]:Object
-[%4:64bit - 0x16]:Object = Move [{}:Object + %4:64bit]:Object
+        %2:64bit = Load [{}:Object + {}:Object * 8 + 0x8]:Object
+        %3:64bit = Load [%2:64bit + 0x3]:Object
+        %4:64bit = Load [%2:64bit + %3:64bit * 16]:Object
+[%4:64bit - 0x16]:Object = Store %1:64bit
 
 )",
       PhyLocation{5, 64},
@@ -459,7 +459,7 @@ BB %0 - section: hot
                    CondBranch %5:Object, BB%7, BB%10
 
 BB %7 - preds: %0 - succs: %10 - section: .coldtext
-       %8:Object = Move [0x5]:Object
+       %8:Object = Load [0x5]:Object
                    Return %8:Object
 
 BB %10 - preds: %0 %7 - section: hot
@@ -719,10 +719,10 @@ def func():
       << "Should be calling out to PyObject_GetAttr as inline caches are "
          "disabled";
   // An inline cache dispatches through a function pointer loaded out of the
-  // cache, so it shows up as a Call whose callee is defined by a Move rather
+  // cache, so it shows up as a Call whose callee is defined by a Load rather
   // than as an immediate address. There should be no such call here.
   EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kMove))
+      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kLoad))
       << "Should not be emitting an indirect call through an inline cache as "
          "inline caches are disabled";
 }
@@ -752,7 +752,7 @@ def func(o):
   // cache and calls it indirectly instead of baking an address into the
   // instruction stream.
   EXPECT_LIR(
-      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kMove))
+      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kLoad))
       << "Should be calling indirectly through the inline cache's target";
 #else
   // Without target promotion the callee is a fixed address again.
@@ -761,7 +761,7 @@ def func(o):
                  .inAddr(0, reinterpret_cast<uint64_t>(LoadAttrCache::invoke)))
       << "Should be calling LoadAttrCache::invoke directly";
   EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kMove))
+      Query(*lir_func).opcode(Opcode::kCall).inDefOpcode(0, Opcode::kLoad))
       << "Should not emit an indirect call with target promotion disabled";
 #endif
   EXPECT_NO_LIR(Query(*lir_func)

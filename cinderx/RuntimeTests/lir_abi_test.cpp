@@ -153,14 +153,14 @@ TEST_F(LIRABITest, TestMemImmAndOutMemImmPreserveDataType) {
   BasicBlock bb(&function);
 
   auto* load = bb.allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       makeOutPhyReg(),
       MemImm{nullptr, DataType::k8bit});
   EXPECT_EQ(load->getInput(0)->sizeInBits(), bitSize(DataType::k8bit));
 
   auto* store = bb.allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutMemImm{nullptr, DataType::k8bit},
       makePhyReg(1, DataType::k8bit));
@@ -321,13 +321,13 @@ TEST_F(LIRABITest, TestkMove_OutPhyReg_Imm) {
 }
 
 // kMove R m
-TEST_F(LIRABITest, TestkMove_OutPhyReg_Mem) {
-  translateInstr(Opcode::kMove, makeOutPhyReg(), makeStk());
+TEST_F(LIRABITest, TestkLoad_OutPhyReg_Mem) {
+  translateInstr(Opcode::kLoad, makeOutPhyReg(), makeStk());
 #if !defined(CINDER_AARCH64)
-  translateInstr(Opcode::kMove, makeOutPhyReg(), MemImm{nullptr});
+  translateInstr(Opcode::kLoad, makeOutPhyReg(), MemImm{nullptr});
 #endif
-  translateInstr(Opcode::kMove, makeOutPhyReg(), makeInd(1, 16));
-  translateInstr(Opcode::kMove, makeOutPhyReg(), makeIndScale(1, 2, 8, 16));
+  translateInstr(Opcode::kLoad, makeOutPhyReg(), makeInd(1, 16));
+  translateInstr(Opcode::kLoad, makeOutPhyReg(), makeIndScale(1, 2, 8, 16));
 }
 
 // kMove R x
@@ -336,39 +336,39 @@ TEST_F(LIRABITest, TestkMove_OutPhyReg_FPPhyReg) {
 }
 
 // kMove M r
-TEST_F(LIRABITest, TestkMove_Mem_PhyReg) {
-  translateInstr(Opcode::kMove, makeOutStk(), makePhyReg());
-  translateInstr(Opcode::kMove, OutMemImm{nullptr}, makePhyReg());
-  translateInstr(Opcode::kMove, makeOutInd(1, 16), makePhyReg());
-  translateInstr(Opcode::kMove, makeOutIndScale(1, 2, 8, 16), makePhyReg());
+TEST_F(LIRABITest, TestkStore_Mem_PhyReg) {
+  translateInstr(Opcode::kStore, makeOutStk(), makePhyReg());
+  translateInstr(Opcode::kStore, OutMemImm{nullptr}, makePhyReg());
+  translateInstr(Opcode::kStore, makeOutInd(1, 16), makePhyReg());
+  translateInstr(Opcode::kStore, makeOutIndScale(1, 2, 8, 16), makePhyReg());
 }
 
 // kMove M i
-TEST_F(LIRABITest, TestkMove_Mem_Imm) {
+TEST_F(LIRABITest, TestkStore_Mem_Imm) {
 #if !defined(CINDER_AARCH64)
-  translateInstr(Opcode::kMove, makeOutStk(), Imm{0});
-  translateInstr(Opcode::kMove, makeOutStk(), Imm{UINT64_MAX});
+  translateInstr(Opcode::kStore, makeOutStk(), Imm{0});
+  translateInstr(Opcode::kStore, makeOutStk(), Imm{UINT64_MAX});
 #endif
-  translateInstr(Opcode::kMove, OutMemImm{nullptr}, Imm{0});
-  translateInstr(Opcode::kMove, OutMemImm{nullptr}, Imm{UINT64_MAX});
-  translateInstr(Opcode::kMove, makeOutInd(1, 16), Imm{0});
-  translateInstr(Opcode::kMove, makeOutInd(1, 16), Imm{UINT64_MAX});
-  translateInstr(Opcode::kMove, makeOutIndScale(1, 2, 8, 16), Imm{0});
-  translateInstr(Opcode::kMove, makeOutIndScale(1, 2, 8, 16), Imm{UINT64_MAX});
+  translateInstr(Opcode::kStore, OutMemImm{nullptr}, Imm{0});
+  translateInstr(Opcode::kStore, OutMemImm{nullptr}, Imm{UINT64_MAX});
+  translateInstr(Opcode::kStore, makeOutInd(1, 16), Imm{0});
+  translateInstr(Opcode::kStore, makeOutInd(1, 16), Imm{UINT64_MAX});
+  translateInstr(Opcode::kStore, makeOutIndScale(1, 2, 8, 16), Imm{0});
+  translateInstr(Opcode::kStore, makeOutIndScale(1, 2, 8, 16), Imm{UINT64_MAX});
 #if !defined(CINDER_AARCH64)
-  translateInstr(Opcode::kMove, makeOutStk(), FPImm{0.0});
+  translateInstr(Opcode::kStore, makeOutStk(), FPImm{0.0});
 #endif
-  translateInstr(Opcode::kMove, OutMemImm{nullptr}, FPImm{0.0});
-  translateInstr(Opcode::kMove, makeOutInd(1, 16), FPImm{0.0});
-  translateInstr(Opcode::kMove, makeOutIndScale(1, 2, 8, 16), FPImm{0.0});
+  translateInstr(Opcode::kStore, OutMemImm{nullptr}, FPImm{0.0});
+  translateInstr(Opcode::kStore, makeOutInd(1, 16), FPImm{0.0});
+  translateInstr(Opcode::kStore, makeOutIndScale(1, 2, 8, 16), FPImm{0.0});
 }
 
 // kMove M x
-TEST_F(LIRABITest, TestkMove_Mem_FPPhyReg) {
-  translateInstr(Opcode::kMove, makeOutStk(), makePhyRegFP());
-  translateInstr(Opcode::kMove, OutMemImm{nullptr}, makePhyRegFP());
-  translateInstr(Opcode::kMove, makeOutInd(1, 16), makePhyRegFP());
-  translateInstr(Opcode::kMove, makeOutIndScale(1, 2, 8, 16), makePhyRegFP());
+TEST_F(LIRABITest, TestkStore_Mem_FPPhyReg) {
+  translateInstr(Opcode::kStore, makeOutStk(), makePhyRegFP());
+  translateInstr(Opcode::kStore, OutMemImm{nullptr}, makePhyRegFP());
+  translateInstr(Opcode::kStore, makeOutInd(1, 16), makePhyRegFP());
+  translateInstr(Opcode::kStore, makeOutIndScale(1, 2, 8, 16), makePhyRegFP());
 }
 
 // kMove X x
@@ -378,13 +378,13 @@ TEST_F(LIRABITest, TestkMove_OutFPPhyReg_FPPhyReg) {
 }
 
 // kMove X m
-TEST_F(LIRABITest, TestkMove_OutFPPhyReg_Mem) {
-  translateInstr(Opcode::kMove, makeOutPhyRegFP(), makeStk());
+TEST_F(LIRABITest, TestkLoad_OutFPPhyReg_Mem) {
+  translateInstr(Opcode::kLoad, makeOutPhyRegFP(), makeStk());
 #if !defined(CINDER_AARCH64)
-  translateInstr(Opcode::kMove, makeOutPhyRegFP(), MemImm{nullptr});
+  translateInstr(Opcode::kLoad, makeOutPhyRegFP(), MemImm{nullptr});
 #endif
-  translateInstr(Opcode::kMove, makeOutPhyRegFP(), makeInd(1, 16));
-  translateInstr(Opcode::kMove, makeOutPhyRegFP(), makeIndScale(1, 2, 8, 16));
+  translateInstr(Opcode::kLoad, makeOutPhyRegFP(), makeInd(1, 16));
+  translateInstr(Opcode::kLoad, makeOutPhyRegFP(), makeIndScale(1, 2, 8, 16));
 }
 
 // kMove X r
