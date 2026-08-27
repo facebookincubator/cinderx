@@ -11,6 +11,7 @@
 #include <windows.h>
 #else
 #include <pthread.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #if defined(__APPLE__)
