@@ -350,7 +350,7 @@ PyDoc_STRVAR(
     "--\n"
     "\n"
     "Enables or disables delaying adaptive code until a function is hot.");
-PyObject* cinder_delay_adaptive(PyObject* mod, PyObject* delay) {
+PyObject* cinder_delay_adaptive(PyObject*, PyObject* delay) {
 #ifdef ENABLE_INTERPRETER_LOOP
   if (!PyBool_Check(delay)) {
     PyErr_SetString(PyExc_TypeError, "expected bool");
