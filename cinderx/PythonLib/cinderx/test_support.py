@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
-import abc
 import ctypes
 import dis
 import functools
@@ -17,7 +16,7 @@ import unittest
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Generator, Sequence, TypeVar
+from typing import Callable, Generator, Iterable, TypeVar
 
 import cinderx
 import cinderx.jit
@@ -377,17 +376,7 @@ def run_in_subprocess(func: Callable[..., None]) -> Callable[..., None]:
     return wrapped
 
 
-class AssertBytecodeContainsMixin(abc.ABC):
-    @abc.abstractmethod
-    def assertIn(
-        self, expected: object, actual: Sequence[object], msg: str | None = None
-    ) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def assertTrue(self, expr: object, msg: str | None = None) -> None:
-        raise NotImplementedError
-
+class CinderXTestCase(unittest.TestCase):
     def assertBytecodeContains(
         self,
         func: object,
@@ -416,3 +405,24 @@ class AssertBytecodeContainsMixin(abc.ABC):
                 len(matching_instructions) > 0,
                 f"{expected_opcode} opcode with oparg {expected_oparg} should be present in {func.__name__} bytecode",
             )
+
+    def assertHIROpcodes(
+        self,
+        func: Callable[..., object],
+        *,
+        present: Iterable[str] = (),
+        absent: Iterable[str] = (),
+    ) -> None:
+        present = tuple(present)
+        absent = tuple(absent)
+        if not present and not absent:
+            self.fail("Expected at least one HIR opcode assertion")
+
+        self.assertTrue(cinderx.jit.force_compile(func))
+        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(func)
+        if opcode_counts is None:
+            self.fail(f"No HIR opcode counts for compiled {func.__name__}")
+        for opcode in present:
+            self.assertIn(opcode, opcode_counts)
+        for opcode in absent:
+            self.assertNotIn(opcode, opcode_counts)

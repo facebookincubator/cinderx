@@ -6,15 +6,14 @@
 
 import dis
 import threading
-import unittest
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import run_in_subprocess
+from cinderx.test_support import CinderXTestCase, run_in_subprocess
 
 
-class JITDictTest(unittest.TestCase):
+class JITDictTest(CinderXTestCase):
     def warm_up_dict_opcode(
         self,
         read_item: Callable[[dict[str, str]], str],
@@ -107,13 +106,11 @@ class JITDictTest(unittest.TestCase):
             return values["key"]
 
         self.warm_up_dict_opcode(read_item)
-
-        self.assertTrue(cinderx.jit.force_compile(read_item))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(read_item)
-        if opcode_counts is None:
-            self.fail("No HIR opcode counts for compiled read_item")
-        self.assertIn("BinaryOp", opcode_counts)
-        self.assertNotIn("DictSubscr", opcode_counts)
+        self.assertHIROpcodes(
+            read_item,
+            present=["BinaryOp"],
+            absent=["DictSubscr"],
+        )
 
         self.exercise_concurrent_access(read_item)
 
@@ -126,13 +123,11 @@ class JITDictTest(unittest.TestCase):
             return values["key"]
 
         self.warm_up_dict_opcode(read_item)
-
-        self.assertTrue(cinderx.jit.force_compile(read_item))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(read_item)
-        if opcode_counts is None:
-            self.fail("No HIR opcode counts for compiled read_item")
-        self.assertIn("DictSubscr", opcode_counts)
-        self.assertNotIn("BinaryOp", opcode_counts)
+        self.assertHIROpcodes(
+            read_item,
+            present=["DictSubscr"],
+            absent=["BinaryOp"],
+        )
 
         self.exercise_concurrent_access(read_item)
 

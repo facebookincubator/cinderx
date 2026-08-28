@@ -6,15 +6,19 @@
 
 import dis
 import threading
-import unittest
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import FREE_THREADING_BUILD, passUnless, run_in_subprocess
+from cinderx.test_support import (
+    CinderXTestCase,
+    FREE_THREADING_BUILD,
+    passUnless,
+    run_in_subprocess,
+)
 
 
-class JITListTest(unittest.TestCase):
+class JITListTest(CinderXTestCase):
     def warm_up_list_opcode(
         self,
         read_item: Callable[[list[str]], str],
@@ -79,14 +83,11 @@ class JITListTest(unittest.TestCase):
             return values[0]
 
         self.warm_up_list_opcode(read_item)
-
-        self.assertTrue(cinderx.jit.force_compile(read_item))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(read_item)
-        if opcode_counts is None:
-            self.fail("No HIR opcode counts for compiled read_item")
-        self.assertIn("BinaryOp", opcode_counts)
-        self.assertNotIn("ListSubscr", opcode_counts)
-        self.assertNotIn("LoadArrayItem", opcode_counts)
+        self.assertHIROpcodes(
+            read_item,
+            present=["BinaryOp"],
+            absent=["ListSubscr", "LoadArrayItem"],
+        )
 
         self.exercise_concurrent_access(read_item)
 
@@ -100,12 +101,10 @@ class JITListTest(unittest.TestCase):
             return values[0]
 
         self.warm_up_list_opcode(read_item)
-
-        self.assertTrue(cinderx.jit.force_compile(read_item))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(read_item)
-        if opcode_counts is None:
-            self.fail("No HIR opcode counts for compiled read_item")
-        self.assertIn("ListSubscr", opcode_counts)
-        self.assertNotIn("LoadArrayItem", opcode_counts)
+        self.assertHIROpcodes(
+            read_item,
+            present=["ListSubscr"],
+            absent=["LoadArrayItem"],
+        )
 
         self.exercise_concurrent_access(read_item)

@@ -6,15 +6,14 @@
 
 import dis
 import threading
-import unittest
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import run_in_subprocess
+from cinderx.test_support import CinderXTestCase, run_in_subprocess
 
 
-class JITTupleTest(unittest.TestCase):
+class JITTupleTest(CinderXTestCase):
     def warm_up_tuple_opcode(
         self,
         read_item: Callable[[Sequence[object]], object],
@@ -65,13 +64,11 @@ class JITTupleTest(unittest.TestCase):
             return values[0]
 
         self.warm_up_tuple_opcode(read_item)
-
-        self.assertTrue(cinderx.jit.force_compile(read_item))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(read_item)
-        if opcode_counts is None:
-            self.fail("No HIR opcode counts for compiled read_item")
-        self.assertIn("BinaryOp", opcode_counts)
-        self.assertNotIn("LoadArrayItem", opcode_counts)
+        self.assertHIROpcodes(
+            read_item,
+            present=["BinaryOp"],
+            absent=["LoadArrayItem"],
+        )
 
         values = (object(),)
         self.exercise_concurrent_reads(read_item, values)
@@ -90,13 +87,11 @@ class JITTupleTest(unittest.TestCase):
             return values[0]
 
         self.warm_up_tuple_opcode(read_item)
-
-        self.assertTrue(cinderx.jit.force_compile(read_item))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(read_item)
-        if opcode_counts is None:
-            self.fail("No HIR opcode counts for compiled read_item")
-        self.assertIn("LoadArrayItem", opcode_counts)
-        self.assertNotIn("BinaryOp", opcode_counts)
+        self.assertHIROpcodes(
+            read_item,
+            present=["LoadArrayItem"],
+            absent=["BinaryOp"],
+        )
 
         values = (object(),)
         self.exercise_concurrent_reads(read_item, values)

@@ -5,12 +5,16 @@
 """Free-threaded JIT regression tests for method inline caches."""
 
 import threading
-import unittest
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import FREE_THREADING_BUILD, passUnless, run_in_subprocess
+from cinderx.test_support import (
+    CinderXTestCase,
+    FREE_THREADING_BUILD,
+    passUnless,
+    run_in_subprocess,
+)
 
 
 class MutableMethodTarget:
@@ -28,14 +32,13 @@ def method_two(self: MutableMethodTarget) -> int:
     return 43
 
 
-class JITMethodCacheTest(unittest.TestCase):
+class JITMethodCacheTest(CinderXTestCase):
     def assert_compiled_load_method_is_uncached(self, func: Callable[[], int]) -> None:
-        self.assertTrue(cinderx.jit.force_compile(func))
-        opcode_counts = cinderx.jit.get_function_hir_opcode_counts(func)
-        if opcode_counts is None:
-            self.fail(f"No HIR opcode counts for compiled {func.__name__}")
-        self.assertIn("LoadMethod", opcode_counts)
-        self.assertNotIn("LoadMethodCached", opcode_counts)
+        self.assertHIROpcodes(
+            func,
+            present=["LoadMethod"],
+            absent=["LoadMethodCached"],
+        )
 
     def assert_concurrent_method_updates_do_not_corrupt_results(
         self,

@@ -10,8 +10,7 @@ from cinderx.test_support import passUnless
 @passUnless(
     sys.version_info >= (3, 12) and sys.version_info < (3, 13), "Python 3.12 only"
 )
-# pyrefly: ignore [inconsistent-inheritance]
-class Python312Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):
+class Python312Bytecodes(cinder_support.CinderXTestCase):
     def test_LOAD_BUILD_CLASS(self):
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled

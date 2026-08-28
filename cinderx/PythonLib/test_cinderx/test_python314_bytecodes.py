@@ -116,8 +116,7 @@ def build_template():
 
 
 @passUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
-# pyrefly: ignore [inconsistent-inheritance]
-class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):
+class Python314Bytecodes(cinder_support.CinderXTestCase):
     def test_LOAD_SMALL_INT(self):
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled
