@@ -666,19 +666,19 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "cinderx-jit-hir-inliner-cost-limit",
       "CINDERX_JIT_HIR_INLINER_COST_LIMIT",
-      getMutableConfig().inliner_cost_limit,
+      getMutableConfig().inliner.cost_limit,
       "Limit how much the inliner is able to inline. The number's definition "
       "is only relevant to the inliner itself.");
   flag_processor.addOption(
       "cinderx-jit-hir-inliner-cold-call-threshold",
       "CINDERX_JIT_HIR_INLINER_COLD_CALL_THRESHOLD",
-      getMutableConfig().inliner_cold_call_threshold,
+      getMutableConfig().inliner.cold_call_threshold,
       "Prune an inlining candidate when the caller's call count is at least "
       "this many times the callee's call count.");
   flag_processor.addOption(
       "cinderx-jit-hir-inliner-depth-limit",
       "CINDERX_JIT_HIR_INLINER_DEPTH_LIMIT",
-      getMutableConfig().inliner_depth_limit,
+      getMutableConfig().inliner.depth_limit,
       "Maximum depth for transitive (recursive) inlining. A limit of 1 only "
       "inlines direct callees; higher values also inline callees of callees.");
 

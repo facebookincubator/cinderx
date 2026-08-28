@@ -51,12 +51,35 @@ struct LIROptimizations {
   bool inliner{true};
 };
 
+// Configuration options to control the simplifier's behavior.
 struct SimplifierConfig {
   // The maximum number of times the simplifier can process a function's CFG.
   size_t iteration_limit{100};
   // The maximum number of new blocks that can be added by the simplifier to a
   // function.
   size_t new_block_limit{1000};
+};
+
+// Configuration options to control the inliner's behavior.
+struct InlinerConfig {
+  // Limit on how much the inliner can inline.  The number here is internal to
+  // the inliner, doesn't have any specific meaning, and can change as the
+  // inliner's algorithm changes.
+  size_t cost_limit{2000};
+  // Prune an inlining candidate when the caller's call count is at least this
+  // many times the callee's call count.  A callee's total call count is an
+  // upper bound on the calls made from any single call site, so a callee called
+  // far less often than the caller must be a cold call site that isn't worth
+  // inlining.  Only applied when the caller has a non-zero call count.
+  size_t cold_call_threshold{20};
+  // Maximum depth for transitive (recursive) inlining.  When the inliner
+  // inlines a function it also considers that function's own callees as
+  // candidates; this bounds how many levels deep that can go.  A top-level call
+  // site is at depth 0, so a function inlined there lands at depth 1.
+  //
+  // A limit of 1 will disable transitive inlining entirely, and only allow
+  // inlining direct function calls.
+  size_t depth_limit{10};
 };
 
 struct GdbOptions {
@@ -188,24 +211,7 @@ struct Config {
   HIROptimizations hir_opts;
   LIROptimizations lir_opts;
   SimplifierConfig simplifier;
-  // Limit on how much the inliner can inline.  The number here is internal to
-  // the inliner, doesn't have any specific meaning, and can change as the
-  // inliner's algorithm changes.
-  size_t inliner_cost_limit{2000};
-  // Prune an inlining candidate when the caller's call count is at least this
-  // many times the callee's call count.  A callee's total call count is an
-  // upper bound on the calls made from any single call site, so a callee called
-  // far less often than the caller must be a cold call site that isn't worth
-  // inlining.  Only applied when the caller has a non-zero call count.
-  size_t inliner_cold_call_threshold{20};
-  // Maximum depth for transitive (recursive) inlining.  When the inliner
-  // inlines a function it also considers that function's own callees as
-  // candidates; this bounds how many levels deep that can go.  A top-level
-  // call site is at depth 0, so a function inlined there lands at depth 1.
-  //
-  // A limit of 1 will disable transitive inlining entirely, and only allow
-  // inlining direct function calls.
-  size_t inliner_depth_limit{10};
+  InlinerConfig inliner;
   // Number of workers to use for batch compilation, like in precompile_all().
   // If this number isn't configured then batch compilation will happen inline
   // on the calling thread.

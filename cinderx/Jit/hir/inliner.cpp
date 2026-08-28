@@ -482,9 +482,9 @@ void InlineFunctionCalls::run(Function& irfunc) {
     return;
   }
 
-  const size_t cost_limit = getConfig().inliner_cost_limit;
-  const size_t depth_limit = getConfig().inliner_depth_limit;
-  const size_t cold_threshold = getConfig().inliner_cold_call_threshold;
+  const size_t cost_limit = getConfig().inliner.cost_limit;
+  const size_t depth_limit = getConfig().inliner.depth_limit;
+  const size_t cold_threshold = getConfig().inliner.cold_call_threshold;
 
   const size_t original_cost = codeCost(irfunc.code);
   size_t cost = original_cost;
