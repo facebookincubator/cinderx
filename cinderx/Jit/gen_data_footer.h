@@ -29,8 +29,8 @@ namespace cinderx::jit {
 //
 // Both live in the generator object's own variable-length tail rather than in
 // a separate heap block, so they are freed along with the generator.  The
-// number of spill words is a property of the compiled code, not of any one
-// generator, and is held by CodeRuntime::spillWords().
+// number of spill bytes is a property of the compiled code, not of any one
+// generator, and is held by CodeRuntime::spillSize().
 struct GenDataFooter {
   // Tools which examine/walk the stack expect the following two values to be
   // ahead of the frame pointer.

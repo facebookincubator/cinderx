@@ -940,8 +940,7 @@ void* NativeGenerator::getVectorcallEntry() {
     JIT_DCHECK(
         env_.shadow_frames_and_spill_size % kPointerSize == 0,
         "Bad spill alignment");
-    env_.code_rt->setSpillWords(
-        env_.shadow_frames_and_spill_size / kPointerSize);
+    env_.code_rt->setSpillSize(env_.shadow_frames_and_spill_size);
   }
   return vectorcall_entry_;
 }

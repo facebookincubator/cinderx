@@ -122,12 +122,12 @@ void CodeRuntime::setFrameSize(int size) {
   frame_size_ = size;
 }
 
-uint32_t CodeRuntime::spillWords() const {
-  return spill_words_;
+uint32_t CodeRuntime::spillSize() const {
+  return spill_size_;
 }
 
-void CodeRuntime::setSpillWords(uint32_t words) {
-  spill_words_ = words;
+void CodeRuntime::setSpillSize(uint32_t size) {
+  spill_size_ = size;
 }
 
 GenResumeFunc CodeRuntime::genResumeEntry() const {

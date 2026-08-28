@@ -730,10 +730,10 @@ allocateAndLinkGenAndInterpreterFrame(
   BorrowedRef<PyCodeObject> co{func->func_code};
   JIT_DCHECK(co == code_rt->code(), "Code object mismatch");
 
-  uint64_t spill_words = code_rt->spillWords();
+  auto spill_size = code_rt->spillSize();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
   auto [gen, gen_size] = cinderx::getModuleState()->jit_gen_free_list->allocate(
-      co, spill_words * sizeof(uint64_t) + sizeof(GenDataFooter));
+      co, spill_size + sizeof(GenDataFooter));
 
   gen->gi_frame_state = FRAME_CREATED;
   gen->gi_weakreflist = nullptr;
@@ -807,13 +807,10 @@ allocateAndLinkGenAndInterpreterFrame(
   // to point to the footer, spill slot reloads will read from the generator's
   // memory instead of the stack. This copy ensures those reloads find the
   // correct values.
-  if (spill_words > 0) {
-    size_t spill_bytes = spill_words * sizeof(uint64_t);
-    auto* src = reinterpret_cast<char*>( // NOLINT performance-no-int-to-ptr
-                    original_frame_pointer) -
-        spill_bytes;
-    auto* dst = reinterpret_cast<char*>(footer) - spill_bytes;
-    memcpy(dst, src, spill_bytes);
+  if (spill_size > 0) {
+    auto* src = reinterpret_cast<char*>(original_frame_pointer) - spill_size;
+    auto* dst = reinterpret_cast<char*>(footer) - spill_size;
+    memcpy(dst, src, spill_size);
   }
 
   PyObject_GC_Track(gen);

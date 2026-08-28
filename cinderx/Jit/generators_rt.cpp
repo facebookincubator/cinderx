@@ -404,11 +404,11 @@ PyObject* jitgen_sizeof(PyObject* obj, PyObject*) {
   // +1 word for storing the GenDataFooter pointer
   // +size of the GenDataFooter
   // +the size of the JIT register spill area.
-  uint32_t spill_words =
-      jit_gen->genDataFooter()->compiled_func->runtime()->spillWords();
+  uint32_t spill_size =
+      jit_gen->genDataFooter()->compiled_func->runtime()->spillSize();
   return PyLong_FromSsize_t(
       base_size_int + sizeof(GenDataFooter*) + sizeof(GenDataFooter) +
-      spill_words * sizeof(uint64_t));
+      spill_size);
 }
 
 PyObject* jitgen_getyieldfrom(PyObject* obj, void*) {

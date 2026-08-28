@@ -91,9 +91,9 @@ class alignas(16) CodeRuntime {
   int frameSize() const;
   void setFrameSize(int size);
 
-  // Get and set the number of spill words for generators.
-  uint32_t spillWords() const;
-  void setSpillWords(uint32_t words);
+  // Get and set the number of spill bytes for generators.
+  uint32_t spillSize() const;
+  void setSpillSize(uint32_t size);
 
   // Get and set the address a generator resumes execution at.  Only meaningful
   // for generators, and only resolvable once code generation has bound the
@@ -160,7 +160,7 @@ class alignas(16) CodeRuntime {
   GenResumeFunc gen_resume_entry_{nullptr};
 
   int frame_size_{-1};
-  uint32_t spill_words_{0};
+  uint32_t spill_size_{0};
   DebugInfo debug_info_;
 };
 
