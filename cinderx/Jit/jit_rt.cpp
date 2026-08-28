@@ -376,6 +376,11 @@ static inline TRetType invokeStaticReentry(
   }
 }
 
+// Maximum number of arguments (actual + defaulted) materialized on the stack
+// when filling in defaults for a call.  Functions with more parameters than
+// this fall back to a heap allocation, which is rare.
+constexpr int kMaxStackDefaultedArgs = 24;
+
 StaticCallFPReturn callWithIncorrectArgcountFPReturn(
     PyFunctionObject* func,
     PyObject** args,
@@ -390,7 +395,6 @@ StaticCallFPReturn callWithIncorrectArgcountFPReturn(
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  auto arg_space = std::make_unique<PyObject*[]>(argcount);
   Py_ssize_t defaulted_args = argcount - nargs;
 
   if (nargs + defcount < argcount || nargs > argcount) {
@@ -398,6 +402,17 @@ StaticCallFPReturn callWithIncorrectArgcountFPReturn(
     auto interpVectorcall = getInterpretedVectorcall(func);
     interpVectorcall((PyObject*)func, args, nargsf, nullptr);
     return {0.0, 0.0};
+  }
+
+  // Almost all functions have a small number of parameters; use a stack buffer
+  // to avoid a heap allocation on every defaulted call, falling back to the
+  // heap only for the rare function with a very large parameter list.
+  PyObject* stack_space[kMaxStackDefaultedArgs];
+  std::unique_ptr<PyObject*[]> heap_space;
+  PyObject** arg_space = stack_space;
+  if (argcount > kMaxStackDefaultedArgs) {
+    heap_space = std::make_unique<PyObject*[]>(argcount);
+    arg_space = heap_space.get();
   }
 
   Py_ssize_t i;
@@ -415,7 +430,7 @@ StaticCallFPReturn callWithIncorrectArgcountFPReturn(
 
   return invokeStaticReentry<StaticCallFPReturn, staticvectorcallfuncfp>(
       func,
-      arg_space.get(),
+      arg_space,
       new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
@@ -437,13 +452,23 @@ StaticCallReturn callWithIncorrectArgcount(
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  auto arg_space = std::make_unique<PyObject*[]>(argcount);
   Py_ssize_t defaulted_args = argcount - nargs;
 
   if (nargs + defcount < argcount || nargs > argcount) {
     // Not enough args with defaults, or too many args without defaults.
     auto interpVectorcall = getInterpretedVectorcall(func);
     return {interpVectorcall((PyObject*)func, args, nargsf, nullptr), nullptr};
+  }
+
+  // Almost all functions have a small number of parameters; use a stack buffer
+  // to avoid a heap allocation on every defaulted call, falling back to the
+  // heap only for the rare function with a very large parameter list.
+  PyObject* stack_space[kMaxStackDefaultedArgs];
+  std::unique_ptr<PyObject*[]> heap_space;
+  PyObject** arg_space = stack_space;
+  if (argcount > kMaxStackDefaultedArgs) {
+    heap_space = std::make_unique<PyObject*[]>(argcount);
+    arg_space = heap_space.get();
   }
 
   Py_ssize_t i;
@@ -461,7 +486,7 @@ StaticCallReturn callWithIncorrectArgcount(
 
   return invokeStaticReentry<StaticCallReturn, staticvectorcallfunc>(
       func,
-      arg_space.get(),
+      arg_space,
       new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
