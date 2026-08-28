@@ -91,5 +91,8 @@ test_ioctl
 # Test is very sensitive and fails on seemingly irrelevant changes.
 test.test_subprocess.POSIXProcessTestCase.test_pass_fds_redirected
 
-# Failing on dev servers for some reason
+# Testing perf sample collection, but it fails to collect anything on
+# Sandcastle.  Unclear if this is because of processes racing, or something to
+# do with Sandcastle VMs.
 test.test_perf_profiler.TestPerfProfilerWithDwarf.test_python_calls_appear_in_the_stack_if_perf_activated
+test.test_perf_profiler.TestPerfProfiler.test_python_calls_appear_in_the_stack_if_perf_activated
