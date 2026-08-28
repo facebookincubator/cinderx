@@ -487,16 +487,13 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
   using DT = DataType;
 
   auto gen_reg = codegen::ARGUMENT_REGS[0];
-#if defined(CINDER_X86_64) && defined(_WIN32)
+  constexpr bool kWindowsX64 =
+      kBuildArch == Arch::kX86_64 && kOS == OS::kWindows;
   // On Windows, R8 and R9 are ARGUMENT_REGS[2] and [3] (finish_yield_from
   // and tstate). Use R10/R11 to avoid clobbering them before the resume
   // target reads them.
-  PhyLocation scratch{10, 64}; // r10
-  PhyLocation jit_data_reg{11, 64}; // r11
-#else
-  PhyLocation scratch{8, 64}; // r8/x8
-  PhyLocation jit_data_reg{9, 64}; // r9/x9
-#endif
+  PhyLocation scratch{kWindowsX64 ? 10 : 8, 64}; // r10 or r8/x8
+  PhyLocation jit_data_reg{kWindowsX64 ? 11 : 9, 64}; // r11 or r9/x9
   auto fp_reg = codegen::arch::reg_frame_pointer_loc;
 
   auto gi_off = static_cast<int32_t>(gi_jit_data_offset);
@@ -1001,13 +998,12 @@ void GenerateArgcountCheckBlocks(
     auto helper = returns_primitive_double
         ? reinterpret_cast<uint64_t>(rt::callWithIncorrectArgcountFPReturn)
         : reinterpret_cast<uint64_t>(rt::callWithIncorrectArgcount);
-#ifdef _WIN32
-    // On Windows x64, both helpers return 16-byte structs which causes the
-    // ABI to use a hidden sret pointer in RCX, shifting all visible
-    // arguments by one register position. Allocate temporary stack space,
-    // shuffle arguments, call, then extract the two return values into the
-    // registers that JITed code expects.
-    {
+    if constexpr (kOS == OS::kWindows) {
+      // On Windows x64, both helpers return 16-byte structs which causes the
+      // ABI to use a hidden sret pointer in RCX, shifting all visible
+      // arguments by one register position. Allocate temporary stack space,
+      // shuffle arguments, call, then extract the two return values into the
+      // registers that JITed code expects.
       // Stack layout (64 bytes, keeps 16-byte alignment):
       //   [RSP + 0x30] sret struct (16 bytes)
       //   [RSP + 0x28] padding
@@ -1077,10 +1073,9 @@ void GenerateArgcountCheckBlocks(
             OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
             Ind(sp_reg, kSretStructOffset + 8));
       }
+    } else {
+      argcount_check->allocateInstr(Opcode::kCall, nullptr, Imm{helper});
     }
-#else
-    argcount_check->allocateInstr(Opcode::kCall, nullptr, Imm{helper});
-#endif
     argcount_check->allocateInstr(
         Opcode::kBranch, nullptr, AsmLbl{prologue_exit});
 

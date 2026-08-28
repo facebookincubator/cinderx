@@ -847,9 +847,9 @@ void* NativeGenerator::getVectorcallEntry() {
   frame_header_size += sizeof(void*);
 
   int reserved_stack_space = frame_header_size + inline_stack_size_;
-#if defined(CINDER_X86_64) && defined(_WIN32)
-  reserved_stack_space += 16;
-#endif
+  if constexpr (kBuildArch == Arch::kX86_64 && kOS == OS::kWindows) {
+    reserved_stack_space += 16;
+  }
 
   std::unique_ptr<RegisterAllocator> allocator;
   switch (getConfig().reg_alloc) {

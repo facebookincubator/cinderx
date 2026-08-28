@@ -207,17 +207,17 @@ TEST_F(LIRInlinerTest, FindCalleeFunctionSuccessTest) {
       Imm(reinterpret_cast<uint64_t>(rt::cast)));
   LIRInliner inliner{&caller, call_instr};
   auto callee = inliner.findCalleeFunction();
-#ifdef __APPLE__
-  // C helper LIR translations are disabled because they cannot safely call
-  // variadic functions using Apple's ARM64 ABI.
-  ASSERT_EQ(callee, nullptr);
-#else
-  ASSERT_TRUE(callee != nullptr);
-  // The second time that the same function is called,
-  // it should already have been parsed.
-  auto callee2 = inliner.findCalleeFunction();
-  ASSERT_EQ(callee, callee2);
-#endif
+  if constexpr (kOS == OS::kMacOS) {
+    // C helper LIR translations are disabled because they cannot safely call
+    // variadic functions using Apple's ARM64 ABI.
+    ASSERT_EQ(callee, nullptr);
+  } else {
+    ASSERT_TRUE(callee != nullptr);
+    // The second time that the same function is called,
+    // it should already have been parsed.
+    auto callee2 = inliner.findCalleeFunction();
+    ASSERT_EQ(callee, callee2);
+  }
 }
 
 TEST_F(LIRInlinerTest, FindCalleeFunctionFailureTest) {

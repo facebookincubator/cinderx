@@ -1193,14 +1193,14 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
   bb->addSuccessor(epilogue);
   LIRInliner inliner{&caller, call_instr};
 
-#ifdef __APPLE__
-  ASSERT_FALSE(inliner.inlineCall());
-#else
-  ASSERT_TRUE(inliner.inlineCall());
+  if constexpr (kOS == OS::kMacOS) {
+    ASSERT_FALSE(inliner.inlineCall());
+  } else {
+    ASSERT_TRUE(inliner.inlineCall());
 
-  // Check that caller LIR is as expected.
-  auto expected_caller = fmt::format(
-      R"(Function:
+    // Check that caller LIR is as expected.
+    auto expected_caller = fmt::format(
+        R"(Function:
 BB %0 - succs: %8
        %1:Object = LoadArg 0(0x0):64bit
        %2:Object = LoadArg 1(0x1):64bit
@@ -1233,21 +1233,21 @@ BB %7 - preds: %12 - succs: %6
 BB %6 - preds: %7
 
 )",
-      offsetof(PyObject, ob_type),
-      offsetof(PyTypeObject, tp_name),
-      reinterpret_cast<uint64_t>(PyType_IsSubtype),
-      reinterpret_cast<uint64_t>(PyErr_Format),
-      reinterpret_cast<uint64_t>(PyExc_TypeError),
-      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
-  std::stringstream ss;
-  caller.sortBasicBlocks();
-  ss << caller;
-  // Replace the string literal address
-  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
-  std::string caller_str =
-      regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
-  ASSERT_EQ(expected_caller, caller_str);
-#endif
+        offsetof(PyObject, ob_type),
+        offsetof(PyTypeObject, tp_name),
+        reinterpret_cast<uint64_t>(PyType_IsSubtype),
+        reinterpret_cast<uint64_t>(PyErr_Format),
+        reinterpret_cast<uint64_t>(PyExc_TypeError),
+        fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
+    std::stringstream ss;
+    caller.sortBasicBlocks();
+    ss << caller;
+    // Replace the string literal address
+    std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
+    std::string caller_str =
+        regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
+    ASSERT_EQ(expected_caller, caller_str);
+  }
 
   // Test execution of caller
   CheckCast(&caller);

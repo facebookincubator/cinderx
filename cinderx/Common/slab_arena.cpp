@@ -7,21 +7,17 @@
 
 #include <algorithm>
 
-#if defined(__linux__) && defined(__aarch64__)
-// On ARM64 we see huge dTLB misses on our inline caches so
-// we put them on huge pages
-#define ALLOCATE_HUGE_PAGES
-#endif
-
 namespace cinderx {
 
 std::shared_ptr<HugePageArena> getSharedHugePageArena() {
-#ifdef ALLOCATE_HUGE_PAGES
-  auto state = getModuleState();
-  if (state != nullptr) {
-    return state->getSharedHugePageArena();
+  if constexpr (kOS == OS::kLinux && kBuildArch == Arch::kAarch64) {
+    // On ARM64 we see huge dTLB misses on our inline caches so we put them on
+    // huge pages.
+    auto state = getModuleState();
+    if (state != nullptr) {
+      return state->getSharedHugePageArena();
+    }
   }
-#endif
   return nullptr;
 }
 

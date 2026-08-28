@@ -325,28 +325,28 @@ Instruction* getSecondCallResult(
   // Whether the input is a Call (or Windows struct-return Load) vs a Phi.
   bool is_call_like = src_instr->isCall();
 
-#if defined(CINDER_X86_64) && defined(_WIN32)
-  // On Windows x64, appendCall2RetValues emits struct-return calls as:
-  //   %buf = Lea [rbp + offset]
-  //   %tmp = Call func, %buf, args...
-  //   %dst = Load [%buf + 0]       <-- src_instr (first field, mapped to HIR)
-  //   Load RDX = [%buf + 8]        <-- second field already loaded into RDX
-  //
-  // The LoadSecondCallResult input resolves to the first-field Load rather
-  // than the Call itself. Advance src_it past the second-field Load so the
-  // rewritten "Move from RDX" is placed after the value is actually in RDX.
-  if (src_instr->isLoad()) {
-    auto next_it = std::next(src_it);
-    JIT_CHECK(
-        next_it != src_block->instructions().end() &&
-            next_it->get()->isLoad() && next_it->get()->output()->isReg() &&
-            next_it->get()->output()->getPhyRegister() == RETURN_REGS[1],
-        "Expected second-field Load (into RDX) after Windows struct-return "
-        "first-field Load");
-    src_it = next_it;
-    is_call_like = true;
+  if constexpr (kBuildArch == Arch::kX86_64 && kOS == OS::kWindows) {
+    // On Windows x64, appendCall2RetValues emits struct-return calls as:
+    //   %buf = Lea [rbp + offset]
+    //   %tmp = Call func, %buf, args...
+    //   %dst = Load [%buf + 0]       <-- src_instr (first field, mapped to HIR)
+    //   Load RDX = [%buf + 8]        <-- second field already loaded into RDX
+    //
+    // The LoadSecondCallResult input resolves to the first-field Load rather
+    // than the Call itself. Advance src_it past the second-field Load so the
+    // rewritten "Move from RDX" is placed after the value is actually in RDX.
+    if (src_instr->isLoad()) {
+      auto next_it = std::next(src_it);
+      JIT_CHECK(
+          next_it != src_block->instructions().end() &&
+              next_it->get()->isLoad() && next_it->get()->output()->isReg() &&
+              next_it->get()->output()->getPhyRegister() == RETURN_REGS[1],
+          "Expected second-field Load (into RDX) after Windows struct-return "
+          "first-field Load");
+      src_it = next_it;
+      is_call_like = true;
+    }
   }
-#endif
 
   JIT_CHECK(
       is_call_like || src_instr->isPhi(),

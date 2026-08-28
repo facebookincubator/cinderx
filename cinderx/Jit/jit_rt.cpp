@@ -360,20 +360,20 @@ static inline TRetType invokeStaticReentry(
     size_t nargsf,
     PyObject* kwnames) {
   void* reentry = reinterpret_cast<void*>(JITRT_GET_REENTRY(func->vectorcall));
-#if defined(_WIN32) && defined(CINDER_X86_64)
-  constexpr bool kFp = std::is_same_v<TRetType, StaticCallFPReturn>;
-  using Trampoline = TRetType (*)(
-      void* reentry,
-      PyObject* callable,
-      PyObject* const* args,
-      size_t nargsf,
-      PyObject* kwnames);
-  return reinterpret_cast<Trampoline>(codegen::getStaticReentryTrampoline(kFp))(
-      reentry, (PyObject*)func, args, nargsf, kwnames);
-#else
-  return reinterpret_cast<TVectorcall>(reentry)(
-      (PyObject*)func, args, nargsf, kwnames);
-#endif
+  if constexpr (kOS == OS::kWindows && kBuildArch == Arch::kX86_64) {
+    constexpr bool kFp = std::is_same_v<TRetType, StaticCallFPReturn>;
+    using Trampoline = TRetType (*)(
+        void* reentry,
+        PyObject* callable,
+        PyObject* const* args,
+        size_t nargsf,
+        PyObject* kwnames);
+    return reinterpret_cast<Trampoline>(codegen::getStaticReentryTrampoline(
+        kFp))(reentry, (PyObject*)func, args, nargsf, kwnames);
+  } else {
+    return reinterpret_cast<TVectorcall>(reentry)(
+        (PyObject*)func, args, nargsf, kwnames);
+  }
 }
 
 StaticCallFPReturn callWithIncorrectArgcountFPReturn(

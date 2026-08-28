@@ -100,4 +100,22 @@ constexpr Arch kBuildArch = Arch::kUnknown;
 
 #endif
 
+// Operating system being targeted by the current build.
+enum class OS {
+  kUnknown,
+  kLinux,
+  kMacOS,
+  kWindows,
+};
+
+#if defined(__linux__)
+constexpr OS kOS = OS::kLinux;
+#elif defined(__APPLE__)
+constexpr OS kOS = OS::kMacOS;
+#elif defined(_WIN32)
+constexpr OS kOS = OS::kWindows;
+#else
+constexpr OS kOS = OS::kUnknown;
+#endif
+
 } // namespace cinderx

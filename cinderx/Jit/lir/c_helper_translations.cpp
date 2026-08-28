@@ -9,15 +9,15 @@
 namespace cinderx::jit::lir {
 
 const std::string* mapCHelperToLIR(uint64_t addr) {
-#ifdef __APPLE__
-  // Nothing is inlined on Apple platforms.  The translation below calls
-  // PyErr_Format, which is variadic, passing its arguments in registers.
-  // Apple's ARM64 ABI passes variadic arguments on the stack instead, so
-  // PyErr_Format reads NULL for the '%s' conversions and segfaults.  Leaving
-  // the helpers out-of-line lets the C compiler get the ABI right.
-  (void)addr;
-  return nullptr;
-#else
+  if constexpr (kOS == OS::kMacOS) {
+    // Nothing is inlined on Apple platforms.  The translation below calls
+    // PyErr_Format, which is variadic, passing its arguments in registers.
+    // Apple's ARM64 ABI passes variadic arguments on the stack instead, so
+    // PyErr_Format reads NULL for the '%s' conversions and segfaults.  Leaving
+    // the helpers out-of-line lets the C compiler get the ABI right.
+    return nullptr;
+  }
+
   static const std::unordered_map<uint64_t, std::string> mapping = {
       {reinterpret_cast<uint64_t>(rt::cast),
        fmt::format(
@@ -52,7 +52,6 @@ BB %4 - preds: %2 %3
 
   auto it = mapping.find(addr);
   return it != mapping.end() ? &it->second : nullptr;
-#endif
 }
 
 } // namespace cinderx::jit::lir

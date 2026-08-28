@@ -487,11 +487,7 @@ void copyJitdumpFile() {
 #endif
 
 bool isPreforkCompilationEnabled() {
-#ifndef WIN32
-  return getConfig().compile_perf_trampoline_prefork;
-#else
-  return false;
-#endif
+  return kOS != OS::kWindows && getConfig().compile_perf_trampoline_prefork;
 }
 
 void registerFunction(

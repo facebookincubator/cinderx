@@ -972,39 +972,39 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
         "offset to callee saved regs not initialized");
     // Point rsp at the bottom of the callee-saved area.
     as->lea(x86::rsp, x86::ptr(x86::rbp, -env->last_callee_saved_reg_off));
-#ifdef _WIN32
-    // On Windows, callee-saved XMM registers were saved with movaps and
-    // must be restored the same way. GP registers are restored with pop.
-    auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
-    auto gp_regs = saved_regs & ALL_GP_REGISTERS;
-    int xmm_offset = 0;
-    while (!vecd_regs.empty()) {
-      auto reg = vecd_regs.getFirst();
-      as->movaps(
-          x86::xmm(reg.loc - VECD_REG_BASE), x86::ptr(x86::rsp, xmm_offset));
-      xmm_offset += kVecDSize;
-      vecd_regs.removeFirst();
+    if constexpr (kOS == OS::kWindows) {
+      // On Windows, callee-saved XMM registers were saved with movaps and
+      // must be restored the same way. GP registers are restored with pop.
+      auto vecd_regs = saved_regs & ALL_VECD_REGISTERS;
+      auto gp_regs = saved_regs & ALL_GP_REGISTERS;
+      int xmm_offset = 0;
+      while (!vecd_regs.empty()) {
+        auto reg = vecd_regs.getFirst();
+        as->movaps(
+            x86::xmm(reg.loc - VECD_REG_BASE), x86::ptr(x86::rsp, xmm_offset));
+        xmm_offset += kVecDSize;
+        vecd_regs.removeFirst();
+      }
+      int vecd_count = (saved_regs & ALL_VECD_REGISTERS).count();
+      int gp_count = gp_regs.count();
+      int vecd_area_size = vecd_count * kVecDSize;
+      if (vecd_count > 0 && (gp_count * kPointerSize) % kStackAlign != 0) {
+        vecd_area_size += kPointerSize;
+      }
+      if (vecd_area_size > 0) {
+        as->add(x86::rsp, vecd_area_size);
+      }
+      while (!gp_regs.empty()) {
+        as->pop(x86::gpq(gp_regs.getLast().loc));
+        gp_regs.removeLast();
+      }
+    } else {
+      // Pop in reverse push order (GetLast→GetFirst) to restore registers.
+      while (!saved_regs.empty()) {
+        as->pop(x86::gpq(saved_regs.getLast().loc));
+        saved_regs.removeLast();
+      }
     }
-    int vecd_count = (saved_regs & ALL_VECD_REGISTERS).count();
-    int gp_count = gp_regs.count();
-    int vecd_area_size = vecd_count * kVecDSize;
-    if (vecd_count > 0 && (gp_count * kPointerSize) % kStackAlign != 0) {
-      vecd_area_size += kPointerSize;
-    }
-    if (vecd_area_size > 0) {
-      as->add(x86::rsp, vecd_area_size);
-    }
-    while (!gp_regs.empty()) {
-      as->pop(x86::gpq(gp_regs.getLast().loc));
-      gp_regs.removeLast();
-    }
-#else
-    // Pop in reverse push order (GetLast→GetFirst) to restore registers.
-    while (!saved_regs.empty()) {
-      as->pop(x86::gpq(saved_regs.getLast().loc));
-      saved_regs.removeLast();
-    }
-#endif
   }
   as->leave();
   as->ret();
@@ -1146,40 +1146,41 @@ void translateSetupFrame(Environ* env, const Instruction*) {
   }
 
   auto gp_save_count = (env->resume_saved_regs & ALL_GP_REGISTERS).count();
-#ifdef _WIN32
-  auto vecd_saved_regs = env->resume_saved_regs & ALL_VECD_REGISTERS;
-  auto vecd_save_count = vecd_saved_regs.count();
+  if constexpr (kOS == OS::kWindows) {
+    auto vecd_saved_regs = env->resume_saved_regs & ALL_VECD_REGISTERS;
+    auto vecd_save_count = vecd_saved_regs.count();
 
-  // On Windows, callee-saved XMM registers (XMM6-XMM15) are saved via movaps
-  // into the stack space between the GP pushes and the arg buffer.
-  // Compute the offset where XMM saves start (right after GP pushes, aligned).
-  int vecd_area_size = vecd_save_count * kVecDSize;
-  if (vecd_save_count > 0 &&
-      (gp_save_count * kPointerSize) % kStackAlign != 0) {
-    vecd_area_size += kPointerSize; // alignment padding
+    // On Windows, callee-saved XMM registers (XMM6-XMM15) are saved via movaps
+    // into the stack space between the GP pushes and the arg buffer.
+    // Compute the offset where XMM saves start (right after GP pushes,
+    // aligned).
+    int vecd_area_size = vecd_save_count * kVecDSize;
+    if (vecd_save_count > 0 &&
+        (gp_save_count * kPointerSize) % kStackAlign != 0) {
+      vecd_area_size += kPointerSize; // alignment padding
+    }
+    int arg_buffer_size = env->resume_frame_total_size -
+        env->resume_header_and_spill_size - gp_save_count * kPointerSize -
+        vecd_area_size;
+    if (vecd_area_size + arg_buffer_size > 0) {
+      as->sub(x86::rsp, vecd_area_size + arg_buffer_size);
+    }
+    // Save XMM registers into [rsp + arg_buffer_size + offset]
+    int xmm_offset = arg_buffer_size;
+    while (!vecd_saved_regs.empty()) {
+      auto reg = vecd_saved_regs.getFirst();
+      as->movaps(
+          x86::ptr(x86::rsp, xmm_offset), x86::xmm(reg.loc - VECD_REG_BASE));
+      xmm_offset += kVecDSize;
+      vecd_saved_regs.removeFirst();
+    }
+  } else {
+    int arg_buffer_size = env->resume_frame_total_size -
+        env->resume_header_and_spill_size - gp_save_count * kPointerSize;
+    if (arg_buffer_size > 0) {
+      as->sub(x86::rsp, arg_buffer_size);
+    }
   }
-  int arg_buffer_size = env->resume_frame_total_size -
-      env->resume_header_and_spill_size - gp_save_count * kPointerSize -
-      vecd_area_size;
-  if (vecd_area_size + arg_buffer_size > 0) {
-    as->sub(x86::rsp, vecd_area_size + arg_buffer_size);
-  }
-  // Save XMM registers into [rsp + arg_buffer_size + offset]
-  int xmm_offset = arg_buffer_size;
-  while (!vecd_saved_regs.empty()) {
-    auto reg = vecd_saved_regs.getFirst();
-    as->movaps(
-        x86::ptr(x86::rsp, xmm_offset), x86::xmm(reg.loc - VECD_REG_BASE));
-    xmm_offset += kVecDSize;
-    vecd_saved_regs.removeFirst();
-  }
-#else
-  int arg_buffer_size = env->resume_frame_total_size -
-      env->resume_header_and_spill_size - gp_save_count * kPointerSize;
-  if (arg_buffer_size > 0) {
-    as->sub(x86::rsp, arg_buffer_size);
-  }
-#endif
   env->addAnnotation(std::string("Save callee-saved registers"), save_cursor);
 #elif defined(CINDER_AARCH64)
   // allocateHeaderAndSpillSpace()

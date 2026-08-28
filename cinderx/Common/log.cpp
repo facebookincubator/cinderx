@@ -14,12 +14,7 @@ namespace {
 // Trim file paths to be rooted at "cinderx/" for cleaner log output.
 std::string_view trimSourcePath(std::string_view path) {
   constexpr std::string_view pattern =
-#ifdef _WIN32
-      "cinderx\\"
-#else
-      "cinderx/"
-#endif
-      ;
+      kOS == OS::kWindows ? "cinderx\\" : "cinderx/";
   size_t pos = path.rfind(pattern);
   return pos != std::string_view::npos ? path.substr(pos) : path;
 }

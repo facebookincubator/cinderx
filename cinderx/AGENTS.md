@@ -26,7 +26,7 @@ select code to target different Python versions. Utilities are provided
 in `Common/` to abstract commonly used features which changed between
 Python versions.
 
-## Different Target Architectures
+## Different Target Architectures and Operating Systems
 
 CinderX supports multiple architectures in its code generation backend
 (e.g. x86-64, aarch64). The preference is to have all code compile under all
@@ -43,6 +43,9 @@ One specific case to highlight is struct/class fields that are only used on
 specific architectures. If they are part of singletons then it's fine to define
 them always even if they are unused, but otherwise they should be conditionally
 compiled via the preprocessor defines, to save on memory usage.
+
+CinderX also supports multiple operating systems, namely Linux, macOS, and
+Windows. The same suggestions for `kBuildArch` also apply to the `kOS` constant.
 
 ## Non-public Python APIs
 
