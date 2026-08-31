@@ -20,6 +20,8 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 using namespace cinderx::jit::codegen;
@@ -104,3 +106,5 @@ def test(a, b):
     EXPECT_EQ(PyObject_RichCompareBool(res, expected, Py_EQ), 1);
   }
 }
+
+} // namespace cinderx

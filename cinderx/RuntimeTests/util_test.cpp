@@ -5,9 +5,9 @@
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using UtilTest = RuntimeTest;
+namespace cinderx {
 
-using namespace cinderx;
+using UtilTest = RuntimeTest;
 
 TEST(UtilTestNoFixture, Worklist) {
   Worklist<int> wl;
@@ -119,3 +119,5 @@ TEST(UtilTest, FitsSignedInt) {
   EXPECT_TRUE(fitsSignedInt<64>(std::numeric_limits<int64_t>::max()));
   EXPECT_FALSE(fitsSignedInt<64>(std::numeric_limits<uint64_t>::max()));
 }
+
+} // namespace cinderx

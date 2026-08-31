@@ -6,6 +6,8 @@
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using namespace cinderx::jit::hir;
 
 using HIRTypeTest = RuntimeTest;
@@ -991,3 +993,5 @@ TEST_F(HIRTypeTest, ReflowLoopTypes) {
   EXPECT_EQ(v1->type(), TMortalTupleExact | TMortalDictExact);
   EXPECT_EQ(v2->type(), TMortalDictExact);
 }
+
+} // namespace cinderx

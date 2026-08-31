@@ -279,7 +279,7 @@ int main(int argc, char* argv[]) {
   register_test("native_calls_test.txt", RuntimeTest::kStaticCompiler);
   register_test("static_array_item_test.txt", RuntimeTest::kStaticCompiler);
 
-  setPythonProgramName(argv[0]);
+  cinderx::setPythonProgramName(argv[0]);
 
   // Prevent any test failures due to transient pointer values.
   setUseStablePointers(true);

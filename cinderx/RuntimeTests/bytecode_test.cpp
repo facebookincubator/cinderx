@@ -6,6 +6,8 @@
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using BytecodeInstructionIteratorTest = RuntimeTest;
 
 using namespace cinderx::jit;
@@ -74,3 +76,5 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   ++it;
   EXPECT_EQ(it, bc_block.end());
 }
+
+} // namespace cinderx

@@ -11,6 +11,8 @@
 
 #include <memory>
 
+namespace cinderx {
+
 class LivenessAnalysisTest : public RuntimeTest {};
 class CollectDataUsesTest : public RuntimeTest {};
 
@@ -526,3 +528,5 @@ fun type_hints {
 
   EXPECT_EQ(seen.dominatingTypeHint(v1, bb4), nullptr);
 }
+
+} // namespace cinderx

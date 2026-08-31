@@ -10,7 +10,8 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-using namespace cinderx;
+namespace cinderx {
+
 using namespace cinderx::jit;
 
 class CodePatcherTest : public RuntimeTest {
@@ -187,3 +188,5 @@ def func():
 
   jit_ctx->clearGuardFailureCallback();
 }
+
+} // namespace cinderx

@@ -15,6 +15,8 @@
 
 #include <cstring>
 
+namespace cinderx {
+
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 
@@ -1455,3 +1457,5 @@ obj = C()
   EXPECT_TRUE(PyErr_Occurred());
   PyErr_Clear();
 }
+
+} // namespace cinderx

@@ -10,6 +10,8 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using namespace cinderx::jit::hir;
 
 class InsertUpdatePrevInstrTest : public RuntimeTest {};
@@ -88,3 +90,5 @@ def test(a):
       countIf(*irfunc, [](const Instr& i) { return i.isUpdatePrevInstr(); });
   EXPECT_GT(update_count, 0);
 }
+
+} // namespace cinderx

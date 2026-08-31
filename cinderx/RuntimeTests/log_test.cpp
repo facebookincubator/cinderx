@@ -7,9 +7,9 @@
 
 #include <stdexcept>
 
-using SetRuntimeErrorTest = RuntimeTest;
+namespace cinderx {
 
-using namespace cinderx;
+using SetRuntimeErrorTest = RuntimeTest;
 
 namespace {
 
@@ -53,3 +53,5 @@ TEST_F(SetRuntimeErrorTest, ReplacesExistingPythonException) {
   EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_RuntimeError));
   EXPECT_EQ(takeRaisedExceptionMessage(), "the C++ error wins");
 }
+
+} // namespace cinderx

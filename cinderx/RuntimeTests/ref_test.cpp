@@ -6,6 +6,8 @@
 
 #include <unordered_set>
 
+namespace cinderx {
+
 using BorrowedRefTest = RuntimeTest;
 using RefTest = RuntimeTest;
 
@@ -221,3 +223,5 @@ TEST_F(BorrowedRefTest, Reset) {
   ref.reset();
   EXPECT_EQ(ref, nullptr);
 }
+
+} // namespace cinderx

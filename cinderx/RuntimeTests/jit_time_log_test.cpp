@@ -6,6 +6,8 @@
 
 #include <chrono>
 
+namespace cinderx {
+
 using JITTimeLogTest = RuntimeTest;
 
 using namespace cinderx::jit;
@@ -75,3 +77,5 @@ Phase                Time/µs       Leaf/%     Sub Phase/%     Unattributed Time
 
 )") != std::string::npos);
 }
+
+} // namespace cinderx

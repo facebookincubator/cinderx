@@ -9,6 +9,8 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using namespace cinderx::jit::hir;
 
 using HIROperandTypeTest = RuntimeTest;
@@ -249,3 +251,5 @@ fun test {
       "Object to subclass 'Primitive'\n";
   EXPECT_NO_FATAL_FAILURE(funcTypeCheckFails(hir_source, expected_err));
 }
+
+} // namespace cinderx

@@ -13,6 +13,8 @@
 
 #include <gmock/gmock.h>
 
+namespace cinderx {
+
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 
@@ -106,3 +108,5 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericAddStaysBinaryOpWhenDisabled) {
   EXPECT_THAT(out, ::testing::Not(::testing::HasSubstr("BinaryOpCached")));
   EXPECT_THAT(out, ::testing::HasSubstr("BinaryOp<Add>"));
 }
+
+} // namespace cinderx

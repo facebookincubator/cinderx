@@ -4,6 +4,8 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using JITListTest = RuntimeTest;
 using WildcardJITListTest = RuntimeTest;
 
@@ -130,3 +132,5 @@ TEST_F(WildcardJITListTest, Lookup) {
   EXPECT_TRUE(jitlist->lookupName(foo, foo_bar_evaluate));
   EXPECT_FALSE(jitlist->lookupName(bar, foo_evaluate));
 }
+
+} // namespace cinderx

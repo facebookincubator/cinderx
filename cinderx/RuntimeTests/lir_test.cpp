@@ -24,8 +24,9 @@
 #include <utility>
 #include <vector>
 
+namespace cinderx {
+
 using namespace asmjit;
-using namespace cinderx;
 using namespace cinderx::jit;
 using namespace cinderx::jit::lir;
 
@@ -826,3 +827,5 @@ def func(value):
   EXPECT_TRUE(std::regex_search(lir_str, scaled_array_load)) << lir_str;
   EXPECT_TRUE(std::regex_search(lir_str, scaled_array_store)) << lir_str;
 }
+
+} // namespace cinderx

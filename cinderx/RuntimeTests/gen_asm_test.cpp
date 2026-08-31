@@ -11,8 +11,9 @@
 #include <string>
 #include <utility>
 
+namespace cinderx {
+
 using namespace asmjit;
-using namespace cinderx;
 using namespace cinderx::jit;
 using namespace cinderx::jit::codegen;
 using namespace cinderx::jit::hir;
@@ -1523,3 +1524,5 @@ TEST_F(NewASMGeneratorTest, BlockSorter) {
     ASSERT_EQ(func.basicBlocks()[i], blocks[expected[i]]) << "i = " << i;
   }
 }
+
+} // namespace cinderx

@@ -7,6 +7,8 @@
 
 #include <sstream>
 
+namespace cinderx {
+
 #ifdef ENABLE_ELF_READER
 
 using namespace cinderx::jit;
@@ -113,3 +115,5 @@ def func(x):
 }
 
 #endif
+
+} // namespace cinderx

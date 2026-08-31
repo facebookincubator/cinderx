@@ -7,6 +7,8 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using cinderx::jit::BCOffset;
 
 using namespace cinderx::jit::hir;
@@ -4005,3 +4007,5 @@ TEST_F(FrameStateCreationTest, GetDominatingFrameState) {
   ASSERT_NE(i3_fs, nullptr);
   ASSERT_EQ(*i3_fs, fs2);
 }
+
+} // namespace cinderx

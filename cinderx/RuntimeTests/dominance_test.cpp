@@ -6,6 +6,8 @@
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using namespace cinderx::jit::hir;
 
 class DominanceTest : public RuntimeTest {};
@@ -152,3 +154,5 @@ fun dominators {
   EXPECT_TRUE(dommed.contains(bb6));
   EXPECT_TRUE(dommed.contains(bb7));
 }
+
+} // namespace cinderx

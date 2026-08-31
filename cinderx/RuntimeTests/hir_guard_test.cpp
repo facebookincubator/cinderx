@@ -8,6 +8,8 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 class GuardTest : public RuntimeTest {};
 
 using namespace cinderx::jit::hir;
@@ -202,3 +204,5 @@ fun __main__:test {
 )";
   EXPECT_NO_FATAL_FAILURE(testFillGuards(hir, expected));
 }
+
+} // namespace cinderx

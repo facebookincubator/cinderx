@@ -10,7 +10,8 @@
 
 #include <memory>
 
-using namespace cinderx;
+namespace cinderx {
+
 using namespace cinderx::jit;
 
 class JITContextTest : public RuntimeTest {
@@ -59,3 +60,5 @@ foo = "hello"
   auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));
   ASSERT_EQ(result, Py_None);
 }
+
+} // namespace cinderx

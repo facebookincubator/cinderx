@@ -10,7 +10,8 @@
 
 #include <memory>
 
-using namespace cinderx;
+namespace cinderx {
+
 using namespace cinderx::jit;
 
 // Reifying a JIT frame recovers the bytecode offset it is stopped at from the
@@ -101,3 +102,5 @@ TEST_F(FrameIPTest, ReifyingJitFrameBelowRunningGeneratorReportsItsOwnLine) {
 
   EXPECT_TRUE(isIntEquals(call("calls_generator"), 2));
 }
+
+} // namespace cinderx

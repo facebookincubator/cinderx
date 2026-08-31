@@ -31,7 +31,8 @@
 #include <algorithm>
 #include <bit>
 
-using namespace cinderx;
+namespace cinderx {
+
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 using namespace cinderx::jit::codegen;
@@ -899,3 +900,5 @@ TEST_F(DeoptTest, ValueKind) {
   EXPECT_EQ(deoptValueKind(TLong), ValueKind::kObject);
   EXPECT_EQ(deoptValueKind(TNullptr), ValueKind::kObject);
 }
+
+} // namespace cinderx

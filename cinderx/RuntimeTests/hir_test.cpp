@@ -24,7 +24,8 @@ extern "C" {
 
 } // extern "C"
 
-using namespace cinderx;
+namespace cinderx {
+
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 
@@ -1993,3 +1994,5 @@ def test():
   EXPECT_EQ(found_at_quiescent_state, kFreeThreadedBuild)
       << "AtQuiescentState presence should match the build mode";
 }
+
+} // namespace cinderx

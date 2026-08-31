@@ -4,6 +4,8 @@
 
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 class SanityTest : public RuntimeTest {};
 
 TEST_F(SanityTest, CanUsePrivateAPIs) {
@@ -17,3 +19,5 @@ TEST_F(SanityTest, CanReinitRuntime) {
   TearDown();
   SetUp();
 }
+
+} // namespace cinderx

@@ -7,6 +7,8 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+namespace cinderx {
+
 using namespace cinderx::jit::hir;
 
 namespace {
@@ -809,3 +811,5 @@ fun test {
 }
 
 } // namespace
+
+} // namespace cinderx

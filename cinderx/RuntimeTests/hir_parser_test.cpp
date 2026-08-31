@@ -7,6 +7,8 @@
 
 #include <memory>
 
+namespace cinderx {
+
 using namespace cinderx::jit::hir;
 
 namespace {
@@ -481,3 +483,5 @@ TEST_F(HIRParserTest, ParsePyObject) {
 }
 
 } // namespace
+
+} // namespace cinderx

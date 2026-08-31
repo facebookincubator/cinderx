@@ -10,10 +10,12 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/pyjit.h"
 
-using namespace cinderx;
+namespace cinderx {
 
 namespace {
+
 std::string s_program_name;
+
 } // namespace
 
 void setPythonProgramName(std::string name) {
@@ -97,3 +99,5 @@ void HIRTest::TestBody() {
   auto hir = printer.toString(*irfunc.get());
   EXPECT_EQ(hir, expected_hir_);
 }
+
+} // namespace cinderx
