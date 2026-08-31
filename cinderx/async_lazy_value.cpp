@@ -497,7 +497,8 @@ static int AsyncLazyValue_set_result(AsyncLazyValueObj* self, PyObject* res) {
 }
 
 static int AsyncLazyValue_set_error(AsyncLazyValueObj* self, PyObject* exc) {
-  BorrowedRef<PyTypeObject> cancelled_error = get_state()->cancelledError();
+  cinderx::BorrowedRef<PyTypeObject> cancelled_error =
+      get_state()->cancelledError();
   if (cancelled_error == nullptr) {
     return -1;
   }
@@ -660,7 +661,8 @@ static PyObject* create_task(PyObject* coro, PyObject* loop) {
   if (task == nullptr) {
     return nullptr;
   }
-  Ref<PyMethodTableRef> t = cinderx::get_or_create_method_table(Py_TYPE(task));
+  cinderx::Ref<PyMethodTableRef> t =
+      cinderx::get_or_create_method_table(Py_TYPE(task));
   if (t == nullptr) {
     Py_DECREF(task);
     return nullptr;

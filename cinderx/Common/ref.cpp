@@ -14,6 +14,8 @@
 #include <atomic>
 #endif
 
+namespace cinderx {
+
 void incref_total([[maybe_unused]] PyThreadState* tstate) {
 #if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
   _PyThreadStateImpl* tstate_impl = (_PyThreadStateImpl*)tstate;
@@ -41,3 +43,5 @@ void decref_total([[maybe_unused]] PyInterpreterState* interp) {
   interp->object_state.reftotal--;
 #endif
 }
+
+} // namespace cinderx

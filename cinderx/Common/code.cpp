@@ -21,7 +21,7 @@ namespace {
 
 // Read the existing CodeExtra for a code object without allocating one, unlike
 // codeExtra(). Returns nullptr if none has been created yet.
-CodeExtra* codeExtraIfPresent(BorrowedRef<PyCodeObject> code) {
+CodeExtra* codeExtraIfPresent(cinderx::BorrowedRef<PyCodeObject> code) {
   auto state = cinderx::getModuleState();
   if (state == nullptr) {
     return nullptr;
@@ -39,7 +39,7 @@ CodeExtra* codeExtraIfPresent(BorrowedRef<PyCodeObject> code) {
 }
 
 std::string fullnameImpl(PyObject* module, PyObject* qualname) {
-  auto safe_str = [](BorrowedRef<> str) {
+  auto safe_str = [](cinderx::BorrowedRef<> str) {
     if (str == nullptr || !PyUnicode_Check(str)) {
       return "<invalid>";
     }

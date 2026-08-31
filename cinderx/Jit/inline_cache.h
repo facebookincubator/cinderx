@@ -992,7 +992,7 @@ void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type);
 
 struct FunctionEntryCacheValue {
   void** ptr{nullptr};
-  Ref<_PyTypedArgsInfo> arg_info;
+  cinderx::Ref<_PyTypedArgsInfo> arg_info;
 };
 
 using FunctionEntryCacheMap =

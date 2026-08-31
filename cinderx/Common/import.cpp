@@ -5,28 +5,31 @@
 #include "cinderx/Common/ref.h"
 
 PyObject* _Ci_CreateBuiltinModule(PyModuleDef* def, const char* name) {
-  Ref<> machinery = Ref<>::steal(PyImport_ImportModule("importlib.machinery"));
+  cinderx::Ref<> machinery =
+      cinderx::Ref<>::steal(PyImport_ImportModule("importlib.machinery"));
   if (machinery == nullptr) {
     return nullptr;
   }
-  Ref<> spec_type =
-      Ref<>::steal(PyObject_GetAttrString(machinery, "ModuleSpec"));
+  cinderx::Ref<> spec_type =
+      cinderx::Ref<>::steal(PyObject_GetAttrString(machinery, "ModuleSpec"));
   if (spec_type == nullptr) {
     return nullptr;
   }
-  Ref<> module_name = Ref<>::steal(PyUnicode_FromString(name));
+  cinderx::Ref<> module_name =
+      cinderx::Ref<>::steal(PyUnicode_FromString(name));
   if (module_name == nullptr) {
     return nullptr;
   }
 
   PyObject* args[] = {module_name, Py_None};
-  Ref<> module_spec =
-      Ref<>::steal(PyObject_Vectorcall(spec_type, args, 2, nullptr));
+  cinderx::Ref<> module_spec =
+      cinderx::Ref<>::steal(PyObject_Vectorcall(spec_type, args, 2, nullptr));
   if (module_spec == nullptr) {
     return nullptr;
   }
 
-  Ref<> mod = Ref<>::steal(PyModule_FromDefAndSpec(def, module_spec));
+  cinderx::Ref<> mod =
+      cinderx::Ref<>::steal(PyModule_FromDefAndSpec(def, module_spec));
   if (mod == nullptr) {
     return nullptr;
   }
@@ -35,7 +38,7 @@ PyObject* _Ci_CreateBuiltinModule(PyModuleDef* def, const char* name) {
     return nullptr;
   }
 
-  BorrowedRef<> modules = PyImport_GetModuleDict();
+  cinderx::BorrowedRef<> modules = PyImport_GetModuleDict();
   if (PyDict_SetItem(modules, module_name, mod) < 0) {
     return nullptr;
   }

@@ -89,6 +89,8 @@ static inline ci_dict_version_tag_t Ci_DictVersionTag(PyDictObject* dict) {
 
 #ifdef __cplusplus
 
+namespace cinderx {
+
 inline Ref<> getDictRef(PyObject* dict, PyObject* key) {
 #if PY_VERSION_HEX >= 0x030E0000
   PyObject* res;
@@ -103,5 +105,7 @@ inline Ref<> getDictRef(PyObject* dict, PyObject* key) {
 #endif
   return nullptr;
 }
+
+} // namespace cinderx
 
 #endif

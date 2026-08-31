@@ -8,6 +8,8 @@
 #include <functional>
 #include <type_traits>
 
+namespace cinderx {
+
 template <typename T>
 concept IsPyObject = std::same_as<PyObject, T>;
 
@@ -122,14 +124,6 @@ class BorrowedRef : public RefBase<T> {
 
  private:
   using RefBase<T>::ptr_;
-};
-
-template <typename T>
-struct std::hash<BorrowedRef<T>> {
-  size_t operator()(const BorrowedRef<T>& ref) const noexcept {
-    std::hash<T*> hasher;
-    return hasher(ref.get());
-  }
 };
 
 /*
@@ -277,14 +271,6 @@ class Ref : public RefBase<T> {
 };
 
 template <typename T>
-struct std::hash<Ref<T>> {
-  size_t operator()(const Ref<T>& ref) const {
-    std::hash<T*> hasher;
-    return hasher(ref.get());
-  }
-};
-
-template <typename T>
 struct RefHasher {
   using is_transparent = void;
 
@@ -316,5 +302,23 @@ struct RefLess {
     requires(!std::same_as<T, U> && (IsPyObject<T> || IsPyObject<U>))
   bool operator()(const RefBase<U>& lhs, const RefBase<T>& rhs) const {
     return std::less<PyObject*>{}(lhs.getObj(), rhs.getObj());
+  }
+};
+
+} // namespace cinderx
+
+template <typename T>
+struct std::hash<cinderx::BorrowedRef<T>> {
+  size_t operator()(const cinderx::BorrowedRef<T>& ref) const noexcept {
+    std::hash<T*> hasher;
+    return hasher(ref.get());
+  }
+};
+
+template <typename T>
+struct std::hash<cinderx::Ref<T>> {
+  size_t operator()(const cinderx::Ref<T>& ref) const {
+    std::hash<T*> hasher;
+    return hasher(ref.get());
   }
 };

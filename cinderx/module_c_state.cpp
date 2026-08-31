@@ -64,7 +64,7 @@ PyObject* Ci_GetGenericInstCache(void) {
 
 void Ci_SetGenericInstCache(PyDictObject* cache) {
   cinderx::getModuleState()->genericinst_cache =
-      Ref<PyDictObject>::create(cache);
+      cinderx::Ref<PyDictObject>::create(cache);
 }
 
 void Ci_ClearGenericInstCache(void) {
@@ -80,7 +80,7 @@ PyObject* Ci_GetClassLoaderCache(void) {
 
 void Ci_SetClassLoaderCache(PyDictObject* cache) {
   cinderx::getModuleState()->classloader_cache =
-      Ref<PyDictObject>::create(cache);
+      cinderx::Ref<PyDictObject>::create(cache);
 }
 
 void Ci_ClearClassLoaderCache(void) {
@@ -97,7 +97,7 @@ PyObject* Ci_GetClassLoaderCacheModuleToKeys(void) {
 
 void Ci_SetClassLoaderCacheModuleToKeys(PyDictObject* cache) {
   cinderx::getModuleState()->classloader_cache_module_to_keys =
-      Ref<PyDictObject>::create(cache);
+      cinderx::Ref<PyDictObject>::create(cache);
 }
 
 void Ci_ClearClassLoaderCacheModuleToKeys(void) {
@@ -112,7 +112,8 @@ PyObject* Ci_GetValueCache(void) {
 }
 
 void Ci_SetValueCache(PyListObject* cache) {
-  cinderx::getModuleState()->value_cache = Ref<PyListObject>::create(cache);
+  cinderx::getModuleState()->value_cache =
+      cinderx::Ref<PyListObject>::create(cache);
 }
 
 void Ci_ClearValueCache(void) {
@@ -127,7 +128,8 @@ PyObject* Ci_GetValueIndices(void) {
 }
 
 void Ci_SetValueIndices(PyDictObject* indices) {
-  cinderx::getModuleState()->value_indices = Ref<PyDictObject>::create(indices);
+  cinderx::getModuleState()->value_indices =
+      cinderx::Ref<PyDictObject>::create(indices);
 }
 
 void Ci_ClearValueIndices(void) {
@@ -150,7 +152,8 @@ PyObject* Ci_GetDlopenCache(void) {
 }
 
 void Ci_SetDlopenCache(PyDictObject* cache) {
-  cinderx::getModuleState()->dlopen_cache = Ref<PyDictObject>::create(cache);
+  cinderx::getModuleState()->dlopen_cache =
+      cinderx::Ref<PyDictObject>::create(cache);
 }
 
 PyObject* Ci_GetDlsymCache(void) {
@@ -159,7 +162,8 @@ PyObject* Ci_GetDlsymCache(void) {
 }
 
 void Ci_SetDlsymCache(PyDictObject* cache) {
-  cinderx::getModuleState()->dlsym_cache = Ref<PyDictObject>::create(cache);
+  cinderx::getModuleState()->dlsym_cache =
+      cinderx::Ref<PyDictObject>::create(cache);
 }
 
 PyObject* Ci_GetInvokeNativeHelper(void) {
@@ -169,7 +173,7 @@ PyObject* Ci_GetInvokeNativeHelper(void) {
 
 void Ci_SetInvokeNativeHelper(PyFunctionObject* helper) {
   cinderx::getModuleState()->invoke_native_helper =
-      Ref<PyFunctionObject>::create(helper);
+      cinderx::Ref<PyFunctionObject>::create(helper);
 }
 
 PyObject* Ci_GetReturnNone(void) {
@@ -178,7 +182,8 @@ PyObject* Ci_GetReturnNone(void) {
 }
 
 void Ci_SetReturnNone(PyFunctionObject* obj) {
-  cinderx::getModuleState()->return_none = Ref<PyFunctionObject>::create(obj);
+  cinderx::getModuleState()->return_none =
+      cinderx::Ref<PyFunctionObject>::create(obj);
 }
 
 PyObject* Ci_GetWeakrefCallback(void) {
@@ -188,7 +193,7 @@ PyObject* Ci_GetWeakrefCallback(void) {
 
 void Ci_SetWeakrefCallback(PyCFunctionObject* cb) {
   cinderx::getModuleState()->weakref_callback =
-      Ref<PyCFunctionObject>::create(cb);
+      cinderx::Ref<PyCFunctionObject>::create(cb);
 }
 
 bool Ci_GetSpAuditHookInstalled(void) {
@@ -206,7 +211,8 @@ PyObject* Ci_GetIndexErr(void) {
 }
 
 void Ci_SetIndexErr(PyUnicodeObject* err) {
-  cinderx::getModuleState()->indexerr = Ref<PyUnicodeObject>::create(err);
+  cinderx::getModuleState()->indexerr =
+      cinderx::Ref<PyUnicodeObject>::create(err);
 }
 
 int Ci_Watchers_WatchDict(PyObject* dict) {
@@ -276,7 +282,7 @@ PyTypeObject* Ci_GetAwaitableWrapperType(void) {
 
 void Ci_SetAwaitableWrapperType(PyTypeObject* type) {
   cinderx::getModuleState()->awaitable_wrapper_type =
-      Ref<PyTypeObject>::create(type);
+      cinderx::Ref<PyTypeObject>::create(type);
 }
 
 } // extern "C"
