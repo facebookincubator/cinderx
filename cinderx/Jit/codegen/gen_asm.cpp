@@ -322,7 +322,7 @@ PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
     CodeRuntime* code_runtime,
     std::size_t deopt_idx,
-    bool is_instrumentation_deopt) {
+    [[maybe_unused]] bool is_instrumentation_deopt) {
   JIT_CHECK(code_runtime != nullptr, "CodeRuntime cannot be a nullptr");
 
   PyThreadState* tstate = PyThreadState_Get();
