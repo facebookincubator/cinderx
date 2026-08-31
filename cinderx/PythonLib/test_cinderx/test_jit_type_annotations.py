@@ -2,12 +2,11 @@
 
 # pyre-strict
 
-import unittest
 from collections.abc import Generator
 from typing import Self
 
 import cinderx.jit
-from cinderx.test_support import FREE_THREADING_BUILD
+from cinderx.test_support import CinderXTestCase, FREE_THREADING_BUILD
 
 
 class Box:
@@ -25,7 +24,7 @@ class Box:
         return isinstance(other, self.__class__) and self.value == other.value
 
 
-class TypeAnnotationTests(unittest.TestCase):
+class TypeAnnotationTests(CinderXTestCase):
     def setUp(self) -> None:
         cinderx.jit.enable_emit_type_annotation_guards()
 
@@ -36,11 +35,9 @@ class TypeAnnotationTests(unittest.TestCase):
         def f(x: int) -> int:
             return x + 1
 
-        cinderx.jit.force_compile(f)
+        self.assertHIROpcodes(f, present=["LongBinaryOp"])
 
         self.assertEqual(f(42), 43)
-        # pyrefly: ignore [bad-argument-type]
-        self.assertIn("LongBinaryOp", cinderx.jit.get_function_hir_opcode_counts(f))
 
     def test_good_long_list(self) -> None:
         def f(
@@ -94,17 +91,13 @@ class TypeAnnotationTests(unittest.TestCase):
         def f(x: list[int]) -> int:
             return len(x)
 
-        cinderx.jit.force_compile(f)
+        # FT builds drop this GuardType because list-specific lowerings are disabled.
+        if FREE_THREADING_BUILD:
+            self.assertHIROpcodes(f, absent=["GuardType"])
+        else:
+            self.assertHIROpcodes(f, present=["GuardType"])
 
         self.assertEqual(f([1, 2, 3]), 3)
-
-        # Skipped on free-threaded builds because the downstream list-specific
-        # lowerings are gated off there, and thus leads GuardTypeRemoval to
-        # drop the guard.
-        if not FREE_THREADING_BUILD:
-            opcode_counts = cinderx.jit.get_function_hir_opcode_counts(f)
-            assert opcode_counts is not None
-            self.assertIn("GuardType", opcode_counts)
 
     def test_bad_generic_alias(self) -> None:
         """

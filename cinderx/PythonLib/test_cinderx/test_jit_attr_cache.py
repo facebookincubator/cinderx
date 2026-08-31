@@ -12,6 +12,7 @@ import cinderx
 import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.test_support import (
+    CinderXTestCase,
     passIf,
     passUnless,
     skip_if_ft,
@@ -838,7 +839,7 @@ class LoadMethodGetAttributeTests(unittest.TestCase):
 
 
 @passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
-class LoadModuleMethodCacheTests(unittest.TestCase):
+class LoadModuleMethodCacheTests(CinderXTestCase):
     @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
     def test_load_method_from_module(self):
         with cinder_support.temp_sys_path() as tmp:
@@ -866,14 +867,10 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
 
             import tmp_b
 
-            cinderx.jit.force_compile(tmp_b.test)
+            self.assertHIROpcodes(tmp_b.test, present=["LoadModuleAttrCached"])
 
             self.assertEqual(tmp_b.test(), 3)
             self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
-            self.assertIn(
-                "LoadModuleAttrCached",
-                cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
-            )
 
             import tmp_a
 
@@ -906,12 +903,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         """
         strict_sandbox.write_file("tmp_b.py", code_str)
         tmp_b = strict_sandbox.strict_import("tmp_b")
-        cinderx.jit.force_compile(tmp_b.test)
-        self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
-        self.assertIn(
-            "LoadModuleAttrCached",
-            cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
-        )
+        self.assertHIROpcodes(tmp_b.test, present=["LoadModuleAttrCached"])
         # prime the cache
         self.assertEqual(tmp_b.test(), 3)
         self.assertEqual(tmp_b.test(), 3)
