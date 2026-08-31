@@ -1950,6 +1950,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Decref v28
+    EndGeneratorFrame
+    UseObj v22
     Return v35
   }
 
@@ -2058,6 +2060,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Decref v28
+    EndGeneratorFrame
+    UseObj v22
     Return v35
   }
 
@@ -2172,6 +2176,8 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:31 line_no:3: no parent>
     Decref v30
+    EndGeneratorFrame
+    UseObj v24
     Return v39
   }
 
@@ -2287,6 +2293,8 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:31 line_no:3: no parent>
     Decref v30
+    EndGeneratorFrame
+    UseObj v24
     Return v39
   }
 
@@ -2400,6 +2408,8 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     v44:Object = MaterializeRef v28
     Decref v44
+    EndGeneratorFrame
+    UseObj v22
     v45:Object = MaterializeRef v35
     Return v45
   }

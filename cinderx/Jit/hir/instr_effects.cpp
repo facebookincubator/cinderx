@@ -87,6 +87,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // These push/pop frames and should not get DCE'd.
     case Opcode::kBeginInlinedFunction:
     case Opcode::kEndInlinedFunction:
+    // Writes gi_frame_state on the generator.
+    case Opcode::kEndGeneratorFrame:
     // Updates the _PyInterpreterFrame
     case Opcode::kUpdatePrevInstr:
     // Can write to fields of its operands.
@@ -399,6 +401,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kCondBranchIterNotDone:
     case Opcode::kDeoptPatchpoint:
     case Opcode::kDoubleBinaryOp:
+    case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:
     case Opcode::kGetSecondOutput:
     case Opcode::kGuardIs:

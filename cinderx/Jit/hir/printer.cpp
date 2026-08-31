@@ -258,6 +258,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
+    case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:
     case Opcode::kFormatWithSpec:
     case Opcode::kGetAIter:

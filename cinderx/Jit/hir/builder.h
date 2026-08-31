@@ -378,6 +378,7 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitEndAsyncFor(TranslationContext& tc);
+  void emitReturn(TranslationContext& tc, Register* value, Type type);
   void emitGetAIter(TranslationContext& tc);
   void emitGetANext(TranslationContext& tc);
   Register* emitSetupWithCommon(

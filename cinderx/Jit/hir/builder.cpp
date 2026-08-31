@@ -1222,7 +1222,7 @@ void HIRBuilder::translate(
           if (getConfig().refine_static_python && type < TObject) {
             tc.emit<RefineType>(reg, type, reg);
           }
-          tc.emit<Return>(reg, type);
+          emitReturn(tc, reg, type);
           break;
         }
         case RETURN_PRIMITIVE: {
@@ -1233,7 +1233,7 @@ void HIRBuilder::translate(
               type,
               preloader_.returnType());
           Register* reg = tc.frame.stack.pop();
-          tc.emit<Return>(reg, type);
+          emitReturn(tc, reg, type);
           break;
         }
         case RETURN_VALUE: {
@@ -1245,7 +1245,7 @@ void HIRBuilder::translate(
           if (getConfig().refine_static_python && ret_type < TObject) {
             tc.emit<RefineType>(reg, ret_type, reg);
           }
-          tc.emit<Return>(reg, ret_type);
+          emitReturn(tc, reg, ret_type);
           break;
         }
         case ROT_N: {
@@ -4286,6 +4286,25 @@ void HIRBuilder::emitAsyncForHeaderYieldFrom(
   BCOffset handler_off{tc.frame.block_stack.top().handler_off};
   BasicBlock* yf_done_block = getBlockAtOff(handler_off);
   tc.emit<CondBranchIterNotDone>(out, yf_cont_block, yf_done_block);
+}
+
+void HIRBuilder::emitReturn(
+    TranslationContext& tc,
+    Register* value,
+    Type type) {
+  if (code_->co_flags & kCoFlagsAnyGenerator) {
+    // CPython releases a generator's locals from gen_clear_frame(), which runs
+    // after gi_frame_state has been set, so a __del__ triggered by that
+    // release always sees a closed generator.  Reproduce that ordering: mark
+    // the frame finished, then keep every local alive across the mark with
+    // UseObj so that refcount insertion puts their Decrefs after it rather
+    // than at whatever point in the body each local happened to die.
+    tc.emit<EndGeneratorFrame>();
+    for (Register* local : tc.frame.localsplus) {
+      tc.emit<UseObj>(local);
+    }
+  }
+  tc.emit<Return>(value, type);
 }
 
 void HIRBuilder::emitEndAsyncFor(TranslationContext& tc) {

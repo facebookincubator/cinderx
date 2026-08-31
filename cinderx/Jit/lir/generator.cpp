@@ -230,6 +230,16 @@ void updateRefTotal(BasicBlockBuilder& bbb, Opcode op) {
   }
 }
 
+// gi_frame_state written when a JIT generator returns.
+//
+// FRAME_CLEARED rather than FRAME_COMPLETED (which 3.15 removed anyway): the
+// teardown Decrefs that follow the store can run a __del__ that re-enters the
+// generator, and jitgen_am_send() only recognizes a state >= FRAME_EXECUTING
+// as "do not resume this".  FRAME_COMPLETED sorts below FRAME_EXECUTING on
+// 3.12 and 3.14, so it would let the re-entrant call resume a generator that
+// has already finished.
+constexpr auto kGenFinishedFrameState = FRAME_CLEARED;
+
 } // namespace
 
 LIRGenerator::LIRGenerator(
@@ -1333,8 +1343,12 @@ void LIRGenerator::generateExitBlocks() {
   }
 
   // For generators, create exit blocks:
-  //   exit_block_: phi for return value + gen completion state + branch
+  //   exit_block_: phi for return value + branch
   //   exit_epilogue_: phi merging return and yield values + unlink + epilogue
+  //
+  // Marking the generator complete happens earlier, at the EndGeneratorFrame
+  // that precedes each Return, so that the teardown Decrefs run against a
+  // finished generator.
   auto ret_data_type = hirTypeToDataType(func_->return_type);
 
   auto* block = lir_func_->allocateBasicBlock();
@@ -4681,6 +4695,25 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kUseObj: {
         // UseObjs are purely informative
+        break;
+      }
+      case hir::Opcode::kEndGeneratorFrame: {
+        JIT_CHECK(is_gen_, "EndGeneratorFrame outside of a generator");
+        bbb.annotateNext("EndGeneratorFrame: mark the generator finished");
+        auto* gen_ptr = bbb.appendInstr(
+            OutVReg{},
+            Opcode::kLoad,
+            Ind{codegen::arch::reg_frame_pointer_loc,
+                static_cast<int32_t>(offsetof(GenDataFooter, gen))});
+        static_assert(sizeof(PyGenObject::gi_frame_state) == 1);
+        auto* gi_store = bbb.appendInstr(
+            OutInd{
+                gen_ptr,
+                static_cast<int32_t>(offsetof(PyGenObject, gi_frame_state))},
+            Opcode::kStore,
+            Imm{static_cast<uint64_t>(kGenFinishedFrameState),
+                DataType::k8bit});
+        gi_store->output()->setDataType(DataType::k8bit);
         break;
       }
       case hir::Opcode::kUseType: {

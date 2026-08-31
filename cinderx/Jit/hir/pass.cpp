@@ -545,6 +545,7 @@ Type outputType(
     case Opcode::kDeleteSubscr:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
+    case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:
     case Opcode::kGuard:
     case Opcode::kHintType:

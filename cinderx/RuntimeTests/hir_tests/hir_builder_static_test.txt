@@ -113,6 +113,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
+    UseObj v0
     Return v16
   }
 
@@ -233,6 +235,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
+    UseObj v0
     Return v16
   }
 
@@ -355,6 +359,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
+    UseObj v0
     Return v18
   }
 
@@ -477,6 +483,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
+    UseObj v0
     Return v18
   }
 
@@ -598,6 +606,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
+    UseObj v0
     Return v16
   }
 
@@ -1503,6 +1513,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     Snapshot
     v13 = RefineType<Unicode> v13
+    EndGeneratorFrame
     Return<Unicode> v13
   }
 
@@ -1608,6 +1619,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     Snapshot
     v13 = RefineType<Unicode> v13
+    EndGeneratorFrame
     Return<Unicode> v13
   }
 
@@ -1715,6 +1727,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     Snapshot
     v15 = RefineType<Unicode> v15
+    EndGeneratorFrame
     Return<Unicode> v15
   }
 
@@ -1822,6 +1835,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     Snapshot
     v15 = RefineType<Unicode> v15
+    EndGeneratorFrame
     Return<Unicode> v15
   }
 
@@ -1928,6 +1942,7 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     Snapshot
     v13 = RefineType<Unicode> v13
+    EndGeneratorFrame
     Return<Unicode> v13
   }
 

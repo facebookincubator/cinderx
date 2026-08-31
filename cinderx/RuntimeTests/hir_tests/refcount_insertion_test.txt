@@ -6833,4 +6833,222 @@ fun jittestmodule:test {
     Return v11
   }
 }
+--- Test Name ---
+GeneratorLocalsAreDecrefedAfterTheFrameIsFinished
+--- Input ---
+def test():
+  x = []
+  return
+  yield
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<3, 2> v10
+  }
+
+  bb 3 (preds 0) {
+    v15:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v8
+      }
+    }
+    Branch<2>
+  }
+
+  bb 2 (preds 0, 3) {
+    v11:MortalListExact = MakeList<0> {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 6
+        Locals<1> v8
+      }
+    }
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    EndGeneratorFrame
+    UseObj v11
+    Decref v11
+    Return<ImmortalNoneType> v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<3, 2> v10
+  }
+
+  bb 3 (preds 0) {
+    v14:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v8
+      }
+    }
+    Branch<2>
+  }
+
+  bb 2 (preds 0, 3) {
+    v11:MortalListExact = MakeList<0> {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 6
+        Locals<1> v8
+      }
+    }
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    EndGeneratorFrame
+    UseObj v11
+    Decref v11
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<3, 2> v10
+  }
+
+  bb 3 (preds 0) {
+    v14:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v8
+      }
+    }
+    Branch<2>
+  }
+
+  bb 2 (preds 0, 3) {
+    v11:MortalListExact = MakeList<0> {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 8
+        Locals<1> v8
+      }
+    }
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    EndGeneratorFrame
+    UseObj v11
+    Decref v11
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<3, 2> v10
+  }
+
+  bb 3 (preds 0) {
+    v14:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v8
+      }
+    }
+    Branch<2>
+  }
+
+  bb 2 (preds 0, 3) {
+    v11:MortalListExact = MakeList<0> {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 8
+        Locals<1> v8
+      }
+    }
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    EndGeneratorFrame
+    UseObj v11
+    Decref v11
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    LoadFrame
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptImmortalNoneType = InitialYield {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    AtQuiescentState
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<3, 2> v10
+  }
+
+  bb 3 (preds 0) {
+    v14:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v8
+      }
+    }
+    Branch<2>
+  }
+
+  bb 2 (preds 0, 3) {
+    v11:MortalListExact = MakeList<0> {
+      LiveValues<1> unc:v8
+      FrameState {
+        CurInstrOffset 6
+        Locals<1> v8
+      }
+    }
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    EndGeneratorFrame
+    UseObj v11
+    Decref v11
+    Return v13
+  }
+}
 --- End ---

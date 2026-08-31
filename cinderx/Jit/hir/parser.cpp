@@ -998,6 +998,10 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = LoadFrame::create();
       break;
     }
+    case Opcode::kEndGeneratorFrame: {
+      instruction = EndGeneratorFrame::create();
+      break;
+    }
     case Opcode::kLoadEvalBreaker: {
       NEW_INSTR(LoadEvalBreaker, dst);
       break;

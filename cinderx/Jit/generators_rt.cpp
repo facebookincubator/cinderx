@@ -176,6 +176,27 @@ void raise_already_running_exception(JitGenObject* jit_gen) {
   PyErr_SetString(PyExc_ValueError, msg);
 }
 
+// Result of sending into a generator that has already finished, mirroring the
+// FRAME_STATE_FINISHED arm of CPython's gen_send_ex().
+PySendResult
+send_to_exhausted_gen(JitGenObject* gen, PyObject* arg, PyObject** presult) {
+  if (Py_TYPE(gen) == cinderx::getModuleState()->coro_type) {
+    PyErr_SetString(
+        PyExc_RuntimeError, "cannot reuse already awaited coroutine");
+  } else if (arg != nullptr) {
+    // Only send() gets a value back; next() wants a bare StopIteration.
+    *presult = Py_None;
+    return PYGEN_RETURN;
+  }
+  *presult = nullptr;
+  return PYGEN_ERROR;
+}
+
+bool is_reentered_during_teardown(JitGenObject* gen) {
+  return FRAME_STATE_FINISHED(gen->gi_frame_state) &&
+      gen->gi_exc_state.previous_item != nullptr;
+}
+
 // Resumes a JIT generator. Calling this performs the same work as invoking the
 // interpreter on a generator with a freshly created/suspended frame. As much
 // as possible is broken out into C++ before control is passed to JIT code.
@@ -233,6 +254,10 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   JitGenObject* gen = JitGenObject::cast(obj);
   if (gen == nullptr) {
     return Py_TYPE(obj)->tp_as_async->am_send(obj, arg, presult);
+  }
+
+  if (is_reentered_during_teardown(gen)) {
+    return send_to_exhausted_gen(gen, arg, presult);
   }
 
   // Check for user programming errors.
@@ -317,6 +342,10 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
 // monitoring support, then delegates to the (now CPython) type's am_send.
 PySendResult
 jitgen_am_send_with_deopt(PyObject* obj, PyObject* arg, PyObject** presult) {
+  auto* gen = reinterpret_cast<JitGenObject*>(obj);
+  if (is_reentered_during_teardown(gen)) {
+    return jitgen_am_send(obj, arg, presult);
+  }
   if (deopt_jit_gen(obj)) {
     return Py_TYPE(obj)->tp_as_async->am_send(obj, arg, presult);
   }
@@ -365,21 +394,34 @@ PyCFunction gen_close_meth;
 PyCFunction gen___sizeof___meth;
 
 PyObject* jitgen_throw(PyObject* obj, PyObject* const* args, Py_ssize_t nargs) {
+  auto* gen = reinterpret_cast<JitGenObject*>(obj);
+  if (is_reentered_during_teardown(gen)) {
+    if (Py_TYPE(gen) == cinderx::getModuleState()->coro_type) {
+      PyErr_SetString(
+          PyExc_RuntimeError, "cannot reuse already awaited coroutine");
+      return nullptr;
+    }
+    return gen_throw_meth(obj, args, nargs);
+  }
   // Always deopt as an exception being raised internally would cause a JIT
   // generator to deopt anyway.
   if (!deopt_jit_gen(obj)) {
-    raise_already_running_exception(reinterpret_cast<JitGenObject*>(obj));
+    raise_already_running_exception(gen);
     return nullptr;
   }
   return gen_throw_meth(obj, args, nargs);
 }
 
 PyObject* jitgen_close(PyObject* obj, PyObject*) {
+  auto* gen = reinterpret_cast<JitGenObject*>(obj);
+  if (is_reentered_during_teardown(gen)) {
+    Py_RETURN_NONE;
+  }
   // Always deopt as closing either raises an exception in the generator which
   // would cause a deopt anyway or if the generator is already done then deopt
   // is cheap and won't rexecute in the interpreter.
   if (!deopt_jit_gen(obj)) {
-    raise_already_running_exception(reinterpret_cast<JitGenObject*>(obj));
+    raise_already_running_exception(gen);
     return nullptr;
   }
   return gen_close_meth(obj, nullptr);
@@ -451,10 +493,10 @@ int jitgen_clear(PyObject* obj) {
   // We need to deopt the JIT generator so that the standard generator
   // tp_clear can properly clear all references.
   //
-  // If the generator is currently executing (gi_frame_state ==
-  // FRAME_EXECUTING), we cannot deopt it. In that case, return 0 without
-  // clearing - the GC will try again later or the generator will complete and
-  // be collected normally.
+  // We cannot deopt while the generator's JIT code is on the stack, either
+  // because it is still running or because it has finished and is releasing
+  // its locals. In that case, return 0 without clearing - the GC will try
+  // again later or the generator will complete and be collected normally.
   if (!deopt_jit_gen(obj)) {
     return 0;
   }
@@ -848,8 +890,21 @@ bool deopt_jit_gen(PyObject* obj) {
   if (jit_gen->gi_frame_state == FRAME_EXECUTING) {
     return false;
   }
-  GenDataFooter* gen_footer = jit_gen->genDataFooter();
+  if (jit_gen->gi_exc_state.previous_item != nullptr) {
+    JIT_DCHECK(
+        FRAME_STATE_FINISHED(jit_gen->gi_frame_state),
+        "JIT generator is executing with an unexpected frame state");
+    // CPython links gi_exc_state into the thread's exception stack while a
+    // generator is executing.  The JIT keeps that link until resumeEntry()
+    // returns, so a non-null previous_item here means that teardown Decrefs are
+    // still running even though gi_frame_state is already finished.  Deopting
+    // would release the code we are executing, so refuse.  Normal generator
+    // operations handle this state before trying to deopt; this remains
+    // necessary for callers such as _deopt_gen() and global deopt.
+    return false;
+  }
 
+  GenDataFooter* gen_footer = jit_gen->genDataFooter();
   if (gen_footer->yieldPoint) {
     // TODO: This "deopting" mechanism should be better shared with the
     // similar machinery for general JIT deopting. Among other things we're

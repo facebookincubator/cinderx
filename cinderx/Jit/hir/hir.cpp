@@ -542,6 +542,7 @@ bool Instr::isReplayable() const {
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
     case Opcode::kEagerImportName:
+    case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
@@ -934,6 +935,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kDeleteSubscr:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
+    case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:
     case Opcode::kGuard:
     case Opcode::kHintType:

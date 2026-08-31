@@ -2780,6 +2780,18 @@ DEFINE_SIMPLE_INSTR(LoadCurrentFunc, (), HasOutput, Operands<0>);
 // in the prologue section alongside LoadArg/LoadCurrentFunc.
 DEFINE_SIMPLE_INSTR(LoadFrame, (), Operands<0>);
 
+// Mark a generator's frame as finished.  Emitted for generators only,
+// immediately before each Return.
+//
+// CPython releases a generator's locals from gen_clear_frame(), after
+// gi_frame_state has been set, so a __del__ running during teardown always
+// observes a closed generator.  The JIT drops each local at its last use,
+// which for an unused local is the top of the body, so without this the
+// destructor would see the generator as still executing.  UseObj markers
+// emitted after this hold the locals live until here, putting their Decrefs
+// after the store.
+DEFINE_SIMPLE_INSTR(EndGeneratorFrame, (), Operands<0>);
+
 // Load the value from the cell in operand
 DEFINE_SIMPLE_INSTR(LoadCellItem, (TOptObject), HasOutput, Operands<1>);
 

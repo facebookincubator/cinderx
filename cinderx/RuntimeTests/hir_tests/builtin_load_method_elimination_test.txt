@@ -1384,6 +1384,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
     Return v32
   }
 
@@ -1486,6 +1487,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
     Return v32
   }
 
@@ -1589,6 +1591,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
     Return v36
   }
 
@@ -1692,6 +1695,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
     Return v36
   }
 
@@ -1795,6 +1799,7 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
+    EndGeneratorFrame
     Return v32
   }
 

@@ -54,6 +54,7 @@ namespace cinderx::jit::hir {
   V(DictUpdate)                    \
   V(DoubleBinaryOp)                \
   V(EagerImportName)               \
+  V(EndGeneratorFrame)             \
   V(EndInlinedFunction)            \
   V(FillTypeAttrCache)             \
   V(FillTypeMethodCache)           \
