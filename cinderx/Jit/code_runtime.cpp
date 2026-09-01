@@ -85,6 +85,7 @@ void CodeRuntime::releaseReferences() {
 #endif
   {
     refs = std::move(references_);
+    is_cleared_ = true;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
     reifier_.reset(nullptr);
 #endif
@@ -118,7 +119,7 @@ int CodeRuntime::frameSize() const {
   return frame_size_;
 }
 
-void CodeRuntime::setFrameSize(int size) {
+void CodeRuntime::setFrameSize(int16_t size) {
   frame_size_ = size;
 }
 
@@ -148,9 +149,7 @@ void** CodeRuntime::allocateTypeCheckJumpTable(size_t num_entries) {
 }
 
 bool CodeRuntime::isCleared() const {
-  // We always add some references when we first create the CodeRuntime, so we
-  // know if no references are left we've been cleared.
-  return references_.empty();
+  return is_cleared_;
 }
 
 int CodeRuntime::traverse(visitproc visit, void* arg) {

@@ -89,7 +89,7 @@ class alignas(16) CodeRuntime {
 
   // Get and set the total size of a stack frame for this compiled code object.
   int frameSize() const;
-  void setFrameSize(int size);
+  void setFrameSize(int16_t size);
 
   // Get and set the number of spill bytes for generators.
   uint32_t spillSize() const;
@@ -159,7 +159,8 @@ class alignas(16) CodeRuntime {
 
   GenResumeFunc gen_resume_entry_{nullptr};
 
-  int frame_size_{-1};
+  bool is_cleared_{false};
+  int16_t frame_size_{-1};
   uint32_t spill_size_{0};
   DebugInfo debug_info_;
 };

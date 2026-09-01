@@ -46,6 +46,7 @@
 #include <cstdint>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <vector>
@@ -935,7 +936,11 @@ void* NativeGenerator::getVectorcallEntry() {
 
   JIT_DCHECK(code.codeSize() < INT_MAX, "Code size is larger than INT_MAX");
   compiled_size_ = code.codeSize();
-  env_.code_rt->setFrameSize(env_.stack_frame_size);
+  JIT_THROW_IF(
+      env_.stack_frame_size > std::numeric_limits<int16_t>::max(),
+      "Frame size {} is too large",
+      env_.stack_frame_size);
+  env_.code_rt->setFrameSize(static_cast<int16_t>(env_.stack_frame_size));
   if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {
     JIT_DCHECK(
         env_.shadow_frames_and_spill_size % kPointerSize == 0,
