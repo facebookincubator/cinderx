@@ -297,6 +297,16 @@ Register* simplifyCheckSequenceBounds(
   return nullptr;
 }
 
+Register* simplifyGuard(Env& env, const Guard* instr) {
+  Register* input = instr->getOperand(0);
+  // Guard that's guaranteed to succeed.
+  if (input->type().hasIntSpec() && input->type().intSpec() != 0) {
+    env.optimized = true;
+  }
+  // Don't bother optimizing the always-false case right now.
+  return nullptr;
+}
+
 Register* simplifyGuardType(Env& env, const GuardType* instr) {
   Register* input = instr->getOperand(0);
   Type type = instr->target();
@@ -2528,6 +2538,8 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kCheckSequenceBounds:
       return simplifyCheckSequenceBounds(
           env, static_cast<const CheckSequenceBounds*>(instr));
+    case Opcode::kGuard:
+      return simplifyGuard(env, static_cast<const Guard*>(instr));
     case Opcode::kGuardType:
       return simplifyGuardType(env, static_cast<const GuardType*>(instr));
     case Opcode::kRefineType:

@@ -21530,4 +21530,262 @@ fun jittestmodule:test {
     Return v3
   }
 }
+--- Test Name ---
+GuardOnTrueConstantIsRemoved
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadConst<CBool[true]>
+    Guard v1
+    Return v0
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[true] = LoadConst<CBool[true]>
+    Return v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[true] = LoadConst<CBool[true]>
+    Return v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[true] = LoadConst<CBool[true]>
+    Return v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[true] = LoadConst<CBool[true]>
+    Return v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[true] = LoadConst<CBool[true]>
+    Return v0
+  }
+}
+--- Test Name ---
+GuardOnNonZeroIntConstantIsRemoved
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadConst<CInt64[42]>
+    Guard v1
+    Return v0
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CInt64[42] = LoadConst<CInt64[42]>
+    Return v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CInt64[42] = LoadConst<CInt64[42]>
+    Return v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CInt64[42] = LoadConst<CInt64[42]>
+    Return v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CInt64[42] = LoadConst<CInt64[42]>
+    Return v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CInt64[42] = LoadConst<CInt64[42]>
+    Return v0
+  }
+}
+--- Test Name ---
+GuardOnFalseConstantIsKept
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadConst<CBool[false]>
+    Guard v1
+    Return v0
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[false] = LoadConst<CBool[false]>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[false] = LoadConst<CBool[false]>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[false] = LoadConst<CBool[false]>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[false] = LoadConst<CBool[false]>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool[false] = LoadConst<CBool[false]>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Test Name ---
+GuardOnUnknownConditionIsKept
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1, CBool>
+    Guard v1
+    Return v0
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool = LoadArg<1, CBool>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool = LoadArg<1, CBool>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool = LoadArg<1, CBool>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool = LoadArg<1, CBool>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:CBool = LoadArg<1, CBool>
+    Guard v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v0
+  }
+}
 --- End ---
