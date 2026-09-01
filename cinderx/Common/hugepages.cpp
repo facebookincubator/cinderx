@@ -2,6 +2,7 @@
 
 #include "cinderx/Common/hugepages.h"
 
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 
@@ -16,7 +17,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <new>
 #include <vector>
 
 #ifndef WIN32
@@ -129,10 +129,7 @@ void HugePageArena::atForkParent() {
 }
 
 void HugePageArena::atForkChild() {
-  // Reuse the storage to get a fresh, unlocked mutex.  The inherited one is
-  // still locked by atForkPrepare() and destroying a locked mutex is
-  // undefined, so its lifetime is ended without running its destructor.
-  new (&mutex_) std::mutex{};
+  resetMutexAfterFork(mutex_);
 }
 
 } // namespace cinderx

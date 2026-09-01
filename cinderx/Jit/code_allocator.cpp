@@ -24,7 +24,6 @@
 #endif
 
 #include <cstring>
-#include <new>
 
 namespace cinderx::jit {
 
@@ -544,7 +543,7 @@ void codeAllocatorAtForkParent() {
 
 void codeAllocatorAtForkChild() {
 #if defined(__linux__)
-  new (&cinder_jit_region_mutex_) std::mutex{};
+  resetMutexAfterFork(cinder_jit_region_mutex_);
 #endif
   ModuleState* state = cinderx::getModuleState();
   if (state != nullptr && state->code_allocator != nullptr) {
