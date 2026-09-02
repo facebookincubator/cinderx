@@ -738,6 +738,12 @@ FlagProcessor initFlagProcessor() {
       "caches");
 
   flag_processor.addOption(
+      "cinderx-jit-binary-caches",
+      "CINDERX_JIT_BINARY_CACHES",
+      getMutableConfig().binary_op_caches,
+      "Use inline caches for binary ops");
+
+  flag_processor.addOption(
       "cinderx-jit-refine-static-python",
       "CINDERX_JIT_REFINE_STATIC_PYTHON",
       getMutableConfig().refine_static_python,
