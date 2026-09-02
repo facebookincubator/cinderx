@@ -442,7 +442,7 @@ void SpillAllocator::resolveControlFlow() {
         pred->removeInstr(pred->getLastInstrIter());
       }
       if (yield_with_resume) {
-        succs.pop_back();
+        pred->popSuccessor();
       }
     } else {
       // Conditional branch.  Each phi output has its own slot, so emitting the

@@ -27,7 +27,7 @@ const Function* BasicBlock::function() const {
 }
 
 void BasicBlock::addSuccessor(BasicBlock* bb) {
-  successors_.push_back(bb);
+  appendSuccessor(bb);
   bb->addPredecessor(this);
 }
 
@@ -43,12 +43,19 @@ void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
   bb->addPredecessor(this);
 }
 
-std::vector<BasicBlock*>& BasicBlock::successors() {
-  return successors_;
+void BasicBlock::popSuccessor() {
+  JIT_THROW_IF(
+      successors_.empty(), "No successor to remove from block {}", id_);
+  successors_.back()->removePredecessor(this);
+  successors_.pop_back();
 }
 
 const std::vector<BasicBlock*>& BasicBlock::successors() const {
   return successors_;
+}
+
+void BasicBlock::appendSuccessor(BasicBlock* successor) {
+  successors_.push_back(successor);
 }
 
 void BasicBlock::swapSuccessors() {
@@ -232,7 +239,7 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
   // fix up successors
   for (auto bb : successors_) {
     bb->replacePredecessor(this, second_block);
-    second_block->successors_.push_back(bb);
+    second_block->appendSuccessor(bb);
   }
 
   // update successors of first block

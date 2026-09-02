@@ -1469,7 +1469,7 @@ void LinearScanAllocator::resolveEdges() {
       // Remove the phantom resume successor now that regalloc is done.
       // It was only needed for liveness propagation during regalloc.
       if (is_yield_with_resume) {
-        successors.pop_back();
+        basic_block->popSuccessor();
       }
 
       continue;

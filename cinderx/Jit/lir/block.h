@@ -43,7 +43,12 @@ class BasicBlock {
   // this does not add phi values to the new successor.
   void setSuccessor(size_t index, BasicBlock* bb);
 
-  std::vector<BasicBlock*>& successors();
+  // Remove the last outgoing edge and its associated predecessor and phi
+  // values from the successor.
+  // Temporary until CFG edges carry reciprocal slot identity; callers should
+  // eventually remove a specific edge instead of relying on successor order.
+  void popSuccessor();
+
   const std::vector<BasicBlock*>& successors() const;
 
   void swapSuccessors();
@@ -157,6 +162,7 @@ class BasicBlock {
   instr_iter_t iterator_to(Instruction* instr);
 
  private:
+  void appendSuccessor(BasicBlock* successor);
   void addPredecessor(BasicBlock* predecessor);
   void applyPendingAnnotation(Instruction* instr);
   int id_;

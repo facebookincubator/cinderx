@@ -164,6 +164,42 @@ TEST(LIRBlockTest, SetSuccessorUpdatesEdges) {
   EXPECT_EQ(phi->getOperandByPredecessor(other)->getConstant(), 20);
 }
 
+TEST(LIRBlockTest, PopSuccessorUpdatesEdges) {
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* other = function.allocateBasicBlock();
+  BasicBlock* first_successor = function.allocateBasicBlock();
+  BasicBlock* last_successor = function.allocateBasicBlock();
+
+  source->addSuccessor(first_successor);
+  source->addSuccessor(last_successor);
+  other->addSuccessor(last_successor);
+  Instruction* phi =
+      last_successor->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->allocateLabelInput(source);
+  phi->allocateImmediateInput(10);
+  phi->allocateLabelInput(other);
+  phi->allocateImmediateInput(20);
+
+  source->popSuccessor();
+
+  EXPECT_EQ(source->successors(), (std::vector<BasicBlock*>{first_successor}));
+  expectEdgeCount(source, first_successor, 1);
+  expectEdgeCount(source, last_successor, 0);
+  expectEdgeCount(other, last_successor, 1);
+  EXPECT_EQ(phi->getNumInputs(), 2);
+  EXPECT_EQ(phi->getOperandByPredecessor(source), nullptr);
+  ASSERT_NE(phi->getOperandByPredecessor(other), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(other)->getConstant(), 20);
+}
+
+TEST(LIRBlockTest, PopSuccessorRejectsEmptySuccessors) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+
+  EXPECT_THROW(block->popSuccessor(), std::runtime_error);
+}
+
 TEST(LIRBlockTest, InsertBasicBlockBetweenUpdatesEdges) {
   Function function;
   BasicBlock* source = function.allocateBasicBlock();
