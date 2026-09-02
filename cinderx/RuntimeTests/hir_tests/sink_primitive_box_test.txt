@@ -244,7 +244,7 @@ fun test {
   }
 }
 --- Test Name ---
-DoesNotSinkNonEscapingIntBox
+SinksNonEscapingIntBoxIntoDeoptFrameState
 --- Input ---
 # HIR
 fun test {
@@ -275,18 +275,11 @@ fun test {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:CInt64[7] = LoadConst<CInt64[7]>
-    v3:LongExact = PrimitiveBox<CInt64> v2 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    UseType<LongExact> v3
     v4:CInt64[9] = LoadConst<CInt64[9]>
     v5:LongExact = PrimitiveBox<CInt64> v4 {
       FrameState {
         CurInstrOffset 4
-        Locals<2> v3 v1
+        Locals<2> v2 v1
       }
     }
     Return v5
@@ -298,18 +291,11 @@ fun test {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:CInt64[7] = LoadConst<CInt64[7]>
-    v3:LongExact = PrimitiveBox<CInt64> v2 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    UseType<LongExact> v3
     v4:CInt64[9] = LoadConst<CInt64[9]>
     v5:LongExact = PrimitiveBox<CInt64> v4 {
       FrameState {
         CurInstrOffset 4
-        Locals<2> v3 v1
+        Locals<2> v2 v1
       }
     }
     Return v5
@@ -321,18 +307,11 @@ fun test {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:CInt64[7] = LoadConst<CInt64[7]>
-    v3:LongExact = PrimitiveBox<CInt64> v2 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    UseType<LongExact> v3
     v4:CInt64[9] = LoadConst<CInt64[9]>
     v5:LongExact = PrimitiveBox<CInt64> v4 {
       FrameState {
         CurInstrOffset 4
-        Locals<2> v3 v1
+        Locals<2> v2 v1
       }
     }
     Return v5
@@ -344,18 +323,11 @@ fun test {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:CInt64[7] = LoadConst<CInt64[7]>
-    v3:LongExact = PrimitiveBox<CInt64> v2 {
-      FrameState {
-        CurInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    UseType<LongExact> v3
     v4:CInt64[9] = LoadConst<CInt64[9]>
     v5:LongExact = PrimitiveBox<CInt64> v4 {
       FrameState {
         CurInstrOffset 4
-        Locals<2> v3 v1
+        Locals<2> v2 v1
       }
     }
     Return v5
@@ -367,18 +339,117 @@ fun test {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:CInt64[7] = LoadConst<CInt64[7]>
-    v3:LongExact = PrimitiveBox<CInt64> v2 {
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Test Name ---
+SinksNonEscapingUnsignedIntBoxIntoDeoptFrameState
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2:CUInt64 = LoadConst<CUInt64[7]>
+    v3:LongExact = PrimitiveBox<CUInt64> v2 {
       FrameState {
         CurInstrOffset 2
         Locals<2> v0 v1
       }
     }
     UseType<LongExact> v3
-    v4:CInt64[9] = LoadConst<CInt64[9]>
-    v5:LongExact = PrimitiveBox<CInt64> v4 {
+    v4:CUInt64 = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v3 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CUInt64[7] = LoadConst<CUInt64[7]>
+    v4:CUInt64[9] = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CUInt64[7] = LoadConst<CUInt64[7]>
+    v4:CUInt64[9] = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CUInt64[7] = LoadConst<CUInt64[7]>
+    v4:CUInt64[9] = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CUInt64[7] = LoadConst<CUInt64[7]>
+    v4:CUInt64[9] = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CUInt64[7] = LoadConst<CUInt64[7]>
+    v4:CUInt64[9] = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
       }
     }
     Return v5

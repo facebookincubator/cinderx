@@ -27,8 +27,10 @@ void SinkPrimitiveBox::run(Function& func) {
         continue;
       }
       auto& box = static_cast<PrimitiveBox&>(instr);
-      // Limited to floats for now: deopt re-boxes a CDouble via PyFloat.
-      if (!(box.type() <= TCDouble)) {
+      // MemoryView::readRaw reads a LiveValue as a full 64-bit word and has no
+      // record of its width, so a narrower primitive would re-box from
+      // unextended bits.
+      if (!(box.type() <= (TCDouble | TCInt64 | TCUInt64))) {
         continue;
       }
       if (!data_uses.contains(box.output())) {

@@ -13,8 +13,8 @@ namespace cinderx::jit::hir {
 // materialized for the interpreter if a deopt occurs.  The deopt machinery can
 // re-box an unboxed primitive from its LiveValue (via value_kind), so we
 // rewrite those frame-state references to the unboxed source value, leaving the
-// box dead. This keeps chained primitive arithmetic unboxed on the fast path
-// while staying correct on deopt.  Currently limited to CDouble (floats).
+// box dead.  This keeps chained primitive arithmetic unboxed on the fast path
+// while staying correct on deopt.
 class SinkPrimitiveBox final : public Pass {
  public:
   SinkPrimitiveBox() : Pass("SinkPrimitiveBox") {}
