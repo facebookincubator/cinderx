@@ -24,6 +24,10 @@
 
 namespace cinderx {
 
+struct ModuleState;
+
+extern ModuleState* s_cinderx_state;
+
 // State for the entire CinderX module.
 //
 // Prefer stashing data here instead of in global variables whenever possible.
@@ -192,12 +196,15 @@ struct ModuleState {
   std::weak_ptr<HugePageArena> huge_page_arena_;
 };
 
-// Get the global ModuleState singleton.
-ModuleState* getModuleState();
+// Get the ModuleState from the CinderX module object.
+inline ModuleState* getModuleState() {
+  return s_cinderx_state;
+}
 
 // Get the ModuleState from the CinderX module object.
 //
-// Prefer this to using the global singleton when possible.
+// Prefer this to using the global singleton when possible (unless
+// it's in a very hot part of code).
 ModuleState* getModuleState(BorrowedRef<> mod);
 
 // Set the global ModuleState singleton, using the CinderX module object.

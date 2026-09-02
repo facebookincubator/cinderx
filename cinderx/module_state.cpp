@@ -13,11 +13,7 @@
 
 namespace cinderx {
 
-namespace {
-
 ModuleState* s_cinderx_state;
-
-} // namespace
 
 int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(static_type_error);
@@ -105,10 +101,6 @@ void ModuleState::joinCompileWorkers() {
     }
   }
   compile_worker_threads.clear();
-}
-
-ModuleState* getModuleState() {
-  return s_cinderx_state;
 }
 
 ModuleState* getModuleState(BorrowedRef<> mod) {
