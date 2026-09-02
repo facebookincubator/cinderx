@@ -31,6 +31,7 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
+#include "cinderx/Jit/eligibility.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/annotation_index.h"
@@ -110,28 +111,6 @@ CompilerContext<Compiler>* jitCtx() {
 // functions into a thrown exception. Meant for repetitive runs of C-API calls
 // and not intended for use in public APIs.
 class CAPIError : public std::exception {};
-
-// Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
-// "annotations" which doesn't impact bytecode execution.)
-constexpr int required_code_flags = CO_OPTIMIZED | CO_NEWLOCALS;
-bool hasRequiredFlags(BorrowedRef<PyCodeObject> code) {
-  return (code->co_flags & required_code_flags) == required_code_flags;
-}
-
-// If functions in the cinderx module get compiled, they will somehow keep the
-// module alive forever and the module will never get finalized on shutdown.
-// This breaks many assumptions and has a high chance of use-after-frees or ASAN
-// errors on shutdown.
-//
-// This is a hack around that by preventing the JIT from compiling anything in
-// cinderx.
-bool isCinderModule(BorrowedRef<> module_name) {
-  if (module_name == nullptr || !PyUnicode_Check(module_name)) {
-    return false;
-  }
-  std::string_view name = PyUnicode_AsUTF8(module_name);
-  return name == "cinderx";
-}
 
 bool shouldAlwaysScheduleCompile(BorrowedRef<PyCodeObject> code) {
   // There's a config option for forcing all Static Python functions to be
@@ -1285,89 +1264,6 @@ bool compile_all(size_t workers = 0) {
   }
 
   return true;
-}
-
-// Gets the eligibility for code or a function to be compiled. A function
-// can be ineligible, eligible due to the JIT list, or if there's no
-// jit list then just eligible. This is used to support handling nested
-// functions in the cases of multi-threaded compile / JIT list and without.
-//
-// In multi-threaded compile w/ a JIT list: We need to track the nested code
-// objects in jit_reg_units for when the multi-threaded compile kicks in and we
-// may not have created any functions yet. But we don't need that if we're not
-// doing multi-threaded compile, we'll only compile nested functions when a
-// function gets called. So that's why we track this as an extra state.
-//
-// In both cases we always need to track the outer function so that we don't
-// repeatedly re-compile nested functions - which is the big change here. That's
-// the processing that we were previously only doing when we had a JIT list so
-// now we're just skipping the jit_reg_units case when we're doing this for the
-// non-JIT list/multi-threaded compile case.
-enum class JitEligibility { Ineligible, JitListEligible, Eligible };
-
-/*
- * Check for a functions eligibility to be compiled.
- *
- * This is the most broad definition of eligibility - that is it will only
- * return Ineligible for functions which are specifically not allowed to
- * be compiled for one reason or another.
- *
- * This doesn't guarantee that the function can or will be compiled, it just
- * checks if the JIT has been configured in such a way that compilation is
- * possible.
- */
-JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func) {
-  // Can be called after the module has been finalized, due to function events.
-  if (jitCtx() == nullptr || isCinderModule(func->func_module)) {
-    return JitEligibility::Ineligible;
-  }
-
-  BorrowedRef<PyCodeObject> code{func->func_code};
-  if (!hasRequiredFlags(code)) {
-    return JitEligibility::Ineligible;
-  }
-
-  // Note: This is not the same as fetching the function's code object and
-  // checking its module and qualname, as functions can be renamed after they
-  // are created.  Code objects cannot.
-  if (auto jit_list = cinderx::getModuleState()->jit_list.get()) {
-    if (jit_list->lookupFunc(func) == 1) {
-      return JitEligibility::JitListEligible;
-    }
-    return JitEligibility::Ineligible;
-  }
-
-  return JitEligibility::Eligible;
-}
-
-/*
- * Variant of getCompilationEligibility() for nested code objects.
- */
-JitEligibility getCompilationEligibility(
-    BorrowedRef<> module_name,
-    BorrowedRef<PyCodeObject> code) {
-  // Can be called after the module has been finalized, due to function events.
-  if (jitCtx() == nullptr) {
-    return JitEligibility::Ineligible;
-  }
-
-  if (isCinderModule(module_name)) {
-    return JitEligibility::Ineligible;
-  }
-
-  if (!hasRequiredFlags(code)) {
-    return JitEligibility::Ineligible;
-  }
-
-  if (auto jit_list = cinderx::getModuleState()->jit_list.get()) {
-    if (jit_list->lookupCode(code) == 1 ||
-        jit_list->lookupName(module_name, code->co_qualname) == 1) {
-      return JitEligibility::JitListEligible;
-    }
-    return JitEligibility::Ineligible;
-  }
-
-  return JitEligibility::Eligible;
 }
 
 // Recursively search the given co_consts tuple for any code objects that are
@@ -4459,7 +4355,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
   BorrowedRef<PyDictObject> builtins = preloader.builtins();
   BorrowedRef<PyDictObject> globals = preloader.globals();
 
-  if (!hasRequiredFlags(code)) {
+  if (!hasRequiredCodeFlags(code)) {
     JIT_DLOG(
         "Can't compile {} due to missing required code flags",
         preloader.fullname());

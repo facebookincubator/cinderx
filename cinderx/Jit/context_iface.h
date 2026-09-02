@@ -10,6 +10,8 @@ namespace cinderx::jit {
 
 class alignas(16) CodeRuntime;
 
+enum class JitEligibility { Ineligible, JitListEligible, Eligible };
+
 class IJitContext {
  public:
   IJitContext() {}
