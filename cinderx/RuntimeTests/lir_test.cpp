@@ -329,6 +329,12 @@ TEST(LIRBlockTest, ReplacePredecessorPreservesPhiValues) {
   EXPECT_EQ(join->predecessor(0), replacement_first);
   EXPECT_EQ(join->predecessor(1), replacement_middle);
   EXPECT_EQ(join->predecessor(2), replacement_last);
+  EXPECT_TRUE(first->successors().empty());
+  EXPECT_TRUE(middle->successors().empty());
+  EXPECT_TRUE(last->successors().empty());
+  EXPECT_EQ(replacement_first->successors(), (std::vector<BasicBlock*>{join}));
+  EXPECT_EQ(replacement_middle->successors(), (std::vector<BasicBlock*>{join}));
+  EXPECT_EQ(replacement_last->successors(), (std::vector<BasicBlock*>{join}));
   ASSERT_NE(phi->getOperandByPredecessor(replacement_first), nullptr);
   EXPECT_EQ(phi->getOperandByPredecessor(replacement_first)->getConstant(), 10);
   ASSERT_NE(phi->getOperandByPredecessor(replacement_middle), nullptr);
@@ -374,6 +380,7 @@ TEST(LIRBlockTest, RemovePredecessorRemovesPhiValues) {
 
   join->removePredecessor(middle);
 
+  EXPECT_TRUE(middle->successors().empty());
   EXPECT_EQ(join->predecessors(), (std::vector<BasicBlock*>{first, last}));
   EXPECT_EQ(first_phi->getNumInputs(), 4);
   EXPECT_EQ(first_phi->getOperandByPredecessor(middle), nullptr);
@@ -386,6 +393,7 @@ TEST(LIRBlockTest, RemovePredecessorRemovesPhiValues) {
 
   join->removePredecessor(last);
 
+  EXPECT_TRUE(last->successors().empty());
   EXPECT_EQ(join->predecessors(), (std::vector<BasicBlock*>{first}));
   EXPECT_EQ(first_phi->getNumInputs(), 2);
   EXPECT_EQ(first_phi->getOperandByPredecessor(last), nullptr);
@@ -396,6 +404,7 @@ TEST(LIRBlockTest, RemovePredecessorRemovesPhiValues) {
 
   join->removePredecessor(first);
 
+  EXPECT_TRUE(first->successors().empty());
   EXPECT_TRUE(join->predecessors().empty());
   EXPECT_EQ(first_phi->getNumInputs(), 0);
   EXPECT_EQ(second_phi->getNumInputs(), 0);

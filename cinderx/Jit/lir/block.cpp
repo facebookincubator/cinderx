@@ -38,7 +38,7 @@ void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
     return;
   }
 
-  old_bb->removePredecessor(this);
+  old_bb->erasePredecessor(old_bb->predecessorIndex(this));
   successors_[index] = bb;
   bb->addPredecessor(this);
 }
@@ -46,7 +46,8 @@ void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
 void BasicBlock::popSuccessor() {
   JIT_THROW_IF(
       successors_.empty(), "No successor to remove from block {}", id_);
-  successors_.back()->removePredecessor(this);
+  BasicBlock* const successor = successors_.back();
+  successor->erasePredecessor(successor->predecessorIndex(this));
   successors_.pop_back();
 }
 
@@ -123,21 +124,54 @@ size_t BasicBlock::predecessorIndex(const BasicBlock* predecessor) const {
 void BasicBlock::replacePredecessor(
     BasicBlock* predecessor,
     BasicBlock* replacement) {
-  predecessors_[predecessorIndex(predecessor)] = replacement;
+  const size_t index = predecessorIndex(predecessor);
+  if (predecessor == replacement) {
+    return;
+  }
+
   foreachPhiInstr([&](Instruction* instr) {
-    for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
-      Operand* input = instr->getInput(i);
-      if (input->type() == Operand::kLabel &&
-          input->getBasicBlock() == predecessor) {
-        input->setBasicBlock(replacement);
-      }
+    const int value_index = instr->getOperandIndexByPredecessor(predecessor);
+    if (value_index != -1) {
+      instr->getInput(value_index - 1)->setBasicBlock(replacement);
     }
   });
+  const auto successor = std::ranges::find(predecessor->successors_, this);
+  JIT_THROW_IF(
+      successor == predecessor->successors_.end(),
+      "Cannot replace predecessor block {} of block {}: no matching edge {} -> "
+      "{}",
+      predecessor->id(),
+      id_,
+      predecessor->id(),
+      id_);
+  predecessor->successors_.erase(successor);
+  replacement->appendSuccessor(this);
+  predecessors_[index] = replacement;
 }
 
 void BasicBlock::removePredecessor(BasicBlock* predecessor) {
-  const size_t predecessor_index = predecessorIndex(predecessor);
-  predecessors_.erase(predecessors_.begin() + predecessor_index);
+  const size_t index = predecessorIndex(predecessor);
+  const auto successor = std::ranges::find(predecessor->successors_, this);
+  JIT_THROW_IF(
+      successor == predecessor->successors_.end(),
+      "Cannot remove predecessor block {} from block {}: no matching edge {} "
+      "-> {}",
+      predecessor->id(),
+      id_,
+      predecessor->id(),
+      id_);
+  predecessor->successors_.erase(successor);
+  erasePredecessor(index);
+}
+
+void BasicBlock::erasePredecessor(size_t index) {
+  JIT_THROW_IF(
+      index >= predecessors_.size(),
+      "Predecessor index {} out of range for block {}, has {} predecessors",
+      index,
+      id_,
+      predecessors_.size());
+  BasicBlock* predecessor = predecessors_[index];
   foreachPhiInstr([&](Instruction* instr) {
     const int value_index = instr->getOperandIndexByPredecessor(predecessor);
     if (value_index == -1) {
@@ -146,6 +180,8 @@ void BasicBlock::removePredecessor(BasicBlock* predecessor) {
     instr->removeInput(value_index);
     instr->removeInput(value_index - 1);
   });
+
+  predecessors_.erase(predecessors_.begin() + index);
 }
 
 void BasicBlock::appendInstr(std::unique_ptr<Instruction> instr) {
@@ -195,14 +231,15 @@ instr_iter_t BasicBlock::getLastInstrIter() {
 }
 
 BasicBlock* BasicBlock::insertBasicBlockBetween(BasicBlock* block) {
-  auto i = std::find(successors_.begin(), successors_.end(), block);
-  JIT_DCHECK(i != successors_.end(), "block must be one of the successors.");
+  auto successor = std::find(successors_.begin(), successors_.end(), block);
+  JIT_DCHECK(
+      successor != successors_.end(), "block must be one of the successors.");
+  const size_t outgoing_slot = std::distance(successors_.begin(), successor);
 
   auto new_block = func_->allocateBasicBlockAfter(this);
   block->replacePredecessor(this, new_block);
-  *i = new_block;
-  new_block->predecessors_.push_back(this);
-  new_block->successors_.push_back(block);
+  new_block->addPredecessor(this);
+  successors_.insert(successors_.begin() + outgoing_slot, new_block);
 
   return new_block;
 }
@@ -236,15 +273,12 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
     it = instrs_.erase(it);
   }
 
-  // fix up successors
-  for (auto bb : successors_) {
-    bb->replacePredecessor(this, second_block);
-    second_block->appendSuccessor(bb);
+  // Move outgoing edges to the new block in their existing order.
+  while (!successors_.empty()) {
+    BasicBlock* successor = successors_.front();
+    successor->replacePredecessor(this, second_block);
   }
 
-  // update successors of first block
-  successors_.clear();
-  // addSuccessor also fixes predecessors of second block
   addSuccessor(second_block);
   return second_block;
 }

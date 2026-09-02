@@ -39,14 +39,13 @@ class BasicBlock {
 
   void addSuccessor(BasicBlock* bb);
 
-  // Retarget an outgoing edge. Remove its phi values from the old successor;
-  // this does not add phi values to the new successor.
+  // Change the outgoing edge at index. Remove its phi values from the old
+  // successor; this does not add phi values to the new successor.
   void setSuccessor(size_t index, BasicBlock* bb);
 
   // Remove the last outgoing edge and its associated predecessor and phi
-  // values from the successor.
-  // Temporary until CFG edges carry reciprocal slot identity; callers should
-  // eventually remove a specific edge instead of relying on successor order.
+  // values from the successor. Used for the allocator-only trailing resume
+  // edge.
   void popSuccessor();
 
   const std::vector<BasicBlock*>& successors() const;
@@ -66,12 +65,10 @@ class BasicBlock {
       const BasicBlock* predecessor) const;
   size_t predecessorIndex(const BasicBlock* predecessor) const;
 
-  // Replace a unique predecessor and its labels in this block's phis while
-  // preserving the associated phi values.
+  // Replace one incoming edge and its phi labels without changing its values.
   void replacePredecessor(BasicBlock* predecessor, BasicBlock* replacement);
 
-  // Remove a unique predecessor and its associated label/value pair from
-  // every phi in this block.
+  // Remove one incoming edge and its matching label/value pair from each phi.
   void removePredecessor(BasicBlock* predecessor);
 
   // Allocate an instruction and its operands and append it to the
@@ -138,8 +135,7 @@ class BasicBlock {
     }
   }
 
-  // insert a basic block on the edge between the current basic
-  // block and another basic block specified by block.
+  // Insert a basic block between this block and the given block.
   BasicBlock* insertBasicBlockBetween(BasicBlock* block);
 
   // Split this block before instr.
@@ -164,6 +160,7 @@ class BasicBlock {
  private:
   void appendSuccessor(BasicBlock* successor);
   void addPredecessor(BasicBlock* predecessor);
+  void erasePredecessor(size_t index);
   void applyPendingAnnotation(Instruction* instr);
   int id_;
   Function* func_;
