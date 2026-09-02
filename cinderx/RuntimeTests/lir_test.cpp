@@ -17,6 +17,7 @@
 
 #include <math.h>
 
+#include <algorithm>
 #include <memory>
 #include <ostream>
 #include <regex>
@@ -94,6 +95,97 @@ TEST(LIRConditionTest, MnemonicNamesKeepTheirMeaning) {
   EXPECT_TRUE(isSignedCompare(Condition::kSignedGE));
   EXPECT_FALSE(isSignedCompare(Condition::kUnsignedGE));
   EXPECT_FALSE(isSignedCompare(Condition::kSign));
+}
+
+namespace {
+
+size_t blockCount(
+    const std::vector<BasicBlock*>& blocks,
+    const BasicBlock* block) {
+  return std::count(blocks.begin(), blocks.end(), block);
+}
+
+void expectEdgeCount(
+    const BasicBlock* predecessor,
+    const BasicBlock* successor,
+    size_t expected) {
+  EXPECT_EQ(blockCount(predecessor->successors(), successor), expected);
+  EXPECT_EQ(blockCount(successor->predecessors(), predecessor), expected);
+}
+
+} // namespace
+
+TEST(LIRBlockTest, AddSuccessorUpdatesEdges) {
+  Function function;
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* second = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+
+  first->addSuccessor(join);
+  first->addSuccessor(join);
+  second->addSuccessor(join);
+  loop->addSuccessor(loop);
+
+  expectEdgeCount(first, join, 2);
+  expectEdgeCount(second, join, 1);
+  expectEdgeCount(loop, loop, 1);
+}
+
+TEST(LIRBlockTest, SetSuccessorUpdatesEdges) {
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* other = function.allocateBasicBlock();
+  BasicBlock* old_successor = function.allocateBasicBlock();
+  BasicBlock* new_successor = function.allocateBasicBlock();
+
+  source->addSuccessor(old_successor);
+  source->addSuccessor(old_successor);
+  other->addSuccessor(old_successor);
+  source->setSuccessor(1, new_successor);
+
+  expectEdgeCount(source, old_successor, 1);
+  expectEdgeCount(source, new_successor, 1);
+  expectEdgeCount(other, old_successor, 1);
+}
+
+TEST(LIRBlockTest, InsertBasicBlockBetweenUpdatesEdges) {
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* other = function.allocateBasicBlock();
+  BasicBlock* target = function.allocateBasicBlock();
+  source->addSuccessor(target);
+  other->addSuccessor(target);
+
+  BasicBlock* inserted = source->insertBasicBlockBetween(target);
+
+  expectEdgeCount(source, target, 0);
+  expectEdgeCount(source, inserted, 1);
+  expectEdgeCount(inserted, target, 1);
+  expectEdgeCount(other, target, 1);
+}
+
+TEST(LIRBlockTest, SplitBeforeUpdatesEdges) {
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* other = function.allocateBasicBlock();
+  BasicBlock* first_target = function.allocateBasicBlock();
+  BasicBlock* second_target = function.allocateBasicBlock();
+  source->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{1});
+  Instruction* split_point =
+      source->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{2});
+  source->addSuccessor(first_target);
+  source->addSuccessor(second_target);
+  other->addSuccessor(first_target);
+
+  BasicBlock* split = source->splitBefore(split_point);
+
+  expectEdgeCount(source, first_target, 0);
+  expectEdgeCount(source, second_target, 0);
+  expectEdgeCount(source, split, 1);
+  expectEdgeCount(split, first_target, 1);
+  expectEdgeCount(split, second_target, 1);
+  expectEdgeCount(other, first_target, 1);
 }
 
 class LIRGeneratorTest : public RuntimeTest {
