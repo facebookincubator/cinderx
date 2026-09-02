@@ -1163,6 +1163,184 @@ class A:
     EXPECT_EQ(asLong(res), 5) << "iteration " << i;
   }
 }
+
+namespace {
+
+// The case kMetaType exists for: a classmethod reading a class variable
+// through `cls`. The receiver is a class, the value lives on that class's own
+// MRO rather than on the metaclass, and the site is polymorphic because `cls`
+// is whichever subclass the call arrived on. `class_var` is the load in f's
+// body; the tests below drive it directly.
+constexpr const char* kMetaclassSubclasses = R"(
+class MetaClass(type):
+  pass
+
+class Class(metaclass=MetaClass):
+  @classmethod
+  def f(cls):
+    return cls.class_var
+
+class SubClass1(Class):
+  class_var = 42
+
+class SubClass2(Class):
+  class_var = 100
+)";
+
+} // namespace
+
+TEST_F(InlineCacheTest, MetaTypeAttrCacheSpecializesPolymorphicClassLoads) {
+  getMutableConfig().attr_cache_size = 4;
+  Ref<> locals = runToLocals(this, kMetaclassSubclasses);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> sub1 = PyDict_GetItemString(locals, "SubClass1");
+  BorrowedRef<> sub2 = PyDict_GetItemString(locals, "SubClass2");
+  ASSERT_NE(sub1.get(), nullptr);
+  ASSERT_NE(sub2.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("class_var"));
+
+  // kType declines these classes -- their metatype is MetaClass, not `type` --
+  // so before kMetaType the site gave up and ran the full lookup forever.
+  CacheStorage<LoadAttrCache> cache;
+  EXPECT_EQ(loadRepeatedly(cache.get(), sub1, name), 42);
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeMetaType)
+      << "A class with a metaclass should install the metaclass-aware target";
+
+  // Entries are keyed on the class, so a second one gets its own rather than
+  // the first's value.
+  EXPECT_EQ(loadRepeatedly(cache.get(), sub2, name), 100);
+  EXPECT_EQ(loadRepeatedly(cache.get(), sub1, name), 42)
+      << "Alternating classes must each read their own value";
+}
+
+TEST_F(InlineCacheTest, MetaTypeAttrCacheSeesClassMutation) {
+  Ref<> locals = runToLocals(this, kMetaclassSubclasses);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> sub1 = PyDict_GetItemString(locals, "SubClass1");
+  ASSERT_NE(sub1.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("class_var"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), sub1, name), 42);
+
+  // Same watcher story as kType: the entry is keyed on SubClass1, so
+  // PyType_Modified for it reaches typeChanged.
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  ASSERT_EQ(PyObject_SetAttr(sub1, name, seven), 0);
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), sub1, name), 7)
+      << "A class mutation must invalidate the cached value";
+}
+
+TEST_F(InlineCacheTest, MetaTypeAttrCacheSeesMetaclassMutation) {
+  Ref<> locals = runToLocals(this, kMetaclassSubclasses);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> sub1 = PyDict_GetItemString(locals, "SubClass1");
+  ASSERT_NE(sub1.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("class_var"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), sub1, name), 42);
+
+  // A data descriptor on the metaclass takes precedence over the class's own
+  // MRO, so 42 is no longer the answer. MetaClass is not one of SubClass1's
+  // bases, so PyType_Modified for it never reaches a watcher this cache holds;
+  // the metatype version tag recorded with the value is the only thing that
+  // catches this.
+  auto st = Ref<>::steal(PyRun_String(
+      "MetaClass.class_var = property(lambda cls: 7)\n",
+      Py_file_input,
+      locals,
+      locals));
+  ASSERT_NE(st.get(), nullptr) << "Failed adding the metaclass property";
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), sub1, name), 7)
+      << "A metaclass data descriptor must override the cached class value";
+}
+
+TEST_F(InlineCacheTest, MetaTypeAttrCacheRejectsInstanceOfCachedClass) {
+  // The kType hazard, for the new kind: the entry holds SubClass1 in type_, so
+  // an *instance* of SubClass1 is what a Py_TYPE(obj) test would match.
+  Ref<> locals = runToLocals(this, R"(
+class MetaClass(type):
+  pass
+
+class SubClass1(metaclass=MetaClass):
+  class_var = 42
+
+inst = SubClass1()
+inst.class_var = 1
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> sub1 = PyDict_GetItemString(locals, "SubClass1");
+  BorrowedRef<> inst = PyDict_GetItemString(locals, "inst");
+  ASSERT_NE(sub1.get(), nullptr);
+  ASSERT_NE(inst.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("class_var"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), sub1, name), 42);
+  ASSERT_EQ(*cache->targetAddr(), LoadAttrCache::invokeMetaType);
+
+  EXPECT_EQ(loadRepeatedly(cache.get(), inst, name), 1)
+      << "An instance of the cached class must not be served the class's "
+      << "attribute";
+  EXPECT_EQ(loadRepeatedly(cache.get(), sub1, name), 42)
+      << "...and the class must still read its own";
+}
+
+TEST_F(InlineCacheTest, TypeAttrCacheMixesPlainClassesAndMetaclassInstances) {
+  // kType and kMetaType survive each other's monomorphisation and share a
+  // slow path, so a site alternating between the two keeps an entry for each
+  // rather than evicting and re-filling on every call. The dispatch slot
+  // follows the leading entry; the other kind is served by the slow path.
+  getMutableConfig().attr_cache_size = 4;
+  Ref<> locals = runToLocals(this, R"(
+class MetaClass(type):
+  pass
+
+class WithMeta(metaclass=MetaClass):
+  x = 42
+
+class Plain:
+  x = 5
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> with_meta = PyDict_GetItemString(locals, "WithMeta");
+  BorrowedRef<> plain = PyDict_GetItemString(locals, "Plain");
+  ASSERT_NE(with_meta.get(), nullptr);
+  ASSERT_NE(plain.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), plain, name), 5);
+  EXPECT_EQ(loadRepeatedly(cache.get(), with_meta, name), 42);
+  EXPECT_EQ(loadRepeatedly(cache.get(), plain, name), 5);
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeType)
+      << "The leading entry is a plain class, so its target stays installed";
+}
+
+TEST_F(InlineCacheTest, MetaTypeAttrCacheDeclinesInterceptingMetaclass) {
+  // A metaclass __getattribute__ builds an answer out of more than the class's
+  // MRO, which the cache cannot replicate, so it must not claim an entry.
+  Ref<> locals = runToLocals(this, R"(
+class MetaClass(type):
+  def __getattribute__(cls, name):
+    return 7
+
+class C(metaclass=MetaClass):
+  x = 5
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "C");
+  ASSERT_NE(cls.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+
+  CacheStorage<LoadAttrCache> cache;
+  EXPECT_EQ(loadRepeatedly(cache.get(), cls, name), 7);
+  EXPECT_EQ(*cache->targetAddr(), LoadAttrCache::invokeEmpty)
+      << "A metaclass that intercepts the read must leave the cache empty";
+}
 #endif
 
 TEST_F(InlineCacheTest, LoadAttrCacheSingleEntryHitsAndMisses) {

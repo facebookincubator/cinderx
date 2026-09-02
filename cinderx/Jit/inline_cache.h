@@ -199,7 +199,7 @@ struct ModuleMutator {
 // generic scan, which matches entry.type() against Py_TYPE(obj) and would
 // therefore hand an *instance* of the cached class the class's own attribute.
 // Nothing does: retarget() monomorphises the cache and points it at
-// LoadAttrCache::invokeType, which matches on entry.type() == obj, and
+// LoadAttrCache::invokeType, which matches against the receiver itself, and
 // getAttrForKind has no kType arm, so any other route aborts rather than
 // answering wrongly.
 struct TypeMutator {
@@ -208,6 +208,34 @@ struct TypeMutator {
   // which keeps that class pinned to the slow path instead of retrying an
   // entry it can never fill.
   BorrowedRef<> value;
+};
+
+// Mutator for an attribute read off a class that has a metaclass of its own,
+// e.g. the `cls.class_var` of a classmethod called on such a class.
+//
+// The value still comes from the class's own MRO -- the metaclass is not where
+// `class_var` lives -- so this is TypeMutator's job with one extra thing to
+// prove. type_getattro consults the metatype first and lets a data descriptor
+// found there win over the class's MRO, and kType gets that for free by only
+// ever claiming classes whose metatype is `type` itself, which is immutable and
+// so can be settled once at fill time. A metaclass can grow such a descriptor
+// at any point, so an entry here records the metatype's version tag alongside
+// the value and re-resolves when it moves.
+//
+// The metatype is deliberately not watched. Watching is keyed on entry.type(),
+// which is the class, and several classes at one site commonly share a
+// metaclass -- so a watch would need its own unwatch bookkeeping, in exchange
+// for saving a compare that the receiver's header load has already paid for.
+struct MetaTypeMutator {
+  // Null until the first fill populates it, and for a class whose read is not
+  // cacheable. See TypeMutator::value.
+  BorrowedRef<> value;
+
+  // Py_TYPE(class)->tp_version_tag as of the read that produced `value`.
+  // Version tags are unique across types and are cleared by PyType_Modified, so
+  // a match proves both that the metatype is still the one consulted and that
+  // nothing has been added to it since.
+  uint32_t metatype_version;
 };
 #endif
 
@@ -240,7 +268,8 @@ struct TypeMutator {
   X(kMemberDescrGetAttr, 0)                 \
   X(kDescrOrClassVarGetAttr, 0)             \
   X(kModule, 0)                             \
-  X(kType, 0)
+  X(kType, 0)                               \
+  X(kMetaType, 0)
 #else
 #define CINDERX_ATTR_KIND_PROMOTION_ONLY(X)
 #endif
@@ -361,6 +390,31 @@ class AttributeMutator {
         "should only be used on type attributes");
     return &type_attr_;
   }
+
+  // As with setTypeAttr, `cls` is the class being read. The metatype version is
+  // recorded by the fill that produces a value, not here. See
+  // MetaTypeMutator.
+  void setMetaTypeAttr(PyTypeObject* cls);
+
+  MetaTypeMutator* asMetaTypeAttr() {
+    JIT_DCHECK(
+        getKind() == AttributeMutator::Kind::kMetaType,
+        "should only be used on metaclass-instance type attributes");
+    return &type_instance_attr_;
+  }
+
+  // Whether `kind` is one of the two keyed on the class being read rather than
+  // on Py_TYPE(receiver). They share a monomorphisation family and a slow path
+  // -- see AttributeCache::monomorphise and LoadAttrCache::invokeTypeSlow.
+  static constexpr bool isTypeAttrKind(Kind kind) {
+    return kind == Kind::kType || kind == Kind::kMetaType;
+  }
+
+  // The packed type-and-kind word, for a guard that has to establish both in a
+  // single compare. See LoadAttrCache::invokeType.
+  uintptr_t typeAndKind() const {
+    return type_;
+  }
 #endif
 
   BorrowedRef<PyTypeObject> watchedDescrType() const;
@@ -430,6 +484,7 @@ class AttributeMutator {
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
     ModuleMutator module_;
     TypeMutator type_attr_;
+    MetaTypeMutator type_instance_attr_;
 #endif
   };
 };
@@ -605,11 +660,16 @@ class LoadAttrCache : public AttributeCache {
   static PyObject*
   invokeModule(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
-  // The kType counterpart of invokeModule. Owns a cache that retarget() has
-  // monomorphised to class receivers, and matches entry.type() against the
-  // receiver itself rather than against Py_TYPE(receiver). See TypeMutator.
+  // The class-receiver counterpart of invokeModule. Owns a cache that
+  // retarget() has monomorphised to class receivers, and matches the leading
+  // entry against the receiver itself rather than against Py_TYPE(receiver).
+  // See TypeMutator.
   static PyObject*
   invokeType(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  // invokeType for a type w/ a meta type.
+  static PyObject*
+  invokeMetaType(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
   // Address of the dispatch slot, for codegen to load and call through.
   LoadAttrTarget* targetAddr();
@@ -621,12 +681,17 @@ class LoadAttrCache : public AttributeCache {
   invokeSlowPath(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-  // The cold half of invokeType: anything the leading entry did not claim --
-  // a second class, a first read of one, or a receiver that is not a class at
-  // all. Kept out of line so the hit path is a straight line, in the same
-  // shape as invoke/invokeSlowPath.
+  // The cold half of both class-receiver entry points: anything the leading
+  // entry did not claim -- a second class, a first read of one, an entry whose
+  // guard no longer holds, or a receiver that is not a class at all. Kept out
+  // of line so the hit path is a straight line, in the same shape as
+  // invoke/invokeSlowPath.
   static PyObject*
   invokeTypeSlow(PyObject* obj, PyObject* name, LoadAttrCache* cache);
+
+  // Point the dispatch slot at whichever class-receiver entry point matches the
+  // leading entry's kind, which is the only entry either of them reads.
+  void setTypeTarget();
 #endif
 
   // See the note on StoreAttrCache::retarget.

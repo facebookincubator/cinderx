@@ -39,6 +39,9 @@ CinderX's attribute caches hold ``CINDERX_JIT_ATTR_CACHE_SIZE`` entries (4 by
 default) and never evict, so ``poly8`` and ``poly16`` are permanently
 megamorphic -- they pay a full scan plus a failed refill on every execution.
 ``polytype`` thrashes the type-attribute cache, which holds a single entry.
+``metatypeattr`` and ``polymetatype`` are the same two shapes for classes that
+have a metaclass of their own -- the ``cls.class_var`` of a classmethod -- which
+need the metatype guarded on top of the class.
 
 Results are reported in nanoseconds per attribute operation, so workloads with
 different receiver counts stay comparable.
@@ -276,6 +279,21 @@ def _build_typeattr() -> list[object]:
     return [cls] * RECEIVERS
 
 
+def _new_metaclass_instance(name: str) -> type:
+    meta = type("Meta" + name, (type,), {})
+    return meta(name, (), {n: i for i, n in enumerate(NAMES)})
+
+
+def _build_metatypeattr() -> list[object]:
+    return [_new_metaclass_instance("MetaTypeAttr")] * RECEIVERS
+
+
+def _build_poly_metatype() -> list[object]:
+    """The classmethod ``cls.class_var`` shape: `cls` varies per call."""
+    classes = [_new_metaclass_instance(f"PolyMetaType{i}") for i in range(2)]
+    return [classes[i % len(classes)] for i in range(RECEIVERS)]
+
+
 def _build_module() -> list[object]:
     module = types.ModuleType("attr_cache_receiver")
     for i, name in enumerate(NAMES):
@@ -416,6 +434,11 @@ LAYOUTS: dict[str, Layout] = {
         _build_typeattr,
         store=False,
     ),
+    "metatypeattr": Layout(
+        "attribute read off a class that has a metaclass",
+        _build_metatypeattr,
+        store=False,
+    ),
     "module": Layout(
         "attribute read off a module global",
         _build_module,
@@ -467,6 +490,11 @@ LAYOUTS: dict[str, Layout] = {
     "polytype": Layout(
         "2 class objects at one type-attribute site",
         _build_poly_type,
+        store=False,
+    ),
+    "polymetatype": Layout(
+        "2 metaclass instances at one type-attribute site",
+        _build_poly_metatype,
         store=False,
     ),
 }
