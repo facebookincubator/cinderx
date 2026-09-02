@@ -11,4 +11,8 @@ namespace cinderx {
 void resetMutexAfterFork(std::mutex& mutex);
 void resetMutexAfterFork(std::recursive_mutex& mutex);
 
+// Keep TSAN in sync when a locked mutex is rebuilt as part of a larger object.
+void destroyMutexMetadataBeforeReinit(std::mutex& mutex);
+void createMutexMetadataAfterReinit(std::mutex& mutex);
+
 } // namespace cinderx

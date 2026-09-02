@@ -12,6 +12,7 @@
 #include "cinderx/Common/containers.h"
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
@@ -3669,7 +3670,10 @@ void jitAtForkChild() {
   // Reusing the storage ends the old registry's lifetime without those side
   // effects.  Whatever it owned is leaked, but it is a private copy of the
   // parent's heap that this handler cannot safely release.
-  new (&ctx->backgroundCompileRegistry()) BackgroundCompileRegistry();
+  auto* reg = &ctx->backgroundCompileRegistry();
+  destroyMutexMetadataBeforeReinit(reg->mutex);
+  new (reg) BackgroundCompileRegistry();
+  createMutexMetadataAfterReinit(reg->mutex);
 }
 
 // Register the fork handlers exactly once for the process.  pthread_atfork
