@@ -21,6 +21,7 @@
 #include <memory>
 #include <ostream>
 #include <regex>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -186,6 +187,41 @@ TEST(LIRBlockTest, SplitBeforeUpdatesEdges) {
   expectEdgeCount(split, first_target, 1);
   expectEdgeCount(split, second_target, 1);
   expectEdgeCount(other, first_target, 1);
+}
+
+TEST(LIRBlockTest, PredecessorAccessors) {
+  Function function;
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* second = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+  BasicBlock* missing = function.allocateBasicBlock();
+  first->addSuccessor(join);
+  second->addSuccessor(join);
+  loop->addSuccessor(loop);
+
+  EXPECT_EQ(join->numPredecessors(), 2);
+  EXPECT_EQ(join->predecessor(0), first);
+  EXPECT_EQ(join->predecessor(1), second);
+  EXPECT_THROW(join->predecessor(2), std::runtime_error);
+  EXPECT_EQ(join->predecessorIndex(first), 0);
+  EXPECT_EQ(join->predecessorIndex(second), 1);
+  EXPECT_FALSE(join->findPredecessorIndex(missing).has_value());
+  EXPECT_THROW(join->predecessorIndex(missing), std::runtime_error);
+
+  EXPECT_EQ(loop->numPredecessors(), 1);
+  EXPECT_EQ(loop->predecessor(0), loop);
+  EXPECT_EQ(loop->predecessorIndex(loop), 0);
+}
+
+TEST(LIRBlockTest, PredecessorLookupRejectsDuplicateEdges) {
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* target = function.allocateBasicBlock();
+  source->addSuccessor(target);
+  source->addSuccessor(target);
+
+  EXPECT_THROW(target->predecessorIndex(source), std::runtime_error);
 }
 
 class LIRGeneratorTest : public RuntimeTest {

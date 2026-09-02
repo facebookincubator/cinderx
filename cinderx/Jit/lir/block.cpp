@@ -74,6 +74,43 @@ const std::vector<BasicBlock*>& BasicBlock::predecessors() const {
   return predecessors_;
 }
 
+size_t BasicBlock::numPredecessors() const {
+  return predecessors_.size();
+}
+
+BasicBlock* BasicBlock::predecessor(size_t index) const {
+  JIT_THROW_IF(
+      index >= predecessors_.size(),
+      "Predecessor index {} out of range for block {}, has {} predecessors",
+      index,
+      id_,
+      predecessors_.size());
+  return predecessors_[index];
+}
+
+std::optional<size_t> BasicBlock::findPredecessorIndex(
+    const BasicBlock* predecessor) const {
+  std::optional<size_t> result;
+  for (size_t index = 0; index < predecessors_.size(); ++index) {
+    if (predecessors_[index] == predecessor) {
+      JIT_THROW_IF(
+          result.has_value(),
+          "Predecessor block {} lookup is ambiguous, already matched {}",
+          predecessor->id(),
+          result.value());
+      result = index;
+    }
+  }
+  return result;
+}
+
+size_t BasicBlock::predecessorIndex(const BasicBlock* predecessor) const {
+  std::optional<size_t> index = findPredecessorIndex(predecessor);
+  JIT_THROW_IF(
+      !index.has_value(), "Predecessor block {} not found", predecessor->id());
+  return *index;
+}
+
 void BasicBlock::appendInstr(std::unique_ptr<Instruction> instr) {
   instrs_.emplace_back(std::move(instr));
 }

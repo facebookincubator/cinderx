@@ -7,6 +7,7 @@
 
 #include <list>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace cinderx::jit::hir {
@@ -52,6 +53,14 @@ class BasicBlock {
 
   std::vector<BasicBlock*>& predecessors();
   const std::vector<BasicBlock*>& predecessors() const;
+
+  size_t numPredecessors() const;
+  BasicBlock* predecessor(size_t index) const;
+
+  // Pointer-based lookup requires the predecessor to occur at most once.
+  std::optional<size_t> findPredecessorIndex(
+      const BasicBlock* predecessor) const;
+  size_t predecessorIndex(const BasicBlock* predecessor) const;
 
   // Allocate an instruction and its operands and append it to the
   // instruction list. For the details on how to allocate instruction
