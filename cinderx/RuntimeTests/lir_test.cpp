@@ -141,13 +141,27 @@ TEST(LIRBlockTest, SetSuccessorUpdatesEdges) {
   BasicBlock* new_successor = function.allocateBasicBlock();
 
   source->addSuccessor(old_successor);
-  source->addSuccessor(old_successor);
   other->addSuccessor(old_successor);
-  source->setSuccessor(1, new_successor);
+  Instruction* phi =
+      old_successor->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->allocateLabelInput(source);
+  phi->allocateImmediateInput(10);
+  phi->allocateLabelInput(other);
+  phi->allocateImmediateInput(20);
 
-  expectEdgeCount(source, old_successor, 1);
+  source->setSuccessor(0, old_successor);
+  ASSERT_NE(phi->getOperandByPredecessor(source), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(source)->getConstant(), 10);
+
+  source->setSuccessor(0, new_successor);
+
+  expectEdgeCount(source, old_successor, 0);
   expectEdgeCount(source, new_successor, 1);
   expectEdgeCount(other, old_successor, 1);
+  EXPECT_EQ(phi->getNumInputs(), 2);
+  EXPECT_EQ(phi->getOperandByPredecessor(source), nullptr);
+  ASSERT_NE(phi->getOperandByPredecessor(other), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(other)->getConstant(), 20);
 }
 
 TEST(LIRBlockTest, InsertBasicBlockBetweenUpdatesEdges) {
@@ -157,6 +171,11 @@ TEST(LIRBlockTest, InsertBasicBlockBetweenUpdatesEdges) {
   BasicBlock* target = function.allocateBasicBlock();
   source->addSuccessor(target);
   other->addSuccessor(target);
+  Instruction* phi = target->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->allocateLabelInput(source);
+  phi->allocateImmediateInput(10);
+  phi->allocateLabelInput(other);
+  phi->allocateImmediateInput(20);
 
   BasicBlock* inserted = source->insertBasicBlockBetween(target);
 
@@ -164,6 +183,11 @@ TEST(LIRBlockTest, InsertBasicBlockBetweenUpdatesEdges) {
   expectEdgeCount(source, inserted, 1);
   expectEdgeCount(inserted, target, 1);
   expectEdgeCount(other, target, 1);
+  ASSERT_NE(phi->getOperandByPredecessor(inserted), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(inserted)->getConstant(), 10);
+  ASSERT_NE(phi->getOperandByPredecessor(other), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(other)->getConstant(), 20);
+  EXPECT_EQ(phi->getOperandByPredecessor(source), nullptr);
 }
 
 TEST(LIRBlockTest, SplitBeforeUpdatesEdges) {
@@ -178,6 +202,16 @@ TEST(LIRBlockTest, SplitBeforeUpdatesEdges) {
   source->addSuccessor(first_target);
   source->addSuccessor(second_target);
   other->addSuccessor(first_target);
+  Instruction* first_phi =
+      first_target->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  first_phi->allocateLabelInput(source);
+  first_phi->allocateImmediateInput(10);
+  first_phi->allocateLabelInput(other);
+  first_phi->allocateImmediateInput(20);
+  Instruction* second_phi =
+      second_target->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  second_phi->allocateLabelInput(source);
+  second_phi->allocateImmediateInput(30);
 
   BasicBlock* split = source->splitBefore(split_point);
 
@@ -187,6 +221,14 @@ TEST(LIRBlockTest, SplitBeforeUpdatesEdges) {
   expectEdgeCount(split, first_target, 1);
   expectEdgeCount(split, second_target, 1);
   expectEdgeCount(other, first_target, 1);
+  ASSERT_NE(first_phi->getOperandByPredecessor(split), nullptr);
+  EXPECT_EQ(first_phi->getOperandByPredecessor(split)->getConstant(), 10);
+  ASSERT_NE(first_phi->getOperandByPredecessor(other), nullptr);
+  EXPECT_EQ(first_phi->getOperandByPredecessor(other)->getConstant(), 20);
+  EXPECT_EQ(first_phi->getOperandByPredecessor(source), nullptr);
+  ASSERT_NE(second_phi->getOperandByPredecessor(split), nullptr);
+  EXPECT_EQ(second_phi->getOperandByPredecessor(split)->getConstant(), 30);
+  EXPECT_EQ(second_phi->getOperandByPredecessor(source), nullptr);
 }
 
 TEST(LIRBlockTest, PredecessorAccessors) {
@@ -222,6 +264,106 @@ TEST(LIRBlockTest, PredecessorLookupRejectsDuplicateEdges) {
   source->addSuccessor(target);
 
   EXPECT_THROW(target->predecessorIndex(source), std::runtime_error);
+}
+
+TEST(LIRBlockTest, ReplacePredecessorPreservesPhiValues) {
+  Function function;
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* middle = function.allocateBasicBlock();
+  BasicBlock* last = function.allocateBasicBlock();
+  BasicBlock* replacement_first = function.allocateBasicBlock();
+  BasicBlock* replacement_middle = function.allocateBasicBlock();
+  BasicBlock* replacement_last = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  first->addSuccessor(join);
+  middle->addSuccessor(join);
+  last->addSuccessor(join);
+  Instruction* phi = join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->allocateLabelInput(first);
+  phi->allocateImmediateInput(10);
+  phi->allocateLabelInput(middle);
+  phi->allocateImmediateInput(20);
+  phi->allocateLabelInput(last);
+  phi->allocateImmediateInput(30);
+
+  join->replacePredecessor(first, replacement_first);
+  join->replacePredecessor(middle, replacement_middle);
+  join->replacePredecessor(last, replacement_last);
+
+  EXPECT_EQ(join->predecessor(0), replacement_first);
+  EXPECT_EQ(join->predecessor(1), replacement_middle);
+  EXPECT_EQ(join->predecessor(2), replacement_last);
+  ASSERT_NE(phi->getOperandByPredecessor(replacement_first), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(replacement_first)->getConstant(), 10);
+  ASSERT_NE(phi->getOperandByPredecessor(replacement_middle), nullptr);
+  EXPECT_EQ(
+      phi->getOperandByPredecessor(replacement_middle)->getConstant(), 20);
+  ASSERT_NE(phi->getOperandByPredecessor(replacement_last), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(replacement_last)->getConstant(), 30);
+}
+
+TEST(LIRBlockTest, RemovePredecessorRemovesPhiValues) {
+  Function function;
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* middle = function.allocateBasicBlock();
+  BasicBlock* last = function.allocateBasicBlock();
+  BasicBlock* missing = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  first->addSuccessor(join);
+  middle->addSuccessor(join);
+  last->addSuccessor(join);
+  Instruction* first_phi =
+      join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  first_phi->allocateLabelInput(first);
+  first_phi->allocateImmediateInput(10);
+  first_phi->allocateLabelInput(middle);
+  first_phi->allocateImmediateInput(20);
+  first_phi->allocateLabelInput(last);
+  first_phi->allocateImmediateInput(30);
+  Instruction* second_phi =
+      join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  second_phi->allocateLabelInput(first);
+  second_phi->allocateImmediateInput(100);
+  second_phi->allocateLabelInput(middle);
+  second_phi->allocateImmediateInput(200);
+  second_phi->allocateLabelInput(last);
+  second_phi->allocateImmediateInput(300);
+  auto expect_phi_value = [](const Instruction* phi,
+                             const BasicBlock* predecessor,
+                             int64_t expected) {
+    const auto* value = phi->getOperandByPredecessor(predecessor);
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->getConstant(), expected);
+  };
+
+  join->removePredecessor(middle);
+
+  EXPECT_EQ(join->predecessors(), (std::vector<BasicBlock*>{first, last}));
+  EXPECT_EQ(first_phi->getNumInputs(), 4);
+  EXPECT_EQ(first_phi->getOperandByPredecessor(middle), nullptr);
+  expect_phi_value(first_phi, first, 10);
+  expect_phi_value(first_phi, last, 30);
+  EXPECT_EQ(second_phi->getNumInputs(), 4);
+  EXPECT_EQ(second_phi->getOperandByPredecessor(middle), nullptr);
+  expect_phi_value(second_phi, first, 100);
+  expect_phi_value(second_phi, last, 300);
+
+  join->removePredecessor(last);
+
+  EXPECT_EQ(join->predecessors(), (std::vector<BasicBlock*>{first}));
+  EXPECT_EQ(first_phi->getNumInputs(), 2);
+  EXPECT_EQ(first_phi->getOperandByPredecessor(last), nullptr);
+  expect_phi_value(first_phi, first, 10);
+  EXPECT_EQ(second_phi->getNumInputs(), 2);
+  EXPECT_EQ(second_phi->getOperandByPredecessor(last), nullptr);
+  expect_phi_value(second_phi, first, 100);
+
+  join->removePredecessor(first);
+
+  EXPECT_TRUE(join->predecessors().empty());
+  EXPECT_EQ(first_phi->getNumInputs(), 0);
+  EXPECT_EQ(second_phi->getNumInputs(), 0);
+  EXPECT_THROW(join->removePredecessor(missing), std::runtime_error);
 }
 
 class LIRGeneratorTest : public RuntimeTest {

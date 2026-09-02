@@ -28,17 +28,19 @@ const Function* BasicBlock::function() const {
 
 void BasicBlock::addSuccessor(BasicBlock* bb) {
   successors_.push_back(bb);
-  bb->predecessors_.push_back(this);
+  bb->addPredecessor(this);
 }
 
 void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
   JIT_CHECK(index < successors_.size(), "Index out of range");
   BasicBlock* old_bb = successors_[index];
-  std::vector<BasicBlock*>& old_preds = old_bb->predecessors_;
-  old_preds.erase(std::find(old_preds.begin(), old_preds.end(), this));
+  if (old_bb == bb) {
+    return;
+  }
 
+  old_bb->removePredecessor(this);
   successors_[index] = bb;
-  bb->predecessors_.push_back(this);
+  bb->addPredecessor(this);
 }
 
 std::vector<BasicBlock*>& BasicBlock::successors() {
@@ -66,10 +68,6 @@ BasicBlock* BasicBlock::getFalseSuccessor() const {
   return successors_[1];
 }
 
-std::vector<BasicBlock*>& BasicBlock::predecessors() {
-  return predecessors_;
-}
-
 const std::vector<BasicBlock*>& BasicBlock::predecessors() const {
   return predecessors_;
 }
@@ -86,6 +84,10 @@ BasicBlock* BasicBlock::predecessor(size_t index) const {
       id_,
       predecessors_.size());
   return predecessors_[index];
+}
+
+void BasicBlock::addPredecessor(BasicBlock* predecessor) {
+  predecessors_.push_back(predecessor);
 }
 
 std::optional<size_t> BasicBlock::findPredecessorIndex(
@@ -109,6 +111,34 @@ size_t BasicBlock::predecessorIndex(const BasicBlock* predecessor) const {
   JIT_THROW_IF(
       !index.has_value(), "Predecessor block {} not found", predecessor->id());
   return *index;
+}
+
+void BasicBlock::replacePredecessor(
+    BasicBlock* predecessor,
+    BasicBlock* replacement) {
+  predecessors_[predecessorIndex(predecessor)] = replacement;
+  foreachPhiInstr([&](Instruction* instr) {
+    for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
+      Operand* input = instr->getInput(i);
+      if (input->type() == Operand::kLabel &&
+          input->getBasicBlock() == predecessor) {
+        input->setBasicBlock(replacement);
+      }
+    }
+  });
+}
+
+void BasicBlock::removePredecessor(BasicBlock* predecessor) {
+  const size_t predecessor_index = predecessorIndex(predecessor);
+  predecessors_.erase(predecessors_.begin() + predecessor_index);
+  foreachPhiInstr([&](Instruction* instr) {
+    const int value_index = instr->getOperandIndexByPredecessor(predecessor);
+    if (value_index == -1) {
+      return;
+    }
+    instr->removeInput(value_index);
+    instr->removeInput(value_index - 1);
+  });
 }
 
 void BasicBlock::appendInstr(std::unique_ptr<Instruction> instr) {
@@ -162,13 +192,10 @@ BasicBlock* BasicBlock::insertBasicBlockBetween(BasicBlock* block) {
   JIT_DCHECK(i != successors_.end(), "block must be one of the successors.");
 
   auto new_block = func_->allocateBasicBlockAfter(this);
+  block->replacePredecessor(this, new_block);
   *i = new_block;
   new_block->predecessors_.push_back(this);
-
-  auto& old_preds = block->predecessors_;
-  old_preds.erase(std::find(old_preds.begin(), old_preds.end(), this));
-
-  new_block->addSuccessor(block);
+  new_block->successors_.push_back(block);
 
   return new_block;
 }
@@ -204,15 +231,8 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
 
   // fix up successors
   for (auto bb : successors_) {
-    // fix up phis in successors
-    bb->fixupPhis(this, second_block);
-    // update successors of second block
-    second_block->successors().push_back(bb);
-    replace(
-        bb->predecessors().begin(),
-        bb->predecessors().end(),
-        this,
-        second_block);
+    bb->replacePredecessor(this, second_block);
+    second_block->successors_.push_back(bb);
   }
 
   // update successors of first block
@@ -220,19 +240,6 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
   // addSuccessor also fixes predecessors of second block
   addSuccessor(second_block);
   return second_block;
-}
-
-void BasicBlock::fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred) {
-  foreachPhiInstr([&](Instruction* instr) {
-    for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
-      auto block = instr->getInput(i);
-      if (block->type() == Operand::kLabel) {
-        if (block->getBasicBlock() == old_pred) {
-          block->setBasicBlock(new_pred);
-        }
-      }
-    }
-  });
 }
 
 codegen::CodeSection BasicBlock::section() const {

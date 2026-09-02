@@ -39,8 +39,8 @@ class BasicBlock {
 
   void addSuccessor(BasicBlock* bb);
 
-  // Set successor at index to bb.
-  // Expects index to be within the current size of successors.
+  // Retarget an outgoing edge. Remove its phi values from the old successor;
+  // this does not add phi values to the new successor.
   void setSuccessor(size_t index, BasicBlock* bb);
 
   std::vector<BasicBlock*>& successors();
@@ -51,7 +51,6 @@ class BasicBlock {
   BasicBlock* getTrueSuccessor() const;
   BasicBlock* getFalseSuccessor() const;
 
-  std::vector<BasicBlock*>& predecessors();
   const std::vector<BasicBlock*>& predecessors() const;
 
   size_t numPredecessors() const;
@@ -61,6 +60,14 @@ class BasicBlock {
   std::optional<size_t> findPredecessorIndex(
       const BasicBlock* predecessor) const;
   size_t predecessorIndex(const BasicBlock* predecessor) const;
+
+  // Replace a unique predecessor and its labels in this block's phis while
+  // preserving the associated phi values.
+  void replacePredecessor(BasicBlock* predecessor, BasicBlock* replacement);
+
+  // Remove a unique predecessor and its associated label/value pair from
+  // every phi in this block.
+  void removePredecessor(BasicBlock* predecessor);
 
   // Allocate an instruction and its operands and append it to the
   // instruction list. For the details on how to allocate instruction
@@ -135,9 +142,6 @@ class BasicBlock {
   // Return a new block with all instructions (including and) after instr.
   BasicBlock* splitBefore(Instruction* instr);
 
-  // Replace any references to old_pred in this block's Phis with new_pred.
-  void fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred);
-
   codegen::CodeSection section() const;
   void setSection(codegen::CodeSection section);
 
@@ -153,6 +157,7 @@ class BasicBlock {
   instr_iter_t iterator_to(Instruction* instr);
 
  private:
+  void addPredecessor(BasicBlock* predecessor);
   void applyPendingAnnotation(Instruction* instr);
   int id_;
   Function* func_;
