@@ -65,10 +65,8 @@ void jitFrameClearExceptCode(
     _PyInterpreterFrame* frame,
     FrameHeader* generator_header = nullptr);
 
-// Initializes a JIT interpreter frame. Equivalent to _PyFrame_Initialize if we
-// don't have ENABLE_LIGHTWEIGHT_FRAMES. If we do have ENABLE_LIGHTWEIGHT_FRAMES
-// then this will only initialize the subset of the fields which are
-// required.
+// Initializes a JIT interpreter frame. Equivalent to _PyFrame_Initialize
+// accounting for version differences.
 void jitFrameInit(
     PyThreadState* tstate,
     _PyInterpreterFrame* frame,
@@ -76,8 +74,7 @@ void jitFrameInit(
     PyCodeObject* code,
     int null_locals_from,
     _frameowner owner,
-    _PyInterpreterFrame* previous,
-    PyObject* reifier);
+    _PyInterpreterFrame* previous);
 
 Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code);
 

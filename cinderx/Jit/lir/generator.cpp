@@ -2335,7 +2335,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             rt::initFrameCellVars,
             bbb.getDefInstr(hir_instr.func()),
             hir_instr.numCellVars(),
-            env_->asm_tstate);
+            env_->asm_interpreter_frame);
         break;
       }
       case hir::Opcode::kLoadConst: {
@@ -3087,15 +3087,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kInitialYield: {
         auto hir_instr = &i.as<InitialYield>();
 
-        // Unlink the generator frame and get the gen object back.
-        Instruction* gen_obj;
-        Instruction* footer;
-        appendCall2RetValues(
-            bbb,
-            gen_obj,
-            footer,
-            rt::unlinkGenFrameAndReturnGenDataFooter,
-            env_->asm_tstate);
+        Instruction* footer = bbb.appendInstr(
+            OutVReg{},
+            Opcode::kMove,
+            PhyReg{codegen::arch::reg_frame_pointer_loc});
+        Instruction* gen_obj = bbb.appendInstr(
+            OutVReg{},
+            Opcode::kLoad,
+            Ind{footer, static_cast<int32_t>(offsetof(GenDataFooter, gen))});
 
         // Store yield point metadata (same as kYieldValue).
         Instruction* store = bbb.appendInstr(Opcode::kStoreGenYieldPoint);
@@ -3105,7 +3104,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto* branch = bbb.appendInstr(Opcode::kBranchToYieldExit);
         yield_exit_edges_.push_back({branch->basicBlock(), gen_obj});
 
-        // Split block: resume path starts in a new basic block.
         // Split block: resume path starts in a new basic block.
         // Resume successor added in finishFunction (see kYieldValue).
         BasicBlock* resume_block = bbb.allocateBlock();
@@ -5545,7 +5543,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
         bbb,
         frame,
         footer,
-        rt::allocateAndLinkGenAndInterpreterFrame,
+        rt::allocateGenAndInterpreterFrame,
         env_->asm_tstate,
         env_->asm_func,
         Imm{reinterpret_cast<uint64_t>(env_->code_rt)},

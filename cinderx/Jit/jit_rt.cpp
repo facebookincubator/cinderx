@@ -690,17 +690,46 @@ PyObject* reportStaticArgTypecheckErrors(
   return interpVectorcall(func, args, nargs | flags, new_kwnames);
 }
 
-/*
- * The reference for these two functions is _PyEvalFramePushAndInit in ceval.c.
- */
-
-static void init_and_link_interpreter_frame(
+static void init_generator_interpreter_frame(
     PyFunctionObject* func,
     PyCodeObject* co,
-    PyThreadState* tstate,
-    _frameowner owner,
+    [[maybe_unused]] PyThreadState* tstate,
     _PyInterpreterFrame* frame,
-    CodeRuntime* code_rt = nullptr) {
+    [[maybe_unused]] CodeRuntime* code_rt,
+    GenDataFooter* footer) {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  frame->owner = FRAME_OWNED_BY_GENERATOR;
+  frame->f_locals = nullptr;
+  frame->frame_obj = nullptr;
+#if PY_VERSION_HEX >= 0x030E0000
+  frame->stackpointer = frame->localsplus;
+  setFrameInstruction(frame, _PyCode_CODE(co));
+#ifdef Py_GIL_DISABLED
+  frame->tlbc_index = 0;
+#endif
+  setFrameCode(frame, code_rt->reifier());
+  setFrameFunction(frame, reinterpret_cast<PyObject*>(Py_NewRef(func)));
+  footer->frame_header.frame_status = 0;
+#else
+  frame->stacktop = 0;
+  setFrameInstruction(frame, _PyCode_CODE(co) - 1);
+  frame->prev_instr = _PyCode_CODE(co) - 1;
+  setFrameCode(frame, reinterpret_cast<PyObject*>(co));
+  JIT_DCHECK(
+      _Py_IsImmortal(cinderx::getModuleState()->frame_reifier),
+      "frame helper must be immortal");
+  setFrameFunction(frame, cinderx::getModuleState()->frame_reifier);
+  footer->frame_header.frame_status =
+      reinterpret_cast<uintptr_t>(Py_NewRef(func));
+#endif
+#if defined(CINDER_AARCH64)
+  footer->frame_header.tstate = tstate;
+#endif
+#if defined(Py_GIL_DISABLED)
+  footer->frame_header.deopt_idx = 0;
+#endif
+  frame->previous = nullptr;
+#else
   jitFrameInit(
       tstate,
       frame,
@@ -709,25 +738,18 @@ static void init_and_link_interpreter_frame(
       // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
       // safely clear the locals.
       0,
-      owner,
-      currentFrame(tstate),
-      code_rt != nullptr ? code_rt->reifier() : nullptr);
-
-  // Re-use the existing cframe to avoid having to manage a new one. There
-  // should always be one due to the existence of a the per-thread root
-  // cframe. The cframe idea seems to have only transiently been needed
-  // in 3.11 and is now a loose end removed in 3.13.
-  setCurrentFrame(tstate, frame);
+      FRAME_OWNED_BY_GENERATOR,
+      nullptr);
+#endif
 }
 
 void initFrameCellVars(
     PyFunctionObject* func,
     int nvars,
-    PyThreadState* tstate) {
+    _PyInterpreterFrame* frame) {
   PyObject* closure = func->func_closure;
   PyCodeObject* co = (PyCodeObject*)func->func_code;
   int offset = co->co_nlocalsplus - nvars;
-  _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
   for (int i = 0; i < offset; i++) {
     frame->localsplus[i] = Ci_STACK_NULL;
   }
@@ -742,8 +764,7 @@ void initFrameCellVars(
 #endif
 }
 
-std::pair<_PyInterpreterFrame*, GenDataFooter*>
-allocateAndLinkGenAndInterpreterFrame(
+std::pair<_PyInterpreterFrame*, GenDataFooter*> allocateGenAndInterpreterFrame(
     PyThreadState* tstate,
     PyFunctionObject* func,
     CodeRuntime* code_rt,
@@ -800,8 +821,7 @@ allocateAndLinkGenAndInterpreterFrame(
           reinterpret_cast<uintptr_t>(gen) + gen_size -
           sizeof(GenDataFooter));
   *jitGenDataFooterPtr(gen, co) = footer;
-  init_and_link_interpreter_frame(
-      func, co, tstate, FRAME_OWNED_BY_GENERATOR, frame, code_rt);
+  init_generator_interpreter_frame(func, co, tstate, frame, code_rt, footer);
 
   GenResumeFunc resume_func = code_rt->genResumeEntry();
   JIT_DCHECK(
@@ -841,18 +861,6 @@ allocateAndLinkGenAndInterpreterFrame(
   PyObject_GC_Track(gen);
 
   return {frame, footer};
-}
-
-std::pair<JitGenObject*, GenDataFooter*> unlinkGenFrameAndReturnGenDataFooter(
-    PyThreadState* tstate) {
-  _PyInterpreterFrame* frame = currentFrame(tstate);
-  setCurrentFrame(tstate, frame->previous);
-
-  frame->previous = nullptr;
-
-  BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
-  JitGenObject* gen = JitGenObject::cast(base_gen.get());
-  return {gen, gen->genDataFooter()};
 }
 
 void decrefFrame(PyFrameObject* frame) {

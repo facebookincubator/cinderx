@@ -364,7 +364,7 @@ void SpillAllocator::handleFramePointerSwitch(
   }
 
   // Forward switch: `Move fp, <footer vreg>`.  Walk back to the frame-setup
-  // call (e.g. allocateAndLinkGenAndInterpreterFrame) whose result is needed
+  // call (e.g. allocateGenAndInterpreterFrame) whose result is needed
   // after the switch.  Its result is still in the return register, so re-store
   // it into its home slot, which now lives in the heap-allocated generator
   // frame.

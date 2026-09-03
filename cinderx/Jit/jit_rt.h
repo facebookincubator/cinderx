@@ -42,11 +42,9 @@ PyThreadState* allocateAndLinkInterpreterFrame_Debug(
 
 PyThreadState* allocateAndLinkInterpreterFrame_Release(PyFunctionObject* func);
 
-// Allocate a generator and its interpreter frame, and link the frame into
-// tstate.  Returns the newly linked interpreter frame and the generator's
-// GenDataFooter.
-std::pair<_PyInterpreterFrame*, GenDataFooter*>
-allocateAndLinkGenAndInterpreterFrame(
+// Allocate a generator and its suspended interpreter frame. Returns the frame
+// and the generator's GenDataFooter.
+std::pair<_PyInterpreterFrame*, GenDataFooter*> allocateGenAndInterpreterFrame(
     PyThreadState* tstate,
     PyFunctionObject* func,
     CodeRuntime* code_rt,
@@ -55,10 +53,7 @@ allocateAndLinkGenAndInterpreterFrame(
 void initFrameCellVars(
     PyFunctionObject* func,
     int nvars,
-    PyThreadState* tstate);
-
-std::pair<JitGenObject*, GenDataFooter*> unlinkGenFrameAndReturnGenDataFooter(
-    PyThreadState* tstate);
+    _PyInterpreterFrame* frame);
 
 /*
  * Helper function to decref a frame.

@@ -485,6 +485,42 @@ PyType_Spec JitFrameReifier_Spec = {
 
 #endif
 
+/*
+ * The reference for these two functions is _PyEvalFramePushAndInit in ceval.c.
+ */
+
+void jitFrameInit(
+    [[maybe_unused]] PyThreadState* tstate,
+    _PyInterpreterFrame* frame,
+    PyFunctionObject* func,
+    PyCodeObject* code,
+    int null_locals_from,
+    _frameowner owner,
+    _PyInterpreterFrame* previous) {
+#if PY_VERSION_HEX >= 0x030E0000
+  _PyFrame_Initialize(
+      tstate,
+      frame,
+      PyStackRef_FromPyObjectNew(func),
+      NULL,
+      code,
+      null_locals_from,
+      previous);
+#else
+  _PyFrame_Initialize(
+      frame,
+      (PyFunctionObject*)Py_NewRef(func),
+      nullptr,
+      code,
+      null_locals_from);
+  frame->previous = previous;
+#endif
+  // We must set `frame->owner` after calling `_PyFrame_Initialize`;
+  // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
+  // potentially overriding any value we set earlier.
+  frame->owner = owner;
+}
+
 void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   if (jitFrameGetHeader(frame)->frame_status & JIT_FRAME_INITIALIZED) {
@@ -636,108 +672,6 @@ bool isInlinedFrame(_PyInterpreterFrame* frame) {
   return jitFrameGetHeader(frame)->frame_status & JIT_FRAME_INLINED;
 #else
   return false;
-#endif
-}
-
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-void jitFrameInitLightweight(
-    [[maybe_unused]] PyThreadState* tstate,
-    _PyInterpreterFrame* frame,
-    PyFunctionObject* func,
-    PyCodeObject* code,
-    _frameowner owner,
-    _PyInterpreterFrame* previous,
-    [[maybe_unused]] PyObject* reifier) {
-  // We must set `frame->owner` before calling `jitFrameSetFunction()`,
-  // otherwise assertions in callees will fail if the code object has
-  // generator-like flags but the frame's owner is not
-  // `FRAME_OWNED_BY_GENERATOR`.
-  frame->owner = owner;
-  // Outside of tests this function is only used for generator frames. These
-  // fields need to be set these for generators to help enable reuse of existing
-  // CPython generator management. Particularly, having a more fully configured
-  // frame allows us to use gen_traverse().
-  frame->f_locals = nullptr;
-  frame->frame_obj = nullptr;
-#if PY_VERSION_HEX >= 0x030E0000
-  JIT_DCHECK(reifier, "reifier needed for lightweight frames");
-  frame->stackpointer = frame->localsplus;
-  setFrameInstruction(frame, _PyCode_CODE(code));
-#ifdef Py_GIL_DISABLED
-  frame->tlbc_index = 0;
-#endif
-  setFrameCode(frame, reifier);
-  setFrameFunction(frame, (PyObject*)Py_NewRef(func));
-  jitFrameGetHeader(frame)->frame_status = 0;
-#else
-  frame->stacktop = 0;
-  setFrameInstruction(frame, _PyCode_CODE(code) - 1);
-  frame->prev_instr = _PyCode_CODE(code) - 1;
-  setFrameCode(frame, (PyObject*)code);
-  JIT_DCHECK(
-      _Py_IsImmortal(cinderx::getModuleState()->frame_reifier),
-      "frame helper must be immortal");
-  setFrameFunction(frame, cinderx::getModuleState()->frame_reifier);
-  jitFrameSetFunction(frame, (PyFunctionObject*)Py_NewRef(func));
-#endif
-#if defined(CINDER_AARCH64)
-  // Refreshed on every resume by the generator resume entry, since a generator
-  // can be resumed on a thread other than the one that started it.
-  jitFrameGetHeader(frame)->tstate = tstate;
-#endif
-#if defined(Py_GIL_DISABLED)
-  jitFrameGetHeader(frame)->deopt_idx = 0;
-#endif
-  frame->previous = previous;
-}
-#endif
-
-void jitFrameInitNormal(
-    [[maybe_unused]] PyThreadState* tstate,
-    _PyInterpreterFrame* frame,
-    PyFunctionObject* func,
-    PyCodeObject* code,
-    int null_locals_from,
-    _frameowner owner,
-    _PyInterpreterFrame* previous) {
-#if PY_VERSION_HEX >= 0x030E0000
-  _PyFrame_Initialize(
-      tstate,
-      frame,
-      PyStackRef_FromPyObjectNew(func),
-      NULL,
-      code,
-      null_locals_from,
-      previous);
-#else
-  _PyFrame_Initialize(
-      frame,
-      (PyFunctionObject*)Py_NewRef(func),
-      nullptr,
-      code,
-      null_locals_from);
-  frame->previous = previous;
-#endif
-  // We must set `frame->owner` after calling `_PyFrame_Initialize`;
-  // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
-  // potentially overriding any value we set earlier.
-  frame->owner = owner;
-}
-
-void jitFrameInit(
-    [[maybe_unused]] PyThreadState* tstate,
-    _PyInterpreterFrame* frame,
-    PyFunctionObject* func,
-    PyCodeObject* code,
-    [[maybe_unused]] int null_locals_from,
-    _frameowner owner,
-    _PyInterpreterFrame* previous,
-    PyObject* reifier) {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  jitFrameInitLightweight(tstate, frame, func, code, owner, previous, reifier);
-#else
-  jitFrameInitNormal(
-      tstate, frame, func, code, null_locals_from, owner, previous);
 #endif
 }
 

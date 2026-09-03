@@ -1448,7 +1448,7 @@ void NativeGenerator::generateCode(
         codeholder.baseAddress());
   }
 
-  // allocateAndLinkGenAndInterpreterFrame reads the resume entry out of the
+  // allocateGenAndInterpreterFrame reads the resume entry out of the
   // CodeRuntime rather than taking it as an argument, which keeps that call
   // down to four arguments.
   if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {

@@ -49,18 +49,7 @@ static inline Ref<> runInInterpreterViaReify(
   _PyInterpreterFrame* interp_frame =
       Cix_PyThreadState_PushFrame(tstate, code->co_framesize);
   jitFrameInit(
-      tstate,
-      interp_frame,
-      func,
-      code,
-      0,
-      FRAME_OWNED_BY_THREAD,
-      nullptr,
-      makeFrameReifier(code));
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  jitFramePopulateFrame(interp_frame);
-  jitFrameRemoveReifier(interp_frame);
-#endif
+      tstate, interp_frame, func, code, 0, FRAME_OWNED_BY_THREAD, nullptr);
   reifyFrame(interp_frame, dm, dfm, MemoryView{regs});
   // If we're at the start of the function, push IP past RESUME instruction
 #if PY_VERSION_HEX >= 0x030E0000
