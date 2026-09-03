@@ -18,8 +18,6 @@ namespace cinderx {
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 
-// Fixture that enables the (off-by-default) binary-op inline cache and restores
-// the JIT config afterwards so other tests are unaffected.
 class SimplifyBinaryOpCacheTest : public RuntimeTest {
  protected:
   void SetUp() override {
@@ -46,9 +44,8 @@ class SimplifyBinaryOpCacheTest : public RuntimeTest {
   Config saved_config_;
 };
 
-// A generic add of two unknown-typed objects should be rewritten into the
-// inline-cached BinaryOpCached variant when the cache is enabled.
-TEST_F(SimplifyBinaryOpCacheTest, GenericAddBecomesBinaryOpCached) {
+// Binary-op caching is selected during LIR generation, not HIR simplification.
+TEST_F(SimplifyBinaryOpCacheTest, GenericAddStaysBinaryOpWhenCacheEnabled) {
   const char* hir = R"(fun test {
   bb 0 {
     v0 = LoadArg<0>
@@ -58,11 +55,12 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericAddBecomesBinaryOpCached) {
   }
 }
 )";
-  EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOpCached<Add>"));
+  EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOp<Add>"));
 }
 
-// A generic multiply is also rewritten into the inline-cached variant.
-TEST_F(SimplifyBinaryOpCacheTest, GenericMultiplyBecomesBinaryOpCached) {
+TEST_F(
+    SimplifyBinaryOpCacheTest,
+    GenericMultiplyStaysBinaryOpWhenCacheEnabled) {
   const char* hir = R"(fun test {
   bb 0 {
     v0 = LoadArg<0>
@@ -72,11 +70,9 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericMultiplyBecomesBinaryOpCached) {
   }
 }
 )";
-  EXPECT_THAT(
-      runSimplify(hir), ::testing::HasSubstr("BinaryOpCached<Multiply>"));
+  EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOp<Multiply>"));
 }
 
-// Non-add/multiply operations are not affected by the binary-op cache.
 TEST_F(SimplifyBinaryOpCacheTest, GenericSubtractStaysBinaryOp) {
   const char* hir = R"(fun test {
   bb 0 {
@@ -87,13 +83,10 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericSubtractStaysBinaryOp) {
   }
 }
 )";
-  std::string out = runSimplify(hir);
-  EXPECT_THAT(out, ::testing::Not(::testing::HasSubstr("BinaryOpCached")));
-  EXPECT_THAT(out, ::testing::HasSubstr("BinaryOp<Subtract>"));
+  EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOp<Subtract>"));
 }
 
-// When the cache is disabled (the default), a generic add is left untouched.
-TEST_F(SimplifyBinaryOpCacheTest, GenericAddStaysBinaryOpWhenDisabled) {
+TEST_F(SimplifyBinaryOpCacheTest, GenericAddStaysBinaryOpWhenCacheDisabled) {
   getMutableConfig().binary_op_caches = false;
   const char* hir = R"(fun test {
   bb 0 {
@@ -104,9 +97,7 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericAddStaysBinaryOpWhenDisabled) {
   }
 }
 )";
-  std::string out = runSimplify(hir);
-  EXPECT_THAT(out, ::testing::Not(::testing::HasSubstr("BinaryOpCached")));
-  EXPECT_THAT(out, ::testing::HasSubstr("BinaryOp<Add>"));
+  EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOp<Add>"));
 }
 
 } // namespace cinderx

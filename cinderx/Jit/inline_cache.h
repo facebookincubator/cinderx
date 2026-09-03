@@ -947,7 +947,7 @@ enum class SpecializedType : uint8_t {
   kComplex,
 };
 
-// A cache for an individual BinaryOpCached instruction.
+// A cache for an individual BinaryOp instruction.
 //
 // Implements an inline cache for binary operations as a small state machine.
 // A single Specialization enum covers both add and multiply states, but add and

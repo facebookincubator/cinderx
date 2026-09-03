@@ -205,7 +205,6 @@ Type outputType(
       return TObject;
     }
 
-    case Opcode::kBinaryOpCached:
     case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCallIntrinsic:

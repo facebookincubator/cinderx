@@ -3396,70 +3396,66 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kBinaryOp: {
         auto bin_op = &i.as<BinaryOp>();
 
-        // NB: This needs to be in the order that the values appear in the
-        // BinaryOpKind enum
-        static const binaryfunc helpers[] = {
-            PyNumber_Add,
-            PyNumber_And,
-            PyNumber_FloorDivide,
-            PyNumber_Lshift,
-            PyNumber_MatrixMultiply,
-            PyNumber_Remainder,
-            PyNumber_Multiply,
-            PyNumber_Or,
-            nullptr, // PyNumber_Power is a ternary op.
-            PyNumber_Rshift,
-            PyObject_GetItem,
-            PyNumber_Subtract,
-            PyNumber_TrueDivide,
-            PyNumber_Xor,
-        };
-        JIT_CHECK(
-            static_cast<unsigned long>(bin_op->op()) < sizeof(helpers),
-            "unsupported binop");
-        auto op_kind = static_cast<int>(bin_op->op());
+        if (getConfig().binary_op_caches &&
+            (bin_op->op() == BinaryOpKind::kAdd ||
+             bin_op->op() == BinaryOpKind::kMultiply)) {
+          BinaryOpCache* cache = inline_cache_storage_.allocateBinaryOpCache(
+              bin_op->bytecodeOffset(), bin_op->op());
+          // Emit a direct call to the op-specific dispatch entry point. Each
+          // entry point switches on the cache's per-op specialization enum.
+          if (bin_op->op() == BinaryOpKind::kMultiply) {
+            bbb.appendCallInstruction(
+                bin_op->output(),
+                BinaryOpCache::multiply,
+                bin_op->left(),
+                bin_op->right(),
+                cache);
+          } else {
+            bbb.appendCallInstruction(
+                bin_op->output(),
+                BinaryOpCache::add,
+                bin_op->left(),
+                bin_op->right(),
+                cache);
+          }
+        } else {
+          // NB: This needs to be in the order that the values appear in the
+          // BinaryOpKind enum
+          static const binaryfunc helpers[] = {
+              PyNumber_Add,
+              PyNumber_And,
+              PyNumber_FloorDivide,
+              PyNumber_Lshift,
+              PyNumber_MatrixMultiply,
+              PyNumber_Remainder,
+              PyNumber_Multiply,
+              PyNumber_Or,
+              nullptr, // PyNumber_Power is a ternary op.
+              PyNumber_Rshift,
+              PyObject_GetItem,
+              PyNumber_Subtract,
+              PyNumber_TrueDivide,
+              PyNumber_Xor,
+          };
+          JIT_CHECK(
+              static_cast<unsigned long>(bin_op->op()) < sizeof(helpers),
+              "unsupported binop");
+          auto op_kind = static_cast<int>(bin_op->op());
 
-        if (bin_op->op() != BinaryOpKind::kPower) {
-          bbb.appendCallInstruction(
-              bin_op->output(),
-              helpers[op_kind],
-              bin_op->left(),
-              bin_op->right());
-        } else {
-          bbb.appendCallInstruction(
-              bin_op->output(),
-              PyNumber_Power,
-              bin_op->left(),
-              bin_op->right(),
-              Py_None);
-        }
-        break;
-      }
-      case hir::Opcode::kBinaryOpCached: {
-        auto instr = &i.as<BinaryOpCached>();
-        BinaryOpCache* cache = inline_cache_storage_.allocateBinaryOpCache(
-            instr->bytecodeOffset(), instr->op());
-        // Emit a direct call to the op-specific dispatch entry point: add() for
-        // kAdd, multiply() for kMultiply.  Each switches on the cache's per-op
-        // specialization enum -- there is no indirect call through a function
-        // pointer.  allocateBinaryOpCache() already rejected any other op kind.
-        if (instr->op() == BinaryOpKind::kMultiply) {
-          bbb.appendCallInstruction(
-              instr->output(),
-              BinaryOpCache::multiply,
-              instr->left(),
-              instr->right(),
-              cache);
-        } else {
-          JIT_DCHECK(
-              instr->op() == BinaryOpKind::kAdd,
-              "BinaryOpCached only supports add and multiply");
-          bbb.appendCallInstruction(
-              instr->output(),
-              BinaryOpCache::add,
-              instr->left(),
-              instr->right(),
-              cache);
+          if (bin_op->op() != BinaryOpKind::kPower) {
+            bbb.appendCallInstruction(
+                bin_op->output(),
+                helpers[op_kind],
+                bin_op->left(),
+                bin_op->right());
+          } else {
+            bbb.appendCallInstruction(
+                bin_op->output(),
+                PyNumber_Power,
+                bin_op->left(),
+                bin_op->right(),
+                Py_None);
+          }
         }
         break;
       }

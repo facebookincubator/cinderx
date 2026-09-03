@@ -26,11 +26,9 @@ using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 using namespace cinderx::jit::codegen;
 
-// End-to-end test of the BinaryOpCached codegen path: enables the binary-op
-// inline cache, JIT-compiles a function that does `a + b`, and actually runs
-// the generated machine code, asserting the returned value is correct. This
-// exercises the direct-call-to-dispatch codegen and the cache's runtime
-// state machine (cold -> int-specialized -> generic fallback).
+// End-to-end test of the cached BinaryOp codegen path: enables the binary-op
+// inline cache, JIT-compiles a function that does `a + b`, and exercises the
+// cache's runtime state machine (cold -> int-specialized -> generic fallback).
 class BinaryOpCacheCodegenTest : public RuntimeTest {
  protected:
   void SetUp() override {
@@ -60,10 +58,9 @@ def test(a, b):
 
   Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 
-  // The generic add should have been rewritten to the inline-cached variant.
+  // The cache option is handled during LIR generation, so HIR stays generic.
   ASSERT_THAT(
-      HIRPrinter{}.toString(*irfunc),
-      ::testing::HasSubstr("BinaryOpCached<Add>"));
+      HIRPrinter{}.toString(*irfunc), ::testing::HasSubstr("BinaryOp<Add>"));
 
   NativeGeneratorFactory factory;
   NativeGenerator gen(irfunc.get(), factory);
