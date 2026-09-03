@@ -455,12 +455,29 @@ void ftAtomicStorePtrRelaxed(T*& ptr, T* value) noexcept {
 inline void setVectorcall(
     BorrowedRef<PyFunctionObject> func,
     vectorcallfunc entry) {
+  if (kFreeThreadedBuild) {
+    // This isn't perfect as there's no synchronization to be done around
+    // the sets and stopping the world every time we JIT a function would
+    // be terrible. We set this to 0 which is FUNC_VERSION_UNSET. Every
+    // function gets a version number assigned when it's created so no
+    // function seen in interpreter caches will have version 0.
+    //
+    // But we can tolerate a race, the optimizer will never cache an
+    // invalid version. But we may not deopt in the interpreter
+    // loop immediately. We will eventually pick up the invalidated
+    // version.
 #ifdef __cpp_lib_atomic_ref
-  std::atomic_ref<vectorcallfunc>(func->vectorcall)
-      .store(entry, std::memory_order_relaxed);
+    std::atomic_ref<vectorcallfunc>(func->vectorcall)
+        .store(entry, std::memory_order_relaxed);
+    std::atomic_ref<uint32_t>(func->func_version)
+        .store(0, std::memory_order_relaxed);
 #else
-  __atomic_store_n(&func->vectorcall, entry, __ATOMIC_RELAXED);
+    __atomic_store_n(&func->vectorcall, entry, __ATOMIC_RELAXED);
+    __atomic_store_n(&func->func_version, 0, __ATOMIC_RELAXED);
 #endif
+  } else {
+    PyFunction_SetVectorcall(func, entry);
+  }
 }
 
 using FuncVisitor = void (*)(BorrowedRef<PyFunctionObject>);
