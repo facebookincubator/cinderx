@@ -292,7 +292,8 @@ class Instr : public IntrusiveListNode<Instr> {
   Instr(const Instr& other);
 
   Instr& operator=(const Instr&) = delete;
-  DISALLOW_MOVE_AND_ASSIGN(Instr);
+  Instr(Instr&&) = delete;
+  Instr& operator=(Instr&&) = delete;
 
   void* operator new(std::size_t count, void* ptr);
 
@@ -4127,10 +4128,12 @@ class BasicBlock : public IntrusiveListNode<BasicBlock> {
 
   int id{0};
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(BasicBlock);
-  DISALLOW_MOVE_AND_ASSIGN(BasicBlock);
+  BasicBlock(const BasicBlock&) = delete;
+  BasicBlock& operator=(const BasicBlock&) = delete;
+  BasicBlock(BasicBlock&&) = delete;
+  BasicBlock& operator=(BasicBlock&&) = delete;
 
+ private:
   friend class Edge;
 
   // Instructions for this basic block.
@@ -4202,9 +4205,10 @@ class Environment {
   // preloader until transferred to the CodeRuntime at the end of compilation.
   BorrowedRef<> reifier;
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(Environment);
+  Environment(const Environment&) = delete;
+  Environment& operator=(const Environment&) = delete;
 
+ private:
   RegisterMap registers_;
   ReferenceSet references_;
   StrongReferenceSet strong_references_;

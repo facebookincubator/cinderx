@@ -22,6 +22,9 @@ class Function {
   Function();
   ~Function();
 
+  Function(const Function&) = delete;
+  Function& operator=(const Function&) = delete;
+
   // All references in Function are kept alive by the preloader during
   // compilation
   BorrowedRef<PyCodeObject> code;
@@ -122,8 +125,6 @@ class Function {
   void invalidateDomTree();
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Function);
-
   std::unique_ptr<DominatorTree> dom_tree_;
 };
 

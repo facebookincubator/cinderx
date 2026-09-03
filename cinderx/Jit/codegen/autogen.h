@@ -16,6 +16,9 @@ class AutoTranslator {
     return autotrans;
   }
 
+  AutoTranslator(const AutoTranslator&) = delete;
+  AutoTranslator& operator=(const AutoTranslator&) = delete;
+
   void translateInstr(Environ* env, const jit::lir::Instruction* instr) const;
 
   static arch::Gp getGp(lir::DataType data_type, unsigned int reg) {
@@ -136,8 +139,6 @@ class AutoTranslator {
 
  private:
   AutoTranslator() = default;
-
-  DISALLOW_COPY_AND_ASSIGN(AutoTranslator);
 };
 
 } // namespace cinderx::jit::codegen::autogen

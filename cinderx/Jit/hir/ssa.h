@@ -19,15 +19,15 @@ class SSAify final : public Pass {
  public:
   SSAify() : Pass("SSAify") {}
 
+  SSAify(const SSAify&) = delete;
+  SSAify& operator=(const SSAify&) = delete;
+
   void run(Function& irfunc) override;
   void run(Function& irfunc, BasicBlock* block);
 
   static std::unique_ptr<SSAify> factory() {
     return std::make_unique<SSAify>();
   }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(SSAify);
 };
 
 } // namespace cinderx::jit::hir

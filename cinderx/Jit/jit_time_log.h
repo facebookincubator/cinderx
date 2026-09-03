@@ -56,13 +56,13 @@ class SubPhaseTimer {
   explicit SubPhaseTimer(std::string_view sub_phase_name)
       : sub_phase_name{sub_phase_name} {}
 
+  SubPhaseTimer(const SubPhaseTimer&) = delete;
+  SubPhaseTimer& operator=(const SubPhaseTimer&) = delete;
+
   std::string sub_phase_name;
   std::vector<std::unique_ptr<SubPhaseTimer>> children;
   time_point start;
   time_point end;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(SubPhaseTimer);
 };
 
 class CompilationPhaseTimer {
@@ -83,8 +83,10 @@ class CompilationPhaseTimer {
   // log
   void end();
 
+  CompilationPhaseTimer(const CompilationPhaseTimer&) = delete;
+  CompilationPhaseTimer& operator=(const CompilationPhaseTimer&) = delete;
+
  private:
-  DISALLOW_COPY_AND_ASSIGN(CompilationPhaseTimer);
   std::vector<SubPhaseTimer*> current_phase_stack_;
   std::string function_name_;
   std::function<time_point()> time_provider_;

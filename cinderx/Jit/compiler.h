@@ -71,8 +71,10 @@ class Compiler {
       PassConfig config,
       PostPassFunction callback);
 
+  Compiler(const Compiler&) = delete;
+  Compiler& operator=(const Compiler&) = delete;
+
  private:
-  DISALLOW_COPY_AND_ASSIGN(Compiler);
   codegen::NativeGeneratorFactory ngen_factory_;
 };
 

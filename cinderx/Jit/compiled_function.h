@@ -255,12 +255,13 @@ class CompiledFunction {
   // After this call, the CF no longer owns or references the data.
   [[nodiscard]] CompiledFunctionData* stealData();
 
+  CompiledFunction(const CompiledFunction&) = delete;
+  CompiledFunction& operator=(const CompiledFunction&) = delete;
+
  private:
   explicit CompiledFunction(CompiledFunctionData* data, bool contiguous);
 
   friend Ref<CompiledFunction>;
-
-  DISALLOW_COPY_AND_ASSIGN(CompiledFunction);
 
   CompiledFunctionOwner* owner_{};
   CompiledFunctionData* data_{nullptr};

@@ -11,6 +11,9 @@ class CFG {
   CFG() = default;
   ~CFG();
 
+  CFG(const CFG&) = delete;
+  CFG& operator=(const CFG&) = delete;
+
   // Allocate a new basic block and insert it into this CFG
   BasicBlock* allocateBlock();
 
@@ -67,8 +70,6 @@ class CFG {
   IntrusiveList<BasicBlock> blocks;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(CFG);
-
   int next_block_id_{0};
 };
 

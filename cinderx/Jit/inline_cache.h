@@ -605,9 +605,10 @@ class StoreAttrCache : public AttributeCache {
   // Address of the dispatch slot, for codegen to load and call through.
   StoreAttrTarget* targetAddr();
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(StoreAttrCache);
+  StoreAttrCache(const StoreAttrCache&) = delete;
+  StoreAttrCache& operator=(const StoreAttrCache&) = delete;
 
+ private:
   int doInvoke(PyObject* obj, PyObject* name, PyObject* value);
   static int invokeSlowPath(
       PyObject* obj,
@@ -674,9 +675,10 @@ class LoadAttrCache : public AttributeCache {
   // Address of the dispatch slot, for codegen to load and call through.
   LoadAttrTarget* targetAddr();
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(LoadAttrCache);
+  LoadAttrCache(const LoadAttrCache&) = delete;
+  LoadAttrCache& operator=(const LoadAttrCache&) = delete;
 
+ private:
   static PyObject*
   invokeSlowPath(PyObject* obj, PyObject* name, LoadAttrCache* cache);
 
@@ -1002,9 +1004,10 @@ class BinaryOpCache {
   // ({kUninitialized, ...} before the first call).
   BinarySpecialization specializedTypes() const;
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(BinaryOpCache);
+  BinaryOpCache(const BinaryOpCache&) = delete;
+  BinaryOpCache& operator=(const BinaryOpCache&) = delete;
 
+ private:
   // Selects the initial populate state for op, or throws std::runtime_error if
   // op is not supported.
   static Specialization selectInitialSpecialization(

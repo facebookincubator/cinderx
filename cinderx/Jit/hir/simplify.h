@@ -16,14 +16,14 @@ class Simplify final : public Pass {
  public:
   Simplify() : Pass("Simplify") {}
 
+  Simplify(const Simplify&) = delete;
+  Simplify& operator=(const Simplify&) = delete;
+
   void run(Function& func) override;
 
   static std::unique_ptr<Simplify> factory() {
     return std::make_unique<Simplify>();
   }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(Simplify);
 };
 
 } // namespace cinderx::jit::hir

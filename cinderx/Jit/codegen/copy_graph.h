@@ -72,8 +72,10 @@ class CopyGraph {
     Node* parent{nullptr};
     IntrusiveList<Node, ChildListTag> children;
 
-    DISALLOW_COPY_AND_ASSIGN(Node);
-    DISALLOW_MOVE_AND_ASSIGN(Node);
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
+    Node(Node&&) = delete;
+    Node& operator=(Node&&) = delete;
   };
   using ChildLink = IntrusiveListNode<Node, ChildListTag>;
   using LeafLink = IntrusiveListNode<Node, LeafListTag>;

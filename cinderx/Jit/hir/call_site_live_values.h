@@ -12,10 +12,10 @@ class CallSiteLiveValues final : public Pass {
  public:
   CallSiteLiveValues() : Pass("CallSiteLiveValues") {}
 
-  void run(Function& irfunc) override;
+  CallSiteLiveValues(const CallSiteLiveValues&) = delete;
+  CallSiteLiveValues& operator=(const CallSiteLiveValues&) = delete;
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(CallSiteLiveValues);
+  void run(Function& irfunc) override;
 };
 
 } // namespace cinderx::jit::hir

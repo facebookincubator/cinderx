@@ -173,7 +173,8 @@ class NativeGeneratorFactory {
 
   std::unique_ptr<NativeGenerator> operator()(const hir::Function* func);
 
-  DISALLOW_COPY_AND_ASSIGN(NativeGeneratorFactory);
+  NativeGeneratorFactory(const NativeGeneratorFactory&) = delete;
+  NativeGeneratorFactory& operator=(const NativeGeneratorFactory&) = delete;
 
   void* deoptTrampoline();
   void* deoptTrampolineGenerators();

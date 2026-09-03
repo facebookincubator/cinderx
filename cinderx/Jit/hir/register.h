@@ -19,6 +19,9 @@ class Register {
  public:
   explicit Register(int i) : id_(i) {}
 
+  Register(const Register&) = delete;
+  Register& operator=(const Register&) = delete;
+
   // An integer identifier for this register. This is unique per `Function`.
   int id() const {
     return id_;
@@ -47,8 +50,6 @@ class Register {
   }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Register);
-
   Type type_{TTop};
   Instr* instr_{nullptr};
   int id_{-1};

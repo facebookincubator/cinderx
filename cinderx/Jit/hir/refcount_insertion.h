@@ -11,14 +11,14 @@ class RefcountInsertion final : public Pass {
  public:
   RefcountInsertion() : Pass("RefcountInsertion") {}
 
+  RefcountInsertion(const RefcountInsertion&) = delete;
+  RefcountInsertion& operator=(const RefcountInsertion&) = delete;
+
   void run(Function& irfunc) override;
 
   static std::unique_ptr<RefcountInsertion> factory() {
     return std::make_unique<RefcountInsertion>();
   }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(RefcountInsertion);
 };
 
 } // namespace cinderx::jit::hir

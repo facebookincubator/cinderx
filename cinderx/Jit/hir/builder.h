@@ -41,6 +41,9 @@ class BlockCanonicalizer {
  public:
   explicit BlockCanonicalizer(Environment* env) : env_(env) {}
 
+  BlockCanonicalizer(const BlockCanonicalizer&) = delete;
+  BlockCanonicalizer& operator=(const BlockCanonicalizer&) = delete;
+
   void run(BasicBlock* block, OperandStack& stack);
 
   // Get the register reserved for operand-stack depth idx, allocating it if it
@@ -51,8 +54,6 @@ class BlockCanonicalizer {
   Register* getOrAllocateCanonicalStack(std::size_t idx);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(BlockCanonicalizer);
-
   void insertCopies(
       Register* reg,
       Instr& terminator,
@@ -89,6 +90,9 @@ class HIRBuilder {
   explicit HIRBuilder(const Preloader& preloader)
       : code_(preloader.code()), preloader_(preloader) {}
 
+  HIRBuilder(const HIRBuilder&) = delete;
+  HIRBuilder& operator=(const HIRBuilder&) = delete;
+
   // Translate the bytecode for code_ into HIR, in the context of the preloaded
   // globals and classloader lookups from preloader_.
   //
@@ -107,8 +111,6 @@ class HIRBuilder {
   InlineResult inlineHIR(Function* caller, FrameState* caller_frame_state);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(HIRBuilder);
-
   // Used by buildHIR and inlineHIR.
   // irfunc is the function being compiled or the caller function.
   // frame_state should be nullptr if irfunc matches the preloader (not

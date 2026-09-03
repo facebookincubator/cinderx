@@ -52,8 +52,8 @@ class AllPasses : public Pass {
     return std::make_unique<AllPasses>();
   }
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(AllPasses);
+  AllPasses(const AllPasses&) = delete;
+  AllPasses& operator=(const AllPasses&) = delete;
 };
 
 using PassFactory = std::function<std::unique_ptr<Pass>()>;
@@ -88,9 +88,10 @@ class TestPassRegistry {
     factories_.emplace(temp->name(), factory);
   }
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(TestPassRegistry);
+  TestPassRegistry(const TestPassRegistry&) = delete;
+  TestPassRegistry& operator=(const TestPassRegistry&) = delete;
 
+ private:
   std::unordered_map<std::string, PassFactory> factories_;
 };
 

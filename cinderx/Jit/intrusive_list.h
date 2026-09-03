@@ -59,6 +59,9 @@ class IntrusiveListNode {
  public:
   IntrusiveListNode() : prev_(this), next_(this) {}
 
+  IntrusiveListNode(const IntrusiveListNode&) = delete;
+  IntrusiveListNode& operator=(const IntrusiveListNode&) = delete;
+
   bool isLinked() const {
     return prev_ != this;
   }
@@ -117,8 +120,6 @@ class IntrusiveListNode {
     setNext(this);
     setPrev(this);
   }
-
-  DISALLOW_COPY_AND_ASSIGN(IntrusiveListNode);
 
   IntrusiveListNode* prev_;
   IntrusiveListNode* next_;
@@ -292,9 +293,10 @@ class IntrusiveList {
     return rend();
   }
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(IntrusiveList);
+  IntrusiveList(const IntrusiveList&) = delete;
+  IntrusiveList& operator=(const IntrusiveList&) = delete;
 
+ private:
   pointer getOwner(NodeType* node) const {
     return static_cast<T*>(node);
   }

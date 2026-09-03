@@ -99,7 +99,8 @@ class FileLock {
         ret == 0, "flock({}, LOCK_UN) failed: {}", fd_, string_error(errno));
   }
 
-  DISALLOW_COPY_AND_ASSIGN(FileLock);
+  FileLock(const FileLock&) = delete;
+  FileLock& operator=(const FileLock&) = delete;
 
  private:
   int fd_;
