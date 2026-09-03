@@ -751,22 +751,8 @@ static PyObject* AsyncLazyValue_ensure_future(
 }
 
 static PyObject* AsyncLazyValue_link(
-    AsyncLazyValueObj* self,
+    AsyncLazyValueObj* Py_UNUSED(self),
     PyObject* Py_UNUSED(arg)) {
-#if 0
-  if (cinder_get_arg0_from_pyframe != nullptr) {
-    PyObject* parent = call_get_arg0_from_pyframe(
-        asyncio_alv_metadata_entrypoint_name, /*to_skip*/ one);
-    if (parent == nullptr) {
-      return nullptr;
-    }
-    if (parent != Py_None) {
-      self->alv_parent = parent;
-    } else {
-      Py_DECREF(parent);
-    }
-  }
-#endif
   Py_RETURN_NONE;
 }
 
