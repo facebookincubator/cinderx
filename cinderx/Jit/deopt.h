@@ -274,6 +274,11 @@ void reifyGeneratorFrame(
 void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem);
 void releaseRefs(const DeoptMetadata& meta, const void* base);
 
+// Release owned object references from a suspended generator that will never
+// resume. Unlike releaseRefs(), primitive values do not need to be boxed when
+// the frame is being discarded.
+void releaseGeneratorOwnedRefs(const DeoptMetadata& meta, const void* base);
+
 // Call once per deopt.
 Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem);
 

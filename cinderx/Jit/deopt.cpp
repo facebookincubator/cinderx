@@ -467,6 +467,27 @@ void releaseRefs(const DeoptMetadata& meta, const void* base) {
   releaseRefs(meta, MemoryView{regs});
 }
 
+void releaseGeneratorOwnedRefs(const DeoptMetadata& meta, const void* base) {
+  for (const LiveValue& value : meta.live_values) {
+    if (value.ref_kind != hir::RefKind::kOwned ||
+        value.value_kind != hir::ValueKind::kObject) {
+      continue;
+    }
+    JIT_CHECK(
+        !value.location.isRegister(),
+        "Suspended generator reference is not in spill memory");
+    uint64_t raw = *reinterpret_cast<const uint64_t*>(
+        reinterpret_cast<uintptr_t>(base) + value.location.loc);
+    if constexpr (kFreeThreadedBuild) {
+      if (isDeferredRcTagged(raw)) {
+        continue;
+      }
+      raw = stripDeferredRcTag(raw);
+    }
+    Py_XDECREF(reinterpret_cast<PyObject*>(raw));
+  }
+}
+
 LiveValue::Source getLiveValueSource(jit::hir::Register* reg) {
   reg = hir::modelReg(reg);
   auto instr = reg->instr();

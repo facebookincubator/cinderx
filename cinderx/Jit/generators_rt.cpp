@@ -58,11 +58,60 @@ void untrack(T arg) {
 #endif
 }
 
+GenDataFooter* neverResumedGeneratorFooter(PyObject* obj, ModuleState* state) {
+  auto* gen = reinterpret_cast<JitGenObject*>(obj);
+  if (gen->gi_frame_state != FRAME_CREATED || Py_TYPE(obj) != state->gen_type) {
+    return nullptr;
+  }
+
+  _PyInterpreterFrame* frame = generatorFrame(gen);
+  if (frame->frame_obj != nullptr) {
+    return nullptr;
+  }
+  GenDataFooter* footer = gen->genDataFooter();
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (footer->frame_header.frame_status & JIT_FRAME_INITIALIZED) {
+    return nullptr;
+  }
+#endif
+  return footer;
+}
+
+void clearNeverResumedGenerator(
+    JitGenObject* gen,
+    GenDataFooter* footer,
+    ModuleState* state) {
+  JIT_DCHECK(footer->yieldPoint != nullptr, "Missing initial yield point");
+  const DeoptMetadata& deopt_meta =
+      footer->compiled_func->runtime()->getDeoptMetadata(
+          footer->yieldPoint->deoptIdx());
+  JIT_DCHECK(
+      deopt_meta.inline_depth() == 0,
+      "inline functions not supported for generators");
+
+  _PyInterpreterFrame* frame = generatorFrame(gen);
+  gen->gi_frame_state = FRAME_CLEARED;
+  frame->previous = nullptr;
+  footer->yieldPoint = nullptr;
+  releaseGeneratorOwnedRefs(deopt_meta, footer);
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  jitFrameClearExceptCode(frame, &footer->frame_header);
+#else
+  jitFrameClearExceptCode(frame);
+#endif
+  _PyErr_ClearExcState(&gen->gi_exc_state);
+  deopt_jit_gen_object_only(gen, footer, state);
+}
+
 // Reimplementation of CPython's gen_dealloc that uses our custom free-list
 // (Ci_free_jit_list_gen) instead of PyObject_GC_Del for memory recycling.
-void gen_dealloc_with_custom_free(PyObject* self) {
+void gen_dealloc_with_custom_free(
+    PyObject* self,
+    bool clear_never_resumed = false,
+    GenDataFooter* footer = nullptr,
+    ModuleState* state = nullptr) {
   JIT_DCHECK(
-      PyGen_Check(self) || PyCoro_CheckExact(self),
+      PyGen_Check(self) || PyCoro_CheckExact(self) || clear_never_resumed,
       "gen_dealloc_with_custom_free called on a non-generator object");
 
   auto* gen = reinterpret_cast<PyGenObject*>(self);
@@ -73,12 +122,20 @@ void gen_dealloc_with_custom_free(PyObject* self) {
     PyObject_ClearWeakRefs(self);
   }
 
-  // Re-track so the finalizer can run; it may resurrect the object.
-  track(self);
-  if (PyObject_CallFinalizerFromDealloc(self)) {
-    return;
+  if (clear_never_resumed) {
+#if PY_VERSION_HEX >= 0x030F0000
+    gen->gi_frame_state = FRAME_CLEARED;
+#else
+    gen->gi_frame_state = FRAME_COMPLETED;
+#endif
+  } else {
+    // Re-track so the finalizer can run; it may resurrect the object.
+    track(self);
+    if (PyObject_CallFinalizerFromDealloc(self)) {
+      return;
+    }
+    untrack(self);
   }
-  untrack(self);
 
   JIT_DCHECK(
       !PyAsyncGen_CheckExact(gen),
@@ -89,7 +146,10 @@ void gen_dealloc_with_custom_free(PyObject* self) {
   }
 
   _PyInterpreterFrame* frame = generatorFrame(gen);
-  if (gen->gi_frame_state < FRAME_CLEARED) {
+  if (clear_never_resumed) {
+    clearNeverResumedGenerator(
+        reinterpret_cast<JitGenObject*>(gen), footer, state);
+  } else if (gen->gi_frame_state < FRAME_CLEARED) {
     gen->gi_frame_state = FRAME_CLEARED;
     frame->previous = nullptr;
     _PyFrame_ClearExceptCode(frame);
@@ -105,15 +165,19 @@ void gen_dealloc_with_custom_free(PyObject* self) {
   Py_CLEAR(gen->gi_ci_awaiter);
 #endif
 
-  cinderx::getModuleState()->jit_gen_free_list->free(self);
+  state = state != nullptr ? state : cinderx::getModuleState();
+  state->jit_gen_free_list->free(self);
 }
 
 void jitgen_dealloc(PyObject* self) {
-  if (!deopt_jit_gen(self)) {
+  ModuleState* state = cinderx::getModuleState();
+  GenDataFooter* footer = neverResumedGeneratorFooter(self, state);
+  bool clear_never_resumed = footer != nullptr;
+  if (!clear_never_resumed && !deopt_jit_gen(self)) {
     JIT_ABORT("Tried to dealloc a running JIT generator");
   }
 
-  gen_dealloc_with_custom_free(self);
+  gen_dealloc_with_custom_free(self, clear_never_resumed, footer, state);
 }
 
 int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
@@ -475,6 +539,13 @@ PyObject* jitcoro_getclass(PyObject*, void*) {
 
 void jitgen_finalize(PyObject* obj) {
   PyGenObject* gen = reinterpret_cast<PyGenObject*>(obj);
+
+  ModuleState* state = cinderx::getModuleState();
+  if (GenDataFooter* footer = neverResumedGeneratorFooter(obj, state)) {
+    clearNeverResumedGenerator(
+        reinterpret_cast<JitGenObject*>(gen), footer, state);
+    return;
+  }
 
   // Fast-path: generator has completed so there's nothing to do.
   if (FRAME_STATE_FINISHED(gen->gi_frame_state)) {
@@ -854,16 +925,24 @@ PyType_Spec JitCoro_Spec = {
     .slots = coro_slots,
 };
 
-void deopt_jit_gen_object_only(JitGenObject* gen) {
+void deopt_jit_gen_object_only(
+    JitGenObject* gen,
+    GenDataFooter* footer,
+    ModuleState* state) {
   // Release the strong reference to the CompiledFunction that was taken
   // when the generator was allocated.
-  GenDataFooter* footer = gen->genDataFooter();
+  [[maybe_unused]] bool has_cached_footer = footer != nullptr;
+  if (footer == nullptr) {
+    footer = gen->genDataFooter();
+  }
 
   PyTypeObject* old_type = Py_TYPE(gen);
 
-  PyTypeObject* type = Py_TYPE(gen) == cinderx::getModuleState()->gen_type
-      ? &PyGen_Type
-      : &PyCoro_Type;
+  if (state == nullptr) {
+    state = cinderx::getModuleState();
+  }
+  PyTypeObject* type =
+      Py_TYPE(gen) == state->gen_type ? &PyGen_Type : &PyCoro_Type;
   Py_DECREF(old_type);
   Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), type);
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
@@ -876,7 +955,9 @@ void deopt_jit_gen_object_only(JitGenObject* gen) {
     // ownership of the _PyInterpreterFrame to the PyFrameObject and marks
     // the generator frame as cleared. In that case we still need to decref
     // the function which is stored before the _PyInterpreterFrame in 3.12.
-    Py_XDECREF(jitFrameGetFunction(frame));
+    if (!has_cached_footer) {
+      Py_XDECREF(jitFrameGetFunction(frame));
+    }
   }
 #endif
   Py_CLEAR(footer->compiled_func);

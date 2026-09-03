@@ -53,7 +53,10 @@ struct JitGenObject : PyGenObject {
 
 // Converts a JitGenObject into a regular PyGenObject. This assumes deopting
 // the associated frame will be done elsewhere.
-void deopt_jit_gen_object_only(JitGenObject* gen);
+void deopt_jit_gen_object_only(
+    JitGenObject* gen,
+    GenDataFooter* footer = nullptr,
+    ModuleState* state = nullptr);
 
 // Fully deopt a generator so it'll be ready for use in the interpreter. Note
 // this cannot be done on a currently executing JIT generator and will return

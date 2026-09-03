@@ -514,6 +514,49 @@ class GeneratorsTest(unittest.TestCase):
 
         self.assertIsNone(ref())
 
+    def test_weakref_callback_on_discard_before_resume(self):
+        callbacks = []
+        g = self._f1()
+        g_ref = weakref.ref(g, callbacks.append)
+        self.assertIs(g_ref(), g)
+
+        del g
+
+        self.assertIsNone(g_ref())
+        self.assertEqual(callbacks, [g_ref])
+
+    def test_gc_collects_unstarted_generator_cycle(self):
+        class Cycle:
+            pass
+
+        cycle = Cycle()
+        g = self._f9(cycle)
+        cycle.generator = g
+        cycle_ref = weakref.ref(cycle)
+        g_ref = weakref.ref(g)
+
+        del cycle
+        del g
+        gc.collect()
+
+        self.assertIsNone(cycle_ref())
+        self.assertIsNone(g_ref())
+
+    def test_attributes_after_close_before_resume(self):
+        g = self._f1()
+        frame = g.gi_frame
+        code = g.gi_code
+        name = g.__name__
+        qualname = g.__qualname__
+
+        g.close()
+
+        self.assertIsNone(g.gi_frame)
+        self.assertIs(g.gi_code, code)
+        self.assertEqual(g.__name__, name)
+        self.assertEqual(g.__qualname__, qualname)
+        self.assertIsNotNone(frame)
+
     @cinder_support.failUnlessJITCompiled
     def _f12(self, g):
         a = yield from g

@@ -61,7 +61,9 @@ FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
 // Like _PyFrame_ClearExceptCode but will handle partially initialized
 // JIT frames and only clean up the necessary state.
-void jitFrameClearExceptCode(_PyInterpreterFrame* frame);
+void jitFrameClearExceptCode(
+    _PyInterpreterFrame* frame,
+    FrameHeader* generator_header = nullptr);
 
 // Initializes a JIT interpreter frame. Equivalent to _PyFrame_Initialize if we
 // don't have ENABLE_LIGHTWEIGHT_FRAMES. If we do have ENABLE_LIGHTWEIGHT_FRAMES

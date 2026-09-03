@@ -741,7 +741,9 @@ void jitFrameInit(
 #endif
 }
 
-void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
+void jitFrameClearExceptCode(
+    _PyInterpreterFrame* frame,
+    FrameHeader* generator_header) {
   /* It is the responsibility of the owning generator/coroutine
    * to have cleared the enclosing generator, if any. */
   JIT_DCHECK(
@@ -753,10 +755,12 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   JIT_DCHECK(currentFrame(PyThreadState_Get()) != frame, "wrong current frame");
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  FrameHeader* header =
+      generator_header != nullptr ? generator_header : jitFrameGetHeader(frame);
   // If we've already been requested by the runtime to initialize this
   // _PyInterpreterFrame then we just fall back to its implementation to
   // handle the clearing.
-  if (jitFrameGetHeader(frame)->frame_status & JIT_FRAME_INITIALIZED) {
+  if (header->frame_status & JIT_FRAME_INITIALIZED) {
     jitFrameRemoveReifier(frame);
     _PyFrame_ClearExceptCode(frame);
     return;
@@ -772,12 +776,13 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
 #if PY_VERSION_HEX < 0x030E0000
   // We can't leave our reifier dangling here otherwise we may
   // continue to get callbacks, instead leave the function dangling.
-  frame->f_funcobj = jitFrameGetFunction(frame);
+  frame->f_funcobj =
+      reinterpret_cast<PyObject*>(header->frame_status & ~JIT_FRAME_MASK);
   // function isn't incref'd for inline frames, it's kept alive
   // by the code runtime.
   if (!isInlinedFrame(frame)) {
-    Py_XDECREF(jitFrameGetFunction(frame));
-    jitFrameGetHeader(frame)->frame_status = JIT_FRAME_INITIALIZED;
+    Py_XDECREF(frame->f_funcobj);
+    header->frame_status = JIT_FRAME_INITIALIZED;
   }
 #endif
 #else
