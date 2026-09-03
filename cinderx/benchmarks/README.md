@@ -111,6 +111,17 @@ Measures how long the JIT takes to compile functions (not runtime performance):
 uv run python -m cinderx.benchmarks.compile_time
 ```
 
+## Generator Expression Benchmark
+
+Measures generator-expression creation and teardown without iteration, plus
+the cost of passing short-lived generator expressions directly to a consumer.
+A list comprehension provides a control. Increase `--width` to amortize
+construction and emphasize per-item resume/yield cost in the consumed case:
+
+```bash
+buck run @fbcode//mode/opt fbcode//cinderx/benchmarks:generator-expression-312 -- --compare
+```
+
 ## Heavyweight Benchmarks
 
 These require additional dependencies to be installed.
@@ -203,6 +214,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `richards` | Operating system task scheduler simulation (object-oriented workload) |
 | `spectral_norm` | Numerical computation of the spectral norm of a matrix |
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
+| `generator-expression` | Generator-expression creation and resume/yield cost, with a list-comprehension control |
 | `attr-cache` | LOAD_ATTR/STORE_ATTR against every receiver layout, monomorphic through megamorphic |
 | `global_cache` | Module-global reads across compile-time caching, late binding, rebinding, and uncompile |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |
