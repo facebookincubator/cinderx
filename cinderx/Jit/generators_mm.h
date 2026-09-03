@@ -25,7 +25,7 @@ constexpr size_t kGenFreeListEntrySize = 512;
 // Basically a free-list but the backing memory is pre-allocated in a single
 // block. This makes it possible to determine if the storage is from this pool
 // even after deopt by just examining a generator's pointer value.
-class JitGenFreeList : public IJitGenFreeList {
+class JitGenFreeList final : public IJitGenFreeList {
  public:
   JitGenFreeList();
   ~JitGenFreeList() override = default;
@@ -50,7 +50,7 @@ class JitGenFreeList : public IJitGenFreeList {
   Entry* head_;
 };
 
-class JITGenFreeThreadedFreeList : public IJitGenFreeList {
+class JITGenFreeThreadedFreeList final : public IJitGenFreeList {
  public:
   ~JITGenFreeThreadedFreeList() override = default;
 

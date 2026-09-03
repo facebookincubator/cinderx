@@ -185,14 +185,18 @@ class CompiledFunction {
   std::span<const std::byte> codeBuffer() const;
 
   // Entry point for calling the function via the vectorcall API.
-  vectorcallfunc vectorcallEntry() const;
+  vectorcallfunc vectorcallEntry() const {
+    return data_->vectorcall_entry;
+  }
 
   // Entry point for Static Python calls that skips argument boxing.  Returns
   // nullptr if the function was not statically compiled.
   void* staticEntry() const;
 
   // Runtime state (code object, globals, builtins) backing this function.
-  CodeRuntime* runtime() const;
+  CodeRuntime* runtime() const {
+    return data_->runtime;
+  }
 
   // Call the compiled code directly through its vectorcall entry point.
   PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const;

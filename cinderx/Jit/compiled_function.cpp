@@ -225,14 +225,6 @@ std::span<const std::byte> CompiledFunction::codeBuffer() const {
   return data_->code;
 }
 
-vectorcallfunc CompiledFunction::vectorcallEntry() const {
-  return data_->vectorcall_entry;
-}
-
-CodeRuntime* CompiledFunction::runtime() const {
-  return data_->runtime;
-}
-
 PyObject* CompiledFunction::invoke(
     PyObject* func,
     PyObject** args,
