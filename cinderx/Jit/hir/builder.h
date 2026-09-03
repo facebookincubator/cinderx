@@ -363,7 +363,6 @@ class HIRBuilder {
   void emitGetAwaitable(
       CFG& cfg,
       TranslationContext& tc,
-      const BytecodeInstructionBlock& bc_instrs,
       BytecodeInstruction bc_instr);
   void emitUnpackEx(
       TranslationContext& tc,

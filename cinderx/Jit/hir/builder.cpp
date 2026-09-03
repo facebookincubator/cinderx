@@ -1424,7 +1424,7 @@ void HIRBuilder::translate(
           break;
         }
         case GET_AWAITABLE: {
-          emitGetAwaitable(irfunc.cfg, tc, bc_instrs, bc_instr);
+          emitGetAwaitable(irfunc.cfg, tc, bc_instr);
           break;
         }
         case BUILD_STRING: {
@@ -4638,7 +4638,6 @@ void HIRBuilder::emitYieldValue(
 void HIRBuilder::emitGetAwaitable(
     CFG& cfg,
     TranslationContext& tc,
-    const BytecodeInstructionBlock& bc_instrs,
     BytecodeInstruction bc_instr) {
   OperandStack& stack = tc.frame.stack;
   Register* iterable = stack.pop();
