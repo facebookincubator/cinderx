@@ -35,127 +35,60 @@
 
 namespace cinderx {
 
-#define SET_TEMPLATE_PARAMS <Key, Hash, KeyEqual, Allocator>
-#define SET_ORDERED_TEMPLATE_PARAMS <Key, Compare, Allocator>
-#define MAP_TEMPLATE_PARAMS <Key, T, Hash, KeyEqual, Allocator>
-#define MAP_ORDERED_TEMPLATE_PARAMS <Key, T, Compare, Allocator>
-
 #ifdef JIT_FORCE_STL_CONTAINERS
 
-#define SET_TEMPLATE_ARGS                  \
-  template <                               \
-      class Key,                           \
-      class Hash = std::hash<Key>,         \
-      class KeyEqual = std::equal_to<Key>, \
-      class Allocator = std::allocator<Key>>
-
-#define SET_ORDERED_TEMPLATE_ARGS     \
-  template <                          \
-      class Key,                      \
-      class Compare = std::less<Key>, \
-      class Allocator = std::allocator<Key>>
-
-#define MAP_TEMPLATE_ARGS                  \
-  template <                               \
-      class Key,                           \
-      class T,                             \
-      class Hash = std::hash<Key>,         \
-      class KeyEqual = std::equal_to<Key>, \
-      class Allocator = std::allocator<std::pair<const Key, T>>>
-
-#define MAP_ORDERED_TEMPLATE_ARGS     \
-  template <                          \
-      class Key,                      \
-      class T,                        \
-      class Compare = std::less<Key>, \
-      class Allocator = std::allocator<std::pair<const Key, T>>>
-
-SET_TEMPLATE_ARGS using UnorderedSet = std::unordered_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedMap = std::unordered_map MAP_TEMPLATE_PARAMS;
-SET_TEMPLATE_ARGS using UnorderedStablePointerSet =
-    std::unordered_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedStablePointerMap =
-    std::unordered_map MAP_TEMPLATE_PARAMS;
-SET_TEMPLATE_ARGS using UnorderedBigSet =
-    std::unordered_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedBigMap =
-    std::unordered_map MAP_TEMPLATE_PARAMS;
-SET_TEMPLATE_ARGS using UnorderedBigStablePointerSet =
-    std::unordered_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedBigStablePointerMap =
-    std::unordered_map MAP_TEMPLATE_PARAMS;
-SET_ORDERED_TEMPLATE_ARGS using OrderedSet =
-    std::set SET_ORDERED_TEMPLATE_PARAMS;
-MAP_ORDERED_TEMPLATE_ARGS using OrderedMap =
-    std::map MAP_ORDERED_TEMPLATE_PARAMS;
-SET_ORDERED_TEMPLATE_ARGS using OrderedMultiset =
-    std::multiset SET_ORDERED_TEMPLATE_PARAMS;
-MAP_ORDERED_TEMPLATE_ARGS using OrderedMultimap =
-    std::multimap MAP_ORDERED_TEMPLATE_PARAMS;
+template <typename... Args>
+using UnorderedSet = std::unordered_set<Args...>;
+template <typename... Args>
+using UnorderedMap = std::unordered_map<Args...>;
+template <typename... Args>
+using UnorderedStablePointerSet = std::unordered_set<Args...>;
+template <typename... Args>
+using UnorderedStablePointerMap = std::unordered_map<Args...>;
+template <typename... Args>
+using UnorderedBigSet = std::unordered_set<Args...>;
+template <typename... Args>
+using UnorderedBigMap = std::unordered_map<Args...>;
+template <typename... Args>
+using UnorderedBigStablePointerSet = std::unordered_set<Args...>;
+template <typename... Args>
+using UnorderedBigStablePointerMap = std::unordered_map<Args...>;
+template <typename... Args>
+using OrderedSet = std::set<Args...>;
+template <typename... Args>
+using OrderedMap = std::map<Args...>;
+template <typename... Args>
+using OrderedMultiset = std::multiset<Args...>;
+template <typename... Args>
+using OrderedMultimap = std::multimap<Args...>;
 
 #else // JIT_FORCE_STL_CONTAINERS
 
-#define SET_TEMPLATE_ARGS                                 \
-  template <                                              \
-      class Key,                                          \
-      class Hash = phmap::priv::hash_default_hash<Key>,   \
-      class KeyEqual = phmap::priv::hash_default_eq<Key>, \
-      class Allocator = phmap::priv::Allocator<Key>>
-
-#define SET_ORDERED_TEMPLATE_ARGS       \
-  template <                            \
-      class Key,                        \
-      class Compare = phmap::Less<Key>, \
-      class Allocator = phmap::Allocator<Key>>
-
-#define MAP_TEMPLATE_ARGS                  \
-  template <                               \
-      class Key,                           \
-      class T,                             \
-      class Hash = std::hash<Key>,         \
-      class KeyEqual = std::equal_to<Key>, \
-      class Allocator = std::allocator<std::pair<const Key, T>>>
-
-#define MAP_ORDERED_TEMPLATE_ARGS       \
-  template <                            \
-      class Key,                        \
-      class T,                          \
-      class Compare = phmap::Less<Key>, \
-      class Allocator = phmap::Allocator<phmap::priv::Pair<const Key, T>>>
-
-SET_TEMPLATE_ARGS using UnorderedSet = phmap::flat_hash_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedMap = phmap::flat_hash_map MAP_TEMPLATE_PARAMS;
-SET_TEMPLATE_ARGS using UnorderedStablePointerSet =
-    phmap::node_hash_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedStablePointerMap =
-    phmap::node_hash_map MAP_TEMPLATE_PARAMS;
-SET_TEMPLATE_ARGS using UnorderedBigSet =
-    phmap::parallel_flat_hash_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedBigMap =
-    phmap::parallel_flat_hash_map MAP_TEMPLATE_PARAMS;
-SET_TEMPLATE_ARGS using UnorderedBigStablePointerSet =
-    phmap::parallel_node_hash_set SET_TEMPLATE_PARAMS;
-MAP_TEMPLATE_ARGS using UnorderedBigStablePointerMap =
-    phmap::parallel_node_hash_map MAP_TEMPLATE_PARAMS;
-SET_ORDERED_TEMPLATE_ARGS using OrderedSet =
-    phmap::btree_set SET_ORDERED_TEMPLATE_PARAMS;
-MAP_ORDERED_TEMPLATE_ARGS using OrderedMap =
-    phmap::btree_map MAP_ORDERED_TEMPLATE_PARAMS;
-SET_ORDERED_TEMPLATE_ARGS using OrderedMultiset =
-    phmap::btree_multiset SET_ORDERED_TEMPLATE_PARAMS;
-MAP_ORDERED_TEMPLATE_ARGS using OrderedMultimap =
-    phmap::btree_multimap MAP_ORDERED_TEMPLATE_PARAMS;
+template <typename... Args>
+using UnorderedSet = phmap::flat_hash_set<Args...>;
+template <typename... Args>
+using UnorderedMap = phmap::flat_hash_map<Args...>;
+template <typename... Args>
+using UnorderedStablePointerSet = phmap::node_hash_set<Args...>;
+template <typename... Args>
+using UnorderedStablePointerMap = phmap::node_hash_map<Args...>;
+template <typename... Args>
+using UnorderedBigSet = phmap::parallel_flat_hash_set<Args...>;
+template <typename... Args>
+using UnorderedBigMap = phmap::parallel_flat_hash_map<Args...>;
+template <typename... Args>
+using UnorderedBigStablePointerSet = phmap::parallel_node_hash_set<Args...>;
+template <typename... Args>
+using UnorderedBigStablePointerMap = phmap::parallel_node_hash_map<Args...>;
+template <typename... Args>
+using OrderedSet = phmap::btree_set<Args...>;
+template <typename... Args>
+using OrderedMap = phmap::btree_map<Args...>;
+template <typename... Args>
+using OrderedMultiset = phmap::btree_multiset<Args...>;
+template <typename... Args>
+using OrderedMultimap = phmap::btree_multimap<Args...>;
 
 #endif
-
-#undef SET_TEMPLATE_PARAMS
-#undef SET_ORDERED_TEMPLATE_PARAMS
-#undef MAP_TEMPLATE_PARAMS
-#undef MAP_ORDERED_TEMPLATE_PARAMS
-
-#undef SET_TEMPLATE_ARGS
-#undef SET_ORDERED_TEMPLATE_ARGS
-#undef MAP_TEMPLATE_ARGS
-#undef MAP_ORDERED_TEMPLATE_ARGS
 
 } // namespace cinderx
