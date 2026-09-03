@@ -498,10 +498,7 @@ class HIRBuilder {
       TranslationContext& tc,
       long nargs);
   bool isStaticRand(const InvokeTarget& target);
-  bool tryEmitStaticRandCall(
-      const InvokeTarget& target,
-      TranslationContext& tc,
-      long nargs);
+  bool tryEmitStaticRandCall(TranslationContext& tc, long nargs);
   struct BlockMap {
     std::unordered_map<BCOffset, BasicBlock*> blocks;
     std::unordered_map<BasicBlock*, BytecodeInstructionBlock> bc_blocks;
