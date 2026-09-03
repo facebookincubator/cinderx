@@ -609,12 +609,16 @@ int cinderx_func_watcher(
     PyFunctionObject* func,
     PyObject* new_value) {
   switch (event) {
-    case PyFunction_EVENT_CREATE:
+    case PyFunction_EVENT_CREATE: {
       // Update the new function's vectorcall to have it run with Static Python
       // if it needs to.
-      func->vectorcall = getInterpretedVectorcall(func);
+      BorrowedRef<PyCodeObject> code{func->func_code};
+      if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
+        func->vectorcall = getInterpretedVectorcall(func);
+      }
       scheduleCompile(func);
       break;
+    }
     case PyFunction_EVENT_MODIFY_CODE:
       jit::funcModified(func);
       // having deopted the func, we want to immediately consider recompiling.
