@@ -23,6 +23,7 @@ import time
 LIGHTWEIGHT_BENCHMARKS: list[str] = [
     "binary_trees",
     "fannkuch",
+    "global_cache",
     "nbody",
     "richards",
     "spectral_norm",

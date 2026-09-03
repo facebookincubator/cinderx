@@ -80,6 +80,29 @@ An `attr-cache-315` variant covers the 3.15-only layouts, notably `__slots__` on
 a `tuple` subclass, whose member offsets are only known at runtime and which the
 interpreter therefore refuses to specialize.
 
+## Global Cache Benchmark
+
+`global-cache` isolates module-global load performance across the cache
+lifecycle. It covers B-style table/global traffic and a heavier 26-scalar
+workload in each of four states: globals cached at compile time, globals first
+bound after compilation, same-type replacement after compilation, and
+interpreted mutation after forced uncompile.
+
+```bash
+# Run all eight workloads with the JIT.
+buck run fbcode//cinderx/benchmarks:global-cache-312
+
+# Run the interpreter baseline.
+CINDERX_DISABLE=1 buck run fbcode//cinderx/benchmarks:global-cache-312
+
+# Isolate the compile-before-binding regression.
+buck run fbcode//cinderx/benchmarks:global-cache-312 -- \
+  --workload heavy-scalar-bound-after-compile
+```
+
+Results are median nanoseconds per module-global load. Each result also reports
+whether the hot function remains compiled and how many JIT deopts occurred.
+
 ## JIT Compilation Time Benchmark
 
 Measures how long the JIT takes to compile functions (not runtime performance):
@@ -181,6 +204,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `spectral_norm` | Numerical computation of the spectral norm of a matrix |
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
 | `attr-cache` | LOAD_ATTR/STORE_ATTR against every receiver layout, monomorphic through megamorphic |
+| `global_cache` | Module-global reads across compile-time caching, late binding, rebinding, and uncompile |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |
 | `torchbench` | Run of a real TorchBench model (default `pyhpc_equation_of_state`), kept Python-bound for the JIT |
 
