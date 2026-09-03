@@ -979,7 +979,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v47:CInt32 = RunPeriodicTasks {
+    v48:CInt32 = RunPeriodicTasks {
       LiveValues<4> b:v21 b:v22 b:v23 unc:v25
       FrameState {
         CurInstrOffset 0
@@ -1008,7 +1008,7 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 7) {
-    v46:CInt32 = RunPeriodicTasks {
+    v47:CInt32 = RunPeriodicTasks {
       LiveValues<6> b:v21 b:v22 b:v23 o:v28 b:v30 o:v31
       FrameState {
         CurInstrOffset 10
@@ -1043,7 +1043,7 @@ fun jittestmodule:test {
       }
     }
     XDecref v31
-    v48:Object = VectorCall<1> v38 v30 {
+    v49:Object = VectorCall<1> v38 v30 {
       LiveValues<7> b:v21 b:v22 b:v23 o:v28 b:v30 o:v33 b:v38
       FrameState {
         CurInstrOffset 28
@@ -1051,33 +1051,34 @@ fun jittestmodule:test {
         Stack<1> v28
       }
     }
-    Decref v48
+    Decref v49
     Branch<7>
   }
 
   bb 4 (preds 1) {
     Decref v28
-    v41:Nullptr = LoadConst<Nullptr>
-    v42:Object = LoadGlobal<1; "use"> {
-      LiveValues<6> b:v21 b:v22 b:v23 b:v30 o:v31 unc:v41
+    v42:OptObject = LoadGlobalCached<1; "use">
+    Guard v42 {
+      LiveValues<6> b:v21 b:v22 b:v23 b:v30 o:v31 b:v42
       FrameState {
         CurInstrOffset 46
         Locals<5> v21 v22 v23 v30 v31
-        Stack<1> v41
       }
     }
-    v49:Object = VectorCall<2> v42 v21 v22 {
-      LiveValues<6> b:v21 b:v22 b:v23 b:v30 o:v31 o:v42
+    v43:Object = RefineType<Object> v42
+    Incref v43
+    v50:Object = VectorCall<2> v43 v21 v22 {
+      LiveValues<6> b:v21 b:v22 b:v23 b:v30 o:v31 o:v43
       FrameState {
         CurInstrOffset 60
         Locals<5> v21 v22 v23 v30 v31
       }
     }
     XDecref v31
-    Decref v42
-    Decref v49
-    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return<ImmortalNoneType> v44
+    Decref v43
+    Decref v50
+    v45:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v45
   }
 }
 --- Expected 3.14 ---
@@ -1093,7 +1094,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v46:CInt32 = RunPeriodicTasks {
+    v47:CInt32 = RunPeriodicTasks {
       LiveValues<4> b:v21 b:v22 b:v23 unc:v25
       FrameState {
         CurInstrOffset 0
@@ -1122,7 +1123,7 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 7) {
-    v45:CInt32 = RunPeriodicTasks {
+    v46:CInt32 = RunPeriodicTasks {
       LiveValues<6> b:v21 b:v22 b:v23 o:v28 b:v30 o:v31
       FrameState {
         CurInstrOffset 10
@@ -1157,7 +1158,7 @@ fun jittestmodule:test {
       }
     }
     XDecref v31
-    v47:Object = VectorCall<1> v37 v30 {
+    v48:Object = VectorCall<1> v37 v30 {
       LiveValues<7> b:v21 b:v22 b:v23 o:v28 b:v30 o:v33 b:v37
       FrameState {
         CurInstrOffset 28
@@ -1165,31 +1166,35 @@ fun jittestmodule:test {
         Stack<1> v28
       }
     }
-    Decref v47
+    Decref v48
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v28
-    v41:Object = LoadGlobal<1; "use"> {
-      LiveValues<5> b:v21 b:v22 b:v23 b:v30 o:v31
+    v41:OptObject = LoadGlobalCached<1; "use">
+    Guard v41 {
+      LiveValues<7> b:v21 b:v22 b:v23 o:v28 b:v30 o:v31 b:v41
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 48
         Locals<5> v21 v22 v23 v30 v31
+        Stack<1> v28
       }
     }
-    v48:Object = VectorCall<2> v41 v21 v22 {
-      LiveValues<6> b:v21 b:v22 b:v23 b:v30 o:v31 o:v41
+    XIncref v41
+    Decref v28
+    v42:Object = RefineType<Object> v41
+    v49:Object = VectorCall<2> v42 v21 v22 {
+      LiveValues<6> b:v21 b:v22 b:v23 b:v30 o:v31 o:v42
       FrameState {
         CurInstrOffset 62
         Locals<5> v21 v22 v23 v30 v31
       }
     }
     XDecref v31
-    Decref v41
-    Decref v48
-    v44:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v44
+    Decref v42
+    Decref v49
+    v45:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v45
   }
 }
 --- Expected 3.15 ---
@@ -1205,7 +1210,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v50:CInt32 = RunPeriodicTasks {
+    v51:CInt32 = RunPeriodicTasks {
       LiveValues<4> b:v23 b:v24 b:v25 unc:v27
       FrameState {
         CurInstrOffset 0
@@ -1235,7 +1240,7 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 7) {
-    v49:CInt32 = RunPeriodicTasks {
+    v50:CInt32 = RunPeriodicTasks {
       LiveValues<7> b:v23 b:v24 b:v25 o:v30 unc:v31 b:v34 o:v35
       FrameState {
         CurInstrOffset 14
@@ -1270,7 +1275,7 @@ fun jittestmodule:test {
       }
     }
     XDecref v35
-    v51:Object = VectorCall<1> v41 v34 {
+    v52:Object = VectorCall<1> v41 v34 {
       LiveValues<8> b:v23 b:v24 b:v25 o:v30 unc:v31 b:v34 o:v37 b:v41
       FrameState {
         CurInstrOffset 32
@@ -1278,31 +1283,35 @@ fun jittestmodule:test {
         Stack<2> v30 v31
       }
     }
-    Decref v51
+    Decref v52
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v30
-    v45:Object = LoadGlobal<1; "use"> {
-      LiveValues<5> b:v23 b:v24 b:v25 b:v34 o:v35
+    v45:OptObject = LoadGlobalCached<1; "use">
+    Guard v45 {
+      LiveValues<8> b:v23 b:v24 b:v25 o:v30 unc:v31 b:v34 o:v35 b:v45
       FrameState {
-        CurInstrOffset 54
+        CurInstrOffset 52
         Locals<5> v23 v24 v25 v34 v35
+        Stack<2> v30 v31
       }
     }
-    v52:Object = VectorCall<2> v45 v23 v24 {
-      LiveValues<6> b:v23 b:v24 b:v25 b:v34 o:v35 o:v45
+    XIncref v45
+    Decref v30
+    v46:Object = RefineType<Object> v45
+    v53:Object = VectorCall<2> v46 v23 v24 {
+      LiveValues<6> b:v23 b:v24 b:v25 b:v34 o:v35 o:v46
       FrameState {
         CurInstrOffset 66
         Locals<5> v23 v24 v25 v34 v35
       }
     }
     XDecref v35
-    Decref v45
-    Decref v52
-    v48:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v48
+    Decref v46
+    Decref v53
+    v49:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v49
   }
 }
 --- Expected 3.16 ---
@@ -1318,7 +1327,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v50:CInt32 = RunPeriodicTasks {
+    v51:CInt32 = RunPeriodicTasks {
       LiveValues<4> b:v23 b:v24 b:v25 unc:v27
       FrameState {
         CurInstrOffset 0
@@ -1348,7 +1357,7 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 7) {
-    v49:CInt32 = RunPeriodicTasks {
+    v50:CInt32 = RunPeriodicTasks {
       LiveValues<7> b:v23 b:v24 b:v25 o:v30 unc:v31 b:v34 o:v35
       FrameState {
         CurInstrOffset 14
@@ -1383,7 +1392,7 @@ fun jittestmodule:test {
       }
     }
     XDecref v35
-    v51:Object = VectorCall<1> v41 v34 {
+    v52:Object = VectorCall<1> v41 v34 {
       LiveValues<8> b:v23 b:v24 b:v25 o:v30 unc:v31 b:v34 o:v37 b:v41
       FrameState {
         CurInstrOffset 32
@@ -1391,31 +1400,35 @@ fun jittestmodule:test {
         Stack<2> v30 v31
       }
     }
-    Decref v51
+    Decref v52
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v30
-    v45:Object = LoadGlobal<1; "use"> {
-      LiveValues<5> b:v23 b:v24 b:v25 b:v34 o:v35
+    v45:OptObject = LoadGlobalCached<1; "use">
+    Guard v45 {
+      LiveValues<8> b:v23 b:v24 b:v25 o:v30 unc:v31 b:v34 o:v35 b:v45
       FrameState {
-        CurInstrOffset 54
+        CurInstrOffset 52
         Locals<5> v23 v24 v25 v34 v35
+        Stack<2> v30 v31
       }
     }
-    v52:Object = VectorCall<2> v45 v23 v24 {
-      LiveValues<6> b:v23 b:v24 b:v25 b:v34 o:v35 o:v45
+    XIncref v45
+    Decref v30
+    v46:Object = RefineType<Object> v45
+    v53:Object = VectorCall<2> v46 v23 v24 {
+      LiveValues<6> b:v23 b:v24 b:v25 b:v34 o:v35 o:v46
       FrameState {
         CurInstrOffset 66
         Locals<5> v23 v24 v25 v34 v35
       }
     }
     XDecref v35
-    Decref v45
-    Decref v52
-    v48:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v48
+    Decref v46
+    Decref v53
+    v49:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v49
   }
 }
 --- Expected 3.14t ---
@@ -1435,7 +1448,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v52:CInt32 = RunPeriodicTasks {
+    v53:CInt32 = RunPeriodicTasks {
       LiveValues<4> b:v28 b:v29 b:v30 unc:v31
       FrameState {
         CurInstrOffset 0
@@ -1465,7 +1478,7 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 7) {
-    v51:CInt32 = RunPeriodicTasks {
+    v52:CInt32 = RunPeriodicTasks {
       LiveValues<6> b:v28 b:v29 b:v30 o:v34 b:v36 o:v37
       FrameState {
         CurInstrOffset 10
@@ -1500,7 +1513,7 @@ fun jittestmodule:test {
       }
     }
     XDecref v37
-    v53:Object = VectorCall<1> v43 v36 {
+    v54:Object = VectorCall<1> v43 v36 {
       LiveValues<7> b:v28 b:v29 b:v30 o:v34 b:v36 o:v39 b:v43
       FrameState {
         CurInstrOffset 28
@@ -1508,31 +1521,35 @@ fun jittestmodule:test {
         Stack<1> v34
       }
     }
-    Decref v53
+    Decref v54
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v34
-    v47:Object = LoadGlobal<1; "use"> {
-      LiveValues<5> b:v28 b:v29 b:v30 b:v36 o:v37
+    v47:OptObject = LoadGlobalCached<1; "use">
+    Guard v47 {
+      LiveValues<7> b:v28 b:v29 b:v30 o:v34 b:v36 o:v37 b:v47
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 48
         Locals<5> v28 v29 v30 v36 v37
+        Stack<1> v34
       }
     }
-    v54:Object = VectorCall<2> v47 v28 v29 {
-      LiveValues<6> b:v28 b:v29 b:v30 b:v36 o:v37 o:v47
+    XIncref v47
+    Decref v34
+    v48:Object = RefineType<Object> v47
+    v55:Object = VectorCall<2> v48 v28 v29 {
+      LiveValues<6> b:v28 b:v29 b:v30 b:v36 o:v37 o:v48
       FrameState {
         CurInstrOffset 62
         Locals<5> v28 v29 v30 v36 v37
       }
     }
     XDecref v37
-    Decref v47
-    Decref v54
-    v50:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v50
+    Decref v48
+    Decref v55
+    v51:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v51
   }
 }
 --- Test Name ---
@@ -1557,7 +1574,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v59:CInt32 = RunPeriodicTasks {
+    v62:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v27 unc:v29
       FrameState {
         CurInstrOffset 0
@@ -1568,126 +1585,130 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v31:Nullptr = LoadConst<Nullptr>
-    v32:Object = LoadGlobal<0; "something"> {
-      LiveValues<3> b:v27 unc:v29 unc:v31
+    v32:OptObject = LoadGlobalCached<0; "something">
+    Guard v32 {
+      LiveValues<3> b:v27 unc:v29 b:v32
       FrameState {
         CurInstrOffset 2
         Locals<5> v27 v29 v29 v29 v29
-        Stack<1> v31
       }
     }
-    v62:Object = VectorCall<0> v32 {
-      LiveValues<3> b:v27 unc:v29 o:v32
+    v33:Object = RefineType<Object> v32
+    Incref v33
+    v65:Object = VectorCall<0> v33 {
+      LiveValues<3> b:v27 unc:v29 o:v33
       FrameState {
         CurInstrOffset 12
         Locals<5> v27 v29 v29 v29 v29
       }
     }
-    Decref v32
-    v35:Nullptr = LoadConst<Nullptr>
-    v36:Object = LoadGlobal<1; "something_else"> {
-      LiveValues<4> b:v27 unc:v29 unc:v35 o:v62
+    Decref v33
+    v37:OptObject = LoadGlobalCached<1; "something_else">
+    Guard v37 {
+      LiveValues<4> b:v27 unc:v29 b:v37 o:v65
       FrameState {
-        CurInstrOffset 22
-        Locals<5> v27 v62 v29 v29 v29
-        Stack<1> v35
+        CurInstrOffset 20
+        Locals<5> v27 v29 v29 v29 v29
+        Stack<1> v65
       }
     }
-    v63:Object = VectorCall<0> v36 {
-      LiveValues<4> b:v27 unc:v29 o:v36 o:v62
+    v38:Object = RefineType<Object> v37
+    Incref v38
+    v66:Object = VectorCall<0> v38 {
+      LiveValues<4> b:v27 unc:v29 o:v38 o:v65
       FrameState {
         CurInstrOffset 32
-        Locals<5> v27 v62 v29 v29 v29
+        Locals<5> v27 v65 v29 v29 v29
       }
     }
-    Decref v36
-    v40:Object = GetIter v27 {
-      LiveValues<4> b:v27 unc:v29 o:v62 o:v63
+    Decref v38
+    v42:Object = GetIter v27 {
+      LiveValues<4> b:v27 unc:v29 o:v65 o:v66
       FrameState {
         CurInstrOffset 48
-        Locals<5> v27 v62 v63 v62 v29
+        Locals<5> v27 v65 v66 v65 v29
       }
     }
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v42:Object = Phi<2, 5> v63 v62
-    v43:OptObject = Phi<2, 5> v45 v29
-    v44:CInt32 = LoadEvalBreaker
-    CondBranch<8, 1> v44
+    v44:Object = Phi<2, 5> v66 v65
+    v45:OptObject = Phi<2, 5> v47 v29
+    v46:CInt32 = LoadEvalBreaker
+    CondBranch<8, 1> v46
   }
 
   bb 8 (preds 7) {
-    v58:CInt32 = RunPeriodicTasks {
-      LiveValues<6> b:v27 o:v40 b:v42 o:v43 o:v62 o:v63
+    v61:CInt32 = RunPeriodicTasks {
+      LiveValues<6> b:v27 o:v42 b:v44 o:v45 o:v65 o:v66
       FrameState {
         CurInstrOffset 50
-        Locals<5> v27 v62 v63 v42 v43
-        Stack<1> v40
+        Locals<5> v27 v65 v66 v44 v45
+        Stack<1> v42
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v45:Object = InvokeIterNext v40 {
-      LiveValues<6> b:v27 o:v40 b:v42 o:v43 o:v62 o:v63
+    v47:Object = InvokeIterNext v42 {
+      LiveValues<6> b:v27 o:v42 b:v44 o:v45 o:v65 o:v66
       FrameState {
         CurInstrOffset 50
-        Locals<5> v27 v62 v63 v42 v43
-        Stack<1> v40
+        Locals<5> v27 v65 v66 v44 v45
+        Stack<1> v42
       }
     }
-    CondBranchIterNotDone<2, 4> v45
+    CondBranchIterNotDone<2, 4> v47
   }
 
   bb 2 (preds 1) {
-    v49:OptObject = LoadGlobalCached<2; "print">
-    v50:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v49 {
+    v51:OptObject = LoadGlobalCached<2; "print">
+    v52:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v51 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<8> b:v27 o:v40 b:v42 o:v43 o:v45 b:v49 o:v62 o:v63
+      LiveValues<8> b:v27 o:v42 b:v44 o:v45 o:v47 b:v51 o:v65 o:v66
       FrameState {
         CurInstrOffset 54
-        Locals<5> v27 v62 v63 v42 v43
-        Stack<2> v40 v45
+        Locals<5> v27 v65 v66 v44 v45
+        Stack<2> v42 v47
       }
     }
-    XDecref v43
-    v60:Object = VectorCall<1> v50 v42 {
-      LiveValues<7> b:v27 o:v40 b:v42 o:v45 b:v50 o:v62 o:v63
+    XDecref v45
+    v63:Object = VectorCall<1> v52 v44 {
+      LiveValues<7> b:v27 o:v42 b:v44 o:v47 b:v52 o:v65 o:v66
       FrameState {
         CurInstrOffset 68
-        Locals<5> v27 v62 v63 v42 v45
-        Stack<1> v40
+        Locals<5> v27 v65 v66 v44 v47
+        Stack<1> v42
       }
     }
-    Decref v60
+    Decref v63
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v40
-    v53:Nullptr = LoadConst<Nullptr>
-    v54:Object = LoadGlobal<3; "use"> {
-      LiveValues<6> b:v27 b:v42 o:v43 unc:v53 o:v62 o:v63
+    Decref v42
+    v56:OptObject = LoadGlobalCached<3; "use">
+    Guard v56 {
+      LiveValues<6> b:v27 b:v44 o:v45 b:v56 o:v65 o:v66
       FrameState {
         CurInstrOffset 86
-        Locals<5> v27 v62 v63 v42 v43
-        Stack<1> v53
+        Locals<5> v27 v65 v66 v44 v45
       }
     }
-    v61:Object = VectorCall<2> v54 v62 v63 {
-      LiveValues<6> b:v27 b:v42 o:v43 o:v54 o:v62 o:v63
+    v57:Object = RefineType<Object> v56
+    Incref v57
+    v64:Object = VectorCall<2> v57 v65 v66 {
+      LiveValues<6> b:v27 b:v44 o:v45 o:v57 o:v65 o:v66
       FrameState {
         CurInstrOffset 100
-        Locals<5> v27 v62 v63 v42 v43
+        Locals<5> v27 v65 v66 v44 v45
       }
     }
-    BatchDecref v43 v54 v61 v62 v63
-    v56:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return<ImmortalNoneType> v56
+    BatchDecref v45 v57 v64 v65 v66
+    v59:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v59
   }
 }
 --- Expected 3.14 ---
@@ -1701,7 +1722,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v58:CInt32 = RunPeriodicTasks {
+    v61:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v27 unc:v29
       FrameState {
         CurInstrOffset 0
@@ -1712,120 +1733,131 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v31:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v27 unc:v29
+    v31:OptObject = LoadGlobalCached<0; "something">
+    Guard v31 {
+      LiveValues<3> b:v27 unc:v29 b:v31
       FrameState {
         CurInstrOffset 2
         Locals<5> v27 v29 v29 v29 v29
       }
     }
-    v61:Object = VectorCall<0> v31 {
-      LiveValues<3> b:v27 unc:v29 o:v31
+    v32:Object = RefineType<Object> v31
+    Incref v32
+    v64:Object = VectorCall<0> v32 {
+      LiveValues<3> b:v27 unc:v29 o:v32
       FrameState {
         CurInstrOffset 12
         Locals<5> v27 v29 v29 v29 v29
       }
     }
-    Decref v31
-    v35:Object = LoadGlobal<1; "something_else"> {
-      LiveValues<3> b:v27 unc:v29 o:v61
+    Decref v32
+    v36:OptObject = LoadGlobalCached<1; "something_else">
+    Guard v36 {
+      LiveValues<4> b:v27 unc:v29 b:v36 o:v64
       FrameState {
-        CurInstrOffset 22
-        Locals<5> v27 v61 v29 v29 v29
+        CurInstrOffset 20
+        Locals<5> v27 v29 v29 v29 v29
+        Stack<1> v64
       }
     }
-    v62:Object = VectorCall<0> v35 {
-      LiveValues<4> b:v27 unc:v29 o:v35 o:v61
+    v37:Object = RefineType<Object> v36
+    Incref v37
+    v65:Object = VectorCall<0> v37 {
+      LiveValues<4> b:v27 unc:v29 o:v37 o:v64
       FrameState {
         CurInstrOffset 32
-        Locals<5> v27 v61 v29 v29 v29
+        Locals<5> v27 v64 v29 v29 v29
       }
     }
-    Decref v35
-    v40:Object = GetIter v27 {
-      LiveValues<4> b:v27 unc:v29 o:v61 o:v62
+    Decref v37
+    v42:Object = GetIter v27 {
+      LiveValues<4> b:v27 unc:v29 o:v64 o:v65
       FrameState {
         CurInstrOffset 48
-        Locals<5> v27 v61 v62 v61 v29
+        Locals<5> v27 v64 v65 v64 v29
       }
     }
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v42:Object = Phi<2, 5> v62 v61
-    v43:OptObject = Phi<2, 5> v45 v29
-    v44:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v44
+    v44:Object = Phi<2, 5> v65 v64
+    v45:OptObject = Phi<2, 5> v47 v29
+    v46:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v46
   }
 
   bb 8 (preds 7) {
-    v57:CInt32 = RunPeriodicTasks {
-      LiveValues<6> b:v27 o:v40 b:v42 o:v43 o:v61 o:v62
+    v60:CInt32 = RunPeriodicTasks {
+      LiveValues<6> b:v27 o:v42 b:v44 o:v45 o:v64 o:v65
       FrameState {
         CurInstrOffset 50
-        Locals<5> v27 v61 v62 v42 v43
-        Stack<1> v40
+        Locals<5> v27 v64 v65 v44 v45
+        Stack<1> v42
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v45:Object = InvokeIterNext v40 {
-      LiveValues<6> b:v27 o:v40 b:v42 o:v43 o:v61 o:v62
+    v47:Object = InvokeIterNext v42 {
+      LiveValues<6> b:v27 o:v42 b:v44 o:v45 o:v64 o:v65
       FrameState {
         CurInstrOffset 50
-        Locals<5> v27 v61 v62 v42 v43
-        Stack<1> v40
+        Locals<5> v27 v64 v65 v44 v45
+        Stack<1> v42
       }
     }
-    CondBranchIterNotDone<2, 4> v45
+    CondBranchIterNotDone<2, 4> v47
   }
 
   bb 2 (preds 1) {
-    v48:OptObject = LoadGlobalCached<2; "print">
-    v49:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v48 {
+    v50:OptObject = LoadGlobalCached<2; "print">
+    v51:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v50 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<8> b:v27 o:v40 b:v42 o:v43 o:v45 b:v48 o:v61 o:v62
+      LiveValues<8> b:v27 o:v42 b:v44 o:v45 o:v47 b:v50 o:v64 o:v65
       FrameState {
         CurInstrOffset 54
-        Locals<5> v27 v61 v62 v42 v43
-        Stack<2> v40 v45
+        Locals<5> v27 v64 v65 v44 v45
+        Stack<2> v42 v47
       }
     }
-    XDecref v43
-    v59:Object = VectorCall<1> v49 v42 {
-      LiveValues<7> b:v27 o:v40 b:v42 o:v45 b:v49 o:v61 o:v62
+    XDecref v45
+    v62:Object = VectorCall<1> v51 v44 {
+      LiveValues<7> b:v27 o:v42 b:v44 o:v47 b:v51 o:v64 o:v65
       FrameState {
         CurInstrOffset 68
-        Locals<5> v27 v61 v62 v42 v45
-        Stack<1> v40
+        Locals<5> v27 v64 v65 v44 v47
+        Stack<1> v42
       }
     }
-    Decref v59
+    Decref v62
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v40
-    v53:Object = LoadGlobal<3; "use"> {
-      LiveValues<5> b:v27 b:v42 o:v43 o:v61 o:v62
+    v55:OptObject = LoadGlobalCached<3; "use">
+    Guard v55 {
+      LiveValues<7> b:v27 o:v42 b:v44 o:v45 b:v55 o:v64 o:v65
       FrameState {
-        CurInstrOffset 90
-        Locals<5> v27 v61 v62 v42 v43
+        CurInstrOffset 88
+        Locals<5> v27 v64 v65 v44 v45
+        Stack<1> v42
       }
     }
-    v60:Object = VectorCall<2> v53 v61 v62 {
-      LiveValues<6> b:v27 b:v42 o:v43 o:v53 o:v61 o:v62
+    XIncref v55
+    Decref v42
+    v56:Object = RefineType<Object> v55
+    v63:Object = VectorCall<2> v56 v64 v65 {
+      LiveValues<6> b:v27 b:v44 o:v45 o:v56 o:v64 o:v65
       FrameState {
         CurInstrOffset 102
-        Locals<5> v27 v61 v62 v42 v43
+        Locals<5> v27 v64 v65 v44 v45
       }
     }
-    BatchDecref v43 v53 v60 v61 v62
-    v56:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v56
+    BatchDecref v45 v56 v63 v64 v65
+    v59:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v59
   }
 }
 --- Expected 3.15 ---
@@ -1839,7 +1871,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v62:CInt32 = RunPeriodicTasks {
+    v65:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v29 unc:v31
       FrameState {
         CurInstrOffset 0
@@ -1850,121 +1882,132 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v33:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v29 unc:v31
+    v33:OptObject = LoadGlobalCached<0; "something">
+    Guard v33 {
+      LiveValues<3> b:v29 unc:v31 b:v33
       FrameState {
         CurInstrOffset 4
         Locals<5> v29 v31 v31 v31 v31
       }
     }
-    v65:Object = VectorCall<0> v33 {
-      LiveValues<3> b:v29 unc:v31 o:v33
+    v34:Object = RefineType<Object> v33
+    Incref v34
+    v68:Object = VectorCall<0> v34 {
+      LiveValues<3> b:v29 unc:v31 o:v34
       FrameState {
         CurInstrOffset 14
         Locals<5> v29 v31 v31 v31 v31
       }
     }
-    Decref v33
-    v37:Object = LoadGlobal<1; "something_else"> {
-      LiveValues<3> b:v29 unc:v31 o:v65
+    Decref v34
+    v38:OptObject = LoadGlobalCached<1; "something_else">
+    Guard v38 {
+      LiveValues<4> b:v29 unc:v31 b:v38 o:v68
       FrameState {
-        CurInstrOffset 24
-        Locals<5> v29 v65 v31 v31 v31
+        CurInstrOffset 22
+        Locals<5> v29 v31 v31 v31 v31
+        Stack<1> v68
       }
     }
-    v66:Object = VectorCall<0> v37 {
-      LiveValues<4> b:v29 unc:v31 o:v37 o:v65
+    v39:Object = RefineType<Object> v38
+    Incref v39
+    v69:Object = VectorCall<0> v39 {
+      LiveValues<4> b:v29 unc:v31 o:v39 o:v68
       FrameState {
         CurInstrOffset 34
-        Locals<5> v29 v65 v31 v31 v31
+        Locals<5> v29 v68 v31 v31 v31
       }
     }
-    Decref v37
-    v42:Object = GetIter v29 {
-      LiveValues<4> b:v29 unc:v31 o:v65 o:v66
+    Decref v39
+    v44:Object = GetIter v29 {
+      LiveValues<4> b:v29 unc:v31 o:v68 o:v69
       FrameState {
         CurInstrOffset 50
-        Locals<5> v29 v65 v66 v65 v31
+        Locals<5> v29 v68 v69 v68 v31
       }
     }
-    v43:Nullptr = LoadConst<Nullptr>
+    v45:Nullptr = LoadConst<Nullptr>
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v46:Object = Phi<2, 5> v66 v65
-    v47:OptObject = Phi<2, 5> v49 v31
-    v48:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v48
+    v48:Object = Phi<2, 5> v69 v68
+    v49:OptObject = Phi<2, 5> v51 v31
+    v50:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v50
   }
 
   bb 8 (preds 7) {
-    v61:CInt32 = RunPeriodicTasks {
-      LiveValues<7> b:v29 o:v42 unc:v43 b:v46 o:v47 o:v65 o:v66
+    v64:CInt32 = RunPeriodicTasks {
+      LiveValues<7> b:v29 o:v44 unc:v45 b:v48 o:v49 o:v68 o:v69
       FrameState {
         CurInstrOffset 54
-        Locals<5> v29 v65 v66 v46 v47
-        Stack<2> v42 v43
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<2> v44 v45
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v49:Object = InvokeIterNext v42 {
-      LiveValues<7> b:v29 o:v42 unc:v43 b:v46 o:v47 o:v65 o:v66
+    v51:Object = InvokeIterNext v44 {
+      LiveValues<7> b:v29 o:v44 unc:v45 b:v48 o:v49 o:v68 o:v69
       FrameState {
         CurInstrOffset 54
-        Locals<5> v29 v65 v66 v46 v47
-        Stack<2> v42 v43
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<2> v44 v45
       }
     }
-    CondBranchIterNotDone<2, 4> v49
+    CondBranchIterNotDone<2, 4> v51
   }
 
   bb 2 (preds 1) {
-    v52:OptObject = LoadGlobalCached<2; "print">
-    v53:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v52 {
+    v54:OptObject = LoadGlobalCached<2; "print">
+    v55:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v54 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<9> b:v29 o:v42 unc:v43 b:v46 o:v47 o:v49 b:v52 o:v65 o:v66
+      LiveValues<9> b:v29 o:v44 unc:v45 b:v48 o:v49 o:v51 b:v54 o:v68 o:v69
       FrameState {
         CurInstrOffset 58
-        Locals<5> v29 v65 v66 v46 v47
-        Stack<3> v42 v43 v49
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<3> v44 v45 v51
       }
     }
-    XDecref v47
-    v63:Object = VectorCall<1> v53 v46 {
-      LiveValues<8> b:v29 o:v42 unc:v43 b:v46 o:v49 b:v53 o:v65 o:v66
+    XDecref v49
+    v66:Object = VectorCall<1> v55 v48 {
+      LiveValues<8> b:v29 o:v44 unc:v45 b:v48 o:v51 b:v55 o:v68 o:v69
       FrameState {
         CurInstrOffset 72
-        Locals<5> v29 v65 v66 v46 v49
-        Stack<2> v42 v43
+        Locals<5> v29 v68 v69 v48 v51
+        Stack<2> v44 v45
       }
     }
-    Decref v63
+    Decref v66
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v42
-    v57:Object = LoadGlobal<3; "use"> {
-      LiveValues<5> b:v29 b:v46 o:v47 o:v65 o:v66
+    v59:OptObject = LoadGlobalCached<3; "use">
+    Guard v59 {
+      LiveValues<8> b:v29 o:v44 unc:v45 b:v48 o:v49 b:v59 o:v68 o:v69
       FrameState {
-        CurInstrOffset 94
-        Locals<5> v29 v65 v66 v46 v47
+        CurInstrOffset 92
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<2> v44 v45
       }
     }
-    v64:Object = VectorCall<2> v57 v65 v66 {
-      LiveValues<6> b:v29 b:v46 o:v47 o:v57 o:v65 o:v66
+    XIncref v59
+    Decref v44
+    v60:Object = RefineType<Object> v59
+    v67:Object = VectorCall<2> v60 v68 v69 {
+      LiveValues<6> b:v29 b:v48 o:v49 o:v60 o:v68 o:v69
       FrameState {
         CurInstrOffset 106
-        Locals<5> v29 v65 v66 v46 v47
+        Locals<5> v29 v68 v69 v48 v49
       }
     }
-    BatchDecref v47 v57 v64 v65 v66
-    v60:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v60
+    BatchDecref v49 v60 v67 v68 v69
+    v63:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v63
   }
 }
 --- Expected 3.16 ---
@@ -1978,7 +2021,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v62:CInt32 = RunPeriodicTasks {
+    v65:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v29 unc:v31
       FrameState {
         CurInstrOffset 0
@@ -1989,121 +2032,132 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v33:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v29 unc:v31
+    v33:OptObject = LoadGlobalCached<0; "something">
+    Guard v33 {
+      LiveValues<3> b:v29 unc:v31 b:v33
       FrameState {
         CurInstrOffset 4
         Locals<5> v29 v31 v31 v31 v31
       }
     }
-    v65:Object = VectorCall<0> v33 {
-      LiveValues<3> b:v29 unc:v31 o:v33
+    v34:Object = RefineType<Object> v33
+    Incref v34
+    v68:Object = VectorCall<0> v34 {
+      LiveValues<3> b:v29 unc:v31 o:v34
       FrameState {
         CurInstrOffset 14
         Locals<5> v29 v31 v31 v31 v31
       }
     }
-    Decref v33
-    v37:Object = LoadGlobal<1; "something_else"> {
-      LiveValues<3> b:v29 unc:v31 o:v65
+    Decref v34
+    v38:OptObject = LoadGlobalCached<1; "something_else">
+    Guard v38 {
+      LiveValues<4> b:v29 unc:v31 b:v38 o:v68
       FrameState {
-        CurInstrOffset 24
-        Locals<5> v29 v65 v31 v31 v31
+        CurInstrOffset 22
+        Locals<5> v29 v31 v31 v31 v31
+        Stack<1> v68
       }
     }
-    v66:Object = VectorCall<0> v37 {
-      LiveValues<4> b:v29 unc:v31 o:v37 o:v65
+    v39:Object = RefineType<Object> v38
+    Incref v39
+    v69:Object = VectorCall<0> v39 {
+      LiveValues<4> b:v29 unc:v31 o:v39 o:v68
       FrameState {
         CurInstrOffset 34
-        Locals<5> v29 v65 v31 v31 v31
+        Locals<5> v29 v68 v31 v31 v31
       }
     }
-    Decref v37
-    v42:Object = GetIter v29 {
-      LiveValues<4> b:v29 unc:v31 o:v65 o:v66
+    Decref v39
+    v44:Object = GetIter v29 {
+      LiveValues<4> b:v29 unc:v31 o:v68 o:v69
       FrameState {
         CurInstrOffset 50
-        Locals<5> v29 v65 v66 v65 v31
+        Locals<5> v29 v68 v69 v68 v31
       }
     }
-    v43:Nullptr = LoadConst<Nullptr>
+    v45:Nullptr = LoadConst<Nullptr>
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v46:Object = Phi<2, 5> v66 v65
-    v47:OptObject = Phi<2, 5> v49 v31
-    v48:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v48
+    v48:Object = Phi<2, 5> v69 v68
+    v49:OptObject = Phi<2, 5> v51 v31
+    v50:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v50
   }
 
   bb 8 (preds 7) {
-    v61:CInt32 = RunPeriodicTasks {
-      LiveValues<7> b:v29 o:v42 unc:v43 b:v46 o:v47 o:v65 o:v66
+    v64:CInt32 = RunPeriodicTasks {
+      LiveValues<7> b:v29 o:v44 unc:v45 b:v48 o:v49 o:v68 o:v69
       FrameState {
         CurInstrOffset 54
-        Locals<5> v29 v65 v66 v46 v47
-        Stack<2> v42 v43
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<2> v44 v45
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v49:Object = InvokeIterNext v42 {
-      LiveValues<7> b:v29 o:v42 unc:v43 b:v46 o:v47 o:v65 o:v66
+    v51:Object = InvokeIterNext v44 {
+      LiveValues<7> b:v29 o:v44 unc:v45 b:v48 o:v49 o:v68 o:v69
       FrameState {
         CurInstrOffset 54
-        Locals<5> v29 v65 v66 v46 v47
-        Stack<2> v42 v43
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<2> v44 v45
       }
     }
-    CondBranchIterNotDone<2, 4> v49
+    CondBranchIterNotDone<2, 4> v51
   }
 
   bb 2 (preds 1) {
-    v52:OptObject = LoadGlobalCached<2; "print">
-    v53:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v52 {
+    v54:OptObject = LoadGlobalCached<2; "print">
+    v55:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v54 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<9> b:v29 o:v42 unc:v43 b:v46 o:v47 o:v49 b:v52 o:v65 o:v66
+      LiveValues<9> b:v29 o:v44 unc:v45 b:v48 o:v49 o:v51 b:v54 o:v68 o:v69
       FrameState {
         CurInstrOffset 58
-        Locals<5> v29 v65 v66 v46 v47
-        Stack<3> v42 v43 v49
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<3> v44 v45 v51
       }
     }
-    XDecref v47
-    v63:Object = VectorCall<1> v53 v46 {
-      LiveValues<8> b:v29 o:v42 unc:v43 b:v46 o:v49 b:v53 o:v65 o:v66
+    XDecref v49
+    v66:Object = VectorCall<1> v55 v48 {
+      LiveValues<8> b:v29 o:v44 unc:v45 b:v48 o:v51 b:v55 o:v68 o:v69
       FrameState {
         CurInstrOffset 72
-        Locals<5> v29 v65 v66 v46 v49
-        Stack<2> v42 v43
+        Locals<5> v29 v68 v69 v48 v51
+        Stack<2> v44 v45
       }
     }
-    Decref v63
+    Decref v66
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v42
-    v57:Object = LoadGlobal<3; "use"> {
-      LiveValues<5> b:v29 b:v46 o:v47 o:v65 o:v66
+    v59:OptObject = LoadGlobalCached<3; "use">
+    Guard v59 {
+      LiveValues<8> b:v29 o:v44 unc:v45 b:v48 o:v49 b:v59 o:v68 o:v69
       FrameState {
-        CurInstrOffset 94
-        Locals<5> v29 v65 v66 v46 v47
+        CurInstrOffset 92
+        Locals<5> v29 v68 v69 v48 v49
+        Stack<2> v44 v45
       }
     }
-    v64:Object = VectorCall<2> v57 v65 v66 {
-      LiveValues<6> b:v29 b:v46 o:v47 o:v57 o:v65 o:v66
+    XIncref v59
+    Decref v44
+    v60:Object = RefineType<Object> v59
+    v67:Object = VectorCall<2> v60 v68 v69 {
+      LiveValues<6> b:v29 b:v48 o:v49 o:v60 o:v68 o:v69
       FrameState {
         CurInstrOffset 106
-        Locals<5> v29 v65 v66 v46 v47
+        Locals<5> v29 v68 v69 v48 v49
       }
     }
-    BatchDecref v47 v57 v64 v65 v66
-    v60:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v60
+    BatchDecref v49 v60 v67 v68 v69
+    v63:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v63
   }
 }
 --- Expected 3.14t ---
@@ -2119,7 +2173,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v60:CInt32 = RunPeriodicTasks {
+    v63:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v30 unc:v31
       FrameState {
         CurInstrOffset 0
@@ -2130,121 +2184,132 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v33:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v30 unc:v31
+    v33:OptObject = LoadGlobalCached<0; "something">
+    Guard v33 {
+      LiveValues<3> b:v30 unc:v31 b:v33
       FrameState {
         CurInstrOffset 2
         Locals<5> v30 v31 v31 v31 v31
       }
     }
-    v63:Object = VectorCall<0> v33 {
-      LiveValues<3> b:v30 unc:v31 o:v33
+    v34:Object = RefineType<Object> v33
+    Incref v34
+    v66:Object = VectorCall<0> v34 {
+      LiveValues<3> b:v30 unc:v31 o:v34
       FrameState {
         CurInstrOffset 12
         Locals<5> v30 v31 v31 v31 v31
       }
     }
-    Decref v33
-    v37:Object = LoadGlobal<1; "something_else"> {
-      LiveValues<3> b:v30 unc:v31 o:v63
+    Decref v34
+    v38:OptObject = LoadGlobalCached<1; "something_else">
+    Guard v38 {
+      LiveValues<4> b:v30 unc:v31 b:v38 o:v66
       FrameState {
-        CurInstrOffset 22
-        Locals<5> v30 v63 v31 v31 v31
+        CurInstrOffset 20
+        Locals<5> v30 v31 v31 v31 v31
+        Stack<1> v66
       }
     }
-    v64:Object = VectorCall<0> v37 {
-      LiveValues<4> b:v30 unc:v31 o:v37 o:v63
+    v39:Object = RefineType<Object> v38
+    Incref v39
+    v67:Object = VectorCall<0> v39 {
+      LiveValues<4> b:v30 unc:v31 o:v39 o:v66
       FrameState {
         CurInstrOffset 32
-        Locals<5> v30 v63 v31 v31 v31
+        Locals<5> v30 v66 v31 v31 v31
       }
     }
-    Decref v37
-    v42:Object = GetIter v30 {
-      LiveValues<4> b:v30 unc:v31 o:v63 o:v64
+    Decref v39
+    v44:Object = GetIter v30 {
+      LiveValues<4> b:v30 unc:v31 o:v66 o:v67
       FrameState {
         CurInstrOffset 48
-        Locals<5> v30 v63 v64 v63 v31
+        Locals<5> v30 v66 v67 v66 v31
       }
     }
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v44:Object = Phi<2, 5> v64 v63
-    v45:OptObject = Phi<2, 5> v47 v31
+    v46:Object = Phi<2, 5> v67 v66
+    v47:OptObject = Phi<2, 5> v49 v31
     AtQuiescentState
-    v46:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v46
+    v48:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v48
   }
 
   bb 8 (preds 7) {
-    v59:CInt32 = RunPeriodicTasks {
-      LiveValues<6> b:v30 o:v42 b:v44 o:v45 o:v63 o:v64
+    v62:CInt32 = RunPeriodicTasks {
+      LiveValues<6> b:v30 o:v44 b:v46 o:v47 o:v66 o:v67
       FrameState {
         CurInstrOffset 50
-        Locals<5> v30 v63 v64 v44 v45
-        Stack<1> v42
+        Locals<5> v30 v66 v67 v46 v47
+        Stack<1> v44
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v47:Object = InvokeIterNext v42 {
-      LiveValues<6> b:v30 o:v42 b:v44 o:v45 o:v63 o:v64
+    v49:Object = InvokeIterNext v44 {
+      LiveValues<6> b:v30 o:v44 b:v46 o:v47 o:v66 o:v67
       FrameState {
         CurInstrOffset 50
-        Locals<5> v30 v63 v64 v44 v45
-        Stack<1> v42
+        Locals<5> v30 v66 v67 v46 v47
+        Stack<1> v44
       }
     }
-    CondBranchIterNotDone<2, 4> v47
+    CondBranchIterNotDone<2, 4> v49
   }
 
   bb 2 (preds 1) {
-    v50:OptObject = LoadGlobalCached<2; "print">
-    v51:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v50 {
+    v52:OptObject = LoadGlobalCached<2; "print">
+    v53:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v52 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<8> b:v30 o:v42 b:v44 o:v45 o:v47 b:v50 o:v63 o:v64
+      LiveValues<8> b:v30 o:v44 b:v46 o:v47 o:v49 b:v52 o:v66 o:v67
       FrameState {
         CurInstrOffset 54
-        Locals<5> v30 v63 v64 v44 v45
-        Stack<2> v42 v47
+        Locals<5> v30 v66 v67 v46 v47
+        Stack<2> v44 v49
       }
     }
-    XDecref v45
-    v61:Object = VectorCall<1> v51 v44 {
-      LiveValues<7> b:v30 o:v42 b:v44 o:v47 b:v51 o:v63 o:v64
+    XDecref v47
+    v64:Object = VectorCall<1> v53 v46 {
+      LiveValues<7> b:v30 o:v44 b:v46 o:v49 b:v53 o:v66 o:v67
       FrameState {
         CurInstrOffset 68
-        Locals<5> v30 v63 v64 v44 v47
-        Stack<1> v42
+        Locals<5> v30 v66 v67 v46 v49
+        Stack<1> v44
       }
     }
-    Decref v61
+    Decref v64
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v42
-    v55:Object = LoadGlobal<3; "use"> {
-      LiveValues<5> b:v30 b:v44 o:v45 o:v63 o:v64
+    v57:OptObject = LoadGlobalCached<3; "use">
+    Guard v57 {
+      LiveValues<7> b:v30 o:v44 b:v46 o:v47 b:v57 o:v66 o:v67
       FrameState {
-        CurInstrOffset 90
-        Locals<5> v30 v63 v64 v44 v45
+        CurInstrOffset 88
+        Locals<5> v30 v66 v67 v46 v47
+        Stack<1> v44
       }
     }
-    v62:Object = VectorCall<2> v55 v63 v64 {
-      LiveValues<6> b:v30 b:v44 o:v45 o:v55 o:v63 o:v64
+    XIncref v57
+    Decref v44
+    v58:Object = RefineType<Object> v57
+    v65:Object = VectorCall<2> v58 v66 v67 {
+      LiveValues<6> b:v30 b:v46 o:v47 o:v58 o:v66 o:v67
       FrameState {
         CurInstrOffset 102
-        Locals<5> v30 v63 v64 v44 v45
+        Locals<5> v30 v66 v67 v46 v47
       }
     }
-    BatchDecref v45 v55 v62 v63 v64
-    v58:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v58
+    BatchDecref v47 v58 v65 v66 v67
+    v61:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v61
   }
 }
 --- Test Name ---
@@ -2266,7 +2331,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v49:CInt32 = RunPeriodicTasks {
+    v51:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v22 unc:v24
       FrameState {
         CurInstrOffset 0
@@ -2277,113 +2342,116 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v26:Nullptr = LoadConst<Nullptr>
-    v27:Object = LoadGlobal<0; "something"> {
-      LiveValues<3> b:v22 unc:v24 unc:v26
+    v27:OptObject = LoadGlobalCached<0; "something">
+    Guard v27 {
+      LiveValues<3> b:v22 unc:v24 b:v27
       FrameState {
         CurInstrOffset 2
         Locals<3> v22 v24 v24
-        Stack<1> v26
       }
     }
-    v52:Object = VectorCall<0> v27 {
-      LiveValues<3> b:v22 unc:v24 o:v27
+    v28:Object = RefineType<Object> v27
+    Incref v28
+    v54:Object = VectorCall<0> v28 {
+      LiveValues<3> b:v22 unc:v24 o:v28
       FrameState {
         CurInstrOffset 12
         Locals<3> v22 v24 v24
       }
     }
-    Decref v27
-    v30:Object = GetIter v22 {
-      LiveValues<3> b:v22 unc:v24 o:v52
+    Decref v28
+    v31:Object = GetIter v22 {
+      LiveValues<3> b:v22 unc:v24 o:v54
       FrameState {
         CurInstrOffset 24
-        Locals<3> v22 v52 v24
+        Locals<3> v22 v54 v24
       }
     }
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v32:Object = Phi<2, 5> v51 v52
-    v33:OptObject = Phi<2, 5> v35 v24
-    v34:CInt32 = LoadEvalBreaker
-    CondBranch<8, 1> v34
+    v33:Object = Phi<2, 5> v53 v54
+    v34:OptObject = Phi<2, 5> v36 v24
+    v35:CInt32 = LoadEvalBreaker
+    CondBranch<8, 1> v35
   }
 
   bb 8 (preds 7) {
-    v48:CInt32 = RunPeriodicTasks {
-      LiveValues<4> b:v22 o:v30 o:v32 o:v33
+    v50:CInt32 = RunPeriodicTasks {
+      LiveValues<4> b:v22 o:v31 o:v33 o:v34
       FrameState {
         CurInstrOffset 26
-        Locals<3> v22 v32 v33
-        Stack<1> v30
+        Locals<3> v22 v33 v34
+        Stack<1> v31
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v35:Object = InvokeIterNext v30 {
-      LiveValues<4> b:v22 o:v30 o:v32 o:v33
+    v36:Object = InvokeIterNext v31 {
+      LiveValues<4> b:v22 o:v31 o:v33 o:v34
       FrameState {
         CurInstrOffset 26
-        Locals<3> v22 v32 v33
-        Stack<1> v30
+        Locals<3> v22 v33 v34
+        Stack<1> v31
       }
     }
-    CondBranchIterNotDone<2, 4> v35
+    CondBranchIterNotDone<2, 4> v36
   }
 
   bb 2 (preds 1) {
-    v39:OptObject = LoadGlobalCached<1; "print">
-    v40:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v39 {
+    v40:OptObject = LoadGlobalCached<1; "print">
+    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v22 o:v30 o:v32 o:v33 o:v35 b:v39
+      LiveValues<6> b:v22 o:v31 o:v33 o:v34 o:v36 b:v40
       FrameState {
         CurInstrOffset 30
-        Locals<3> v22 v32 v33
-        Stack<2> v30 v35
+        Locals<3> v22 v33 v34
+        Stack<2> v31 v36
       }
     }
-    XDecref v33
-    v50:Object = VectorCall<1> v40 v32 {
-      LiveValues<5> b:v22 o:v30 o:v32 o:v35 b:v40
+    XDecref v34
+    v52:Object = VectorCall<1> v41 v33 {
+      LiveValues<5> b:v22 o:v31 o:v33 o:v36 b:v41
       FrameState {
         CurInstrOffset 44
-        Locals<3> v22 v32 v35
-        Stack<1> v30
+        Locals<3> v22 v33 v36
+        Stack<1> v31
       }
     }
-    Decref v50
-    v42:Nullptr = LoadConst<Nullptr>
-    v43:Object = LoadGlobal<2; "something_else"> {
-      LiveValues<5> b:v22 o:v30 o:v32 o:v35 unc:v42
+    v44:OptObject = LoadGlobalCached<2; "something_else">
+    Guard v44 {
+      LiveValues<6> b:v22 o:v31 o:v33 o:v36 b:v44 o:v52
       FrameState {
-        CurInstrOffset 54
-        Locals<3> v22 v32 v35
-        Stack<2> v30 v42
+        CurInstrOffset 52
+        Locals<3> v22 v33 v36
+        Stack<2> v31 v52
       }
     }
-    v51:Object = VectorCall<0> v43 {
-      LiveValues<5> b:v22 o:v30 o:v32 o:v35 o:v43
+    XIncref v44
+    Decref v52
+    v45:Object = RefineType<Object> v44
+    v53:Object = VectorCall<0> v45 {
+      LiveValues<5> b:v22 o:v31 o:v33 o:v36 o:v45
       FrameState {
         CurInstrOffset 64
-        Locals<3> v22 v32 v35
-        Stack<1> v30
+        Locals<3> v22 v33 v36
+        Stack<1> v31
       }
     }
-    Decref v32
-    Decref v43
+    Decref v33
+    Decref v45
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v30
-    Decref v32
-    XDecref v33
-    v46:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return<ImmortalNoneType> v46
+    Decref v31
+    Decref v33
+    XDecref v34
+    v48:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v48
   }
 }
 --- Expected 3.14 ---
@@ -2397,7 +2465,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v48:CInt32 = RunPeriodicTasks {
+    v50:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v22 unc:v24
       FrameState {
         CurInstrOffset 0
@@ -2408,110 +2476,116 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v26:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v22 unc:v24
+    v26:OptObject = LoadGlobalCached<0; "something">
+    Guard v26 {
+      LiveValues<3> b:v22 unc:v24 b:v26
       FrameState {
         CurInstrOffset 2
         Locals<3> v22 v24 v24
       }
     }
-    v51:Object = VectorCall<0> v26 {
-      LiveValues<3> b:v22 unc:v24 o:v26
+    v27:Object = RefineType<Object> v26
+    Incref v27
+    v53:Object = VectorCall<0> v27 {
+      LiveValues<3> b:v22 unc:v24 o:v27
       FrameState {
         CurInstrOffset 12
         Locals<3> v22 v24 v24
       }
     }
-    Decref v26
-    v30:Object = GetIter v22 {
-      LiveValues<3> b:v22 unc:v24 o:v51
+    Decref v27
+    v31:Object = GetIter v22 {
+      LiveValues<3> b:v22 unc:v24 o:v53
       FrameState {
         CurInstrOffset 24
-        Locals<3> v22 v51 v24
+        Locals<3> v22 v53 v24
       }
     }
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v32:Object = Phi<2, 5> v50 v51
-    v33:OptObject = Phi<2, 5> v35 v24
-    v34:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v34
+    v33:Object = Phi<2, 5> v52 v53
+    v34:OptObject = Phi<2, 5> v36 v24
+    v35:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v35
   }
 
   bb 8 (preds 7) {
-    v47:CInt32 = RunPeriodicTasks {
-      LiveValues<4> b:v22 o:v30 o:v32 o:v33
+    v49:CInt32 = RunPeriodicTasks {
+      LiveValues<4> b:v22 o:v31 o:v33 o:v34
       FrameState {
         CurInstrOffset 26
-        Locals<3> v22 v32 v33
-        Stack<1> v30
+        Locals<3> v22 v33 v34
+        Stack<1> v31
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v35:Object = InvokeIterNext v30 {
-      LiveValues<4> b:v22 o:v30 o:v32 o:v33
+    v36:Object = InvokeIterNext v31 {
+      LiveValues<4> b:v22 o:v31 o:v33 o:v34
       FrameState {
         CurInstrOffset 26
-        Locals<3> v22 v32 v33
-        Stack<1> v30
+        Locals<3> v22 v33 v34
+        Stack<1> v31
       }
     }
-    CondBranchIterNotDone<2, 4> v35
+    CondBranchIterNotDone<2, 4> v36
   }
 
   bb 2 (preds 1) {
-    v38:OptObject = LoadGlobalCached<1; "print">
-    v39:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v38 {
+    v39:OptObject = LoadGlobalCached<1; "print">
+    v40:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v39 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v22 o:v30 o:v32 o:v33 o:v35 b:v38
+      LiveValues<6> b:v22 o:v31 o:v33 o:v34 o:v36 b:v39
       FrameState {
         CurInstrOffset 30
-        Locals<3> v22 v32 v33
-        Stack<2> v30 v35
+        Locals<3> v22 v33 v34
+        Stack<2> v31 v36
       }
     }
-    XDecref v33
-    v49:Object = VectorCall<1> v39 v32 {
-      LiveValues<5> b:v22 o:v30 o:v32 o:v35 b:v39
+    XDecref v34
+    v51:Object = VectorCall<1> v40 v33 {
+      LiveValues<5> b:v22 o:v31 o:v33 o:v36 b:v40
       FrameState {
         CurInstrOffset 44
-        Locals<3> v22 v32 v35
-        Stack<1> v30
+        Locals<3> v22 v33 v36
+        Stack<1> v31
       }
     }
-    Decref v49
-    v42:Object = LoadGlobal<2; "something_else"> {
-      LiveValues<4> b:v22 o:v30 o:v32 o:v35
+    v43:OptObject = LoadGlobalCached<2; "something_else">
+    Guard v43 {
+      LiveValues<6> b:v22 o:v31 o:v33 o:v36 b:v43 o:v51
       FrameState {
-        CurInstrOffset 54
-        Locals<3> v22 v32 v35
-        Stack<1> v30
+        CurInstrOffset 52
+        Locals<3> v22 v33 v36
+        Stack<2> v31 v51
       }
     }
-    v50:Object = VectorCall<0> v42 {
-      LiveValues<5> b:v22 o:v30 o:v32 o:v35 o:v42
+    XIncref v43
+    Decref v51
+    v44:Object = RefineType<Object> v43
+    v52:Object = VectorCall<0> v44 {
+      LiveValues<5> b:v22 o:v31 o:v33 o:v36 o:v44
       FrameState {
         CurInstrOffset 64
-        Locals<3> v22 v32 v35
-        Stack<1> v30
+        Locals<3> v22 v33 v36
+        Stack<1> v31
       }
     }
-    Decref v32
-    Decref v42
+    Decref v33
+    Decref v44
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v30
-    Decref v32
-    XDecref v33
-    v46:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v46
+    Decref v31
+    Decref v33
+    XDecref v34
+    v48:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v48
   }
 }
 --- Expected 3.15 ---
@@ -2525,7 +2599,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v52:CInt32 = RunPeriodicTasks {
+    v54:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v24 unc:v26
       FrameState {
         CurInstrOffset 0
@@ -2536,111 +2610,117 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v28:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v24 unc:v26
+    v28:OptObject = LoadGlobalCached<0; "something">
+    Guard v28 {
+      LiveValues<3> b:v24 unc:v26 b:v28
       FrameState {
         CurInstrOffset 4
         Locals<3> v24 v26 v26
       }
     }
-    v55:Object = VectorCall<0> v28 {
-      LiveValues<3> b:v24 unc:v26 o:v28
+    v29:Object = RefineType<Object> v28
+    Incref v29
+    v57:Object = VectorCall<0> v29 {
+      LiveValues<3> b:v24 unc:v26 o:v29
       FrameState {
         CurInstrOffset 14
         Locals<3> v24 v26 v26
       }
     }
-    Decref v28
-    v32:Object = GetIter v24 {
-      LiveValues<3> b:v24 unc:v26 o:v55
+    Decref v29
+    v33:Object = GetIter v24 {
+      LiveValues<3> b:v24 unc:v26 o:v57
       FrameState {
         CurInstrOffset 26
-        Locals<3> v24 v55 v26
+        Locals<3> v24 v57 v26
       }
     }
-    v33:Nullptr = LoadConst<Nullptr>
+    v34:Nullptr = LoadConst<Nullptr>
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v36:Object = Phi<2, 5> v54 v55
-    v37:OptObject = Phi<2, 5> v39 v26
-    v38:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v38
+    v37:Object = Phi<2, 5> v56 v57
+    v38:OptObject = Phi<2, 5> v40 v26
+    v39:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v39
   }
 
   bb 8 (preds 7) {
-    v51:CInt32 = RunPeriodicTasks {
-      LiveValues<5> b:v24 o:v32 unc:v33 o:v36 o:v37
+    v53:CInt32 = RunPeriodicTasks {
+      LiveValues<5> b:v24 o:v33 unc:v34 o:v37 o:v38
       FrameState {
         CurInstrOffset 30
-        Locals<3> v24 v36 v37
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v38
+        Stack<2> v33 v34
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v39:Object = InvokeIterNext v32 {
-      LiveValues<5> b:v24 o:v32 unc:v33 o:v36 o:v37
+    v40:Object = InvokeIterNext v33 {
+      LiveValues<5> b:v24 o:v33 unc:v34 o:v37 o:v38
       FrameState {
         CurInstrOffset 30
-        Locals<3> v24 v36 v37
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v38
+        Stack<2> v33 v34
       }
     }
-    CondBranchIterNotDone<2, 4> v39
+    CondBranchIterNotDone<2, 4> v40
   }
 
   bb 2 (preds 1) {
-    v42:OptObject = LoadGlobalCached<1; "print">
-    v43:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v42 {
+    v43:OptObject = LoadGlobalCached<1; "print">
+    v44:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v43 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<7> b:v24 o:v32 unc:v33 o:v36 o:v37 o:v39 b:v42
+      LiveValues<7> b:v24 o:v33 unc:v34 o:v37 o:v38 o:v40 b:v43
       FrameState {
         CurInstrOffset 34
-        Locals<3> v24 v36 v37
-        Stack<3> v32 v33 v39
+        Locals<3> v24 v37 v38
+        Stack<3> v33 v34 v40
       }
     }
-    XDecref v37
-    v53:Object = VectorCall<1> v43 v36 {
-      LiveValues<6> b:v24 o:v32 unc:v33 o:v36 o:v39 b:v43
+    XDecref v38
+    v55:Object = VectorCall<1> v44 v37 {
+      LiveValues<6> b:v24 o:v33 unc:v34 o:v37 o:v40 b:v44
       FrameState {
         CurInstrOffset 48
-        Locals<3> v24 v36 v39
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v40
+        Stack<2> v33 v34
       }
     }
-    Decref v53
-    v46:Object = LoadGlobal<2; "something_else"> {
-      LiveValues<5> b:v24 o:v32 unc:v33 o:v36 o:v39
+    v47:OptObject = LoadGlobalCached<2; "something_else">
+    Guard v47 {
+      LiveValues<7> b:v24 o:v33 unc:v34 o:v37 o:v40 b:v47 o:v55
       FrameState {
-        CurInstrOffset 58
-        Locals<3> v24 v36 v39
-        Stack<2> v32 v33
+        CurInstrOffset 56
+        Locals<3> v24 v37 v40
+        Stack<3> v33 v34 v55
       }
     }
-    v54:Object = VectorCall<0> v46 {
-      LiveValues<6> b:v24 o:v32 unc:v33 o:v36 o:v39 o:v46
+    XIncref v47
+    Decref v55
+    v48:Object = RefineType<Object> v47
+    v56:Object = VectorCall<0> v48 {
+      LiveValues<6> b:v24 o:v33 unc:v34 o:v37 o:v40 o:v48
       FrameState {
         CurInstrOffset 68
-        Locals<3> v24 v36 v39
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v40
+        Stack<2> v33 v34
       }
     }
-    Decref v36
-    Decref v46
+    Decref v37
+    Decref v48
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v32
-    Decref v36
-    XDecref v37
-    v50:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v50
+    Decref v33
+    Decref v37
+    XDecref v38
+    v52:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v52
   }
 }
 --- Expected 3.16 ---
@@ -2654,7 +2734,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v52:CInt32 = RunPeriodicTasks {
+    v54:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v24 unc:v26
       FrameState {
         CurInstrOffset 0
@@ -2665,111 +2745,117 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v28:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v24 unc:v26
+    v28:OptObject = LoadGlobalCached<0; "something">
+    Guard v28 {
+      LiveValues<3> b:v24 unc:v26 b:v28
       FrameState {
         CurInstrOffset 4
         Locals<3> v24 v26 v26
       }
     }
-    v55:Object = VectorCall<0> v28 {
-      LiveValues<3> b:v24 unc:v26 o:v28
+    v29:Object = RefineType<Object> v28
+    Incref v29
+    v57:Object = VectorCall<0> v29 {
+      LiveValues<3> b:v24 unc:v26 o:v29
       FrameState {
         CurInstrOffset 14
         Locals<3> v24 v26 v26
       }
     }
-    Decref v28
-    v32:Object = GetIter v24 {
-      LiveValues<3> b:v24 unc:v26 o:v55
+    Decref v29
+    v33:Object = GetIter v24 {
+      LiveValues<3> b:v24 unc:v26 o:v57
       FrameState {
         CurInstrOffset 26
-        Locals<3> v24 v55 v26
+        Locals<3> v24 v57 v26
       }
     }
-    v33:Nullptr = LoadConst<Nullptr>
+    v34:Nullptr = LoadConst<Nullptr>
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v36:Object = Phi<2, 5> v54 v55
-    v37:OptObject = Phi<2, 5> v39 v26
-    v38:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v38
+    v37:Object = Phi<2, 5> v56 v57
+    v38:OptObject = Phi<2, 5> v40 v26
+    v39:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v39
   }
 
   bb 8 (preds 7) {
-    v51:CInt32 = RunPeriodicTasks {
-      LiveValues<5> b:v24 o:v32 unc:v33 o:v36 o:v37
+    v53:CInt32 = RunPeriodicTasks {
+      LiveValues<5> b:v24 o:v33 unc:v34 o:v37 o:v38
       FrameState {
         CurInstrOffset 30
-        Locals<3> v24 v36 v37
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v38
+        Stack<2> v33 v34
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v39:Object = InvokeIterNext v32 {
-      LiveValues<5> b:v24 o:v32 unc:v33 o:v36 o:v37
+    v40:Object = InvokeIterNext v33 {
+      LiveValues<5> b:v24 o:v33 unc:v34 o:v37 o:v38
       FrameState {
         CurInstrOffset 30
-        Locals<3> v24 v36 v37
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v38
+        Stack<2> v33 v34
       }
     }
-    CondBranchIterNotDone<2, 4> v39
+    CondBranchIterNotDone<2, 4> v40
   }
 
   bb 2 (preds 1) {
-    v42:OptObject = LoadGlobalCached<1; "print">
-    v43:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v42 {
+    v43:OptObject = LoadGlobalCached<1; "print">
+    v44:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v43 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<7> b:v24 o:v32 unc:v33 o:v36 o:v37 o:v39 b:v42
+      LiveValues<7> b:v24 o:v33 unc:v34 o:v37 o:v38 o:v40 b:v43
       FrameState {
         CurInstrOffset 34
-        Locals<3> v24 v36 v37
-        Stack<3> v32 v33 v39
+        Locals<3> v24 v37 v38
+        Stack<3> v33 v34 v40
       }
     }
-    XDecref v37
-    v53:Object = VectorCall<1> v43 v36 {
-      LiveValues<6> b:v24 o:v32 unc:v33 o:v36 o:v39 b:v43
+    XDecref v38
+    v55:Object = VectorCall<1> v44 v37 {
+      LiveValues<6> b:v24 o:v33 unc:v34 o:v37 o:v40 b:v44
       FrameState {
         CurInstrOffset 48
-        Locals<3> v24 v36 v39
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v40
+        Stack<2> v33 v34
       }
     }
-    Decref v53
-    v46:Object = LoadGlobal<2; "something_else"> {
-      LiveValues<5> b:v24 o:v32 unc:v33 o:v36 o:v39
+    v47:OptObject = LoadGlobalCached<2; "something_else">
+    Guard v47 {
+      LiveValues<7> b:v24 o:v33 unc:v34 o:v37 o:v40 b:v47 o:v55
       FrameState {
-        CurInstrOffset 58
-        Locals<3> v24 v36 v39
-        Stack<2> v32 v33
+        CurInstrOffset 56
+        Locals<3> v24 v37 v40
+        Stack<3> v33 v34 v55
       }
     }
-    v54:Object = VectorCall<0> v46 {
-      LiveValues<6> b:v24 o:v32 unc:v33 o:v36 o:v39 o:v46
+    XIncref v47
+    Decref v55
+    v48:Object = RefineType<Object> v47
+    v56:Object = VectorCall<0> v48 {
+      LiveValues<6> b:v24 o:v33 unc:v34 o:v37 o:v40 o:v48
       FrameState {
         CurInstrOffset 68
-        Locals<3> v24 v36 v39
-        Stack<2> v32 v33
+        Locals<3> v24 v37 v40
+        Stack<2> v33 v34
       }
     }
-    Decref v36
-    Decref v46
+    Decref v37
+    Decref v48
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v32
-    Decref v36
-    XDecref v37
-    v50:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v50
+    Decref v33
+    Decref v37
+    XDecref v38
+    v52:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v52
   }
 }
 --- Expected 3.14t ---
@@ -2785,7 +2871,7 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 0) {
-    v50:CInt32 = RunPeriodicTasks {
+    v52:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v25 unc:v26
       FrameState {
         CurInstrOffset 0
@@ -2796,111 +2882,117 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v28:Object = LoadGlobal<0; "something"> {
-      LiveValues<2> b:v25 unc:v26
+    v28:OptObject = LoadGlobalCached<0; "something">
+    Guard v28 {
+      LiveValues<3> b:v25 unc:v26 b:v28
       FrameState {
         CurInstrOffset 2
         Locals<3> v25 v26 v26
       }
     }
-    v53:Object = VectorCall<0> v28 {
-      LiveValues<3> b:v25 unc:v26 o:v28
+    v29:Object = RefineType<Object> v28
+    Incref v29
+    v55:Object = VectorCall<0> v29 {
+      LiveValues<3> b:v25 unc:v26 o:v29
       FrameState {
         CurInstrOffset 12
         Locals<3> v25 v26 v26
       }
     }
-    Decref v28
-    v32:Object = GetIter v25 {
-      LiveValues<3> b:v25 unc:v26 o:v53
+    Decref v29
+    v33:Object = GetIter v25 {
+      LiveValues<3> b:v25 unc:v26 o:v55
       FrameState {
         CurInstrOffset 24
-        Locals<3> v25 v53 v26
+        Locals<3> v25 v55 v26
       }
     }
     Branch<7>
   }
 
   bb 7 (preds 2, 5) {
-    v34:Object = Phi<2, 5> v52 v53
-    v35:OptObject = Phi<2, 5> v37 v26
+    v35:Object = Phi<2, 5> v54 v55
+    v36:OptObject = Phi<2, 5> v38 v26
     AtQuiescentState
-    v36:CInt64 = LoadEvalBreaker
-    CondBranch<8, 1> v36
+    v37:CInt64 = LoadEvalBreaker
+    CondBranch<8, 1> v37
   }
 
   bb 8 (preds 7) {
-    v49:CInt32 = RunPeriodicTasks {
-      LiveValues<4> b:v25 o:v32 o:v34 o:v35
+    v51:CInt32 = RunPeriodicTasks {
+      LiveValues<4> b:v25 o:v33 o:v35 o:v36
       FrameState {
         CurInstrOffset 26
-        Locals<3> v25 v34 v35
-        Stack<1> v32
+        Locals<3> v25 v35 v36
+        Stack<1> v33
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 7, 8) {
-    v37:Object = InvokeIterNext v32 {
-      LiveValues<4> b:v25 o:v32 o:v34 o:v35
+    v38:Object = InvokeIterNext v33 {
+      LiveValues<4> b:v25 o:v33 o:v35 o:v36
       FrameState {
         CurInstrOffset 26
-        Locals<3> v25 v34 v35
-        Stack<1> v32
+        Locals<3> v25 v35 v36
+        Stack<1> v33
       }
     }
-    CondBranchIterNotDone<2, 4> v37
+    CondBranchIterNotDone<2, 4> v38
   }
 
   bb 2 (preds 1) {
-    v40:OptObject = LoadGlobalCached<1; "print">
-    v41:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v40 {
+    v41:OptObject = LoadGlobalCached<1; "print">
+    v42:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v41 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v25 o:v32 o:v34 o:v35 o:v37 b:v40
+      LiveValues<6> b:v25 o:v33 o:v35 o:v36 o:v38 b:v41
       FrameState {
         CurInstrOffset 30
-        Locals<3> v25 v34 v35
-        Stack<2> v32 v37
+        Locals<3> v25 v35 v36
+        Stack<2> v33 v38
       }
     }
-    XDecref v35
-    v51:Object = VectorCall<1> v41 v34 {
-      LiveValues<5> b:v25 o:v32 o:v34 o:v37 b:v41
+    XDecref v36
+    v53:Object = VectorCall<1> v42 v35 {
+      LiveValues<5> b:v25 o:v33 o:v35 o:v38 b:v42
       FrameState {
         CurInstrOffset 44
-        Locals<3> v25 v34 v37
-        Stack<1> v32
+        Locals<3> v25 v35 v38
+        Stack<1> v33
       }
     }
-    Decref v51
-    v44:Object = LoadGlobal<2; "something_else"> {
-      LiveValues<4> b:v25 o:v32 o:v34 o:v37
+    v45:OptObject = LoadGlobalCached<2; "something_else">
+    Guard v45 {
+      LiveValues<6> b:v25 o:v33 o:v35 o:v38 b:v45 o:v53
       FrameState {
-        CurInstrOffset 54
-        Locals<3> v25 v34 v37
-        Stack<1> v32
+        CurInstrOffset 52
+        Locals<3> v25 v35 v38
+        Stack<2> v33 v53
       }
     }
-    v52:Object = VectorCall<0> v44 {
-      LiveValues<5> b:v25 o:v32 o:v34 o:v37 o:v44
+    XIncref v45
+    Decref v53
+    v46:Object = RefineType<Object> v45
+    v54:Object = VectorCall<0> v46 {
+      LiveValues<5> b:v25 o:v33 o:v35 o:v38 o:v46
       FrameState {
         CurInstrOffset 64
-        Locals<3> v25 v34 v37
-        Stack<1> v32
+        Locals<3> v25 v35 v38
+        Stack<1> v33
       }
     }
-    Decref v34
-    Decref v44
+    Decref v35
+    Decref v46
     Branch<7>
   }
 
   bb 4 (preds 1) {
-    Decref v32
-    Decref v34
-    XDecref v35
-    v48:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    Return v48
+    Decref v33
+    Decref v35
+    XDecref v36
+    v50:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return v50
   }
 }
 --- Test Name ---
@@ -3090,7 +3182,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
+    v8:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3099,12 +3191,16 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v6:Object = LoadGlobal<0; "a_global"> {
+    v6:OptObject = LoadGlobalCached<0; "a_global">
+    Guard v6 {
+      LiveValues<1> b:v6
       FrameState {
         CurInstrOffset 2
       }
     }
-    Return v6
+    v7:Object = RefineType<Object> v6
+    Incref v7
+    Return v7
   }
 }
 --- Expected 3.14 ---
@@ -3116,7 +3212,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
+    v8:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3125,12 +3221,16 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v6:Object = LoadGlobal<0; "a_global"> {
+    v6:OptObject = LoadGlobalCached<0; "a_global">
+    Guard v6 {
+      LiveValues<1> b:v6
       FrameState {
         CurInstrOffset 2
       }
     }
-    Return v6
+    v7:Object = RefineType<Object> v6
+    Incref v7
+    Return v7
   }
 }
 --- Expected 3.15 ---
@@ -3142,7 +3242,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
+    v8:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3151,12 +3251,16 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v6:Object = LoadGlobal<0; "a_global"> {
+    v6:OptObject = LoadGlobalCached<0; "a_global">
+    Guard v6 {
+      LiveValues<1> b:v6
       FrameState {
         CurInstrOffset 4
       }
     }
-    Return v6
+    v7:Object = RefineType<Object> v6
+    Incref v7
+    Return v7
   }
 }
 --- Expected 3.16 ---
@@ -3168,7 +3272,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
+    v8:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3177,12 +3281,16 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v6:Object = LoadGlobal<0; "a_global"> {
+    v6:OptObject = LoadGlobalCached<0; "a_global">
+    Guard v6 {
+      LiveValues<1> b:v6
       FrameState {
         CurInstrOffset 4
       }
     }
-    Return v6
+    v7:Object = RefineType<Object> v6
+    Incref v7
+    Return v7
   }
 }
 --- Expected 3.14t ---
@@ -3195,7 +3303,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v7:CInt32 = RunPeriodicTasks {
+    v8:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -3204,12 +3312,16 @@ fun jittestmodule:test {
   }
 
   bb 1 (preds 0, 2) {
-    v6:Object = LoadGlobal<0; "a_global"> {
+    v6:OptObject = LoadGlobalCached<0; "a_global">
+    Guard v6 {
+      LiveValues<1> b:v6
       FrameState {
         CurInstrOffset 2
       }
     }
-    Return v6
+    v7:Object = RefineType<Object> v6
+    Incref v7
+    Return v7
   }
 }
 --- Test Name ---

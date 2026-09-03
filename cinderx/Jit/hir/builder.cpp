@@ -3562,18 +3562,22 @@ void HIRBuilder::emitLoadGlobal(
   }
 
   auto try_fast_path = [&] {
-    BorrowedRef<> value = preloader_.global(name_idx);
-    if (value == nullptr) {
+    auto global_cache = preloader_.globalCache(name_idx);
+    if (global_cache == nullptr) {
       return false;
     }
+    BorrowedRef<> value = preloader_.global(name_idx);
     tc.emit<LoadGlobalCached>(
         result,
         code_,
         preloader_.builtins(),
         preloader_.globals(),
         name_idx,
-        preloader_.globalCache(name_idx));
-    if (shouldPinGlobalValue(value)) {
+        global_cache);
+    if (value == nullptr) {
+      tc.emit<Guard>(result, tc.frame);
+      tc.emit<RefineType>(result, TObject, result);
+    } else if (shouldPinGlobalValue(value)) {
       auto guard_is = tc.emit<GuardIs>(result, value, result);
       guard_is->setDescr(
           fmt::format("LOAD_GLOBAL: {}", preloader_.name(name_idx)));

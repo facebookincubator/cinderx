@@ -5,6 +5,7 @@
 # pyre-unsafe
 
 import builtins
+import sys
 import unittest
 from textwrap import dedent
 
@@ -16,10 +17,8 @@ from .common import failUnlessHasOpcodes, with_globals
 
 
 # Initialized at module scope so they have a value when failUnlessJITCompiled
-# compiles the readers below at decoration time. A global with no value at
-# compile time takes the uncached LoadGlobal path and would not exercise the
-# guard these tests are about. One global per test, because the guard is chosen
-# from the type seen at compile time.
+# compiles the readers below at decoration time. One global per test, because
+# the guard is chosen from the type seen at compile time.
 a_bool_global: bool = False
 an_int_global: int = 0
 a_retyped_global: int = 0
@@ -27,15 +26,19 @@ a_retyped_global: int = 0
 
 class LoadGlobalCacheTests(unittest.TestCase):
     def setUp(self):
-        global license, a_global
-        try:
-            del license
-        except NameError:
-            pass
-        try:
-            del a_global
-        except NameError:
-            pass
+        for name in (
+            "a_global",
+            "deleted_after_compile_global",
+            "late_bound_builtin",
+            "late_bound_global",
+            "license",
+        ):
+            globals().pop(name, None)
+        builtins.__dict__.pop("a_global", None)
+        builtins.__dict__.pop("late_bound_builtin", None)
+
+    def tearDown(self):
+        self.setUp()
 
     @staticmethod
     def set_global(value):
@@ -47,6 +50,24 @@ class LoadGlobalCacheTests(unittest.TestCase):
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def get_global():
         return a_global
+
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def get_late_bound_global():
+        return late_bound_global  # noqa: F821
+
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def get_deleted_after_compile_global():
+        return deleted_after_compile_global  # noqa: F821
+
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def get_late_bound_builtin():
+        return late_bound_builtin  # noqa: F821
 
     @staticmethod
     def del_global():
@@ -66,7 +87,6 @@ class LoadGlobalCacheTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_simple(self):
-        global a_global
         self.set_global(123)
         self.assertEqual(a_global, 123)
         self.set_global(456)
@@ -94,6 +114,46 @@ class LoadGlobalCacheTests(unittest.TestCase):
         # We don't support DELETE_ATTR yet.
         delattr(builtins, "a_global")
         self.assertRaises(NameError, self.get_global)
+
+    def test_global_bound_after_compile(self):
+        cinderx.jit.clear_runtime_stats()
+        globals()["late_bound_global"] = 123
+
+        self.assertEqual(self.get_late_bound_global(), 123)
+        if cinderx.jit.is_enabled():
+            self.assertEqual(self.deopt_count(self.get_late_bound_global), 0)
+
+    def test_global_deleted_after_compile(self):
+        globals()["deleted_after_compile_global"] = "present"
+        self.assertEqual(self.get_deleted_after_compile_global(), "present")
+        cinderx.jit.clear_runtime_stats()
+
+        del globals()["deleted_after_compile_global"]
+        with self.assertRaises(NameError):
+            self.get_deleted_after_compile_global()
+        if cinderx.jit.is_enabled():
+            self.assertGreater(
+                self.deopt_count(self.get_deleted_after_compile_global), 0
+            )
+
+    def test_builtin_fallback_and_module_shadow_after_compile(self):
+        cinderx.jit.clear_runtime_stats()
+        builtins.late_bound_builtin = "builtin"
+        self.assertEqual(self.get_late_bound_builtin(), "builtin")
+
+        globals()["late_bound_builtin"] = "module"
+        self.assertEqual(self.get_late_bound_builtin(), "module")
+
+        del globals()["late_bound_builtin"]
+        self.assertEqual(self.get_late_bound_builtin(), "builtin")
+        if cinderx.jit.is_enabled():
+            self.assertEqual(self.deopt_count(self.get_late_bound_builtin), 0)
+
+        del builtins.late_bound_builtin
+        with self.assertRaises(NameError):
+            self.get_late_bound_builtin()
+        if cinderx.jit.is_enabled():
+            self.assertGreater(self.deopt_count(self.get_late_bound_builtin), 0)
 
     @staticmethod
     @cinder_support.failUnlessJITCompiled
@@ -194,11 +254,26 @@ class LoadGlobalCacheTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_weird_key_in_globals(self):
-        global a_global
         self.assertRaises(NameError, self.get_global)
         globals()[self.prefix_str("a_glo", "bal")] = "a value"
         self.assertEqual(a_global, "a value")
         self.assertEqual(self.get_global(), "a value")
+
+    @run_in_subprocess
+    def test_unwatchable_dict_uses_generic_lookup(self):
+        globals()[self.prefix_str("unwatchable_", "key")] = None
+
+        @failUnlessHasOpcodes("LOAD_GLOBAL")
+        def get_unwatchable_global():
+            return unwatchable_global  # noqa: F821
+
+        if cinderx.jit.is_enabled():
+            self.assertTrue(cinderx.jit.force_compile(get_unwatchable_global))
+
+        globals()["unwatchable_global"] = "first"
+        self.assertEqual(get_unwatchable_global(), "first")
+        globals()["unwatchable_global"] = "second"
+        self.assertEqual(get_unwatchable_global(), "second")
 
     class MyGlobals(dict):
         def __getitem__(self, key):
@@ -417,3 +492,46 @@ class LoadGlobalCacheTests(unittest.TestCase):
             import tmp_a
 
             self.assertEqual(tmp_a.f(), 3)
+
+    @skip_unless_lazy_imports()
+    @unittest.skipUnless(sys.version_info >= (3, 15), "requires Python 3.15")
+    @run_in_subprocess
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def test_lazy_import_binds_global_after_compile(self):
+        with cinder_support.temp_sys_path() as tmp:
+            (tmp / "tmp_lazy_binding_a.py").write_text(
+                dedent(
+                    """
+                    import cinderx.jit
+                    import importlib
+                    importlib.set_lazy_imports(True)
+
+                    def get_b():
+                        return B
+
+                    def get_raw_b():
+                        return globals()["B"]
+
+                    cinderx.jit.force_compile(get_b)
+                    from tmp_lazy_binding_b import B
+                    """
+                ),
+                encoding="utf8",
+            )
+            (tmp / "tmp_lazy_binding_b.py").write_text(
+                dedent(
+                    """
+                    B = 3
+                    """
+                ),
+                encoding="utf8",
+            )
+
+            import tmp_lazy_binding_a
+
+            self.assertEqual(
+                type(tmp_lazy_binding_a.get_raw_b()).__name__, "lazy_import"
+            )
+            self.assertEqual(tmp_lazy_binding_a.get_b(), 3)
+            if cinderx.jit.is_enabled():
+                self.assertTrue(cinderx.jit.is_jit_compiled(tmp_lazy_binding_a.get_b))
