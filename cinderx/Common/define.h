@@ -47,6 +47,12 @@ constexpr bool kPyRefDebug =
     false;
 #endif
 
+// True when CinderX is built with ThreadSanitizer, on any architecture or OS.
+//
+// Prefer branching on this constexpr over #if CINDER_TSAN_ENABLED so the
+// guarded code still gets type-checked in every build configuration.
+constexpr bool kTsanEnabled = CINDER_TSAN_ENABLED;
+
 // True when CinderX is built against a free-threaded (Py_GIL_DISABLED) Python.
 //
 // When false, code can assume the GIL is held.  When true, it cannot, the GIL

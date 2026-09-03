@@ -2,7 +2,9 @@
 
 #include "cinderx/Jit/hir/type.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Jit/compilation_lock.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/type_code.h"
 
@@ -13,6 +15,7 @@
 #include <algorithm>
 #include <bit>
 #include <cstring>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -422,13 +425,14 @@ Type Type::fromObject(PyObject* obj) {
   }
 
   bits_t lifetime = [&]() {
-#if CINDER_JIT_TSAN_ENABLED
     // Serialize to silence TSAN errors about accessing the reference count of
     // which can change during compilation. However, this is really a false
     // positive as the mortality of an object should not change during
     // compilation.
-    ThreadedCompileGILHolder guard;
-#endif
+    std::optional<ThreadedCompileGILHolder> guard;
+    if constexpr (kTsanEnabled) {
+      guard.emplace();
+    }
     return _Py_IsImmortal(obj) ? kLifetimeImmortal : kLifetimeMortal;
   }();
   return Type{fromTypeExact(Py_TYPE(obj)).bits_, lifetime, obj};

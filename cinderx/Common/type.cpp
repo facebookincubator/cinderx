@@ -4,6 +4,7 @@
 
 #include "internal/pycore_typeobject.h" // @donotremove
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
@@ -12,6 +13,8 @@
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+
+#include <optional>
 
 namespace cinderx {
 
@@ -40,13 +43,14 @@ BorrowedRef<> typeLookupSafe(
     BorrowedRef<> name) {
   JIT_CHECK(PyUnicode_CheckExact(name), "name must be a str");
 
-#if defined(Py_GIL_DISABLED) || CINDER_JIT_TSAN_ENABLED
   // Silence false positive from TSAN when checking Py_TPFLAGS_READY.
   // This flag should never change during compilation although other
   // flags may. We also need an attached thread state in free-threaded
   // builds for the dict lookup.
-  jit::ThreadedCompileGILHolder guard;
-#endif
+  std::optional<jit::ThreadedCompileGILHolder> guard;
+  if constexpr (kFreeThreadedBuild || kTsanEnabled) {
+    guard.emplace();
+  }
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
