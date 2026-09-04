@@ -368,7 +368,7 @@ PyDoc_STRVAR(
     "--\n"
     "\n"
     "Sets the adaptive delay");
-PyObject* cinder_set_adaptive_delay(PyObject* mod, PyObject* delay) {
+PyObject* cinder_set_adaptive_delay(PyObject*, PyObject* delay) {
 #ifdef ENABLE_INTERPRETER_LOOP
   if (!PyLong_Check(delay)) {
     PyErr_SetString(PyExc_TypeError, "expected long");
