@@ -130,19 +130,10 @@ DominatorTree::getBlocksDominatedBy(const BasicBlock* block) const {
 }
 
 bool DominatorTree::sameDominanceAs(const DominatorTree& other) const {
-  if (idoms_.size() != other.idoms_.size()) {
-    return false;
-  }
   // Compare immediate dominators by pointer identity. Both trees are built over
   // the same CFG, so they reference the same BasicBlock objects; this avoids
   // dereferencing a pointer that a missed invalidation may have left dangling.
-  for (const auto& [id, idom] : idoms_) {
-    auto it = other.idoms_.find(id);
-    if (it == other.idoms_.end() || it->second != idom) {
-      return false;
-    }
-  }
-  return true;
+  return idoms_ == other.idoms_;
 }
 
 void DominatorTree::computeDominatorSets() const {
