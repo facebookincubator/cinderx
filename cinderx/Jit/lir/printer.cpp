@@ -81,14 +81,16 @@ void Printer::print(std::ostream& out, const Instruction& instr) {
   out << instr.opname();
   const char* sep = " ";
   if (instr.opcode() == Opcode::kPhi) {
-    auto num_inputs = instr.getNumInputs();
-    for (size_t i = 0; i < num_inputs; i += 2) {
-      out << sep << "(";
-      print(out, *(instr.getInput(i)));
-      sep = ", ";
-      out << sep;
-      print(out, *(instr.getInput(i + 1)));
+    for (size_t i = 0; i < instr.numPhiInputs(); ++i) {
+      out << sep << "(BB%" << instr.phiPredecessor(i)->id() << ", ";
+      const Operand* input = instr.phiInput(i);
+      if (input == nullptr) {
+        out << "<unset>";
+      } else {
+        print(out, *input);
+      }
       out << ")";
+      sep = ", ";
     }
   } else {
     instr.foreachInputOperand([&sep, &out, this](const Operand* operand) {

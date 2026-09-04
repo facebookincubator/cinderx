@@ -56,6 +56,64 @@ size_t Instruction::getNumInputs() const {
   return inputs_.size();
 }
 
+size_t Instruction::numPhiInputs() const {
+  JIT_CHECK(isPhi(), "Instruction is not a phi");
+  JIT_CHECK(inputs_.size() % 2 == 0, "Phi inputs must be label/value pairs");
+  return inputs_.size() / 2;
+}
+
+BasicBlock* Instruction::phiPredecessor(size_t index) const {
+  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
+  const Operand* label = getInput(index * 2);
+  return label == nullptr ? basic_block_->predecessor(index)
+                          : label->getBasicBlock();
+}
+
+Operand* Instruction::phiInput(size_t index) {
+  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
+  return getInput(index * 2 + 1);
+}
+
+const Operand* Instruction::phiInput(size_t index) const {
+  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
+  return getInput(index * 2 + 1);
+}
+
+void Instruction::addPhiInput(IncomingEdge edge, Instruction* value) {
+  JIT_CHECK(value != nullptr, "Phi input value is null");
+  addPhiInput(edge, std::make_unique<Operand>(value, Operand::kLinked));
+}
+
+void Instruction::addPhiInput(
+    IncomingEdge edge,
+    std::unique_ptr<Operand> value) {
+  JIT_CHECK(isPhi(), "Instruction is not a phi");
+  JIT_CHECK(value != nullptr, "Phi input value is null");
+  JIT_CHECK(edge.successor() == basic_block_, "Edge belongs to another block");
+
+  const size_t incoming_slot = edge.incomingSlot();
+  const size_t num_predecessors = basic_block_->numPredecessors();
+  JIT_CHECK(incoming_slot < num_predecessors, "Incoming slot out of range");
+
+  if (inputs_.empty()) {
+    setNumInputs(num_predecessors * 2);
+  }
+  JIT_CHECK(
+      numPhiInputs() == num_predecessors,
+      "Phi input slots do not match predecessors");
+
+  const size_t label_index = incoming_slot * 2;
+  const size_t value_index = label_index + 1;
+  JIT_CHECK(
+      inputs_[label_index] == nullptr && inputs_[value_index] == nullptr,
+      "Phi input already set");
+
+  auto label = std::make_unique<Operand>(this);
+  label->setBasicBlock(edge.predecessor());
+  setInput(label_index, std::move(label));
+  setInput(value_index, std::move(value));
+}
+
 void Instruction::setNumInputs(size_t n) {
   inputs_.resize(n);
 }
@@ -210,7 +268,8 @@ int Instruction::getOperandIndexByPredecessor(const BasicBlock* pred) const {
   JIT_DCHECK(opcode_ == Opcode::kPhi, "The current instruction must be Phi.");
   size_t num_inputs = getNumInputs();
   for (size_t i = 0; i < num_inputs; i += 2) {
-    if (getInput(i)->getBasicBlock() == pred) {
+    const Operand* label = getInput(i);
+    if (label != nullptr && label->getBasicBlock() == pred) {
       return i + 1;
     }
   }

@@ -18,6 +18,7 @@ class Instr;
 namespace lir {
 
 class BasicBlock;
+class IncomingEdge;
 
 // Instruction class defines instructions in LIR.
 // Every instruction can have no more than one output, but arbitrary
@@ -56,6 +57,13 @@ class Instruction {
 
   // Get the number of inputs passed into this instruction.
   size_t getNumInputs() const;
+
+  size_t numPhiInputs() const;
+  BasicBlock* phiPredecessor(size_t index) const;
+  Operand* phiInput(size_t index);
+  const Operand* phiInput(size_t index) const;
+  void addPhiInput(IncomingEdge edge, Instruction* value);
+  void addPhiInput(IncomingEdge edge, std::unique_ptr<Operand> value);
 
   // Change the number of inputs passed into this instruction.  Will add nullptr
   // Operand objects if the number increases.

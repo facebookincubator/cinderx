@@ -172,6 +172,86 @@ TEST(LIRBlockTest, AddSuccessorReturnsIncomingSlots) {
   EXPECT_THROW(source->outgoingEdge(2), std::runtime_error);
 }
 
+TEST(LIRBlockTest, PhiAccessorsUseIncomingSlots) {
+  Function function;
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* second = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  first->addSuccessor(join);
+  second->addSuccessor(join);
+
+  Instruction* first_phi =
+      join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  first_phi->allocateLabelInput(first);
+  auto* first_value = first_phi->allocateImmediateInput(10);
+  first_phi->allocateLabelInput(second);
+  auto* second_value = first_phi->allocateImmediateInput(20);
+
+  Instruction* second_phi =
+      join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  second_phi->allocateLabelInput(first);
+  second_phi->allocateImmediateInput(100);
+  second_phi->allocateLabelInput(second);
+  second_phi->allocateImmediateInput(200);
+
+  EXPECT_EQ(first_phi->numPhiInputs(), 2);
+  EXPECT_EQ(first_phi->phiPredecessor(0), first);
+  EXPECT_EQ(first_phi->phiPredecessor(1), second);
+  EXPECT_EQ(first_phi->phiInput(0), first_value);
+  EXPECT_EQ(first_phi->phiInput(1), second_value);
+  EXPECT_EQ(first_phi->phiInput(1), first_phi->getInput(3));
+  EXPECT_NE(first_phi->phiInput(1), first_phi->getInput(1));
+
+  const Instruction* const_phi = second_phi;
+  EXPECT_EQ(const_phi->numPhiInputs(), 2);
+  EXPECT_EQ(const_phi->phiPredecessor(1), second);
+  EXPECT_EQ(const_phi->phiInput(0)->getConstant(), 100);
+  EXPECT_EQ(const_phi->phiInput(1)->getConstant(), 200);
+
+  EXPECT_DEATH(first_phi->phiInput(2), "Phi input index out of range");
+}
+
+TEST(LIRBlockTest, AddPhiInputUsesIncomingSlot) {
+  Function function;
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* second = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  IncomingEdge first_edge = first->addSuccessor(join);
+  IncomingEdge second_edge = second->addSuccessor(join);
+
+  Instruction* first_value =
+      first->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{10});
+  Instruction* second_value =
+      second->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{20});
+  auto moved_value = second_value->removeInput(0);
+  auto* moved_value_ptr = moved_value.get();
+  moved_value_ptr->setLastUse();
+
+  Instruction* phi = join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->addPhiInput(second_edge, std::move(moved_value));
+
+  EXPECT_EQ(phi->numPhiInputs(), 2);
+  EXPECT_EQ(phi->phiInput(0), nullptr);
+  EXPECT_EQ(phi->phiInput(1), moved_value_ptr);
+  EXPECT_EQ(moved_value_ptr->instr(), phi);
+  EXPECT_TRUE(moved_value_ptr->isLastUse());
+  EXPECT_EQ(phi->getInput(2)->getBasicBlock(), second);
+  EXPECT_EQ(phi->getInput(3), moved_value_ptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(first), nullptr);
+  EXPECT_EQ(phi->getOperandByPredecessor(second), moved_value_ptr);
+  std::stringstream sparse_phi;
+  sparse_phi << *phi;
+  EXPECT_NE(sparse_phi.str().find("<unset>"), std::string::npos);
+
+  phi->addPhiInput(first_edge, first_value);
+
+  EXPECT_EQ(phi->phiInput(0)->getLinkedInstr(), first_value);
+  EXPECT_EQ(phi->phiInput(1), moved_value_ptr);
+  EXPECT_EQ(phi->getInput(0)->getBasicBlock(), first);
+  EXPECT_DEATH(
+      phi->addPhiInput(first_edge, first_value), "Phi input already set");
+}
+
 TEST(LIRBlockTest, SetSuccessorUpdatesEdges) {
   Function function;
   BasicBlock* source = function.allocateBasicBlock();
