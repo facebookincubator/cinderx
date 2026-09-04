@@ -114,6 +114,16 @@ void expectEdgeCount(
   EXPECT_EQ(blockCount(successor->predecessors(), predecessor), expected);
 }
 
+void expectIncomingEdge(
+    const IncomingEdge& edge,
+    BasicBlock* predecessor,
+    BasicBlock* successor,
+    size_t incoming_slot) {
+  EXPECT_EQ(edge.predecessor(), predecessor);
+  EXPECT_EQ(edge.successor(), successor);
+  EXPECT_EQ(edge.incomingSlot(), incoming_slot);
+}
+
 } // namespace
 
 TEST(LIRBlockTest, AddSuccessorUpdatesEdges) {
@@ -131,6 +141,35 @@ TEST(LIRBlockTest, AddSuccessorUpdatesEdges) {
   expectEdgeCount(first, join, 2);
   expectEdgeCount(second, join, 1);
   expectEdgeCount(loop, loop, 1);
+}
+
+TEST(LIRBlockTest, AddSuccessorReturnsIncomingSlots) {
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* other = function.allocateBasicBlock();
+  BasicBlock* target = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+
+  IncomingEdge first = source->addSuccessor(target);
+  IncomingEdge second = other->addSuccessor(target);
+  IncomingEdge duplicate = source->addSuccessor(target);
+  IncomingEdge self = loop->addSuccessor(loop);
+
+  expectIncomingEdge(first, source, target, 0);
+  expectIncomingEdge(second, other, target, 1);
+  expectIncomingEdge(duplicate, source, target, 2);
+  expectIncomingEdge(self, loop, loop, 0);
+  expectIncomingEdge(target->incomingEdge(0), source, target, 0);
+  expectIncomingEdge(target->incomingEdge(1), other, target, 1);
+  expectIncomingEdge(target->incomingEdge(2), source, target, 2);
+  EXPECT_THROW(target->incomingEdge(3), std::runtime_error);
+  expectIncomingEdge(source->outgoingEdge(0), source, target, 0);
+  expectIncomingEdge(source->outgoingEdge(1), source, target, 2);
+  expectIncomingEdge(other->outgoingEdge(0), other, target, 1);
+  EXPECT_EQ(first.outgoingSlot(), 0);
+  EXPECT_EQ(duplicate.outgoingSlot(), 1);
+  EXPECT_EQ(second.outgoingSlot(), 0);
+  EXPECT_THROW(source->outgoingEdge(2), std::runtime_error);
 }
 
 TEST(LIRBlockTest, SetSuccessorUpdatesEdges) {

@@ -16,7 +16,25 @@ class Instr;
 
 namespace cinderx::jit::lir {
 
+class BasicBlock;
 class Function;
+
+// Refers to one edge entering a block. A CFG change can make it stale.
+class IncomingEdge {
+ public:
+  BasicBlock* predecessor() const;
+  BasicBlock* successor() const;
+  size_t outgoingSlot() const;
+  size_t incomingSlot() const;
+
+ private:
+  friend class BasicBlock;
+
+  IncomingEdge(BasicBlock* successor, size_t incoming_slot);
+
+  BasicBlock* successor_;
+  size_t incoming_slot_;
+};
 
 // Basic block class for LIR
 class BasicBlock {
@@ -37,7 +55,7 @@ class BasicBlock {
   Function* function();
   const Function* function() const;
 
-  void addSuccessor(BasicBlock* bb);
+  IncomingEdge addSuccessor(BasicBlock* bb);
 
   // Change the outgoing edge at index. Remove its phi values from the old
   // successor; this does not add phi values to the new successor.
@@ -49,6 +67,7 @@ class BasicBlock {
   void popSuccessor();
 
   const std::vector<BasicBlock*>& successors() const;
+  IncomingEdge outgoingEdge(size_t index) const;
 
   void swapSuccessors();
 
@@ -59,6 +78,7 @@ class BasicBlock {
 
   size_t numPredecessors() const;
   BasicBlock* predecessor(size_t index) const;
+  IncomingEdge incomingEdge(size_t index) const;
 
   // Pointer-based lookup requires the predecessor to occur at most once.
   std::optional<size_t> findPredecessorIndex(
@@ -159,7 +179,7 @@ class BasicBlock {
 
  private:
   void appendSuccessor(BasicBlock* successor);
-  void addPredecessor(BasicBlock* predecessor);
+  size_t addPredecessor(BasicBlock* predecessor);
   void erasePredecessor(size_t index);
   void applyPendingAnnotation(Instruction* instr);
   int id_;

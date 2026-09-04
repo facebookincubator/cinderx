@@ -8,6 +8,41 @@
 
 namespace cinderx::jit::lir {
 
+IncomingEdge::IncomingEdge(BasicBlock* successor, size_t incoming_slot)
+    : successor_(successor), incoming_slot_(incoming_slot) {}
+
+BasicBlock* IncomingEdge::predecessor() const {
+  return successor_->predecessor(incoming_slot_);
+}
+
+BasicBlock* IncomingEdge::successor() const {
+  return successor_;
+}
+
+size_t IncomingEdge::outgoingSlot() const {
+  BasicBlock* const predecessor_block = predecessor();
+  size_t occurrence = 0;
+  for (size_t earlier = 0; earlier < incoming_slot_; ++earlier) {
+    occurrence += successor_->predecessor(earlier) == predecessor_block;
+  }
+  const auto& successors = predecessor_block->successors();
+  for (size_t outgoing_slot = 0; outgoing_slot < successors.size();
+       ++outgoing_slot) {
+    if (successors[outgoing_slot] != successor_) {
+      continue;
+    }
+    if (occurrence == 0) {
+      return outgoing_slot;
+    }
+    --occurrence;
+  }
+  JIT_ABORT("Predecessor has no matching successor edge");
+}
+
+size_t IncomingEdge::incomingSlot() const {
+  return incoming_slot_;
+}
+
 BasicBlock::BasicBlock(Function* func) : id_(func->allocateId()), func_(func) {}
 
 int BasicBlock::id() const {
@@ -26,9 +61,10 @@ const Function* BasicBlock::function() const {
   return func_;
 }
 
-void BasicBlock::addSuccessor(BasicBlock* bb) {
+IncomingEdge BasicBlock::addSuccessor(BasicBlock* bb) {
+  const size_t incoming_slot = bb->addPredecessor(this);
   appendSuccessor(bb);
-  bb->addPredecessor(this);
+  return IncomingEdge{bb, incoming_slot};
 }
 
 void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
@@ -53,6 +89,31 @@ void BasicBlock::popSuccessor() {
 
 const std::vector<BasicBlock*>& BasicBlock::successors() const {
   return successors_;
+}
+
+IncomingEdge BasicBlock::outgoingEdge(size_t index) const {
+  JIT_THROW_IF(
+      index >= successors_.size(),
+      "Successor index {} out of range for block {}, has {} successors",
+      index,
+      id_,
+      successors_.size());
+  BasicBlock* const successor = successors_[index];
+  size_t occurrence = 0;
+  for (size_t earlier = 0; earlier < index; ++earlier) {
+    occurrence += successors_[earlier] == successor;
+  }
+  for (size_t incoming_slot = 0; incoming_slot < successor->numPredecessors();
+       ++incoming_slot) {
+    if (successor->predecessor(incoming_slot) != this) {
+      continue;
+    }
+    if (occurrence == 0) {
+      return successor->incomingEdge(incoming_slot);
+    }
+    --occurrence;
+  }
+  JIT_ABORT("Successor has no matching predecessor edge");
 }
 
 void BasicBlock::appendSuccessor(BasicBlock* successor) {
@@ -94,8 +155,20 @@ BasicBlock* BasicBlock::predecessor(size_t index) const {
   return predecessors_[index];
 }
 
-void BasicBlock::addPredecessor(BasicBlock* predecessor) {
+IncomingEdge BasicBlock::incomingEdge(size_t index) const {
+  JIT_THROW_IF(
+      index >= predecessors_.size(),
+      "Predecessor index {} out of range for block {}, has {} predecessors",
+      index,
+      id_,
+      predecessors_.size());
+  return IncomingEdge{const_cast<BasicBlock*>(this), index};
+}
+
+size_t BasicBlock::addPredecessor(BasicBlock* predecessor) {
+  const size_t incoming_slot = predecessors_.size();
   predecessors_.push_back(predecessor);
+  return incoming_slot;
 }
 
 std::optional<size_t> BasicBlock::findPredecessorIndex(
