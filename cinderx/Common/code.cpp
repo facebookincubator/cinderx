@@ -30,6 +30,20 @@ CodeExtra* codeExtraIfPresent(cinderx::BorrowedRef<PyCodeObject> code) {
   if (extra_index == -1) {
     return nullptr;
   }
+#ifndef Py_GIL_DISABLED
+  // We match CPython's _PyCodeObjectExtra which isn't exported but hasn't
+  // changed since it was introduced in 2016. We inline this access because
+  // it shows up as significant in builds that aren't statically linked w/ LTO.
+  struct CodeObjectExtraStorage {
+    Py_ssize_t size;
+    void* entries[1];
+  };
+  auto* storage = reinterpret_cast<CodeObjectExtraStorage*>(code->co_extra);
+  if (storage == nullptr || storage->size <= extra_index) {
+    return nullptr;
+  }
+  return reinterpret_cast<CodeExtra*>(storage->entries[extra_index]);
+#endif
   void* data_ptr = nullptr;
   if (PyUnstable_Code_GetExtra(code.getObj(), extra_index, &data_ptr) < 0) {
     PyErr_Clear();
