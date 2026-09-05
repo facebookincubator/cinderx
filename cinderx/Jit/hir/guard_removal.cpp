@@ -52,6 +52,27 @@ bool guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
               worklist.emplace(passthrough_output, passthrough_type);
             }
           }
+          Register* output = instr->output();
+          if (output != nullptr && output->isA(TBottom)) {
+            // This instruction can only fail, and the guard's narrower
+            // operand type is what proves it. The code after it has already
+            // been replaced with a trap, so widening the type would let the
+            // instruction succeed and fall into that trap.
+            Type relaxed_output =
+                outputType(*instr, [&](std::size_t operand_index) {
+                  if (operand_index == i) {
+                    return relaxed_type;
+                  }
+                  return instr->getOperand(operand_index)->type();
+                });
+            if (!(relaxed_output <= TBottom)) {
+              TRACE(
+                  "'{}' kept alive by unreachable '{}'",
+                  *new_reg->instr(),
+                  *instr);
+              return true;
+            }
+          }
           OperandType expected_type = instr->getOperandType(i);
           // TASK(T106726658): We should be able to remove GuardTypes if we ever
           // add a matching constraint for non-Primitive types, and our
