@@ -145,13 +145,13 @@ void CodePatcher::swap() {
     std::memcpy(data_.data(), temp.data(), flags_.data_len);
   }
 
-  if constexpr (kFreeThreadedBuild) {
-    // Flush CPU caches, including the instruction cache, so all cores will see
-    // the update. Note for x86 this is a no-op as caches are coherent.
-    __builtin___clear_cache(
-        reinterpret_cast<char*>(patchpoint_),
-        reinterpret_cast<char*>(patchpoint_) + flags_.data_len);
-  }
+  // Flush the instruction cache so the core that executes the patchpoint next
+  // sees the new bytes rather than a stale decoding of the old ones.  Note for
+  // x86 this is a no-op as caches are coherent; aarch64 needs it even
+  // single-threaded.
+  __builtin___clear_cache(
+      reinterpret_cast<char*>(patchpoint_),
+      reinterpret_cast<char*>(patchpoint_) + flags_.data_len);
 }
 
 // We use a custom spin-lock implementation as I'm not aware of a generic way of
