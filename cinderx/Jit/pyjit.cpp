@@ -4267,6 +4267,13 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 
   auto mod_state = cinderx::getModuleState();
 
+  // The callback installed below captures `deleted_units`, which lives on this
+  // frame, so it must not outlive the call.  Clearing it only after preload()
+  // returns isn't enough: the early return when preloading fails would leave it
+  // installed, and the next code object to be destroyed would then insert into
+  // a hash table on a dead stack frame.
+  SCOPE_EXIT(mod_state->unit_deleted_during_preload = nullptr);
+
   while (worklist.size() > 0 && result.size() < limit) {
     BorrowedRef<PyFunctionObject> f = worklist.front();
     worklist.pop_front();
