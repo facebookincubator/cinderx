@@ -58,7 +58,7 @@ extern "C" {
 // NULL when pthread_condattr_setclock(CLOCK_MONOTONIC) is not supported.
 static pthread_condattr_t* condattr_monotonic = NULL;
 
-static int _PyThread_cond_init(PyCOND_T* cond) {
+Py_LOCAL_INLINE(int) _PyThread_cond_init(PyCOND_T* cond) {
 #ifdef CONDATTR_MONOTONIC
   static pthread_condattr_t ca;
   pthread_condattr_init(&ca);
