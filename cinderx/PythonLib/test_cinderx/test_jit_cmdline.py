@@ -514,6 +514,13 @@ class CmdLineTest(unittest.TestCase):
             check,
         )
 
+        self._check_both_forms(
+            "cinderx-jit-perf-map",
+            "CINDERX_JIT_PERF_MAP",
+            ["-X", "jit-debug", "-c", _COMPILE_SAMPLE],
+            check,
+        )
+
     @passIf(sys.platform == "win32", "Perf support is Linux-only")
     def test_perf_dumpdir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -526,8 +533,15 @@ class CmdLineTest(unittest.TestCase):
                     dump.unlink()
 
             self._check_both_forms(
-                f"jit-perf-dumpdir={tmp_dir}{os.sep}",
-                f"JIT_DUMPDIR={tmp_dir}{os.sep}",
+                f"jit-dump-dir={tmp_dir}{os.sep}",
+                f"JITDUMPDIR={tmp_dir}{os.sep}",
+                ["-c", _COMPILE_SAMPLE],
+                check,
+            )
+
+            self._check_both_forms(
+                f"cinderx-jit-dump-dir={tmp_dir}{os.sep}",
+                f"CINDERX_JIT_DUMP_DIR={tmp_dir}{os.sep}",
                 ["-c", _COMPILE_SAMPLE],
                 check,
             )

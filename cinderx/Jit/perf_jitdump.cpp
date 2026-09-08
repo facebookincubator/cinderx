@@ -46,8 +46,6 @@
 namespace cinderx::jit::perf {
 
 #ifndef WIN32
-int jit_perfmap = 0;
-std::string perf_jitdump_dir;
 
 namespace {
 
@@ -184,7 +182,7 @@ FileInfo openFileInfo(std::string filename_format) {
 }
 
 FileInfo openPidMap() {
-  if (!jit_perfmap) {
+  if (!getConfig().perf_map.enabled) {
     return {};
   }
 
@@ -195,13 +193,12 @@ FileInfo openPidMap() {
 
 // If enabled, open the jitdump file, and write out its header.
 FileInfo openJitdumpFile() {
-  if (perf_jitdump_dir.empty()) {
+  auto const& jit_dump_dir = getConfig().perf_map.jit_dump_dir;
+  if (jit_dump_dir.empty()) {
     return {};
   }
 
-  JIT_CHECK(
-      perf_jitdump_dir.at(0) == '/', "jitdump directory path isn't absolute");
-  auto info = openFileInfo(fmt::format("{}/jit-{{}}.dump", perf_jitdump_dir));
+  auto info = openFileInfo(fmt::format("{}/jit-{{}}.dump", jit_dump_dir));
   if (info.file == nullptr) {
     return {};
   }

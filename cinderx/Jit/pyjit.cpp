@@ -750,22 +750,52 @@ FlagProcessor initFlagProcessor() {
       "Add RefineType instructions to coerce Static Python types to be "
       "valid");
 
-#ifndef WIN32
+  // TODO: Keeping the unprefixed argument around temporarily until we remove
+  // all uses of it.
   flag_processor.addOption(
-      "cinderx-jit-perfmap",
+      "jit-perfmap",
       "JIT_PERFMAP",
-      perf::jit_perfmap,
-      "write out /tmp/perf-<pid>.map for JIT symbols");
+      getMutableConfig().perf_map.enabled,
+      "Write out /tmp/perf-<pid>.map for JIT symbols");
+  flag_processor.addOption(
+      "cinderx-jit-perf-map",
+      "CINDERX_JIT_PERF_MAP",
+      getMutableConfig().perf_map.enabled,
+      "Write out /tmp/perf-<pid>.map for JIT symbols");
 
+  // The standard environment variable for JIT dumps is JITDUMPDIR.  CinderX
+  // also exposes CINDERX_JIT_DUMP_DIR as its own dedicated environment
+  // variable.
+  //
+  // NB: This looks a lot like other options like CINDERX_JIT_DUMP_HIR, but
+  // these are completely different outputs.
+
+  // TODO: Keeping JIT_DUMPDIR argument around temporarily until we remove all
+  // uses of it.
   flag_processor
       .addOption(
-          "cinderx-jit-perf-dumpdir",
+          "jit-dumpdir",
           "JIT_DUMPDIR",
-          perf::perf_jitdump_dir,
-          "absolute path to a <DIRECTORY> that exists. A perf jitdump file "
+          getMutableConfig().perf_map.jit_dump_dir,
+          "Absolute path to a <DIRECTORY> that exists. A perf jitdump file "
           "will be written to this directory")
       .withFlagParamName("DIRECTORY");
-#endif
+  flag_processor
+      .addOption(
+          "jit-dump-dir",
+          "JITDUMPDIR",
+          getMutableConfig().perf_map.jit_dump_dir,
+          "Absolute path to a <DIRECTORY> that exists. A perf jitdump file "
+          "will be written to this directory")
+      .withFlagParamName("DIRECTORY");
+  flag_processor
+      .addOption(
+          "cinderx-jit-dump-dir",
+          "CINDERX_JIT_DUMP_DIR",
+          getMutableConfig().perf_map.jit_dump_dir,
+          "Absolute path to a <DIRECTORY> that exists. A perf jitdump file "
+          "will be written to this directory")
+      .withFlagParamName("DIRECTORY");
 
   flag_processor.addOption(
       "cinderx-jit-help", "", [] {}, "print all available JIT flags and exits");
@@ -841,6 +871,23 @@ FlagProcessor initFlagProcessor() {
       !flag_processor.hasHandled("cinderx-jit-preload-dependent-limit")) {
     getMutableConfig().preload_dependent_limit = 0;
   }
+
+  // Perf support does not exist on Windows.
+  if (kOS == OS::kWindows) {
+    if (getConfig().perf_map.enabled) {
+      JIT_LOG("Perf maps are not supported on Windows");
+    }
+    if (!getConfig().perf_map.jit_dump_dir.empty()) {
+      JIT_LOG("Perf JIT dumps are not supported on Windows");
+    }
+    getMutableConfig().perf_map = PerfMapOptions{};
+  }
+
+  auto const& jit_dump_dir = getConfig().perf_map.jit_dump_dir;
+  JIT_THROW_IF(
+      !jit_dump_dir.empty() && jit_dump_dir[0] != '/',
+      "The perf JIT dump directory must be an absolute path, have '{}'",
+      jit_dump_dir);
 
   return flag_processor;
 }

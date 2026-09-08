@@ -89,6 +89,15 @@ struct GdbOptions {
   bool write_elf_objects{false};
 };
 
+// Options for controlling how JIT-compiled functions are serialized out for
+// external profiling tools (i.e. Linux perf).
+struct PerfMapOptions {
+  // To which directory to write JIT dumps to, implies JIT dumps are enabled.
+  std::string jit_dump_dir;
+  // Whether perf map support is enabled.
+  bool enabled{false};
+};
+
 struct JitListOptions {
   // Name of the file loaded in as a JIT list.
   std::string filename;
@@ -238,6 +247,7 @@ struct Config {
   uint32_t attr_cache_size{4};
   std::optional<uint32_t> compile_after_n_calls;
   GdbOptions gdb;
+  PerfMapOptions perf_map;
   JitListOptions jit_list;
   LogOptions log;
   MemoryOptions mem;
