@@ -8,15 +8,19 @@
 
 namespace cinderx::jit::perf {
 
-constexpr std::string_view kDefaultSymbolPrefix{"__CINDER_INFRA_JIT"};
+// Prefix to use for JIT-compiled Python functions.
 constexpr std::string_view kFuncSymbolPrefix{"__CINDER_JIT"};
+
+// Prefix to use for JIT-compiled code internal to CinderX, such as shared
+// trampolines.
+constexpr std::string_view kInternalSymbolPrefix{"__CINDER_INFRA_JIT"};
 
 bool isPreforkCompilationEnabled();
 
 void registerFunction(
     const std::vector<std::pair<void*, std::size_t>>& code_sections,
     std::string_view name,
-    std::string_view prefix = kDefaultSymbolPrefix);
+    std::string_view prefix);
 
 // After-fork callback for child processes. Performs any cleanup necessary for
 // per-process state, including handling of Linux perf pid maps.

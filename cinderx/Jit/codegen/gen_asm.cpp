@@ -538,7 +538,7 @@ static void* emitAndRegisterTrampoline(
   populateCodeSections(code_sections, code, result);
   code_sections.emplace_back(result, code_size);
 #ifndef WIN32
-  perf::registerFunction(code_sections, name);
+  perf::registerFunction(code_sections, name, perf::kInternalSymbolPrefix);
 #endif
   return result;
 }
