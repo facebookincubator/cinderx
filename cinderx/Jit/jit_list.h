@@ -76,10 +76,6 @@ class JITList : public IJITList {
 
   // Dict of name/qualname -> dict of file basename -> set of line numbers.
   Ref<> name_file_line_no_;
-
-  // Cached string objects for path separators.
-  mutable Ref<> path_sep_;
-  mutable Ref<> backslash_sep_;
 };
 
 // A wildcard JIT list allows one to match multiple functions with a single
