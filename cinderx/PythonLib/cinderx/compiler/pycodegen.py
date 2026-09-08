@@ -1523,6 +1523,10 @@ class CodeGenerator(ASTVisitor):
     def emit_call_function_ex(self, nkwelts: int) -> None:
         self.emit("CALL_FUNCTION_EX", int(nkwelts > 0))
 
+    @staticmethod
+    def _call_stack_use(nargs: int, nkwds: int) -> int:
+        return nargs + nkwds * 2
+
     def _call_helper(
         self,
         argcnt: int,
@@ -1532,7 +1536,7 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         starred = any(isinstance(arg, ast.Starred) for arg in args)
         mustdictunpack = any(arg.arg is None for arg in kwargs)
-        manyargs = (len(args) + (len(kwargs) * 2)) > STACK_USE_GUIDELINE
+        manyargs = self._call_stack_use(len(args), len(kwargs)) > STACK_USE_GUIDELINE
         if not (starred or mustdictunpack or manyargs):
             return self._fastcall_helper(argcnt, node, args, kwargs)
 
@@ -6855,6 +6859,13 @@ class CodeGenerator316(CodeGenerator315):
     # gh-issue-151907: 3.16 skips building a list for a list comprehension whose
     # result is discarded (used as an expression statement).
     _unused_listcomp_avoids_creation: bool = True
+
+    @staticmethod
+    def _call_stack_use(nargs: int, nkwds: int) -> int:
+        # gh-155141: 3.16 counts keyword arguments once, plus one slot for
+        # the names tuple (CALL_STACK_USE in CPython's codegen.c), so
+        # pure-keyword calls with 16 to 29 kwargs compile to CALL_KW.
+        return nargs + nkwds + (1 if nkwds else 0)
 
     def emit_add_conditional_annotation(self) -> None:
         # gh-154902: 3.16 registers a conditional annotation's index via the new
