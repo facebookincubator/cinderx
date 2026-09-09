@@ -1,1 +1,2 @@
+mod:outer
 mod:outer.<locals>.inner

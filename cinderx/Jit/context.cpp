@@ -586,7 +586,6 @@ void Context::finalizeMultiThreadedCompile() {
 void Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
-  compiled->setOwner(this);
   if (isJitCompiled(func)) {
     // Someone else compiled the function between when our caller checked and
     // called us.
@@ -596,11 +595,6 @@ void Context::finalizeFunc(
   // Add the function to the CompiledFunction's set of functions and set it
   // to be compiled.
   compiled->addFunction(func);
-
-  if (hasFunctionEntryCache(func->func_code)) {
-    void** indirect = findFunctionEntryCache(func->func_code);
-    *indirect = compiled->staticEntry();
-  }
 
   if (NestedCompileData* data = nestedCompileData(func->func_code);
       data != nullptr && nestedCompileDataMatches(func, *data)) {
@@ -986,6 +980,14 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   auto compiled = CompiledFunction::create(std::move(compiled_func), immortal);
   if (compiled == nullptr) {
     return nullptr;
+  }
+
+  compiled->setOwner(this);
+
+  BorrowedRef<PyCodeObject> code{key.code};
+  if (hasFunctionEntryCache(code)) {
+    void** indirect = findFunctionEntryCache(code);
+    *indirect = compiled->staticEntry();
   }
 
   if (compiled->runtime() != nullptr) {
