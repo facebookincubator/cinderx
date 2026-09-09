@@ -2155,8 +2155,10 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
   if (func == nullptr) {
     return nullptr;
   }
-  if (!isJitUsable() || isJitCompiled(func)) {
+  if (!isJitUsable()) {
     Py_RETURN_FALSE;
+  } else if (isJitCompiled(func)) {
+    Py_RETURN_TRUE;
   }
 
   if (Ci_InitFrameEvalFunc() < 0) {
