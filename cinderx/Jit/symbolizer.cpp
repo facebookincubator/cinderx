@@ -181,9 +181,13 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
     return cached->second;
   }
 
-  // Then try dladdr. It might be able to find the symbol.
+  // Then try dladdr. It might be able to find the symbol.  It reports the
+  // nearest preceding symbol rather than an exact match, so only accept it
+  // when it lands exactly on `func`, which is what the lookups below require
+  // too.
   Dl_info info;
-  if (::dladdr(func, &info) != 0 && info.dli_sname != nullptr) {
+  if (::dladdr(func, &info) != 0 && info.dli_sname != nullptr &&
+      info.dli_saddr == func) {
     return cache(func, info.dli_sname);
   }
 
