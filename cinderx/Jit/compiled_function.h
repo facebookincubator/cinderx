@@ -133,6 +133,7 @@ extern PyObject* kCompiledFunctionKey;
 extern PyObject* kNestedCompiledFunctionsKey;
 
 class CompiledFunction;
+class NestedCompileData;
 
 // Interface for the owner of a CompiledFunction.  The owner holds the
 // bookkeeping that maps Python functions and compilation keys to their
@@ -304,13 +305,6 @@ class CompiledFunction {
 int initCompiledFunctionType();
 
 BorrowedRef<PyTypeObject> getCompiledFunctionType();
-
-// Associate a function with a CompiledFunction and store a reference to the
-// CompiledFunction in the function's __dict__.
-bool associateFunctionWithCompiled(
-    BorrowedRef<PyFunctionObject> func,
-    BorrowedRef<CompiledFunction> compiled,
-    bool is_nested);
 
 // Whether a tp_traverse may report `compiled` to the collector.
 //

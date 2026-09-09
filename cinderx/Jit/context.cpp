@@ -318,7 +318,17 @@ void Context::eraseNestedCompileData(BorrowedRef<PyCodeObject> code) {
     return;
   }
   unpublishNestedCompileData(it->second.get());
-  nested_compile_data_.erase(it);
+  // The anchor index points at the entry, so it has to let go first.
+  unanchorNestedCompile(*it->second);
+  // Pull the node out and then let the NestedCompileData get freed
+  auto node = nested_compile_data_.extract(it);
+}
+
+BorrowedRef<PyFunctionObject> Context::nestedCompileAnchor(
+    BorrowedRef<PyCodeObject> code,
+    BorrowedRef<PyFunctionObject> func) {
+  auto it = code_outer_funcs_.find(code);
+  return it != code_outer_funcs_.end() ? it->second : func;
 }
 
 void Context::refreshNestedCompileData() {
@@ -573,14 +583,14 @@ void Context::finalizeMultiThreadedCompile() {
   }
 }
 
-bool Context::finalizeFunc(
+void Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
   compiled->setOwner(this);
   if (isJitCompiled(func)) {
     // Someone else compiled the function between when our caller checked and
     // called us.
-    return true;
+    return;
   }
 
   // Add the function to the CompiledFunction's set of functions and set it
@@ -592,10 +602,11 @@ bool Context::finalizeFunc(
     *indirect = compiled->staticEntry();
   }
 
-  if (NestedCompileData* data = findNestedCompileData(func->func_code)) {
-    data->setCompiledFunction(compiled);
+  if (NestedCompileData* data = nestedCompileData(func->func_code);
+      data != nullptr && nestedCompileDataMatches(func, *data)) {
+    addNestedCompile(
+        nestedCompileAnchor(func->func_code, func), *data, compiled);
   }
-  return true;
 }
 
 Ref<PyFunctionObject> Context::codeCompiled(
@@ -635,42 +646,21 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
     return;
   }
 
-  // Hold the compile alive across the teardown below.  The outer function's
-  // list owns a reference, and now that a function's own reference is a
-  // refcount rather than an entry in its __dict__, dropping the list's can be
-  // the last one - which would free the compile out from under the clear()
-  // below, and re-enter forgetCompiledFunction() and invalidate `it` on the
-  // way.
-  Ref<CompiledFunction> cf = Ref<CompiledFunction>::create(it->second);
+  // Hold the compile alive across the teardown below: dropping the
+  // nested-compile cache's reference can otherwise be the last one.
+  Ref<CompiledFunction> compiled = Ref<CompiledFunction>::create(it->second);
 
-  // Remove the CF from any outer function's nested compiled functions list.
-  // When a nested function is compiled, its CF is stored both in the
-  // function's own __dict__ and in the outer function's
-  // __cinderx_nested_compiled_funcs__ list. We need to clean up the latter
-  // when forgetting the code.
-  BorrowedRef<PyCodeObject> code{it->first.code};
-  auto outer_it = code_outer_funcs_.find(code);
-  if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {
-    BorrowedRef<PyFunctionObject> outer = outer_it->second;
-    PyObject* outer_dict = outer->func_dict;
-    if (outer_dict != nullptr) {
-      Ref<> nested_list = getDictRef(outer_dict, kNestedCompiledFunctionsKey);
-      if (nested_list != nullptr && PyList_CheckExact(nested_list.get())) {
-        for (Py_ssize_t i = PyList_GET_SIZE(nested_list.get()) - 1; i >= 0;
-             i--) {
-          if (PyList_GET_ITEM(nested_list.get(), i) ==
-              reinterpret_cast<PyObject*>(cf.get())) {
-            if (PyList_SetSlice(nested_list.get(), i, i + 1, nullptr) < 0) {
-              PyErr_Clear();
-            }
-            break;
-          }
-        }
-      }
-    }
+  // Drop the nested-compile cache's reference too, otherwise it would keep the
+  // compile alive after we've been asked to forget it.
+  auto nested_it = nested_compile_data_.find(
+      BorrowedRef<PyCodeObject>{
+          reinterpret_cast<PyCodeObject*>(it->first.code)});
+  if (nested_it != nested_compile_data_.end() &&
+      nested_it->second->compiledFunction() == compiled) {
+    clearNestedCompile(*nested_it->second);
   }
 
-  cf->clear();
+  compiled->clear();
   compiled_codes_.erase(CompilationKey{func});
 }
 
@@ -681,6 +671,9 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
   if (function.runtime() != nullptr) {
     auto nested_it = nested_compile_data_.find(function.runtime()->code());
     if (nested_it != nested_compile_data_.end()) {
+      if (nested_it->second->compiledFunction() == &function) {
+        unanchorNestedCompile(*nested_it->second);
+      }
       nested_it->second->clearCompiledFunction(&function);
     }
     compiled_codes_.erase(CompilationKey{function});
@@ -772,7 +765,9 @@ void Context::clearForMultithreadedCompileTest() {
     compiled->removeFunction(func);
   }
   compiled_codes_.clear();
+  nested_compile_anchors_.clear();
   for (auto& [_, data] : nested_compile_data_) {
+    data->setOuterFunc(nullptr);
     data->setCompiledFunction(nullptr);
   }
 }
@@ -781,6 +776,7 @@ void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   FreeThreadedJITEntrypointGuard guard;
   releaseFuncRegistration(func);
+  releaseNestedCompiles(func);
   // This doesn't modify compiled_codes_, so if this is a nested function it can
   // easily be reopted later.
 }
@@ -841,6 +837,89 @@ BorrowedRef<CompiledFunction> Context::lookupCode(
   // interpreter state.
   auto it = compiled_codes_.find(CompilationKey{code, builtins, globals});
   return it == compiled_codes_.end() ? nullptr : it->second.get();
+}
+
+void Context::addNestedCompile(
+    BorrowedRef<PyFunctionObject> outer,
+    NestedCompileData& data,
+    BorrowedRef<CompiledFunction> compiled) {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  FreeThreadedJITEntrypointGuard guard;
+  if (outer == nullptr) {
+    // With no function to report the reference from, holding the compile would
+    // pin its code object and its module's globals for the life of the process.
+    // Recompiling later is the lesser evil.
+    clearNestedCompile(data);
+    return;
+  }
+  if (outer != data.outerFunc()) {
+    // Re-anchoring: the entry is changing hands, so take it off the old
+    // anchor's list first.
+    unanchorNestedCompile(data);
+    nested_compile_anchors_[outer].emplace_back(&data);
+    data.setOuterFunc(outer);
+  }
+  data.setCompiledFunction(compiled);
+}
+
+void Context::unanchorNestedCompile(NestedCompileData& data) {
+  BorrowedRef<PyFunctionObject> outer = data.outerFunc();
+  if (outer == nullptr) {
+    return;
+  }
+  data.setOuterFunc(nullptr);
+  auto it = nested_compile_anchors_.find(outer);
+  if (it == nested_compile_anchors_.end()) {
+    return;
+  }
+  std::erase(it->second, &data);
+  if (it->second.empty()) {
+    nested_compile_anchors_.erase(it);
+  }
+}
+
+void Context::clearNestedCompile(NestedCompileData& data) {
+  unanchorNestedCompile(data);
+  // May drop the last reference to the compile, which re-enters
+  // forgetCompiledFunction(), so nothing above may still be mid-update.
+  data.setCompiledFunction(nullptr);
+}
+
+int Context::traverseNestedCompiles(
+    BorrowedRef<PyFunctionObject> outer,
+    visitproc visit,
+    void* arg) {
+  // No lock: this only runs from a GC traversal, which holds the GIL or has the
+  // world stopped.  See lookupCode.
+  auto it = nested_compile_anchors_.find(outer);
+  if (it == nested_compile_anchors_.end()) {
+    return 0;
+  }
+  for (NestedCompileData* data : it->second) {
+    BorrowedRef<CompiledFunction> compiled = data->compiledFunction();
+    if (isCollectableCompile(compiled)) {
+      Py_VISIT(reinterpret_cast<PyObject*>(compiled.get()));
+    }
+  }
+  return 0;
+}
+
+void Context::releaseNestedCompiles(BorrowedRef<PyFunctionObject> outer) {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  FreeThreadedJITEntrypointGuard guard;
+  auto it = nested_compile_anchors_.find(outer);
+  if (it == nested_compile_anchors_.end()) {
+    return;
+  }
+  // Detach before releasing: dropping the last reference to a CompiledFunction
+  // re-enters forgetCompiledFunction(), and we must not be holding an iterator
+  // into this map when it does.
+  std::vector<NestedCompileData*> anchored = std::move(it->second);
+  nested_compile_anchors_.erase(it);
+  for (NestedCompileData* data : anchored) {
+    data->setOuterFunc(nullptr);
+    data->setCompiledFunction(nullptr);
+  }
 }
 
 void Context::addDeoptedFunc(
@@ -913,16 +992,8 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     compiled->runtime()->setCompiledFunction(compiled);
   }
 
-  // If the registered outer func for the code is different than the func we
-  // will register the CompiledCode on the outer most function.
-  if (outer != nullptr && outer->func_globals == key.globals &&
-      outer->func_builtins == key.builtins &&
-      !associateFunctionWithCompiled(outer, compiled, true)) {
-    return nullptr;
-  }
-
-  if (func != nullptr && !finalizeFunc(func, compiled)) {
-    return nullptr;
+  if (func != nullptr) {
+    finalizeFunc(func, compiled);
   }
 
   // Borrowed; the compile is kept alive by the function objects using it.
@@ -931,9 +1002,16 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
       pair.second,
       "CompilationKey already present {}",
       PyUnicode_AsUTF8(reinterpret_cast<PyCodeObject*>(key.code)->co_qualname));
+  // The nested-compile entry is what carries the compile across the gaps
+  // between instances of a nested function, anchored on the function the code
+  // was found in.  A compile made for a function that has been renamed away
+  // from its code object doesn't belong to the entry, and caching it there
+  // would hand it to the next instance, which still has the original name.
   auto nested_it = nested_compile_data_.find(key.code);
-  if (nested_it != nested_compile_data_.end()) {
-    nested_it->second->setCompiledFunction(compiled);
+  if (nested_it != nested_compile_data_.end() &&
+      nestedCompileDataMatches(func, *nested_it->second)) {
+    addNestedCompile(
+        nestedCompileAnchor(key.code, func), *nested_it->second, compiled);
   }
   return compiled;
 }

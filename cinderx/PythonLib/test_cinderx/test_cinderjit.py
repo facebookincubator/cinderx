@@ -2394,9 +2394,7 @@ class BadArgumentTests(unittest.TestCase):
         # __dict__ to make that happen.
         nested1 = compiled_code_func_with_nested()
         cinder_support.failUnlessJITCompiled(nested1)
-        self.assertIn(
-            "__cinderx_nested_compiled_funcs__", compiled_code_func_with_nested.__dict__
-        )
+        self.assertEqual(compiled_code_func_with_nested.__dict__, {})
         self.assertEqual(nested1.__dict__, {})
         code1 = id(cinderx.jit.get_compiled_function(nested1))
         del nested1

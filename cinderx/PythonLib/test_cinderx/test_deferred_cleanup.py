@@ -257,5 +257,90 @@ class DeferredCleanupTest(unittest.TestCase):
         self.assertIn("OK", proc.stdout, proc)
 
 
+@skip_unless_jit("Exercises JIT-compiled code lifetime")
+@skip_if_prefork(
+    "Prefork builds immortalize compiled functions, so a nested compile can "
+    "never be dropped in the first place"
+)
+class NestedCompileLifetimeTest(unittest.TestCase):
+    """
+    A nested function's compiled code must outlive any single instance of that
+    nested function.
+
+    The outer function is what bridges the gap: instances of the nested function
+    come and go, but the outer stays, so it owns the compile.  This has to hold
+    even when the outer is never itself JIT-compiled, which is the case with no
+    NestedCompileData -- those are only created while PRELOADING the outer.
+    """
+
+    def _count_compiles(self, code: str, qualname: str) -> int:
+        env = {**subprocess_env(), "PYTHONJITDEBUG": "1"}
+        with tempfile.TemporaryDirectory() as tmp:
+            mod = Path(tmp) / "mod.py"
+            mod.write_text(textwrap.dedent(code))
+            proc = subprocess.run(
+                [sys.executable, str(mod)],
+                cwd=tmp,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding=ENCODING,
+                env=env,
+            )
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertIn("OK", proc.stdout, proc)
+        needle = f"Compiling {qualname}"
+        return sum(
+            1
+            for line in proc.stderr.splitlines()
+            if line.startswith("JIT:") and line.endswith(needle)
+        )
+
+    def test_nested_compile_survives_instance_deletion(self) -> None:
+        """
+        Deleting the instance that triggered the compile must not throw the
+        compile away while other instances of the same nested function are
+        still around to use it.
+        """
+        compiles = self._count_compiles(
+            """
+            from cinderx.jit import (
+                auto,
+                is_jit_compiled,
+                wait_for_background_compiles,
+            )
+
+            def outer():
+                return lambda: 42
+
+            # Both instances exist before anything is compiled, so neither is
+            # attached to a compile when it is created.
+            first = outer()
+            second = outer()
+
+            auto()
+            for _ in range(2000):
+                first()
+            wait_for_background_compiles()
+            assert is_jit_compiled(first)
+            # The scenario only means anything if the outer itself was never
+            # compiled, since that is what leaves it without NestedCompileData.
+            assert not is_jit_compiled(outer)
+
+            # `first` owns the only reference to the compile.  Dropping it must
+            # not discard the compile -- `second` still needs it, and building
+            # identical code again is pure waste.
+            del first
+            for _ in range(2000):
+                second()
+            wait_for_background_compiles()
+            assert is_jit_compiled(second)
+
+            print("OK")
+            """,
+            "__main__:outer.<locals>.<lambda>",
+        )
+        self.assertEqual(compiles, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

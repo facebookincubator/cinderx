@@ -37,6 +37,15 @@ int jitFuncTraverse(PyObject* self, visitproc visit, void* arg) {
     if (isCollectableCompile(compiled)) {
       Py_VISIT(reinterpret_cast<PyObject*>(compiled.get()));
     }
+    // Also report any nested functions' compiles this function is holding on
+    // their behalf, so that edge is visible to the collector and the cycle
+    // through the CompiledFunction stays breakable.
+    if (ctx->hasNestedCompiles()) {
+      int res = ctx->traverseNestedCompiles(func, visit, arg);
+      if (res != 0) {
+        return res;
+      }
+    }
   }
   return original_func_traverse(self, visit, arg);
 }
@@ -51,6 +60,7 @@ int jitFuncClear(PyObject* self) {
     // Must happen before the base implementation, which clears func_globals and
     // func_builtins and so makes the compilation key unrecoverable.
     ctx->releaseCompiledFuncRef(BorrowedRef<PyFunctionObject>{self});
+    ctx->releaseNestedCompiles(BorrowedRef<PyFunctionObject>{self});
   }
   return original_func_clear(self);
 }

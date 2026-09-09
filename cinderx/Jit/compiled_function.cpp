@@ -391,70 +391,6 @@ CompiledFunction::~CompiledFunction() {
   data_ = nullptr;
 }
 
-bool associateFunctionWithCompiled(
-    BorrowedRef<PyFunctionObject> func,
-    BorrowedRef<CompiledFunction> compiled,
-    bool is_nested) {
-  if (_Py_IsImmortal(func)) {
-    // The function can never be freed, so we can keep the CompiledFunction
-    // alive
-#if PY_VERSION_HEX >= 0x030E0000
-    _Py_SetImmortalUntracked(compiled);
-#else
-    _Py_SetImmortal(compiled);
-#endif
-    return true;
-  } else if (_Py_IsImmortal(compiled)) {
-    // The CompiledFunction is already immortal, no need to associate it
-    return true;
-  }
-  // Store a reference to the CompiledFunction in the function's __dict__.
-  JIT_DCHECK(
-      kCompiledFunctionKey != nullptr && kNestedCompiledFunctionsKey != nullptr,
-      "failed to create compilation key");
-  PyObject* func_dict = func->func_dict;
-  if (func_dict == nullptr) {
-    func_dict = PyDict_New();
-    if (func_dict == nullptr) {
-      return false;
-    }
-    func->func_dict = func_dict;
-  }
-
-  if (is_nested) {
-    // Store CompiledFunction for nested function in outer function, we'll
-    // also store it in the nested function's __dict__ when we do a
-    // finalizeFunc on it.
-    Ref<> nested_list = getDictRef(func_dict, kNestedCompiledFunctionsKey);
-    if (nested_list == nullptr || !PyList_CheckExact(nested_list)) {
-      if (PyErr_Occurred()) {
-        return false;
-      }
-      nested_list = Ref<>::steal(PyList_New(0));
-      if (nested_list == nullptr) {
-        return false;
-      } else if (
-          PyDict_SetItem(func_dict, kNestedCompiledFunctionsKey, nested_list) <
-          0) {
-        return false;
-      }
-    }
-    return PyList_Append(nested_list, compiled) == 0;
-  }
-  // Store the reference (this increfs the CompiledFunction).
-  if (PyDict_SetItem(
-          func_dict,
-          kCompiledFunctionKey,
-          reinterpret_cast<PyObject*>(compiled.get())) < 0) {
-    return false;
-  }
-
-  // Add the function to the CompiledFunction's set.
-  compiled->addFunction(func);
-
-  return true;
-}
-
 void CompiledFunction::disassemble() const {
   auto start = reinterpret_cast<const char*>(codeBuffer().data());
   Disassembler dis{start, codeSize()};
@@ -595,6 +531,7 @@ void CompiledFunction::clear(bool context_finalizing) {
       }
     }
   }
+
   if (owner_ != nullptr) {
     if (!context_finalizing) {
       owner_->forgetCompiledFunction(*this);

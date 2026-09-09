@@ -920,7 +920,8 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
   }
 
   if (CompiledFunction* compiled = jitCtx()->lookupFunc(func)) {
-    return jitCtx()->finalizeFunc(func, compiled);
+    jitCtx()->finalizeFunc(func, compiled);
+    return true;
   }
 
   return false;
@@ -946,8 +947,6 @@ enum class CompileAdmission {
   kInFlight,
   // This code can never be compiled (e.g. it has incompatible co_flags)
   kIneligible,
-  // Finalization raised a Python exception.
-  kError,
 };
 
 Result resultFor(CompileAdmission admission) {
@@ -958,8 +957,6 @@ Result resultFor(CompileAdmission admission) {
       return Result::ALREADY_SCHEDULED;
     case CompileAdmission::kIneligible:
       return Result::CANNOT_SPECIALIZE;
-    case CompileAdmission::kError:
-      return Result::PYTHON_EXCEPTION;
     case CompileAdmission::kCompile:
       JIT_ABORT("kCompile has no corresponding Result");
     default:
@@ -1024,11 +1021,8 @@ AdmitResult admitCompile(
         // our reference over to keep the function alive until then.
         jit_ctx->addDeferredFinalization(key, std::move(func));
         return {CompileAdmission::kAlreadyCompiled, nullptr};
-      } else if (!jit_ctx->finalizeFunc(func, compiled)) {
-        JIT_CHECK(PyErr_Occurred(), "should have set an error");
-        // Failed to finalize, probably due to failure to allocate
-        return {CompileAdmission::kError, std::move(func)};
       }
+      jit_ctx->finalizeFunc(func, compiled);
     }
     return {CompileAdmission::kAlreadyCompiled, std::move(func)};
   }
@@ -1484,11 +1478,7 @@ bool compile_all(size_t workers = 0) {
           preloader->builtins(),
           preloader->globals(),
           func != nullptr ? Ref<PyFunctionObject>::create(func) : nullptr);
-      if (admitted.admission == CompileAdmission::kError) {
-        PyErr_WriteUnraisable(nullptr);
-        PyErr_Clear();
-      } else if (
-          admitted.admission == CompileAdmission::kInFlight &&
+      if (admitted.admission == CompileAdmission::kInFlight &&
           admitted.func != nullptr) {
         // Another unit in this batch (or another thread) owns this exact
         // compilation key.  Previously the worker would hit ALREADY_SCHEDULED
@@ -1986,8 +1976,11 @@ int compile_after_n_calls_impl(uint32_t calls) {
   getMutableConfig().compile_after_n_calls = calls;
 
   // Schedule all pre-existing functions for compilation.
-  walkFunctionObjects(
-      [](BorrowedRef<PyFunctionObject> func) { scheduleJitCompile(func); });
+  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
+    if (!isJitCompiled(func)) {
+      scheduleJitCompile(func);
+    }
+  });
 
   JIT_DLOG("Configuring JIT to compile functions after {} calls", calls);
 
@@ -2550,7 +2543,9 @@ int rescheduleJitList() {
   walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
     auto jit_list = cinderx::getModuleState()->jit_list.get();
     if (jit_list->lookupFunc(func)) {
-      scheduleJitCompile(func);
+      if (!isJitCompiled(func)) {
+        scheduleJitCompile(func);
+      }
     }
   });
 
@@ -3701,7 +3696,18 @@ void trackEligibleCodeObjects(
   BorrowedRef<> top_consts{func_code->co_consts};
   for (BorrowedRef<PyCodeObject> code : findNestedCodes(mod, top_consts)) {
     auto [_, nested_inserted] = jit_code_outer_funcs.try_emplace(code, func);
-    if (nested_inserted && eligibility == JitEligibility::JitListEligible) {
+    if (!nested_inserted) {
+      continue;
+    }
+    // Give the nested code somewhere to keep a compile of its own, so that the
+    // compile outlives any single instance of the nested function.  Preloading
+    // makes these entries too, but only ever for an outer function that is
+    // itself being JIT-compiled; without this, a nested function inside an
+    // outer that only ever runs in the interpreter loses its compile along with
+    // its first instance and is compiled again for the next one.
+    jitCtx()->getOrCreateNestedCompileData(
+        mod, code, getCompilationEligibility(mod, code));
+    if (eligibility == JitEligibility::JitListEligible) {
       jit_reg_units.emplace(code.getObj());
     }
   }
@@ -4191,9 +4197,6 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   }
   auto admitted = admitCompile(jit_ctx, func);
   if (admitted.admission != CompileAdmission::kCompile) {
-    if (admitted.admission == CompileAdmission::kError) {
-      PyErr_Clear();
-    }
     return;
   }
   {
@@ -4536,6 +4539,12 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
 inline std::optional<bool> scheduleNestedFunction(
     BorrowedRef<PyFunctionObject> func,
     NestedCompileData* data) {
+  // The entry only speaks for functions still carrying the code's own name;
+  // anything else has to go through the full per-function lookup.
+  if (!nestedCompileDataMatches(func, *data)) {
+    return std::nullopt;
+  }
+
   BorrowedRef<CompiledFunction> compiled = data->compiledFunction();
   if (compiled != nullptr && !isInstrumentationActive()) {
     CodeRuntime* runtime = compiled->runtime();

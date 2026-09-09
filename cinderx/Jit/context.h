@@ -290,7 +290,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * Record per-function metadata for a newly compiled function and set the
    * function's entrypoint.
    */
-  bool finalizeFunc(
+  void finalizeFunc(
       BorrowedRef<PyFunctionObject> func,
       BorrowedRef<CompiledFunction> compiled);
 
@@ -385,6 +385,58 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * own, such as the runtime tests, that reach here with functions attached.
    */
   void releaseFunctionCompileRefs();
+
+  /*
+   * Have `data` hold `compiled` on behalf of a nested function, and have
+   * `outer` - the function the nested code was found in - report that reference
+   * to the garbage collector.
+   *
+   * A nested function's compile has to outlive any single instance of that
+   * nested function, or creating the next instance recompiles it.  The
+   * NestedCompileData bridges that gap because it is keyed by the nested code
+   * object, which outlives the instances made from it.
+   */
+  void addNestedCompile(
+      BorrowedRef<PyFunctionObject> outer,
+      NestedCompileData& data,
+      BorrowedRef<CompiledFunction> compiled);
+
+  /*
+   * Drop the compile `data` holds, along with its reporting anchor.
+   */
+  void clearNestedCompile(NestedCompileData& data);
+
+  /*
+   * Stop reporting `data`'s compile from its outer function, without dropping
+   * the compile itself.
+   */
+  void unanchorNestedCompile(NestedCompileData& data);
+
+  /*
+   * The function that should report a compile of `code` to the GC: the function
+   * the code was found in, falling back to `func` itself.
+   */
+  BorrowedRef<PyFunctionObject> nestedCompileAnchor(
+      BorrowedRef<PyCodeObject> code,
+      BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Report the nested compiles `outer` is the anchor for to a GC traversal.
+   * Returns non-zero if the visit callback did.
+   */
+  int traverseNestedCompiles(
+      BorrowedRef<PyFunctionObject> outer,
+      visitproc visit,
+      void* arg);
+
+  /* Release the nested compiles `outer` is the anchor for. */
+  void releaseNestedCompiles(BorrowedRef<PyFunctionObject> outer);
+
+  /* Cheap gate so processes with no nested compiles pay nothing per traverse.
+   */
+  bool hasNestedCompiles() const {
+    return !nested_compile_anchors_.empty();
+  }
 
   NestedCompileData* getOrCreateNestedCompileData(
       BorrowedRef<> module_name,
@@ -647,6 +699,17 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    */
   UnorderedMap<BorrowedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>
       deopted_funcs_;
+
+  /*
+   * Index from an outer function to the nested-compile entries whose references
+   * it reports to the garbage collector.  See addNestedCompile() for why that
+   * reporting is what keeps the compiles collectable.
+   *
+   * Holds no references of its own: the single reference to each compile lives
+   * on the NestedCompileData, and this only says who is responsible for it.
+   */
+  UnorderedMap<BorrowedRef<PyFunctionObject>, std::vector<NestedCompileData*>>
+      nested_compile_anchors_;
 
   /*
    * Set of compilations that are currently active, across all threads.

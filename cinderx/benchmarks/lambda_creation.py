@@ -4,9 +4,16 @@
 
 """Measure repeated Python function creation with and without the CinderX JIT.
 
-The workload deliberately creates short-lived lambdas inside a JIT-compiled
-loop. Each construction fires Python's function lifecycle watchers, making this
-a regression benchmark for CinderX's per-function scheduling bookkeeping.
+The default workload deliberately creates short-lived lambdas inside a
+JIT-compiled loop. Each construction fires Python's function lifecycle watchers,
+making this a regression benchmark for CinderX's per-function scheduling
+bookkeeping.
+
+--nested selects a variant where each created function is also called, so it
+gets JIT-compiled, and is then dropped before the next one is created. That
+measures the path where a new instance of a nested function has to pick up the
+compile made for an earlier instance: if the compile is not kept across the gap
+between instances, every iteration pays for a fresh compile instead.
 """
 
 from __future__ import annotations
@@ -51,8 +58,23 @@ def construct_lambdas(iterations: int) -> None:
         lambda value: value + 1
 
 
-def run(iterations: int, warmup: int, repeat: int) -> list[float]:
-    construct_lambdas(warmup)
+def make_nested() -> object:
+    def nested(value: int) -> int:
+        return value + 1
+
+    return nested
+
+
+def construct_and_call_nested(iterations: int) -> None:
+    for _ in range(iterations):
+        # pyre-ignore[29]: the whole point is calling the fresh instance.
+        make_nested()(1)
+
+
+def run(iterations: int, warmup: int, repeat: int, nested: bool = False) -> list[float]:
+    workload = construct_and_call_nested if nested else construct_lambdas
+    per_iteration = 1 if nested else CONSTRUCTIONS_PER_ITERATION
+    workload(warmup)
     if cinderx is not None:
         cinderx.jit.wait_for_background_compiles()
     gc.collect()
@@ -63,9 +85,9 @@ def run(iterations: int, warmup: int, repeat: int) -> list[float]:
     try:
         for run_number in range(1, repeat + 1):
             start = time.perf_counter()
-            construct_lambdas(iterations)
+            workload(iterations)
             elapsed = time.perf_counter() - start
-            per_lambda_ns = elapsed / (iterations * CONSTRUCTIONS_PER_ITERATION) * 1e9
+            per_lambda_ns = elapsed / (iterations * per_iteration) * 1e9
             samples_ns.append(per_lambda_ns)
             print(
                 f"  Run {run_number}/{repeat}: {per_lambda_ns:.2f} ns/lambda",
@@ -110,6 +132,8 @@ def measure_subprocess(
     ]
     if enable_cinderx:
         command.append("--cinderx")
+    if args.nested:
+        command.append("--nested")
 
     print(f"\n--- {label} ---")
     completed = subprocess.run(
@@ -136,11 +160,12 @@ def compare(args: argparse.Namespace) -> None:
     )
     jit_ns = measure_subprocess("CinderX JIT", args, enable_cinderx=True)
 
+    workload = "nested construct+call" if args.nested else "lambda construction"
     print("\n" + "=" * 60)
     print(f"{'workload':<24}{'baseline':>14}{'jit':>14}{'jit/base':>10}")
     print("-" * 60)
     print(
-        f"{'lambda construction':<24}"
+        f"{workload:<24}"
         f"{baseline_ns:>11.2f} ns"
         f"{jit_ns:>11.2f} ns"
         f"{jit_ns / baseline_ns:>9.2f}x"
@@ -159,10 +184,17 @@ def parse_args() -> argparse.Namespace:
         help="Run interpreter and JIT subprocesses and compare them",
     )
     parser.add_argument(
+        "--nested",
+        action="store_true",
+        help="Measure creating, calling and dropping a nested function instead, "
+        "which needs the compile to survive between instances",
+    )
+    parser.add_argument(
         "--iterations",
         type=int,
         default=250_000,
-        help="Loop iterations per timed run (eight constructions each)",
+        help="Loop iterations per timed run (eight constructions each, or one "
+        "construct+call with --nested)",
     )
     parser.add_argument(
         "--warmup", type=int, default=10_000, help="Loop iterations before timing"
@@ -184,16 +216,17 @@ def main() -> None:
     if cinderx is None:
         args.cinderx = False
 
+    driver = construct_and_call_nested if args.nested else construct_lambdas
     if args.cinderx and cinderx is not None:
         cinderx.jit.auto()
-        cinderx.jit.force_compile(construct_lambdas)
+        cinderx.jit.force_compile(driver)
 
-    samples_ns = run(args.iterations, args.warmup, args.repeat)
+    samples_ns = run(args.iterations, args.warmup, args.repeat, args.nested)
     median_ns = statistics.median(samples_ns)
     print(f"Python {sys.version.split()[0]}", file=sys.stderr)
     compiled = False
     if cinderx:
-        compiled = cinderx.jit.is_jit_compiled(construct_lambdas)
+        compiled = cinderx.jit.is_jit_compiled(driver)
     print(
         f"JIT requested={'yes' if args.cinderx else 'no'} compiled={compiled}",
         file=sys.stderr,
