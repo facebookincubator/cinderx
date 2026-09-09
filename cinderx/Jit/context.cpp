@@ -172,6 +172,7 @@ Context::~Context() {
 
   // Clear all of the CompiledFunction's before we clear out the memory used for
   // the CodeRuntime allocated in the slab.
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   for (auto& code : compiled_codes_) {
     code.second->clear(true /* context_finalizing */);
   }
@@ -523,7 +524,7 @@ void Context::notifyTypeModified(
   }
 }
 
-bool Context::hasCompletedCompile(CompilationKey& key) {
+bool Context::hasCompletedCompile(const CompilationKey& key) {
   JITCompilationLock lock;
   return completed_compiles_.contains(key);
 }
@@ -631,7 +632,7 @@ const hir::Type& Context::typeForCommonConstant([[maybe_unused]] int i) const {
 }
 
 void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   auto it = compiled_codes_.find(CompilationKey{func});
   if (it == compiled_codes_.end()) {
     return;
@@ -715,6 +716,7 @@ CodeRuntime* Context::lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) {
 
 const UnorderedMap<CompilationKey, BorrowedRef<CompiledFunction>>&
 Context::compiledCodes() const {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   return compiled_codes_;
 }
 
@@ -799,6 +801,7 @@ BorrowedRef<CompiledFunction> Context::lookupCode(
           ThreadedCompileContext::canAccessSharedData(),
       "lock should be held");
 
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   auto it = compiled_codes_.find(CompilationKey{code, builtins, globals});
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }
@@ -832,21 +835,26 @@ bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
   return false;
 }
 
-bool Context::addActiveCompile(CompilationKey& key) {
+bool Context::addActiveCompile(const CompilationKey& key) {
   JITCompilationLock lock;
   return active_compiles_.insert(key).second;
 }
 
-void Context::removeActiveCompile(CompilationKey& key) {
+void Context::removeActiveCompile(const CompilationKey& key) {
   JITCompilationLock lock;
   active_compiles_.erase(key);
+}
+
+bool Context::hasActiveCompile(const CompilationKey& key) {
+  JITCompilationLock lock;
+  return active_compiles_.contains(key);
 }
 
 Ref<CompiledFunction> Context::makeCompiledFunction(
     BorrowedRef<PyFunctionObject> func,
     const CompilationKey& key,
     CompiledFunctionData&& compiled_func) {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   BorrowedRef<PyFunctionObject> outer = nullptr;
   auto outer_it = code_outer_funcs_.find(key.code);
   if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {

@@ -32,6 +32,13 @@ class FrameIPTest : public RuntimeTest {
     auto jit_ctx = reinterpret_cast<CompilerContext<Compiler>*>(
         cinderx::getModuleState()->jit_context.get());
     ASSERT_NE(jit_ctx, nullptr) << "JIT context was not initialized";
+    // compilePreloaderImpl() expects its caller to have already claimed the
+    // compile under the GIL; the production entry points do that in
+    // admitCompile(), so a direct call has to register the key itself.
+    ASSERT_TRUE(jit_ctx->addActiveCompile(
+        CompilationKey{
+            preloader->code(), preloader->builtins(), preloader->globals()}))
+        << "Compile of " << name << " is already in flight";
     ASSERT_EQ(
         compilePreloaderImpl(jit_ctx, *preloader, Ref<>::create(func)).first,
         Result::OK)

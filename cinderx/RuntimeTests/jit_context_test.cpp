@@ -52,6 +52,13 @@ foo = "hello"
   std::unique_ptr<hir::Preloader> preloader(
       hir::Preloader::make(func, makeFrameReifier(func->func_code)));
 
+  // compilePreloaderImpl() expects its caller to have already claimed the
+  // compile under the GIL; the production entry points do that in
+  // admitCompile(), so a direct call has to register the key itself.
+  ASSERT_TRUE(jit_ctx_->addActiveCompile(
+      CompilationKey{
+          preloader->code(), preloader->builtins(), preloader->globals()}));
+
   auto [comp_result, unclaimed] = compilePreloaderImpl(
       jit_ctx_.get(), *preloader, Ref<PyFunctionObject>::create(func));
   ASSERT_EQ(comp_result, Result::OK);

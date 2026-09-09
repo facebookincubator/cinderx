@@ -53,6 +53,7 @@
 #endif
 #include <fmt/std.h>
 
+#include <algorithm>
 #include <atomic>
 #include <charconv>
 #include <chrono>
@@ -935,6 +936,145 @@ bool isOverMaxCodeSize() {
   return max_code_size && code_allocator->usedBytes() >= max_code_size;
 }
 
+// Outcome of deciding whether a compile should go ahead.
+enum class CompileAdmission {
+  // Registered as an active compile; the caller must now compile it and is
+  // responsible for removeActiveCompile().
+  kCompile,
+  // Nothing to do: already compiled (and finalized), or already built during a
+  // multi-threaded compile.
+  kAlreadyCompiled,
+  // Some other thread is currently compiling this exact key.
+  kInFlight,
+  // This code can never be compiled (e.g. it has incompatible co_flags)
+  kIneligible,
+  // Finalization raised a Python exception.
+  kError,
+};
+
+Result resultFor(CompileAdmission admission) {
+  switch (admission) {
+    case CompileAdmission::kAlreadyCompiled:
+      return Result::OK;
+    case CompileAdmission::kInFlight:
+      return Result::ALREADY_SCHEDULED;
+    case CompileAdmission::kIneligible:
+      return Result::CANNOT_SPECIALIZE;
+    case CompileAdmission::kError:
+      return Result::PYTHON_EXCEPTION;
+    case CompileAdmission::kCompile:
+      JIT_ABORT("kCompile has no corresponding Result");
+    default:
+      JIT_THROW(
+          "Unrecognized CompileAdmission value {}",
+          static_cast<int>(admission));
+  }
+}
+
+struct AdmitResult {
+  CompileAdmission admission;
+  // Handed back to the caller unless admission consumed it (deferred
+  // finalization during a multi-threaded compile takes ownership).
+  Ref<PyFunctionObject> func;
+};
+
+// Decide whether (code, builtins, globals) still needs compiling, and if so
+// claim it by registering an active compile.
+//
+// MUST be called with the GIL held.  This is the only place the compile paths
+// read compiled_codes_, and it is deliberately here rather than inside
+// compilePreloaderImpl: that runs on the background worker with the GIL
+// released, where touching compiled_codes_ is unsafe.  All three entry points
+// (foreground, background, multi-threaded) funnel through here while they still
+// hold the GIL.
+AdmitResult admitCompile(
+    CompilerContext<Compiler>* jit_ctx,
+    BorrowedRef<PyCodeObject> code,
+    BorrowedRef<PyDictObject> builtins,
+    BorrowedRef<PyDictObject> globals,
+    Ref<PyFunctionObject>&& func) {
+  JIT_DCHECK(
+      PyThreadState_GetUnchecked() != nullptr,
+      "admitCompile reads compiled_codes_ and needs the GIL");
+
+  if (code == nullptr) {
+    return {CompileAdmission::kIneligible, std::move(func)};
+  }
+  constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
+  if (!hasRequiredCodeFlags(code) || (code->co_flags & CI_CO_SUPPRESS_JIT) ||
+      (code->co_flags & forbidden_flags)) {
+    JIT_DLOG(
+        "Can't compile {} with flags {:#x}", codeName(code), code->co_flags);
+    return {CompileAdmission::kIneligible, std::move(func)};
+  }
+
+  CompilationKey key{code, builtins, globals};
+
+  // Attempt to atomically transition the code from "not compiled" to "in
+  // progress".
+  FreeThreadedJITEntrypointGuard guard;
+  JITCompilationLock lock;
+  auto compiled = jit_ctx->lookupCode(code, builtins, globals);
+  if (compiled != nullptr) {
+    // The code is already compiled and we have a CompiledFunction object.
+    // Just finalize the code.
+    if (func != nullptr) {
+      if (ThreadedCompileContext::compileRunning()) {
+        // Can't call finalizeFunc on a worker thread - it does Python
+        // allocations (PyDict_New, etc.) which require the GIL. Defer
+        // finalization to after multi-threaded compile completes, handing
+        // our reference over to keep the function alive until then.
+        jit_ctx->addDeferredFinalization(key, std::move(func));
+        return {CompileAdmission::kAlreadyCompiled, nullptr};
+      } else if (!jit_ctx->finalizeFunc(func, compiled)) {
+        JIT_CHECK(PyErr_Occurred(), "should have set an error");
+        // Failed to finalize, probably due to failure to allocate
+        return {CompileAdmission::kError, std::move(func)};
+      }
+    }
+    return {CompileAdmission::kAlreadyCompiled, std::move(func)};
+  }
+  if (jit_ctx->hasCompletedCompile(key)) {
+    // We're in the multi-threaded scenario, we've created the
+    // CompiledFunctionData and will create the CompiledFunction at the end.
+    return {CompileAdmission::kAlreadyCompiled, std::move(func)};
+  }
+  if (!jit_ctx->addActiveCompile(key)) {
+    // The compilation is in-flight on another thread.
+    return {CompileAdmission::kInFlight, std::move(func)};
+  }
+  return {CompileAdmission::kCompile, std::move(func)};
+}
+
+// admitCompile() for a function whose preloader hasn't been built yet.
+AdmitResult admitCompile(
+    CompilerContext<Compiler>* jit_ctx,
+    BorrowedRef<PyFunctionObject> func) {
+  return admitCompile(
+      jit_ctx,
+      BorrowedRef<PyCodeObject>{func->func_code},
+      BorrowedRef<PyDictObject>{func->func_builtins},
+      BorrowedRef<PyDictObject>{func->func_globals},
+      Ref<PyFunctionObject>::create(func));
+}
+
+// Compile a preloader that its caller has ALREADY admitted (see admitCompile).
+// Used by the compile_all paths, which admit the whole batch up front while
+// they hold the GIL; going through compilePreloader() would try to admit them a
+// second time and see them as in-flight.
+std::pair<Result, Ref<PyFunctionObject>> compileAdmittedPreloader(
+    const hir::Preloader& preloader,
+    Ref<PyFunctionObject>&& func) {
+  if (isOverMaxCodeSize()) {
+    // Give the admission back, since we're not going to compile it.
+    jitCtx()->removeActiveCompile(
+        CompilationKey{
+            preloader.code(), preloader.builtins(), preloader.globals()});
+    return {Result::OVER_MAX_CODE_SIZE, std::move(func)};
+  }
+  return compilePreloaderImpl(jitCtx(), preloader, std::move(func));
+}
+
 std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func) {
@@ -942,7 +1082,19 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
     return {Result::OVER_MAX_CODE_SIZE, std::move(func)};
   }
 
-  return compilePreloaderImpl(jitCtx(), preloader, std::move(func));
+  // Foreground compiles hold the GIL, so this is where they get admitted.  It
+  // also gives compileFunction() its finalize-if-already-compiled behaviour.
+  auto admitted = admitCompile(
+      jitCtx(),
+      preloader.code(),
+      preloader.builtins(),
+      preloader.globals(),
+      std::move(func));
+  if (admitted.admission != CompileAdmission::kCompile) {
+    return {resultFor(admitted.admission), std::move(admitted.func)};
+  }
+
+  return compilePreloaderImpl(jitCtx(), preloader, std::move(admitted.func));
 }
 
 // Convert a registered translation unit into a pair of a Python function and
@@ -1082,13 +1234,13 @@ std::pair<Result, Ref<>> tryCompilePreloaded(Ref<>&& unit) {
 
   if (func == nullptr) {
     // A bare code object has no function reference to hand down.
-    auto [result, unclaimed] = compilePreloader(*preloader, nullptr);
+    auto [result, unclaimed] = compileAdmittedPreloader(*preloader, nullptr);
     JIT_DCHECK(unclaimed == nullptr, "nothing was handed down");
     return {result, std::move(unit)};
   }
 
   // The unit is the function itself, so hand its reference down.
-  auto [result, unclaimed] = compilePreloader(
+  auto [result, unclaimed] = compileAdmittedPreloader(
       *preloader,
       Ref<PyFunctionObject>::steal(
           reinterpret_cast<PyFunctionObject*>(unit.release())));
@@ -1314,6 +1466,47 @@ bool compile_all(size_t workers = 0) {
       "compile_all finished preloading {} units, {} were deleted",
       compilation_units.size(),
       deleted_units.size());
+
+  // Admit every unit here, while we still hold the GIL.  The worker threads run
+  // with it released and so must not touch compiled_codes_; anything already
+  // compiled is finalized (or queued for deferred finalization) now, and
+  // everything else is registered as an active compile before the workers can
+  // pick it up.  Units that aren't admitted are dropped from the batch.
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    std::erase_if(compilation_units, [&](const Ref<>& unit) {
+      auto [func, code] = splitUnit(unit);
+      hir::Preloader* preloader = hir::preloaderManager().find(code);
+      if (preloader == nullptr) {
+        return true;
+      }
+      auto admitted = admitCompile(
+          jitCtx(),
+          preloader->code(),
+          preloader->builtins(),
+          preloader->globals(),
+          func != nullptr ? Ref<PyFunctionObject>::create(func) : nullptr);
+      if (admitted.admission == CompileAdmission::kError) {
+        PyErr_WriteUnraisable(nullptr);
+        PyErr_Clear();
+      } else if (
+          admitted.admission == CompileAdmission::kInFlight &&
+          admitted.func != nullptr) {
+        // Another unit in this batch (or another thread) owns this exact
+        // compilation key.  Previously the worker would hit ALREADY_SCHEDULED
+        // and retry until the winner finished; now that admission happens up
+        // front, queue the finalization instead so this function still picks up
+        // the shared compile once it lands.
+        jitCtx()->addDeferredFinalization(
+            CompilationKey{
+                preloader->code(), preloader->builtins(), preloader->globals()},
+            std::move(admitted.func));
+      }
+      return admitted.admission != CompileAdmission::kCompile;
+    });
+  }
+
+  JIT_DLOG("compile_all admitted {} units", compilation_units.size());
 
   if (workers > 1) {
     return multithread_compile_units_preloaded(
@@ -1769,21 +1962,65 @@ PyObject* get_background_compile(PyObject* /* self */, PyObject*) {
   return PyBool_FromLong(getConfig().background_compile);
 }
 
-PyObject* wait_for_background_compiles(
-    PyObject* /* self */,
-    PyObject* /* args */) {
-  // Test helper: block until all background compiles currently in flight have
-  // completed.
+// Block until every background compile that is currently in flight has
+// finished.  Releases the GIL, which the worker needs to finalize its compiles.
+void waitForBackgroundCompiles() {
   auto* ctx = getContext();
   if (ctx == nullptr) {
-    Py_RETURN_NONE;
+    return;
   }
   auto& reg = ctx->backgroundCompileRegistry();
 
   PyBeginAllowThreads allow_threads;
   std::unique_lock<std::mutex> lock(reg.mutex);
-  reg.drain_cv.wait(lock, [&reg] { return reg.in_flight.empty(); });
+  reg.drain_cv.wait(lock, [&reg] { return reg.in_flight_count == 0; });
+}
+
+PyObject* wait_for_background_compiles(
+    PyObject* /* self */,
+    PyObject* /* args */) {
+  // Test helper: block until all background compiles currently in flight have
+  // completed.
+  waitForBackgroundCompiles();
   Py_RETURN_NONE;
+}
+
+// Take a still-queued background compile of func back from the worker so the
+// caller can compile it itself.
+bool reclaimQueuedBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
+  auto* ctx = getContext();
+  if (ctx == nullptr) {
+    return false;
+  }
+
+  CompilationKey key{func};
+  // Destroyed once the registry lock is released: dropping the task's
+  // references can run arbitrary Python code, which would re-enter the JIT.
+  std::unique_ptr<BackgroundCompileTask> reclaimed;
+  {
+    auto& reg = ctx->backgroundCompileRegistry();
+    std::lock_guard<std::mutex> lock(reg.mutex);
+    auto it = std::find_if(
+        reg.queue.begin(),
+        reg.queue.end(),
+        [&key](const std::unique_ptr<BackgroundCompileTask>& task) {
+          return CompilationKey{task->code, task->builtins, task->globals} ==
+              key;
+        });
+    if (it == reg.queue.end()) {
+      return false;
+    }
+    reclaimed = std::move(*it);
+    reg.queue.erase(it);
+    if (reg.in_flight_count) {
+      reg.in_flight_count--;
+    }
+    reg.drain_cv.notify_all();
+  }
+
+  // Hand the admission back so the caller's compile can claim it.
+  ctx->removeActiveCompile(key);
+  return true;
 }
 
 PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
@@ -1859,6 +2096,11 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
+  // A background compile may already have claimed this function.  Waiting for
+  // the worker to reach it could take arbitrarily long, so take a queued task
+  // over and compile it right here instead.
+  reclaimQueuedBackgroundCompile(func);
+
   // Compile the function.
   Result result;
   try {
@@ -1873,6 +2115,13 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     case Result::OK:
       Py_RETURN_TRUE;
     case Result::ALREADY_SCHEDULED:
+      // The compile wasn't in the queue to be reclaimed, so the background
+      // worker is part-way through it.  Wait for it to land rather than
+      // reporting a failure.
+      waitForBackgroundCompiles();
+      if (isJitCompiled(func)) {
+        Py_RETURN_TRUE;
+      }
       // Strange case, the function is being compiled by a different thread.
       // Shouldn't happen, but don't die if it does.
       Py_RETURN_FALSE;
@@ -3574,18 +3823,23 @@ int register_gc_callback() {
 // multi-threaded compile support. First we preload the function w/ the GIL held
 // and then we perform the background thread with the GIL released.
 
-// Mark a code object as no longer being background-compiled and wake any waiter
+// Mark a compile as no longer being background-compiled and wake any waiter
 // (e.g. JIT finalization) that is draining in-flight compiles.
 // Uses the registry member of the JIT Context; if context is null (e.g.
 // during fork child handling when JIT not initialized), no-op.
-void finishBackgroundCompile(BorrowedRef<PyCodeObject> code) {
+void finishBackgroundCompile(const CompilationKey& key) {
   auto* ctx = getContext();
   if (ctx == nullptr) {
     return;
   }
+  // Releasing the active compile is idempotent: the normal path already dropped
+  // it at the end of compilePreloaderImpl, but the give-up paths have not.
+  ctx->removeActiveCompile(key);
   auto& reg = ctx->backgroundCompileRegistry();
   std::lock_guard<std::mutex> guard(reg.mutex);
-  reg.in_flight.erase(code);
+  if (reg.in_flight_count) {
+    reg.in_flight_count--;
+  }
   reg.drain_cv.notify_all();
 }
 
@@ -3761,7 +4015,8 @@ void backgroundCompileWorkerLoop(
     }
 
     jitCtx()->finalizeMultiThreadedCompile();
-    finishBackgroundCompile(task->code);
+    finishBackgroundCompile(
+        CompilationKey{task->code, task->builtins, task->globals});
   }
 
   // The worker state is current and attached, so it can be cleared and
@@ -3833,13 +4088,31 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
 
   BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
 
-  // Avoid scheduling a duplicate compile of the same code object.  Marking it
-  // in-flight here reserves it until finishBackgroundCompile.
+  // Admit the compile here, while we still hold the GIL.  This both reserves
+  // the key against duplicate/concurrent compiles and finalizes the function
+  // outright if the code turns out to already be compiled -- the worker cannot
+  // do either, because it runs with the GIL released.
+  CompilationKey key{func};
   {
     std::lock_guard<std::mutex> lock(reg.mutex);
-    if (reg.shutdown || !reg.in_flight.insert(code.get()).second) {
+    if (reg.shutdown) {
       return;
     }
+  }
+  auto admitted = admitCompile(jit_ctx, func);
+  if (admitted.admission != CompileAdmission::kCompile) {
+    if (admitted.admission == CompileAdmission::kError) {
+      PyErr_Clear();
+    }
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lock(reg.mutex);
+    if (reg.shutdown) {
+      jit_ctx->removeActiveCompile(key);
+      return;
+    }
+    reg.in_flight_count++;
   }
 
   // Preload on this (GIL-holding) thread, then take ownership of the resulting
@@ -3853,7 +4126,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
     if (targets.empty()) {
       // Preloading hit a Python error; clear it and give up on this function.
       setVectorcall(func, getInterpretedVectorcall(func));
-      finishBackgroundCompile(code.get());
+      finishBackgroundCompile(key);
       throw CAPIError();
     }
     preloaders = hir::preloaderManager().extract();
@@ -3862,7 +4135,11 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   auto task = std::make_unique<BackgroundCompileTask>(
       Ref<PyFunctionObject>::create(func),
       std::move(preloaders),
-      Ref<PyCodeObject>::create(code.get()));
+      Ref<PyCodeObject>::create(code.get()),
+      Ref<PyDictObject>::create(
+          reinterpret_cast<PyDictObject*>(func->func_builtins)),
+      Ref<PyDictObject>::create(
+          reinterpret_cast<PyDictObject*>(func->func_globals)));
 
   // Enqueue the task and lazily start the single worker thread.  If the worker
   // can't be started, release the task's Python references under the guard we
@@ -3872,12 +4149,18 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   // drain could have completed in the meantime.  Starting a worker now would
   // resurrect the thread that drain just joined.
   if (reg.shutdown) {
-    reg.in_flight.erase(code.get());
+    jit_ctx->removeActiveCompile(key);
+    if (reg.in_flight_count) {
+      reg.in_flight_count--;
+    }
     reg.drain_cv.notify_all();
     return;
   }
   if (!reg.worker_started && !startBackgroundWorkerThread(jit_ctx, reg)) {
-    reg.in_flight.erase(code.get());
+    jit_ctx->removeActiveCompile(key);
+    if (reg.in_flight_count) {
+      reg.in_flight_count--;
+    }
     reg.drain_cv.notify_all();
     return;
   }
@@ -4061,7 +4344,8 @@ void cancelBackgroundCompiles() {
     // PyThread_hang_thread() the moment it re-acquires the GIL, and the join()
     // above would never return.
     std::unique_lock<std::mutex> lock(reg.mutex);
-    reg.in_flight.clear();
+    reg.in_flight_count = 0;
+    reg.drain_cv.notify_all();
     abandoned.swap(reg.queue);
   }
 }
@@ -4515,39 +4799,13 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
   }
 
   CompilationKey key{code, builtins, globals};
-  {
-    // Attempt to atomically transition the code from "not compiled" to "in
-    // progress".
-    FreeThreadedJITEntrypointGuard guard;
-    JITCompilationLock lock;
-    auto compiled = jit_ctx->lookupCode(code, builtins, globals);
-    if (compiled != nullptr) {
-      // The code is already compiled and we have a CompiledFunction object.
-      // Just finalize the code.
-      if (func != nullptr) {
-        if (ThreadedCompileContext::compileRunning()) {
-          // Can't call finalizeFunc on a worker thread - it does Python
-          // allocations (PyDict_New, etc.) which require the GIL. Defer
-          // finalization to after multi-threaded compile completes, handing
-          // our reference over to keep the function alive until then.
-          jit_ctx->addDeferredFinalization(key, std::move(func));
-          return {Result::OK, nullptr};
-        } else if (!jit_ctx->finalizeFunc(func, compiled)) {
-          JIT_CHECK(PyErr_Occurred(), "should have set an error");
-          // Failed to finalize, probably due to failure to allocate
-          return {Result::PYTHON_EXCEPTION, std::move(func)};
-        }
-      }
-      return {Result::OK, std::move(func)};
-    } else if (jit_ctx->hasCompletedCompile(key)) {
-      // We're in the multi-threaded scenario we've created the
-      // CompiledFunctionData and will create the CompiledFunction at the end
-      return {Result::OK, std::move(func)};
-    } else if (!jit_ctx->addActiveCompile(key)) {
-      // The compilation is in-flight on another thread
-      return {Result::ALREADY_SCHEDULED, std::move(func)};
-    }
-  }
+  // The caller is responsible for admitting this compile while holding the GIL
+  // (see admitCompile).  Doing the compiled_codes_ lookup here would read it
+  // from the background worker, which runs with the GIL released.
+  JIT_DCHECK(
+      jit_ctx->hasActiveCompile(key),
+      "compile of {} was not admitted by its caller",
+      preloader.fullname());
 
   std::optional<CompiledFunctionData> compiled_func;
   try {

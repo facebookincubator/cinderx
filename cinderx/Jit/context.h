@@ -76,6 +76,8 @@ struct BackgroundCompileTask {
   Ref<PyFunctionObject> func;
   hir::PreloaderMap preloaders;
   Ref<PyCodeObject> code;
+  Ref<PyDictObject> builtins;
+  Ref<PyDictObject> globals;
 };
 
 // Process-wide state for background compilation. A single long-lived worker
@@ -97,9 +99,9 @@ struct BackgroundCompileRegistry {
   std::condition_variable drain_cv;
   // Pending compilation tasks waiting for the worker.
   std::deque<std::unique_ptr<BackgroundCompileTask>> queue;
-  // Code objects with a background compile scheduled but not yet finished
-  // (covers both queued and in-progress tasks).
-  std::unordered_set<PyCodeObject*> in_flight;
+  // How many background compiles are scheduled but not yet finished (covers
+  // both queued and in-progress tasks).
+  size_t in_flight_count{0};
   // The single worker thread, and whether it has been started.
   std::thread worker;
   bool worker_started{false};
@@ -243,12 +245,17 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * compiled. This is used to prevent multiple threads from compiling the same
    * function at the same time.
    */
-  bool addActiveCompile(CompilationKey& key);
+  bool addActiveCompile(const CompilationKey& key);
 
   /*
    * Indicates that the specified function is no longer being compiled.
    */
-  void removeActiveCompile(CompilationKey& key);
+  void removeActiveCompile(const CompilationKey& key);
+
+  /*
+   * Whether the specified compilation is currently registered as in progress.
+   */
+  bool hasActiveCompile(const CompilationKey& key);
 
   /*
    * Creates the CompiledFunction object for a given compilation key.
@@ -475,7 +482,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   // Checks to see if we've compiled a code but not yet created a
   // CompiledFunction object.
-  bool hasCompletedCompile(CompilationKey& key);
+  bool hasCompletedCompile(const CompilationKey& key);
 
   // Defers finalization of a function with an already-compiled
   // CompiledFunction during multi-threaded compile. The finalization will
