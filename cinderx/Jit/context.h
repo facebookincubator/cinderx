@@ -284,11 +284,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   bool removeCompiledFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
-   * Return whether or not this context compiled the supplied function.
-   */
-  bool didCompile(BorrowedRef<PyFunctionObject> func);
-
-  /*
    * Remove the specified code object from the known compiled codes.
    */
   void forgetCode(BorrowedRef<PyFunctionObject> func);

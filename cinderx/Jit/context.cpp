@@ -685,11 +685,6 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
   }
 }
 
-bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
-  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  return compiled_funcs_.contains(func);
-}
-
 BorrowedRef<CompiledFunction> Context::lookupFunc(
     BorrowedRef<PyFunctionObject> func) {
   return lookupCode(func->func_code, func->func_builtins, func->func_globals);

@@ -908,7 +908,7 @@ FlagProcessor initFlagProcessor() {
 bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
   if (jitCtx() == nullptr) {
     return false;
-  } else if (jitCtx()->didCompile(func)) {
+  } else if (isJitCompiled(func)) {
     return true;
   }
 
