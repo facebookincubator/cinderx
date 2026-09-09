@@ -65,6 +65,7 @@
 #include <deque>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -1368,6 +1369,111 @@ bool multithread_compile_units_preloaded(
   return true;
 }
 
+// Both defined further down, next to their other user
+// (trackEligibleCodeObjects).
+std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
+    BorrowedRef<> module,
+    BorrowedRef<> root_consts);
+bool trackNestedCode(
+    BorrowedRef<PyFunctionObject> outer_func,
+    BorrowedRef<> module,
+    BorrowedRef<PyCodeObject> code);
+
+// Is the JIT still expecting to compile this function?
+//
+// Every path that hands a function to the JIT installs one of the JIT entry
+// points and puts the interpreted one back if that fails, and finalizing a
+// compile replaces the entry point with the compiled one.  So the vectorcall
+// slot is the record of "wants to be compiled but isn't yet".
+bool isPendingJitCompile(BorrowedRef<PyFunctionObject> func) {
+  vectorcallfunc entry = getVectorcall(func);
+  return entry == jitVectorcall || entry == forcedJitVectorcall;
+}
+
+// Does this code object directly contain any nested code objects?  Cheap
+// pre-filter for the recursive findNestedCodes() scan, which is much more
+// expensive because it has to consult the JIT list.
+bool hasNestedCode(BorrowedRef<PyCodeObject> code) {
+  auto* consts = reinterpret_cast<PyTupleObject*>(code->co_consts);
+  if (consts == nullptr) {
+    return false;
+  }
+  for (Py_ssize_t i = 0, size = Py_SIZE(consts); i < size; ++i) {
+    PyObject* item = consts->ob_item[i];
+    if (item != nullptr && PyCode_Check(item)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Walk the GC heap for every compilation unit the JIT still owes a compile.
+//
+// Units already in `seen` are skipped, and everything returned is added to it,
+// so calling this repeatedly only ever yields units that appeared since the
+// last call.  The caller must keep the returned references alive for as long as
+// it uses `seen`, whose keys are borrowed.
+//
+// Code objects aren't GC-tracked, so the walk can't find them directly.
+// Instead, every function the JIT list matched has its code scanned recursively
+// through co_consts for nested code, mirroring trackEligibleCodeObjects().
+std::vector<Ref<>> discoverCompilationUnits(UnorderedSet<BorrowedRef<>>& seen) {
+  // Nested code is only ever compiled ahead of its function when the JIT list
+  // names it, and the list can only name it relative to an outer function it
+  // matched as well.  Without a list there is nothing to scan for.
+  auto* mod_state = cinderx::getModuleState();
+  const bool jit_list = mod_state != nullptr && mod_state->jit_list != nullptr;
+
+  struct Candidate {
+    Ref<PyFunctionObject> func;
+    bool pending;
+  };
+
+  // Do as little as possible inside the walk: it stops the world under
+  // free-threading, and the visitor mustn't allocate or free Python objects
+  // (getCompilationEligibility() can, via JITList::lookupCode()).  Taking the
+  // reference here rather than after the walk is also what stops another thread
+  // from dropping the last reference to a function before we get to it.
+  std::vector<Candidate> candidates;
+  walkFunctionObjects([&](BorrowedRef<PyFunctionObject> func) {
+    bool pending = isPendingJitCompile(func);
+    // A function that isn't waiting on a compile itself still has to be scanned
+    // for nested code: nested code keeps wanting to be compiled after its outer
+    // function has been compiled, or has given up on being compiled.
+    if (pending || (jit_list && hasNestedCode(func->func_code))) {
+      candidates.push_back(
+          Candidate{
+              .func = Ref<PyFunctionObject>::create(func), .pending = pending});
+    }
+  });
+
+  std::vector<Ref<>> units;
+  auto add = [&](BorrowedRef<> unit) {
+    if (seen.emplace(unit).second) {
+      units.emplace_back(Ref<>::create(unit));
+    }
+  };
+
+  for (const Candidate& candidate : candidates) {
+    BorrowedRef<PyFunctionObject> func{candidate.func};
+    if (jit_list &&
+        getCompilationEligibility(func) == JitEligibility::JitListEligible) {
+      BorrowedRef<> module{func->func_module};
+      BorrowedRef<PyCodeObject> code{func->func_code};
+      for (BorrowedRef<PyCodeObject> nested :
+           findNestedCodes(module, code->co_consts)) {
+        trackNestedCode(func, module, nested);
+        add(nested.getObj());
+      }
+    }
+    if (candidate.pending) {
+      add(func.getObj());
+    }
+  }
+
+  return units;
+}
+
 // Compile all functions registered via a JIT list that haven't been executed
 // yet.
 bool compile_all(size_t workers = 0) {
@@ -1392,8 +1498,7 @@ bool compile_all(size_t workers = 0) {
     // Own every unit we are about to process for the whole preload+compile
     // region.
     //
-    // registered_compilation_units only holds *borrowed* references, and the
-    // JIT learns a unit went away via the function-destroyed watcher, which
+    // The JIT learns a unit went away via the function-destroyed watcher, which
     // fires only on *deallocation*.  A cyclic gen-2 GC that runs mid-preload
     // (preloading executes Python) can instead run func_clear() on a queued
     // function that is part of a garbage cycle -- nulling its
@@ -1405,50 +1510,51 @@ bool compile_all(size_t workers = 0) {
     //
     // Holding a strong reference makes the cyclic GC treat each unit (and its
     // reachable globals/builtins) as externally reachable, so it is never
-    // collected or cleared while queued.  The references drop when compile_all
-    // returns.
+    // collected or cleared while queued.  discoverCompilationUnits() takes that
+    // reference as it finds each unit; they all drop when compile_all returns.
     std::vector<Ref<>> owned_units;
+    // Borrows from owned_units, so it must not outlive it.
+    UnorderedSet<BorrowedRef<>> seen;
 
-    auto mod_state = cinderx::getModuleState();
-    auto& jit_reg_units = mod_state->registered_compilation_units;
-    JIT_DLOG(
-        "Starting compile_all with {} workers for {} registered units",
-        workers,
-        jit_reg_units.size());
+    auto* mod_state = cinderx::getModuleState();
+    JIT_CHECK(mod_state != nullptr, "JIT not initialized");
+    auto& deleted_callback = mod_state->unit_deleted_during_preload;
+    deleted_callback = [&](BorrowedRef<> deleted_unit) {
+      deleted_units.emplace(deleted_unit);
+    };
+    SCOPE_EXIT(deleted_callback = nullptr);
 
-    // First we have to preload everything we are going to compile.
-    while (jit_reg_units.size() > 0) {
-      auto preload_units = std::move(jit_reg_units);
-      jit_reg_units.clear();
+    JIT_DLOG("Starting compile_all with {} workers", workers);
 
-      // Take a strong reference to every unit in this batch before preloading
-      // (or a GC) can run, so the cyclic GC can't clear or collect a queued
-      // unit out from under the preloader.
-      owned_units.reserve(owned_units.size() + preload_units.size());
-      for (auto unit : preload_units) {
-        owned_units.push_back(Ref<>::create(unit));
+    // First we have to preload everything we are going to compile.  Preloading
+    // runs Python, which can hand the JIT more functions to compile, so keep
+    // re-walking the heap until a walk turns up nothing new.
+    size_t next_unit = 0;
+    while (true) {
+      std::vector<Ref<>> batch = discoverCompilationUnits(seen);
+      if (batch.empty()) {
+        break;
       }
 
-      JIT_DLOG(
-          "compile_all preloading a batch of {} units", preload_units.size());
+      JIT_DLOG("compile_all preloading a batch of {} units", batch.size());
 
-      for (auto unit : preload_units) {
+      owned_units.insert(
+          owned_units.end(),
+          std::make_move_iterator(batch.begin()),
+          std::make_move_iterator(batch.end()));
+
+      for (; next_unit < owned_units.size(); ++next_unit) {
+        BorrowedRef<> unit{owned_units[next_unit]};
         if (deleted_units.contains(unit)) {
           continue;
         }
-        mod_state->unit_deleted_during_preload =
-            [&](BorrowedRef<> deleted_unit) {
-              deleted_units.emplace(deleted_unit);
-            };
         hir::Preloader* preloader = preload(unit);
         if (!preloader) {
-          mod_state->unit_deleted_during_preload = nullptr;
           return false;
         }
         compilation_units.push_back(Ref<>::create(unit));
       }
     }
-    mod_state->unit_deleted_during_preload = nullptr;
   }
 
   // Filter out any units that were deleted as a side effect of preloading.
@@ -1540,19 +1646,18 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
   return result;
 }
 
-// Register a function with the JIT to be compiled in the future.
+// Can the JIT take on compiling a function in the future?
 //
-// The JIT will run compileFunction() before the function executes on its next
-// call.  The JIT can still choose to **not** compile the function at that
-// point.
+// Callers install a JIT entry point and then ask this; when it says no they put
+// the interpreted entry point back.  Leaving the JIT entry point installed is
+// the whole registration: compileFunction() runs from it before the function
+// executes on its next call (and can still choose to **not** compile), and
+// compile_all() finds the function by that entry point when it walks the heap.
 //
 // The JIT will not keep the function alive, instead it will be informed that
 // the function is being de-allocated via funcDestroyed() before the function
 // goes away.
-//
-// Return true if the function is registered with JIT or is already compiled,
-// and false otherwise.
-bool registerFunctionForCompilation(BorrowedRef<PyFunctionObject> func) {
+bool canCompileFunctionLater() {
   if (!isJitUsable()) {
     return false;
   }
@@ -1564,8 +1669,6 @@ bool registerFunctionForCompilation(BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(
       !ThreadedCompileContext::compileRunning(),
       "Not intended for using during threaded compilation");
-  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
-  jit_reg_units.emplace(func.getObj());
 
   return true;
 }
@@ -1579,7 +1682,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
     return true;
   }
 
-  return registerFunctionForCompilation(func);
+  return canCompileFunctionLater();
 }
 
 PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
@@ -1591,8 +1694,7 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   }
   cinderx::getModuleState()->compile_workers_attempted = 0;
   cinderx::getModuleState()->compile_workers_retries = 0;
-  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
-  JIT_LOG("(Re)compiling {} units compiles", jit_reg_units.size());
+  JIT_LOG("(Re)compiling every unit the JIT still owes a compile");
   jitCtx()->clearForMultithreadedCompileTest();
 
   std::chrono::time_point start = std::chrono::steady_clock::now();
@@ -3673,14 +3775,35 @@ PyModuleDef jit_module = {
     nullptr, /* m_free */
 };
 
+// Point a nested code object at the function whose code contains it, so the
+// JIT can preload and compile the code without an instance of the nested
+// function existing yet.  Returns false if the code was already tracked.
+bool trackNestedCode(
+    BorrowedRef<PyFunctionObject> outer_func,
+    BorrowedRef<> module,
+    BorrowedRef<PyCodeObject> code) {
+  CompilerContext<Compiler>* ctx = jitCtx();
+  if (ctx == nullptr ||
+      !ctx->codeOuterFunctions().try_emplace(code, outer_func).second) {
+    return false;
+  }
+  // Give the nested code somewhere to keep a compile of its own, so that the
+  // compile outlives any single instance of the nested function.  Preloading
+  // makes these entries too, but only ever for an outer function that is itself
+  // being JIT-compiled; without this, a nested function inside an outer that
+  // only ever runs in the interpreter loses its compile along with its first
+  // instance and is compiled again for the next one.
+  ctx->getOrCreateNestedCompileData(
+      module, code, getCompilationEligibility(module, code));
+  return true;
+}
+
 void trackEligibleCodeObjects(
     BorrowedRef<PyFunctionObject> func,
-    BorrowedRef<PyCodeObject> func_code,
-    JitEligibility eligibility = JitEligibility::Eligible) {
+    BorrowedRef<PyCodeObject> func_code) {
   // We need to maintain a mapping for all functions which are eligible for
   // compilation at some point - we track the code object and their parent
-  // function.  If we have a JIT list we also track the registered units.  Map
-  // this function's code object to itself.
+  // function.  Map this function's code object to itself.
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
   auto [_, inserted] = jit_code_outer_funcs.try_emplace(func_code, func);
   if (!inserted) {
@@ -3690,28 +3813,12 @@ void trackEligibleCodeObjects(
     data->markOwnsCodeOuterFuncEntry();
   }
 
-  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
-
   // Scan this function's code object for any nested functions that might be
   // compiled.
-  PyObject* mod = func->func_module;
+  BorrowedRef<> mod{func->func_module};
   BorrowedRef<> top_consts{func_code->co_consts};
   for (BorrowedRef<PyCodeObject> code : findNestedCodes(mod, top_consts)) {
-    auto [_, nested_inserted] = jit_code_outer_funcs.try_emplace(code, func);
-    if (!nested_inserted) {
-      continue;
-    }
-    // Give the nested code somewhere to keep a compile of its own, so that the
-    // compile outlives any single instance of the nested function.  Preloading
-    // makes these entries too, but only ever for an outer function that is
-    // itself being JIT-compiled; without this, a nested function inside an
-    // outer that only ever runs in the interpreter loses its compile along with
-    // its first instance and is compiled again for the next one.
-    jitCtx()->getOrCreateNestedCompileData(
-        mod, code, getCompilationEligibility(mod, code));
-    if (eligibility == JitEligibility::JitListEligible) {
-      jit_reg_units.emplace(code.getObj());
-    }
+    trackNestedCode(func, mod, code);
   }
 }
 
@@ -3821,7 +3928,7 @@ void notifyUnitDeletedDuringPreload(
   }
 }
 
-// Unregister a function and its nested code objects from jit_reg_units and
+// Unregister a function and its nested code objects from
 // jit_code_outer_funcs. Called when a function is destroyed or its code object
 // is being replaced.
 void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
@@ -3833,7 +3940,6 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
     return;
   }
 
-  auto& jit_reg_units = mod_state->registered_compilation_units;
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
 
   BorrowedRef<PyCodeObject> top_code{func->func_code};
@@ -3846,7 +3952,6 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
       BorrowedRef<> top_consts{top_code->co_consts};
       for (BorrowedRef<PyCodeObject> code :
            findNestedCodes(module, top_consts)) {
-        jit_reg_units.erase(code);
         auto existing = jit_code_outer_funcs.find(code);
         if (existing != jit_code_outer_funcs.end() &&
             existing->second == func) {
@@ -3857,8 +3962,6 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
     }
   }
 
-  jit_reg_units.erase(func);
-  jit_reg_units.erase(top_code);
   notifyUnitDeletedDuringPreload(mod_state, func.getObj());
 }
 
@@ -4179,10 +4282,6 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   if (code->co_flags & forbidden_flags) {
     return;
   }
-
-  // We are taking over compilation of this function, so remove it from the set
-  // of units pending batch compilation, mirroring compileFunction.
-  cinderx::getModuleState()->registered_compilation_units.erase(func);
 
   BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
 
@@ -4513,10 +4612,7 @@ void finalize() {
   // Clear some global maps that reference Python data.
   auto mod_state = cinderx::getModuleState();
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  auto& jit_reg_units = mod_state->registered_compilation_units;
   jit_code_outer_funcs.clear();
-  jit_reg_units.clear();
-
   mod_state->jit_context.reset();
   mod_state->code_allocator.reset();
 
@@ -4570,7 +4666,7 @@ inline std::optional<bool> scheduleNestedFunction(
   }
 
   setVectorcall(func, jitVectorcall);
-  if (!registerFunctionForCompilation(func)) {
+  if (!canCompileFunctionLater()) {
     setVectorcall(func, getInterpretedVectorcall(func));
     return false;
   }
@@ -4592,7 +4688,7 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   if (eligible == JitEligibility::Ineligible) {
     return false;
   }
-  trackEligibleCodeObjects(func, func->func_code, eligible);
+  trackEligibleCodeObjects(func, func->func_code);
 
   // If we're not eligible due to the JIT list check if we have config (e.g.
   // auto jit, jit all, or jit all static methods) that makes compilation happen
@@ -4645,9 +4741,6 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   if (!isJitUsable()) {
     return Result::UNKNOWN_ERROR;
   }
-
-  auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
-  jit_reg_units.erase(func);
 
   // Isolate preloaders state since batch preloading might trigger a call to a
   // jitable function, resulting in a single-function compile.
@@ -4823,8 +4916,6 @@ void codeDestroyed(BorrowedRef<PyCodeObject> code) {
     if (!mod_state) {
       return;
     }
-    auto& jit_reg_units = mod_state->registered_compilation_units;
-    jit_reg_units.erase(code.getObj());
     if (auto* ctx = jitCtx()) {
       ctx->codeOuterFunctions().erase(code);
     }

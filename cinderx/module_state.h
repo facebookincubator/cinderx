@@ -145,9 +145,6 @@ struct ModuleState {
   Ref<> orig_sys_setprofile;
   Ref<> orig_sys_settrace;
 
-  // Function and code objects ("units") registered for compilation.
-  UnorderedSet<BorrowedRef<>> registered_compilation_units;
-
   // Function objects registered for pre-fork perf-trampoline compilation.
   UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
 

@@ -472,18 +472,31 @@ inline void setVectorcall(
   }
 }
 
-using FuncVisitor = void (*)(BorrowedRef<PyFunctionObject>);
+// Counterpart to setVectorcall(); see the comment there for why this is
+// relaxed.
+inline vectorcallfunc getVectorcall(BorrowedRef<PyFunctionObject> func) {
+#ifdef __cpp_lib_atomic_ref
+  return std::atomic_ref<vectorcallfunc>(func->vectorcall)
+      .load(std::memory_order_relaxed);
+#else
+  return __atomic_load_n(&func->vectorcall, __ATOMIC_RELAXED);
+#endif
+}
 
-inline void walkFunctionObjects(FuncVisitor visitor) {
+// Call visitor on every live PyFunctionObject on the GC heap.  Under
+// free-threading the visit runs with the world stopped, so the visitor must not
+// allocate or deallocate Python objects; taking a new reference is fine.
+template <typename Visitor>
+void walkFunctionObjects(Visitor visitor) {
   auto wrapper = [](PyObject* obj, void* arg) {
     if (PyFunction_Check(obj)) {
       BorrowedRef<PyFunctionObject> func{obj};
-      reinterpret_cast<FuncVisitor>(arg)(func);
+      (*static_cast<Visitor*>(arg))(func);
     }
     return 1;
   };
 
-  PyUnstable_GC_VisitObjects(wrapper, reinterpret_cast<void*>(visitor));
+  PyUnstable_GC_VisitObjects(wrapper, &visitor);
 }
 
 } // namespace cinderx
