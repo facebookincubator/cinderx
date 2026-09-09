@@ -15,6 +15,7 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/function_slots.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -835,6 +836,7 @@ void module_free(void* raw_mod) {
   // data backed by the module state. The free-list will use the module refcount
   // to keep the module alive while such uses are outstanding.
   jit::shutdown_jit_genobject_type();
+  jit::shutdownJitFunctionSlots();
 
   // Running the module state's destructor will access the global singleton, so
   // reset the singleton afterwards.

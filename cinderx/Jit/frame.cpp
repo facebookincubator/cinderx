@@ -257,7 +257,10 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   unit_state.reserve(unit_frames.size());
   _PyInterpreterFrame* non_inlined_sf = unit_frames[0];
   CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
-  JIT_CHECK(code_rt != nullptr, "failed to find code runtime");
+  JIT_CHECK(
+      code_rt != nullptr,
+      "failed to find code runtime for {}",
+      codeName(_PyFrame_GetCode(non_inlined_sf)));
 
   auto logUnitFrames = [&unit_frames] {
     JIT_LOG("Unit frames (increasing order of inline depth):");

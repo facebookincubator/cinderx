@@ -10,7 +10,7 @@ import textwrap
 import unittest
 import warnings
 import weakref
-from typing import Callable, TYPE_CHECKING
+from typing import Any, Callable, cast, TYPE_CHECKING
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
@@ -2369,43 +2369,41 @@ class BadArgumentTests(unittest.TestCase):
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(
-        "Prefork builds immortalize compiled functions and do not publish "
-        "__cinderx_compiled_func__, so the function never deopts"
+        "Prefork builds immortalize compiled functions, so the function never deopts"
     )
     def test_compiled_code_ref(self):
-        self.assertNotIn("__cinderx_compiled_func__", compiled_code_func.__dict__)
+        self.assertEqual(compiled_code_func.__dict__, {})
         cinder_support.failUnlessJITCompiled(compiled_code_func)
-        # Compiling publishes the compiled func in the function's dictionary
-        self.assertIn("__cinderx_compiled_func__", compiled_code_func.__dict__)
+        # The compiled code is held as a logical reference, so compiling must not
+        # give the function a __dict__ or publish anything user-visible in it.
+        self.assertEqual(compiled_code_func.__dict__, {})
+        self.assertIsNotNone(cinderx.jit.get_compiled_function(compiled_code_func))
         self.assertTrue(cinderx.jit.is_jit_compiled(compiled_code_func))
-        # Removing the compiled code eliminates the last reference and deopts the
-        # function.
-        del compiled_code_func.__dict__["__cinderx_compiled_func__"]
+        # Dropping the compiled code deopts the function.
+        cinderx.jit.force_uncompile(compiled_code_func)
         self.assertFalse(cinderx.jit.is_jit_compiled(compiled_code_func))
+        self.assertIsNone(cinderx.jit.get_compiled_function(compiled_code_func))
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(
-        "Prefork builds immortalize compiled functions and do not publish "
-        "__cinderx_compiled_func__, so the function never deopts"
+        "Prefork builds immortalize compiled functions, so the function never deopts"
     )
     def test_nested_compiled_code_ref(self):
         # CompiledCode should be re-used for nested functions, even if the outer
-        # function is never compiled.
+        # function is never compiled.  Nothing is published in either function's
+        # __dict__ to make that happen.
         nested1 = compiled_code_func_with_nested()
         cinder_support.failUnlessJITCompiled(nested1)
         self.assertIn(
             "__cinderx_nested_compiled_funcs__", compiled_code_func_with_nested.__dict__
         )
-        self.assertIn("__cinderx_compiled_func__", nested1.__dict__)
-        code1 = id(nested1.__dict__["__cinderx_compiled_func__"])
+        self.assertEqual(nested1.__dict__, {})
+        code1 = id(cinderx.jit.get_compiled_function(nested1))
         del nested1
         nested2 = compiled_code_func_with_nested()
         cinder_support.failUnlessJITCompiled(nested2)
 
-        self.assertEqual(
-            code1,
-            id(nested2.__dict__["__cinderx_compiled_func__"]),
-        )
+        self.assertEqual(code1, id(cinderx.jit.get_compiled_function(nested2)))
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     def test_nested_compiled_code_globals_mismatch(self):
@@ -2439,8 +2437,7 @@ class BadArgumentTests(unittest.TestCase):
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(
-        "Prefork builds immortalize compiled functions and do not publish "
-        "__cinderx_compiled_func__, so the function never deopts"
+        "Prefork builds immortalize compiled functions, so the function never deopts"
     )
     def test_nested_compiled_code_ref_outer_destroyed(self):
         d = {}
@@ -2461,35 +2458,39 @@ def compiled_code_func_with_nested():
         nested = d["compiled_code_func_with_nested"]()
         del d
         cinder_support.failUnlessJITCompiled(nested)
-        self.assertIn("__cinderx_compiled_func__", nested.__dict__)
+        self.assertIsNotNone(cinderx.jit.get_compiled_function(nested))
 
     @skip_if_prefork(
-        "Prefork builds immortalize compiled functions and do not publish "
-        "__cinderx_compiled_func__"
+        "Prefork builds immortalize compiled functions, so there is no "
+        "CompiledFunction to look up"
     )
-    def test_compiled_func_reduces_to_none_for_pickle_and_copy(self) -> None:
-        # The CompiledFunction stashed in a JIT'd function's __dict__ holds per-process
-        # machine code and must not block pickling/copying of the function.  It reduces
-        # to a None placeholder.
+    def test_compiled_func_leaves_dict_clean_for_pickle_and_copy(self) -> None:
+        # Per-process machine code must not leak into a JIT'd function's __dict__,
+        # where it would be serialized along with the function.  The JIT holds the
+        # CompiledFunction as a logical reference instead, so the dict stays empty
+        # and pickling/copying the function needs no special handling.
         def local_func(x: int) -> int:
             return x + 1
 
         force_compile(local_func)
-        compiled = local_func.__dict__["__cinderx_compiled_func__"]
+        self.assertTrue(cinderx.jit.is_jit_compiled(local_func))
+        self.assertEqual(local_func.__dict__, {})
+
+        compiled = cinderx.jit.get_compiled_function(local_func)
         self.assertEqual(type(compiled).__name__, "CompiledFunction")
 
-        # __reduce__ yields (callable, ()) where the callable rebuilds None...
+        # The CompiledFunction is still reachable through the debug accessor, and
+        # still reduces to a None placeholder so it can never block a pickle.
         reconstructor, args = compiled.__reduce__()
         self.assertEqual(args, ())
-        self.assertIsNone(reconstructor())
-        # ...and that callable is picklable by reference (a module-level function),
-        # which is what lets cloudpickle drop the artifact when serializing a JIT'd
-        # function's __dict__ by value.
+        self.assertIsNone(cast(Any, reconstructor)())
         self.assertIs(
-            getattr(sys.modules[reconstructor.__module__], reconstructor.__qualname__),
+            getattr(
+                sys.modules[reconstructor.__module__],
+                cast(Any, reconstructor).__qualname__,
+            ),
             reconstructor,
         )
-        # End-to-end via the reduce protocol, the same machinery pickle uses.
         self.assertIsNone(copy.deepcopy(compiled))
 
 
@@ -2630,6 +2631,73 @@ class GetCompiledFunctionTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             # pyre-ignore: Argument `Literal[42]` is not assignable to parameter
             cinderx.jit.get_compiled_function(42)
+
+
+@passUnless(cinderx.jit.is_enabled(), "Tests JIT compile lifetime")
+@skip_if_prefork(
+    "Prefork builds immortalize compiled functions, so the function never deopts"
+)
+class CodeChangeDeoptTests(unittest.TestCase):
+    """Changing a compiled function's code deopts it.
+
+    A JIT-compiled function owns a reference to its CompiledFunction, taken when
+    it registered and handed back when it deopts.  Changing `__code__` deopts
+    through the one path where the compiled entry point - the marker for which
+    compile that reference is against - is about to stop matching, so these
+    tests pin down that the reference is neither stranded nor dropped twice.
+    """
+
+    @staticmethod
+    def _compile_addition() -> tuple[Callable[[int, int], int], Any]:
+        """Compile an adding function, returning it and its compile."""
+
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        compiled = cinderx.jit.get_compiled_function(foo)
+        assert compiled is not None
+        return foo, compiled
+
+    def test_code_change_hands_the_compile_back(self) -> None:
+        # Suppressed so that changing to it deopts and stops there, rather than
+        # immediately registering `foo` on a compile for the new code.
+        @jit_suppress
+        def multiply(a: int, b: int) -> int:
+            return a * b
+
+        foo, compiled = self._compile_addition()
+        held = sys.getrefcount(compiled)
+
+        foo.__code__ = multiply.__code__
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertEqual(foo(3, 4), 12)
+        self.assertEqual(sys.getrefcount(compiled), held - 1)
+
+        # And there is nothing left over to hand back a second time.
+        del foo
+        gc.collect()
+        self.assertEqual(sys.getrefcount(compiled), held - 1)
+
+    def test_recompiling_after_a_code_change_takes_a_new_compile(self) -> None:
+        def multiply(a: int, b: int) -> int:
+            return a * b
+
+        foo, compiled = self._compile_addition()
+        held = sys.getrefcount(compiled)
+
+        foo.__code__ = multiply.__code__
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+        self.assertEqual(foo(3, 4), 12)
+
+        recompiled = cinderx.jit.get_compiled_function(foo)
+        self.assertIsNotNone(recompiled)
+        self.assertIsNot(recompiled, compiled)
+        # The old compile was given up at the deopt, not carried over to here.
+        self.assertEqual(sys.getrefcount(compiled), held - 1)
+
+        force_uncompile(foo)
 
 
 if __name__ == "__main__":

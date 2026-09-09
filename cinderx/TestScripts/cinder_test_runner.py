@@ -274,6 +274,14 @@ def manage_worker(
     worker.wait()
 
 
+def _is_prefork_build() -> bool:
+    try:
+        import cinderx
+    except ImportError:
+        return False
+    return cinderx.is_prefork_build()
+
+
 def _computeSkipTests(
     huntrleaks, use_rr=False, extra_skip_files=None
 ) -> Tuple[Set[str], Set[str]]:
@@ -305,6 +313,8 @@ def _computeSkipTests(
 
     if huntrleaks:
         skip_list_files.append("refleak_skip_tests.txt")
+        if _is_prefork_build():
+            skip_list_files.append("refleak_prefork_skip_tests.txt")
 
     skip_modules = set()
     skip_patterns = set()

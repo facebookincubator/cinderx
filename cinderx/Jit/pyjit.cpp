@@ -33,6 +33,7 @@
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/eligibility.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/function_slots.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -921,6 +922,7 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
   if (CompiledFunction* compiled = jitCtx()->lookupFunc(func)) {
     return jitCtx()->finalizeFunc(func, compiled);
   }
+
   return false;
 }
 
@@ -1640,22 +1642,46 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
+  CompilerContext<Compiler>* ctx = jitCtx();
+  if (ctx == nullptr) {
+    return false;
+  }
+
   // See if we were deopted by disabling the JIT, if so we'll now stay deopted.
-  if (BorrowedRef<CompiledFunction> parked =
-          jitCtx()->removeDeoptedFunc(func)) {
+  if (BorrowedRef<CompiledFunction> parked = ctx->removeDeoptedFunc(func)) {
+    parked->releaseDeoptedFunction(func);
     return true;
   }
 
-  if (!jitCtx()->removeCompiledFunc(func)) {
+  if (!isJitCompiled(func)) {
     return false;
   }
-  setVectorcall(func, getInterpretedVectorcall(func));
+  // Hand back the reference the function took when it registered, which is
+  // what the compiled entry point stands for.  This can be the last one - a
+  // top-level compile has no other owner - and ~CompiledFunction() is built for
+  // that: it defers the machine code until processDeferredCleanup() finds no
+  // thread executing it, so a function may safely deopt itself from inside its
+  // own JIT frame.  force_uncompile() has always released this way.
+  //
+  // What it may NOT do is run inside a GC heap walk, where freeing a tracked
+  // object corrupts the generation list the walk is holding; see finalize().
+  BorrowedRef<CompiledFunction> compiled = ctx->lookupFunc(func);
+  if (compiled != nullptr && compiled->vectorcallEntry() == func->vectorcall) {
+    // May free the compile, so nothing may touch it after this.
+    compiled->removeFunction(func);
+  } else {
+    setVectorcall(func, getInterpretedVectorcall(func));
+  }
   return true;
 }
 
 void uncompile(BorrowedRef<PyFunctionObject> func) {
   deoptFuncImpl(func);
-  jitCtx()->forgetCode(func);
+  // Releasing the compile can tear the JIT context down during shutdown, see
+  // CompiledFunction::~CompiledFunction().
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->forgetCode(func);
+  }
 }
 
 /*
@@ -1763,6 +1789,7 @@ bool enable_jit_impl() {
     if (code->co_flags & CI_CO_SUPPRESS_JIT) {
       // Suppressed while it was parked, so it is never going back on that
       // entry point.
+      parked->releaseDeoptedFunction(func);
       continue;
     }
 
@@ -2234,10 +2261,6 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   if (!isJitCompiled(func)) {
     Py_RETURN_FALSE;
   }
-
-  // Replace the function entrypoint with the interpreter entrypoint, so that it
-  // can properly be called again.
-  setVectorcall(func, getInterpretedVectorcall(func));
 
   // "Destroy" the function from the perspective of the JIT, effectively erasing
   // all traces of it from the metadata.
@@ -4369,6 +4392,8 @@ int initialize() {
     }
   }
 
+  jit::initJitFunctionSlots();
+
   return 0;
 }
 
@@ -4445,6 +4470,25 @@ void finalize() {
   }
   compiled_funcs.clear();
 
+#if Py_DEBUG
+  // Nothing may be left on a compiled entry point once we start freeing the
+  // code itself, so make the sweep's completeness a checked invariant rather
+  // than an assumption.
+  size_t still_compiled = 0;
+  auto counter = [](PyObject* obj, void* arg) {
+    if (PyFunction_Check(obj) &&
+        isJitCompiled(BorrowedRef<PyFunctionObject>{obj})) {
+      (*static_cast<size_t*>(arg))++;
+    }
+    return 1;
+  };
+  PyUnstable_GC_VisitObjects(counter, &still_compiled);
+  JIT_CHECK(
+      still_compiled == 0,
+      "{} functions are still JIT-compiled after the shutdown deopt sweep",
+      still_compiled);
+#endif
+
   JIT_DLOG(
       "CinderX JIT Total Compilation Time: {}", jitCtx()->totalCompileTime());
 
@@ -4465,6 +4509,7 @@ void finalize() {
   auto& jit_reg_units = mod_state->registered_compilation_units;
   jit_code_outer_funcs.clear();
   jit_reg_units.clear();
+
   mod_state->jit_context.reset();
   mod_state->code_allocator.reset();
 
@@ -4486,7 +4531,7 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
 
 // true/false if we've decisively scheduled or not scheduled the compilation.
 // std::nullopt if we need to do a full lookup to schedule the function.
-std::optional<bool> scheduleNestedFunction(
+inline std::optional<bool> scheduleNestedFunction(
     BorrowedRef<PyFunctionObject> func,
     NestedCompileData* data) {
   BorrowedRef<CompiledFunction> compiled = data->compiledFunction();
@@ -4496,11 +4541,11 @@ std::optional<bool> scheduleNestedFunction(
         runtime->builtins() != func->func_builtins) {
       return std::nullopt;
     }
-    if (!associateFunctionWithCompiled(func, compiled, false /* is_nested */)) {
-      return false;
-    }
-    setVectorcall(func, compiled->vectorcallEntry());
-    jitCtx()->addCompiledFunc(func, compiled);
+
+    // Takes the reference and publishes the entry point together, so the
+    // function is never observably JIT-compiled without owning its
+    // CompiledFunction.
+    compiled->addFunction(func);
     return true;
   }
 

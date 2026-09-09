@@ -17,3 +17,9 @@ test_cinderx.test_jit_disable.*
 # Static Python invoke tests compile many functions that prefork immortalizes,
 # leaking references across refleak runs.
 test_cinderx.test_compiler.test_static.test_invoke.*
+
+# Its specialize() helper does force_uncompile() then force_compile() for every
+# case, so each repetition allocates another immortal CompiledFunction that can
+# never be freed.  Measured at 2 references per specialize() under prefork and 0
+# without it.
+test_cinderx.test_jit_specialization.*

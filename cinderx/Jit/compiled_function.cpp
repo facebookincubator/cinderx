@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <new>
+#include <utility>
 
 extern "C" {
 
@@ -60,6 +61,10 @@ int compiledfunc_traverse(PyObject* self, visitproc visit, void* arg) {
 
 int compiledfunc_clear(PyObject* self) {
   CompiledFunction* cf = reinterpret_cast<CompiledFunction*>(self);
+  // Break the function <-> CompiledFunction cycle from this side as well: the
+  // functions themselves may already have been cleared, and so may no longer be
+  // able to find their way back here to release what they own.
+  cf->releaseFunctionRefs();
   cf->clear();
   return 0;
 }
@@ -266,11 +271,6 @@ void CompiledFunction::setOwner(CompiledFunctionOwner* owner) {
   owner_ = owner;
 }
 
-std::unordered_set<BorrowedRef<PyFunctionObject>>&
-CompiledFunction::functions() {
-  return functions_;
-}
-
 bool CompiledFunction::isContiguous() const {
   return contiguous_data_;
 }
@@ -361,6 +361,9 @@ CompiledFunction::~CompiledFunction() {
   if (data_ == nullptr) {
     return;
   }
+
+  // clear() can release the last references to our module during finalization
+  mod_state = cinderx::getModuleState();
 
   if (contiguous_data_) {
     if (mod_state != nullptr && data_->code.data() != nullptr) {
@@ -494,19 +497,36 @@ void* CompiledFunction::staticEntry() const {
 }
 
 void CompiledFunction::addFunction(BorrowedRef<PyFunctionObject> func) {
-  // Store a borrowed reference to the function. The function is responsible
-  // for removing itself via funcDestroyed() when it is deallocated.
-  // We don't incref to avoid preventing garbage collection of functions
-  // when multiple functions share the same CompiledFunction.
+  // The vectorcall entry point is the marker that this function is
+  // currently this compiled function.
+#if Py_DEBUG
+  JIT_DCHECK(!functions_.contains(func), "no duplicates");
   functions_.insert(func.get());
+#endif
+  num_functions_++;
+  Py_INCREF(this);
+  setVectorcall(func, vectorcallEntry());
 }
 
 void CompiledFunction::removeFunction(BorrowedRef<PyFunctionObject> func) {
-  // Remove the borrowed reference. No decref needed since we don't own it.
+  if (num_functions_ == 0 || func->vectorcall != vectorcallEntry()) {
+    return;
+  }
+#if Py_DEBUG
+  JIT_DCHECK(functions_.contains(func), "should be registered");
   functions_.erase(func.get());
+#endif
+  num_functions_--;
+  setVectorcall(func, getInterpretedVectorcall(func));
+  // Releases func's reference; this may be the last one, so nothing may touch
+  // the object after this point.
+  Py_DECREF(this);
 }
 
 void CompiledFunction::deoptFunction(BorrowedRef<PyFunctionObject> func) {
+#if Py_DEBUG
+  JIT_DCHECK(functions_.contains(func), "should be registered");
+#endif
   // No refcount change: the function keeps the reference it took in
   // addFunction(), which is what holds this compile together while the JIT is
   // disabled and nothing is running it.
@@ -514,7 +534,27 @@ void CompiledFunction::deoptFunction(BorrowedRef<PyFunctionObject> func) {
 }
 
 void CompiledFunction::reoptFunction(BorrowedRef<PyFunctionObject> func) {
+#if Py_DEBUG
+  JIT_DCHECK(functions_.contains(func), "should be registered");
+#endif
+  JIT_DCHECK(num_functions_ > 0, "reopting an unregistered function");
   setVectorcall(func, vectorcallEntry());
+}
+
+void CompiledFunction::releaseDeoptedFunction(
+    BorrowedRef<PyFunctionObject> func) {
+  if (num_functions_ == 0) {
+    // releaseFunctionRefs() already handed every registration back.
+    return;
+  }
+#if Py_DEBUG
+  JIT_DCHECK(functions_.contains(func), "should be registered");
+  functions_.erase(func.get());
+#endif
+  num_functions_--;
+  // Releases func's reference; this may be the last one, so nothing may touch
+  // the object after this point.
+  Py_DECREF(this);
 }
 
 int CompiledFunction::traverse(visitproc visit, void* arg) {
@@ -570,17 +610,6 @@ void CompiledFunction::clear(bool context_finalizing) {
       }
     }
 
-    // We only de-opt the functions if we still have our owner. This is so that
-    // our multi-threaded compile tests work properly where we are clearing
-    // things with functions still running.
-    auto funcs_to_deopt = std::move(functions_);
-
-    // Deopt all associated functions. No decref needed since these are borrowed
-    // refs.
-    for (PyFunctionObject* func : funcs_to_deopt) {
-      func->vectorcall = getInterpretedVectorcall(func);
-    }
-
     owner_ = nullptr;
   }
 
@@ -588,6 +617,29 @@ void CompiledFunction::clear(bool context_finalizing) {
   if (data_ != nullptr && data_->runtime != nullptr) {
     data_->runtime->releaseReferences();
     data_->runtime = nullptr;
+  }
+}
+
+void CompiledFunction::releaseFunctionRefs() {
+  // Only for tp_clear: the collector has decided this compile is cyclic
+  // garbage, so every function still using it is garbage too and none of them
+  // will come back through removeFunction().
+  //
+  // Deliberately NOT done from clear(): forgetCode() and deoptFunc() clear a
+  // compile while its functions are alive and, in the middle of a recursion,
+  // still running its machine code.  Those references belong to the functions
+  // until the functions themselves go away.
+  size_t count = std::exchange(num_functions_, 0);
+#if Py_DEBUG
+  JIT_DCHECK(
+      functions_.size() == count,
+      "{} registered functions but a count of {}",
+      functions_.size(),
+      count);
+  functions_.clear();
+#endif
+  for (size_t i = 0; i < count; i++) {
+    Py_DECREF(this);
   }
 }
 

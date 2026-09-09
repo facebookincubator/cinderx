@@ -229,11 +229,12 @@ class CompiledFunction {
   const std::vector<InlineCacheSite>& inlineCacheSites() const;
 #endif
 
-  // Associate a function with this CompiledFunction. The function will be
-  // tracked and deopted if the CompiledFunction is cleared.
+  // Associate a function with this CompiledFunction and set its vectorcall
+  // entry point, the function will keep the compiled code alive.
   void addFunction(BorrowedRef<PyFunctionObject> func);
 
-  // Remove a function from the set of associated functions.
+  // Undo addFunction(): put the function back on the interpreter entry point
+  // and allow the compiled function to be freed.
   void removeFunction(BorrowedRef<PyFunctionObject> func);
 
   // Marks a dunction as being deopted
@@ -243,11 +244,24 @@ class CompiledFunction {
   // compiled entry point.
   void reoptFunction(BorrowedRef<PyFunctionObject> func);
 
+  // Release the registration of a function that is currently parked by
+  // deoptFunction().  Same as removeFunction(), which cannot be used because
+  // the function is not on the compiled entry point any more.  This can free
+  // the CompiledFunction, so callers must not use it afterwards.
+  void releaseDeoptedFunction(BorrowedRef<PyFunctionObject> func);
+
+  // How many functions are currently registered, i.e. how many of this object's
+  // references are owned by a function.
+  size_t numFunctions() const {
+    return num_functions_;
+  }
+
+  // Hand back one reference per registered function, for tp_clear only.  See
+  // the definition for why clear() must not do this.
+  void releaseFunctionRefs();
+
   // Set the owner that is notified when this CompiledFunction is destroyed.
   void setOwner(CompiledFunctionOwner* owner);
-
-  // The set of functions currently using this CompiledFunction.
-  std::unordered_set<BorrowedRef<PyFunctionObject>>& functions();
 
   // Traverse all GC-reachable objects for the GC.
   int traverse(visitproc visit, void* arg);
@@ -277,10 +291,12 @@ class CompiledFunction {
   CompiledFunctionOwner* owner_{};
   CompiledFunctionData* data_{nullptr};
   bool contiguous_data_{false};
-  // Set of functions that are using this CompiledFunction.
-  // These are borrowed references - the functions are responsible for removing
-  // themselves via funcDestroyed() when they are deallocated.
+  // How many functions are registered with this CompiledFunction.
+  size_t num_functions_{0};
+#if Py_DEBUG
+  // Debugging helper to verify our function book keeping is correct
   std::unordered_set<BorrowedRef<PyFunctionObject>> functions_;
+#endif
 };
 
 // Initialize the CompiledFunction key and types. Should be called during
@@ -295,6 +311,17 @@ bool associateFunctionWithCompiled(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled,
     bool is_nested);
+
+// Whether a tp_traverse may report `compiled` to the collector.
+//
+// Immortal compiles - the prefork model, and functions that are themselves
+// immortal - are allocated in one block with their data by CompiledFunction::
+// create() and so have no GC header in front of them.  They can never be freed,
+// so the collector does not need to know about them, and visiting one has it
+// read a header that isn't there.
+inline bool isCollectableCompile(BorrowedRef<CompiledFunction> compiled) {
+  return compiled != nullptr && !compiled->isContiguous();
+}
 
 } // namespace cinderx::jit
 

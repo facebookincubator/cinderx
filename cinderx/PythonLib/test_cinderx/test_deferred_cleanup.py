@@ -70,7 +70,6 @@ class DeferredCleanupTest(unittest.TestCase):
             import cinderx.jit
 
             DEPTH = 100
-            COMPILED_KEY = "__cinderx_compiled_func__"
 
             def recursive(n):
                 if n > 0:
@@ -80,13 +79,12 @@ class DeferredCleanupTest(unittest.TestCase):
                 # last reference to the CompiledFunction runs its destructor,
                 # which must DEFER freeing the machine code because it is still
                 # on the stack above us.
-                del recursive.__dict__[COMPILED_KEY]
+                cinderx.jit.force_uncompile(recursive)
                 assert not cinderx.jit.is_jit_compiled(recursive)
                 return 0
 
             cinderx.jit.force_compile(recursive)
             assert cinderx.jit.is_jit_compiled(recursive)
-            assert COMPILED_KEY in recursive.__dict__
 
             # Returning through the still-live JIT frames must not crash even
             # though the code was logically freed at the bottom of the
@@ -96,7 +94,6 @@ class DeferredCleanupTest(unittest.TestCase):
 
             # The function stays de-opted after unwinding.
             assert not cinderx.jit.is_jit_compiled(recursive)
-            assert COMPILED_KEY not in recursive.__dict__
 
             print("OK")
         """)
@@ -116,7 +113,6 @@ class DeferredCleanupTest(unittest.TestCase):
             import cinderx.jit
 
             DEPTH = 50
-            COMPILED_KEY = "__cinderx_compiled_func__"
 
             def make_and_deopt():
                 # A fresh function each round so its compiled code is distinct
@@ -137,7 +133,7 @@ class DeferredCleanupTest(unittest.TestCase):
 
                 def deopt():
                     # De-opt while DEPTH compiled frames are still live.
-                    del recursive.__dict__[COMPILED_KEY]
+                    cinderx.jit.force_uncompile(recursive)
 
                 result = recursive(DEPTH, deopt)
                 assert result == DEPTH * (DEPTH + 1) // 2, result
@@ -161,17 +157,15 @@ class DeferredCleanupTest(unittest.TestCase):
         Unlike a plain function, a generator can be suspended at a yield point
         with a JIT frame that is NOT on any thread's stack -- so the deferred
         cleanup stack-walk cannot protect it.  Instead the suspended generator
-        holds a strong reference to the CompiledFunction, so dropping the
-        function dict's reference does NOT free the code.  Resuming the
-        generator afterwards must run the still-live code and produce correct
-        results without crashing.
+        holds a strong reference to the CompiledFunction, so uncompiling the
+        function does NOT free the code.  Resuming the generator afterwards must
+        run the still-live code and produce correct results without crashing.
         """
         proc = self._run_subprocess("""
             import gc
 
             import cinderx.jit
 
-            COMPILED_KEY = "__cinderx_compiled_func__"
 
             def gen(n):
                 acc = 0
@@ -181,33 +175,30 @@ class DeferredCleanupTest(unittest.TestCase):
 
             cinderx.jit.force_compile(gen)
             assert cinderx.jit.is_jit_compiled(gen)
-            assert COMPILED_KEY in gen.__dict__
 
             # Suspend the generator mid-execution: it now has a live JIT frame
             # holding the loop state across the yield.
             g = gen(5)
             assert next(g) == 0
 
-            # Drop the function dict's reference to the CompiledFunction.  The
-            # suspended generator keeps it (and its machine code) alive, so the
-            # function is NOT deopted while the generator is live -- this is the
-            # guarantee that makes resuming safe.
-            del gen.__dict__[COMPILED_KEY]
-            assert COMPILED_KEY not in gen.__dict__
-            assert cinderx.jit.is_jit_compiled(gen)
+            # Deopt the function, dropping its reference to the
+            # CompiledFunction.  The suspended generator still holds one, so the
+            # machine code stays alive even though the function itself deopts --
+            # that is the guarantee that makes resuming safe.
+            cinderx.jit.disable(deopt_all=True)
+            assert not cinderx.jit.is_jit_compiled(gen)
 
             # A generation-2 GC reclaims deferred code whose frames are gone.
             # The suspended frame is not on any stack, so only the generator's
             # strong reference keeps the code from being freed here.
             gc.collect()
-            assert cinderx.jit.is_jit_compiled(gen)
 
             # Resuming the suspended JIT frame must not crash and must produce
             # the right values, proving the code stayed alive.
             assert list(g) == [1, 3, 6, 10]
 
-            # Once the generator is gone the CompiledFunction is released and
-            # the function finally deopts -- still no crash.
+            # Once the generator is gone the CompiledFunction is released for
+            # real -- still no crash.
             del g
             gc.collect()
             assert not cinderx.jit.is_jit_compiled(gen)
@@ -220,16 +211,15 @@ class DeferredCleanupTest(unittest.TestCase):
     def test_many_suspended_generators_survive_gc(self) -> None:
         """
         Many generators suspended at once all share a single CompiledFunction.
-        After dropping the function dict's reference, repeated full collections
-        must not free the code out from under any of the live suspended frames,
-        and every generator must resume to completion without crashing.
+        After uncompiling the function, repeated full collections must not free
+        the code out from under any of the live suspended frames, and every
+        generator must resume to completion without crashing.
         """
         proc = self._run_subprocess("""
             import gc
 
             import cinderx.jit
 
-            COMPILED_KEY = "__cinderx_compiled_func__"
 
             def gen(n):
                 acc = 0
@@ -246,11 +236,11 @@ class DeferredCleanupTest(unittest.TestCase):
 
             # The suspended generators are now the only thing keeping the
             # compiled code alive.
-            del gen.__dict__[COMPILED_KEY]
+            cinderx.jit.disable(deopt_all=True)
+            assert not cinderx.jit.is_jit_compiled(gen)
 
             for _ in range(3):
                 gc.collect()
-                assert cinderx.jit.is_jit_compiled(gen)
 
             # Resume every generator to completion, interleaving collections.
             for g in gens:

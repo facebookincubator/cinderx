@@ -244,6 +244,17 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   BorrowedRef<CompiledFunction> removeDeoptedFunc(
       BorrowedRef<PyFunctionObject> func);
 
+  /* The compile a parked function is holding, without unparking it. */
+  BorrowedRef<CompiledFunction> deoptedCompile(
+      BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Give up whatever registration `func` has on `compiled`, whether it is on
+   * the compiled entry point or parked by a deopt-all.  This can free the
+   * CompiledFunction, so callers must not use it afterwards.
+   */
+  void releaseFuncRegistration(BorrowedRef<PyFunctionObject> func);
+
   /*
    * Fully remove all effects of compilation from a function.
    */
@@ -284,25 +295,10 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       BorrowedRef<CompiledFunction> compiled);
 
   /*
-   * Adds a compiled function to the Context. Returns false if the function was
-   * previously added.
-   */
-  bool addCompiledFunc(
-      BorrowedRef<PyFunctionObject> func,
-      BorrowedRef<CompiledFunction> compiled);
-
-  /*
-   * Removes a function from the set of functions that are known to be compiled.
-   * This happens if a function is deopted.
-   *
-   * Returns true if the function was removed.
-   */
-  bool removeCompiledFunc(BorrowedRef<PyFunctionObject> func);
-
-  /*
    * Remove the specified code object from the known compiled codes.
    */
   void forgetCode(BorrowedRef<PyFunctionObject> func);
+
   /*
    * Remove the specified code object from the known compiled codes.
    */
@@ -367,6 +363,28 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * Callbacks invoked by the runtime when a PyFunctionObject is destroyed.
    */
   void funcDestroyed(BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Release the reference `func` owns on its CompiledFunction, if it has one,
+   * and put it back on the interpreter entry point.  Used by the patched
+   * function tp_clear to break reference cycles.
+   */
+  void releaseCompiledFuncRef(BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Put every function that is still running one of this Context's compiles
+   * back on the interpreter entry point, releasing the reference it owns.
+   *
+   * A JIT-compiled function's reference to its CompiledFunction is held
+   * logically, and lookupFunc() - i.e. compiled_codes_ - is the only way back
+   * to it.  Once this Context is gone nothing can find those references again,
+   * so they have to be handed back while it is still intact.
+   *
+   * Normally a no-op: jit::finalize() deopts every compiled function before
+   * dropping the Context.  It's the callers that stand up a Context of their
+   * own, such as the runtime tests, that reach here with functions attached.
+   */
+  void releaseFunctionCompileRefs();
 
   NestedCompileData* getOrCreateNestedCompileData(
       BorrowedRef<> module_name,
@@ -622,10 +640,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    */
   UnorderedMap<CompilationKey, BorrowedRef<CompiledFunction>> compiled_codes_;
 
-  /* Set of which functions have JIT-compiled entrypoints. */
-  UnorderedMap<BorrowedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>
-      compiled_funcs_;
-
   /* Set of which functions were JIT-compiled but have since been deopted.
    *
    * Only includes functions deopted due to being disabled so is empty when
@@ -657,11 +671,8 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * finalizeFunc on a worker thread because it does Python allocations.
    *
    * Stores the compilation key rather than the CompiledFunction that lookupCode
-   * returned.  compiled_codes_ only holds borrowed references, kept alive by
-   * the owning function's dict, so a CompiledFunction found on a worker can be
-   * freed by the interpreter before finalization runs.  Looking it up again at
-   * finalization time keeps the borrow within a single GIL-holding critical
-   * section, and a compile that has since gone away simply isn't found.
+   * returned, so that a compile forgotten between scheduling and finalization
+   * simply isn't found rather than being resurrected.
    */
   std::vector<std::pair<Ref<PyFunctionObject>, CompilationKey>>
       deferred_finalizations_;

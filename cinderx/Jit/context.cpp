@@ -164,6 +164,10 @@ Context::Context() : str_build_class_(Ref<>::create(&_Py_ID(__build_class__))) {
 }
 
 Context::~Context() {
+  // Do this first, while everything the release path re-enters - lookups,
+  // forgetCompiledFunction(), the nested-compile maps - is still intact.
+  releaseFunctionCompileRefs();
+
   // Code objects outlive the Context, so their back-pointers into
   // nested_compile_data_ have to be dropped before it's destroyed.
   for (auto& [code, data] : nested_compile_data_) {
@@ -573,26 +577,19 @@ bool Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
   compiled->setOwner(this);
-  if (!addCompiledFunc(func, compiled)) {
+  if (isJitCompiled(func)) {
     // Someone else compiled the function between when our caller checked and
     // called us.
     return true;
   }
 
-  // In case the function had previously been deopted.
-  removeDeoptedFunc(func);
+  // Add the function to the CompiledFunction's set of functions and set it
+  // to be compiled.
+  compiled->addFunction(func);
 
-  setVectorcall(func, compiled->vectorcallEntry());
   if (hasFunctionEntryCache(func->func_code)) {
     void** indirect = findFunctionEntryCache(func->func_code);
     *indirect = compiled->staticEntry();
-  }
-
-  // Associate the function with the CompiledFunction for GC tracking.
-  // This is ultimately what will keep the CompiledFunction alive and
-  // keep the PyFunctionObject JITed.
-  if (!associateFunctionWithCompiled(func, compiled, false /* is_nested */)) {
-    return false;
   }
 
   if (NestedCompileData* data = findNestedCompileData(func->func_code)) {
@@ -638,12 +635,19 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
     return;
   }
 
+  // Hold the compile alive across the teardown below.  The outer function's
+  // list owns a reference, and now that a function's own reference is a
+  // refcount rather than an entry in its __dict__, dropping the list's can be
+  // the last one - which would free the compile out from under the clear()
+  // below, and re-enter forgetCompiledFunction() and invalidate `it` on the
+  // way.
+  Ref<CompiledFunction> cf = Ref<CompiledFunction>::create(it->second);
+
   // Remove the CF from any outer function's nested compiled functions list.
   // When a nested function is compiled, its CF is stored both in the
   // function's own __dict__ and in the outer function's
   // __cinderx_nested_compiled_funcs__ list. We need to clean up the latter
   // when forgetting the code.
-  BorrowedRef<CompiledFunction> cf = it->second;
   BorrowedRef<PyCodeObject> code{it->first.code};
   auto outer_it = code_outer_funcs_.find(code);
   if (outer_it != code_outer_funcs_.end() && outer_it->second != func) {
@@ -666,7 +670,7 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
     }
   }
 
-  it->second->clear();
+  cf->clear();
   compiled_codes_.erase(CompilationKey{func});
 }
 
@@ -678,9 +682,6 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
     auto nested_it = nested_compile_data_.find(function.runtime()->code());
     if (nested_it != nested_compile_data_.end()) {
       nested_it->second->clearCompiledFunction(&function);
-    }
-    for (auto pyfunc : function.functions()) {
-      compiled_funcs_.erase(pyfunc);
     }
     compiled_codes_.erase(CompilationKey{function});
   }
@@ -694,19 +695,13 @@ BorrowedRef<CompiledFunction> Context::lookupFunc(
 CodeRuntime* Context::lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) {
   CompiledFunction* compiled = lookupFunc(func);
   if (compiled == nullptr) {
-    if (func->func_dict != nullptr) {
-      // For multi-threaded compile tests we clear the compiled codes. This is a
-      // super funky thing to do because the functions may actually still be
-      // running and we may try and get the code runtime. So here we make a
-      // last-ditch effort to try and recover the runtime from the function.
-      Ref<> compiled_val = getDictRef(func->func_dict, kCompiledFunctionKey);
-      if (compiled_val != nullptr &&
-          Py_TYPE(compiled_val) == getCompiledFunctionType()) {
-        auto compiled_func =
-            reinterpret_cast<CompiledFunction*>(compiled_val.get());
-        if (compiled_func->functions().contains(func)) {
-          return compiled_func->runtime();
-        }
+    // For multi-threaded compile tests we clear the compiled codes while the
+    // functions may still be running, so fall back to the orphaned compiles,
+    // which still know which functions are using them (orphaned_compiled_codes_
+    // will be empty outside of these tests))
+    for (auto& orphan : orphaned_compiled_codes_) {
+      if (orphan->vectorcallEntry() == func->vectorcall) {
+        return orphan->runtime();
       }
     }
     return nullptr;
@@ -774,9 +769,9 @@ void Context::clearForMultithreadedCompileTest() {
     // Keep the old CompiledFunction alive via a strong reference.
     orphaned_compiled_codes_.emplace_back(
         Ref<CompiledFunction>::create(compiled));
+    compiled->removeFunction(func);
   }
   compiled_codes_.clear();
-  compiled_funcs_.clear();
   for (auto& [_, data] : nested_compile_data_) {
     data->setCompiledFunction(nullptr);
   }
@@ -785,26 +780,65 @@ void Context::clearForMultithreadedCompileTest() {
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   FreeThreadedJITEntrypointGuard guard;
-  auto it = compiled_funcs_.find(func);
-  if (it != compiled_funcs_.end()) {
-    it->second->removeFunction(func);
-    compiled_funcs_.erase(func);
-  }
-  deopted_funcs_.erase(func);
+  releaseFuncRegistration(func);
   // This doesn't modify compiled_codes_, so if this is a nested function it can
   // easily be reopted later.
+}
+
+void Context::releaseCompiledFuncRef(BorrowedRef<PyFunctionObject> func) {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  FreeThreadedJITEntrypointGuard guard;
+  JITCompilationLock lock;
+  releaseFuncRegistration(func);
+}
+
+void Context::releaseFuncRegistration(BorrowedRef<PyFunctionObject> func) {
+  if (BorrowedRef<CompiledFunction> parked = removeDeoptedFunc(func)) {
+    // Parked by a deopt-all: it still owns a reference to its compile even
+    // though its vectorcall no longer says so, and removeFunction() would miss
+    // it for exactly that reason.  Released against the compile it was parked
+    // on, which is not necessarily the one currently registered for its code.
+    parked->releaseDeoptedFunction(func);
+    return;
+  }
+  if (BorrowedRef<CompiledFunction> compiled = lookupFunc(func)) {
+    // Puts the function back on the interpreter entry point if it was using
+    // this compile, and drops the reference that went with it.
+    compiled->removeFunction(func);
+  }
+}
+
+void Context::releaseFunctionCompileRefs() {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  UnorderedMap<vectorcallfunc, BorrowedRef<CompiledFunction>> by_entry;
+  for (auto& [key, compiled] : compiled_codes_) {
+    if (compiled->numFunctions() > 0) {
+      by_entry.emplace(compiled->vectorcallEntry(), compiled);
+    }
+  }
+  if (by_entry.empty()) {
+    return;
+  }
+
+  FreeThreadedJITEntrypointGuard guard;
+  // removeFunction() can drop the last reference to a compile, which re-enters
+  // forgetCompiledFunction() and erases it from compiled_codes_.  That's why
+  // the index above is built up front instead of walking compiled_codes_ here.
+  for (auto& func : getCompiledFunctions()) {
+    auto it = by_entry.find(func->vectorcall);
+    if (it != by_entry.end()) {
+      it->second->removeFunction(func);
+    }
+  }
 }
 
 BorrowedRef<CompiledFunction> Context::lookupCode(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals) {
-  JIT_DCHECK(
-      JITCompilationLock::isHeld() ||
-          ThreadedCompileContext::canAccessSharedData(),
-      "lock should be held");
-
-  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  // This function should be called with the GIL held but we can't assert it
+  // here. We might be called during parallel GC in which case we will have no
+  // interpreter state.
   auto it = compiled_codes_.find(CompilationKey{code, builtins, globals});
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }
@@ -832,23 +866,13 @@ BorrowedRef<CompiledFunction> Context::removeDeoptedFunc(
   return compiled;
 }
 
-bool Context::addCompiledFunc(
-    BorrowedRef<PyFunctionObject> func,
-    BorrowedRef<CompiledFunction> compiled) {
-  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  return compiled_funcs_.emplace(func, compiled).second;
-}
-
-bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
-  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  FreeThreadedJITEntrypointGuard guard;
-  auto in_compiled_funcs = compiled_funcs_.find(func);
-  if (in_compiled_funcs != compiled_funcs_.end()) {
-    in_compiled_funcs->second->removeFunction(func);
-    compiled_funcs_.erase(in_compiled_funcs);
-    return true;
+BorrowedRef<CompiledFunction> Context::deoptedCompile(
+    BorrowedRef<PyFunctionObject> func) {
+  if (deopted_funcs_.empty()) {
+    return nullptr;
   }
-  return false;
+  auto it = deopted_funcs_.find(func);
+  return it == deopted_funcs_.end() ? nullptr : it->second;
 }
 
 bool Context::addActiveCompile(const CompilationKey& key) {
@@ -901,10 +925,7 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     return nullptr;
   }
 
-  // We are storing a borrowed reference to the CompiledFunction. For functions,
-  // finalizeFunc has put the CompiledFunction in the function's dictionary to
-  // keep it alive. Code objects will be deleted when we receive a notification
-  // from Python that they are being destroyed.
+  // Borrowed; the compile is kept alive by the function objects using it.
   auto pair = compiled_codes_.emplace(key, compiled);
   JIT_CHECK(
       pair.second,
