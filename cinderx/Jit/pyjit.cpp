@@ -1225,7 +1225,6 @@ bool multithread_compile_units_preloaded(
 // Compile all functions registered via a JIT list that haven't been executed
 // yet.
 bool compile_all(size_t workers = 0) {
-  FreeThreadedJITEntrypointGuard guard;
   JIT_CHECK(jitCtx(), "JIT not initialized");
 
   if (workers == 0) {
@@ -1236,71 +1235,75 @@ bool compile_all(size_t workers = 0) {
   // Units that were deleted during preloading.
   std::unordered_set<BorrowedRef<>> deleted_units;
 
-  // Own every unit we are about to process for the whole preload+compile
-  // region.
-  //
-  // registered_compilation_units only holds *borrowed* references, and the JIT
-  // learns a unit went away via the function-destroyed watcher, which fires
-  // only on *deallocation*.  A cyclic gen-2 GC that runs mid-preload
-  // (preloading executes Python) can instead run func_clear() on a queued
-  // function that is part of a garbage cycle -- nulling its
-  // func_builtins/func_globals (or freeing it) without firing the watcher --
-  // and the preloader then dereferences the cleared/freed function and crashes.
-  // D107311077 ("Free code via GC") made this far more likely by releasing the
-  // deferred-cleanup map's references (often a cycle's last anchor) from a
-  // gen-2 GC callback.
-  //
-  // Holding a strong reference makes the cyclic GC treat each unit (and its
-  // reachable globals/builtins) as externally reachable, so it is never
-  // collected or cleared while queued.  The references drop when compile_all
-  // returns.
-  std::vector<Ref<>> owned_units;
-
-  auto mod_state = cinderx::getModuleState();
-  auto& jit_reg_units = mod_state->registered_compilation_units;
-  JIT_DLOG(
-      "Starting compile_all with {} workers for {} registered units",
-      workers,
-      jit_reg_units.size());
-
   // Isolate preloaders for this batch-compile so that re-entrant compiles
   // don't race, and so we can share the same isolated manager with worker
   // threads. Allocated as shared_ptr so it is ref-counted and kept alive by
   // the workers.
   auto isolated = std::make_shared<hir::IsolatedPreloaders>();
 
-  // First we have to preload everything we are going to compile.
-  while (jit_reg_units.size() > 0) {
-    auto preload_units = std::move(jit_reg_units);
-    jit_reg_units.clear();
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    // Own every unit we are about to process for the whole preload+compile
+    // region.
+    //
+    // registered_compilation_units only holds *borrowed* references, and the
+    // JIT learns a unit went away via the function-destroyed watcher, which
+    // fires only on *deallocation*.  A cyclic gen-2 GC that runs mid-preload
+    // (preloading executes Python) can instead run func_clear() on a queued
+    // function that is part of a garbage cycle -- nulling its
+    // func_builtins/func_globals (or freeing it) without firing the watcher --
+    // and the preloader then dereferences the cleared/freed function and
+    // crashes. D107311077 ("Free code via GC") made this far more likely by
+    // releasing the deferred-cleanup map's references (often a cycle's last
+    // anchor) from a gen-2 GC callback.
+    //
+    // Holding a strong reference makes the cyclic GC treat each unit (and its
+    // reachable globals/builtins) as externally reachable, so it is never
+    // collected or cleared while queued.  The references drop when compile_all
+    // returns.
+    std::vector<Ref<>> owned_units;
 
-    // Take a strong reference to every unit in this batch before preloading (or
-    // a GC) can run, so the cyclic GC can't clear or collect a queued unit out
-    // from under the preloader.
-    owned_units.reserve(owned_units.size() + preload_units.size());
-    for (auto unit : preload_units) {
-      owned_units.push_back(Ref<>::create(unit));
-    }
-
+    auto mod_state = cinderx::getModuleState();
+    auto& jit_reg_units = mod_state->registered_compilation_units;
     JIT_DLOG(
-        "compile_all preloading a batch of {} units", preload_units.size());
+        "Starting compile_all with {} workers for {} registered units",
+        workers,
+        jit_reg_units.size());
 
-    for (auto unit : preload_units) {
-      if (deleted_units.contains(unit)) {
-        continue;
+    // First we have to preload everything we are going to compile.
+    while (jit_reg_units.size() > 0) {
+      auto preload_units = std::move(jit_reg_units);
+      jit_reg_units.clear();
+
+      // Take a strong reference to every unit in this batch before preloading
+      // (or a GC) can run, so the cyclic GC can't clear or collect a queued
+      // unit out from under the preloader.
+      owned_units.reserve(owned_units.size() + preload_units.size());
+      for (auto unit : preload_units) {
+        owned_units.push_back(Ref<>::create(unit));
       }
-      mod_state->unit_deleted_during_preload = [&](BorrowedRef<> deleted_unit) {
-        deleted_units.emplace(deleted_unit);
-      };
-      hir::Preloader* preloader = preload(unit);
-      if (!preloader) {
-        mod_state->unit_deleted_during_preload = nullptr;
-        return false;
+
+      JIT_DLOG(
+          "compile_all preloading a batch of {} units", preload_units.size());
+
+      for (auto unit : preload_units) {
+        if (deleted_units.contains(unit)) {
+          continue;
+        }
+        mod_state->unit_deleted_during_preload =
+            [&](BorrowedRef<> deleted_unit) {
+              deleted_units.emplace(deleted_unit);
+            };
+        hir::Preloader* preloader = preload(unit);
+        if (!preloader) {
+          mod_state->unit_deleted_during_preload = nullptr;
+          return false;
+        }
+        compilation_units.push_back(Ref<>::create(unit));
       }
-      compilation_units.push_back(Ref<>::create(unit));
     }
+    mod_state->unit_deleted_during_preload = nullptr;
   }
-  mod_state->unit_deleted_during_preload = nullptr;
 
   // Filter out any units that were deleted as a side effect of preloading.
   std::erase_if(compilation_units, [&](const Ref<>& unit) {
@@ -4496,6 +4499,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
   {
     // Attempt to atomically transition the code from "not compiled" to "in
     // progress".
+    FreeThreadedJITEntrypointGuard guard;
     JITCompilationLock lock;
     auto compiled = jit_ctx->lookupCode(code, builtins, globals);
     if (compiled != nullptr) {

@@ -537,8 +537,9 @@ void Context::finalizeMultiThreadedCompile() {
   decltype(completed_compiles_) completed;
   decltype(deferred_finalizations_) deferred;
 
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   {
-    JITCompilationLock lock;
+    FreeThreadedJITEntrypointGuard guard;
     fixupFunctionEntryCachePostMultiThreadedCompile();
     watchPendingTypes();
 
@@ -566,7 +567,6 @@ bool Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
   compiled->setOwner(this);
-
   if (!addCompiledFunc(func, compiled)) {
     // Someone else compiled the function between when our caller checked and
     // called us.
@@ -667,7 +667,7 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
 void Context::forgetCompiledFunction(CompiledFunction& function) {
   // tp_clear() can reach here from GC without going through a guarded
   // top-level JIT entrypoint, so this path has to take a lock.
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   if (function.runtime() != nullptr) {
     auto nested_it = nested_compile_data_.find(function.runtime()->code());
     if (nested_it != nested_compile_data_.end()) {
@@ -681,7 +681,7 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
 }
 
 bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   return compiled_funcs_.contains(func);
 }
 
@@ -722,6 +722,7 @@ const UnorderedMap<
     BorrowedRef<PyFunctionObject>,
     BorrowedRef<CompiledFunction>>&
 Context::compiledFuncs() {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   return compiled_funcs_;
 }
 
@@ -744,7 +745,7 @@ void Context::setCinderJitModule(Ref<> mod) {
 }
 
 void Context::clearForMultithreadedCompileTest() {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   for (auto& func_entry : compiled_funcs_) {
     BorrowedRef<CompiledFunction> compiled = func_entry.second;
     // Disconnect from Context so clear() on eventual destruction won't call
@@ -762,7 +763,8 @@ void Context::clearForMultithreadedCompileTest() {
 }
 
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  FreeThreadedJITEntrypointGuard guard;
   auto it = compiled_funcs_.find(func);
   if (it != compiled_funcs_.end()) {
     it->second->removeFunction(func);
@@ -799,12 +801,13 @@ void Context::removeDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
 bool Context::addCompiledFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   return compiled_funcs_.emplace(func, compiled).second;
 }
 
 bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
-  JITCompilationLock lock;
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  FreeThreadedJITEntrypointGuard guard;
   auto in_compiled_funcs = compiled_funcs_.find(func);
   if (in_compiled_funcs != compiled_funcs_.end()) {
     in_compiled_funcs->second->removeFunction(func);
