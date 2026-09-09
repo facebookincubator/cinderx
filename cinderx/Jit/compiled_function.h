@@ -236,6 +236,13 @@ class CompiledFunction {
   // Remove a function from the set of associated functions.
   void removeFunction(BorrowedRef<PyFunctionObject> func);
 
+  // Marks a dunction as being deopted
+  void deoptFunction(BorrowedRef<PyFunctionObject> func);
+
+  // Undo deoptFunction(): put an already-registered function back on the
+  // compiled entry point.
+  void reoptFunction(BorrowedRef<PyFunctionObject> func);
+
   // Set the owner that is notified when this CompiledFunction is destroyed.
   void setOwner(CompiledFunctionOwner* owner);
 

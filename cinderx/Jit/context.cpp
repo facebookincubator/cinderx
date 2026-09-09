@@ -738,7 +738,10 @@ std::vector<Ref<PyFunctionObject>> getCompiledFunctions() {
   return functions;
 }
 
-const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::deoptedFuncs() {
+const UnorderedMap<
+    BorrowedRef<PyFunctionObject>,
+    BorrowedRef<CompiledFunction>>&
+Context::deoptedFuncs() {
   return deopted_funcs_;
 }
 
@@ -806,14 +809,27 @@ BorrowedRef<CompiledFunction> Context::lookupCode(
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }
 
-void Context::addDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
+void Context::addDeoptedFunc(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> compiled) {
   JITCompilationLock lock;
-  deopted_funcs_.emplace(func);
+  deopted_funcs_.emplace(func, compiled);
 }
 
-void Context::removeDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
-  JITCompilationLock lock;
-  deopted_funcs_.erase(func);
+BorrowedRef<CompiledFunction> Context::removeDeoptedFunc(
+    BorrowedRef<PyFunctionObject> func) {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  // This is almost always empty and only has things when the JIT is disabled.
+  if (deopted_funcs_.empty()) {
+    return nullptr;
+  }
+  auto it = deopted_funcs_.find(func);
+  if (it == deopted_funcs_.end()) {
+    return nullptr;
+  }
+  BorrowedRef<CompiledFunction> compiled = it->second;
+  deopted_funcs_.erase(it);
+  return compiled;
 }
 
 bool Context::addCompiledFunc(

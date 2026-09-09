@@ -918,10 +918,6 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  // Might be a nested function that was never explicitly deopted, so ignore the
-  // result of this.
-  jitCtx()->removeDeoptedFunc(func);
-
   if (CompiledFunction* compiled = jitCtx()->lookupFunc(func)) {
     return jitCtx()->finalizeFunc(func, compiled);
   }
@@ -1644,6 +1640,12 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
+  // See if we were deopted by disabling the JIT, if so we'll now stay deopted.
+  if (BorrowedRef<CompiledFunction> parked =
+          jitCtx()->removeDeoptedFunc(func)) {
+    return true;
+  }
+
   if (!jitCtx()->removeCompiledFunc(func)) {
     return false;
   }
@@ -1658,16 +1660,36 @@ void uncompile(BorrowedRef<PyFunctionObject> func) {
 
 /*
  * De-optimize a function by setting it to run through the interpreter if it
- * had been previously JIT-compiled.
+ * had been previously JIT-compiled, releasing its compile.
  *
  * Return true if the function was previously JIT-compiled, false otherwise.
  */
 bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (jitCtx() && deoptFuncImpl(func)) {
-    jitCtx()->addDeoptedFunc(func);
-    return true;
+  if (jitCtx() == nullptr) {
+    return false;
   }
-  return false;
+  return deoptFuncImpl(func);
+}
+
+/*
+ * De-optimize a function because the JIT is being disabled, PARKING it rather
+ * than releasing it: the function stays registered with its compile and keeps
+ * the reference it owns on it, so re-enabling the JIT is a matter of putting
+ * the entry point back rather than compiling all over again.
+ *
+ * Return true if the function was previously JIT-compiled, false otherwise.
+ */
+bool deoptFuncForDisable(BorrowedRef<PyFunctionObject> func) {
+  if (jitCtx() == nullptr || !isJitCompiled(func)) {
+    return false;
+  }
+  BorrowedRef<CompiledFunction> compiled = jitCtx()->lookupFunc(func);
+  if (compiled == nullptr) {
+    return false;
+  }
+  compiled->deoptFunction(func);
+  jitCtx()->addDeoptedFunc(func, compiled);
+  return true;
 }
 
 void disable_jit_impl(bool deopt_all) {
@@ -1684,7 +1706,7 @@ void disable_jit_impl(bool deopt_all) {
   if (deopt_all) {
     size_t success = 0;
     for (auto& func : funcs) {
-      if (deoptFunc(func)) {
+      if (deoptFuncForDisable(func)) {
         success++;
       } else {
         JIT_DLOG("Failed to deopt compiled function '{}'", funcFullname(func));
@@ -1727,15 +1749,33 @@ bool enable_jit_impl() {
   }
 
   size_t count = 0;
-  auto& funcs = jitCtx()->deoptedFuncs();
-  for (auto it = funcs.begin(); it != funcs.end();) {
-    BorrowedRef<PyFunctionObject> func = *it;
-    // Advance before reoptFunc() which erases func from funcs,
-    // invalidating the iterator pointing to it.
-    ++it;
-    reoptFunc(func);
+  // Copy first: removeDeoptedFunc() erases entries from deoptedFuncs() as it
+  // goes.
+  std::vector<Ref<PyFunctionObject>> deopted;
+  deopted.reserve(jitCtx()->deoptedFuncs().size());
+  for (auto& [func, compiled] : jitCtx()->deoptedFuncs()) {
+    deopted.emplace_back(Ref<PyFunctionObject>::create(func));
+  }
+  for (auto& func : deopted) {
+    BorrowedRef<CompiledFunction> parked = jitCtx()->removeDeoptedFunc(func);
+    JIT_DCHECK(parked != nullptr, "deopted function book keeping mismatch");
+    BorrowedRef<PyCodeObject> code{func->func_code};
+    if (code->co_flags & CI_CO_SUPPRESS_JIT) {
+      // Suppressed while it was parked, so it is never going back on that
+      // entry point.
+      continue;
+    }
+
+    parked->reoptFunction(func);
     count++;
   }
+
+  // Nothing should be left parked: reoptFunc() unparks everything it is given,
+  // and a function that went away in the meantime took itself out.
+  JIT_DCHECK(
+      !jitCtx()->deoptedFuncs().size(),
+      "{} functions still parked after re-enabling the JIT",
+      jitCtx()->deoptedFuncs().size());
 
   getMutableConfig().state = State::kRunning;
 

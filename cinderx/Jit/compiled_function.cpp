@@ -506,6 +506,17 @@ void CompiledFunction::removeFunction(BorrowedRef<PyFunctionObject> func) {
   functions_.erase(func.get());
 }
 
+void CompiledFunction::deoptFunction(BorrowedRef<PyFunctionObject> func) {
+  // No refcount change: the function keeps the reference it took in
+  // addFunction(), which is what holds this compile together while the JIT is
+  // disabled and nothing is running it.
+  setVectorcall(func, getInterpretedVectorcall(func));
+}
+
+void CompiledFunction::reoptFunction(BorrowedRef<PyFunctionObject> func) {
+  setVectorcall(func, vectorcallEntry());
+}
+
 int CompiledFunction::traverse(visitproc visit, void* arg) {
   // Don't traverse functions_ - these are borrowed references that we don't
   // own. The functions are responsible for removing themselves via

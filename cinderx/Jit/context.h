@@ -223,17 +223,26 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   ~Context() override;
 
   /*
-   * Adds a function to the list of deopted functions - this means the function
-   * was once compiled but has now been turned back into a normal Python
-   * function. If the JIT is re-enabled the function can be re-initialized to
-   * the JITed form.
+   * Park a function that was deopted because the JIT was disabled: it comes off
+   * its compiled entry point but KEEPS the reference it owns on its compile, so
+   * the compile is still there to be rebound when the JIT is re-enabled.
    */
-  void addDeoptedFunc(BorrowedRef<PyFunctionObject> func);
+  void addDeoptedFunc(
+      BorrowedRef<PyFunctionObject> func,
+      BorrowedRef<CompiledFunction> compiled);
 
   /*
-   * Removes a function from the deopted functions set.
+   * Take a function out of the parked set, returning the compile it still owns
+   * a reference to - which the caller is now responsible for - or null if it
+   * was not parked.
+   *
+   * The compile is recorded rather than looked up because it can be forgotten
+   * while the function is parked (force_uncompile() during a disabled window),
+   * after which lookupFunc() would no longer find it and the reference would
+   * have nowhere to go.
    */
-  void removeDeoptedFunc(BorrowedRef<PyFunctionObject> func);
+  BorrowedRef<CompiledFunction> removeDeoptedFunc(
+      BorrowedRef<PyFunctionObject> func);
 
   /*
    * Fully remove all effects of compilation from a function.
@@ -324,10 +333,13 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   compiledCodes() const;
 
   /*
-   * Get a range over all function objects that have been compiled and since
-   * deopted.
+   * Get a range over all function objects parked by a JIT-disabling deopt,
+   * along with the compile each one is still holding.
    */
-  const UnorderedSet<BorrowedRef<PyFunctionObject>>& deoptedFuncs();
+  const UnorderedMap<
+      BorrowedRef<PyFunctionObject>,
+      BorrowedRef<CompiledFunction>>&
+  deoptedFuncs();
 
   /*
    * Get the total time spent compiling functions thus far.
@@ -614,8 +626,13 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   UnorderedMap<BorrowedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>
       compiled_funcs_;
 
-  /* Set of which functions were JIT-compiled but have since been deopted. */
-  UnorderedSet<BorrowedRef<PyFunctionObject>> deopted_funcs_;
+  /* Set of which functions were JIT-compiled but have since been deopted.
+   *
+   * Only includes functions deopted due to being disabled so is empty when
+   * the JIT is enabled.
+   */
+  UnorderedMap<BorrowedRef<PyFunctionObject>, BorrowedRef<CompiledFunction>>
+      deopted_funcs_;
 
   /*
    * Set of compilations that are currently active, across all threads.
