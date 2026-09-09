@@ -311,17 +311,22 @@ class CmdLineTest(unittest.TestCase):
     # Code allocation options.
 
     def test_huge_pages(self) -> None:
-        # Huge page allocations are only visible once the JIT has actually
-        # emitted code, hence jit-all.
         source = textwrap.dedent(
             f"""\
             import cinderx.jit as jit
+
+            def foo(a):
+                return a + 1
+
+            # Huge page allocations are only visible once the JIT has already
+            # emitted code.
+            jit.force_compile(foo)
 
             print("HUGE" if "huge_allocs" in jit.get_allocator_stats() else "SMALL")
             print({_OK!r})
             """
         )
-        args = ["-X", "jit-all", "-c", source]
+        args = ["-c", source]
 
         def check_on(proc: subprocess.CompletedProcess[str]) -> None:
             self._assert_ok(proc)
