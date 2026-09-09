@@ -1022,7 +1022,9 @@ AdmitResult admitCompile(
         jit_ctx->addDeferredFinalization(key, std::move(func));
         return {CompileAdmission::kAlreadyCompiled, nullptr};
       }
-      jit_ctx->finalizeFunc(func, compiled);
+      if (!isJitCompiled(func)) {
+        jit_ctx->finalizeFunc(func, compiled);
+      }
     }
     return {CompileAdmission::kAlreadyCompiled, std::move(func)};
   }

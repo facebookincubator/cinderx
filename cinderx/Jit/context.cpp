@@ -575,7 +575,7 @@ void Context::finalizeMultiThreadedCompile() {
       // which case it has already erased itself from compiled_codes_ and there
       // is nothing left to attach the function to.
       auto it = compiled_codes_.find(key);
-      if (it != compiled_codes_.end()) {
+      if (it != compiled_codes_.end() && !isJitCompiled(func)) {
         finalizeFunc(func, it->second);
       }
     }
@@ -586,11 +586,8 @@ void Context::finalizeMultiThreadedCompile() {
 void Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
-  if (isJitCompiled(func)) {
-    // Someone else compiled the function between when our caller checked and
-    // called us.
-    return;
-  }
+  JIT_DCHECK(
+      !isJitCompiled(func), "should never finalize an already compiled func");
 
   // Add the function to the CompiledFunction's set of functions and set it
   // to be compiled.
