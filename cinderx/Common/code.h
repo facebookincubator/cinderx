@@ -59,6 +59,11 @@ void finiCodeExtraIndex();
 // Python error set.
 CodeExtra* codeExtra(PyCodeObject* code);
 
+// Get the extra data object associated with a code object, without allocating
+// it if it doesn't exist yet.  Unlike codeExtra() this is safe to call without
+// the GIL.  Returns nullptr if there is no data.
+CodeExtra* codeExtraIfPresent(PyCodeObject* code);
+
 // Get the number of times a code object has been called by the interpreter.
 // Calls to JIT-compiled code objects are currently uncounted.
 size_t codeCallCount(PyCodeObject* code);

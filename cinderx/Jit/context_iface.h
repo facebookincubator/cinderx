@@ -9,6 +9,7 @@
 namespace cinderx::jit {
 
 class alignas(16) CodeRuntime;
+class NestedCompileData;
 
 enum class JitEligibility { Ineligible, JitListEligible, Eligible };
 
@@ -19,6 +20,11 @@ class IJitContext {
 
   virtual CodeRuntime* lookupCodeRuntime(
       BorrowedRef<PyFunctionObject> func) = 0;
+
+  virtual NestedCompileData* getOrCreateNestedCompileData(
+      BorrowedRef<> module_name,
+      BorrowedRef<PyCodeObject> code,
+      JitEligibility eligibility) = 0;
 };
 
 } // namespace cinderx::jit

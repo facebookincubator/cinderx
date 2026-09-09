@@ -98,6 +98,7 @@ class Preloader {
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
+      BorrowedRef<> module,
       std::unique_ptr<AnnotationIndex> annotations,
       const std::string& fullname,
       Ref<> reifier = nullptr);
@@ -165,10 +166,20 @@ class Preloader {
       const std::string& fullname,
       Ref<> reifier);
 
+  static std::unique_ptr<Preloader> makeImpl(
+      BorrowedRef<PyCodeObject> code,
+      BorrowedRef<PyDictObject> builtins,
+      BorrowedRef<PyDictObject> globals,
+      BorrowedRef<> module,
+      std::unique_ptr<AnnotationIndex> annotations,
+      const std::string& fullname,
+      Ref<> reifier,
+      bool register_code);
+
   BorrowedRef<> constArg(BytecodeInstruction& bc_instr) const;
   PyObject** getGlobalCache(BorrowedRef<> name) const;
   bool canCacheGlobals() const;
-  bool preload();
+  bool preload(BorrowedRef<> module, bool register_code);
 
   // Preload information only relevant to Static Python functions.
   bool preloadStatic();

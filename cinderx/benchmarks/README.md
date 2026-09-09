@@ -122,6 +122,15 @@ construction and emphasize per-item resume/yield cost in the consumed case:
 buck run @fbcode//mode/opt fbcode//cinderx/benchmarks:generator-expression-312 -- --compare
 ```
 
+## Lambda Creation Benchmark
+
+Measures the cost of repeatedly constructing short-lived lambdas inside a hot
+loop. The comparison mode runs an interpreter-only baseline and a JIT-compiled
+version, then reports nanoseconds per lambda and the JIT/baseline ratio:
+
+```bash
+buck run @fbcode//mode/opt fbcode//cinderx/benchmarks:lambda-creation-312 -- --compare
+
 ## Heavyweight Benchmarks
 
 These require additional dependencies to be installed.
@@ -215,6 +224,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `spectral_norm` | Numerical computation of the spectral norm of a matrix |
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
 | `generator-expression` | Generator-expression creation and resume/yield cost, with a list-comprehension control |
+| `lambda-creation` | Repeated short-lived lambda construction inside a JIT-compiled loop |
 | `attr-cache` | LOAD_ATTR/STORE_ATTR against every receiver layout, monomorphic through megamorphic |
 | `global_cache` | Module-global reads across compile-time caching, late binding, rebinding, and uncompile |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |

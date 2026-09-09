@@ -12,6 +12,8 @@
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
+#include "cinderx/Jit/eligibility.h"
+#include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/module_state.h"
@@ -162,6 +164,12 @@ Context::Context() : str_build_class_(Ref<>::create(&_Py_ID(__build_class__))) {
 }
 
 Context::~Context() {
+  // Code objects outlive the Context, so their back-pointers into
+  // nested_compile_data_ have to be dropped before it's destroyed.
+  for (auto& [code, data] : nested_compile_data_) {
+    unpublishNestedCompileData(data.get());
+  }
+
   // Clear all of the CompiledFunction's before we clear out the memory used for
   // the CodeRuntime allocated in the slab.
   for (auto& code : compiled_codes_) {
@@ -267,6 +275,49 @@ void** Context::findFunctionEntryCache(PyFunctionObject* function) {
 
 void Context::clearFunctionEntryCache(BorrowedRef<PyFunctionObject> function) {
   function_entry_caches_.erase(function);
+}
+
+NestedCompileData* Context::getOrCreateNestedCompileData(
+    BorrowedRef<> module_name,
+    BorrowedRef<PyCodeObject> code,
+    JitEligibility eligibility) {
+  JITCompilationLock lock;
+  auto [it, inserted] = nested_compile_data_.try_emplace(code, nullptr);
+  if (inserted) {
+    it->second =
+        std::make_unique<NestedCompileData>(module_name, code, eligibility);
+    // Make it reachable from the code object itself, so that every path that
+    // creates a function from this code can find it.
+    publishNestedCompileData(it->second.get());
+  } else {
+    it->second->setEligibility(eligibility);
+  }
+  return it->second.get();
+}
+
+NestedCompileData* Context::findNestedCompileData(
+    BorrowedRef<PyCodeObject> code) {
+  JITCompilationLock lock;
+  auto it = nested_compile_data_.find(code);
+  return it == nested_compile_data_.end() ? nullptr : it->second.get();
+}
+
+void Context::eraseNestedCompileData(BorrowedRef<PyCodeObject> code) {
+  JITCompilationLock lock;
+  auto it = nested_compile_data_.find(code);
+  if (it == nested_compile_data_.end()) {
+    return;
+  }
+  unpublishNestedCompileData(it->second.get());
+  nested_compile_data_.erase(it);
+}
+
+void Context::refreshNestedCompileData() {
+  JITCompilationLock lock;
+  for (auto& [code, data] : nested_compile_data_) {
+    data->setEligibility(
+        getCompilationEligibility(data->moduleName(), data->code()));
+  }
 }
 
 // See comments in findFunctionEntryCache.
@@ -535,7 +586,14 @@ bool Context::finalizeFunc(
   // Associate the function with the CompiledFunction for GC tracking.
   // This is ultimately what will keep the CompiledFunction alive and
   // keep the PyFunctionObject JITed.
-  return associateFunctionWithCompiled(func, compiled, false /* is_nested */);
+  if (!associateFunctionWithCompiled(func, compiled, false /* is_nested */)) {
+    return false;
+  }
+
+  if (NestedCompileData* data = findNestedCompileData(func->func_code)) {
+    data->setCompiledFunction(compiled);
+  }
+  return true;
 }
 
 Ref<PyFunctionObject> Context::codeCompiled(
@@ -612,6 +670,10 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
   // top-level JIT entrypoint, so this path has to take a lock.
   JITCompilationLock lock;
   if (function.runtime() != nullptr) {
+    auto nested_it = nested_compile_data_.find(function.runtime()->code());
+    if (nested_it != nested_compile_data_.end()) {
+      nested_it->second->clearCompiledFunction(&function);
+    }
     for (auto pyfunc : function.functions()) {
       compiled_funcs_.erase(pyfunc);
     }
@@ -695,6 +757,9 @@ void Context::clearForMultithreadedCompileTest() {
   }
   compiled_codes_.clear();
   compiled_funcs_.clear();
+  for (auto& [_, data] : nested_compile_data_) {
+    data->setCompiledFunction(nullptr);
+  }
 }
 
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
@@ -804,6 +869,10 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
       pair.second,
       "CompilationKey already present {}",
       PyUnicode_AsUTF8(reinterpret_cast<PyCodeObject*>(key.code)->co_qualname));
+  auto nested_it = nested_compile_data_.find(key.code);
+  if (nested_it != nested_compile_data_.end()) {
+    nested_it->second->setCompiledFunction(compiled);
+  }
   return compiled;
 }
 

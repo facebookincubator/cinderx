@@ -20,9 +20,11 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/inline_cache_storage.h"
+#include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -360,6 +362,22 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    */
   void funcDestroyed(BorrowedRef<PyFunctionObject> func);
 
+  NestedCompileData* getOrCreateNestedCompileData(
+      BorrowedRef<> module_name,
+      BorrowedRef<PyCodeObject> code,
+      JitEligibility eligibility) override;
+
+  NestedCompileData* findNestedCompileData(BorrowedRef<PyCodeObject> code);
+
+  void eraseNestedCompileData(BorrowedRef<PyCodeObject> code);
+
+  /*
+   * Recompute the cached eligibility of every known NestedCompileData entry.
+   * Needed when the JIT list changes, as eligibility is only sampled when an
+   * entry is created.
+   */
+  void refreshNestedCompileData();
+
   // Methods moved from Runtime class
 
   template <typename... Args>
@@ -650,6 +668,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Map of all code objects to the functions that they were found in.
   UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
       code_outer_funcs_;
+
+  UnorderedMap<BorrowedRef<PyCodeObject>, std::unique_ptr<NestedCompileData>>
+      nested_compile_data_;
 
   std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>
       deferred_compiled_data_;

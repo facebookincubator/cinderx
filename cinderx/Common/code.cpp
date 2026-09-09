@@ -19,39 +19,6 @@
 
 namespace {
 
-// Read the existing CodeExtra for a code object without allocating one, unlike
-// codeExtra(). Returns nullptr if none has been created yet.
-CodeExtra* codeExtraIfPresent(cinderx::BorrowedRef<PyCodeObject> code) {
-  auto state = cinderx::getModuleState();
-  if (state == nullptr) {
-    return nullptr;
-  }
-  Py_ssize_t extra_index = state->code_extra_index;
-  if (extra_index == -1) {
-    return nullptr;
-  }
-#ifndef Py_GIL_DISABLED
-  // We match CPython's _PyCodeObjectExtra which isn't exported but hasn't
-  // changed since it was introduced in 2016. We inline this access because
-  // it shows up as significant in builds that aren't statically linked w/ LTO.
-  struct CodeObjectExtraStorage {
-    Py_ssize_t size;
-    void* entries[1];
-  };
-  auto* storage = reinterpret_cast<CodeObjectExtraStorage*>(code->co_extra);
-  if (storage == nullptr || storage->size <= extra_index) {
-    return nullptr;
-  }
-  return reinterpret_cast<CodeExtra*>(storage->entries[extra_index]);
-#endif
-  void* data_ptr = nullptr;
-  if (PyUnstable_Code_GetExtra(code.getObj(), extra_index, &data_ptr) < 0) {
-    PyErr_Clear();
-    return nullptr;
-  }
-  return reinterpret_cast<CodeExtra*>(data_ptr);
-}
-
 std::string fullnameImpl(PyObject* module, PyObject* qualname) {
   auto safe_str = [](cinderx::BorrowedRef<> str) {
     if (str == nullptr || !PyUnicode_Check(str)) {
@@ -262,6 +229,38 @@ CodeExtra* codeExtra(PyCodeObject* code) {
   }
 
   return extra;
+}
+
+CodeExtra* codeExtraIfPresent(PyCodeObject* code) {
+  auto state = cinderx::getModuleState();
+  if (state == nullptr) {
+    return nullptr;
+  }
+  Py_ssize_t extra_index = state->code_extra_index;
+  if (extra_index == -1) {
+    return nullptr;
+  }
+#ifndef Py_GIL_DISABLED
+  // We match CPython's _PyCodeObjectExtra which isn't exported but hasn't
+  // changed since it was introduced in 2016. We inline this access because
+  // it shows up as significant in builds that aren't statically linked w/ LTO.
+  struct CodeObjectExtraStorage {
+    Py_ssize_t size;
+    void* entries[1];
+  };
+  auto* storage = reinterpret_cast<CodeObjectExtraStorage*>(code->co_extra);
+  if (storage == nullptr || storage->size <= extra_index) {
+    return nullptr;
+  }
+  return reinterpret_cast<CodeExtra*>(storage->entries[extra_index]);
+#endif
+  void* data_ptr = nullptr;
+  if (PyUnstable_Code_GetExtra(
+          reinterpret_cast<PyObject*>(code), extra_index, &data_ptr) < 0) {
+    PyErr_Clear();
+    return nullptr;
+  }
+  return reinterpret_cast<CodeExtra*>(data_ptr);
 }
 
 size_t codeCallCount(PyCodeObject* code) {

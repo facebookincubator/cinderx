@@ -8,6 +8,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
+#include "cinderx/Jit/eligibility.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
@@ -141,25 +142,83 @@ thread_local PreloaderManager* tls_manager = nullptr;
 
 } // namespace
 
+namespace {
+
+void registerNestedCompileData(
+    BorrowedRef<> module,
+    BorrowedRef<PyCodeObject> root_code,
+    bool register_root) {
+  auto* state = cinderx::getModuleState();
+  if (state == nullptr || state->jit_context == nullptr) {
+    return;
+  }
+
+  if (register_root) {
+    JitEligibility eligibility = getCompilationEligibility(module, root_code);
+    if (eligibility == JitEligibility::Ineligible) {
+      return;
+    }
+    state->jit_context->getOrCreateNestedCompileData(
+        module, root_code, eligibility);
+  }
+  BorrowedRef<PyTupleObject> consts{root_code->co_consts};
+  for (Py_ssize_t i = 0, size = PyTuple_GET_SIZE(consts); i < size; i++) {
+    BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
+    if (!PyCode_Check(code) || code->co_qualname == nullptr) {
+      continue;
+    }
+    JitEligibility eligibility = getCompilationEligibility(module, code);
+    if (eligibility != JitEligibility::Ineligible) {
+      state->jit_context->getOrCreateNestedCompileData(
+          module, code, eligibility);
+    }
+  }
+}
+
+} // namespace
+
 std::unique_ptr<Preloader> Preloader::make(
     BorrowedRef<PyFunctionObject> func,
     Ref<> reifier) {
-  return Preloader::make(
+  return Preloader::makeImpl(
       func->func_code,
       func->func_builtins,
       func->func_globals,
+      func->func_module,
       AnnotationIndex::fromFunction(func),
       funcFullname(func),
-      std::move(reifier));
+      std::move(reifier),
+      false);
 }
 
 std::unique_ptr<Preloader> Preloader::make(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals,
+    BorrowedRef<> module,
     std::unique_ptr<AnnotationIndex> annotations,
     const std::string& fullname,
     Ref<> reifier) {
+  return makeImpl(
+      code,
+      builtins,
+      globals,
+      module,
+      std::move(annotations),
+      fullname,
+      std::move(reifier),
+      true);
+}
+
+std::unique_ptr<Preloader> Preloader::makeImpl(
+    BorrowedRef<PyCodeObject> code,
+    BorrowedRef<PyDictObject> builtins,
+    BorrowedRef<PyDictObject> globals,
+    BorrowedRef<> module,
+    std::unique_ptr<AnnotationIndex> annotations,
+    const std::string& fullname,
+    Ref<> reifier,
+    bool register_code) {
   auto preloader = std::unique_ptr<Preloader>(new Preloader(
       code,
       builtins,
@@ -167,7 +226,7 @@ std::unique_ptr<Preloader> Preloader::make(
       std::move(annotations),
       fullname,
       std::move(reifier)));
-  bool success = preloader->preload();
+  bool success = preloader->preload(module, register_code);
   JIT_THROW_IF(
       success == static_cast<bool>(PyErr_Occurred()),
       "Expecting Python exception only when preloading fails, preloading "
@@ -354,7 +413,9 @@ BorrowedRef<> Preloader::constArg(BytecodeInstruction& bc_instr) const {
   return PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
 }
 
-bool Preloader::preload() {
+bool Preloader::preload(BorrowedRef<> module, bool register_code) {
+  registerNestedCompileData(module, code_, register_code);
+
   // Precompute UTF-8 names from co_names for use during HIR building without
   // GIL.
   PyObject* names_tuple = code_->co_names;

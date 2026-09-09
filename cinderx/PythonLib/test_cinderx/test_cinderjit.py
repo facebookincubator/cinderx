@@ -88,6 +88,20 @@ def compiled_code_func_with_nested():
     return nested
 
 
+def compiled_code_func_with_nested_global():
+    def nested():
+        return NESTED_GLOBAL  # noqa: F821
+
+    return nested
+
+
+def compiled_code_func_with_nested_builtin():
+    def nested():
+        return len(())
+
+    return nested
+
+
 class InlineCacheStatsTests(unittest.TestCase):
     @jit_suppress
     @passIf(
@@ -2392,6 +2406,36 @@ class BadArgumentTests(unittest.TestCase):
             code1,
             id(nested2.__dict__["__cinderx_compiled_func__"]),
         )
+
+    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    def test_nested_compiled_code_globals_mismatch(self):
+        globals1 = {"NESTED_GLOBAL": 1}
+        factory1 = with_globals(globals1)(compiled_code_func_with_nested_global)
+        force_compile(factory1)
+        nested1 = factory1()
+        force_compile(nested1)
+        self.assertEqual(nested1(), 1)
+
+        globals2 = {"NESTED_GLOBAL": 2}
+        factory2 = with_globals(globals2)(compiled_code_func_with_nested_global)
+        force_compile(factory2)
+        nested2 = factory2()
+        self.assertEqual(nested2(), 2)
+
+    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
+    def test_nested_compiled_code_builtins_mismatch(self):
+        globals_dict = {"__builtins__": {"len": lambda _: 1}}
+        factory1 = with_globals(globals_dict)(compiled_code_func_with_nested_builtin)
+        force_compile(factory1)
+        nested1 = factory1()
+        force_compile(nested1)
+        self.assertEqual(nested1(), 1)
+
+        globals_dict["__builtins__"] = {"len": lambda _: 2}
+        factory2 = with_globals(globals_dict)(compiled_code_func_with_nested_builtin)
+        force_compile(factory2)
+        nested2 = factory2()
+        self.assertEqual(nested2(), 2)
 
     @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(

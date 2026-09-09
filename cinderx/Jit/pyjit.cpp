@@ -42,6 +42,7 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
+#include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/module_state.h"
@@ -65,6 +66,7 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <queue>
 #include <thread>
 #include <unordered_set>
 #include <utility>
@@ -1034,6 +1036,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         code,
         outer_func->func_builtins,
         outer_func->func_globals,
+        outer_func->func_module,
         nullptr /* annotations */,
         codeFullname(outer_func->func_module, code),
         makeFrameReifier(code));
@@ -1363,15 +1366,7 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
 //
 // Return true if the function is registered with JIT or is already compiled,
 // and false otherwise.
-bool registerFunction(BorrowedRef<PyFunctionObject> func) {
-  FreeThreadedJITEntrypointGuard guard;
-
-  // Attempt to attach already-compiled code even if the JIT is disabled, as
-  // long as it hasn't been finalized.
-  if (reoptFunc(func)) {
-    return true;
-  }
-
+bool registerFunctionForCompilation(BorrowedRef<PyFunctionObject> func) {
   if (!isJitUsable()) {
     return false;
   }
@@ -1387,6 +1382,18 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   jit_reg_units.emplace(func.getObj());
 
   return true;
+}
+
+bool registerFunction(BorrowedRef<PyFunctionObject> func) {
+  FreeThreadedJITEntrypointGuard guard;
+
+  // Attempt to attach already-compiled code even if the JIT is disabled, as
+  // long as it hasn't been finalized.
+  if (reoptFunc(func)) {
+    return true;
+  }
+
+  return registerFunctionForCompilation(func);
 }
 
 PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
@@ -2191,6 +2198,12 @@ void deleteJitList() {
 int rescheduleJitList() {
   if (Ci_InitFrameEvalFunc() < 0) {
     return -1;
+  }
+
+  // Cached nested-function eligibility was computed against the old JIT list,
+  // so it has to be recomputed before anything consults it again.
+  if (auto* ctx = jitCtx()) {
+    ctx->refreshNestedCompileData();
   }
 
   walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
@@ -4100,8 +4113,51 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
       getConfig().compile_after_n_calls.has_value();
 }
 
+// true/false if we've decisively scheduled or not scheduled the compilation.
+// std::nullopt if we need to do a full lookup to schedule the function.
+std::optional<bool> scheduleNestedFunction(
+    BorrowedRef<PyFunctionObject> func,
+    NestedCompileData* data) {
+  BorrowedRef<CompiledFunction> compiled = data->compiledFunction();
+  if (compiled != nullptr && !isInstrumentationActive()) {
+    CodeRuntime* runtime = compiled->runtime();
+    if (runtime == nullptr || runtime->globals() != func->func_globals ||
+        runtime->builtins() != func->func_builtins) {
+      return std::nullopt;
+    }
+    if (!associateFunctionWithCompiled(func, compiled, false /* is_nested */)) {
+      return false;
+    }
+    setVectorcall(func, compiled->vectorcallEntry());
+    jitCtx()->addCompiledFunc(func, compiled);
+    return true;
+  }
+
+  JitEligibility eligibility = data->eligibility();
+  if (eligibility == JitEligibility::Ineligible ||
+      (eligibility == JitEligibility::Eligible &&
+       !shouldScheduleCompile(func))) {
+    return false;
+  }
+
+  setVectorcall(func, jitVectorcall);
+  if (!registerFunctionForCompilation(func)) {
+    setVectorcall(func, getInterpretedVectorcall(func));
+    return false;
+  }
+  return true;
+}
+
 bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
+
+  // The preloader registers a code object's NestedCompileData on the code
+  // object itself, so this works no matter how the function was created.
+  if (NestedCompileData* data = nestedCompileData(func->func_code)) {
+    if (std::optional<bool> result = scheduleNestedFunction(func, data)) {
+      return *result;
+    }
+  }
 
   auto eligible = getCompilationEligibility(func);
   if (eligible == JitEligibility::Ineligible) {
@@ -4329,6 +4385,9 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   FreeThreadedJITEntrypointGuard guard;
+  if (auto* ctx = jitCtx()) {
+    ctx->eraseNestedCompileData(code);
+  }
   if (isJitUsable()) {
     auto mod_state = cinderx::getModuleState();
     if (!mod_state) {
