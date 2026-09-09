@@ -291,6 +291,11 @@ NestedCompileData* Context::getOrCreateNestedCompileData(
   } else {
     it->second->setEligibility(eligibility);
   }
+  auto outer_it = code_outer_funcs_.find(code);
+  if (outer_it != code_outer_funcs_.end() &&
+      outer_it->second->func_code == code) {
+    it->second->markOwnsCodeOuterFuncEntry();
+  }
   return it->second.get();
 }
 

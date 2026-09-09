@@ -40,6 +40,14 @@ class NestedCompileData {
     eligibility_.store(eligibility, std::memory_order_release);
   }
 
+  bool mayOwnCodeOuterFuncEntry() const {
+    return may_own_code_outer_func_entry_.load(std::memory_order_acquire);
+  }
+
+  void markOwnsCodeOuterFuncEntry() {
+    may_own_code_outer_func_entry_.store(true, std::memory_order_release);
+  }
+
   BorrowedRef<CompiledFunction> compiledFunction() const {
     return compiled_function_.load(std::memory_order_acquire);
   }
@@ -58,6 +66,8 @@ class NestedCompileData {
   Ref<> module_name_;
   BorrowedRef<PyCodeObject> code_;
   std::atomic<JitEligibility> eligibility_;
+  // Monotonic because false permits skipping ownership cleanup.
+  std::atomic<bool> may_own_code_outer_func_entry_{false};
   std::atomic<CompiledFunction*> compiled_function_{nullptr};
 };
 

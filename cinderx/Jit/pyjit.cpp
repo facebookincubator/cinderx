@@ -3332,6 +3332,9 @@ void trackEligibleCodeObjects(
   if (!inserted) {
     return;
   }
+  if (NestedCompileData* data = jitCtx()->findNestedCompileData(func_code)) {
+    data->markOwnsCodeOuterFuncEntry();
+  }
 
   auto& jit_reg_units = cinderx::getModuleState()->registered_compilation_units;
 
@@ -3469,18 +3472,23 @@ void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
   auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
 
   BorrowedRef<PyCodeObject> top_code{func->func_code};
-  auto it = jit_code_outer_funcs.find(top_code);
-  if (it != jit_code_outer_funcs.end() && it->second == func) {
-    jit_code_outer_funcs.erase(it);
-    PyObject* module = func->func_module;
-    BorrowedRef<> top_consts{top_code->co_consts};
-    for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
-      jit_reg_units.erase(code);
-      auto existing = jit_code_outer_funcs.find(code);
-      if (existing != jit_code_outer_funcs.end() && existing->second == func) {
-        jit_code_outer_funcs.erase(code);
+  NestedCompileData* nested_data = nestedCompileData(top_code);
+  if (nested_data == nullptr || nested_data->mayOwnCodeOuterFuncEntry()) {
+    auto it = jit_code_outer_funcs.find(top_code);
+    if (it != jit_code_outer_funcs.end() && it->second == func) {
+      jit_code_outer_funcs.erase(it);
+      PyObject* module = func->func_module;
+      BorrowedRef<> top_consts{top_code->co_consts};
+      for (BorrowedRef<PyCodeObject> code :
+           findNestedCodes(module, top_consts)) {
+        jit_reg_units.erase(code);
+        auto existing = jit_code_outer_funcs.find(code);
+        if (existing != jit_code_outer_funcs.end() &&
+            existing->second == func) {
+          jit_code_outer_funcs.erase(code);
+        }
+        notifyUnitDeletedDuringPreload(mod_state, code.getObj());
       }
-      notifyUnitDeletedDuringPreload(mod_state, code.getObj());
     }
   }
 
