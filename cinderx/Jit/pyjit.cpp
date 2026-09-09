@@ -2334,6 +2334,27 @@ PyObject* set_max_code_size(PyObject* /* self */, PyObject* arg) {
   Py_RETURN_NONE;
 }
 
+// Debug hook: hand back the CompiledFunction backing a function, if any.  The
+// JIT keeps it as a logical reference rather than putting it anywhere the user
+// can see, so this is the only way to observe compile reuse from Python.
+PyObject* get_compiled_function(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func =
+      get_func_arg("get_compiled_function", arg);
+  if (func == nullptr) {
+    return nullptr;
+  }
+  if (jitCtx() == nullptr) {
+    Py_RETURN_NONE;
+  }
+  BorrowedRef<CompiledFunction> compiled = jitCtx()->lookupFunc(func);
+  // If the vector call entry doesn't match the CompiledFunction then
+  // the function isn't actually compiled (it may have been deopted)
+  if (compiled == nullptr || compiled->vectorcallEntry() != func->vectorcall) {
+    Py_RETURN_NONE;
+  }
+  return Py_NewRef(reinterpret_cast<PyObject*>(compiled.get()));
+}
+
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
   if (jitCtx() == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
@@ -3414,6 +3435,10 @@ PyMethodDef jit_methods[] = {
      get_compiled_functions,
      METH_NOARGS,
      PyDoc_STR("Return a list of functions that are currently JIT-compiled.")},
+    {"get_compiled_function",
+     get_compiled_function,
+     METH_O,
+     PyDoc_STR("Return the CompiledFunction backing a function, or None.")},
     {"get_compilation_time",
      get_compilation_time,
      METH_NOARGS,

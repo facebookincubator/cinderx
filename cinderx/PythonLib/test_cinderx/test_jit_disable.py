@@ -14,6 +14,7 @@ from cinderx.jit import (
     enable as enable_jit,
     force_compile,
     force_uncompile,
+    get_compiled_function,
     is_enabled as is_jit_enabled,
     is_jit_compiled,
     jit_suppress,
@@ -51,6 +52,22 @@ class DisableEnableTests(unittest.TestCase):
 
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
+
+    def test_get_compiled_function_while_deopted(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertIsNotNone(get_compiled_function(foo))
+
+        disable_jit(deopt_all=True)
+        # The function is off its compiled entry point, so it reports no
+        # compile even while one is being held for it.
+        self.assertIsNone(get_compiled_function(foo))
+        self.assertEqual(foo(3, 4), 7)
+
+        enable_jit()
+        self.assertIsNotNone(get_compiled_function(foo))
 
     def test_suppress_and_reopt(self) -> None:
         def foo(a: int, b: int) -> int:

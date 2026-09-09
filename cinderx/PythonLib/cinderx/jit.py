@@ -40,6 +40,7 @@ try:
         get_background_compile,
         get_compilation_time,
         get_compile_after_n_calls,
+        get_compiled_function,
         get_compiled_functions,
         get_compiled_size,
         get_compiled_spill_stack_size,
@@ -152,6 +153,9 @@ except ImportError:
 
     def get_background_compile() -> bool:
         return False
+
+    def get_compiled_function(func: FuncAny) -> object | None:
+        return None
 
     def get_compiled_functions() -> list[FuncAny]:
         return []

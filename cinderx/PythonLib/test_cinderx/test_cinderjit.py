@@ -2594,5 +2594,43 @@ class LocalsBuiltinTests(unittest.TestCase):
         self.assertFalse(is_jit_compiled(foo))
 
 
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+class GetCompiledFunctionTests(unittest.TestCase):
+    def test_returns_compile_for_compiled_function(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+        try:
+            compiled = cinderx.jit.get_compiled_function(foo)
+            self.assertIsNotNone(compiled)
+            self.assertEqual(type(compiled).__name__, "CompiledFunction")
+            # Handing back the same object every time is what makes this usable
+            # for observing compile reuse.
+            self.assertIs(compiled, cinderx.jit.get_compiled_function(foo))
+            self.assertEqual(foo(3, 4), 7)
+        finally:
+            # The compile is keyed off the code object, which outlives the test,
+            # so evict it to keep repeated runs stable.
+            force_uncompile(foo)
+
+    def test_returns_none_when_not_compiled(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertIsNotNone(cinderx.jit.get_compiled_function(foo))
+
+        force_uncompile(foo)
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertIsNone(cinderx.jit.get_compiled_function(foo))
+
+    def test_rejects_non_function(self) -> None:
+        with self.assertRaises(TypeError):
+            # pyre-ignore: Argument `Literal[42]` is not assignable to parameter
+            cinderx.jit.get_compiled_function(42)
+
+
 if __name__ == "__main__":
     unittest.main()
