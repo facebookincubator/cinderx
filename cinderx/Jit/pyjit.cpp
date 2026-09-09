@@ -755,13 +755,6 @@ FlagProcessor initFlagProcessor() {
       "Add RefineType instructions to coerce Static Python types to be "
       "valid");
 
-  // TODO: Keeping the unprefixed argument around temporarily until we remove
-  // all uses of it.
-  flag_processor.addOption(
-      "jit-perfmap",
-      "JIT_PERFMAP",
-      getMutableConfig().perf_map.enabled,
-      "Write out /tmp/perf-<pid>.map for JIT symbols");
   flag_processor.addOption(
       "cinderx-jit-perf-map",
       "CINDERX_JIT_PERF_MAP",
@@ -775,16 +768,6 @@ FlagProcessor initFlagProcessor() {
   // NB: This looks a lot like other options like CINDERX_JIT_DUMP_HIR, but
   // these are completely different outputs.
 
-  // TODO: Keeping JIT_DUMPDIR argument around temporarily until we remove all
-  // uses of it.
-  flag_processor
-      .addOption(
-          "jit-dumpdir",
-          "JIT_DUMPDIR",
-          getMutableConfig().perf_map.jit_dump_dir,
-          "Absolute path to a <DIRECTORY> that exists. A perf jitdump file "
-          "will be written to this directory")
-      .withFlagParamName("DIRECTORY");
   flag_processor
       .addOption(
           "jit-dump-dir",

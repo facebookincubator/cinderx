@@ -27,7 +27,7 @@ class PerfMapTests(unittest.TestCase):
             [
                 sys.executable,
                 "-X",
-                "jit-perfmap",
+                "cinderx-jit-perf-map",
                 "-X",
                 # Disable the inliner as it screws up this test's expectations.
                 "jit-enable-hir-inliner=0",

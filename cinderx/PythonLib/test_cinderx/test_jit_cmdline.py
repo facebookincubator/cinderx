@@ -513,13 +513,6 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("Opened JIT perf-map file: /tmp/perf-", proc.stderr)
 
         self._check_both_forms(
-            "jit-perfmap",
-            "JIT_PERFMAP",
-            ["-X", "jit-debug", "-c", _COMPILE_SAMPLE],
-            check,
-        )
-
-        self._check_both_forms(
             "cinderx-jit-perf-map",
             "CINDERX_JIT_PERF_MAP",
             ["-X", "jit-debug", "-c", _COMPILE_SAMPLE],
