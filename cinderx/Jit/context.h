@@ -317,14 +317,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   compiledCodes() const;
 
   /*
-   * Get a range over all function objects that have been compiled.
-   */
-  const UnorderedMap<
-      BorrowedRef<PyFunctionObject>,
-      BorrowedRef<CompiledFunction>>&
-  compiledFuncs();
-
-  /*
    * Get a range over all function objects that have been compiled and since
    * deopted.
    */
@@ -741,5 +733,9 @@ extern AotContext g_aot_ctx;
 // Get the global JIT context. Returns nullptr if the JIT is not initialized.
 // This is equivalent to jitCtx() but can be used without depending on pyjit.
 Context* getContext();
+
+// Functions are enumerated by walking the GC heap, so this is O(heap size) and
+// is only suitable for infrequent operations, not for anything on a call path.
+std::vector<Ref<PyFunctionObject>> getCompiledFunctions();
 
 } // namespace cinderx::jit

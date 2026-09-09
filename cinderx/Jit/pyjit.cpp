@@ -1478,20 +1478,19 @@ bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
 }
 
 void disable_jit_impl(bool deopt_all) {
-  FreeThreadedJITEntrypointGuard guard;
   if (jitCtx() == nullptr) {
     return;
   }
 
+  std::vector<Ref<PyFunctionObject>> funcs;
   if (deopt_all) {
-    auto& funcs = jitCtx()->compiledFuncs();
-    JIT_DLOG("Deopting {} compiled functions", funcs.size());
+    funcs = getCompiledFunctions();
+  }
+
+  FreeThreadedJITEntrypointGuard guard;
+  if (deopt_all) {
     size_t success = 0;
-    for (auto it = funcs.begin(); it != funcs.end();) {
-      BorrowedRef<PyFunctionObject> func = it->first;
-      // Advance before deoptFunc() which erases func from funcs,
-      // invalidating the iterator pointing to it.
-      ++it;
+    for (auto& func : funcs) {
       if (deoptFunc(func)) {
         success++;
       } else {
@@ -2140,11 +2139,15 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   Py_ssize_t filename_size = 0;
   const char* filename = PyUnicode_AsUTF8AndSize(arg, &filename_size);
 
+  // Building the entries reads names out of code objects, which allocates, so
+  // only gather the functions during the visit and do the work afterwards.
   std::vector<elf::CodeEntry> entries;
-  for (auto func_and_compiled : jitCtx()->compiledFuncs()) {
-    auto func = func_and_compiled.first;
-    BorrowedRef<PyCodeObject> code{func->func_code};
+  for (auto& func : getCompiledFunctions()) {
     CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+    if (compiled_func == nullptr) {
+      continue;
+    }
+    BorrowedRef<PyCodeObject> code{func->func_code};
 
     elf::CodeEntry entry;
     entry.code = code;
@@ -2296,12 +2299,14 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
+  // PyList_Append allocates, so gather the functions during the visit and build
+  // the list once the traversal is over.
   auto funcs = Ref<>::steal(PyList_New(0));
   if (funcs == nullptr) {
     return nullptr;
   }
-  for (auto func_and_compiled : jitCtx()->compiledFuncs()) {
-    if (PyList_Append(funcs, func_and_compiled.first) < 0) {
+  for (auto& func : getCompiledFunctions()) {
+    if (PyList_Append(funcs, func) < 0) {
       return nullptr;
     }
   }
@@ -2804,10 +2809,23 @@ PyObject* deopt_gen(PyObject*, PyObject* op) {
   Py_RETURN_FALSE;
 }
 
-int deopt_gen_visitor(PyObject* obj, void*) {
+// Collect the compiled functions to deopt rather than deopting them here:
+// deoptFuncImpl() releases the function's reference on its compile, which can
+// be the last one, and freeing a GC-tracked object unlinks it from the
+// generation list PyUnstable_GC_VisitObjects() is walking.  finalize() drains
+// the vector once the walk is over.
+int finalize_visitor(PyObject* obj, void* arg) {
   if (PyGen_Check(obj) || PyCoro_CheckExact(obj) ||
       PyAsyncGen_CheckExact(obj) || JitGen_CheckAny(obj)) {
     deopt_gen_impl(reinterpret_cast<PyGenObject*>(obj));
+  }
+  auto* funcs = static_cast<std::vector<Ref<PyFunctionObject>>*>(arg);
+  if (PyFunction_Check(obj)) {
+    BorrowedRef<PyFunctionObject> func{obj};
+    if (isJitCompiled(func)) {
+      // Only an incref, which allocates nothing and so is safe under the walk.
+      funcs->emplace_back(Ref<PyFunctionObject>::create(func));
+    }
   }
   return 1;
 }
@@ -4071,25 +4089,18 @@ void finalize() {
 
   // Deopt all JIT generators, since JIT generators reference code and other
   // metadata that we will be freeing later in this function.
-  PyUnstable_GC_VisitObjects(deopt_gen_visitor, nullptr);
+  std::vector<Ref<PyFunctionObject>> compiled_funcs;
+  PyUnstable_GC_VisitObjects(finalize_visitor, &compiled_funcs);
+  for (auto& func : compiled_funcs) {
+    deoptFuncImpl(func);
+  }
+  compiled_funcs.clear();
 
   JIT_DLOG(
       "CinderX JIT Total Compilation Time: {}", jitCtx()->totalCompileTime());
 
   if (getConfig().log.dump_stats) {
     dump_jit_stats();
-  }
-
-  // Deopt all compiled functions before releasing references. This ensures
-  // that if any JIT Python functions are invoked as side-effects during the
-  // remainder of shutdown, they will go through the interpreter.
-  auto& shutdown_funcs = jitCtx()->compiledFuncs();
-  for (auto it = shutdown_funcs.begin(); it != shutdown_funcs.end();) {
-    BorrowedRef<PyFunctionObject> func = it->first;
-    // Advance before deoptFuncImpl() which erases func from funcs,
-    // invalidating the iterator pointing to it.
-    ++it;
-    deoptFuncImpl(func);
   }
 
   // Always release references from Context objects: C++ clients may have

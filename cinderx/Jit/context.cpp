@@ -718,12 +718,22 @@ Context::compiledCodes() const {
   return compiled_codes_;
 }
 
-const UnorderedMap<
-    BorrowedRef<PyFunctionObject>,
-    BorrowedRef<CompiledFunction>>&
-Context::compiledFuncs() {
+std::vector<Ref<PyFunctionObject>> getCompiledFunctions() {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  return compiled_funcs_;
+
+  std::vector<Ref<PyFunctionObject>> functions;
+  auto wrapper = [](PyObject* obj, void* arg) {
+    auto funcs = static_cast<std::vector<Ref<PyFunctionObject>>*>(arg);
+    if (PyFunction_Check(obj)) {
+      BorrowedRef<PyFunctionObject> func{obj};
+      if (isJitCompiled(func)) {
+        funcs->push_back(Ref<PyFunctionObject>::create(func));
+      }
+    }
+    return 1;
+  };
+  PyUnstable_GC_VisitObjects(wrapper, static_cast<void*>(&functions));
+  return functions;
 }
 
 const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::deoptedFuncs() {
@@ -746,8 +756,13 @@ void Context::setCinderJitModule(Ref<> mod) {
 
 void Context::clearForMultithreadedCompileTest() {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  for (auto& func_entry : compiled_funcs_) {
-    BorrowedRef<CompiledFunction> compiled = func_entry.second;
+  // Visit-safe: a map lookup, a field store, and an incref into a C++ vector.
+  // Nothing here allocates or frees a Python object.
+  for (auto& func : getCompiledFunctions()) {
+    BorrowedRef<CompiledFunction> compiled = lookupFunc(func);
+    if (compiled == nullptr) {
+      return;
+    }
     // Disconnect from Context so clear() on eventual destruction won't call
     // back into us (e.g., forgetCompiledFunction, unwatch).
     compiled->setOwner(nullptr);
