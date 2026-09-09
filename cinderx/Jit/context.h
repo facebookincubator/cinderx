@@ -389,16 +389,17 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   void mlockProfilerDependencies();
 
   // Find a cache for the indirect static entry point for a function.
-  void** findFunctionEntryCache(PyFunctionObject* function);
+  void** findFunctionEntryCache(BorrowedRef<PyCodeObject> code);
 
-  void clearFunctionEntryCache(BorrowedRef<PyFunctionObject> function);
+  void clearFunctionEntryCache(BorrowedRef<PyCodeObject> code);
 
   // Checks to see if we already have an entry for indirect static entry point
-  bool hasFunctionEntryCache(PyFunctionObject* function) const;
+  bool hasFunctionEntryCache(BorrowedRef<PyCodeObject> code) const;
 
   // Gets information about the primitive arguments that a function
   // is typed to.  Typed object references are explicitly excluded.
-  _PyTypedArgsInfo* findFunctionPrimitiveArgInfo(PyFunctionObject* function);
+  _PyTypedArgsInfo* findFunctionPrimitiveArgInfo(
+      BorrowedRef<PyCodeObject> code);
 
   // Invoke f with the DeoptStat for the given deopt index if it exists.
   // Returns true if the stat was found and f was called.

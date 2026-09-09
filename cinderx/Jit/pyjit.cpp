@@ -4387,6 +4387,7 @@ void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   FreeThreadedJITEntrypointGuard guard;
   if (auto* ctx = jitCtx()) {
     ctx->eraseNestedCompileData(code);
+    ctx->clearFunctionEntryCache(code);
   }
   if (isJitUsable()) {
     auto mod_state = cinderx::getModuleState();
@@ -4414,10 +4415,6 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   // Have to check if context exists as this can fire after jit::finalize().
   if (jitCtx()) {
     jitCtx()->funcDestroyed(func);
-  }
-
-  if (CompilerContext<Compiler>* ctx = jitCtx()) {
-    ctx->clearFunctionEntryCache(func);
   }
 }
 

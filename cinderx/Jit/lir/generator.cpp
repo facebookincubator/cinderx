@@ -4106,7 +4106,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               Imm{reinterpret_cast<uint64_t>(
                   JITRT_GET_STATIC_ENTRY(func->vectorcall))});
         } else {
-          void** indir = env_->ctx->findFunctionEntryCache(func);
+          void** indir = env_->ctx->findFunctionEntryCache(func->func_code);
           env_->function_indirections.emplace(func, indir);
           Instruction* move = bbb.appendInstr(
               OutVReg{Operand::k64bit}, Opcode::kLoad, MemImm{indir});

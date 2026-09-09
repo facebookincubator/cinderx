@@ -1658,7 +1658,8 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
     dest_args = final_args.data();
   }
 
-  _PyTypedArgsInfo* arg_info = getContext()->findFunctionPrimitiveArgInfo(func);
+  _PyTypedArgsInfo* arg_info =
+      getContext()->findFunctionPrimitiveArgInfo(func->func_code);
   auto allocated_args = std::make_unique<PyObject*[]>(
       arg_info == nullptr ? 0 : Py_SIZE(arg_info));
   int allocated_count = 0;

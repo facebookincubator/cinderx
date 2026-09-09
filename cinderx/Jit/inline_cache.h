@@ -1063,5 +1063,5 @@ struct FunctionEntryCacheValue {
   cinderx::Ref<_PyTypedArgsInfo> arg_info;
 };
 
-using FunctionEntryCacheMap =
-    cinderx::UnorderedMap<PyFunctionObject*, FunctionEntryCacheValue>;
+using FunctionEntryCacheMap = cinderx::
+    UnorderedMap<cinderx::BorrowedRef<PyCodeObject>, FunctionEntryCacheValue>;
