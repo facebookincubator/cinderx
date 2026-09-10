@@ -41,3 +41,11 @@ test.test_context.ContextTest.test_context_isinstance
 
 # Fails because we put in a JIT CompiledFunction to the dict
 test.test_funcattrs.FunctionDictsTest.test_unassigned_dict
+
+# Leaks one file descriptor per run against the platform's readline 8.0: the
+# test writes a zero-length history file and reads it back, and readline before
+# 8.1 returns from read_history_range() without closing the file when its size
+# is 0.  Fixed in readline 8.1 ("Fixed a bug that left a file descriptor open to
+# the history file if the file size was 0"), so drop this once the platform
+# readline is >= 8.1.
+test.test_readline.TestHistoryManipulation.test_write_read_zero_length_history
