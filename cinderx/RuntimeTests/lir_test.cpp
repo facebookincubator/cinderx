@@ -945,6 +945,69 @@ BB %10 - preds: %0 %7
   ASSERT_EQ(lir_str, ss.str());
 }
 
+TEST_F(LIRGeneratorTest, ParserAlignsPhiPairsWithIncomingEdges) {
+  const char* lir_str = R"(Function:
+BB %3
+      %12:Object = Phi (BB%1, %11:Object), (BB%0, %10:Object)
+                   Return %12:Object
+
+BB %0 - succs: %3
+      %10:Object = Move 10(0xa):64bit
+                   Branch BB%3
+
+BB %1 - succs: %3
+      %11:Object = Move 20(0x14):64bit
+                   Branch BB%3
+
+)";
+
+  const auto expect_aligned_phi = [](Function* function) {
+    Instruction* phi = findPhiWithInputCount(function, 2);
+    ASSERT_NE(phi, nullptr);
+    std::vector<std::pair<int, int>> incoming_values;
+    for (size_t index = 0; index < phi->numPhiInputs(); ++index) {
+      const lir::Operand* value = phi->phiInput(index);
+      ASSERT_NE(value, nullptr);
+      ASSERT_TRUE(value->isLinked());
+      incoming_values.emplace_back(
+          phi->phiPredecessor(index)->id(), value->getLinkedInstr()->id());
+    }
+    const std::vector<std::pair<int, int>> expected{{0, 10}, {1, 11}};
+    EXPECT_EQ(incoming_values, expected);
+  };
+
+  auto parsed = Parser().parse(lir_str);
+  expect_aligned_phi(parsed.get());
+
+  std::stringstream printed;
+  printed << *parsed;
+  auto reparsed = Parser().parse(printed.str());
+  expect_aligned_phi(reparsed.get());
+}
+
+TEST_F(LIRGeneratorTest, ParserAlignsPhiPairsWithDuplicateEdges) {
+  const char* lir_str = R"(Function:
+BB %0 - succs: %1 %1
+      %10:Object = Move 10(0xa):64bit
+      %11:Object = Move 20(0x14):64bit
+                   CondBranch %10:Object, BB%1, BB%1
+
+BB %1
+      %12:Object = Phi (BB%0, %10:Object), (BB%0, %11:Object)
+                   Return %12:Object
+
+)";
+
+  auto parsed = Parser().parse(lir_str);
+  Instruction* phi = findPhiWithInputCount(parsed.get(), 2);
+  ASSERT_NE(phi, nullptr);
+  EXPECT_EQ(phi->phiPredecessor(0), phi->phiPredecessor(1));
+  ASSERT_TRUE(phi->phiInput(0)->isLinked());
+  ASSERT_TRUE(phi->phiInput(1)->isLinked());
+  EXPECT_EQ(phi->phiInput(0)->getLinkedInstr()->id(), 10);
+  EXPECT_EQ(phi->phiInput(1)->getLinkedInstr()->id(), 11);
+}
+
 TEST_F(LIRGeneratorTest, ParserMemIndTest) {
   auto lir_str = fmt::format(
       R"(Function:
