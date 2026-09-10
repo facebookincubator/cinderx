@@ -4641,6 +4641,15 @@ inline std::optional<bool> scheduleNestedFunction(
     return std::nullopt;
   }
 
+  // Checked before the compile below is handed over: the entry can be holding
+  // a compile made for a renamed instance of this code (see
+  // Context::codeCompiled), and that must not be a way for a function the JIT
+  // list excludes to end up compiled anyway.
+  JitEligibility eligibility = data->eligibility();
+  if (eligibility == JitEligibility::Ineligible) {
+    return false;
+  }
+
   BorrowedRef<CompiledFunction> compiled = data->compiledFunction();
   if (compiled != nullptr && !isInstrumentationActive()) {
     CodeRuntime* runtime = compiled->runtime();
@@ -4656,10 +4665,7 @@ inline std::optional<bool> scheduleNestedFunction(
     return true;
   }
 
-  JitEligibility eligibility = data->eligibility();
-  if (eligibility == JitEligibility::Ineligible ||
-      (eligibility == JitEligibility::Eligible &&
-       !shouldScheduleCompile(func))) {
+  if (eligibility == JitEligibility::Eligible && !shouldScheduleCompile(func)) {
     return false;
   }
 

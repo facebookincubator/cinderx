@@ -117,13 +117,16 @@ NestedCompileData* nestedCompileData(BorrowedRef<PyCodeObject> code);
 
 // Whether a code object's entry can speak for `func`.
 //
-// The entry is keyed by code object, and both the eligibility it caches and any
-// compile it holds belong to the name the code object carries.  A function
-// normally borrows that name verbatim from its code, but __qualname__ and
-// __module__ are writable and the JIT list matches on the function's copy.
-// Once they diverge the entry is answering for a different name: it must not
-// decide whether `func` gets compiled, and a compile made for `func` must not
-// be cached on it for the next instance of the nested function to pick up.
+// The entry is keyed by code object, and the eligibility it caches belongs to
+// the name the code object carries.  A function normally borrows that name
+// verbatim from its code, but __qualname__ and __module__ are writable and the
+// JIT list matches on the function's copy.  Once they diverge the entry is
+// answering for a different name, so it must not decide whether `func` gets
+// compiled; `func` goes through the full per-function lookup instead.
+//
+// This says nothing about the compile the entry holds.  That is keyed by code
+// object, globals and builtins, none of which a rename touches, so it is cached
+// and reused across renamed instances -- see Context::codeCompiled.
 inline bool nestedCompileDataMatches(
     BorrowedRef<PyFunctionObject> func,
     const NestedCompileData& data) {

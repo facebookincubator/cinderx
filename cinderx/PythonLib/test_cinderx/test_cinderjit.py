@@ -2608,6 +2608,65 @@ class SimplifyCompileTimeTests(unittest.TestCase):
 
 
 @passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
+class RenamedNestedCompileTests(unittest.TestCase):
+    @staticmethod
+    def _make_factory() -> Callable[[], Callable[[int], int]]:
+        # A nested function big enough that one compile of it is measurable,
+        # renamed away from its code object the way functools.update_wrapper
+        # does.  Built with exec so every instance shares one code object.
+        lines = [
+            "def factory():",
+            "    def nested(a):",
+            *[f"        a = a + {i}" for i in range(200)],
+            "        return a",
+            "    nested.__qualname__ = 'renamed_nested'",
+            "    nested.__module__ = 'renamed_module'",
+            "    return nested",
+        ]
+        ns: dict[str, object] = {}
+        exec(compile("\n".join(lines), "<renamed_nested>", "exec"), ns, ns)
+        # pyre-ignore[7]: exec-defined function.
+        return ns["factory"]
+
+    def test_renamed_nested_function_is_compiled_once(self) -> None:
+        """
+        The JIT parks a nested function's compile on its code object so the next
+        instance reuses it instead of recompiling.  A nested function that has
+        been renamed has to get that too: functools.singledispatchmethod builds
+        a fresh instance of one on every attribute access and runs
+        update_wrapper over it, so without this every access recompiles and the
+        process spends all its time in the JIT.
+        """
+        factory = self._make_factory()
+
+        before = cinderx.jit.get_compilation_time()
+        force_compile(factory())
+        one_compile_ms = cinderx.jit.get_compilation_time() - before
+        self.assertGreater(
+            one_compile_ms, 0, "nested function compile time too small to measure"
+        )
+
+        # Each of these drops the previous instance, which is what used to take
+        # the compile with it.
+        before = cinderx.jit.get_compilation_time()
+        for _ in range(100):
+            force_compile(factory())
+        hundred_more_ms = cinderx.jit.get_compilation_time() - before
+
+        # Reusing the compile costs nothing, so those 100 instances should add
+        # up to well under a single compile.  The allowance is for compiles of
+        # unrelated functions landing in the window, which free-threaded builds
+        # can do on the background worker.  Before the fix this was ~70x.
+        self.assertLess(
+            hundred_more_ms,
+            5 * one_compile_ms,
+            f"100 further instances of a renamed nested function cost "
+            f"{hundred_more_ms}ms, versus {one_compile_ms}ms for one compile; "
+            f"the JIT is recompiling it once per instance.",
+        )
+
+
+@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LocalsBuiltinTests(unittest.TestCase):
     def test_locals_not_compiled(self) -> None:
         def foo():

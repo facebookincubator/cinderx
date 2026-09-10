@@ -593,8 +593,9 @@ void Context::finalizeFunc(
   // to be compiled.
   compiled->addFunction(func);
 
-  if (NestedCompileData* data = nestedCompileData(func->func_code);
-      data != nullptr && nestedCompileDataMatches(func, *data)) {
+  // Cached regardless of whether `func` still carries its code object's name;
+  // see Context::codeCompiled.
+  if (NestedCompileData* data = nestedCompileData(func->func_code)) {
     addNestedCompile(
         nestedCompileAnchor(func->func_code, func), *data, compiled);
   }
@@ -1003,12 +1004,14 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
       PyUnicode_AsUTF8(reinterpret_cast<PyCodeObject*>(key.code)->co_qualname));
   // The nested-compile entry is what carries the compile across the gaps
   // between instances of a nested function, anchored on the function the code
-  // was found in.  A compile made for a function that has been renamed away
-  // from its code object doesn't belong to the entry, and caching it there
-  // would hand it to the next instance, which still has the original name.
+  // was found in.  The compile is cached even when `func` has been renamed away
+  // from its code object -- functools.update_wrapper() renames every instance
+  // of a nested function, and without this each one recompiles from scratch.
+  // The name still decides who may *take* the compile: scheduleNestedFunction()
+  // only speaks for functions carrying the code's own name, and checks the
+  // entry's eligibility before handing the compile over.
   auto nested_it = nested_compile_data_.find(key.code);
-  if (nested_it != nested_compile_data_.end() &&
-      nestedCompileDataMatches(func, *nested_it->second)) {
+  if (nested_it != nested_compile_data_.end()) {
     addNestedCompile(
         nestedCompileAnchor(key.code, func), *nested_it->second, compiled);
   }
