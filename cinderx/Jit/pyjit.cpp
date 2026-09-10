@@ -4292,6 +4292,22 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
     reg.in_flight_count++;
   }
 
+  // The reservation above has to be released exactly once on every path out of
+  // this function, including an exception escaping the preload below, which
+  // runs arbitrary Python.  This owns the release for all of them; the one
+  // case it cannot see is the task reaching the worker, which takes the
+  // reservation over, so that path clears the flag.
+  bool reservation_released = false;
+  SCOPE_EXIT({
+    if (!reservation_released) {
+      std::lock_guard<std::mutex> lock(reg.mutex);
+      if (reg.in_flight_count) {
+        reg.in_flight_count--;
+      }
+      reg.drain_cv.notify_all();
+    }
+  });
+
   // Preload on this (GIL-holding) thread, then take ownership of the resulting
   // preloaders so they outlive this call.
   hir::PreloaderMap preloaders;
@@ -4302,8 +4318,10 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
         preloadFuncAndDeps(func);
     if (targets.empty()) {
       // Preloading hit a Python error; clear it and give up on this function.
+      // Only drop the active compile here -- finishBackgroundCompile() would
+      // also release the reservation, which the SCOPE_EXIT above owns.
       setVectorcall(func, getInterpretedVectorcall(func));
-      finishBackgroundCompile(key);
+      jit_ctx->removeActiveCompile(key);
       throw CAPIError();
     }
     preloaders = hir::preloaderManager().extract();
@@ -4321,31 +4339,28 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   // Enqueue the task and lazily start the single worker thread.  If the worker
   // can't be started, release the task's Python references under the guard we
   // already hold and leave the function interpreted.
-  std::lock_guard<std::mutex> lock(reg.mutex);
-  // Re-check for shutdown: preloading above ran without the registry lock, so a
-  // drain could have completed in the meantime.  Starting a worker now would
-  // resurrect the thread that drain just joined.
-  if (reg.shutdown) {
-    jit_ctx->removeActiveCompile(key);
-    if (reg.in_flight_count) {
-      reg.in_flight_count--;
+  {
+    std::lock_guard<std::mutex> lock(reg.mutex);
+    // Re-check for shutdown: preloading above ran without the registry lock, so
+    // a drain could have completed in the meantime.  Starting a worker now
+    // would resurrect the thread that drain just joined.
+    if (reg.shutdown) {
+      jit_ctx->removeActiveCompile(key);
+      return;
     }
-    reg.drain_cv.notify_all();
-    return;
-  }
-  if (!reg.worker_started && !startBackgroundWorkerThread(jit_ctx, reg)) {
-    jit_ctx->removeActiveCompile(key);
-    if (reg.in_flight_count) {
-      reg.in_flight_count--;
+    if (!reg.worker_started && !startBackgroundWorkerThread(jit_ctx, reg)) {
+      jit_ctx->removeActiveCompile(key);
+      return;
     }
-    reg.drain_cv.notify_all();
-    return;
-  }
-  reg.queue.push_back(std::move(task));
-  reg.queue_cv.notify_one();
+    reg.queue.push_back(std::move(task));
+    // The worker owns the reservation now and releases it when the compile
+    // ends.
+    reservation_released = true;
+    reg.queue_cv.notify_one();
 
-  // Just interpret the function until the compile succeeds
-  setVectorcall(func, getInterpretedVectorcall(func));
+    // Just interpret the function until the compile succeeds
+    setVectorcall(func, getInterpretedVectorcall(func));
+  }
 }
 
 } // namespace
