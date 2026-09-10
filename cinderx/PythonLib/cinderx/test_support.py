@@ -368,8 +368,14 @@ def run_in_subprocess(func: Callable[..., None]) -> Callable[..., None]:
 
             p.start()
 
-        value = queue.get(timeout=SUBPROCESS_TIMEOUT_SEC)
-        p.join(timeout=SUBPROCESS_TIMEOUT_SEC)
+        try:
+            value = queue.get(timeout=SUBPROCESS_TIMEOUT_SEC)
+            p.join(timeout=SUBPROCESS_TIMEOUT_SEC)
+        finally:
+            if p.is_alive():
+                p.kill()
+                p.join()
+
         if isinstance(value, _ExceptionResult):
             raise value.exc
 
