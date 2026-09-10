@@ -50,12 +50,18 @@ BorrowedRef<> typeLookupSafe(
   std::optional<jit::ThreadedCompileGILHolder> guard;
   if constexpr (kFreeThreadedBuild || kTsanEnabled) {
     guard.emplace();
+  } else if (!PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE)) {
+    guard.emplace();
   }
 
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
     PyObject* dict = getBorrowedTypeDictSafe(base_ty);
+    JIT_DCHECK(
+        !PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE) ||
+            PyType_HasFeature(base_ty, Py_TPFLAGS_IMMUTABLETYPE),
+        "immutable types shouldn't have mutable bases");
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
         !hasOnlyUnicodeKeys(dict)) {
       // Abort the whole search if any base class dict is poorly-behaved
