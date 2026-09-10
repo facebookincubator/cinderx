@@ -141,6 +141,10 @@ class GetFrameLineNumberTests(unittest.TestCase):
         for i, stack in enumerate(stacks):
             self.assertEqual(stack[-2].lineno, base + 2 + i)
 
+    @cinder_support.skip_if_ft_macos(
+        "Releasing a local does not run the finalizer inside `double` under "
+        "free-threading on macOS, so its frame is gone by the time __del__ runs"
+    )
     def test_line_numbers_from_finalizers(self) -> None:
         """Make sure we can get accurate line numbers from finalizers"""
         stack = []

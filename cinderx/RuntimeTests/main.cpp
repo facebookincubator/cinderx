@@ -277,7 +277,11 @@ int main(int argc, char* argv[]) {
   register_test("all_passes_test.txt");
 #endif
   register_test("all_passes_static_test.txt", RuntimeTest::kStaticCompiler);
-  register_test("native_calls_test.txt", RuntimeTest::kStaticCompiler);
+  if constexpr (kOS == OS::kLinux) {
+    // The goldens name the library to dlopen, and "libc.so.6" only exists on
+    // Linux.
+    register_test("native_calls_test.txt", RuntimeTest::kStaticCompiler);
+  }
   register_test("static_array_item_test.txt", RuntimeTest::kStaticCompiler);
 
   cinderx::setPythonProgramName(argv[0]);

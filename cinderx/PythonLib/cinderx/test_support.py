@@ -170,6 +170,18 @@ def skip_if_ft(reason: str) -> Callable[[Callable[..., None]], Callable[..., Non
     return passIf(FREE_THREADING_BUILD, reason)
 
 
+def skip_if_ft_macos(
+    reason: str,
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """
+    Skip a test on free-threaded macOS builds.
+
+    Narrower than skip_if_ft(): these are cases that hold on free-threaded
+    Linux but not on macOS, so gating all of free-threading would over-skip.
+    """
+    return passIf(FREE_THREADING_BUILD and sys.platform == "darwin", reason)
+
+
 def skip_unless_jit(
     reason: str,
 ) -> Callable[[Callable[..., None]], Callable[..., None]]:
@@ -254,6 +266,24 @@ def is_oss() -> bool:
     Currently implemented as looking for the absence of the Meta Python runtime.
     """
     return "+meta" not in sys.version and "+cinder" not in sys.version
+
+
+def has_cpython_test_package() -> bool:
+    """
+    Check whether CPython's own `test` package is importable.
+
+    Test modules that borrow from CPython's suite have to ask this rather than
+    `is_oss()`.  The two used to coincide, but no longer do: the bundled Meta
+    runtimes ship `Lib/test`, and so does the platform Python up to 3.12, but
+    3.14 onwards drops it from the distribution.  A build can therefore be very
+    much not-OSS and still have no `test` package.
+    """
+    try:
+        # pyre-ignore[21]: can't find test.support
+        import test.support  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 def skip_test_if_oss(

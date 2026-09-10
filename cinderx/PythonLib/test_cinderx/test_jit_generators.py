@@ -388,6 +388,10 @@ class GeneratorsTest(unittest.TestCase):
 
         self.assertEqual(seen, ["thrown"])
 
+    @cinder_support.skip_if_ft_macos(
+        "Releasing a local does not run the finalizer at the same point under "
+        "free-threading on macOS"
+    )
     def test_deopting_from_a_local_release_is_refused(self):
         seen = []
 

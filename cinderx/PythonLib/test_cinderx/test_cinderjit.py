@@ -4,11 +4,11 @@ import asyncio
 import copy
 import faulthandler
 import gc
+import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
-import warnings
 import weakref
 from typing import Any, Callable, cast, TYPE_CHECKING
 
@@ -25,6 +25,7 @@ from cinderx.jit import (
 )
 from cinderx.test_support import (
     compiles_after_one_call,
+    ENCODING,
     is_jit_compiled_after_call,
     is_oss,
     passIf,
@@ -34,6 +35,7 @@ from cinderx.test_support import (
     skip_if_prefork,
     skip_test_if_oss,
     skip_unless_jit,
+    subprocess_env,
 )
 
 from .common import failUnlessHasOpcodes, with_globals
@@ -2492,6 +2494,41 @@ def compiled_code_func_with_nested():
         self.assertIsNone(copy.deepcopy(compiled))
 
 
+# `_compile` is picked for having a lengthy compile time, which is also what
+# puts it near the JIT's own size limits: free-threaded aarch64 emits enough
+# extra pointer-tagging work to push its LIR past the default
+# jit-max-lir-blocks of 5000.  The limit is only settable at startup, so the
+# check runs in a fresh interpreter with the limit raised rather than being
+# skipped on the configurations that trip it.
+_MAX_LIR_BLOCKS_LIMIT = "jit-max-lir-blocks=100000"
+
+_COMPILE_TIME = """
+import warnings
+
+import cinderx.jit
+
+with warnings.catch_warnings():
+    # sre_compile is deprecated.
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    try:
+        from sre_compile import _compile
+    except ImportError:
+        # sre_compile was removed in 3.15, re._compiler is the same func as it
+        # was before.
+        from re._compiler import _compile
+
+cinderx.jit.force_compile(_compile)
+
+# These only hold if the function takes more than 1ms to compile.  Use the
+# output from PYTHONJITDEBUG=1 to see if that is the case.
+assert cinderx.jit.get_compilation_time() > 0, "no compilation time reported"
+assert (
+    cinderx.jit.get_function_compilation_time(_compile) > 0
+), "no per-function compilation time reported"
+print("COMPILE_TIME_OK")
+"""
+
+
 @passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class CompileTimeTests(unittest.TestCase):
     """
@@ -2499,30 +2536,19 @@ class CompileTimeTests(unittest.TestCase):
     """
 
     def test_compile_time(self) -> None:
-        # sre_compile is deprecated.
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-            # This function is known to have a lengthy compile time.
-            try:
-                # pyre-ignore[21]: Pyre doesn't know about this function.
-                from sre_compile import _compile
-            except ImportError:
-                # sre_compile was removed in 3.15, re._compiler is the same func
-                # as it was before.
-                # pyre-ignore[21]: Pyre doesn't know about this function.
-                from re._compiler import _compile
-
-        # It's probably already compiled as part of regular startup, but just in case
-        # let's make sure.
-        #
-        # pyre-ignore[16]: Pyre doesn't know about this function.
-        force_compile(_compile)
-
-        # This will only work if the function takes more than 1ms to compile.  Use the
-        # output from PYTHONJITDEBUG=1 to see if that is the case.
-        self.assertGreater(cinderx.jit.get_compilation_time(), 0)
-        self.assertGreater(cinderx.jit.get_function_compilation_time(_compile), 0)
+        proc = subprocess.run(
+            [sys.executable, "-X", _MAX_LIR_BLOCKS_LIMIT, "-c", _COMPILE_TIME],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding=ENCODING,
+            env=subprocess_env(),
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"child failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}",
+        )
+        self.assertIn("COMPILE_TIME_OK", proc.stdout)
 
 
 class SimplifyCompileTimeTests(unittest.TestCase):

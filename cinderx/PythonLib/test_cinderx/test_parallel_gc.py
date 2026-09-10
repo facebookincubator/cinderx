@@ -6,13 +6,13 @@ import unittest
 
 import cinderx
 import cinderx.jit
-from cinderx.test_support import is_oss, passIf, passUnless
+from cinderx.test_support import has_cpython_test_package, passIf, passUnless
 
-if is_oss():
-    test_gc_module = None
-else:
+if has_cpython_test_package():
     # pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
     import test.test_gc as test_gc_module
+else:
+    test_gc_module = None
 
 
 def _restore_parallel_gc(settings: dict[str, int] | None) -> None:

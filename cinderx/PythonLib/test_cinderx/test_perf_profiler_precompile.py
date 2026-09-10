@@ -6,17 +6,21 @@ import sys
 import sysconfig
 import unittest
 
-from cinderx.test_support import passIf, skip_module_if_oss
+from cinderx import _is_compile_perf_trampoline_pre_fork_enabled
+from cinderx.test_support import passIf, passUnless, skip_module_if_oss
 
 skip_module_if_oss()
 
-from cinderx import _is_compile_perf_trampoline_pre_fork_enabled
+try:
+    # pyre-ignore[21]: can't find test.support
+    from test.support.os_helper import temp_dir
 
-# pyre-ignore[21]: can't find test.support
-from test.support.os_helper import temp_dir
+    # pyre-ignore[21]: can't find test.support
+    from test.support.script_helper import assert_python_ok, make_script
 
-# pyre-ignore[21]: can't find test.support
-from test.support.script_helper import assert_python_ok, make_script
+    _HAVE_CPYTHON_TESTS = True
+except ImportError:
+    _HAVE_CPYTHON_TESTS = False
 
 
 def supports_trampoline_profiling():
@@ -26,6 +30,7 @@ def supports_trampoline_profiling():
     return int(perf_trampoline) == 1
 
 
+@passUnless(_HAVE_CPYTHON_TESTS, "CPython's test package is not installed")
 @passIf(
     _is_compile_perf_trampoline_pre_fork_enabled is None
     or not supports_trampoline_profiling()

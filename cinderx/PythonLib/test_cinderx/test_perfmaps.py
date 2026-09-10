@@ -4,16 +4,21 @@ import os
 import sys
 import unittest
 
+from cinderx.test_support import passUnless
+
 try:
     # pyre-ignore[21]: can't find _testinternalcapi
     from _testinternalcapi import perf_map_state_teardown, write_perf_map_entry
+
+    _HAVE_PERF_MAP_UTILS = True
 except ImportError:
-    raise unittest.SkipTest("Python runtime doesn't expose perf map utilities")
-
-if sys.platform != "linux":
-    raise unittest.SkipTest("Linux only")
+    _HAVE_PERF_MAP_UTILS = False
 
 
+@passUnless(
+    _HAVE_PERF_MAP_UTILS and sys.platform == "linux",
+    "perf map utilities are Linux-only and need _testinternalcapi",
+)
 class TestPerfMapWriting(unittest.TestCase):
     def test_write_perf_map_entry(self) -> None:
         self.assertEqual(write_perf_map_entry(0x1234, 5678, "entry1"), 0)

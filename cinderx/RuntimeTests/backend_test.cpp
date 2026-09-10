@@ -1287,7 +1287,7 @@ BB %0 - succs: %6
        %1:Object = Bind {0}:Object
        %2:Object = Bind {1}:Object
        %7:Object = Move %1:Object
- %8:ObjectUntagged = And %7:Object, 18446744073709551614(0xfffffffffffffffe):64bit
+%8:ObjectUntagged = And %7:Object, 18446744073709551614(0xfffffffffffffffe):64bit
        %9:Object = Move %2:Object
 %10:ObjectUntagged = And %9:Object, 18446744073709551614(0xfffffffffffffffe):64bit
        %3:Object = Call {2}({2:#x}):64bit, %8:ObjectUntagged, %10:ObjectUntagged

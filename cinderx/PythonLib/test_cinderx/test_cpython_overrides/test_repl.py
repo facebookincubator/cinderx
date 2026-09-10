@@ -3,7 +3,11 @@
 import unittest
 from textwrap import dedent
 
-try:
+from cinderx.test_support import has_cpython_test_package, passUnless
+
+_HAVE_CPYTHON_TESTS = has_cpython_test_package()
+
+if _HAVE_CPYTHON_TESTS:
     # pyre-ignore[21]: can't find test.support
     from test.support import SuppressCrashReport
 
@@ -12,10 +16,9 @@ try:
 
     # pyre-ignore[21]: can't find test.test_repl
     from test.test_repl import spawn_repl
-except ImportError as e:
-    raise unittest.SkipTest("test modules not installed") from e
 
 
+@passUnless(_HAVE_CPYTHON_TESTS, "CPython's test package is not installed")
 class CinderX_TestInteractiveInterpreter(unittest.TestCase):
     # When CinderX's debug assertions are enabled the REPL crashes with a
     # different error on CinderX shutdown. I think the main purpose of this

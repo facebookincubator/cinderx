@@ -9,20 +9,29 @@ import threading
 import time
 import unittest
 
-try:
+from cinderx.test_support import has_cpython_test_package, passUnless
+
+_HAVE_CPYTHON_TESTS = has_cpython_test_package()
+
+if _HAVE_CPYTHON_TESTS:
     # pyre-ignore[21]: can't find test.support
     from test import support
 
     # pyre-ignore[21]: can't find test.fork_wait
     from test.fork_wait import ForkWait
-except ImportError:
-    raise unittest.SkipTest("test modules not installed")
+else:
+    support = None
+    # ForkWait is the base class below, so the class statement needs something
+    # to inherit from even when every test in it is going to be passed over.
+    ForkWait = unittest.TestCase
 
 
-if not hasattr(os, "fork"):
-    raise unittest.SkipTest("Fork not supported")
-
-
+@passUnless(
+    _HAVE_CPYTHON_TESTS and hasattr(os, "fork"),
+    "needs fork() and CPython's test package",
+)
+# pyre-ignore[39]: the base class is whichever of the two above got bound,
+# and Pyre can't see either of them.
 class CinderX_ForkTest(ForkWait):
     def test_threaded_import_lock_fork(self) -> None:
         """Check fork() in main thread works while a subthread is doing an import"""
@@ -72,7 +81,8 @@ class CinderX_ForkTest(ForkWait):
 
 
 def tearDownModule():
-    support.reap_children()
+    if support is not None:
+        support.reap_children()
 
 
 if __name__ == "__main__":
