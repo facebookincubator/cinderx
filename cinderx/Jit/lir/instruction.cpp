@@ -114,6 +114,13 @@ void Instruction::addPhiInput(
   setInput(value_index, std::move(value));
 }
 
+void Instruction::setPhiInput(size_t index, std::unique_ptr<Operand> value) {
+  JIT_CHECK(isPhi(), "Instruction is not a phi");
+  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
+  JIT_CHECK(value != nullptr, "Phi input value is null");
+  setInput(index * 2 + 1, std::move(value));
+}
+
 void Instruction::setNumInputs(size_t n) {
   inputs_.resize(n);
 }

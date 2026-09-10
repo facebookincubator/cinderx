@@ -435,7 +435,8 @@ void SpillAllocator::resolveControlFlow() {
         last_op == Opcode::kBranchToYieldExit && succs.size() == 2;
 
     if (succs.size() == 1 || yield_with_resume) {
-      emitPhiCopies(pred, succs.front());
+      BasicBlock* successor = succs.front();
+      emitPhiCopies(pred, successor, pred->outgoingEdge(0).incomingSlot());
 
       // kReturn and kBranchToYieldExit are pseudo-terminators; remove them so
       // PostRegAllocRewrite can insert a real branch to the successor.
@@ -449,8 +450,12 @@ void SpillAllocator::resolveControlFlow() {
       // Conditional branch.  Each phi output has its own slot, so emitting the
       // copies for both successors at the end of the predecessor is safe: a
       // successor only ever reads the slots for its own phis.
-      for (BasicBlock* succ : succs) {
-        emitPhiCopies(pred, succ);
+      for (size_t outgoing_slot = 0; outgoing_slot < succs.size();
+           ++outgoing_slot) {
+        emitPhiCopies(
+            pred,
+            succs[outgoing_slot],
+            pred->outgoingEdge(outgoing_slot).incomingSlot());
       }
     }
   }
@@ -469,7 +474,10 @@ void SpillAllocator::removePhis() {
   }
 }
 
-void SpillAllocator::emitPhiCopies(BasicBlock* pred, BasicBlock* succ) {
+void SpillAllocator::emitPhiCopies(
+    BasicBlock* pred,
+    BasicBlock* succ,
+    size_t incoming_slot) {
   instr_iter_t insert_at = pred->instructions().end();
   Instruction* last = pred->getLastInstr();
   if (last != nullptr && isBlockTerminator(last)) {
@@ -477,7 +485,7 @@ void SpillAllocator::emitPhiCopies(BasicBlock* pred, BasicBlock* succ) {
   }
 
   succ->foreachPhiInstr([&](const Instruction* phi) {
-    const Operand* src = phi->getOperandByPredecessor(pred);
+    const Operand* src = phi->phiInput(incoming_slot);
     if (src == nullptr) {
       return;
     }

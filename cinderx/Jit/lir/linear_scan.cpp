@@ -439,7 +439,9 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
     UnorderedSet<const Operand*> live;
 
-    for (BasicBlock* succ : successors) {
+    for (size_t outgoing_slot = 0; outgoing_slot < successors.size();
+         ++outgoing_slot) {
+      BasicBlock* succ = successors[outgoing_slot];
       // Each successor's livein is live.
       auto live_iter = regalloc_blocks_.find(succ);
       if (live_iter != regalloc_blocks_.end()) {
@@ -448,8 +450,10 @@ void LinearScanAllocator::calculateLiveIntervals() {
       }
 
       // Each successor's phi inputs are live.
+      const size_t incoming_slot =
+          bb->outgoingEdge(outgoing_slot).incomingSlot();
       succ->foreachPhiInstr([&](const Instruction* instr) {
-        auto opnd = instr->getOperandByPredecessor(bb)->getDefine();
+        auto opnd = instr->phiInput(incoming_slot)->getDefine();
         live.insert(opnd);
       });
     }
@@ -1192,15 +1196,21 @@ void LinearScanAllocator::rewriteLIR() {
     }
 
     // handle successors' phi nodes
-    for (BasicBlock* succ : bb->successors()) {
+    const auto& successors = bb->successors();
+    for (size_t outgoing_slot = 0; outgoing_slot < successors.size();
+         ++outgoing_slot) {
+      BasicBlock* succ = successors[outgoing_slot];
+      const size_t incoming_slot =
+          bb->outgoingEdge(outgoing_slot).incomingSlot();
       succ->foreachPhiInstr([&](Instruction* phi) {
-        auto index = phi->getOperandIndexByPredecessor(bb);
-        JIT_CHECK(
-            index != -1,
-            "Can't find predecessor block {} in phi instruction: {}",
-            bb->id(),
-            *phi);
-        rewriteInstrOneInput(phi, index, mapping, nullptr /* last_use_vregs */);
+        auto replacement = rewriteInstrInput(
+            phi,
+            phi->phiInput(incoming_slot),
+            mapping,
+            nullptr /* last_use_vregs */);
+        if (replacement != nullptr) {
+          phi->setPhiInput(incoming_slot, std::move(replacement));
+        }
       });
     }
 
@@ -1268,14 +1278,31 @@ void LinearScanAllocator::rewriteInstrOneInput(
     const UnorderedSet<const Operand*>* last_use_vregs) {
   auto input = instr->getInput(i);
 
+  auto replacement = rewriteInstrInput(instr, input, mapping, last_use_vregs);
+  if (replacement != nullptr) {
+    bool spilled = replacement->isStack();
+    instr->setInput(i, std::move(replacement));
+
+    // Spilling the source of a register copy turns it into a load.
+    if (spilled && instr->isMove()) {
+      instr->setOpcode(Opcode::kLoad);
+    }
+  }
+}
+
+std::unique_ptr<Operand> LinearScanAllocator::rewriteInstrInput(
+    Instruction* instr,
+    Operand* input,
+    const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+    const UnorderedSet<const Operand*>* last_use_vregs) {
   if (input->isInd()) {
     rewriteInstrOneIndirectOperand(
         input->getMemoryIndirect(), mapping, last_use_vregs);
-    return;
+    return nullptr;
   }
 
   if (!shouldReplaceOperand(*input) || input->isNone()) {
-    return;
+    return nullptr;
   }
 
   auto iter = mapping.find(input->getDefine());
@@ -1285,7 +1312,7 @@ void LinearScanAllocator::rewriteInstrOneInput(
         "Can't find allocation for operand {}, for instruction {}",
         *input,
         *instr);
-    return;
+    return nullptr;
   }
 
   auto phyreg = iter->second->allocatedLoc();
@@ -1297,13 +1324,7 @@ void LinearScanAllocator::rewriteInstrOneInput(
     new_input->setLastUse();
   }
 
-  bool spilled = new_input->isStack();
-  instr->setInput(i, std::move(new_input));
-
-  // Spilling the source of a register copy turns it into a load.
-  if (spilled && instr->isMove()) {
-    instr->setOpcode(Opcode::kLoad);
-  }
+  return new_input;
 }
 
 void LinearScanAllocator::rewriteInstrOneIndirectOperand(
@@ -1438,8 +1459,11 @@ void LinearScanAllocator::resolveEdges() {
     // for unconditional branch (or yield block with phantom resume edge)
     if (successors.size() == 1 || is_yield_with_resume) {
       auto succ = successors.front();
-      auto copies =
-          resolveEdgesGenCopies(basic_block, succ, bb_interval_map[succ]);
+      auto copies = resolveEdgesGenCopies(
+          basic_block,
+          succ,
+          basic_block->outgoingEdge(0).incomingSlot(),
+          bb_interval_map[succ]);
 
       // kReturn and kBranchToYieldExit are pseudo-terminators removed after
       // edge resolution; postalloc inserts a real branch to the successor.
@@ -1482,10 +1506,16 @@ void LinearScanAllocator::resolveEdges() {
     auto true_bb = successors.front();
     auto false_bb = successors.back();
 
-    auto true_bb_copies =
-        resolveEdgesGenCopies(basic_block, true_bb, bb_interval_map[true_bb]);
-    auto false_bb_copies =
-        resolveEdgesGenCopies(basic_block, false_bb, bb_interval_map[false_bb]);
+    auto true_bb_copies = resolveEdgesGenCopies(
+        basic_block,
+        true_bb,
+        basic_block->outgoingEdge(0).incomingSlot(),
+        bb_interval_map[true_bb]);
+    auto false_bb_copies = resolveEdgesGenCopies(
+        basic_block,
+        false_bb,
+        basic_block->outgoingEdge(successors.size() - 1).incomingSlot(),
+        bb_interval_map[false_bb]);
 
     resolveEdgesInsertBasicBlocks(
         basic_block,
@@ -1506,11 +1536,11 @@ std::unique_ptr<LinearScanAllocator::CopyGraphWithOperand>
 LinearScanAllocator::resolveEdgesGenCopies(
     const BasicBlock* basicblock,
     const BasicBlock* successor,
+    size_t incoming_slot,
     std::vector<LiveInterval*>& intervals) {
   auto copies = std::make_unique<CopyGraphWithOperand>();
   auto& end_mapping = bb_vreg_end_mapping_[basicblock];
   auto& succ_regalloc_block = map_get(regalloc_blocks_, successor);
-
   for (auto interval : intervals) {
     // Check if the interval starts from the beginning of the successor
     // there are two cases where interval_starts_from_beginning can be true:
@@ -1540,7 +1570,7 @@ LinearScanAllocator::resolveEdgesGenCopies(
     DataType data_type;
 
     if (phi != nullptr) {
-      auto operand = phi->getOperandByPredecessor(basicblock);
+      auto operand = phi->phiInput(incoming_slot);
       from = operand->getPhyRegOrStackSlot();
       to = phi->output()->getPhyRegOrStackSlot();
       data_type = operand->dataType();

@@ -64,6 +64,7 @@ class Instruction {
   const Operand* phiInput(size_t index) const;
   void addPhiInput(IncomingEdge edge, Instruction* value);
   void addPhiInput(IncomingEdge edge, std::unique_ptr<Operand> value);
+  void setPhiInput(size_t index, std::unique_ptr<Operand> value);
 
   // Change the number of inputs passed into this instruction.  Will add nullptr
   // Operand objects if the number increases.

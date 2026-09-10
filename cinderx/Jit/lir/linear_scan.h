@@ -244,6 +244,12 @@ class LinearScanAllocator : public RegisterAllocator {
       const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
       const UnorderedSet<const Operand*>* last_use_vregs);
 
+  std::unique_ptr<Operand> rewriteInstrInput(
+      Instruction* instr,
+      Operand* input,
+      const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      const UnorderedSet<const Operand*>* last_use_vregs);
+
   void rewriteInstrOneIndirectOperand(
       MemoryIndirect* indirect,
       const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
@@ -269,6 +275,7 @@ class LinearScanAllocator : public RegisterAllocator {
   std::unique_ptr<CopyGraphWithOperand> resolveEdgesGenCopies(
       const BasicBlock* basicblock,
       const BasicBlock* successor,
+      size_t incoming_slot,
       std::vector<LiveInterval*>& intervals);
 
   /* this function allocates (up to two) basic blocks for conditional branch and
@@ -346,6 +353,7 @@ class LinearScanAllocator : public RegisterAllocator {
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocationNoSpill);
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
+  FRIEND_TEST(LinearScanAllocatorTest, RewriteSpilledMoveInputAsLoad);
   FRIEND_TEST(
       LinearScanAllocatorTest,
       ArbitraryExecutionCallReservesAllRegistersInFreeThreadedBuild);

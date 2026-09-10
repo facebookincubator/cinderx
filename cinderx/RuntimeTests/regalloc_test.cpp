@@ -8,6 +8,7 @@
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
+#include "cinderx/Jit/lir/spill_alloc.h"
 
 #include <fmt/ostream.h>
 
@@ -20,6 +21,22 @@ using namespace cinderx::jit;
 namespace cinderx::jit::lir {
 class LinearScanAllocatorTest : public ::testing::Test {
  public:
+  static const char* criticalEdgePhiLIR() {
+    return R"(Function:
+BB %0 - succs: %3 %5
+  %1 = Move 10
+  %2 = Move 1
+  CondBranch %2, BB%3, BB%5
+BB %3 - succs: %5
+  %4 = Move 20
+BB %5 - succs: %8
+  %6 = Phi (BB%3, %4), (BB%0, %1)
+  Return %6
+BB %8
+
+)";
+  }
+
   static bool LiveIntervalPtrLess(
       const LiveInterval* lhs,
       const LiveInterval* rhs) {
@@ -308,6 +325,111 @@ BB %28
       }
     }
   }
+}
+
+TEST_F(LinearScanAllocatorTest, RewriteSpilledMoveInputAsLoad) {
+  auto function = std::make_unique<Function>();
+  BasicBlock* block = function->allocateBasicBlock();
+  Instruction* source =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
+  Instruction* move = block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_return_loc},
+      VReg{source});
+
+  LiveInterval interval{source->output()};
+  interval.allocateTo(PhyLocation{-kPointerSize});
+  UnorderedMap<const Operand*, const LiveInterval*> mapping{
+      {source->output(), &interval}};
+
+  LinearScanAllocator allocator{function.get()};
+  allocator.rewriteInstrOneInput(move, 0, mapping, nullptr);
+
+  EXPECT_TRUE(move->isLoad());
+  EXPECT_TRUE(move->getInput(0)->isStack());
+}
+
+TEST_F(LinearScanAllocatorTest, FullRunHandlesCriticalEdgePhiSlots) {
+  Parser parser;
+  auto function = parser.parse(criticalEdgePhiLIR());
+  Instruction* phi = parser.getOutputInstrMap().at(6);
+
+  LinearScanAllocator allocator{function.get()};
+  allocator.run();
+
+  ASSERT_EQ(phi->numPhiInputs(), 2);
+  for (size_t slot = 0; slot < phi->numPhiInputs(); ++slot) {
+    const Operand* value = phi->phiInput(slot);
+    EXPECT_FALSE(value->isLinked());
+    EXPECT_TRUE(value->isReg() || value->isStack());
+    EXPECT_EQ(value->instr(), phi);
+  }
+}
+
+TEST_F(LinearScanAllocatorTest, FullRunHandlesLoopPhiSlots) {
+  const char* lir_source = R"(Function:
+BB %0 - succs: %2
+  %1 = Move 0
+BB %2 - succs: %2 %5
+  %3 = Phi (BB%2, %4), (BB%0, %1)
+  %4 = Add %3, 1
+  CondBranch %4, BB%2, BB%5
+BB %5 - succs: %8
+  Return %3
+BB %8
+
+)";
+
+  Parser parser;
+  auto function = parser.parse(lir_source);
+  Instruction* phi = parser.getOutputInstrMap().at(3);
+
+  LinearScanAllocator allocator{function.get()};
+  allocator.run();
+
+  ASSERT_EQ(phi->numPhiInputs(), 2);
+  for (size_t slot = 0; slot < phi->numPhiInputs(); ++slot) {
+    const Operand* value = phi->phiInput(slot);
+    EXPECT_FALSE(value->isLinked());
+    EXPECT_TRUE(value->isReg() || value->isStack());
+    EXPECT_EQ(value->instr(), phi);
+  }
+}
+
+TEST_F(LinearScanAllocatorTest, SpillAllocatorHandlesCriticalEdgePhiSlots) {
+  auto function = Parser().parse(criticalEdgePhiLIR());
+  BasicBlock* phi_block = function->basicBlocks().at(2);
+  ASSERT_EQ(phi_block->numPredecessors(), 2);
+  const std::vector<BasicBlock*> predecessors = phi_block->predecessors();
+
+  SpillAllocator allocator{function.get()};
+  allocator.run();
+
+  for (BasicBlock* block : function->basicBlocks()) {
+    for (auto& instruction : block->instructions()) {
+      EXPECT_FALSE(instruction->isPhi());
+    }
+  }
+
+  auto last_stack_store = [](const BasicBlock* block) {
+    for (auto it = block->instructions().rbegin();
+         it != block->instructions().rend();
+         ++it) {
+      const Instruction* instruction = it->get();
+      if (instruction->isStore() && instruction->output()->isStack()) {
+        return instruction;
+      }
+    }
+    return static_cast<const Instruction*>(nullptr);
+  };
+  const Instruction* first_copy = last_stack_store(predecessors[0]);
+  const Instruction* second_copy = last_stack_store(predecessors[1]);
+  ASSERT_NE(first_copy, nullptr);
+  ASSERT_NE(second_copy, nullptr);
+  EXPECT_EQ(
+      first_copy->output()->getStackSlot(),
+      second_copy->output()->getStackSlot());
 }
 
 TEST_F(

@@ -95,7 +95,7 @@ class SpillAllocator : public RegisterAllocator {
 
   // Emit the phi copies for the edge from `pred` to `succ` at the end of
   // `pred`.
-  void emitPhiCopies(BasicBlock* pred, BasicBlock* succ);
+  void emitPhiCopies(BasicBlock* pred, BasicBlock* succ, size_t incoming_slot);
 
   // Reset the per-instruction scratch register counters.
   void resetScratch();
