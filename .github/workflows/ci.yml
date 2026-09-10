@@ -14,12 +14,12 @@ jobs:
         # Test against multiple patch versions as CinderX references internal
         # CPython functions and structures which can lead to ABI problems.  See
         # cinderx/UpstreamBorrow for more details.
-        python-version: ['3.14.3', '3.14.4', '3.14.5', '3.14.6']
+        python-version: ['3.14.4', '3.14.5', '3.14.6', '3.14.7']
         include:
           - os: ubuntu-latest
             python-version: '3.14t'
           - os: ubuntu-latest
-            python-version: '3.15.0-beta.3'
+            python-version: '3.15.0-rc.2'
 
     steps:
     - name: Checkout CinderX
