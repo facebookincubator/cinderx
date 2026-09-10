@@ -5,6 +5,7 @@
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/write_protect.h"
 
 #include <algorithm>
 #include <array>
@@ -121,6 +122,10 @@ std::span<const uint8_t> CodePatcher::storedBytes() const {
 void CodePatcher::swap() {
   SwapLockGuard lock{*this};
 
+  // The patchpoint lives in JIT code, which on Apple Silicon is only writable
+  // for a thread that has turned write protection off.
+  jitEnableWriting();
+
   // On x86 the patchpoint is up to 7 bytes (aligned to 8 bytes by the code
   // generator). However, we work with 8 bytes here as that should be an
   // atomically writable size on x86.
@@ -145,10 +150,13 @@ void CodePatcher::swap() {
     std::memcpy(data_.data(), temp.data(), flags_.data_len);
   }
 
+  jitEnableExecuting(patchpoint_, flags_.data_len);
+
   // Flush the instruction cache so the core that executes the patchpoint next
   // sees the new bytes rather than a stale decoding of the old ones.  Note for
   // x86 this is a no-op as caches are coherent; aarch64 needs it even
-  // single-threaded.
+  // single-threaded.  (On Apple Silicon jitEnableExecuting() has already done
+  // this, but it is cheap and this keeps the non-Apple aarch64 case honest.)
   __builtin___clear_cache(
       reinterpret_cast<char*>(patchpoint_),
       reinterpret_cast<char*>(patchpoint_) + flags_.data_len);

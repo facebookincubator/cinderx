@@ -7,6 +7,7 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Jit/write_protect.h"
 #include "cinderx/module_state.h"
 
 #ifdef WIN32
@@ -14,13 +15,6 @@
 #include <memoryapi.h>
 #else
 #include <sys/mman.h>
-#endif
-
-#ifdef __APPLE__
-#include <pthread.h>
-#ifdef __aarch64__
-#include <libkern/OSCacheControl.h>
-#endif
 #endif
 
 #include <cstring>
@@ -39,28 +33,6 @@ namespace {
 
 // 2MiB to match Linux's huge-page size.
 constexpr size_t kAllocSize = 1024 * 1024 * 2;
-
-// On macOS ARM64, MAP_JIT memory requires toggling between writable and
-// executable states per-thread via pthread_jit_write_protect_np.
-void jitEnableWriting() {
-#if defined(__APPLE__) && defined(__aarch64__)
-  pthread_jit_write_protect_np(0);
-#endif
-}
-
-void jitEnableExecuting(
-    [[maybe_unused]] void* addr,
-    [[maybe_unused]] size_t size,
-    [[maybe_unused]] void* cold_addr = nullptr,
-    [[maybe_unused]] size_t cold_size = 0) {
-#if defined(__APPLE__) && defined(__aarch64__)
-  pthread_jit_write_protect_np(1);
-  sys_icache_invalidate(addr, size);
-  if (cold_size > 0) {
-    sys_icache_invalidate(cold_addr, cold_size);
-  }
-#endif
-}
 
 bool setHugePages([[maybe_unused]] void* ptr, [[maybe_unused]] size_t size) {
 #ifdef MADV_HUGEPAGE
@@ -438,7 +410,10 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
     }
     total_size += buffer_size;
   }
-  jitEnableExecuting(addr, hot_size, cold_addr, cold_size);
+  jitEnableExecuting(addr, hot_size);
+  if (cold_size > 0) {
+    jitEnableExecuting(cold_addr, cold_size);
+  }
 
   used_bytes_.fetch_add(total_size, std::memory_order_relaxed);
   return AllocateResult{addr, asmjit::kErrorOk};

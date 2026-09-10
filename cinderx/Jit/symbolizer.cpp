@@ -12,9 +12,21 @@
 
 #endif
 
+// Reading our own symbol tables is ELF-specific.  Where that isn't available
+// the symbolizer is dladdr-only, which still resolves anything exported by the
+// executable or a loaded dylib.
+#if defined(ENABLE_SYMBOLIZER) && defined(__linux__)
+#define CINDERX_SYMBOLIZER_ELF
+#endif
+
 #ifdef ENABLE_SYMBOLIZER
 
 #include <dlfcn.h>
+
+#endif
+
+#ifdef CINDERX_SYMBOLIZER_ELF
+
 #include <elf.h>
 #include <link.h> // for ElfW
 
@@ -27,7 +39,7 @@ namespace cinderx::jit {
 
 namespace {
 
-#ifdef ENABLE_SYMBOLIZER
+#ifdef CINDERX_SYMBOLIZER_ELF
 
 struct SymbolResult {
   const void* func;
@@ -133,8 +145,8 @@ int findSymbolIn(struct dl_phdr_info* info, size_t, void* data) {
 
 } // namespace
 
-Symbolizer::Symbolizer(const char* exe_path) {
-#ifdef ENABLE_SYMBOLIZER
+Symbolizer::Symbolizer([[maybe_unused]] const char* exe_path) {
+#ifdef CINDERX_SYMBOLIZER_ELF
   try {
     file_.open(exe_path);
   } catch (const std::exception& exn) {
@@ -182,15 +194,17 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
   }
 
   // Then try dladdr. It might be able to find the symbol.  It reports the
-  // nearest preceding symbol rather than an exact match, so only accept it
-  // when it lands exactly on `func`, which is what the lookups below require
-  // too.
+  // nearest preceding symbol rather than an exact match -- and on macOS it
+  // does so even for addresses that belong to no image at all -- so only
+  // accept it when it lands exactly on `func`, which is what the lookups below
+  // require too.
   Dl_info info;
   if (::dladdr(func, &info) != 0 && info.dli_sname != nullptr &&
       info.dli_saddr == func) {
     return cache(func, info.dli_sname);
   }
 
+#ifdef CINDERX_SYMBOLIZER_ELF
   // Try reading our own ELF header.
   if (isInitialized()) {
     const std::byte* exe = file_.data().data();
@@ -217,6 +231,10 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
   // means we'll miss out on addresses that are mapped to a symbol after our
   // first attempt at symbolizing them.
   return cache(func, result.name);
+#else
+  return cache(func, std::nullopt);
+#endif
+
 #else
   return std::nullopt;
 #endif

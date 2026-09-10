@@ -13,15 +13,18 @@
 
 #include <atomic>
 #include <bit>
+#include <cerrno>
 #include <charconv>
 #include <concepts>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <queue>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <unordered_set>
@@ -232,12 +235,29 @@ combineHash(std::size_t seed, std::size_t hash, Args&&... args) {
 
 template <class T>
 std::optional<T> parseNumber(std::string_view s) {
-  T n = 0;
-  auto result = std::from_chars(&s.front(), (&s.back()) + 1, n);
-  if (result.ec == std::errc{}) {
-    return n;
+  // Apple's libc++ doesn't implement the floating-point overloads of
+  // std::from_chars.
+  if constexpr (std::is_floating_point_v<T> && kOS == OS::kMacOS) {
+    // strtod needs a NUL-terminated string.  Unlike from_chars it is
+    // locale-sensitive, but CinderX only parses numbers that it wrote itself,
+    // under the C locale.
+    std::string buf{s};
+    const char* begin = buf.c_str();
+    char* end = nullptr;
+    errno = 0;
+    double n = std::strtod(begin, &end);
+    if (end != begin + buf.size() || errno == ERANGE) {
+      return std::nullopt;
+    }
+    return static_cast<T>(n);
+  } else {
+    T n = 0;
+    auto result = std::from_chars(&s.front(), (&s.back()) + 1, n);
+    if (result.ec == std::errc{}) {
+      return n;
+    }
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 // Return the given PyUnicodeObject as a std::string, or "" if an error occurs.

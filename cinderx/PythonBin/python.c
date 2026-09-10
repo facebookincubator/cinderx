@@ -2,6 +2,11 @@
 
 #include <Python.h>
 
+// The sanitizer builds that this caters for are Linux-only, and a weak
+// undefined symbol has no Mach-O equivalent that ld64 will resolve at load
+// time, so everything below is compiled out elsewhere.
+#ifdef __linux__
+
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -36,6 +41,12 @@ void open_asan_logfile(void) {
     token = strtok_r(NULL, ",", &tokenptr);
   }
 }
+
+#else
+
+void open_asan_logfile(void) {}
+
+#endif
 
 int main(int argc, char** argv) {
   open_asan_logfile();
