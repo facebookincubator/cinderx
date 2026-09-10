@@ -449,6 +449,7 @@ class BuildExt(build_ext):
         py_version = compute_py_version()
         options["PY_VERSION"] = py_version
         options["Python_ROOT_DIR"] = self._find_python()
+        options["Python_EXECUTABLE"] = sys.executable
 
         meta_python = "+meta" in sys.version
         linux = sys.platform == "linux"
@@ -498,17 +499,8 @@ class BuildExt(build_ext):
         if build_runtime_tests:
             self._copy_runtime_tests(build_dir)
 
-        # CMake produces the extension without an ABI tag (e.g., "_cinderx.pyd"
-        # or "_cinderx.so").  Rename to include the tag so the file matches what
-        # setuptools/wheel packaging expects (e.g., "_cinderx.cp314-win_amd64.pyd").
-        if platform.system() == "Windows":
-            cmake_output_name = f"{extension.name}.pyd"
-        else:
-            cmake_output_name = f"{extension.name}.so"
-        cmake_output = os.path.join(self.build_temp, cmake_output_name)
-        if os.path.exists(cmake_output) and cmake_output != ext_fullpath:
-            print(f"Renaming {cmake_output} -> {ext_fullpath}")
-            shutil.copy(cmake_output, ext_fullpath)
+        if not os.path.exists(ext_fullpath):
+            raise RuntimeError(f"CMake extension output not found: {ext_fullpath}")
 
     def _copy_runtime_tests(self, build_dir: str) -> None:
         output_dir = os.environ.get("CINDERX_RUNTIME_TESTS_OUTPUT_DIR")
