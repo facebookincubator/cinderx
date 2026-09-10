@@ -1069,7 +1069,19 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
 
     // Register patcher with the runtime if it is type-based.
     if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(udp.patcher)) {
-      env_.ctx->watchType(typed_patcher->type(), typed_patcher);
+      // The watch is installed in finalizeMultiThreadedCompile() for threaded
+      // compiles, by which time the type may have changed without the watch
+      // firing. Re-validate the patcher's assumptions before watching,
+      // preferring a validator attached at the patchpoint's creation site.
+      Context::TypeWatchValidator validator =
+          func_->env.watchValidator(typed_patcher);
+      if (validator == nullptr) {
+        validator = [typed_patcher] {
+          return typed_patcher->assumptionsStillValid();
+        };
+      }
+      env_.ctx->watchType(
+          typed_patcher->type(), typed_patcher, std::move(validator));
     }
   }
 

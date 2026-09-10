@@ -4174,6 +4174,27 @@ class Environment {
   const ReferenceSet& references() const;
   StrongReferenceSet&& stealStrongReferences();
 
+  // Attach a validator for a type watch deferred during threaded/background
+  // compilation, re-checking the assumptions the patchpoint was created with.
+  // Keyed by the patchpoint's patcher; consumed by linkDeoptPatchers() during
+  // codegen. Dies with the compilation, so no validator outlives the compile.
+  void setWatchValidator(
+      JumpPatcher* patcher,
+      std::function<bool()> validator) {
+    if (watch_validators_ == nullptr) {
+      watch_validators_ = std::make_unique<WatchValidatorMap>();
+    }
+    (*watch_validators_)[patcher] = std::move(validator);
+  }
+  // Returns the attached validator, or null if there isn't one.
+  std::function<bool()> watchValidator(JumpPatcher* patcher) const {
+    if (watch_validators_ == nullptr) {
+      return nullptr;
+    }
+    auto it = watch_validators_->find(patcher);
+    return it == watch_validators_->end() ? nullptr : it->second;
+  }
+
   // Returns nullptr if a register with the given `id` isn't found
   Register* getRegister(int id);
 
@@ -4209,9 +4230,14 @@ class Environment {
   Environment& operator=(const Environment&) = delete;
 
  private:
+  using WatchValidatorMap =
+      std::unordered_map<JumpPatcher*, std::function<bool()>>;
   RegisterMap registers_;
   ReferenceSet references_;
   StrongReferenceSet strong_references_;
+  // Lazily allocated so compiles without validated patchpoints pay only one
+  // pointer.
+  std::unique_ptr<WatchValidatorMap> watch_validators_;
   int next_register_id_{0};
   int next_load_type_attr_cache_{0};
   int next_load_type_method_cache_{0};

@@ -1810,8 +1810,15 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
     // We unfortunately have to use a generic TypeDeoptPatcher here that
     // patches on any changes to the type, since type_setattro() calls
     // PyType_Modified() before updating tp_descr_{get,set}.
-    auto patchpoint = env.emitInstr<DeoptPatchpoint>(
-        env.func.allocateCodePatcher<TypeDeoptPatcher>(descr_type));
+    auto patcher = env.func.allocateCodePatcher<TypeDeoptPatcher>(descr_type);
+    // The slot values cannot be re-derived from the patcher, so capture them
+    // for re-validation: a threaded compile installs its watch after the
+    // GIL was released, and a change in between would otherwise go unnoticed.
+    env.func.env.setWatchValidator(patcher, [descr_type, descr_get, descr_set] {
+      return descr_type->tp_descr_get == descr_get &&
+          descr_type->tp_descr_set == descr_set;
+    });
+    auto patchpoint = env.emitInstr<DeoptPatchpoint>(patcher);
     patchpoint->setGuiltyReg(info.receiver);
     patchpoint->setDescr("tp_descr_get/tp_descr_set");
   }

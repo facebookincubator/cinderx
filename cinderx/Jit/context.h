@@ -541,9 +541,26 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // memory was paged in.
   Ref<> pageInProfilerDependencies();
 
+  // Validates that the assumptions a pending type watch was created with still
+  // hold. Evaluated with the GIL held in watchPendingTypes(), after a
+  // threaded/background compile finishes and before the watch is installed.
+  // Must only use GIL-held-safe operations: no ThreadedCompileGILHolder, as
+  // the compile context is still active when finalizing on a background
+  // worker.
+  using TypeWatchValidator = std::function<bool()>;
+
   // When type is modified or an instance of type has __class__ assigned to,
   // call patcher->maybePatch(new_ty).
-  void watchType(BorrowedRef<PyTypeObject> type, TypeDeoptPatcher* patcher);
+  //
+  // During threaded/background compilation the actual type watch cannot be
+  // installed (it needs the interpreter state), so the watch is deferred to
+  // watchPendingTypes(). `validate` re-checks the assumptions the compiled
+  // code relies on; if it reports false the type may have changed while the
+  // GIL was released, so the patcher is eagerly patched instead of watched.
+  void watchType(
+      BorrowedRef<PyTypeObject> type,
+      TypeDeoptPatcher* patcher,
+      TypeWatchValidator validate = nullptr);
 
   // Stops watching for a specific TypeDeoptPatcher.
   void unwatch(TypeDeoptPatcher* patcher) override;
@@ -674,7 +691,15 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       type_deopt_patchers_;
 
   Ref<> str_build_class_;
-  std::unordered_set<BorrowedRef<PyTypeObject>> pending_watches_;
+
+  // A type watch deferred during threaded/background compilation, along with
+  // the validator for the assumptions the compiled code made about the type.
+  struct PendingTypeWatch {
+    TypeDeoptPatcher* patcher;
+    TypeWatchValidator validate;
+  };
+  std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<PendingTypeWatch>>
+      pending_watches_;
 
   std::vector<hir::Type> common_constant_types_;
 

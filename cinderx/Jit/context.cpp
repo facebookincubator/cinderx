@@ -483,12 +483,13 @@ void Context::unwatch(TypeDeoptPatcher* patcher) {
 
 void Context::watchType(
     BorrowedRef<PyTypeObject> type,
-    TypeDeoptPatcher* patcher) {
+    TypeDeoptPatcher* patcher,
+    TypeWatchValidator validate) {
   JITCompilationLock lock;
   type_deopt_patchers_[type].emplace(patcher);
   // We require the interpreter state in order to watch types
   if (ThreadedCompileContext::compileRunning()) {
-    pending_watches_.emplace(type);
+    pending_watches_[type].emplace_back(patcher, std::move(validate));
     return;
   }
 
@@ -503,7 +504,31 @@ BorrowedRef<> Context::strBuildClass() {
 }
 
 void Context::watchPendingTypes() {
-  for (auto& type : pending_watches_) {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  JITCompilationLock lock;
+  for (auto& [type, watches] : pending_watches_) {
+    auto it = type_deopt_patchers_.find(type);
+    for (auto& watch : watches) {
+      // The type may have been modified after the compile checked its
+      // assumptions but before the watch could be installed, in which case
+      // the watch would never fire for that change. Eagerly deopt instead.
+      if (watch.validate && !watch.validate()) {
+        if (watch.patcher->isLinked() && !watch.patcher->isPatched()) {
+          watch.patcher->patch();
+        }
+        if (it != type_deopt_patchers_.end()) {
+          it->second.erase(watch.patcher);
+        }
+      }
+    }
+    bool still_watched =
+        it != type_deopt_patchers_.end() && !it->second.empty();
+    if (it != type_deopt_patchers_.end() && it->second.empty()) {
+      type_deopt_patchers_.erase(it);
+    }
+    if (!still_watched) {
+      continue;
+    }
     JIT_CHECK(
         cinderx::getModuleState()->watcher_state.watchType(type) == 0,
         "Failed to watch pending type {}",

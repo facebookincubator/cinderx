@@ -38,6 +38,12 @@ bool TypeDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject>) {
   return true;
 }
 
+bool TypeDeoptPatcher::assumptionsStillValid() const {
+  // The generic patcher fires on any change to the type, which cannot be
+  // re-checked after the fact (see the class comment in the header).
+  return true;
+}
+
 BorrowedRef<PyTypeObject> TypeDeoptPatcher::type() const {
   return type_;
 }
@@ -68,6 +74,15 @@ bool TypeAttrDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
   return should_patch;
 }
 
+bool TypeAttrDeoptPatcher::assumptionsStillValid() const {
+  // Mirrors the check in maybePatch(): the attribute must still resolve to
+  // the object the compiled code specialized on. Uses _PyType_Lookup()
+  // directly: the GIL is held, so unlike during compilation there is no need
+  // for typeLookupSafe()'s GIL handling, and the exact lookup avoids its
+  // false negatives.
+  return _PyType_Lookup(type_, attr_name_) == target_object_.get();
+}
+
 void TypeAttrDeoptPatcher::onPatch() {
   attr_name_ = nullptr;
   target_object_ = nullptr;
@@ -91,17 +106,31 @@ bool SplitDictDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
           return true;
         }
 
-        if (!PyType_HasFeature(new_ty, Py_TPFLAGS_HEAPTYPE)) {
-          return true;
-        }
-
-        BorrowedRef<PyHeapTypeObject> ht(new_ty);
-        return ht->ht_cached_keys != keys_;
+        return !hasOurSharedKeys(new_ty);
       });
   if (should_patch) {
     patch();
   }
   return should_patch;
+}
+
+bool SplitDictDeoptPatcher::hasOurSharedKeys(
+    BorrowedRef<PyTypeObject> type) const {
+  if (!PyType_HasFeature(type_, Py_TPFLAGS_HEAPTYPE)) {
+    return false;
+  }
+  return BorrowedRef<PyHeapTypeObject>(type_)->ht_cached_keys == keys_;
+}
+
+bool SplitDictDeoptPatcher::assumptionsStillValid() const {
+  // Mirrors the check in maybePatch(): no descriptor may have appeared at the
+  // attribute name and the shared keys must be unchanged. Uses _PyType_Lookup()
+  // directly, as above; an exact lookup matters here because a false-negative
+  // miss would wrongly validate.
+  if (_PyType_Lookup(type_, attr_name_) != nullptr) {
+    return false;
+  }
+  return hasOurSharedKeys(type_);
 }
 
 void SplitDictDeoptPatcher::onPatch() {

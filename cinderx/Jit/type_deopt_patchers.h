@@ -17,6 +17,16 @@ class TypeDeoptPatcher : public JumpPatcher {
 
   virtual bool maybePatch(BorrowedRef<PyTypeObject> new_ty);
 
+  // Re-check, without patching, that the assumptions this patcher was created
+  // with still hold. Used to validate watches deferred during
+  // threaded/background compilation: the type may have changed between the
+  // compile's checks and the installation of the watch, in which case the
+  // watch would never fire for that change. Must be called with the GIL held,
+  // which callers guarantee; in particular it must not use
+  // ThreadedCompileGILHolder, as the compile context is still active when
+  // finalizing on a background worker.
+  virtual bool assumptionsStillValid() const;
+
   // Access the type being watched.
   BorrowedRef<PyTypeObject> type() const;
 
@@ -38,6 +48,7 @@ class TypeAttrDeoptPatcher : public TypeDeoptPatcher {
       BorrowedRef<> target_object);
 
   bool maybePatch(BorrowedRef<PyTypeObject> new_ty) override;
+  bool assumptionsStillValid() const override;
 
  private:
   void onPatch() override;
@@ -55,9 +66,11 @@ class SplitDictDeoptPatcher : public TypeDeoptPatcher {
       PyDictKeysObject* keys);
 
   bool maybePatch(BorrowedRef<PyTypeObject> new_ty) override;
+  bool assumptionsStillValid() const override;
 
  private:
   void onPatch() override;
+  bool hasOurSharedKeys(BorrowedRef<PyTypeObject> type) const;
 
   // Strong reference held by the CodeRuntime
   BorrowedRef<PyUnicodeObject> attr_name_;
