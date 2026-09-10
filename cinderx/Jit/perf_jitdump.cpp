@@ -19,10 +19,11 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <tuple>
+#include <fstream>
 
 #ifdef __x86_64__
 
@@ -49,6 +50,17 @@ namespace cinderx::jit::perf {
 
 namespace {
 
+// Size used for the JIT dump mmap() call.  Just needs to be consistent across
+// mmap()/munmap(), perf uses the mmap event rather than the mapping itself.
+constexpr size_t kJitdumpMmapSize = 1;
+
+// An entry in a perf map file.  Consists of a memory range and a symbol name.
+struct PerfMapEntry {
+  const void* addr{};
+  uint32_t size{};
+  const char* name{};
+};
+
 struct FileInfo {
   std::string filename;
   std::string filename_format;
@@ -59,7 +71,6 @@ FileInfo g_pid_map;
 
 FileInfo g_jitdump_file;
 void* g_jitdump_mmap_addr = nullptr;
-const size_t kJitdumpMmapSize = 1;
 
 // C++-friendly wrapper around strerror_r().
 std::string string_error(int errnum) {
@@ -171,6 +182,15 @@ uint64_t getTimestamp() {
 #endif
 }
 
+void* mmapJitDump(int fd) {
+  return mmap(nullptr, kJitdumpMmapSize, PROT_EXEC, MAP_PRIVATE, fd, 0);
+}
+
+bool isPerfMapFilename(std::string_view s) {
+  // TODO: Consider also checking for only decimal chars in between.
+  return s.starts_with("/tmp/perf-") && s.ends_with(".map");
+}
+
 FileInfo openFileInfo(std::string filename_format) {
   auto filename = fmt::format(fmt::runtime(filename_format), getpid());
   auto file = std::fopen(filename.c_str(), "w+");
@@ -205,8 +225,7 @@ FileInfo openJitdumpFile() {
   auto fd = fileno(info.file);
 
   // mmap() the jitdump file so perf inject can find it.
-  g_jitdump_mmap_addr =
-      mmap(nullptr, kJitdumpMmapSize, PROT_EXEC, MAP_PRIVATE, fd, 0);
+  g_jitdump_mmap_addr = mmapJitDump(fd);
   JIT_CHECK(
       g_jitdump_mmap_addr != MAP_FAILED,
       "Marker mmap of jitdump file failed: {}",
@@ -251,24 +270,21 @@ void initFiles() {
 // Parses a JIT entry and returns a tuple containing the
 // code address, code size, and entry name. An example of an entry is:
 // 7fa873c00148 360 __CINDER_JIT:__main__:foo2
-std::tuple<const void*, unsigned int, const char*> parseJitEntry(
-    const char* entry) {
-  std::string_view entry_view = entry;
-  size_t space_pos_1 = entry_view.find(' ');
+PerfMapEntry parsePerfMapEntry(std::string_view entry) {
+  size_t space_pos_1 = entry.find(' ');
 
   // Extract the hexadecimal code address
-  const char* code_addr_str = entry_view.substr(0, space_pos_1).data();
+  const char* code_addr_str = entry.substr(0, space_pos_1).data();
   unsigned long long code_addr_val = 0;
   std::from_chars(
       code_addr_str, code_addr_str + space_pos_1, code_addr_val, 16);
   const void* code_addr = reinterpret_cast<const void*>(code_addr_val);
 
   // Find the second space character
-  size_t space_pos_2 = entry_view.find(' ', space_pos_1 + 1);
+  size_t space_pos_2 = entry.find(' ', space_pos_1 + 1);
 
   // Extract the hexadecimal code size
-  const char* code_size_str =
-      entry_view.substr(space_pos_1 + 1, space_pos_2).data();
+  const char* code_size_str = entry.substr(space_pos_1 + 1, space_pos_2).data();
   uint32_t code_size = 0;
   std::from_chars(
       code_size_str,
@@ -277,9 +293,9 @@ std::tuple<const void*, unsigned int, const char*> parseJitEntry(
       16);
 
   // Extract the entry name
-  const char* entry_name = entry_view.substr(space_pos_2 + 1).data();
+  const char* entry_name = entry.substr(space_pos_2 + 1).data();
 
-  return std::make_tuple(code_addr, code_size, entry_name);
+  return PerfMapEntry{code_addr, code_size, entry_name};
 }
 
 // Copy the contents of from_name to to_name. Returns a std::FILE* at the end
@@ -317,66 +333,40 @@ std::FILE* copyFile(const std::string& from_name, const std::string& to_name) {
   }
 }
 
-// Copy the contents of the parent perf map file to the child perf map file.
-// Returns 1 on success and 0 on failure.
-int copyJitFile(const std::string& parent_filename) {
-  auto parent_file = std::fopen(parent_filename.c_str(), "r");
-  if (parent_file == nullptr) {
-    JIT_LOG(
-        "Couldn't open {} for reading ({})",
-        parent_filename,
+// Copy the contents of another perf map file to our process's perf map file.
+// Can optionally filter out any entries that aren't from the CinderX JIT.
+bool copyPerfMapEntries(const std::string& filename, bool filter_cinder) {
+  std::ifstream file{filename};
+  if (!file) {
+    JIT_DLOG(
+        "Couldn't open perf map file {} for reading ({})",
+        filename,
         string_error(errno));
-    return 0;
+    return false;
   }
 
-  char buf[1024];
-  while (std::fgets(buf, sizeof(buf), parent_file) != nullptr) {
-    buf[strcspn(buf, "\n")] = '\0';
-    auto jit_entry = parseJitEntry(buf);
-    try {
-      PyUnstable_WritePerfMapEntry(
-          std::get<0>(jit_entry),
-          std::get<1>(jit_entry),
-          std::get<2>(jit_entry));
-    } catch (const std::invalid_argument&) {
-      JIT_LOG("Error: Invalid JIT entry: {} \n", buf);
+  std::string line;
+  while (std::getline(file, line)) {
+    if (filter_cinder && line.find("__CINDER_") == std::string::npos) {
+      continue;
+    }
+
+    auto entry = parsePerfMapEntry(line);
+    int res = PyUnstable_WritePerfMapEntry(entry.addr, entry.size, entry.name);
+    if (res != 0) {
+      JIT_DLOG(
+          "Failed to copy perf map line from {} ({})",
+          filename,
+          string_error(errno));
     }
   }
-  std::fclose(parent_file);
-  return 1;
-}
 
-// Copy the JIT entries from the parent perf map file to the child perf map
-// file. This is used when perf-trampoline is enabled, as the perf map file
-// will also include trampoline entries. We only want to copy the JIT entries.
-// Returns 1 on success, and 0 on failure.
-int copyJitEntries(const std::string& parent_filename) {
-  auto parent_file = std::fopen(parent_filename.c_str(), "r");
-  if (parent_file == nullptr) {
-    JIT_LOG(
-        "Couldn't open {} for reading ({})",
-        parent_filename,
-        string_error(errno));
-    return 0;
+  if (!file.eof()) {
+    JIT_DLOG("Failed to copy all perf map entries from {}", filename);
+    return false;
   }
 
-  char buf[1024];
-  while (std::fgets(buf, sizeof(buf), parent_file) != nullptr) {
-    if (std::strstr(buf, "__CINDER_") != nullptr) {
-      buf[strcspn(buf, "\n")] = '\0';
-      auto jit_entry = parseJitEntry(buf);
-      try {
-        PyUnstable_WritePerfMapEntry(
-            std::get<0>(jit_entry),
-            std::get<1>(jit_entry),
-            std::get<2>(jit_entry));
-      } catch (const std::invalid_argument&) {
-        JIT_LOG("Error: Invalid JIT entry: {} \n", buf);
-      }
-    }
-  }
-  std::fclose(parent_file);
-  return 1;
+  return true;
 }
 
 bool isPerfTrampolineActive() {
@@ -398,61 +388,60 @@ void copyFileInfo(FileInfo& info) {
       fmt::format(fmt::runtime(info.filename_format), getpid());
   info = {};
 
-  if (parent_filename.starts_with("/tmp/perf-") &&
-      parent_filename.ends_with(".map") && isPreforkCompilationEnabled()) {
-    JIT_LOG(
-        "File {} has already been copied to {} by the perf trampoline, "
-        "skipping copy.",
-        parent_filename,
-        child_filename);
-    return;
-  } else if (
-      parent_filename.starts_with("/tmp/perf-") &&
-      parent_filename.ends_with(".map") && isPerfTrampolineActive()) {
-    if (!copyJitEntries(parent_filename)) {
+  if (isPerfMapFilename(parent_filename)) {
+    if (isPreforkCompilationEnabled()) {
       JIT_LOG(
-          "Failed to copy JIT entries from {} to {}",
+          "File {} has already been copied to {} by the perf trampoline, "
+          "skipping copy.",
           parent_filename,
           child_filename);
-    }
-  } else if (
-      parent_filename.starts_with("/tmp/perf-") &&
-      parent_filename.ends_with(".map") && isJitUsable()) {
-    // The JIT is still enabled: copy the file to allow for more compilation
-    // in this process.
-    if (!copyJitFile(parent_filename)) {
-      JIT_LOG(
-          "Failed to copy perf map file from {} to {}",
-          parent_filename,
-          child_filename);
-    }
-  } else {
-    unlink(child_filename.c_str());
-    if (isJitUsable()) {
+      return;
+    } else if (isPerfTrampolineActive()) {
+      if (!copyPerfMapEntries(parent_filename, true /* filter_cinder */)) {
+        JIT_LOG(
+            "Failed to copy JIT entries from {} to {}",
+            parent_filename,
+            child_filename);
+      }
+      return;
+    } else if (isJitUsable()) {
       // The JIT is still enabled: copy the file to allow for more compilation
       // in this process.
-      if (auto new_pid_map = copyFile(parent_filename, child_filename)) {
-        info.filename = child_filename;
-        info.file = new_pid_map;
-      }
-    } else {
-      // The JIT has been disabled: hard link the file to save disk space. Don't
-      // open it in this process, to avoid messing with the parent's file.
-      if (::link(parent_filename.c_str(), child_filename.c_str()) != 0) {
+      if (!copyPerfMapEntries(parent_filename, false /* filter_cinder */)) {
         JIT_LOG(
-            "Failed to link {} to {}: {}",
-            child_filename,
+            "Failed to copy perf map file from {} to {}",
             parent_filename,
-            string_error(errno));
-      } else {
-        // Poke the file's atime to keep tmpwatch at bay.
-        std::FILE* file = std::fopen(parent_filename.c_str(), "r");
-        if (file != nullptr) {
-          std::fclose(file);
-        }
+            child_filename);
       }
-      info.file = nullptr;
-      info.filename = "";
+      return;
+    }
+
+    // Fall through to the hard link case otherwise.
+  }
+
+  unlink(child_filename.c_str());
+  if (isJitUsable()) {
+    // The JIT is still enabled: copy the file to allow for more compilation
+    // in this process.
+    if (auto new_pid_map = copyFile(parent_filename, child_filename)) {
+      info.filename = child_filename;
+      info.file = new_pid_map;
+    }
+  } else {
+    // The JIT has been disabled: hard link the file to save disk space. Don't
+    // open it in this process, to avoid messing with the parent's file.
+    if (::link(parent_filename.c_str(), child_filename.c_str()) != 0) {
+      JIT_LOG(
+          "Failed to link {} to {}: {}",
+          child_filename,
+          parent_filename,
+          string_error(errno));
+    } else {
+      // Poke the file's atime to keep tmpwatch at bay.
+      std::FILE* file = std::fopen(parent_filename.c_str(), "r");
+      if (file != nullptr) {
+        std::fclose(file);
+      }
     }
   }
 }
@@ -471,13 +460,7 @@ void copyJitdumpFile() {
     return;
   }
 
-  g_jitdump_mmap_addr = mmap(
-      nullptr,
-      kJitdumpMmapSize,
-      PROT_EXEC,
-      MAP_PRIVATE,
-      fileno(g_jitdump_file.file),
-      0);
+  g_jitdump_mmap_addr = mmapJitDump(fileno(g_jitdump_file.file));
 }
 
 } // namespace
