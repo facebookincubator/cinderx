@@ -328,7 +328,9 @@ void LIRInliner::resolveReturnValue() {
   auto phi_instr = epilogue->allocateInstr(Opcode::kPhi, nullptr, OutVReg());
 
   // Find return instructions from predecessor of epilogue.
-  for (auto pred : epilogue->predecessors()) {
+  for (size_t index = 0; index < epilogue->numPredecessors(); ++index) {
+    IncomingEdge incoming_edge = epilogue->incomingEdge(index);
+    BasicBlock* pred = incoming_edge.predecessor();
     auto lastInstr = pred->getLastInstr();
     if (lastInstr != nullptr && lastInstr->isReturn()) {
       auto retIter = pred->getLastInstrIter();
@@ -342,8 +344,7 @@ void LIRInliner::resolveReturnValue() {
           "Expected Move before Return, got {}",
           *moveInstr);
 
-      phi_instr->allocateLabelInput(pred);
-      phi_instr->appendInput(moveInstr->releaseInput(0));
+      phi_instr->addPhiInput(incoming_edge, moveInstr->releaseInput(0));
 
       pred->removeInstr(retIter);
       pred->removeInstr(moveIter);

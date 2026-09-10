@@ -112,85 +112,156 @@ BB %2
       "Call output consumed by multiple LoadSecondCallResult instructions");
 }
 
-TEST_F(LIRPostGenerationRewriteTest, RewritesLoadSecondCallResultThroughPhis) {
+TEST_F(LIRPostGenerationRewriteTest, MovesLoadSecondCallResultIntoPhiBlock) {
   const char* lir_input_str = R"(Function:
-BB %0
+BB %0 - succs: %1 %2
   %10 = Call 0
   CondBranch %10, BB%1, BB%2
+BB %1 - succs: %3
+  %11 = Call 0
+  Branch BB%3
+BB %2 - succs: %3
+  %12 = Call 0
+  Branch BB%3
+BB %3 - succs: %4
+  %13 = Phi BB%1, %11, BB%2, %12
+  Branch BB%4
+BB %4
+  %14:32bit = LoadSecondCallResult %13
+  Return %14
+)";
+
+  auto function = runPostGenRewrite(lir_input_str);
+  Instruction* source_phi = nullptr;
+  Instruction* rewritten = nullptr;
+  for (BasicBlock* block : function->basicBlocks()) {
+    for (auto& instruction : block->instructions()) {
+      if (instruction->id() == 13) {
+        source_phi = instruction.get();
+      } else if (instruction->id() == 14) {
+        rewritten = instruction.get();
+      }
+    }
+  }
+
+  ASSERT_NE(source_phi, nullptr);
+  ASSERT_NE(rewritten, nullptr);
+  EXPECT_TRUE(rewritten->isPhi());
+  EXPECT_EQ(rewritten->basicBlock(), source_phi->basicBlock());
+  EXPECT_EQ(rewritten->output()->dataType(), DataType::k32bit);
+  EXPECT_EQ(rewritten->numPhiInputs(), 2);
+  EXPECT_NE(rewritten->phiInput(0), nullptr);
+  EXPECT_NE(rewritten->phiInput(1), nullptr);
+}
+
+TEST_F(
+    LIRPostGenerationRewriteTest,
+    MovesLoadSecondCallResultThroughDuplicateEdges) {
+  const char* lir_input_str = R"(Function:
+BB %0 - succs: %1 %1
+  %10 = Call 0
+  CondBranch %10, BB%1, BB%1
 BB %1
+  %11 = Phi BB%0, %10, BB%0, %10
+  %12:32bit = LoadSecondCallResult %11
+  Return %12
+)";
+
+  auto function = runPostGenRewrite(lir_input_str);
+  Instruction* rewritten = nullptr;
+  for (BasicBlock* block : function->basicBlocks()) {
+    for (auto& instruction : block->instructions()) {
+      if (instruction->id() == 12) {
+        rewritten = instruction.get();
+      }
+    }
+  }
+
+  ASSERT_NE(rewritten, nullptr);
+  EXPECT_TRUE(rewritten->isPhi());
+  EXPECT_EQ(rewritten->numPhiInputs(), 2);
+  EXPECT_EQ(rewritten->phiPredecessor(0), rewritten->phiPredecessor(1));
+}
+
+TEST_F(LIRPostGenerationRewriteTest, RewritesLoadSecondCallResultThroughPhis) {
+  const char* lir_input_str = R"(Function:
+BB %0 - succs: %1 %2
+  %10 = Call 0
+  CondBranch %10, BB%1, BB%2
+BB %1 - succs: %3 %4
   %11 = Call 0
   CondBranch %11, BB%3, BB%4
-BB %2
+BB %2 - succs: %20 %21
   %12 = Call 0
   CondBranch %12, BB%20, BB%21
-BB %20
+BB %20 - succs: %22
   %120 = Call 0
   Branch BB%22
-BB %21
+BB %21 - succs: %22
   %121 = Call 0
   Branch BB%22
-BB %22
+BB %22 - succs: %5
   %122 = Phi BB%20, %120, BB%21, %121
   Branch BB%5
-BB %3
+BB %3 - succs: %5
   Call 0
   Branch BB%5
-BB %4
+BB %4 - succs: %5
   Call 0
   Branch BB%5
-BB %5
+BB %5 - succs: %6
   %13 = Phi BB%22, %122, BB%3, %11, BB%4, %11, BB%6, %13
   %14:32bit = LoadSecondCallResult %13
   Branch BB%6
-BB %6
+BB %6 - succs: %5
   Call 0
   Branch BB%5
 )";
 
   std::string expected_lir_str = fmt::format(
       R"(Function:
-BB %0
+BB %0 - succs: %1 %2
       %10:Object = Call 0(0x0):64bit
                    CondBranch %10:Object, BB%1, BB%2
 
-BB %1
+BB %1 - preds: %0 - succs: %3 %4
       %11:Object = Call 0(0x0):64bit
       %139:32bit = Move {0}:32bit
                    CondBranch %11:Object, BB%3, BB%4
 
-BB %2
+BB %2 - preds: %0 - succs: %20 %21
       %12:Object = Call 0(0x0):64bit
                    CondBranch %12:Object, BB%20, BB%21
 
-BB %20
+BB %20 - preds: %2 - succs: %22
      %120:Object = Call 0(0x0):64bit
       %137:32bit = Move {0}:32bit
                    Branch BB%22
 
-BB %21
+BB %21 - preds: %2 - succs: %22
      %121:Object = Call 0(0x0):64bit
       %138:32bit = Move {0}:32bit
                    Branch BB%22
 
-BB %22
+BB %22 - preds: %20 %21 - succs: %5
      %122:Object = Phi (BB%20, %120:Object), (BB%21, %121:Object)
       %136:32bit = Phi (BB%20, %137:32bit), (BB%21, %138:32bit)
                    Branch BB%5
 
-BB %3
+BB %3 - preds: %1 - succs: %5
                    Call 0(0x0):64bit
                    Branch BB%5
 
-BB %4
+BB %4 - preds: %1 - succs: %5
                    Call 0(0x0):64bit
                    Branch BB%5
 
-BB %5
+BB %5 - preds: %3 %4 %6 %22 - succs: %6
       %13:Object = Phi (BB%22, %122:Object), (BB%3, %11:Object), (BB%4, %11:Object), (BB%6, %13:Object)
-       %14:32bit = Phi (BB%22, %136:32bit), (BB%3, %139:32bit), (BB%4, %139:32bit), (BB%6, %14:32bit)
+       %14:32bit = Phi (BB%3, %139:32bit), (BB%4, %139:32bit), (BB%6, %14:32bit), (BB%22, %136:32bit)
                    Branch BB%6
 
-BB %6
+BB %6 - preds: %5 - succs: %5
                    Call 0(0x0):64bit
                    Branch BB%5
 

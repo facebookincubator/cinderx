@@ -377,6 +377,7 @@ Instruction* getSecondCallResult(
     auto instr_it = instr_block->iterator_to(instr);
     auto instr_owner = instr_block->removeInstr(instr_it);
     src_block->instructions().insert(std::next(src_it), std::move(instr_owner));
+    instr->setBasicBlock(src_block);
     instr->setNumInputs(0);
   }
 
@@ -408,12 +409,25 @@ void populateLoadSecondCallResultPhi(
     Instruction* phi1,
     Instruction* phi2,
     UnorderedMap<Operand*, Instruction*>& seen_srcs) {
-  for (size_t i = 1; i < phi1->getNumInputs(); i += 2) {
-    Operand* src1 = phi1->getInput(i)->getDefine();
+  BasicBlock* block = phi2->basicBlock();
+  UnorderedMap<BasicBlock*, size_t> next_incoming_slots;
+  for (size_t index = 0; index < phi1->numPhiInputs(); ++index) {
+    Operand* src1 = phi1->phiInput(index)->getDefine();
     Instruction* instr2 =
         getSecondCallResult(data_type, src1, nullptr, seen_srcs);
-    phi2->addOperands(
-        Lbl(phi1->getInput(i - 1)->getBasicBlock()), VReg(instr2));
+    BasicBlock* predecessor = phi1->phiPredecessor(index);
+    size_t& incoming_slot = next_incoming_slots[predecessor];
+    while (incoming_slot < block->numPredecessors() &&
+           block->predecessor(incoming_slot) != predecessor) {
+      ++incoming_slot;
+    }
+    JIT_CHECK(
+        incoming_slot < block->numPredecessors(),
+        "Phi predecessor block {} has no matching edge to block {}",
+        predecessor->id(),
+        block->id());
+    phi2->addPhiInput(block->incomingEdge(incoming_slot), instr2);
+    ++incoming_slot;
   }
 }
 

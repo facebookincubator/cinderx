@@ -114,19 +114,21 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
   auto bb2 = caller.allocateBasicBlock();
   auto epilogue = caller.allocateBasicBlock();
   auto r1 = bb1->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(1));
-  bb1->allocateInstr(
+  auto return_move_1 = bb1->allocateInstr(
       Opcode::kMove,
       nullptr,
       OutPhyReg{codegen::arch::reg_general_return_loc},
       VReg(r1));
+  Operand* return_input_1 = return_move_1->getInput(0);
   bb1->allocateInstr(Opcode::kReturn, nullptr);
   bb1->addSuccessor(epilogue);
   auto r2 = bb2->allocateInstr(Opcode::kMove, nullptr, OutVReg(), Imm(2));
-  bb2->allocateInstr(
+  auto return_move_2 = bb2->allocateInstr(
       Opcode::kMove,
       nullptr,
       OutPhyReg{codegen::arch::reg_general_return_loc},
       VReg(r2));
+  Operand* return_input_2 = return_move_2->getInput(0);
   bb2->allocateInstr(Opcode::kReturn, nullptr);
   bb2->addSuccessor(epilogue);
 
@@ -134,6 +136,13 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
   inliner.callee_start_ = 1;
   inliner.callee_end_ = 4;
   inliner.resolveReturnValue();
+
+  Instruction* phi = epilogue->getLastInstr();
+  ASSERT_TRUE(phi->isPhi());
+  EXPECT_EQ(phi->phiInput(0), return_input_1);
+  EXPECT_EQ(phi->phiInput(1), return_input_2);
+  EXPECT_EQ(return_input_1->instr(), phi);
+  EXPECT_EQ(return_input_2->instr(), phi);
 
   auto lir_expected = fmt::format(R"(Function:
 BB %0
