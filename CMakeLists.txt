@@ -13,6 +13,7 @@ option(ENABLE_PGO_USE "Build with PGO profile use" OFF)
 set(PGO_PROFILE_FILE "" CACHE STRING "Path to PGO profile data")
 
 option(BUILD_RUNTIME_TESTS "Build the cinderx/RuntimeTests C++ GoogleTest binary" OFF)
+option(ENABLE_TSAN "Build with ThreadSanitizer instrumentation" OFF)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
@@ -67,6 +68,19 @@ set_flag(ENABLE_ZLIB)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS} ${SHARED_FLAGS}")
+
+if (ENABLE_TSAN OR "$ENV{ENABLE_TSAN}")
+  if (WINDOWS)
+    message(FATAL_ERROR "ThreadSanitizer is not supported on Windows")
+  endif()
+  message(STATUS "ThreadSanitizer (TSAN): Enabled")
+  set(TSAN_FLAGS "-fsanitize=thread -fno-omit-frame-pointer")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${TSAN_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TSAN_FLAGS}")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${TSAN_FLAGS}")
+  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${TSAN_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${TSAN_FLAGS}")
+endif()
 
 ##############################################################################
 # Apply LTO (Link-Time Optimization) if enabled
