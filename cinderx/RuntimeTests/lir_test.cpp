@@ -124,6 +124,28 @@ void expectIncomingEdge(
   EXPECT_EQ(edge.incomingSlot(), incoming_slot);
 }
 
+Instruction* findPhiWithInputCount(Function* function, size_t input_count) {
+  for (BasicBlock* block : function->basicBlocks()) {
+    for (auto& instruction : block->instructions()) {
+      if (instruction->isPhi() && instruction->numPhiInputs() == input_count) {
+        return instruction.get();
+      }
+    }
+  }
+  return nullptr;
+}
+
+void expectPhiInputsFollowPredecessors(Instruction* phi) {
+  ASSERT_NE(phi, nullptr);
+  BasicBlock* block = phi->basicBlock();
+  ASSERT_EQ(phi->numPhiInputs(), block->numPredecessors());
+  for (size_t index = 0; index < phi->numPhiInputs(); ++index) {
+    ASSERT_NE(phi->getInput(index * 2), nullptr);
+    EXPECT_EQ(phi->phiPredecessor(index), block->predecessor(index));
+    EXPECT_NE(phi->phiInput(index), nullptr);
+  }
+}
+
 } // namespace
 
 TEST(LIRBlockTest, AddSuccessorUpdatesEdges) {
@@ -615,6 +637,96 @@ class LIRGeneratorTest : public RuntimeTest {
   std::vector<std::unique_ptr<CodeRuntime>> runtimes_;
 };
 
+TEST_F(LIRGeneratorTest, GeneratedPhiInputsFollowPredecessors) {
+  const char* src = R"(
+def func(x):
+  value = 10
+  if x:
+    value = 20
+  return value
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  expectPhiInputsFollowPredecessors(findPhiWithInputCount(lir_func.get(), 2));
+}
+
+TEST_F(LIRGeneratorTest, GeneratedPhiCoversDuplicateIncomingEdges) {
+  const char* hir = R"(
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadConst<NoneType>
+    CondBranch<1, 1> v0
+  }
+
+  bb 1 {
+    v2 = Phi<0> v1
+    Return v2
+  }
+}
+)";
+
+  std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.parseHIR(hir);
+  ASSERT_NE(irfunc, nullptr);
+
+  codegen::Environ env;
+  env.ctx = getContext();
+  LIRGenerator lir_gen(irfunc.get(), &env);
+  auto lir_func = lir_gen.translateFunction();
+
+  Instruction* phi = findPhiWithInputCount(lir_func.get(), 2);
+  ASSERT_NE(phi, nullptr);
+  expectPhiInputsFollowPredecessors(phi);
+  EXPECT_EQ(phi->phiPredecessor(0), phi->phiPredecessor(1));
+  ASSERT_TRUE(phi->phiInput(0)->isLinked());
+  ASSERT_TRUE(phi->phiInput(1)->isLinked());
+  EXPECT_EQ(
+      phi->phiInput(0)->getLinkedInstr(), phi->phiInput(1)->getLinkedInstr());
+}
+
+TEST_F(LIRGeneratorTest, GeneratedPhiRejectsDuplicateHIRPredecessors) {
+  const char* hir = R"(
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadConst<NoneType>
+    CondBranch<1, 1> v0
+  }
+
+  bb 1 {
+    v2 = Phi<0, 0> v1 v1
+    Return v2
+  }
+}
+)";
+
+  std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.parseHIR(hir);
+  ASSERT_NE(irfunc, nullptr);
+
+  codegen::Environ env;
+  env.ctx = getContext();
+  LIRGenerator lir_gen(irfunc.get(), &env);
+  EXPECT_THROW(lir_gen.translateFunction(), std::runtime_error);
+}
+
+TEST_F(LIRGeneratorTest, GeneratorExitPhiInputsFollowPredecessors) {
+  const char* src = R"(
+def func():
+  yield 1
+  yield 2
+  return 3
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  expectPhiInputsFollowPredecessors(findPhiWithInputCount(lir_func.get(), 4));
+}
+
 TEST_F(LIRGeneratorTest, StaticLoadInteger) {
   const char* pycode = R"(
 from __static__ import int64
@@ -876,10 +988,42 @@ def func(x):
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
-  std::stringstream ss;
+  std::stringstream first_print;
   parsed_func->sortBasicBlocks();
-  ss << *parsed_func;
-  ASSERT_EQ(lir_str, removeCommentsAndWhitespace(ss.str()));
+  first_print << *parsed_func;
+  ASSERT_EQ(lir_str, removeCommentsAndWhitespace(first_print.str()));
+
+  auto reparsed_func = Parser().parse(first_print.str());
+  std::stringstream second_print;
+  reparsed_func->sortBasicBlocks();
+  second_print << *reparsed_func;
+  ASSERT_EQ(
+      removeCommentsAndWhitespace(first_print.str()),
+      removeCommentsAndWhitespace(second_print.str()));
+}
+
+TEST_F(LIRGeneratorTest, ParserCanBeReused) {
+  const char* lir_str = R"(Function:
+BB %0
+                   Return 0(0x0):Object
+
+)";
+
+  Parser parser;
+  auto first = parser.parse(lir_str);
+  auto second = parser.parse(lir_str);
+  ASSERT_EQ(first->basicBlocks().size(), 1);
+  ASSERT_EQ(second->basicBlocks().size(), 1);
+}
+
+TEST_F(LIRGeneratorTest, ParserRejectsParenthesizedNonPhiInput) {
+  EXPECT_THROW(
+      Parser().parse(R"(Function:
+BB %0
+       %1:Object = Move (BB%0, 0(0x0):Object)
+
+)"),
+      ParserException);
 }
 
 TEST_F(LIRGeneratorTest, ParserSectionTest) {

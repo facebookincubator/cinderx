@@ -88,7 +88,14 @@ class Parser {
   void parseIndirect(Operand* opnd, std::string_view token, const char* code);
   void fixOperands();
   void connectBasicBlocks();
+  void installPhiInputs();
   void fixUnknownIds();
+
+  struct PendingPhiInput {
+    Instruction* phi{nullptr};
+    int predecessor_id{0};
+    std::unique_ptr<Operand> value;
+  };
 
   // current function, basic block and instruction
   Function* func_{nullptr};
@@ -107,6 +114,8 @@ class Parser {
   // succesors that need to be linked
   // Note - the order of pairs matters for conditional branching
   std::vector<std::pair<BasicBlock*, int>> basic_block_succs_;
+  std::vector<IncomingEdge> incoming_edges_;
+  std::vector<PendingPhiInput> pending_phi_inputs_;
 };
 
 } // namespace cinderx::jit::lir

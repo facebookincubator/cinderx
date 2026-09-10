@@ -1388,7 +1388,7 @@ void LIRGenerator::generateExitBlocks() {
 
   // Create the shared epilogue block for generators.
   exit_epilogue_ = lir_func_->allocateBasicBlock();
-  block->addSuccessor(exit_epilogue_);
+  exit_epilogue_edge_ = block->addSuccessor(exit_epilogue_);
 
   // Phi merging return values (from exit_block_) and yield values.
   epilogue_phi_ = exit_epilogue_->allocateInstr(
@@ -1487,6 +1487,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
 #endif
 
   UnorderedMap<const hir::BasicBlock*, TranslatedBlock> bb_map;
+  IncomingEdgesByPredecessor incoming_edges;
   std::vector<const hir::BasicBlock*> translated;
   auto translate_block = [&](const hir::BasicBlock* hir_bb) {
 #if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
@@ -1534,7 +1535,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
       case hir::Opcode::kBranch: {
         auto branch = &hir_term->as<Branch>();
         auto target_lir_bb = bb_map[branch->target()].first;
-        last_bb->addSuccessor(target_lir_bb);
+        incoming_edges[hir_bb].push_back(last_bb->addSuccessor(target_lir_bb));
         break;
       }
       case hir::Opcode::kCondBranch:
@@ -1543,17 +1544,18 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
         auto condbranch = &hir_term->as<CondBranchBase>();
         auto target_lir_true_bb = bb_map[condbranch->true_bb()].first;
         auto target_lir_false_bb = bb_map[condbranch->false_bb()].first;
-        last_bb->addSuccessor(target_lir_true_bb);
-        last_bb->addSuccessor(target_lir_false_bb);
+        auto& incoming_edge = incoming_edges[hir_bb];
+        incoming_edge.push_back(last_bb->addSuccessor(target_lir_true_bb));
+        incoming_edge.push_back(last_bb->addSuccessor(target_lir_false_bb));
         last_bb->getLastInstr()->allocateLabelInput(target_lir_true_bb);
         last_bb->getLastInstr()->allocateLabelInput(target_lir_false_bb);
         break;
       }
       case hir::Opcode::kReturn: {
-        last_bb->addSuccessor(exit_block_);
+        IncomingEdge incoming_edge = last_bb->addSuccessor(exit_block_);
         auto* ret = &hir_term->as<Return>();
-        return_edges_.push_back(
-            {last_bb, phi_bbb.getDefInstr(ret->getOperand(0))});
+        return_edges_.emplace_back(
+            last_bb, phi_bbb.getDefInstr(ret->getOperand(0)), incoming_edge);
         break;
       }
       default:
@@ -1562,15 +1564,19 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
   }
 
   // Wire up exit phis.
-  auto addPhiInput = [&](Instruction* phi, const ExitEdge& edge) {
-    phi->allocateLabelInput(edge.block);
-    phi->allocateLinkedInput(edge.value);
+  auto addExitPhiInput = [&](Instruction* phi, const ExitEdge& edge) {
+    JIT_THROW_IF(
+        !edge.incoming_edge.has_value(),
+        "Exit edge from block {} is not connected",
+        edge.block->id());
+
+    phi->addPhiInput(*edge.incoming_edge, edge.value);
   };
 
   // Connect yield exit blocks to the epilogue.
   BasicBlock* yield_target = exit_epilogue_ ? exit_epilogue_ : exit_block_;
   for (auto& edge : yield_exit_edges_) {
-    edge.block->addSuccessor(yield_target);
+    edge.incoming_edge = edge.block->addSuccessor(yield_target);
   }
 
   // Add resume blocks as phantom successors of their yield blocks.
@@ -1587,25 +1593,26 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
   // Populate exit_block_ phi with return values (and yield values if no
   // epilogue).
   for (auto& edge : return_edges_) {
-    addPhiInput(exit_phi_, edge);
+    addExitPhiInput(exit_phi_, edge);
   }
   if (epilogue_phi_ == nullptr) {
     for (auto& edge : yield_exit_edges_) {
-      addPhiInput(exit_phi_, edge);
+      addExitPhiInput(exit_phi_, edge);
     }
   }
 
   // For generators, populate exit_epilogue_ phi with values from both
   // the return path (exit_block_) and yield exit blocks.
   if (epilogue_phi_ != nullptr) {
-    epilogue_phi_->allocateLabelInput(exit_block_);
-    epilogue_phi_->allocateLinkedInput(exit_phi_);
+    JIT_CHECK(
+        exit_epilogue_edge_.has_value(), "Exit epilogue edge is not connected");
+    epilogue_phi_->addPhiInput(*exit_epilogue_edge_, exit_phi_);
     for (auto& edge : yield_exit_edges_) {
-      addPhiInput(epilogue_phi_, edge);
+      addExitPhiInput(epilogue_phi_, edge);
     }
   }
 
-  resolvePhiOperands(bb_map);
+  resolvePhiOperands(bb_map, incoming_edges);
 
   // For generators, create a placeholder resume entry block. This block
   // dispatches to resume targets via indirect jump (populated post-regalloc
@@ -5457,19 +5464,53 @@ void LIRGenerator::updateDeoptIndex(
 #endif
 
 void LIRGenerator::resolvePhiOperands(
-    UnorderedMap<const hir::BasicBlock*, TranslatedBlock>& bb_map) {
+    const UnorderedMap<const hir::BasicBlock*, TranslatedBlock>& bb_map,
+    const IncomingEdgesByPredecessor& incoming_edges) {
   // This is creating a different builder than the first pass, but that's okay
   // because the state is really in `env_` which is unchanged.
   BasicBlockBuilder bbb{env_, lir_func_};
 
-  for (auto& block : basic_blocks_) {
+  for (BasicBlock* block : basic_blocks_) {
     block->foreachPhiInstr([&](Instruction* instr) {
-      auto hir_instr = &instr->origin()->as<Phi>();
+      const auto* hir_instr = &instr->origin()->as<Phi>();
+      const auto* hir_bb = hir_instr->block();
+      const auto& translated = bb_map.at(hir_bb);
+      JIT_THROW_IF(
+          block != translated.first,
+          "Phi for HIR block {} was emitted in LIR block {} instead of its "
+          "entry block {}",
+          hir_bb->id,
+          block->id(),
+          translated.first->id());
+      UnorderedSet<const hir::BasicBlock*> resolved_predecessors;
       for (size_t i = 0; i < hir_instr->numOperands(); ++i) {
-        hir::BasicBlock* hir_block = hir_instr->basicBlocks().at(i);
-        hir::Register* hir_value = hir_instr->getOperand(i);
-        instr->allocateLabelInput(bb_map.at(hir_block).last);
-        instr->allocateLinkedInput(bbb.getDefInstr(hir_value));
+        const auto* hir_predecessor = hir_instr->basicBlocks().at(i);
+        const auto* hir_value = hir_instr->getOperand(i);
+        const bool inserted =
+            resolved_predecessors.insert(hir_predecessor).second;
+        JIT_THROW_IF(
+            !inserted,
+            "Phi for HIR block {} has duplicate inputs for predecessor block "
+            "{}",
+            hir_bb->id,
+            hir_predecessor->id);
+        JIT_THROW_IF(
+            !incoming_edges.contains(hir_predecessor),
+            "No translated LIR edges recorded for HIR predecessor block {}",
+            hir_predecessor->id);
+        bool found_edge = false;
+        for (const IncomingEdge& edge : incoming_edges.at(hir_predecessor)) {
+          if (edge.successor() == translated.first) {
+            instr->addPhiInput(edge, bbb.getDefInstr(hir_value));
+            found_edge = true;
+          }
+        }
+        JIT_THROW_IF(
+            !found_edge,
+            "No translated LIR edge from HIR predecessor block {} to HIR "
+            "block {}",
+            hir_predecessor->id,
+            hir_bb->id);
       }
     });
   }

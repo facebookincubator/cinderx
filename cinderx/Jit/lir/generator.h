@@ -12,6 +12,7 @@
 #include "cinderx/Jit/lir/function.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 
@@ -67,14 +68,15 @@ class LIRGenerator {
     BasicBlock* last;
   };
 
-  // Tracks a block that exits to the epilogue, along with the value.
-  // For returns: value is the HIR register (resolved via output_map).
-  // For yields: value is the LIR instruction that defines the yield value.
+  using IncomingEdgesByPredecessor =
+      UnorderedMap<const hir::BasicBlock*, std::vector<IncomingEdge>>;
+
+  // Tracks a block that exits to the epilogue and the value it supplies.
   struct ExitEdge {
-    BasicBlock* block;
-    // Either an HIR register (for returns) or a defining LIR instruction
-    // (for yields where the value may be a kBind with no HIR equivalent).
-    Instruction* value;
+    BasicBlock* block{};
+    Instruction* value{};
+    // Records which predecessor owns the value coming through this edge.
+    std::optional<IncomingEdge> incoming_edge{};
   };
 
   const jit::hir::Function* func_{nullptr};
@@ -97,6 +99,7 @@ class LIRGenerator {
   // For non-generators: set when inline frame-unlink code creates additional
   // blocks, so the block sorter uses the correct exit block.
   BasicBlock* exit_epilogue_{nullptr};
+  std::optional<IncomingEdge> exit_epilogue_edge_;
 
   // Phi instruction in exit_block_ for merging return values.
   Instruction* exit_phi_{nullptr};
@@ -315,7 +318,8 @@ class LIRGenerator {
   // Fill in operands for phi instructions.  This is executed after LIR
   // instructions have been generated for all values in the control flow graph.
   void resolvePhiOperands(
-      UnorderedMap<const hir::BasicBlock*, TranslatedBlock>& bb_map);
+      const UnorderedMap<const hir::BasicBlock*, TranslatedBlock>& bb_map,
+      const IncomingEdgesByPredecessor& incoming_edges);
 
   CurrentFrameAccessor makeCurrentFrameAccessor(BasicBlockBuilder& bbb);
 

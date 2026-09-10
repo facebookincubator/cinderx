@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <limits>
 #include <regex>
 #include <string>
 #include <utility>
@@ -119,6 +120,17 @@ static auto& map_get_throw(
 }
 
 std::unique_ptr<Function> Parser::parse(const std::string& code) {
+  func_ = nullptr;
+  block_ = nullptr;
+  instr_ = nullptr;
+  block_index_map_.clear();
+  output_index_map_.clear();
+  basic_block_refs_.clear();
+  instr_refs_.clear();
+  basic_block_succs_.clear();
+  incoming_edges_.clear();
+  pending_phi_inputs_.clear();
+
   enum {
     FUNCTION,
     BASIC_BLOCK,
@@ -140,6 +152,7 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
   const char* codestr = code.c_str();
   const char* cur = codestr;
   const char* end = codestr + code.size();
+  int phi_predecessor_id = -1;
 
   while (cur != end) {
     auto token = getNextToken(cur);
@@ -250,6 +263,7 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
             break;
           }
           if (type == kParLeft) {
+            expect(instr_->isPhi(), cur, "Only phi inputs can be pairs.");
             state = PHI_INPUT_FIRST;
           } else {
             parseInput(token, cur);
@@ -290,7 +304,11 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
         case PHI_INPUT_FIRST: {
           // first argument of phi input pairs - basic block id
           expect(type == kBasicBlockRef, cur, "Expect a basic block id.");
-          parseInput(token, cur);
+          expect(
+              token.data <= std::numeric_limits<int>::max(),
+              cur,
+              "Basic block id is out of range.");
+          phi_predecessor_id = static_cast<int>(token.data);
           state = PHI_INPUT_COMMA;
           break;
         }
@@ -327,6 +345,13 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
         case PHI_INPUT_PAR: {
           // expect a right parenthesis
           expect(type == kParRight, cur, "Expect a right parenthesis");
+          expect(
+              instr_->getNumInputs() == 1,
+              cur,
+              "Expect one pending phi input value.");
+          pending_phi_inputs_.push_back(
+              PendingPhiInput{
+                  instr_, phi_predecessor_id, instr_->removeInput(0)});
           state = INSTR_INPUT_COMMA;
           break;
         }
@@ -344,6 +369,7 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
 
   fixOperands();
   connectBasicBlocks();
+  installPhiInputs();
   fixUnknownIds();
 
   return func;
@@ -572,14 +598,49 @@ void Parser::fixOperands() {
 }
 
 void Parser::connectBasicBlocks() {
-  // Note - Order of successors matters.
-  // It depends on the order in which we add pairs to basic_block_succs_
+  // The printer orders predecessors by block ID. Recreate incoming edges in
+  // that order while preserving the successor order within each source block.
+  std::stable_sort(
+      basic_block_succs_.begin(),
+      basic_block_succs_.end(),
+      [](const auto& left, const auto& right) {
+        return left.first->id() < right.first->id();
+      });
   for (auto& succ_pair : basic_block_succs_) {
     BasicBlock* source_block = succ_pair.first;
     int dest_block_id = succ_pair.second;
-    source_block->addSuccessor(
+    incoming_edges_.push_back(source_block->addSuccessor(
         map_get_throw<ParserException>(
-            block_index_map_, dest_block_id, "Block id {}", dest_block_id));
+            block_index_map_, dest_block_id, "Block id {}", dest_block_id)));
+  }
+}
+
+void Parser::installPhiInputs() {
+  for (auto& pending : pending_phi_inputs_) {
+    BasicBlock* const predecessor = map_get_throw<ParserException>(
+        block_index_map_,
+        pending.predecessor_id,
+        "Block id {}",
+        pending.predecessor_id);
+    BasicBlock* const successor = pending.phi->basicBlock();
+    const auto edge = std::find_if(
+        incoming_edges_.begin(),
+        incoming_edges_.end(),
+        [predecessor, successor, phi = pending.phi](
+            const IncomingEdge& candidate) {
+          return candidate.predecessor() == predecessor &&
+              candidate.successor() == successor &&
+              (phi->getNumInputs() == 0 ||
+               phi->phiInput(candidate.incomingSlot()) == nullptr);
+        });
+    if (edge == incoming_edges_.end()) {
+      throw ParserException(
+          fmt::format(
+              "Unable to parse - no unfilled edge from BB%{} to BB%{}",
+              pending.predecessor_id,
+              successor->id()));
+    }
+    pending.phi->addPhiInput(*edge, std::move(pending.value));
   }
 }
 
