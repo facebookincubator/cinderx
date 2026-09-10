@@ -3407,6 +3407,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       translateRet(env);
       return;
     case Opcode::kNop:
+    case Opcode::kVectorCall:
     case Opcode::kVectorCallTstate:
     case Opcode::kVarArgCall:
     case Opcode::kMulAdd:
@@ -3659,6 +3660,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       translateRet(env);
       return;
     case Opcode::kNop:
+    case Opcode::kVectorCall:
     case Opcode::kVectorCallTstate:
     case Opcode::kVarArgCall:
     case Opcode::kLoadArg:

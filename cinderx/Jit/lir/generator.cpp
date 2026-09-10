@@ -3925,20 +3925,37 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           break;
         }
         size_t flags = 0;
-        uint64_t func = reinterpret_cast<uint64_t>(_PyObject_VectorcallTstate);
-        if (!(hir_instr.func()->type() <= TFunc)) {
+        Instruction* instr;
+        if (hir_instr.func()->type() <= TFunc) {
+          // TFunc is exactly PyFunctionObject, so its vectorcall slot is
+          // always populated. Load and call it directly rather than paying for
+          // the type-flag test, slot load, and result check that
+          // _PyObject_VectorcallTstate would do. Python functions check the
+          // eval breaker themselves.
+          Instruction* callee = bbb.getDefInstr(hir_instr.func());
+          Instruction* vectorcall_ptr = bbb.appendInstr(
+              OutVReg{Operand::k64bit},
+              Opcode::kLoad,
+              Ind{callee,
+                  static_cast<int32_t>(offsetof(PyFunctionObject, vectorcall)),
+                  Operand::k64bit});
+          instr = bbb.appendInstr(
+              hir_instr.output(),
+              Opcode::kVectorCall,
+              VReg{vectorcall_ptr},
+              Imm{flags});
+        } else {
           // Calls to things which aren't simple Python functions will
           // need to check the eval breaker. We do this in a helper instead
           // of injecting it after every call.
-          func = reinterpret_cast<uint64_t>(rt::vectorcallTstate);
+          instr = bbb.appendInstr(
+              hir_instr.output(),
+              Opcode::kVectorCallTstate,
+              // TASK(T140174965): This should be MemImm.
+              Imm{reinterpret_cast<uint64_t>(rt::vectorcallTstate)},
+              Imm{flags},
+              VReg{env_->asm_tstate});
         }
-        Instruction* instr = bbb.appendInstr(
-            hir_instr.output(),
-            Opcode::kVectorCallTstate,
-            // TASK(T140174965): This should be MemImm.
-            Imm{func},
-            Imm{flags},
-            VReg{env_->asm_tstate});
         for (hir::Register* arg : hir_instr.getOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }

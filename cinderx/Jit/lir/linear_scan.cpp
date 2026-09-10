@@ -554,6 +554,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
       if (instr_opcode == Opcode::kCall ||
           instr_opcode == Opcode::kVarArgCall ||
+          instr_opcode == Opcode::kVectorCall ||
           instr_opcode == Opcode::kVectorCallTstate) {
         reserveRegistersForCall(*instr, instr_loc);
       }
@@ -1242,6 +1243,7 @@ void LinearScanAllocator::rewriteInstrOutput(
   // Need a separate pass in HIR to handle the dead code more gracefully.
   if (instr->opcode() == Opcode::kCall ||
       instr->opcode() == Opcode::kVarArgCall ||
+      instr->opcode() == Opcode::kVectorCall ||
       instr->opcode() == Opcode::kVectorCallTstate ||
       instr->opcode() == Opcode::kLoadThreadState) {
     output->setNone();

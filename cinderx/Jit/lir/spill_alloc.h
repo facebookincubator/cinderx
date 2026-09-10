@@ -57,8 +57,8 @@ class SpillAllocator : public RegisterAllocator {
   // inserting loads/stores through scratch registers as needed.
   void rewriteInstr(BasicBlock* block, instr_iter_t iter);
 
-  // Rewrite a kCall/kVarArgCall/kVectorCallTstate: operands stay in their slots
-  // and PostRegAllocRewrite handles the calling convention.
+  // Rewrite a kCall/kVarArgCall/kVectorCall/kVectorCallTstate: operands stay in
+  // their slots and PostRegAllocRewrite handles the calling convention.
   void rewriteCall(Instruction* instr);
 
   // Turn a kBind into a store of its bound physical register into the bound

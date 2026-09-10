@@ -654,7 +654,7 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
 // translateCall only needs blr(reg).
 [[maybe_unused]] RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isVarArgCall() &&
+  if (!instr->isCall() && !instr->isVarArgCall() && !instr->isVectorCall() &&
       !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
@@ -793,7 +793,8 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
 }
 
 bool hasHelperTarget(const Instruction& instr, uint64_t helper) {
-  if (!instr.isCall() && !instr.isVarArgCall() && !instr.isVectorCallTstate()) {
+  if (!instr.isCall() && !instr.isVarArgCall() && !instr.isVectorCall() &&
+      !instr.isVectorCallTstate()) {
     return false;
   }
   if (instr.getNumInputs() == 0) {
@@ -928,8 +929,8 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       // rt::batchDecref needs tagged deferred-RC refs so the helper can
       // recognize and skip them; every other call should still see untagged
       // object pointers.
-      bool is_call = instr->isCall() || instr->isVectorCallTstate() ||
-          instr->isVarArgCall();
+      bool is_call = instr->isCall() || instr->isVectorCall() ||
+          instr->isVectorCallTstate() || instr->isVarArgCall();
       bool strip_call_args = is_call && !shouldPreserveTaggedCallArgs(*instr);
       bool is_compare = instr->isCompare() &&
           (instr->condition() == Condition::kEqual ||
@@ -941,8 +942,15 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       size_t start = 0;
       if (strip_call_args) {
         // VectorCallTstate has fixed inputs for helper, flags, and tstate
-        // before the callable and Python object arguments.
-        start = instr->isVectorCallTstate() ? 3 : 1;
+        // before the callable and Python object arguments.  VectorCall has the
+        // same shape minus the tstate.
+        if (instr->isVectorCallTstate()) {
+          start = 3;
+        } else if (instr->isVectorCall()) {
+          start = 2;
+        } else {
+          start = 1;
+        }
       }
       size_t end = instr->getNumInputs();
       for (size_t i = start; i < end; ++i) {

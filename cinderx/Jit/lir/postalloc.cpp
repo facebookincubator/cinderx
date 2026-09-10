@@ -480,6 +480,9 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
   return stack_arg_size;
 }
 
+// scratch_slots: extra slots reserved below the args array.  Callers that set
+// PY_VECTORCALL_ARGUMENTS_OFFSET must reserve one, because that flag licenses
+// the callee to write args[-1].  Callers that don't set it pass 0.
 int prepareArgsArray(
     instr_iter_t instr_iter,
     size_t num_args,
@@ -487,23 +490,28 @@ int prepareArgsArray(
     size_t first_arg,
     PhyLocation dest,
     PhyLocation size_dest,
-    int base_offset) {
+    int base_offset,
+    size_t scratch_slots) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
   constexpr size_t PTR_SIZE = sizeof(void*);
 
-  // offset on the stack where arg reservation starts...
-  const int kVectorcallArgsOffset = 1;
-  auto num_allocs = num_args + kVectorcallArgsOffset;
+  auto num_allocs = num_args + scratch_slots;
   int rsp_sub = ((num_allocs % 2) ? num_allocs + 1 : num_allocs) * PTR_SIZE;
 
-  // lea dest, [sp + base_offset + kVectorcallArgsOffset * PTR_SIZE]
-  block->allocateInstrBefore(
-      instr_iter,
-      Opcode::kLea,
-      OutPhyReg(dest),
-      Ind(arch::reg_stack_pointer_loc,
-          base_offset + static_cast<int>(kVectorcallArgsOffset * PTR_SIZE)));
+  // With no arguments and no scratch slot the call needs no stack at all, and
+  // nothing has to be materialized into `dest` either: nargsf is 0 and
+  // PY_VECTORCALL_ARGUMENTS_OFFSET is clear, so the callee never reads the args
+  // pointer and its value is a don't-care.  Pass the register through as-is.
+  if (num_allocs != 0) {
+    // lea dest, [sp + base_offset + scratch_slots * PTR_SIZE]
+    block->allocateInstrBefore(
+        instr_iter,
+        Opcode::kLea,
+        OutPhyReg(dest),
+        Ind(arch::reg_stack_pointer_loc,
+            base_offset + static_cast<int>(scratch_slots * PTR_SIZE)));
+  }
 
   // mov arg2, num_args
   block->allocateInstrBefore(
@@ -533,16 +541,19 @@ int prepareArgsArray(
   return rsp_sub;
 }
 
-// Common implementation for kVectorCallTstate rewrites.
+// Common implementation for kVectorCall/kVectorCallTstate rewrites.
 // reg_offset: index into ARGUMENT_REGS where callable goes (0 or 1).
 // callable_input: index of the callable operand in instr's inputs.
 // first_arg: index of the first variadic arg in instr's inputs.
+// args_offset: whether to advertise PY_VECTORCALL_ARGUMENTS_OFFSET, which also
+//   costs a reserved scratch slot below the args array.
 int rewriteVectorCallCommon(
     instr_iter_t instr_iter,
     int base_offset,
     size_t reg_offset,
     size_t callable_input,
-    size_t first_arg) {
+    size_t first_arg,
+    bool args_offset) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
 
@@ -572,6 +583,20 @@ int rewriteVectorCallCommon(
 
   constexpr PhyLocation TMP_REG = arch::reg_scratch_0_loc;
 
+  // On Windows x64 the 32 bytes at the caller's SP are the callee's home
+  // space: after the call pushes the return address they are [callee_RSP+8,
+  // +40), which the callee may overwrite at any time to spill its register
+  // arguments.  So the args array has to live above them, and the call has to
+  // reserve them even when it passes no arguments at all.
+  //
+  // Do this unconditionally rather than leaning on the kwnames spill below.
+  // That spill happens to produce a large enough base_offset for
+  // kVectorCallTstate, but only because its kwnames lands past the last
+  // argument register; kVectorCall's does not, so it would otherwise place the
+  // args array at SP+0, right on top of the home space.
+  // kShadowSpaceSize is 0 off Windows, so this is a no-op there.
+  base_offset = std::max(base_offset, kShadowSpaceSize);
+
   // If kwnames needs the stack, shift the args buffer past the shadow space
   // and kwnames slot so they don't overlap.  Without this, with 5+ Python
   // args the args array at RSP+8 extends past RSP+kShadowSpaceSize and
@@ -584,11 +609,12 @@ int rewriteVectorCallCommon(
   int rsp_sub = prepareArgsArray(
       instr_iter,
       num_args,
-      flag | PY_VECTORCALL_ARGUMENTS_OFFSET,
+      args_offset ? (flag | PY_VECTORCALL_ARGUMENTS_OFFSET) : flag,
       first_arg,
       ARGUMENT_REGS[reg_offset + 1],
       ARGUMENT_REGS[reg_offset + 2],
-      base_offset);
+      base_offset,
+      args_offset ? 1 : 0);
 
   auto last_input = instr->releaseInput(instr->getNumInputs() - 1);
   if (kwnames_idx < ARGUMENT_REGS.size()) {
@@ -669,13 +695,16 @@ int rewriteVectorCallCommon(
           PhyReg(ARGUMENT_REGS[reg_offset + 2]),
           PhyReg(TMP_REG));
     }
-    // Total stack = shifted base_offset + args buffer.
-    rsp_sub = base_offset + rsp_sub;
-    if (rsp_sub % kStackAlign != 0) {
-      rsp_sub += kStackAlign - (rsp_sub % kStackAlign);
-    }
   }
 
+  // The args buffer starts at base_offset, so the call's total stack demand is
+  // base_offset + the buffer itself.  rewriteCallInstrs() only sees this return
+  // value -- its own base_offset is always 0 -- so anything reserved below the
+  // buffer has to be folded in here or max_arg_buffer_size under-reserves it.
+  rsp_sub += base_offset;
+  if (rsp_sub % kStackAlign != 0) {
+    rsp_sub += kStackAlign - (rsp_sub % kStackAlign);
+  }
   return rsp_sub;
 }
 
@@ -704,7 +733,15 @@ int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
     move_tstate->appendInput(instr->releaseInput(2));
   }
 
-  return rewriteVectorCallCommon(instr_iter, base_offset, 1, 3, 4);
+  return rewriteVectorCallCommon(
+      instr_iter, base_offset, 1, 3, 4, /*args_offset=*/true);
+}
+
+// Rewrite a kVectorCall instruction with no tstate and no
+// PY_VECTORCALL_ARGUMENTS_OFFSET.
+int rewriteVectorCallFunctions(instr_iter_t instr_iter, int base_offset) {
+  return rewriteVectorCallCommon(
+      instr_iter, base_offset, 0, 2, 3, /*args_offset=*/false);
 }
 
 int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
@@ -717,7 +754,8 @@ int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
       1,
       ARGUMENT_REGS[0],
       ARGUMENT_REGS[1],
-      base_offset);
+      base_offset,
+      /*scratch_slots=*/0);
   instr->setNumInputs(1);
   return res;
 }
@@ -737,7 +775,9 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     env->max_arg_buffer_size =
         std::max<int>(env->max_arg_buffer_size, base_offset + rsp_sub);
     return kChanged;
-  } else if (!instr->isCall() && !instr->isVectorCallTstate()) {
+  } else if (
+      !instr->isCall() && !instr->isVectorCall() &&
+      !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
 
@@ -751,6 +791,8 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
 
   if (instr->isVectorCallTstate()) {
     rsp_sub = rewriteVectorCallTstateFunctions(instr_iter, base_offset);
+  } else if (instr->isVectorCall()) {
+    rsp_sub = rewriteVectorCallFunctions(instr_iter, base_offset);
   } else {
     rsp_sub = rewriteRegularFunction(instr_iter, base_offset);
   }
@@ -1378,6 +1420,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kUnreachable:
     case Opcode::kVarArgCall:
     case Opcode::kVariadicPush:
+    case Opcode::kVectorCall:
     case Opcode::kVectorCallTstate:
     case Opcode::kZext:
       return kUnchanged;

@@ -385,6 +385,7 @@ OperandSizeType operandSizeType(Opcode opcode) {
     case Opcode::kLoadArg:
     case Opcode::kMulAdd:
     case Opcode::kReserveStack:
+    case Opcode::kVectorCall:
     case Opcode::kVectorCallTstate:
       return OperandSizeType::kAlways64;
     case Opcode::kAdd:

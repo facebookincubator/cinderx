@@ -10,8 +10,12 @@
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postalloc.h"
+#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+
+#include <algorithm>
+#include <iostream>
 
 using namespace cinderx::jit;
 using namespace cinderx::jit::codegen;
@@ -279,6 +283,176 @@ TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
   EXPECT_TRUE(instrs[2]->isMove());
   EXPECT_TRUE(instrs[2]->getInput(0)->isReg());
   EXPECT_EQ(instrs[2]->getInput(0)->getPhyRegister(), kSpilled);
+}
+
+// kVectorCall invokes a vectorcallfunc pointer directly, so unlike
+// kVectorCallTstate there is no thread state to pass: the callable is the first
+// C argument and everything else shifts down one register.
+TEST_F(LIRPostAllocRewriteTest, VectorCallPassesCallableAsFirstArgument) {
+  constexpr uint64_t kVectorcallPtr = 123456789;
+  // Homed somewhere other than the register it has to end up in, so the move
+  // into place is observable.
+  constexpr PhyLocation kCallableHome = ARGUMENT_REGS[1];
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+
+  // #0 vectorcall pointer, #1 flags, #2 callable, #3-4 args, #5 kwnames.
+  bb->allocateInstr(
+      Opcode::kVectorCall,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
+      Imm{kVectorcallPtr, DataType::k64bit},
+      Imm{0, DataType::k64bit},
+      PhyReg{kCallableHome, DataType::kObject},
+      Imm{0xaaaa, DataType::kObject},
+      Imm{0xbbbb, DataType::kObject},
+      Imm{0, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_FALSE(instrs.empty());
+
+  // The callable moves into the first argument register, ahead of the argument
+  // buffer setup that overwrites the register it came from.
+  ASSERT_TRUE(instrs[0]->isMove());
+  EXPECT_EQ(instrs[0]->output()->getPhyRegister(), ARGUMENT_REGS[0]);
+  ASSERT_TRUE(instrs[0]->getInput(0)->isReg());
+  EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister(), kCallableHome);
+
+  // nargsf is a plain count of the Python arguments.  kVectorCall does not
+  // advertise PY_VECTORCALL_ARGUMENTS_OFFSET, so the flag bit must be clear.
+  auto nargsf = std::ranges::find_if(instrs, [&](const Instruction* instr) {
+    return instr->isMove() && instr->output()->isReg() &&
+        instr->output()->getPhyRegister() == ARGUMENT_REGS[2] &&
+        instr->getInput(0)->isImm() && instr->getInput(0)->getConstant() == 2;
+  });
+  EXPECT_NE(nargsf, instrs.end()) << "no nargsf setup for 2";
+  for (const Instruction* instr : instrs) {
+    for (size_t i = 0; i < instr->getNumInputs(); ++i) {
+      const Operand* in = instr->getInput(i);
+      if (in->isImm()) {
+        EXPECT_EQ(in->getConstant() & PY_VECTORCALL_ARGUMENTS_OFFSET, 0u)
+            << "kVectorCall must not set PY_VECTORCALL_ARGUMENTS_OFFSET";
+      }
+    }
+  }
+
+  // The pseudo-opcode is gone: what is left is a plain indirect call of the
+  // vectorcall pointer, with no thread state operand.
+  const Instruction* call = instrs.back();
+  ASSERT_TRUE(call->isCall());
+  ASSERT_EQ(call->getNumInputs(), 1);
+  ASSERT_TRUE(call->getInput(0)->isImm());
+  EXPECT_EQ(call->getInput(0)->getConstant(), kVectorcallPtr);
+
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&func, std::cout));
+}
+
+// With no arguments and no PY_VECTORCALL_ARGUMENTS_OFFSET scratch slot a 0-arg
+// kVectorCall has nothing to marshal, so it should reserve nothing beyond the
+// callee's home space (kShadowSpaceSize, which is 0 off Windows x64).  The args
+// pointer is a don't-care that the callee never reads, so nothing should be
+// materialized into its register either -- not a stack address and not a zero.
+TEST_F(LIRPostAllocRewriteTest, ZeroArgVectorCallReservesOnlyShadowSpace) {
+  constexpr uint64_t kVectorcallPtr = 123456789;
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+
+  // #0 vectorcall pointer, #1 flags, #2 callable, #3 kwnames.  No arguments.
+  bb->allocateInstr(
+      Opcode::kVectorCall,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
+      Imm{kVectorcallPtr, DataType::k64bit},
+      Imm{0, DataType::k64bit},
+      PhyReg{ARGUMENT_REGS[1], DataType::kObject},
+      Imm{0, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  // No args buffer, but on Windows x64 the callee's home space must still be
+  // reserved -- the callee may write [SP+0, +32) regardless of how few
+  // arguments it was passed.
+  EXPECT_EQ(env.max_arg_buffer_size, kShadowSpaceSize)
+      << "a 0-arg vectorcall should reserve exactly the callee home space";
+
+  // kVectorCall puts the callable in ARGUMENT_REGS[0], so the args pointer is
+  // ARGUMENT_REGS[1].  Nothing may write it.
+  constexpr PhyLocation kArgsReg = ARGUMENT_REGS[1];
+
+  auto instrs = collectInstrs(*bb);
+  for (const Instruction* instr : instrs) {
+    // No stack address is computed for the args array.
+    EXPECT_FALSE(instr->isLea())
+        << "0-arg vectorcall should not compute a stack args pointer";
+    const Operand* out = instr->output();
+    if (out->isReg()) {
+      EXPECT_NE(out->getPhyRegister(), kArgsReg)
+          << "0-arg vectorcall should leave the args register untouched, "
+             "found: "
+          << *instr;
+    }
+    for (size_t i = 0; i < instr->getNumInputs(); ++i) {
+      const Operand* in = instr->getInput(i);
+      if (in->isImm()) {
+        EXPECT_EQ(in->getConstant() & PY_VECTORCALL_ARGUMENTS_OFFSET, 0u);
+      }
+    }
+  }
+
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&func, std::cout));
+}
+
+// The args array must never overlap the callee's home space.  On Windows x64
+// the callee owns [SP+0, SP+32) and may spill its register arguments there at
+// any point, so the buffer has to start at kShadowSpaceSize and the call has to
+// reserve that space on top of the buffer itself.  kShadowSpaceSize is 0 off
+// Windows, where this pins the buffer at SP+0 as before.
+TEST_F(LIRPostAllocRewriteTest, VectorCallArgsAvoidCalleeHomeSpace) {
+  constexpr uint64_t kVectorcallPtr = 123456789;
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+
+  // #0 vectorcall pointer, #1 flags, #2 callable, #3-4 args, #5 kwnames.
+  bb->allocateInstr(
+      Opcode::kVectorCall,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
+      Imm{kVectorcallPtr, DataType::k64bit},
+      Imm{0, DataType::k64bit},
+      PhyReg{ARGUMENT_REGS[1], DataType::kObject},
+      Imm{0xaaaa, DataType::kObject},
+      Imm{0xbbbb, DataType::kObject},
+      Imm{0, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  // The lea that materializes the args pointer must start at the shadow space,
+  // not below it.
+  auto instrs = collectInstrs(*bb);
+  auto lea = std::ranges::find_if(
+      instrs, [](const Instruction* instr) { return instr->isLea(); });
+  ASSERT_NE(lea, instrs.end()) << "expected an args-array lea";
+  const Operand* addr = (*lea)->getInput(0);
+  ASSERT_TRUE(addr->isInd());
+  EXPECT_EQ(addr->getMemoryIndirect()->getOffset(), kShadowSpaceSize)
+      << "args array must start above the callee's home space";
+
+  // ...and the reservation must cover the home space plus the two arguments,
+  // since max_arg_buffer_size is what sizes the bottom of the frame.
+  EXPECT_GE(env.max_arg_buffer_size, kShadowSpaceSize + 2 * kPointerSize);
+
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&func, std::cout));
 }
 
 #if defined(CINDER_AARCH64)
