@@ -274,6 +274,50 @@ TEST(LIRBlockTest, AddPhiInputUsesIncomingSlot) {
       phi->addPhiInput(first_edge, first_value), "Phi input already set");
 }
 
+TEST(LIRFunctionTest, CopyFromPreservesPhiValuesAcrossEdgeReordering) {
+  Function source;
+  BasicBlock* entry = source.allocateBasicBlock();
+  BasicBlock* first = source.allocateBasicBlock();
+  BasicBlock* second = source.allocateBasicBlock();
+  BasicBlock* join = source.allocateBasicBlock();
+  BasicBlock* exit = source.allocateBasicBlock();
+
+  entry->addSuccessor(first);
+  entry->addSuccessor(second);
+  IncomingEdge second_edge = second->addSuccessor(join);
+  IncomingEdge first_edge = first->addSuccessor(join);
+  IncomingEdge duplicate_first_edge = first->addSuccessor(join);
+  join->addSuccessor(exit);
+
+  Instruction* first_value =
+      first->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{10});
+  Instruction* duplicate_first_value =
+      first->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{30});
+  Instruction* second_value =
+      second->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{20});
+  Instruction* phi = join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->addPhiInput(first_edge, first_value);
+  phi->addPhiInput(duplicate_first_edge, duplicate_first_value);
+  phi->addPhiInput(second_edge, second_value);
+
+  Function destination;
+  BasicBlock* previous = destination.allocateBasicBlock();
+  BasicBlock* next = destination.allocateBasicBlock();
+  previous->addSuccessor(next);
+  destination.copyFrom(&source, previous, next, nullptr);
+
+  Instruction* phi_copy = findPhiWithInputCount(&destination, 3);
+  ASSERT_NE(phi_copy, nullptr);
+  std::vector<uint64_t> copied_values;
+  for (size_t index = 0; index < phi_copy->numPhiInputs(); ++index) {
+    Instruction* value = phi_copy->phiInput(index)->getLinkedInstr();
+    EXPECT_EQ(value->basicBlock(), phi_copy->phiPredecessor(index));
+    copied_values.push_back(value->getInput(0)->getConstant());
+  }
+  const std::vector<uint64_t> expected{10, 30, 20};
+  EXPECT_EQ(copied_values, expected);
+}
+
 TEST(LIRBlockTest, SetSuccessorUpdatesEdges) {
   Function function;
   BasicBlock* source = function.allocateBasicBlock();

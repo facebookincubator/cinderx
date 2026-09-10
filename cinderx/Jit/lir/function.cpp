@@ -11,6 +11,9 @@ namespace cinderx::jit::lir {
 
 namespace {
 
+using CopiedEdgeMap =
+    UnorderedMap<const BasicBlock*, UnorderedMap<size_t, IncomingEdge>>;
+
 // Helper for copyOperand.
 void copyIndirect(
     UnorderedMap<Operand*, int>& instr_refs,
@@ -132,12 +135,22 @@ void deepCopyBasicBlocks(
     const hir::Instr* origin) {
   UnorderedMap<int, Instruction*> output_index_map;
   UnorderedMap<Operand*, int> instr_refs;
+  CopiedEdgeMap copied_edges;
 
   for (auto bb : src_blocks) {
     BasicBlock* bb_copy = map_get_strict(block_index_map_, bb->id());
-    for (auto succ : bb->successors()) {
-      bb_copy->addSuccessor(map_get_strict(block_index_map_, succ->id()));
+    for (size_t outgoing_slot = 0; outgoing_slot < bb->successors().size();
+         ++outgoing_slot) {
+      BasicBlock* succ = bb->successors()[outgoing_slot];
+      IncomingEdge edge =
+          bb_copy->addSuccessor(map_get_strict(block_index_map_, succ->id()));
+      copied_edges[succ].emplace(
+          bb->outgoingEdge(outgoing_slot).incomingSlot(), edge);
     }
+  }
+
+  for (auto bb : src_blocks) {
+    BasicBlock* bb_copy = map_get_strict(block_index_map_, bb->id());
     for (auto& instr : bb->instructions()) {
       // Copying the instruction will also copy the output
       // (including the output type and data type).
@@ -150,9 +163,20 @@ void deepCopyBasicBlocks(
       Operand* output_copy = instr_copy->output();
       copyOperand(block_index_map_, instr_refs, output, output_copy);
       // Copy inputs.
-      for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
-        Operand* input = instr->getInput(i);
-        copyInput(block_index_map_, instr_refs, input, instr_copy);
+      if (instr->isPhi()) {
+        for (size_t i = 0; i < instr->numPhiInputs(); ++i) {
+          copyInput(
+              block_index_map_, instr_refs, instr->phiInput(i), instr_copy);
+          auto value = instr_copy->removeInput(instr_copy->getNumInputs() - 1);
+          auto& incoming_edges = map_get_strict(copied_edges, bb);
+          instr_copy->addPhiInput(
+              map_get_strict(incoming_edges, i), std::move(value));
+        }
+      } else {
+        for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
+          Operand* input = instr->getInput(i);
+          copyInput(block_index_map_, instr_refs, input, instr_copy);
+        }
       }
     }
   }
