@@ -3047,12 +3047,53 @@ PyObject* LoadAttrCache::invokeTypeSlow(
   X(MulTuple, Tuple, Long, Tuple, tupleMul, kMultiplyGeneric)     \
   X(MulComplex, Complex, Long, Complex, complexMul, kMultiplyGeneric)
 
-// The full specialization list (add followed by multiply), used to generate the
-// single Specialization enum and the specializedTypes() switch that covers all
-// values.
+// Specializations for the subtract op.  Unlike add there are no sequence rows
+// (sequences have no '-'), but sets do: set - set is difference.
+#define FOREACH_SUBTRACT_SPECIALIZATION(X)                               \
+  X(SubCompactCompactCompact,                                            \
+    CompactLong,                                                         \
+    CompactLong,                                                         \
+    CompactLong,                                                         \
+    compactLongSub,                                                      \
+    kSubCompactCompactLong)                                              \
+  X(SubCompactCompactLong,                                               \
+    CompactLong,                                                         \
+    CompactLong,                                                         \
+    Long,                                                                \
+    compactLongSub,                                                      \
+    kSubLongLongLong)                                                    \
+  X(SubLongLongLong, Long, Long, Long, longSub, kSubtractGeneric)        \
+  X(SubFloat, Float, Float, Float, floatSub, kSubtractGeneric)           \
+  X(SubComplex, Complex, Complex, Complex, complexSub, kSubtractGeneric) \
+  X(SubSet, Set, Set, Set, setSub, kSubtractGeneric)
+
+// Specializations for the true-divide op.  Float leads: unlike add/sub/mul
+// there is no BINARY_OP_TRUE_DIVIDE_FLOAT interpreter specialization, so HIR
+// cannot type-prove float division and every float '/' reaches this cache.
+//
+// Note the return column: int / int yields a *float*, so the two long rows
+// return Float rather than a long.  returnNeedsCheck(kFloat) is false, so there
+// is no result check and no compact -> long step-down the way add/sub have;
+// the rows simply fall back to each other and then to generic.
+#define FOREACH_TRUEDIVIDE_SPECIALIZATION(X)                         \
+  X(DivFloat, Float, Float, Float, floatTrueDiv, kTrueDivideGeneric) \
+  X(DivCompactCompact,                                               \
+    CompactLong,                                                     \
+    CompactLong,                                                     \
+    Float,                                                           \
+    compactLongTrueDiv,                                              \
+    kDivLongLong)                                                    \
+  X(DivLongLong, Long, Long, Float, longTrueDiv, kTrueDivideGeneric) \
+  X(DivComplex, Complex, Complex, Complex, complexTrueDiv, kTrueDivideGeneric)
+
+// The full specialization list (add, multiply, subtract, then true-divide),
+// used to generate the single Specialization enum and the specializedTypes()
+// switch that covers all values.
 #define FOREACH_BINARY_OP_SPECIALIZATION(X) \
   FOREACH_ADD_SPECIALIZATION(X)             \
-  FOREACH_MULTIPLY_SPECIALIZATION(X)
+  FOREACH_MULTIPLY_SPECIALIZATION(X)        \
+  FOREACH_SUBTRACT_SPECIALIZATION(X)        \
+  FOREACH_TRUEDIVIDE_SPECIALIZATION(X)
 
 enum class BinaryOpCache::Specialization : uint8_t {
 #define DECLARE_BINARY_OP_SPECIALIZATION(NAME, LHS, RHS, RET, OP, FALLBACK) \
@@ -3063,6 +3104,12 @@ enum class BinaryOpCache::Specialization : uint8_t {
       kUninitializedMultiply,
   kMultiplyGeneric,
   FOREACH_MULTIPLY_SPECIALIZATION(DECLARE_BINARY_OP_SPECIALIZATION)
+      kUninitializedSubtract,
+  kSubtractGeneric,
+  FOREACH_SUBTRACT_SPECIALIZATION(DECLARE_BINARY_OP_SPECIALIZATION)
+      kUninitializedTrueDivide,
+  kTrueDivideGeneric,
+  FOREACH_TRUEDIVIDE_SPECIALIZATION(DECLARE_BINARY_OP_SPECIALIZATION)
 #undef DECLARE_BINARY_OP_SPECIALIZATION
 };
 
@@ -3076,6 +3123,10 @@ BinaryOpCache::Specialization BinaryOpCache::selectInitialSpecialization(
       return Specialization::kUninitializedAdd;
     case cinderx::jit::hir::BinaryOpKind::kMultiply:
       return Specialization::kUninitializedMultiply;
+    case cinderx::jit::hir::BinaryOpKind::kSubtract:
+      return Specialization::kUninitializedSubtract;
+    case cinderx::jit::hir::BinaryOpKind::kTrueDivide:
+      return Specialization::kUninitializedTrueDivide;
     default:
       throw std::runtime_error(
           fmt::format(
@@ -3094,7 +3145,8 @@ BinaryOpCache::Specialization BinaryOpCache::selectInitialSpecialization(
   X(Float)                      \
   X(List)                       \
   X(Tuple)                      \
-  X(Complex)
+  X(Complex)                    \
+  X(Set)
 
 namespace {
 // Type-check / fast-path helpers used to instantiate
@@ -3126,6 +3178,14 @@ bool checkList(PyObject* op) {
 
 bool checkTuple(PyObject* op) {
   return PyTuple_CheckExact(op);
+}
+
+// Exact sets only, matching the *_CheckExact convention of the predicates
+// above.  frozenset has no row of its own and falls through to the generic
+// path, though caching it would be sound: its nb_subtract slot is the same
+// set_sub function, which builds its result from the type of the lhs.
+bool checkSet(PyObject* op) {
+  return PySet_CheckExact(op);
 }
 } // namespace
 
@@ -3216,6 +3276,10 @@ PyObject* BinaryOpCache::invokeSpecialized(
   POPULATE_BINARY_SPECIALIZATION(add, __VA_ARGS__)
 #define POPULATE_MULTIPLY_SPECIALIZATION(...) \
   POPULATE_BINARY_SPECIALIZATION(multiply, __VA_ARGS__)
+#define POPULATE_SUBTRACT_SPECIALIZATION(...) \
+  POPULATE_BINARY_SPECIALIZATION(subtract, __VA_ARGS__)
+#define POPULATE_TRUEDIVIDE_SPECIALIZATION(...) \
+  POPULATE_BINARY_SPECIALIZATION(trueDivide, __VA_ARGS__)
 
 // Emits one dispatch-switch arm that runs the specialization directly via
 // invokeSpecialized<>, threading the Fallback value and the matching
@@ -3234,6 +3298,10 @@ PyObject* BinaryOpCache::invokeSpecialized(
   DISPATCH_BINARY_SPECIALIZATION(add, __VA_ARGS__)
 #define DISPATCH_MULTIPLY_SPECIALIZATION(...) \
   DISPATCH_BINARY_SPECIALIZATION(multiply, __VA_ARGS__)
+#define DISPATCH_SUBTRACT_SPECIALIZATION(...) \
+  DISPATCH_BINARY_SPECIALIZATION(subtract, __VA_ARGS__)
+#define DISPATCH_TRUEDIVIDE_SPECIALIZATION(...) \
+  DISPATCH_BINARY_SPECIALIZATION(trueDivide, __VA_ARGS__)
 
 // Emits one specializedTypes() switch arm mapping a specialization to its
 // (lhs, rhs, return) operand types.  A single enum lets one switch cover both
@@ -3338,6 +3406,83 @@ static inline PyObject* tupleMul(PyObject* lhs, PyObject* rhs) {
   return sequenceRepeat(PyTuple_Type.tp_as_sequence, lhs, rhs);
 }
 
+static inline PyObject* longSub(PyObject* lhs, PyObject* rhs) {
+  return PyLong_Type.tp_as_number->nb_subtract(lhs, rhs);
+}
+
+// Fast path for two compact ints: subtract their machine-word values directly.
+// Both operands are single-digit (guaranteed by _PyLong_IsCompact), so the
+// difference cannot overflow Py_ssize_t.  The result may itself be non-compact;
+// the compact/compact/compact specialization detects that via its return-type
+// check and steps down to compact/compact/long.
+static inline PyObject* compactLongSub(PyObject* lhs, PyObject* rhs) {
+  Py_ssize_t a = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(lhs));
+  Py_ssize_t b = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(rhs));
+  return PyLong_FromSsize_t(a - b);
+}
+
+static inline PyObject* floatSub(PyObject* lhs, PyObject* rhs) {
+  double a = reinterpret_cast<PyFloatObject*>(lhs)->ob_fval;
+  double b = reinterpret_cast<PyFloatObject*>(rhs)->ob_fval;
+  return PyFloat_FromDouble(a - b);
+}
+
+static inline PyObject* complexSub(PyObject* lhs, PyObject* rhs) {
+  Py_complex a = reinterpret_cast<PyComplexObject*>(lhs)->cval;
+  Py_complex b = reinterpret_cast<PyComplexObject*>(rhs)->cval;
+  return PyComplex_FromCComplex(_Py_c_diff(a, b));
+}
+
+// set - set is difference.  Both operands are exact sets (checkSet), so
+// PySet_Type's own slot applies.
+static inline PyObject* setSub(PyObject* lhs, PyObject* rhs) {
+  return PySet_Type.tp_as_number->nb_subtract(lhs, rhs);
+}
+
+// A true-divide fast path can raise (ZeroDivisionError), returning nullptr,
+// which invokeSpecialized propagates unchanged.  Every row below hands the
+// divide-by-zero case to the operand type's own nb_true_divide slot so the
+// exception and its message come from CPython verbatim.
+static inline PyObject* longTrueDiv(PyObject* lhs, PyObject* rhs) {
+  return PyLong_Type.tp_as_number->nb_true_divide(lhs, rhs);
+}
+
+// Fast path for two floats, mirroring floatAdd/floatSub/floatMul.  This is the
+// row that matters most: CPython has no BINARY_OP_TRUE_DIVIDE specialization,
+// so HIR cannot type-prove float division and every float '/' reaches here.
+//
+// float_div is just a zero check followed by `a / b`, so dividing inline is
+// bit-identical for finite, infinite and NaN inputs alike.  Note -0.0 compares
+// equal to 0.0 and so takes the raising path, which is what CPython does.
+static inline PyObject* floatTrueDiv(PyObject* lhs, PyObject* rhs) {
+  double b = reinterpret_cast<PyFloatObject*>(rhs)->ob_fval;
+  if (b == 0.0) {
+    return PyFloat_Type.tp_as_number->nb_true_divide(lhs, rhs);
+  }
+  double a = reinterpret_cast<PyFloatObject*>(lhs)->ob_fval;
+  return PyFloat_FromDouble(a / b);
+}
+
+// Fast path for two compact ints.  A compact int is a single digit, so
+// |value| < 2**30 and both operands convert to double exactly; IEEE division of
+// two exactly-represented doubles is correctly rounded, which is the same
+// result long_true_divide computes the slow way.  Signed zero agrees too:
+// CPython documents 0/b as returning 0.0 or -0.0 following the sign of b, which
+// is what the hardware does.  Division by zero is the one case that cannot be
+// done inline, so it defers to the slot to raise ZeroDivisionError.
+static inline PyObject* compactLongTrueDiv(PyObject* lhs, PyObject* rhs) {
+  Py_ssize_t b = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(rhs));
+  if (b == 0) {
+    return longTrueDiv(lhs, rhs);
+  }
+  Py_ssize_t a = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(lhs));
+  return PyFloat_FromDouble(static_cast<double>(a) / static_cast<double>(b));
+}
+
+static inline PyObject* complexTrueDiv(PyObject* lhs, PyObject* rhs) {
+  return PyComplex_Type.tp_as_number->nb_true_divide(lhs, rhs);
+}
+
 PyObject* BinaryOpCache::addGeneric(
     PyObject* lhs,
     PyObject* rhs,
@@ -3350,6 +3495,20 @@ PyObject* BinaryOpCache::multiplyGeneric(
     PyObject* rhs,
     BinaryOpCache* /* cache */) {
   return PyNumber_Multiply(lhs, rhs);
+}
+
+PyObject* BinaryOpCache::subtractGeneric(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* /* cache */) {
+  return PyNumber_Subtract(lhs, rhs);
+}
+
+PyObject* BinaryOpCache::trueDivideGeneric(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* /* cache */) {
+  return PyNumber_TrueDivide(lhs, rhs);
 }
 
 PyObject* BinaryOpCache::populateAndInvokeAdd(
@@ -3370,6 +3529,26 @@ PyObject* BinaryOpCache::populateAndInvokeMultiply(
 
   cache->specialization_ = Specialization::kMultiplyGeneric;
   return multiplyGeneric(lhs, rhs, cache);
+}
+
+PyObject* BinaryOpCache::populateAndInvokeSubtract(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* cache) {
+  FOREACH_SUBTRACT_SPECIALIZATION(POPULATE_SUBTRACT_SPECIALIZATION)
+
+  cache->specialization_ = Specialization::kSubtractGeneric;
+  return subtractGeneric(lhs, rhs, cache);
+}
+
+PyObject* BinaryOpCache::populateAndInvokeTrueDivide(
+    PyObject* lhs,
+    PyObject* rhs,
+    BinaryOpCache* cache) {
+  FOREACH_TRUEDIVIDE_SPECIALIZATION(POPULATE_TRUEDIVIDE_SPECIALIZATION)
+
+  cache->specialization_ = Specialization::kTrueDivideGeneric;
+  return trueDivideGeneric(lhs, rhs, cache);
 }
 
 // Dispatch on the cache's current specialization and run the corresponding
@@ -3404,16 +3583,50 @@ BinaryOpCache::multiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
   }
 }
 
+// Dispatch on the cache's current specialization.  Mirrors add() but over the
+// subtract subset of the enum (FOREACH_SUBTRACT_SPECIALIZATION).
+PyObject*
+BinaryOpCache::subtract(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
+  switch (cache->specialization_) {
+    case Specialization::kUninitializedSubtract:
+      return populateAndInvokeSubtract(lhs, rhs, cache);
+    case Specialization::kSubtractGeneric:
+      return subtractGeneric(lhs, rhs, cache);
+      FOREACH_SUBTRACT_SPECIALIZATION(DISPATCH_SUBTRACT_SPECIALIZATION)
+    default:
+      JIT_ABORT("Unexpected specialization in BinaryOpCache::subtract");
+  }
+}
+
+// Dispatch on the cache's current specialization.  Mirrors add() but over the
+// true-divide subset of the enum (FOREACH_TRUEDIVIDE_SPECIALIZATION).
+PyObject*
+BinaryOpCache::trueDivide(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
+  switch (cache->specialization_) {
+    case Specialization::kUninitializedTrueDivide:
+      return populateAndInvokeTrueDivide(lhs, rhs, cache);
+    case Specialization::kTrueDivideGeneric:
+      return trueDivideGeneric(lhs, rhs, cache);
+      FOREACH_TRUEDIVIDE_SPECIALIZATION(DISPATCH_TRUEDIVIDE_SPECIALIZATION)
+    default:
+      JIT_ABORT("Unexpected specialization in BinaryOpCache::trueDivide");
+  }
+}
+
 BinaryOpCache::BinarySpecialization BinaryOpCache::specializedTypes() const {
   switch (specialization_) {
     case Specialization::kUninitializedAdd:
     case Specialization::kUninitializedMultiply:
+    case Specialization::kUninitializedSubtract:
+    case Specialization::kUninitializedTrueDivide:
       return BinarySpecialization{
           SpecializedType::kUninitialized,
           SpecializedType::kUninitialized,
           SpecializedType::kUninitialized};
     case Specialization::kAddGeneric:
     case Specialization::kMultiplyGeneric:
+    case Specialization::kSubtractGeneric:
+    case Specialization::kTrueDivideGeneric:
       return BinarySpecialization{
           SpecializedType::kGeneric,
           SpecializedType::kGeneric,

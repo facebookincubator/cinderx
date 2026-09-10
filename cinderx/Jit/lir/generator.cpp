@@ -3394,28 +3394,40 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kBinaryOp: {
         auto bin_op = &i.as<BinaryOp>();
 
-        if (getConfig().binary_op_caches &&
-            (bin_op->op() == BinaryOpKind::kAdd ||
-             bin_op->op() == BinaryOpKind::kMultiply)) {
+        // The op's inline cache entry point, or null when caching is disabled
+        // or the op has no cache support.
+        PyObject* (*cache_entry)(PyObject*, PyObject*, BinaryOpCache*) =
+            nullptr;
+        if (getConfig().binary_op_caches) {
+          switch (bin_op->op()) {
+            case BinaryOpKind::kAdd:
+              cache_entry = BinaryOpCache::add;
+              break;
+            case BinaryOpKind::kMultiply:
+              cache_entry = BinaryOpCache::multiply;
+              break;
+            case BinaryOpKind::kSubtract:
+              cache_entry = BinaryOpCache::subtract;
+              break;
+            case BinaryOpKind::kTrueDivide:
+              cache_entry = BinaryOpCache::trueDivide;
+              break;
+            default:
+              break;
+          }
+        }
+
+        if (cache_entry != nullptr) {
           BinaryOpCache* cache = inline_cache_storage_.allocateBinaryOpCache(
               bin_op->bytecodeOffset(), bin_op->op());
           // Emit a direct call to the op-specific dispatch entry point. Each
           // entry point switches on the cache's per-op specialization enum.
-          if (bin_op->op() == BinaryOpKind::kMultiply) {
-            bbb.appendCallInstruction(
-                bin_op->output(),
-                BinaryOpCache::multiply,
-                bin_op->left(),
-                bin_op->right(),
-                cache);
-          } else {
-            bbb.appendCallInstruction(
-                bin_op->output(),
-                BinaryOpCache::add,
-                bin_op->left(),
-                bin_op->right(),
-                cache);
-          }
+          bbb.appendCallInstruction(
+              bin_op->output(),
+              cache_entry,
+              bin_op->left(),
+              bin_op->right(),
+              cache);
         } else {
           // NB: This needs to be in the order that the values appear in the
           // BinaryOpKind enum

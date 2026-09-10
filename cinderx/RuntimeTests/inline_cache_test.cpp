@@ -13,6 +13,7 @@
 #include <pycore_unicodeobject.h>
 #endif
 
+#include <cmath>
 #include <cstring>
 
 namespace cinderx {
@@ -304,6 +305,43 @@ BinaryOpCache::BinarySpecialization
 types(SpecializedType lhs, SpecializedType rhs, SpecializedType ret) {
   return {lhs, rhs, ret};
 }
+
+// Runs lhs / rhs through a fresh cache and asserts the result is identical to
+// what PyNumber_TrueDivide produces -- same type, same bits, same sign of zero.
+// This is what pins the hand-rolled compact-int fast path to CPython's
+// correctly-rounded long_true_divide.
+void expectTrueDivideMatchesPyNumber(PyObject* lhs, PyObject* rhs) {
+  BinaryOpCache cache{BinaryOpKind::kTrueDivide};
+  auto cached = Ref<>::steal(BinaryOpCache::trueDivide(lhs, rhs, &cache));
+  auto oracle = Ref<>::steal(PyNumber_TrueDivide(lhs, rhs));
+  ASSERT_NE(cached.get(), nullptr);
+  ASSERT_NE(oracle.get(), nullptr);
+  ASSERT_EQ(Py_TYPE(cached.get()), Py_TYPE(oracle.get()));
+  double cached_value = PyFloat_AsDouble(cached);
+  double oracle_value = PyFloat_AsDouble(oracle);
+  if (std::isnan(oracle_value)) {
+    // NaN never compares equal to itself, and its sign bit is not meaningful.
+    EXPECT_TRUE(std::isnan(cached_value));
+    return;
+  }
+  EXPECT_EQ(cached_value, oracle_value);
+  EXPECT_EQ(std::signbit(cached_value), std::signbit(oracle_value));
+}
+
+// Builds an exact set of ints, or nullptr if any step fails.
+Ref<> makeSet(std::initializer_list<long> values) {
+  auto set = Ref<>::steal(PySet_New(nullptr));
+  if (set == nullptr) {
+    return nullptr;
+  }
+  for (long value : values) {
+    auto item = Ref<>::steal(PyLong_FromLong(value));
+    if (item == nullptr || PySet_Add(set, item) < 0) {
+      return nullptr;
+    }
+  }
+  return set;
+}
 } // namespace
 
 TEST_F(InlineCacheTest, BinaryOpCacheSpecializationLookup) {
@@ -382,9 +420,10 @@ TEST_F(InlineCacheTest, BinaryOpCacheSpecializationFallbackLookup) {
 }
 
 TEST_F(InlineCacheTest, BinaryOpCacheRejectsUnsupportedOpKind) {
-  // Only add and multiply are currently supported; constructing a cache for any
-  // other op kind should throw rather than silently produce a broken cache.
-  EXPECT_THROW(BinaryOpCache{BinaryOpKind::kSubtract}, std::runtime_error);
+  // Only add, multiply and subtract are currently supported; constructing a
+  // cache for any other op kind should throw rather than silently produce a
+  // broken cache.
+  EXPECT_THROW(BinaryOpCache{BinaryOpKind::kFloorDivide}, std::runtime_error);
 }
 
 TEST_F(InlineCacheTest, BinaryOpCacheMultiplySpecializationLookup) {
@@ -563,6 +602,443 @@ TEST_F(InlineCacheTest, BinaryOpCacheCompactAddStepsDownChain) {
   EXPECT_EQ(
       specializeWith(BinaryOpCache::add, cache, big, big),
       sameTypes(SpecializedType::kLong));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheSubtractSpecializationLookup) {
+  using SpecializedType = SpecializedType;
+
+  // Small ints fit in a single digit -> compact-long SpecializedType.
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  BinaryOpCache compact{BinaryOpKind::kSubtract};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, compact, seven, one),
+      sameTypes(SpecializedType::kCompactLong));
+
+  // Large ints span multiple digits -> general long SpecializedType.
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  BinaryOpCache long_long{BinaryOpKind::kSubtract};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, long_long, big, big),
+      sameTypes(SpecializedType::kLong));
+
+  auto flt = Ref<>::steal(PyFloat_FromDouble(1.5));
+  BinaryOpCache float_float{BinaryOpKind::kSubtract};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, float_float, flt, flt),
+      sameTypes(SpecializedType::kFloat));
+
+  auto cplx = Ref<>::steal(PyComplex_FromDoubles(3.0, 4.0));
+  BinaryOpCache complex_complex{BinaryOpKind::kSubtract};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, complex_complex, cplx, cplx),
+      sameTypes(SpecializedType::kComplex));
+
+  auto set = makeSet({1, 2, 3});
+  ASSERT_NE(set.get(), nullptr);
+  BinaryOpCache set_set{BinaryOpKind::kSubtract};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, set_set, set, set),
+      sameTypes(SpecializedType::kSet));
+
+  // frozenset supports '-' but is not an exact set, so it misses every
+  // specialization and lands on the generic path rather than the set fast path.
+  auto frozen = Ref<>::steal(PyFrozenSet_New(nullptr));
+  ASSERT_NE(frozen.get(), nullptr);
+  BinaryOpCache generic{BinaryOpKind::kSubtract};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, generic, frozen, frozen),
+      sameTypes(SpecializedType::kGeneric));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheSubtractComputesCorrectly) {
+  auto ten = Ref<>::steal(PyLong_FromLong(10));
+  auto four = Ref<>::steal(PyLong_FromLong(4));
+
+  // compact int - compact int, including a negative result.
+  BinaryOpCache compact{BinaryOpKind::kSubtract};
+  auto diff = Ref<>::steal(BinaryOpCache::subtract(ten, four, &compact));
+  ASSERT_NE(diff.get(), nullptr);
+  EXPECT_EQ(PyLong_AsLong(diff), 6);
+  auto negative = Ref<>::steal(BinaryOpCache::subtract(four, ten, &compact));
+  ASSERT_NE(negative.get(), nullptr);
+  EXPECT_EQ(PyLong_AsLong(negative), -6);
+
+  // long - long.
+  BinaryOpCache long_long{BinaryOpKind::kSubtract};
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto big_diff = Ref<>::steal(BinaryOpCache::subtract(big, one, &long_long));
+  ASSERT_NE(big_diff.get(), nullptr);
+  EXPECT_EQ(PyLong_AsLongLong(big_diff), (1LL << 60) - 1);
+
+  // float - float.
+  BinaryOpCache float_float{BinaryOpKind::kSubtract};
+  auto a = Ref<>::steal(PyFloat_FromDouble(1.5));
+  auto b = Ref<>::steal(PyFloat_FromDouble(0.25));
+  auto float_diff = Ref<>::steal(BinaryOpCache::subtract(a, b, &float_float));
+  ASSERT_NE(float_diff.get(), nullptr);
+  ASSERT_TRUE(PyFloat_CheckExact(float_diff));
+  EXPECT_EQ(PyFloat_AsDouble(float_diff), 1.25);
+
+  // complex - complex.
+  BinaryOpCache complex_complex{BinaryOpKind::kSubtract};
+  auto lhs_c = Ref<>::steal(PyComplex_FromDoubles(3.0, 4.0));
+  auto rhs_c = Ref<>::steal(PyComplex_FromDoubles(1.0, 2.0));
+  auto complex_diff =
+      Ref<>::steal(BinaryOpCache::subtract(lhs_c, rhs_c, &complex_complex));
+  ASSERT_NE(complex_diff.get(), nullptr);
+  EXPECT_EQ(PyComplex_RealAsDouble(complex_diff), 2.0);
+  EXPECT_EQ(PyComplex_ImagAsDouble(complex_diff), 2.0);
+
+  // set - set is difference.
+  BinaryOpCache set_set{BinaryOpKind::kSubtract};
+  auto lhs_s = makeSet({1, 2, 3});
+  auto rhs_s = makeSet({2});
+  auto expected_s = makeSet({1, 3});
+  ASSERT_NE(lhs_s.get(), nullptr);
+  ASSERT_NE(rhs_s.get(), nullptr);
+  ASSERT_NE(expected_s.get(), nullptr);
+  auto set_diff = Ref<>::steal(BinaryOpCache::subtract(lhs_s, rhs_s, &set_set));
+  ASSERT_NE(set_diff.get(), nullptr);
+  EXPECT_EQ(PyObject_RichCompareBool(set_diff, expected_s, Py_EQ), 1);
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheCompactSubtractDeoptsOnNonCompactResult) {
+  using SpecializedType = SpecializedType;
+  BinaryOpCache cache{BinaryOpKind::kSubtract};
+
+  // Both operands are compact (|v| < 2^30) but their difference (-2^30) is
+  // not, so the compact fast path computes the correct result and steps down
+  // one level to compact/compact/long.
+  auto neg = Ref<>::steal(PyLong_FromLong(-(1L << 29)));
+  auto pos = Ref<>::steal(PyLong_FromLong(1L << 29));
+  auto result = Ref<>::steal(BinaryOpCache::subtract(neg, pos, &cache));
+  ASSERT_NE(result.get(), nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), -(1L << 30));
+  EXPECT_EQ(
+      cache.specializedTypes(),
+      types(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kLong));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheSubtractStepsDownChain) {
+  using SpecializedType = SpecializedType;
+  BinaryOpCache cache{BinaryOpKind::kSubtract};
+
+  // Compact args with a compact result -> compact/compact/compact.
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, cache, three, one),
+      sameTypes(SpecializedType::kCompactLong));
+
+  // Compact args with a non-compact result -> compact/compact/long.
+  auto neg = Ref<>::steal(PyLong_FromLong(-(1L << 29)));
+  auto pos = Ref<>::steal(PyLong_FromLong(1L << 29));
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, cache, neg, pos),
+      types(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kLong));
+
+  // Non-compact args -> long/long/long.
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, cache, big, big),
+      sameTypes(SpecializedType::kLong));
+
+  // An operand type with no subtract specialization -> generic, permanently.
+  auto frozen = Ref<>::steal(PyFrozenSet_New(nullptr));
+  ASSERT_NE(frozen.get(), nullptr);
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::subtract, cache, frozen, frozen),
+      sameTypes(SpecializedType::kGeneric));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheSubtractSetThenIntRaisesTypeError) {
+  BinaryOpCache cache{BinaryOpKind::kSubtract};
+
+  auto lhs = makeSet({1, 2});
+  auto rhs = makeSet({2});
+  auto expected = makeSet({1});
+  ASSERT_NE(lhs.get(), nullptr);
+  ASSERT_NE(rhs.get(), nullptr);
+  ASSERT_NE(expected.get(), nullptr);
+
+  auto diff = Ref<>::steal(BinaryOpCache::subtract(lhs, rhs, &cache));
+  ASSERT_NE(diff.get(), nullptr);
+  EXPECT_EQ(PyObject_RichCompareBool(diff, expected, Py_EQ), 1);
+
+  // set - int is a TypeError: the set guard fails, the cache steps down to the
+  // generic path and PyNumber_Subtract raises.
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto err = Ref<>::steal(BinaryOpCache::subtract(lhs, one, &cache));
+  EXPECT_EQ(err.get(), nullptr);
+  EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_TypeError));
+  PyErr_Clear();
+
+  // The state machine survives the raise: a valid difference still works.
+  auto again = Ref<>::steal(BinaryOpCache::subtract(lhs, rhs, &cache));
+  ASSERT_NE(again.get(), nullptr);
+  EXPECT_EQ(PyObject_RichCompareBool(again, expected, Py_EQ), 1);
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideSpecializationLookup) {
+  using SpecializedType = SpecializedType;
+
+  // float / float is the row that matters most: CPython has no
+  // BINARY_OP_TRUE_DIVIDE specialization, so these sites always reach the
+  // cache.
+  auto flt = Ref<>::steal(PyFloat_FromDouble(1.0));
+  auto four_f = Ref<>::steal(PyFloat_FromDouble(4.0));
+  BinaryOpCache float_float{BinaryOpKind::kTrueDivide};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, float_float, flt, four_f),
+      sameTypes(SpecializedType::kFloat));
+
+  // int / int yields a float, so the return type differs from the operands.
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  BinaryOpCache compact{BinaryOpKind::kTrueDivide};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, compact, seven, two),
+      types(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kFloat));
+
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto half_big = Ref<>::steal(PyLong_FromLong(1L << 59));
+  BinaryOpCache long_long{BinaryOpKind::kTrueDivide};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, long_long, big, half_big),
+      types(
+          SpecializedType::kLong,
+          SpecializedType::kLong,
+          SpecializedType::kFloat));
+
+  auto cplx = Ref<>::steal(PyComplex_FromDoubles(4.0, 0.0));
+  auto cplx_two = Ref<>::steal(PyComplex_FromDoubles(2.0, 0.0));
+  BinaryOpCache complex_complex{BinaryOpKind::kTrueDivide};
+  EXPECT_EQ(
+      specializeWith(
+          BinaryOpCache::trueDivide, complex_complex, cplx, cplx_two),
+      sameTypes(SpecializedType::kComplex));
+
+  // bool divides fine but is not an exact int, so it misses every
+  // specialization and lands on the generic path.
+  BinaryOpCache generic{BinaryOpKind::kTrueDivide};
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, generic, Py_True, Py_True),
+      sameTypes(SpecializedType::kGeneric));
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideComputesCorrectly) {
+  // int / int returns a float, not an int.
+  BinaryOpCache compact{BinaryOpKind::kTrueDivide};
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  auto quotient = Ref<>::steal(BinaryOpCache::trueDivide(seven, two, &compact));
+  ASSERT_NE(quotient.get(), nullptr);
+  ASSERT_TRUE(PyFloat_CheckExact(quotient));
+  EXPECT_EQ(PyFloat_AsDouble(quotient), 3.5);
+
+  // Negative operands keep the compact fast path.
+  auto minus_seven = Ref<>::steal(PyLong_FromLong(-7));
+  auto negative =
+      Ref<>::steal(BinaryOpCache::trueDivide(minus_seven, two, &compact));
+  ASSERT_NE(negative.get(), nullptr);
+  EXPECT_EQ(PyFloat_AsDouble(negative), -3.5);
+
+  // long / long.
+  BinaryOpCache long_long{BinaryOpKind::kTrueDivide};
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto half_big = Ref<>::steal(PyLong_FromLong(1L << 59));
+  auto big_quotient =
+      Ref<>::steal(BinaryOpCache::trueDivide(big, half_big, &long_long));
+  ASSERT_NE(big_quotient.get(), nullptr);
+  ASSERT_TRUE(PyFloat_CheckExact(big_quotient));
+  EXPECT_EQ(PyFloat_AsDouble(big_quotient), 2.0);
+
+  // float / float.
+  BinaryOpCache float_float{BinaryOpKind::kTrueDivide};
+  auto one_f = Ref<>::steal(PyFloat_FromDouble(1.0));
+  auto four_f = Ref<>::steal(PyFloat_FromDouble(4.0));
+  auto float_quotient =
+      Ref<>::steal(BinaryOpCache::trueDivide(one_f, four_f, &float_float));
+  ASSERT_NE(float_quotient.get(), nullptr);
+  ASSERT_TRUE(PyFloat_CheckExact(float_quotient));
+  EXPECT_EQ(PyFloat_AsDouble(float_quotient), 0.25);
+
+  // complex / complex.
+  BinaryOpCache complex_complex{BinaryOpKind::kTrueDivide};
+  auto cplx = Ref<>::steal(PyComplex_FromDoubles(4.0, 2.0));
+  auto cplx_two = Ref<>::steal(PyComplex_FromDoubles(2.0, 0.0));
+  auto complex_quotient =
+      Ref<>::steal(BinaryOpCache::trueDivide(cplx, cplx_two, &complex_complex));
+  ASSERT_NE(complex_quotient.get(), nullptr);
+  EXPECT_EQ(PyComplex_RealAsDouble(complex_quotient), 2.0);
+  EXPECT_EQ(PyComplex_ImagAsDouble(complex_quotient), 1.0);
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideMatchesPyNumber) {
+  // The compact-int row divides two doubles inline instead of calling
+  // long_true_divide, so every interesting compact case is checked against the
+  // real thing.  1/3 and 2/3 exercise rounding; 0 / -3 exercises the sign of a
+  // zero result, which a naive implementation gets wrong.
+  auto zero = Ref<>::steal(PyLong_FromLong(0));
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  auto minus_three = Ref<>::steal(PyLong_FromLong(-3));
+  auto seven = Ref<>::steal(PyLong_FromLong(7));
+  auto max_compact = Ref<>::steal(PyLong_FromLong((1L << 30) - 1));
+
+  expectTrueDivideMatchesPyNumber(one, three);
+  expectTrueDivideMatchesPyNumber(two, three);
+  expectTrueDivideMatchesPyNumber(seven, two);
+  expectTrueDivideMatchesPyNumber(zero, minus_three);
+  expectTrueDivideMatchesPyNumber(zero, three);
+  expectTrueDivideMatchesPyNumber(minus_three, seven);
+  expectTrueDivideMatchesPyNumber(max_compact, three);
+  expectTrueDivideMatchesPyNumber(one, max_compact);
+
+  // Non-compact operands go through long_true_divide on both sides, but check
+  // a few anyway: these are the values where a double-based shortcut would
+  // lose the correctly-rounded result.
+  auto big = Ref<>::steal(PyLong_FromLong((1L << 60) + 1));
+  auto big_minus_one = Ref<>::steal(PyLong_FromLong((1L << 60) - 1));
+  expectTrueDivideMatchesPyNumber(big, three);
+  expectTrueDivideMatchesPyNumber(big, big_minus_one);
+
+  // The float row divides inline too, so pin it the same way -- including the
+  // non-finite inputs where a shortcut could diverge from float_div.
+  auto one_f = Ref<>::steal(PyFloat_FromDouble(1.0));
+  auto three_f = Ref<>::steal(PyFloat_FromDouble(3.0));
+  auto minus_two_f = Ref<>::steal(PyFloat_FromDouble(-2.0));
+  auto zero_f = Ref<>::steal(PyFloat_FromDouble(0.0));
+  auto inf_f = Ref<>::steal(PyFloat_FromDouble(HUGE_VAL));
+  auto nan_f = Ref<>::steal(PyFloat_FromDouble(std::nan("")));
+  auto tiny_f = Ref<>::steal(PyFloat_FromDouble(5e-324));
+  auto huge_f = Ref<>::steal(PyFloat_FromDouble(1.7976931348623157e308));
+
+  expectTrueDivideMatchesPyNumber(one_f, three_f);
+  expectTrueDivideMatchesPyNumber(one_f, minus_two_f);
+  // 0.0 / -2.0 is -0.0; the signbit check is what catches getting this wrong.
+  expectTrueDivideMatchesPyNumber(zero_f, minus_two_f);
+  expectTrueDivideMatchesPyNumber(inf_f, three_f);
+  expectTrueDivideMatchesPyNumber(three_f, inf_f);
+  expectTrueDivideMatchesPyNumber(nan_f, three_f);
+  expectTrueDivideMatchesPyNumber(three_f, nan_f);
+  // Overflow to inf and underflow to zero must match float_div, not raise.
+  expectTrueDivideMatchesPyNumber(huge_f, tiny_f);
+  expectTrueDivideMatchesPyNumber(tiny_f, huge_f);
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideByZeroRaises) {
+  using SpecializedType = SpecializedType;
+
+  // Each specialization must raise ZeroDivisionError rather than producing an
+  // inf/nan, and must not let the raise disturb the specialization it settled
+  // on.
+  {
+    BinaryOpCache cache{BinaryOpKind::kTrueDivide};
+    auto six = Ref<>::steal(PyLong_FromLong(6));
+    auto three = Ref<>::steal(PyLong_FromLong(3));
+    auto zero = Ref<>::steal(PyLong_FromLong(0));
+    Ref<>::steal(BinaryOpCache::trueDivide(six, three, &cache));
+    BinaryOpCache::BinarySpecialization before = cache.specializedTypes();
+
+    auto err = Ref<>::steal(BinaryOpCache::trueDivide(six, zero, &cache));
+    EXPECT_EQ(err.get(), nullptr);
+    EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_ZeroDivisionError));
+    PyErr_Clear();
+    EXPECT_EQ(cache.specializedTypes(), before);
+
+    auto ok = Ref<>::steal(BinaryOpCache::trueDivide(six, three, &cache));
+    ASSERT_NE(ok.get(), nullptr);
+    EXPECT_EQ(PyFloat_AsDouble(ok), 2.0);
+  }
+
+  // Non-compact int / zero.
+  {
+    BinaryOpCache cache{BinaryOpKind::kTrueDivide};
+    auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+    auto zero = Ref<>::steal(PyLong_FromLong(0));
+    Ref<>::steal(BinaryOpCache::trueDivide(big, big, &cache));
+    EXPECT_EQ(
+        cache.specializedTypes(),
+        types(
+            SpecializedType::kLong,
+            SpecializedType::kLong,
+            SpecializedType::kFloat));
+
+    auto err = Ref<>::steal(BinaryOpCache::trueDivide(big, zero, &cache));
+    EXPECT_EQ(err.get(), nullptr);
+    EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_ZeroDivisionError));
+    PyErr_Clear();
+  }
+
+  // float / 0.0.
+  {
+    BinaryOpCache cache{BinaryOpKind::kTrueDivide};
+    auto one_f = Ref<>::steal(PyFloat_FromDouble(1.0));
+    auto zero_f = Ref<>::steal(PyFloat_FromDouble(0.0));
+    Ref<>::steal(BinaryOpCache::trueDivide(one_f, one_f, &cache));
+
+    auto err = Ref<>::steal(BinaryOpCache::trueDivide(one_f, zero_f, &cache));
+    EXPECT_EQ(err.get(), nullptr);
+    EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_ZeroDivisionError));
+    PyErr_Clear();
+  }
+
+  // complex / 0j.
+  {
+    BinaryOpCache cache{BinaryOpKind::kTrueDivide};
+    auto cplx = Ref<>::steal(PyComplex_FromDoubles(1.0, 1.0));
+    auto zero_c = Ref<>::steal(PyComplex_FromDoubles(0.0, 0.0));
+    Ref<>::steal(BinaryOpCache::trueDivide(cplx, cplx, &cache));
+
+    auto err = Ref<>::steal(BinaryOpCache::trueDivide(cplx, zero_c, &cache));
+    EXPECT_EQ(err.get(), nullptr);
+    EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_ZeroDivisionError));
+    PyErr_Clear();
+  }
+}
+
+TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideStepsDownChain) {
+  using SpecializedType = SpecializedType;
+  BinaryOpCache cache{BinaryOpKind::kTrueDivide};
+
+  // Compact ints -> compact/compact/float.  There is no result check here (the
+  // return type is Float, which the op always produces), so unlike add and
+  // subtract there is no compact -> long step driven by the result.
+  auto six = Ref<>::steal(PyLong_FromLong(6));
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, cache, six, three),
+      types(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kFloat));
+
+  // Non-compact args -> long/long/float.
+  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, cache, big, big),
+      types(
+          SpecializedType::kLong,
+          SpecializedType::kLong,
+          SpecializedType::kFloat));
+
+  // An operand type with no true-divide specialization -> generic, permanently.
+  EXPECT_EQ(
+      specializeWith(BinaryOpCache::trueDivide, cache, Py_True, Py_True),
+      sameTypes(SpecializedType::kGeneric));
 }
 
 // Load/StoreAttrCache dispatch through a function pointer held in the cache

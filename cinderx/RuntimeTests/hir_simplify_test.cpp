@@ -86,6 +86,19 @@ TEST_F(SimplifyBinaryOpCacheTest, GenericSubtractStaysBinaryOp) {
   EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOp<Subtract>"));
 }
 
+TEST_F(SimplifyBinaryOpCacheTest, GenericTrueDivideStaysBinaryOp) {
+  const char* hir = R"(fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = BinaryOp<TrueDivide> v0 v1
+    Return v2
+  }
+}
+)";
+  EXPECT_THAT(runSimplify(hir), ::testing::HasSubstr("BinaryOp<TrueDivide>"));
+}
+
 TEST_F(SimplifyBinaryOpCacheTest, GenericAddStaysBinaryOpWhenCacheDisabled) {
   getMutableConfig().binary_op_caches = false;
   const char* hir = R"(fun test {

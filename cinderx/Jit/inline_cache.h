@@ -938,7 +938,7 @@ class LoadModuleMethodCache {
 enum class SpecializedType : uint8_t {
   // The cache has not specialized yet (still in a populate state).
   kUninitialized,
-  // The cache has fallen back to the generic PyNumber_Add/Multiply path.
+  // The cache has fallen back to the generic PyNumber_* path.
   kGeneric,
   kCompactLong,
   kLong,
@@ -947,34 +947,34 @@ enum class SpecializedType : uint8_t {
   kList,
   kTuple,
   kComplex,
+  kSet,
 };
 
 // A cache for an individual BinaryOp instruction.
 //
 // Implements an inline cache for binary operations as a small state machine.
-// A single Specialization enum covers both add and multiply states, but add and
-// multiply have separate dispatch entry points (add() / multiply()) that each
-// switch over their op's subset of the enum.  A cache is constructed for a
-// single op; it starts in that op's populate state, which checks the inputs for
-// known cache types on the first invocation, then transitions specialization_
-// to the matching specialized state, or to a generic state when no
-// SpecializedType applies.
+// A single Specialization enum covers every supported op's states, but each op
+// has its own dispatch entry point (add() / multiply() / subtract()) that
+// switches over just that op's subset of the enum.  A cache is constructed for
+// a single op; it starts in that op's populate state, which checks the inputs
+// for known cache types on the first invocation, then transitions
+// specialization_ to the matching specialized state, or to a generic state when
+// no SpecializedType applies.
 //
-// Codegen emits a direct call to add() (for kAdd) or multiply() (for
-// kMultiply); each switches on specialization_ and calls the matching
+// Codegen emits a direct call to the entry point matching the op's
+// BinaryOpKind; each switches on specialization_ and calls the matching
 // specialized operation directly -- there is no indirect call through a
 // function pointer.
 class BinaryOpCache {
  public:
   // Identifies which specialization the cache has settled on, i.e. which
-  // operation add()/multiply() dispatches to.  A single enum holds both ops'
-  // states: the k<Name> values are auto-generated from
+  // operation the op's entry point dispatches to.  A single enum holds every
+  // op's states: the k<Name> values are auto-generated from
   // FOREACH_BINARY_OP_SPECIALIZATION, the kUninitialized* values are the
-  // initial (lazily specializing) populate states, and
-  // kAddGeneric/kMultiplyGeneric are the permanent generic fallbacks.  add()
-  // only ever observes the add subset and multiply() the multiply subset, but a
-  // single enum lets specializedTypes() switch over all values without a
-  // discriminant.
+  // initial (lazily specializing) populate states, and the k*Generic values are
+  // the permanent generic fallbacks.  Each entry point only ever observes its
+  // own op's subset, but a single enum lets specializedTypes() switch over all
+  // values without a discriminant.
   enum class Specialization : uint8_t;
 
   // The (lhs, rhs, return) operand/result types a cache has specialized to.
@@ -995,10 +995,14 @@ class BinaryOpCache {
   explicit BinaryOpCache(cinderx::jit::hir::BinaryOpKind op);
 
   // Dispatch entry points called directly by codegen: add() for kAdd,
-  // multiply() for kMultiply.  Each switches on the cache's per-op
-  // specialization enum and runs the corresponding operation directly.
+  // multiply() for kMultiply, subtract() for kSubtract, trueDivide() for
+  // kTrueDivide.  Each switches on the cache's per-op specialization enum and
+  // runs the corresponding operation directly.
   static PyObject* add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
   static PyObject* multiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+  static PyObject* subtract(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+  static PyObject*
+  trueDivide(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
   // Returns the (lhs, rhs, return) operand types the cache has settled on
   // ({kUninitialized, ...} before the first call).
@@ -1023,6 +1027,18 @@ class BinaryOpCache {
   static PyObject*
   populateAndInvokeMultiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
+  // Initial entry point for the subtract op: inspects the operand types,
+  // transitions the subtract specialization, and performs the operation.
+  static PyObject*
+  populateAndInvokeSubtract(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Initial entry point for the true-divide op: inspects the operand types,
+  // transitions the true-divide specialization, and performs the operation.
+  static PyObject* populateAndInvokeTrueDivide(
+      PyObject* lhs,
+      PyObject* rhs,
+      BinaryOpCache* cache);
+
   // Permanent generic fallback that just calls PyNumber_Add.
   static PyObject*
   addGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
@@ -1030,6 +1046,14 @@ class BinaryOpCache {
   // Permanent generic fallback that just calls PyNumber_Multiply.
   static PyObject*
   multiplyGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Permanent generic fallback that just calls PyNumber_Subtract.
+  static PyObject*
+  subtractGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  // Permanent generic fallback that just calls PyNumber_TrueDivide.
+  static PyObject*
+  trueDivideGeneric(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
   // Specialized entry for a (lhs, rhs) -> ret triple.  Guards that lhs passes
   // checkFor(LhsKind) and rhs passes checkFor(RhsKind) and, if so, runs the
@@ -1039,7 +1063,7 @@ class BinaryOpCache {
   // returning the already-correct result.  If the operands stop matching, it
   // sets specialization_ to Fallback and re-dispatches through ReDispatch.
   // Fallback is the next Specialization in the chain and ReDispatch is the
-  // matching add()/multiply().
+  // op's matching entry point.
   template <
       auto LhsKind,
       auto RhsKind,
