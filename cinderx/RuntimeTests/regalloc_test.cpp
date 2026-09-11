@@ -37,6 +37,20 @@ BB %8
 )";
   }
 
+  static const char* duplicateEdgePhiLIR() {
+    return R"(Function:
+BB %0 - succs: %3 %3
+  %1 = Move 10
+  %2 = Move 20
+  CondBranch %1, BB%3, BB%3
+BB %3 - succs: %5
+  %4 = Phi (BB%0, %1), (BB%0, %2)
+  Return %4
+BB %5
+
+)";
+  }
+
   static bool LiveIntervalPtrLess(
       const LiveInterval* lhs,
       const LiveInterval* rhs) {
@@ -357,6 +371,38 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesCriticalEdgePhiSlots) {
 
   LinearScanAllocator allocator{function.get()};
   allocator.run();
+
+  ASSERT_EQ(phi->numPhiInputs(), 2);
+  for (size_t slot = 0; slot < phi->numPhiInputs(); ++slot) {
+    const Operand* value = phi->phiInput(slot);
+    EXPECT_FALSE(value->isLinked());
+    EXPECT_TRUE(value->isReg() || value->isStack());
+    EXPECT_EQ(value->instr(), phi);
+  }
+}
+
+TEST_F(LinearScanAllocatorTest, FullRunHandlesDuplicateEdgePhiSlots) {
+  Parser parser;
+  auto function = parser.parse(duplicateEdgePhiLIR());
+  BasicBlock* source = function->basicBlocks().front();
+  Instruction* phi = parser.getOutputInstrMap().at(4);
+  BasicBlock* phi_block = phi->basicBlock();
+
+  LinearScanAllocator allocator{function.get()};
+  allocator.run();
+
+  ASSERT_EQ(source->successors().size(), 2);
+  EXPECT_NE(source->successors()[0], source->successors()[1]);
+  size_t trampoline_count = 0;
+  for (BasicBlock* successor : source->successors()) {
+    if (successor == phi_block) {
+      continue;
+    }
+    ++trampoline_count;
+    EXPECT_EQ(successor->successors(), (std::vector<BasicBlock*>{phi_block}));
+    EXPECT_GT(successor->getNumInstrs(), 0) << *function;
+  }
+  EXPECT_GT(trampoline_count, 0);
 
   ASSERT_EQ(phi->numPhiInputs(), 2);
   for (size_t slot = 0; slot < phi->numPhiInputs(); ++slot) {

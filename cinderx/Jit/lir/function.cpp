@@ -206,6 +206,7 @@ Function::CopyResult Function::copyFrom(
   JIT_CHECK(
       prev_bb->successors().size() == 1 && prev_bb->successors()[0] == next_bb,
       "prev_bb should only have 1 successor which should be next_bb.");
+  const size_t next_bb_incoming_slot = prev_bb->outgoingEdge(0).incomingSlot();
 
   UnorderedMap<int, BasicBlock*> block_index_map;
 
@@ -223,7 +224,7 @@ Function::CopyResult Function::copyFrom(
   int start = end - src_func->basic_blocks_.size();
   BasicBlock* dest_start = basic_blocks_.at(start);
   BasicBlock* dest_end = basic_blocks_.at(end - 1);
-  prev_bb->setSuccessor(0, dest_start);
+  prev_bb->setSuccessor(0, next_bb_incoming_slot, dest_start);
   JIT_CHECK(
       dest_end->successors().empty(),
       "Last block of function should have no successors.");

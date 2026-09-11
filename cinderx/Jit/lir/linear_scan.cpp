@@ -1735,24 +1735,23 @@ void LinearScanAllocator::resolveEdgesInsertBasicBlocks(
     std::unique_ptr<CopyGraphWithOperand> false_copies) {
   // convert {true_need_copy, false_need_copy, next_true, next_false}
   // => {bb1_is_true_bb, gen_new_bb1, gen_new_bb2}
-  static constexpr std::array<std::tuple<bool, bool, bool>, 16> truth_table{{
-      {0, 1, 0},
-      {0, 0, 0},
-      {1, 0, 0},
-      {0, 0, 0}, // don't care - will never happen
-      {0, 1, 0},
-      {0, 1, 0},
-      {0, 1, 0},
-      {0, 0, 0}, // don't care
-      {1, 1, 0},
-      {1, 1, 0},
-      {1, 1, 0},
-      {0, 0, 0}, // don't care
-      {1, 1, 1},
-      {1, 1, 1},
-      {0, 1, 1},
-      {0, 0, 0} // don't care
-  }};
+  static constexpr std::array<std::tuple<bool, bool, bool>, 16> truth_table{
+      {{0, 1, 0},
+       {0, 0, 0},
+       {1, 0, 0},
+       {0, 0, 0},
+       {0, 1, 0},
+       {0, 1, 0},
+       {0, 1, 0},
+       {0, 1, 0},
+       {1, 1, 0},
+       {1, 1, 0},
+       {1, 1, 0},
+       {1, 1, 0},
+       {1, 1, 1},
+       {1, 1, 1},
+       {0, 1, 1},
+       {1, 1, 1}}};
 
   bool next_true = next_basic_block == true_bb;
   bool next_false = next_basic_block == false_bb;
@@ -1770,29 +1769,32 @@ void LinearScanAllocator::resolveEdgesInsertBasicBlocks(
 
   BasicBlock* new_bb1 = nullptr;
   BasicBlock* new_bb2 = nullptr;
+  const size_t true_incoming_slot = basic_block->outgoingEdge(0).incomingSlot();
+  const size_t false_incoming_slot =
+      basic_block->outgoingEdge(basic_block->successors().size() - 1)
+          .incomingSlot();
 
   if (gen_new_bb2) {
-    new_bb2 = basic_block->insertBasicBlockBetween(bb2);
+    new_bb2 = basic_block->insertBasicBlockBetween(
+        bb2, bb1_true ? false_incoming_slot : true_incoming_slot);
   }
 
   if (gen_new_bb1) {
-    new_bb1 = basic_block->insertBasicBlockBetween(bb1);
+    new_bb1 = basic_block->insertBasicBlockBetween(
+        bb1, bb1_true ? true_incoming_slot : false_incoming_slot);
   }
 
   // emit copies if necessary
-  auto emit_copies = [&](BasicBlock* new_bb, const BasicBlock* bb) {
+  auto emit_copies = [&](BasicBlock* new_bb, CopyGraphWithOperand& copies) {
     if (!new_bb) {
       return;
     }
 
-    rewriteLIREmitCopies(
-        new_bb,
-        new_bb->instructions().end(),
-        *(bb == true_bb ? true_copies : false_copies));
+    rewriteLIREmitCopies(new_bb, new_bb->instructions().end(), copies);
   };
 
-  emit_copies(new_bb1, bb1);
-  emit_copies(new_bb2, bb2);
+  emit_copies(new_bb1, *(bb1_true ? true_copies : false_copies));
+  emit_copies(new_bb2, *(bb1_true ? false_copies : true_copies));
 }
 
 std::ostream& operator<<(std::ostream& out, const LiveRange& rhs) {

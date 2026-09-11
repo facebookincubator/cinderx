@@ -7,7 +7,6 @@
 
 #include <list>
 #include <memory>
-#include <optional>
 #include <vector>
 
 namespace cinderx::jit::hir {
@@ -59,7 +58,10 @@ class BasicBlock {
 
   // Change the outgoing edge at index. Remove its phi values from the old
   // successor; this does not add phi values to the new successor.
-  void setSuccessor(size_t index, BasicBlock* bb);
+  void setSuccessor(
+      size_t index,
+      size_t old_successor_incoming_slot,
+      BasicBlock* bb);
 
   // Remove the last outgoing edge and its associated predecessor and phi
   // values from the successor. Used for the allocator-only trailing resume
@@ -80,16 +82,11 @@ class BasicBlock {
   BasicBlock* predecessor(size_t index) const;
   IncomingEdge incomingEdge(size_t index) const;
 
-  // Pointer-based lookup requires the predecessor to occur at most once.
-  std::optional<size_t> findPredecessorIndex(
-      const BasicBlock* predecessor) const;
-  size_t predecessorIndex(const BasicBlock* predecessor) const;
-
   // Replace one incoming edge and its phi labels without changing its values.
-  void replacePredecessor(BasicBlock* predecessor, BasicBlock* replacement);
+  void replacePredecessor(size_t predecessor_index, BasicBlock* replacement);
 
   // Remove one incoming edge and its matching label/value pair from each phi.
-  void removePredecessor(BasicBlock* predecessor);
+  void removePredecessor(size_t predecessor_index);
 
   // Allocate an instruction and its operands and append it to the
   // instruction list. For the details on how to allocate instruction
@@ -156,7 +153,9 @@ class BasicBlock {
   }
 
   // Insert a basic block between this block and the given block.
-  BasicBlock* insertBasicBlockBetween(BasicBlock* block);
+  BasicBlock* insertBasicBlockBetween(
+      BasicBlock* block,
+      size_t block_incoming_slot);
 
   // Split this block before instr.
   // Current basic block contains all instructions up to (but excluding) instr.
