@@ -33,10 +33,18 @@ class Instruction {
   FOREACH_LIR_OPCODE(DECL_OPCODE_TEST)
 #undef DECL_OPCODE_TEST
 
+  static std::unique_ptr<Instruction> makePhi(
+      BasicBlock* basic_block,
+      const hir::Instr* origin);
+  static std::unique_ptr<Instruction> makePhi(
+      BasicBlock* basic_block,
+      Instruction* instruction,
+      const hir::Instr* origin);
+
   Instruction(BasicBlock* basic_block, Opcode opcode, const hir::Instr* origin);
 
-  // Copies another instruction's opcode and simple fields from its output.  The
-  // inputs are not copied.
+  // Copies another instruction's opcode and simple fields from its output.
+  // The operand values are not copied.
   Instruction(BasicBlock* block, Instruction* instr, const hir::Instr* origin);
 
   // Get the unique ID representing this instruction within its function.
@@ -103,7 +111,8 @@ class Instruction {
   // - [Out]PhyReg(phyreg, size): a physical register
   // - [Out]Imm(imm, size): an immediate
   // - [Out]Stack(slot, size): a stack slot
-  // - [Out]Lbl(Basicblock): a basic block target
+  // - [Out]Lbl(Basicblock): a non-phi basic block target; phi predecessors
+  //   come from the containing block's CFG
   // - VReg(instr), OutVReg(size): a virtual register
   // the arguments with the names prefixed with `Out` are output operands.
   // the output operand must be the first argument of this function.
@@ -148,8 +157,8 @@ class Instruction {
     }
   }
 
-  // Set an input by index, deleting the previous input.  Does not resize the
-  // inputs list.
+  // Set an input by index, deleting the previous input. Phi inputs must be
+  // values; other instructions may also use labels. Does not resize the list.
   void setInput(size_t index, std::unique_ptr<Operand> input);
 
   // Remove an input by index, shifting all other inputs to the left.
@@ -174,7 +183,6 @@ class Instruction {
  private:
   friend class BasicBlock;
 
-  void replacePhiPredecessor(size_t index, BasicBlock* replacement);
   void erasePhiInput(size_t index);
 
   template <typename FType, typename... AType>

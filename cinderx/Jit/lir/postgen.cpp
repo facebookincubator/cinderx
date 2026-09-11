@@ -384,6 +384,9 @@ Instruction* getSecondCallResult(
   Opcode new_op = is_call_like ? Opcode::kMove : Opcode::kPhi;
   if (instr) {
     instr->setOpcode(new_op);
+    if (new_op == Opcode::kPhi) {
+      instr->setNumInputs(src_block->numPredecessors());
+    }
   } else {
     instr = src_block->allocateInstrBefore(
         std::next(src_it), new_op, OutVReg(data_type));

@@ -326,6 +326,7 @@ void LIRInliner::resolveReturnValue() {
 
   // Create phi instruction.
   auto phi_instr = epilogue->allocateInstr(Opcode::kPhi, nullptr, OutVReg());
+  bool has_return_value = false;
 
   // Find return instructions from predecessor of epilogue.
   for (size_t index = 0; index < epilogue->numPredecessors(); ++index) {
@@ -345,13 +346,14 @@ void LIRInliner::resolveReturnValue() {
           *moveInstr);
 
       phi_instr->addPhiInput(incoming_edge, moveInstr->releaseInput(0));
+      has_return_value = true;
 
       pred->removeInstr(retIter);
       pred->removeInstr(moveIter);
     }
   }
 
-  if (phi_instr->numPhiInputs() == 0) {
+  if (!has_return_value) {
     // Callee has no return statements.
     // Remove phi instruction.
     epilogue->removeInstr(epilogue->getLastInstrIter());

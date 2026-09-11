@@ -82,10 +82,10 @@ class BasicBlock {
   BasicBlock* predecessor(size_t index) const;
   IncomingEdge incomingEdge(size_t index) const;
 
-  // Replace one incoming edge and its phi labels without changing its values.
+  // Replace one incoming edge without changing its phi values.
   void replacePredecessor(size_t predecessor_index, BasicBlock* replacement);
 
-  // Remove one incoming edge and its matching label/value pair from each phi.
+  // Remove one incoming edge and its matching value from each phi.
   void removePredecessor(size_t predecessor_index);
 
   // Allocate an instruction and its operands and append it to the
@@ -94,7 +94,10 @@ class BasicBlock {
   template <typename... T>
   Instruction*
   allocateInstr(Opcode opcode, const hir::Instr* origin, T&&... args) {
-    instrs_.emplace_back(std::make_unique<Instruction>(this, opcode, origin));
+    auto instruction = opcode == Opcode::kPhi
+        ? Instruction::makePhi(this, origin)
+        : std::make_unique<Instruction>(this, opcode, origin);
+    instrs_.emplace_back(std::move(instruction));
     auto instr = instrs_.back().get();
 
     instr->addOperands(std::forward<T>(args)...);
@@ -115,7 +118,9 @@ class BasicBlock {
       origin = (*std::prev(iter))->origin();
     }
 
-    auto instr = std::make_unique<Instruction>(this, opcode, origin);
+    auto instr = opcode == Opcode::kPhi
+        ? Instruction::makePhi(this, origin)
+        : std::make_unique<Instruction>(this, opcode, origin);
     auto res = instr.get();
     instrs_.emplace(iter, std::move(instr));
 

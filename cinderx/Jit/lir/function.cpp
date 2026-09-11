@@ -153,8 +153,10 @@ void deepCopyBasicBlocks(
     for (auto& instr : bb->instructions()) {
       // Copying the instruction will also copy the output
       // (including the output type and data type).
-      bb_copy->instructions().emplace_back(
-          std::make_unique<Instruction>(bb_copy, instr.get(), origin));
+      auto instruction = instr->isPhi()
+          ? Instruction::makePhi(bb_copy, instr.get(), origin)
+          : std::make_unique<Instruction>(bb_copy, instr.get(), origin);
+      bb_copy->instructions().emplace_back(std::move(instruction));
       Instruction* instr_copy = bb_copy->instructions().back().get();
       output_index_map.emplace(instr->id(), instr_copy);
       // Copy output.

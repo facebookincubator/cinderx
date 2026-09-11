@@ -225,6 +225,7 @@ TEST(LIRBlockTest, PhiAccessorsUseIncomingSlots) {
   addImmediatePhiInput(second_phi, second_edge, 200);
 
   EXPECT_EQ(first_phi->numPhiInputs(), 2);
+  EXPECT_EQ(first_phi->getNumInputs(), 2);
   EXPECT_EQ(first_phi->phiPredecessor(0), first);
   EXPECT_EQ(first_phi->phiPredecessor(1), second);
   EXPECT_EQ(first_phi->phiInput(0), first_value);
@@ -245,7 +246,6 @@ TEST(LIRBlockTest, AddPhiInputUsesIncomingSlot) {
   BasicBlock* second = function.allocateBasicBlock();
   BasicBlock* join = function.allocateBasicBlock();
   IncomingEdge first_edge = first->addSuccessor(join);
-  IncomingEdge second_edge = second->addSuccessor(join);
 
   Instruction* first_value =
       first->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, lir::Imm{10});
@@ -256,6 +256,10 @@ TEST(LIRBlockTest, AddPhiInputUsesIncomingSlot) {
   moved_value_ptr->setLastUse();
 
   Instruction* phi = join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  EXPECT_EQ(phi->getNumInputs(), 1);
+
+  IncomingEdge second_edge = second->addSuccessor(join);
+  EXPECT_EQ(phi->getNumInputs(), 2);
   phi->addPhiInput(second_edge, std::move(moved_value));
 
   EXPECT_EQ(phi->numPhiInputs(), 2);
@@ -271,10 +275,30 @@ TEST(LIRBlockTest, AddPhiInputUsesIncomingSlot) {
 
   phi->addPhiInput(first_edge, first_value);
 
+  EXPECT_EQ(phi->getNumInputs(), join->numPredecessors());
   EXPECT_EQ(phi->phiInput(0)->getLinkedInstr(), first_value);
   EXPECT_EQ(phi->phiInput(1), moved_value_ptr);
   EXPECT_DEATH(
       phi->addPhiInput(first_edge, first_value), "Phi input already set");
+}
+
+TEST(LIRBlockTest, PhiInputsMustBeValues) {
+  Function function;
+  BasicBlock* predecessor = function.allocateBasicBlock();
+  BasicBlock* block = function.allocateBasicBlock();
+  predecessor->addSuccessor(block);
+  Instruction* phi = block->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+
+  EXPECT_DEATH(
+      {
+        auto label = std::make_unique<lir::Operand>(phi);
+        label->setBasicBlock(predecessor);
+        phi->setInput(0, std::move(label));
+      },
+      "Phi inputs must be values");
+
+  Instruction* branch = block->allocateInstr(Opcode::kBranch, nullptr);
+  EXPECT_EQ(branch->allocateLabelInput(block)->getBasicBlock(), block);
 }
 
 TEST(LIRFunctionTest, CopyFromPreservesPhiValuesAcrossEdgeReordering) {
@@ -529,6 +553,9 @@ TEST(LIRBlockTest, PredecessorAccessors) {
   EXPECT_EQ(loop->numPredecessors(), 1);
   EXPECT_EQ(loop->predecessor(0), loop);
   expectIncomingEdge(loop->incomingEdge(0), loop, loop, 0);
+
+  Instruction* loop_phi = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  EXPECT_EQ(loop_phi->getNumInputs(), 1);
 }
 
 TEST(LIRBlockTest, ReplacePredecessorPreservesPhiValues) {
@@ -1195,6 +1222,26 @@ BB %1 - succs: %3
   printed << *parsed;
   auto reparsed = Parser().parse(printed.str());
   expect_aligned_phi(reparsed.get());
+}
+
+TEST_F(LIRGeneratorTest, ParserRejectsFlatPhiSyntax) {
+  EXPECT_THROW(
+      Parser().parse(R"(Function:
+BB %0
+      %1:Object = Phi BB%0, 1(0x1):Object
+
+)"),
+      ParserException);
+}
+
+TEST_F(LIRGeneratorTest, ParserRejectsPhiLabelValue) {
+  EXPECT_THROW(
+      Parser().parse(R"(Function:
+BB %0
+      %1:Object = Phi (BB%0, BB%0)
+
+)"),
+      ParserException);
 }
 
 TEST_F(LIRGeneratorTest, ParserAlignsPhiPairsWithDuplicateEdges) {

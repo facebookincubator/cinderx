@@ -11,6 +11,25 @@
 
 namespace cinderx::jit::lir {
 
+std::unique_ptr<Instruction> Instruction::makePhi(
+    BasicBlock* basic_block,
+    const hir::Instr* origin) {
+  auto instruction =
+      std::make_unique<Instruction>(basic_block, Opcode::kPhi, origin);
+  instruction->setNumInputs(basic_block->numPredecessors());
+  return instruction;
+}
+
+std::unique_ptr<Instruction> Instruction::makePhi(
+    BasicBlock* basic_block,
+    Instruction* instruction,
+    const hir::Instr* origin) {
+  JIT_CHECK(instruction->isPhi(), "Instruction is not a phi");
+  auto copy = std::make_unique<Instruction>(basic_block, instruction, origin);
+  copy->setNumInputs(basic_block->numPredecessors());
+  return copy;
+}
+
 Instruction::Instruction(
     BasicBlock* basic_block,
     Opcode opcode,
@@ -58,25 +77,22 @@ size_t Instruction::getNumInputs() const {
 
 size_t Instruction::numPhiInputs() const {
   JIT_CHECK(isPhi(), "Instruction is not a phi");
-  JIT_CHECK(inputs_.size() % 2 == 0, "Phi inputs must be label/value pairs");
-  return inputs_.size() / 2;
+  return inputs_.size();
 }
 
 BasicBlock* Instruction::phiPredecessor(size_t index) const {
   JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
-  const Operand* label = getInput(index * 2);
-  return label == nullptr ? basic_block_->predecessor(index)
-                          : label->getBasicBlock();
+  return basic_block_->predecessor(index);
 }
 
 Operand* Instruction::phiInput(size_t index) {
   JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
-  return getInput(index * 2 + 1);
+  return getInput(index);
 }
 
 const Operand* Instruction::phiInput(size_t index) const {
   JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
-  return getInput(index * 2 + 1);
+  return getInput(index);
 }
 
 void Instruction::addPhiInput(IncomingEdge edge, Instruction* value) {
@@ -95,42 +111,19 @@ void Instruction::addPhiInput(
   const size_t num_predecessors = basic_block_->numPredecessors();
   JIT_CHECK(incoming_slot < num_predecessors, "Incoming slot out of range");
 
-  if (inputs_.empty()) {
-    setNumInputs(num_predecessors * 2);
-  }
   JIT_CHECK(
       numPhiInputs() == num_predecessors,
       "Phi input slots do not match predecessors");
 
-  const size_t label_index = incoming_slot * 2;
-  const size_t value_index = label_index + 1;
-  JIT_CHECK(
-      inputs_[label_index] == nullptr && inputs_[value_index] == nullptr,
-      "Phi input already set");
-
-  auto label = std::make_unique<Operand>(this);
-  label->setBasicBlock(edge.predecessor());
-  setInput(label_index, std::move(label));
-  setInput(value_index, std::move(value));
+  JIT_CHECK(inputs_[incoming_slot] == nullptr, "Phi input already set");
+  setInput(incoming_slot, std::move(value));
 }
 
 void Instruction::setPhiInput(size_t index, std::unique_ptr<Operand> value) {
   JIT_CHECK(isPhi(), "Instruction is not a phi");
   JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
   JIT_CHECK(value != nullptr, "Phi input value is null");
-  setInput(index * 2 + 1, std::move(value));
-}
-
-void Instruction::replacePhiPredecessor(size_t index, BasicBlock* replacement) {
-  JIT_CHECK(isPhi(), "Instruction is not a phi");
-  if (inputs_.empty()) {
-    return;
-  }
-  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
-  std::unique_ptr<Operand>& label = inputs_[index * 2];
-  if (label != nullptr) {
-    label->setBasicBlock(replacement);
-  }
+  setInput(index, std::move(value));
 }
 
 void Instruction::erasePhiInput(size_t index) {
@@ -139,15 +132,10 @@ void Instruction::erasePhiInput(size_t index) {
     return;
   }
   JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
-  const size_t label_index = index * 2;
-  for (size_t raw_index = label_index; raw_index < label_index + 2;
-       ++raw_index) {
-    if (inputs_[raw_index] != nullptr) {
-      inputs_[raw_index]->releaseFromInstr();
-    }
+  if (inputs_[index] != nullptr) {
+    inputs_[index]->releaseFromInstr();
   }
-  inputs_.erase(
-      inputs_.begin() + label_index, inputs_.begin() + label_index + 2);
+  inputs_.erase(inputs_.begin() + index);
 }
 
 void Instruction::setNumInputs(size_t n) {
@@ -264,6 +252,8 @@ std::string_view Instruction::opname() const {
 }
 
 void Instruction::setInput(size_t i, std::unique_ptr<Operand> input) {
+  JIT_CHECK(input != nullptr, "Input operand is null");
+  JIT_CHECK(!isPhi() || !input->isLabel(), "Phi inputs must be values");
   inputs_.at(i) = std::move(input);
   inputs_[i]->assignToInstr(this);
 }

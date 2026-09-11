@@ -175,6 +175,12 @@ IncomingEdge BasicBlock::incomingEdge(size_t index) const {
 
 size_t BasicBlock::addPredecessor(BasicBlock* predecessor) {
   const size_t incoming_slot = predecessors_.size();
+  foreachPhiInstr([&](Instruction* instr) {
+    JIT_CHECK(
+        instr->numPhiInputs() == incoming_slot,
+        "Phi input slots do not match predecessors");
+    instr->setNumInputs(incoming_slot + 1);
+  });
   predecessors_.push_back(predecessor);
   return incoming_slot;
 }
@@ -188,9 +194,6 @@ void BasicBlock::replacePredecessor(
     return;
   }
 
-  foreachPhiInstr([&](Instruction* instr) {
-    instr->replacePhiPredecessor(predecessor_index, replacement);
-  });
   predecessor->successors_.erase(
       predecessor->successors_.begin() + edge.outgoingSlot());
   replacement->appendSuccessor(this);

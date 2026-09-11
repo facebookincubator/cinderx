@@ -145,7 +145,6 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
     PHI_INPUT_COMMA,
     PHI_INPUT_SECOND,
     PHI_INPUT_SECOND_TYPE,
-    PHI_INPUT_END,
     PHI_INPUT_PAR,
   } state = FUNCTION;
 
@@ -155,7 +154,6 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
   const char* end = codestr + code.size();
   int phi_predecessor_id = -1;
   std::unique_ptr<Operand> phi_input;
-  bool phi_input_parenthesized = false;
 
   while (cur != end) {
     auto token = getNextToken(cur);
@@ -267,18 +265,9 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
           }
           if (type == kParLeft) {
             expect(instr_->isPhi(), cur, "Only phi inputs can be pairs.");
-            phi_input_parenthesized = true;
             state = PHI_INPUT_FIRST;
-          } else if (instr_->isPhi()) {
-            expect(type == kBasicBlockRef, cur, "Expect a basic block id.");
-            expect(
-                token.data <= std::numeric_limits<int>::max(),
-                cur,
-                "Basic block id is out of range.");
-            phi_predecessor_id = static_cast<int>(token.data);
-            phi_input_parenthesized = false;
-            state = PHI_INPUT_COMMA;
           } else {
+            expect(!instr_->isPhi(), cur, "Expect '(' before phi input.");
             instr_->appendInput(parseInput(token, cur));
             state = INSTR_INPUT_TYPE;
           }
@@ -331,7 +320,8 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
           break;
         }
         case PHI_INPUT_SECOND: {
-          // second argument of phi input pairs - a variable
+          // second argument of phi input pairs - a value
+          expect(type != kBasicBlockRef, cur, "Phi input must be a value.");
           phi_input = parseInput(token, cur);
           state = PHI_INPUT_SECOND_TYPE;
           break;
@@ -339,24 +329,7 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
         case PHI_INPUT_SECOND_TYPE: {
           expect(phi_input != nullptr, cur, "Expect phi input value.");
           if (type == kParRight) {
-            expect(
-                phi_input_parenthesized,
-                cur,
-                "Unexpected right parenthesis in phi input.");
             state = PHI_INPUT_PAR;
-            continue;
-          }
-          if (type == kComma || type == kNewLine) {
-            expect(
-                !phi_input_parenthesized,
-                cur,
-                "Expect phi input second data type.");
-            pending_phi_inputs_.push_back(
-                PendingPhiInput{
-                    instr_,
-                    phi_predecessor_id,
-                    std::exchange(phi_input, nullptr)});
-            state = INSTR_INPUT_COMMA;
             continue;
           }
           expect(type == kDataType, cur, "Expect phi input second data type.");
@@ -365,21 +338,8 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
                 getOperandDataType(std::string(cur, token.length));
             phi_input->setDataType(data_type);
           }
-          state = phi_input_parenthesized ? PHI_INPUT_PAR : PHI_INPUT_END;
+          state = PHI_INPUT_PAR;
           break;
-        }
-        case PHI_INPUT_END: {
-          expect(
-              type == kComma || type == kNewLine,
-              cur,
-              "Expect a comma after phi input.");
-          pending_phi_inputs_.push_back(
-              PendingPhiInput{
-                  instr_,
-                  phi_predecessor_id,
-                  std::exchange(phi_input, nullptr)});
-          state = INSTR_INPUT_COMMA;
-          continue;
         }
         case PHI_INPUT_PAR: {
           // expect a right parenthesis

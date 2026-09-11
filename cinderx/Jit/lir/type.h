@@ -19,7 +19,8 @@ namespace cinderx::jit::lir {
  *   - Mem:    the operand is allocated to a memory address;
  *   - Ind:    the operand is a memory indirect reference
  *   - Imm:    the operand is an immediate value;
- *   - Lbl:    the operand refers to a basic block.
+ *   - Lbl:    the operand refers to a basic-block target. Phi predecessors are
+ *             represented by CFG slots instead.
  */
 #define FOREACH_OPERAND_TYPE(X) \
   X(None)                       \

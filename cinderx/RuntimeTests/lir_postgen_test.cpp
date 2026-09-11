@@ -124,7 +124,7 @@ BB %2 - succs: %3
   %12 = Call 0
   Branch BB%3
 BB %3 - succs: %4
-  %13 = Phi BB%1, %11, BB%2, %12
+  %13 = Phi (BB%1, %11), (BB%2, %12)
   Branch BB%4
 BB %4
   %14:32bit = LoadSecondCallResult %13
@@ -162,7 +162,7 @@ BB %0 - succs: %1 %1
   %10 = Call 0
   CondBranch %10, BB%1, BB%1
 BB %1
-  %11 = Phi BB%0, %10, BB%0, %10
+  %11 = Phi (BB%0, %10), (BB%0, %10)
   %12:32bit = LoadSecondCallResult %11
   Return %12
 )";
@@ -201,7 +201,7 @@ BB %21 - succs: %22
   %121 = Call 0
   Branch BB%22
 BB %22 - succs: %5
-  %122 = Phi BB%20, %120, BB%21, %121
+  %122 = Phi (BB%20, %120), (BB%21, %121)
   Branch BB%5
 BB %3 - succs: %5
   Call 0
@@ -210,7 +210,7 @@ BB %4 - succs: %5
   Call 0
   Branch BB%5
 BB %5 - succs: %6
-  %13 = Phi BB%22, %122, BB%3, %11, BB%4, %11, BB%6, %13
+  %13 = Phi (BB%22, %122), (BB%3, %11), (BB%4, %11), (BB%6, %13)
   %14:32bit = LoadSecondCallResult %13
   Branch BB%6
 BB %6 - succs: %5
