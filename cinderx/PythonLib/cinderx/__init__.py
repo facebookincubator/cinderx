@@ -75,6 +75,7 @@ try:
         is_frame_evaluator_installed,
         is_immortal,
         is_prefork_build,
+        is_sanitizer_build,
         remove_frame_evaluator,
         set_adaptive_delay,
         strict_module_patch,
@@ -485,6 +486,9 @@ except ImportError as e:
         )
 
     def is_prefork_build() -> bool:
+        return False
+
+    def is_sanitizer_build() -> bool:
         return False
 
     def remove_frame_evaluator() -> None:

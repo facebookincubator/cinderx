@@ -22,6 +22,12 @@
 #define CINDER_TSAN_ENABLED 0
 #endif
 
+#if defined(__SANITIZE_ADDRESS__) || CINDER_HAS_FEATURE(address_sanitizer)
+#define CINDER_ASAN_ENABLED 1
+#else
+#define CINDER_ASAN_ENABLED 0
+#endif
+
 namespace cinderx {
 
 // Whether CinderX is being built with a debug build configuration.
@@ -52,6 +58,9 @@ constexpr bool kPyRefDebug =
 // Prefer branching on this constexpr over #if CINDER_TSAN_ENABLED so the
 // guarded code still gets type-checked in every build configuration.
 constexpr bool kTsanEnabled = CINDER_TSAN_ENABLED;
+
+// True when CinderX is built with AddressSanitizer under Clang or GCC.
+constexpr bool kAsanEnabled = CINDER_ASAN_ENABLED;
 
 // True when CinderX is built against a free-threaded (Py_GIL_DISABLED) Python.
 //

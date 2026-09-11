@@ -5,6 +5,7 @@
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
@@ -309,6 +310,17 @@ PyDoc_STRVAR(
     "time -- e.g. JIT-compiled functions are always immortalized.");
 PyObject* cinder_is_prefork_build(PyObject* /* mod */, PyObject*) {
   return PyBool_FromLong(kPreforkModel);
+}
+
+PyDoc_STRVAR(
+    cinder_is_sanitizer_build_doc,
+    "is_sanitizer_build($module, /)\n"
+    "--\n"
+    "\n"
+    "Return True if CinderX was built with AddressSanitizer or "
+    "ThreadSanitizer.");
+PyObject* cinder_is_sanitizer_build(PyObject* /* mod */, PyObject*) {
+  return PyBool_FromLong(kAsanEnabled || kTsanEnabled);
 }
 
 PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
@@ -963,6 +975,10 @@ PyMethodDef _cinderx_methods[] = {
      cinder_is_prefork_build,
      METH_NOARGS,
      cinder_is_prefork_build_doc},
+    {"is_sanitizer_build",
+     cinder_is_sanitizer_build,
+     METH_NOARGS,
+     cinder_is_sanitizer_build_doc},
     {"anext",
      reinterpret_cast<PyCFunction>(builtin_anext),
      METH_FASTCALL,

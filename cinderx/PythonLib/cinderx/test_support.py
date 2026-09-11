@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
-import ctypes
 import dis
 import functools
 import importlib
@@ -326,15 +325,15 @@ def undo_fail_decorators(func: Callable[..., object]) -> Callable[..., object]:
 
 
 def is_sanitizer_build() -> bool:
-    try:
-        ctypes.pythonapi.__asan_init
-        return True
-    except AttributeError:
-        try:
-            ctypes.pythonapi.__tsan_init
-            return True
-        except AttributeError:
-            return False
+    cflags = sysconfig.get_config_var("CFLAGS") or ""
+    config_args = sysconfig.get_config_var("CONFIG_ARGS") or ""
+    return (
+        cinderx.is_sanitizer_build()
+        or "-fsanitize=address" in cflags
+        or "--with-address-sanitizer" in config_args
+        or "-fsanitize=thread" in cflags
+        or "--with-thread-sanitizer" in config_args
+    )
 
 
 # This is long because ASAN + JIT + subprocess + the Python compiler can be
