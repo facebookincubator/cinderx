@@ -322,7 +322,6 @@ bool inputMustBeRegister(Opcode opcode, size_t idx) {
     case Opcode::kRShift:
     case Opcode::kRShiftUn:
     case Opcode::kVarArgCall:
-    case Opcode::kVectorCallTstate:
     case Opcode::kXor:
       return idx == 0;
 
