@@ -49,8 +49,13 @@ def get_repo_root() -> str:
 
 
 def glob_test(target_dir: str, pattern: str, adder: Callable[[str, str], None]) -> None:
+    # Hand out POSIX-style paths on every platform.  Callers derive test names
+    # by replacing "/" and check prefixes against target_dir, both of which
+    # break against the backslashes glob returns on Windows.
+    target_dir = target_dir.replace(path.sep, "/")
     for fname in glob.glob(path.join(target_dir, pattern), recursive=True):
-        modname = path.relpath(fname, target_dir)
+        fname = fname.replace(path.sep, "/")
+        modname = path.relpath(fname, target_dir).replace(path.sep, "/")
         adder(modname, fname)
 
 

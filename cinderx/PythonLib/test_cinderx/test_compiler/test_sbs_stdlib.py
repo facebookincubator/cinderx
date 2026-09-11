@@ -99,11 +99,11 @@ def add_test(modname, fname):
 
 
 REPO_ROOT = path.join(path.dirname(__file__), "..", "..", "..")
-libpath = path.join(REPO_ROOT, "Lib")
+libpath = path.join(REPO_ROOT, "Lib").replace(path.sep, "/")
 if path.exists(libpath):
     glob_test(libpath, "**/*.py", add_test)
 else:
-    libpath = LIB_PATH = path.dirname(dis.__file__)
+    libpath = LIB_PATH = path.dirname(dis.__file__).replace(path.sep, "/")
     glob_test(LIB_PATH, "**/*.py", add_test)
     IGNORE_PATTERNS = tuple(
         pattern.replace("test/test_compiler/", "test_compiler/")
