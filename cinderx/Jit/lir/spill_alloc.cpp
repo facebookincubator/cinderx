@@ -438,9 +438,10 @@ void SpillAllocator::resolveControlFlow() {
       BasicBlock* successor = succs.front();
       emitPhiCopies(pred, successor, pred->outgoingEdge(0).incomingSlot());
 
-      // kReturn and kBranchToYieldExit are pseudo-terminators; remove them so
-      // PostRegAllocRewrite can insert a real branch to the successor.
-      if (last_op == Opcode::kReturn || last_op == Opcode::kBranchToYieldExit) {
+      // CFG-only branches and exit pseudo-terminators are removed so
+      // PostRegAllocRewrite can insert a real branch when one is needed.
+      if (last_op == Opcode::kReturn || last_op == Opcode::kBranchToYieldExit ||
+          (last_op == Opcode::kBranch && last->getNumInputs() == 0)) {
         pred->removeInstr(pred->getLastInstrIter());
       }
       if (yield_with_resume) {

@@ -75,11 +75,9 @@ class Function {
     return exit_block_;
   }
 
-  // Set/get the generator resume entry block. During block sorting, this
-  // block's successors (resume blocks) are kept in the sorted list for
-  // register allocation, but the resume entry block itself is excluded —
-  // it is a placeholder populated post-regalloc by PopulateResumeEntryBlock.
-  // It is re-inserted into the block list in generateCode() before emission.
+  // Set/get the generator resume entry block. This detached placeholder is
+  // populated post-regalloc by PopulateResumeEntryBlock and re-inserted into
+  // the block list in generateCode() before emission.
   void setResumeEntryBlock(BasicBlock* block) {
     resume_entry_block_ = block;
   }
@@ -129,9 +127,9 @@ class Function {
   // assumptions (e.g. back() being the exit block).
   BasicBlock* exit_block_{nullptr};
 
-  // Generator resume entry block — its successors (resume blocks) are kept
-  // in the block list by sortBasicBlocks, but this block itself is excluded
-  // during regalloc and re-inserted in generateCode() after being populated.
+  // Generator resume entry block. It is detached from the pre-regalloc CFG,
+  // excluded during regalloc, and re-inserted in generateCode() after being
+  // populated.
   BasicBlock* resume_entry_block_{nullptr};
 
   // The next id to assign to a BasicBlock or Instruction.

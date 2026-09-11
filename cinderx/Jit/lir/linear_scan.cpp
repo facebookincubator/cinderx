@@ -1465,9 +1465,12 @@ void LinearScanAllocator::resolveEdges() {
           basic_block->outgoingEdge(0).incomingSlot(),
           bb_interval_map[succ]);
 
-      // kReturn and kBranchToYieldExit are pseudo-terminators removed after
-      // edge resolution; postalloc inserts a real branch to the successor.
-      bool is_exit = last_instr_opcode == Opcode::kReturn ||
+      bool is_cfg_branch = last_instr_opcode == Opcode::kBranch &&
+          last_instr->getNumInputs() == 0;
+      // CFG-only branches and exit pseudo-terminators are removed after edge
+      // resolution; postalloc inserts a real branch when one is needed.
+      bool is_pseudo_terminator = is_cfg_branch ||
+          last_instr_opcode == Opcode::kReturn ||
           last_instr_opcode == Opcode::kBranchToYieldExit;
 
       // Label-targeted branches are inserted by postalloc, so they should
@@ -1475,20 +1478,19 @@ void LinearScanAllocator::resolveEdges() {
       // direct-address branches (Imm operand) are created in the generator
       // and are expected here.
       JIT_CHECK(
-          last_instr_opcode != Opcode::kBranch ||
+          last_instr_opcode != Opcode::kBranch || is_cfg_branch ||
               (last_instr->getNumInputs() > 0 &&
                (last_instr->getInput(0)->isInd() ||
                 last_instr->getInput(0)->isImm() ||
                 last_instr->getInput(0)->isReg())),
           "Unconditional branch to label should not have been generated yet: "
-          "{} {}",
-          *last_instr,
-          last_instr->getInput(0)->type());
+          "{}",
+          *last_instr);
 
       rewriteLIREmitCopies(
           basic_block, basic_block->instructions().end(), *copies);
 
-      if (is_exit) {
+      if (is_pseudo_terminator) {
         basic_block->removeInstr(last_instr_iter);
       }
 

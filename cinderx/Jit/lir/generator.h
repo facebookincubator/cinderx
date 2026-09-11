@@ -113,8 +113,8 @@ class LIRGenerator {
   // exit_epilogue_ phi.
   std::vector<ExitEdge> yield_exit_edges_;
 
-  // Resume blocks (one per yield point), tracked so the resume entry block
-  // can list them as successors for sortBasicBlocks reachability.
+  // Resume blocks (one per yield point), paired with yield exits when adding
+  // allocator-only liveness edges.
   std::vector<BasicBlock*> resume_blocks_;
 
   std::vector<BasicBlock*> basic_blocks_;

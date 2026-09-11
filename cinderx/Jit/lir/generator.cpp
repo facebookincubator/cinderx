@@ -1616,23 +1616,18 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
 
   // For generators, create a placeholder resume entry block. This block
   // dispatches to resume targets via indirect jump (populated post-regalloc
-  // by PopulateResumeEntryBlock). Its successors are the resume blocks,
-  // which keeps them reachable during sortBasicBlocks.
-  // We always create this for generators because the codegen for
-  // kStoreGenYieldPoint references gen_resume_entry_label (the label
-  // bound to this block).
+  // by PopulateResumeEntryBlock). The dispatch does not carry SSA values, so
+  // it is not connected to the resume blocks in the pre-regalloc CFG.
+  // Every generator needs this common entry address for runtime resume
+  // dispatch, independently of the per-yield resume targets.
   if (is_gen_) {
     auto* resume_entry = lir_func_->allocateBasicBlock();
     // Remove from basic_blocks_ immediately — this is a placeholder block
     // that will be populated post-regalloc by PopulateResumeEntryBlock and
-    // re-inserted in generateCode() before emission.  Leaving it in the
-    // list causes the block sorter to treat it as the exit block and assert
-    // because it has successors.
+    // re-inserted in generateCode() before emission. It must not participate
+    // in pre-regalloc block ordering or be mistaken for the function exit.
     auto& bbs = lir_func_->basicBlocks();
     bbs.erase(std::remove(bbs.begin(), bbs.end(), resume_entry), bbs.end());
-    for (auto* rb : resume_blocks_) {
-      resume_entry->addSuccessor(rb);
-    }
     lir_func_->setResumeEntryBlock(resume_entry);
   }
 

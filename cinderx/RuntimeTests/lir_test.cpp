@@ -11,7 +11,11 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/lir/generator.h"
+#include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/parser.h"
+#include "cinderx/Jit/lir/postalloc.h"
+#include "cinderx/Jit/lir/spill_alloc.h"
+#include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
@@ -693,6 +697,78 @@ class LIRGeneratorTest : public RuntimeTest {
     return output_s;
   }
 
+  void expectResumeEntryDispatchIsNotAnSSAPredecessor(
+      PyObject* pyfunc,
+      bool use_spill_allocator) {
+    auto lir_func = getLIRFunction(pyfunc);
+    BasicBlock* resume_entry = lir_func->resumeEntryBlock();
+    ASSERT_NE(resume_entry, nullptr);
+    EXPECT_TRUE(resume_entry->predecessors().empty());
+    EXPECT_TRUE(resume_entry->successors().empty());
+    EXPECT_EQ(
+        std::count(
+            lir_func->basicBlocks().begin(),
+            lir_func->basicBlocks().end(),
+            resume_entry),
+        0);
+
+    std::vector<BasicBlock*> resume_blocks;
+    bool saw_yield_from = false;
+    for (BasicBlock* block : lir_func->basicBlocks()) {
+      for (const auto& instruction : block->instructions()) {
+        if (instruction->opcode() == Opcode::kResumeGenYield) {
+          resume_blocks.push_back(block);
+        } else if (instruction->opcode() == Opcode::kStoreGenYieldFromPoint) {
+          saw_yield_from = true;
+        }
+      }
+    }
+    // `yield from` contributes two resume points in addition to the two
+    // explicit yields.
+    ASSERT_EQ(resume_blocks.size(), 4);
+    EXPECT_TRUE(saw_yield_from);
+    for (BasicBlock* block : resume_blocks) {
+      ASSERT_EQ(block->numPredecessors(), 1);
+      BasicBlock* yield_block = block->predecessor(0);
+      EXPECT_NE(yield_block, resume_entry);
+      ASSERT_EQ(yield_block->successors().size(), 2);
+      EXPECT_EQ(yield_block->successors().back(), block);
+      ASSERT_NE(yield_block->getLastInstr(), nullptr);
+      EXPECT_EQ(
+          yield_block->getLastInstr()->opcode(), Opcode::kBranchToYieldExit);
+    }
+
+    if (use_spill_allocator) {
+      SpillAllocator{lir_func.get()}.run();
+    } else {
+      LinearScanAllocator{lir_func.get()}.run();
+    }
+    for (BasicBlock* block : resume_blocks) {
+      EXPECT_TRUE(block->predecessors().empty());
+    }
+
+    codegen::Environ env;
+    PostRegAllocRewrite{lir_func.get(), &env}.run();
+    std::ostringstream verification_errors;
+    EXPECT_TRUE(
+        verifyPostRegAllocInvariants(lir_func.get(), verification_errors))
+        << verification_errors.str();
+
+    PopulateResumeEntryBlock(resume_entry, 0);
+    EXPECT_TRUE(resume_entry->successors().empty());
+    Instruction* dispatch = resume_entry->getLastInstr();
+    ASSERT_NE(dispatch, nullptr);
+    EXPECT_EQ(dispatch->opcode(), Opcode::kBranch);
+    ASSERT_EQ(dispatch->getNumInputs(), 1);
+    EXPECT_TRUE(dispatch->getInput(0)->isInd());
+
+    lir_func->basicBlocks().push_back(resume_entry);
+    verification_errors.str("");
+    EXPECT_TRUE(
+        verifyPostRegAllocInvariants(lir_func.get(), verification_errors))
+        << verification_errors.str();
+  }
+
   void TearDown() override {
     // These hold Python references and must be destroyed before the base
     // fixture finalizes the interpreter.
@@ -796,6 +872,34 @@ def func():
 
   auto lir_func = getLIRFunction(pyfunc.get());
   expectPhiInputsFollowPredecessors(findPhiWithInputCount(lir_func.get(), 4));
+}
+
+TEST_F(LIRGeneratorTest, LinearScanResumeEntryDispatchIsNotAnSSAPredecessor) {
+  const char* src = R"(
+def func(items):
+  yield 1
+  yield from items
+  yield 2
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  expectResumeEntryDispatchIsNotAnSSAPredecessor(pyfunc.get(), false);
+}
+
+TEST_F(LIRGeneratorTest, SpillResumeEntryDispatchIsNotAnSSAPredecessor) {
+  const char* src = R"(
+def func(items):
+  yield 1
+  yield from items
+  yield 2
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  expectResumeEntryDispatchIsNotAnSSAPredecessor(pyfunc.get(), true);
 }
 
 TEST_F(LIRGeneratorTest, StaticLoadInteger) {

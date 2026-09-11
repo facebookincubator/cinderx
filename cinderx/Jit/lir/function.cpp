@@ -281,15 +281,13 @@ size_t Function::getNumInstrs() const {
 
 void Function::sortBasicBlocks() {
   // Remove resume_entry_block from the block list before sorting.
-  // It is a placeholder with no instructions during regalloc — populated
-  // post-regalloc by PopulateResumeEntryBlock. If left in the list, the
-  // sorter treats it as the exit block (since it was allocated last),
-  // which breaks liveness propagation in calculateLiveIntervals.
+  // It is a placeholder with no instructions or CFG edges during regalloc and
+  // must not participate in pre-regalloc block ordering or liveness analysis.
+  // PopulateResumeEntryBlock fills it after allocation.
   //
-  // Resume blocks are reachable from yield blocks via the CFG successor
-  // edges added during LIR generation, so the sorter includes them
-  // naturally. The resume_entry_block is re-inserted into the block list
-  // in generateCode() before code emission.
+  // Resume blocks are reachable from yield blocks via allocator-only CFG
+  // edges. The resume_entry_block has no CFG edges and is re-inserted into the
+  // block list in generateCode() before code emission.
   if (resume_entry_block_ != nullptr) {
     std::erase(basic_blocks_, resume_entry_block_);
   }
