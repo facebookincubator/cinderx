@@ -654,6 +654,110 @@ TEST(LIRBlockTest, RemovePredecessorRemovesPhiValues) {
   EXPECT_THROW(join->removePredecessor(0), std::runtime_error);
 }
 
+TEST(LIRBlockTest, BatchRemovePredecessorsCompactsPhiValues) {
+  struct Scenario {
+    const char* name;
+    std::vector<bool> remove;
+  };
+  const std::vector<Scenario> scenarios{
+      {"none", {false, false, false, false, false}},
+      {"alternating", {false, true, false, true, false}},
+      {"prefix", {true, true, false, false, false}},
+      {"suffix", {false, false, false, true, true}},
+      {"all", {true, true, true, true, true}},
+  };
+
+  for (const Scenario& scenario : scenarios) {
+    SCOPED_TRACE(scenario.name);
+    Function function;
+    std::vector<BasicBlock*> predecessors;
+    for (size_t index = 0; index < scenario.remove.size(); ++index) {
+      predecessors.push_back(function.allocateBasicBlock());
+    }
+    BasicBlock* join = function.allocateBasicBlock();
+    std::vector<IncomingEdge> edges;
+    for (BasicBlock* predecessor : predecessors) {
+      edges.push_back(predecessor->addSuccessor(join));
+    }
+
+    Instruction* first_phi =
+        join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+    Instruction* second_phi =
+        join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+    for (size_t index = 0; index < edges.size(); ++index) {
+      addImmediatePhiInput(first_phi, edges[index], 10 + index);
+      addImmediatePhiInput(second_phi, edges[index], 100 + index);
+    }
+
+    size_t predicate_calls = 0;
+    join->removePredecessorsIf([&](BasicBlock* predecessor) {
+      ++predicate_calls;
+      const auto position =
+          std::find(predecessors.begin(), predecessors.end(), predecessor);
+      return scenario.remove.at(std::distance(predecessors.begin(), position));
+    });
+    EXPECT_EQ(predicate_calls, predecessors.size());
+
+    std::vector<BasicBlock*> expected_predecessors;
+    std::vector<uint64_t> expected_first_values;
+    std::vector<uint64_t> expected_second_values;
+    for (size_t index = 0; index < predecessors.size(); ++index) {
+      if (scenario.remove[index]) {
+        EXPECT_TRUE(predecessors[index]->successors().empty());
+        continue;
+      }
+      EXPECT_EQ(
+          predecessors[index]->successors(), (std::vector<BasicBlock*>{join}));
+      expected_predecessors.push_back(predecessors[index]);
+      expected_first_values.push_back(10 + index);
+      expected_second_values.push_back(100 + index);
+    }
+
+    EXPECT_EQ(join->predecessors(), expected_predecessors);
+    EXPECT_EQ(first_phi->numPhiInputs(), expected_predecessors.size());
+    EXPECT_EQ(second_phi->numPhiInputs(), expected_predecessors.size());
+    std::vector<uint64_t> first_values;
+    std::vector<uint64_t> second_values;
+    for (size_t index = 0; index < join->numPredecessors(); ++index) {
+      lir::Operand* first_value = first_phi->phiInput(index);
+      lir::Operand* second_value = second_phi->phiInput(index);
+      ASSERT_NE(first_value, nullptr);
+      ASSERT_NE(second_value, nullptr);
+      EXPECT_EQ(first_value->instr(), first_phi);
+      EXPECT_EQ(second_value->instr(), second_phi);
+      first_values.push_back(first_value->getConstant());
+      second_values.push_back(second_value->getConstant());
+    }
+    EXPECT_EQ(first_values, expected_first_values);
+    EXPECT_EQ(second_values, expected_second_values);
+  }
+}
+
+TEST(LIRBlockTest, BatchRemovePredecessorsHandlesDuplicateEdges) {
+  Function function;
+  BasicBlock* removed = function.allocateBasicBlock();
+  BasicBlock* kept = function.allocateBasicBlock();
+  BasicBlock* join = function.allocateBasicBlock();
+  std::vector<IncomingEdge> edges{
+      removed->addSuccessor(join),
+      kept->addSuccessor(join),
+      removed->addSuccessor(join),
+  };
+  Instruction* phi = join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  for (size_t index = 0; index < edges.size(); ++index) {
+    addImmediatePhiInput(phi, edges[index], 10 + index);
+  }
+
+  join->removePredecessorsIf(
+      [removed](BasicBlock* predecessor) { return predecessor == removed; });
+
+  EXPECT_TRUE(removed->successors().empty());
+  EXPECT_EQ(kept->successors(), (std::vector<BasicBlock*>{join}));
+  EXPECT_EQ(join->predecessors(), (std::vector<BasicBlock*>{kept}));
+  ASSERT_EQ(phi->numPhiInputs(), 1);
+  EXPECT_EQ(phi->phiInput(0)->getConstant(), 11);
+}
+
 class LIRGeneratorTest : public RuntimeTest {
  public:
   std::unique_ptr<Function> getLIRFunction(PyObject* func_obj) {

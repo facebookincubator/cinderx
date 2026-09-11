@@ -184,6 +184,7 @@ class Instruction {
   friend class BasicBlock;
 
   void erasePhiInput(size_t index);
+  void compactPhiInputs(const std::vector<bool>& keep);
 
   template <typename FType, typename... AType>
   Operand* allocateOperand(FType&& set_func, AType&&... arg) {

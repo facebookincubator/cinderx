@@ -27,6 +27,11 @@ struct SCCBasicBlocks {
 
 class BasicBlockSorter {
  public:
+  struct SortResult {
+    std::vector<BasicBlock*> sorted_blocks;
+    UnorderedSet<BasicBlock*> pruned_blocks;
+  };
+
   // The first entry of blocks is the entry block. The exit block is specified
   // explicitly rather than assumed to be back(), since block allocation order
   // may not match the logical exit.
@@ -34,7 +39,7 @@ class BasicBlockSorter {
       const std::vector<BasicBlock*>& blocks,
       BasicBlock* exit_block);
 
-  std::vector<BasicBlock*> getSortedBlocks();
+  SortResult sort();
 
  private:
   BasicBlockSorter(const UnorderedSet<BasicBlock*>& blocks, BasicBlock* entry);
@@ -54,6 +59,7 @@ class BasicBlockSorter {
 
   UnorderedMap<BasicBlock*, SCCBasicBlocks*> block_to_scc_map_;
   std::vector<std::unique_ptr<SCCBasicBlocks>> scc_blocks_;
+  UnorderedSet<BasicBlock*> pruned_blocks_;
   void calculateSCC();
   int dfsSearch(BasicBlock* block);
 

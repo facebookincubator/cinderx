@@ -6,6 +6,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/lir/blocksorter.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <string>
@@ -1536,12 +1537,100 @@ TEST_F(NewASMGeneratorTest, BlockSorter) {
   blocks[4]->addSuccessor(blocks[2]);
   blocks[4]->addSuccessor(blocks[5]);
 
+  lir::BasicBlockSorter sorter(blocks, blocks.back());
+  auto result = sorter.sort();
+
+  std::vector<lir::BasicBlock*> expected{
+      blocks[0], blocks[2], blocks[3], blocks[1], blocks[4], blocks[5]};
+  EXPECT_EQ(result.sorted_blocks, expected);
+  EXPECT_TRUE(result.pruned_blocks.empty());
+}
+
+TEST_F(NewASMGeneratorTest, BlockSorterReportsPrunedBlocks) {
+  lir::Function func;
+  lir::BasicBlock* entry = func.allocateBasicBlock();
+  lir::BasicBlock* dead_chain = func.allocateBasicBlock();
+  lir::BasicBlock* dead_cycle_header = func.allocateBasicBlock();
+  lir::BasicBlock* dead_cycle_backedge = func.allocateBasicBlock();
+  lir::BasicBlock* exit = func.allocateBasicBlock();
+
+  dead_chain->addSuccessor(dead_cycle_header);
+  dead_chain->addSuccessor(dead_cycle_backedge);
+  dead_cycle_header->addSuccessor(dead_cycle_backedge);
+  dead_cycle_backedge->addSuccessor(dead_cycle_header);
+  dead_cycle_backedge->addSuccessor(exit);
+
+  lir::BasicBlockSorter sorter(func.basicBlocks(), exit);
+  auto result = sorter.sort();
+
+  ASSERT_EQ(result.sorted_blocks.size(), 2);
+  EXPECT_EQ(result.sorted_blocks[0], entry);
+  EXPECT_EQ(result.sorted_blocks[1], exit);
+  ASSERT_EQ(result.pruned_blocks.size(), 3);
+  EXPECT_TRUE(result.pruned_blocks.contains(dead_chain));
+  EXPECT_TRUE(result.pruned_blocks.contains(dead_cycle_header));
+  EXPECT_TRUE(result.pruned_blocks.contains(dead_cycle_backedge));
+  EXPECT_FALSE(result.pruned_blocks.contains(entry));
+  EXPECT_FALSE(result.pruned_blocks.contains(exit));
+}
+
+TEST_F(NewASMGeneratorTest, BlockSorterRejectsReachableIrreducibleCFG) {
+  lir::Function func;
+  lir::BasicBlock* entry = func.allocateBasicBlock();
+  lir::BasicBlock* first_loop_block = func.allocateBasicBlock();
+  lir::BasicBlock* second_loop_block = func.allocateBasicBlock();
+  lir::BasicBlock* exit = func.allocateBasicBlock();
+
+  entry->addSuccessor(first_loop_block);
+  entry->addSuccessor(second_loop_block);
+  first_loop_block->addSuccessor(second_loop_block);
+  second_loop_block->addSuccessor(first_loop_block);
+  second_loop_block->addSuccessor(exit);
+
+  lir::BasicBlockSorter sorter(func.basicBlocks(), exit);
+  EXPECT_DEATH(sorter.sort(), "Irreducible CFG");
+}
+
+TEST_F(NewASMGeneratorTest, BlockSorterPrunesInactivePhiPredecessors) {
+  lir::Function func;
+  lir::BasicBlock* entry = func.allocateBasicBlock();
+  lir::BasicBlock* first_dead = func.allocateBasicBlock();
+  lir::BasicBlock* second_dead = func.allocateBasicBlock();
+  lir::BasicBlock* exit = func.allocateBasicBlock();
+  auto* live_value = entry->allocateInstr(
+      lir::Opcode::kMove, nullptr, lir::OutVReg{}, lir::Imm{1});
+  auto* first_dead_value = first_dead->allocateInstr(
+      lir::Opcode::kMove, nullptr, lir::OutVReg{}, lir::Imm{2});
+  auto* second_dead_value = second_dead->allocateInstr(
+      lir::Opcode::kMove, nullptr, lir::OutVReg{}, lir::Imm{3});
+  lir::IncomingEdge live_edge = entry->addSuccessor(exit);
+  lir::IncomingEdge first_dead_edge = first_dead->addSuccessor(exit);
+  lir::IncomingEdge second_dead_edge = second_dead->addSuccessor(exit);
+  auto* first_phi =
+      exit->allocateInstr(lir::Opcode::kPhi, nullptr, lir::OutVReg{});
+  first_phi->addPhiInput(live_edge, live_value);
+  first_phi->addPhiInput(first_dead_edge, first_dead_value);
+  first_phi->addPhiInput(second_dead_edge, second_dead_value);
+  auto* second_phi =
+      exit->allocateInstr(lir::Opcode::kPhi, nullptr, lir::OutVReg{});
+  second_phi->addPhiInput(live_edge, live_value);
+  second_phi->addPhiInput(first_dead_edge, first_dead_value);
+  second_phi->addPhiInput(second_dead_edge, second_dead_value);
+  func.setExitBlock(exit);
+
   func.sortBasicBlocks();
 
-  size_t expected[] = {0, 2, 3, 1, 4, 5};
-  for (size_t i = 0; i < 6; i++) {
-    ASSERT_EQ(func.basicBlocks()[i], blocks[expected[i]]) << "i = " << i;
-  }
+  ASSERT_EQ(func.basicBlocks().size(), 2);
+  EXPECT_EQ(func.basicBlocks()[0], entry);
+  EXPECT_EQ(func.basicBlocks()[1], exit);
+  ASSERT_EQ(exit->predecessors().size(), 1);
+  EXPECT_EQ(exit->predecessors()[0], entry);
+  EXPECT_TRUE(first_dead->successors().empty());
+  EXPECT_TRUE(second_dead->successors().empty());
+  ASSERT_EQ(first_phi->numPhiInputs(), 1);
+  ASSERT_EQ(second_phi->numPhiInputs(), 1);
+  EXPECT_EQ(first_phi->phiInput(0)->getDefine(), live_value->output());
+  EXPECT_EQ(second_phi->phiInput(0)->getDefine(), live_value->output());
 }
 
 } // namespace cinderx

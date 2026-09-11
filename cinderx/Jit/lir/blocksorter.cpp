@@ -26,7 +26,7 @@ BasicBlockSorter::BasicBlockSorter(
   JIT_DCHECK(blocks.contains(entry), "Entry basic block is not in blocks");
 }
 
-std::vector<BasicBlock*> BasicBlockSorter::getSortedBlocks() {
+BasicBlockSorter::SortResult BasicBlockSorter::sort() {
   calculateSCC();
 
   // find the entry block for each SCC block
@@ -38,8 +38,8 @@ std::vector<BasicBlock*> BasicBlockSorter::getSortedBlocks() {
   sortRPO();
 
   // expand SCC's to basic blocks
-  std::vector<BasicBlock*> result;
-  result.reserve(basic_blocks_.size());
+  std::vector<BasicBlock*> sorted_blocks;
+  sorted_blocks.reserve(basic_blocks_.size());
   for (auto& sccblock : scc_blocks_) {
     JIT_DCHECK(
         !sccblock->basic_blocks.empty(),
@@ -51,27 +51,51 @@ std::vector<BasicBlock*> BasicBlockSorter::getSortedBlocks() {
               sccblock->hasBasicBlock(sccblock->entry),
           "sccblock is not consistent.");
 
-      result.emplace_back(*(sccblock->basic_blocks.begin()));
+      sorted_blocks.emplace_back(*(sccblock->basic_blocks.begin()));
     } else {
       // more than one basic blocks - need to sort again within the SCC
       BasicBlockSorter sorter(sccblock->basic_blocks, sccblock->entry);
-      auto res = sorter.getSortedBlocks();
-      result.insert(result.end(), res.begin(), res.end());
+      auto result = sorter.sort();
+      pruned_blocks_.insert(
+          result.pruned_blocks.begin(), result.pruned_blocks.end());
+      sorted_blocks.insert(
+          sorted_blocks.end(),
+          result.sorted_blocks.begin(),
+          result.sorted_blocks.end());
     }
   }
 
-  return result;
+  return {std::move(sorted_blocks), std::move(pruned_blocks_)};
 }
 
 void BasicBlockSorter::calculateSCC() {
   scc_stack_.clear();
   scc_in_stack_.clear();
   scc_visited_.clear();
+  block_to_scc_map_.clear();
   scc_blocks_.clear();
+  pruned_blocks_.clear();
   index_ = 0;
 
-  for (auto& block : basic_blocks_) {
-    dfsSearch(block);
+  if (entry_ == nullptr) {
+    pruned_blocks_ = basic_blocks_;
+    return;
+  }
+
+  dfsSearch(entry_);
+
+  if (exit_ != nullptr && !scc_visited_.contains(exit_)) {
+    scc_visited_.emplace(exit_, index_++);
+    auto exit_scc = std::make_unique<SCCBasicBlocks>();
+    exit_scc->basic_blocks.insert(exit_);
+    block_to_scc_map_.emplace(exit_, exit_scc.get());
+    scc_blocks_.push_back(std::move(exit_scc));
+  }
+
+  for (BasicBlock* block : basic_blocks_) {
+    if (!scc_visited_.contains(block)) {
+      pruned_blocks_.insert(block);
+    }
   }
 }
 
@@ -121,9 +145,12 @@ int BasicBlockSorter::dfsSearch(BasicBlock* block) {
 
 void BasicBlockSorter::calcEntryBlocks() {
   for (auto block : basic_blocks_) {
+    if (!scc_visited_.contains(block)) {
+      continue;
+    }
     auto cur_scc = map_get(block_to_scc_map_, block);
     for (auto succ : block->successors()) {
-      if (!basic_blocks_.count(succ) || succ == entry_) {
+      if (!scc_visited_.contains(succ) || succ == entry_) {
         continue;
       }
 
@@ -138,7 +165,7 @@ void BasicBlockSorter::calcEntryBlocks() {
       succ_scc->entry = succ;
 
       // One successor can be added multiple times here, which should not matter
-      // because in sortPRO() function, every block is guarenteed to be visited
+      // because in sortRPO(), every block is guaranteed to be visited
       // only once, and the duplicated successors will be ignored.
       // Note that we could use an unordered_map instead of a vector
       // for cur_scc->successors, but in that case, the sorted result will not

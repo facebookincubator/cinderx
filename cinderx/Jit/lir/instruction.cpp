@@ -138,6 +138,24 @@ void Instruction::erasePhiInput(size_t index) {
   inputs_.erase(inputs_.begin() + index);
 }
 
+void Instruction::compactPhiInputs(const std::vector<bool>& keep) {
+  JIT_CHECK(isPhi(), "Instruction is not a phi");
+  JIT_CHECK(keep.size() == inputs_.size(), "Phi keep mask size mismatch");
+
+  size_t output = 0;
+  for (size_t input = 0; input < inputs_.size(); ++input) {
+    if (keep[input]) {
+      if (output != input) {
+        inputs_[output] = std::move(inputs_[input]);
+      }
+      ++output;
+    } else if (inputs_[input] != nullptr) {
+      inputs_[input]->releaseFromInstr();
+    }
+  }
+  inputs_.resize(output);
+}
+
 void Instruction::setNumInputs(size_t n) {
   inputs_.resize(n);
 }

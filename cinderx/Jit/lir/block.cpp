@@ -220,6 +220,37 @@ void BasicBlock::erasePredecessor(size_t index) {
   predecessors_.erase(predecessors_.begin() + index);
 }
 
+void BasicBlock::compactPredecessors(const std::vector<bool>& keep) {
+  JIT_CHECK(
+      keep.size() == predecessors_.size(),
+      "Predecessor keep mask size mismatch");
+
+  for (size_t input = predecessors_.size(); input > 0; --input) {
+    const size_t incoming_slot = input - 1;
+    if (keep[incoming_slot]) {
+      continue;
+    }
+    const IncomingEdge edge = incomingEdge(incoming_slot);
+    BasicBlock* predecessor = edge.predecessor();
+    predecessor->successors_.erase(
+        predecessor->successors_.begin() + edge.outgoingSlot());
+  }
+
+  size_t output = 0;
+  for (size_t input = 0; input < predecessors_.size(); ++input) {
+    BasicBlock* predecessor = predecessors_[input];
+    if (keep[input]) {
+      predecessors_[output++] = predecessor;
+    }
+  }
+
+  if (output == predecessors_.size()) {
+    return;
+  }
+  foreachPhiInstr([&](Instruction* instr) { instr->compactPhiInputs(keep); });
+  predecessors_.resize(output);
+}
+
 void BasicBlock::appendInstr(std::unique_ptr<Instruction> instr) {
   instrs_.emplace_back(std::move(instr));
 }

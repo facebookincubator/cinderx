@@ -298,7 +298,18 @@ void Function::sortBasicBlocks() {
   // compatibility with tests that don't call setExitBlock().
   BasicBlock* exit = exit_block_ ? exit_block_ : basic_blocks_.back();
   BasicBlockSorter sorter(basic_blocks_, exit);
-  basic_blocks_ = sorter.getSortedBlocks();
+  auto result = sorter.sort();
+  basic_blocks_ = std::move(result.sorted_blocks);
+
+  if (result.pruned_blocks.empty()) {
+    return;
+  }
+
+  for (BasicBlock* block : basic_blocks_) {
+    block->removePredecessorsIf([&](BasicBlock* predecessor) {
+      return result.pruned_blocks.contains(predecessor);
+    });
+  }
 }
 
 const hir::Function* Function::hirFunc() const {

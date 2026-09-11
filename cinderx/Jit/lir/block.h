@@ -88,6 +88,17 @@ class BasicBlock {
   // Remove one incoming edge and its matching value from each phi.
   void removePredecessor(size_t predecessor_index);
 
+  // Remove matching incoming edges and phi values in one stable compaction.
+  template <typename Predicate>
+  void removePredecessorsIf(Predicate&& should_remove) {
+    std::vector<bool> keep;
+    keep.reserve(predecessors_.size());
+    for (BasicBlock* predecessor : predecessors_) {
+      keep.push_back(!should_remove(predecessor));
+    }
+    compactPredecessors(keep);
+  }
+
   // Allocate an instruction and its operands and append it to the
   // instruction list. For the details on how to allocate instruction
   // operands, please refer to Instruction::addOperands() function.
@@ -185,6 +196,7 @@ class BasicBlock {
   void appendSuccessor(BasicBlock* successor);
   size_t addPredecessor(BasicBlock* predecessor);
   void erasePredecessor(size_t index);
+  void compactPredecessors(const std::vector<bool>& keep);
   void applyPendingAnnotation(Instruction* instr);
   int id_;
   Function* func_;
