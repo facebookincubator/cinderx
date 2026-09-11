@@ -59,13 +59,16 @@ test-command = "pytest {project}/cinderx/PythonLib/test_cinderx/"
 # the test suite against them -- free-threaded support isn't stable yet.
 test-skip = "*t-*"
 
-[tool.cibuildwheel.linux]
-environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
+[tool.cibuildwheel.environment]
+CINDERX_ENABLE_LTO = "1"
+CMAKE_BUILD_TYPE = "Release"
 
-[tool.cibuildwheel.macos]
+# PGO is supported on everything except Windows right now.
+[[tool.cibuildwheel.overrides]]
+select = "*-{manylinux,musllinux,macosx}_*"
+inherit.environment = "append"
+environment = { CINDERX_ENABLE_PGO = "1" }
+
 # Not building for macOS x86-64.
+[tool.cibuildwheel.macos]
 archs = ["arm64"]
-environment = { CINDERX_ENABLE_PGO = "1", CINDERX_ENABLE_LTO = "1" }
-
-[tool.cibuildwheel.windows]
-environment = { CINDERX_ENABLE_LTO = "1" }
