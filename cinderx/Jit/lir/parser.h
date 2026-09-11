@@ -84,7 +84,7 @@ class Parser {
   };
 
   Token getNextToken(const char* s);
-  void parseInput(const Token& token, const char* code);
+  std::unique_ptr<Operand> parseInput(const Token& token, const char* code);
   void parseIndirect(Operand* opnd, std::string_view token, const char* code);
   void fixOperands();
   void connectBasicBlocks();

@@ -145,6 +145,7 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
     PHI_INPUT_COMMA,
     PHI_INPUT_SECOND,
     PHI_INPUT_SECOND_TYPE,
+    PHI_INPUT_END,
     PHI_INPUT_PAR,
   } state = FUNCTION;
 
@@ -153,6 +154,8 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
   const char* cur = codestr;
   const char* end = codestr + code.size();
   int phi_predecessor_id = -1;
+  std::unique_ptr<Operand> phi_input;
+  bool phi_input_parenthesized = false;
 
   while (cur != end) {
     auto token = getNextToken(cur);
@@ -264,9 +267,19 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
           }
           if (type == kParLeft) {
             expect(instr_->isPhi(), cur, "Only phi inputs can be pairs.");
+            phi_input_parenthesized = true;
             state = PHI_INPUT_FIRST;
+          } else if (instr_->isPhi()) {
+            expect(type == kBasicBlockRef, cur, "Expect a basic block id.");
+            expect(
+                token.data <= std::numeric_limits<int>::max(),
+                cur,
+                "Basic block id is out of range.");
+            phi_predecessor_id = static_cast<int>(token.data);
+            phi_input_parenthesized = false;
+            state = PHI_INPUT_COMMA;
           } else {
-            parseInput(token, cur);
+            instr_->appendInput(parseInput(token, cur));
             state = INSTR_INPUT_TYPE;
           }
           break;
@@ -319,39 +332,63 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
         }
         case PHI_INPUT_SECOND: {
           // second argument of phi input pairs - a variable
-          parseInput(token, cur);
+          phi_input = parseInput(token, cur);
           state = PHI_INPUT_SECOND_TYPE;
           break;
         }
         case PHI_INPUT_SECOND_TYPE: {
+          expect(phi_input != nullptr, cur, "Expect phi input value.");
           if (type == kParRight) {
+            expect(
+                phi_input_parenthesized,
+                cur,
+                "Unexpected right parenthesis in phi input.");
             state = PHI_INPUT_PAR;
             continue;
           }
+          if (type == kComma || type == kNewLine) {
+            expect(
+                !phi_input_parenthesized,
+                cur,
+                "Expect phi input second data type.");
+            pending_phi_inputs_.push_back(
+                PendingPhiInput{
+                    instr_,
+                    phi_predecessor_id,
+                    std::exchange(phi_input, nullptr)});
+            state = INSTR_INPUT_COMMA;
+            continue;
+          }
           expect(type == kDataType, cur, "Expect phi input second data type.");
-          expect(
-              instr_->getNumInputs() > 0,
-              cur,
-              "Expect data type to follow an input.");
-          Operand* input = instr_->getInput(instr_->getNumInputs() - 1);
-          if (!input->isLinked()) {
+          if (!phi_input->isLinked()) {
             DataType data_type =
                 getOperandDataType(std::string(cur, token.length));
-            input->setDataType(data_type);
+            phi_input->setDataType(data_type);
           }
-          state = PHI_INPUT_PAR;
+          state = phi_input_parenthesized ? PHI_INPUT_PAR : PHI_INPUT_END;
           break;
+        }
+        case PHI_INPUT_END: {
+          expect(
+              type == kComma || type == kNewLine,
+              cur,
+              "Expect a comma after phi input.");
+          pending_phi_inputs_.push_back(
+              PendingPhiInput{
+                  instr_,
+                  phi_predecessor_id,
+                  std::exchange(phi_input, nullptr)});
+          state = INSTR_INPUT_COMMA;
+          continue;
         }
         case PHI_INPUT_PAR: {
           // expect a right parenthesis
           expect(type == kParRight, cur, "Expect a right parenthesis");
-          expect(
-              instr_->getNumInputs() == 1,
-              cur,
-              "Expect one pending phi input value.");
           pending_phi_inputs_.push_back(
               PendingPhiInput{
-                  instr_, phi_predecessor_id, instr_->removeInput(0)});
+                  instr_,
+                  phi_predecessor_id,
+                  std::exchange(phi_input, nullptr)});
           state = INSTR_INPUT_COMMA;
           break;
         }
@@ -441,13 +478,16 @@ Parser::InstrKind Parser::getInstrKind(const std::string& name) const {
       instr_name_to_kind, name, "Opcode for {}", name);
 }
 
-void Parser::parseInput(const Token& token, const char* code) {
+std::unique_ptr<Operand> Parser::parseInput(
+    const Token& token,
+    const char* code) {
+  auto operand = std::make_unique<Operand>(instr_);
+  Operand* operand_ptr = operand.get();
   auto type = token.type;
   switch (type) {
     case kVReg: {
-      auto linked_opnd = instr_->allocateLinkedInput(nullptr);
       auto id = token.data;
-      instr_refs_.emplace(linked_opnd, id);
+      instr_refs_.emplace(operand_ptr, id);
       break;
     }
     case kPhyReg: {
@@ -457,37 +497,35 @@ void Parser::parseInput(const Token& token, const char* code) {
           reg != jit::codegen::PhyLocation::REG_INVALID,
           code,
           "Unable to parse physical register.");
-      instr_->allocatePhyRegisterInput(reg);
+      operand->setPhyRegister(reg);
 
       break;
     }
     case kStack: {
-      instr_->allocateStackInput(token.data);
+      operand->setStackSlot(token.data);
       break;
     }
     case kAddress: {
-      instr_->allocateAddressInput(reinterpret_cast<void*>(token.data));
+      operand->setMemoryAddress(reinterpret_cast<void*>(token.data));
       break;
     }
     case kImmediate: {
-      instr_->allocateImmediateInput(token.data);
+      operand->setConstant(token.data);
       break;
     }
     case kBasicBlockRef: {
-      auto opnd = instr_->allocateImmediateInput(0);
-      basic_block_refs_.emplace(opnd, token.data);
+      basic_block_refs_.emplace(operand_ptr, token.data);
       break;
     }
     case kIndirect: {
-      auto opnd = instr_->allocateMemoryIndirectInput(PhyLocation::REG_INVALID);
-      parseIndirect(opnd, std::string_view(code, token.length), code);
+      parseIndirect(operand_ptr, std::string_view(code, token.length), code);
       break;
     }
     case kId: {
       std::string name(code, token.length);
       const uint64_t* addr = pyFunctionFromName(name);
       expect(addr != nullptr, code, "Can't find such a function");
-      instr_->allocateImmediateInput(*addr, Operand::kObject);
+      operand->setConstant(*addr, Operand::kObject);
       break;
     }
     case kStringLiteral: {
@@ -496,13 +534,14 @@ void Parser::parseInput(const Token& token, const char* code) {
       JITCompilationLock lock;
       std::unordered_set<std::string>& v = GetStringLiterals();
       auto ret = v.emplace(std::move(str_content));
-      instr_->allocateImmediateInput(
+      operand->setConstant(
           reinterpret_cast<uint64_t>((*ret.first).c_str()), Operand::kObject);
       break;
     }
     default:
       expect(false, code, "Unable to parse instruction input.");
   }
+  return operand;
 }
 
 void Parser::parseIndirect(

@@ -121,6 +121,35 @@ void Instruction::setPhiInput(size_t index, std::unique_ptr<Operand> value) {
   setInput(index * 2 + 1, std::move(value));
 }
 
+void Instruction::replacePhiPredecessor(size_t index, BasicBlock* replacement) {
+  JIT_CHECK(isPhi(), "Instruction is not a phi");
+  if (inputs_.empty()) {
+    return;
+  }
+  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
+  std::unique_ptr<Operand>& label = inputs_[index * 2];
+  if (label != nullptr) {
+    label->setBasicBlock(replacement);
+  }
+}
+
+void Instruction::erasePhiInput(size_t index) {
+  JIT_CHECK(isPhi(), "Instruction is not a phi");
+  if (inputs_.empty()) {
+    return;
+  }
+  JIT_CHECK(index < numPhiInputs(), "Phi input index out of range");
+  const size_t label_index = index * 2;
+  for (size_t raw_index = label_index; raw_index < label_index + 2;
+       ++raw_index) {
+    if (inputs_[raw_index] != nullptr) {
+      inputs_[raw_index]->releaseFromInstr();
+    }
+  }
+  inputs_.erase(
+      inputs_.begin() + label_index, inputs_.begin() + label_index + 2);
+}
+
 void Instruction::setNumInputs(size_t n) {
   inputs_.resize(n);
 }
@@ -264,28 +293,6 @@ Operand* Instruction::prependInput(std::unique_ptr<Operand> operand) {
   inputs_.insert(inputs_.begin(), nullptr);
   setInput(0, std::move(operand));
   return operand_ptr;
-}
-
-Operand* Instruction::getOperandByPredecessor(const BasicBlock* pred) {
-  auto index = getOperandIndexByPredecessor(pred);
-  return index == -1 ? nullptr : inputs_.at(index).get();
-}
-
-int Instruction::getOperandIndexByPredecessor(const BasicBlock* pred) const {
-  JIT_DCHECK(opcode_ == Opcode::kPhi, "The current instruction must be Phi.");
-  size_t num_inputs = getNumInputs();
-  for (size_t i = 0; i < num_inputs; i += 2) {
-    const Operand* label = getInput(i);
-    if (label != nullptr && label->getBasicBlock() == pred) {
-      return i + 1;
-    }
-  }
-  return -1;
-}
-
-const Operand* Instruction::getOperandByPredecessor(
-    const BasicBlock* pred) const {
-  return const_cast<Instruction*>(this)->getOperandByPredecessor(pred);
 }
 
 bool Instruction::getOutputPhyRegUse() const {

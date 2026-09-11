@@ -203,10 +203,7 @@ void BasicBlock::replacePredecessor(
   }
 
   foreachPhiInstr([&](Instruction* instr) {
-    const int value_index = instr->getOperandIndexByPredecessor(predecessor);
-    if (value_index != -1) {
-      instr->getInput(value_index - 1)->setBasicBlock(replacement);
-    }
+    instr->replacePhiPredecessor(index, replacement);
   });
   const auto successor = std::ranges::find(predecessor->successors_, this);
   JIT_THROW_IF(
@@ -244,15 +241,7 @@ void BasicBlock::erasePredecessor(size_t index) {
       index,
       id_,
       predecessors_.size());
-  BasicBlock* predecessor = predecessors_[index];
-  foreachPhiInstr([&](Instruction* instr) {
-    const int value_index = instr->getOperandIndexByPredecessor(predecessor);
-    if (value_index == -1) {
-      return;
-    }
-    instr->removeInput(value_index);
-    instr->removeInput(value_index - 1);
-  });
+  foreachPhiInstr([&](Instruction* instr) { instr->erasePhiInput(index); });
 
   predecessors_.erase(predecessors_.begin() + index);
 }

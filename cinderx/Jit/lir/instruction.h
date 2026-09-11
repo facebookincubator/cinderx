@@ -166,20 +166,17 @@ class Instruction {
   // Add a new input to the beginning of this instruction's input list.
   Operand* prependInput(std::unique_ptr<Operand> operand);
 
-  // get the operand associated to a given predecessor in a phi instruction
-  // returns nullptr if not found.
-  Operand* getOperandByPredecessor(const BasicBlock* pred);
-
-  int getOperandIndexByPredecessor(const BasicBlock* pred) const;
-
-  const Operand* getOperandByPredecessor(const BasicBlock* pred) const;
-
   // Accessors for some of the instruction's attributes.
   bool getOutputPhyRegUse() const;
   bool getInputPhyRegUse(size_t i) const;
   bool inputsLiveAcross() const;
 
  private:
+  friend class BasicBlock;
+
+  void replacePhiPredecessor(size_t index, BasicBlock* replacement);
+  void erasePhiInput(size_t index);
+
   template <typename FType, typename... AType>
   Operand* allocateOperand(FType&& set_func, AType&&... arg) {
     auto operand = std::make_unique<Operand>(this);

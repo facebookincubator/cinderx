@@ -100,20 +100,19 @@ void copyOperand(
 }
 
 // Helper for deepCopyBasicBlocks.
-void copyInput(
+std::unique_ptr<Operand> copyInput(
     UnorderedMap<int, BasicBlock*>& block_index_map,
     UnorderedMap<Operand*, int>& instr_refs,
     Operand* input,
     Instruction* instr_copy) {
+  auto input_copy = std::make_unique<Operand>(instr_copy);
   if (input->isLinked()) {
-    auto linked_opnd = instr_copy->allocateLinkedInput(nullptr);
-    instr_refs.emplace(linked_opnd, input->getDefine()->instr()->id());
+    instr_refs.emplace(input_copy.get(), input->getDefine()->instr()->id());
   } else {
-    // Allocate temporary input and set value_ using copyOperand.
-    auto input_copy = instr_copy->allocateImmediateInput(0);
-    copyOperand(block_index_map, instr_refs, input, input_copy);
+    copyOperand(block_index_map, instr_refs, input, input_copy.get());
     input_copy->setDataType(input->dataType());
   }
+  return input_copy;
 }
 
 // Helper for deepCopyBasicBlocks.
@@ -165,17 +164,20 @@ void deepCopyBasicBlocks(
       // Copy inputs.
       if (instr->isPhi()) {
         for (size_t i = 0; i < instr->numPhiInputs(); ++i) {
-          copyInput(
-              block_index_map_, instr_refs, instr->phiInput(i), instr_copy);
-          auto value = instr_copy->removeInput(instr_copy->getNumInputs() - 1);
           auto& incoming_edges = map_get_strict(copied_edges, bb);
           instr_copy->addPhiInput(
-              map_get_strict(incoming_edges, i), std::move(value));
+              map_get_strict(incoming_edges, i),
+              copyInput(
+                  block_index_map_,
+                  instr_refs,
+                  instr->phiInput(i),
+                  instr_copy));
         }
       } else {
         for (size_t i = 0, n = instr->getNumInputs(); i < n; ++i) {
           Operand* input = instr->getInput(i);
-          copyInput(block_index_map_, instr_refs, input, instr_copy);
+          instr_copy->appendInput(
+              copyInput(block_index_map_, instr_refs, input, instr_copy));
         }
       }
     }

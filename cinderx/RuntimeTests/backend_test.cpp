@@ -427,16 +427,13 @@ TEST_F(BackendTest, ExplicitLIRSubKeepsRhsRegisterLiveAcrossOutputDefine) {
       OutPhyReg{arch::reg_general_return_loc, Operand::k64bit},
       VReg{sub});
   bb->allocateInstr(Opcode::kReturn, nullptr);
-  bb->addSuccessor(epilogue);
+  IncomingEdge epilogue_edge = bb->addSuccessor(epilogue);
   // Keep the bound registers live across the Sub by threading them into the
   // successor block. Without this, the pressure would end before the bug site.
   for (Instruction* live_out : pressure) {
-    epilogue->allocateInstr(
-        Opcode::kPhi,
-        nullptr,
-        OutVReg{Operand::k64bit},
-        Lbl{bb},
-        VReg{live_out});
+    Instruction* phi = epilogue->allocateInstr(
+        Opcode::kPhi, nullptr, OutVReg{Operand::k64bit});
+    phi->addPhiInput(epilogue_edge, live_out);
   }
 
   auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
@@ -1139,16 +1136,17 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
 
   auto r2 =
       bb2->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(r1), Imm(8));
-  bb2->addSuccessor(bb4);
+  IncomingEdge bb2_edge = bb2->addSuccessor(bb4);
 
   auto r3 =
       bb3->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(r1), Imm(8));
   auto r4 =
       bb3->allocateInstr(Opcode::kAdd, nullptr, OutVReg(), VReg(r3), Imm(8));
-  bb3->addSuccessor(bb4);
+  IncomingEdge bb3_edge = bb3->addSuccessor(bb4);
 
-  auto r5 = bb4->allocateInstr(
-      Opcode::kPhi, nullptr, OutVReg(), Lbl(bb2), VReg(r2), Lbl(bb3), VReg(r4));
+  auto r5 = bb4->allocateInstr(Opcode::kPhi, nullptr, OutVReg());
+  r5->addPhiInput(bb2_edge, r2);
+  r5->addPhiInput(bb3_edge, r4);
   bb4->allocateInstr(
       Opcode::kMove,
       nullptr,

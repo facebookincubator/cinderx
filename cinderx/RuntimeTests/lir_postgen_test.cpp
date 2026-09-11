@@ -226,7 +226,7 @@ BB %0 - succs: %1 %2
 
 BB %1 - preds: %0 - succs: %3 %4
       %11:Object = Call 0(0x0):64bit
-      %139:32bit = Move {0}:32bit
+      %136:32bit = Move {0}:32bit
                    CondBranch %11:Object, BB%3, BB%4
 
 BB %2 - preds: %0 - succs: %20 %21
@@ -235,17 +235,17 @@ BB %2 - preds: %0 - succs: %20 %21
 
 BB %20 - preds: %2 - succs: %22
      %120:Object = Call 0(0x0):64bit
-      %137:32bit = Move {0}:32bit
+      %138:32bit = Move {0}:32bit
                    Branch BB%22
 
 BB %21 - preds: %2 - succs: %22
      %121:Object = Call 0(0x0):64bit
-      %138:32bit = Move {0}:32bit
+      %139:32bit = Move {0}:32bit
                    Branch BB%22
 
 BB %22 - preds: %20 %21 - succs: %5
      %122:Object = Phi (BB%20, %120:Object), (BB%21, %121:Object)
-      %136:32bit = Phi (BB%20, %137:32bit), (BB%21, %138:32bit)
+      %137:32bit = Phi (BB%20, %138:32bit), (BB%21, %139:32bit)
                    Branch BB%5
 
 BB %3 - preds: %1 - succs: %5
@@ -257,8 +257,8 @@ BB %4 - preds: %1 - succs: %5
                    Branch BB%5
 
 BB %5 - preds: %3 %4 %6 %22 - succs: %6
-      %13:Object = Phi (BB%22, %122:Object), (BB%3, %11:Object), (BB%4, %11:Object), (BB%6, %13:Object)
-       %14:32bit = Phi (BB%3, %139:32bit), (BB%4, %139:32bit), (BB%6, %14:32bit), (BB%22, %136:32bit)
+      %13:Object = Phi (BB%3, %11:Object), (BB%4, %11:Object), (BB%6, %13:Object), (BB%22, %122:Object)
+       %14:32bit = Phi (BB%3, %136:32bit), (BB%4, %136:32bit), (BB%6, %14:32bit), (BB%22, %137:32bit)
                    Branch BB%6
 
 BB %6 - preds: %5 - succs: %5

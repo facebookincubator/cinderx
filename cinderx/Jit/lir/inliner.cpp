@@ -351,7 +351,7 @@ void LIRInliner::resolveReturnValue() {
     }
   }
 
-  if (phi_instr->getNumInputs() == 0) {
+  if (phi_instr->numPhiInputs() == 0) {
     // Callee has no return statements.
     // Remove phi instruction.
     epilogue->removeInstr(epilogue->getLastInstrIter());
