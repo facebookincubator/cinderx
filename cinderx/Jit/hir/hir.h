@@ -2579,14 +2579,6 @@ DEFINE_SIMPLE_INSTR(
     Operands<1>,
     LoadMethodBase);
 
-// Variant of LoadMethod that uses an inline cache.
-DEFINE_SIMPLE_INSTR(
-    LoadMethodCached,
-    (TObject),
-    HasOutput,
-    Operands<1>,
-    LoadMethodBase);
-
 // Like LoadMethod, but specialized for loading an attribute from a module
 DEFINE_SIMPLE_INSTR(
     LoadModuleAttrCached,

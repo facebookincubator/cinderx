@@ -569,7 +569,6 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
     case Opcode::kLoadMethod:
-    case Opcode::kLoadMethodCached:
     case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
@@ -859,7 +858,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadGlobal:
     case Opcode::kLoadGlobalCached:
     case Opcode::kLoadMethod:
-    case Opcode::kLoadMethodCached:
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadSpecial:
     case Opcode::kLoadModuleAttrCached:

@@ -1457,6 +1457,65 @@ def func(o):
          "enabled";
 }
 
+TEST_F(LIRGeneratorTest, LoadMethodCacheOff) {
+  getMutableConfig().attr_caches = false;
+
+  const char* src = R"(
+def func(o):
+  return o.method()
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+
+  EXPECT_FALSE(getConfig().attr_caches);
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kCall)
+                 .inAddr(0, reinterpret_cast<uint64_t>(rt::getMethod)))
+      << "Should call rt::getMethod when inline caches are disabled";
+  EXPECT_NO_LIR(
+      Query(*lir_func)
+          .opcode(Opcode::kCall)
+          .inAddr(0, reinterpret_cast<uint64_t>(LoadMethodCache::lookupHelper)))
+      << "Should not call LoadMethodCache::lookupHelper when inline caches are "
+         "disabled";
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kLoadSecondCallResult));
+}
+
+TEST_F(LIRGeneratorTest, LoadMethodCacheOn) {
+  if constexpr (kFreeThreadedBuild) {
+    SKIP(
+        "T250369692: Attribute inline caches are not supported on "
+        "free-threaded builds");
+  }
+  getMutableConfig().attr_caches = true;
+
+  const char* src = R"(
+def func(o):
+  return o.method()
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+
+  EXPECT_TRUE(getConfig().attr_caches);
+  EXPECT_LIR(
+      Query(*lir_func)
+          .opcode(Opcode::kCall)
+          .inAddr(0, reinterpret_cast<uint64_t>(LoadMethodCache::lookupHelper)))
+      << "Should call LoadMethodCache::lookupHelper when inline caches are "
+         "enabled";
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kCall)
+                    .inAddr(0, reinterpret_cast<uint64_t>(rt::getMethod)))
+      << "Should not call rt::getMethod when inline caches are enabled";
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kLoadSecondCallResult));
+}
+
 TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesMoveRelaxed) {
   // Backward jumps (loop back-edges) emit LoadEvalBreaker in HIR to check
   // whether the interpreter needs to handle pending events. This should lower

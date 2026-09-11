@@ -538,7 +538,6 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       return fmt::format("\"{}\"", repr(load.id()));
     }
     case Opcode::kLoadMethod:
-    case Opcode::kLoadMethodCached:
     case Opcode::kLoadModuleMethodCached: {
       const auto& load = static_cast<const LoadMethodBase&>(instr);
       return format_name(func, load, load.nameIdx());

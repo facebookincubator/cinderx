@@ -33,12 +33,8 @@ def method_two(self: MutableMethodTarget) -> int:
 
 
 class JITMethodCacheTest(CinderXTestCase):
-    def assert_compiled_load_method_is_uncached(self, func: Callable[[], int]) -> None:
-        self.assertHIROpcodes(
-            func,
-            present=["LoadMethod"],
-            absent=["LoadMethodCached"],
-        )
+    def assert_compiled_load_method(self, func: Callable[[], int]) -> None:
+        self.assertHIROpcodes(func, present=["LoadMethod"])
 
     def assert_concurrent_method_updates_do_not_corrupt_results(
         self,
@@ -92,5 +88,5 @@ class JITMethodCacheTest(CinderXTestCase):
         def load_method() -> int:
             return target.method()
 
-        self.assert_compiled_load_method_is_uncached(load_method)
+        self.assert_compiled_load_method(load_method)
         self.assert_concurrent_method_updates_do_not_corrupt_results(load_method)

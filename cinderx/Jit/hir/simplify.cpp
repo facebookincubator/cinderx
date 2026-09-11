@@ -854,8 +854,7 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
   if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
     return simplifyLoadModuleMethodCached(env, load_meth);
   }
-  return env.emit<LoadMethodCached>(
-      load_meth->getOperand(0), load_meth->nameIdx(), *load_meth->frameState());
+  return nullptr;
 }
 
 Register*

@@ -3310,27 +3310,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
-        appendCall2RetValues(bbb, dst, rt::getMethod, base, name);
-        break;
-      }
-      case hir::Opcode::kLoadMethodCached: {
-        JIT_DCHECK(
-            getConfig().attr_caches,
-            "Inline caches must be enabled to use LoadMethodCached");
-        auto instr = &i.as<LoadMethodCached>();
-        hir::Register* dst = instr->output();
-        hir::Register* base = instr->receiver();
-        Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = inline_cache_storage_.allocateLoadMethodCache(
-            instr->bytecodeOffset());
-        if (getConfig().collect_attr_cache_stats) {
-          BorrowedRef<PyCodeObject> code = instr->frameState()->code;
-          cache->initCacheStats(
-              PyUnicode_AsUTF8(code->co_filename),
-              PyUnicode_AsUTF8(code->co_name));
+        if (getConfig().attr_caches) {
+          auto cache = inline_cache_storage_.allocateLoadMethodCache(
+              instr->bytecodeOffset());
+          if (getConfig().collect_attr_cache_stats) {
+            BorrowedRef<PyCodeObject> code = instr->frameState()->code;
+            cache->initCacheStats(
+                PyUnicode_AsUTF8(code->co_filename),
+                PyUnicode_AsUTF8(code->co_name));
+          }
+          appendCall2RetValues(
+              bbb, dst, LoadMethodCache::lookupHelper, cache, base, name);
+        } else {
+          appendCall2RetValues(bbb, dst, rt::getMethod, base, name);
         }
-        appendCall2RetValues(
-            bbb, dst, LoadMethodCache::lookupHelper, cache, base, name);
         break;
       }
       case hir::Opcode::kLoadModuleAttrCached: {

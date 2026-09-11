@@ -225,7 +225,6 @@ Type outputType(
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
     case Opcode::kLoadMethod:
-    case Opcode::kLoadMethodCached:
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:

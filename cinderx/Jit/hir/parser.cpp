@@ -357,14 +357,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<LoadMethod>(dst, receiver, idx);
       break;
     }
-    case Opcode::kLoadMethodCached: {
-      expect("<");
-      int idx = getNextNameIdx();
-      expect(">");
-      auto receiver = parseRegister();
-      instruction = newInstr<LoadMethodCached>(dst, receiver, idx);
-      break;
-    }
     case Opcode::kLoadTupleItem: {
       expect("<");
       int idx = getNextNameIdx();

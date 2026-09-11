@@ -17536,14 +17536,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v20:Object = LoadMethodCached<1; "hello"> v19 {
+    v15:Object = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 20
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v20
+    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
-    v17:Object = CallMethod<2> v20 v16 {
+    v17:Object = CallMethod<2> v15 v16 {
       FrameState {
         CurInstrOffset 40
       }
@@ -17586,14 +17586,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v20:Object = LoadMethodCached<1; "hello"> v19 {
+    v15:Object = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 20
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v20
+    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
-    v17:Object = CallMethod<2> v20 v16 {
+    v17:Object = CallMethod<2> v15 v16 {
       FrameState {
         CurInstrOffset 40
       }
@@ -17636,14 +17636,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v20:Object = LoadMethodCached<1; "hello"> v19 {
+    v15:Object = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 22
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v20
+    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
-    v17:Object = CallMethod<2> v20 v16 {
+    v17:Object = CallMethod<2> v15 v16 {
       FrameState {
         CurInstrOffset 42
       }
@@ -17686,14 +17686,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v20:Object = LoadMethodCached<1; "hello"> v19 {
+    v15:Object = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 22
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v20
+    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
-    v17:Object = CallMethod<2> v20 v16 {
+    v17:Object = CallMethod<2> v15 v16 {
       FrameState {
         CurInstrOffset 42
       }

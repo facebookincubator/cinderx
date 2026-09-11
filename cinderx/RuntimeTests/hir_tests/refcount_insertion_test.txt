@@ -3904,7 +3904,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v31:Object = LoadMethodCached<0; "foo"> v21 {
+    v22:Object = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 6
@@ -3912,17 +3912,17 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v31
-    v24:Object = CallMethod<2> v31 v23 {
-      LiveValues<4> unc:v16 o:v17 o:v23 o:v31
+    v23:OptObject = GetSecondOutput<OptObject> v22
+    v24:Object = CallMethod<2> v22 v23 {
+      LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
         CurInstrOffset 26
         Locals<2> v17 v16
       }
     }
+    Decref v22
     XDecref v23
     Decref v24
-    Decref v31
     v25:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
@@ -3986,7 +3986,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v31:Object = LoadMethodCached<0; "foo"> v21 {
+    v22:Object = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 6
@@ -3994,17 +3994,17 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v31
-    v24:Object = CallMethod<2> v31 v23 {
-      LiveValues<4> unc:v16 o:v17 o:v23 o:v31
+    v23:OptObject = GetSecondOutput<OptObject> v22
+    v24:Object = CallMethod<2> v22 v23 {
+      LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
         CurInstrOffset 26
         Locals<2> v17 v16
       }
     }
+    Decref v22
     XDecref v23
     Decref v24
-    Decref v31
     v25:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
@@ -4068,7 +4068,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v31:Object = LoadMethodCached<0; "foo"> v21 {
+    v22:Object = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 8
@@ -4076,17 +4076,17 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v31
-    v24:Object = CallMethod<2> v31 v23 {
-      LiveValues<4> unc:v16 o:v17 o:v23 o:v31
+    v23:OptObject = GetSecondOutput<OptObject> v22
+    v24:Object = CallMethod<2> v22 v23 {
+      LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
         CurInstrOffset 28
         Locals<2> v17 v16
       }
     }
+    Decref v22
     XDecref v23
     Decref v24
-    Decref v31
     v25:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
@@ -4150,7 +4150,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v31:Object = LoadMethodCached<0; "foo"> v21 {
+    v22:Object = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 8
@@ -4158,17 +4158,17 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v31
-    v24:Object = CallMethod<2> v31 v23 {
-      LiveValues<4> unc:v16 o:v17 o:v23 o:v31
+    v23:OptObject = GetSecondOutput<OptObject> v22
+    v24:Object = CallMethod<2> v22 v23 {
+      LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
         CurInstrOffset 28
         Locals<2> v17 v16
       }
     }
+    Decref v22
     XDecref v23
     Decref v24
-    Decref v31
     v25:MortalTupleExact = MakeTuple<1> {
       LiveValues<2> unc:v16 o:v17
       FrameState {
