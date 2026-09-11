@@ -928,39 +928,42 @@ void translateReserveStack(Environ* env, const Instruction* instr) {
 
 void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   auto* as = env->as;
-
-  auto* ret_val = instr->getInput(0);
-  bool is_primitive = ret_val->dataType() != DataType::kObject &&
-      ret_val->dataType() != DataType::kObjectUntagged;
-  bool is_double = ret_val->isFp();
+  JIT_CHECK(instr->getNumInputs() <= 1, "EpilogueEnd has too many inputs");
 
 #if defined(CINDER_X86_64)
-  // Move return value to ABI return register
-  if (is_double) {
-    if (ret_val->isStack()) {
-      as->movsd(x86::xmm0, x86::ptr(x86::rbp, ret_val->getStackSlot().loc));
-    } else if (
-        ret_val->isReg() &&
-        ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
-      as->movsd(
-          x86::xmm0, x86::xmm(ret_val->getPhyRegister().loc - VECD_REG_BASE));
-    }
-  } else {
-    if (ret_val->isStack()) {
-      as->mov(x86::rax, x86::ptr(x86::rbp, ret_val->getStackSlot().loc));
-    } else if (
-        ret_val->isReg() &&
-        ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
-      as->mov(x86::rax, x86::gpq(ret_val->getPhyRegister().loc));
-    }
-  }
+  if (instr->getNumInputs() != 0) {
+    auto* ret_val = instr->getInput(0);
+    bool is_primitive = ret_val->dataType() != DataType::kObject &&
+        ret_val->dataType() != DataType::kObjectUntagged;
+    bool is_double = ret_val->isFp();
 
-  if (is_primitive) {
+    // Move return value to ABI return register
     if (is_double) {
-      as->pcmpeqw(x86::xmm1, x86::xmm1);
-      as->psrlq(x86::xmm1, 63);
+      if (ret_val->isStack()) {
+        as->movsd(x86::xmm0, x86::ptr(x86::rbp, ret_val->getStackSlot().loc));
+      } else if (
+          ret_val->isReg() &&
+          ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
+        as->movsd(
+            x86::xmm0, x86::xmm(ret_val->getPhyRegister().loc - VECD_REG_BASE));
+      }
     } else {
-      as->mov(x86::edx, 1);
+      if (ret_val->isStack()) {
+        as->mov(x86::rax, x86::ptr(x86::rbp, ret_val->getStackSlot().loc));
+      } else if (
+          ret_val->isReg() &&
+          ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
+        as->mov(x86::rax, x86::gpq(ret_val->getPhyRegister().loc));
+      }
+    }
+
+    if (is_primitive) {
+      if (is_double) {
+        as->pcmpeqw(x86::xmm1, x86::xmm1);
+        as->psrlq(x86::xmm1, 63);
+      } else {
+        as->mov(x86::edx, 1);
+      }
     }
   }
 
@@ -1009,30 +1012,38 @@ void translateEpilogueEnd(Environ* env, const Instruction* instr) {
   as->leave();
   as->ret();
 #elif defined(CINDER_AARCH64)
-  // Move return value to ABI return register
-  if (is_double) {
-    if (ret_val->isStack()) {
-      as->ldr(a64::d0, getStackSlotPtr(env, ret_val->getStackSlot().loc));
-    } else if (
-        ret_val->isReg() &&
-        ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
-      as->fmov(a64::d0, a64::d(ret_val->getPhyRegister().loc - VECD_REG_BASE));
-    }
-  } else {
-    if (ret_val->isStack()) {
-      as->ldr(a64::x0, getStackSlotPtr(env, ret_val->getStackSlot().loc));
-    } else if (
-        ret_val->isReg() &&
-        ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
-      as->mov(a64::x0, a64::x(ret_val->getPhyRegister().loc));
-    }
-  }
+  if (instr->getNumInputs() != 0) {
+    auto* ret_val = instr->getInput(0);
+    bool is_primitive = ret_val->dataType() != DataType::kObject &&
+        ret_val->dataType() != DataType::kObjectUntagged;
+    bool is_double = ret_val->isFp();
 
-  if (is_primitive) {
+    // Move return value to ABI return register
     if (is_double) {
-      as->fmov(a64::d1, 1.0);
+      if (ret_val->isStack()) {
+        as->ldr(a64::d0, getStackSlotPtr(env, ret_val->getStackSlot().loc));
+      } else if (
+          ret_val->isReg() &&
+          ret_val->getPhyRegister().loc != arch::reg_double_return_loc.loc) {
+        as->fmov(
+            a64::d0, a64::d(ret_val->getPhyRegister().loc - VECD_REG_BASE));
+      }
     } else {
-      as->mov(a64::w1, 1);
+      if (ret_val->isStack()) {
+        as->ldr(a64::x0, getStackSlotPtr(env, ret_val->getStackSlot().loc));
+      } else if (
+          ret_val->isReg() &&
+          ret_val->getPhyRegister().loc != arch::reg_general_return_loc.loc) {
+        as->mov(a64::x0, a64::x(ret_val->getPhyRegister().loc));
+      }
+    }
+
+    if (is_primitive) {
+      if (is_double) {
+        as->fmov(a64::d1, 1.0);
+      } else {
+        as->mov(a64::w1, 1);
+      }
     }
   }
 

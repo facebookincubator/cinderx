@@ -106,6 +106,7 @@ class LIRGenerator {
   // Phi instruction in exit_epilogue_ for merging return and yield values.
   // nullptr for non-generators.
   Instruction* epilogue_phi_{nullptr};
+  Instruction* epilogue_end_{nullptr};
 
   // Blocks that exit via kReturn, tracked for wiring up exit_block_ phi.
   std::vector<ExitEdge> return_edges_;

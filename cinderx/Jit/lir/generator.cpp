@@ -1308,7 +1308,8 @@ void LIRGenerator::generateExitBlocks() {
     if (func_->code == nullptr) {
       exit_phi_ = block->allocateInstr(
           Opcode::kPhi, nullptr, OutVReg{DataType::kObject});
-      block->allocateInstr(Opcode::kEpilogueEnd, nullptr, VReg{exit_phi_});
+      epilogue_end_ =
+          block->allocateInstr(Opcode::kEpilogueEnd, nullptr, VReg{exit_phi_});
       return;
     }
 
@@ -1335,7 +1336,7 @@ void LIRGenerator::generateExitBlocks() {
     // EpilogueEnd goes on the builder's current block which may differ
     // from exit_block_ when inline code created additional blocks.
     BasicBlock* epilogue_block = bbb.curBlock();
-    bbb.appendInstr(Opcode::kEpilogueEnd, VReg{exit_phi_});
+    epilogue_end_ = bbb.appendInstr(Opcode::kEpilogueEnd, VReg{exit_phi_});
     if (epilogue_block != exit_block_) {
       exit_epilogue_ = epilogue_block;
     }
@@ -1406,7 +1407,8 @@ void LIRGenerator::generateExitBlocks() {
       Ind{codegen::arch::reg_frame_pointer_loc,
           static_cast<int32_t>(offsetof(GenDataFooter, originalFramePointer))});
 
-  block->allocateInstr(Opcode::kEpilogueEnd, nullptr, VReg{epilogue_phi_});
+  epilogue_end_ =
+      block->allocateInstr(Opcode::kEpilogueEnd, nullptr, VReg{epilogue_phi_});
 }
 
 void LIRGenerator::analyzeCopies() {
@@ -1563,6 +1565,22 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
     }
   }
 
+  if (return_edges_.empty()) {
+    if (is_gen_) {
+      JIT_CHECK(
+          exit_epilogue_edge_.has_value(),
+          "Generator exit epilogue edge is not connected");
+      exit_epilogue_->removePredecessor(exit_epilogue_edge_->incomingSlot());
+      exit_epilogue_edge_.reset();
+    } else {
+      JIT_CHECK(
+          epilogue_end_->getNumInputs() == 1, "Expected epilogue return value");
+      epilogue_end_->removeInput(0);
+    }
+    exit_block_->removeInstr(exit_block_->iterator_to(exit_phi_));
+    exit_phi_ = nullptr;
+  }
+
   // Wire up exit phis.
   auto addExitPhiInput = [&](Instruction* phi, const ExitEdge& edge) {
     JIT_THROW_IF(
@@ -1604,9 +1622,9 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
   // For generators, populate exit_epilogue_ phi with values from both
   // the return path (exit_block_) and yield exit blocks.
   if (epilogue_phi_ != nullptr) {
-    JIT_CHECK(
-        exit_epilogue_edge_.has_value(), "Exit epilogue edge is not connected");
-    epilogue_phi_->addPhiInput(*exit_epilogue_edge_, exit_phi_);
+    if (exit_epilogue_edge_.has_value()) {
+      epilogue_phi_->addPhiInput(*exit_epilogue_edge_, exit_phi_);
+    }
     for (auto& edge : yield_exit_edges_) {
       addExitPhiInput(epilogue_phi_, edge);
     }

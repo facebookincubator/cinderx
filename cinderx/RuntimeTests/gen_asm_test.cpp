@@ -56,6 +56,25 @@ def func():
   ASSERT_EQ(PyLong_AsLong(res), 314159);
 }
 
+TEST_F(ASMGeneratorTest, FunctionWithoutReturnUsesValuelessEpilogue) {
+  const char* pycode = R"(
+def func():
+  raise RuntimeError("expected")
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(pycode, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto compiled = GenerateCode(pyfunc);
+  ASSERT_NE(compiled, nullptr);
+
+  PyObject* args[] = {};
+  auto result = Ref<>::steal(compiled->invoke(pyfunc, args, 0));
+  EXPECT_EQ(result, nullptr);
+  EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_RuntimeError));
+  PyErr_Clear();
+}
+
 TEST_F(ASMGeneratorTest, Fallthrough) {
   const char* src = R"(
 def func2(x):

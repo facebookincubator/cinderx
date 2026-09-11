@@ -874,6 +874,43 @@ def func():
   expectPhiInputsFollowPredecessors(findPhiWithInputCount(lir_func.get(), 4));
 }
 
+TEST_F(LIRGeneratorTest, GeneratorWithoutReturnOmitsReturnPhi) {
+  const char* src = R"(
+def func():
+  yield 1
+  raise RuntimeError("expected")
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  Instruction* epilogue_end = nullptr;
+  for (BasicBlock* block : lir_func->basicBlocks()) {
+    for (const auto& instruction : block->instructions()) {
+      if (instruction->isPhi()) {
+        expectPhiInputsFollowPredecessors(instruction.get());
+        EXPECT_GT(instruction->numPhiInputs(), 0);
+      } else if (instruction->opcode() == Opcode::kEpilogueEnd) {
+        epilogue_end = instruction.get();
+      }
+    }
+  }
+
+  ASSERT_NE(epilogue_end, nullptr);
+  ASSERT_EQ(epilogue_end->getNumInputs(), 1);
+  EXPECT_TRUE(epilogue_end->getInput(0)->isLinked());
+  Instruction* epilogue_phi = epilogue_end->getInput(0)->getLinkedInstr();
+  ASSERT_TRUE(epilogue_phi->isPhi());
+  ASSERT_EQ(epilogue_phi->numPhiInputs(), 2);
+  for (size_t slot = 0; slot < epilogue_phi->numPhiInputs(); ++slot) {
+    Instruction* terminator =
+        epilogue_phi->phiPredecessor(slot)->getLastInstr();
+    ASSERT_NE(terminator, nullptr);
+    EXPECT_EQ(terminator->opcode(), Opcode::kBranchToYieldExit);
+  }
+}
+
 TEST_F(LIRGeneratorTest, LinearScanResumeEntryDispatchIsNotAnSSAPredecessor) {
   const char* src = R"(
 def func(items):
@@ -1454,8 +1491,7 @@ BB %6 - preds: %1
                    Unreachable
 
 BB %10
-      %11:Object = Phi
-                   EpilogueEnd %11:Object
+                   EpilogueEnd
 
 
 )",
@@ -1496,8 +1532,7 @@ BB %6 - preds: %1
                    Unreachable
 
 BB %10
-      %11:Object = Phi
-                   EpilogueEnd %11:Object
+                   EpilogueEnd
 
 
 )",
