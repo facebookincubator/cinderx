@@ -80,6 +80,10 @@ class CinderX_ForkTest(ForkWait):
                 pass
 
 
+# Prevent test loaders from collecting the imported base as a separate test case.
+del ForkWait
+
+
 def tearDownModule():
     if support is not None:
         support.reap_children()
