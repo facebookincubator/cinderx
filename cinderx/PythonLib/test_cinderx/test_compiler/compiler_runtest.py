@@ -27,18 +27,21 @@ def open_with_coding(fname):
     return open(fname, encoding=encoding)
 
 
-if len(sys.argv) < 2:
-    print("no filename provided")
-    sys.exit(1)
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("no filename provided")
+        sys.exit(1)
 
-peephole = True
-if sys.argv[1] == "--peephole":
-    peephole = True
-    del sys.argv[1]
+    if sys.argv[1] == "--peephole":
+        del sys.argv[1]
 
-text = open_with_coding(sys.argv[1]).read()
+    text = open_with_coding(sys.argv[1]).read()
 
-codeobj = py_compile(text, sys.argv[1], "exec")
+    codeobj = py_compile(text, sys.argv[1], "exec")
 
-# pyre-ignore[6]: maybe not CodeType
-dis_stable.Disassembler().dump_code(codeobj, file=sys.stdout)
+    # pyre-ignore[6]: maybe not CodeType
+    dis_stable.Disassembler().dump_code(codeobj, file=sys.stdout)
+
+
+if __name__ == "__main__":
+    main()
