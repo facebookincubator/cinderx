@@ -1,6 +1,6 @@
 # (c) Meta Platforms, Inc. and affiliates.
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.18)
 project(_cinderx)
 
 set(PROJECT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/cinderx)
