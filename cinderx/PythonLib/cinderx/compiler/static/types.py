@@ -9632,13 +9632,18 @@ class CIntInstance(CInstance["CIntType"]):
     def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
         ty = code_gen.get_type(node)
+        self.emit_unbox_from_stack(ty.klass, code_gen)
+
+    def emit_unbox_from_stack(self, src: Class, code_gen: StaticCodeGenBase) -> None:
+        """Unbox a value of (possibly dynamic) type `src` that is already on
+        the stack, converting it to this primitive int type."""
         target_ty = (
             self.klass.type_env.bool
             if self.klass is self.klass.type_env.cbool
             else self.klass.type_env.int
         )
-        if target_ty.can_assign_from(ty.klass):
-            code_gen.emit("REFINE_TYPE", ty.klass.type_descr)
+        if target_ty.can_assign_from(src):
+            code_gen.emit("REFINE_TYPE", src.type_descr)
         else:
             code_gen.emit("CAST", target_ty.type_descr)
         code_gen.emit("PRIMITIVE_UNBOX", self.as_oparg())
@@ -9783,8 +9788,16 @@ class CIntType(CType):
         return False
 
     def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
-        assert self.can_assign_from(src)
-        self.instance.emit_convert(src.instance, code_gen)
+        if isinstance(src, CIntType):
+            assert self.can_assign_from(src)
+            self.instance.emit_convert(src.instance, code_gen)
+            return
+        # src is not statically known to be a primitive int (e.g. it's
+        # dynamic, or a union involving dynamic, which the binder allows
+        # through here) - unbox it at runtime instead of asserting, mirroring
+        # how a boxed/dynamic value is coerced everywhere else it's narrowed
+        # to a primitive int (see emit_call below and emit_unbox).
+        self.instance.emit_unbox_from_stack(src, code_gen)
 
     def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if len(node.args) != 1:
