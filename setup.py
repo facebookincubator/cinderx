@@ -460,6 +460,7 @@ class BuildExt(build_ext):
         free_threading = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
         set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
+        set_option("ENABLE_CCACHE", False)
         set_option("ENABLE_DISASSEMBLER", True)
         set_option("ENABLE_ELF_READER", linux)
         set_option("ENABLE_EVAL_HOOK", meta_312)
