@@ -52,6 +52,8 @@ struct AbstractCall {
   }
 
   BorrowedRef<PyFunctionObject> func;
+  // Number of call operands excluding the callee itself. For KwArgs calls
+  // this includes the keyword values plus the trailing kwnames tuple.
   size_t nargs{0};
   DeoptBase* instr{nullptr};
   Register* target{nullptr};
@@ -60,6 +62,116 @@ struct AbstractCall {
   // Discover order, used to break ranking ties in a stable manner.
   uint64_t seq{0};
 };
+
+// Whether a call passes keyword arguments (kwnames tuple as last operand).
+// Static calls never carry kwargs.
+bool callHasKwArgs(const AbstractCall& call_instr) {
+  const DeoptBase* instr = call_instr.instr;
+  CallFlags flags = CallFlags::None;
+  if (instr->isVectorCall()) {
+    flags = instr->as<VectorCall>().flags();
+  } else if (instr->isCallMethod()) {
+    flags = instr->as<CallMethod>().flags();
+  }
+  return flags & CallFlags::KwArgs;
+}
+
+bool unicodeNameEquals(PyObject* a, PyObject* b) {
+  if (a == b) {
+    return true;
+  }
+  if (!PyUnicode_Check(a) || !PyUnicode_Check(b)) {
+    return false;
+  }
+  return PyUnicode_Compare(a, b) == 0;
+}
+
+// Call operands resolved onto callee parameters. param_regs holds the
+// register for each positional (co_argcount entries) then kwonly
+// (co_kwonlyargcount entries) parameter, or nullptr when the call provides
+// no value for it.
+struct MappedCallArgs {
+  // Number of positional values (excluding kwnames).
+  size_t num_pos = 0;
+  // Number of keyword values.
+  size_t num_kw = 0;
+  std::vector<Register*> param_regs;
+};
+
+// Map a call's operands onto the callee's parameters. Returns nullopt when
+// the call cannot be mapped (kwnames not constant, unknown or duplicate
+// keywords, keyword for a positional-only parameter, ...).
+std::optional<MappedCallArgs> mapCallArgs(
+    BorrowedRef<PyCodeObject> code,
+    const AbstractCall& call_instr) {
+  MappedCallArgs result;
+  const size_t co_argcount = static_cast<size_t>(code->co_argcount);
+  const size_t co_kwonly = static_cast<size_t>(code->co_kwonlyargcount);
+  result.param_regs.assign(co_argcount + co_kwonly, nullptr);
+  if (!callHasKwArgs(call_instr)) {
+    result.num_pos = call_instr.nargs;
+    for (size_t i = 0; i < co_argcount && i < call_instr.nargs; ++i) {
+      result.param_regs[i] = call_instr.arg(i);
+    }
+    return result;
+  }
+  if (call_instr.nargs < 1) {
+    return std::nullopt;
+  }
+  // The last operand is the kwnames tuple; it must be a compile-time
+  // constant for us to map keywords to parameters.
+  Register* kwnames_reg = call_instr.arg(call_instr.nargs - 1);
+  const Type kwnames_type = kwnames_reg->type();
+  if (!kwnames_type.hasObjectSpec()) {
+    LOG_INLINER("Can't inline call with non-constant kwnames");
+    return std::nullopt;
+  }
+  BorrowedRef<PyObject> kwnames{kwnames_type.objectSpec()};
+  if (!PyTuple_Check(kwnames)) {
+    return std::nullopt;
+  }
+  const size_t num_kw = static_cast<size_t>(PyTuple_GET_SIZE(kwnames));
+  if (call_instr.nargs < num_kw + 1) {
+    return std::nullopt;
+  }
+  result.num_kw = num_kw;
+  result.num_pos = call_instr.nargs - 1 - num_kw;
+  const size_t num_pos = result.num_pos;
+  for (size_t i = 0; i < num_pos && i < co_argcount; ++i) {
+    result.param_regs[i] = call_instr.arg(i);
+  }
+  const size_t posonly = static_cast<size_t>(code->co_posonlyargcount);
+  if (co_argcount + co_kwonly > static_cast<size_t>(code->co_nlocalsplus)) {
+    return std::nullopt;
+  }
+  for (size_t j = 0; j < num_kw; ++j) {
+    BorrowedRef<PyObject> name{PyTuple_GET_ITEM(kwnames.get(), j)};
+    if (!PyUnicode_Check(name)) {
+      return std::nullopt;
+    }
+    bool matched = false;
+    // Positional-only parameters (before posonly) cannot be filled by
+    // keyword; anything else unfilled may be.
+    for (size_t idx = posonly; idx < co_argcount + co_kwonly; ++idx) {
+      BorrowedRef<PyObject> param_name{getVarname(code, static_cast<int>(idx))};
+      if (!unicodeNameEquals(name, param_name)) {
+        continue;
+      }
+      if (result.param_regs[idx] != nullptr) {
+        LOG_INLINER("Can't inline call passing a duplicate argument");
+        return std::nullopt;
+      }
+      result.param_regs[idx] = call_instr.arg(num_pos + j);
+      matched = true;
+      break;
+    }
+    if (!matched) {
+      LOG_INLINER("Can't inline call with unknown keyword argument");
+      return std::nullopt;
+    }
+  }
+  return result;
+}
 
 void logInlineFailure(
     Function& caller,
@@ -104,7 +216,11 @@ size_t codeCost(BorrowedRef<PyCodeObject> code) {
 
 // Most of these checks are only temporary and do not in perpetuity prohibit
 // inlining.
-bool canInline(
+// Validate a call for inlining. On success returns the argument mapping
+// computed by mapCallArgs() so inlineFunctionCall() can reuse it without
+// re-reading caller registers (whose types inlineHIR() may invalidate
+// while splicing in the callee). On failure returns nullopt.
+std::optional<MappedCallArgs> canInline(
     Function& caller,
     const AbstractCall& call_instr,
     BorrowedRef<PyTupleObject> func_defaults) {
@@ -117,7 +233,7 @@ bool canInline(
         callee,
         InlineFailureType::kGlobalsNotDict,
         Py_TYPE(globals)->tp_name);
-    return false;
+    return std::nullopt;
   }
 
   BorrowedRef<> builtins = callee->func_builtins;
@@ -127,48 +243,66 @@ bool canInline(
         callee,
         InlineFailureType::kBuiltinsNotDict,
         Py_TYPE(builtins)->tp_name);
-    return false;
+    return std::nullopt;
   }
 
-  auto fail = [&](InlineFailureType failure_type) {
+  auto fail =
+      [&](InlineFailureType failure_type) -> std::optional<MappedCallArgs> {
     logInlineFailure(caller, callee, failure_type);
-    return false;
+    return std::nullopt;
   };
 
-  if (callee->func_kwdefaults != nullptr) {
+  // kwdefaults are only read when a kwonly parameter lacks a value; with a
+  // fully-provided kwargs call (see below) they are never consulted.
+  const bool call_has_kwargs = callHasKwArgs(call_instr);
+  if (callee->func_kwdefaults != nullptr && !call_has_kwargs) {
     return fail(InlineFailureType::kHasKwdefaults);
   }
 
   BorrowedRef<PyCodeObject> code{callee->func_code};
   JIT_CHECK(PyCode_Check(code), "Expected PyCodeObject");
 
-  if (code->co_kwonlyargcount > 0) {
+  JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
+  JIT_DCHECK(code->co_kwonlyargcount >= 0, "kwonlyargcount must be positive");
+  if (code->co_kwonlyargcount > 0 && !call_has_kwargs) {
     return fail(InlineFailureType::kHasKwOnlyArgs);
   }
   if (code->co_flags & CO_VARKEYWORDS) {
     return fail(InlineFailureType::kHasVarkwargs);
   }
-  JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
-  // A callee with *args accepts surplus arguments, which are collected into
-  // the varargs tuple when rewriting LoadArg below. Missing positional
-  // arguments are filled from func_defaults (also below); anything else is
-  // still an argument-count mismatch.
-  const bool has_varargs = code->co_flags & CO_VARARGS;
-  const size_t co_argcount = static_cast<size_t>(code->co_argcount);
-  const size_t num_positional = std::min(co_argcount, call_instr.nargs);
-  if (!has_varargs && call_instr.nargs > co_argcount) {
+  // Map call operands onto callee parameters. A callee with *args accepts
+  // surplus positional arguments, which are collected into the varargs
+  // tuple when rewriting LoadArg below.
+  auto mapping = mapCallArgs(code, call_instr);
+  if (!mapping) {
     return fail(InlineFailureType::kCalledWithMismatchedArgs);
   }
-  // Grab default positional arguments, mirroring resolveArgs in simplify.cpp.
-  // func_defaults comes from the callee's preloader (captured with the GIL
-  // held and kept alive); reading it off the function here would race with
-  // concurrent reassignment on a background compile without the GIL.
-  const size_t num_defaults = func_defaults == nullptr
-      ? 0
-      : static_cast<size_t>(PyTuple_GET_SIZE(func_defaults));
-  if (num_positional + num_defaults < co_argcount) {
-    // Function was called with too few arguments.
+  const bool has_varargs = code->co_flags & CO_VARARGS;
+  const size_t co_argcount = static_cast<size_t>(code->co_argcount);
+  if (mapping->num_pos > co_argcount && !has_varargs) {
     return fail(InlineFailureType::kCalledWithMismatchedArgs);
+  }
+  if (mapping->num_kw) {
+    // Only support kwargs calls when every argument is provided; defaults
+    // are never consulted.
+    for (Register* reg : mapping->param_regs) {
+      if (reg == nullptr) {
+        return fail(InlineFailureType::kCalledWithMismatchedArgs);
+      }
+    }
+  } else {
+    // Grab default positional arguments, mirroring resolveArgs in
+    // simplify.cpp. func_defaults comes from the callee's preloader
+    // (captured with the GIL held and kept alive); reading it off the
+    // function here would race with concurrent reassignment on a
+    // background compile without the GIL.
+    const size_t num_defaults = func_defaults == nullptr
+        ? 0
+        : static_cast<size_t>(PyTuple_GET_SIZE(func_defaults));
+    if (mapping->num_pos + num_defaults < co_argcount) {
+      // Function was called with too few arguments.
+      return fail(InlineFailureType::kCalledWithMismatchedArgs);
+    }
   }
   if (code->co_flags & kCoFlagsAnyGenerator) {
     return fail(InlineFailureType::kIsGenerator);
@@ -191,7 +325,7 @@ bool canInline(
     }
   }
 
-  return true;
+  return mapping;
 }
 
 // As canInline() for checks which require a preloader.
@@ -216,13 +350,15 @@ bool canInlineWithPreloader(
 Register* populateVarArgs(
     Function& caller,
     const AbstractCall& call_instr,
-    FrameState& pre_call_state) {
+    FrameState& pre_call_state,
+    size_t num_pos) {
   // When defaults fill missing positionals there are no surplus
   // arguments; the tuple is empty.
   BorrowedRef<PyCodeObject> code{call_instr.func->func_code};
   const size_t co_argcount = code->co_argcount;
-  const size_t num_extra =
-      call_instr.nargs < co_argcount ? 0 : call_instr.nargs - co_argcount;
+  // Positional values beyond co_argcount are surplus; when defaults fill
+  // missing positionals there are none and the tuple is empty.
+  const size_t num_extra = num_pos < co_argcount ? 0 : num_pos - co_argcount;
   auto varargs_reg = caller.env.allocateRegister();
   if (num_extra == 0) {
     auto make_tuple =
@@ -292,6 +428,7 @@ std::vector<Register*> resolveArgs(
     const AbstractCall& call_instr,
     FrameState& pre_call_state,
     size_t co_argcount,
+    const MappedCallArgs& mapping,
     BorrowedRef<PyTupleObject> defaults) {
   // Fix up argument mismatches at the call site, before splicing in the
   // callee. Missing positional arguments are filled from the callee's
@@ -302,6 +439,12 @@ std::vector<Register*> resolveArgs(
   // been simplified yet, can still be inlined. It must stay at the call
   // site (rather than moving into the callee entry block) so that the
   // deopting instructions' FrameState depth matches their inline depth.
+
+  // canInline() validated the mapping above; reuse it here to materialize
+  // the fixup. Provided parameters (positional or keyword) map to call
+  // operands; other positional parameters are filled from func_defaults
+  // (only possible without kwargs, which require every argument to be
+  // provided).
   const size_t num_defaults =
       defaults == nullptr ? 0 : static_cast<size_t>(PyTuple_GET_SIZE(defaults));
   // Leading defaults beyond co_argcount are ignored by CPython; the rest
@@ -311,16 +454,15 @@ std::vector<Register*> resolveArgs(
   const size_t default_offset =
       num_defaults > co_argcount ? num_defaults - co_argcount : 0;
 
-  // Resolved register for each positional parameter: the call operand when
-  // provided, otherwise a constant materialized below.
-  std::vector<Register*> resolved_args;
-  resolved_args.reserve(co_argcount);
+  // Resolved register for each positional then kwonly parameter: the call
+  // operand when provided, otherwise a constant materialized below.
+  std::vector<Register*> param_regs = mapping.param_regs;
+  bool defaults_guard_emitted = false;
   for (size_t i = 0; i < co_argcount; ++i) {
-    if (i < call_instr.nargs) {
-      resolved_args.push_back(call_instr.arg(i));
+    if (param_regs.at(i) != nullptr) {
       continue;
     }
-    if (i == call_instr.nargs) {
+    if (!defaults_guard_emitted) {
       // First missing argument: guard that func_defaults is unchanged.
       // The snapshot gives bindGuards a same-block FrameState for the
       // guard; on failure we deopt to the caller at the call site.
@@ -336,9 +478,9 @@ std::vector<Register*> resolveArgs(
     def_reg->setType(type);
     auto load_const = LoadConst::create(def_reg, type);
     load_const->insertBefore(*call_instr.instr);
-    resolved_args.push_back(def_reg);
+    param_regs[i] = def_reg;
   }
-  return resolved_args;
+  return param_regs;
 }
 
 // Attempt to inline a single call.  On success returns the spliced-in callee
@@ -366,7 +508,8 @@ std::optional<InlineResult> inlineFunctionCall(
     return std::nullopt;
   }
 
-  if (!canInline(caller, call_instr, preloader->funcDefaults())) {
+  auto mapping = canInline(caller, call_instr, preloader->funcDefaults());
+  if (!mapping) {
     return std::nullopt;
   }
 
@@ -376,7 +519,6 @@ std::optional<InlineResult> inlineFunctionCall(
   if (!canInlineWithPreloader(caller, call_instr, *preloader)) {
     return std::nullopt;
   }
-
   HIRBuilder hir_builder(*preloader);
   std::string callee_name = funcFullname(callee);
 
@@ -422,17 +564,22 @@ std::optional<InlineResult> inlineFunctionCall(
     pre_call_state.stack.push(call_instr.instr->getOperand(i));
   }
 
+  // canInline() validated the mapping above; resolveArgs() materializes the
+  // fixup from it (provided parameters map to call operands, the rest are
+  // filled from func_defaults).
   auto resolved_args = resolveArgs(
       caller,
       call_instr,
       pre_call_state,
       co_argcount,
+      *mapping,
       preloader->funcDefaults());
+  const size_t num_pos = mapping->num_pos;
 
   // Register holding the packed varargs tuple, if the callee takes *args.
   Register* varargs_reg = nullptr;
   if (has_varargs) {
-    varargs_reg = populateVarArgs(caller, call_instr, pre_call_state);
+    varargs_reg = populateVarArgs(caller, call_instr, pre_call_state, num_pos);
   }
 
   BasicBlock* tail = caller.cfg.splitAfter(*call_instr.instr);
@@ -499,13 +646,14 @@ std::optional<InlineResult> inlineFunctionCall(
 
 // Validate a dynamic call's function target and, if it names a concrete
 // function we can inline, append it as a candidate.  `target` is the register
-// holding the callee, `nargs` the number of positional arguments.
+// holding the callee, `nargs` the number of call operands excluding the
+// callee itself (for KwArgs calls this includes the keyword values plus the
+// trailing kwnames tuple; see mapCallArgs()).
 void maybeAddDynamicCall(
     Function& irfunc,
     DeoptBase* instr,
     Register* target,
     size_t nargs,
-    CallFlags flags,
     std::vector<AbstractCall>& calls) {
   const std::string& caller_name = irfunc.fullname;
   if (!target->isA(TFunc)) {
@@ -524,15 +672,8 @@ void maybeAddDynamicCall(
         caller_name);
     return;
   }
-  if (flags & CallFlags::KwArgs) {
-    LOG_INLINER(
-        "Can't inline {}:{} into {} because it has kwargs",
-        *target,
-        target->type(),
-        caller_name);
-    return;
-  }
-
+  // KwArgs calls are supported when every argument is provided; see
+  // mapCallArgs(). kwargs mapping is validated in canInline().
   BorrowedRef<PyFunctionObject> callee{target->type().objectSpec()};
   calls.emplace_back(callee, nargs, instr, target);
 }
@@ -547,8 +688,7 @@ void collectCalls(
   for (auto& instr : block) {
     if (instr.isVectorCall()) {
       auto call = static_cast<VectorCall*>(&instr);
-      maybeAddDynamicCall(
-          irfunc, call, call->func(), call->numArgs(), call->flags(), calls);
+      maybeAddDynamicCall(irfunc, call, call->func(), call->numArgs(), calls);
     } else if (instr.isCallMethod()) {
       // A CallMethod is a plain (inlinable) function call only when its
       // receiver is null; with a real receiver it's a method dispatch we can't
@@ -570,8 +710,7 @@ void collectCalls(
         }
       }
       if (target != nullptr) {
-        maybeAddDynamicCall(
-            irfunc, call, target, call->numArgs(), call->flags(), calls);
+        maybeAddDynamicCall(irfunc, call, target, call->numArgs(), calls);
       }
     } else if (instr.isInvokeStaticFunction()) {
       auto call = static_cast<InvokeStaticFunction*>(&instr);

@@ -110,6 +110,22 @@ def top_calling_shared_code():
 
 
 @failUnlessJITCompiled
+def leaf_with_kwargs(x, y, *, z):
+    return x + y + z
+
+
+@failUnlessJITCompiled
+def top_calling_kwargs():
+    return leaf_with_kwargs(1, y=2, z=3) + leaf_with_kwargs(z=30, x=10, y=20)
+
+
+@failUnlessJITCompiled
+def top_calling_partial_kwargs():
+    # z is missing and has no default, so this call cannot be inlined.
+    return leaf_with_kwargs(1, y=2)
+
+
+@failUnlessJITCompiled
 def get_stack():
     z = 1 + 1  # noqa: F841
     stack = traceback.extract_stack()
@@ -524,6 +540,22 @@ class InlinedFunctionTests(unittest.TestCase):
         self.assertEqual(top_calling_shared_code(), 6 + 8)
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(top_calling_shared_code), 2
+        )
+
+    @jit_suppress
+    def test_kwargs_callee_is_inlined(self) -> None:
+        # Keyword arguments are mapped onto parameters (including the
+        # kwonly z) when every argument is provided.
+        self.assertEqual(top_calling_kwargs(), 66)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(top_calling_kwargs), 2)
+
+    @jit_suppress
+    def test_partial_kwargs_callee_is_not_inlined(self) -> None:
+        # z is missing and has no default. Don't call it (it would raise
+        # TypeError); the import-time compile must simply not inline it.
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(top_calling_partial_kwargs),
+            0,
         )
 
     @jit_suppress
