@@ -2387,6 +2387,16 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
     Py_RETURN_FALSE;
   }
 
+  Ref<CompiledFunction> keepalive;
+  if constexpr (kFreeThreadedBuild) {
+    // Keep the compile alive before funcDestroyed() drops the function-owned
+    // reference. In free-threaded builds that decref may be processed
+    // asynchronously by the object's owning thread.
+    if (auto* ctx = jitCtx()) {
+      keepalive = Ref<CompiledFunction>::create(ctx->lookupFunc(func));
+    }
+  }
+
   // "Destroy" the function from the perspective of the JIT, effectively erasing
   // all traces of it from the metadata.
   funcDestroyed(func);
