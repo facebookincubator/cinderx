@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import traceback
+import types
 import unittest
 
 import cinderx.jit
@@ -52,6 +53,60 @@ def func():
 def func_calling_varargs():
     # Extra args are packed into the *args tuple; no extras means ().
     return func_with_varargs_sum(1, 2, 3) + func_with_varargs_sum(10)
+
+
+@failUnlessJITCompiled
+def leaf_with_defaults(x, y=10):
+    return x + y
+
+
+@failUnlessJITCompiled
+def middle_calling_defaults(a):
+    return leaf_with_defaults(a) + leaf_with_defaults(a, 1)
+
+
+@failUnlessJITCompiled
+def top_calling_middle():
+    return middle_calling_defaults(5)
+
+
+@failUnlessJITCompiled
+def leaf_mutable_defaults(x, y=10):
+    return x + y
+
+
+@failUnlessJITCompiled
+def mutate_leaf_defaults():
+    leaf_mutable_defaults.__defaults__ = (20,)
+
+
+@failUnlessJITCompiled
+def middle_mutable_defaults(a):
+    return leaf_mutable_defaults(a)
+
+
+@failUnlessJITCompiled
+def top_mutating_defaults():
+    mutate_leaf_defaults()
+    return middle_mutable_defaults(5)
+
+
+@failUnlessJITCompiled
+def base_adder(a, b=5):
+    return a + b
+
+
+# Same code object as base_adder, different defaults. The callee preloader
+# is keyed by code object, so both inlines below share whichever tuple was
+# preloaded first; the other's func_defaults guard deopts at runtime.
+second_adder = types.FunctionType(
+    base_adder.__code__, base_adder.__globals__, "second_adder", (7,)
+)
+
+
+@failUnlessJITCompiled
+def top_calling_shared_code():
+    return base_adder(1) + second_adder(1)
 
 
 @failUnlessJITCompiled
@@ -442,6 +497,34 @@ class InlinedFunctionTests(unittest.TestCase):
         # an empty *args tuple.
         self.assertEqual(func_calling_varargs(), 16)
         self.assertEqual(cinderx.jit.get_num_inlined_functions(func_calling_varargs), 2)
+
+    @jit_suppress
+    def test_transitive_defaults_call_is_inlined(self) -> None:
+        # The leaf calls live inside middle_calling_defaults, so the inliner
+        # sees them without Simplify having resolved the defaults first; it
+        # must fill y=10 itself for the one-arg call.
+        self.assertEqual(top_calling_middle(), 21)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(top_calling_middle), 3)
+
+    @jit_suppress
+    def test_transitive_defaults_deopt_on_change(self) -> None:
+        # The inlined default (y=10) is guarded: mutating __defaults__ before
+        # the call deopts and picks up y=20.
+        self.assertEqual(top_mutating_defaults(), 25)
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(top_mutating_defaults), 3
+        )
+
+    @jit_suppress
+    def test_shared_code_defaults(self) -> None:
+        # base_adder and second_adder share a code object with different
+        # defaults. The preloader holds the first-seen tuple, so one
+        # inline's func_defaults guard deopts at runtime; values stay
+        # correct either way.
+        self.assertEqual(top_calling_shared_code(), 6 + 8)
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(top_calling_shared_code), 2
+        )
 
     @jit_suppress
     def test_inlining_callee_without_reachable_return(self) -> None:

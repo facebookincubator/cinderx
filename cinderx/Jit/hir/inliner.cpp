@@ -12,6 +12,7 @@
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/preload.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <optional>
@@ -103,7 +104,10 @@ size_t codeCost(BorrowedRef<PyCodeObject> code) {
 
 // Most of these checks are only temporary and do not in perpetuity prohibit
 // inlining.
-bool canInline(Function& caller, const AbstractCall& call_instr) {
+bool canInline(
+    Function& caller,
+    const AbstractCall& call_instr,
+    BorrowedRef<PyTupleObject> func_defaults) {
   BorrowedRef<PyFunctionObject> callee = call_instr.func;
 
   BorrowedRef<> globals = callee->func_globals;
@@ -145,14 +149,25 @@ bool canInline(Function& caller, const AbstractCall& call_instr) {
     return fail(InlineFailureType::kHasVarkwargs);
   }
   JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
-  // A callee with *args accepts any call that fills its positional
-  // parameters; the surplus arguments are collected into the varargs tuple
-  // when rewriting LoadArg below. Too few arguments is still an error.
+  // A callee with *args accepts surplus arguments, which are collected into
+  // the varargs tuple when rewriting LoadArg below. Missing positional
+  // arguments are filled from func_defaults (also below); anything else is
+  // still an argument-count mismatch.
   const bool has_varargs = code->co_flags & CO_VARARGS;
   const size_t co_argcount = static_cast<size_t>(code->co_argcount);
-  const bool arg_count_ok = has_varargs ? call_instr.nargs >= co_argcount
-                                        : call_instr.nargs == co_argcount;
-  if (!arg_count_ok) {
+  const size_t num_positional = std::min(co_argcount, call_instr.nargs);
+  if (!has_varargs && call_instr.nargs > co_argcount) {
+    return fail(InlineFailureType::kCalledWithMismatchedArgs);
+  }
+  // Grab default positional arguments, mirroring resolveArgs in simplify.cpp.
+  // func_defaults comes from the callee's preloader (captured with the GIL
+  // held and kept alive); reading it off the function here would race with
+  // concurrent reassignment on a background compile without the GIL.
+  const size_t num_defaults = func_defaults == nullptr
+      ? 0
+      : static_cast<size_t>(PyTuple_GET_SIZE(func_defaults));
+  if (num_positional + num_defaults < co_argcount) {
+    // Function was called with too few arguments.
     return fail(InlineFailureType::kCalledWithMismatchedArgs);
   }
   if (code->co_flags & kCoFlagsAnyGenerator) {
@@ -239,19 +254,99 @@ Register* populateVarArgs(
   return varargs_reg;
 }
 
+void emitDefaultsGuard(
+    Function& caller,
+    const AbstractCall& call_instr,
+    FrameState& pre_call_state,
+    BorrowedRef<PyTupleObject> defaults) {
+  auto snapshot = Snapshot::create(pre_call_state);
+  snapshot->insertBefore(*call_instr.instr);
+  Register* func_reg;
+  if (call_instr.target != nullptr) {
+    func_reg = call_instr.target;
+  } else {
+    func_reg = caller.env.allocateRegister();
+    auto func_type = Type::fromObject(caller.env.addReference(call_instr.func));
+    func_reg->setType(func_type);
+    auto func_const = LoadConst::create(func_reg, func_type);
+    func_const->insertBefore(*call_instr.instr);
+  }
+  Register* defaults_obj = caller.env.allocateRegister();
+  JIT_THROW_IF(defaults == nullptr, "should have defaults for unused args");
+  auto load_defaults = LoadField::create(
+      defaults_obj,
+      func_reg,
+      "func_defaults",
+      offsetof(PyFunctionObject, func_defaults),
+      TTuple);
+  caller.env.addReference(defaults);
+  load_defaults->insertBefore(*call_instr.instr);
+  Register* guarded = caller.env.allocateRegister();
+  auto guard = GuardIs::create(guarded, defaults, defaults_obj);
+  guard->setFrameState(pre_call_state);
+  guard->insertBefore(*call_instr.instr);
+}
+
+std::vector<Register*> resolveArgs(
+    Function& caller,
+    const AbstractCall& call_instr,
+    FrameState& pre_call_state,
+    size_t co_argcount,
+    BorrowedRef<PyTupleObject> defaults) {
+  // Fix up argument mismatches at the call site, before splicing in the
+  // callee. Missing positional arguments are filled from the callee's
+  // func_defaults, guarded so that reassigning __defaults__ deopts,
+  // mirroring resolveArgs in simplify.cpp; surplus arguments to a *args
+  // callee are packed into the varargs tuple. This lives here (rather than
+  // in Simplify) so that calls inside freshly inlined bodies, which haven't
+  // been simplified yet, can still be inlined. It must stay at the call
+  // site (rather than moving into the callee entry block) so that the
+  // deopting instructions' FrameState depth matches their inline depth.
+  const size_t num_defaults =
+      defaults == nullptr ? 0 : static_cast<size_t>(PyTuple_GET_SIZE(defaults));
+  // Leading defaults beyond co_argcount are ignored by CPython; the rest
+  // right-align against the positional parameters.
+  const size_t num_non_defaults =
+      num_defaults > co_argcount ? 0 : co_argcount - num_defaults;
+  const size_t default_offset =
+      num_defaults > co_argcount ? num_defaults - co_argcount : 0;
+
+  // Resolved register for each positional parameter: the call operand when
+  // provided, otherwise a constant materialized below.
+  std::vector<Register*> resolved_args;
+  resolved_args.reserve(co_argcount);
+  for (size_t i = 0; i < co_argcount; ++i) {
+    if (i < call_instr.nargs) {
+      resolved_args.push_back(call_instr.arg(i));
+      continue;
+    }
+    if (i == call_instr.nargs) {
+      // First missing argument: guard that func_defaults is unchanged.
+      // The snapshot gives bindGuards a same-block FrameState for the
+      // guard; on failure we deopt to the caller at the call site.
+      emitDefaultsGuard(caller, call_instr, pre_call_state, defaults);
+    }
+    const size_t default_idx = i - num_non_defaults + default_offset;
+    JIT_THROW_IF(
+        default_idx >= PyTuple_GET_SIZE(defaults), "out of range defaults");
+    auto def = PyTuple_GET_ITEM(defaults, default_idx);
+    JIT_THROW_IF(def == nullptr, "expected non-null default");
+    auto type = Type::fromObject(caller.env.addReference(def));
+    Register* def_reg = caller.env.allocateRegister();
+    def_reg->setType(type);
+    auto load_const = LoadConst::create(def_reg, type);
+    load_const->insertBefore(*call_instr.instr);
+    resolved_args.push_back(def_reg);
+  }
+  return resolved_args;
+}
+
 // Attempt to inline a single call.  On success returns the spliced-in callee
 // region (entry/exit blocks) so the caller can re-scan it for nested calls; on
 // failure returns nullopt (the reason is logged into the caller's stats).
 std::optional<InlineResult> inlineFunctionCall(
     Function& caller,
     const AbstractCall& call_instr) {
-  if (!canInline(caller, call_instr)) {
-    return std::nullopt;
-  }
-
-  auto caller_frame_state =
-      std::make_unique<FrameState>(*call_instr.instr->frameState());
-
   BorrowedRef<PyFunctionObject> callee = call_instr.func;
 
   // We are only able to inline functions that were already preloaded, since we
@@ -261,11 +356,22 @@ std::optional<InlineResult> inlineFunctionCall(
   // globals, or statically invoked. See `preloadFuncAndDeps` for what
   // dependencies we will preload. In batch-compile mode we can inline anything
   // that is part of the batch.
+  // The callee preloader is also our race-free source of func_defaults
+  // below: captured with the GIL held and kept alive, while the function
+  // object itself cannot be safely touched on a background compile without
+  // the GIL.
   Preloader* preloader = preloaderManager().find(callee);
   if (!preloader) {
     logInlineFailure(caller, callee, InlineFailureType::kNeedsPreload);
     return std::nullopt;
   }
+
+  if (!canInline(caller, call_instr, preloader->funcDefaults())) {
+    return std::nullopt;
+  }
+
+  auto caller_frame_state =
+      std::make_unique<FrameState>(*call_instr.instr->frameState());
 
   if (!canInlineWithPreloader(caller, call_instr, *preloader)) {
     return std::nullopt;
@@ -316,6 +422,13 @@ std::optional<InlineResult> inlineFunctionCall(
     pre_call_state.stack.push(call_instr.instr->getOperand(i));
   }
 
+  auto resolved_args = resolveArgs(
+      caller,
+      call_instr,
+      pre_call_state,
+      co_argcount,
+      preloader->funcDefaults());
+
   // Register holding the packed varargs tuple, if the callee takes *args.
   Register* varargs_reg = nullptr;
   if (has_varargs) {
@@ -361,7 +474,7 @@ std::optional<InlineResult> inlineFunctionCall(
     auto load_arg = static_cast<LoadArg*>(&instr);
     Register* src = (has_varargs && load_arg->argIdx() == starargs_idx)
         ? varargs_reg
-        : call_instr.arg(load_arg->argIdx());
+        : resolved_args.at(load_arg->argIdx());
     auto assign = Assign::create(instr.output(), src);
     instr.replaceWith(*assign);
     delete &instr;

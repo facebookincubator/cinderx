@@ -180,7 +180,7 @@ void registerNestedCompileData(
 std::unique_ptr<Preloader> Preloader::make(
     BorrowedRef<PyFunctionObject> func,
     Ref<> reifier) {
-  return Preloader::makeImpl(
+  auto preloader = Preloader::makeImpl(
       func->func_code,
       func->func_builtins,
       func->func_globals,
@@ -189,6 +189,14 @@ std::unique_ptr<Preloader> Preloader::make(
       funcFullname(func),
       std::move(reifier),
       false);
+  // Capture after makeImpl: preloading can execute arbitrary Python, which
+  // may reassign __defaults__ in the meantime. Strong reference keeps the
+  // tuple alive for background-compile reads that cannot safely touch the
+  // function object without the GIL.
+  if (preloader != nullptr && func->func_defaults != nullptr) {
+    preloader->func_defaults_ = Ref<PyTupleObject>::create(func->func_defaults);
+  }
+  return preloader;
 }
 
 std::unique_ptr<Preloader> Preloader::make(
@@ -393,6 +401,10 @@ bool Preloader::hasPrimitiveArgs() const {
 
 BorrowedRef<> Preloader::reifier() const {
   return reifier_;
+}
+
+BorrowedRef<PyTupleObject> Preloader::funcDefaults() const {
+  return func_defaults_;
 }
 
 Preloader::Preloader(

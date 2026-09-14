@@ -157,6 +157,17 @@ class Preloader {
 
   BorrowedRef<> reifier() const;
 
+  // func_defaults captured from the preloaded function (while the GIL is
+  // held) and held strongly. The inliner reads this instead of the function
+  // object, which is unsafe on a background compile without the GIL (the
+  // field may be reassigned concurrently); the tuple itself is immutable so
+  // it is safe to read once alive. Null when the function had no defaults
+  // or the preloader was made from a code object alone. Note the preloader
+  // is keyed by code object and shared across closures: the tuple may be
+  // stale for a different closure sharing the code; the inliner's
+  // func_defaults guard deopts in that case.
+  BorrowedRef<PyTupleObject> funcDefaults() const;
+
  private:
   explicit Preloader(
       BorrowedRef<PyCodeObject> code,
@@ -194,6 +205,7 @@ class Preloader {
   Ref<PyCodeObject> code_;
   Ref<PyDictObject> builtins_;
   Ref<PyDictObject> globals_;
+  Ref<PyTupleObject> func_defaults_;
   std::unique_ptr<AnnotationIndex> annotations_;
   std::string fullname_;
   Ref<> reifier_;
