@@ -187,6 +187,23 @@ void finiCodeExtraIndex() {
   state->code_extra_index = -1;
 }
 
+[[maybe_unused]] static inline CodeExtra* codeExtraAtIndex(
+    PyCodeObject& code,
+    Py_ssize_t extra_index) {
+  // We match CPython's _PyCodeObjectExtra, which isn't exported but hasn't
+  // changed since it was introduced in 2016. This avoids a cross-DSO call on
+  // hot paths in non-LTO builds.
+  struct CodeObjectExtraStorage {
+    Py_ssize_t size;
+    void* entries[1];
+  };
+  auto* storage = reinterpret_cast<CodeObjectExtraStorage*>(code.co_extra);
+  if (storage == nullptr || storage->size <= extra_index) {
+    return nullptr;
+  }
+  return reinterpret_cast<CodeExtra*>(storage->entries[extra_index]);
+}
+
 CodeExtra* codeExtra(PyCodeObject* code) {
   auto* state = cinderx::getModuleState();
   // On shutdown the module state becomes inaccessible.
@@ -196,6 +213,11 @@ CodeExtra* codeExtra(PyCodeObject* code) {
   Py_ssize_t extra_index = state->code_extra_index;
   if (extra_index == -1) {
     return nullptr;
+  }
+  if constexpr (!cinderx::kFreeThreadedBuild) {
+    if (CodeExtra* extra = codeExtraAtIndex(*code, extra_index)) {
+      return extra;
+    }
   }
 
   auto code_obj = reinterpret_cast<PyObject*>(code);
@@ -240,27 +262,17 @@ CodeExtra* codeExtraIfPresent(PyCodeObject* code) {
   if (extra_index == -1) {
     return nullptr;
   }
-#ifndef Py_GIL_DISABLED
-  // We match CPython's _PyCodeObjectExtra which isn't exported but hasn't
-  // changed since it was introduced in 2016. We inline this access because
-  // it shows up as significant in builds that aren't statically linked w/ LTO.
-  struct CodeObjectExtraStorage {
-    Py_ssize_t size;
-    void* entries[1];
-  };
-  auto* storage = reinterpret_cast<CodeObjectExtraStorage*>(code->co_extra);
-  if (storage == nullptr || storage->size <= extra_index) {
-    return nullptr;
+  if constexpr (!cinderx::kFreeThreadedBuild) {
+    return codeExtraAtIndex(*code, extra_index);
+  } else {
+    void* data_ptr = nullptr;
+    if (PyUnstable_Code_GetExtra(
+            reinterpret_cast<PyObject*>(code), extra_index, &data_ptr) < 0) {
+      PyErr_Clear();
+      return nullptr;
+    }
+    return reinterpret_cast<CodeExtra*>(data_ptr);
   }
-  return reinterpret_cast<CodeExtra*>(storage->entries[extra_index]);
-#endif
-  void* data_ptr = nullptr;
-  if (PyUnstable_Code_GetExtra(
-          reinterpret_cast<PyObject*>(code), extra_index, &data_ptr) < 0) {
-    PyErr_Clear();
-    return nullptr;
-  }
-  return reinterpret_cast<CodeExtra*>(data_ptr);
 }
 
 size_t codeCallCount(PyCodeObject* code) {
