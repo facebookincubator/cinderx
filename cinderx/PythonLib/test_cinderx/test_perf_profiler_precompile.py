@@ -4,23 +4,11 @@ import pathlib
 import subprocess
 import sys
 import sysconfig
+import tempfile
 import unittest
 
 from cinderx import _is_compile_perf_trampoline_pre_fork_enabled
-from cinderx.test_support import passIf, passUnless, skip_module_if_oss
-
-skip_module_if_oss()
-
-try:
-    # pyre-ignore[21]: can't find test.support
-    from test.support.os_helper import temp_dir
-
-    # pyre-ignore[21]: can't find test.support
-    from test.support.script_helper import assert_python_ok, make_script
-
-    _HAVE_CPYTHON_TESTS = True
-except ImportError:
-    _HAVE_CPYTHON_TESTS = False
+from cinderx.test_support import passIf
 
 
 def supports_trampoline_profiling():
@@ -30,7 +18,6 @@ def supports_trampoline_profiling():
     return int(perf_trampoline) == 1
 
 
-@passUnless(_HAVE_CPYTHON_TESTS, "CPython's test package is not installed")
 @passIf(
     _is_compile_perf_trampoline_pre_fork_enabled is None
     or not supports_trampoline_profiling()
@@ -84,9 +71,9 @@ class TestPerfTrampolinePreCompile(unittest.TestCase):
                     else:
                         baz()
                 """
-        rc, out, err = assert_python_ok("-c", code)
-        with temp_dir() as script_dir:
-            script = make_script(script_dir, "perftest", code)
+        with tempfile.TemporaryDirectory() as script_dir:
+            script = pathlib.Path(script_dir) / "perftest.py"
+            script.write_text(code, encoding="utf-8")
             with subprocess.Popen(
                 [
                     sys.executable,
@@ -167,9 +154,9 @@ class TestPerfTrampolinePreCompile(unittest.TestCase):
                     else:
                         baz()
                 """
-        rc, out, err = assert_python_ok("-c", code)
-        with temp_dir() as script_dir:
-            script = make_script(script_dir, "perftest", code)
+        with tempfile.TemporaryDirectory() as script_dir:
+            script = pathlib.Path(script_dir) / "perftest.py"
+            script.write_text(code, encoding="utf-8")
             with subprocess.Popen(
                 [
                     sys.executable,
