@@ -388,7 +388,8 @@ void Ci_InitOpcodes() {
 #define _PyOpcode_Caches _CiOpcode_Caches
 
 bool is_adaptive_enabled(CodeExtra *extra) {
-    return !Ci_GetDelayAdaptiveCode() || extra->calls > Ci_GetAdaptiveThreshold();
+    return !Ci_GetDelayAdaptiveCode() ||
+        Ci_code_extra_get_calls(extra) > Ci_GetAdaptiveThreshold();
 }
 
 static void
@@ -508,7 +509,7 @@ start_frame:
         PyCodeObject* code = frame->f_code;
         CodeExtra *extra = codeExtra(code);
         if (extra != NULL) {
-            extra->calls += 1;
+            Ci_code_extra_incr_calls(extra);
             adaptive_enabled = is_adaptive_enabled(extra);
         } else {
             adaptive_enabled = false;
