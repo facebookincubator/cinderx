@@ -10,7 +10,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import CinderXTestCase, run_in_subprocess
+from cinderx.test_support import CinderXTestCase, run_in_fork
 
 
 class JITTupleTest(CinderXTestCase):
@@ -55,7 +55,7 @@ class JITTupleTest(CinderXTestCase):
         self.assertEqual(results, [True] * worker_count)
         return worker_count * iterations
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_subscript_without_specialized_opcodes(self) -> None:
         """Keep generic HIR when compiling an adaptive tuple opcode."""
         cinderx.jit.disable_specialized_opcodes()
@@ -73,7 +73,7 @@ class JITTupleTest(CinderXTestCase):
         values = (object(),)
         self.exercise_concurrent_reads(read_item, values)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_subscript_with_simplify(self) -> None:
         """Keep the direct LoadArrayItem path for exact tuples.
 
@@ -96,7 +96,7 @@ class JITTupleTest(CinderXTestCase):
         values = (object(),)
         self.exercise_concurrent_reads(read_item, values)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_deopt_on_guard_failure(self) -> None:
         """Concurrent list calls deopt at the exact-tuple guard."""
         cinderx.jit.enable_specialized_opcodes()

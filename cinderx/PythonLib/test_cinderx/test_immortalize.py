@@ -10,7 +10,7 @@ import unittest
 from re._constants import BIGCHARSET
 
 import cinderx
-from cinderx.test_support import passIf, passUnless, run_in_subprocess, skip_if_ft
+from cinderx.test_support import passIf, passUnless, run_in_fork, skip_if_ft
 
 _PY_DEBUG_BUILD = hasattr(sys, "gettotalrefcount")
 _PY312_BUILD = sys.version_info[:2] == (3, 12)
@@ -23,13 +23,13 @@ class ImmortalizeTests(unittest.TestCase):
         obj = []
         self.assertFalse(cinderx.is_immortal(obj))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_is_immortal(self) -> None:
         obj = []
         cinderx.immortalize_heap()
         self.assertTrue(cinderx.is_immortal(obj))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_post_immortalize(self) -> None:
         cinderx.immortalize_heap()
         obj = []
@@ -39,7 +39,7 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_exact_dict_unicode_keys(self) -> None:
         key = "".join(("qe2_", "param"))
         value = object()
@@ -57,7 +57,7 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_gc_collected_exact_dict_entries(self) -> None:
         key = "".join(("gc_collected_", "param"))
         value = object()
@@ -78,7 +78,7 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_nested_exact_dict_entries(self) -> None:
         outer_key = "".join(("outer_", "param"))
         inner_key = "".join(("inner_", "param"))
@@ -100,7 +100,7 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_self_referential_exact_dict_entries(self) -> None:
         key = "".join(("self_", "param"))
         value = object()
@@ -118,7 +118,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(self_key))
         self.assertIs(mapping[self_key], mapping)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_code_consts_entries(self) -> None:
         def target() -> None:
             return None
@@ -135,7 +135,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(consts))
         self.assertTrue(cinderx.is_immortal(const))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_code_consts_tuple_entry(self) -> None:
         def target() -> None:
             return None
@@ -153,7 +153,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(consts))
         self.assertTrue(cinderx.is_immortal(tuple_const))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_code_consts_nested_exact_dict_entries(self) -> None:
         def target() -> None:
             return None
@@ -174,7 +174,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(key))
         self.assertTrue(cinderx.is_immortal(value))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_nested_code_object_consts(self) -> None:
         def inner() -> None:
             return None
@@ -199,7 +199,7 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_code_name_tuple_entries(self) -> None:
         def target() -> None:
             return None
@@ -221,7 +221,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(name))
         self.assertTrue(cinderx.is_immortal(local_name))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_code_exceptiontable(self) -> None:
         def target() -> None:
             return None
@@ -238,7 +238,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(target.__code__))
         self.assertTrue(cinderx.is_immortal(exceptiontable))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_refcount(self) -> None:
         from cinderx import jit
 
@@ -260,7 +260,7 @@ class ImmortalizeTests(unittest.TestCase):
         _PY_DEBUG_BUILD,
         "Python 3.12 debug builds only allow interned immortal unicode",
     )
-    @run_in_subprocess
+    @run_in_fork
     def test_immortalize_code_qualname(self) -> None:
         def target() -> None:
             return None

@@ -11,13 +11,13 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import run_in_subprocess
+from cinderx.test_support import run_in_fork
 
 
 class JITCellTest(unittest.TestCase):
     """Exercises closure cells shared by concurrently executing JIT code."""
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_load_deref(self) -> None:
         """A loaded cell value must remain alive while writers replace it."""
         value = "w"
@@ -61,7 +61,7 @@ class JITCellTest(unittest.TestCase):
 
         self.assertTrue(value.startswith("w"))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_store_deref_releases_each_value_once(self) -> None:
         """Concurrent cell stores must transfer ownership exactly once."""
         finalized: queue.SimpleQueue[int] = queue.SimpleQueue()

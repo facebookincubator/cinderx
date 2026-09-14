@@ -363,9 +363,9 @@ class _ExceptionResult:
         self.exc = exc
 
 
-def run_in_subprocess(func: Callable[..., None]) -> Callable[..., None]:
+def run_in_fork(func: Callable[..., None]) -> Callable[..., None]:
     """
-    Run a test function in a subprocess.  This enables modifying process state
+    Run a test function in a forked process.  This enables modifying process state
     without affecting other test functions.  Pass the test without running it
     when fork is unavailable.
     """

@@ -7,7 +7,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import run_in_subprocess
+from cinderx.test_support import run_in_fork
 
 
 def fibonacci(n: int) -> int:
@@ -17,7 +17,7 @@ def fibonacci(n: int) -> int:
 
 
 class FunctionWatcherTest(unittest.TestCase):
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_qualname_updates(self) -> None:
         worker_count = 10
         iterations = 1_000
@@ -51,7 +51,7 @@ class JITCompilationTest(unittest.TestCase):
     def tearDown(self):
         cinderx.jit.background_compile(self.bg_compile)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_force_compile(self) -> None:
         worker_count = 10
         iterations = 10
@@ -84,7 +84,7 @@ class JITCompilationTest(unittest.TestCase):
         )
         self.assertTrue(cinderx.jit.is_jit_compiled(fibonacci))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_get_compiled_functions_during_compilation(self) -> None:
         """
         TSAN reproducer when these suppressions are removed from
@@ -135,7 +135,7 @@ class JITCompilationTest(unittest.TestCase):
         self.assertTrue(cinderx.jit.is_jit_compiled(target))
         self.assertEqual(target(1), 2)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_calls_trigger_jit_compilation(self) -> None:
         cinderx.jit.compile_after_n_calls(3)
 

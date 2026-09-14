@@ -14,7 +14,7 @@ from cinderx.test_support import (
     CinderXTestCase,
     FREE_THREADING_BUILD,
     passUnless,
-    run_in_subprocess,
+    run_in_fork,
 )
 
 
@@ -74,7 +74,7 @@ class JITListTest(CinderXTestCase):
 
         self.assertTrue(values[0].startswith("w"))
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_subscript_without_specialized_opcodes(self) -> None:
         """Keep generic HIR when compiling an adaptive list opcode."""
         cinderx.jit.disable_specialized_opcodes()
@@ -92,7 +92,7 @@ class JITListTest(CinderXTestCase):
         self.exercise_concurrent_access(read_item)
 
     @passUnless(FREE_THREADING_BUILD, "requires free-threaded build")
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_subscript_with_simplify(self) -> None:
         """Use the owned-reference ListSubscr path for exact lists."""
         cinderx.jit.enable_specialized_opcodes()

@@ -13,7 +13,7 @@ from cinderx.test_support import (
     CinderXTestCase,
     FREE_THREADING_BUILD,
     passUnless,
-    run_in_subprocess,
+    run_in_fork,
 )
 
 
@@ -79,7 +79,7 @@ class JITMethodCacheTest(CinderXTestCase):
         self.assertIn(load_method(), (42, 43))
 
     @passUnless(FREE_THREADING_BUILD, "requires free-threaded build")
-    @run_in_subprocess
+    @run_in_fork
     def test_load_method_is_not_cached_under_free_threading(self) -> None:
         """Exercise method invalidation without JIT method inline caches."""
         target = MutableMethodTarget()

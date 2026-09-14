@@ -10,7 +10,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import CinderXTestCase, run_in_subprocess
+from cinderx.test_support import CinderXTestCase, run_in_fork
 
 
 class JITDictTest(CinderXTestCase):
@@ -97,7 +97,7 @@ class JITDictTest(CinderXTestCase):
         self.assertEqual(results, [True] * worker_count)
         return worker_count * iterations
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_subscript_without_specialized_opcodes(self) -> None:
         """Keep generic HIR when compiling an adaptive dict opcode."""
         cinderx.jit.disable_specialized_opcodes()
@@ -114,7 +114,7 @@ class JITDictTest(CinderXTestCase):
 
         self.exercise_concurrent_access(read_item)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_subscript_with_simplify(self) -> None:
         """Stress DictSubscr during concurrent value and key-table mutation."""
         cinderx.jit.enable_specialized_opcodes()
@@ -131,7 +131,7 @@ class JITDictTest(CinderXTestCase):
 
         self.exercise_concurrent_access(read_item)
 
-    @run_in_subprocess
+    @run_in_fork
     def test_concurrent_deopt_on_guard_failure(self) -> None:
         """Concurrent dict-subclass calls deopt at the exact-dict guard."""
         cinderx.jit.enable_specialized_opcodes()

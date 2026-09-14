@@ -11,7 +11,7 @@ from textwrap import dedent
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
-from cinderx.test_support import run_in_subprocess, skip_unless_lazy_imports
+from cinderx.test_support import run_in_fork, skip_unless_lazy_imports
 
 from .common import failUnlessHasOpcodes, with_globals
 
@@ -250,7 +250,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
     # so this module's globals stay unwatchable for the rest of the process.  That nulls
     # every global cache pointing at them and deopts every LOAD_GLOBAL here, which
     # breaks the other tests.
-    @run_in_subprocess
+    @run_in_fork
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_weird_key_in_globals(self):
@@ -259,7 +259,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
         self.assertEqual(a_global, "a value")
         self.assertEqual(self.get_global(), "a value")
 
-    @run_in_subprocess
+    @run_in_fork
     def test_unwatchable_dict_uses_generic_lookup(self):
         globals()[self.prefix_str("unwatchable_", "key")] = None
 
@@ -295,7 +295,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
         self.assertEqual(self.get_global(), "hey")
         builtins.__dict__[42] = 42
 
-    @run_in_subprocess
+    @run_in_fork
     def test_unwatch_builtins(self):
         try:
             self._test_unwatch_builtins()
@@ -303,7 +303,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
             del builtins.__dict__[42]
 
     @skip_unless_lazy_imports()
-    @run_in_subprocess
+    @run_in_fork
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_preload_side_effect_modifies_globals(self):
         with cinder_support.temp_sys_path() as tmp:
@@ -374,7 +374,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 self.assertEqual(relevant_deopts, [])
 
     @skip_unless_lazy_imports()
-    @run_in_subprocess
+    @run_in_fork
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_preload_side_effect_makes_globals_unwatchable(self):
         with cinder_support.temp_sys_path() as tmp:
@@ -421,7 +421,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
             )
 
     @skip_unless_lazy_imports()
-    @run_in_subprocess
+    @run_in_fork
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_preload_side_effect_makes_builtins_unwatchable(self):
         with cinder_support.temp_sys_path() as tmp:
@@ -462,7 +462,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
             )
 
     @skip_unless_lazy_imports()
-    @run_in_subprocess
+    @run_in_fork
     def test_lazy_import_after_global_cached(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -495,7 +495,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @skip_unless_lazy_imports()
     @unittest.skipUnless(sys.version_info >= (3, 15), "requires Python 3.15")
-    @run_in_subprocess
+    @run_in_fork
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     def test_lazy_import_binds_global_after_compile(self):
         with cinder_support.temp_sys_path() as tmp:

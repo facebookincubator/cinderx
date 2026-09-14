@@ -31,7 +31,7 @@ from cinderx.test_support import (
     is_oss,
     passIf,
     passUnless,
-    run_in_subprocess,
+    run_in_fork,
     skip_if_ft,
     skip_if_prefork,
     skip_test_if_oss,
@@ -740,7 +740,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         with self.assertRaises(NameError):
             self.load_method_on_maybe_defined_value()
 
-    @run_in_subprocess
+    @run_in_fork
     @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
     def test_condbranch_codegen(self) -> None:
         codestr = """
@@ -760,7 +760,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             force_compile(mod.Foo.__init__)
             mod.Foo(True)
 
-    @run_in_subprocess
+    @run_in_fork
     @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
     def test_double_undefined_on_loop_entry(self) -> None:
         # `step` is never read, so Static Python skips the zero-initializer it
