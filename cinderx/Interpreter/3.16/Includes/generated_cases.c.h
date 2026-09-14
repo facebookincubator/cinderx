@@ -6281,7 +6281,7 @@
                 PyStackRef_XCLOSE(tmp);
                 _PyFrame_StackPointerInvalidate(frame);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     if (index < INT8_MAX && type < INT8_MAX) {
                         int16_t* cache = (int16_t*)next_instr;
                         *cache = (index << 8) | type;
@@ -6780,7 +6780,7 @@
                 _PyFrame_StackPointerInvalidate(frame);
                 assert(!optional);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                     _PyFrame_StackPointerValidate(frame);
                     specialize_with_value(
@@ -6851,7 +6851,7 @@
                 }
                 assert(!optional);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                     _PyFrame_StackPointerValidate(frame);
                     specialize_with_value(
@@ -6932,7 +6932,7 @@
                     JUMP_TO_LABEL(error);
                 }
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     if (slot < (INT32_MAX >> 1)) {
                         int32_t* cache = (int32_t*)next_instr;
                         assert(stack_pointer == _PyFrame_GetStackPointer(frame));
@@ -7068,7 +7068,7 @@
                 _PyFrame_StackPointerInvalidate(frame);
                 STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     if (_PyClassLoader_IsImmutable(container)) {
                         assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                         _PyFrame_StackPointerValidate(frame);
@@ -7180,7 +7180,7 @@
                 PyObject* inst = type->tp_alloc(type, 0);
                 _PyFrame_StackPointerInvalidate(frame);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                     _PyFrame_StackPointerValidate(frame);
                     specialize_with_value(next_instr, func, TP_ALLOC_CACHED, 0, 0);
@@ -7228,7 +7228,7 @@
                     JUMP_TO_LABEL(error);
                 }
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                     _PyFrame_StackPointerValidate(frame);
                     specialize_with_value(
@@ -7407,7 +7407,7 @@
                 if (field_type == TYPED_OBJECT) {
                     value = *FIELD_OFFSET(self, offset);
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset < INT32_MAX) {
                             int32_t* cache = (int32_t*)next_instr;
                             *cache = offset;
@@ -7445,7 +7445,7 @@
                     Py_INCREF(value);
                 } else {
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset <= INT32_MAX >> 8) {
                             assert(field_type < 0xff);
                             int32_t* cache = (int32_t*)next_instr;
@@ -7516,7 +7516,7 @@
                     _PyFrame_StackPointerInvalidate(frame);
                     *addr = value;
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset <= INT32_MAX) {
                             int32_t* cache = (int32_t*)next_instr;
                             *cache = offset;
@@ -7529,7 +7529,7 @@
                     #endif
                 } else {
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset <= INT32_MAX >> 8) {
                             assert(field_type < 0xff);
                             int32_t* cache = (int32_t*)next_instr;

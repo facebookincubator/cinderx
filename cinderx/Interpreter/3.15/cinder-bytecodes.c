@@ -253,7 +253,7 @@ pop_1_error:
         PyStackRef_XCLOSE(tmp);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           if (index < INT8_MAX && type < INT8_MAX) {
             int16_t* cache = (int16_t*)next_instr;
             *cache = (index << 8) | type;
@@ -504,7 +504,7 @@ pop_1_error:
         assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           specialize_with_value(
               next_instr, (PyObject*)type, BUILD_CHECKED_LIST_CACHED, 0, 0);
         }
@@ -540,7 +540,7 @@ pop_1_error:
         assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           specialize_with_value(
               next_instr, (PyObject*)type, BUILD_CHECKED_MAP_CACHED, 0, 0);
         }
@@ -573,7 +573,7 @@ pop_1_error:
         }
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           // We encode class method as the low bit hence the >> 1.
           if (slot < (INT32_MAX >> 1)) {
             /* We smuggle in the information about whether the invocation was a
@@ -645,7 +645,7 @@ pop_1_error:
         PyObject* res = _PyObject_Vectorcall(func, args_o, nargs, NULL);
         STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           if (_PyClassLoader_IsImmutable(container)) {
             /* frozen type, we don't need to worry about indirecting */
             specialize_with_value(
@@ -699,7 +699,7 @@ pop_1_error:
         PyObject* inst = type->tp_alloc(type, 0);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           specialize_with_value(next_instr, func, TP_ALLOC_CACHED, 0, 0);
         }
 #endif
@@ -718,7 +718,7 @@ pop_1_error:
           ERROR_IF(true);
         }
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-        if (adaptive_enabled) {
+        if (CI_ADAPTIVE_ENABLED()) {
           specialize_with_value(
               next_instr,
               (PyObject*)type,
@@ -796,7 +796,7 @@ pop_1_error:
         if (field_type == TYPED_OBJECT) {
           value = *FIELD_OFFSET(self, offset);
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-          if (adaptive_enabled) {
+          if (CI_ADAPTIVE_ENABLED()) {
             if (offset < INT32_MAX) {
               int32_t* cache = (int32_t*)next_instr;
               *cache = offset;
@@ -819,7 +819,7 @@ pop_1_error:
           Py_INCREF(value);
         } else {
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-          if (adaptive_enabled) {
+          if (CI_ADAPTIVE_ENABLED()) {
             if (offset <= INT32_MAX >> 8) {
               assert(field_type < 0xff);
               int32_t* cache = (int32_t*)next_instr;
@@ -856,7 +856,7 @@ pop_1_error:
           Py_XDECREF(*addr);
           *addr = value;
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-          if (adaptive_enabled) {
+          if (CI_ADAPTIVE_ENABLED()) {
             if (offset <= INT32_MAX) {
               int32_t* cache = (int32_t*)next_instr;
               *cache = offset;
@@ -866,7 +866,7 @@ pop_1_error:
 #endif
         } else {
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-          if (adaptive_enabled) {
+          if (CI_ADAPTIVE_ENABLED()) {
             if (offset <= INT32_MAX >> 8) {
               assert(field_type < 0xff);
               int32_t* cache = (int32_t*)next_instr;

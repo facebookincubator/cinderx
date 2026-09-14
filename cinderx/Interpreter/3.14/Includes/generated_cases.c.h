@@ -5755,7 +5755,7 @@
                 PyStackRef_XCLOSE(tmp);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     if (index < INT8_MAX && type < INT8_MAX) {
                         int16_t *cache = (int16_t*)next_instr;
                         *cache = (index << 8) | type;
@@ -6203,7 +6203,7 @@
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 assert(!optional);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     specialize_with_value(next_instr, (PyObject *)type, BUILD_CHECKED_LIST_CACHED, 0, 0);
                     stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -6262,7 +6262,7 @@
                 }
                 assert(!optional);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     specialize_with_value(next_instr, (PyObject *)type, BUILD_CHECKED_MAP_CACHED, 0, 0);
                     stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -6328,7 +6328,7 @@
                     JUMP_TO_LABEL(error);
                 }
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     if (slot < (INT32_MAX >> 1)) {
                         int32_t *cache = (int32_t*)next_instr;
                         _PyFrame_SetStackPointer(frame, stack_pointer);
@@ -6446,7 +6446,7 @@
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     if (_PyClassLoader_IsImmutable(container)) {
                         _PyFrame_SetStackPointer(frame, stack_pointer);
                         specialize_with_value(next_instr, func, INVOKE_FUNCTION_CACHED, 0, 0);
@@ -6543,7 +6543,7 @@
                 PyObject *inst = type->tp_alloc(type, 0);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     specialize_with_value(next_instr, func, TP_ALLOC_CACHED, 0, 0);
                     stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -6586,7 +6586,7 @@
                     JUMP_TO_LABEL(error);
                 }
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (adaptive_enabled) {
+                if (CI_ADAPTIVE_ENABLED()) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     specialize_with_value(next_instr, (PyObject *)type, CAST_CACHED, 2, (exact << 1) | optional);
                     stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -6735,7 +6735,7 @@
                 if (field_type == TYPED_OBJECT) {
                     value = *FIELD_OFFSET(self, offset);
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset < INT32_MAX) {
                             int32_t *cache = (int32_t*)next_instr;
                             *cache = offset;
@@ -6770,7 +6770,7 @@
                     Py_INCREF(value);
                 } else {
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset <= INT32_MAX >> 8) {
                             assert(field_type < 0xff);
                             int32_t *cache = (int32_t*)next_instr;
@@ -6834,7 +6834,7 @@
                     stack_pointer = _PyFrame_GetStackPointer(frame);
                     *addr = value;
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset <= INT32_MAX) {
                             int32_t *cache = (int32_t*)next_instr;
                             *cache = offset;
@@ -6846,7 +6846,7 @@
                     #endif
                 } else {
                     #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                    if (adaptive_enabled) {
+                    if (CI_ADAPTIVE_ENABLED()) {
                         if (offset <= INT32_MAX >> 8) {
                             assert(field_type < 0xff);
                             int32_t *cache = (int32_t*)next_instr;

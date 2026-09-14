@@ -21,6 +21,8 @@
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_interpframe.h"
 
+#include "cinderx/Interpreter/interpreter_macros.h"
+
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -515,7 +517,8 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 #endif
 
     /* support for generator.throw() */
-    bool adaptive_enabled = false;
+    CiInterpreterLoopState ci_state = {0};
+    (void)ci_state;
     if (throwflag) {
         if (_Py_EnterRecursivePy(tstate)) {
             goto early_exit;
@@ -540,9 +543,9 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
         stack_pointer = _PyFrame_GetStackPointer(frame);
 #if Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, lastopcode, adaptive_enabled);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, lastopcode, ci_state);
 #   else
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, adaptive_enabled);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, ci_state);
 #   endif
 #else
         goto error;
@@ -556,9 +559,9 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 #endif
 #if Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, lastopcode, adaptive_enabled);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, lastopcode, ci_state);
 #   else
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, adaptive_enabled);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, ci_state);
 #   endif
 #else
     goto start_frame;

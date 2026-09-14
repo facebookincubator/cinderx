@@ -73,11 +73,11 @@
 #endif
 
 #ifdef Py_STATS
-#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, int lastopcode, bool adaptive_enabled
-#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, lastopcode, adaptive_enabled
+#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, int lastopcode, CiInterpreterLoopState ci_state
+#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, lastopcode, ci_state
 #else
-#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, bool adaptive_enabled
-#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, adaptive_enabled
+#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, CiInterpreterLoopState ci_state
+#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, ci_state
 #endif
 
 #if Py_TAIL_CALL_INTERP
@@ -98,12 +98,12 @@
 #   ifdef Py_STATS
 #       define JUMP_TO_PREDICTED(name) \
             do { \
-                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, lastopcode, adaptive_enabled); \
+                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, lastopcode, ci_state); \
             } while (0)
 #   else
 #       define JUMP_TO_PREDICTED(name) \
             do { \
-                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, adaptive_enabled); \
+                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, ci_state); \
             } while (0)
 #   endif
 #    define LABEL(name) TARGET(name)
@@ -281,7 +281,7 @@ GETITEM(PyObject *v, Py_ssize_t i) {
     backoff_counter_triggers(forge_backoff_counter((COUNTER)))
 
 #define ADVANCE_ADAPTIVE_COUNTER(COUNTER) \
-    if (adaptive_enabled) { \
+    if (CI_ADAPTIVE_ENABLED()) { \
         (COUNTER) = advance_backoff_counter((COUNTER)); \
     }
 
@@ -429,33 +429,38 @@ do { \
 
 #define CONVERSION_FAILED(NAME) ((NAME) == NULL)
 
-// CO_NO_MONITORING_EVENTS indicates the code object is read-only and therefore
-// cannot have code-extra data added.
 #define CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE \
     do { \
+        /* Never retain interpreter-loop state from the previous frame. */ \
+        CodeExtra *ci_extra = NULL; \
+        bool ci_enabled = false; \
         PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable); \
         if (PyCode_Check(executable)) { \
             PyCodeObject* code = (PyCodeObject*)executable; \
             if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) { \
-                CodeExtra *extra = codeExtra(code); \
-                adaptive_enabled = extra != NULL && is_adaptive_enabled(extra); \
+                ci_extra = codeExtra(code); \
+                ci_enabled = \
+                    ci_extra != NULL && is_adaptive_enabled(ci_extra); \
             } \
         } \
+        ci_state = ci_pack_interpreter_loop_state(ci_extra, ci_enabled); \
     } while (0);
 
 #define CI_UPDATE_CALL_COUNT \
     do { \
+        /* Never retain interpreter-loop state from the previous frame. */ \
+        CodeExtra *ci_extra = NULL; \
+        bool ci_enabled = false; \
         PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable); \
         if (PyCode_Check(executable)) { \
             PyCodeObject* code = (PyCodeObject*)executable; \
             if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) { \
-                CodeExtra *extra = codeExtra(code); \
-                if (extra == NULL) { \
-                    adaptive_enabled = false; \
-                } else { \
-                    Ci_code_extra_incr_calls(extra); \
-                    adaptive_enabled = is_adaptive_enabled(extra); \
+                ci_extra = codeExtra(code); \
+                if (ci_extra != NULL) { \
+                    Ci_code_extra_incr_calls(ci_extra); \
+                    ci_enabled = is_adaptive_enabled(ci_extra); \
                 } \
             } \
         } \
+        ci_state = ci_pack_interpreter_loop_state(ci_extra, ci_enabled); \
     } while (0);

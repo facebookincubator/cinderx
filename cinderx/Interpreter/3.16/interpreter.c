@@ -22,6 +22,8 @@
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_interpframe.h"
 
+#include "cinderx/Interpreter/interpreter_macros.h"
+
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -458,35 +460,40 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
 #endif
 
 
-// CO_NO_MONITORING_EVENTS indicates the code object is read-only and therefore
-// cannot have code-extra data added.
 #define CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE                            \
   do {                                                                       \
+    /* Never retain interpreter-loop state from the previous frame. */       \
+    CodeExtra* ci_extra = NULL;                                              \
+    bool ci_enabled = false;                                                 \
     PyObject* executable = PyStackRef_AsPyObjectBorrow(frame->f_executable); \
     if (PyCode_Check(executable)) {                                          \
       PyCodeObject* code = (PyCodeObject*)executable;                        \
       if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {                     \
-        CodeExtra* extra = codeExtra(code);                                  \
-        adaptive_enabled = extra != NULL && is_adaptive_enabled(extra);      \
+        ci_extra = codeExtra(code);                                          \
+        ci_enabled =                                                         \
+            ci_extra != NULL && is_adaptive_enabled(ci_extra);               \
       }                                                                      \
     }                                                                        \
+    ci_state = ci_pack_interpreter_loop_state(ci_extra, ci_enabled);          \
   } while (0);
 
 #define CI_UPDATE_CALL_COUNT                                                 \
   do {                                                                       \
+    /* Never retain interpreter-loop state from the previous frame. */       \
+    CodeExtra* ci_extra = NULL;                                              \
+    bool ci_enabled = false;                                                 \
     PyObject* executable = PyStackRef_AsPyObjectBorrow(frame->f_executable); \
     if (PyCode_Check(executable)) {                                          \
       PyCodeObject* code = (PyCodeObject*)executable;                        \
       if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {                     \
-        CodeExtra* extra = codeExtra(code);                                  \
-        if (extra == NULL) {                                                 \
-          adaptive_enabled = false;                                          \
-        } else {                                                             \
-          Ci_code_extra_incr_calls(extra);                                   \
-          adaptive_enabled = is_adaptive_enabled(extra);                     \
+        ci_extra = codeExtra(code);                                          \
+        if (ci_extra != NULL) {                                              \
+          Ci_code_extra_incr_calls(ci_extra);                                \
+          ci_enabled = is_adaptive_enabled(ci_extra);                        \
         }                                                                    \
       }                                                                      \
     }                                                                        \
+    ci_state = ci_pack_interpreter_loop_state(ci_extra, ci_enabled);          \
   } while (0);
 
   #undef DISPATCH_INLINED
@@ -576,11 +583,8 @@ void **opcode_targets = opcode_targets_table;
     }
 #endif
 
-    bool adaptive_enabled = false;
-
-    // Suppress unused variable warning because it's too hard to improve the
-    // variable's scope to avoid an unused-but-set-variable warning.
-    (void)adaptive_enabled;
+    CiInterpreterLoopState ci_state = {0};
+    (void)ci_state;
 
     /* support for generator.throw() */
     if (throwflag) {
@@ -608,9 +612,9 @@ void **opcode_targets = opcode_targets_table;
         _PyFrame_StackPointerInvalidate(frame);
 #if _Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, instruction_funcptr_handler_table, 0, lastopcode, adaptive_enabled);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, instruction_funcptr_handler_table, 0, lastopcode, ci_state);
 #   else
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, instruction_funcptr_handler_table, 0, adaptive_enabled);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, instruction_funcptr_handler_table, 0, ci_state);
 #   endif
 #else
         goto error;
@@ -624,9 +628,9 @@ void **opcode_targets = opcode_targets_table;
 #endif
 #if _Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, instruction_funcptr_handler_table, 0, lastopcode, adaptive_enabled);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, instruction_funcptr_handler_table, 0, lastopcode, ci_state);
 #   else
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, instruction_funcptr_handler_table, 0, adaptive_enabled);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, instruction_funcptr_handler_table, 0, ci_state);
 #   endif
 #else
     goto start_frame;
