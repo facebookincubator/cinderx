@@ -16,6 +16,7 @@ import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.jit import (
+    compile_after_n_bytecodes,
     compile_after_n_calls,
     force_compile,
     force_uncompile,
@@ -2308,6 +2309,18 @@ class BadArgumentTests(unittest.TestCase):
             compile_after_n_calls(-1)
         with self.assertRaises(ValueError):
             compile_after_n_calls(10_000_000_000)
+
+    def test_compile_after_n_bytecodes(self) -> None:
+        with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
+            compile_after_n_bytecodes(None)
+        with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
+            compile_after_n_bytecodes(is_jit_compiled)
+        with self.assertRaises(ValueError):
+            compile_after_n_bytecodes(-1)
+        with self.assertRaises(ValueError):
+            compile_after_n_bytecodes(10_000_000_000)
 
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):

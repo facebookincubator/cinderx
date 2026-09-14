@@ -13,7 +13,7 @@ from warnings import catch_warnings, simplefilter, warn
 FuncAny = Callable[..., Any]
 
 
-try:
+try:  # noqa: C901
     from cinderjit import (
         _deopt_gen,
         _would_tag_if_deferred,
@@ -21,7 +21,9 @@ try:
         auto,
         background_compile,
         clear_runtime_stats,
+        compile_after_n_bytecodes,
         compile_after_n_calls,
+        count_interpreted_bytecodes,
         count_interpreted_calls,
         disable,
         disable_emit_type_annotation_guards,
@@ -39,6 +41,7 @@ try:
         get_and_clear_runtime_stats,
         get_background_compile,
         get_compilation_time,
+        get_compile_after_n_bytecodes,
         get_compile_after_n_calls,
         get_compiled_function,
         get_compiled_functions,
@@ -96,7 +99,13 @@ except ImportError:
     def compile_after_n_calls(calls: int) -> None:
         return None
 
+    def compile_after_n_bytecodes(bytecodes: int) -> None:
+        return None
+
     def count_interpreted_calls(func: FuncAny) -> int:
+        return 0
+
+    def count_interpreted_bytecodes(func: FuncAny) -> int:
         return 0
 
     def disable(deopt_all: bool = False) -> None:
@@ -149,6 +158,9 @@ except ImportError:
         return 0
 
     def get_compile_after_n_calls() -> int | None:
+        return None
+
+    def get_compile_after_n_bytecodes() -> int | None:
         return None
 
     def get_background_compile() -> bool:

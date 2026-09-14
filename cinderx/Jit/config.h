@@ -246,6 +246,7 @@ struct Config {
   // Size (in number of entries) of the inline attribute caches used by the JIT.
   uint32_t attr_cache_size{4};
   std::optional<uint32_t> compile_after_n_calls;
+  std::optional<uint32_t> compile_after_n_bytecodes;
   GdbOptions gdb;
   PerfMapOptions perf_map;
   JitListOptions jit_list;

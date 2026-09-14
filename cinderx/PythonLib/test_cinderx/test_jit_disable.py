@@ -444,6 +444,117 @@ class DisableEnableTests(unittest.TestCase):
                 env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
+    @unittest.skipIf(
+        sys.version_info < (3, 14),
+        "Interpreted bytecode accounting requires the 3.14 custom loop",
+    )
+    def test_compile_after_n_bytecodes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            assert cinderx.jit.get_compile_after_n_bytecodes() is None
+
+            def predefined_loop():
+                total = 0
+                for value in range(10):
+                    total += value
+                return total
+
+            cinderx.jit.compile_after_n_calls(1000)
+            cinderx.jit.compile_after_n_bytecodes(1_000_000)
+
+            assert not cinderx.jit.is_jit_compiled(predefined_loop)
+            assert predefined_loop() == 45
+            bytecodes_per_call = cinderx.jit.count_interpreted_bytecodes(
+                predefined_loop
+            )
+            assert 0 < bytecodes_per_call < 1_000_000
+            assert not cinderx.jit.is_jit_compiled(predefined_loop)
+
+            threshold = bytecodes_per_call * 2
+            cinderx.jit.compile_after_n_bytecodes(threshold)
+            assert cinderx.jit.get_compile_after_n_bytecodes() == threshold
+
+            assert predefined_loop() == 45
+            assert not cinderx.jit.is_jit_compiled(predefined_loop)
+            assert (
+                cinderx.jit.count_interpreted_bytecodes(predefined_loop) == threshold
+            )
+            assert cinderx.jit.count_interpreted_calls(predefined_loop) == 2
+
+            assert predefined_loop() == 45
+            assert cinderx.jit.is_jit_compiled(predefined_loop)
+            assert (
+                cinderx.jit.count_interpreted_bytecodes(predefined_loop) == threshold
+            )
+            assert cinderx.jit.count_interpreted_calls(predefined_loop) == 2
+
+            cinderx.jit.compile_after_n_bytecodes(1)
+
+            def loop():
+                total = 0
+                for value in range(10):
+                    total += value
+                return total
+
+            assert not cinderx.jit.is_jit_compiled(loop)
+            assert loop() == 45
+            assert not cinderx.jit.is_jit_compiled(loop)
+            assert cinderx.jit.count_interpreted_calls(loop) == 1
+            assert cinderx.jit.count_interpreted_bytecodes(loop) > 0
+
+            assert loop() == 45
+            assert cinderx.jit.is_jit_compiled(loop)
+            assert cinderx.jit.count_interpreted_calls(loop) == 1
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
+            )
+
+    @unittest.skipIf(
+        sys.version_info < (3, 14),
+        "Interpreted bytecode accounting requires the 3.14 custom loop",
+    )
+    def test_compile_after_n_bytecodes_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            assert cinderx.jit.get_compile_after_n_bytecodes() == 1
+
+            def loop():
+                for _ in range(10):
+                    pass
+
+            assert not cinderx.jit.is_jit_compiled(loop)
+            loop()
+            assert cinderx.jit.count_interpreted_bytecodes(loop) > 0
+            assert not cinderx.jit.is_jit_compiled(loop)
+
+            loop()
+            assert cinderx.jit.is_jit_compiled(loop)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={
+                    "CINDERX_JIT_COMPILE_N_BYTECODES": "1",
+                    "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+                    **subprocess_env(),
+                },
+            )
+
     def test_compile_after_n_calls_predefined(self) -> None:
         """
         Test that cinderx.jit.compile_after_n_calls() works for functions that

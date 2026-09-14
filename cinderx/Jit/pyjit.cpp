@@ -202,11 +202,14 @@ PyObject* jitVectorcall(
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
 
-  // If there's a call count limit, interpret the function as usual until the
-  // limit is reached.
-  if (auto limit = getConfig().compile_after_n_calls; limit.has_value()) {
-    auto const calls = codeCallCount(code);
-    if (calls < *limit) {
+  auto const call_limit = getConfig().compile_after_n_calls;
+  auto const bytecode_limit = getConfig().compile_after_n_bytecodes;
+  if (call_limit.has_value() || bytecode_limit.has_value()) {
+    bool is_hot = call_limit.has_value() && codeCallCount(code) >= *call_limit;
+    is_hot = is_hot ||
+        (bytecode_limit.has_value() &&
+         codeInterpretedBytecodeCount(code) >= *bytecode_limit);
+    if (!is_hot) {
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
     }
@@ -345,6 +348,13 @@ FlagProcessor initFlagProcessor() {
       [](uint32_t val) { getMutableConfig().compile_after_n_calls = val; },
       "Enable auto-JIT mode, which compiles functions after the given "
       "threshold");
+
+  flag_processor.addOption(
+      "cinderx-jit-compile-n-bytecodes",
+      "CINDERX_JIT_COMPILE_N_BYTECODES",
+      [](uint32_t val) { getMutableConfig().compile_after_n_bytecodes = val; },
+      "Compile functions after they execute the given estimated number of "
+      "interpreted bytecode code units in loops");
 
   flag_processor.addOption(
       "cinderx-jit-debug",
@@ -2074,6 +2084,21 @@ int compile_after_n_calls_impl(uint32_t calls) {
   return 0;
 }
 
+int compile_after_n_bytecodes_impl(uint32_t bytecodes) {
+  if (Ci_InitFrameEvalFunc() < 0) {
+    return -1;
+  }
+
+  getMutableConfig().compile_after_n_bytecodes = bytecodes;
+  walkFunctionObjects(
+      [](BorrowedRef<PyFunctionObject> func) { scheduleJitCompile(func); });
+
+  JIT_DLOG(
+      "Configuring JIT to compile functions after {} interpreted bytecodes",
+      bytecodes);
+  return 0;
+}
+
 PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
   Py_ssize_t calls = -1;
   if (!PyArg_Parse(arg, "n:compile_after_n_calls", &calls)) {
@@ -2091,6 +2116,24 @@ PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
+  Py_RETURN_NONE;
+}
+
+PyObject* compile_after_n_bytecodes(PyObject* /* self */, PyObject* arg) {
+  Py_ssize_t bytecodes = -1;
+  if (!PyArg_Parse(arg, "n:compile_after_n_bytecodes", &bytecodes)) {
+    return nullptr;
+  }
+  if (bytecodes < 0 || bytecodes > std::numeric_limits<uint32_t>::max()) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "Cannot configure JIT to compile functions after '%zd' bytecodes",
+        bytecodes);
+    return nullptr;
+  }
+  if (compile_after_n_bytecodes_impl(static_cast<uint32_t>(bytecodes)) < 0) {
+    return nullptr;
+  }
   Py_RETURN_NONE;
 }
 
@@ -2446,6 +2489,14 @@ PyObject* get_compile_after_n_calls(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
+PyObject* get_compile_after_n_bytecodes(PyObject* /* self */, PyObject*) {
+  auto limit = getConfig().compile_after_n_bytecodes;
+  if (limit.has_value()) {
+    return PyLong_FromUnsignedLongLong(*limit);
+  }
+  Py_RETURN_NONE;
+}
+
 PyObject* is_enabled(PyObject* /* self */, PyObject* /* args */) {
   return PyBool_FromLong(isJitUsable());
 }
@@ -2458,6 +2509,16 @@ PyObject* count_interpreted_calls(PyObject* /* self */, PyObject* arg) {
   }
   BorrowedRef<PyCodeObject> code{func->func_code};
   return PyLong_FromSize_t(codeCallCount(code));
+}
+
+PyObject* count_interpreted_bytecodes(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func =
+      get_func_arg("count_interpreted_bytecodes", arg);
+  if (func == nullptr) {
+    return nullptr;
+  }
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  return PyLong_FromSize_t(codeInterpretedBytecodeCount(code));
 }
 
 PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
@@ -3475,6 +3536,12 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Configure the JIT to automatically compile functions after "
          "they are called a set number of times.")},
+    {"compile_after_n_bytecodes",
+     compile_after_n_bytecodes,
+     METH_O,
+     PyDoc_STR(
+         "Configure the JIT to automatically compile functions after they "
+         "execute an estimated number of interpreted bytecodes in loops.")},
     {"background_compile",
      background_compile,
      METH_O,
@@ -3516,6 +3583,12 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Get the current number of calls needed before a function is "
          "automatically compiled.")},
+    {"get_compile_after_n_bytecodes",
+     get_compile_after_n_bytecodes,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Get the interpreted-bytecode threshold for automatic "
+         "compilation.")},
     {"is_enabled",
      is_enabled,
      METH_NOARGS,
@@ -3526,6 +3599,12 @@ PyMethodDef jit_methods[] = {
      PyDoc_STR(
          "Get the number of times a function has been executed in the "
          "interpreter since cinderx has been initialized")},
+    {"count_interpreted_bytecodes",
+     count_interpreted_bytecodes,
+     METH_O,
+     PyDoc_STR(
+         "Get the estimated number of bytecode code units a function has "
+         "executed in interpreted loops since cinderx was initialized")},
     {"is_jit_compiled",
      is_jit_compiled,
      METH_O,
@@ -4485,12 +4564,22 @@ int initialize() {
 
   // JIT is now fully initialized.  If it was configured to run automatically on
   // startup, start scheduling functions for compilation now.
+  bool has_auto_jit_threshold = false;
   if (auto compile_n = getConfig().compile_after_n_calls;
       compile_n.has_value()) {
     if (compile_after_n_calls_impl(*compile_n) < 0) {
       return -1;
     }
-  } else if (mod_state->jit_list.get() != nullptr) {
+    has_auto_jit_threshold = true;
+  }
+  if (auto bytecodes = getConfig().compile_after_n_bytecodes;
+      bytecodes.has_value()) {
+    if (compile_after_n_bytecodes_impl(*bytecodes) < 0) {
+      return -1;
+    }
+    has_auto_jit_threshold = true;
+  }
+  if (!has_auto_jit_threshold && mod_state->jit_list.get() != nullptr) {
     if (rescheduleJitList() < 0) {
       return -1;
     }
@@ -4627,7 +4716,8 @@ void finalize() {
 bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
   BorrowedRef<PyCodeObject> code{func->func_code};
   return shouldAlwaysScheduleCompile(code) ||
-      getConfig().compile_after_n_calls.has_value();
+      getConfig().compile_after_n_calls.has_value() ||
+      getConfig().compile_after_n_bytecodes.has_value();
 }
 
 // true/false if we've decisively scheduled or not scheduled the compilation.
