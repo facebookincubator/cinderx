@@ -5,6 +5,8 @@ project(_cinderx)
 
 set(PROJECT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/cinderx)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 ##############################################################################
 # PGO (Profile-Guided Optimization) configuration
 
