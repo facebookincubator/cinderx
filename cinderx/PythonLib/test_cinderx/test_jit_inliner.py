@@ -36,11 +36,22 @@ def func_with_varargs(x, *args):
 
 
 @failUnlessJITCompiled
+def func_with_varargs_sum(x, *args):
+    return x + sum(args)
+
+
+@failUnlessJITCompiled
 def func():
     a = func_to_be_inlined(2, 3)
     b = func_with_defaults()
     c = func_with_varargs(1, 2, 3)
     return a + b + c
+
+
+@failUnlessJITCompiled
+def func_calling_varargs():
+    # Extra args are packed into the *args tuple; no extras means ().
+    return func_with_varargs_sum(1, 2, 3) + func_with_varargs_sum(10)
 
 
 @failUnlessJITCompiled
@@ -418,20 +429,19 @@ class InlinedFunctionTests(unittest.TestCase):
 
     @jit_suppress
     def test_inline_function_stats(self) -> None:
-        self.assertEqual(cinderx.jit.get_num_inlined_functions(func), 2)
+        # All three callees of func() inline now, including the *args one.
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(func), 3)
         stats = cinderx.jit.get_inlined_functions_stats(func)
-        self.assertEqual(stats.get("num_inlined_functions"), 2)
+        self.assertEqual(stats.get("num_inlined_functions"), 3)
         failure_stats = stats.get("failure_stats") or {}
         assert isinstance(failure_stats, dict)
-        self.assertNotEqual(failure_stats, {})
-        has_varargs = failure_stats.get("HasVarargs") or set()
-        assert isinstance(has_varargs, set)
-        self.assertNotEqual(has_varargs, {})
-        self.assertEqual(len(has_varargs), 1, repr(has_varargs))
-        self.assertIn(
-            "test_cinderx.test_jit_inliner:func_with_varargs",
-            next(iter(has_varargs)),
-        )
+
+    @jit_suppress
+    def test_varargs_callee_is_inlined(self) -> None:
+        # Both calls inline: one with extra args packed into *args, one with
+        # an empty *args tuple.
+        self.assertEqual(func_calling_varargs(), 16)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(func_calling_varargs), 2)
 
     @jit_suppress
     def test_inlining_callee_without_reachable_return(self) -> None:

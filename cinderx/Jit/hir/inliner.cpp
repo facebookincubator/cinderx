@@ -141,14 +141,18 @@ bool canInline(Function& caller, const AbstractCall& call_instr) {
   if (code->co_kwonlyargcount > 0) {
     return fail(InlineFailureType::kHasKwOnlyArgs);
   }
-  if (code->co_flags & CO_VARARGS) {
-    return fail(InlineFailureType::kHasVarargs);
-  }
   if (code->co_flags & CO_VARKEYWORDS) {
     return fail(InlineFailureType::kHasVarkwargs);
   }
   JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
-  if (call_instr.nargs != static_cast<size_t>(code->co_argcount)) {
+  // A callee with *args accepts any call that fills its positional
+  // parameters; the surplus arguments are collected into the varargs tuple
+  // when rewriting LoadArg below. Too few arguments is still an error.
+  const bool has_varargs = code->co_flags & CO_VARARGS;
+  const size_t co_argcount = static_cast<size_t>(code->co_argcount);
+  const bool arg_count_ok = has_varargs ? call_instr.nargs >= co_argcount
+                                        : call_instr.nargs == co_argcount;
+  if (!arg_count_ok) {
     return fail(InlineFailureType::kCalledWithMismatchedArgs);
   }
   if (code->co_flags & kCoFlagsAnyGenerator) {
@@ -192,6 +196,47 @@ bool canInlineWithPreloader(
   }
 
   return true;
+}
+
+Register* populateVarArgs(
+    Function& caller,
+    const AbstractCall& call_instr,
+    FrameState& pre_call_state) {
+  // When defaults fill missing positionals there are no surplus
+  // arguments; the tuple is empty.
+  BorrowedRef<PyCodeObject> code{call_instr.func->func_code};
+  const size_t co_argcount = code->co_argcount;
+  const size_t num_extra =
+      call_instr.nargs < co_argcount ? 0 : call_instr.nargs - co_argcount;
+  auto varargs_reg = caller.env.allocateRegister();
+  if (num_extra == 0) {
+    auto make_tuple =
+        LoadConst::create(varargs_reg, Type::fromObject(PyTuple_New(0)));
+    make_tuple->insertBefore(*call_instr.instr);
+    return varargs_reg;
+  }
+
+  varargs_reg->setType(TMortalTupleExact);
+  // In the callee frame state, the tuple is created before the callee frame
+  // is pushed on the stack.
+  auto make_tuple = MakeTuple::create(varargs_reg, num_extra, pre_call_state);
+  make_tuple->insertBefore(*call_instr.instr);
+
+  auto fill = InitTupleElements::create(num_extra + 1);
+  fill->setOperand(0, varargs_reg);
+  for (size_t i = 0; i < num_extra; ++i) {
+    fill->setOperand(i + 1, call_instr.arg(co_argcount + i));
+  }
+  fill->insertBefore(*call_instr.instr);
+
+  // MakeTuple/InitTupleElements are not replayable, so they hide any
+  // earlier snapshot from later guards in this block (bindGuards binds
+  // each guard to its dominating same-block snapshot). Restore coverage
+  // with a fresh snapshot, as the builder does before deopting
+  // instructions.
+  auto post_snapshot = Snapshot::create(pre_call_state);
+  post_snapshot->insertBefore(*call_instr.instr);
+  return varargs_reg;
 }
 
 // Attempt to inline a single call.  On success returns the spliced-in callee
@@ -253,6 +298,30 @@ std::optional<InlineResult> inlineFunctionCall(
       caller.fullname);
 
   BorrowedRef<PyCodeObject> callee_code = preloader->code();
+
+  const bool has_varargs = callee_code->co_flags & CO_VARARGS;
+  const size_t co_argcount = static_cast<size_t>(callee_code->co_argcount);
+  const size_t co_kwonly = static_cast<size_t>(callee_code->co_kwonlyargcount);
+  const size_t starargs_idx = co_argcount + co_kwonly;
+
+  // FrameState to attach to the fixup instructions below. The call
+  // instruction's own FrameState reflects the stack after its operands were
+  // popped -- a state that never exists in the interpreter -- so it cannot
+  // be used to resume the call. Rebuild the pre-call state (operands back
+  // on the stack, in order); deopting with it re-executes the call in the
+  // interpreter.
+  FrameState pre_call_state(*call_instr.instr->frameState());
+  pre_call_state.stack.clear();
+  for (size_t i = 0, n = call_instr.instr->numOperands(); i < n; ++i) {
+    pre_call_state.stack.push(call_instr.instr->getOperand(i));
+  }
+
+  // Register holding the packed varargs tuple, if the callee takes *args.
+  Register* varargs_reg = nullptr;
+  if (has_varargs) {
+    varargs_reg = populateVarArgs(caller, call_instr, pre_call_state);
+  }
+
   BasicBlock* tail = caller.cfg.splitAfter(*call_instr.instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
       callee, std::move(caller_frame_state), callee_name, preloader->reifier());
@@ -286,13 +355,16 @@ std::optional<InlineResult> inlineFunctionCall(
     auto& instr = *it;
     ++it;
 
-    if (instr.isLoadArg()) {
-      auto load_arg = static_cast<LoadArg*>(&instr);
-      auto assign =
-          Assign::create(instr.output(), call_instr.arg(load_arg->argIdx()));
-      instr.replaceWith(*assign);
-      delete &instr;
+    if (!instr.isLoadArg()) {
+      continue;
     }
+    auto load_arg = static_cast<LoadArg*>(&instr);
+    Register* src = (has_varargs && load_arg->argIdx() == starargs_idx)
+        ? varargs_reg
+        : call_instr.arg(load_arg->argIdx());
+    auto assign = Assign::create(instr.output(), src);
+    instr.replaceWith(*assign);
+    delete &instr;
   }
 
   // Transform Return into Assign+Branch.  The HIRBuilder guarantees that the

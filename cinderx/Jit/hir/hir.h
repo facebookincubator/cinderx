@@ -4269,7 +4269,6 @@ struct TypedArgument {
   V(HasDefaults, "it has defaults")                                        \
   V(HasKwdefaults, "it has kwdefaults")                                    \
   V(HasKwOnlyArgs, "it has keyword-only args")                             \
-  V(HasVarargs, "it has varargs")                                          \
   V(HasVarkwargs, "it has varkwargs")                                      \
   V(CalledWithMismatchedArgs, "it is called with mismatched arguments")    \
   V(IsGenerator, "it is a generator")                                      \
