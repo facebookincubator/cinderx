@@ -96,6 +96,9 @@ struct MappedCallArgs {
   // Number of keyword values.
   size_t num_kw = 0;
   std::vector<Register*> param_regs;
+  // Keywords naming no parameter, in call order, for a **kwargs callee:
+  // (name, value register) pairs to store into the kwargs dict.
+  std::vector<std::pair<BorrowedRef<PyObject>, Register*>> excess_kwargs;
 };
 
 // Map a call's operands onto the callee's parameters. Returns nullopt when
@@ -144,10 +147,22 @@ std::optional<MappedCallArgs> mapCallArgs(
   if (co_argcount + co_kwonly > static_cast<size_t>(code->co_nlocalsplus)) {
     return std::nullopt;
   }
+  const bool has_varkw = code->co_flags & CO_VARKEYWORDS;
   for (size_t j = 0; j < num_kw; ++j) {
     BorrowedRef<PyObject> name{PyTuple_GET_ITEM(kwnames.get(), j)};
     if (!PyUnicode_Check(name)) {
       return std::nullopt;
+    }
+    // A keyword naming a positional-only parameter raises TypeError or passes
+    // it to **kwargs if that's available and the argument is positionally
+    // provided. Just don't inline. The second case is super weird so just don't
+    // bother inlining.
+    for (size_t idx = 0; idx < posonly; ++idx) {
+      BorrowedRef<PyObject> param_name{getVarname(code, static_cast<int>(idx))};
+      if (unicodeNameEquals(name, param_name)) {
+        LOG_INLINER("Can't inline call with positional-only keyword argument");
+        return std::nullopt;
+      }
     }
     bool matched = false;
     // Positional-only parameters (before posonly) cannot be filled by
@@ -166,8 +181,11 @@ std::optional<MappedCallArgs> mapCallArgs(
       break;
     }
     if (!matched) {
-      LOG_INLINER("Can't inline call with unknown keyword argument");
-      return std::nullopt;
+      if (!has_varkw) {
+        LOG_INLINER("Can't inline call with unknown keyword argument");
+        return std::nullopt;
+      }
+      result.excess_kwargs.emplace_back(name, call_instr.arg(num_pos + j));
     }
   }
   return result;
@@ -267,12 +285,10 @@ std::optional<MappedCallArgs> canInline(
   if (code->co_kwonlyargcount > 0 && !call_has_kwargs) {
     return fail(InlineFailureType::kHasKwOnlyArgs);
   }
-  if (code->co_flags & CO_VARKEYWORDS) {
-    return fail(InlineFailureType::kHasVarkwargs);
-  }
   // Map call operands onto callee parameters. A callee with *args accepts
   // surplus positional arguments, which are collected into the varargs
-  // tuple when rewriting LoadArg below.
+  // tuple when rewriting LoadArg below; a callee with **kwargs accepts
+  // keywords naming no parameter, which are collected into the kwargs dict.
   auto mapping = mapCallArgs(code, call_instr);
   if (!mapping) {
     return fail(InlineFailureType::kCalledWithMismatchedArgs);
@@ -548,9 +564,11 @@ std::optional<InlineResult> inlineFunctionCall(
   BorrowedRef<PyCodeObject> callee_code = preloader->code();
 
   const bool has_varargs = callee_code->co_flags & CO_VARARGS;
+  const bool has_varkw = callee_code->co_flags & CO_VARKEYWORDS;
   const size_t co_argcount = static_cast<size_t>(callee_code->co_argcount);
   const size_t co_kwonly = static_cast<size_t>(callee_code->co_kwonlyargcount);
   const size_t starargs_idx = co_argcount + co_kwonly;
+  const size_t varkw_idx = starargs_idx + (has_varargs ? 1 : 0);
 
   // FrameState to attach to the fixup instructions below. The call
   // instruction's own FrameState reflects the stack after its operands were
@@ -574,12 +592,41 @@ std::optional<InlineResult> inlineFunctionCall(
       co_argcount,
       *mapping,
       preloader->funcDefaults());
+
   const size_t num_pos = mapping->num_pos;
 
   // Register holding the packed varargs tuple, if the callee takes *args.
   Register* varargs_reg = nullptr;
   if (has_varargs) {
     varargs_reg = populateVarArgs(caller, call_instr, pre_call_state, num_pos);
+  }
+  // Register holding the **kwargs dict, if the callee takes them. Excess
+  // keywords (those naming no parameter, collected by mapCallArgs) are
+  // stored into it; with none it stays empty.
+  Register* varkw_reg = nullptr;
+  if (has_varkw) {
+    const auto& excess = mapping->excess_kwargs;
+    varkw_reg = caller.env.allocateRegister();
+    varkw_reg->setType(TMortalDictExact);
+    auto make_dict = MakeDict::create(varkw_reg, excess.size(), pre_call_state);
+    make_dict->insertBefore(*call_instr.instr);
+    for (const auto& [key, value_reg] : excess) {
+      auto key_type = Type::fromObject(caller.env.addReference(key.get()));
+      Register* key_reg = caller.env.allocateRegister();
+      key_reg->setType(key_type);
+      auto key_const = LoadConst::create(key_reg, key_type);
+      key_const->insertBefore(*call_instr.instr);
+      Register* set_reg = caller.env.allocateRegister();
+      set_reg->setType(TCInt32);
+      auto set_item =
+          SetDictItem::create(set_reg, varkw_reg, key_reg, value_reg);
+      set_item->setFrameState(pre_call_state);
+      set_item->insertBefore(*call_instr.instr);
+    }
+    // MakeDict/SetDictItem are not replayable either; restore snapshot
+    // coverage for later guards as above.
+    auto post_snapshot = Snapshot::create(pre_call_state);
+    post_snapshot->insertBefore(*call_instr.instr);
   }
 
   BasicBlock* tail = caller.cfg.splitAfter(*call_instr.instr);
@@ -619,9 +666,14 @@ std::optional<InlineResult> inlineFunctionCall(
       continue;
     }
     auto load_arg = static_cast<LoadArg*>(&instr);
-    Register* src = (has_varargs && load_arg->argIdx() == starargs_idx)
-        ? varargs_reg
-        : resolved_args.at(load_arg->argIdx());
+    Register* src;
+    if (has_varkw && load_arg->argIdx() == varkw_idx) {
+      src = varkw_reg;
+    } else if (has_varargs && load_arg->argIdx() == starargs_idx) {
+      src = varargs_reg;
+    } else {
+      src = resolved_args.at(load_arg->argIdx());
+    }
     auto assign = Assign::create(instr.output(), src);
     instr.replaceWith(*assign);
     delete &instr;

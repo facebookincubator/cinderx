@@ -120,6 +120,32 @@ def top_calling_kwargs():
 
 
 @failUnlessJITCompiled
+def leaf_with_varkw(x, y, **kw):
+    return (x, y, kw)
+
+
+@failUnlessJITCompiled
+def top_calling_varkw():
+    # Excess keywords land in **kw; a fully-bound call leaves it empty.
+    return (
+        leaf_with_varkw(1, 2, z=3, w=4),
+        leaf_with_varkw(1, y=2),
+    )
+
+
+@failUnlessJITCompiled
+def leaf_posonly_varkw(x, /, **kw):
+    return (x, kw)
+
+
+@failUnlessJITCompiled
+def top_calling_posonly_kw():
+    # x is positional-only; passing it by keyword raises TypeError, so this
+    # call cannot be inlined.
+    return leaf_posonly_varkw(x=1)
+
+
+@failUnlessJITCompiled
 def top_calling_partial_kwargs():
     # z is missing and has no default, so this call cannot be inlined.
     return leaf_with_kwargs(1, y=2)
@@ -555,6 +581,26 @@ class InlinedFunctionTests(unittest.TestCase):
         # TypeError); the import-time compile must simply not inline it.
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(top_calling_partial_kwargs),
+            0,
+        )
+
+    @jit_suppress
+    def test_varkw_callee_is_inlined(self) -> None:
+        # Both calls inline: excess keywords are collected into **kw, and a
+        # fully-bound call gets an empty dict.
+        self.assertEqual(
+            top_calling_varkw(),
+            ((1, 2, {"z": 3, "w": 4}), (1, 2, {})),
+        )
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(top_calling_varkw), 2)
+
+    @jit_suppress
+    def test_posonly_kw_callee_is_not_inlined(self) -> None:
+        # x is positional-only so x=1 would raise TypeError (it must not fall
+        # through into **kw). Don't call it; the import-time compile must
+        # simply not inline it.
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(top_calling_posonly_kw),
             0,
         )
 
