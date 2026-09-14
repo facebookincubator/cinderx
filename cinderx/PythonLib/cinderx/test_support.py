@@ -7,6 +7,7 @@ import importlib
 import multiprocessing
 import os.path
 import platform
+import subprocess
 import sys
 import sysconfig
 import tempfile
@@ -407,6 +408,40 @@ def run_in_subprocess(func: Callable[..., None]) -> Callable[..., None]:
 
         if isinstance(value, _ExceptionResult):
             raise value.exc
+
+    return wrapped
+
+
+_FRESH_PROCESS_TEST_ENV_VAR = "CINDERX_FRESH_PROCESS_TEST"
+
+
+def run_in_fresh_process(func: Callable[..., None]) -> Callable[..., None]:
+    """Run a test method in a new Python interpreter."""
+    test_name = f"{func.__module__}.{func.__qualname__}"
+
+    @functools.wraps(func)
+    def wrapped(*args: object, **kwargs: object) -> None:
+        if os.environ.get(_FRESH_PROCESS_TEST_ENV_VAR) == test_name:
+            func(*args, **kwargs)
+            return
+
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", test_name],
+            capture_output=True,
+            encoding=ENCODING,
+            env={
+                **os.environ,
+                **subprocess_env(),
+                _FRESH_PROCESS_TEST_ENV_VAR: test_name,
+            },
+            timeout=SUBPROCESS_TIMEOUT_SEC,
+        )
+        if result.returncode:
+            raise AssertionError(
+                f"{test_name} failed in a fresh process "
+                f"with exit code {result.returncode}\n"
+                f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+            )
 
     return wrapped
 
