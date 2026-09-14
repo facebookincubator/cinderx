@@ -13,6 +13,7 @@
 #include <fmt/ostream.h>
 
 #include <algorithm>
+#include <optional>
 #include <sstream>
 #include <vector>
 
@@ -96,12 +97,12 @@ BB %5
   }
 
   codegen::PhyRegisterSet fixedRegisterIntervals(
-      const LinearScanAllocator& allocator) {
+      const std::vector<std::optional<LiveInterval>>& intervals) {
     codegen::PhyRegisterSet result;
-    for (const auto& pair : allocator.intervalMap()) {
-      const LiveInterval& interval = pair.second;
-      if (interval.isFixed() && interval.isRegisterAllocated()) {
-        result.set(interval.allocatedLoc());
+    for (const auto& interval : intervals) {
+      if (interval.has_value() && interval->isFixed() &&
+          interval->isRegisterAllocated()) {
+        result.set(interval->allocatedLoc());
       }
     }
     return result;
@@ -180,7 +181,10 @@ BB %14
 
   LinearScanAllocator lsallocator(lir_func.get());
   lsallocator.calculateLiveIntervals();
-  auto id_interval = buildIndexMap(lsallocator.intervalMap(), opnd_id_map);
+  UnorderedMap<int, LiveInterval> id_interval;
+  for (const LiveInterval& interval : lsallocator.vreg_intervals_) {
+    id_interval.emplace(opnd_id_map.at(interval.operand()), interval);
+  }
   ASSERT_FALSE(id_interval.empty());
 
   std::vector<int> vregs;
@@ -205,7 +209,12 @@ BB %14
 
   ASSERT_EQ(ss_ranges.str(), live_expected);
 
-  auto index_uses_map = buildIndexMap(lsallocator.vreg_phy_uses_, opnd_id_map);
+  UnorderedMap<const Operand*, std::vector<LIRLocation>> phy_uses;
+  for (const LiveInterval& interval : lsallocator.vreg_intervals_) {
+    phy_uses.emplace(
+        interval.operand(), lsallocator.vreg_phy_uses_.at(interval.vregId()));
+  }
+  auto index_uses_map = buildIndexMap(phy_uses, opnd_id_map);
   std::stringstream ss_uses;
   for (auto& vreg : vregs) {
     auto sep = "";
@@ -352,12 +361,14 @@ TEST_F(LinearScanAllocatorTest, RewriteSpilledMoveInputAsLoad) {
       OutPhyReg{codegen::arch::reg_general_return_loc},
       VReg{source});
 
-  LiveInterval interval{source->output()};
-  interval.allocateTo(PhyLocation{-kPointerSize});
-  UnorderedMap<const Operand*, const LiveInterval*> mapping{
-      {source->output(), &interval}};
-
   LinearScanAllocator allocator{function.get()};
+  allocator.initializeVRegs();
+  const RegAllocVRegId source_id = allocator.getVRegId(source->output());
+
+  LiveInterval interval{source->output(), source_id};
+  interval.allocateTo(PhyLocation{-kPointerSize});
+  LinearScanAllocator::IntervalMapping mapping{{source_id, &interval}};
+
   allocator.rewriteInstrOneInput(move, 0, mapping, nullptr);
 
   EXPECT_TRUE(move->isLoad());
@@ -500,7 +511,7 @@ TEST_F(
   if constexpr (kFreeThreadedBuild) {
     expected = codegen::INIT_REGISTERS;
   }
-  EXPECT_EQ(fixedRegisterIntervals(allocator), expected);
+  EXPECT_EQ(fixedRegisterIntervals(allocator.fixed_intervals_), expected);
 }
 
 TEST_F(LinearScanAllocatorTest, DeoptExitReservesVectorRegisters) {
@@ -516,7 +527,9 @@ TEST_F(LinearScanAllocatorTest, DeoptExitReservesVectorRegisters) {
 
   // The deopt trampoline only spills general-purpose registers, so no live
   // value may be in a vector register at a deopt exit.
-  EXPECT_EQ(fixedRegisterIntervals(allocator), codegen::ALL_VECD_REGISTERS);
+  EXPECT_EQ(
+      fixedRegisterIntervals(allocator.fixed_intervals_),
+      codegen::ALL_VECD_REGISTERS);
 }
 
 TEST_F(LinearScanAllocatorTest, InoutRegTest) {

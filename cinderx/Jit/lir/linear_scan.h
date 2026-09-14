@@ -8,7 +8,9 @@
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/regalloc.h"
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <ostream>
 
 namespace cinderx::jit::lir {
@@ -30,6 +32,10 @@ constexpr LIRLocation INVALID_LOCATION = -1;
 // Sentinel ordered after every real location, e.g. "no use after this point".
 constexpr LIRLocation MAX_LOCATION = std::numeric_limits<LIRLocation>::max();
 
+using RegAllocVRegId = uint32_t;
+constexpr RegAllocVRegId kInvalidRegAllocVRegId =
+    std::numeric_limits<RegAllocVRegId>::max();
+
 // A half-open range of locations [start, end) over which a value is live.
 struct LiveRange {
   LiveRange(LIRLocation s, LIRLocation e);
@@ -46,7 +52,9 @@ struct LiveRange {
 // of location ranges in the program where the value is live.
 class LiveInterval {
  public:
-  explicit LiveInterval(const Operand* operand);
+  explicit LiveInterval(
+      const Operand* operand,
+      RegAllocVRegId vreg_id = kInvalidRegAllocVRegId);
 
   // Add a new live range for the operand to the interval.
   void addRange(LiveRange range);
@@ -100,6 +108,7 @@ class LiveInterval {
   bool isFixed() const;
 
   const Operand* operand() const;
+  RegAllocVRegId vregId() const;
   const std::vector<LiveRange>& ranges() const;
   PhyLocation allocatedLoc() const;
 
@@ -112,6 +121,9 @@ class LiveInterval {
 
   // Location where the interval's value is allocated to.
   PhyLocation allocated_loc_;
+
+  // Dense, allocator-local ID. Fixed physical-register intervals have no ID.
+  RegAllocVRegId vreg_id_;
 
   // Index of the range examined by the last covers() call, used as a hint for
   // covers().
@@ -130,8 +142,8 @@ struct RegallocBlockState {
   // The first instruction of the basic block before rewrite.  Rewriting mutates
   // the block, so this is captured up front for edge resolution.
   Instruction* first_instr;
-  // Operands live on entry to the block.
-  UnorderedSet<const Operand*> livein;
+  // Virtual registers live on entry to the block.
+  UnorderedSet<RegAllocVRegId> livein;
 
   RegallocBlockState(
       const BasicBlock* bb,
@@ -146,7 +158,6 @@ struct RegallocBlockState {
 //   4. Rewrite the original LIR.
 class LinearScanAllocator : public RegisterAllocator {
  public:
-  using IntervalMap = UnorderedMap<const Operand*, LiveInterval>;
   using IntervalList = std::vector<std::unique_ptr<LiveInterval>>;
 
   explicit LinearScanAllocator(Function* func, int reserved_stack_space = 0);
@@ -155,10 +166,6 @@ class LinearScanAllocator : public RegisterAllocator {
 
   codegen::PhyRegisterSet getChangedRegs() const override;
   int getFrameSize() const override;
-
-  // Get the mapping of virtual registers to liveness intervals.  Meant for
-  // tests.
-  const IntervalMap& intervalMap() const;
 
   // Get the list of liveness intervals.  Meant for tests.
   const IntervalList& intervalList() const;
@@ -176,9 +183,14 @@ class LinearScanAllocator : public RegisterAllocator {
       LiveIntervalPtrGreater>;
 
   using CopyGraphWithOperand = codegen::CopyGraphWithType<const DataType>;
+  using IntervalMapping = UnorderedMap<RegAllocVRegId, const LiveInterval*>;
+
+  void initializeVRegs();
+  RegAllocVRegId getVRegId(const Operand* operand) const;
 
   // Get the interval for an operand.
   LiveInterval& getInterval(const Operand* operand);
+  LiveInterval& getFixedInterval(PhyLocation reg, const Operand* fixed_operand);
 
   void calculateLiveIntervals();
 
@@ -216,50 +228,51 @@ class LinearScanAllocator : public RegisterAllocator {
 
   // Get the next use of a physical register for the vreg at or after a
   // location.
-  LIRLocation getUseAtOrAfter(const Operand* vreg, LIRLocation loc) const;
+  LIRLocation getUseAtOrAfter(const LiveInterval* interval, LIRLocation loc)
+      const;
 
   // Split at loc and save the new interval to unhandled and allocated_.
   void
   splitAndSave(LiveInterval* interval, LIRLocation loc, UnhandledQueue& queue);
 
-  PhyLocation getStackSlot(const Operand* operand);
+  PhyLocation getStackSlot(const LiveInterval* interval);
   PhyLocation newStackSlot(const Operand* operand);
-  void freeStackSlot(const Operand* operand);
+  void freeStackSlot(const LiveInterval* interval);
 
   void rewriteLIR();
 
   void rewriteInstrOutput(
       Instruction* instr,
-      const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      const IntervalMapping& mapping,
       const UnorderedSet<const Operand*>* last_use_vregs);
 
   void rewriteInstrInputs(
       Instruction* instr,
-      const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      const IntervalMapping& mapping,
       const UnorderedSet<const Operand*>* last_use_vregs);
 
   void rewriteInstrOneInput(
       Instruction* instr,
       size_t i,
-      const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      const IntervalMapping& mapping,
       const UnorderedSet<const Operand*>* last_use_vregs);
 
   std::unique_ptr<Operand> rewriteInstrInput(
       Instruction* instr,
       Operand* input,
-      const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      const IntervalMapping& mapping,
       const UnorderedSet<const Operand*>* last_use_vregs);
 
   void rewriteInstrOneIndirectOperand(
       MemoryIndirect* indirect,
-      const UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      const IntervalMapping& mapping,
       const UnorderedSet<const Operand*>* last_use_vregs);
 
   // Update the virtual register to physical register mapping.  If the mapping
   // is changed for a virtual register and `copies` is not nullptr, insert a
   // copy to `copies` for CopyGraph to generate a MOV instruction.
   void rewriteLIRUpdateMapping(
-      UnorderedMap<const Operand*, const LiveInterval*>& mapping,
+      IntervalMapping& mapping,
       LiveInterval* interval,
       CopyGraphWithOperand* copies);
 
@@ -299,35 +312,25 @@ class LinearScanAllocator : public RegisterAllocator {
 
   Function* func_;
 
-  // Map of LIR values to their liveness intervals.  Used during live interval
-  // calculation, but not during LIR rewriting.
-  //
-  // Meant for virtual registers but also contains intervals for physical
-  // registers, for instructions that require specific registers.
-  IntervalMap intervals_;
+  // Allocator-local IDs and dense state for virtual registers.
+  UnorderedMap<const Operand*, RegAllocVRegId> vreg_ids_;
+  std::vector<LiveInterval> vreg_intervals_;
+  std::vector<std::vector<LIRLocation>> vreg_phy_uses_;
+  std::vector<std::vector<std::pair<const Operand*, LIRLocation>>>
+      vreg_last_uses_;
+  std::vector<LIRLocation> vreg_global_last_uses_;
+  std::vector<PhyLocation> vreg_stack_slots_;
 
-  // List of liveness intervals, sorted by start location.  These intervals hold
-  // the allocated locations, unlike intervals_.  This can also contain multiple
-  // intervals for the same operand, because of splitting.
+  // Fixed intervals and use locations, indexed by physical register number.
+  std::vector<std::optional<LiveInterval>> fixed_intervals_;
+  std::vector<std::vector<LIRLocation>> fixed_phy_uses_;
+
+  // List of liveness intervals, sorted by start location. This can contain
+  // multiple intervals for the same virtual register because of splitting.
   IntervalList allocated_;
-
-  // For each operand, the sorted locations where it must occupy a physical
-  // register (register uses and fixed reservations).  Drives next-use lookups
-  // during spilling via getUseAtOrAfter().
-  UnorderedMap<const Operand*, OrderedSet<LIRLocation>> vreg_phy_uses_;
 
   // Per-block state, keyed by basic block.
   UnorderedMap<const BasicBlock*, RegallocBlockState> regalloc_blocks_;
-
-  // collect the last uses for all the vregs
-  // key: def operand
-  // value: a map with key: the use operand
-  //                   value: use location
-  UnorderedMap<const Operand*, UnorderedMap<const Operand*, LIRLocation>>
-      vreg_last_use_;
-
-  // The global last use of an operand (vreg).
-  UnorderedMap<const Operand*, LIRLocation> vreg_global_last_use_;
 
   // Stack slots grow downward (toward more negative offsets).
 
@@ -343,13 +346,7 @@ class LinearScanAllocator : public RegisterAllocator {
 
   // record vreg-to-physical-location mapping at the end of each basic block,
   // which is needed for resolve edges.
-  UnorderedMap<
-      const BasicBlock*,
-      UnorderedMap<const Operand*, const LiveInterval*>>
-      bb_vreg_end_mapping_;
-
-  // Map of operands to stack slots upon spilling.
-  UnorderedMap<const Operand*, PhyLocation> operand_to_slot_;
+  UnorderedMap<const BasicBlock*, IntervalMapping> bb_vreg_end_mapping_;
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocationNoSpill);
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
