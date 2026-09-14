@@ -721,6 +721,14 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   if (frame_state == nullptr) {
     func_ = allocateTemp();
     entry_tc.emit<LoadCurrentFunc>(func_);
+  } else if (inlined_ != nullptr) {
+    // Inlined callee with free variables: provide the function for
+    // COPY_FREE_VARS. The constant is defined in the callee region so its
+    // uses rename correctly.
+    func_ = allocateTemp();
+    auto func_type = Type::fromObject(env_->addReference(inlined_));
+    func_->setType(func_type);
+    entry_tc.emit<LoadConst>(func_, func_type);
   }
 
   if (frame_state == nullptr) {
@@ -752,8 +760,11 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
 InlineResult HIRBuilder::inlineHIR(
     Function* caller,
-    FrameState* caller_frame_state) {
+    FrameState* caller_frame_state,
+    BorrowedRef<PyFunctionObject> inlined) {
   checkTranslate();
+
+  inlined_ = inlined;
 
   BasicBlock* entry_block = buildHIRImpl(caller, caller_frame_state);
 

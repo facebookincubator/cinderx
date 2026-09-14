@@ -152,6 +152,62 @@ def top_calling_partial_kwargs():
 
 
 @failUnlessJITCompiled
+def outer_with_cell(n):
+    # x is a cellvar of the callee (captured by inner). The MAKE_CELL rides
+    # along on the inlined body; inner() itself stays a regular call.
+    x = n * 2
+
+    def inner():
+        return x + 1
+
+    return inner()
+
+
+@failUnlessJITCompiled
+def top_calling_cellvar():
+    return outer_with_cell(5)
+
+
+# Published by the makers below. Initialized so the names exist at import
+# time; each test recreates its closure and (re)compiles its top, at which
+# point the callee's code preloads from the global and the calls inline.
+saved_adder = None
+saved_counter = None
+
+
+@failUnlessJITCompiled
+def make_adder():
+    x = 100
+
+    def adder(y):
+        return x + y
+
+    global saved_adder
+    saved_adder = adder
+
+
+def top_calling_adder():
+    return saved_adder(10) + saved_adder(20)
+
+
+@failUnlessJITCompiled
+def make_counter():
+    count = 0
+
+    def bump():
+        nonlocal count
+        count += 1
+        return count
+
+    global saved_counter
+    saved_counter = bump
+
+
+def top_calling_counter():
+    return saved_counter() + saved_counter()
+
+
+@failUnlessJITCompiled
 def get_stack():
     z = 1 + 1  # noqa: F841
     stack = traceback.extract_stack()
@@ -603,6 +659,33 @@ class InlinedFunctionTests(unittest.TestCase):
             cinderx.jit.get_num_inlined_functions(top_calling_posonly_kw),
             0,
         )
+
+    @jit_suppress
+    def test_cellvar_callee_is_inlined(self) -> None:
+        # The callee's own cell rides along in the inlined body.
+        self.assertEqual(top_calling_cellvar(), 11)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(top_calling_cellvar), 1)
+
+    @jit_suppress
+    def test_freevar_callee_is_inlined(self) -> None:
+        # The closure is published to a global, then the top is recompiled
+        # so the callee's code is preloaded and both calls inline. The
+        # inlined bodies read x from the shared closure cells.
+        make_adder()
+        cinderx.jit.force_compile(top_calling_adder)
+        self.assertTrue(cinderx.jit.is_jit_compiled(top_calling_adder))
+        self.assertEqual(top_calling_adder(), 230)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(top_calling_adder), 2)
+
+    @jit_suppress
+    def test_freevar_store_is_shared(self) -> None:
+        # STORE_DEREF in the inlined bodies operates on the shared cells:
+        # the two calls observe 1 then 2, not 1 then 1.
+        make_counter()
+        cinderx.jit.force_compile(top_calling_counter)
+        self.assertTrue(cinderx.jit.is_jit_compiled(top_calling_counter))
+        self.assertEqual(top_calling_counter(), 3)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(top_calling_counter), 2)
 
     @jit_suppress
     def test_inlining_callee_without_reachable_return(self) -> None:

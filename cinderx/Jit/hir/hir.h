@@ -2792,7 +2792,16 @@ class INSTR_CLASS(InitFrameCellVars, (TObject), Operands<1>) {
     return cells_;
   }
 
+  BeginInlinedFunction* parent() const {
+    return parent_;
+  }
+
+  void setParent(BeginInlinedFunction* parent) {
+    parent_ = parent;
+  }
+
  private:
+  BeginInlinedFunction* parent_{};
   int cells_;
 };
 
@@ -3882,7 +3891,7 @@ class INSTR_CLASS(UpdatePrevInstr, (), Operands<0>) {
 
  private:
   int line_no_;
-  BeginInlinedFunction* parent_;
+  BeginInlinedFunction* parent_{};
 };
 
 class INSTR_CLASS(Send, (TObject, TObject), Operands<2>, HasOutput, DeoptBase) {

@@ -323,16 +323,6 @@ std::optional<MappedCallArgs> canInline(
   if (code->co_flags & kCoFlagsAnyGenerator) {
     return fail(InlineFailureType::kIsGenerator);
   }
-  // Avoid the allocation that can happen in
-  // PyCode_GetCellvars and PyCode_GetFreevars
-  for (int offset = 0; offset < code->co_nlocalsplus; offset++) {
-    _PyLocals_Kind k = _PyLocals_GetKind(code->co_localspluskinds, offset);
-    if (k & CO_FAST_CELL) {
-      return fail(InlineFailureType::kHasCellvars);
-    } else if (k & CO_FAST_FREE) {
-      return fail(InlineFailureType::kHasFreevars);
-    }
-  }
 
   // This requires access to the frame so we can't inline it.
   for (auto& bci : BytecodeInstructionBlock{code}) {
@@ -540,7 +530,10 @@ std::optional<InlineResult> inlineFunctionCall(
 
   InlineResult result;
   try {
-    result = hir_builder.inlineHIR(&caller, caller_frame_state.get());
+    result = hir_builder.inlineHIR(
+        &caller,
+        caller_frame_state.get(),
+        numFreevars(preloader->code()) > 0 ? callee.get() : nullptr);
   } catch (const std::exception& exn) {
     LOG_INLINER(
         "Tried to inline {} into {}, but failed with {}",
@@ -565,6 +558,7 @@ std::optional<InlineResult> inlineFunctionCall(
 
   const bool has_varargs = callee_code->co_flags & CO_VARARGS;
   const bool has_varkw = callee_code->co_flags & CO_VARKEYWORDS;
+  const bool has_freevars = numFreevars(callee_code.get()) > 0;
   const size_t co_argcount = static_cast<size_t>(callee_code->co_argcount);
   const size_t co_kwonly = static_cast<size_t>(callee_code->co_kwonlyargcount);
   const size_t starargs_idx = co_argcount + co_kwonly;
@@ -580,6 +574,20 @@ std::optional<InlineResult> inlineFunctionCall(
   pre_call_state.stack.clear();
   for (size_t i = 0, n = call_instr.instr->numOperands(); i < n; ++i) {
     pre_call_state.stack.push(call_instr.instr->getOperand(i));
+  }
+
+  if (has_freevars && call_instr.target != nullptr) {
+    // The inlined body reads cells from the baked-in callee object. A
+    // dynamic target may be rebound to a different closure sharing the
+    // code (with different cells), so guard function identity; on failure
+    // we deopt to the caller at the call site. Static calls need no guard:
+    // their callee cannot change.
+    auto snapshot = Snapshot::create(pre_call_state);
+    snapshot->insertBefore(*call_instr.instr);
+    Register* guarded = caller.env.allocateRegister();
+    auto guard = GuardIs::create(guarded, call_instr.func, call_instr.target);
+    guard->setFrameState(pre_call_state);
+    guard->insertBefore(*call_instr.instr);
   }
 
   // canInline() validated the mapping above; resolveArgs() materializes the
@@ -663,6 +671,10 @@ std::optional<InlineResult> inlineFunctionCall(
     ++it;
 
     if (!instr.isLoadArg()) {
+      if (instr.isInitFrameCellVars()) {
+        auto init_frame = &instr.as<InitFrameCellVars>();
+        init_frame->setParent(begin_inlined_function);
+      }
       continue;
     }
     auto load_arg = static_cast<LoadArg*>(&instr);

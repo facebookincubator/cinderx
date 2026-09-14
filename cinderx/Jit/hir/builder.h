@@ -107,8 +107,19 @@ class HIRBuilder {
   // two CFGs, except for FrameState parent pointers.  Use caller_frame_state
   // as the starting FrameState for the callee.
   //
+  // A callee with free variables loads its cells from its func_closure
+  // (see emitCopyFreeVars), but no LoadCurrentFunc is emitted when inlining.
+  // The caller passes the callee function object via func in that case
+  // (nullptr otherwise); it is materialized as a constant inside the callee
+  // region so SSAify renames its uses to that definition. A caller register
+  // must not be passed: SSAify would rewrite the out-of-region use to
+  // nullptr.
+  //
   // Use InlineResult::succeeded to check if inlining succeeded.
-  InlineResult inlineHIR(Function* caller, FrameState* caller_frame_state);
+  InlineResult inlineHIR(
+      Function* caller,
+      FrameState* caller_frame_state,
+      BorrowedRef<PyFunctionObject> inlined);
 
  private:
   // Used by buildHIR and inlineHIR.
@@ -550,6 +561,10 @@ class HIRBuilder {
 
   // Tracks the function for compilations that require it.
   Register* func_{nullptr};
+
+  // Set to the function when we're inlining. Only set if the function object is
+  // necessary because we have free vars.
+  BorrowedRef<PyFunctionObject> inlined_;
 
   // Tracks the most recent constant read from a KW_NAMES opcode.
   Register* kwnames_{nullptr};

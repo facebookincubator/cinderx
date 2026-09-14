@@ -2355,7 +2355,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             rt::initFrameCellVars,
             bbb.getDefInstr(hir_instr.func()),
             hir_instr.numCellVars(),
-            env_->asm_interpreter_frame);
+            getInlinedFrame(bbb, hir_instr.parent()));
         break;
       }
       case hir::Opcode::kLoadConst: {
@@ -4921,15 +4921,39 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           makeIncref(bbb, executable_reg, false);
         }
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+        // Inlined callees with free variables never run InitFrameCellVars
+        // (it targets the function frame, which here is the caller's), so
+        // their frame's cell slots would be left holding stack garbage.
+        // EndInlinedFunction's unlink and deopt materialization both read
+        // those slots assuming valid cells or NULL, so zero them. (Without
+        // lightweight frames the plan above already zeroes all localsplus
+        // slots.)
+        if (code->co_nfreevars > 0) {
+          int free_offset = code->co_nlocalsplus - code->co_nfreevars;
+          bbb.annotateNext("Zero inlined frame cells");
+          for (int idx = 0; idx < code->co_nfreevars; ++idx) {
+            bbb.appendInstr(
+                OutInd{
+                    callee_frame,
+                    static_cast<int32_t>(
+                        offsetof(_PyInterpreterFrame, localsplus) +
+                        (free_offset + idx) * kPointerSize)},
+                Opcode::kStore,
+                Imm{0});
+          }
+        }
+#endif
+        bbb.annotateNext("Link thread state");
         // Link frame into tstate.
         makeCurrentFrameAccessor(bbb).store(callee_frame);
+        bbb.annotateNext("Inlined function");
         break;
       }
       case hir::Opcode::kEndInlinedFunction: {
         const auto& instr = i.as<EndInlinedFunction>();
         Instruction* callee_frame = getInlinedFrame(bbb, instr.matchingBegin());
         BorrowedRef<PyCodeObject> code = instr.matchingBegin()->code();
-        bool has_freevars = code->co_nfreevars > 0;
 
         PyObject* executable;
         std::optional<destructor> exec_dtor;
@@ -4951,9 +4975,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         bool is_generator =
             reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags &
             kCoFlagsAnyGenerator;
+        // An inlined frame never owns cell references (cells flow through
+        // HIR registers; deopt materialization installs owned cells itself
+        // and the fast unlink below delegates to the full unlink for
+        // materialized frames), so always use the fast unlink even when the
+        // callee has free variables. The full unlink would clear cell slots
+        // the inlined body never initialized, and on 3.14+ it would also
+        // misinterpret the frame's raw function/executable pointers as
+        // stack references.
         emitUnlinkFrame(
             bbb,
-            has_freevars,
+            /*has_freevars=*/false,
             is_generator,
             func_reg,
             executable,
@@ -5536,6 +5568,9 @@ Instruction* LIRGenerator::getNameFromIdx(
 Instruction* LIRGenerator::getInlinedFrame(
     BasicBlockBuilder& bbb,
     const BeginInlinedFunction* instr) {
+  if (instr == nullptr) {
+    return env_->asm_interpreter_frame;
+  }
   auto it = env_->inline_frame_map.find(instr);
   if (it == env_->inline_frame_map.end()) {
     // In the odd case we've shuffled our basic blocks out of order and

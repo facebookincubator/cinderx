@@ -2916,13 +2916,69 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v13:Object = VectorCall<0> v10 {
+    v39:Object = LoadField<func_code@48, Object, borrowed> v10
+    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    }
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 12
+    }
+    v26:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v27:MortalCell = MakeCell v26 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 0
+        Locals<1> v26
+        Cells<1> v26
       }
     }
     Snapshot
-    Return v13
+    v29:CInt32 = LoadEvalBreaker
+    CondBranch<5, 4> v29
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v38:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v26
+        Cells<1> v27
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v30:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v31:OptObject = StealCellItem v27
+    SetCellItem v27 v30 v31
+    Snapshot
+    v32:MortalTupleExact = MakeTuple<1> {
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v27
+      }
+    }
+    InitTupleElements<1> v32 v27
+    Snapshot
+    v33:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
+    v34:Nullptr = LoadConst<Nullptr>
+    v35:MortalFunc = MakeFunction v33 v34 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v32
+      }
+    }
+    SetFunctionAttr<func_closure> v32 v35
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v35
   }
 }
 --- Expected 3.14 ---
@@ -2953,13 +3009,71 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v39:Object = LoadField<func_code@48, Object, borrowed> v9
+    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    }
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 12
+    }
+    v26:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v27:MortalCell = MakeCell v26 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 0
+        Locals<1> v26
+        Cells<1> v26
       }
     }
     Snapshot
-    Return v13
+    v29:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v29
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v38:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v26
+        Cells<1> v27
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v30:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    Snapshot
+    v31:OptObject = StealCellItem v27
+    SetCellItem v27 v30 v31
+    Snapshot
+    v32:MortalTupleExact = MakeTuple<1> {
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v27
+      }
+    }
+    InitTupleElements<1> v32 v27
+    Snapshot
+    v33:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
+    v34:Nullptr = LoadConst<Nullptr>
+    v35:MortalFunc = MakeFunction v33 v34 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v32
+      }
+    }
+    Snapshot
+    SetFunctionAttr<func_closure> v32 v35
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v35
   }
 }
 --- Expected 3.15 ---
@@ -2990,13 +3104,71 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v39:Object = LoadField<func_code@48, Object, borrowed> v9
+    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    }
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 14
+    }
+    v26:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v27:MortalCell = MakeCell v26 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 0
+        Locals<1> v26
+        Cells<1> v26
       }
     }
     Snapshot
-    Return v13
+    v29:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v29
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v38:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v26
+        Cells<1> v27
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v30:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    Snapshot
+    v31:OptObject = StealCellItem v27
+    SetCellItem v27 v30 v31
+    Snapshot
+    v32:MortalTupleExact = MakeTuple<1> {
+      FrameState {
+        CurInstrOffset 12
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v27
+      }
+    }
+    InitTupleElements<1> v32 v27
+    Snapshot
+    v33:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
+    v34:Nullptr = LoadConst<Nullptr>
+    v35:MortalFunc = MakeFunction v33 v34 {
+      FrameState {
+        CurInstrOffset 16
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v32
+      }
+    }
+    Snapshot
+    SetFunctionAttr<func_closure> v32 v35
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v35
   }
 }
 --- Expected 3.16 ---
@@ -3027,13 +3199,71 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v39:Object = LoadField<func_code@48, Object, borrowed> v9
+    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    }
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 14
+    }
+    v26:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v27:MortalCell = MakeCell v26 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 0
+        Locals<1> v26
+        Cells<1> v26
       }
     }
     Snapshot
-    Return v13
+    v29:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v29
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v38:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v26
+        Cells<1> v27
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v30:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    Snapshot
+    v31:OptObject = StealCellItem v27
+    SetCellItem v27 v30 v31
+    Snapshot
+    v32:MortalTupleExact = MakeTuple<1> {
+      FrameState {
+        CurInstrOffset 12
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v27
+      }
+    }
+    InitTupleElements<1> v32 v27
+    Snapshot
+    v33:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
+    v34:Nullptr = LoadConst<Nullptr>
+    v35:MortalFunc = MakeFunction v33 v34 {
+      FrameState {
+        CurInstrOffset 16
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v32
+      }
+    }
+    Snapshot
+    SetFunctionAttr<func_closure> v32 v35
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v35
   }
 }
 --- Expected 3.14t ---
@@ -3065,13 +3295,71 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    v39:Object = LoadField<func_code@64, Object, borrowed> v9
+    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    }
+    BeginInlinedFunction<jittestmodule:foo> {
+      CurInstrOffset 12
+    }
+    v26:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v27:MortalCell = MakeCell v26 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 0
+        Locals<1> v26
+        Cells<1> v26
       }
     }
     Snapshot
-    Return v13
+    AtQuiescentState
+    v29:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v29
+  }
+
+  bb 5 (preds 1) {
+    Snapshot
+    v38:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v26
+        Cells<1> v27
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 1, 5) {
+    Snapshot
+    v30:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    Snapshot
+    v31:OptObject = SwapCellItem v27 v30
+    Snapshot
+    v32:MortalTupleExact = MakeTuple<1> {
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v27
+      }
+    }
+    InitTupleElements<1> v32 v27
+    Snapshot
+    v33:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
+    v34:Nullptr = LoadConst<Nullptr>
+    v35:MortalFunc = MakeFunction v33 v34 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<1> v26
+        Cells<1> v27
+        Stack<1> v32
+      }
+    }
+    Snapshot
+    SetFunctionAttr<func_closure> v32 v35
+    Snapshot
+    EndInlinedFunction
+    Snapshot
+    Return v35
   }
 }
 --- Test Name ---
