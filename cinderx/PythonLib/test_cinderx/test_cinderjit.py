@@ -1479,7 +1479,6 @@ class RegressionTests(StaticTestBase):
 
 
 @skip_test_if_oss("xxclassloader")
-@skip_unless_jit("Requires cinderjit module")
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self) -> None:
         with self.assertRaises(TypeError):
@@ -1578,14 +1577,9 @@ class DeleteAttrTests(unittest.TestCase):
 
 
 class OtherTests(unittest.TestCase):
-    @passIf(
-        not cinderx.jit.is_enabled(),
-        "meaningless without JIT enabled",
-    )
     def test_mlock_profiler_dependencies(self) -> None:
         cinderx.jit.mlock_profiler_dependencies()
 
-    @passUnless(cinderx.jit.is_enabled(), "not jitting")
     def test_page_in_profiler_dependencies(self) -> None:
         qualnames = cinderx.jit.page_in_profiler_dependencies()
         self.assertTrue(len(qualnames) > 0)
@@ -2227,7 +2221,6 @@ class LoadMethodEliminationTests(unittest.TestCase):
             )
 
 
-@passUnless(cinderx.jit.is_enabled(), "Tests functionality on cinderjit module")
 class HIROpcodeCountTests(unittest.TestCase):
     def test_hir_opcode_count(self) -> None:
         def f1():
@@ -2248,7 +2241,6 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertGreaterEqual(decref, 2)
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class ForceUncompileTests(unittest.TestCase):
     def test_basic(self) -> None:
         def f(x: int) -> int:
@@ -2263,7 +2255,6 @@ class ForceUncompileTests(unittest.TestCase):
         self.assertFalse(is_jit_compiled(f))
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LazyCompileTests(unittest.TestCase):
     def test_basic(self) -> None:
         def foo(a, b):
@@ -2275,7 +2266,6 @@ class LazyCompileTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class JITSuppressTests(unittest.TestCase):
     def test_basic(self) -> None:
         def f(x: int) -> int:
@@ -2296,7 +2286,6 @@ class JITSuppressTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(f))
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
     def test_compile_after_n_calls(self) -> None:
         with self.assertRaises(TypeError):
@@ -2382,7 +2371,6 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             jit_unsuppress(is_jit_compiled)
 
-    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(
         "Prefork builds immortalize compiled functions, so the function never deopts"
     )
@@ -2399,7 +2387,6 @@ class BadArgumentTests(unittest.TestCase):
         self.assertFalse(cinderx.jit.is_jit_compiled(compiled_code_func))
         self.assertIsNone(cinderx.jit.get_compiled_function(compiled_code_func))
 
-    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(
         "Prefork builds immortalize compiled functions, so the function never deopts"
     )
@@ -2418,7 +2405,6 @@ class BadArgumentTests(unittest.TestCase):
 
         self.assertEqual(code1, id(cinderx.jit.get_compiled_function(nested2)))
 
-    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     def test_nested_compiled_code_globals_mismatch(self):
         globals1 = {"NESTED_GLOBAL": 1}
         factory1 = with_globals(globals1)(compiled_code_func_with_nested_global)
@@ -2433,7 +2419,6 @@ class BadArgumentTests(unittest.TestCase):
         nested2 = factory2()
         self.assertEqual(nested2(), 2)
 
-    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     def test_nested_compiled_code_builtins_mismatch(self):
         globals_dict = {"__builtins__": {"len": lambda _: 1}}
         factory1 = with_globals(globals_dict)(compiled_code_func_with_nested_builtin)
@@ -2448,7 +2433,6 @@ class BadArgumentTests(unittest.TestCase):
         nested2 = factory2()
         self.assertEqual(nested2(), 2)
 
-    @passIf(not cinderx.jit.is_enabled(), "only relevant when the JIT is enabled")
     @skip_if_prefork(
         "Prefork builds immortalize compiled functions, so the function never deopts"
     )
@@ -2542,7 +2526,6 @@ print("COMPILE_TIME_OK")
 """
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class CompileTimeTests(unittest.TestCase):
     """
     Test the Cinder APIs that report time spent compiling.
@@ -2620,7 +2603,6 @@ class SimplifyCompileTimeTests(unittest.TestCase):
         )
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class RenamedNestedCompileTests(unittest.TestCase):
     @staticmethod
     def _make_factory() -> Callable[[], Callable[[int], int]]:
@@ -2679,7 +2661,6 @@ class RenamedNestedCompileTests(unittest.TestCase):
         )
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LocalsBuiltinTests(unittest.TestCase):
     def test_locals_not_compiled(self) -> None:
         def foo():
@@ -2691,7 +2672,6 @@ class LocalsBuiltinTests(unittest.TestCase):
         self.assertFalse(is_jit_compiled(foo))
 
 
-@passUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class GetCompiledFunctionTests(unittest.TestCase):
     def test_returns_compile_for_compiled_function(self) -> None:
         def foo(a: int, b: int) -> int:
@@ -2729,7 +2709,6 @@ class GetCompiledFunctionTests(unittest.TestCase):
             cinderx.jit.get_compiled_function(42)
 
 
-@passUnless(cinderx.jit.is_enabled(), "Tests JIT compile lifetime")
 @skip_if_prefork(
     "Prefork builds immortalize compiled functions, so the function never deopts"
 )
