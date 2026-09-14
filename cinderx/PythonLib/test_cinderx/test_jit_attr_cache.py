@@ -17,15 +17,10 @@ from cinderx.test_support import (
     passUnless,
     skip_if_ft,
     skip_if_prefork,
-    skip_module_if_oss,
 )
 
-skip_module_if_oss()
-
 from .common import failUnlessHasOpcodes
-
-if cinderx.is_initialized():
-    from .test_compiler.test_strict.test_loader import base_sandbox, sandbox
+from .test_compiler.test_strict.test_loader import base_sandbox, sandbox
 
 
 def nothing():
@@ -838,7 +833,6 @@ class LoadMethodGetAttributeTests(unittest.TestCase):
         self.assertEqual(get_meaning_of_life(obj), 42)
 
 
-@passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 class LoadModuleMethodCacheTests(CinderXTestCase):
     @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
     def test_load_method_from_module(self):
@@ -881,10 +875,6 @@ class LoadModuleMethodCacheTests(CinderXTestCase):
                 tmp_b.test()
 
     @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
-    @passUnless(
-        cinderx.is_initialized(),
-        "Strict Module test code doesn't exist outside of CinderX",
-    )
     def test_load_method_from_strict_module(self):
         strict_sandbox = base_sandbox.use_cm(sandbox, self)
         code_str = """
@@ -917,7 +907,6 @@ LEAF_SOURCE = """
     """
 
 
-@passUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
 @skip_if_prefork("the compiled function shows up as a leak due to immortalization")
 class ModuleAttrPinTests(unittest.TestCase):
