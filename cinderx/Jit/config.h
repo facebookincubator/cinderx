@@ -240,7 +240,7 @@ struct Config {
   // Maximum number of HIR instructions we can support for a single function.
   size_t max_hir_instrs{40000};
   // Maximum number of LIR blocks we can support for a single function.
-  size_t max_lir_blocks{5000};
+  size_t max_lir_blocks{8000};
   // Maximum number of LIR instructions we can support for a single function.
   size_t max_lir_instrs{80000};
   // Size (in number of entries) of the inline attribute caches used by the JIT.
