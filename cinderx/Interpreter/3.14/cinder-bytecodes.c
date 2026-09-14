@@ -147,6 +147,12 @@ dummy_func(
     switch (opcode) {
 
 // BEGIN BYTECODES //
+        override inst(JUMP_BACKWARD_NO_INTERRUPT, (--)) {
+            assert(oparg <= INSTR_OFFSET());
+            CI_UPDATE_INTERPRETED_BYTECODES(CI_CODE_EXTRA(), oparg)
+            JUMPBY(-oparg);
+        }
+
         override inst(LOAD_COMMON_CONSTANT, ( -- value)) {
             // Use our own copy of common constants to avoid depending on the
             // offset of interp->common_consts within PyInterpreterState.

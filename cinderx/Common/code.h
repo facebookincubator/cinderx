@@ -68,6 +68,10 @@ CodeExtra* codeExtraIfPresent(PyCodeObject* code);
 // Calls to JIT-compiled code objects are currently uncounted.
 size_t codeCallCount(PyCodeObject* code);
 
+// Get the estimated number of bytecode code units that a code object has
+// executed in interpreted loops.
+size_t codeInterpretedBytecodeCount(PyCodeObject* code);
+
 // Count the various frame variables that a code object will use.
 int numLocals(PyCodeObject* code);
 int numCellvars(PyCodeObject* code);

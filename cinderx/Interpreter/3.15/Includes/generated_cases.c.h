@@ -9538,6 +9538,7 @@
             // _JUMP_BACKWARD_NO_INTERRUPT
             {
                 assert(oparg <= INSTR_OFFSET());
+                CI_UPDATE_INTERPRETED_BYTECODES(CI_CODE_EXTRA(), oparg)
                 JUMPBY(-oparg);
             }
             DISPATCH();
@@ -9567,6 +9568,7 @@
             // _JUMP_BACKWARD_NO_INTERRUPT
             {
                 assert(oparg <= INSTR_OFFSET());
+                CI_UPDATE_INTERPRETED_BYTECODES(CI_CODE_EXTRA(), oparg)
                 JUMPBY(-oparg);
             }
             // _JIT
@@ -9609,6 +9611,7 @@
             next_instr += 1;
             INSTRUCTION_STATS(JUMP_BACKWARD_NO_INTERRUPT);
             assert(oparg <= INSTR_OFFSET());
+            CI_UPDATE_INTERPRETED_BYTECODES(CI_CODE_EXTRA(), oparg)
             JUMPBY(-oparg);
             DISPATCH();
         }
@@ -9635,6 +9638,7 @@
             // _JUMP_BACKWARD_NO_INTERRUPT
             {
                 assert(oparg <= INSTR_OFFSET());
+                CI_UPDATE_INTERPRETED_BYTECODES(CI_CODE_EXTRA(), oparg)
                 JUMPBY(-oparg);
             }
             DISPATCH();

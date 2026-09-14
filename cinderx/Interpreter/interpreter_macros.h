@@ -55,3 +55,15 @@ CI_INLINE CodeExtra* ci_interpreter_loop_state_extra(
 #define CI_CODE_EXTRA() ci_interpreter_loop_state_extra(ci_state)
 
 #undef CI_INLINE
+
+#ifdef ENABLE_PREFORK_MODEL
+#define CI_UPDATE_INTERPRETED_BYTECODES(EXTRA, BYTECODES) ((void)0);
+#else
+#define CI_UPDATE_INTERPRETED_BYTECODES(EXTRA, BYTECODES)             \
+  do {                                                                \
+    CodeExtra* ci_extra = (EXTRA);                                    \
+    if (ci_extra != NULL) {                                           \
+      Ci_code_extra_add_interpreted_bytecodes(ci_extra, (BYTECODES)); \
+    }                                                                 \
+  } while (0);
+#endif

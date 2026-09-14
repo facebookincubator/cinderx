@@ -270,6 +270,11 @@ size_t codeCallCount(PyCodeObject* code) {
   return extra != nullptr ? Ci_code_extra_get_calls(extra) : 0;
 }
 
+size_t codeInterpretedBytecodeCount(PyCodeObject* code) {
+  CodeExtra* extra = codeExtraIfPresent(code);
+  return extra != nullptr ? Ci_code_extra_get_interpreted_bytecodes(extra) : 0;
+}
+
 int numLocals(PyCodeObject* code) {
   return code->co_nlocals;
 }

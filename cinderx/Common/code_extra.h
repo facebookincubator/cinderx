@@ -18,8 +18,12 @@ extern "C" {
 // Extra data attached to a code object.
 typedef struct CodeExtra {
   union {
-    // Number of times the code object has been called.
-    uint64_t calls;
+    struct {
+      // Number of times the code object has been called.
+      uint32_t calls;
+      // Estimated number of bytecode code units executed in interpreted loops.
+      uint32_t interpreted_bytecodes;
+    } counters;
     // Used for unallocated free list code extras
     struct CodeExtra* next;
   };
@@ -31,17 +35,29 @@ typedef struct CodeExtra {
   void* jit_nested_compile_data;
 } CodeExtra;
 
-// This counter is an approximate hotness signal. Its thresholds are well below
-// UINT64_MAX, so overflow and updates lost to races are acceptable. Under
-// FT-Python, relaxed atomics avoid data races without synchronizing threads.
+// These counters are approximate hotness signals. Their thresholds are well
+// below UINT32_MAX, so overflow is acceptable. Under FT-Python, relaxed
+// atomics avoid data races without synchronizing threads.
 #ifdef Py_GIL_DISABLED
 
 static inline void Ci_code_extra_incr_calls(CodeExtra* extra) {
-  Ci_atomic_add_uint64_relaxed(&extra->calls, 1);
+  Ci_atomic_add_uint32_relaxed(&extra->counters.calls, 1);
 }
 
-static inline uint64_t Ci_code_extra_get_calls(const CodeExtra* extra) {
-  return Ci_atomic_load_uint64_relaxed(&extra->calls);
+static inline uint32_t Ci_code_extra_get_calls(const CodeExtra* extra) {
+  return Ci_atomic_load_uint32_relaxed(&extra->counters.calls);
+}
+
+static inline void Ci_code_extra_add_interpreted_bytecodes(
+    CodeExtra* extra,
+    uint32_t bytecodes) {
+  Ci_atomic_add_uint32_relaxed(
+      &extra->counters.interpreted_bytecodes, bytecodes);
+}
+
+static inline uint32_t Ci_code_extra_get_interpreted_bytecodes(
+    const CodeExtra* extra) {
+  return Ci_atomic_load_uint32_relaxed(&extra->counters.interpreted_bytecodes);
 }
 
 // Acquire/release ordering publishes the initialized NestedCompileData to
@@ -67,11 +83,22 @@ static inline void Ci_code_extra_clear_nested_compile_data(
 #else
 
 static inline void Ci_code_extra_incr_calls(CodeExtra* extra) {
-  extra->calls += 1;
+  extra->counters.calls += 1;
 }
 
-static inline uint64_t Ci_code_extra_get_calls(const CodeExtra* extra) {
-  return extra->calls;
+static inline uint32_t Ci_code_extra_get_calls(const CodeExtra* extra) {
+  return extra->counters.calls;
+}
+
+static inline void Ci_code_extra_add_interpreted_bytecodes(
+    CodeExtra* extra,
+    uint32_t bytecodes) {
+  extra->counters.interpreted_bytecodes += bytecodes;
+}
+
+static inline uint32_t Ci_code_extra_get_interpreted_bytecodes(
+    const CodeExtra* extra) {
+  return extra->counters.interpreted_bytecodes;
 }
 
 static inline void* Ci_code_extra_get_nested_compile_data(
