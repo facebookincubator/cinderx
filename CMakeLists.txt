@@ -82,6 +82,16 @@ set_flag(ENABLE_ZLIB)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS} ${SHARED_FLAGS}")
 
+# Stack-walk tests need frame pointers throughout the test executable and its
+# dependencies, including GoogleTest.
+if (BUILD_RUNTIME_TESTS)
+  if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    add_compile_options(/Oy-)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-fno-omit-frame-pointer)
+  endif()
+endif()
+
 if (ENABLE_TSAN OR "$ENV{ENABLE_TSAN}")
   if (WINDOWS)
     message(FATAL_ERROR "ThreadSanitizer is not supported on Windows")
@@ -541,21 +551,6 @@ if (BUILD_RUNTIME_TESTS)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)
   endif()
 
-  # These tests walk native frame-pointer chains in their own fixture code.
-  if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    # clang-cl's driver takes MSVC's spelling of this; the clang one has to be
-    # smuggled past it with /clang: and is not worth the indirection.
-    set(STACK_WALK_TEST_FLAGS /Oy-)
-  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    set(STACK_WALK_TEST_FLAGS -fno-omit-frame-pointer)
-  endif()
-  if (STACK_WALK_TEST_FLAGS)
-    set_source_files_properties(
-      ${PROJECT_SOURCE_DIR}/RuntimeTests/stack_walk_test.cpp
-      PROPERTIES COMPILE_OPTIONS "${STACK_WALK_TEST_FLAGS}"
-    )
-  endif()
-
   add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
 
   target_link_libraries(
@@ -575,6 +570,15 @@ if (BUILD_RUNTIME_TESTS)
     # Used by RuntimeTest::SetUp() to import cinderx from PythonLib.
     CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE=${PROJECT_SOURCE_DIR}/PythonLib
   )
+
+  # Exercise allocation from the linker-reserved JIT region on Linux.
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(
+      RuntimeTests
+      PRIVATE
+      "LINKER:--script,${PROJECT_SOURCE_DIR}/linker_script.ld"
+    )
+  endif()
 
   add_test(
     NAME RuntimeTests
