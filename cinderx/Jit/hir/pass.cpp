@@ -118,8 +118,11 @@ Instr* collapseTrivialPhi(Phi& phi) {
   }
   Register* output = phi.output();
   // A trivial Phi that only references itself can never be initialized, so use
-  // a LoadConst<Bottom> to signify that.
-  if (chaseAssignOperand(value) == output) {
+  // a LoadConst<Bottom> to signify that. The same holds when the single input
+  // is itself an uninitialized (Bottom) value: it comes from an unreachable
+  // path whose defining instruction removeUnreachableInstructions may already
+  // have deleted, so it must not be chased.
+  if (value->isA(TBottom) || chaseAssignOperand(value) == output) {
     return LoadConst::create(output, TBottom);
   }
   return Assign::create(output, value);
