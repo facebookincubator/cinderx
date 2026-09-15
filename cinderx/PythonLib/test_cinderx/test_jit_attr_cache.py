@@ -3,6 +3,10 @@
 # pyre-unsafe
 
 import importlib
+
+# Pre-loaded so ModuleAttrPinTests._import's invalidate_caches() below never
+# triggers a fresh import while sys.modules is swapped out.
+import importlib.metadata
 import sys
 import unittest
 from textwrap import dedent
@@ -921,6 +925,10 @@ class ModuleAttrPinTests(unittest.TestCase):
 
     def _import(self, tmp, name, source):
         (tmp / f"{name}.py").write_text(dedent(source), encoding="utf8")
+        # The directory finder caches tmp's listing on the first import, so a
+        # file written afterwards can be missed (stale cache), surfacing as a
+        # flaky ModuleNotFoundError on Windows.
+        importlib.invalidate_caches()
         return importlib.import_module(name)
 
     def _assert_attr_pinned(self, func, num_pins=1):
