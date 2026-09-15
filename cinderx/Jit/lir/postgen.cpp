@@ -323,7 +323,7 @@ Instruction* getSecondCallResult(
   auto src_it = src_block->iterator_to(src_instr);
 
   // Whether the input is a Call (or Windows struct-return Load) vs a Phi.
-  bool is_call_like = src_instr->isCall();
+  bool is_call_like = src_instr->isCall() || src_instr->isCVarArgCall();
 
   if constexpr (kBuildArch == Arch::kX86_64 && kOS == OS::kWindows) {
     // On Windows x64, appendCall2RetValues emits struct-return calls as:
@@ -666,13 +666,13 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
   }
 }
 
-// For Call/VarArgCall instructions with non-register inputs
+// For call instructions with non-register inputs
 // (Imm or Stack), insert a Move to load the call target into a vreg so
 // translateCall only needs blr(reg).
 [[maybe_unused]] RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isVarArgCall() && !instr->isVectorCall() &&
-      !instr->isVectorCallTstate()) {
+  if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isVarArgCall() &&
+      !instr->isVectorCall() && !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
 
@@ -810,8 +810,8 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
 }
 
 bool hasHelperTarget(const Instruction& instr, uint64_t helper) {
-  if (!instr.isCall() && !instr.isVarArgCall() && !instr.isVectorCall() &&
-      !instr.isVectorCallTstate()) {
+  if (!instr.isCall() && !instr.isCVarArgCall() && !instr.isVarArgCall() &&
+      !instr.isVectorCall() && !instr.isVectorCallTstate()) {
     return false;
   }
   if (instr.getNumInputs() == 0) {
@@ -946,8 +946,9 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       // rt::batchDecref needs tagged deferred-RC refs so the helper can
       // recognize and skip them; every other call should still see untagged
       // object pointers.
-      bool is_call = instr->isCall() || instr->isVectorCall() ||
-          instr->isVectorCallTstate() || instr->isVarArgCall();
+      bool is_call = instr->isCall() || instr->isCVarArgCall() ||
+          instr->isVectorCall() || instr->isVectorCallTstate() ||
+          instr->isVarArgCall();
       bool strip_call_args = is_call && !shouldPreserveTaggedCallArgs(*instr);
       bool is_compare = instr->isCompare() &&
           (instr->condition() == Condition::kEqual ||

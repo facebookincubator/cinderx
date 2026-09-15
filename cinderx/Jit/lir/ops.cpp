@@ -374,6 +374,7 @@ bool inputsLiveAcross(Opcode opcode) {
 OperandSizeType operandSizeType(Opcode opcode) {
   switch (opcode) {
     case Opcode::kCall:
+    case Opcode::kCVarArgCall:
     case Opcode::kExchange:
     case Opcode::kFadd:
     case Opcode::kFdiv:

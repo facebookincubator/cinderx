@@ -5153,8 +5153,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kRaiseStatic: {
         const auto& instr = i.as<RaiseStatic>();
         Instruction* lir = bbb.appendInstr(
-            Opcode::kCall,
+            Opcode::kCVarArgCall,
             reinterpret_cast<uint64_t>(PyErr_Format),
+            Imm{2, DataType::k64bit},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(instr.excType()), DataType::kObject},
             // TASK(T140174965): This should be MemImm.

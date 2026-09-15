@@ -22,6 +22,8 @@ namespace cinderx::jit::lir {
   X(BranchBitSet)                                               \
   X(BranchToYieldExit)                                          \
   X(Call)                                                       \
+  /* C variadic call; input 1 is the fixed argument count. */   \
+  X(CVarArgCall)                                                \
   /* Carries post-call liveness metadata but emits no code. */  \
   X(CallSiteLiveValues)                                         \
   X(Cmp)                                                        \
@@ -82,6 +84,7 @@ namespace cinderx::jit::lir {
   X(Test)                                                       \
   X(Test32)                                                     \
   X(Unreachable)                                                \
+  /* Pass inputs to a helper as an array and count. */          \
   X(VarArgCall)                                                 \
   X(VariadicPush)                                               \
   /* Call a vectorcallfunc pointer, with no tstate arg */       \

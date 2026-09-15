@@ -9,15 +9,6 @@
 namespace cinderx::jit::lir {
 
 const std::string* mapCHelperToLIR(uint64_t addr) {
-  if constexpr (kOS == OS::kMacOS) {
-    // Nothing is inlined on Apple platforms.  The translation below calls
-    // PyErr_Format, which is variadic, passing its arguments in registers.
-    // Apple's ARM64 ABI passes variadic arguments on the stack instead, so
-    // PyErr_Format reads NULL for the '%s' conversions and segfaults.  Leaving
-    // the helpers out-of-line lets the C compiler get the ABI right.
-    return nullptr;
-  }
-
   static const std::unordered_map<uint64_t, std::string> mapping = {
       {reinterpret_cast<uint64_t>(rt::cast),
        fmt::format(
@@ -40,7 +31,7 @@ BB %2 - preds: %0 %1 - succs: %4
 BB %3 - preds: %1 - succs: %4
       %13:Object = Load [%7:Object + {1:#x}]:Object
       %14:Object = Load [%6:Object + {1:#x}]:Object
-                   Call PyErr_Format, PyExc_TypeError, "expected '%s', got '%s'", %14:Object, %13:Object
+                   CVarArgCall PyErr_Format, 2, PyExc_TypeError, "expected '%s', got '%s'", %14:Object, %13:Object
       %16:Object = Move 0(0x0):Object
       %18:Object = Move %16:Object
                    Return

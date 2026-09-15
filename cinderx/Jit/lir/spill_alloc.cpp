@@ -167,8 +167,8 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
     rewriteBind(block, iter);
     return;
   }
-  if (instr->isCall() || instr->isVarArgCall() || instr->isVectorCall() ||
-      instr->isVectorCallTstate()) {
+  if (instr->isCall() || instr->isCVarArgCall() || instr->isVarArgCall() ||
+      instr->isVectorCall() || instr->isVectorCallTstate()) {
     rewriteCall(instr);
     return;
   }
@@ -372,8 +372,8 @@ void SpillAllocator::handleFramePointerSwitch(
   for (auto back = iter; back != block->instructions().begin();) {
     --back;
     Instruction* prev = back->get();
-    if (!prev->isCall() && !prev->isVarArgCall() && !prev->isVectorCall() &&
-        !prev->isVectorCallTstate()) {
+    if (!prev->isCall() && !prev->isCVarArgCall() && !prev->isVarArgCall() &&
+        !prev->isVectorCall() && !prev->isVectorCallTstate()) {
       continue;
     }
     Operand* out = prev->output();

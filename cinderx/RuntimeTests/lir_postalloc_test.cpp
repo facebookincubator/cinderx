@@ -243,6 +243,111 @@ static std::vector<Instruction*> collectInstrs(BasicBlock& bb) {
   return result;
 }
 
+#if defined(CINDER_AARCH64)
+TEST_F(LIRPostAllocRewriteTest, CVarArgCallUsesPlatformCallingConvention) {
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kCVarArgCall,
+      nullptr,
+      Imm{123456789},
+      Imm{2},
+      PhyReg{X4},
+      PhyReg{X5},
+      PhyReg{X6},
+      PhyReg{X7});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 5);
+  if constexpr (kOS == OS::kMacOS) {
+    EXPECT_EQ(instrs[0]->output()->getPhyRegister(), X0);
+    EXPECT_EQ(instrs[1]->output()->getPhyRegister(), X1);
+    ASSERT_TRUE(instrs[2]->isStore());
+    ASSERT_TRUE(instrs[3]->isStore());
+    EXPECT_EQ(instrs[2]->output()->getMemoryIndirect()->getOffset(), 0);
+    EXPECT_EQ(instrs[3]->output()->getMemoryIndirect()->getOffset(), 8);
+    EXPECT_EQ(env.max_arg_buffer_size, 16);
+  } else {
+    for (size_t i = 0; i < 4; i++) {
+      ASSERT_TRUE(instrs[i]->isMove());
+      EXPECT_EQ(instrs[i]->output()->getPhyRegister(), ARGUMENT_REGS[i]);
+    }
+    EXPECT_EQ(env.max_arg_buffer_size, 0);
+  }
+  EXPECT_TRUE(instrs.back()->isCall());
+}
+#endif
+
+#if defined(CINDER_X86_64) && !defined(_WIN32)
+TEST_F(LIRPostAllocRewriteTest, CVarArgCallSetsVectorArgumentCount) {
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kCVarArgCall,
+      nullptr,
+      Imm{123456789},
+      Imm{2},
+      PhyReg{ARGUMENT_REGS[2]},
+      PhyReg{ARGUMENT_REGS[3]},
+      PhyReg{FP_ARGUMENT_REGS[1], DataType::kDouble});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  auto vector_arg_count =
+      std::ranges::find_if(instrs, [](const Instruction* instr) {
+        return instr->isMove() && instr->output()->isReg() &&
+            instr->output()->getPhyRegister() == AL &&
+            instr->output()->dataType() == DataType::k8bit &&
+            instr->getInput(0)->isImm();
+      });
+  ASSERT_NE(vector_arg_count, instrs.end());
+  EXPECT_EQ((*vector_arg_count)->getInput(0)->getConstant(), 1);
+  EXPECT_TRUE(instrs.back()->isCall());
+}
+#endif
+
+#if defined(CINDER_X86_64) && defined(_WIN32)
+TEST_F(
+    LIRPostAllocRewriteTest,
+    CVarArgCallDuplicatesNamedAndUnnamedFloatingPointArguments) {
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kCVarArgCall,
+      nullptr,
+      Imm{123456789},
+      Imm{2},
+      PhyReg{FP_ARGUMENT_REGS[3], DataType::kDouble},
+      PhyReg{ARGUMENT_REGS[3]},
+      PhyReg{FP_ARGUMENT_REGS[1], DataType::kDouble});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  auto has_duplicate = [&instrs](size_t arg_pos) {
+    return std::ranges::find_if(instrs, [arg_pos](const Instruction* instr) {
+             return instr->isMove() && instr->output()->isReg() &&
+                 instr->output()->getPhyRegister() == ARGUMENT_REGS[arg_pos] &&
+                 instr->getInput(0)->isReg() &&
+                 instr->getInput(0)->getPhyRegister() ==
+                 FP_ARGUMENT_REGS[arg_pos];
+           }) != instrs.end();
+  };
+  EXPECT_TRUE(has_duplicate(0));
+  EXPECT_TRUE(has_duplicate(2));
+  EXPECT_TRUE(instrs.back()->isCall());
+}
+#endif
+
 // optimizeMoveSequence forwards a spill slot back to the register it was
 // copied from.  A widening move in between only writes its own output, so it
 // must not throw away the rest of what the pass knows.

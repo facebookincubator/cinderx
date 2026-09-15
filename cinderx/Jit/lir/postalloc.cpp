@@ -301,7 +301,13 @@ void syncLastUse(Operand* new_operand, const Operand* existing_operand) {
   }
 }
 
-int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
+// Lower call operands according to the platform ABI. For C variadic calls,
+// first_variadic_input identifies the first unnamed argument after the fixed
+// argument count is removed; some ABIs need only its presence.
+int rewriteRegularFunction(
+    instr_iter_t instr_iter,
+    int base_offset,
+    std::optional<size_t> first_variadic_input = std::nullopt) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
 
@@ -346,6 +352,15 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
             move->appendInput(instr->releaseInput(i));
           }
         }
+        // Win64 duplicates every FP register argument for a variadic callee,
+        // including named arguments.
+        if (first_variadic_input.has_value()) {
+          block->allocateInstrBefore(
+              instr_iter,
+              Opcode::kMove,
+              OutPhyReg{ARGUMENT_REGS[arg_pos], DataType::k64bit},
+              PhyReg{FP_ARGUMENT_REGS[arg_pos], DataType::kDouble});
+        }
       } else {
         if (operand->isStack()) {
           auto loc = operand->getStackSlot();
@@ -376,13 +391,28 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
     }
   }
 #else
-  // System V AMD64: GP and FP arguments use independent register pools.
+  // Non-Windows ABIs use independent GP and FP argument register pools.
   size_t arg_reg = 0;
   size_t fp_arg_reg = 0;
 
   for (size_t i = 1; i < num_inputs; i++) {
     auto operand = instr->getInput(i);
     bool operand_imm = operand->isImm();
+
+    if constexpr (kOS == OS::kMacOS && kBuildArch == Arch::kAarch64) {
+      // Apple AArch64 passes unnamed arguments on the stack even when argument
+      // registers remain available.
+      if (first_variadic_input.has_value() && i >= *first_variadic_input) {
+        insertMoveToMemoryLocation(
+            block,
+            instr_iter,
+            arch::reg_stack_pointer_loc,
+            base_offset + stack_arg_size,
+            operand);
+        stack_arg_size += sizeof(void*);
+        continue;
+      }
+    }
 
     if (operand->isFp()) {
       if (fp_arg_reg < FP_ARGUMENT_REGS.size()) {
@@ -471,6 +501,17 @@ int rewriteRegularFunction(instr_iter_t instr_iter, int base_offset) {
       stack_arg_size += sizeof(void*);
     }
   }
+
+#if defined(CINDER_X86_64)
+  // SysV passes the number of vector registers used in AL for variadic calls.
+  if (first_variadic_input.has_value()) {
+    block->allocateInstrBefore(
+        instr_iter,
+        Opcode::kMove,
+        OutPhyReg{AL, DataType::k8bit},
+        Imm{fp_arg_reg, DataType::k8bit});
+  }
+#endif
 #endif
 
   // Align to kStackAlign for AArch64 stack pointer alignment requirements.
@@ -760,6 +801,25 @@ int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
   return res;
 }
 
+int rewriteCVarArgCall(instr_iter_t instr_iter, int base_offset) {
+  auto instr = instr_iter->get();
+  JIT_THROW_IF(
+      instr->getNumInputs() < 2 || !instr->getInput(1)->isImm(),
+      "CVarArgCall requires an immediate fixed argument count: {}",
+      *instr);
+
+  const size_t fixed_arg_count = instr->getInput(1)->getConstant();
+  JIT_THROW_IF(
+      fixed_arg_count > instr->getNumInputs() - 2,
+      "CVarArgCall fixed argument count exceeds its argument count: {}",
+      *instr);
+
+  // The fixed argument count is metadata retained through register allocation;
+  // remove it before lowering the remaining operands as a regular call.
+  instr->removeInput(1);
+  return rewriteRegularFunction(instr_iter, base_offset, fixed_arg_count + 1);
+}
+
 // rewrite call instructions:
 //   - move function arguments to the right registers.
 //   - handle special cases such as rt::call, rt::invokeMethod,
@@ -776,7 +836,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
         std::max<int>(env->max_arg_buffer_size, base_offset + rsp_sub);
     return kChanged;
   } else if (
-      !instr->isCall() && !instr->isVectorCall() &&
+      !instr->isCall() && !instr->isCVarArgCall() && !instr->isVectorCall() &&
       !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
@@ -789,7 +849,9 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   int rsp_sub = 0;
   auto block = instr->basicBlock();
 
-  if (instr->isVectorCallTstate()) {
+  if (instr->isCVarArgCall()) {
+    rsp_sub = rewriteCVarArgCall(instr_iter, base_offset);
+  } else if (instr->isVectorCallTstate()) {
     rsp_sub = rewriteVectorCallTstateFunctions(instr_iter, base_offset);
   } else if (instr->isVectorCall()) {
     rsp_sub = rewriteVectorCallFunctions(instr_iter, base_offset);
@@ -1379,6 +1441,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kBranchCC:
     case Opcode::kBranchToYieldExit:
     case Opcode::kCall:
+    case Opcode::kCVarArgCall:
     case Opcode::kCallSiteLiveValues:
     case Opcode::kCmpBranchNonZero:
     case Opcode::kCmpBranchZero:

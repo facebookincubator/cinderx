@@ -18,6 +18,7 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/module_state.h"
 
+#include <cstdarg>
 #include <cstddef>
 // NOLINTNEXTLINE(facebook-hte-BadInclude-regex)
 #include <regex>
@@ -52,6 +53,7 @@ class BackendTest : public RuntimeTest {
 
     PostRegAllocRewrite post_rewrite(lir_func, &environ);
     post_rewrite.run();
+    arg_buffer_size = std::max(arg_buffer_size, environ.max_arg_buffer_size);
 
     asmjit::CodeHolder code;
     ICodeAllocator* code_allocator =
@@ -569,6 +571,17 @@ auto makeOperand(Arg arg) {
     return FPImm{arg};
   }
 }
+
+uint64_t collectVarArgs(uint64_t count, ...) {
+  va_list args;
+  va_start(args, count);
+  uint64_t result = 0;
+  for (uint64_t i = 0; i < count; i++) {
+    result = result * 100 + va_arg(args, uint64_t);
+  }
+  va_end(args);
+  return result;
+}
 } // namespace
 
 TEST_F(BackendTest, ManyArguments) {
@@ -629,6 +642,34 @@ TEST_F(BackendTest, ManyArguments) {
   double result = func();
 
   ASSERT_DOUBLE_EQ(result, expected);
+}
+
+TEST_F(BackendTest, CVarArgCallUsesNativeABI) {
+  auto lirfunc = std::make_unique<Function>();
+  auto bb = lirfunc->allocateBasicBlock();
+
+  auto result = bb->allocateInstr(
+      Opcode::kCVarArgCall,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{reinterpret_cast<uint64_t>(collectVarArgs)},
+      Imm{1, DataType::k64bit},
+      Imm{3, DataType::k64bit},
+      Imm{11, DataType::k64bit},
+      Imm{22, DataType::k64bit},
+      Imm{33, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc, DataType::k64bit},
+      VReg{result});
+  bb->allocateInstr(Opcode::kReturn, nullptr);
+
+  auto epilogue = lirfunc->allocateBasicBlock();
+  bb->addSuccessor(epilogue);
+
+  auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
+  EXPECT_EQ(func(), 112233);
 }
 
 namespace {
@@ -942,9 +983,10 @@ TEST_F(BackendTest, CastTest) {
       OutVReg(),
       Ind(b, offsetof(PyTypeObject, tp_name)));
   bb4->allocateInstr(
-      Opcode::kCall,
+      Opcode::kCVarArgCall,
       nullptr,
       Imm(reinterpret_cast<uint64_t>(PyErr_Format)),
+      Imm(2),
       Imm(reinterpret_cast<uint64_t>(PyExc_TypeError)),
       Imm(reinterpret_cast<uint64_t>(errmsg)),
       VReg(b_name),
@@ -1191,14 +1233,11 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
   bb->addSuccessor(epilogue);
   LIRInliner inliner{&caller, call_instr};
 
-  if constexpr (kOS == OS::kMacOS) {
-    ASSERT_FALSE(inliner.inlineCall());
-  } else {
-    ASSERT_TRUE(inliner.inlineCall());
+  ASSERT_TRUE(inliner.inlineCall());
 
-    // Check that caller LIR is as expected.
-    auto expected_caller = fmt::format(
-        R"(Function:
+  // Check that caller LIR is as expected.
+  auto expected_caller = fmt::format(
+      R"(Function:
 BB %0 - succs: %8
        %1:Object = LoadArg 0(0x0):64bit
        %2:Object = LoadArg 1(0x1):64bit
@@ -1215,7 +1254,7 @@ BB %9 - preds: %8 - succs: %10 %11
 BB %11 - preds: %9 - succs: %12
       %22:Object = Load [%15:Object + {1:#x}]:Object
       %23:Object = Load [%2:Object + {1:#x}]:Object
-                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
+                   CVarArgCall {3}({3:#x}):Object, 2(0x2):64bit, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
       %25:Object = Move 0(0x0):Object
 
 BB %10 - preds: %8 %9 - succs: %12
@@ -1231,21 +1270,20 @@ BB %7 - preds: %12 - succs: %6
 BB %6 - preds: %7
 
 )",
-        offsetof(PyObject, ob_type),
-        offsetof(PyTypeObject, tp_name),
-        reinterpret_cast<uint64_t>(PyType_IsSubtype),
-        reinterpret_cast<uint64_t>(PyErr_Format),
-        reinterpret_cast<uint64_t>(PyExc_TypeError),
-        fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
-    std::stringstream ss;
-    caller.sortBasicBlocks();
-    ss << caller;
-    // Replace the string literal address
-    std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
-    std::string caller_str =
-        regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
-    ASSERT_EQ(expected_caller, caller_str);
-  }
+      offsetof(PyObject, ob_type),
+      offsetof(PyTypeObject, tp_name),
+      reinterpret_cast<uint64_t>(PyType_IsSubtype),
+      reinterpret_cast<uint64_t>(PyErr_Format),
+      reinterpret_cast<uint64_t>(PyExc_TypeError),
+      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
+  std::stringstream ss;
+  caller.sortBasicBlocks();
+  ss << caller;
+  // Replace the string literal address
+  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %23:Object, %22:Object)");
+  std::string caller_str =
+      regex_replace(ss.str(), reg, "string_literal, %23:Object, %22:Object");
+  ASSERT_EQ(expected_caller, caller_str);
 
   // Test execution of caller
   CheckCast(&caller);
@@ -1278,45 +1316,7 @@ TEST_F(BackendTest, PostgenJITRTCastTest) {
   post_gen.run();
 
   // Check that caller LIR is as expected.
-#if defined(__APPLE__) && defined(Py_GIL_DISABLED)
-  auto expected_caller = fmt::format(
-      R"(Function:
-BB %0 - succs: %6
-       %1:Object = Bind {0}:Object
-       %2:Object = Bind {1}:Object
-       %7:Object = Move %1:Object
-%8:ObjectUntagged = And %7:Object, 18446744073709551614(0xfffffffffffffffe):64bit
-       %9:Object = Move %2:Object
-%10:ObjectUntagged = And %9:Object, 18446744073709551614(0xfffffffffffffffe):64bit
-       %3:Object = Call {2}({2:#x}):64bit, %8:ObjectUntagged, %10:ObjectUntagged
-{3:>16} = Move %3:Object
-                   Return
-
-BB %6 - preds: %0
-
-)",
-      ARGUMENT_REGS[0],
-      ARGUMENT_REGS[1],
-      reinterpret_cast<uint64_t>(rt::cast),
-      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
-#elif defined(__APPLE__)
-  auto expected_caller = fmt::format(
-      R"(Function:
-BB %0 - succs: %6
-       %1:Object = Bind {0}:Object
-       %2:Object = Bind {1}:Object
-       %3:Object = Call {2}({2:#x}):64bit, %1:Object, %2:Object
-{3:>16} = Move %3:Object
-                   Return
-
-BB %6 - preds: %0
-
-)",
-      ARGUMENT_REGS[0],
-      ARGUMENT_REGS[1],
-      reinterpret_cast<uint64_t>(rt::cast),
-      fmt::format("{}:Object", arch::reg_general_return_loc.toString()));
-#elif defined(Py_GIL_DISABLED)
+#if defined(Py_GIL_DISABLED)
   auto expected_caller = fmt::format(
       R"(Function:
 BB %0 - succs: %8
@@ -1353,7 +1353,7 @@ BB %11 - preds: %9 - succs: %12
 %44:ObjectUntagged = And %43:Object, 18446744073709551614(0xfffffffffffffffe):64bit
       %45:Object = Move %22:Object
 %46:ObjectUntagged = And %45:Object, 18446744073709551614(0xfffffffffffffffe):64bit
-                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %44:ObjectUntagged, %46:ObjectUntagged
+                   CVarArgCall {3}({3:#x}):Object, 2(0x2):64bit, {4}({4:#x}):Object, string_literal, %44:ObjectUntagged, %46:ObjectUntagged
       %25:Object = Move 0(0x0):Object
 
 BB %10 - preds: %8 %9 - succs: %12
@@ -1397,7 +1397,7 @@ BB %11 - preds: %9 - succs: %12
       %22:Object = Load [%15:Object + 0x18]:Object
       %23:Object = Load [%2:Object + 0x18]:Object
 )"
-      R"(                   Call {3}({3:#x}):Object, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
+      R"(                   CVarArgCall {3}({3:#x}):Object, 2(0x2):64bit, {4}({4:#x}):Object, string_literal, %23:Object, %22:Object
 )"
       R"(      %25:Object = Move 0(0x0):Object
 
@@ -1426,7 +1426,7 @@ BB %6 - preds: %7
   ss << *caller;
   // Replace the string literal address
   std::regex reg(
-      R"((Call \d+\(0x[0-9a-fA-F]+\):Object, \d+\(0x[0-9a-fA-F]+\):Object, )\d+\(0x[0-9a-fA-F]+\):Object, (%[0-9]+:Object[A-Za-z]*), (%[0-9]+:Object[A-Za-z]*))");
+      R"((CVarArgCall \d+\(0x[0-9a-fA-F]+\):Object, 2\(0x2\):64bit, \d+\(0x[0-9a-fA-F]+\):Object, )\d+\(0x[0-9a-fA-F]+\):Object, (%[0-9]+:Object[A-Za-z]*), (%[0-9]+:Object[A-Za-z]*))");
   std::string caller_str =
       regex_replace(ss.str(), reg, "$1string_literal, $2, $3");
   ASSERT_EQ(expected_caller, caller_str);
