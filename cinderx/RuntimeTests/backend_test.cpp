@@ -1523,6 +1523,60 @@ TEST_F(BackendTest, Extend32BitsTo64Bits) {
   EXPECT_EQ(sext(0xDEADBEEF0000002AULL), 0x000000000000002AULL);
 }
 
+TEST_F(BackendTest, StorePairWithZeroImmediate) {
+  auto compile = [this](bool zero_first, bool zero_second) {
+    auto lirfunc = std::make_unique<Function>();
+    auto* bb = lirfunc->allocateBasicBlock();
+    auto base = PhyReg{ARGUMENT_REGS[0], DataType::k64bit};
+    auto val = PhyReg{ARGUMENT_REGS[1], DataType::k64bit};
+    if (zero_first && zero_second) {
+      bb->allocateInstr(
+          Opcode::kStorePair, nullptr, Imm{0}, base, Imm{0}, Imm{0});
+    } else if (zero_first) {
+      bb->allocateInstr(Opcode::kStorePair, nullptr, Imm{0}, base, Imm{0}, val);
+    } else if (zero_second) {
+      bb->allocateInstr(Opcode::kStorePair, nullptr, Imm{0}, base, val, Imm{0});
+    } else {
+      bb->allocateInstr(Opcode::kStorePair, nullptr, Imm{0}, base, val, val);
+    }
+    bb->allocateInstr(Opcode::kReturn, nullptr);
+    // The register allocator assumes a block ending in Return has exactly
+    // one successor.
+    auto epilogue = lirfunc->allocateBasicBlock();
+    bb->addSuccessor(epilogue);
+    return reinterpret_cast<void (*)(uint64_t*, uint64_t)>(
+        SimpleCompile(lirfunc.get()));
+  };
+
+  constexpr uint64_t kSentinel = 0xDEADBEEFCAFEBABEULL;
+  constexpr uint64_t kVal = 0x1234567890ABCDEFULL;
+
+  {
+    auto fn = compile(false, true);
+    ASSERT_NE(fn, nullptr);
+    uint64_t buf[2] = {kSentinel, kSentinel};
+    fn(buf, kVal);
+    EXPECT_EQ(buf[0], kVal) << "first half clobbered by second-half zero";
+    EXPECT_EQ(buf[1], 0ULL) << "second-half zero not stored";
+  }
+  {
+    auto fn = compile(true, false);
+    ASSERT_NE(fn, nullptr);
+    uint64_t buf[2] = {kSentinel, kSentinel};
+    fn(buf, kVal);
+    EXPECT_EQ(buf[0], 0ULL) << "first-half zero not stored";
+    EXPECT_EQ(buf[1], kVal) << "second half clobbered by first-half zero";
+  }
+  {
+    auto fn = compile(true, true);
+    ASSERT_NE(fn, nullptr);
+    uint64_t buf[2] = {kSentinel, kSentinel};
+    fn(buf, kVal);
+    EXPECT_EQ(buf[0], 0ULL) << "first-half zero not stored";
+    EXPECT_EQ(buf[1], 0ULL) << "second-half zero not stored";
+  }
+}
+
 #if defined(CINDER_AARCH64)
 // This test uses CompilePreAllocated to construct the exact instruction
 // sequence the buggy register allocator would emit:

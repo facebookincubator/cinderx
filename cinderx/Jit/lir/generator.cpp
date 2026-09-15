@@ -424,34 +424,45 @@ class FrameInitPlan {
           auto& f0 = fields_[group.start + j];
           auto& f1 = fields_[group.start + j + 1];
           bbb.annotateNext(fmt::format("Store {}, {}", f0.name, f1.name));
-          bbb.appendInstr(
-              Opcode::kStorePair,
-              Imm{static_cast<uint64_t>(f0.offset)},
-              frame_base,
-              f0.value,
-              f1.value);
+          auto offset = Imm{static_cast<uint64_t>(f0.offset)};
+          auto stp = bbb.appendInstr(Opcode::kStorePair, offset, frame_base);
+          if (f0.value) {
+            stp->addOperands(VReg(f0.value));
+          } else {
+            stp->addOperands(Imm{0});
+          }
+          if (f1.value) {
+            stp->addOperands(VReg(f1.value));
+          } else {
+            stp->addOperands(Imm{0});
+          }
           j += 2;
         }
         if (j < group.count) {
           auto& f = fields_[group.start + j];
           bbb.annotateNext(fmt::format("Store {}", f.name));
-          bbb.appendInstr(
-              OutInd{frame_base, f.offset, f.data_type},
-              Opcode::kStore,
-              f.value);
+          auto dest = OutInd{frame_base, f.offset, f.data_type};
+          if (!f.value) {
+            bbb.appendInstr(dest, Opcode::kStore, Imm{0});
+          } else {
+            bbb.appendInstr(dest, Opcode::kStore, f.value);
+          }
         }
       } else {
         auto& f = fields_[group.start];
         bbb.annotateNext(fmt::format("Store {}", f.name));
-        bbb.appendInstr(
-            OutInd{frame_base, f.offset, f.data_type}, Opcode::kStore, f.value);
+        auto dest = OutInd{frame_base, f.offset, f.data_type};
+        if (!f.value) {
+          bbb.appendInstr(dest, Opcode::kStore, Imm{0});
+        } else {
+          bbb.appendInstr(dest, Opcode::kStore, f.value);
+        }
       }
     }
 
     // Zero localsplus slots (non-LW frames need this so the GC doesn't
     // see garbage pointers).
     if (localsplus_zero_count_ > 0) {
-      Instruction* zero = bbb.appendInstr(OutVReg{}, Opcode::kMove, Imm{0});
       bbb.annotateNext("Zero localsplus");
       int i = 0;
       while (i + 1 < localsplus_zero_count_) {
@@ -461,8 +472,8 @@ class FrameInitPlan {
                 localsplus_zero_offset_ +
                 static_cast<int32_t>(i * kPointerSize))},
             frame_base,
-            zero,
-            zero);
+            Imm{0},
+            Imm{0});
         i += 2;
       }
       if (i < localsplus_zero_count_) {
@@ -472,7 +483,7 @@ class FrameInitPlan {
                 localsplus_zero_offset_ +
                     static_cast<int32_t>(i * kPointerSize)},
             Opcode::kStore,
-            zero);
+            Imm{0});
       }
     }
   }
@@ -4811,7 +4822,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* funcobj_reg = nullptr;
         static_assert(
             FRAME_OWNED_BY_THREAD == 0, "FRAME_OWNED_BY_THREAD has changed");
-        Instruction* zero_reg = nullptr;
         auto plan = FrameInitPlan::build(
             [&](FrameFieldKind kind,
                 [[maybe_unused]] DataType dt) -> Instruction* {
@@ -4878,11 +4888,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                   return bbb.appendInstr(OutVReg{}, Opcode::kMove, globals);
                 case FrameFieldKind::kZero:
                 case FrameFieldKind::kOwnerThread:
-                  if (zero_reg == nullptr) {
-                    zero_reg =
-                        bbb.appendInstr(OutVReg{dt}, Opcode::kMove, Imm{0, dt});
-                  }
-                  return zero_reg;
+                  return nullptr;
                 case FrameFieldKind::kDebugFrameByte: {
 #if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
                   // See the top-level frame path: set stackpointer_valid=1 in
@@ -5716,7 +5722,6 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     // lambda defines WHERE each value comes from.
     Instruction* executable_or_reifier = nullptr;
     BorrowedRef<> executable_or_reifier_obj = nullptr;
-    Instruction* zero_reg = nullptr;
 
     bbb.annotateNext("Lightweight frame: initialize frame");
     auto plan = FrameInitPlan::build(
@@ -5756,11 +5761,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
             case FrameFieldKind::kFrameHeaderFunc:
 #if PY_VERSION_HEX >= 0x030E0000
               // 3.14 top-level: FrameHeader.func is zero
-              if (zero_reg == nullptr) {
-                zero_reg =
-                    bbb.appendInstr(OutVReg{dt}, Opcode::kMove, Imm{0, dt});
-              }
-              return zero_reg;
+              return nullptr;
 #else
               // 3.12 top-level: FrameHeader.func is the function
               return env_->asm_func;
@@ -5809,11 +5810,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
               static_assert(
                   FRAME_OWNED_BY_THREAD == 0,
                   "FRAME_OWNED_BY_THREAD has changed");
-              if (zero_reg == nullptr) {
-                zero_reg =
-                    bbb.appendInstr(OutVReg{dt}, Opcode::kMove, Imm{0, dt});
-              }
-              return zero_reg;
+              return nullptr;
             case FrameFieldKind::kDebugFrameByte: {
 #if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
               // Compute the visited/stackpointer_valid/lltrace bitfield byte

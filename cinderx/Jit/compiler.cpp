@@ -134,10 +134,12 @@ void Compiler::runPasses(
     runPassIf(
         hir::BeginInlinedFunctionElimination{},
         PassConfig::kBeginInlinedFunctionElim);
+
+    runPassIf(
+        hir::BuiltinLoadMethodElimination{},
+        PassConfig::kBuiltinLoadMethodElim);
   }
 
-  runPassIf(
-      hir::BuiltinLoadMethodElimination{}, PassConfig::kBuiltinLoadMethodElim);
   runPassIf(hir::Simplify{}, PassConfig::kSimplify);
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
   runPassIf(hir::SinkPrimitiveBox{}, PassConfig::kSinkPrimitiveBox);

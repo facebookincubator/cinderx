@@ -1419,10 +1419,11 @@ asmjit::a64::Mem getPairScratchPtr(
     Environ* env,
     PhyLocation base_reg,
     int32_t offset,
-    PhyLocation reg0,
-    PhyLocation reg1) {
+    arch::Gp reg0,
+    arch::Gp reg1) {
   JIT_CHECK(
-      reg0 != arch::reg_scratch_0_loc && reg1 != arch::reg_scratch_0_loc,
+      reg0 != a64::x(arch::reg_scratch_0_loc.loc) &&
+          reg1 != a64::x(arch::reg_scratch_0_loc.loc),
       "pair at offset {} holds the address scratch {} in a value/destination "
       "slot",
       offset,
@@ -1443,26 +1444,49 @@ void translateStorePair(Environ* env, const Instruction* instr) {
 
 #if defined(CINDER_X86_64)
   auto base = x86::gpq(instr->getInput(1)->getPhyRegister().loc);
-  as->mov(
-      x86::qword_ptr(base, offset),
-      x86::gpq(instr->getInput(2)->getPhyRegister().loc));
-  as->mov(
-      x86::qword_ptr(base, offset + kPointerSize),
-      x86::gpq(instr->getInput(3)->getPhyRegister().loc));
+  if (instr->getInput(2)->isImm()) {
+    JIT_THROW_IF(
+        instr->getInput(2)->getConstant(), "StorePair constant(2) must be 0");
+    as->mov(x86::qword_ptr(base, offset), getImm(instr->getInput(2)));
+  } else {
+    as->mov(
+        x86::qword_ptr(base, offset),
+        x86::gpq(instr->getInput(2)->getPhyRegister().loc));
+  }
+  if (instr->getInput(3)->isImm()) {
+    JIT_THROW_IF(
+        instr->getInput(3)->getConstant(), "StorePair constant(3) must be 0");
+    as->mov(
+        x86::qword_ptr(base, offset + kPointerSize),
+        getImm(instr->getInput(3)));
+  } else {
+    as->mov(
+        x86::qword_ptr(base, offset + kPointerSize),
+        x86::gpq(instr->getInput(3)->getPhyRegister().loc));
+  }
 #elif defined(CINDER_AARCH64)
   auto base_reg = instr->getInput(1)->getPhyRegister();
-  auto val0_loc = instr->getInput(2)->getPhyRegister();
-  auto val1_loc = instr->getInput(3)->getPhyRegister();
-  auto val0 = a64::x(val0_loc.loc);
-  auto val1 = a64::x(val1_loc.loc);
+  arch::Gp val0, val1;
+  if (instr->getInput(2)->isImm()) {
+    JIT_DCHECK(
+        !instr->getInput(2)->getConstant(), "StorePair constant(2) must be 0");
+    val0 = a64::xzr;
+  } else {
+    val0 = a64::x(instr->getInput(2)->getPhyRegister().loc);
+  }
+
+  if (instr->getInput(3)->isImm()) {
+    JIT_DCHECK(
+        !instr->getInput(3)->getConstant(), "StorePair constant(3) must be 0");
+    val1 = a64::xzr;
+  } else {
+    val1 = a64::x(instr->getInput(3)->getPhyRegister().loc);
+  }
 
   if (auto ptr = getPairPtr(env, base_reg, offset)) {
     as->stp(val0, val1, *ptr);
   } else {
-    as->stp(
-        val0,
-        val1,
-        getPairScratchPtr(env, base_reg, offset, val0_loc, val1_loc));
+    as->stp(val0, val1, getPairScratchPtr(env, base_reg, offset, val0, val1));
   }
 #else
   CINDER_UNSUPPORTED
@@ -1490,10 +1514,7 @@ void translateLoadPair(Environ* env, const Instruction* instr) {
   if (auto ptr = getPairPtr(env, base_reg, offset)) {
     as->ldp(dst0, dst1, *ptr);
   } else {
-    as->ldp(
-        dst0,
-        dst1,
-        getPairScratchPtr(env, base_reg, offset, dst0_loc, dst1_loc));
+    as->ldp(dst0, dst1, getPairScratchPtr(env, base_reg, offset, dst0, dst1));
   }
 #else
   CINDER_UNSUPPORTED
