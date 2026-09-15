@@ -93,6 +93,12 @@ std::string codeQualname(BorrowedRef<PyCodeObject> code) {
   return "<unknown>";
 }
 
+Py_ssize_t totalCodeArgs(BorrowedRef<PyCodeObject> code) {
+  return code->co_argcount + code->co_kwonlyargcount +
+      ((code->co_flags & CO_VARKEYWORDS) ? 1 : 0) +
+      ((code->co_flags & CO_VARARGS) ? 1 : 0);
+}
+
 } // namespace cinderx
 
 extern "C" {

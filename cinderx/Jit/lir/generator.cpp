@@ -982,22 +982,13 @@ void GenerateArgcountCheckBlocks(
     // --- argcount_check ---
     emitAnnotation(argcount_check, "Check if called with correct argcount");
 
-    // Load numArgs into kwnames_reg. After the kBranchZ above we know
-    // kwnames is null so this register is free. This also sets up the
-    // 4th argument for rt::callWithIncorrectArgcount if needed.
-    argcount_check->allocateInstr(
-        Opcode::kMove,
-        nullptr,
-        OutPhyReg{kwnames_reg},
-        Imm{static_cast<uint64_t>(num_args)});
-
     // 32-bit compare: nargsf (low 32 bits = actual argcount, upper bits
     // may contain PY_VECTORCALL_ARGUMENTS_OFFSET) vs numArgs.
     argcount_check->allocateInstr(
         Opcode::kCmp,
         nullptr,
         PhyReg{nargsf_reg, Operand::k32bit},
-        PhyReg{kwnames_reg, Operand::k32bit});
+        Imm{static_cast<uint64_t>(num_args)});
     argcount_check->allocateInstr(
         Opcode::kBranchCC,
         nullptr,

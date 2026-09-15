@@ -278,9 +278,7 @@ PyObject* callWithKeywordArgs(
     size_t nargsf,
     PyObject* kwnames) {
   PyCodeObject* co = (PyCodeObject*)func->func_code;
-  const Py_ssize_t total_args = co->co_argcount + co->co_kwonlyargcount +
-      ((co->co_flags & CO_VARKEYWORDS) ? 1 : 0) +
-      ((co->co_flags & CO_VARARGS) ? 1 : 0);
+  const Py_ssize_t total_args = totalCodeArgs(co);
   auto arg_space = std::make_unique<PyObject*[]>(total_args);
   Ref<PyObject> kwdict, varargs;
 
@@ -384,8 +382,7 @@ constexpr int kMaxStackDefaultedArgs = 24;
 StaticCallFPReturn callWithIncorrectArgcountFPReturn(
     PyFunctionObject* func,
     PyObject** args,
-    size_t nargsf,
-    int argcount) {
+    size_t nargsf) {
   PyObject* defaults = func->func_defaults;
   if (defaults == nullptr) {
     // Function has no defaults; there's nothing we can do.
@@ -395,6 +392,8 @@ StaticCallFPReturn callWithIncorrectArgcountFPReturn(
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+  BorrowedRef<PyCodeObject> co{func->func_code};
+  const Py_ssize_t argcount = totalCodeArgs(co);
   Py_ssize_t defaulted_args = argcount - nargs;
 
   if (nargs + defcount < argcount || nargs > argcount) {
@@ -440,8 +439,7 @@ StaticCallFPReturn callWithIncorrectArgcountFPReturn(
 StaticCallReturn callWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,
-    size_t nargsf,
-    int argcount) {
+    size_t nargsf) {
   PyObject* defaults = func->func_defaults;
   if (defaults == nullptr) {
     // Function has no defaults; there's nothing we can do.
@@ -452,6 +450,9 @@ StaticCallReturn callWithIncorrectArgcount(
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+  BorrowedRef<PyCodeObject> co{func->func_code};
+  const Py_ssize_t argcount = totalCodeArgs(co);
+
   Py_ssize_t defaulted_args = argcount - nargs;
 
   if (nargs + defcount < argcount || nargs > argcount) {
@@ -587,9 +588,7 @@ TRetType callStaticallyWithPrimitiveSignatureTemplate(
   if ((kwnames || nargs != co->co_argcount ||
        co->co_flags & (CO_VARARGS | CO_VARKEYWORDS))) {
     // we need to fixup kwnames, defaults, etc...
-    const Py_ssize_t total_args = co->co_argcount + co->co_kwonlyargcount +
-        ((co->co_flags & CO_VARKEYWORDS) ? 1 : 0) +
-        ((co->co_flags & CO_VARARGS) ? 1 : 0);
+    const Py_ssize_t total_args = totalCodeArgs(co);
     auto arg_space = std::make_unique<PyObject*[]>(total_args);
     Ref<PyObject> kwdict, varargs;
 

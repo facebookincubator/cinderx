@@ -94,14 +94,12 @@ PyObject* callWithKeywordArgsSimple(
 StaticCallReturn callWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,
-    size_t nargsf,
-    int argcount);
+    size_t nargsf);
 
 StaticCallFPReturn callWithIncorrectArgcountFPReturn(
     PyFunctionObject* func,
     PyObject** args,
-    size_t nargsf,
-    int argcount);
+    size_t nargsf);
 
 /* Helper function to report an error when the arguments aren't correct for
  * a static function call.  Dispatches to the eval loop to let the normal

@@ -122,6 +122,9 @@ uint32_t hashBytecode(BorrowedRef<PyCodeObject> code);
 // "<unknown>" if not set.
 std::string codeQualname(BorrowedRef<PyCodeObject> code);
 
+// Gets the total number of arguments (objects passed) to a code object.
+Py_ssize_t totalCodeArgs(BorrowedRef<PyCodeObject> code);
+
 } // namespace cinderx
 
 #endif
